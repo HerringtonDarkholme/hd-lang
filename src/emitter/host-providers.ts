@@ -3,6 +3,7 @@ import { NUMERIC_TYPES, numericType } from "../numeric.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
 import { nominalGenericParts } from "../types.ts";
 import { boxScalar, scalarWasm } from "./scalars.ts";
+import { calledTraitMethods, traitMethodKey } from "./reachability.ts";
 
 interface HostProviderEmission {
   readonly functions: string;
@@ -304,13 +305,23 @@ function emitMethod({ trait, method }: HostMethod): string {
   ].join("\n");
 }
 
-function emitTraitFactory(trait: HirTrait): string {
+/**
+ * A host dictionary keeps one typed slot per trait method. Leave an unreachable
+ * slot null without importing or adapting a method that no live HIR call can
+ * reach. If reachability is wrong, dispatch traps instead of silently invoking
+ * a different host operation.
+ */
+function emitTraitFactory(trait: HirTrait, called: ReadonlySet<string>): string {
   return [
     `(func $hd.host_trait${trait.index} (param $provider externref) (result (ref null $trait${trait.index}))`,
     `  (struct.new $trait${trait.index}`,
     `    (struct.new $hd.box-extern (local.get $provider))`,
     `    (ref.null $hd.list)`,
-    ...trait.methods.map((method) => `    (ref.func ${methodName(trait, method)})`),
+    ...trait.methods.map((method) =>
+      called.has(traitMethodKey(trait.index, method.index))
+        ? `    (ref.func ${methodName(trait, method)})`
+        : `    (ref.null $tsig${trait.index}_${method.index})`,
+    ),
     ...trait.supertraits.map((supertrait) => `    (ref.null $trait${supertrait.traitIndex})`),
     `  )`,
     `)`,
@@ -378,12 +389,16 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
   const traits = program.traits.filter((trait) => capabilities.has(trait.name));
   const methods = traits.flatMap((trait) => trait.methods.map((method) => ({ trait, method })));
   if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
-  const imports = methods.flatMap(emitImports).join("\n");
+  const called = calledTraitMethods(program);
+  const liveMethods = methods.filter(({ trait, method }) =>
+    called.has(traitMethodKey(trait.index, method.index)),
+  );
+  const imports = liveMethods.flatMap(emitImports).join("\n");
   // A suspending method returns a frame that the caller polls; a plain one
   // needs only the method itself and its result decoders.
-  const suspending = methods.filter(({ method }) => method.suspending);
+  const suspending = liveMethods.filter(({ method }) => method.suspending);
   const functions = [
-    ...methods.flatMap((hostMethod) => [
+    ...liveMethods.flatMap((hostMethod) => [
       ...(hostMethod.method.suspending
         ? [emitPoll(hostMethod), emitCancel(hostMethod), emitResult(hostMethod)]
         : []),
@@ -391,9 +406,9 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
       emitVariantResult(hostMethod),
       emitMethod(hostMethod),
     ]),
-    ...traits.map(emitTraitFactory),
+    ...traits.map((trait) => emitTraitFactory(trait, called)),
   ].join("\n\n");
-  const references = methods.flatMap(({ trait, method }) => [
+  const references = liveMethods.flatMap(({ trait, method }) => [
     methodName(trait, method),
     ...(method.suspending
       ? [pollName(trait, method), cancelName(trait, method), resultName(trait, method)]

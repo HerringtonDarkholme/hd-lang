@@ -1016,7 +1016,7 @@ ${program.traits
   .map(
     (trait) => `    (type $trait${trait.index} (struct
       (field $trait${trait.index}value anyref)
-      (field $trait${trait.index}bounds (ref null $hd.list))${trait.methods.map((method) => `\n      (field $trait${trait.index}m${method.index} (ref $tsig${trait.index}_${method.index}))`).join("")}${trait.supertraits.map((supertrait, index) => `\n      (field $trait${trait.index}s${index} (ref null $trait${supertrait.traitIndex}))`).join("")}))`,
+      (field $trait${trait.index}bounds (ref null $hd.list))${trait.methods.map((method) => `\n      (field $trait${trait.index}m${method.index} (ref null $tsig${trait.index}_${method.index}))`).join("")}${trait.supertraits.map((supertrait, index) => `\n      (field $trait${trait.index}s${index} (ref null $trait${supertrait.traitIndex}))`).join("")}))`,
   )
   .join("\n")}
 ${[...program.functions, ...program.closures]

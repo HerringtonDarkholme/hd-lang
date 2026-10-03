@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, compileToWat, instantiate } from "../compiler.ts";
-import { reachableProgram } from "./reachability.ts";
+import { calledTraitMethods, reachableProgram, traitMethodKey } from "./reachability.ts";
 
 test("empty programs do not emit unused standard functions or dictionaries", async () => {
   const source = "pub fn main() -> void: pass\n";
@@ -80,6 +80,42 @@ test("unreferenced user functions remain host-callable roots", async () => {
   const source = "fn main() -> i32: 0\nfn answer() -> i32: 42\n";
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.answer as CallableFunction)(), 42);
+});
+
+test("host providers import only methods reached by resolved HIR calls", async () => {
+  const source = `pub trait Device:
+    fn first(self) -> i32
+    fn second(self) -> i32
+pub fn read() -> i32 $ Device:
+    $.use(Device).first()
+`;
+  const compilation = compileToWat(source, { hostCapabilities: ["Device"] });
+  const device = compilation.hir.traits.find((trait) => trait.name === "Device")!;
+  const called = calledTraitMethods(reachableProgram(compilation.hir));
+  assert.deepEqual([...called], [traitMethodKey(device.index, 0)]);
+  assert.match(compilation.wat, new RegExp(`"host_${device.index}_0_begin"`));
+  assert.doesNotMatch(compilation.wat, new RegExp(`"host_${device.index}_1_begin"`));
+  assert.doesNotMatch(
+    compilation.wat,
+    new RegExp(`\\(func \\$hd\\.host_trait${device.index}_method1`),
+  );
+
+  const invoked: string[] = [];
+  const { instance } = await instantiate(source, {
+    hostCapabilities: ["Device"],
+    hostSuspensionInvoke: (call) => {
+      invoked.push(call.methodName);
+      return { pending: false, value: 42 };
+    },
+  });
+  assert.equal((instance.exports.read as CallableFunction)({}), 42);
+  assert.deepEqual(invoked, ["first"]);
+
+  const second = compileToWat(source.replace(".first()", ".second()"), {
+    hostCapabilities: ["Device"],
+  });
+  assert.doesNotMatch(second.wat, new RegExp(`"host_${device.index}_0_begin"`));
+  assert.match(second.wat, new RegExp(`"host_${device.index}_1_begin"`));
 });
 
 test("for-loop iterator methods are declaration references, not ordinary calls", async () => {

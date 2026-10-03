@@ -16,6 +16,7 @@ import type { HirProgram, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
+import { calledTraitMethods, reachableProgram, traitMethodKey } from "./emitter/reachability.ts";
 
 /** A checked program and its WAT, before Wasm assembly. */
 export interface WatCompilation {
@@ -640,6 +641,7 @@ export async function instantiate(
   };
   const hostImports: Record<string, HostImport> = {};
   const hostCapabilities = new Set(compilation.hir.hostCapabilities);
+  const calledHostMethods = calledTraitMethods(reachableProgram(compilation.hir));
   const hostCall = (
     provider: unknown,
     providerKey: string,
@@ -670,6 +672,7 @@ export async function instantiate(
     // once released, the built-in supplies the ready answer.
     const recorded = !UNRECORDED_PROVIDERS.has(trait.name);
     for (const method of trait.methods) {
+      if (!calledHostMethods.has(traitMethodKey(trait.index, method.index))) continue;
       const prefix = `host_${trait.index}_${method.index}`;
       const builtIn = HOST_PROVIDERS[`${trait.name}.${method.name}`];
       hostImports[`${prefix}_begin`] = (provider, functionIndex, siteOffset, ...arguments_) => ({

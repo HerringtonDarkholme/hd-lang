@@ -1,6 +1,42 @@
 import type { HirFunction, HirProgram, HirStatement, HirTraitImplementation } from "../hir.ts";
 import { readonlyType } from "../types.ts";
 
+/** A stable identity for one resolved trait method in HIR. */
+export function traitMethodKey(traitIndex: number, methodIndex: number): string {
+  return `${traitIndex}:${methodIndex}`;
+}
+
+/**
+ * Collect methods that executable HIR can dispatch to. Call expressions carry
+ * declaration indices, so this does not depend on source spellings. Pass a
+ * reachable program when dead standard code must not keep methods alive.
+ */
+export function calledTraitMethods(program: HirProgram): ReadonlySet<string> {
+  const called = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const node = value as Record<string, unknown>;
+    if (
+      [
+        "trait-call",
+        "trait-suspend-construct",
+        "trait-suspend-drive",
+        "trait-suspend-cancel",
+      ].includes(String(node.kind)) &&
+      typeof node.traitIndex === "number" &&
+      typeof node.methodIndex === "number"
+    )
+      called.add(traitMethodKey(node.traitIndex, node.methodIndex));
+    for (const [key, child] of Object.entries(node)) if (key !== "span") visit(child);
+  };
+  for (const declaration of [...program.functions, ...program.closures]) visit(declaration.body);
+  return called;
+}
+
 /**
  * Select code by resolved HIR references, after checking every declaration.
  * Program functions remain host-callable roots. Std code is reached through
