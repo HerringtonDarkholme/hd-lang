@@ -4,6 +4,7 @@ Status: Remaining work only. This audit is incomplete; proposals here are not ac
 
 [REPORT.md](REPORT.md) contains the remaining findings and their evidence.
 [findings.tsv](findings.tsv) is the corresponding machine-readable ledger.
+[TODO.md](TODO.md) tracks the owner's prioritized compiler repair queue and acceptance checks.
 
 Completed reviews, repair reports, publication plans, and stale coverage inventories have been removed.
 Git history preserves them; the compiler's colocated regression tests preserve repaired behavior.
