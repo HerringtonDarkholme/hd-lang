@@ -87,7 +87,7 @@ every feature belongs in `std`.
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
 | `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `parse_f64`; `to_fixed` | [num.md](../spec/std/num.md); the traits are language tier | the prototype has no `parse_f64` or `format_f64_fixed` host hook |
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | none |
-| `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration` and `unix_millis`, `Instant`, `ManualClock`; the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, `TimeParseError` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper: the prototype's std loader renames names as text, so a helper named like a `Clock` method renames that method too; no time zones or local time |
+| `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration` and `unix_milliseconds`, `Instant`, `ManualClock`; the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, `TimeParseError` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper: the prototype's std loader renames names as text, so a helper named like a `Clock` method renames that method too; no time zones or local time |
 | `std.task` | `race!`, `retry!`, `all_list!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `timeout!`; no `Backoff` or `retry_with!`, held out (`RETRY-WITH`); `all_list!` traps in the prototype (`ALL-LIST`) |
 | `std.console` | `Console`, `println`, `ConsoleInput`, `BufferConsole` | [console.md](../spec/std/console.md); `Console` and `println` are language tier | no `write_error_line!` or `eprintln`: the prototype's host `Console` answers only `write_line!`; no `read_line!` helper, for the `std.time` helpers' reason; no profile binds `ConsoleInput` |
 | `std.process` | `ExitCode`, `Termination`, `Process.run!`, `ScriptedProcess` | none (language tier) | no profile binds `Process`; no working directory or environment |
@@ -175,7 +175,7 @@ design it names.
 | 9 | 2026-09-26 | `decimal` is the only number type past the primitives; `BigInt` is a package | a `decimal` design |
 | 11 | 2026-09-26 | tasks are structured scopes only: `scope!`, `start`, `join!`; no detached spawn | a new polling intrinsic, a language-tier item |
 | 12 | 2026-09-26 | `Secret[T]` is removed for now | nothing: it removes a draft, so no spec text follows |
-| Q14-22 | 2026-09-29 | `ScriptedProcess::new(outputs)` is the constructor | a `std.process` provider section; `Process` itself is language tier |
+| Q14-22 | 2026-09-29 | `ScriptedProcess::new(outputs)` is the constructor | a `std.process` provider section, a new stdlib chapter with its website entry; `Process` itself is language tier |
 | SNAPSHOT-ROW, RUNNER-SURFACE | 2026-10-02 | the spec has them ([Runner Capabilities](../spec/std/testing.md#runner-capabilities)): `TestRunner.snapshot_check`, `snapshot_file` with `$ TestRunner`, and `PropertyRunner` with only `start`, `record`, and `show` | the compiler session. In `lib/std/testing.hd`: add `snapshot_check` and `PropertyCase`, give `snapshot_file` its row and drop `snapshot_file_check`, make `Choices` replay `replay` and `record` each draw, and discard with the `std.testing: case discarded` panic. In the runner: bind `TestRunner` for every test body, read that panic before `show` as a discard, and keep a case's recorded draws after a panic |
 | LIST-PUSH-POP, LIST-MUTATORS | 2026-10-03 | the spec has `push`, `pop`, `insert`, `remove_at`, and `clear` on `mut List[T]` ([Built-In Methods](../spec/lang/10-modules.md#built-in-methods)), and no `append` | the compiler session. Rename the checker's `append` intrinsic (`src/checker/expression-calls.ts`, HIR kind `list-append`) to `push`. Add `pop`, `insert`, `remove_at`, and `clear` over one list truncate that advances the structural version; `insert` and `remove_at` panic with `index-out-of-bounds` out of range. Then delete the forwarding `push` in `lib/std/collections.hd`, and rename the `append` calls in `src/checker/captured-cells.test.ts`, `test/cli.test.ts`, `test/compiler-types.test.ts`, and `test/compiler.test.ts`. Recount `LIST-POP` in the tag table of `src/KNOWN_ISSUES.md`: four rows now |
 | STD-DEBUG | 2026-10-03 | `std.inspect`'s `TypeId` and `std.structure`'s `SelfRef` implement `Debug` ([`std-format.debug.std-types`](../spec/std/format.md#r-std-format.debug.std-types)) | the compiler session: the typed-derivation pass declares both modules before `std.format`, so `inspect.hd` and `structure.hd` cannot name `DebugWriter`, and an impl in `format.hd` names `SelfRef` in programs that join no `std.structure` (`unknown-type`), even with reachable-only emission |
@@ -199,6 +199,9 @@ design it names.
 | FORWARD-BOUNDS | 2026-10-03 | a bound may name any parameter of its list, and bounds may be mutual ([Bound Order](../spec/lang/04-type-system.md#bound-order)) | the compiler session: bound inference for a later-declared parameter; 1 known failure |
 | QUALIFIED-PREFIX | 2026-10-03 | a string prefix may be module-qualified, as `text.r"\d+"` ([`lex.prefix.qualified`](../spec/lang/01-lexical-structure.md#r-lex.prefix.qualified)) | the compiler session: parse a prefixed string after `.`; 2 known failures |
 | MISSING-LET | 2026-10-03 | the `missing-let` message for `x: T = v` names the type annotation, not mutability ([`grammar.stmt.typed-binding.let`](../spec/lang/02-grammar.md#r-grammar.stmt.typed-binding.let)) | the compiler session: change the message text in `src/` |
+| STD-HELPERS | 2026-10-03 | the spec has the helpers `eprintln`, `read_line!` ([Console](../spec/std/console.md)), `now`, `sleep!` ([Clock Helpers](../spec/std/time.md#clock-helpers)), `read_text!`, and `write_text!` ([File Helpers](../spec/std/fs.md#file-helpers)), and `Console.write_error_line!` ([Console](../spec/lang/10-modules.md#console)) | the compiler session, two causes. First, the std loader renames top-level names as text (`src/checker/standard-library.ts`), so a helper named like the trait method it calls renames that method too; bind std names by declaration identity. Second, codegen emits host glue for every method of a host trait, called or not (`src/compiler.ts` host imports): `write_error_line!` grows a `println` program from 22 to 27 functions. Emit glue only for called methods, then add `write_error_line!`, `eprintln`, and `BufferConsole.error_output` to `lib/std/console.hd`. 8 known failures; add the tag to `src/KNOWN_ISSUES.md` |
+| ERROR-IMPLS | 2026-10-03 | every std error type implements `Error` ([Standard Error Types](../spec/std/error.md#standard-error-types)) | nothing for the prelude modules: `lib/std/error.hd` holds their impls. The `std.cli` and `std.regex` cases wait for STD-CLI and STD-REGEX |
+| CHAR-SCALAR, CHAR-SCALAR-U32 | 2026-10-03 | the primitives are `char_scalar(c: char) -> u32` and `char_from_scalar(point: u32) -> char?` ([Standard Library Primitives](../spec/std/README.md#standard-library-primitives)), `.None` for a surrogate or a value above `0x10FFFF` | the compiler session: `src/emitter/intrinsics.ts` lowers `char_from_scalar` as the identity; it must check the value and build the option. Then `lib/std/text.hd`'s `scalar_char` takes `u32` and returns `char?`. `char_scalar` already works as `u32`, since both are `i32` in Wasm. No fixture fails today |
 
 ## Survey Matrices
 
@@ -536,7 +539,7 @@ impl Duration:
     pub fn as_seconds(self) -> i64: pass
 
 impl Timestamp:
-    pub fn from_unix_millis(millis: i64) -> Timestamp: pass
+    pub fn from_unix_milliseconds(millis: i64) -> Timestamp: pass
     pub fn since(self, earlier: Timestamp) -> Duration: pass
 
 pub fn now() -> Timestamp $ Clock:
@@ -658,7 +661,7 @@ fn expired![T](limit: Duration) -> T? $ Clock:
     .None
 
 pub data Backoff:
-    pub attempts: i32
+    pub attempts: usize
     pub initial: Duration
     pub factor: i32
     pub max: Duration

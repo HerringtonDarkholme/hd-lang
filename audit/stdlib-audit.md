@@ -34,6 +34,29 @@ The report has no hd code blocks, so it has no Parse Log.
 | 4 | owner questions |
 | 588 of 1050 | stdlib rule IDs named by at least one fixture (56%) |
 
+### Applied In Pass 89
+
+Pass 89 (#246) applied these items; the
+[Audit Pass 89](../future-work/STDLIB_CALLS.md#audit-pass-89) rows log
+each call.
+
+| Item | Status |
+| --- | --- |
+| Q2, milliseconds spelling | applied |
+| Top 10: items 1, 2, 4, 5, 9, 10 | applied |
+| Top 10: item 6 | applied: every item specified; none made private |
+| Top 10: item 7 | applied: tag `STD-HELPERS`, STDLIB_PLAN row |
+| Top 10: item 8 | `ScriptedInput` applied; `write_error_line!` blocked by host glue (STD-HELPERS); `ScriptedProcess::new` waits for a `std.process` chapter |
+| Inconsistencies 1, 2, 4, 5, 6, 8, 10 to 17, 22, 29 | applied; 9, 18, 19, 24, 25, 26, 28 kept as recommended; 3 kept; 27 waits for Q3 |
+| Inconsistencies 7, 20, 21, 23 (lib), 30 | not yet applied |
+| Own calls rated change | all three applied |
+| Own calls rated revisit | sizes and scalar primitives applied; the rest kept and logged; zip/chain waits for the owner |
+| Regex row's `JsonError` claim | corrected |
+| Q1, POSITION-UNIT | applied: the owner chose byte offsets |
+| Q4, CHAR-SCALAR-U32 | applied: the owner chose `u32`; the checked `char_from_scalar` waits for the compiler (CHAR-SCALAR) |
+| Q3, PROCESS-RESULT | left for its own pass (language tier) |
+| Footprint `hd_run!` move | not applied |
+
 ### Top 10 Recommended Changes
 
 | # | Change | Why first |

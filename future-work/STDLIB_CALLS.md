@@ -30,7 +30,7 @@ when the owner reviews it.
 | 65 (#205) | A tuple hashes its elements only, with no length, since the arity is fixed. | The type fixes the arity. | own |
 | 65 (#205) | `T?` gained a `Hash` impl: a tag byte, then the payload. | It is needed by the optional byte rule. | own |
 | 73 (#224) | Hex encodes lowercase and decodes either case. Base64 decoding is strict: canonical padding, zero pad bits, no whitespace. | RFC 4648; Go's `Strict` mode. | confirmed |
-| 73 (#224) | `DecodeError` is `InvalidCharacter`, `InvalidLength`, or `InvalidPadding`, each with a character position. A length error comes first and reports the text length. | The Rust `hex` crate checks length first. | confirmed |
+| 73 (#224) | `DecodeError` is `InvalidCharacter`, `InvalidLength`, or `InvalidPadding`, each with a character position. A length error comes first and reports the text length. | The Rust `hex` crate checks length first. | changed: the owner's POSITION-UNIT decision (2026-10-03, audit Q1) makes every std error position a byte offset, so lengths and positions count bytes (pass 89) |
 | 73 (#224) | `sha256_hex(bytes)` is a one-line helper over `hex_encode(sha256(bytes))`. | A common need. | confirmed |
 
 ## Numbers
@@ -50,7 +50,7 @@ when the owner reviews it.
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
 | 77 (#229) | `char` classification uses Unicode 17.0 tables stored as sorted ranges and binary-searched. | It is compact, and the spec named no Unicode version before. | own |
-| 77 (#229) | `Utf8Error` is `InvalidSequence(position)` or `Truncated`. Display gives "invalid UTF-8 sequence at byte N" or "incomplete UTF-8 sequence at the end of the bytes". | Rust's `Utf8Error`, simplified. | own |
+| 77 (#229) | `Utf8Error` is `InvalidSequence(position)` or `Truncated`. Display gives "invalid UTF-8 sequence at byte N" or "incomplete UTF-8 sequence at the end of the bytes". | Rust's `Utf8Error`, simplified. | own; audit #239 says revisit (`Truncated(position)`), not yet applied |
 | 78 (#234) | `count("")` gives the number of chars plus one. | Python's `str.count`. | own |
 | 78 (#234) | `split_once` with an empty separator matches at index 0. | Rust's `split_once`. | own |
 | 78 (#234) | Pad widths count chars (scalar values). | Width means text length. | confirmed |
@@ -70,8 +70,8 @@ when the owner reviews it.
 | 78 (#234) | `Set.insert` and `Set.remove` return whether the set changed. `Set` iterates in insertion order, and its `Eq` ignores order. | Rust's `HashSet` API and Map ordering. | confirmed |
 | 81 (#237) | `zip` and `chain` call `other.iter()` once, when they are called, and read `other` only through that iterator. | Rust's `zip` and `chain` call `into_iter` at the call. | own |
 | 81 (#237) | An `Iterator` argument to `zip` or `chain` stays an error. The spec notes two workarounds: collect it first, or make it the receiver. | `Iterator` does not implement `Iterable` (`flow.for.iterator-not-iterable`). | own |
-| 81 (#237) | `std.cmp.max(a, b)` returns `a` on a tie, so it also gives the first of equal values. It was `b`, Rust's choice, and is not in the spec. | One first-among-equals rule for every `min` and `max`, as in Python. | own |
-| 81 (#237) | The unspecified `List.zip` in `lib/std` keeps its `List[U]` argument. | The decision covers the specified `Iterator` adapters only. | own |
+| 81 (#237) | `std.cmp.max(a, b)` returns `a` on a tie, so it also gives the first of equal values. It was `b`, Rust's choice, and is not in the spec. | One first-among-equals rule for every `min` and `max`, as in Python. | own; specified in pass 89 ([Min And Max](../spec/std/cmp.md#min-and-max)) |
+| 81 (#237) | The unspecified `List.zip` in `lib/std` keeps its `List[U]` argument. | The decision covers the specified `Iterator` adapters only. | changed: pass 89 specifies `List.zip(other: List[U])` as an eager method, beside `List.map` ([List Access And Building](../spec/std/collections.md#list-access-and-building)) |
 
 ## Time
 
@@ -92,7 +92,7 @@ when the owner reviews it.
 | 71 (#221) | `ErrorReport` implements `Display` as the message, then one `caused by: X` line per cause. `chain` stops at the first `.None`. | It matches the Entry Results text. | own |
 | 72 (#223) | `ContextError` displays as its message, and its `cause` is the wrapped error. | anyhow's `context`. | confirmed (fields stay private, revisit later) |
 | 77 (#229) | `ContextError` Debug is `ContextError { message: "...", cause: "<cause Display>" }`. | `debug_struct` style. | own |
-| 81 (#237) | `lib/std/console.hd` declares `ConsoleError`, and its `Display` text for `Closed` is `console closed`. | The spec leaves the text open. Declaring it in std costs nothing in the footprint. | own |
+| 81 (#237) | `lib/std/console.hd` declares `ConsoleError`, and its `Display` text for `Closed` is `console closed`. | The spec leaves the text open. Declaring it in std costs nothing in the footprint. | own; pass 89 adds `Eq` and `Debug` and specifies the text ([Console Errors](../spec/std/console.md#console-errors)) |
 
 ## JSON
 
@@ -128,7 +128,7 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | 82 (#238) | Retired std IDs got new names: `std-collections.counts.decl`, `std-iter.adapter.take-first`, `.enumerate-usize`, `.skip-first`, `.count-remaining`, `std-text.pad.width-at-most-length`, `std-text.utf8.error.declared`, `std-num.to-fixed.decl`, `.digits-max`, `std-encoding.error.declared`, `std-json.value.accessors.at-index`, `std-json.error.enum.usize`, `std-time.parse-error.declared`, and `std-testing.choices.list-max`, `.map-max`, `.string-max-chars`. | Each old rule named `i32` or a negative value. | own |
 | 82 (#238) | `Choices.list` and `Choices.map` take a `usize` `max`, and `Choices.string` a `usize` `max_chars`. `PropertyCase.size` stays `i32`, since it is a reach exponent, not a size. | They bound a generated collection's length. | own |
 | 82 (#238) | `TestRunner.row` takes and returns `usize`, `PropertyRunner.start` takes `usize` counts, and `PropertyCase.example` is `usize?`. `Random.fill` takes a `usize` count. | A row is a list index; the rest are counts. These are host traits, so the report asks the owner. | own |
-| 82 (#238) | The primitives `bytes_len`, `bytes_at`, `bytes_slice`, and `format_f64_fixed` use `usize`. `list_version`, `char_scalar`, and `char_from_scalar` stay `i32`, since a version and a scalar value are not sizes. | The primitives serve `len`, indexing, `slice`, and `to_fixed`. | own |
+| 82 (#238) | The primitives `bytes_len`, `bytes_at`, `bytes_slice`, and `format_f64_fixed` use `usize`. `list_version`, `char_scalar`, and `char_from_scalar` stay `i32`, since a version and a scalar value are not sizes. | The primitives serve `len`, indexing, `slice`, and `to_fixed`. | changed: the owner's CHAR-SCALAR-U32 decision (2026-10-03, audit Q4) makes them `char_scalar(c) -> u32` and `char_from_scalar(u32) -> char?` (pass 89) |
 | 82 (#238) | `lib/std` and `test/std` keep `i32` until the compiler session adds `usize` and an unsigned `len`, as the Decided, Not Yet Applied row SIZES-UNSIGNED in STDLIB_PLAN.md lists. | `lib/std` cannot name `usize` before the compiler declares it. | own |
 
 
@@ -138,7 +138,7 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | --- | --- | --- | --- |
 | 85 (#242) | `Rng` holds its own state and fixes its generator: xoshiro128** 1.0, seeded by folding the `u64` seed to 32 bits and four SplitMix32-style `mix32` steps, as `lib/std`'s `SeededRandom` already does. The spec gives the reference code and test vectors. `SeededRandom` stays unfixed. | Seeded output, such as a level or a fixture's sample, must repeat across implementations. 32-bit steps need no wide multiplication, which the plan's PCG sketch did. | own |
 | 85 (#242) | `rng()` seeds an `Rng` from one `next_u64` of `$ Random`. Every `Rng` method is a plain call with the empty row. | Go's `math/rand/v2`: one host draw per generator, and a seeded generator needs no provider. | own |
-| 85 (#242) | The surface is `from_seed`, `next_u64`, `int`, `float`, `bool`, `choose`, `shuffle`, and `sample`, named as `Choices` names its draws. `sample`'s count is a `usize`. | The plan's sketch, plus `bool` and `sample` from the task. | own |
+| 85 (#242) | The surface is `from_seed`, `next_u64`, `int`, `float`, `bool`, `choose`, `shuffle`, and `sample`, named as `Choices` names its draws. `sample`'s count is a `usize`. | The plan's sketch, plus `bool` and `sample` from the task. | changed: pass 89 renames `Rng::from_seed` to `Rng::new` and `Choices.pick` to `Choices.choose`, so both draw one item with `choose` |
 | 85 (#242) | `int` takes one `Range[i64]`, either `a..b` or `a..=b`, and is not generic over `Integer`. | Go's `Int64N`. A generic version needs a per-width conversion that `Integer` cannot name; it can follow. | own |
 | 85 (#242) | `int` is unbiased by rejection: `below(n)` redraws a value under `2^64 mod n` and returns `x mod n`. The whole `i64` range is one raw draw. An empty range panics with `explicit-panic`. | OpenBSD's `arc4random_uniform`; Rust's `gen_range` panics on an empty range. | own |
 | 85 (#242) | `float` is the top 53 bits of one draw times 2^-53, in [0, 1). `bool` is the top bit of one draw. | The standard exact construction, as in Rust's `rand`. | own |
@@ -168,7 +168,7 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | --- | --- | --- | --- |
 | 86 (#243) | Part 1 of `std.regex` has no flags: `(?i)`, `(?m)`, `(?s)`, and every other `(?` but `(?:` is `UnsupportedGroup`. | The task allowed leaving flags out; an error today keeps a later flag from changing a pattern's meaning. | own |
 | 86 (#243) | The matcher steps by `char`. `\d` and `\w` are ASCII; `\s` is Unicode White_Space, the property `char.is_whitespace` and `trim` use. `.` matches any `char` but `\n`. | RE2's defaults; RE2's own `\s` is ASCII, so this `\s` follows the task and hd's `trim`. | own |
-| 86 (#243) | `Match.start`, `Match.end`, and `RegexError.position` are byte offsets (`usize`), as `string.slice` and `JsonError` take them. | One offset unit across std; Go and Rust report byte offsets. | own |
+| 86 (#243) | `Match.start`, `Match.end`, and `RegexError.position` are byte offsets (`usize`), as `string.slice`, `char_indices`, and `Utf8Error` take them. | One offset unit with `slice`; Go and Rust report byte offsets. | confirmed: the owner's POSITION-UNIT decision (2026-10-03) makes every std position a byte offset. Pass 89 corrected the old reason, which said `JsonError` took bytes when it counted characters |
 | 86 (#243) | `RegexError` is a data type with `kind: RegexErrorKind` and `position`; the nine kinds are `MissingParen`, `UnmatchedParen`, `MissingBracket`, `BadEscape`, `BadRange`, `NothingToRepeat`, `BadRepeat`, `UnsupportedGroup`, and `TooLarge`, with Go's `regexp/syntax` texts and `KIND at byte N`. | The task asks for a kind and a position; a kind enum keeps the position in one field. | own |
 | 86 (#243) | A quantifier right after another (`a**`, `a{2}{3}`, `a*??`) is `NothingToRepeat`, not a kind of its own. | Go rejects these as a nested repetition; one kind is enough for a script. | own |
 | 86 (#243) | A `{` that starts no well-formed count is a literal, and so are `}` and `]` outside a class. A `]` first in a class, and a `-` first, last, or after a range, are items. | RE2 and Go. | own |
@@ -176,7 +176,7 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | 86 (#243) | A count is at most 1000, and a pattern's written-out size at most 10,000 instructions (`TooLarge`, position 0). The spec defines the size by a table. | RE2 caps counts at 1000; a size cap keeps O(m × n) meaningful. A precise table keeps the limit the same in every implementation. | own |
 | 86 (#243) | `^` and `$` see only the ends of the text; `$` does not match before a final `\n`. | RE2 without `(?m)`. | own |
 | 86 (#243) | The matcher is a Pike VM in `lib/std/regex.hd`: one thread per instruction per position, kept in priority order, with an explicit stack for epsilon steps. `is_match` is `find(...).is_some()`. | Leftmost-first submatch order needs the Pike VM's priorities; a stack keeps deep programs off the call stack. | own |
-| 86 (#243) | `Regex` has `as_str()` and `Debug`; `Match` has `Eq` and `Debug`; `RegexErrorKind` and `RegexError` have `Eq`, `Debug`, and `Display`. | What fixtures and scripts compare and print. | own |
+| 86 (#243) | `Regex` has `as_str()` and `Debug`; `Match` has `Eq` and `Debug`; `RegexErrorKind` and `RegexError` have `Eq`, `Debug`, and `Display`. | What fixtures and scripts compare and print. | changed: pass 89 renames `as_str()` to `pattern()`, since hd has no `str` type and `Json` says `as_text` |
 | 87 (#244) | Flags stay out: `(?i)`, `(?m)`, `(?s)`, and `(?i:...)` remain `UnsupportedGroup`. | `(?i)` needs a case-folding choice (ASCII or Unicode simple folding) that `std.text` has not made, and scoped flags add syntax; an error today keeps a later flag from changing a pattern. | own |
 | 87 (#244) | Captures follow RE2's Pike VM: each thread carries its group positions, the first thread to reach an instruction wins, a repeated group reports its last pass, and a group from an earlier iteration keeps its positions. | RE2, Go, and Rust report these submatches; one VM serves `find` and `captures`. | own |
 | 87 (#244) | An optional iteration of `*`, `+`, or `{m,}` that would match the empty text is not taken, so `(a*)*` on `"b"` leaves group 1 out. | What the Pike VM's one-thread-per-instruction rule gives; the spec states it so another implementation reports the same groups. | own |
@@ -189,3 +189,30 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | 87 (#244) | The spec shows the string idiom: `$1` and `$$` need no escape in an hd string, `${name}` is written `\${name}`, and a raw string does not help, since `r"\${x}"` keeps the backslash. Patterns are written as raw strings, `Regex::new(r"^\d+$")`. | `lex.interp.dollar-text` and `lex.prefix.backslash`. | own |
 | 87 (#244) | `split` returns k + 1 pieces for k matches, with `""` for a match at either end; `""` with no match gives `[""]`. | Rust's `Regex::split`; Go's `Split` drops some empty pieces by special cases. | own |
 | 87 (#244) | The time bound with groups is O(m × g × n) time and O(m × g + n) memory, g the number of groups plus one. `find_all` and its kin run at most 2k + 1 searches, so O(m × n²) at worst. | Each thread copies g slot pairs; Rust documents the same worst case for its iterators. | own |
+
+## Audit Pass 89
+
+Pass 89 (#246) applied the stdlib audit ([stdlib-audit.md](../audit/stdlib-audit.md)).
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| 89 (#246) | `Timestamp::from_unix_milliseconds`, `unix_milliseconds()`, and `Instant::from_milliseconds` replace the `millis` names. `Instant` gains `as_milliseconds()`. | Owner decision L18 named `Duration::milliseconds` and `as_milliseconds`; one word for one unit. | own |
+| 89 (#246) | `Timestamp` implements `Display` as `to_rfc3339()`. `Instant` and `Date` have no `Display`. | Go's `Time.String`; an instant's origin is the provider's, so its number means nothing alone. | own |
+| 89 (#246) | `Ordering` implements `Eq`, specified with its `Debug`; it has no `Display`. | Owner Q21: std value types implement `Eq`. Rust's `Ordering` is `Eq` and not `Display`. | own |
+| 89 (#246) | Every std error type implements `Error`: `ParseNumberError`, `Utf8Error`, `ConsoleError`, `DecodeError`, `FsError`, `JsonError`, `TimeParseError`, `CliError`, `RegexError`, and `ResourceError[E]` when `E < Error`. The prelude modules' impls live in `lib/std/error.hd`, so a program that never names `Error` does not join it. | `?` into `Result[T, Error]` and `context` must accept std errors, as Rust's `io::Error` does. | own |
+| 89 (#246) | `ResourceError[E]` displays `Operation(e)` as `e` and `Disposed` as `resource disposed`, with no cause. | A wrapper that shows its error's text must not also list it as a cause, or a report prints it twice. | own |
+| 89 (#246) | `ConsoleError` implements `Eq` and `Debug`. | `std-format.debug.std-types` and owner Q21. | own |
+| 89 (#246) | `ScriptedInput::new(lines)` is the `ConsoleInput` test provider: lines in order, then `.Ok(.None)` forever. | Owner decision 4: a provider beside each host trait. | own |
+| 89 (#246) | `BufferConsole` is specified: `new`, `output()`, and `error_output()`, which keeps `write_error_line!` lines apart. | Go tests capture `Stdout` and `Stderr` apart. | own |
+| 89 (#246) | `Console.write_error_line!`, `eprintln`, and `error_output` stay out of `lib/std` (STD-HELPERS). | The prototype emits host glue for every host-trait method, so a second `Console` method grows every printing program by five functions. | own |
+| 89 (#246) | `List` gains `get(index) -> T?`, `is_empty`, `take(count) -> List[T]`, and `extend(other)`; `first`, `last`, `filter`, `reversed`, `sorted_by`, and `zip` are specified. `Map` gains `is_empty`. | Rust's `slice::get` and `Vec::extend`. `take` is Kotlin's `List.take`: eager like `List.map`, so it does not clash with the lazy `Iterator.take`. | own |
+| 89 (#246) | `items.extend(items)` appends the elements held before the call, so it doubles the list. | It reads `other`'s length once; Rust forbids the aliasing instead. | own |
+| 89 (#246) | `Rng::new(seed)` replaces `Rng::from_seed`, and `Choices.choose` replaces `Choices.pick`. `Rng.choose` returns `T?`; `Choices.choose` returns `T` and panics on `[]`. `Rng.int(range)` and `Choices.int(lo, hi)` keep their shapes. | One name per draw. A generator must yield a value, as Hypothesis's `sampled_from` does; a generic `Range` form waits until `Integer` can name it. | own |
+| 89 (#246) | `retry!`'s `times` and `Backoff.attempts` are `usize`, and 0 counts as 1. | Owner rule: every count is `usize`. | own |
+| 89 (#246) | `std.cmp.min` and `max` are specified, with `a` returned on a tie. | They were public and unspecified. | own |
+| 89 (#246) | `upper`, `trim_start`, `trim_end`, `ends_with`, `contains`, `find`, `is_empty`, `strip_prefix`, `strip_suffix`, `join`, and `StringBuilder` are specified as `lib/std` has them. `find` returns a byte offset. | Rust's `str` names; byte offsets are what `slice` takes. | own |
+| 89 (#246) | `interpolate`, `process_escapes`, and `EscapeError` stay public and are specified, not made private. `EscapeError.offset` is renamed `position` and gains `Eq`. | Owner decision L22 moved them to `std.text` as prefix helpers. `position` is every other std error's field name. | own |
+| 89 (#246) | `Regex.as_str()` is renamed `pattern()`. | Python's name; hd has no `str` type. | own |
+| 89 (#246) | The audit's revisit rows are kept: `Map[string, V]` alone encodes as JSON; a repeated CLI option keeps its last value; regex part 1 has no flags and no `\b`. `Utf8Error.Truncated` gains no position yet. | Each widens a surface that no script has hit; an `append` option kind, ASCII `(?i)`, and `\b` are each a later addition that changes no existing result. `Truncated(position)` changes a variant's shape and its `Display`, which no caller has asked for. | own |
+| 89 (#246) | Under the owner's POSITION-UNIT decision, a hex or base64 length check counts bytes, so `hex_decode("é0")` is `InvalidLength(3)`. `JsonError` positions move past each non-ASCII character by its byte width. `ParseNumberError` and `TimeParseError` positions keep their values, since every character before them is ASCII. | Go's `encoding/hex` and `base64` check the byte length; a position must be a `slice` bound. | own |
+| 89 (#246) | `lib/std` callers convert `char_scalar`'s `u32` to `i32` where the Unicode tables index by `i32`, and keep the unchecked `char_from_scalar` until the compiler returns `char?` (CHAR-SCALAR). | Every caller passes a checked scalar value. | own |
