@@ -1,0 +1,173 @@
+# tasks: a dependency resolver.
+# Shows topological sort by depth-first search, cycle detection that returns
+# the cycle path as an error, a requirement trait for running tasks, `defer`,
+# and `all!` to run independent tasks of one wave together.
+use std.cmp.max
+use std.task.all
+use std.testing.{assert, assert_equal}
+use std.text.join
+
+@derive(Eq, Debug)
+enum PlanError:
+    UnknownTask(name: string, needed_by: string)
+    Cycle(path: List[string])
+
+impl Display for PlanError:
+    fn to_string(self) -> string:
+        match self:
+            .UnknownTask(name, needed_by) => "task $needed_by needs unknown task $name"
+            .Cycle(path) => "dependency cycle: ${join(path, " -> ")}"
+
+data Graph:
+    deps: Map[string, List[string]]
+
+# Visit state: 0 = new, 1 = on the current path, 2 = done.
+data Walk:
+    state: mut Map[string, i32]
+    order: mut List[string]
+
+fn visit(graph: Graph, walk: mut Walk, path: List[string], name: string, needed_by: string) -> Result[void, PlanError]:
+    deps := match graph.deps.get(name):
+        .Some(d) => d
+        .None => return .Err(PlanError.UnknownTask(name, needed_by))
+    mark := match walk.state.get(name):
+        .Some(m) => m
+        .None => 0
+    if mark == 2:
+        return .Ok(())
+    if mark == 1:
+        # name is somewhere on the path; the cycle runs from there back to name.
+        let start = 0
+        for (i, step) in path.iter().enumerate():
+            if step == name:
+                start = i
+        let cycle: mut List[string] = []
+        for (i, step) in path.iter().enumerate():
+            if i >= start:
+                cycle.append(step)
+        cycle.append(name)
+        return .Err(PlanError.Cycle(cycle))
+    walk.state[name] = 1
+    here := [path..., name]
+    for dep in deps:
+        visit(graph, walk, here, dep, name)?
+    walk.state[name] = 2
+    walk.order.append(name)
+    .Ok(())
+
+# Tasks in an order where every task follows its dependencies.
+fn plan(graph: Graph) -> Result[List[string], PlanError]:
+    let state: mut Map[string, i32] = {}
+    let order: mut List[string] = []
+    let mut walk = Walk { state: state, order: order }
+    names := graph.deps.iter().map(fn(entry: (string, List[string])) -> string: entry._0).collect()
+    for name in names.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b)):
+        visit(graph, walk, [], name, "(root)")?
+    .Ok(walk.order)
+
+# Splits an ordered plan into waves: a task goes in the first wave after all of
+# its dependencies, so tasks in one wave are independent.
+fn waves(graph: Graph, order: List[string]) -> List[List[string]]:
+    let level: mut Map[string, i32] = {}
+    let deepest = 0
+    for name in order:
+        let at = 0
+        for dep in graph.deps[name]:
+            at = max(at, level[dep] + 1)
+        level[name] = at
+        deepest = max(deepest, at)
+    [for at in 0..=deepest => order.filter(fn(name: string) -> bool: level[name] == at)]
+
+trait Runner:
+    fn run!(mut self, name: string) -> void
+
+data LogRunner:
+    log: mut List[string]
+
+impl Runner for LogRunner:
+    fn run!(mut self, name: string) -> void:
+        self.log.append("ran $name")
+
+fn run_one!(name: string) -> string $ Runner:
+    $.use(Runner).run!(name)
+    name
+
+# Runs one wave. `all!` takes a fixed number of children, so a wave runs in
+# batches of up to three concurrent tasks.
+fn run_wave!(names: List[string]) -> List[string] $ Runner:
+    if names.len() == 0:
+        return []
+    if names.len() == 1:
+        return [run_one!(names[0])]
+    if names.len() == 2:
+        let (a, b) = all!(run_one(names[0]), run_one(names[1]))
+        return [a, b]
+    let (a, b, c) = all!(run_one(names[0]), run_one(names[1]), run_one(names[2]))
+    rest := run_wave!(names.view(3, names.len()).to_list())
+    [a, b, c, rest...]
+
+fn execute!(graph: Graph) -> Result[List[string], PlanError] $ Runner:
+    order := plan(graph)?
+    let finished: mut List[string] = []
+    for wave in waves(graph, order):
+        defer:
+            finished.append("wave of ${wave.len()}")
+        _ := run_wave!(wave)
+    .Ok(finished)
+
+fn build_graph() -> Graph:
+    Graph {
+        deps: {
+            "app": ["lib", "assets"],
+            "lib": ["core"],
+            "assets": ["core"],
+            "core": [],
+            "docs": ["core"],
+        },
+    }
+
+pub fn main!() -> Result[void, ConsoleError] $ Console:
+    let mut console = $.use(Console)
+    graph := build_graph()
+    match plan(graph):
+        .Ok(order) => console.write_line!("order: ${join(order, ", ")}")?
+        .Err(e) => console.write_line!("error: $e")?
+    cyclic := Graph { deps: {"a": ["b"], "b": ["c"], "c": ["a"], "d": []} }
+    match plan(cyclic):
+        .Ok(_) => console.write_line!("unexpected")?
+        .Err(e) => console.write_line!("error: $e")?
+    $.with(Runner=LogRunner { log: [] }):
+        match execute!(graph):
+            .Ok(done) => console.write_line!("waves: ${join(done, ", ")}")?
+            .Err(e) => console.write_line!("error: $e")?
+    .Ok(())
+
+tests:
+    it("orders dependencies first"):
+        match plan(build_graph()):
+            .Ok(order) =>
+                assert_equal(order, ["core", "lib", "assets", "app", "docs"], reason="dfs from app visits lib before assets")
+            .Err(_) => assert(false, reason="no cycle")
+    it("reports the cycle path"):
+        cyclic := Graph { deps: {"a": ["b"], "b": ["c"], "c": ["a"]} }
+        assert_equal(plan(cyclic), .Err(PlanError.Cycle(["a", "b", "c", "a"])), reason="cycle")
+    it("reports a self dependency"):
+        loop_graph := Graph { deps: {"x": ["x"]} }
+        assert_equal(plan(loop_graph), .Err(PlanError.Cycle(["x", "x"])), reason="self")
+    it("reports unknown tasks"):
+        broken := Graph { deps: {"a": ["ghost"]} }
+        assert_equal(plan(broken), .Err(PlanError.UnknownTask("ghost", "a")), reason="unknown")
+    it("groups independent tasks into waves"):
+        graph := build_graph()
+        match plan(graph):
+            .Ok(order) =>
+                assert_equal(waves(graph, order), [["core"], ["lib", "assets", "docs"], ["app"]], reason="waves")
+            .Err(_) => assert(false, reason="no cycle")
+    it("runs tasks through the provider"):
+        $.with(Runner=LogRunner { log: [] }):
+            result := execute!(build_graph())
+            assert_equal(result, .Ok(["wave of 1", "wave of 3", "wave of 1"]), reason="deferred notes")
+    it("runs a wave larger than one all! batch"):
+        $.with(Runner=LogRunner { log: [] }):
+            names := ["a", "b", "c", "d", "e", "f", "g"]
+            assert_equal(run_wave!(names), names, reason="all seven ran, in order")

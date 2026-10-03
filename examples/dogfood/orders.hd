@@ -1,0 +1,122 @@
+# orders: an order service built on requirements.
+# Shows requirement traits (Inventory, std Clock), a mutable in-memory
+# provider installed with `$.with`, suspending `fn!` calls, `?` with a
+# local error enum, @derive, Map and List.
+use std.testing.{assert, assert_equal}
+use std.time.{Clock, ManualClock, Timestamp}
+
+@derive(Eq, Debug)
+data Line:
+    sku: string
+    qty: i32
+
+@derive(Eq, Debug)
+data Order:
+    id: i32
+    lines: List[Line]
+    total_cents: i64
+    placed_at: i64
+
+@derive(Eq, Debug)
+enum OrderError:
+    EmptyOrder
+    BadQuantity(sku: string, qty: i32)
+    UnknownSku(sku: string)
+    OutOfStock(sku: string, wanted: i32, have: i32)
+
+impl Display for OrderError:
+    fn to_string(self) -> string:
+        match self:
+            .EmptyOrder => "order has no lines"
+            .BadQuantity(sku, qty) => "bad quantity $qty for $sku"
+            .UnknownSku(sku) => "unknown sku $sku"
+            .OutOfStock(sku, wanted, have) => "out of stock: $sku wanted $wanted, have $have"
+
+trait Inventory:
+    fn price!(self, sku: string) -> i64?
+    fn stock!(self, sku: string) -> i32
+    fn reserve!(mut self, sku: string, qty: i32) -> void
+
+data MemoryInventory:
+    prices: Map[string, i64]
+    counts: mut Map[string, i32]
+
+impl Inventory for MemoryInventory:
+    fn price!(self, sku: string) -> i64?:
+        self.prices.get(sku)
+
+    fn stock!(self, sku: string) -> i32:
+        match self.counts.get(sku):
+            .Some(n) => n
+            .None => 0
+
+    fn reserve!(mut self, sku: string, qty: i32) -> void:
+        have := match self.counts.get(sku):
+            .Some(n) => n
+            .None => 0
+        self.counts[sku] = have - qty
+
+# Checks every line before reserving anything, so a failure leaves stock alone.
+fn place_order!(id: i32, lines: List[Line]) -> Result[Order, OrderError] $ Inventory + Clock:
+    if lines.len() == 0:
+        return .Err(OrderError.EmptyOrder)
+    let total: i64 = 0
+    for line in lines:
+        if line.qty <= 0:
+            return .Err(OrderError.BadQuantity(line.sku, line.qty))
+        price := match $.use(Inventory).price!(line.sku):
+            .Some(p) => p
+            .None => return .Err(OrderError.UnknownSku(line.sku))
+        have := $.use(Inventory).stock!(line.sku)
+        if have < line.qty:
+            return .Err(OrderError.OutOfStock(line.sku, line.qty, have))
+        total = total + price * i64(line.qty)
+    for line in lines:
+        $.use(Inventory).reserve!(line.sku, line.qty)
+    now := $.use(Clock).now()
+    .Ok(Order { id: id, lines: lines, total_cents: total, placed_at: now.since(Timestamp::from_unix_millis(0)).as_milliseconds() })
+
+fn fresh_inventory() -> mut MemoryInventory:
+    MemoryInventory {
+        prices: {"apple": 50, "pear": 75},
+        counts: {"apple": 10, "pear": 2},
+    }
+
+fn report!(id: i32, lines: List[Line]) -> string $ Inventory + Clock:
+    match place_order!(id, lines):
+        .Ok(order) => "order ${order.id}: ${order.total_cents} cents at ${order.placed_at}"
+        .Err(e) => "order $id failed: $e"
+
+pub fn main!() -> Result[void, ConsoleError] $ Console:
+    let mut console = $.use(Console)
+    $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_millis(1000))):
+        console.write_line!(report!(1, [Line { sku: "apple", qty: 3 }, Line { sku: "pear", qty: 1 }]))?
+        console.write_line!(report!(2, [Line { sku: "pear", qty: 2 }]))?
+        console.write_line!(report!(3, [Line { sku: "kiwi", qty: 1 }]))?
+        console.write_line!(report!(4, []))?
+    .Ok(())
+
+tests:
+    it("places an order and reserves stock"):
+        $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_millis(5))):
+            result := place_order!(7, [Line { sku: "apple", qty: 4 }, Line { sku: "pear", qty: 2 }])
+            match result:
+                .Ok(order) =>
+                    assert_equal(order.total_cents, 350, reason="4*50 + 2*75")
+                    assert_equal(order.placed_at, 5, reason="clock")
+                .Err(_) => assert(false, reason="should succeed")
+            assert_equal($.use(Inventory).stock!("apple"), 6, reason="reserved")
+            assert_equal($.use(Inventory).stock!("pear"), 0, reason="reserved")
+    it("rejects bad orders and keeps stock"):
+        $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_millis(0))):
+            assert_equal(place_order!(1, []), .Err(OrderError.EmptyOrder), reason="empty")
+            assert_equal(place_order!(1, [Line { sku: "apple", qty: 0 }]), .Err(OrderError.BadQuantity("apple", 0)), reason="qty")
+            assert_equal(place_order!(1, [Line { sku: "kiwi", qty: 1 }]), .Err(OrderError.UnknownSku("kiwi")), reason="sku")
+            assert_equal(
+                place_order!(1, [Line { sku: "apple", qty: 1 }, Line { sku: "pear", qty: 3 }]),
+                .Err(OrderError.OutOfStock("pear", 3, 2)),
+                reason="stock",
+            )
+            assert_equal($.use(Inventory).stock!("apple"), 10, reason="nothing reserved")
+    it("formats errors"):
+        assert_equal(OrderError.UnknownSku("x").to_string(), "unknown sku x", reason="display")

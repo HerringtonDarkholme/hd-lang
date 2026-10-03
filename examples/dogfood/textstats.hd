@@ -1,0 +1,75 @@
+# textstats: analytics over an embedded multi-line log string.
+# Shows a triple-quoted string, string methods, closures, filter/map/fold,
+# Map counting, sorted_by with a two-key comparison, and formatted output.
+use std.testing.assert_equal
+use std.text.join
+
+LOG := """2026-10-03 10:00:01 INFO server started on port 8080
+2026-10-03 10:00:05 INFO request ok path /home
+2026-10-03 10:00:09 ERROR request failed path /api timeout
+2026-10-03 10:01:00 INFO request ok path /home
+2026-10-03 10:01:30 ERROR disk full path /var
+2026-10-03 10:02:00 INFO server stopped"""
+
+data WordCount:
+    word: string
+    count: i32
+
+fn nonblank_lines(text: string) -> List[string]:
+    text.lines().filter(fn(line: string) -> bool: line.trim().len() > 0)
+
+fn words_of(line: string) -> List[string]:
+    line.split(" ").filter(fn(w: string) -> bool: w.len() > 0).map(fn(w: string) -> string: w.lower())
+
+fn word_counts(lines: List[string]) -> List[WordCount]:
+    let counts: mut Map[string, i32] = {}
+    for line in lines:
+        for word in words_of(line):
+            counts[word] = match counts.get(word):
+                .Some(n) => n + 1
+                .None => 1
+    let entries: mut List[WordCount] = []
+    for (word, count) in counts.iter():
+        entries.append(WordCount { word: word, count: count })
+    entries
+
+# Highest count first; ties broken alphabetically.
+fn by_count_then_word(a: WordCount, b: WordCount) -> Ordering:
+    match b.count.cmp(a.count):
+        .Equal => a.word.cmp(b.word)
+        other => other
+
+fn top_words(lines: List[string], limit: i32) -> List[WordCount]:
+    word_counts(lines).sorted_by(by_count_then_word).chunks(limit).first().unwrap_or([])
+
+fn errors(lines: List[string]) -> List[string]:
+    lines.filter(fn(line: string) -> bool: line.contains("ERROR"))
+
+pub fn main() -> void $ Console:
+    lines := nonblank_lines(LOG)
+    println("lines: ${lines.len()}")
+    total_chars := lines.map(fn(l: string) -> i32: l.len()).iter().fold(0, fn(acc: i32, n: i32) -> i32: acc + n)
+    println("bytes: $total_chars")
+    println("top words:")
+    for entry in top_words(lines, 5):
+        println("  ${entry.word}: ${entry.count}")
+    println("errors:")
+    for line in errors(lines):
+        println("  $line")
+    println(join(errors(lines).map(fn(l: string) -> string: l.slice(11, 19)), ", "))
+
+tests:
+    it("counts lines"):
+        assert_equal(nonblank_lines(LOG).len(), 6, reason="six lines")
+        assert_equal(nonblank_lines("a\n\n  \nb").len(), 2, reason="blank lines skipped")
+    it("ranks words by count then alphabetically"):
+        top := top_words(nonblank_lines(LOG), 3)
+        assert_equal(top.len(), 3, reason="limit")
+        assert_equal(top[0].word, "2026-10-03", reason="date on all 6 lines")
+        assert_equal(top[0].count, 6, reason="date on all 6 lines")
+        assert_equal(top[1].word, "info", reason="info x4")
+        assert_equal(top[2].word, "path", reason="path x4 ties info, sorts after it")
+    it("finds error lines"):
+        found := errors(nonblank_lines(LOG))
+        assert_equal(found.len(), 2, reason="two errors")
+        assert_equal(found[1].contains("disk full"), true, reason="second")
