@@ -20,14 +20,7 @@ import { genericTypeName } from "./shared.ts";
 // Whether a resolved type names a known type with complete arguments, as the
 // function checker sees it (checker/context.ts re-exports it).
 
-const TYPE_NAMES = new Set<ValueType>([
-  ...NUMERIC_TYPES.keys(),
-  "bool",
-  "char",
-  "string",
-  "void",
-  "ConsoleError",
-]);
+const TYPE_NAMES = new Set<ValueType>([...NUMERIC_TYPES.keys(), "bool", "char", "string", "void"]);
 
 export function isKnownType(
   type: ValueType,

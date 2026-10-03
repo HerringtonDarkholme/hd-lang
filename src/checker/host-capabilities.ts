@@ -6,8 +6,8 @@ const BOUNDARY_TYPES = new Set(["bool", "char", "string", ...NUMERIC_TYPES.keys(
 
 // A boundary result is `void`, a boundary value, or `Result[T, E]` whose `T`
 // is either of those. `E` may be any type: a boundary `E` crosses as the
-// error payload, and any other `E` (such as `ConsoleError`) can be named but
-// not built, so a host that reports `.Err` for it is refused at run time.
+// error payload. A payload-free singleton enum needs no separate payload; any
+// other `E` can be named but is refused if a host reports `.Err` at run time.
 function boundaryResult(type: string): boolean {
   if (type === "void" || BOUNDARY_TYPES.has(type)) return true;
   const parts = nominalGenericParts(type);

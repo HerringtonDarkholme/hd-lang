@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze, compileToWat, instantiate } from "../compiler.ts";
+import { analyze, compileToWat, instantiate, type ReplayEvent } from "../compiler.ts";
+import { RuntimePanicError } from "../runtime-panic.ts";
 import { calledTraitMethods, reachableProgram, traitMethodKey } from "./reachability.ts";
 
 test("empty programs do not emit unused standard functions or dictionaries", async () => {
@@ -116,6 +117,54 @@ pub fn read() -> i32 $ Device:
   });
   assert.doesNotMatch(second.wat, new RegExp(`"host_${device.index}_0_begin"`));
   assert.match(second.wat, new RegExp(`"host_${device.index}_1_begin"`));
+});
+
+test("host Result errors materialize a payloadless singleton enum", async () => {
+  const source = `pub enum Fault:
+    Closed
+pub trait Device:
+    fn read(self) -> Result[i32, Fault]
+pub fn recover() -> i32 $ Device:
+    match $.use(Device).read():
+        .Ok(value) => value
+        .Err(Fault.Closed) => 42
+`;
+  const compilation = compileToWat(source, { hostCapabilities: ["Device"] });
+  const fault = compilation.hir.enums.find((item) => item.name === "Fault")!;
+  assert.match(compilation.wat, new RegExp(`global\\.get \\$e${fault.index}v0`));
+  const events: ReplayEvent[] = [];
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Device"],
+    hostSuspensionInvoke: () => ({ pending: false, value: { tag: "err" } }),
+    record: (event) => events.push(event),
+  });
+  assert.equal((recorded.instance.exports.recover as CallableFunction)({}), 42);
+  const replayed = await instantiate(source, {
+    compilation: recorded.compilation,
+    hostCapabilities: ["Device"],
+    replay: JSON.parse(JSON.stringify(events)) as ReplayEvent[],
+  });
+  assert.equal((replayed.instance.exports.recover as CallableFunction)({}), 42);
+  replayed.replay.assertComplete();
+
+  const ambiguousSource = `pub enum Fault:
+    Closed
+    Busy
+pub trait Device:
+    fn read(self) -> Result[i32, Fault]
+pub fn recover() -> i32 $ Device:
+    match $.use(Device).read():
+        .Ok(value) => value
+        .Err(_) => 42
+`;
+  const ambiguous = await instantiate(ambiguousSource, {
+    hostCapabilities: ["Device"],
+    hostSuspensionInvoke: () => ({ pending: false, value: { tag: "err" } }),
+  });
+  assert.throws(
+    () => (ambiguous.instance.exports.recover as CallableFunction)({}),
+    (error: unknown) => error instanceof RuntimePanicError && error.code === "host-contract",
+  );
 });
 
 test("for-loop iterator methods are declaration references, not ordinary calls", async () => {

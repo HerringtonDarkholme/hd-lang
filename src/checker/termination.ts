@@ -96,8 +96,7 @@ function implementsDisplay(
   implementations: readonly HirTraitImplementation[],
 ): boolean {
   const target = readonlyType(type);
-  if (numericType(target) || ["bool", "char", "string", "ConsoleError"].includes(target))
-    return true;
+  if (numericType(target) || ["bool", "char", "string"].includes(target)) return true;
   const display = traitTypes.get("Display");
   if (!display) return false;
   if (

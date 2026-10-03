@@ -10,9 +10,10 @@ import {
   UNRECORDED_PROVIDERS,
   type HostFunction,
 } from "./host-functions.ts";
+import { payloadlessSingletonEnum } from "./host-boundary.ts";
 import { NUMERIC_TYPES, numericType } from "./numeric.ts";
 import { nominalGenericParts } from "./types.ts";
-import type { HirProgram, ValueType } from "./hir.ts";
+import type { HirEnum, HirProgram, HirTraitMethod, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
@@ -299,7 +300,11 @@ function checkedHostValue(type: ValueType, value: HostSuspensionValue): HostSusp
   throw new Error(`the host cannot build a '${type}' boundary value`);
 }
 
-function checkedHostResult(type: ValueType, value: HostSuspensionResult): HostSuspensionResult {
+function checkedHostResult(
+  type: ValueType,
+  value: HostSuspensionResult,
+  enums: readonly HirEnum[],
+): HostSuspensionResult {
   const sides = resultSides(type);
   if (!sides) {
     if (typeof value === "object") throw new Error(`host ${type} boundary value must be a scalar`);
@@ -313,7 +318,11 @@ function checkedHostResult(type: ValueType, value: HostSuspensionResult): HostSu
       throw new Error(`host ${type} '${value.tag}' has a void payload`);
     return { tag: value.tag };
   }
-  // An error type the bridge cannot build, such as `ConsoleError`, has no payload.
+  if (payloadlessSingletonEnum(enums, side)) {
+    if (value.value !== undefined)
+      throw new Error(`host ${type} '${value.tag}' has an implicit enum payload`);
+    return { tag: value.tag };
+  }
   if (!SCALAR_BOUNDARY.has(side)) throw new Error(`the host cannot build a '${side}' for ${type}`);
   if (value.value === undefined) throw new Error(`host ${type} result has no '${side}' payload`);
   return { tag: value.tag, value: checkedHostValue(side, value.value) };
@@ -323,6 +332,7 @@ function checkedLiveHostResult(
   providerMethod: string,
   type: ValueType,
   value: HostSuspensionResult | undefined,
+  enums: readonly HirEnum[],
 ): HostSuspensionResult | undefined {
   try {
     if (type === "void") {
@@ -330,7 +340,7 @@ function checkedLiveHostResult(
       return undefined;
     }
     if (value === undefined) throw new Error("returned no boundary result");
-    return checkedHostResult(type, value);
+    return checkedHostResult(type, value, enums);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new RuntimePanicError(
@@ -353,17 +363,25 @@ function hostResultText(
     : undefined;
 }
 
-function encodeHostResult(type: ValueType, value: HostSuspensionResult): EncodedHostValue {
+function encodeHostResult(
+  type: ValueType,
+  value: HostSuspensionResult,
+  enums: readonly HirEnum[],
+): EncodedHostValue {
   const sides = resultSides(type);
   if (!sides) return encodeHostValue(type, value as HostSuspensionValue);
-  const result = checkedHostResult(type, value) as HostResultValue;
+  const result = checkedHostResult(type, value, enums) as HostResultValue;
   const side = result.tag === "ok" ? sides[0] : sides[1];
   return result.value === undefined
     ? { kind: result.tag }
     : { kind: result.tag, value: encodeHostValue(side, result.value) as EncodedHostScalar };
 }
 
-function decodeHostResult(type: ValueType, encoded: EncodedHostValue): HostSuspensionResult {
+function decodeHostResult(
+  type: ValueType,
+  encoded: EncodedHostValue,
+  enums: readonly HirEnum[],
+): HostSuspensionResult {
   const sides = resultSides(type);
   if (!sides) return decodeHostValue(type, encoded);
   if (encoded.kind !== "ok" && encoded.kind !== "err")
@@ -373,7 +391,7 @@ function decodeHostResult(type: ValueType, encoded: EncodedHostValue): HostSuspe
     encoded.value === undefined
       ? { tag: encoded.kind }
       : { tag: encoded.kind, value: decodeHostValue(side, encoded.value) };
-  return checkedHostResult(type, result);
+  return checkedHostResult(type, result, enums);
 }
 
 function hexBytes(bytes: Uint8Array): string {
@@ -480,6 +498,31 @@ function validateReplayHostOutcome(
     throw new Error(`replay provider ${providerMethod} has no boundary result`);
 }
 
+function hostPollEvent(
+  call: HostSuspensionCall,
+  method: HirTraitMethod,
+  outcome: HostSuspensionOutcome,
+  configurationId: string,
+  enums: readonly HirEnum[],
+): HostPollReplayEvent {
+  return {
+    siteId: call.siteId,
+    functionName: call.functionName,
+    functionCodeId: call.functionCodeId,
+    functionIndex: call.functionIndex,
+    providerKey: call.providerKey,
+    operation: "provider-poll",
+    encodedArguments: call.arguments.map((argument, index) =>
+      encodeHostValue(method.parameters[index]!, argument),
+    ),
+    encodedResult: outcome.pending ? "pending" : "ready",
+    ...(outcome.value === undefined
+      ? {}
+      : { encodedValue: encodeHostResult(method.result, outcome.value, enums) }),
+    providerConfigurationId: configurationId,
+  };
+}
+
 export function analyze(source: string, options: CompileOptions = {}): Analysis {
   try {
     const parsed = parse(source, options.parse);
@@ -568,6 +611,7 @@ export async function instantiate(
   options: InstantiateOptions = {},
 ): Promise<Instantiation> {
   const compilation = options.compilation ?? (await compileToWasm(source, options));
+  const hostEnums = compilation.hir.enums;
   const functionIdentities: FunctionIdentity[] = [
     ...compilation.hir.functions,
     ...compilation.hir.closures,
@@ -749,7 +793,9 @@ export async function instantiate(
           state.outcome = {
             pending: expected.encodedResult === "pending",
             ...(expected.encodedValue
-              ? { value: decodeHostResult(method.result, expected.encodedValue) }
+              ? {
+                  value: decodeHostResult(method.result, expected.encodedValue, hostEnums),
+                }
               : {}),
           };
           const text = state.outcome.pending
@@ -780,6 +826,7 @@ export async function instantiate(
             `${trait.name}.${method.name}`,
             method.result,
             state.outcome.value,
+            hostEnums,
           );
           state.outcome = {
             pending: false,
@@ -790,22 +837,7 @@ export async function instantiate(
           ? undefined
           : hostResultText(method.result, state.outcome.value);
         if (text !== undefined) state.resultBytes = textEncoder.encode(text);
-        const event: HostPollReplayEvent = {
-          siteId: call.siteId,
-          functionName: call.functionName,
-          functionCodeId: call.functionCodeId,
-          functionIndex: call.functionIndex,
-          providerKey: call.providerKey,
-          operation: "provider-poll",
-          encodedArguments: call.arguments.map((argument, index) =>
-            encodeHostValue(method.parameters[index]!, argument),
-          ),
-          encodedResult: state.outcome.pending ? "pending" : "ready",
-          ...(state.outcome.value === undefined
-            ? {}
-            : { encodedValue: encodeHostResult(method.result, state.outcome.value) }),
-          providerConfigurationId: configurationId,
-        };
+        const event = hostPollEvent(call, method, state.outcome, configurationId, hostEnums);
         if (recorded) options.record?.(event);
         return state.outcome.pending ? 0 : 1;
       };

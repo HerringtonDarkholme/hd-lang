@@ -231,7 +231,6 @@ const TYPE_NAMES = new Set<ValueType>([
   "string",
   "void",
   "never",
-  "ConsoleError",
 ]);
 
 export function isKnownType(

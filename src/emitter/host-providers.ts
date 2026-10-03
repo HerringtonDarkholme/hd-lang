@@ -1,4 +1,5 @@
-import type { HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
+import { payloadlessSingletonEnum } from "../host-boundary.ts";
+import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
 import { NUMERIC_TYPES, numericType } from "../numeric.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
 import { nominalGenericParts } from "../types.ts";
@@ -13,14 +14,15 @@ interface HostProviderEmission {
 }
 
 interface HostMethod {
+  readonly enums: readonly HirEnum[];
   readonly method: HirTraitMethod;
   readonly trait: HirTrait;
 }
 
 /**
  * The two sides of a `Result[T, E]` boundary result. Each side crosses like a
- * plain boundary result; `void`, and an error type the bridge cannot build
- * (such as `ConsoleError`, which has no specified members), carry no payload.
+ * plain boundary result. `void` and a payload-free singleton enum carry no
+ * separate host payload.
  */
 function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefined {
   const parts = nominalGenericParts(type);
@@ -138,13 +140,15 @@ function emitPoll({ trait, method }: HostMethod): string {
 
 // A `Result[T, E]` boundary result: the host reports the tag, then the
 // active side's payload, boxed as the erased variant payload.
-function emitVariantResult({ trait, method }: HostMethod): string {
+function emitVariantResult({ enums, trait, method }: HostMethod): string {
   const sides = resultSides(method.result);
   if (!sides) return "";
   const payload = (type: ValueType, side: "result_ok" | "result_err"): string => {
     const value = `(call $hd.${importName(trait, method, side)} (local.get $call))`;
     if (type === "string") return `(call ${stringResultName(trait, method)} (local.get $call))`;
     if (SCALAR_BOUNDARY.has(type)) return boxScalar(value, type);
+    const singleton = payloadlessSingletonEnum(enums, type);
+    if (singleton) return `(global.get $e${singleton.enumIndex}v${singleton.tag})`;
     return "(ref.null any)";
   };
   return [
@@ -387,7 +391,9 @@ function emitFrameType({ trait, method }: HostMethod): string {
 export function emitHostProviders(program: HirProgram): HostProviderEmission {
   const capabilities = new Set(program.hostCapabilities);
   const traits = program.traits.filter((trait) => capabilities.has(trait.name));
-  const methods = traits.flatMap((trait) => trait.methods.map((method) => ({ trait, method })));
+  const methods = traits.flatMap((trait) =>
+    trait.methods.map((method) => ({ enums: program.enums, trait, method })),
+  );
   if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
   const called = calledTraitMethods(program);
   const liveMethods = methods.filter(({ trait, method }) =>
