@@ -295,6 +295,34 @@ Regression tests: [local-implementation-extent.test.ts](../../src/checker/local-
 Validation on `dca2cace`: full `TERM=xterm-256color pnpm run check`, all 121 source tests, website build, and fuzz smoke passed. The fuzz smoke produced no phase signatures; its existing non-gating contract signatures remain outside this repair.
 No specification or conformance fixture changed.
 
+### Independent Repair: Requirement-Key Validation
+
+Status: F-201 fixed, and the `TYPE-GAPS` case for dynamically unsafe requirement keys fixed. The other `TYPE-GAPS` cases remain open.
+
+Before this repair, top-level declaration checking validated only generic-looking requirement keys. A bare unknown key such as `Zork` passed, and no requirement-key path enforced the existing dynamic-safety rule. Callable types, row arguments, contexts, explicit closure rows, and provider expressions each entered through different checker paths, so adding another declaration-only condition would have preserved the architectural gap.
+
+One validator now owns the semantic rules for a normalized requirement key: the outer name must be a trait; positional arity and associated binding names must be valid; binding names must be unique; every argument and binding value must be a known type; every reachable associated type must be bound; `Inspectable` and its subtraits must be excluded; and the resulting trait must satisfy the same one-copy dynamic-safety predicate as a trait value. The former `unknown-requirement` implementation-only diagnostic is gone; unknown keys consistently report the specified `unknown-trait` code. The compiler-injected `std.inspect` declarations now retain their standard identities, so this exclusion does not mistake an unrelated user trait named `Inspectable` for the sealed standard trait.
+
+Type traversal applies that validator to callable rows, `$.Context` rows, row-kinded arguments, and rows nested through ordinary type constructors. Declaration rows, explicit closure rows, provider keys, and source type annotations route through the same validator. Trait methods are checked even when no implementation exists. Program type surfaces are checked after all trait bodies have been built, so a later-declared unsafe trait cannot appear safe merely because its placeholder was still empty.
+
+Requirement-key type arguments now receive the same generic and trait-value canonicalization at every entry point without converting the outer key trait into a value type. Thus `Repo[Marker]` has one identity across a declaration row, an implementation head, a provider binding, and a callable type. Invalid row-kind uses recover as symbolic rows after their primary kind diagnostic, and a mutable alias that is illegal as a key is removed after its syntax diagnostic; neither recovery path adds a misleading `unknown-trait` cascade.
+
+| Later fixture candidate | Required observation |
+| --- | --- |
+| Put a bare or generic unknown key in a declaration, callable type, closure row, context, row argument, and provider expression | Report `unknown-trait` at every entry point |
+| Use a trait with an associated function, an ordinary method generic, a direct `Self` position, or an unsafe supertrait as a key | Report `trait-not-dynamically-safe` |
+| Use the standard `Inspectable` or a subtrait in a nested row or provider binding, then use an unrelated user trait named `Inspectable` without the import | Reject only the standard trait family with `inspectable-requirement` |
+| Use a key whose trait or supertrait declares associated types | Reject every incomplete or ambiguous binding and accept a complete unambiguous binding |
+| Place a callable row inside a list, tuple, result, associated binding value, or another requirement key's type argument | Traverse to and validate the nested row |
+| Declare a data field before the unsafe trait named by its callable row | Reject independently of declaration order |
+| Use `Repo[Marker]` where `Marker` is a trait value type in declarations, implementation heads, and providers | Preserve one canonical key identity and accept the matching provider |
+| Use a marked row parameter in a trait method or nested callable type | Keep it symbolic; do not diagnose it as an unknown trait |
+| Use an unmarked row parameter, a row parameter in `$.Context`, or a mutable type alias as a key | Emit only the primary kind or syntax diagnostic, without an `unknown-trait` cascade |
+
+Regression tests: [requirement-key-validation.test.ts](../../src/checker/requirement-key-validation.test.ts).
+
+Validation after the final rebase: both formerly accepted conformance fixtures now reject with their specified codes; all 1,915 selected conformance cases and 16 portable fixtures pass; all 140 source tests pass; and the full `TERM=xterm-256color pnpm run check` passes. Six legacy embedded unit programs were updated, with owner approval, to declare their requirement traits; their lowering assertions now verify typed trait-provider references instead of the accidental `externref` fallback that undeclared keys previously received. The website build and fuzz smoke pass. No specification or conformance fixture changed.
+
 ### Repair Status Table
 
 

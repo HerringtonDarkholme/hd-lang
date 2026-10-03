@@ -262,7 +262,7 @@ class AliasExpander {
           message: `alias '${name}' is '${target.replace(/^mut:/, "mut ")}', and a requirement key has no 'mut'; the trait's 'mut self' methods decide the access`,
           span,
         });
-        return [key];
+        return [];
       }
       return this.key(target, span, depth + 1);
     }

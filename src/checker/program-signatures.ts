@@ -1,23 +1,19 @@
-import {
-  ambiguousProjection,
-  associatedNames,
-  bindingNameProblem,
-  traitKeyParts,
-} from "./associated-bindings.ts";
-import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
+import { ambiguousProjection, bindingNameProblem } from "./associated-bindings.ts";
 import { listVararg, tupleVararg, type FunctionDecl } from "../ast.ts";
 import type { HirAssociatedBinding } from "../hir.ts";
 import { mutableInner, nominalGenericParts } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
+import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
 import {
   collectRowParameterReferences,
   firstPrivateSignatureType,
   normalizeBoundProjections,
   normalizedRequirements,
+  isKnownType,
   resolveGenericRequirement,
   resolveGenericType,
+  resolveTraitType,
   rowParameterName,
   typeName,
 } from "./shared.ts";
@@ -79,6 +75,18 @@ function hashableParameters(
           ),
       ),
     ),
+  );
+}
+
+function resolvedRequirementKey(
+  requirement: string,
+  genericParameters: ReadonlySet<string>,
+  rowParameters: ReadonlySet<string>,
+  traitTypes: ProgramCheckContext["traitTypes"],
+): string {
+  return resolveRequirementKeyTypes(
+    resolveGenericType(requirement, genericParameters, rowParameters),
+    (type) => resolveTraitType(type, traitTypes),
   );
 }
 
@@ -309,10 +317,14 @@ export function createProgramSignatures(
         .map((requirement) =>
           rowParameterName(requirement)
             ? requirement
-            : resolveGenericType(requirement, genericParameters, new Set(rowParameters)),
+            : resolvedRequirementKey(requirement, genericParameters, rowParameterSet, traitTypes),
         ),
     );
-    diagnostics.push(...requirementKeyDiagnostics(requirements, traitTypes, declaration.span));
+    diagnostics.push(
+      ...requirementKeyDiagnostics(requirements, traitTypes, declaration.span, (type) =>
+        isKnownType(resolveTraitType(type, traitTypes), dataTypes, enumTypes, traitTypes),
+      ),
+    );
     if (declaration.public) {
       const privateType =
         declaration.parameters
@@ -388,83 +400,4 @@ export function createProgramSignatures(
     });
   });
   return signatures;
-}
-
-// 11 Requirement Rows: an Inspectable trait is never a requirement key.
-export function checkInspectableRequirements(
-  context: ProgramCheckContext,
-  declarations: readonly FunctionDecl[],
-): void {
-  for (const declaration of declarations)
-    for (const requirement of declaration.requirements)
-      inspectableRequirement(context, requirement.replace(/^mut\s+/, ""), declaration.span);
-}
-
-function inspectableRequirement(
-  context: ProgramCheckContext,
-  requirement: string,
-  span: SourceSpan,
-): boolean {
-  const keyTrait =
-    nominalGenericParts(requirement)?.name ?? mutableInner(requirement) ?? requirement;
-  if (!usesStandardInspect(context.imports) || !extendsInspectable(context.traitTypes, keyTrait))
-    return false;
-  context.diagnostics.push({
-    code: "inspectable-requirement",
-    message: `'${keyTrait}' extends Inspectable, so it cannot be a requirement key`,
-    span,
-  });
-  return true;
-}
-
-/**
- * Each written requirement key: a known trait with its arity, binding names
- * its trait reaches, and every associated type bound (req.key.binding).
- */
-function requirementKeyDiagnostics(
-  requirements: readonly string[],
-  traitTypes: ProgramCheckContext["traitTypes"],
-  span: SourceSpan,
-): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  for (const requirement of requirements) {
-    if (rowParameterName(requirement)) continue;
-    const key = traitKeyParts(requirement);
-    const trait = traitTypes.get(key.name);
-    if (!trait) {
-      if (nominalGenericParts(requirement))
-        diagnostics.push({
-          code: "unknown-requirement",
-          message: `unknown generic requirement key '${requirement}'`,
-          span,
-        });
-      continue;
-    }
-    if (trait.genericParameters.length !== key.positional.length) {
-      diagnostics.push({
-        code: "generic-arity",
-        message: `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
-        span,
-      });
-      continue;
-    }
-    // A key binds associated types by the binding-name rules, and must bind
-    // every one its trait reaches (req.key.binding.names, req.key.binding.complete).
-    const problem = key.bindings
-      .map((binding) => bindingNameProblem(trait, binding.name, traitTypes))
-      .find((candidate) => candidate !== undefined);
-    if (problem) {
-      diagnostics.push({ ...problem, span });
-      continue;
-    }
-    const bound = new Set(key.bindings.map((binding) => binding.name));
-    const unbound = [...associatedNames(trait, traitTypes)].filter((name) => !bound.has(name));
-    if (unbound.length > 0)
-      diagnostics.push({
-        code: "trait-not-dynamically-safe",
-        message: `requirement key '${requirement}' leaves the associated type${unbound.length === 1 ? "" : "s"} ${unbound.join(", ")} of '${trait.name}' unbound; write '${trait.name}[${unbound.map((name) => `${name} = ...`).join(", ")}]'`,
-        span,
-      });
-  }
-  return diagnostics;
 }

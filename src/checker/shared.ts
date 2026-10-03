@@ -1,5 +1,7 @@
 import { mapKeyProblem } from "./map-keys.ts";
 import { traitValueBindings, writtenBindingProblem } from "./associated-bindings.ts";
+import { traitIsDynamicallySafe } from "./dynamic-safety.ts";
+import { requirementKeyDiagnosticsInType, resolveRequirementKeyTypes } from "./requirement-keys.ts";
 import type { Expression, Program, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { numericType, widensTo } from "../numeric.ts";
@@ -21,6 +23,7 @@ export { matchGenericTypePattern } from "./generic-patterns.ts";
 export { normalizedRequirements, rowParameterName, sameRequirements } from "./requirement-rows.ts";
 import {
   contextKeys,
+  contextType,
   functionParts,
   functionType,
   mutableInner,
@@ -1035,6 +1038,16 @@ export function resolveGenericType(
   const inputs = inputsInner(type);
   if (inputs !== undefined)
     return `*${resolveGenericType(inputs, genericParameters, rowParameters)}`;
+  const row = rowArgumentKeys(type);
+  if (row)
+    return rowArgumentType(
+      row.flatMap((requirement) => resolveGenericRequirement(requirement, rowParameters)),
+    );
+  const context = contextKeys(type);
+  if (context)
+    return contextType(
+      context.flatMap((requirement) => resolveGenericRequirement(requirement, rowParameters)),
+    );
   const projection = /^([^:]+)::([A-Za-z_][A-Za-z0-9_]*)$/.exec(type);
   if (projection && genericParameters.has(projection[1]!)) return `generic:${type}`;
   const mutable = mutableInner(type);
@@ -1249,6 +1262,7 @@ export function typeName(
   rowParameters: ReadonlySet<string> = new Set(),
   /** Type parameters bounded by `Eq` and `Hash`, which may key a map (trait.hash.map-key). */
   hashableParameters: ReadonlySet<string> = new Set(),
+  options: { readonly validateRequirementKeys?: boolean } = {},
 ): ValueType | undefined {
   const kinded = normalizeRowArguments(
     resolveTraitType(resolveGenericType(type.name, genericParameters, rowParameters), traitTypes),
@@ -1260,6 +1274,19 @@ export function typeName(
     return undefined;
   }
   const resolved = kinded;
+  if (options.validateRequirementKeys !== false) {
+    const requirementDiagnostics = requirementKeyDiagnosticsInType(
+      resolved,
+      traitTypes,
+      type.span,
+      (argument) =>
+        isKnownType(resolveTraitType(argument, traitTypes), dataTypes, enumTypes, traitTypes),
+    );
+    if (requirementDiagnostics.length > 0) {
+      diagnostics.push(...requirementDiagnostics);
+      return undefined;
+    }
+  }
   const bindingProblem = writtenBindingProblem(resolved, traitTypes);
   if (bindingProblem) {
     diagnostics.push({ ...bindingProblem, span: type.span });
@@ -1305,52 +1332,6 @@ export function typeName(
   return resolved;
 }
 
-// A row parameter keeps one body: its providers pass as one bundle
-// (09-traits.md#r-trait.dyn.safe.row-parameter).
-function isMethodRowParameter(method: HirTrait["methods"][number], parameter: string): boolean {
-  if (method.requirements.includes(parameter)) return true;
-  if (method.requirements.includes(symbolicRequirement(parameter))) return true;
-  const inRow = new RegExp(`\\$\\(?[^)]*\\b${parameter}\\b`);
-  return method.parameters.some((type) => inRow.test(type)) || inRow.test(method.result);
-}
-
-/**
- * The one-copy rule (09-traits.md#dynamic-safety). An associated type is safe
- * only when the value type binds it, so `bound` holds the names the value
- * type binds (trait.dyn.binding.complete).
- */
-function traitIsDynamicallySafe(
-  trait: HirTrait,
-  traitTypes: ReadonlyMap<string, HirTrait>,
-  bound: ReadonlySet<string> = new Set(),
-  seen: ReadonlySet<number> = new Set(),
-): boolean {
-  if (seen.has(trait.index)) return true;
-  if (
-    trait.associatedTypes.some((associated) => !bound.has(associated.name)) ||
-    trait.methods.some(
-      (method) =>
-        method.associated ||
-        method.genericParameters.some(
-          (parameter) =>
-            !(method.referenceParameters ?? []).includes(parameter) &&
-            !isMethodRowParameter(method, parameter),
-        ) ||
-        // A projection `Self::Item` is the bound type, not `Self`.
-        method.parameters.some((parameter) => /generic:Self(?!::)/.test(parameter)) ||
-        /generic:Self(?!::)/.test(method.result),
-    )
-  )
-    return false;
-  const next = new Set([...seen, trait.index]);
-  return trait.supertraits.every((supertrait) => {
-    const parent = [...traitTypes.values()].find(
-      (candidate) => candidate.index === supertrait.traitIndex,
-    );
-    return !parent || traitIsDynamicallySafe(parent, traitTypes, bound, next);
-  });
-}
-
 export function resolveTraitType(
   type: ValueType,
   traitTypes: ReadonlyMap<string, HirTrait>,
@@ -1365,6 +1346,12 @@ export function resolveTraitType(
     return tupleType(tuple.map((element) => resolveTraitType(element, traitTypes)));
   const optional = optionalInner(type);
   if (optional !== undefined) return optionalType(resolveTraitType(optional, traitTypes));
+  const resolveKey = (key: string): string =>
+    resolveRequirementKeyTypes(key, (argument) => resolveTraitType(argument, traitTypes));
+  const row = rowArgumentKeys(type);
+  if (row) return rowArgumentType(row.map(resolveKey));
+  const context = contextKeys(type);
+  if (context) return contextType(context.map(resolveKey));
   const result = resultParts(type);
   if (result)
     return `Result[${resolveTraitType(result.ok, traitTypes)},${resolveTraitType(result.error, traitTypes)}]`;
@@ -1379,7 +1366,7 @@ export function resolveTraitType(
     return functionType(
       callable.parameters.map((parameter) => resolveTraitType(parameter, traitTypes)),
       resolveTraitType(callable.result, traitTypes),
-      callable.requirements,
+      callable.requirements.map(resolveKey),
       callable.variadic,
       callable.suspending,
     );

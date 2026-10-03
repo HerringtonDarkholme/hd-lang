@@ -29,12 +29,17 @@ import {
   genericTypeName,
   isKnownType,
   matchTraitImplementation,
+  normalizedRequirements,
   requirementKeysMayCollide,
+  resolveGenericRequirement,
   resolveGenericType,
+  resolveTraitType,
+  rowParameterName,
   sameRequirements,
   substituteGenericType,
   typeName,
 } from "./shared.ts";
+import { resolveRequirementKeyTypes } from "./requirement-keys.ts";
 
 import type {
   ImplementationMethodPreparation,
@@ -52,6 +57,40 @@ const SEALED_NUMERIC_TRAITS: ReadonlySet<string> = new Set([
 interface TraitSpecialization {
   readonly arguments: readonly string[];
   readonly substitutions: ReadonlyMap<string, string>;
+}
+
+function parameterKinds(
+  implementation: ImplDecl,
+  method?: MethodDecl,
+): { readonly types: Set<string>; readonly rows: Set<string> } {
+  const rows = new Set([...(implementation.rowParameters ?? []), ...(method?.rowParameters ?? [])]);
+  return {
+    types: new Set(
+      [...implementation.genericParameters, ...(method?.genericParameters ?? [])].filter(
+        (parameter) => !rows.has(parameter),
+      ),
+    ),
+    rows,
+  };
+}
+
+function methodRequirements(
+  method: MethodDecl,
+  kinds: ReturnType<typeof parameterKinds>,
+  traitTypes: ReadonlyMap<string, HirTrait>,
+): readonly string[] {
+  return normalizedRequirements(
+    method.requirements
+      .flatMap((requirement) => resolveGenericRequirement(requirement, kinds.rows))
+      .map((requirement) =>
+        rowParameterName(requirement)
+          ? requirement
+          : resolveRequirementKeyTypes(
+              resolveGenericType(requirement, kinds.types, kinds.rows),
+              (type) => resolveTraitType(type, traitTypes),
+            ),
+      ),
+  );
 }
 
 /** Whether `candidate` is in scope at the declaration point of `source`. */
@@ -174,6 +213,7 @@ function specializeTrait(
     });
     return undefined;
   }
+  const kinds = parameterKinds(implementation);
   const arguments_ =
     application?.arguments.map(
       (argument) =>
@@ -183,7 +223,8 @@ function specializeTrait(
           context.enumTypes,
           context.traitTypes,
           context.diagnostics,
-          new Set(implementation.genericParameters),
+          kinds.types,
+          kinds.rows,
         ) ?? "void",
     ) ?? [];
   return {
@@ -343,6 +384,7 @@ function invalidInherentTarget(
   const { dataTypes, enumTypes, traitTypes } = context;
   const span = implementation.span;
   const target = implementation.targetName;
+  const kinds = parameterKinds(implementation);
   if (tupleParts(target) !== undefined)
     return {
       code: "invalid-impl-target",
@@ -361,7 +403,8 @@ function invalidInherentTarget(
     enumTypes,
     traitTypes,
     [],
-    new Set(implementation.genericParameters),
+    kinds.types,
+    kinds.rows,
   );
   if (known !== undefined)
     return {
@@ -387,6 +430,7 @@ function prepareInherentImplementation(
   const targetBase =
     nominalGenericParts(implementation.targetName)?.name ?? implementation.targetName;
   const target = dataTypes.get(targetBase) ?? enumTypes.get(targetBase);
+  const implementationKinds = parameterKinds(implementation);
   const resolveTarget = (): ValueType | undefined =>
     typeName(
       { name: implementation.targetName, span: implementation.span },
@@ -394,7 +438,8 @@ function prepareInherentImplementation(
       enumTypes,
       traitTypes,
       diagnostics,
-      new Set(implementation.genericParameters),
+      implementationKinds.types,
+      implementationKinds.rows,
     );
   let targetType: ValueType | undefined;
   if (!target && implementation.standard) {
@@ -438,10 +483,7 @@ function prepareInherentImplementation(
     });
     const associated = method.parameters[0]?.name !== "self";
     const sourceParameters = associated ? method.parameters : method.parameters.slice(1);
-    const genericParameters = new Set([
-      ...implementation.genericParameters,
-      ...method.genericParameters,
-    ]);
+    const kinds = parameterKinds(implementation, method);
     sourceParameters.forEach((parameter, parameterIndex) => {
       if (parameter.variadic && parameterIndex !== sourceParameters.length - 1) {
         diagnostics.push({
@@ -459,8 +501,8 @@ function prepareInherentImplementation(
           enumTypes,
           traitTypes,
           diagnostics,
-          genericParameters,
-          new Set(),
+          kinds.types,
+          kinds.rows,
           hashableParameters(implementation, method),
         ) ?? "void";
       return resolved;
@@ -472,8 +514,8 @@ function prepareInherentImplementation(
         enumTypes,
         traitTypes,
         diagnostics,
-        genericParameters,
-        new Set(),
+        kinds.types,
+        kinds.rows,
         hashableParameters(implementation, method),
       ) ?? "void";
     const functionName = `$inherent${implementationIndex}.${method.name}`;
@@ -495,7 +537,7 @@ function prepareInherentImplementation(
       variadic: listVararg(sourceParameters.at(-1)),
       suspending: method.suspending,
       result,
-      requirements: method.requirements,
+      requirements: methodRequirements(method, kinds, traitTypes),
       functionName,
       span: method.span,
       ...(implementation.localImplementation !== undefined
@@ -600,6 +642,10 @@ function resolveImplementationTarget(
     new Set(implementation.genericParameters),
     rowParameters,
   );
+  for (const parameter of implementation.rowParameters ?? []) rowParameters.add(parameter);
+  const typeParameters = new Set(
+    implementation.genericParameters.filter((parameter) => !rowParameters.has(parameter)),
+  );
   const targetType =
     typeName(
       { name: implementation.targetName, span: implementation.span },
@@ -607,7 +653,7 @@ function resolveImplementationTarget(
       enumTypes,
       traitTypes,
       diagnostics,
-      new Set(implementation.genericParameters),
+      typeParameters,
       rowParameters,
       // A std target may be a map over an unbounded key (lib/std/iter.hd).
       implementation.standard
@@ -678,7 +724,7 @@ function prepareAssociatedTypes(
         span: binding.span,
       });
   }
-  const genericParameters = new Set(implementation.genericParameters);
+  const kinds = parameterKinds(implementation);
   return trait.associatedTypes.map((associated) => {
     const binding = bindings.get(associated.name);
     if (!binding?.value) {
@@ -690,8 +736,15 @@ function prepareAssociatedTypes(
       return "void";
     }
     return (
-      typeName(binding.value, dataTypes, enumTypes, traitTypes, diagnostics, genericParameters) ??
-      "void"
+      typeName(
+        binding.value,
+        dataTypes,
+        enumTypes,
+        traitTypes,
+        diagnostics,
+        kinds.types,
+        kinds.rows,
+      ) ?? "void"
     );
   });
 }
@@ -873,10 +926,9 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         continue;
       }
       if (suppliedMethod) {
-        const methodGenerics = new Set([
-          ...implementation.genericParameters,
-          ...method.genericParameters,
-        ]);
+        const methodKinds = parameterKinds(implementation, method);
+        const methodGenerics = methodKinds.types;
+        const requirements = methodRequirements(method, methodKinds, traitTypes);
         // 09 Implementation Declarations: method-level generic parameters
         // correspond by position, so the trait's names are replaced by the
         // implementation's before parameter, result, and bound comparison.
@@ -915,7 +967,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
               traitTypes,
               diagnostics,
               methodGenerics,
-              new Set(),
+              methodKinds.rows,
               hashableParameters(implementation, method),
             ) ?? "void";
           return type;
@@ -939,7 +991,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
             traitTypes,
             diagnostics,
             methodGenerics,
-            new Set(),
+            methodKinds.rows,
             hashableParameters(implementation, method),
           ) ?? "void";
         if (
@@ -952,7 +1004,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           listVararg(method.parameters.at(-1)) !== required.variadic ||
           result !== substituteGenericType(renamedResult, new Map([["Self", targetType]])) ||
           method.suspending !== required.suspending ||
-          !sameRequirements(method.requirements, required.requirements)
+          !sameRequirements(requirements, required.requirements)
         ) {
           diagnostics.push({
             code: "trait-method-signature",

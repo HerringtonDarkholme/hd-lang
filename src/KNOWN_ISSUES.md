@@ -17,7 +17,6 @@ failures, 64 language tier and 19 stdlib tier.
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
 | F-163 | 1 | a list literal is not weakened to a readonly operand's type |
-| F-201 | 1 | an unresolved requirement key is accepted |
 | F-250 | 6 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | F-310 | 1 | a line that starts with `:` attaches a trailing block to the statement before it |
@@ -31,7 +30,7 @@ failures, 64 language tier and 19 stdlib tier.
 | TASK-PROGRAMS | 1 | integration test modules are linked as one program |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
-| TYPE-GAPS | 8 | batch 51 inference codes and batch 51b type rules are not checked |
+| TYPE-GAPS | 7 | remaining batch 51 inference codes and batch 51b type rules are not checked |
 | DERIVE-DEFAULT | 3 | no `@default` marker or count check for derived `Default` |
 | DEFAULT-FIELD | 1 | derived `Default` requires `Default` of a member that declares a default |
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
@@ -52,8 +51,6 @@ Correctness and diagnostics:
   not a `stack-exhausted` panic.
 - **F-163**: `xs := [1, 2]` then `xs == [1, 2]` or `xs < [2]` is a
   `type-mismatch`. Fixture: `typing/valid/list-literal-compares-with-readonly-binding.hd`.
-- **F-201**: `fn f() -> i32 $ Zork` checks although no trait `Zork` exists;
-  only entry rows are checked. Fixture: `typing/invalid/requirement-key-unknown-trait.hd`.
 - **F-250**: a GADT variant result gets `syntax-error`,
   `expected-expression`, or `unsupported-gadt-result`, and a pack function
   gets `unsupported-generic-parameter`, not one stable code per deferred
@@ -125,7 +122,7 @@ Compiler structure:
 | M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package. |
 | MHP-1 | A top-level `println` in a script is valid. The prototype infers no script entry row (`module.init.script-row`), so it reports `missing-requirement`. |
 | DC7 | An initialization group runs statements in dependency order across modules. The linker joins modules whole, so `init-group-order.hd` reports `top-level-read-before-initialization`. |
-| TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; a requirement key must be dynamically safe; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The prototype checks none of these. |
+| TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The requirement-key dynamic-safety rule is implemented; the prototype does not check these remaining gaps. |
 | DERIVE-DEFAULT | Batch 51: `@derive(Default)` through the `std.ops` template, with `@default` on one enum variant. The template in `lib/std/ops.hd` works for data types, but the marker function `std.ops.default` is missing: declaring a module function named `default` beside the trait breaks every `T::default()` call in the prototype. No check counts the marked variants. |
 | RACE-EMPTY | Batch 51: `race!(tasks=[])` is `argument-count`, and an empty task list at run time panics with `explicit-panic`. The prototype accepts the first and hangs on the second. |
 | CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `--` program arguments, exit status 101, JSON lines with a summary record, `-p`, `--filter`, `--deny-skipped`, stdin as a program, the workspace search from a member, the `hd new --app` and `--lib` templates, or the executable, task, and test-root layout errors. Most have no fixture format. |

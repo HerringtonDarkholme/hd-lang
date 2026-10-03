@@ -36,6 +36,7 @@ export const HIDDEN_TERMINATION = "__std_process_Termination";
 // supported. The `downcast` methods, `downcast_val`, and `TypeId::of` are
 // checker intrinsics, so the trait's dictionary holds `runtime_type` alone.
 export const INSPECTABLE = "Inspectable";
+export const STANDARD_INSPECTABLE = "std.inspect.Inspectable";
 export const TYPE_ID = "TypeId";
 export const STANDARD_DOWNCAST_VAL = "std.inspect.downcast_val";
 /** Members of the sealed trait that no subtrait or implementation may write. */
@@ -45,7 +46,7 @@ export const INSPECTABLE_MEMBERS: ReadonlySet<string> = new Set([
   "downcast_mut",
 ]);
 const INSPECT_IMPORTS = new Set([
-  "std.inspect.Inspectable",
+  STANDARD_INSPECTABLE,
   "std.inspect.TypeId",
   STANDARD_DOWNCAST_VAL,
 ]);
@@ -71,10 +72,24 @@ export function withStandardTraits(program: Program): Program {
   )?.span;
   const parsed = inspect && parse(standardSource("inspect")).program;
   if (!inspect || !parsed) return program;
+  const traits = parsed.traits.map((declaration) => ({
+    ...declaration,
+    standard: true as const,
+    standardName: `std.inspect.${declaration.name}`,
+  }));
+  const data = parsed.data.map((declaration) => ({
+    ...declaration,
+    standard: true as const,
+    standardName: `std.inspect.${declaration.name}`,
+  }));
+  const implementations = parsed.implementations.map((declaration) => ({
+    ...declaration,
+    standard: true as const,
+  }));
   return {
     ...program,
-    traits: [...program.traits, ...respan(parsed.traits, inspect)],
-    data: [...program.data, ...respan(parsed.data, inspect)],
-    implementations: [...program.implementations, ...respan(parsed.implementations, inspect)],
+    traits: [...program.traits, ...respan(traits, inspect)],
+    data: [...program.data, ...respan(data, inspect)],
+    implementations: [...program.implementations, ...respan(implementations, inspect)],
   };
 }

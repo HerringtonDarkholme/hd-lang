@@ -40,6 +40,7 @@ import {
 import { isPermissionWeakening, weakenBoundedGenericActual } from "./assignability.ts";
 import { leastCommonType } from "./least-common-type.ts";
 import { isRowSubsumption, mismatchMessage, rowDiagnostic } from "./row-rules.ts";
+import { requirementKeyDiagnosticsInType } from "./requirement-keys.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import * as termination from "./termination.ts";
 import { varianceConversion } from "./variance.ts";
@@ -1240,6 +1241,20 @@ export abstract class CheckerContext {
       ambiguousProjection(kinded, this.signature.genericBounds, this.traitTypes);
     if (problem) this.fail(problem.code, problem.message, type.span);
     const declared = normalizeBoundProjections(kinded, this.signature.genericBounds);
+    const requirementDiagnostic = requirementKeyDiagnosticsInType(
+      declared,
+      this.traitTypes,
+      type.span,
+      (argument) =>
+        isKnownType(
+          resolveTraitType(argument, this.traitTypes),
+          this.dataTypes,
+          this.enumTypes,
+          this.traitTypes,
+        ),
+    )[0];
+    if (requirementDiagnostic)
+      this.fail(requirementDiagnostic.code, requirementDiagnostic.message, type.span);
     const nominal = nominalGenericParts(declared);
     if (
       nominal?.name === "Map" &&

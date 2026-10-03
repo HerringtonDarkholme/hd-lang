@@ -5,9 +5,18 @@ import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
+  requirementKeyDiagnostics,
+  requirementKeyDiagnosticsInType,
+  resolveRequirementKeyTypes,
+} from "./requirement-keys.ts";
+import {
   collectRowParameterReferences,
   firstPrivateSignatureType,
+  isKnownType,
+  normalizedRequirements,
+  resolveGenericRequirement,
   resolveGenericType,
+  resolveTraitType,
   typeName,
 } from "./shared.ts";
 
@@ -197,6 +206,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
           new Set(declaration.genericParameters.filter((name) => !rowParameters.has(name))),
           rowParameters,
           hashable,
+          { validateRequirementKeys: false },
         ) ?? "void";
       if (type === "void")
         diagnostics.push({
@@ -246,6 +256,9 @@ export function defineProgramData(context: ProgramCheckContext): void {
             traitTypes,
             diagnostics,
             new Set(declaration.genericParameters),
+            new Set(),
+            new Set(),
+            { validateRequirementKeys: false },
           ) ?? "void",
         ] as const,
     );
@@ -293,6 +306,9 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           traitTypes,
           diagnostics,
           new Set(declaration.genericParameters),
+          new Set(),
+          new Set(),
+          { validateRequirementKeys: false },
         ) ?? "void";
       if (type === "void")
         diagnostics.push({
@@ -343,6 +359,9 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
             traitTypes,
             diagnostics,
             new Set(declaration.genericParameters),
+            new Set(),
+            new Set(),
+            { validateRequirementKeys: false },
           ) ?? "void";
         if (type === "void")
           diagnostics.push({
@@ -490,9 +509,26 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         });
       names.add(method.name);
       const associated = method.parameters[0]?.name !== "self";
+      // Trait-level parameters are type parameters, but after the kind error
+      // recover one used in a row as symbolic so later validation does not
+      // misreport it as an unknown trait.
+      const illegalRows = new Set<string>();
+      const traitParameters = new Set(
+        declaration.genericParameters.filter(
+          (parameter) => !method.genericParameters.includes(parameter),
+        ),
+      );
+      method.parameters.forEach((parameter) =>
+        collectRowParameterReferences(parameter.type.name, traitParameters, illegalRows),
+      );
+      collectRowParameterReferences(method.result.name, traitParameters, illegalRows);
+      method.requirements.forEach((requirement) => {
+        if (traitParameters.has(requirement)) illegalRows.add(requirement);
+      });
+      const rowParameters = new Set([...(method.rowParameters ?? []), ...illegalRows]);
       const memberGenerics = new Set([
-        ...declaration.genericParameters,
-        ...method.genericParameters,
+        ...declaration.genericParameters.filter((parameter) => !rowParameters.has(parameter)),
+        ...method.genericParameters.filter((parameter) => !rowParameters.has(parameter)),
         "Self",
         ...associatedTypes.map((associated) => `Self::${associated.name}`),
       ]);
@@ -514,12 +550,24 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           traitTypes,
           diagnostics,
           memberGenerics,
+          rowParameters,
+          new Set(),
+          { validateRequirementKeys: false },
         );
         return type;
       });
       const result =
-        typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics, memberGenerics) ??
-        "void";
+        typeName(
+          method.result,
+          dataTypes,
+          enumTypes,
+          traitTypes,
+          diagnostics,
+          memberGenerics,
+          rowParameters,
+          new Set(),
+          { validateRequirementKeys: false },
+        ) ?? "void";
       const referenceParameters: string[] = [];
       const valueParameters: string[] = [];
       const genericBounds = method.genericBounds.flatMap((bound) =>
@@ -539,7 +587,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           const boundTrait = traitName === "Any" ? undefined : traitTypes.get(traitName);
           if (!boundTrait) return [];
           const traitArguments = (application?.arguments ?? []).map((argument) =>
-            resolveGenericType(argument, memberGenerics, new Set()),
+            resolveGenericType(argument, memberGenerics, rowParameters),
           );
           return [
             {
@@ -556,8 +604,30 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         ([name, type]) =>
           [
             name,
-            typeName(type, dataTypes, enumTypes, traitTypes, diagnostics, memberGenerics) ?? "void",
+            typeName(
+              type,
+              dataTypes,
+              enumTypes,
+              traitTypes,
+              diagnostics,
+              memberGenerics,
+              rowParameters,
+              new Set(),
+              { validateRequirementKeys: false },
+            ) ?? "void",
           ] as const,
+      );
+      const requirements = normalizedRequirements(
+        method.requirements
+          .flatMap((requirement) => resolveGenericRequirement(requirement, rowParameters))
+          .map((requirement) =>
+            requirement.startsWith("row:")
+              ? requirement
+              : resolveRequirementKeyTypes(
+                  resolveGenericType(requirement, memberGenerics, rowParameters),
+                  (type) => resolveTraitType(type, traitTypes),
+                ),
+          ),
       );
       return {
         name: method.name,
@@ -574,7 +644,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         parameterNames: sourceParameters.map((parameter) => parameter.name),
         variadic: listVararg(sourceParameters.at(-1)),
         result,
-        requirements: method.requirements,
+        requirements,
         span: method.span,
       };
     });
@@ -587,6 +657,43 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
   }
   diagnoseSupertraitCycles(context);
   diagnoseSupertraitMemberNames(context);
+  validateDeclaredRequirementKeys(context);
+}
+
+/**
+ * Program type bodies are built before every trait body is available. Check
+ * their nested rows only after that phase, so dynamic safety is independent
+ * of declaration order.
+ */
+function validateDeclaredRequirementKeys(context: ProgramCheckContext): void {
+  const { dataTypes, enumTypes, traitTypes, diagnostics } = context;
+  const known = (type: string): boolean =>
+    isKnownType(resolveTraitType(type, traitTypes), dataTypes, enumTypes, traitTypes);
+  const validateType = (type: string, span: HirData["span"]): void => {
+    diagnostics.push(...requirementKeyDiagnosticsInType(type, traitTypes, span, known));
+  };
+  for (const data of dataTypes.values()) {
+    data.fields.forEach((field) => validateType(field.type, field.span));
+    for (const type of data.genericDefaults?.values() ?? []) validateType(type, data.span);
+  }
+  for (const enumType of enumTypes.values())
+    enumType.fields.forEach((field) => validateType(field.type, field.span));
+  for (const trait of traitTypes.values()) {
+    for (const supertrait of trait.supertraits) {
+      supertrait.traitArguments.forEach((type) => validateType(type, trait.span));
+      supertrait.associatedBindings?.forEach((binding) => validateType(binding.type, trait.span));
+    }
+    for (const method of trait.methods) {
+      diagnostics.push(
+        ...requirementKeyDiagnostics(method.requirements, traitTypes, method.span, known),
+      );
+      method.parameters.forEach((type) => validateType(type, method.span));
+      validateType(method.result, method.span);
+      for (const type of method.genericDefaults?.values() ?? []) validateType(type, method.span);
+      for (const bound of method.genericBounds ?? [])
+        bound.traitArguments.forEach((type) => validateType(type, method.span));
+    }
+  }
 }
 
 // 09 Trait Declarations: a child trait must not declare a member name of any

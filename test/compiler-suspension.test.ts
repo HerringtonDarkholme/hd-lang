@@ -5,19 +5,26 @@ import { analyze, instantiate, type ReplayEvent } from "../src/compiler.ts";
 import { conformance, fixture } from "./fixture.ts";
 
 test("suspending functions construct GC frames and bang calls drive them", async () => {
-  const source = `fn add_two!(value: i32) -> i32 $ Clock:
+  const source = `trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock
+
+fn add_two!(value: i32) -> i32 $ Clock:
     _ := $.use(Clock)
     value + 2
 
-fn main!() -> i32 $ Clock:
-    add_two!(40)
+fn main!() -> i32:
+    $.with(Clock=FixedClock {}):
+        add_two!(40)
 `;
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(type \$s0 \(struct/);
   assert.match(compilation.wat, /\(func \$f0 .*\(result \(ref null \$s0\)\)/);
   assert.match(compilation.wat, /\(func \$poll0/);
   assert.match(compilation.wat, /struct\.set \$s0 \$s0state/);
-  assert.equal((instance.exports.main as CallableFunction)({ clock: true }), 42);
+  assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 
 test("generic suspending functions box frame arguments and unbox direct or stored results", async () => {

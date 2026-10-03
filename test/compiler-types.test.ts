@@ -266,7 +266,11 @@ test("nested closures propagate grandparent captures through GC environments", a
 });
 
 test("closures store captured provider values in GC environments", async () => {
-  const source = `fn make_reader() -> (fn() -> i32) $ Backup:
+  const source = `trait Clock
+trait Backup < Clock:
+    fn label(self) -> i32
+
+fn make_reader() -> (fn() -> i32) $ Backup:
     $.with(Clock=$.use(Backup)):
         clock := $.use(Clock)
         fn() -> i32:
@@ -278,11 +282,16 @@ fn main() -> i32 $ Backup:
     reader()
 `;
   const compilation = await compileToWasm(source);
-  assert.match(compilation.wat, /\(type \$env0 \(struct\n\s*\(field \$env0f0 externref\)/);
+  assert.match(
+    compilation.wat,
+    /\(type \$env0 \(struct\n\s*\(field \$env0f0 \(ref null \$trait0\)\)/,
+  );
 });
 
 test("requirement-bearing closures lower provider parameters", async () => {
-  const source = `fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
+  const source = `trait Clock
+
+fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
     callback()
 
 fn main() -> i32 $ Clock:
@@ -292,12 +301,17 @@ fn main() -> i32 $ Clock:
     invoke(reader)
 `;
   const compilation = await compileToWasm(source);
-  assert.match(compilation.wat, /type \$sig0 \(func \(param anyref\) \(param externref\)/);
+  assert.match(
+    compilation.wat,
+    /type \$sig0 \(func \(param anyref\) \(param \(ref null \$trait0\)\)/,
+  );
   assert.match(compilation.wat, /call_ref \$sig0/);
 });
 
 test("requirement-bearing function values lower provider parameters", async () => {
-  const source = `fn read() -> i32 $ Clock:
+  const source = `trait Clock
+
+fn read() -> i32 $ Clock:
     _ := $.use(Clock)
     42
 
@@ -307,7 +321,7 @@ fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
 fn main() -> i32 $ Clock: invoke(read)
 `;
   const compilation = await compileToWasm(source);
-  assert.match(compilation.wat, /func \$fv0[^]*param \$provider0 externref/);
+  assert.match(compilation.wat, /func \$fv0[^]*param \$provider0 \(ref null \$trait0\)/);
 });
 
 test("closure HIR records inferred unsatisfied requirements", () => {
@@ -317,25 +331,33 @@ test("closure HIR records inferred unsatisfied requirements", () => {
   assert.equal(analysis.hir?.functions[0]?.locals[0]?.type, "fn()->i32$Clock");
 });
 
-test("concrete requirement rows lower hidden externref providers", async () => {
-  const source = `fn read() -> i32 $ Clock: 40
+test("concrete requirement rows lower hidden typed providers", async () => {
+  const source = `trait Clock
+
+fn read() -> i32 $ Clock: 40
 fn middle() -> i32 $ Clock: read() + 1
 fn main() -> i32 $ Clock: middle() + 1
 `;
   const compilation = await compileToWasm(source);
-  assert.match(compilation.wat, /param \$provider0 externref/);
+  assert.match(compilation.wat, /param \$provider0 \(ref null \$trait0\)/);
   assert.match(compilation.wat, /call \$f0 \(local\.get \$provider0\)/);
 });
 
 test("provider scopes lower hidden provider locals", async () => {
-  const source = `fn main() -> i32 $ Clock + Backup:
+  const source = `trait Clock
+trait Backup < Clock:
+    fn label(self) -> i32
+
+fn main() -> i32 $ Clock + Backup:
     _ := $.use(Clock)
     $.with(Clock=$.use(Backup)):
         _ := $.use(Clock)
         42
 `;
   const compilation = await compileToWasm(source);
-  assert.match(compilation.wat, /local\.set \$l0 \(local\.get \$provider0\)/);
+  assert.match(compilation.wat, /\(local \$l0 \(ref null \$trait0\)\)/);
+  assert.match(compilation.wat, /\(local\.set \$l0 \(block \(result \(ref null \$trait0\)\)/);
+  assert.match(compilation.wat, /\(local\.set \$tmp0 \(local\.get \$provider0\)\)/);
 });
 
 test("concrete requirement rows normalize + lists as sets", () => {

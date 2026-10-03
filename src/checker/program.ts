@@ -4,7 +4,7 @@ import { createProgramDeclarations } from "./program-declarations.ts";
 import { checkEmbeddedMemberConflicts, checkEmbeddingLimits } from "./program-embedding.ts";
 import { prepareImplementations } from "./program-implementations.ts";
 import { lowerCheckedProgram } from "./program-lower.ts";
-import { checkInspectableRequirements, createProgramSignatures } from "./program-signatures.ts";
+import { createProgramSignatures } from "./program-signatures.ts";
 import {
   declareProgramTypes,
   defineProgramData,
@@ -224,7 +224,6 @@ function checkProgramRaw(
   const declarations = createProgramDeclarations(context);
   if (!declarations) return { diagnostics: context.diagnostics };
   const signatures = createProgramSignatures(context, declarations);
-  checkInspectableRequirements(context, declarations);
   if (context.diagnostics.some((diagnostic) => diagnostic.severity !== "warning"))
     return { diagnostics: context.diagnostics };
   return lowerCheckedProgram(context, declarations, signatures);

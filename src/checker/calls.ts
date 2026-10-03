@@ -20,7 +20,6 @@ import {
   rowArgumentKeys,
   storedSuspensionParts,
   suspensionType,
-  splitTypeBindings,
   tupleParts,
   tupleLayout,
   tupleRest,
@@ -47,12 +46,14 @@ import {
   orderedTypeSubstitutions,
   requirementKeysMayCollide,
   resolveGenericType,
+  resolveTraitType,
   rowParameterName,
   substituteGenericType,
   argumentOwnType,
   traitKeyName,
   traitTypeName,
 } from "./shared.ts";
+import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
 
 import { StatementChecker } from "./statements.ts";
 
@@ -1187,29 +1188,23 @@ export abstract class CallChecker extends StatementChecker {
   }
 
   protected canonicalProviderKey(key: string, span: SourceSpan): string {
-    const resolved = resolveGenericType(
-      key,
-      new Set(this.signature.genericParameters),
-      new Set(this.signature.rowParameters),
+    const resolved = resolveRequirementKeyTypes(
+      resolveGenericType(
+        key,
+        new Set(this.signature.genericParameters),
+        new Set(this.signature.rowParameters),
+      ),
+      (type) => resolveTraitType(type, this.traitTypes),
     );
-    const nominal = nominalGenericParts(resolved);
-    if (!nominal) return resolved;
-    const trait = this.traitTypes.get(nominal.name);
-    if (!trait) this.fail("unknown-requirement", `unknown generic requirement key '${key}'`, span);
-    if (trait.genericParameters.length !== splitTypeBindings(nominal.arguments).positional.length) {
-      this.fail(
-        "generic-arity",
-        `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
-        span,
-      );
-    }
-    if (
-      !nominal.arguments.every((argument) =>
-        isKnownType(argument, this.dataTypes, this.enumTypes, this.traitTypes),
-      )
-    ) {
-      this.fail("unknown-type", `requirement key '${key}' contains an unknown type`, span);
-    }
+    const diagnostic = requirementKeyDiagnostics([resolved], this.traitTypes, span, (type) =>
+      isKnownType(
+        resolveTraitType(type, this.traitTypes),
+        this.dataTypes,
+        this.enumTypes,
+        this.traitTypes,
+      ),
+    )[0];
+    if (diagnostic) this.fail(diagnostic.code, diagnostic.message, span);
     return resolved;
   }
 
