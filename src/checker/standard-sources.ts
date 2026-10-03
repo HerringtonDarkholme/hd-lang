@@ -13,6 +13,7 @@ import type { SourceDocument } from "../diagnostics.ts";
 /** The `std` modules that the loader can join, by module path (`std.<name>`). */
 export const STANDARD_MODULES = [
   "annotation",
+  "cli",
   "cmp",
   "convert",
   "error",
@@ -33,6 +34,7 @@ export const STANDARD_MODULES = [
   "option",
   "process",
   "random",
+  "regex",
   "resource",
   "result",
   "task",

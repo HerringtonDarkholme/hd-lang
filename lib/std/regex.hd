@@ -3,8 +3,7 @@
 # program for a Pike VM. The VM runs every thread in step over the text and
 # keeps at most one thread per instruction, so a search takes time
 # proportional to the program size times the text length, with no
-# backtracking (r-std-regex.time.linear). The prototype's std loader does
-# not list this module yet (src/checker/standard-sources.ts).
+# backtracking (r-std-regex.time.linear).
 use std.format.DebugWriter
 use std.error.Error
 

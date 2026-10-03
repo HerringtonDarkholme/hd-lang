@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,173 cases: 2,039 selected in `test/portable/cases.tsv` and 134 known
-failures. The selected cases are 1,813 language tier and 226 stdlib tier;
-the known failures are 83 language tier and 51 stdlib tier.
+2,173 cases: 2,057 selected in `test/portable/cases.tsv` and 116 known
+failures. The selected cases are 1,813 language tier and 244 stdlib tier;
+the known failures are 83 language tier and 33 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -55,8 +55,6 @@ the known failures are 83 language tier and 51 stdlib tier.
 | STD-1 | 3 | the checker accepts bounded inherent Map impls, but the specified Map methods are absent from `lib/std` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | SPEC-U32-DRIFT | 6 | fixtures still encode the retired signed-size behavior; `audit/compiler/u32-spec-drift.md` records the conflicts |
-| STD-LOADER | 13 | `std.regex` is not registered, and JSON imports do not always retain `Number` |
-| STD-CLI | 5 | `std.cli` is not registered |
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
 | EQ-CONTEXTUAL | 2 | equality does not contextually type a variant from the opposite operand |
 | FRESH-MUT | 1 | generic inference does not weaken `mut T` and `T` to their readonly join |

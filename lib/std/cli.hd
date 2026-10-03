@@ -1,7 +1,6 @@
 # std.cli: argument parsing for scripts (spec/std/cli.md). A `Cli` value
 # lists the flags, options, and positionals; `parse` reads a list of
-# arguments against it, and `usage` writes its help text. The prototype's
-# std loader does not list this module yet (src/checker/standard-sources.ts).
+# arguments against it, and `usage` writes its help text.
 use std.format.DebugWriter
 use std.error.Error
 use std.host.Args
