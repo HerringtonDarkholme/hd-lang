@@ -119,7 +119,7 @@ fn digest() -> u64:
 use std.hash.{DefaultHasher, hash_of}
 
 fn digest() -> u64:
-    let hasher = DefaultHasher::new()
+    let mut hasher = DefaultHasher::new()
     hasher.write([97])
     hasher.finish()  # 12638187200555641996
 

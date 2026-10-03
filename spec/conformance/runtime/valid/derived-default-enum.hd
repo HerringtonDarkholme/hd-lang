@@ -3,13 +3,13 @@
 use std.ops.{Default, default}
 use std.testing.assert_equal
 
-@derive(Default, Eq)
+@derive(Default, Eq, Debug)
 enum Shape:
     Circle(radius: f64)
     @default
     Square(side: f64, label: string)
 
-@derive(Default, Eq)
+@derive(Default, Eq, Debug)
 enum Level:
     Low
     @default

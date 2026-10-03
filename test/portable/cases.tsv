@@ -1905,3 +1905,4 @@ runtime/valid/string-lines.hd	runtime
 runtime/valid/hash-of-reference-values.hd	runtime
 typing/invalid/option-invariant.hd	type
 typing/valid/derived-arbitrary-non-inspectable-member.hd	type
+runtime/valid/default-hasher.hd	runtime

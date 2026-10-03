@@ -5,12 +5,12 @@ use std.hash.{DefaultHasher, hash_of}
 use std.testing.assert_equal
 
 fn digest(bytes: List[u8]) -> u64:
-    let hasher = DefaultHasher::new()
+    let mut hasher = DefaultHasher::new()
     hasher.write(bytes)
     hasher.finish()
 
 fn by_hand(value: string) -> u64:
-    let hasher = DefaultHasher::new()
+    let mut hasher = DefaultHasher::new()
     value.hash(hasher)
     hasher.finish()
 
@@ -26,13 +26,13 @@ tests:
         assert_equal(digest([97, 98]), two, reason="the bytes 97 and 98")
 
     it("two writes give the state of one write of both lists"):
-        let hasher = DefaultHasher::new()
+        let mut hasher = DefaultHasher::new()
         hasher.write([97])
         hasher.write([98])
         assert_equal(hasher.finish(), digest([97, 98]), reason="writes concatenate")
 
     it("finish does not change the state"):
-        let hasher = DefaultHasher::new()
+        let mut hasher = DefaultHasher::new()
         hasher.write([97])
         first := hasher.finish()
         assert_equal(hasher.finish(), first, reason="finish twice")
