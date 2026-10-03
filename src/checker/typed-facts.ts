@@ -127,16 +127,7 @@ type Expand = (bounds: readonly GenericBound[]) => readonly GenericBound[];
 
 function functionTarget(declaration: FunctionDecl, expand: Expand): TargetType | undefined {
   if (declaration.resultOmitted) return undefined;
-  const requirements = declaration.writtenRequirements ?? declaration.requirements;
-  const rows = new Set(
-    declaration.genericParameters.filter(
-      (parameter) =>
-        requirements.includes(parameter) ||
-        [declaration.result, ...declaration.parameters.map((item) => item.type)].some((type) =>
-          new RegExp(`\\$[^\\]),]*\\b${parameter}\\b`).test(type.name),
-        ),
-    ),
-  );
+  const rows = new Set(declaration.rowParameters ?? []);
   return monomorphic(
     signatureType(declaration),
     declaration.genericParameters,

@@ -70,6 +70,8 @@ export interface HirTraitMethod {
   readonly index: number;
   readonly associated: boolean;
   readonly genericParameters: readonly string[];
+  /** Method generic parameters declared with `$`, which are requirement rows. */
+  readonly rowParameters?: readonly string[];
   // Method-level bounds other than AnyVal, AnyRef, and Any. Each is passed as a
   // dictionary argument after the ordinary parameters, also through a
   // dynamic trait value (04-type-system.md#trait-values-and-any).

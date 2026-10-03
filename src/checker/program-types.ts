@@ -641,6 +641,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         index,
         associated,
         genericParameters: method.genericParameters,
+        ...(rowParameters.size > 0 ? { rowParameters: [...rowParameters] } : {}),
         genericBounds,
         ...(defaults.length > 0 ? { genericDefaults: new Map(defaults) } : {}),
         referenceParameters,

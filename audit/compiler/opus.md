@@ -4,7 +4,7 @@ Status: findings of a bounded, read-only review of `src/` at `5ba7393e`. Nothing
 
 ## Summary
 
-The remaining review has 9 findings: 2 high, 3 medium and 4 low. Six are bugs with a reproduction, one is a resource problem with timings, and two are hacks cited by line. The highest remaining root is written-type validation split across two paths: nested types and local annotations skip the dynamic-safety and bound checks (O-02, O-03). Integration-test source rewriting causes O-05 and O-12. Four more items are suspected but not reproduced.
+The remaining review has 8 findings: 2 high, 2 medium and 4 low. Five are bugs with a reproduction, one is a resource problem with timings, and two are hacks cited by line. The highest remaining root is written-type validation split across two paths: nested types and local annotations skip the dynamic-safety and bound checks (O-02, O-03). Integration-test source rewriting causes O-05 and O-12. Four more items are suspected but not reproduced.
 
 Each repro ran with `timeout 60 node bin/hd.js check|run|test FILE` from a scratch folder `scratch-230/` in the worktree, so output paths keep that prefix.
 
@@ -126,37 +126,6 @@ Doubling N quadruples the time with two impls.
 
 - Expected: checking time near linear in program size. No rule states a bound; this is a cost problem.
 - Fix: make the trial a pure check that returns its HIR and diagnostics, or journal only the state a trial changes. Do not deep-snapshot the checker.
-
-### O-07: dynamic safety depends on the order of tuple elements
-
-- Severity: medium. Kind: bug (from a hack).
-- Where: `src/checker/dynamic-safety.ts:8` (`isMethodRowParameter`).
-- A method type parameter counts as a row parameter when a regex finds it after a `$` in the type text. The pattern `\$\(?[^)]*\bT\b` runs past a comma, so in `(fn() -> void $ Console, T)` it reads `T` as part of the row. `typed-facts.ts:132` uses a different pattern (`[^\]),]*`) for the same question, so the two can disagree.
-
-Repro (`dyn5.hd`):
-
-```text
-trait Show:
-    fn show[T](self, pair: (fn() -> void $ Console, T)) -> i32
-
-data A:
-    x: i32
-
-impl Show for A:
-    fn show[T](self, pair: (fn() -> void $ Console, T)) -> i32:
-        self.x
-
-fn use_it(s: Show) -> i32:
-    s.show((fn() -> void $ Console: println("hi"), "text"))
-
-pub fn main() -> void $ Console:
-    println("${use_it(A { x: 1 })}")
-```
-
-`node bin/hd.js run dyn5.hd` prints `1`. Swapping the tuple to `(T, fn() -> void $ Console)` gives `trait-not-dynamically-safe` at `s: Show`.
-
-- Expected: `trait-not-dynamically-safe` in both orders; `T` is an unbounded method type parameter (`trait.dyn.safe.implied-anyref-param`, `trait.dyn.safe.error`).
-- Fix: record each method parameter's kind (type or row) in the HIR signature and read it there; no regex over type text.
 
 ### O-08: a spread list rejects a function element written as `if`, `match` or a closure
 
