@@ -29,8 +29,9 @@ import { PRELUDE_NAMES } from "./context.ts";
 import {
   type BindingExpressionFlow,
   bindingExpressionFlow,
-  genericTypeName,
+  containsGenericType,
   iterableInfo,
+  orderedTypeSubstitutions,
   substituteGenericType,
 } from "./shared.ts";
 
@@ -64,6 +65,22 @@ interface MatchContext {
   readonly fallsThrough: Set<HirMatchArm>;
   catchAll: boolean;
   resultType?: ValueType;
+}
+
+function enumPatternAccess(
+  declaration: HirEnum,
+  field: HirEnum["fields"][number],
+  substitutions: ReadonlyMap<string, ValueType>,
+  valueType: ValueType,
+): HirPatternAccessStep {
+  return {
+    kind: "enum",
+    typeIndex: declaration.index,
+    fieldIndex: field.index,
+    erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+    erasedTypeSubstitutions: orderedTypeSubstitutions(declaration.genericParameters, substitutions),
+    valueType,
+  };
 }
 
 export abstract class ExpressionControlChecker extends ExpressionComprehensionChecker {
@@ -711,14 +728,8 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
               });
             }
           }
-          const accessPath: HirPatternAccessStep[] = [
-            {
-              kind: "enum",
-              typeIndex: context.declaration!.index,
-              fieldIndex: field.index,
-              erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
-              valueType: fieldType,
-            },
+          const accessPath = [
+            enumPatternAccess(context.declaration!, field, substitutions, fieldType),
           ];
           payloadRefutable ||= !this.checkNestedPattern(
             payloadPattern,

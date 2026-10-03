@@ -11,7 +11,7 @@ import {
 } from "../types.ts";
 import type { MemberCallExpression } from "./expression-calls.ts";
 import { MethodReferenceChecker } from "./method-references.ts";
-import { genericTypeName, matchImplementationTarget } from "./shared.ts";
+import { genericTypeName, matchImplementationTarget, orderedTypeSubstitutions } from "./shared.ts";
 
 /**
  * The prelude `Iterator[T]` is a `std.iter` data type with a `step` closure
@@ -115,6 +115,10 @@ export abstract class IterationChecker extends MethodReferenceChecker {
       fields: [step],
       fieldIndices: [0],
       erasedFieldTypes: iterator.fields.map((field) => field.type),
+      erasedTypeSubstitutions: orderedTypeSubstitutions(
+        iterator.genericParameters,
+        new Map([[iterator.genericParameters[0]!, elementType]]),
+      ),
       type: mutableType(nominalGenericType("Iterator", [elementType])),
       span,
     };

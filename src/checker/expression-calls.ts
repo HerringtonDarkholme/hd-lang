@@ -29,6 +29,7 @@ import {
   genericTypeName,
   matchImplementationTarget,
   matchTraitImplementation,
+  orderedTypeSubstitutions,
   resultMisfit,
   substituteGenericType,
   traitTypeName,
@@ -480,6 +481,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         readonly parameterIndices?: readonly number[];
       };
       let bounds: HirExpression[] | undefined;
+      const erasedSubstitutions = new Map(traitSubstitutions);
       if (method.genericParameters.length > 0) {
         // Method-level generics are inferred per call; their bounds other
         // than AnyVal and AnyRef travel as dictionary arguments, also through a
@@ -528,6 +530,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         if (unresolved.length > 0)
           this.failUnresolvedCall(unresolved, `.${method.name}`, expression.span);
         methodResult = substituteGenericType(methodResult, checkedSignature.substitutions);
+        for (const [parameter, type] of checkedSignature.substitutions)
+          erasedSubstitutions.set(parameter, type);
         bounds = this.resolveBoundDictionaries(
           methodSignature,
           checkedSignature.substitutions,
@@ -567,6 +571,11 @@ export abstract class ExpressionCallChecker extends IterationChecker {
             erasedParameterTypes: method.parameters.some(containsGenericType)
               ? method.parameters
               : undefined,
+            erasedResultType: containsGenericType(method.result) ? method.result : undefined,
+            erasedTypeSubstitutions: orderedTypeSubstitutions(
+              [...erasedSubstitutions.keys()],
+              erasedSubstitutions,
+            ),
             type: traitSuspensionType(selectedMethod.trait.index, method.index, methodResult),
             span: expression.span,
           }
@@ -583,6 +592,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
             erasedParameterTypes: method.parameters.some(containsGenericType)
               ? method.parameters
               : undefined,
+            erasedTypeSubstitutions: orderedTypeSubstitutions(
+              [...erasedSubstitutions.keys()],
+              erasedSubstitutions,
+            ),
             erasedResultType: containsGenericType(method.result) ? method.result : undefined,
             type: methodResult,
             span: expression.span,
@@ -763,6 +776,11 @@ export abstract class ExpressionCallChecker extends IterationChecker {
               signature.genericParameters.length > 0 || signature.rowParameters.length > 0
                 ? signature.parameters
                 : undefined,
+            erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
+            erasedTypeSubstitutions: orderedTypeSubstitutions(
+              signature.genericParameters,
+              substitutions,
+            ),
             type: suspensionType(signature.index, resultType),
             span: expression.span,
           }
@@ -778,6 +796,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
               signature.genericParameters.length > 0 || signature.rowParameters.length > 0
                 ? signature.parameters
                 : undefined,
+            erasedTypeSubstitutions: orderedTypeSubstitutions(
+              signature.genericParameters,
+              substitutions,
+            ),
             erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
             type: resultType,
             span: expression.span,
@@ -1159,6 +1181,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       bounds: this.resolveBoundDictionaries(signature, new Map([["T", valueType]]), span),
       providers: [],
       erasedParameterTypes: signature.parameters,
+      erasedTypeSubstitutions: orderedTypeSubstitutions(
+        signature.genericParameters,
+        new Map([["T", valueType]]),
+      ),
       erasedResultType: signature.result,
       type: "void",
       span,
@@ -1247,6 +1273,11 @@ export abstract class ExpressionCallChecker extends IterationChecker {
             signature.genericParameters.length > 0 || signature.rowParameters.length > 0
               ? signature.parameters
               : undefined,
+          erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
+          erasedTypeSubstitutions: orderedTypeSubstitutions(
+            signature.genericParameters,
+            substitutions,
+          ),
           type: suspensionType(signature.index, resultType),
           span: expression.span,
         }
@@ -1264,6 +1295,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
             signature.genericParameters.length > 0 || signature.rowParameters.length > 0
               ? signature.parameters
               : undefined,
+          erasedTypeSubstitutions: orderedTypeSubstitutions(
+            signature.genericParameters,
+            substitutions,
+          ),
           erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
           type: resultType,
           span: expression.span,

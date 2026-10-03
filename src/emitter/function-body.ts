@@ -9,15 +9,13 @@ import type {
   HirProviderContextEntry,
   HirStatement,
   HirTraitDictionaryPlan,
+  HirTypeSubstitution,
   ValueType,
 } from "../hir.ts";
 import {
   functionParts,
-  nominalGenericParts,
-  nominalGenericType,
   optionalInner,
   readonlyType,
-  substituteTypeParameters,
   suspensionParts,
   traitSuspensionParts,
 } from "../types.ts";
@@ -26,9 +24,7 @@ import {
   functionName,
   globalName,
   indent,
-  containsGenericValueType,
   isGenericValueType,
-  isRowRequirement,
   localName,
   suspensionWrapperCancelAdapterName,
   suspensionWrapperPollAdapterName,
@@ -42,17 +38,16 @@ import {
   traitSuspensionWrapperPollAdapterName,
   traitSuspensionWrapperResultAdapterName,
   traitTypeBase,
-  methodBoundParameters,
   andThen,
   matchTestTag,
   stringLiteral,
 } from "./shared.ts";
-import { DataEmitter } from "./data.ts";
+import { CallableAdapterEmitter } from "./callable-adapters.ts";
 import { scalarWasm } from "./scalars.ts";
 import { integerConstant, shiftCount } from "./sized-numeric.ts";
 import { numericType } from "../numeric.ts";
 
-export abstract class FunctionBodyEmitter extends DataEmitter {
+export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
   protected abstract emitSuspensionFrameStores(
     declaration: HirFunction,
     storedLocals?: readonly HirLocal[],
@@ -478,6 +473,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           expression.defaultArguments,
           expression.parameterTypes,
           expression.bounds,
+          expression.erasedTypeSubstitutions,
         );
         const invocation = `(call ${functionName(expression.functionIndex)}${expression.arguments.length || expression.bounds?.length || expression.providers.length ? " " : ""}${[
           ...ordered.values,
@@ -495,7 +491,14 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
                 `  ${invocation}`,
                 `)`,
               ].join("\n");
-        return erasedResult ? this.restoreErasedResult(call, erasedResult, expression.type) : call;
+        return erasedResult
+          ? this.restoreErasedResult(
+              call,
+              erasedResult,
+              expression.type,
+              expression.erasedTypeSubstitutions,
+            )
+          : call;
       }
       case "suspend-construct": {
         const ordered = this.emitOrderedArguments(
@@ -505,20 +508,37 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           expression.defaultArguments,
           expression.parameterTypes,
           expression.bounds,
+          expression.erasedTypeSubstitutions,
         );
         const invocation = `(call ${functionName(expression.functionIndex)}${expression.arguments.length || expression.bounds?.length || expression.providers.length ? " " : ""}${[
           ...ordered.values,
           ...(expression.bounds ?? []).map((bound) => this.emitExpression(bound)),
           ...expression.providers.map((provider) => this.emitExpression(provider)),
         ].join(" ")})`;
-        return ordered.setup.length === 0
-          ? invocation
-          : [
-              `(block (result ${this.watType(expression.type)})`,
-              ...ordered.setup.map((line) => `  ${line}`),
-              `  ${invocation}`,
-              `)`,
-            ].join("\n");
+        const resultType = suspensionParts(expression.type)!.result;
+        const erasedResult = this.erasedResultType(expression.erasedResultType, resultType);
+        const resultAdapter =
+          erasedResult && functionParts(erasedResult)
+            ? this.suspensionResultAdapter(
+                readonlyType(resultType),
+                erasedResult,
+                expression.erasedTypeSubstitutions ?? [],
+              )
+            : undefined;
+        if (ordered.setup.length === 0 && resultAdapter === undefined) return invocation;
+        const frame = resultAdapter ? this.allocateTemporary(expression.type) : undefined;
+        return [
+          `(block (result ${this.watType(expression.type)})`,
+          ...ordered.setup.map((line) => `  ${line}`),
+          ...(frame
+            ? [
+                `  (local.set ${frame} ${invocation})`,
+                `  (struct.set $s${expression.functionIndex} $s${expression.functionIndex}result_adapter (local.get ${frame}) (ref.func ${resultAdapter}))`,
+                `  (local.get ${frame})`,
+              ]
+            : [`  ${invocation}`]),
+          `)`,
+        ].join("\n");
       }
       case "suspension-wrap": {
         const suspension = suspensionParts(expression.suspension.type);
@@ -548,34 +568,69 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         return `(struct.new $hd.suspension ${this.emitExpression(expression.suspension)} ${adapters.map((adapter) => `(ref.func ${adapter})`).join(" ")})`;
       }
       case "suspend-drive": {
-        const call = `(call $drive${expression.functionIndex} ${this.emitExpression(expression.suspension)})`;
-        const rawType =
-          expression.erasedResultType && isGenericValueType(expression.erasedResultType)
-            ? expression.erasedResultType
-            : expression.type;
+        const erasedResult = this.erasedResultType(expression.erasedResultType, expression.type);
+        const frame = erasedResult ? this.allocateTemporary(expression.suspension.type) : undefined;
+        const frameValue = frame
+          ? `(local.get ${frame})`
+          : this.emitExpression(expression.suspension);
+        const call = `(call $drive${expression.functionIndex} ${frameValue})`;
+        const rawType = erasedResult ?? expression.type;
         const guarded = expression.blockOn
           ? this.emitBlockOnCall(call, rawType === "void" ? undefined : this.watType(rawType))
           : call;
-        return expression.erasedResultType && isGenericValueType(expression.erasedResultType)
-          ? this.unboxValue(guarded, expression.type)
-          : guarded;
+        const restored =
+          erasedResult && functionParts(erasedResult)
+            ? this.restoreSuspensionResult(
+                guarded,
+                frameValue,
+                expression.functionIndex,
+                expression.type,
+              )
+            : erasedResult
+              ? this.restoreErasedResult(guarded, erasedResult, expression.type)
+              : guarded;
+        return frame
+          ? `(block (result ${this.watType(expression.type)}) (local.set ${frame} ${this.emitExpression(expression.suspension)}) ${restored})`
+          : restored;
       }
       case "suspend-cancel":
         return `(call $cancel${expression.functionIndex} ${this.emitExpression(expression.suspension)})`;
       case "trait-suspend-drive": {
-        const erased = this.traitMethodErasesResult(expression.traitIndex, expression.methodIndex);
-        const call = `(call ${traitSuspensionDriveName(expression.traitIndex, expression.methodIndex)} ${this.emitExpression(expression.suspension)})`;
+        const method = this.traitsByIndex.get(expression.traitIndex)!.methods[
+          expression.methodIndex
+        ]!;
+        const erasedResult = this.erasedResultType(method.result, expression.type);
+        const frame =
+          erasedResult && functionParts(erasedResult)
+            ? this.allocateTemporary(expression.suspension.type)
+            : undefined;
+        const frameValue = frame
+          ? `(local.get ${frame})`
+          : this.emitExpression(expression.suspension);
+        const call = `(call ${traitSuspensionDriveName(expression.traitIndex, expression.methodIndex)} ${frameValue})`;
         const guarded = expression.blockOn
           ? this.emitBlockOnCall(
               call,
               expression.type === "void"
                 ? undefined
-                : erased
-                  ? "anyref"
-                  : this.watType(expression.type),
+                : this.watType(erasedResult ?? expression.type),
             )
           : call;
-        return erased ? this.unboxValue(guarded, expression.type) : guarded;
+        const restored =
+          erasedResult && functionParts(erasedResult)
+            ? this.restoreTraitSuspensionResult(
+                guarded,
+                frameValue,
+                expression.traitIndex,
+                expression.methodIndex,
+                expression.type,
+              )
+            : erasedResult
+              ? this.unboxValue(guarded, expression.type)
+              : guarded;
+        return frame
+          ? `(block (result ${this.watType(expression.type)}) (local.set ${frame} ${this.emitExpression(expression.suspension)}) ${restored})`
+          : restored;
       }
       case "trait-suspend-cancel":
         return `(call ${traitSuspensionCancelName(expression.traitIndex, expression.methodIndex)} ${this.emitExpression(expression.suspension)})`;
@@ -654,76 +709,9 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         const fields = [...methods, ...parents];
         return `(struct.new $trait${trait.index} ${this.boxValue(expression.value, expression.value.type)} (struct.get $trait${trait.index} $trait${trait.index}bounds ${dictionary})${fields.length ? " " : ""}${fields.join(" ")})`;
       }
-      case "trait-call": {
-        const trait = this.traitsByIndex.get(expression.traitIndex)!;
-        const method = trait.methods[expression.methodIndex]!;
-        const temporary = this.allocateTemporary(expression.receiver.type);
-        const receiver = `(local.get ${temporary})`;
-        const dispatch = this.traitDictionaryPath(
-          expression.receiver.type,
-          expression.supertraitPath,
-          receiver,
-        );
-        const receiverTrait = this.traitsByName.get(traitTypeBase(expression.receiver.type))!;
-        const ordered = this.emitOrderedArguments(
-          expression.arguments,
-          expression.argumentParameterIndices,
-          expression.erasedParameterTypes,
-        );
-        const call = [
-          `(call_ref $tsig${trait.index}_${method.index}`,
-          `  (struct.get $trait${receiverTrait.index} $trait${receiverTrait.index}value ${receiver})`,
-          `  ${dispatch.dictionary}`,
-          ...ordered.values.map((argument) => `  ${argument}`),
-          ...(expression.bounds ?? []).map((bound) => `  ${this.emitExpression(bound)}`),
-          ...expression.providers.map((provider) => `  ${this.emitExpression(provider)}`),
-          `  (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dispatch.dictionary}))`,
-        ].join("\n");
-        const result = expression.erasedResultType ? this.unboxValue(call, expression.type) : call;
-        return [
-          `(block${expression.type === "void" ? "" : ` (result ${this.watType(expression.type)})`}`,
-          `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
-          ...ordered.setup.map((line) => `  ${line}`),
-          ...this.hostCallSite(trait.name, expression.span.start.offset),
-          `  ${result}`,
-          `)`,
-        ].join("\n");
-      }
-      case "trait-suspend-construct": {
-        const trait = this.traitsByIndex.get(expression.traitIndex)!;
-        const method = trait.methods[expression.methodIndex]!;
-        const temporary = this.allocateTemporary(expression.receiver.type);
-        const receiver = `(local.get ${temporary})`;
-        const dispatch = this.traitDictionaryPath(
-          expression.receiver.type,
-          expression.supertraitPath,
-          receiver,
-        );
-        const receiverTrait = this.traitsByName.get(traitTypeBase(expression.receiver.type))!;
-        const ordered = this.emitOrderedArguments(
-          expression.arguments,
-          expression.argumentParameterIndices,
-          expression.erasedParameterTypes,
-          undefined,
-          undefined,
-          undefined,
-          true,
-        );
-        return [
-          `(block (result (ref null ${traitSuspensionName(trait.index, method.index)}))`,
-          `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
-          ...ordered.setup.map((line) => `  ${line}`),
-          `  (global.set $hd.host-call-site (i32.const ${expression.span.start.offset}))`,
-          `  (call_ref $tsig${trait.index}_${method.index}`,
-          `    (struct.get $trait${receiverTrait.index} $trait${receiverTrait.index}value ${receiver})`,
-          `    ${dispatch.dictionary}`,
-          ...ordered.values.map((argument) => `    ${argument}`),
-          ...(expression.bounds ?? []).map((bound) => `    ${this.emitExpression(bound)}`),
-          ...expression.providers.map((provider) => `    ${this.emitExpression(provider)}`),
-          `    (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dispatch.dictionary}))`,
-          `)`,
-        ].join("\n");
-      }
+      case "trait-call":
+      case "trait-suspend-construct":
+        return this.emitTraitCallExpression(expression);
       case "provider-use":
         return `(local.get $provider${expression.providerIndex})`;
       case "provider-pack": {
@@ -769,6 +757,85 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
     }
   }
 
+  private emitTraitCallExpression(
+    expression: Extract<HirExpression, { kind: "trait-call" | "trait-suspend-construct" }>,
+  ): string {
+    const trait = this.traitsByIndex.get(expression.traitIndex)!;
+    const method = trait.methods[expression.methodIndex]!;
+    const temporary = this.allocateTemporary(expression.receiver.type);
+    const receiver = `(local.get ${temporary})`;
+    const dispatch = this.traitDictionaryPath(
+      expression.receiver.type,
+      expression.supertraitPath,
+      receiver,
+    );
+    const receiverTrait = this.traitsByName.get(traitTypeBase(expression.receiver.type))!;
+    const ordered = this.emitOrderedArguments(
+      expression.arguments,
+      expression.argumentParameterIndices,
+      expression.erasedParameterTypes,
+      undefined,
+      undefined,
+      undefined,
+      expression.erasedTypeSubstitutions,
+      expression.kind === "trait-suspend-construct",
+    );
+    const invocation = [
+      `(call_ref $tsig${trait.index}_${method.index}`,
+      `  (struct.get $trait${receiverTrait.index} $trait${receiverTrait.index}value ${receiver})`,
+      `  ${dispatch.dictionary}`,
+      ...ordered.values.map((argument) => `  ${argument}`),
+      ...(expression.bounds ?? []).map((bound) => `  ${this.emitExpression(bound)}`),
+      ...expression.providers.map((provider) => `  ${this.emitExpression(provider)}`),
+      `  (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dispatch.dictionary}))`,
+    ].join("\n");
+    if (expression.kind === "trait-call") {
+      const erased = this.erasedResultType(expression.erasedResultType, expression.type);
+      const result = erased
+        ? this.restoreErasedResult(
+            invocation,
+            erased,
+            expression.type,
+            expression.erasedTypeSubstitutions,
+          )
+        : invocation;
+      return [
+        `(block${expression.type === "void" ? "" : ` (result ${this.watType(expression.type)})`}`,
+        `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
+        ...ordered.setup.map((line) => `  ${line}`),
+        ...this.hostCallSite(trait.name, expression.span.start.offset),
+        `  ${result}`,
+        `)`,
+      ].join("\n");
+    }
+    const resultType = traitSuspensionParts(expression.type)!.result;
+    const erased = this.erasedResultType(expression.erasedResultType, resultType);
+    const adapter =
+      erased && functionParts(erased)
+        ? this.suspensionResultAdapter(
+            readonlyType(resultType),
+            erased,
+            expression.erasedTypeSubstitutions ?? [],
+          )
+        : undefined;
+    const frame = adapter ? this.allocateTemporary(expression.type) : undefined;
+    const wrapper = traitSuspensionName(trait.index, method.index);
+    return [
+      `(block (result (ref null ${wrapper}))`,
+      `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
+      ...ordered.setup.map((line) => `  ${line}`),
+      `  (global.set $hd.host-call-site (i32.const ${expression.span.start.offset}))`,
+      ...(frame
+        ? [
+            `  (local.set ${frame} ${invocation})`,
+            `  (struct.set ${wrapper} ${wrapper}result_adapter (local.get ${frame}) (ref.func ${adapter}))`,
+            `  (local.get ${frame})`,
+          ]
+        : invocation.split("\n").map((line) => `  ${line}`)),
+      `)`,
+    ].join("\n");
+  }
+
   /**
    * A `block_on` call may run while another driver is active
    * (req.drive.block-on.under-driver). It clears the active flag so its own
@@ -809,6 +876,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             value,
             expression.erasedFieldTypes?.[fieldIndex],
             expression.fields[sourceIndex]!.type,
+            expression.erasedTypeSubstitutions,
           );
         });
         return [
@@ -822,18 +890,33 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       }
       case "member": {
         const value = `(struct.get $d${expression.dataIndex} $d${expression.dataIndex}f${expression.fieldIndex} ${this.emitExpression(expression.receiver)})`;
-        return this.loadErased(value, expression.erasedFieldType, expression.type);
+        return this.loadErased(
+          value,
+          expression.erasedFieldType,
+          expression.type,
+          expression.erasedTypeSubstitutions,
+        );
       }
       case "embedded-copy":
         return this.emitEmbeddedCopy(expression);
       case "field-set": {
         const value = this.emitExpression(expression.value);
-        const stored = this.storeErased(value, expression.erasedFieldType, expression.value.type);
+        const stored = this.storeErased(
+          value,
+          expression.erasedFieldType,
+          expression.value.type,
+          expression.erasedTypeSubstitutions,
+        );
         return `(struct.set $d${expression.dataIndex} $d${expression.dataIndex}f${expression.fieldIndex} ${this.emitExpression(expression.receiver)} ${stored})`;
       }
       case "enum-member": {
         const value = `(struct.get $e${expression.enumIndex} $e${expression.enumIndex}f${expression.fieldIndex} ${this.emitExpression(expression.receiver)})`;
-        return this.loadErased(value, expression.erasedFieldType, expression.type);
+        return this.loadErased(
+          value,
+          expression.erasedFieldType,
+          expression.type,
+          expression.erasedTypeSubstitutions,
+        );
       }
       case "list-length":
         return `(struct.get $hd.vector $hd.vector-size (ref.as_non_null ${this.emitExpression(expression.receiver)}))`;
@@ -1018,6 +1101,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
     defaultArguments?: readonly HirDefaultArgument[],
     parameterTypes?: readonly ValueType[],
     defaultBounds?: readonly HirExpression[],
+    typeSubstitutions: readonly HirTypeSubstitution[] = [],
     stage = false,
   ): EmittedArguments {
     const emitValue = (argument: HirExpression, parameterIndex: number): string => {
@@ -1028,7 +1112,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         formal !== argument.type &&
         functionParts(argument.type)
       ) {
-        return this.emitCallableAdaptation(argument, formal, argument.type);
+        return this.emitCallableAdaptation(argument, formal, argument.type, typeSubstitutions);
       }
       return formal && isGenericValueType(formal)
         ? this.boxValue(argument, argument.type)
@@ -1072,67 +1156,14 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
     expression: HirExpression,
     formalType: ValueType,
     actualType: ValueType,
+    typeSubstitutions: readonly HirTypeSubstitution[] = [],
   ): string {
-    return this.adaptCallable(this.emitExpression(expression), formalType, actualType);
-  }
-
-  emitCallableAdapters(): string {
-    return this.adapters
-      .map((adapter) => {
-        const formal = functionParts(adapter.formalType)!;
-        const actual = functionParts(adapter.actualType)!;
-        const formalSignature = this.functionSignatures.get(adapter.formalType);
-        const actualSignature = this.functionSignatures.get(adapter.actualType);
-        const parameters = formal.parameters.map(
-          (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
-        );
-        const providers = formal.requirements.map(
-          (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
-        );
-        const result = formal.suspending
-          ? ` (result (ref null $hd.suspension))`
-          : formal.result === "void"
-            ? ""
-            : ` (result ${this.watType(formal.result)})`;
-        const closure = `(ref.cast (ref $closure${actualSignature}) (local.get $env))`;
-        const arguments_ = this.adaptedArguments(formal, actual);
-        const concreteFormal = new Map(
-          formal.requirements
-            .map((requirement, index) => [requirement, index] as const)
-            .filter(([requirement]) => !isRowRequirement(requirement)),
-        );
-        const formalUnion = formal.requirements.reduceRight((parent, requirement, index) => {
-          if (isRowRequirement(requirement))
-            return `(call $hd.provider_concat (local.get $p${index}) ${parent})`;
-          const type = this.traitsByName.has(nominalGenericParts(requirement)?.name ?? requirement)
-            ? `trait:${requirement}`
-            : `provider:${requirement}`;
-          return `(struct.new $hd.providers (i32.const ${this.providerKey(requirement)}) ${this.boxProvider(`(local.get $p${index})`, type)} ${parent})`;
-        }, `(ref.null $hd.providers)`);
-        const actualProviders = actual.requirements.map((requirement) => {
-          if (isRowRequirement(requirement)) return formalUnion;
-          const direct = concreteFormal.get(requirement);
-          if (direct !== undefined) return `(local.get $p${direct})`;
-          if (formal.requirements.length === 0)
-            throw new Error(
-              `cannot adapt requirement '${requirement}' from ${adapter.formalType} to ${adapter.actualType}`,
-            );
-          return this.unboxProvider(
-            `(call $hd.provider_get ${formalUnion} (i32.const ${this.providerKey(requirement)}))`,
-            requirement,
-          );
-        });
-        const call = `(call_ref $sig${actualSignature} (struct.get $closure${actualSignature} $closure${actualSignature}env ${closure})${arguments_.length ? " " : ""}${arguments_.join(" ")}${actualProviders.length ? " " : ""}${actualProviders.join(" ")} (struct.get $closure${actualSignature} $closure${actualSignature}fn ${closure}))`;
-        const body = formal.suspending
-          ? call
-          : isGenericValueType(formal.result) && !isGenericValueType(actual.result)
-            ? this.boxWatValue(call, actual.result)
-            : isGenericValueType(actual.result) && !isGenericValueType(formal.result)
-              ? this.unboxValue(call, formal.result)
-              : call;
-        return `(func $adapt${adapter.index} (type $sig${formalSignature}) (param $env anyref) ${[...parameters, ...providers].join(" ")}${result}\n  ${body}\n)`;
-      })
-      .join("\n\n");
+    return this.adaptCallable(
+      this.emitExpression(expression),
+      formalType,
+      actualType,
+      typeSubstitutions,
+    );
   }
 
   private emitTraitDictionaryPlan(plan: HirTraitDictionaryPlan, value: string): string {
@@ -1151,96 +1182,6 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       plan.bounds.map((bound) => this.emitExpression(bound)),
       plan.supertraits.map((parent) => this.emitTraitDictionaryPlan(parent, value)),
     );
-  }
-
-  emitTraitAdapters(): string {
-    return [...this.implementationsByIndex.values()]
-      .filter((implementation) => !implementation.intrinsic)
-      .flatMap((implementation) => {
-        const trait = this.traitsByIndex.get(implementation.traitIndex)!;
-        const traitSubstitutions = new Map([
-          ...trait.genericParameters.map(
-            (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
-          ),
-          ...trait.associatedTypes.map(
-            (associated, index) =>
-              [`Self::${associated.name}`, implementation.associatedTypes[index]!] as const,
-          ),
-          ["Self", implementation.targetType] as const,
-        ]);
-        return implementation.methodFunctions.flatMap((mapping) => {
-          const method = trait.methods[mapping.methodIndex]!;
-          const parameters = method.parameters.map(
-            (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
-          );
-          const methodBounds = methodBoundParameters(method, "b");
-          const providers = method.requirements.map(
-            (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
-          );
-          const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
-          const dictionary = `(ref.cast (ref $trait${trait.index}) (local.get $dictionary))`;
-          const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds ${dictionary}))`;
-          const arguments_ = [
-            ...(method.associated
-              ? []
-              : [this.unboxValue(`(local.get $self)`, implementation.targetType)]),
-            ...method.parameters.map((parameter, index) =>
-              parameter === "generic:Self"
-                ? this.unboxValue(`(local.get $a${index})`, implementation.targetType)
-                : containsGenericValueType(parameter)
-                  ? this.unboxValue(
-                      `(local.get $a${index})`,
-                      substituteTypeParameters(parameter, traitSubstitutions),
-                    )
-                  : `(local.get $a${index})`,
-            ),
-            ...implementation.genericBounds.map((bound, index) =>
-              this.unboxValue(
-                `(array.get $hd.list ${boundPack} (i32.const ${index}))`,
-                `trait:${
-                  bound.traitArguments.length > 0
-                    ? nominalGenericType(bound.traitName, bound.traitArguments)
-                    : bound.traitName
-                }`,
-              ),
-            ),
-            ...methodBounds.map((_, index) => `(local.get $b${index})`),
-            ...method.requirements.map((_, index) => `(local.get $p${index})`),
-          ];
-          if (mapping.strengthened)
-            return [
-              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")}${result}\n  (unreachable)\n)`,
-            ];
-          if (!method.suspending) {
-            const call = `(call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})`;
-            const body = containsGenericValueType(method.result)
-              ? this.boxWatValue(call, substituteTypeParameters(method.result, traitSubstitutions))
-              : call;
-            return [
-              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")}${result}\n  ${body}\n)`,
-            ];
-          }
-          const wrapper = traitSuspensionName(trait.index, method.index);
-          const frame = `$s${mapping.functionIndex}`;
-          const constructor = `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")} (result (ref null ${wrapper}))\n  (struct.new ${wrapper}\n    (call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})\n    (ref.func $tspolladapt${implementation.index}_${method.index})\n    (ref.func $tscanceladapt${implementation.index}_${method.index})\n    (ref.func $tsresultadapt${implementation.index}_${method.index}))\n)`;
-          const poll = `(func $tspolladapt${implementation.index}_${method.index} (type $tspollsig${trait.index}_${method.index}) (param $inner anyref) (result i32)\n  (call $poll${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
-          const cancel = `(func $tscanceladapt${implementation.index}_${method.index} (type $tscancelsig${trait.index}_${method.index}) (param $inner anyref)\n  (call $cancel${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
-          const resultBody =
-            method.result === "void"
-              ? ""
-              : `\n  ${
-                  containsGenericValueType(method.result)
-                    ? this.boxWatValue(
-                        `(struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`,
-                        substituteTypeParameters(method.result, traitSubstitutions),
-                      )
-                    : `(struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`
-                }`;
-          const resultAdapter = `(func $tsresultadapt${implementation.index}_${method.index} (type $tsresultsig${trait.index}_${method.index}) (param $inner anyref)${result}${resultBody}\n)`;
-          return [constructor, poll, cancel, resultAdapter];
-        });
-      })
-      .join("\n\n");
   }
 
   emitTraitSuspensionHelpers(): string {
@@ -1263,17 +1204,6 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         }),
       )
       .join("\n\n");
-  }
-
-  protected boxProvider(value: string, type: ValueType): string {
-    return type.startsWith("provider:") ? `(struct.new $hd.box-extern ${value})` : value;
-  }
-
-  protected unboxProvider(value: string, requirement: string): string {
-    const trait = this.traitsByName.get(requirement);
-    return trait
-      ? `(ref.cast (ref null $trait${trait.index}) ${value})`
-      : `(struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) ${value}))`;
   }
 
   /** A captured `let` local's shared storage (07-functions.md#captures). */

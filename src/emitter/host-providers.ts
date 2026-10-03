@@ -297,7 +297,8 @@ function emitMethod({ trait, method }: HostMethod): string {
     `      (i32.const 0)${defaultResult})`,
     `    (ref.func ${pollName(trait, method)})`,
     `    (ref.func ${cancelName(trait, method)})`,
-    `    (ref.func ${resultName(trait, method)}))`,
+    `    (ref.func ${resultName(trait, method)})`,
+    `    (ref.null $hd.suspension-result-adapt-sig))`,
     `)`,
   ].join("\n");
 }

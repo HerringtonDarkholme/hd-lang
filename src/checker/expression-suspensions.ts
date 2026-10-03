@@ -11,7 +11,7 @@ import {
   tupleType,
 } from "../types.ts";
 import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC, RACE_COMBINATOR } from "./standard-traits.ts";
-import { substituteGenericType } from "./shared.ts";
+import { orderedTypeSubstitutions, substituteGenericType } from "./shared.ts";
 
 import { OperatorCallChecker } from "./operator-calls.ts";
 export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
@@ -235,6 +235,11 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
               signature.genericParameters.length > 0 || signature.rowParameters.length > 0
                 ? signature.parameters
                 : undefined,
+            erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
+            erasedTypeSubstitutions: orderedTypeSubstitutions(
+              signature.genericParameters,
+              substitutions,
+            ),
             type: suspensionType(signature.index, resultType),
             span: expression.span,
           };

@@ -43,6 +43,7 @@ import {
   matchTraitImplementation,
   MAX_BOUND_DEPTH,
   normalizeBoundProjections,
+  orderedTypeSubstitutions,
   requirementKeysMayCollide,
   resolveGenericType,
   rowParameterName,
@@ -478,6 +479,11 @@ export abstract class CallChecker extends StatementChecker {
             signature.genericParameters.length > 0 || signature.rowParameters.length > 0
               ? signature.parameters
               : undefined,
+          erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
+          erasedTypeSubstitutions: orderedTypeSubstitutions(
+            signature.genericParameters,
+            substitutions,
+          ),
           type: suspensionType(signature.index, resultType),
           span: expression.span,
         }
@@ -493,6 +499,10 @@ export abstract class CallChecker extends StatementChecker {
             signature.genericParameters.length > 0 || signature.rowParameters.length > 0
               ? signature.parameters
               : undefined,
+          erasedTypeSubstitutions: orderedTypeSubstitutions(
+            signature.genericParameters,
+            substitutions,
+          ),
           erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
           type: resultType,
           span: expression.span,

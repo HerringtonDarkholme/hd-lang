@@ -9,6 +9,7 @@ import type {
   HirStatement,
   HirTrait,
   HirTraitImplementation,
+  HirTypeSubstitution,
   ValueType,
 } from "../hir.ts";
 import {
@@ -73,6 +74,12 @@ interface CallableAdapter {
   readonly index: number;
   readonly formalType: ValueType;
   readonly actualType: ValueType;
+  readonly typeSubstitutions: readonly HirTypeSubstitution[];
+}
+
+interface SuspensionResultAdapter {
+  readonly index: number;
+  readonly body: string;
 }
 
 export class EmitterContext {
@@ -95,6 +102,7 @@ export class EmitterContext {
   protected floatRemainder = false;
   protected currentRequirements: readonly string[] = [];
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
+  protected readonly suspensionResultAdapters = new Map<string, SuspensionResultAdapter>();
   protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();
   protected readonly providerKeys = new Map<string, number>();
   private readonly stringKernel: ReadonlyMap<string, number>;
@@ -292,6 +300,10 @@ export class EmitterContext {
     return [...this.callableAdapters.values()];
   }
 
+  get resultAdapters(): readonly SuspensionResultAdapter[] {
+    return [...this.suspensionResultAdapters.values()];
+  }
+
   protected providerKey(key: string): number {
     let index = this.providerKeys.get(key);
     if (index === undefined) {
@@ -303,6 +315,17 @@ export class EmitterContext {
 
   protected providerType(requirement: string): string {
     return providerWatType(requirement, this.traitsByName);
+  }
+
+  protected boxProvider(value: string, type: ValueType): string {
+    return type.startsWith("provider:") ? `(struct.new $hd.box-extern ${value})` : value;
+  }
+
+  protected unboxProvider(value: string, requirement: string): string {
+    const trait = this.traitsByName.get(requirement);
+    return trait
+      ? `(ref.cast (ref null $trait${trait.index}) ${value})`
+      : `(struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) ${value}))`;
   }
 
   protected hostTrait(requirement: string): HirTrait | undefined {
@@ -406,10 +429,39 @@ export class EmitterContext {
       : undefined;
   }
 
-  protected restoreErasedResult(value: string, erased: ValueType, type: ValueType): string {
+  protected restoreErasedResult(
+    value: string,
+    erased: ValueType,
+    type: ValueType,
+    typeSubstitutions: readonly HirTypeSubstitution[] = [],
+  ): string {
     return isGenericValueType(erased)
       ? this.unboxValue(value, type)
-      : this.adaptCallable(value, readonlyType(type), erased);
+      : this.adaptCallable(value, readonlyType(type), erased, typeSubstitutions);
+  }
+
+  /** Restore a callable result with the adapter captured by its suspension frame. */
+  protected restoreSuspensionResult(
+    value: string,
+    frame: string,
+    functionIndex: number,
+    type: ValueType,
+  ): string {
+    const adapted = `(call_ref $hd.suspension-result-adapt-sig ${value} (ref.as_non_null (struct.get $s${functionIndex} $s${functionIndex}result_adapter ${frame})))`;
+    return this.unboxValue(adapted, type);
+  }
+
+  /** Restore a callable result captured by a dynamically dispatched suspension. */
+  protected restoreTraitSuspensionResult(
+    value: string,
+    frame: string,
+    traitIndex: number,
+    methodIndex: number,
+    type: ValueType,
+  ): string {
+    const wrapper = traitSuspensionName(traitIndex, methodIndex);
+    const adapted = `(call_ref $hd.suspension-result-adapt-sig ${value} (ref.as_non_null (struct.get ${wrapper} ${wrapper}result_adapter ${frame})))`;
+    return this.unboxValue(adapted, type);
   }
 
   /**
@@ -450,11 +502,24 @@ export class EmitterContext {
   }
 
   /** Wraps the closure `value` of type `actualType` as a closure of `formalType`. */
-  protected adaptCallable(value: string, formalType: ValueType, actualType: ValueType): string {
-    const key = `${formalType}\u0000${actualType}`;
+  protected adaptCallable(
+    value: string,
+    formalType: ValueType,
+    actualType: ValueType,
+    typeSubstitutions: readonly HirTypeSubstitution[] = [],
+  ): string {
+    const substitutionKey = typeSubstitutions
+      .map(({ parameter, type }) => `${parameter}=${type}`)
+      .join("\u0001");
+    const key = `${formalType}\u0000${actualType}\u0000${substitutionKey}`;
     let adapter = this.callableAdapters.get(key);
     if (!adapter) {
-      adapter = { index: this.callableAdapters.size, formalType, actualType };
+      adapter = {
+        index: this.callableAdapters.size,
+        formalType,
+        actualType,
+        typeSubstitutions,
+      };
       this.callableAdapters.set(key, adapter);
     }
     const formalSignature = this.functionSignatures.get(formalType);
@@ -462,26 +527,67 @@ export class EmitterContext {
   }
 
   /**
+   * A suspension frame carries this call-site adapter with the value.  Keeping
+   * it in the frame matters when two generic instantiations have the same
+   * normalized result type but different requirement-slot permutations.
+   */
+  protected suspensionResultAdapter(
+    formalType: ValueType,
+    actualType: ValueType,
+    typeSubstitutions: readonly HirTypeSubstitution[],
+  ): string {
+    const substitutionKey = typeSubstitutions
+      .map(({ parameter, type }) => `${parameter}=${type}`)
+      .join("\u0001");
+    const key = `${formalType}\u0000${actualType}\u0000${substitutionKey}`;
+    let adapter = this.suspensionResultAdapters.get(key);
+    if (!adapter) {
+      const actualSignature = this.functionSignatures.get(actualType);
+      adapter = {
+        index: this.suspensionResultAdapters.size,
+        body: this.adaptCallable(
+          `(ref.cast (ref $closure${actualSignature}) (local.get $value))`,
+          formalType,
+          actualType,
+          typeSubstitutions,
+        ),
+      };
+      this.suspensionResultAdapters.set(key, adapter);
+    }
+    return `$sresultadapt${adapter.index}`;
+  }
+
+  /**
    * A value stored into a field whose declared type mentions a generic
    * parameter: a generic value is boxed, and a closure is adapted to the
    * erased function type.
    */
-  protected storeErased(value: string, erased: ValueType | undefined, type: ValueType): string {
+  protected storeErased(
+    value: string,
+    erased: ValueType | undefined,
+    type: ValueType,
+    typeSubstitutions: readonly HirTypeSubstitution[] = [],
+  ): string {
     if (!erased) return value;
     if (isGenericValueType(erased)) return this.boxWatValue(value, type);
     const readonly = readonlyType(type);
     return functionParts(erased) && functionParts(readonly) && erased !== readonly
-      ? this.adaptCallable(value, erased, readonly)
+      ? this.adaptCallable(value, erased, readonly, typeSubstitutions)
       : value;
   }
 
   /** The inverse of `storeErased` for a field read. */
-  protected loadErased(value: string, erased: ValueType | undefined, type: ValueType): string {
+  protected loadErased(
+    value: string,
+    erased: ValueType | undefined,
+    type: ValueType,
+    typeSubstitutions: readonly HirTypeSubstitution[] = [],
+  ): string {
     if (!erased) return value;
     if (isGenericValueType(erased)) return this.unboxValue(value, type);
     const readonly = readonlyType(type);
     return functionParts(erased) && functionParts(readonly) && erased !== readonly
-      ? this.adaptCallable(value, readonly, erased)
+      ? this.adaptCallable(value, readonly, erased, typeSubstitutions)
       : value;
   }
 

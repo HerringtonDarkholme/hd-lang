@@ -1,6 +1,6 @@
 id	priority	classification	status	original_findings	evidence	validation_needed
 A01	high	identity-and-scope-loss	mechanisms-confirmed-outcomes-pending	SOURCE-1,SOURCE-2,SOURCE-4,T5	REPORT.md; source-first-pass.md; source-challenge.md; types-challenge.md	Module privacy/names; std shadowing; two aliases; local impl extent
-A02	high	type-structure-and-relations	partially-fixed-public-readonly-method-variance	T1,T3,T4	REPORT.md; REPAIRS.md; types-first-pass.md; types-challenge.md; representation-challenge.md	Optional invariance; container/branch/return joins; private surface interpretation
+A02	high	type-structure-and-relations	partially-fixed-method-optional-and-generic-callable-erasure	T1,T3,T4	REPORT.md; REPAIRS.md; types-first-pass.md; types-challenge.md; representation-challenge.md	Shared coercion; least-common-type; container/branch/return joins
 A03	high	duplicated-control-flow	reported-exit-defect-fixed-and-regression-tested	L1	REPORT.md; REPAIRS.md; lowering-first-pass.md; representation-challenge.md	Broader lowering composition remains part of continuing audit
 A04	high	generated-placeholder-capture	placeholder-capture-fixed-and-regression-tested	SOURCE-3	REPORT.md; REPAIRS.md; source-first-pass.md; source-challenge.md	Broader generated helper-name hygiene remains unreviewed
 A05	high	candidate-selection-syntax-restriction	mechanism-confirmed-outcome-pending	T2	REPORT.md; types-first-pass.md; types-challenge.md	Unique fitting generic trait instantiation with blacklisted argument shape

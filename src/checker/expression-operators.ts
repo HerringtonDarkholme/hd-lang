@@ -21,6 +21,7 @@ import {
   containsGenericType,
   genericTypeName,
   inferGenericType,
+  orderedTypeSubstitutions,
   substituteGenericType,
   traitTypeName,
 } from "./shared.ts";
@@ -771,6 +772,10 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       fields,
       fieldIndices: fields.map((_, index) => index),
       erasedFieldTypes: declaration.fields.map((field) => field.type),
+      erasedTypeSubstitutions: orderedTypeSubstitutions(
+        declaration.genericParameters,
+        new Map([[declaration.genericParameters[0]!, elementType]]),
+      ),
       type: resultType(nominalGenericType(declaration.name, [elementType])),
       span,
     };

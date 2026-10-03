@@ -454,7 +454,9 @@ export function substituteTypeParameters(
     return functionType(
       callable.parameters.map((parameter) => substituteTypeParameters(parameter, substitutions)),
       substituteTypeParameters(callable.result, substitutions),
-      callable.requirements,
+      callable.requirements.map((requirement) =>
+        substituteTypeParameters(requirement, substitutions),
+      ),
       callable.variadic,
       callable.suspending,
     );

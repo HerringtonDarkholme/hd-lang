@@ -2,6 +2,12 @@ import type { SourceSpan } from "./diagnostics.ts";
 
 export type ValueType = string;
 
+/** One declared generic binder's concrete type at an erased storage boundary. */
+export interface HirTypeSubstitution {
+  readonly parameter: string;
+  readonly type: ValueType;
+}
+
 export interface HirDataField {
   /** Marked `pub`; embedded fields are always public. */
   readonly public?: boolean;
@@ -250,6 +256,7 @@ export interface HirPatternAccessStep {
   readonly typeIndex: number;
   readonly fieldIndex: number;
   readonly erasedFieldType?: ValueType;
+  readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
   readonly valueType: ValueType;
 }
 
@@ -627,6 +634,7 @@ export type HirExpression =
       readonly providers: readonly HirExpression[];
       readonly erasedParameterTypes?: readonly ValueType[];
       readonly erasedResultType?: ValueType;
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
     })
   | (HirExpressionBase & {
       readonly kind: "suspend-construct";
@@ -639,6 +647,8 @@ export type HirExpression =
       readonly bounds?: readonly HirExpression[];
       readonly providers: readonly HirExpression[];
       readonly erasedParameterTypes?: readonly ValueType[];
+      readonly erasedResultType?: ValueType;
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
     })
   | (HirExpressionBase & {
       readonly kind: "suspension-wrap";
@@ -672,6 +682,8 @@ export type HirExpression =
       readonly bounds?: readonly HirExpression[];
       readonly providers: readonly HirExpression[];
       readonly erasedParameterTypes?: readonly ValueType[];
+      readonly erasedResultType?: ValueType;
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
     })
   | (HirExpressionBase & {
       readonly kind: "trait-suspend-drive";
@@ -765,6 +777,7 @@ export type HirExpression =
       readonly bounds?: readonly HirExpression[];
       readonly providers: readonly HirExpression[];
       readonly erasedParameterTypes?: readonly ValueType[];
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
       readonly erasedResultType?: ValueType;
     })
   | (HirExpressionBase & {
@@ -795,6 +808,7 @@ export type HirExpression =
       readonly fields: readonly HirExpression[];
       readonly fieldIndices: readonly number[];
       readonly erasedFieldTypes?: readonly ValueType[];
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
     })
   | (HirExpressionBase & {
       readonly kind: "enum";
@@ -804,6 +818,7 @@ export type HirExpression =
       readonly fieldIndices: readonly number[];
       readonly fieldTypes: readonly ValueType[];
       readonly erasedFieldTypes?: readonly ValueType[];
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
     })
   | (HirExpressionBase & {
       readonly kind: "member";
@@ -811,6 +826,7 @@ export type HirExpression =
       readonly dataIndex: number;
       readonly fieldIndex: number;
       readonly erasedFieldType?: ValueType;
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
     })
   | (HirExpressionBase & {
       /**
@@ -829,6 +845,7 @@ export type HirExpression =
       readonly dataIndex: number;
       readonly fieldIndex: number;
       readonly erasedFieldType?: ValueType;
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
     })
   | (HirExpressionBase & {
       readonly kind: "list-set";
@@ -857,6 +874,7 @@ export type HirExpression =
       readonly enumIndex: number;
       readonly fieldIndex: number;
       readonly erasedFieldType?: ValueType;
+      readonly erasedTypeSubstitutions?: readonly HirTypeSubstitution[];
     })
   | (HirExpressionBase & { readonly kind: "list-length"; readonly receiver: HirExpression })
   | (HirExpressionBase & {

@@ -7,7 +7,12 @@ import type {
   ValueType,
 } from "../hir.ts";
 import { nominalGenericType } from "../types.ts";
-import { containsGenericType, matchImplementationTarget, substituteGenericType } from "./shared.ts";
+import {
+  containsGenericType,
+  matchImplementationTarget,
+  orderedTypeSubstitutions,
+  substituteGenericType,
+} from "./shared.ts";
 
 import { InspectChecker } from "./expression-inspect.ts";
 
@@ -179,6 +184,7 @@ export abstract class TraitCallChecker extends InspectChecker {
       erasedParameterTypes: selected.method.parameters.some(containsGenericType)
         ? selected.method.parameters
         : undefined,
+      erasedTypeSubstitutions: orderedTypeSubstitutions([...substitutions.keys()], substitutions),
       erasedResultType: containsGenericType(selected.method.result)
         ? selected.method.result
         : undefined,

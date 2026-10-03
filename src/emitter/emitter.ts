@@ -189,7 +189,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const constructor = [
       `(func ${functionName(suspensionIndex(declaration))}${allParameters ? " " + allParameters : ""} (result (ref null $s${suspensionIndex(declaration)}))`,
       `  (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 0))`,
-      `  (struct.new $s${suspensionIndex(declaration)} (i32.const 0) (i32.const 0)${declaration.closure ? " (local.get $env)" : ""}${declaration.parameters.map((parameter) => ` (local.get ${localName(parameter.index)})`).join("")}${declaration.genericBounds.map((_, index) => ` (local.get $bound${index})`).join("")}${declaration.requirements.map((_, index) => ` (local.get $provider${index})`).join("")}${declaration.result === "void" ? "" : ` ${this.defaultValue(declaration.result)}`})`,
+      `  (struct.new $s${suspensionIndex(declaration)} (i32.const 0) (i32.const 0) (ref.null $hd.suspension-result-adapt-sig)${declaration.closure ? " (local.get $env)" : ""}${declaration.parameters.map((parameter) => ` (local.get ${localName(parameter.index)})`).join("")}${declaration.genericBounds.map((_, index) => ` (local.get $bound${index})`).join("")}${declaration.requirements.map((_, index) => ` (local.get $provider${index})`).join("")}${declaration.result === "void" ? "" : ` ${this.defaultValue(declaration.result)}`})`,
       `)`,
     ].join("\n");
     const result =
@@ -323,6 +323,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const constructorValues = [
       `(i32.const 0)`,
       `(i32.const 0)`,
+      `(ref.null $hd.suspension-result-adapt-sig)`,
       ...(declaration.closure ? ["(local.get $env)"] : []),
       ...declaration.parameters.map((parameter) => `(local.get ${localName(parameter.index)})`),
       ...declaration.genericBounds.map((_, index) => `(local.get $bound${index})`),
@@ -623,13 +624,24 @@ class FunctionEmitter extends FunctionBodyEmitter {
       drive.kind === "suspend-drive"
         ? `(struct.get $s${drive.functionIndex} $s${drive.functionIndex}result ${child})`
         : `(call ${traitSuspensionResultName(drive.traitIndex, drive.methodIndex)} ${child})`;
-    const erased =
-      (drive.kind === "suspend-drive" &&
-        drive.erasedResultType &&
-        isGenericValueType(drive.erasedResultType)) ||
-      (drive.kind === "trait-suspend-drive" &&
-        this.traitMethodErasesResult(drive.traitIndex, drive.methodIndex));
-    return erased ? this.unboxValue(raw, drive.type) : raw;
+    if (drive.kind === "suspend-drive") {
+      const erased = this.erasedResultType(drive.erasedResultType, drive.type);
+      if (!erased) return raw;
+      return functionParts(erased)
+        ? this.restoreSuspensionResult(raw, child, drive.functionIndex, drive.type)
+        : this.restoreErasedResult(raw, erased, drive.type);
+    }
+    if (!this.traitMethodErasesResult(drive.traitIndex, drive.methodIndex)) return raw;
+    const erased = this.traitsByIndex.get(drive.traitIndex)!.methods[drive.methodIndex]!.result;
+    return functionParts(erased)
+      ? this.restoreTraitSuspensionResult(
+          raw,
+          child,
+          drive.traitIndex,
+          drive.methodIndex,
+          drive.type,
+        )
+      : this.unboxValue(raw, drive.type);
   }
 
   private emitCfgMatchBindings(
@@ -928,7 +940,7 @@ export function emitWat(program: HirProgram): string {
           `    (type $tspollsig${trait.index}_${method.index} (func (param anyref) (result i32)))`,
           `    (type $tscancelsig${trait.index}_${method.index} (func (param anyref)))`,
           `    (type $tsresultsig${trait.index}_${method.index} (func (param anyref)${result}))`,
-          `    (type ${wrapper} (struct\n      (field ${wrapper}inner anyref)\n      (field ${wrapper}poll (ref $tspollsig${trait.index}_${method.index}))\n      (field ${wrapper}cancel (ref $tscancelsig${trait.index}_${method.index}))\n      (field ${wrapper}result (ref $tsresultsig${trait.index}_${method.index}))))`,
+          `    (type ${wrapper} (struct\n      (field ${wrapper}inner anyref)\n      (field ${wrapper}poll (ref $tspollsig${trait.index}_${method.index}))\n      (field ${wrapper}cancel (ref $tscancelsig${trait.index}_${method.index}))\n      (field ${wrapper}result (ref $tsresultsig${trait.index}_${method.index}))\n      (field ${wrapper}result_adapter (mut (ref null $hd.suspension-result-adapt-sig)))))`,
         ];
       }),
     )
@@ -1009,7 +1021,8 @@ ${[...program.functions, ...program.closures]
       : [];
     return `    (type $s${suspensionIndex(declaration)} (struct
       (field $s${suspensionIndex(declaration)}state (mut i32))
-      (field $s${suspensionIndex(declaration)}polls (mut i32))${declaration.closure ? `\n      (field $s${suspensionIndex(declaration)}env anyref)` : ""}${declaration.parameters.map((parameter, index) => `\n      (field $s${suspensionIndex(declaration)}a${index} ${emitter.watType(parameter.type)})`).join("")}${declaration.genericBounds.map((bound, index) => `\n      (field $s${suspensionIndex(declaration)}b${index} (ref null $trait${bound.traitIndex}))`).join("")}${declaration.requirements.map((requirement, index) => `\n      (field $s${suspensionIndex(declaration)}p${index} ${providerWatType(requirement, traitsByName)})`).join("")}${storedLocals.map((local) => `\n      (field $s${suspensionIndex(declaration)}l${local.index} (mut ${emitter.watType(local.type)}))`).join("")}${sites.map((site) => `\n      (field $s${suspensionIndex(declaration)}child${site.siteIndex} (mut (ref null ${suspensionFrameTypeName(site.drive)})))`).join("")}${declaration.result === "void" ? "" : `\n      (field $s${suspensionIndex(declaration)}result (mut ${emitter.watType(declaration.result)}))`}))`;
+      (field $s${suspensionIndex(declaration)}polls (mut i32))
+      (field $s${suspensionIndex(declaration)}result_adapter (mut (ref null $hd.suspension-result-adapt-sig)))${declaration.closure ? `\n      (field $s${suspensionIndex(declaration)}env anyref)` : ""}${declaration.parameters.map((parameter, index) => `\n      (field $s${suspensionIndex(declaration)}a${index} ${emitter.watType(parameter.type)})`).join("")}${declaration.genericBounds.map((bound, index) => `\n      (field $s${suspensionIndex(declaration)}b${index} (ref null $trait${bound.traitIndex}))`).join("")}${declaration.requirements.map((requirement, index) => `\n      (field $s${suspensionIndex(declaration)}p${index} ${providerWatType(requirement, traitsByName)})`).join("")}${storedLocals.map((local) => `\n      (field $s${suspensionIndex(declaration)}l${local.index} (mut ${emitter.watType(local.type)}))`).join("")}${sites.map((site) => `\n      (field $s${suspensionIndex(declaration)}child${site.siteIndex} (mut (ref null ${suspensionFrameTypeName(site.drive)})))`).join("")}${declaration.result === "void" ? "" : `\n      (field $s${suspensionIndex(declaration)}result (mut ${emitter.watType(declaration.result)}))`}))`;
   })
   .join("\n")}
 ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n")}\n${program.data
@@ -1078,7 +1091,6 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
         .join("\n\n"),
     )
     .join("\n\n");
-  const adapters = emitter.emitCallableAdapters();
   const traitAdapters = [
     emitter.emitTraitAdapters(),
     emitter.emitBuiltinTraitAdapters(),
@@ -1087,6 +1099,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
   ]
     .filter(Boolean)
     .join("\n\n");
+  const adapters = emitter.emitCallableAdapters();
   const traitSuspensionHelpers = [emitter.emitTraitSuspensionHelpers(), emitter.emitKeyEqualities()]
     .filter(Boolean)
     .join("\n\n");
@@ -1097,6 +1110,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
       .filter((declaration) => declaration.genericParameters.length === 0)
       .map((declaration) => `$fv${suspensionIndex(declaration)}`),
     ...emitter.adapters.map((adapter) => `$adapt${adapter.index}`),
+    ...emitter.resultAdapters.map((adapter) => `$sresultadapt${adapter.index}`),
     ...emitter.builtinTraitAdapterNames,
     ...program.implementations
       .filter((implementation) => !implementation.intrinsic)

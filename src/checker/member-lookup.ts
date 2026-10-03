@@ -9,6 +9,7 @@ import {
   genericTypeName,
   matchGenericTypePattern,
   matchImplementationTarget,
+  orderedTypeSubstitutions,
   substituteGenericType,
 } from "./shared.ts";
 import { implementationsFor } from "./implementation-index.ts";
@@ -223,6 +224,10 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       fieldIndex: field.index,
       erasedFieldType:
         containsGenericType(field.type) || field.type.includes("row:") ? field.type : undefined,
+      erasedTypeSubstitutions: orderedTypeSubstitutions(
+        declaration.genericParameters,
+        substitutions,
+      ),
       type,
       span,
     };

@@ -1,6 +1,5 @@
 import type { HirExpression, HirPatternAccessStep } from "../hir.ts";
 import { mutableInner, nominalGenericParts, readonlyType } from "../types.ts";
-import { isGenericValueType } from "./shared.ts";
 
 import { IteratorEmitter } from "./iterator.ts";
 
@@ -94,6 +93,7 @@ export abstract class DataEmitter extends IteratorEmitter {
         value,
         expression.erasedFieldTypes?.[field.index],
         expression.fields[sourceIndex]!.type,
+        expression.erasedTypeSubstitutions,
       );
     });
     return [
@@ -129,9 +129,12 @@ export abstract class DataEmitter extends IteratorEmitter {
       }
       const prefix = step.kind === "data" ? `$d${step.typeIndex}` : `$e${step.typeIndex}`;
       const raw = `(struct.get ${prefix} ${prefix}f${step.fieldIndex} ${value})`;
-      return step.erasedFieldType && isGenericValueType(step.erasedFieldType)
-        ? this.unboxValue(raw, step.valueType)
-        : raw;
+      return this.loadErased(
+        raw,
+        step.erasedFieldType,
+        step.valueType,
+        step.erasedTypeSubstitutions,
+      );
     }, `(local.get ${subject})`);
   }
 }

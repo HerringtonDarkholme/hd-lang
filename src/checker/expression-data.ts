@@ -17,6 +17,7 @@ import {
   containsGenericType,
   genericTypeName,
   inferGenericType,
+  orderedTypeSubstitutions,
   substituteGenericType,
 } from "./shared.ts";
 
@@ -361,6 +362,10 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             declaration.genericParameters.length > 0
               ? declaration.fields.map((field) => field.type)
               : undefined,
+          erasedTypeSubstitutions: orderedTypeSubstitutions(
+            declaration.genericParameters,
+            substitutions,
+          ),
           type,
           span: expression.span,
         };
@@ -535,6 +540,10 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
       fieldIndex: field.index,
       erasedFieldType:
         containsGenericType(field.type) || field.type.includes("row:") ? field.type : undefined,
+      erasedTypeSubstitutions: orderedTypeSubstitutions(
+        declaration.genericParameters,
+        substitutions,
+      ),
       type: "void",
       span: statement.span,
     };
@@ -738,6 +747,10 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
               containsGenericType(field.type) || field.type.includes("row:")
                 ? field.type
                 : undefined,
+            erasedTypeSubstitutions: orderedTypeSubstitutions(
+              enumDeclaration.genericParameters,
+              substitutions,
+            ),
             type,
             span: expression.span,
           };

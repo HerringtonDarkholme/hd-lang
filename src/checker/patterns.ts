@@ -33,6 +33,7 @@ import {
   containsGenericType,
   genericTypeName,
   inferGenericType,
+  orderedTypeSubstitutions,
   substituteGenericType,
 } from "./shared.ts";
 
@@ -315,6 +316,10 @@ export abstract class PatternChecker extends CallChecker {
         declaration.genericParameters.length > 0
           ? declaration.fields.map((field) => field.type)
           : undefined,
+      erasedTypeSubstitutions: orderedTypeSubstitutions(
+        declaration.genericParameters,
+        substitutions,
+      ),
       type,
       span,
     };
@@ -364,6 +369,12 @@ export abstract class PatternChecker extends CallChecker {
             )
           : declaration.name;
     if (expected) this.requireAssignable(type, expected, expression.span);
+    const substitutions = new Map<string, ValueType>();
+    const nominal = nominalGenericParts(readonlyType(type));
+    if (nominal?.name === declaration.name)
+      declaration.genericParameters.forEach((parameter, index) =>
+        substitutions.set(parameter, nominal.arguments[index]!),
+      );
     return {
       kind: "enum",
       enumIndex: declaration.index,
@@ -375,6 +386,10 @@ export abstract class PatternChecker extends CallChecker {
         declaration.genericParameters.length > 0
           ? declaration.fields.map((field) => field.type)
           : undefined,
+      erasedTypeSubstitutions: orderedTypeSubstitutions(
+        declaration.genericParameters,
+        substitutions,
+      ),
       type,
       span: expression.span,
     };
@@ -521,7 +536,11 @@ export abstract class PatternChecker extends CallChecker {
             kind: "data",
             typeIndex: declaration.index,
             fieldIndex: field.index,
-            erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
+            erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+            erasedTypeSubstitutions: orderedTypeSubstitutions(
+              declaration.genericParameters,
+              substitutions,
+            ),
             valueType: fieldType,
           },
         ];
@@ -627,7 +646,11 @@ export abstract class PatternChecker extends CallChecker {
             kind: "enum",
             typeIndex: declaration.index,
             fieldIndex: field.index,
-            erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
+            erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+            erasedTypeSubstitutions: orderedTypeSubstitutions(
+              declaration.genericParameters,
+              substitutions,
+            ),
             valueType: fieldType,
           },
         ];

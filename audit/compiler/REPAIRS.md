@@ -151,25 +151,38 @@ Validation: full `pnpm run check`, all 90 source tests, website build, and fuzz 
 
 ### Further Callable Edge Case: Generic Provider-Key Erasure
 
-Status: Reproduced, not fixed by the requirement-row variance repair.
-A stored generic callable such as `Job[T].callback: fn() -> i32 $ Repo[T]` cannot currently accept a concrete `Repo[User]` callback after `Job[User]` substitution.
-Normalizing that checker type alone is unsafe: an exploratory patch reached Wasm with provider keys that disagreed between `Repo[generic:T]` and `Repo[User]`, then trapped at runtime.
+Status: Reproduced and fixed as an independent checker/backend repair.
+Before the repair, a stored generic callable such as `Job[T].callback: fn() -> i32 $ Repo[T]` rejected a concrete `Repo[User]` callback after `Job[User]` substitution.
+Substituting only the checker type was also unsound: Wasm adapters still named `Repo[generic:T]`, so a program that reached the backend trapped when the caller supplied `Repo[User]`.
 
-The later repair needs an explicit substitution and provider-key plan through callable erasure and adapters.
-It must not guess generic identities from source names or sorted parameter positions.
-This is a checker/backend representation defect, separate from deciding the already-specified invariant polarity of a callable row.
+Callable traversal now includes requirement-key types during resolution, substitution, generic detection, and inference.
+Inference treats a requirement row as an unordered set: it tries structurally compatible key matches, validates the complete instantiated row, and commits only one unambiguous binder solution.
+The HIR carries an explicit binder-to-type map at every erased data, call, trait-call, pattern, and suspension boundary.
+Wasm adapters instantiate keys from that map and look providers up by concrete key; they never infer binder identity from sorted positions.
 
-| Later fixture candidate | Required observation |
+An additional edge appeared during the repair: two suspending instantiations can normalize to the same concrete callable result type while requiring opposite provider-slot permutations.
+Attaching the map to a checker local would lose that distinction after a branch join.
+Direct and dynamic-trait suspension frames therefore carry a call-site result adapter with the runtime value, and stored suspensions apply that adapter when their result is read.
+
+| Regression case | Required observation |
 | --- | --- |
 | Store `fn() -> i32 $ Repo[T]` in `Job[T]`, instantiate `Job[User]`, and call under a `Repo[User]` provider | Type-check and return normally; the stored callable and adapter agree on the concrete provider key |
 | Use two generic parameters in requirements in a different order from their declaration | Preserve binder identity rather than matching keys by position or sorting |
+| Collapse `Repo[A] + Repo[B]` with `A = B` | Deduplicate the concrete row without losing the provider |
+| Infer `A` and `B` from the unordered row `Repo[User] + Repo[Post]` | Report `cannot-infer-type`; do not select one of two valid permutations |
+| Join stored suspensions whose concrete result types are equal but whose binder permutations differ | Each frame retains and applies its own result adapter |
+| Pass and return such a callable through a dynamic suspending trait method | Adapt both the trait ABI and the stored suspension result using the concrete keys |
+
+Regression tests: [generic-callable-requirements.test.ts](../../src/checker/generic-callable-requirements.test.ts).
+
+Validation: full `pnpm run check`, all 102 source tests, website build, and fuzz smoke passed after rebasing onto `f007c257`.
 
 ### Repair Status Table
 
 
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
-| A02 | Partially fixed | Public and private readonly inherent signatures, including inferred private results and invariant callable requirement rows, participate in variance verification. Optional constructor boundaries preserve payload permission. Shared coercion, least-common-type, and generic provider-key erasure remain open. |
+| A02 | Partially fixed | Public and private readonly inherent signatures, including inferred private results and invariant callable requirement rows, participate in variance verification. Optional constructor boundaries preserve payload permission. Generic provider-key substitution and erasure are repaired with explicit binder maps. Shared coercion and least-common-type remain open. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |
 | A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates use mutable-state rollback and sparse inference journals, then the winner is committed once. Broader resolution conformance remains open. |
