@@ -1,5 +1,7 @@
 Preliminary audit evidence; no proposed behavior is accepted.
 
+> Historical baseline review. Fixed findings remain here only as original evidence; use [REPORT.md](REPORT.md) and [findings.tsv](findings.tsv) for remaining work.
+
 # Independent challenge of the source first pass
 
 Baseline: `823f346878028aad4a4c9351593217f04445bd4c`. The complete [source first-pass report](source-first-pass.md) was read before this challenge. Review was confined to source/specification inspection in the isolated worktree. No checks, compiler probes, new hd programs, or source changes were performed.

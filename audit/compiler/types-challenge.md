@@ -1,5 +1,7 @@
 # Independent Challenge Of Types Findings
 
+> Historical baseline review. Fixed findings remain here only as original evidence; use [REPORT.md](REPORT.md) and [findings.tsv](findings.tsv) for remaining work.
+
 Status: preliminary audit evidence; no behavior or recommendation here is accepted. This challenges [types-first-pass.md](types-first-pass.md), read in full, against baseline `823f346878028aad4a4c9351593217f04445bd4c`.
 
 Scope: original findings T2–T5, [Method Resolution](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/lang/09-traits.md#method-resolution), [Variance](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/lang/04-type-system.md#variance), [Least Common Type](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/lang/04-type-system.md#least-common-type), and [Local Implementations](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/lang/03-names-and-scopes.md#local-implementations). Evidence is static inspection only. No compiler probe, check, or newly authored hd program was run.

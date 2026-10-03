@@ -1,11 +1,12 @@
 # Compiler Audit Repairs
 
-Status: Verified implementation repairs for existing rules, not new language decisions. The broader audit remains incomplete.
+Status: Completed repair history and regression evidence. For remaining issues, use [REPORT.md](REPORT.md) and [findings.tsv](findings.tsv).
 
 Implementation base: `76f29a5fb14780ac69cd606d880c7cc30d5b3a33`.
 The repairs were rebased onto `900f8fcf` before integration checks, preserving the upstream range, shift-count, and testing-prelude changes.
 The historical audit baseline and coverage ledgers remain unchanged.
-Changes are restricted to `src/` and this audit's repair tracking; no specification or conformance fixture is edited.
+Repair scope was `src/` and audit tracking, with two unit-test files updated under explicit owner approval for requirement-key validation.
+No repair changed specification text or conformance fixtures.
 
 ## Repair Status
 
@@ -330,9 +331,8 @@ Validation after the final rebase: both formerly accepted conformance fixtures n
 | --- | --- | --- |
 | A01 | Partially fixed | Std submodule calls honor lexical value bindings, repeated aliases share one checker identity, and local implementations preserve declaration-point suite extent while remaining global for coherence. Package declaration ownership and initialization scheduling remain open. |
 | A02 | Partially fixed | Public and private readonly inherent signatures, optional constructor boundaries, callable-row variance and erasure, and every specified least-common-type site are repaired. Expected-type coercion remains distributed, and semantic types remain string-encoded. |
-| A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
-| A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |
-| A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates use mutable-state rollback and sparse inference journals, then the winner is committed once. Broader resolution conformance remains open. |
+| A06 | Deferred | Public pending/waker execution and the host-facing entry API remain future work. |
+| A07 | Partially fixed | Captured-cell conversion is repaired. Shared host ABI contracts and replay identity remain open. |
 
 ## Reproduced Failures And Repairs
 

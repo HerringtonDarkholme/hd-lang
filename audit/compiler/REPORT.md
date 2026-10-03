@@ -1,211 +1,98 @@
 # Compiler Architecture And Conformance Audit: First Wave
 
-Status: Preliminary audit evidence. No proposed behavior is accepted, and no owner design decision is made here.
+Status: Open findings reconciled against repairs and the specification at `42770b9d`. No proposed behavior or owner decision is accepted here.
 
-Baseline: `823f346878028aad4a4c9351593217f04445bd4c`.
-This report combines three focused architecture reviews and the coordinating reviewer's source/spec reconciliation.
-Finding-specific compiler reproductions and full behavioral suites have not run for this audit.
-Descriptions of predicted failures below are source deductions, not recorded execution results.
-The audit-only PR is based on `3f4e24c39bbb8fcf0aa96b207c9891786b98d9fb`, after the required fetch and worktree rebase.
-Source links and coverage refer to the reviewed baseline above; [publication validation](VALIDATION.md) records checks on the newer base.
-
-Subsequent implementation work reproduces and repairs A03's reported suspension exits and A04's placeholder capture, partially repairs A02's method validation, optional structure, generic callable provider-key erasure, and least-common-type inference, and repairs A01's std-submodule shadowing, repeated-alias, and local-implementation extent defects.
-See [repair status and evidence](REPAIRS.md); the first-wave findings and historical coverage below remain baseline evidence.
-
-The scope is [compiler architecture](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/README.md), [language semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/README.md), [stdlib semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/std/README.md), [CLI semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/cli/README.md), and [conformance evidence](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/conformance/README.md).
-Relevant recorded directions appear in [AGENTS.md](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/AGENTS.md).
-Owner decision history still requires broader reconciliation.
-See [PLAN.md](PLAN.md) for the remaining review waves and completion criteria.
+This report is the current work list.
+Original source deductions remain in the historical first-pass and challenge packets.
+[REPAIRS.md](REPAIRS.md) records completed repairs and validation; [findings.tsv](findings.tsv) contains only open findings.
+This reconciliation does not establish a complete compiler or specification audit.
 
 ## Current Assessment
 
-The compiler contains useful general mechanisms: typed HIR expressions, dictionary-based dispatch, shared capture cells, explicit suspension frames, and a suspension CFG.
-Several surrounding passes discard identities, scope, or type structure before enforcing the rules that require that information.
-Other passes substitute spelling and expression shape for semantic resolution.
-Those mechanisms are the principal obstacles to a naive but correct implementation.
-
-This first wave supports that architectural assessment, but does not establish complete conformance coverage.
-The [rule inventory](spec-counts.txt) reports 4,273 rules: 3,810 language, 338 stdlib, and 125 CLI.
-The [rule ledger](rule-coverage.tsv) and [file ledger](file-coverage.tsv) keep incomplete review visible.
-Neither inventory is evidence that its entries have been fully audited.
-
-## Actual Pipeline And Boundary Problems
-
-| Stage | Current implementation | Information or invariant at risk |
-| --- | --- | --- |
-| Package loading | Parse files, validate selected imports, order modules, concatenate edited source | Declaration ownership, lexical imports, module-local identity, statement-level initialization |
-| Std loading | Expand intrinsic text, parse, rename source, reparse, respan, join ASTs | Canonical declaration identity, alias bindings, lexical resolution, original provenance |
-| Derivation | Emit source with placeholders, parse it, patch arbitrary object fields | Hygienic names, typed positions, generated-origin tracking |
-| Type preparation | Store type syntax and semantic types in strings; hoist local declarations | Constructor nesting, binder identity, local implementation availability |
-| Checking | Inherited mutable contexts; partial expression handlers; candidate trials | Complete trial isolation, one conversion relation, exhaustive semantic coverage |
-| Closure conversion | Rewrite captured locals using object identity and reflective traversal | Stable storage identity and a checked post-conversion HIR contract |
-| Control-flow lowering | Ordinary emission, linear suspension continuation, or suspension CFG | A single meaning of return, propagation, cleanup and completion |
-| Host execution | Generated synchronous drivers and callback/replay bridge | Waker delivery, shared ABI definitions, durable code/site identity |
+Remaining architectural risks concern module ownership, semantic type representation, coercion, and host execution contracts.
+Scope-aware std bindings, optional boundaries, method variance, least-common-type inference, candidate transactions, capture traversal, suspension exits, and generated placeholders have recorded repairs.
+Their original failure predictions are removed from this work list.
 
 ## Prioritized Findings
 
-Priority reflects correctness impact and architectural reach, rather than code size or runtime speed.
-The finding IDs below consolidate the subsystem reports; one root cause can account for several failed programs.
-
-| ID | Priority | Consolidated finding | Verification status | Source findings |
-| --- | --- | --- | --- | --- |
-| A01 | High | Resolution loses declaration ownership and binding scope | Std-submodule shadowing, repeated aliases, and local impl extent repaired; package ownership and initialization scheduling remain open; see REPAIRS.md | SOURCE-1, SOURCE-2, SOURCE-4, T5 |
-| A02 | High | Encoded types lose structure; conversion and inference use inconsistent relations | Method validation, optional boundaries, generic callable provider-key erasure, and all specified LCT sites repaired; broader finding open; see REPAIRS.md | T1, T3, T4 |
-| A03 | High | Three control-flow paths can disagree on language return and suspension completion | Reported exits reproduced and repaired; see REPAIRS.md | L1 |
-| A04 | High | Generated-source patching can capture legal user identifiers | Placeholder capture reproduced and repaired; helper-name hygiene unreviewed; see REPAIRS.md | SOURCE-3 |
-| A05 | High | Generic method selection substitutes a syntax blacklist for isolated candidate checking | Confirmed selection branch; unique-fit probe pending | T2 |
-| A06 | High | Public suspension drivers contradict the specified waker protocol | Confirmed emitted polling loops and contradictory rule; public execution probe pending | L2 |
-| A07 | Medium | Runtime contracts depend on reflective rewrites, duplicated ABI rules, and experimental replay identity | Confirmed mechanisms; several behavioral requirements remain unresolved | L3, L4, L5 |
-| S01 | High | Normative test-block registration rules conflict | Confirmed textual contradiction | SOURCE-5 |
-| S02 | High | Compiler-enforced testing rules cross the stated specification tier boundary | Confirmed direction/text mismatch; intended resolution remains an owner question | SOURCE-5 |
+| ID | Priority | Remaining finding | Evidence and limits |
+| --- | --- | --- | --- |
+| A01 | High | Package linking loses module ownership and statement-level initialization order | SOURCE-1; std binding and local impl defects repaired |
+| A02 | High | Semantic types remain string-encoded and expected-type coercion remains distributed | Remaining architecture review; original optional, method-variance, callable-row, and LCT defects repaired |
+| A06 | High | Public suspension execution lacks the specified pending/waker protocol | L2; host-facing entry API deferred by owner to future work |
+| A07 | Medium | Host ABI definitions and replay identity need a common contract | L4/L5; captured-cell conversion defects repaired |
 
 ### A01: Preserve Declaration Identity, Ownership, And Lookup Extent
 
-[Package linking](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/package.ts#L482) deletes package imports and joins modules into one namespace.
-That prevents later resolution from applying module-private visibility or distinguishing repeated declaration spellings in independent modules.
-Whole-file ordering also fails to represent initialization groups that schedule individual statements across modules.
-The relevant rules include `module.vis.private-default`, `module.vis.no-package-private`, and `module.init.group.step`.
+Remaining scope: package declaration ownership, module-private visibility, independent declaration spellings, integration-test isolation, and initialization groups.
+Flattening package modules into one namespace prevents later checking from applying rules that depend on their original owners.
+Ordering whole files also cannot express dependency-ready initialization of individual statements across a module group.
 
-[Std module-call rewriting](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/standard-library.ts#L607) recognizes receiver spellings before resolving local scope.
-A parameter shadowing an imported module alias can therefore have its method call rewritten as a std function call.
-[Std name mapping](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/standard-library.ts#L491) gives each declaration one local spelling, so a second alias replaces the first declaration name.
-Both problems follow from treating bindings as source substitution instead of references to declarations.
-The later [std submodule binding repair](REPAIRS.md#independent-repair-std-submodule-binding) removes the SOURCE-2 rewrite and performs module-member lowering after lexical value lookup. Separate repairs preserve repeated aliases and [local implementation extent](REPAIRS.md#independent-repair-local-implementation-extent). Package declaration ownership and initialization scheduling remain open.
+Review against [Modules and Packages](../../spec/lang/10-modules.md), especially `module.vis.private-default`, `module.vis.no-package-private`, and `module.init.group.step`.
+Historical evidence is [SOURCE-1](source-first-pass.md#source-1-the-package-linker-erases-the-information-needed-for-correct-modules).
+Current deviations are tracked in [compiler known issues](../../src/KNOWN_ISSUES.md).
 
-[Local implementation hoisting](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/local-declarations.ts#L137) removes implementation statements and appends them to a program-wide list.
-It retains no declaration-point or suite availability for later method lookup.
-Local type names can still remain lexically scoped; the narrower risk concerns calls whose local nominal identity is already visible.
-Rules `names.local-impl.extent` and `trait.impl.local.lookup` require that availability information.
+The next packet should test independent same-named declarations, cross-module private access, integration tests' library view, and interleaved initialization dependencies.
+Preserving declaration ownership and import bindings through resolution remains the architectural direction to investigate.
 
 ### A02: Keep Semantic Type Structure And One General Conversion Relation
 
-[HIR types](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/hir.ts#L3) are strings, and parsing plus optional construction collapses `(mut User)?` and `mut User?` into one encoding.
-These denote different constructor/permission structures under `types.option.sugar` and `types.option.invariant`.
-The source trace explains the existing VARIANCE-UNWRAP finding without reproducing it.
-Downstream code cannot recover a distinction already discarded upstream.
+Remaining scope: string-encoded semantic types, binder identity, and the consistency of expected-type coercion across checker paths.
+Audit nested custom-container conversions against [Type System](../../spec/lang/04-type-system.md).
+Shared Wasm layouts alone do not establish legal conversions.
+Original optional collision, readonly method variance, callable requirement rows, generic provider-key erasure, and specified least-common-type sites have recorded repairs.
 
-[Variance verification](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/variance.ts#L86) checks fields and enum payloads before inherent methods are prepared.
-It cannot enforce `types.variance.surface` against method signatures it never receives.
-[Least-common-type candidates](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/assignability.ts#L143) specialize List covariance and lack general declared variance information.
-Ordinary coercion uses another relation, which itself does not recurse through custom variance like built-in variance.
-
-[Branch joins](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/expression-control.ts#L94) and [inferred returns](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/context.ts#L1189) use yet other paths: equality, `never`, or function-row union.
-They do not consistently use the candidate algorithm, so repairing that helper alone would leave these sites incomplete.
-Explicit `Option[mut User]` is normalized through the same optional helper and does not avoid the representation collision.
-The independent [representation challenge](representation-challenge.md) verified these distinctions and the backend's inability to restore erased semantic structure.
-
-The consequence is broader than a missing case for one container.
-Inference, validation, coercion, and representation need an explicit common semantic model, with intentional restrictions represented separately.
-The exact least-common-type candidate rules still need spec interpretation in ambiguous optional-conversion cases.
-The documented prohibition on combining outer permission weakening with a variance step must remain part of that model.
-
-The later [least-common-type repair](REPAIRS.md#independent-repair-least-common-type) supersedes the baseline T4 behavior above.
-It centralizes the listed inference sites, implements the specification's now-explicit optional rules, and preserves the no-combination restriction.
-This does not replace string-encoded semantic types or unify every expected-type coercion path, so A02 remains open.
-
-### A03: Give Language Exits One Owner
-
-[Suspension CFG selection](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/emitter/suspension.ts#L138) depends on where drives occur.
-[Linear continuation emission](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/emitter/emitter.ts#L1005) handles top-level returns specially, while a non-driving nested branch reaches ordinary emission.
-[Ordinary return emission](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/emitter/function-body.ts#L128) returns the language value directly from the current Wasm function.
-Inside a poll function, that can bypass frame result storage, completion state, and registered outer cleanup.
-
-The prediction needs a minimal compiled reproduction, including non-i32 results and separate postfix propagation.
-The architectural risk is already established: three paths separately implement return, cleanup, and propagation.
-Rules `flow.return.value` and `flow.defer.run` apply regardless of the placement of a bang call.
-One explicit lowered control-flow representation is a candidate remedy to evaluate after reproduction.
-
-### A04: Generated Nodes Need Structural Placeholders And Hygienic Identity
-
-[Generated-source patching](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/generated-source.ts#L69) replaces `HDTYPE<n>X` in arbitrary AST string fields except `value`.
-Generated member access also embeds the user's original field spelling.
-A legal field named `HDTYPE0X` consequently matches an internal type placeholder and receives a different name.
-The substitution mechanism is proven by inspection; the precise end-to-end diagnostic remains unverified.
-
-Source generation can be correct when syntax, bindings, placeholders, and provenance are preserved.
-Distinctive legal identifiers and broad object traversal do not provide that guarantee.
-Typed AST construction or explicitly tagged placeholder nodes are candidate mechanisms.
-The audit must also examine expression-placeholder hygiene before settling the migration boundary.
-
-### A05: Make Candidate Checking Independent Of Argument Shape
-
-[Generic trait selection](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/expression-calls.ts#L757) rejects speculation-unsafe arguments when several candidates are present.
-[The blacklist](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/call-speculation.ts#L7) includes closures, branches, loops, comprehensions, provider expressions, and suspension calls.
-The specified selection rule uses argument and expected-result fit, without that syntactic restriction.
-This affects multiple candidate instantiations; a single candidate does not pass through this rejection branch.
-
-Removing the blacklist alone would expose shared mutable checker state to speculative trials.
-The current trial restores diagnostic length rather than a complete checking environment.
-The useful architectural question is whether explicit constraints, isolated state, or transactions give each candidate an independent result.
-The language behavior is already defined by `trait.resolve.fits` and `trait.resolve.one-fit`.
+The next packet should compare arguments, bindings, assignments, fields, and results using identical source and destination types.
+Any further mismatch needs a current reproduction before it becomes a confirmed defect.
+The prohibition on combining outer permission weakening with a variance step remains part of the specification.
 
 ### A06 And A07: Specify And Share The Runtime Boundary
 
-[Generated suspension drivers](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/emitter/emitter.ts#L881) repeatedly poll while pending.
-Rules `req.entry.pending` and `req.entry.busy-poll` require returning control to the host and waiting for wake delivery.
-The bridge offers deterministic pending callbacks but no equivalent wake-delivery contract in the reviewed API.
-Low-level start/poll exports are a useful foundation; they do not establish public driver conformance.
+A06 concerns public execution when a host operation returns `Pending`.
+Rules [`req.entry.pending`](../../spec/lang/11-requirements-and-suspension.md#r-req.entry.pending) and [`req.entry.busy-poll`](../../spec/lang/11-requirements-and-suspension.md#r-req.entry.busy-poll) require returning control and waiting for wake delivery.
+Deterministic poll callbacks do not establish an event-loop or waker contract.
+The owner deferred the host-facing entry API to [Wake-Driven Host Entries](../../future-work/HOST_ENTRY_DRIVER.md); this audit keeps the conformance gap visible.
 
-Shared capture cells, boxing, and dictionary passing are reasonable simple mechanisms.
-The risks concern object-identity-dependent rewriting, non-exhaustive reflective visitors, and separate emitter/host descriptions of the ABI.
-Malformed host scalar normalization needs an explicit host-input contract before it can be classified as a language defect.
-Replay source hashing is established, while normative code equivalence and the applied Replay Rules still need reconciliation.
+A07 retains the shared host ABI and replay-contract questions from [L4/L5](lowering-first-pass.md#l4-host-abi-behavior-is-duplicated-and-only-partially-validated).
+Emitter and host descriptions should agree on admitted types, encoding, and invalid host values.
+Malformed callback handling needs an explicit contract before it can be classified as a language defect.
+Replay code identity requires reconciliation with owner records and normative guarantees.
+
+Captured-cell conversion now uses explicit closure indices and exhaustive HIR traversal, with regression coverage recorded in the repair history.
+That repaired mechanism is removed from A07's remaining scope.
 
 ## Specification Findings And Questions
 
-| Finding | Conflicting evidence | Required resolution |
-| --- | --- | --- |
-| S01: test registrations | `grammar.tests.statements` permits only `it`; `module.testing.position-statements` and `std-testing.registration` permit additional registrars | Determine accepted registration set from owner decisions and correct the inconsistent rule |
-| S02: testing tier | AGENTS tier test assigns compiler-known names, position checks and item diagnostics to language; std/testing holds such rules | Establish the intended language/stdlib boundary before changing compiler recognition |
-| Variance surface clarification | “Readonly public surface” and “every inherent method available with the nominal type” leave private-method scope unclear | Reconcile visibility rules and owner decisions; this does not excuse checking no methods |
-| Least-common-type clarification | Broad implicit-conversion wording and narrower candidate exclusions do not fully settle optional insertion | Resolve only the ambiguous portion; declared-variance coverage has independent evidence |
-| Host scalar contract | Host bridge silently normalizes numbers; reviewed rules do not define malformed callback handling | Locate the ABI contract and distinguish invalid host behavior from compiler obligations |
-| Replay identity | Normative determinism names code identity; recorded runtime decisions describe a stronger identity scheme | Reconcile runtime decisions, language guarantees and prototype experiments |
+The original testing contradictions S01/S02 are resolved in the current specification.
+[Grammar](../../spec/lang/02-grammar.md#r-grammar.tests.registration) delegates the registration set to the language-tier [test-position rule](../../spec/lang/10-modules.md#r-module.testing.position-statements).
+[Std testing](../../spec/std/testing.md#registration-functions) assigns compiler-checked registration names, options, and positions to the language tier.
+Neither remains an open finding.
 
-The fixture that uses `it_prop` cannot settle S01 by itself.
-Its acceptance agrees with one normative passage and conflicts with another.
-Similarly, a prototype replay test cannot establish the intended program-identity contract.
-Each question needs evidence from the applicable owner record.
-
-## What Remains Acceptably Naive
-
-The reviewers found explicit recursion tracking for signature inference, fixed-point row inference, shared heap cells, and dictionary dispatch.
-These are plausible general algorithms whose complexity alone does not make them incorrect.
-The bound-depth limit of 64 is specified behavior, so its presence is not evidence of an arbitrary shortcut.
-Byte-at-a-time host copying and linear dispatch also require separate semantic and performance assessments.
-
-An association-list Map cannot be condemned solely because lookup is linear.
-Its correctness still depends on specified equality, hashing, insertion order, key mutation and alias behavior.
-Those obligations remain for a later library/runtime packet.
-Optimization proposals must not obscure the earlier loss of semantic information.
+| Remaining question | Evidence needed |
+| --- | --- |
+| Host scalar contract | Locate the ABI contract for malformed callbacks and identify compiler obligations |
+| Replay identity | Reconcile owner runtime decisions, normative determinism, and prototype identity experiments |
 
 ## Next Review And Migration Priorities
 
-| Order | Evidence to obtain | Architectural direction to evaluate |
-| --- | --- | --- |
-| 1 | Reproduce optional collision, scope-blind rewrite, lost aliases and nested suspension exits | Retain type structure, declaration identity and explicit exits |
-| 2 | Test local impl extent, method variance and custom-container joins | Preserve lexical availability and centralize conversion/variance obligations |
-| 3 | Challenge generated-name hygiene and candidate trial state | Typed transformations and isolated checking state |
-| 4 | Exercise public pending/wake behavior and admitted host capability types | One executor protocol and shared ABI description |
-| 5 | Audit untouched semantic paths, all three spec tiers, fixtures and judging logic | Complete file/rule coverage before final judgment |
+| Order | Evidence to obtain |
+| --- | --- |
+| 1 | Package privacy, independent names, integration-test isolation, and statement-level initialization |
+| 2 | Consistent expected-type coercion and nested container conversions at every typing site |
+| 3 | Generated helper/local-name hygiene beyond repaired placeholders |
+| 4 | Public pending/wake behavior, admitted host types, ABI encoding, and replay identity |
+| 5 | Untouched semantic paths, all three specification tiers, fixtures, and judging logic |
 
-Implementation priorities are provisional until behavioral reproduction and peer challenge complete.
-Every migration step must preserve observable rules and retain explicit diagnostics for unsupported behavior.
-Changes to accepted language behavior require an owner decision and the repository's spec-update process.
+Generated helper hygiene and broader lowering composition are coverage gaps, not replacement defect IDs for closed findings.
+Each new claim needs its own current evidence.
+Completed repair edge cases remain available in REPAIRS.md for later fixture work.
 
 ## Supporting Reports And Coverage Limits
 
-| Report | Focus |
-| --- | --- |
-| [Types first pass](types-first-pass.md) | Type structure, inference, candidate selection, variance and local impl scope |
-| [Source first pass](source-first-pass.md) | Module identity, std bindings, generated-source hygiene and testing spec consistency |
-| [Lowering first pass](lowering-first-pass.md) | Control flow, suspension protocol, capture conversion, ABI and replay |
-| [Source challenge](source-challenge.md) | Independent checks of ownership loss, shadowing, hygiene, aliases and testing spec conflicts |
-| [Types challenge](types-challenge.md) | Independent checks and qualifications of candidate selection, variance, joins and local implementation scope |
-| [Representation challenge](representation-challenge.md) | Checker/emitter reconciliation, alias identity and nested suspension exits |
+Original [type](types-first-pass.md), [source](source-first-pass.md), and [lowering](lowering-first-pass.md) packets and their [source](source-challenge.md), [type](types-challenge.md), and [representation](representation-challenge.md) challenges are historical evidence.
+They describe baseline `823f346878028aad4a4c9351593217f04445bd4c`, including defects subsequently repaired.
+Their original claim status must not be read as current issue status.
 
-All three focused reviews and all three challenge packets are complete and incorporated into this first-wave synthesis.
-The challenge process corrected overbroad ownership, candidate-selection, and scope claims, and identified additional join sites.
-This wave does not fully review every checker branch, grammar rule, CLI command, library API, runtime helper, fixture, or owner record.
-Known failures have been inspected rather than rerun.
-The next waves must provide behavioral evidence and fill the explicit coverage gaps before a full audit claim is made.
+[File coverage](file-coverage.tsv), [rule coverage](rule-coverage.tsv), and [counts](spec-counts.txt) remain baseline inventories.
+The audit still lacks complete review of checker branches, grammar rules, CLI commands, library APIs, runtime helpers, fixtures, and owner records.
+Only the four findings above remain in the active consolidated ledger.

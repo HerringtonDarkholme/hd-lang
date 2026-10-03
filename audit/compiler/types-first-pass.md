@@ -1,5 +1,7 @@
 Preliminary audit evidence; no proposed behavior is accepted.
 
+> Historical baseline review. Fixed findings remain here only as original evidence; use [REPORT.md](REPORT.md) and [findings.tsv](findings.tsv) for remaining work.
+
 # Types, inference, and checker architecture: first pass
 
 Baseline: `823f346878028aad4a4c9351593217f04445bd4c`. This report reviews existing source and fixtures in the isolated audit worktree. No compiler, specification, or fixture was changed; no checks or new hd programs were run. Static deductions below are distinguished from execution results.

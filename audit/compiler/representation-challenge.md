@@ -1,5 +1,7 @@
 # Representation And Cross-Boundary Challenge Pass
 
+> Historical baseline review. Fixed findings remain here only as original evidence; use [REPORT.md](REPORT.md) and [findings.tsv](findings.tsv) for remaining work.
+
 Status: preliminary audit evidence; nothing here establishes accepted behavior or an owner decision. No checks, compiler probes, or hd programs were executed or authored.
 
 Baseline: `823f346878028aad4a4c9351593217f04445bd4c`, inspected in the isolated audit worktree. This pass independently challenges [types-first-pass](types-first-pass.md), reads [source-first-pass](source-first-pass.md) fully, and revisits [lowering-first-pass L1](lowering-first-pass.md#l1-linear-suspension-emission-can-confuse-language-return-with-poll-return).

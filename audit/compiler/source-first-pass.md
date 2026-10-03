@@ -1,5 +1,7 @@
 # Source, Modules, And Generated Code: First Pass
 
+> Historical baseline review. Fixed findings remain here only as original evidence; use [REPORT.md](REPORT.md) and [findings.tsv](findings.tsv) for remaining work.
+
 Status: preliminary audit evidence; nothing in this report is accepted behavior or an owner decision.
 
 Baseline: `823f346878028aad4a4c9351593217f04445bd4c`. Review performed in the isolated audit worktree. Evidence is source, specification, and fixture inspection. No tests, checks, compiler probes, installation, fetch, or rebase were executed.

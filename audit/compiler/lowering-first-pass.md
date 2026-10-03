@@ -1,5 +1,7 @@
 # Lowering, Suspension, And Host Boundary: First Pass
 
+> Historical baseline review. Fixed findings remain here only as original evidence; use [REPORT.md](REPORT.md) and [findings.tsv](findings.tsv) for remaining work.
+
 Status: preliminary audit evidence; nothing here establishes accepted language behavior or an owner decision. This is a source inspection, not a completed conformance audit.
 
 Baseline: `823f346878028aad4a4c9351593217f04445bd4c`. Inspection and this report belong to the isolated audit worktree. No compiler, specification, fixture, or implementation test was changed. No checks, compilation probes, or benchmarks were executed.
