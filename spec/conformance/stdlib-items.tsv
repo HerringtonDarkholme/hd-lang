@@ -15,6 +15,8 @@ std.time	std/time.md#duration
 std.testing.it_each	std/testing.md#registration-functions
 std.testing.it_prop	std/testing.md#registration-functions
 std.testing.it_prop_with	std/testing.md#registration-functions
+std.testing.TestRunner	std/testing.md#runner-capabilities
+std.testing.PropertyRunner	std/testing.md#runner-capabilities
 std.task.retry	std/task.md#retry
 std.ops.Default	std/ops.md#default-trait
 std.collections.ListView	std/collections.md#views

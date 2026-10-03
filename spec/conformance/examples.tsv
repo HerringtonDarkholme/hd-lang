@@ -635,6 +635,8 @@ std/testing.md	15	type-fragment	-
 std/testing.md	16	type-fragment	-
 std/testing.md	17	accept	typing/valid/hd-run-integration.hd
 std/testing.md	18	mixed	typing/invalid/hd-run-outside-integration.hd
+std/testing.md	19	type-fragment	-
+std/testing.md	20	mixed	typing/valid/test-runner-capabilities.hd|typing/invalid/test-body-uses-test-runner.hd
 std/text.md	1	accept	runtime/valid/string-lines.hd|runtime/valid/string-repeat.hd
 std/text.md	2	accept	typing/valid/string-prefix-std-r.hd
 std/time.md	1	accept	runtime/valid/duration-negation.hd|typing/valid/literal-suffix-duration.hd

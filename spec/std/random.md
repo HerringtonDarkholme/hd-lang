@@ -37,4 +37,8 @@ fn roll() -> u64 $ Random:
 > does, so it needs no driver. A test installs a seeded provider, and
 > replay records each draw at the boundary.
 
+> **Note.** A property test's random draws also come from a `Random`
+> provider, one that `std.testing` seeds from the test runner
+> ([`std-testing.runner.random`](testing.md#r-std-testing.runner.random)).
+
 See also: [Mutable Providers](../lang/11-requirements-and-suspension.md#mutable-providers).

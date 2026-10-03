@@ -1947,3 +1947,5 @@ typing/invalid/no-widening-range-bounds.hd	type	reject:type-mismatch	lang/05-exp
 typing/invalid/power-float-widths.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.power.float.same-type
 typing/valid/numeric-literal-adopts-width.hd	type	accept	lang/04-type-system.md#r-types.num.literal-exempt
 runtime/valid/numeric-explicit-widening.hd	runtime	accept	lang/04-type-system.md#r-types.num.no-implicit
+typing/valid/test-runner-capabilities.hd	type	accept	std/testing.md#r-std-testing.runner.decl
+typing/invalid/test-body-uses-test-runner.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.runner.body

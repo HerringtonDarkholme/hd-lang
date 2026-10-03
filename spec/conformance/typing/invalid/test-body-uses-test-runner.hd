@@ -1,0 +1,11 @@
+# test: a test body gets no TestRunner, so a call that needs one is missing-requirement
+# Spec std Testing, Runner Capabilities: std-testing.runner.body (task 201).
+use std.testing.TestRunner
+use std.time.s
+
+fn pick(rows: List[string]) -> string $ TestRunner:
+    rows[$.use(TestRunner).row(rows.len())]
+
+tests:
+    it("uses the runner", timeout=5s):
+        _ := pick(["a"])  # diagnostic: missing-requirement

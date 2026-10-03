@@ -12,7 +12,8 @@ runner implement over the language tier:
 - what the `timeout` option does;
 - how an `it_each` call expands and names its rows;
 - how snapshots compare text, and where snapshot files live;
-- how an integration test runs one of the package's executables.
+- how an integration test runs one of the package's executables;
+- the host capabilities through which `std.testing` reaches the test runner.
 
 The language tier keeps the assertion functions, `it` and its options, the
 test-position rules, and the literal `expect` of `snapshot`
@@ -475,3 +476,75 @@ tests:
 > Cargo's integration tests do through `CARGO_BIN_EXE_<name>`. A unit test
 > runs on fakes alone, so it never starts a process. A real row, not a
 > hidden grant, lets `lib/std` write `hd_run!` in plain hd.
+
+## Runner Capabilities
+
+`std.testing` reaches the test runner through two host capability traits:
+
+```text
+pub trait TestRunner:
+    fn row(mut self, count: i32) -> i32
+    fn report_timeout(mut self, millis: i64) -> void
+
+pub trait PropertyRunner:
+    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> i32
+    fn seed(self) -> i64
+    fn size(self) -> i32
+    fn draw(mut self, bound: i64, fresh: i64) -> i64
+    fn discard(mut self) -> void
+    fn show(mut self, text: string) -> void
+```
+
+1. r[std-testing.runner.decl] `std.testing` declares the host capability traits `TestRunner` and `PropertyRunner` with the methods above. Code imports them, as in `use std.testing.TestRunner`.
+2. r[std-testing.runner.plain] Every method is a plain call, not a bang call.
+3. r[std-testing.runner.binding] When it runs a test case, the test runner binds `TestRunner` for the `std.testing` code that runs the case around its body. For a property test case, it also binds `PropertyRunner`.
+4. r[std-testing.runner.body] A test body's row stays empty, by [`module.testing.unit-row`](../lang/10-modules.md#r-module.testing.unit-row). So a body that uses either trait without a provider scope is an error. Error: `missing-requirement`.
+
+| Rule | Method | What it does |
+| --- | --- | --- |
+| r[std-testing.runner.row] Row | `row(count)` | reports that an `it_each` call has `count` rows, and returns the index of the row that the test case runs |
+| r[std-testing.runner.timeout] Timeout | `report_timeout(millis)` | reports the test case's `timeout` in milliseconds, before its body runs |
+| r[std-testing.runner.start] Start | `start(cases, shrink, examples)` | reports a property's `cases`, `shrink`, and count of `examples`, and returns the index of the example that the case runs, or `-1` for a generated case |
+| r[std-testing.runner.seed] Seed | `seed()` | the seed of the case's random draws |
+| r[std-testing.runner.size] Size | `size()` | how far the case's random draws reach, which grows from case to case |
+| r[std-testing.runner.draw] Draw | `draw(bound, fresh)` | returns the case's next draw, from 0 to `bound`, and records it: a replayed draw while the runner replays or shrinks a stream, else `fresh` |
+| r[std-testing.runner.discard] Discard | `discard()` | ends the case as discarded; it does not return |
+| r[std-testing.runner.show] Show | `show(text)` | reports the `Debug` text of the case's input, which a failure report prints |
+
+5. r[std-testing.runner.examples-done] Once every example has run, `start` ends the case as discarded instead of returning.
+6. r[std-testing.runner.choices] Each `Choices` holds its case's `PropertyRunner` provider value, so a generator draws through it with no requirement row, by [`req.use.value.flow`](../lang/11-requirements-and-suspension.md#r-req.use.value.flow).
+7. r[std-testing.runner.random] The `fresh` values of a generated case come from a [`Random`](random.md#random-source) provider that `std.testing` seeds with `seed()`. So the same seed draws the same cases.
+
+```text
+use std.testing.TestRunner
+
+data FirstRow:
+    rows: i32
+
+impl TestRunner for FirstRow:
+    fn row(mut self, count: i32) -> i32:
+        self.rows = count
+        0
+
+    fn report_timeout(mut self, millis: i64) -> void:
+        pass
+
+fn pick(rows: List[string]) -> string $ TestRunner:
+    rows[$.use(TestRunner).row(rows.len())]
+
+tests:
+    it("uses the runner"):
+        _ := pick(["a"])  # error: missing-requirement
+```
+
+> **Why.** The runner is a host, as a console is, so `std.testing` reaches
+> it through a capability in a row, not a primitive. Recording, replay, and
+> shrinking stay on the runner's side. The generator is ordinary hd, so a
+> seed means the same draws on every host.
+
+> **Note.** Which generator `std.testing` seeds is runner behavior, as is
+> how `size` grows. `lib/std` uses xoshiro128\*\*, seeded through
+> SplitMix32.
+
+See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
+[Table-Test Rows](#table-test-rows), [Property Tests](#property-tests).

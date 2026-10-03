@@ -1,0 +1,49 @@
+# test: TestRunner and PropertyRunner are host capability traits whose methods are plain calls
+# Spec std Testing, Runner Capabilities: std-testing.runner.decl and std-testing.runner.plain (task 201).
+use std.testing.{PropertyRunner, TestRunner}
+
+data FirstRow:
+    rows: i32
+
+impl TestRunner for FirstRow:
+    fn row(mut self, count: i32) -> i32:
+        self.rows = count
+        0
+
+    fn report_timeout(mut self, millis: i64) -> void:
+        pass
+
+data Replay:
+    draws: mut List[i64]
+    shown: string
+
+impl PropertyRunner for Replay:
+    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> i32:
+        -1
+
+    fn seed(self) -> i64:
+        7
+
+    fn size(self) -> i32:
+        0
+
+    fn draw(mut self, bound: i64, fresh: i64) -> i64:
+        self.draws.append(fresh)
+        fresh
+
+    fn discard(mut self) -> void:
+        pass
+
+    fn show(mut self, text: string) -> void:
+        self.shown = text
+
+fn pick(rows: List[string]) -> string $ TestRunner:
+    rows[$.use(TestRunner).row(rows.len())]
+
+fn coin() -> bool $ PropertyRunner:
+    $.use(PropertyRunner).draw(1, $.use(PropertyRunner).seed() % 2) == 1
+
+fn both() -> void:
+    $.with(TestRunner=FirstRow { rows: 0 }, PropertyRunner=Replay { draws: [], shown: "" }):
+        _ := pick(["a", "b"])
+        _ := coin()

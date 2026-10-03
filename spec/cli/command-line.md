@@ -269,6 +269,7 @@ hd test --deny-skipped            # a skipped test case fails the run
 9. r[cli.test.process.missing] That provider returns `.None` for a program name that names no executable of the package.
 10. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
 11. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
+12. r[cli.test.runner] When it runs a test case, `hd test` binds the host traits [`TestRunner` and `PropertyRunner`](../std/testing.md#runner-capabilities) for the `std.testing` code around the body, by [`std-testing.runner.binding`](../std/testing.md#r-std-testing.runner.binding).
 
 > **Why.** Naming a FILE asks for its tests, so none is a mistake, while a
 > new package may have none yet. A filter that matches nothing in a named

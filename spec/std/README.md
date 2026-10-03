@@ -89,15 +89,14 @@ raises with a category other than `explicit-panic`.
 | `format_f64`, `format_f32` | `(value: f64) -> string`, `(value: f32) -> string` | the shortest round-trip decimal text of a float ([Numeric Display](../lang/04-type-system.md#numeric-display)) |
 | `string_lower`, `string_upper` | `(text: string) -> string` | Unicode case mapping, which needs the Unicode tables |
 
-**Test-runner hooks.** These connect `std.testing` to the test runner.
-Each one is to become a capability (task 201, chunk 2).
+**Test-runner hooks.** `std.testing` reaches the test runner through the
+host capabilities `TestRunner` and `PropertyRunner`
+([Runner Capabilities](testing.md#runner-capabilities)), so table rows,
+timeouts, and property draws need no primitive. One hook remains.
 
-| Primitive | Why it is a primitive |
-| --- | --- |
-| `case_index`, `report_case_count` | the table-test row that the runner selected, and the row count |
-| `report_timeout` | a test case's `timeout` |
-| `prop_config`, `prop_budget`, `prop_example`, `prop_show`, `prop_draw`, `prop_discard` | the runner's draws, examples, and shrinking for property tests |
-| `snapshot_file_check` | reads and writes snapshot files |
+| Primitive | Signature | Why it is a primitive |
+| --- | --- | --- |
+| `snapshot_file_check` | `(text: string) -> string` | reads and writes snapshot files; a capability in `snapshot_file`'s row would reach a unit test body, which gets no host providers ([`module.testing.unit-row`](../lang/10-modules.md#r-module.testing.unit-row)) |
 
 **Operations.** One intrinsic method per primitive operation. `lib/std`
 writes each once, mostly in a numeric-family implementation such as
