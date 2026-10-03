@@ -1,4 +1,6 @@
 import { intrinsicDictionaryPlan } from "./intrinsic-dictionaries.ts";
+import { TRIAL_STATE, type TrialSnapshot } from "./call-speculation.ts";
+import { snapshotCheckerState } from "./checker-trial-state.ts";
 import { mapKeyKind, mapKeyProblem } from "./map-keys.ts";
 import {
   ambiguousProjection,
@@ -179,6 +181,10 @@ import {
 export { isKnownType };
 
 export abstract class CheckerContext {
+  [TRIAL_STATE](snapshot: TrialSnapshot): undefined {
+    return snapshotCheckerState(this, snapshot);
+  }
+
   protected abstract checkStatement(
     statement: Statement,
     expected?: ValueType,

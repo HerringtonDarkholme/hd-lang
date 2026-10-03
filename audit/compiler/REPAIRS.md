@@ -26,8 +26,8 @@ Regression tests: [captured-cells.test.ts](../../src/checker/captured-cells.test
 ### Independent Repair: Candidate Transactions
 
 Candidate checking now accepts arbitrary argument expressions instead of allowing only a syntax whitelist.
-Each attempt runs under a rollback transaction over the checker's reachable state, preserving existing object identities.
-Locals, captures, diagnostics, enumerable argument caches, and lazy signature inference participate in the same transaction.
+Each attempt runs under a rollback transaction over mutable checker state, preserving existing object identities.
+Locals, captures, diagnostics, argument caches, and lazy signature inference participate in the same transaction.
 Nested attempts restore their own entry state, whether they succeed or fail.
 
 The selected candidate is checked again outside the transaction; trial HIR is never committed.
@@ -36,7 +36,35 @@ Distinct traits remain ambiguous instead of acquiring argument-based overload re
 
 The transaction contract covers ordinary properties, arrays, maps, and sets.
 Opaque weak collections fail closed; adding external mutable caches or private slots requires extending the contract.
-The repair trades snapshot cost for a simple rollback guarantee; it makes no performance claim.
+Immutable program inputs do not participate; mutable inference registries use sparse write journals.
+
+#### Transaction Cost Regression
+
+The first transaction implementation, `d8f5f0c9`, traversed lazy inference's program context through the signature map.
+On slicing, each candidate snapshot reached about 35,000 objects, including immutable declarations, type registries, and implementation tables.
+Additional integer methods increased candidate counts and multiplied that unrelated work.
+
+Checker contexts now declare immutable inputs and snapshot only mutable body state and caches.
+Lazy signature replacements and pending or failed inference membership use nested, touched-entry rollback journals.
+Existing closure, global, and diagnostic containers are captured without traversing their immutable contents.
+Destructive signature-map operations preserve iteration order through a lazy order snapshot; normal inference replacements never enumerate the registry.
+
+Source regressions forbid immutable registry traversal and signature enumeration during ordinary trials, using a 10,000-entry registry.
+They also cover nested savepoints, delete/reinsert ordering, symbol-keyed caches, accessor avoidance, and rollback after snapshot setup fails.
+The original candidate correctness regressions remain intact.
+No timeout, standard library, specification, or conformance fixture changed.
+
+Fresh-process local checks compare `17b96635` against this repair; each case reports the median of three runs.
+Whole-conformance timings use `node --experimental-strip-types test/run-portable.ts --suite conformance --jobs 8` on both revisions.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| `typing/valid/slice-types.hd` check | 2.697 s | 0.250 s |
+| `runtime/valid/slicing-run.hd` check | 2.377 s | 0.276 s |
+| All 1,893 conformance cases, eight workers | 35.390 s | 29.589 s |
+
+Validation: full `pnpm run check`, all 75 source tests, website build, and fuzz smoke passed.
+The source suite includes 24 candidate transaction regressions.
 
 Regression tests: [call-speculation.test.ts](../../src/checker/call-speculation.test.ts).
 
@@ -78,7 +106,7 @@ Regression tests: [types.test.ts](../../src/types.test.ts).
 | A02 | Partially fixed | Public readonly inherent signatures participate in variance verification, and optional constructor boundaries preserve payload permission. Shared coercion, least-common-type, and private-surface implementation findings remain open. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |
-| A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates are checked under complete reachable-state rollback, then the winner is committed once. Broader resolution conformance remains open. |
+| A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates use mutable-state rollback and sparse inference journals, then the winner is committed once. Broader resolution conformance remains open. |
 
 ## Reproduced Failures And Repairs
 

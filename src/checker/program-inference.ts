@@ -2,12 +2,66 @@ import type { FunctionDecl } from "../ast.ts";
 import type { HirGlobal, HirTraitImplementation } from "../hir.ts";
 import { FunctionChecker } from "./checker.ts";
 import type { FunctionCheckResult, Signature } from "./context.ts";
+import { TRIAL_STATE, type TrialSnapshot } from "./call-speculation.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
 
 // A signature map whose omitted result types are inferred on first lookup, so
 // a caller always sees the callee's final result type.
+interface SignatureTrial {
+  readonly values: Map<string, Signature | undefined>;
+  order?: readonly string[];
+}
+
 class LazySignatures extends Map<string, Signature> {
+  private readonly trials: SignatureTrial[] = [];
+
+  [TRIAL_STATE](snapshot: TrialSnapshot, rollback: (reset: () => void) => void): void {
+    const changes: SignatureTrial = { values: new Map() };
+    this.trials.push(changes);
+    rollback(() => {
+      this.trials.pop();
+      for (const [name, signature] of changes.values) {
+        if (signature) super.set(name, signature);
+        else super.delete(name);
+      }
+      if (changes.order) {
+        const entries = changes.order
+          .filter((name) => super.has(name))
+          .map((name) => [name, super.get(name)!] as const);
+        super.clear();
+        for (const [name, signature] of entries) super.set(name, signature);
+      }
+    });
+    snapshot(this.inference);
+  }
+
+  private remember(name: string): void {
+    for (const changes of this.trials)
+      if (!changes.values.has(name)) changes.values.set(name, super.get(name));
+  }
+
+  private rememberOrder(): void {
+    // Only destructive operations pay for recording the registry's order.
+    for (const changes of this.trials) changes.order ??= [...this.keys()];
+  }
+
+  override set(name: string, signature: Signature): this {
+    this.remember(name);
+    return super.set(name, signature);
+  }
+
+  override delete(name: string): boolean {
+    if (super.has(name)) this.rememberOrder();
+    this.remember(name);
+    return super.delete(name);
+  }
+
+  override clear(): void {
+    if (this.size > 0) this.rememberOrder();
+    for (const name of this.keys()) this.remember(name);
+    super.clear();
+  }
   // Keep lazy inference state reachable from the signature map. Argument
   // transactions must restore pending results, failures and diagnostics along
   // with signatures; an opaque callback would hide those mutations.
@@ -41,6 +95,34 @@ function displayName(name: string): string {
 // Rows start empty and are recomputed until no row grows, which yields the
 // least rows for mutually recursive functions.
 export class SignatureInference {
+  private readonly resultTrials: Map<string, { pending: boolean; failed: boolean }>[] = [];
+
+  [TRIAL_STATE](snapshot: TrialSnapshot, rollback: (reset: () => void) => void): void {
+    const changes = new Map<string, { pending: boolean; failed: boolean }>();
+    this.resultTrials.push(changes);
+    rollback(() => {
+      this.resultTrials.pop();
+      for (const [name, previous] of changes) {
+        if (previous.pending) this.pendingResults.add(name);
+        else this.pendingResults.delete(name);
+        if (previous.failed) this.failed.add(name);
+        else this.failed.delete(name);
+      }
+    });
+    snapshot(this.inferring, false);
+    snapshot(this.globals, false);
+    snapshot(this.context.diagnostics, false);
+  }
+
+  private rememberResult(name: string): void {
+    for (const changes of this.resultTrials)
+      if (!changes.has(name))
+        changes.set(name, {
+          pending: this.pendingResults.has(name),
+          failed: this.failed.has(name),
+        });
+  }
+
   readonly signatures: LazySignatures;
   // Functions whose inference already reported an error; the final pass skips them.
   readonly failed = new Set<string>();
@@ -148,6 +230,7 @@ export class SignatureInference {
 
   resolveResult(name: string): void {
     if (!this.pendingResults.has(name)) return;
+    this.rememberResult(name);
     const cycleStart = this.inferring.indexOf(name);
     if (cycleStart >= 0) {
       this.reportCycle(this.inferring.slice(cycleStart));
@@ -187,6 +270,7 @@ export class SignatureInference {
 
   // A failed function's calls type as `never`, so callers report nothing more.
   private fail(name: string): void {
+    this.rememberResult(name);
     this.failed.add(name);
     const signature = this.signatures.peek(name);
     if (signature) this.signatures.set(name, { ...signature, result: "never" });

@@ -4,10 +4,16 @@ import type { HirExpression } from "../hir.ts";
 // Trial checking of call arguments against several candidate
 // instantiations of one generic trait (09-traits.md#method-resolution).
 
+export const TRIAL_STATE = Symbol("checker trial state");
+export type TrialSnapshot = (value: unknown, descendants?: boolean) => void;
+export interface TrialParticipant {
+  [TRIAL_STATE](snapshot: TrialSnapshot, rollback: (reset: () => void) => void): void;
+}
+
 /**
  * Run a checker trial without committing any mutations. The snapshot covers
- * the checker's entire reachable object graph, including shared closures,
- * captures, locals, globals, and subclass caches. Restore in place: preexisting
+ * explicitly participating mutable state; ordinary test objects use their
+ * reachable object graph. Restore in place: preexisting
  * HIR nodes and local references must retain their identities.
  *
  * Checker state consists of ordinary own properties, arrays, maps and sets;
@@ -16,45 +22,57 @@ import type { HirExpression } from "../hir.ts";
  * entry state. A selected candidate is checked again outside the transaction.
  */
 export function speculate<T>(checker: object, check: () => T): T {
-  const seen = new Set<object>();
+  const seen = new Map<object, boolean>();
   const restore: Array<() => void> = [];
-  const snapshot = (value: unknown): void => {
-    if (value === null || typeof value !== "object" || seen.has(value)) return;
-    seen.add(value);
+  const snapshot: TrialSnapshot = (value, descendants = true): void => {
+    if (value === null || typeof value !== "object") return;
+    const previous = seen.get(value);
+    if (previous === true || (previous === false && !descendants)) return;
     if (value instanceof WeakMap || value instanceof WeakSet)
       throw new Error("opaque weak collections cannot participate in checker trials");
-    if (value instanceof Map) {
+    const participant = (value as Partial<TrialParticipant>)[TRIAL_STATE];
+    seen.set(value, descendants || !!participant);
+    if (!participant && value instanceof Map) {
       const entries = [...value.entries()];
-      restore.push(() => {
-        value.clear();
-        for (const [key, child] of entries) value.set(key, child);
-      });
-      for (const [key, child] of entries) {
-        snapshot(key);
-        snapshot(child);
-      }
-    } else if (value instanceof Set) {
+      if (previous === undefined)
+        restore.push(() => {
+          value.clear();
+          for (const [key, child] of entries) value.set(key, child);
+        });
+      if (descendants)
+        for (const [key, child] of entries) {
+          snapshot(key);
+          snapshot(child);
+        }
+    } else if (!participant && value instanceof Set) {
       const entries = [...value];
-      restore.push(() => {
-        value.clear();
-        for (const child of entries) value.add(child);
-      });
-      for (const child of entries) snapshot(child);
+      if (previous === undefined)
+        restore.push(() => {
+          value.clear();
+          for (const child of entries) value.add(child);
+        });
+      if (descendants) for (const child of entries) snapshot(child);
     }
     const descriptors = Object.getOwnPropertyDescriptors(value);
-    restore.push(() => {
-      for (const key of Reflect.ownKeys(value)) {
-        if (!Object.hasOwn(descriptors, key)) Reflect.deleteProperty(value, key);
-      }
-      Object.defineProperties(value, descriptors);
-    });
-    for (const key of Reflect.ownKeys(descriptors)) {
-      const descriptor = Reflect.get(descriptors, key) as PropertyDescriptor;
-      if ("value" in descriptor) snapshot(descriptor.value);
+    if (previous === undefined)
+      restore.push(() => {
+        for (const key of Reflect.ownKeys(value)) {
+          if (!Object.hasOwn(descriptors, key)) Reflect.deleteProperty(value, key);
+        }
+        Object.defineProperties(value, descriptors);
+      });
+    if (participant) {
+      participant.call(value, snapshot, (reset) => restore.push(reset));
+      return;
     }
+    if (descendants)
+      for (const key of Reflect.ownKeys(descriptors)) {
+        const descriptor = Reflect.get(descriptors, key) as PropertyDescriptor;
+        if ("value" in descriptor) snapshot(descriptor.value);
+      }
   };
-  snapshot(checker);
   try {
+    snapshot(checker);
     return check();
   } finally {
     for (const reset of restore.toReversed()) reset();
