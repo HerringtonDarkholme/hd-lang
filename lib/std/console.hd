@@ -12,8 +12,10 @@ use std.task.block_on
 pub trait Console:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]
 
+# `read_line!` takes `mut self`, so a scripted provider can advance
+# through its lines (spec/std/console.md#r-std-console.input.mut).
 pub trait ConsoleInput:
-    fn read_line!(self) -> Result[string?, ConsoleError]
+    fn read_line!(mut self) -> Result[string?, ConsoleError]
 
 pub data BufferConsole:
     lines: mut List[string]

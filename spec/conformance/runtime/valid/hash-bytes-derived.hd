@@ -1,0 +1,34 @@
+# test: a derived Hash writes an enum's variant index as a u32, then the members in declaration order
+# Spec std Hash, Bytes Written: std-hash.bytes.derive-enum, std-hash.bytes.derive-data (batch 65, HASH-BYTES).
+use std.testing.assert_equal
+
+data Recorder:
+    bytes: mut List[u8]
+
+impl Hasher for Recorder:
+    fn write(mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.bytes.append(byte)
+
+fn bytes_of[T < Hash](value: T) -> List[u8]:
+    let mut recorder = Recorder { bytes: [] }
+    value.hash(recorder)
+    recorder.bytes
+
+@derive(Eq, Hash)
+enum Light:
+    Red
+    Green(level: u8)
+
+@derive(Eq, Hash)
+data Point:
+    x: i16
+    y: i16
+
+tests:
+    it("an enum writes its zero-based variant index as a u32, then its payload"):
+        assert_equal(bytes_of(Light.Red), [0, 0, 0, 0], reason="the first variant, no payload")
+        assert_equal(bytes_of(Light.Green(level=9)), [1, 0, 0, 0, 9], reason="the second variant, then the u8")
+
+    it("data writes no tag, only its fields in declaration order"):
+        assert_equal(bytes_of(Point { x: -1, y: 2 }), [255, 255, 2, 0], reason="x, then y, as i16")

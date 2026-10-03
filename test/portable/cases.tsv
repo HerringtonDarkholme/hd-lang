@@ -1870,3 +1870,6 @@ typing/invalid/it-outside-test-code.hd	type
 typing/invalid/shift-count-not-u32.hd	type
 typing/valid/shift-count-u32.hd	type
 runtime/valid/range-inclusive-field.hd	runtime
+runtime/valid/hash-bytes-scalars.hd	runtime
+runtime/valid/hash-bytes-sequences.hd	runtime
+runtime/valid/hash-bytes-derived.hd	runtime

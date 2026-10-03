@@ -1,0 +1,56 @@
+# test: hash_of gives the same u64 in every implementation, from the specified bytes and FNV-1a
+# Spec std Hash, Bytes Written: std-hash.bytes.sequence, with std-hash.default.algorithm and
+# std-hash.hash-of (batch 65, HASH-BYTES). Each expected value is 64-bit FNV-1a over the bytes in
+# its reason, computed outside any hd implementation.
+use std.hash.hash_of
+use std.testing.assert_equal
+
+@derive(Eq, Hash)
+enum Light:
+    Red
+    Green(level: u8)
+
+@derive(Eq, Hash)
+data Point:
+    x: i16
+    y: i16
+
+fn digest() -> u64:
+    let key: (u8, string) = (7, "a")
+    hash_of(key)
+
+tests:
+    it("scalars"):
+        let small: i32 = 42
+        let negative: i64 = -2
+        let expected_small: u64 = 10203658981158674303
+        let expected_negative: u64 = 18165890468499916316
+        let expected_true: u64 = 12638152016183539244
+        let expected_char: u64 = 12226059058131244684
+        assert_equal(hash_of(small), expected_small, reason="bytes 42, 0, 0, 0")
+        assert_equal(hash_of(negative), expected_negative, reason="bytes 254 and seven 255s")
+        assert_equal(hash_of(true), expected_true, reason="byte 1")
+        assert_equal(hash_of('\u{E9}'), expected_char, reason="bytes 233, 0, 0, 0")
+
+    it("the tuple of the specification example"):
+        let expected: u64 = 12920292002639229810
+        assert_equal(digest(), expected, reason="bytes 7, 1, seven 0s, 97")
+
+    it("strings, lists, tuples, and optionals"):
+        let items: List[u8] = [1, 2]
+        let pair: (u8, string) = (7, "a")
+        let present: i32? = .Some(5)
+        let expected_string: u64 = 11276755988625234203
+        let expected_list: u64 = 11176212247314976144
+        let expected_pair: u64 = 12920292002639229810
+        let expected_present: u64 = 17878561087662278969
+        assert_equal(hash_of("hd"), expected_string, reason="bytes 2, seven 0s, 104, 100")
+        assert_equal(hash_of(items), expected_list, reason="bytes 2, seven 0s, 1, 2")
+        assert_equal(hash_of(pair), expected_pair, reason="bytes 7, 1, seven 0s, 97")
+        assert_equal(hash_of(present), expected_present, reason="bytes 1, 5, 0, 0, 0")
+
+    it("derived enums and data"):
+        let expected_green: u64 = 15568228879890681399
+        let expected_point: u64 = 10990504261304873353
+        assert_equal(hash_of(Light.Green(level=9)), expected_green, reason="bytes 1, 0, 0, 0, 9")
+        assert_equal(hash_of(Point { x: -1, y: 2 }), expected_point, reason="bytes 255, 255, 2, 0")

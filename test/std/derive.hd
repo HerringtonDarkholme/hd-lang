@@ -71,7 +71,7 @@ tests:
         assert(!(Measurement { value: 0.0 / 0.0 } < Measurement { value: 2.0 }), reason="NaN is unordered")
 
     it("derived Hash hashes the fields in order"):
-        assert_equal(recorded(Key { first: 1, second: "a" }), [1, 0, 0, 0, 97], reason="data fields")
+        assert_equal(recorded(Key { first: 1, second: "a" }), [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 97], reason="data fields: the i32, then the string's u64 length and bytes")
         assert_equal(recorded(Priority.High(2)), [1, 0, 0, 0, 2, 0, 0, 0], reason="variant then payload")
         assert_equal(recorded(Priority.Urgent), [2, 0, 0, 0], reason="a variant without payload")
 

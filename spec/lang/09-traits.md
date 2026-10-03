@@ -378,8 +378,6 @@ See also: [Newtypes](04-type-system.md#newtypes).
 
 #### Derived Hashing
 
-1. r[trait.derive.hash.seeded] Hash values computed from a hash seed that the runtime provides are stable within one code identity and runtime profile, and may change when either changes.
-
 > **Note.** This heading keeps its name so that links to it stay valid.
 > What a derived `Hash` hashes is stdlib tier since batch 36:
 > [Derived Hashing](../std/hash.md#derived-hashing) in `std.hash`.

@@ -1,0 +1,37 @@
+# test: integers, bool, and char write their fixed-width little-endian bytes to the Hasher
+# Spec std Hash, Bytes Written: std-hash.bytes.integer, std-hash.bytes.bool,
+# std-hash.bytes.char (batch 65, HASH-BYTES).
+use std.testing.assert_equal
+
+data Recorder:
+    bytes: mut List[u8]
+
+impl Hasher for Recorder:
+    fn write(mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.bytes.append(byte)
+
+fn bytes_of[T < Hash](value: T) -> List[u8]:
+    let mut recorder = Recorder { bytes: [] }
+    value.hash(recorder)
+    recorder.bytes
+
+tests:
+    it("an integer writes its bytes at its own width, least significant first"):
+        let small: i32 = 42
+        let negative: i64 = -2
+        let pair: u16 = 258
+        let byte: u8 = 200
+        assert_equal(bytes_of(small), [42, 0, 0, 0], reason="i32 is four bytes")
+        assert_equal(bytes_of(negative), [254, 255, 255, 255, 255, 255, 255, 255], reason="i64 is eight two's-complement bytes")
+        assert_equal(bytes_of(pair), [2, 1], reason="u16 is two bytes, low byte first")
+        assert_equal(bytes_of(byte), [200], reason="u8 is one byte")
+
+    it("a bool writes one byte"):
+        assert_equal(bytes_of(true), [1], reason="true is 1")
+        assert_equal(bytes_of(false), [0], reason="false is 0")
+
+    it("a char writes its scalar value as a u32"):
+        assert_equal(bytes_of('a'), [97, 0, 0, 0], reason="U+0061")
+        assert_equal(bytes_of('\u{E9}'), [233, 0, 0, 0], reason="U+00E9, not its two UTF-8 bytes")
+        assert_equal(bytes_of('\u{1F600}'), [0, 246, 1, 0], reason="U+1F600")

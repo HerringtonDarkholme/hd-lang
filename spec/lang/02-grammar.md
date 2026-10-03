@@ -68,7 +68,7 @@ tests:
 2. r[grammar.tests.item-forms] Its items take the forms of top-level items: use declarations, decorated declarations, declarations, and statements.
 3. r[grammar.tests.top-level] A `tests:` block may appear only at module top level. A `tests:` block inside a suite or inside another `tests:` block is an error. Error: `syntax-error`.
 4. r[grammar.tests.once] A file may have at most one `tests:` block. A second block is an error. Error: `duplicate-tests-block`.
-5. r[grammar.tests.statements] Each statement of the block must be a call of the prelude function `it`, as [Test Cases](10-modules.md#test-cases) specifies.
+5. r[grammar.tests.registration] Each statement of the block must be a call of a test registration function, as [`module.testing.position-statements`](10-modules.md#r-module.testing.position-statements) specifies.
 6. r[grammar.tests.keyword] `tests` is a reserved word, so it never names a declaration or binding.
 
 ```text

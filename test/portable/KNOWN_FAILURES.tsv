@@ -70,6 +70,7 @@ typing/valid/handle-fact-pattern.hd	check exits 1: the prototype accepts only a 
 typing/invalid/handle-fact-pattern-mismatch.hd	check reports type-mismatch on the wrong line: the prototype accepts only a trivial pattern, so it reports type-mismatch at the @annotate decorator (Handles, annot.handle.fact.pattern.mismatch)	FACT-PATTERN
 typing/invalid/option-invariant.hd	check exits 0: the prototype writes (mut User)? and mut User? as one type, so weakening the outer view lets (mut User)? become User? (types.option.invariant)	VARIANCE-UNWRAP
 runtime/valid/default-hasher.hd	check reports unknown-import: std.hash declares no DefaultHasher or hash_of yet, task #196 (std-hash.default.algorithm)	DEFAULT-HASHER
+runtime/valid/hash-of-reference-values.hd	check reports unknown-import: std.hash declares no hash_of yet, task #196 (std-hash.bytes.sequence)	DEFAULT-HASHER
 runtime/valid/retry-with-backoff.hd	check reports unknown-import: std.task has no Backoff or retry_with, and std.time no Clock, Timestamp, or Instant (std-task.retry-with.loop)	HOST-CATALOG
 runtime/valid/clock-helpers.hd	check reports unknown-import: std.time has no Clock, Timestamp, Instant, now, or sleep (std-time.helper.now)	HOST-CATALOG
 runtime/valid/eprintln-error-line.hd	check reports unknown-import: std.console has no eprintln, and Console has no write_error_line! (std-console.eprintln.write)	HOST-CATALOG

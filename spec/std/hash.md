@@ -8,11 +8,11 @@ ordinary hd over the language tier:
 - what a derived `Hash` hashes, through the trait's template;
 - how tuples hash, through the trait's tuple template;
 - how lists hash;
+- the bytes each standard implementation writes;
 - the standard hasher `DefaultHasher`, and `hash_of`.
 
 The language tier keeps `Hash` and `Hasher`, which map keys require
-([Hashing](../lang/09-traits.md#hashing)), the `@derive` checks, and the
-runtime's hash seed ([Derived Hashing](../lang/09-traits.md#derived-hashing)).
+([Hashing](../lang/09-traits.md#hashing)), and the `@derive` checks.
 
 ## Derived Hashing
 
@@ -63,6 +63,43 @@ fn count(counts: Map[List[i32], i32], key: List[i32]) -> i32:
 fn lookup(counts: Map[List[f64], i32]) -> i32:  # error: unsatisfied-trait-bound
     0
 ```
+
+## Bytes Written
+
+Each standard `Hash` implementation writes a fixed sequence of bytes to
+its `Hasher`:
+
+```text
+use std.hash.hash_of
+
+fn digest() -> u64:
+    let key: (u8, string) = (7, "a")
+    hash_of(key)  # 12920292002639229810, from the bytes 7, 1, 0, 0, 0, 0, 0, 0, 0, 97
+```
+
+| Rule | Value | Bytes written, in order |
+| --- | --- | --- |
+| r[std-hash.bytes.integer] Integer | an `i8` to `i64` or `u8` to `u64` | its two's-complement bytes at its own width, least significant first |
+| r[std-hash.bytes.bool] `bool` | `false` or `true` | one byte, `0` or `1` |
+| r[std-hash.bytes.char] `char` | a Unicode scalar value | the scalar value, written as a `u32` writes it |
+| r[std-hash.bytes.string] `string` | a UTF-8 text | the number of its UTF-8 bytes as a `u64`, then those bytes |
+| r[std-hash.bytes.list] `List[T]` | a list | its length as a `u64`, then each item's bytes in order |
+| r[std-hash.bytes.tuple] Tuple | a tuple | each element's bytes in order, with no length; a rest element writes as its `List` |
+| r[std-hash.bytes.optional] `T?` | `.None` or `.Some(value)` | the tag byte `0` for `.None`; the tag byte `1`, then the bytes of `value`, for `.Some` |
+
+1. r[std-hash.bytes.sequence] Each standard implementation of `Hash` writes exactly the bytes of the table above, so `hash_of` of a value is the same in every implementation.
+2. r[std-hash.bytes.derive-enum] A derived `Hash` on an enum writes the variant's zero-based index as a `u32`, before the members that [`std-hash.derive.hash.enum`](#r-std-hash.derive.hash.enum) lists.
+3. r[std-hash.bytes.derive-data] A derived `Hash` on data writes no tag, only the bytes of its members in the order of [`std-hash.derive.hash.data`](#r-std-hash.derive.hash.data).
+
+> **Why.** A string writes its length first, as a list does, so one rule
+> covers every sequence, and `("ab", "c")` writes other bytes than
+> `("a", "bc")`. Rust instead ends a string with the byte `0xff`, which
+> UTF-8 never contains. That is shorter, but it is a second scheme. A
+> tuple writes no length because its type fixes its arity.
+
+> **Note.** These rules fix the bytes in order, not how an implementation
+> splits them into `write` calls. A `DefaultHasher` gives the same result
+> for any split, by [`std-hash.default.write`](#r-std-hash.default.write).
 
 ## Default Hasher
 

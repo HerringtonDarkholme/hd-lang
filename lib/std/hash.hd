@@ -1,8 +1,10 @@
 # std.hash: `Hash` and `Hasher` (spec/lang/09-traits.md#hashing), both prelude
-# names. The standard implementations feed a value's bytes to the hasher:
-# a string its UTF-8 bytes, an integer its little-endian bytes at its own
-# width, and a `bool` one byte. The specification names no standard hasher
-# yet, so none is declared here.
+# names. The standard implementations write the bytes that
+# spec/std/hash.md#bytes-written gives: an integer its little-endian bytes
+# at its own width, a `bool` one byte, a `char` its scalar as a `u32`, a
+# string or a list its length as a `u64` and then its contents, and an
+# optional a tag byte and then its payload. `DefaultHasher` and `hash_of`
+# are not declared here yet (task #196).
 use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
 
@@ -14,12 +16,22 @@ pub trait Hash:
 
 impl Hash for string:
     fn hash(self, state: mut Hasher) -> void:
-        state.write(self.to_utf8())
+        bytes := self.to_utf8()
+        u64(bytes.len()).hash(state)
+        state.write(bytes)
 
-# A `char` hashes as the one-scalar string of its UTF-8 bytes.
 impl Hash for char:
     fn hash(self, state: mut Hasher) -> void:
-        "${self}".hash(state)
+        u32(char_scalar(self)).hash(state)
+
+# An optional writes the tag byte 0 for `.None`, or 1 and then its payload.
+impl[T < Hash] Hash for T?:
+    fn hash(self, state: mut Hasher) -> void:
+        match self:
+            .None => state.write([0])
+            .Some(value) =>
+                state.write([1])
+                value.hash(state)
 
 impl Hash for bool:
     fn hash(self, state: mut Hasher) -> void:
@@ -60,11 +72,11 @@ impl Hash for u64:
     fn hash(self, state: mut Hasher) -> void:
         state.write(unsigned_bytes(self, 8))
 
-# A list hashes its length as an `i32`, then each item in order
+# A list hashes its length as a `u64`, then each item in order
 # (spec/std/hash.md#list-hashing), so equal lists hash the same.
 impl[T < Hash] Hash for List[T]:
     fn hash(self, state: mut Hasher) -> void:
-        self.len().hash(state)
+        u64(self.len()).hash(state)
         for item in self:
             item.hash(state)
 
@@ -90,7 +102,7 @@ fn unsigned_bytes(value: u64, count: i32) -> List[u8]:
     bytes
 
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
-# as an `i32`, then each member in declaration order.
+# as a `u32`, then each member in declaration order.
 impl[T] Hash for T by Structure:
     fn hash(self, state: mut Hasher) -> void:
         let w: mut HashWalker[T] = HashWalker::[T] { state: state }
@@ -106,7 +118,7 @@ impl[S] Walker[S] for HashWalker[S]:
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
         if !v.info.of_data:
-            v.info.index.hash(self.state)
+            u32(v.info.index).hash(self.state)
         .Ok(())
 
     fn member[F < Hash](mut self, h: Field[S, F], value: F) -> Result[void, never]:
@@ -120,3 +132,9 @@ impl[T < Tuple] Hash for T by Structure:
     fn hash(self, state: mut Hasher) -> void:
         let w: mut HashWalker[T] = HashWalker::[T] { state: state }
         _ := Structure::walk(self, w)
+
+# A `char` is its scalar value at run time
+# (spec/std/README.md#standard-library-primitives).
+@intrinsic("char_scalar")
+fn char_scalar(value: char) -> i32:
+    panic("intrinsic")

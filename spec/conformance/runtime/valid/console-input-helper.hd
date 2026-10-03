@@ -1,28 +1,41 @@
-# test: read_line!() reads through the covering ConsoleInput provider
-# Spec std/console Console Input: std-console.input.read-line and std-console.input.helper (batch 64, STD-2 and STD-3).
+# test: read_line!() reads through the covering ConsoleInput provider, which advances through its lines
+# Spec std/console Console Input: std-console.input.read-line, std-console.input.mut, and
+# std-console.input.helper (batch 64, STD-2 and STD-3; INPUT-MUT).
 use std.console.{ConsoleInput, read_line}
 use std.testing.assert_equal
 
-data FixedInput:
-    line: string?
+data ScriptedInput:
+    lines: List[string]
+    at: i32
 
-impl ConsoleInput for FixedInput:
-    fn read_line!(self) -> Result[string?, ConsoleError]:
-        .Ok(self.line)
+impl ConsoleInput for ScriptedInput:
+    fn read_line!(mut self) -> Result[string?, ConsoleError]:
+        if self.at >= self.lines.len():
+            return .Ok(.None)
+        line := self.lines[self.at]
+        self.at = self.at + 1
+        .Ok(.Some(line))
 
 fn first_line!() -> string $ ConsoleInput:
+    match read_line!():
+        .Ok(.Some(line)) => line
+        _ => ""
+
+fn next_line!() -> string $ ConsoleInput:
     match read_line!():
         .Ok(.Some(line)) => line
         .Ok(.None) => "end"
         .Err(_) => "error"
 
 tests:
-    it("reads a line from the provider"):
-        input := FixedInput { line: .Some("hi") }
+    it("reads each line in turn, then .None at the end of input"):
+        let mut input = ScriptedInput { lines: ["hi", "there"], at: 0 }
         $.with(ConsoleInput=input):
-            assert_equal(first_line!(), "hi", reason="one line")
+            assert_equal(next_line!(), "hi", reason="first line")
+            assert_equal(next_line!(), "there", reason="second line")
+            assert_equal(next_line!(), "end", reason="no more input")
 
-    it("passes on .None at the end of input"):
-        input := FixedInput { line: .None }
+    it("the helper reads the first line"):
+        let mut input = ScriptedInput { lines: ["only"], at: 0 }
         $.with(ConsoleInput=input):
-            assert_equal(first_line!(), "end", reason="no input")
+            assert_equal(first_line!(), "only", reason="one line")

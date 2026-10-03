@@ -658,7 +658,8 @@ std/hash.md	1	accept	typing/valid/derived-hash.hd
 std/hash.md	2	accept	typing/valid/tuple-derived-traits.hd
 std/hash.md	3	accept	runtime/valid/list-map-key.hd
 std/hash.md	4	mixed	typing/invalid/list-float-map-key.hd
-std/hash.md	5	accept	runtime/valid/default-hasher.hd
+std/hash.md	5	accept	runtime/valid/hash-of-reference-values.hd
+std/hash.md	6	accept	runtime/valid/default-hasher.hd
 std/collections.md	1	accept	runtime/valid/list-chunks.hd
 std/collections.md	2	accept	runtime/valid/list-view-run.hd
 std/collections.md	3	mixed	typing/invalid/list-view-assignment.hd
