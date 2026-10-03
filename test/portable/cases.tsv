@@ -1895,3 +1895,8 @@ runtime/valid/num-is-finite.hd	runtime
 typing/invalid/num-bit-count-u32.hd	type
 runtime/valid/seeded-random.hd	runtime
 runtime/valid/manual-clock.hd	runtime
+runtime/valid/error-chain.hd	runtime
+runtime/valid/error-report.hd	runtime
+runtime/valid/duration-arithmetic.hd	runtime
+runtime/panic/duration-add-overflow.hd	runtime
+runtime/valid/duration-display.hd	runtime

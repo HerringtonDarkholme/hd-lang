@@ -55,7 +55,7 @@ every feature belongs in `std`.
   `Arbitrary` already use them. `ToJson` and `FromJson` can be written in
   `lib/std` the same way.
 - **Most gaps are pure library work.** Collections, text, encoding,
-  hashing, JSON, durations, error chains, and argument parsing need no
+  hashing, JSON, and argument parsing need no
   host. Host areas need one decision, the first host catalog, plus small
   prototype hooks.
 - **Effect maps well onto hd.** Requirement rows already are Effect's
@@ -74,12 +74,12 @@ every feature belongs in `std`.
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
 | `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64` | [num.md](../spec/std/num.md); the traits are language tier | no `parse_f64`, no fixed-point float text |
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | no standard `Hasher`, no digest |
-| `std.time` | `Duration` (milliseconds), suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp`, `Instant`, `ManualClock` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper, `Duration` arithmetic, `Ord`, or `Display` |
+| `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration`, `Instant`, `ManualClock` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper; `Duration` lacks the specified `Eq` and `Ord` (known failure `STD-1`) |
 | `std.task` | `race!`, `retry!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `sleep!`, `timeout!`, backoff |
 | `std.console` | `Console`, `println`, `ConsoleInput`, `BufferConsole` | none (language tier) | no standard error; no profile binds `ConsoleInput` |
 | `std.process` | `ExitCode`, `Termination`, `Process.run!`, `ScriptedProcess` | none (language tier) | no profile binds `Process`; no working directory or environment |
 | `std.resource` | `ResourceError[E]` | none | no handle type uses it yet |
-| `std.error` | not in `lib/std` (compiler-declared `Error`) | none | `chain` and `report_of` are named by [Entry Results](../spec/lang/10-modules.md#entry-results) and the boundary Note, but not written |
+| `std.error` | `Error`, `chain`, `ErrorReport`, `report_of` | [error.md](../spec/std/error.md); `Error` is language tier | no `root_cause`, `find`, or `context` |
 | `std.testing`, `std.structure`, `std.inspect`, `std.annotation`, `std.function` | test, derivation, and type-identity support | [testing.md](../spec/std/testing.md) | complete for their purpose |
 | `std.random` | `Random`, `SeededRandom` | [random.md](../spec/std/random.md) | no `Rng` helpers |
 | `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | the prototype's std loader lists none of the three; no `read_text!` or `write_text!` helper |
@@ -558,7 +558,6 @@ impl Duration:
 
 impl Timestamp:
     pub fn from_unix_millis(millis: i64) -> Timestamp: pass
-    pub fn plus(self, duration: Duration) -> Timestamp: pass
     pub fn since(self, earlier: Timestamp) -> Duration: pass
     pub fn date(self) -> Date: pass
     pub fn to_rfc3339(self) -> string: pass
@@ -571,9 +570,8 @@ pub fn sleep!(duration: Duration) -> void $ Clock:
     $.use(Clock).sleep!(duration)
 ```
 
-`Duration` also gets `Add`, `Sub`, `Ord`, and a `Display` like Go's
-`1m30s`. Time zones and locale formatting are excluded: they need a
-time-zone database, and Rust, Kotlin, and Zig keep them out too.
+Time zones and locale formatting are excluded: they need a time-zone
+database, and Rust, Kotlin, and Zig keep them out too.
 
 ### Text And Formatting
 
@@ -796,23 +794,13 @@ Standouts:
   `read(path).context("loading config")?`.
 - **Go `errors.As`** finds a typed cause in a chain.
 
-Minimal `std.error`. The spec already names `chain` and `report_of`, but
-`lib/std` has neither:
+[Error](../spec/std/error.md) specifies `chain`, `ErrorReport`, and
+`report_of`. The rest of a minimal `std.error`:
 
 ```text
 use std.error.Error
 
-pub data ErrorReport:
-    pub message: string
-    pub causes: List[string]
-
-pub fn chain(error: Error) -> List[Error]:
-    pass
-
 pub fn root_cause(error: Error) -> Error:
-    pass
-
-pub fn report_of(error: Error) -> ErrorReport:
     pass
 
 impl[T, E < Error] Result[T, E]:
@@ -959,9 +947,9 @@ each part in the language: `fn!() -> Result[A, E] $ R`.
 | `Effect.sleep`, `Effect.delay` | `sleep!` | 4 |
 | `Effect.timeoutOption` | `timeout!` returning `T?`; a typed error is `.ok_or(...)` | 8 |
 | `Schedule.exponential` with `Schedule.recurs` | `Backoff` data and `retry_with!`, Deno's option set | 8 |
-| `Duration` helpers | `Add`, `Sub`, `Ord`, `Display`, `minutes`, `as_seconds` | 4 |
+| `Duration` helpers | `minutes`, `as_seconds` | 4 |
 | `Effect.forEach` with `concurrency` | `map_limited!`, batched | 8 |
-| `Cause` pretty printing | `std.error` `chain`, `root_cause`, `report_of`, `context` | 4 |
+| `Cause` pretty printing | `std.error` `root_cause`, `context` | 4 |
 | `Random` | `std.random` | 9 |
 | `Config` with `ConfigProvider` | `Env` with `MapEnv`; a typed config template later | 1 |
 | `FileSystem`, `Path`, `ChildProcess` | `std.fs`, `std.path`, `std.process` helpers | 1, 2 |
@@ -1001,7 +989,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 1 | `std.host` `Args`, `Env`, `MapArgs`, `MapEnv`, `args()`, `env()`; `ErrorConsole`, `eprintln`, `read_line!`, `read_all!` | [Host Capabilities](../spec/cli/command-line.md#host-capabilities), [Standard Error](../spec/std/console.md#standard-error); a `List[string]` result on the host bridge | a script can take input and report errors |
 | 2 | `std.path` `Path`; `std.fs` `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`, `walk!`, `glob!` | tier 1's catalog; a Node `fs` binding in the prototype | a script can read and write files |
 | 3 | collections and iterators: decided `Map` and `and_then` items, the `List`, `Iterator`, `Set`, and `counts` helpers | a list-truncate hook for `pop`, `remove_at`, `clear` | data shaping without hand loops |
-| 4 | `std.error` helpers; `Duration` operators and `Display`; `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing, error reports |
+| 4 | `std.error` `root_cause` and `context`; `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing, error reports |
 | 5 | text helpers, `to_fixed`, `parse_f64`; `std.encoding` hex and base64; `std.digest` SHA-256 | two float hooks | formatting, checksums |
 | 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors | tier 5's `parse_f64` | reading and writing JSON |
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |

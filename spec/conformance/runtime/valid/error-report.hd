@@ -1,0 +1,37 @@
+# test: report_of snapshots an error's message and its causes' messages, and the report displays as an entry point prints it
+# Spec std/error Error Reports: std-error.report.of, std-error.report.display (task #221).
+use std.error.{ErrorReport, report_of}
+use std.testing.assert_equal
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+
+@error
+enum SyncError:
+    @error("sync failed")
+    Save(@from error: SaveError)
+
+tests:
+    it("report_of keeps the message and each cause"):
+        report := report_of(SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 })))
+        assert_equal(report.message, "sync failed", reason="the error's own message")
+        assert_equal(report.causes, ["cannot save notes.txt", "disk full"], reason="the causes, outermost first")
+
+    it("a report displays one caused-by line per cause"):
+        report := report_of(SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 })))
+        assert_equal(report.to_string(), "sync failed\ncaused by: cannot save notes.txt\ncaused by: disk full", reason="the entry-point text")
+
+    it("an error without a cause has no caused-by line"):
+        report := report_of(DiskError { free: 0 })
+        assert_equal(report.causes.len(), 0, reason="no causes")
+        assert_equal(report.to_string(), "disk full", reason="the message alone")
+
+    it("a report is a plain value"):
+        built := ErrorReport { message: "failed", causes: ["timeout"] }
+        assert_equal(built.to_string(), "failed\ncaused by: timeout", reason="built by hand")

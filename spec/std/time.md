@@ -5,7 +5,8 @@ Status: standard library specification draft.
 This chapter defines the part of `std.time` that `lib/std` writes in
 ordinary hd over the language tier:
 
-- the `Duration` type and its public API;
+- the `Duration` type, its public API, its arithmetic, and its `Display`
+  text;
 - the duration suffixes `ms`, `s`, `min`, and `h`;
 - the host capability trait `Clock`, the `Timestamp` and `Instant` types
   it returns, and the helpers `now` and `sleep!`;
@@ -40,6 +41,62 @@ use std.time.{Duration, s}
 fn rewind() -> Duration:
     -5s  # -(s(5)), through Neg for Duration
 ```
+
+### Duration Arithmetic
+
+Durations add and subtract, and a duration moves a timestamp:
+
+```text
+use std.time.{Duration, Timestamp, ms, s}
+
+fn total(first: Duration, second: Duration) -> Duration:
+    first + second - 500ms
+
+fn later(start: Timestamp) -> Timestamp:
+    start + 2s
+```
+
+1. r[std-time.duration.add] `Duration` implements `std.ops.Add` with `Out = Duration`. `a + b` holds the sum of the milliseconds of `a` and `b`.
+2. r[std-time.duration.sub] `Duration` implements `std.ops.Sub` with `Out = Duration`. `a - b` holds the milliseconds of `a` minus those of `b`.
+3. r[std-time.duration.overflow] A sum or difference that does not fit in `i64` milliseconds panics at run time, as checked `i64` arithmetic does. Panic: `integer-overflow`.
+4. r[std-time.timestamp.add] `Timestamp` implements `std.ops.Add[Duration]` with `Out = Timestamp`. `t + d` is the timestamp whose milliseconds are those of `t` plus those of `d`.
+5. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time. Panic: `integer-overflow`.
+
+> **Note.** A negative `d` gives an earlier timestamp. `Timestamp` has no
+> `Sub`: `t.since(earlier)` is the duration between two timestamps, by
+> [`std-time.timestamp.since`](#r-std-time.timestamp.since).
+
+### Duration Display
+
+A duration displays as a suffixed count, as in `1500ms`, `2s`, `5min`, or
+`1h`:
+
+```text
+use std.time.{Duration, min, s}
+
+fn waited() -> string:
+    "waited ${90s}, then ${60min}"  # "waited 90s, then 1h"
+```
+
+1. r[std-time.duration.display] `Duration` implements `Display`. Its text is a whole count, then a unit suffix, with no space between.
+2. r[std-time.duration.display.unit] The unit is the first of `h`, `min`, `s`, and `ms` whose length divides the milliseconds exactly, and the count is the duration in that unit.
+3. r[std-time.duration.display.zero] A zero duration displays as `0ms`.
+4. r[std-time.duration.display.negative] The count of a negative duration is negative, so its text starts with `-`, as in `-90s`.
+
+| Milliseconds | Text |
+| --- | --- |
+| `1500` | `1500ms` |
+| `2000` | `2s` |
+| `60000` | `1min` |
+| `300000` | `5min` |
+| `5400000` | `90min` |
+| `3600000` | `1h` |
+| `0` | `0ms` |
+| `-90000` | `-90s` |
+
+> **Why.** The text is the suffixed literal that writes the same
+> duration, so a log line reads as hd. The largest exact unit gives one
+> spelling per duration.
 
 ## Duration Suffixes
 

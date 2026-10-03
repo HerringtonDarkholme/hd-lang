@@ -46,6 +46,7 @@ const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["cmp", "Cmp"],
   ["collections", "Collections"],
   ["console", "Console"],
+  ["error", "Error"],
   ["format", "Format"],
   ["fs", "Fs"],
   ["hash", "Hash"],

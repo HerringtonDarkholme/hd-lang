@@ -1992,3 +1992,8 @@ runtime/valid/manual-clock.hd	runtime	accept	std/time.md#manual-clock
 runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
 runtime/valid/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
 runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
+runtime/valid/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.order
+runtime/valid/error-report.hd	runtime	accept	std/error.md#r-std-error.report.of
+runtime/valid/duration-arithmetic.hd	runtime	accept	std/time.md#duration-arithmetic
+runtime/panic/duration-add-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.duration.overflow
+runtime/valid/duration-display.hd	runtime	accept	std/time.md#duration-display

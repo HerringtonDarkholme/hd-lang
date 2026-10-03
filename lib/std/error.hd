@@ -1,8 +1,49 @@
-# std.error: the error trait `Error` (spec/lang/09-traits.md#error-trait).
-# It is not a prelude name (module.prelude.from-error). It extends
+# std.error: the error trait `Error` (spec/lang/09-traits.md#error-trait),
+# its cause chain, and the boundary-safe `ErrorReport` (spec/std/error.md).
+# `Error` is not a prelude name (module.prelude.from-error). It extends
 # `Inspectable`, so its users need not import it
 # (module.prelude.error-inspectable).
 use std.inspect.{Inspectable}
 
 pub trait Error < Display & Inspectable:
     fn cause(self) -> Error?: .None
+
+# A snapshot of an error's message and the messages of its causes
+# (r-std-error.report.decl). Its fields are boundary-safe.
+pub data ErrorReport:
+    pub message: string
+    pub causes: List[string]
+
+# The text an entry point prints for an `.Err` (r-std-error.report.display):
+# the message, then one `caused by: ` line per cause.
+impl Display for ErrorReport:
+    fn to_string(self) -> string:
+        let text = self.message
+        for cause in self.causes:
+            text = text + "\ncaused by: " + cause
+        text
+
+# The error itself, then each `cause` in turn until one is `.None`
+# (r-std-error.chain.order).
+pub fn chain(error: Error) -> List[Error]:
+    let errors: mut List[Error] = [error]
+    let next = error.cause()
+    while true:
+        match next:
+            .Some(cause) =>
+                errors.append(cause)
+                next = cause.cause()
+            .None =>
+                return errors
+    errors
+
+# The `Display` text of the error and of each cause that `chain` yields
+# after it (r-std-error.report.of).
+pub fn report_of(error: Error) -> ErrorReport:
+    errors := chain(error)
+    let causes: mut List[string] = []
+    let index = 1
+    while index < errors.len():
+        causes.append(errors[index].to_string())
+        index = index + 1
+    ErrorReport { message: error.to_string(), causes: causes }

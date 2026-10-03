@@ -1365,7 +1365,8 @@ pub fn main() -> Result[void, HiddenError]:  # error: unsatisfied-trait-bound
 ```
 
 See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values),
-[Error Trait](09-traits.md#error-trait).
+[Error Trait](09-traits.md#error-trait),
+[Cause Chain](../std/error.md#cause-chain).
 
 #### Exit Status
 

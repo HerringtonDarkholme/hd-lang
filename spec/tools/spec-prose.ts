@@ -64,6 +64,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/option.md": "std-option",
   "std/result.md": "std-result",
   "std/num.md": "std-num",
+  "std/error.md": "std-error",
   "cli/command-line.md": "cli",
 };
 

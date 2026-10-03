@@ -458,7 +458,8 @@ fn local() -> void:
 ```
 
 See also: [Sealed Traits](#sealed-traits),
-[Error Derivation](14-annotations.md#error-derivation).
+[Error Derivation](14-annotations.md#error-derivation),
+[Cause Chain](../std/error.md#cause-chain) in `std.error`.
 
 #### Erased Errors
 

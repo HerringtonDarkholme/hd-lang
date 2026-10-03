@@ -33,3 +33,6 @@ std.testing.PropertyCase	std/testing.md#runner-capabilities
 std.num.parse_i32	std/num.md#integer-parsing
 std.num.parse_i64	std/num.md#integer-parsing
 std.num.ParseNumberError	std/num.md#integer-parsing
+std.error.chain	std/error.md#cause-chain
+std.error.ErrorReport	std/error.md#error-reports
+std.error.report_of	std/error.md#error-reports

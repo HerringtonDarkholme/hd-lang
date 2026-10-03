@@ -1,0 +1,10 @@
+# test: Duration addition whose milliseconds do not fit in i64 panics, as checked i64 arithmetic does
+# Spec std/time Duration Arithmetic: std-time.duration.overflow (DURATION-OPS; task #221).
+use std.time.{Duration, ms}
+
+fn past_the_end(limit: Duration) -> Duration:
+    limit + 1ms  # panic: integer-overflow
+
+tests:
+    it("overflows past the largest duration"):
+        _ := past_the_end(Duration::milliseconds(9_223_372_036_854_775_807))
