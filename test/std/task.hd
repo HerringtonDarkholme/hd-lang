@@ -1,0 +1,49 @@
+# std.task Backoff and retry_with!.
+use std.format.debug
+use std.task.{Backoff, retry_with}
+use std.testing.{assert, assert_equal}
+use std.time.{Clock, Duration, Instant, Timestamp, ms, s}
+
+data RecordingClock:
+    slept: mut List[i64]
+
+impl Clock for RecordingClock:
+    fn now(self) -> Timestamp:
+        Timestamp::from_unix_millis(0)
+
+    fn monotonic(self) -> Instant:
+        Instant::from_millis(0)
+
+    fn sleep!(mut self, duration: Duration) -> void:
+        self.slept.push(duration.as_milliseconds())
+
+fn always_busy!() -> Result[i32, string]:
+    .Err("busy")
+
+fn give_up!(policy: Backoff) -> Result[i32, string] $ Clock:
+    retry_with!(policy):
+        always_busy!()
+
+tests:
+    it("Backoff compares field by field and prints as derived Debug"):
+        policy := Backoff { attempts: 3, initial: 100ms, factor: 2, max: 1s }
+        same := Backoff { attempts: 3, initial: 100ms, factor: 2, max: 1s }
+        more := Backoff { attempts: 4, initial: 100ms, factor: 2, max: 1s }
+        assert(policy == same, reason="same fields")
+        assert(policy != more, reason="attempts differ")
+        assert_equal(debug(policy), "Backoff { attempts: 3, initial: Duration { millis: 100 }, factor: 2, max: Duration { millis: 1000 } }", reason="derived Debug text")
+
+    it("a delay near the i64 limit is capped at max without overflow"):
+        let mut clock = RecordingClock { slept: [] }
+        let big: i64 = 4_000_000_000_000_000_000
+        policy := Backoff { attempts: 3, initial: Duration::milliseconds(big), factor: 4, max: Duration::milliseconds(big + 1) }
+        $.with(Clock=clock):
+            assert_equal(give_up!(policy), .Err("busy"), reason="every call fails")
+        assert_equal(clock.slept, [big, big + 1], reason="the second delay is max")
+
+    it("attempts below 1 make one call and never sleep"):
+        let mut clock = RecordingClock { slept: [] }
+        policy := Backoff { attempts: 0, initial: 100ms, factor: 2, max: 1s }
+        $.with(Clock=clock):
+            assert_equal(give_up!(policy), .Err("busy"), reason="one call")
+        assert_equal(clock.slept.len(), 0, reason="no sleep")

@@ -1949,3 +1949,9 @@ runtime/valid/utf8-overlong.hd	runtime
 runtime/valid/utf8-error-traits.hd	runtime
 runtime/valid/time-unix-millis.hd	runtime
 runtime/valid/context-error-debug.hd	runtime
+typing/invalid/requirement-key-unknown-trait.hd	type
+typing/invalid/requirement-key-not-dynamically-safe.hd	type
+typing/invalid/covariant-private-method-parameter.hd	type
+runtime/valid/lct-optional-injection.hd	runtime
+runtime/valid/json-numbers.hd	runtime
+runtime/valid/retry-with-backoff.hd	runtime
