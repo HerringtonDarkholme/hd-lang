@@ -1,0 +1,4 @@
+# test: a module path with no use of the module is an unknown name
+# Spec Names and Scopes, Use Declarations: names.use.introduces; only a use brings the module name text into scope.
+fn headline(words: List[string]) -> string:
+    text.join(words, " ")  # diagnostic: unknown-name

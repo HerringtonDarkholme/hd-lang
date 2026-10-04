@@ -2224,3 +2224,11 @@ typing/invalid/unsigned-comparison-countdown.hd	type	reject:unsigned-comparison-
 typing/invalid/unsigned-comparison-explicit.hd	type	reject:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero
 typing/valid/unsigned-comparison-signed-countdown.hd	type	accept	lang/05-expressions.md#unsigned-comparisons-with-zero
 runtime/panic/sign-fallback-balance-underflow.hd	runtime	panic:integer-overflow	lang/06-control-flow.md#r-flow.panic.report.fallback
+runtime/valid/module-qualified-function-call.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified
+runtime/valid/module-qualified-function-value.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified
+runtime/valid/module-qualified-function-value-parenthesized.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified
+runtime/valid/module-qualified-type.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified
+runtime/valid/module-qualified-variant.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified
+runtime/valid/module-qualified-variant-pattern.hd	runtime	accept	lang/02-grammar.md#r-grammar.pattern.variant
+runtime/valid/module-qualified-associated-call.hd	runtime	accept	lang/07-functions.md#r-fn.method.associated
+typing/invalid/module-qualified-without-use.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.use.introduces

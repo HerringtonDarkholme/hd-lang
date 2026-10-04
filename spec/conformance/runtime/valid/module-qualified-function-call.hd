@@ -1,0 +1,11 @@
+# test: after use std.text, text.join(...) calls the function the module declares
+# Spec Expressions, Names: expr.name.qualified; a qualified name selects a declaration through a module namespace.
+use std.testing.assert_equal
+use std.text
+
+fn headline(words: List[string]) -> string:
+    text.join(words, " ")
+
+tests:
+    it("joins the words of a headline"):
+        assert_equal(headline(["Rust", "ships", "1.0"]), "Rust ships 1.0", reason="one space between words")

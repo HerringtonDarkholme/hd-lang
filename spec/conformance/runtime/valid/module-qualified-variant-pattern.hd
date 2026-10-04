@@ -1,0 +1,16 @@
+# test: after use std.cmp, cmp.Ordering.Less is a qualified variant pattern
+# Spec Grammar, Patterns: grammar.pattern.variant; a qualified_variant_name may have a module segment, as in cmp.Ordering.Less.
+use std.testing.assert_equal
+use std.cmp
+
+fn trend(today: i64, yesterday: i64) -> string:
+    match today.cmp(yesterday):
+        cmp.Ordering.Less => "down"
+        cmp.Ordering.Equal => "flat"
+        cmp.Ordering.Greater => "up"
+
+tests:
+    it("names the direction of a change"):
+        assert_equal(trend(90, 120), "down", reason="fewer than yesterday")
+        assert_equal(trend(120, 120), "flat", reason="same as yesterday")
+        assert_equal(trend(150, 120), "up", reason="more than yesterday")

@@ -4,3 +4,10 @@ runtime/valid/host-result-special-floats.hd	f64.is_nan, f64.is_finite	the owner 
 runtime/valid/test-registration-qualified-call.hd	std.testing	the owner asked for a module-qualified registration call, which needs the whole-module import use std.testing
 runtime/valid/test-registration-qualified-prop.hd	std.testing	the owner asked for a module-qualified registration call, which needs the whole-module import use std.testing
 typing/invalid/test-registration-qualified-duplicate.hd	std.testing	the owner asked for a module-qualified registration call, which needs the whole-module import use std.testing
+runtime/valid/module-qualified-function-call.hd	std.text	the task asks for a module-qualified call through a real std module, which needs the whole-module import use std.text
+runtime/valid/module-qualified-function-value.hd	std.text	the task asks for a module-qualified function value from a real std module, which needs the whole-module import use std.text
+runtime/valid/module-qualified-function-value-parenthesized.hd	std.text	the task asks for a module-qualified function value from a real std module, which needs the whole-module import use std.text
+runtime/valid/module-qualified-associated-call.hd	std.text	the task asks for a module-qualified associated call through a real std type, which needs the whole-module import use std.text
+runtime/valid/module-qualified-type.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp
+runtime/valid/module-qualified-variant.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp
+runtime/valid/module-qualified-variant-pattern.hd	std.cmp	Ordering is language tier, but the whole-module import use std.cmp also covers the stdlib-tier items of std.cmp

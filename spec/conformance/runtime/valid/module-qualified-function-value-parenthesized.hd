@@ -1,0 +1,15 @@
+# test: a parenthesized module-qualified function, (text.join), is the same function value
+# Spec Expressions, Names: expr.name.qualified; parentheses around the qualified name do not change what it selects.
+use std.testing.assert_equal
+use std.text
+
+fn render_rows(rows: List[List[string]], separator: string, join_row: fn(List[string], string) -> string) -> List[string]:
+    let lines: mut List[string] = []
+    for row in rows:
+        lines.push(join_row(row, separator))
+    lines
+
+tests:
+    it("renders TSV lines"):
+        lines := render_rows([["id", "name"], ["1", "Ada"]], "\t", (text.join))
+        assert_equal(lines, ["id\tname", "1\tAda"], reason="each row joined by tabs")

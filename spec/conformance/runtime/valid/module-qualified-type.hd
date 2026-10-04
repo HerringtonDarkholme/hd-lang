@@ -1,0 +1,17 @@
+# test: after use std.cmp, cmp.Ordering in type position names the prelude's Ordering
+# Spec Expressions, Names: expr.name.qualified; Grammar: named_type is a qualified_name, so a type may be named through a module namespace.
+use std.testing.assert
+use std.cmp
+
+data Release:
+    name: string
+    downloads: i64
+
+fn by_downloads(a: Release, b: Release) -> cmp.Ordering:
+    a.downloads.cmp(b.downloads)
+
+tests:
+    it("orders releases by downloads"):
+        stable := Release { name: "1.0", downloads: 120 }
+        preview := Release { name: "2.0-rc1", downloads: 45 }
+        assert(by_downloads(preview, stable) == Ordering.Less, reason="fewer downloads sorts first")

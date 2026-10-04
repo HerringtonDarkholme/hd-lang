@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,225 cases: 2,089 selected in `test/portable/cases.tsv` and 136 known
-failures. The selected cases are 1,834 language tier and 255 stdlib tier;
-the known failures are 114 language tier and 22 stdlib tier.
+2,233 cases: 2,093 selected in `test/portable/cases.tsv` and 140 known
+failures. The selected cases are 1,838 language tier and 255 stdlib tier;
+the known failures are 118 language tier and 22 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -54,6 +54,7 @@ the known failures are 114 language tier and 22 stdlib tier.
 | LITERAL-FIRST-USE | 23 | an unannotated literal binding falls back before its first deciding use |
 | SIGN-FALLBACK | 10 | an unsigned literal group falls back to `i32`, not `usize`, and `unsigned-comparison-always` is not checked |
 | ONE-FIT | 7 | a literal is `i32` on the spot, so one fitting candidate never decides it, several fitting candidates never wait for the `usize` fallback, and the fallback hint is absent |
+| QUALIFIED-PATH | 4 | a used module name works before a function, but not before a type, a variant, a variant pattern, or an associated call |
 
 ## Findings
 

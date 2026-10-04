@@ -1,0 +1,15 @@
+# test: after use std.text, text.join is a function value that can be passed as an argument
+# Spec Expressions, Names: expr.name.qualified; the qualified name selects the declaration join, which is a value.
+use std.testing.assert_equal
+use std.text
+
+fn render_rows(rows: List[List[string]], separator: string, join_row: fn(List[string], string) -> string) -> List[string]:
+    let lines: mut List[string] = []
+    for row in rows:
+        lines.push(join_row(row, separator))
+    lines
+
+tests:
+    it("renders CSV lines"):
+        lines := render_rows([["id", "name"], ["1", "Ada"]], ",", text.join)
+        assert_equal(lines, ["id,name", "1,Ada"], reason="each row joined by commas")

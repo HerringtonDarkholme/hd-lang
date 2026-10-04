@@ -2088,3 +2088,7 @@ typing/valid/literal-dependent-join.hd	type
 typing/invalid/literal-dependent-no-backward.hd	type
 typing/invalid/literal-dependent-no-backward-annotation.hd	type
 typing/invalid/literal-erased-any-range.hd	type
+runtime/valid/module-qualified-function-call.hd	runtime
+runtime/valid/module-qualified-function-value.hd	runtime
+runtime/valid/module-qualified-function-value-parenthesized.hd	runtime
+typing/invalid/module-qualified-without-use.hd	type

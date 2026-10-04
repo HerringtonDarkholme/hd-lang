@@ -1,0 +1,14 @@
+# test: after use std.text, text.StringBuilder::new() calls the associated function of the module's type
+# Spec Functions, Methods: fn.method.associated; the Type of Type::function(...) is a qualified name, here selected through a module namespace.
+use std.testing.assert_equal
+use std.text
+
+fn bullet_list(items: List[string]) -> string:
+    let mut out = text.StringBuilder::new()
+    for item in items:
+        out.push("- ${item}\n")
+    out.build()
+
+tests:
+    it("builds a bullet list"):
+        assert_equal(bullet_list(["milk", "eggs"]), "- milk\n- eggs\n", reason="one line per item")
