@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,457 cases: 2,268 selected in `test/portable/cases.tsv` and 189 known
-failures. The selected cases are 1,991 language tier, 275 stdlib tier, and 2
-CLI tier; the known failures are 149 language tier, 10 stdlib tier, and 30
+2,457 cases: 2,277 selected in `test/portable/cases.tsv` and 180 known
+failures. The selected cases are 2,000 language tier, 275 stdlib tier, and 2
+CLI tier; the known failures are 140 language tier, 10 stdlib tier, and 30
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -28,7 +28,6 @@ CLI tier.
 | CLI-TEST-EMPTY | 1 | `hd test FILE` for a file with no test case exits 0, not 101 |
 | F-250 | 6 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
-| F-310 | 1 | a line that starts with `:` attaches a trailing block to the statement before it |
 | TQ-2 | 1 | a package-role fixture cannot express ownership of a trait argument |
 | EMB-S | 4 | package trait visibility is not modeled by the linked checker namespace |
 | P2 | 5 | package member visibility is not modeled by the linked checker namespace |
@@ -53,14 +52,10 @@ CLI tier.
 | METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
-| EQ-CONTEXTUAL | 2 | equality does not contextually type a variant from the opposite operand |
-| FRESH-MUT | 1 | generic inference does not weaken `mut T` and `T` to their readonly join |
-| QUALIFIED-PREFIX | 3 | a string prefix after `.` does not report `qualified-string-prefix` |
 | LITERAL-FIRST-USE | 23 | an unannotated literal binding falls back before its first deciding use |
 | SIGN-FALLBACK | 10 | an unsigned literal group falls back to `i32`, not `usize`, and `unsigned-comparison-always` is not checked |
 | ONE-FIT | 8 | a literal is `i32` on the spot, so one fitting candidate never decides it, several fitting candidates never wait for the `usize` fallback, a literal receiver's arguments are checked at `i32`, and the fallback hint is absent |
 | QUALIFIED-PATH | 6 | a used module name works before a function, but not before a type, a variant, a variant pattern, or an associated call; a whole-module use of a package module is `unsupported-package-use` |
-| NO-IMPLIED-BOUND | 2 | a missing key bound at an impl target is reported again at each method's `self`, and at a field it adds `void-data-field` |
 | DOC-TESTS | 1 | `hd` blocks in `##` comments are not extracted or run as doc tests |
 | AMBIGUOUS-TYPE | 1 | an ambiguous requirement-key solution reports `cannot-infer-type`, not `ambiguous-type` |
 | SHADOW-TPARAM | 3 | a method type parameter, local declaration, or local value may reuse an enclosing type parameter's name |
@@ -87,9 +82,6 @@ Correctness and diagnostics:
   `runtime/valid/resource-disposed-result.hd` cannot run.
 - **F-265**: code-generation failures and an `--entry` with no runnable
   export exit through a JavaScript stack trace, not a stable code.
-- **F-310**: after an `if` or `match` suite, a line that starts with `:`
-  passes `parse`, then `check` reports `not-callable`. Fixture:
-  `parse/invalid/colon-line-after-if-suite.hd`.
 - **F-401**: replay code identity hashes each function's source text, not
   the module's semantic content, so a changed callee replays and a
   formatting edit does not.
@@ -160,7 +152,6 @@ Compiler structure:
 | DEFAULT-FIELD | Batch 59: a member that declares a default needs no `Default` on its type. The `std.ops` template's `member[F < Default]` bound still covers it, so the prototype reports `member-not-derivable`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, with no host `Console.write_error_line` entry, so `eprintln` under the default profile fails with `host-contract`. `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 | ONE-FIT | Task #254: exactly one fitting candidate (a bound's one implementing type, one receiver or left-operand type, one instantiation) decides an open literal; two or more decide nothing, and a failure after the fallback suggests `+5` or an annotation. A literal joined with a dependent method result takes its resolved type, no use of a method result decides the receiver, and a literal erased to `Any` or `Inspectable` takes the fallback. The prototype types the literal as `i32` on the spot and emits no hint. Task #262: a conversion to a trait value is no one-fit site, and widths whose methods declare different parameter lists make a literal receiver `ambiguous-method`; the prototype checks `cents.scale(4)` at `i32` and reports `argument-count`. |
-| NO-IMPLIED-BOUND | Task #261: a generic type's declared bounds are never implied where the type is written, so a declaration that writes `Map[K, V]` must bound its own `K`. The prototype reports the missing bound, but repeats it at each method's implicit `self` and turns the field's type into `void`. |
 | QUALIFIED-PATH | Task #260: a used module name qualifies a function, a type, a variant, a variant pattern, and an associated call. Task #262: a module path to a private or missing declaration reports `private-import` or `unknown-import`, and an absolute path outside a use is `unknown-name`. The prototype rejects `use pkg.words` as `unsupported-package-use`. |
 | DOC-TESTS | Owner design, 2026-10-04: each fenced `hd` block in a `##` comment under `src/` is a doc test, compiled as its own program with the public view and run by `hd test` (`module.test.doc.*`, `cli.test.doc.*`). The prototype ignores the blocks, so `hd test` runs none, and `hd check --tests` checks none. |
 | AMBIGUOUS-TYPE | Owner, 2026-10-04: inference with several valid solutions is `ambiguous-type` (`types.infer.ambiguous.code`). The prototype reports `cannot-infer-type` for a callback row that fits two generic keys in either order. |

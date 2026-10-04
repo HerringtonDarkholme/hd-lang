@@ -204,6 +204,13 @@ export abstract class ExpressionParser extends RangeParser {
           );
         this.advance();
         const member = this.current();
+        // A prefix is a bare name, never a member (02-grammar.md#r-grammar.primary.prefix-after-dot).
+        if (member.prefix)
+          this.fail(
+            "qualified-string-prefix",
+            `a string prefix is a bare name in scope: write '${member.prefix.name}"..."' without the qualifier`,
+            member.span,
+          );
         if (member.kind !== "identifier") {
           // Tuple members are identifiers such as `_0` (owner decision TUP-1).
           const numeric = /^[0-9]/.test(member.text);

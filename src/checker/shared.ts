@@ -614,45 +614,10 @@ export function containsGenericType(type: ValueType): boolean {
   );
 }
 
-/** Whether `type` structurally contains the named generic parameter. */
-function containsGenericParameter(type: ValueType, parameter: string): boolean {
-  if (genericTypeName(type) === parameter) return true;
-  const inputs = inputsInner(type) ?? restInner(type);
-  if (inputs !== undefined) return containsGenericParameter(inputs, parameter);
-  const binding = bindingParts(type);
-  if (binding) return containsGenericParameter(binding.type, parameter);
-  const mutable = mutableInner(type);
-  if (mutable !== undefined) return containsGenericParameter(mutable, parameter);
-  const tuple = tupleParts(type);
-  if (tuple !== undefined) return tuple.some((item) => containsGenericParameter(item, parameter));
-  const optional = optionalInner(type);
-  if (optional !== undefined) return containsGenericParameter(optional, parameter);
-  const result = resultParts(type);
-  if (result)
-    return (
-      containsGenericParameter(result.ok, parameter) ||
-      containsGenericParameter(result.error, parameter)
-    );
-  const nominal = nominalGenericParts(type);
-  if (nominal)
-    return nominal.arguments.some((argument) => containsGenericParameter(argument, parameter));
-  const callable = functionParts(type);
-  return Boolean(
-    callable &&
-    (callable.parameters.some((argument) => containsGenericParameter(argument, parameter)) ||
-      containsGenericParameter(callable.result, parameter) ||
-      callable.requirements.some(
-        (requirement) =>
-          !rowParameterName(requirement) && containsGenericParameter(requirement, parameter),
-      )),
-  );
-}
-
 /**
  * Every generic parameter name `type` mentions, in one structural walk.
- * Mirrors `containsGenericParameter` exactly (same traversal, same leaf
- * test): collecting the names up front turns per-parameter scans into one
- * pass with set lookups.
+ * Collecting the names up front turns per-parameter scans into one pass
+ * with set lookups.
  */
 export function mentionedGenericParameters(type: ValueType): Set<string> {
   const names = new Set<string>();
@@ -1388,7 +1353,8 @@ export function typeName(
       ? undefined
       : dynamicTraitProblemInType(resolved, traitTypes);
   if (dynamicProblem) diagnostics.push({ ...dynamicProblem, span: type.span });
-  const nominal = nominalGenericParts(resolved);
+  // An implementation target's own bounds were reported where it is written.
+  const nominal = type.implementationTarget ? undefined : nominalGenericParts(resolved);
   const keyProblem =
     nominal?.name === "Map" &&
     nominal.arguments.length === 2 &&

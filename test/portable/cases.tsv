@@ -2267,3 +2267,12 @@ typing/invalid/bound-inference-incompatible-argument.hd	type
 typing/valid/index-unsigned-widths.hd	type
 typing/invalid/compound-index-negative-literal.hd	type
 typing/valid/variance-receiverless-function.hd	type
+parse/invalid/colon-line-after-if-suite.hd	parse
+typing/valid/eq-contextual-right-operand.hd	type
+typing/valid/eq-contextual-left-operand.hd	type
+typing/valid/generic-join-mut-and-readonly.hd	type
+typing/invalid/qualified-string-prefix.hd	type
+typing/invalid/qualified-string-prefix-call.hd	type
+parse/invalid/qualified-string-prefix-value.hd	parse
+typing/invalid/impl-target-key-bound-not-implied.hd	type
+typing/invalid/field-key-bound-not-implied.hd	type

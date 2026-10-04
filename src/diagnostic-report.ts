@@ -100,7 +100,7 @@ export function diagnosticFix(diagnostic: Diagnostic, source: string): Diagnosti
     const edit = replacement.edit(diagnostic.span);
     return { message: describe(edit, text), edits: [edit] };
   }
-  // "a typed mutable binding must begin with 'let'": insert it before the name.
+  // "a binding with a type annotation must begin with 'let'": insert it before the name.
   if (diagnostic.code === "missing-let" && /^[\p{ID_Start}_]/u.test(text))
     return {
       message: "insert 'let' before the binding",

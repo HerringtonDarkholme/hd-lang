@@ -5,7 +5,6 @@ import { DecoratorParser } from "./decorators.ts";
 
 /** `let` statements and the `missing-let` check before `:=` (02-grammar.md#let-statements). */
 export abstract class LetParser extends DecoratorParser {
-  protected abstract parseRightSide(): Expression;
   protected abstract finishExpressionStatement(
     expression: Expression,
     topOrInline: boolean,
@@ -162,5 +161,95 @@ export abstract class LetParser extends DecoratorParser {
         span,
       };
     return { kind: "pattern-binding", pattern, ...(annotation ? { annotation } : {}), value, span };
+  }
+
+  // The right side of `let ... =`, `=`, `_ :=`, `return`, and `break`: an
+  // expression or trailing block call. A nested binding there cannot end in a
+  // suite unless parenthesized (02-grammar.md#statements).
+  protected parseRightSide(): Expression {
+    const value = this.parseTrailingBlockCall(this.parseExpression());
+    if (value.kind !== "binding-expression") return value;
+    let inner: Expression = value;
+    while (inner.kind === "binding-expression") inner = inner.value;
+    const last = this.peek(-1);
+    const parenthesized = last.text === ")" && last.span.end.offset > value.span.end.offset;
+    const suiteKinds = ["if", "for", "while", "match", "closure", "provider-with"];
+    if (!parenthesized && suiteKinds.includes(inner.kind))
+      this.fail(
+        "syntax-error",
+        "a nested binding that ends in a suite must be parenthesized",
+        value.span,
+      );
+    return value;
+  }
+
+  protected parseTrailingBlockCall(callee: Expression): Expression {
+    if (!this.atText(":")) return callee;
+    // A callee that ended in an indented suite (an `if`, `match`, loop, or
+    // closure body) is no call target: a line that starts with `:` after it
+    // attaches no block (02-grammar.md#r-grammar.call.trailing-block.not-header).
+    if (this.peek(-1).kind === "dedent")
+      this.fail(
+        "trailing-block-position",
+        "a trailing callback block cannot follow a statement that ends in a suite",
+        this.current().span,
+      );
+    // A pipe step takes no trailing block (05-expressions.md#r-expr.pipe.no-trailing-block).
+    if (callee.kind === "pipe")
+      this.fail("syntax-error", "a pipe step takes no trailing block", this.current().span);
+    // The body begins on the next logical line
+    // (02-grammar.md#r-grammar.call.trailing-block.next-line).
+    if (this.peek(1).kind !== "newline")
+      this.fail(
+        "syntax-error",
+        "a trailing block's body must begin on the next line",
+        this.peek(1).span,
+      );
+    // A same-line suite holds no indented suite, so no trailing block
+    // (02-grammar.md#r-grammar.inline.no-comma).
+    if (this.inlineSuiteDepths.at(-1) === this.delimiterDepth(this.index))
+      this.fail(
+        "syntax-error",
+        "a same-line suite body cannot hold a trailing block; give the suite an indented body",
+        this.current().span,
+      );
+    const body = this.parseSuite();
+    if (this.atText(":"))
+      this.fail(
+        "trailing-block-position",
+        "a call accepts only one trailing callback block",
+        this.current().span,
+      );
+    const callback: Expression = {
+      kind: "closure",
+      trailing: true,
+      parameters: [],
+      body,
+      span: { start: callee.span.end, end: body.at(-1)!.span.end },
+    };
+    if (callee.kind === "call") {
+      return {
+        ...callee,
+        arguments: [...callee.arguments, callback],
+        argumentNames: callee.argumentNames ? [...callee.argumentNames, undefined] : undefined,
+        argumentSpreads: callee.argumentSpreads ? [...callee.argumentSpreads, false] : undefined,
+        span: { start: callee.span.start, end: callback.span.end },
+      };
+    }
+    if (callee.kind === "suspend-call") {
+      return {
+        ...callee,
+        arguments: [...callee.arguments, callback],
+        argumentNames: callee.argumentNames ? [...callee.argumentNames, undefined] : undefined,
+        argumentSpreads: callee.argumentSpreads ? [...callee.argumentSpreads, false] : undefined,
+        span: { start: callee.span.start, end: callback.span.end },
+      };
+    }
+    return {
+      kind: "call",
+      callee,
+      arguments: [callback],
+      span: { start: callee.span.start, end: callback.span.end },
+    };
   }
 }

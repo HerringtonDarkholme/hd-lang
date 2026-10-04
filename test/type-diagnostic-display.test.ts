@@ -67,7 +67,7 @@ pub fn main() -> void:
   assert.equal(diagnostic.message, "expected List[mut Box], found List[Box]");
 });
 
-test("generic-inference conflicts render mutable types as source text", () => {
+test("generic argument join conflicts render mutable types as source text", () => {
   const diagnostic = onlyDiagnostic(`data Box:
     value: i32
 
@@ -75,13 +75,16 @@ fn same[T](left: T, right: T) -> void:
     pass
 
 pub fn main() -> void:
-    let mut mutable = Box { value: 1 }
-    let readonly: Box = mutable
+    let mutable: List[mut Box] = []
+    let readonly: List[Box] = []
     same(mutable, readonly)
 `);
 
   assert.equal(diagnostic.code, "type-mismatch");
-  assert.equal(diagnostic.message, "generic parameter 'T' was inferred as both mut Box and Box");
+  assert.equal(
+    diagnostic.message,
+    "arguments of types 'List[mut Box]' and 'List[Box]' both solve 'T' of 'same', and inference never widens a number; convert one argument to the other's type",
+  );
 });
 
 test("implementation diagnostics render mutable target arguments as source text", () => {

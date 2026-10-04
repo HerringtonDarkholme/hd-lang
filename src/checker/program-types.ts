@@ -206,19 +206,20 @@ export function defineProgramData(context: ProgramCheckContext): void {
           ),
         ),
       );
-      const type =
-        typeName(
-          field.type,
-          dataTypes,
-          enumTypes,
-          traitTypes,
-          diagnostics,
-          new Set(declaration.genericParameters.filter((name) => !rowParameters.has(name))),
-          rowParameters,
-          hashable,
-          { validateRequirementKeys: false, validateDynamicSafety: false },
-        ) ?? "void";
-      if (type === "void")
+      const resolved = typeName(
+        field.type,
+        dataTypes,
+        enumTypes,
+        traitTypes,
+        diagnostics,
+        new Set(declaration.genericParameters.filter((name) => !rowParameters.has(name))),
+        rowParameters,
+        hashable,
+        { validateRequirementKeys: false, validateDynamicSafety: false },
+      );
+      const type = resolved ?? "void";
+      // An unresolved type already has its own diagnostic: report it once, where it is written.
+      if (resolved === "void")
         diagnostics.push({
           code: "void-data-field",
           message: "a data field cannot have type void",
@@ -308,19 +309,20 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           span: field.span,
         });
       sharedNames.add(field.name);
-      const type =
-        typeName(
-          field.type,
-          dataTypes,
-          enumTypes,
-          traitTypes,
-          diagnostics,
-          new Set(declaration.genericParameters),
-          new Set(),
-          new Set(),
-          { validateRequirementKeys: false, validateDynamicSafety: false },
-        ) ?? "void";
-      if (type === "void")
+      const resolved = typeName(
+        field.type,
+        dataTypes,
+        enumTypes,
+        traitTypes,
+        diagnostics,
+        new Set(declaration.genericParameters),
+        new Set(),
+        new Set(),
+        { validateRequirementKeys: false, validateDynamicSafety: false },
+      );
+      const type = resolved ?? "void";
+      // An unresolved type already has its own diagnostic: report it once, where it is written.
+      if (resolved === "void")
         diagnostics.push({
           code: "void-data-field",
           message: "a shared enum field cannot have type void",
@@ -361,19 +363,20 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
             span: field.span,
           });
         fieldNames.add(field.name);
-        const type =
-          typeName(
-            field.type,
-            dataTypes,
-            enumTypes,
-            traitTypes,
-            diagnostics,
-            new Set(declaration.genericParameters),
-            new Set(),
-            new Set(),
-            { validateRequirementKeys: false, validateDynamicSafety: false },
-          ) ?? "void";
-        if (type === "void")
+        const resolved = typeName(
+          field.type,
+          dataTypes,
+          enumTypes,
+          traitTypes,
+          diagnostics,
+          new Set(declaration.genericParameters),
+          new Set(),
+          new Set(),
+          { validateRequirementKeys: false, validateDynamicSafety: false },
+        );
+        const type = resolved ?? "void";
+        // An unresolved type already has its own diagnostic: report it once, where it is written.
+        if (resolved === "void")
           diagnostics.push({
             code: "void-data-field",
             message: "an enum payload cannot have type void",

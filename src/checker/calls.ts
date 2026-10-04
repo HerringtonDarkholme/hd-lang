@@ -917,7 +917,19 @@ export abstract class CallChecker extends StatementChecker {
           );
         const boundedParameters = new Set(signature.genericBounds.map((bound) => bound.parameter));
         const inferredActual = weakenBoundedGenericActual(formal, checked.type, boundedParameters);
-        const conflict = inferGenericType(formal, inferredActual, substitutions, rowSubstitutions);
+        let conflict = inferGenericType(formal, inferredActual, substitutions, rowSubstitutions);
+        // An earlier `mut T` argument and this readonly `T` meet at `T`
+        // (types.generic.infer.join.outer-permission); an expected type never
+        // gives the `mut`.
+        if (
+          conflict &&
+          formalGeneric &&
+          !inferredFromExpected.has(formalGeneric) &&
+          substitutions.get(formalGeneric) === mutableType(inferredActual)
+        ) {
+          substitutions.set(formalGeneric, inferredActual);
+          conflict = undefined;
+        }
         if (conflict) {
           // A readonly argument never infers a mutable type from the expected result.
           const fromArgument = new Map<string, ValueType>();

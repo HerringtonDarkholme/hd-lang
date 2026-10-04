@@ -685,7 +685,23 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const leftContext = resultTyped
       ? contextualNumericExpected(expression.left, expected)
       : undefined;
-    let left = checkedLeft ?? this.checkExpression(expression.left, leftContext);
+    // In `==` and `!=`, a contextual variant operand takes the other
+    // operand's type as its expected type, on either side
+    // (05-expressions.md#r-expr.eq.contextual-operand). Two contextual
+    // operands leave both without one, so each reports its own error.
+    const equalityOperator = expression.operator === "==" || expression.operator === "!=";
+    const leftVariant = isContextualVariant(expression.left);
+    const rightVariant = isContextualVariant(expression.right);
+    let leftFirstRight: HirExpression | undefined;
+    if (equalityOperator && leftVariant && !rightVariant && checkedLeft === undefined) {
+      leftFirstRight = this.checkExpression(expression.right, undefined);
+    }
+    let left =
+      checkedLeft ??
+      this.checkExpression(
+        expression.left,
+        leftFirstRight ? readonlyType(leftFirstRight.type) : leftContext,
+      );
     // A floating-point literal exponent takes the base's type
     // (r-expr.power.float.same-type), and a shift count is a `u32`
     // (r-expr.shift.count-literal).
@@ -704,7 +720,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               ? "f32"
               : outerFloat
             : undefined;
-    let right = this.checkExpression(expression.right, rightTarget);
+    let right =
+      leftFirstRight ??
+      this.checkExpression(
+        expression.right,
+        equalityOperator && rightVariant && !leftVariant ? readonlyType(left.type) : rightTarget,
+      );
     if (!numeric || expression.operator === "**") return { left, right };
     if (leftLiteral && left.type === "i32" && integerTarget(right.type))
       left = this.checkExpression(expression.left, right.type);
@@ -1030,6 +1051,14 @@ function contextualNumericExpected(
 }
 
 /** Context passed through the eager left check used to choose primitive or trait dispatch. */
+/** A `.Name` or `.Name(args)` operand whose enum type comes from context. */
+function isContextualVariant(expression: Expression): boolean {
+  return (
+    expression.kind === "contextual-variant" ||
+    (expression.kind === "call" && expression.callee.kind === "contextual-variant")
+  );
+}
+
 function numericLeftExpected(
   expression: Extract<Expression, { kind: "binary" }>,
   expected: ValueType | undefined,

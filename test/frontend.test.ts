@@ -210,6 +210,16 @@ test("a pattern before := is missing-let whose fix-it writes the let statement",
   }
 });
 
+test("missing-let for a typed binding names the type annotation, not mutability", () => {
+  // 02-grammar.md#r-grammar.stmt.typed-binding.let
+  const [diagnostic] = parse("fn f() -> void:\n    x: i32 = 1\n").diagnostics;
+  assert.equal(diagnostic?.code, "missing-let");
+  assert.equal(
+    diagnostic?.message,
+    "a binding with a type annotation must begin with 'let'; write `let x: T = ...`, or `x := ...` without the type",
+  );
+});
+
 test("parser distinguishes inherent and trait implementation blocks", () => {
   const result = parse(conformanceBody("parse/valid/inherent-and-trait-impls"));
   assert.deepEqual(result.diagnostics, []);

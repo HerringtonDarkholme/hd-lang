@@ -11,6 +11,12 @@ export const TEMPLATE_PLACEHOLDER = "__std_ops_Template";
 export interface TypeRef {
   readonly name: string;
   readonly span: SourceSpan;
+  /**
+   * Set on a `Self` or `mut Self` that an implementation's target replaced:
+   * the target's constructor bounds were checked where the target is
+   * written, so they are not reported again here.
+   */
+  readonly implementationTarget?: true;
 }
 
 export interface GenericBound {
