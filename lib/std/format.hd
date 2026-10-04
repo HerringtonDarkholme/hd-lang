@@ -342,7 +342,7 @@ impl[T < Debug, E < Debug] Debug for Result[T, E]:
             .Ok(value) => out.debug_tuple("Ok").field(value).finish()
             .Err(error) => out.debug_tuple("Err").field(error).finish()
 
-impl[K < Debug, V < Debug] Debug for Map[K, V]:
+impl[K < Debug & Eq & Hash, V < Debug] Debug for Map[K, V]:
     fn debug(self, out: mut DebugWriter) -> void:
         let map: mut DebugMap = out.debug_map()
         for (key, value) in self:

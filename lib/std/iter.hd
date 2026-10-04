@@ -263,6 +263,6 @@ impl[T] Iterable[T] for List[T]:
     fn iter(self) -> mut Iterator[T]:
         self.iter()
 
-impl[K, V] Iterable[(K, V)] for Map[K, V]:
+impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
     fn iter(self) -> mut Iterator[(K, V)]:
         self.iter()
