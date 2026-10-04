@@ -119,6 +119,7 @@ typing/invalid/defer-suspends.hd	type
 typing/invalid/top-level-defer.hd	type
 typing/warnings/unreachable-code.hd	type
 typing/warnings/unused-local-binding.hd	type
+typing/warnings/mixed-script-identifier.hd	type
 typing/warnings/variant-binding-name-mismatch.hd	type
 typing/valid/named-variant-bindings.hd	type
 typing/valid/shared-enum-defaults.hd	type

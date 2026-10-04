@@ -857,7 +857,9 @@ export function analyze(source: string, options: CompileOptions = {}): Analysis 
         }
       : parsed.program;
     const checked = check(program, options);
-    return { hir: checked.program, diagnostics: checked.diagnostics };
+    // Lexical warnings travel with the program; parser diagnostics are empty
+    // whenever a program exists, so concatenation only adds those warnings.
+    return { hir: checked.program, diagnostics: [...parsed.diagnostics, ...checked.diagnostics] };
   } catch (error) {
     if (error instanceof DiagnosticError) return { diagnostics: error.diagnostics };
     throw error;

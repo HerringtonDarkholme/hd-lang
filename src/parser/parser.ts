@@ -269,8 +269,11 @@ class Parser extends LetParser {
 
   protected parseExpressionSource(source: string): ExpressionParseResult {
     const lexed = lex(source);
-    if (lexed.diagnostics.length > 0) return { diagnostics: lexed.diagnostics };
-    return new Parser(lexed.tokens).parseExpressionFragment();
+    const lexErrors = lexed.diagnostics.filter((diagnostic) => diagnostic.severity !== "warning");
+    if (lexErrors.length > 0) return { diagnostics: lexErrors };
+    const lexWarnings = lexed.diagnostics.filter((diagnostic) => diagnostic.severity === "warning");
+    const parsed = new Parser(lexed.tokens).parseExpressionFragment();
+    return { ...parsed, diagnostics: [...lexWarnings, ...parsed.diagnostics] };
   }
 
   /**
@@ -1423,21 +1426,23 @@ class Parser extends LetParser {
 
 export function parse(source: string, options: ParseOptions = {}): ParseResult {
   const lexed = lex(source);
-  if (lexed.diagnostics.length > 0) return { diagnostics: lexed.diagnostics };
+  // Lexical warnings (such as `mixed-script-identifier`) travel with the
+  // program; only lexical errors abort the parse.
+  const lexErrors = lexed.diagnostics.filter((diagnostic) => diagnostic.severity !== "warning");
+  if (lexErrors.length > 0) return { diagnostics: lexErrors };
+  const lexWarnings = lexed.diagnostics.filter((diagnostic) => diagnostic.severity === "warning");
   const parsed = new Parser(lexed.tokens).withOptions(options).parse();
-  if (
-    parsed.program !== undefined &&
-    options.joinedModules === true &&
-    (options.initGroupStarts?.length ?? 0) > 0
-  )
+  if (parsed.program === undefined) return { diagnostics: [...lexWarnings, ...parsed.diagnostics] };
+  const diagnostics = [...lexWarnings, ...parsed.diagnostics];
+  if (options.joinedModules === true && (options.initGroupStarts?.length ?? 0) > 0)
     return {
-      ...parsed,
       program: {
         ...parsed.program,
         initGroups: initGroupBreaks(parsed.program.statements, options.initGroupStarts!),
       },
+      diagnostics,
     };
-  return parsed;
+  return { ...parsed, diagnostics };
 }
 
 // Initialization-group boundaries for a joined program: each linker group

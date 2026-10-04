@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,470 cases: 2,311 selected in `test/portable/cases.tsv` and 159 known
-failures. The selected cases are 2,026 language tier, 276 stdlib tier, and 9
-CLI tier; the known failures are 121 language tier, 10 stdlib tier, and 28
+2,470 cases: 2,312 selected in `test/portable/cases.tsv` and 158 known
+failures. The selected cases are 2,027 language tier, 276 stdlib tier, and 9
+CLI tier; the known failures are 120 language tier, 10 stdlib tier, and 28
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -59,7 +59,6 @@ CLI tier.
 | BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
 | RESERVE-PKG | 1 | a module named `pkg` is accepted, not `reserved-module-name` |
 | UNCOVERED-CONFUSABLE | 1 | an identifier that looks like a visible one gets no `confusable-identifier` warning |
-| UNCOVERED-MIXED-SCRIPT | 1 | an identifier that mixes scripts gets no `mixed-script-identifier` warning |
 
 ## Findings
 

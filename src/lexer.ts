@@ -1,4 +1,5 @@
 import type { Diagnostic, SourcePosition, SourceSpan } from "./diagnostics.ts";
+import { mixedScriptWarning } from "./unicode-scripts.ts";
 
 export type TokenKind =
   | "identifier"
@@ -345,6 +346,9 @@ class Scanner {
       this.report("identifier-not-nfc", `identifier '${text}' is not NFC-normalized`, start);
     }
     const kind: TokenKind = text === "_" ? "symbol" : KEYWORDS.has(text) ? "keyword" : "identifier";
+    // Security warnings never change identity: a suspicious script mix
+    // warns (lex.ident.mixed-script.warning) but lexes on as the same name.
+    if (kind === "identifier") this.checkIdentifierScripts(text, start);
     // An identifier directly before `"` is a string prefix
     // (01-lexical-structure.md#prefixed-strings). A reserved word there, as
     // in `return"done"`, is an error (lex.literal-fn.reserved-glued).
@@ -359,6 +363,17 @@ class Scanner {
       return;
     }
     this.emit(kind, text, start, this.position(), text);
+  }
+
+  private checkIdentifierScripts(text: string, start: SourcePosition): void {
+    const message = mixedScriptWarning(text);
+    if (message !== undefined)
+      this.diagnostics.push({
+        code: "mixed-script-identifier",
+        message,
+        span: { start, end: this.position() },
+        severity: "warning",
+      });
   }
 
   // A raw identifier (01-lexical-structure.md#raw-identifiers): an identifier
@@ -383,6 +398,7 @@ class Scanner {
       return;
     }
     while (this.offset <= offset) this.advance();
+    this.checkIdentifierScripts(text, start);
     this.tokens.push({
       kind: "identifier",
       text,

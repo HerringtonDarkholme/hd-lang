@@ -5,6 +5,7 @@ import test from "node:test";
 
 import { lex } from "../src/lexer.ts";
 import { parse } from "../src/parser/index.ts";
+import { mixedScriptWarning } from "../src/unicode-scripts.ts";
 import { conformanceBody, fixtureBody } from "./fixture.ts";
 
 const CORE_PROGRAM = fixtureBody("frontend/00-core-program");
@@ -31,6 +32,18 @@ test("lexer skips init-group-looking comments as plain comments", () => {
   assert.deepEqual(result.diagnostics, []);
   assert.ok(!("initGroupMarkers" in result));
   assert.ok(result.tokens.every((token) => !token.text.includes("hd:init-group")));
+});
+
+test("mixed-script detection follows Moderately Restrictive", () => {
+  // Pass: ASCII-only, single-script, Highly Restrictive Latin+CJK covers,
+  // and Moderately Restrictive Latin plus one Recommended script.
+  for (const text of ["abc", "абв", "日本語", "a中", "aբ", "aก"])
+    assert.equal(mixedScriptWarning(text), undefined);
+  // Digits are Common and never decide the mix.
+  assert.ok(mixedScriptWarning("аbc123")?.includes("Cyrillic and Latin"));
+  // Warn: Latin mixed with the excluded scripts Cyrillic and Greek.
+  assert.ok(mixedScriptWarning("аbc")?.includes("Cyrillic and Latin"));
+  assert.ok(mixedScriptWarning("Τotal")?.includes("Greek and Latin"));
 });
 
 test("parser maps linker group starts to statement breaks under joinedModules only", () => {
