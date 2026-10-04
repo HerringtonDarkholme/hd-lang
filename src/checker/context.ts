@@ -2,12 +2,7 @@ import { intrinsicDictionaryPlan } from "./intrinsic-dictionaries.ts";
 import { TRIAL_STATE, type TrialSnapshot } from "./call-speculation.ts";
 import { snapshotCheckerState } from "./checker-trial-state.ts";
 import { mapKeyKind, mapKeyProblem } from "./map-keys.ts";
-import {
-  ambiguousProjection,
-  traitKeyParts,
-  traitValueBindings,
-  writtenBindingProblem,
-} from "./associated-bindings.ts";
+import { traitKeyParts, traitValueBindings } from "./associated-bindings.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
 import type { AssignmentStatement, Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
@@ -56,8 +51,8 @@ import {
   traitTypeName,
   MAX_BOUND_DEPTH,
   numericWidening,
-  restElementProblem,
 } from "./shared.ts";
+import { dynamicTraitProblemInType, writtenTypeProblem } from "./written-type-validation.ts";
 import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
 import {
   mutableInner,
@@ -1246,10 +1241,7 @@ export abstract class CheckerContext {
       new Set(this.signature.rowParameters),
     );
     if (typeof kinded !== "string") this.fail("generic-kind-mismatch", kinded.mismatch, type.span);
-    const problem =
-      restElementProblem(kinded) ??
-      writtenBindingProblem(kinded, this.traitTypes) ??
-      ambiguousProjection(kinded, this.signature.genericBounds, this.traitTypes);
+    const problem = writtenTypeProblem(kinded, this.signature.genericBounds, this.traitTypes);
     if (problem) this.fail(problem.code, problem.message, type.span);
     const declared = normalizeBoundProjections(kinded, this.signature.genericBounds);
     const requirementDiagnostic = requirementKeyDiagnosticsInType(
@@ -1266,6 +1258,8 @@ export abstract class CheckerContext {
     )[0];
     if (requirementDiagnostic)
       this.fail(requirementDiagnostic.code, requirementDiagnostic.message, type.span);
+    const dynamicProblem = dynamicTraitProblemInType(declared, this.traitTypes);
+    if (dynamicProblem) this.fail(dynamicProblem.code, dynamicProblem.message, type.span);
     const nominal = nominalGenericParts(declared);
     if (
       nominal?.name === "Map" &&

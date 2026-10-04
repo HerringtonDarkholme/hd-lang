@@ -192,6 +192,7 @@ function checkProgramRaw(
   setHashableKeyTypes(program);
   const context: ProgramCheckContext = {
     program,
+    typeDeclarations: declared.typeDeclarations,
     diagnostics: [
       ...hoisted.diagnostics,
       ...targetDiagnostics,

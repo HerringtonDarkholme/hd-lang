@@ -1,4 +1,4 @@
-import type { FunctionDecl, ImplDecl, Program } from "../ast.ts";
+import type { FunctionDecl, ImplDecl, Program, TypeDecl } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import type { HirData, HirEnum, HirTrait, NumericFamily, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
@@ -22,6 +22,8 @@ export interface ImplementationPreparation {
 
 export interface ProgramCheckContext {
   readonly program: Program;
+  /** Accepted written type declarations, retained after aliases and newtypes are lowered. */
+  readonly typeDeclarations: readonly TypeDecl[];
   readonly diagnostics: Diagnostic[];
   readonly imports: Map<string, string>;
   /** Extra local spellings of joined standard-library declarations. */

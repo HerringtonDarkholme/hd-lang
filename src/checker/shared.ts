@@ -1,6 +1,6 @@
 import { mapKeyProblem } from "./map-keys.ts";
-import { traitValueBindings, writtenBindingProblem } from "./associated-bindings.ts";
-import { traitIsDynamicallySafe } from "./dynamic-safety.ts";
+import { writtenBindingProblem } from "./associated-bindings.ts";
+import { dynamicTraitProblemInType, restElementProblem } from "./written-type-validation.ts";
 import { requirementKeyDiagnosticsInType, resolveRequirementKeyTypes } from "./requirement-keys.ts";
 import type { Expression, Program, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
@@ -42,7 +42,6 @@ import {
   bindingParts,
   bindingType,
   splitTypeBindings,
-  nonListRestElement,
   restInner,
   inputsInner,
   storedSuspensionParts,
@@ -458,12 +457,7 @@ export function argumentOwnType(source: Expression, checked: HirExpression): Val
   return checked.type;
 }
 
-export function traitTypeName(type: ValueType): string | undefined {
-  const readonly = readonlyType(type);
-  if (!readonly.startsWith("trait:") || readonly.endsWith("?")) return undefined;
-  const key = readonly.slice("trait:".length);
-  return nominalGenericParts(key)?.name ?? key;
-}
+export { traitTypeName } from "./written-type-validation.ts";
 
 export function traitKeyName(key: string): string {
   return nominalGenericParts(key)?.name ?? key;
@@ -1273,19 +1267,6 @@ export function normalizeRowArguments(
   return mismatch ? { mismatch } : normalized;
 }
 
-/** A rest element that is not a `List[T]` (04-type-system.md#r-types.tuple.rest.list). */
-export function restElementProblem(
-  type: ValueType,
-): { readonly code: string; readonly message: string } | undefined {
-  const rest = nonListRestElement(type);
-  return rest === undefined
-    ? undefined
-    : {
-        code: "type-mismatch",
-        message: `a rest element must be a List[T], as in 'List[${typeSourceText(rest)}]...', not '${typeSourceText(rest)}...'`,
-      };
-}
-
 export function typeName(
   type: TypeRef,
   dataTypes: ReadonlyMap<string, HirData>,
@@ -1296,7 +1277,10 @@ export function typeName(
   rowParameters: ReadonlySet<string> = new Set(),
   /** Type parameters bounded by `Eq` and `Hash`, which may key a map (trait.hash.map-key). */
   hashableParameters: ReadonlySet<string> = new Set(),
-  options: { readonly validateRequirementKeys?: boolean } = {},
+  options: {
+    readonly validateRequirementKeys?: boolean;
+    readonly validateDynamicSafety?: boolean;
+  } = {},
 ): ValueType | undefined {
   const kinded = normalizeRowArguments(
     resolveTraitType(resolveGenericType(type.name, genericParameters, rowParameters), traitTypes),
@@ -1326,18 +1310,11 @@ export function typeName(
     diagnostics.push({ ...bindingProblem, span: type.span });
     return undefined;
   }
-  const dynamicTraitName = traitTypeName(resolved);
-  const dynamicTrait = dynamicTraitName && traitTypes.get(dynamicTraitName);
-  if (
-    dynamicTrait &&
-    !traitIsDynamicallySafe(dynamicTrait, traitTypes, new Set(traitValueBindings(resolved).keys()))
-  ) {
-    diagnostics.push({
-      code: "trait-not-dynamically-safe",
-      message: `trait '${dynamicTrait.name}' cannot be used as a dynamic value`,
-      span: type.span,
-    });
-  }
+  const dynamicProblem =
+    options.validateDynamicSafety === false
+      ? undefined
+      : dynamicTraitProblemInType(resolved, traitTypes);
+  if (dynamicProblem) diagnostics.push({ ...dynamicProblem, span: type.span });
   const nominal = nominalGenericParts(resolved);
   const keyProblem =
     nominal?.name === "Map" &&

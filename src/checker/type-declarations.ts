@@ -512,6 +512,7 @@ export function withTypeDeclarations(
   importAliases: ReadonlyMap<string, string> = new Map(),
 ): {
   readonly program: Program;
+  readonly typeDeclarations: readonly TypeDecl[];
   readonly diagnostics: readonly Diagnostic[];
 } {
   const importDiagnostics: Diagnostic[] = [];
@@ -557,7 +558,8 @@ export function withTypeDeclarations(
     new Set([...STANDARD_CORE_TYPE_ALIASES.keys(), ...importAliases.keys()]),
   );
   const declarations = program.types ?? [];
-  if (declarations.length === 0 && importAliases.size === 0) return { program, diagnostics: [] };
+  if (declarations.length === 0 && importAliases.size === 0)
+    return { program, typeDeclarations: [], diagnostics: [] };
   const diagnostics: Diagnostic[] = [...importDiagnostics];
   const taken = new Set<string>([
     ...program.data.map((declaration) => declaration.name),
@@ -638,6 +640,21 @@ export function withTypeDeclarations(
     ],
   };
   const rewritten = rewriteTypes(lowered, expander);
+  // Aliases disappear from the executable program, but their bounds and
+  // defaults remain written type surfaces for the post-trait validator.
+  const typeDeclarations: TypeDecl[] = accepted.map((declaration) => ({
+    ...declaration,
+    ...(declaration.genericBounds
+      ? {
+          genericBounds: rewriteTypes(declaration.genericBounds, expander, declaration.span),
+        }
+      : {}),
+    ...(declaration.genericDefaults
+      ? {
+          genericDefaults: rewriteTypes(declaration.genericDefaults, expander, declaration.span),
+        }
+      : {}),
+  }));
   // An inherent implementation cannot target a transparent alias
   // (09-traits.md#r-trait.own.inherent.tuple-alias).
   // Inspect the pre-expansion head: the lowered program has compiler/imported
@@ -660,5 +677,5 @@ export function withTypeDeclarations(
         }
       : implementation,
   );
-  return { program: { ...rewritten, implementations }, diagnostics };
+  return { program: { ...rewritten, implementations }, typeDeclarations, diagnostics };
 }

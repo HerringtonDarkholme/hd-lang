@@ -1,8 +1,14 @@
-import { listVararg, type TraitDecl } from "../ast.ts";
+import {
+  listVararg,
+  type FunctionDecl,
+  type GenericBound,
+  type MethodDecl,
+  type TraitDecl,
+} from "../ast.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
-import { mutableInner, nominalGenericParts, typeSourceText } from "../types.ts";
+import { mutableInner, nominalGenericParts, rowArgumentType, typeSourceText } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   requirementKeyDiagnostics,
@@ -17,8 +23,10 @@ import {
   resolveGenericRequirement,
   resolveGenericType,
   resolveTraitType,
+  rowParameterName,
   typeName,
 } from "./shared.ts";
+import { dynamicTraitProblemInType } from "./written-type-validation.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
 import { traitImpliesValueCategory } from "./value-categories.ts";
@@ -208,7 +216,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
           new Set(declaration.genericParameters.filter((name) => !rowParameters.has(name))),
           rowParameters,
           hashable,
-          { validateRequirementKeys: false },
+          { validateRequirementKeys: false, validateDynamicSafety: false },
         ) ?? "void";
       if (type === "void")
         diagnostics.push({
@@ -260,7 +268,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
             new Set(declaration.genericParameters),
             new Set(),
             new Set(),
-            { validateRequirementKeys: false },
+            { validateRequirementKeys: false, validateDynamicSafety: false },
           ) ?? "void",
         ] as const,
     );
@@ -310,7 +318,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           new Set(declaration.genericParameters),
           new Set(),
           new Set(),
-          { validateRequirementKeys: false },
+          { validateRequirementKeys: false, validateDynamicSafety: false },
         ) ?? "void";
       if (type === "void")
         diagnostics.push({
@@ -363,7 +371,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
             new Set(declaration.genericParameters),
             new Set(),
             new Set(),
-            { validateRequirementKeys: false },
+            { validateRequirementKeys: false, validateDynamicSafety: false },
           ) ?? "void";
         if (type === "void")
           diagnostics.push({
@@ -559,7 +567,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           memberGenerics,
           rowParameters,
           new Set(),
-          { validateRequirementKeys: false },
+          { validateRequirementKeys: false, validateDynamicSafety: false },
         );
         return type;
       });
@@ -573,7 +581,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           memberGenerics,
           rowParameters,
           new Set(),
-          { validateRequirementKeys: false },
+          { validateRequirementKeys: false, validateDynamicSafety: false },
         ) ?? "void";
       const referenceParameters: string[] = [];
       const valueParameters: string[] = [];
@@ -620,7 +628,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
               memberGenerics,
               rowParameters,
               new Set(),
-              { validateRequirementKeys: false },
+              { validateRequirementKeys: false, validateDynamicSafety: false },
             ) ?? "void",
           ] as const,
       );
@@ -667,7 +675,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
   addImpliedMethodValueCategories(traitTypes);
   diagnoseSupertraitCycles(context);
   diagnoseSupertraitMemberNames(context);
-  validateDeclaredRequirementKeys(context);
+  validateDeclaredTypes(context);
 }
 
 /**
@@ -700,15 +708,83 @@ function addImpliedMethodValueCategories(traitTypes: Map<string, HirTrait>): voi
 
 /**
  * Program type bodies are built before every trait body is available. Check
- * their nested rows only after that phase, so dynamic safety is independent
- * of declaration order.
+ * their nested rows and trait values only after that phase, so validation is
+ * independent of declaration order.
  */
-function validateDeclaredRequirementKeys(context: ProgramCheckContext): void {
-  const { dataTypes, enumTypes, traitTypes, diagnostics } = context;
+function validateDeclaredTypes(context: ProgramCheckContext): void {
+  const { program, typeDeclarations, dataTypes, enumTypes, traitTypes, diagnostics } = context;
   const known = (type: string): boolean =>
     isKnownType(resolveTraitType(type, traitTypes), dataTypes, enumTypes, traitTypes);
   const validateType = (type: string, span: HirData["span"]): void => {
-    diagnostics.push(...requirementKeyDiagnosticsInType(type, traitTypes, span, known));
+    const resolved = resolveTraitType(type, traitTypes);
+    const requirementDiagnostics = requirementKeyDiagnosticsInType(
+      resolved,
+      traitTypes,
+      span,
+      known,
+    );
+    diagnostics.push(...requirementDiagnostics);
+    if (requirementDiagnostics.length > 0) return;
+    const dynamicProblem = dynamicTraitProblemInType(resolved, traitTypes);
+    if (dynamicProblem) diagnostics.push({ ...dynamicProblem, span });
+  };
+  const validateBounds = (
+    bounds: readonly GenericBound[] | undefined,
+    genericParameters: ReadonlySet<string>,
+    rowParameters: ReadonlySet<string> = new Set(),
+  ): void => {
+    for (const bound of bounds ?? []) {
+      for (const sourceTrait of bound.traits) {
+        const key = mutableInner(sourceTrait) ?? sourceTrait;
+        for (const argument of nominalGenericParts(key)?.arguments ?? [])
+          validateType(resolveGenericType(argument, genericParameters, rowParameters), bound.span);
+      }
+      for (const binding of bound.bindings ?? [])
+        validateType(
+          resolveGenericType(binding.type.name, genericParameters, rowParameters),
+          binding.span,
+        );
+    }
+  };
+  const callableKinds = (
+    declaration: FunctionDecl | MethodDecl,
+    outerGenerics: readonly string[] = [],
+    outerRows: readonly string[] = [],
+  ): { readonly types: Set<string>; readonly rows: Set<string> } => {
+    const declared = new Set([...outerGenerics, ...declaration.genericParameters]);
+    const rows = new Set([...outerRows, ...(declaration.rowParameters ?? [])]);
+    for (const requirement of declaration.requirements)
+      if (declared.has(requirement)) rows.add(requirement);
+    declaration.parameters.forEach((parameter) =>
+      collectRowParameterReferences(parameter.type.name, declared, rows),
+    );
+    collectRowParameterReferences(declaration.result.name, declared, rows);
+    return {
+      types: new Set([...declared].filter((parameter) => !rows.has(parameter))),
+      rows,
+    };
+  };
+  const validateRequirements = (
+    declaration: FunctionDecl | MethodDecl,
+    genericParameters: ReadonlySet<string>,
+    rowParameters: ReadonlySet<string>,
+  ): void => {
+    const requirements = normalizedRequirements(
+      declaration.requirements
+        .flatMap((requirement) => resolveGenericRequirement(requirement, rowParameters))
+        .map((requirement) =>
+          rowParameterName(requirement)
+            ? requirement
+            : resolveRequirementKeyTypes(
+                resolveGenericType(requirement, genericParameters, rowParameters),
+                (type) => resolveTraitType(type, traitTypes),
+              ),
+        ),
+    );
+    if (requirementKeyDiagnostics(requirements, traitTypes, declaration.span, known).length > 0)
+      return;
+    const dynamicProblem = dynamicTraitProblemInType(rowArgumentType(requirements), traitTypes);
+    if (dynamicProblem) diagnostics.push({ ...dynamicProblem, span: declaration.span });
   };
   for (const data of dataTypes.values()) {
     data.fields.forEach((field) => validateType(field.type, field.span));
@@ -716,20 +792,85 @@ function validateDeclaredRequirementKeys(context: ProgramCheckContext): void {
   }
   for (const enumType of enumTypes.values())
     enumType.fields.forEach((field) => validateType(field.type, field.span));
+  for (const declaration of program.data) {
+    const rows = new Set(dataTypes.get(declaration.name)?.rowParameters ?? []);
+    validateBounds(
+      declaration.genericBounds,
+      new Set(declaration.genericParameters.filter((parameter) => !rows.has(parameter))),
+      rows,
+    );
+  }
+  for (const declaration of program.enums)
+    validateBounds(declaration.genericBounds, new Set(declaration.genericParameters));
+  for (const declaration of typeDeclarations) {
+    const rows = new Set(declaration.rowParameters ?? []);
+    const types = new Set(
+      declaration.genericParameters.filter((parameter) => !rows.has(parameter)),
+    );
+    validateBounds(declaration.genericBounds, types, rows);
+    for (const defaultType of Object.values(declaration.genericDefaults ?? {}))
+      validateType(resolveGenericType(defaultType.name, types, rows), defaultType.span);
+  }
   for (const trait of traitTypes.values()) {
     for (const supertrait of trait.supertraits) {
       supertrait.traitArguments.forEach((type) => validateType(type, trait.span));
       supertrait.associatedBindings?.forEach((binding) => validateType(binding.type, trait.span));
     }
     for (const method of trait.methods) {
-      diagnostics.push(
-        ...requirementKeyDiagnostics(method.requirements, traitTypes, method.span, known),
+      const requirementDiagnostics = requirementKeyDiagnostics(
+        method.requirements,
+        traitTypes,
+        method.span,
+        known,
       );
+      diagnostics.push(...requirementDiagnostics);
+      if (requirementDiagnostics.length === 0) {
+        const dynamicProblem = dynamicTraitProblemInType(
+          rowArgumentType(method.requirements),
+          traitTypes,
+        );
+        if (dynamicProblem) diagnostics.push({ ...dynamicProblem, span: method.span });
+      }
       method.parameters.forEach((type) => validateType(type, method.span));
       validateType(method.result, method.span);
       for (const type of method.genericDefaults?.values() ?? []) validateType(type, method.span);
-      for (const bound of method.genericBounds ?? [])
-        bound.traitArguments.forEach((type) => validateType(type, method.span));
+    }
+  }
+  for (const declaration of program.traits) {
+    validateBounds(declaration.genericBounds, new Set(declaration.genericParameters));
+    const trait = traitTypes.get(declaration.name);
+    declaration.methods.forEach((method, index) => {
+      const rows = new Set(trait?.methods[index]?.rowParameters ?? []);
+      validateBounds(
+        method.genericBounds,
+        new Set(
+          [...declaration.genericParameters, ...method.genericParameters].filter(
+            (parameter) => !rows.has(parameter),
+          ),
+        ),
+        rows,
+      );
+    });
+  }
+  for (const declaration of program.functions) {
+    const kinds = callableKinds(declaration);
+    validateBounds(declaration.genericBounds, kinds.types, kinds.rows);
+    validateRequirements(declaration, kinds.types, kinds.rows);
+  }
+  for (const implementation of program.implementations) {
+    const implementationRows = new Set(implementation.rowParameters ?? []);
+    const implementationTypes = new Set(
+      implementation.genericParameters.filter((parameter) => !implementationRows.has(parameter)),
+    );
+    validateBounds(implementation.genericBounds, implementationTypes, implementationRows);
+    for (const method of implementation.methods) {
+      const kinds = callableKinds(
+        method,
+        implementation.genericParameters,
+        implementation.rowParameters ?? [],
+      );
+      validateBounds(method.genericBounds, kinds.types, kinds.rows);
+      validateRequirements(method, kinds.types, kinds.rows);
     }
   }
 }

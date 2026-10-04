@@ -4,42 +4,11 @@ Status: findings of a bounded, read-only review of `src/` at `5ba7393e`. Nothing
 
 ## Summary
 
-The remaining review has 8 findings: 2 high, 2 medium and 4 low. Five are bugs with a reproduction, one is a resource problem with timings, and two are hacks cited by line. The highest remaining root is written-type validation split across two paths: nested types and local annotations skip the dynamic-safety and bound checks (O-02, O-03). Integration-test source rewriting causes O-05 and O-12. Four more items are suspected but not reproduced.
+The remaining review has 7 findings: 1 high, 2 medium and 4 low. Four are bugs with a reproduction, one is a resource problem with timings, and two are hacks cited by line. The highest remaining root is O-03: written type applications skip their declarations' generic bounds. Integration-test source rewriting causes O-05 and O-12. Four more items are suspected but not reproduced.
 
 Each repro ran with `timeout 60 node bin/hd.js check|run|test FILE` from a scratch folder `scratch-230/` in the worktree, so output paths keep that prefix.
 
 ## Findings
-
-### O-02: trait-value dynamic safety is checked only for a top-level signature type
-
-- Severity: high. Kind: bug.
-- Where: `src/checker/context.ts:1226` (`resolveType`) and `src/checker/shared.ts:1299` (`typeName`).
-- `typeName` checks dynamic safety only when the whole written type is a trait. `resolveType`, used for local annotations, has no such check at all. So an unsafe trait passes as a value in `let s: Show = ...` and inside `List[Show]`, and the program runs.
-
-Repro (`dyn4.hd`):
-
-```text
-trait Show:
-    fn show[T](self, v: T) -> i32
-
-data A:
-    x: i32
-
-impl Show for A:
-    fn show[T](self, v: T) -> i32:
-        self.x
-
-fn use_it(xs: List[Show]) -> i32:
-    xs[0].show("text")
-
-pub fn main() -> void $ Console:
-    println("${use_it([A { x: 1 }])}")
-```
-
-`node bin/hd.js run dyn4.hd` prints `1`. The same trait as `fn use_it(s: Show)` gives `trait-not-dynamically-safe`. A local `let s: Show = A { x: 1 }` checks `ok`.
-
-- Expected: `trait-not-dynamically-safe` at `List[Show]` and at the local annotation (`trait.dyn.safe`, `trait.dyn.safe.error`, `trait.dyn.safe.implied-anyref-param`).
-- Fix: one written-type validator, shared by signatures and bodies, that walks every nested type argument.
 
 ### O-03: type-argument bounds of written types are not checked, except a top-level `Map` key
 
