@@ -240,7 +240,7 @@ test("hd run runs Console.write_line! on host and program providers", async () =
       "",
       "impl Console for Buffer:",
       "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:",
-      "        self.lines.append(text)",
+      "        self.lines.push(text)",
       "        .Ok(())",
       "",
       "fn greet!() -> Result[void, ConsoleError] $ Console:",

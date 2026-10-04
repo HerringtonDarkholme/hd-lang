@@ -656,7 +656,7 @@ class SuspensionPlanBuilder {
             continuation({ ...expression, receiver: receiver!, index: index!, value: value! }),
           context,
         );
-      case "list-append":
+      case "list-push":
         return this.lowerValueList(
           [expression.receiver, expression.value],
           ([receiver, value]) =>
@@ -742,7 +742,7 @@ class SuspensionPlanBuilder {
     const store: HirExpression =
       expression.kind === "list-comprehension"
         ? {
-            kind: "list-append",
+            kind: "list-push",
             receiver: target,
             value: expression.value,
             elementType: expression.elementType,

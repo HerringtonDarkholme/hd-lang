@@ -396,7 +396,7 @@ test("mutable lists append through growable Wasm GC storage", async () => {
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.match(compilation.wat, /type \$hd\.vector \(struct/);
-  assert.match(compilation.wat, /call \$hd\.vector_append/);
+  assert.match(compilation.wat, /call \$hd\.vector_push/);
   assert.ok(
     analyze(conformance("typing/invalid/readonly-list-append")).diagnostics.some(
       (diagnostic) => diagnostic.code === "mutable-receiver-required",
@@ -847,7 +847,7 @@ test("closures mutate their captures without a mut fn marker", async () => {
     "    let items: mut List[i32] = []",
     "    step := fn() -> i32:",
     "        count = count + 1",
-    "        items.append(count)",
+    "        items.push(count)",
     "        count",
     "    _ := step()",
     "    step() * 10 + i32(items.len())",

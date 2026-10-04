@@ -2276,3 +2276,7 @@ typing/invalid/qualified-string-prefix-call.hd	type
 parse/invalid/qualified-string-prefix-value.hd	parse
 typing/invalid/impl-target-key-bound-not-implied.hd	type
 typing/invalid/field-key-bound-not-implied.hd	type
+runtime/valid/list-pop.hd	runtime
+runtime/valid/list-insert-remove-clear.hd	runtime
+runtime/panic/list-insert-out-of-range.hd	runtime
+runtime/panic/list-remove-at-out-of-range.hd	runtime

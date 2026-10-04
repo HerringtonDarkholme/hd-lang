@@ -148,7 +148,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
           ].join("\n");
     const append =
       expression.kind === "list-comprehension"
-        ? `(call $hd.vector_append ${resultValue} ${this.boxValue(expression.value, expression.elementType)})`
+        ? `(call $hd.vector_push ${resultValue} ${this.boxValue(expression.value, expression.elementType)})`
         : [
             `(call $hd.map_insert`,
             `  ${resultValue}`,

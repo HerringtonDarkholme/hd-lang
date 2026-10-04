@@ -349,7 +349,7 @@ function mapExpression(
       mapped = { ...original, receiver: expression(original.receiver) };
       break;
     case "field-set":
-    case "list-append":
+    case "list-push":
       mapped = {
         ...original,
         receiver: expression(original.receiver),

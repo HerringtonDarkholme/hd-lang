@@ -1138,7 +1138,7 @@ else`, `break`, `break value`, and `continue`;
   its argument's permission, as unwrapping one does. `Num::from_i64` checks
   its range in `lib/std/num.hd`, and `"$x"` on `T < Num` reaches `Display`
   through the supertrait;
-- homogeneous `List[T]` literals, indexing, `len()`, and mutable `append()` over
+- homogeneous `List[T]` literals, indexing, `len()`, and mutable `push()`, `pop()`, `insert()`, `remove_at()`, `clear()` over
   a growable Wasm GC vector with erased backing storage, plus indexed
   replacement through `mut List[T]`;
 - insertion-ordered `Map[K, V]` literals with duplicate replacement, optional
@@ -1362,11 +1362,12 @@ RUNTIME_AND_LIBRARY.md).
      the string primitives `bytes_len`, `bytes_at`, `bytes_slice`,
      `bytes_concat`, and `string_from_bytes`,
      `char_from_scalar`, `char_scalar`,
-     `list_version`, and the frames `task_race_frame` and
+     `list_version`, `list_truncate`, and the frames `task_race_frame` and
      `task_all_frame`. `list_version` reads a list's structural-version
      counter, so `ListView` in `lib/std/collections.hd` fails fast as an
      iterator does; it is the one intrinsic that the open issue VIEW-TIER
-     proposes.
+     proposes. `list_truncate` shortens a list and advances that counter;
+     `pop`, `insert`, `remove_at`, and `clear` are hd code over it.
    - Every other name is a **host function**, imported as `hd`
      `host:<name>` through one generic path. Scalars cross as Wasm numbers,
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`

@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,457 cases: 2,277 selected in `test/portable/cases.tsv` and 180 known
-failures. The selected cases are 2,000 language tier, 275 stdlib tier, and 2
-CLI tier; the known failures are 140 language tier, 10 stdlib tier, and 30
+2,457 cases: 2,281 selected in `test/portable/cases.tsv` and 176 known
+failures. The selected cases are 2,004 language tier, 275 stdlib tier, and 2
+CLI tier; the known failures are 136 language tier, 10 stdlib tier, and 30
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -47,7 +47,6 @@ CLI tier.
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
-| LIST-POP | 4 | `List.pop`, `insert`, `remove_at`, `clear`, and their list-truncate hook are absent |
 | STD-DEBUG | 1 | std derivation ordering leaves TypeId and SelfRef without Debug |
 | METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |

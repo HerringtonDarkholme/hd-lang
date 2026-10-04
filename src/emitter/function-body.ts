@@ -956,8 +956,8 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
             : "$hd.vector_set";
         return `(call ${set} ${vector} ${index} ${this.boxValue(expression.value, expression.elementType)})`;
       }
-      case "list-append":
-        return `(call $hd.vector_append (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.boxValue(expression.value, expression.elementType)})`;
+      case "list-push":
+        return `(call $hd.vector_push (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.boxValue(expression.value, expression.elementType)})`;
       case "tuple-index":
         return this.unboxValue(
           `(array.get $hd.list (ref.as_non_null ${this.emitExpression(expression.receiver)}) (i32.const ${expression.index}))`,

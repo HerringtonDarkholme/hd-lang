@@ -93,7 +93,7 @@
       (i32.wrap_i64 (local.get $index))
       (local.get $value)))
 
-  (func $hd.vector_append
+  (func $hd.vector_push
     (param $vector (ref $hd.vector))
     (param $value anyref)
     (local $size i32)
@@ -129,6 +129,27 @@
     (struct.set $hd.vector $hd.vector-size
       (local.get $vector)
       (i32.add (local.get $size) (i32.const 1)))
+    (struct.set $hd.vector $hd.vector-version
+      (local.get $vector)
+      (i32.add
+        (struct.get $hd.vector $hd.vector-version (local.get $vector))
+        (i32.const 1))))
+
+  ;; Drops the elements from `length` on, clears their slots, and advances
+  ;; the structural version. A length past the size is a bug in the caller.
+  (func $hd.vector_truncate
+    (param $vector (ref $hd.vector))
+    (param $length i32)
+    (local $size i32)
+    (local.set $size (struct.get $hd.vector $hd.vector-size (local.get $vector)))
+    (if (i32.gt_u (local.get $length) (local.get $size))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
+    (array.fill $hd.list
+      (struct.get $hd.vector $hd.vector-values (local.get $vector))
+      (local.get $length)
+      (ref.null none)
+      (i32.sub (local.get $size) (local.get $length)))
+    (struct.set $hd.vector $hd.vector-size (local.get $vector) (local.get $length))
     (struct.set $hd.vector $hd.vector-version
       (local.get $vector)
       (i32.add

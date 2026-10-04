@@ -549,7 +549,7 @@ test("println drives write_line! on a program-defined Console (MHP-1)", async ()
     "",
     "impl Console for Buffer:",
     "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:",
-    "        self.lines.append(text)",
+    "        self.lines.push(text)",
     "        .Ok(())",
     "",
     'let recorded: string = ""',

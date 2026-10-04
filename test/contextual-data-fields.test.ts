@@ -11,7 +11,7 @@ test("known mutable field types contextualize empty collection literals", () => 
 pub fn main() -> void:
     let mut walk = Walk { state: {}, path: [] }
     walk.state["seen"] = 1
-    walk.path.append(2)
+    walk.path.push(2)
 `;
 
   assert.deepEqual(analyze(source).diagnostics, []);
@@ -37,7 +37,7 @@ data Outer:
 
 pub fn main() -> void:
     let mut outer = Outer { box: Box { items: [] } }
-    outer.box.items.append(1)
+    outer.box.items.push(1)
 `;
 
   assert.deepEqual(analyze(source).diagnostics, []);
@@ -92,7 +92,7 @@ pub fn main() -> void:
     let values: List[i32] = []
     _ := Outer { inner: Inner { values: values } }
     let mut outer = Outer { inner: Inner { values: [] } }
-    outer.inner.values.append(1)
+    outer.inner.values.push(1)
 `;
 
   assert.deepEqual(analyze(source).diagnostics, []);

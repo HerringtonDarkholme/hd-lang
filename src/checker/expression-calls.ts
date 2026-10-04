@@ -257,22 +257,18 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         span: expression.span,
       };
     }
-    if (receiverNominal?.name === "List" && expression.callee.name === "append") {
+    if (receiverNominal?.name === "List" && expression.callee.name === "push") {
       if (mutableInner(receiver.type) === undefined)
-        this.fail(
-          "mutable-receiver-required",
-          "list.append requires mutable list access",
-          expression.callee.receiver.span,
-        );
+        this.failReadonlyMethodReceiver("push", expression.callee.receiver, receiver);
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(
           "positional-spread-needs-vararg",
-          "list.append has no variadic parameter",
+          "list.push has no variadic parameter",
           expression.span,
         );
       if (expression.arguments.length !== 1)
-        this.fail("argument-count", "list.append expects one value", expression.span);
-      this.resolveArgumentMapping(expression, ["value"], "list.append");
+        this.fail("argument-count", "list.push expects one value", expression.span);
+      this.resolveArgumentMapping(expression, ["value"], "list.push");
       const elementType = receiverNominal.arguments[0]!;
       const value = this.requireCoercion(
         this.checkExpression(expression.arguments[0]!, elementType),
@@ -280,7 +276,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         expression.arguments[0]!.span,
       );
       return {
-        kind: "list-append",
+        kind: "list-push",
         receiver,
         value,
         elementType,

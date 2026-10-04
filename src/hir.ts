@@ -874,7 +874,7 @@ export type HirExpression =
       readonly elementType: ValueType;
     })
   | (HirExpressionBase & {
-      readonly kind: "list-append";
+      readonly kind: "list-push";
       readonly receiver: HirExpression;
       readonly value: HirExpression;
       readonly elementType: ValueType;

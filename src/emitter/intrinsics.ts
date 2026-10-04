@@ -45,6 +45,9 @@ const RUNTIME_PRIMITIVES: Readonly<
   // (spec/std/collections.md#views, open issue VIEW-TIER).
   list_version: ([items]) =>
     `(struct.get $hd.vector $hd.vector-version (ref.as_non_null ${items}))`,
+  // Shrinks a list to `len` elements; std checks the bound first.
+  list_truncate: ([items, length]) =>
+    `(call $hd.vector_truncate (ref.as_non_null ${items}) ${length})`,
   // The polling frames of `race!` and `all!`
   // (11-requirements-and-suspension.md#r-req.combinator.intrinsic), whose
   // runtime is `$hd.combinator` (stored-suspension.ts).
