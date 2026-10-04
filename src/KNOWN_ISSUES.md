@@ -11,15 +11,17 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,412 cases: 2,237 selected in `test/portable/cases.tsv` and 175 known
-failures. The selected cases are 1,966 language tier, 269 stdlib tier, and 2
-CLI tier; the known failures are 145 language tier, 10 stdlib tier, and 20
+2,422 cases: 2,238 selected in `test/portable/cases.tsv` and 184 known
+failures. The selected cases are 1,967 language tier, 269 stdlib tier, and 2
+CLI tier; the known failures are 146 language tier, 10 stdlib tier, and 28
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
 | PENDING-FIRST-POLL | 13 | the CLI has no `pending-first-poll` scenario: no host hook makes every host call pending on its first poll |
-| CLI-NEW | 6 | no `hd new` command |
+| CLI-NEW | 9 | no `hd new` command |
+| CLI-DOC | 5 | no `hd doc` command |
+| MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
 | CLI-JSON | 7 | `--format json` prints diagnostics to stderr with a nested `span`, has no summary object, and has no test objects |
 | CLI-EXIT | 2 | a rejected program or command line exits 1 or 2, not 101 |
 | CLI-PKG-CMD | 3 | `hd check`, `hd build`, and `hd run` take a FILE and have no whole-package form; outside a package `hd test` exits 0 |

@@ -1,0 +1,2 @@
+run: hd doc
+exit: 101

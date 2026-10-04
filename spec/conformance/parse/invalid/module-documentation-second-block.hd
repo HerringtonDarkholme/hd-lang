@@ -1,0 +1,9 @@
+# test: only the first block of a file documents the module, so a later block with a blank line after it has no target
+# Spec 01 Documentation Comments: lex.doc.module.once, lex.doc.unattached.
+
+## Text helpers for URLs and titles.
+
+## A second block with no declaration after it.  # diagnostic: doc-comment-without-target
+
+pub fn slugify(title: string) -> string:
+    title

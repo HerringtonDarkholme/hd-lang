@@ -342,7 +342,10 @@ name := "Ada"  # A comment after code.
 4. r[lex.doc.text] The lexer removes `##` and one following space when present, then joins lines with `\n`.
 5. r[lex.doc.field] For a field or variant, the resulting string is the `doc` field of its `Member` or `VariantInfo`; for any other target it is for tools. Without an attached documentation comment, `doc` is `.None`.
 6. r[lex.doc.trailing] A trailing `##` comment after source code is ordinary commentary and does not attach.
-7. r[lex.doc.unattached] An otherwise unattached documentation-comment line is a lexical error. Error: `doc-comment-without-target`.
+7. r[lex.doc.module] The first documentation-comment block of a file documents the file's module when no token precedes it and a blank line follows it.
+8. r[lex.doc.module.once] A file has at most one module documentation block. A later block follows `lex.doc.attach`.
+9. r[lex.doc.module.text] The text of module documentation is formed as `lex.doc.text` forms it, and is for tools.
+10. r[lex.doc.unattached] An otherwise unattached documentation-comment line is a lexical error. Error: `doc-comment-without-target`.
 
 ```text
 fn run() -> void:
@@ -350,8 +353,19 @@ fn run() -> void:
     value := 1
 ```
 
-> **Note.** A fenced `hd` block inside a documentation comment is a
-> [doc test](10-modules.md#doc-tests), which `hd test` runs.
+A module documentation block sits at the top of the file, apart from the
+first declaration:
+
+```text
+## Text helpers for URLs and titles.
+
+## Turns a title into a URL slug.
+pub fn slugify(title: string) -> string: title
+```
+
+> **Note.** A fenced `hd` block inside a documentation comment, module
+> documentation included, is a [doc test](10-modules.md#doc-tests), which
+> `hd test` runs.
 
 ### Comment Grammar
 

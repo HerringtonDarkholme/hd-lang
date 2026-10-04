@@ -1,0 +1,6 @@
+run: hd doc --out site text.slugify
+no-file: site/text.md
+no-file: site/index.md
+run: hd doc text.missing
+exit: 101
+run: hd doc text

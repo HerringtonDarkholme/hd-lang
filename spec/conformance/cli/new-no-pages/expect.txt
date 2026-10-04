@@ -1,0 +1,3 @@
+run: hd new --app --vcs none
+file: hd.toml
+no-file: .github/workflows/docs.yml

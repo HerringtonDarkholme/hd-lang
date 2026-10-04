@@ -2236,3 +2236,4 @@ typing/valid/variance-invariant-target.hd	type
 typing/valid/variance-opposing-target-signs.hd	type
 cli/exit-test-failure	cli
 cli/exit-package-file	cli
+parse/invalid/module-documentation-second-block.hd	parse

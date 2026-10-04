@@ -1,0 +1,7 @@
+run: hd doc --out site
+file: site/index.md
+file: site/index.html
+file: site/text.md
+file: site/text.html
+file: site/llms.txt
+file: site/llms-full.txt

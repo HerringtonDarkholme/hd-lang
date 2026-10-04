@@ -1,0 +1,4 @@
+run: hd new --lib --vcs none --pages
+exit: 101
+no-file: hd.toml
+no-file: src/lib.hd

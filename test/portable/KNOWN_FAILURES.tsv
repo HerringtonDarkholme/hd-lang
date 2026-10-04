@@ -174,3 +174,12 @@ cli/new-path	no `hd new` command: `hd new --app --vcs none hello` exits 2 as an 
 cli/new-vcs	no `hd new` command: `hd new --app tracked` exits 2 as an unknown command (cli.new.vcs, cli.new.vcs-none)	CLI-NEW
 cli/new-existing	no `hd new` command: `hd new --app --vcs none` exits 2 as an unknown command, where cli.new.existing wants 101	CLI-NEW
 cli/new-no-kind	no `hd new` command: `hd new --vcs none hello` exits 2 as an unknown command, where cli.new.kind.no-terminal wants 101	CLI-NEW
+parse/valid/module-documentation.hd	no module documentation: the lexer reports doc-comment-without-target for the second block, where lex.doc.module makes the first block the module's documentation	MODULE-DOC
+cli/doc-out	no `hd doc` command: `hd doc --out site` exits 2 as an unknown command (cli.doc.command, cli.doc.files)	CLI-DOC
+cli/doc-outside-package	no `hd doc` command: `hd doc` exits 2 as an unknown command, where cli.doc.package wants 101	CLI-DOC
+cli/doc-check-error	no `hd doc` command: `hd doc --out site` exits 2 as an unknown command, where cli.doc.check wants 101	CLI-DOC
+cli/doc-name	no `hd doc` command: `hd doc --out site text.slugify` exits 2 as an unknown command (cli.doc.name)	CLI-DOC
+cli/doc-private	no `hd doc` command: `hd doc text.helper` exits 2 as an unknown command, where cli.doc.private wants 101	CLI-DOC
+cli/new-pages	no `hd new` command: `hd new --app --vcs none --pages` exits 2 as an unknown command (cli.new.pages)	CLI-NEW
+cli/new-no-pages	no `hd new` command: `hd new --app --vcs none` exits 2 as an unknown command, so hd.toml is missing (cli.new.pages.default)	CLI-NEW
+cli/new-pages-existing	no `hd new` command: `hd new --lib --vcs none --pages` exits 2 as an unknown command, where cli.new.existing wants 101	CLI-NEW

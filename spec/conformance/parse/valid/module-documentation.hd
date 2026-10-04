@@ -1,0 +1,12 @@
+# test: the first documentation block of a file, followed by a blank line, documents the module
+# Spec 01 Documentation Comments: lex.doc.module, lex.doc.module.once.
+
+## Text helpers for URLs and titles.
+##
+## ```text
+## slugify("Ship It Now") == "Ship-It-Now"
+## ```
+
+## Turns a title into a URL slug.
+pub fn slugify(title: string) -> string:
+    title

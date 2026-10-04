@@ -9,6 +9,7 @@ command finds a package and what each command runs:
 - `hd`, `hd FILE`, `hd run`, `hd build`, `hd check`, and `hd test`;
 - the executables a manifest declares, and package tasks;
 - program arguments, host capabilities, machine output, and exit status;
+- `hd doc`, which writes a package's documentation;
 - `hd new`, and the REPL.
 
 The language tier defines what a program means: its
@@ -26,7 +27,8 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd FILE` | runs FILE as a [single file](#single-files) |
 | `hd run`, `hd run NAME` | runs an [executable or a task](#running-a-package) of the package |
 | `hd build`, `hd check`, `hd test` | work on the [package](#building-and-checking), or on one FILE |
-| `hd new [--app \| --lib] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
+| `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
+| `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd help`, `hd --help` | prints the command list |
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list.
@@ -287,12 +289,13 @@ hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 17. r[cli.test.doc.json] With `--format json`, a doc test's test object holds that name in `name`, and its diagnostics give that file and line in `file` and `line`.
 18. r[cli.test.doc.name.root] For a block in `src/lib.hd`, `<module>` is `pkg`, which names the package root module by [`module.path.lib-file`](../lang/10-modules.md#r-module.path.lib-file).
 19. r[cli.test.doc.name.member] For a block on a member, `<item>` is `Type.member`, so the first block on `new` of `Slug` in `src/text.hd` is `doc text.Slug.new[0]`.
-20. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
+20. r[cli.test.doc.name.module] A block in a module's [module documentation](../lang/01-lexical-structure.md#r-lex.doc.module) has no `<item>` and no dot. The first such block in `src/text.hd` is `doc text[0]`.
+21. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
 
 | Part | Value |
 | --- | --- |
 | `<module>` | the path of the module whose comment holds the block, such as `text` for `src/text.hd`, and `pkg` for `src/lib.hd` |
-| `<item>` | the name of the documented declaration, such as `slugify`; for a member, the declaration's name, a dot, and the member's name, such as `Slug.new` |
+| `<item>` | for a block on a declaration, the name of the documented declaration, such as `slugify`; for a member, the declaration's name, a dot, and the member's name, such as `Slug.new` |
 | `[i]` | the block's index among that item's doc tests, from 0, as in the `name[i]` of an `it_each` row |
 
 So the first `hd` block on `slugify` in `src/text.hd` is `doc text.slugify[0]`,
@@ -304,6 +307,123 @@ The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 > new package may have none yet. A filter that matches nothing in a named
 > FILE is most often a typo, so it does not pass silently. A changed profile can skip a whole
 > suite, so CI can opt in to treating that as a failure.
+
+## Documentation
+
+`hd doc` writes a package's documentation, built from its declarations and
+their `##` [documentation comments](../lang/01-lexical-structure.md#documentation-comments):
+
+```sh
+hd doc                   # writes the pages into the build directory's doc/
+hd doc --open            # also opens index.html
+hd doc --private         # also documents the private items
+hd doc --out site        # writes the pages into site/
+hd doc text.slugify      # prints the Markdown of one item
+```
+
+A module's page looks like this, in Markdown:
+
+````markdown
+# Module `text`
+Text helpers for URLs and titles.
+
+- [`slugify`](#slugify): Turns a title into a URL slug.
+
+<a id="slugify"></a>
+## `slugify`
+```hd
+pub fn slugify(title: string) -> string
+```
+Turns a title into a URL slug: each space becomes a hyphen.
+See `Slug` for a checked slug.
+
+Example `doc text.slugify[0]`:
+```hd
+use pkg.text.{slugify}
+use std.testing.assert_equal
+
+assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a hyphen")
+```
+````
+
+### Scope
+
+1. r[cli.doc.command] `hd doc` writes the HTML and the Markdown of the package's documentation together. No flag selects one format.
+2. r[cli.doc.package] `hd doc` works on the package of [package mode](#package-mode), and is an error outside any package.
+3. r[cli.doc.workspace] In workspace mode, `hd doc` needs `-p NAME`, by [Selecting Members](#selecting-members), to select one member. Without it, `hd doc` is an error.
+4. r[cli.doc.check] `hd doc` checks the package as `hd check` does. When that reports an error, `hd doc` writes and prints no documentation.
+5. r[cli.doc.markdown] The text of a documentation comment is Markdown, as CommonMark defines it.
+6. r[cli.doc.items] `hd doc` documents each `pub` item of every module under the source root, with the `pub` members of each, as the table below lists. Items are functions, data types, enums, traits, and type aliases.
+7. r[cli.doc.private] `--private` also documents the private items and members. It applies to the package only, and to `hd doc NAME` as to the pages.
+8. r[cli.doc.reexport] A `pub use` of a module is listed under that module, with a link to the page of the module that declares the item. It copies no signature and no doc, since the item keeps its [identity](../lang/10-modules.md#r-module.pub-use.identity).
+
+| Item | The signature block holds |
+| --- | --- |
+| function | the declaration through its result type and requirement row, with no body |
+| data type | the declaration head and its `pub` fields; the line `# private fields omitted` stands for the private ones |
+| enum | the declaration head and its variants with their payloads |
+| trait | the declaration head and the signature of each method |
+| type alias | the whole declaration |
+| `pub` method of an inherent `impl` | the method's signature, under the type's heading |
+
+### Output
+
+1. r[cli.doc.dir] `hd doc` writes into the directory `doc` of the build directory, which is where `hd` writes its build and cache output. `--out DIR` writes into DIR instead.
+2. r[cli.doc.open] `--open` opens `index.html` of the output with the platform's default program, after the files are written.
+3. r[cli.doc.files] The output holds the files of the table below. A module's HTML and Markdown pages sit side by side.
+4. r[cli.doc.relative] A link between the output's files is a relative path, so the output works from any base path.
+5. r[cli.doc.html] A module's HTML page holds everything its Markdown page holds, under the same anchors. Its styling and navigation are not specified.
+
+| Files | Hold |
+| --- | --- |
+| `index.md`, `index.html` | the root module `pkg`, which is `src/lib.hd`; with no `src/lib.hd`, only the package name and the list of modules |
+| `PATH.md`, `PATH.html` | one pair for each other module under the source root; `PATH` is the module path with each `.` a `/`, so module `shop.cart` is `shop/cart.md` |
+| `llms.txt` | the index for agents, by [`cli.doc.llms`](#r-cli.doc.llms) |
+| `llms-full.txt` | the whole documentation in one file, by [`cli.doc.llms-full`](#r-cli.doc.llms-full) |
+
+### Pages
+
+1. r[cli.doc.page] A module's Markdown page starts with the heading `` # Module `PATH` ``, then the module's documentation, then a list of its items. Each list entry links to the item's anchor and ends with the item's summary.
+2. r[cli.doc.summary] An item's **summary** is the first sentence of its documentation, or empty when it has none.
+3. r[cli.doc.item] Each item has a second-level heading with its name in code, and each member a third-level heading with `Type.member` in code. Below the heading come the signature, the documentation, and the examples.
+4. r[cli.doc.anchor] An item's anchor is its item name, as [`cli.test.doc.name`](#r-cli.test.doc.name) forms `<item>`, such as `slugify` or `Slug.new`.
+5. r[cli.doc.signature] A signature is the source text of the declaration, copied as written, in a fenced block whose info string is `hd`.
+6. r[cli.doc.impls] A type lists the traits it implements, one line for each implementation head. That includes implementations in other modules of the package. A derived implementation is marked `(derived)`.
+7. r[cli.doc.concise] A page holds no function body and no navigation text.
+8. r[cli.doc.example] Each [doc test](../lang/10-modules.md#doc-tests) appears in place, as written, in an `hd` block. The word `Example` and the doc test's name in code, as [`cli.test.doc.name`](#r-cli.test.doc.name) forms it, come before the block.
+9. r[cli.doc.example.compile-fail] A compile-fail doc test is labelled `Does not compile (CODE)`, with its error code, and its block keeps the `# error: CODE` line.
+
+### Pages For Agents
+
+1. r[cli.doc.llms] `llms.txt` starts with a heading of the package's name. Then it holds a blockquote with the summary of the root module's documentation, and a `## Modules` list.
+2. r[cli.doc.llms.modules] The list has one entry for each module: a link to its `.md` page, a colon, and the summary of the module's documentation.
+3. r[cli.doc.llms-full] `llms-full.txt` holds the Markdown of every module page, the root module first and the others in path order.
+
+### Links
+
+1. r[cli.doc.link.form] A documentation comment links to an item with the Markdown shortcut `` [`NAME`] ``, as in `` [`Slug.new`] ``. A Markdown link with a target is ordinary Markdown and is not checked.
+2. r[cli.doc.link.scope] NAME resolves in the module scope of the documented item: its own declarations and the names its `use` declarations bind. A dotted NAME names a member or a path through modules.
+3. r[cli.doc.link.resolved] A resolved link becomes a link to the target's anchor, on the target's page.
+4. r[cli.doc.link.external] A NAME that resolves to a `std` item links to the page for that item in the standard library reference. A NAME that resolves into a dependency is checked, but shows as plain code.
+5. r[cli.doc.link.broken] A NAME that resolves to no item is a warning, as is one that resolves to a private item the run does not document. The text shows as plain code. Warning: `broken-doc-link`.
+
+### Looking Up One Item
+
+1. r[cli.doc.name] `hd doc NAME` prints the Markdown of one item to standard output, and writes no file. It prints the item's section of the module page, from its heading to the next heading of the same or a higher level.
+2. r[cli.doc.name.form] NAME is a module path and an item name joined by a dot, as in `text.slugify` or `text.Slug.new`. The module is the longest prefix that names a module, and `pkg` names the root module.
+3. r[cli.doc.name.module] A NAME that names only a module prints that module's whole Markdown page.
+4. r[cli.doc.name.dependency] A NAME that starts with `dep.` and a dependency's key, as in `dep.json.parse`, names an item of that dependency. Only its `pub` items are found.
+5. r[cli.doc.name.missing] A NAME that names no documented item is an error.
+
+> **Why.** The Markdown pages let an agent fetch one module in one
+> request, and `hd doc NAME` answers a lookup without any file. A broken
+> link is a warning, so a rename does not block a build. Anchors equal
+> doc-test names, so one name finds the item, its page section, and its
+> examples.
+
+See also: [Doc Tests](../lang/10-modules.md#doc-tests),
+[Documentation Comments](../lang/01-lexical-structure.md#documentation-comments),
+[Creating A Package](#creating-a-package).
 
 ## Machine Output
 
@@ -399,6 +519,7 @@ hd new --app hello   # hello/hd.toml, src/main.hd, and tests/hello.hd, in a new 
 hd new --lib util    # util/hd.toml, src/lib.hd, and tests/util.hd
 hd new --app         # an application in the working directory
 hd new hello         # asks which kind, or fails without a terminal
+hd new --lib util --pages    # also writes .github/workflows/docs.yml
 cd hello
 hd run               # runs src/main.hd
 hd test              # runs tests/hello.hd, which runs the executable
@@ -419,9 +540,55 @@ hd test              # runs tests/hello.hd, which runs the executable
 13. r[cli.new.vcs] Unless the new package's directory is already inside a git repository, `hd new` runs `git init` there and writes a `.gitignore`, as Cargo does.
 14. r[cli.new.vcs.ignore] That `.gitignore` lists only the directory where `hd` writes its build and cache output. `hd.sum` is not listed, so it is committed.
 15. r[cli.new.vcs-none] `hd new --vcs none` runs no `git init` and writes no `.gitignore`.
+16. r[cli.new.pages] `hd new --pages` also writes `.github/workflows/docs.yml` in the new package's directory, for an application and for a library.
+17. r[cli.new.pages.workflow] That workflow runs [`hd doc`](#documentation) and deploys the output directory to GitHub Pages.
+18. r[cli.new.pages.ask] When `hd new` asks which kind to create, by [`cli.new.kind.ask`](#r-cli.new.kind.ask), it also asks whether to publish the documentation to GitHub Pages. A yes is `--pages`.
+19. r[cli.new.pages.default] Without `--pages`, and without that question, `hd new` writes no workflow file.
 
 > **Note.** [Running Executables](../std/testing.md#running-executables)
 > shows the test that `hd new --app` writes.
+
+The workflow file that `--pages` writes looks like this. Its exact text is
+not specified:
+
+```yaml
+# Written by `hd new --pages` (hd 0.4.0).
+name: Docs
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hd-lang/setup-hd@0.4.0
+      - run: hd doc --out _site
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+```
+
+> **Note.** The workflow installs `hd` with a `setup-hd` action, pinned to
+> the version of `hd` that wrote the file. That action is not published
+> yet, so a workflow written today cannot run until it is. The repository's
+> Pages source must also be set to "GitHub Actions". `hd new` cannot set it.
+
+> **Note.** [`cli.new.existing`](#r-cli.new.existing) covers the workflow
+> file too: when it exists already, `hd new` writes nothing.
 
 > **Why.** A new package starts with a passing test in `tests/`. Where
 > tests go, and how they reach the package, is then visible from the first

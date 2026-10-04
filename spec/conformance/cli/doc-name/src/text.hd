@@ -1,0 +1,7 @@
+## Text helpers for URLs and titles.
+
+## Turns a title into a URL slug: each space becomes a hyphen.
+pub fn slugify(title: string) -> string:
+    title
+
+fn helper() -> i32: 1

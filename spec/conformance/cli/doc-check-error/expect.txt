@@ -1,0 +1,5 @@
+run: hd doc --out site
+exit: 101
+no-file: site/index.md
+no-file: site/index.html
+no-file: site/llms.txt
