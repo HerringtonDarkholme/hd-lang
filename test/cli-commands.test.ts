@@ -328,7 +328,7 @@ test("hd test links integration test modules under tests/", async () => {
     await writeTree(directory, {
       "hd.toml": "",
       "src/util.hd": 'pub fn greet() -> string: "hi"\n',
-      "tests/common.hd": 'pub fn expected() -> string: "hi"\n',
+      "tests/common/mod.hd": 'pub fn expected() -> string: "hi"\n',
       "tests/greeting.hd": [
         "use pkg.util.{greet}",
         "use tests.common.{expected}",

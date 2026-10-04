@@ -1699,6 +1699,7 @@ parse/invalid/reified-generic-parameter.hd	parse
 typing/invalid/arbitrary-with-non-inspectable-member.hd	type
 typing/valid/typed-fact.hd	type
 typing/invalid/integration-super-above-test-root.hd	type
+typing/invalid/integration-program-use.hd	type
 runtime/valid/test-block-on.hd	runtime
 runtime/valid/println-in-test-body.hd	runtime
 typing/invalid/race-no-tasks.hd	type

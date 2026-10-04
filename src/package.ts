@@ -25,11 +25,16 @@ import { parse } from "./parser/index.ts";
 // name a test case alike.
 //
 // An integration test module (spec/lang/10-modules.md#r-module.test.integration)
-// is test code too, so it links like a test module. It reaches the library
-// through `pkg` uses, which see only public declarations, and other
-// integration test modules through the `tests` root or `self`. The joined
-// program shares one namespace, so it does not hide a library module's
-// private names or test code from an integration test module.
+// is test code too. Each file directly under the test root is an integration
+// test program: its own program, linked only with the library and shared
+// test modules it uses, separately from the other programs
+// (spec/lang/10-modules.md#r-module.test.integration.program). A use of one
+// program from another module is `unknown-module`
+// (spec/lang/10-modules.md#r-module.test.integration.program-use). A module
+// in a subdirectory of the test root is shared test code that any program
+// may use through `self`. The joined program shares one namespace, so it
+// does not hide a library module's private names from an integration test
+// module.
 
 export const SOURCE_ROOT = "src/";
 /** The default test root, which holds the integration test modules. */
@@ -72,6 +77,15 @@ interface LinkOptions {
 /** Whether a package path is an integration test module (spec/lang/10-modules.md#r-module.test.integration). */
 function isIntegrationTestPath(path: string): boolean {
   return path.startsWith(TEST_ROOT);
+}
+
+/**
+ * Whether a package path is an integration test program: a file directly
+ * under the test root, such as `tests/checkout.hd`, which is its own program
+ * (spec/lang/10-modules.md#r-module.test.integration.program).
+ */
+function isIntegrationTestProgram(path: string): boolean {
+  return path.startsWith(TEST_ROOT) && !path.slice(TEST_ROOT.length).includes("/");
 }
 
 /**
@@ -120,6 +134,31 @@ export function moduleIdentity(path: string): string | undefined {
 
 function fold(identity: string): string {
   return identity.toUpperCase().toLowerCase().normalize("NFC");
+}
+
+// The unknown-module message for a use of an integration test program from
+// another module, or undefined when the use is allowed
+// (spec/lang/10-modules.md#r-module.test.integration.program-use).
+function programUseMessage(
+  module: PackageModule,
+  target: PackageModule,
+  identity: string,
+): string | undefined {
+  if (!isIntegrationTestProgram(target.path) || module.path === target.path) return undefined;
+  return `'${identity}' is an integration test program, which is its own program and cannot be used from another module`;
+}
+
+// Wraps a unit test module's text as a `tests:` block by re-indenting its
+// lines and deleting top-level `pub`. Integration test modules never pass
+// through here: they join as ordinary top-level source from their own AST.
+function wrapTestModule(text: string, deleted: Map<number, number>): string {
+  const lines = text.split("\n").map((lineText, index) => {
+    const pub = /^pub\s+(?=(?:fn|data|enum|trait|type|use)\b)/.exec(lineText);
+    if (!pub) return lineText;
+    deleted.set(index, pub[0].length);
+    return lineText.slice(pub[0].length);
+  });
+  return `tests:\n${lines.join("\n").replace(/^(?=.)/gm, "    ")}`;
 }
 
 function fileStart(): SourceSpan {
@@ -288,6 +327,11 @@ export function linkPackage(
         report(module.path, "unknown-module", `no package module '${identity}'`, span);
         continue;
       }
+      const programUse = programUseMessage(module, target, identity);
+      if (programUse !== undefined) {
+        report(module.path, "unknown-module", programUse, span);
+        continue;
+      }
       // In an integration test module, `pkg` names only the library modules
       // (spec/lang/10-modules.md#r-module.test.integration.pkg-root).
       if (root === "pkg" && isIntegrationTestPath(module.path) && isTestModulePath(target.path)) {
@@ -412,8 +456,11 @@ export function linkPackage(
     for (const target of edges.get(module) ?? []) visit(target);
   };
   if (entryModule) visit(entryModule);
+  // A test build links every unit test module. Each integration test program
+  // links separately through its own uses, never in bulk.
   if (options.tests)
-    for (const module of modules.values()) if (isTestModulePath(module.path)) visit(module);
+    for (const module of modules.values())
+      if (isTestModulePath(module.path) && !isIntegrationTestPath(module.path)) visit(module);
 
   const order = initializationOrder(reachable, edges);
 
@@ -498,23 +545,18 @@ export function linkPackage(
     let text = joinedText(module, files[module.path]!, importedStd);
     if (!text.endsWith("\n")) text += "\n";
     const lineCount = text.split("\n").length - 1;
-    // A test module's top level is test position, so it joins the linked
-    // source as a `tests:` block (spec/lang/10-modules.md#test-modules). Its
-    // top-level `pub` is deleted, since a `tests:` item cannot be `pub`;
-    // the linked modules share one namespace anyway. Deleting it, not
-    // blanking it, keeps a `pub fn` header shallower than its body.
+    // A unit test module joins as a `tests:` block; its top-level `pub` is
+    // deleted, since a `tests:` item cannot be `pub`. An integration test
+    // module joins as ordinary top-level source from its own AST: never
+    // re-indented, no `pub` stripped, so multiline strings survive and
+    // top-level `it` calls parse as test cases via `joinedModules`.
     const deleted = new Map<number, number>();
-    if (isTestModulePath(module.path)) {
-      const lines = text.split("\n").map((lineText, index) => {
-        const pub = /^pub\s+(?=(?:fn|data|enum|trait|type|use)\b)/.exec(lineText);
-        if (!pub) return lineText;
-        deleted.set(index, pub[0].length);
-        return lineText.slice(pub[0].length);
-      });
-      text = `tests:\n${lines.join("\n").replace(/^(?=.)/gm, "    ")}`;
+    const wrapAsTestsBlock = isTestModulePath(module.path) && !isIntegrationTestPath(module.path);
+    if (wrapAsTestsBlock) {
+      text = wrapTestModule(text, deleted);
       line += 1;
     }
-    const indent = isTestModulePath(module.path) ? 4 : 0;
+    const indent = wrapAsTestsBlock ? 4 : 0;
     segments.push({ path: module.path, firstLine: line, lineCount, indent, deleted });
     source += text;
     line += lineCount;

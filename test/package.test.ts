@@ -262,3 +262,104 @@ test("single-declaration uses and the package root module resolve", async () => 
   });
   assert.deepEqual(lines, ["hi!?"]);
 });
+
+test("each file directly under tests/ is its own program", () => {
+  const files = {
+    "src/text.hd": 'pub fn banner() -> string:\n    "hi"\n',
+    "tests/checkout.hd": [
+      "use pkg.text.banner",
+      "use self.smoke.{smoke_name}",
+      "",
+      "pub fn shown() -> string:",
+      "    banner() + smoke_name()",
+    ].join("\n"),
+    "tests/smoke.hd": 'pub fn smoke_name() -> string:\n    "smoke"\n',
+    "tests/common/mod.hd": 'pub fn expected() -> string:\n    "hi"\n',
+  };
+  // A use of one integration test program from another module is
+  // unknown-module (module.test.integration.program-use).
+  assert.deepEqual(codes(files, "tests/checkout.hd"), ["tests/checkout.hd:2:unknown-module"]);
+  // The programs link separately: checkout reaches the library module it
+  // uses but not the other program, and smoke reaches neither checkout nor
+  // the shared module it does not use.
+  const checkout = linkPackage(files, "tests/checkout.hd", { tests: true });
+  assert.deepEqual(checkout.modules.map(({ path }) => path).sort(), [
+    "src/text.hd",
+    "tests/checkout.hd",
+  ]);
+  const smoke = linkPackage(files, "tests/smoke.hd", { tests: true });
+  assert.deepEqual(smoke.modules.map(({ path }) => path).sort(), ["tests/smoke.hd"]);
+  // A program reaches the shared test module it uses through `self`.
+  const user = linkPackage(
+    {
+      "tests/checkout.hd": [
+        "use self.common.{expected}",
+        "use std.testing.assert_equal",
+        "",
+        'it("uses the shared module"):',
+        '    assert_equal(expected(), "hi", reason="shared")',
+      ].join("\n"),
+      "tests/common/mod.hd": 'pub fn expected() -> string:\n    "hi"\n',
+      "tests/smoke.hd": 'pub fn smoke_name() -> string:\n    "smoke"\n',
+    },
+    "tests/checkout.hd",
+    { tests: true },
+  );
+  assert.deepEqual(user.diagnostics, []);
+  assert.deepEqual(user.modules.map(({ path }) => path).sort(), [
+    "tests/checkout.hd",
+    "tests/common/mod.hd",
+  ]);
+});
+
+test("integration test sources join without re-indenting or stripping pub", () => {
+  const files = {
+    "src/text.hd": ["pub fn banner() -> string:", '    """line one', 'line two"""'].join("\n"),
+    "tests/banner.hd": [
+      "use std.testing.assert_equal",
+      "use pkg.text.banner",
+      "",
+      'it("banner text"):',
+      '    expected := """line one',
+      'line two"""',
+      '    assert_equal(banner(), expected, reason="same text")',
+    ].join("\n"),
+  };
+  const linked = linkPackage(files, "tests/banner.hd", { tests: true });
+  assert.deepEqual(linked.diagnostics, []);
+  // The multiline string keeps its source text: no added indentation.
+  assert.ok(linked.source!.includes('\nline two"""'));
+  assert.ok(!linked.source!.includes("\n    line two"));
+  // Top-level `it` in the joined source parses as a test case.
+  const analysis = analyze(linked.source!, { parse: { joinedModules: true } });
+  assert.deepEqual(
+    analysis.diagnostics.filter(({ severity }) => severity !== "warning"),
+    [],
+  );
+  assert.equal(analysis.hir!.functions.filter(({ name }) => name.startsWith("$test.")).length, 1);
+});
+
+test("a string line starting with pub fn keeps its pub", () => {
+  const files = {
+    "src/text.hd": 'pub fn banner() -> string:\n    "hi"\n',
+    "tests/probe.hd": [
+      "use std.testing.assert_equal",
+      "use pkg.text.banner",
+      "",
+      'it("keeps pub in strings"):',
+      '    body := """header',
+      "pub fn not_a_declaration",
+      'trailer"""',
+      '    assert_equal(banner(), "hi", reason="library")',
+      '    assert_equal(body.contains("pub fn"), true, reason="pub kept")',
+    ].join("\n"),
+  };
+  const linked = linkPackage(files, "tests/probe.hd", { tests: true });
+  assert.deepEqual(linked.diagnostics, []);
+  assert.ok(linked.source!.includes("\npub fn not_a_declaration\n"));
+  const analysis = analyze(linked.source!, { parse: { joinedModules: true } });
+  assert.deepEqual(
+    analysis.diagnostics.filter(({ severity }) => severity !== "warning"),
+    [],
+  );
+});

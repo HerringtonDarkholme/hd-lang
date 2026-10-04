@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,469 cases: 2,305 selected in `test/portable/cases.tsv` and 164 known
-failures. The selected cases are 2,021 language tier, 275 stdlib tier, and 9
-CLI tier; the known failures are 126 language tier, 10 stdlib tier, and 28
+2,470 cases: 2,307 selected in `test/portable/cases.tsv` and 163 known
+failures. The selected cases are 2,022 language tier, 276 stdlib tier, and 9
+CLI tier; the known failures are 125 language tier, 10 stdlib tier, and 28
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -36,7 +36,6 @@ CLI tier.
 | NONPKG | 1 | a `use self` in a single-file program is not reported |
 | SELF-CURRENT | 2 | relative lookup is fixed; these fixtures still need package import aliases |
 | ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
-| TASK-PROGRAMS | 1 | integration test modules are linked as one program |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |

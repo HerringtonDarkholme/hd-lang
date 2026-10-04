@@ -121,7 +121,11 @@ class Parser extends LetParser {
         tests,
         statements,
         ...(items.testOnlyNames.size > 0 ? { testOnlyNames: [...items.testOnlyNames] } : {}),
-        ...(testsBlock || this.options.testModule === true ? { testCode: true } : {}),
+        ...(testsBlock ||
+        this.options.testModule === true ||
+        (this.options.joinedModules === true && tests.length > 0)
+          ? { testCode: true }
+          : {}),
         span: { start, end: this.current().span.end },
       },
       diagnostics: this.diagnostics,
@@ -213,7 +217,11 @@ class Parser extends LetParser {
           this.current().span,
         );
       const statement = this.parseStatement(!inTests);
-      if (!inTests) items.statements.push(statement);
+      // An integration test program joins as ordinary top-level source
+      // (src/package.ts): its top-level `it` calls are test cases, parsed
+      // here when the joined source holds several modules.
+      if (!inTests && !(this.options.joinedModules === true && isCallOf(statement, "it")))
+        items.statements.push(statement);
       else if (isCallOf(statement, "it"))
         items.tests.push(
           testCase(statement, (code, message, span) => this.fail(code, message, span)),
