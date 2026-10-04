@@ -37,6 +37,19 @@ test("unused-local warnings name exactly the unread bindings", () => {
   assert.deepEqual(names, ["unused2", "unused3"]);
 });
 
+test("annotated lets warn exactly like unannotated ones", () => {
+  const lines = ["fn run() -> i32:", "    let total: i32 = 0"];
+  for (let index = 0; index < 200; index += 1) {
+    lines.push(`    let used${index}: i32 = ${index}`);
+    lines.push(`    let unread${index}: i32 = ${index}`);
+    lines.push(`    total = total + used${index}`);
+  }
+  lines.push("    total", "");
+  const names = unusedNames(`${lines.join("\n")}\n`);
+  assert.equal(names.length, 200);
+  assert.ok(names.every((name) => name.startsWith("unread")));
+});
+
 test("unused-local detection covers a many-local body", () => {
   const lines = ["fn run() -> i32:", "    let total: i32 = 0"];
   for (let index = 0; index < 500; index += 1) {
