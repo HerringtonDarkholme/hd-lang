@@ -150,6 +150,7 @@ export abstract class CheckerContext {
   protected readonly allImplementations: readonly HirTraitImplementation[];
   protected readonly allInherentMethods: readonly InherentMethod[];
   private readonly localImplementationScopes: Set<number>[];
+  private readonly hasLocalImplementations: boolean;
   protected readonly synthetic: boolean;
   protected readonly moduleBody: boolean;
   protected readonly closures: HirFunction[];
@@ -178,11 +179,7 @@ export abstract class CheckerContext {
   protected readonly unavailableBindingLocals = new Set<number>();
   protected readonly allowedConditionalBindingLocals = new Set<number>();
   protected deferDepth = 0;
-  /**
-   * The unsolved generic parameters of the call whose argument is being
-   * checked as a generic function value; positions of the expected type that
-   * mention them do not instantiate the value.
-   */
+  /** Unsolved call generics; expected-type positions mentioning them do not instantiate the value. */
   protected pendingCallGenerics?: ReadonlySet<string>;
   /** In `h.fact::[M]()`, the handle's `F` and its witness (expression-inspect.ts). */
   protected handleWitness?: { readonly type: ValueType; readonly dictionary: HirExpression };
@@ -233,6 +230,9 @@ export abstract class CheckerContext {
     this.allInherentMethods = inherentMethods;
     this.implementations = implementations;
     this.inherentMethods = inherentMethods;
+    this.hasLocalImplementations =
+      implementations.some((implementation) => implementation.localImplementation !== undefined) ||
+      inherentMethods.some((method) => method.localImplementation !== undefined);
     this.localImplementationScopes = [new Set(localImplementations)];
     this.refreshImplementations();
     this.synthetic = synthetic;
@@ -262,6 +262,7 @@ export abstract class CheckerContext {
   }
 
   private refreshImplementations(): void {
+    if (!this.hasLocalImplementations) return;
     const visible = this.visibleLocalImplementations();
     this.implementations = this.allImplementations.filter(
       (implementation) =>
