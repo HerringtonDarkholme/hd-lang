@@ -13,6 +13,7 @@ function consoleCall(methodName: string, text: string, provider: unknown): HostS
     methodName,
     provider,
     providerKey: "Console",
+    resultType: "Result[void, ConsoleError]",
     siteId: "console-test:0",
   };
 }

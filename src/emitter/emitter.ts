@@ -970,7 +970,7 @@ function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>
     program.functions,
     traitMethods,
   );
-  const hostProviders = emitHostProviders(program, traitMethods);
+  const hostProviders = emitHostProviders(program, traitMethods, emitter);
   const signatureTypes = [...signatureNames]
     .map(([type, index]) => {
       const callable = functionParts(type)!;

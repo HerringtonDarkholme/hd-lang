@@ -34,6 +34,8 @@
 // The failure report names the seed, which `hd test --seed N` reuses (T36),
 // the shrunk input, and the shrunk choice stream.
 
+import type { HostBoundaryValue } from "./compiler.ts";
+
 /** Thrown by `discard`: the running case is discarded. */
 export class PropertyDiscard extends Error {
   constructor() {
@@ -65,7 +67,11 @@ type RunnerValue = number | bigint | string;
 
 export interface PropertyRun {
   /** Answers a `PropertyRunner` method call of the running case. */
-  answer(method: string, arguments_: readonly RunnerValue[]): { readonly value?: RunnerValue };
+  answer(
+    method: string,
+    arguments_: readonly RunnerValue[],
+    resultType?: string,
+  ): { readonly value?: HostBoundaryValue };
   readonly seed: number;
   readonly options: PropertyOptions;
   /** Prepares the next case: replay `stream`, then draw from `seed` at `size`, or 0 when shrinking. */
@@ -120,15 +126,28 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
     recorded: () => recorded,
     caps: () => caps,
     shown: () => shown,
-    answer(method, arguments_) {
+    answer(method, arguments_, resultType) {
       const [first, second, third] = arguments_;
       switch (method) {
         case "start":
           caps = { cases: Number(first), shrink: Number(second) };
-          if (example === undefined) return { value: -1 };
-          if (example < Number(third)) return { value: example };
-          examplesDone = true;
-          throw new PropertyDiscard();
+          if (example !== undefined && example >= Number(third)) {
+            examplesDone = true;
+            throw new PropertyDiscard();
+          }
+          // Keep answering the old std.testing surface until its coordinated
+          // switch lands. The declared result type distinguishes that i32
+          // answer from the structural PropertyCase answer without naming the
+          // std data declaration in the runner.
+          if (resultType === "i32") return { value: example ?? -1 };
+          return {
+            value: {
+              example: example === undefined ? { tag: "none" } : { tag: "some", value: example },
+              seed: BigInt(caseSeed),
+              size,
+              replay: [...stream],
+            },
+          };
         // The case's random draws start from its seed, and reach further
         // as cases grow (Testing T38).
         case "seed":
@@ -150,6 +169,9 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
           recorded.push(drawn);
           return { value: drawn };
         }
+        case "record":
+          recorded.push(first as bigint);
+          return {};
         case "discard":
           throw new PropertyDiscard();
         case "show":

@@ -2,9 +2,15 @@ import { payloadlessSingletonEnum } from "../host-boundary.ts";
 import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
 import { NUMERIC_TYPES, numericType } from "../numeric.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
-import { nominalGenericParts } from "../types.ts";
+import {
+  nominalGenericParts,
+  optionalInner,
+  substituteTypeParameters,
+  tupleParts,
+} from "../types.ts";
 import { boxScalar, scalarWasm } from "./scalars.ts";
 import { traitMethodKey } from "./reachability.ts";
+import { isGenericValueType } from "./shared.ts";
 
 interface HostProviderEmission {
   readonly functions: string;
@@ -14,9 +20,17 @@ interface HostProviderEmission {
 }
 
 interface HostMethod {
+  readonly emitter: HostValueEmitter;
   readonly enums: readonly HirEnum[];
   readonly method: HirTraitMethod;
+  readonly program: HirProgram;
   readonly trait: HirTrait;
+}
+
+interface HostValueEmitter {
+  boxErasedValue(value: string, type: ValueType): string;
+  defaultValue(type: ValueType): string;
+  watType(type: ValueType): string;
 }
 
 /**
@@ -31,13 +45,6 @@ function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefin
 }
 
 const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", ...NUMERIC_TYPES.keys()]);
-
-function watType(type: ValueType): string {
-  if (numericType(type)) return scalarWasm(type);
-  if (type === "string") return "(ref null $hd.string)";
-  if (resultSides(type)) return "(ref null $hd.variant)";
-  return "i32";
-}
 
 /** Whether `type`'s value crosses as UTF-8 bytes, alone or as a result side. */
 function crossesAsString(type: ValueType): boolean {
@@ -80,6 +87,7 @@ function importName(
     | "result_byte"
     | "result_err"
     | "result_length"
+    | "result_node"
     | "result_ok"
     | "result_tag",
 ): string {
@@ -94,12 +102,25 @@ function variantResultName(trait: HirTrait, method: HirTraitMethod): string {
   return `${methodName(trait, method)}_decode_result`;
 }
 
+function structuralResultName(trait: HirTrait, method: HirTraitMethod): string {
+  return `${methodName(trait, method)}_decode_structural`;
+}
+
+function structuralHostResult(program: HirProgram, type: ValueType): boolean {
+  if (optionalInner(type) !== undefined || tupleParts(type) !== undefined) return true;
+  const nominal = nominalGenericParts(type);
+  return (
+    (nominal?.name === "List" && nominal.arguments.length === 1) ||
+    program.data.some((declaration) => declaration.name === (nominal?.name ?? type))
+  );
+}
+
 function callField(trait: HirTrait, method: HirTraitMethod): string {
   const frame = frameName(trait, method);
   return `(struct.get ${frame} ${frame}call (local.get $frame))`;
 }
 
-function emitPoll({ trait, method }: HostMethod): string {
+function emitPoll({ program, trait, method }: HostMethod): string {
   const frame = frameName(trait, method);
   const readyResult =
     method.result === "void"
@@ -111,7 +132,9 @@ function emitPoll({ trait, method }: HostMethod): string {
               ? `(call ${stringResultName(trait, method)} ${callField(trait, method)})`
               : resultSides(method.result)
                 ? `(call ${variantResultName(trait, method)} ${callField(trait, method)})`
-                : `(call $hd.${importName(trait, method, "result")} ${callField(trait, method)})`
+                : structuralHostResult(program, method.result)
+                  ? `(call ${structuralResultName(trait, method)} (call $hd.${importName(trait, method, "result_node")} ${callField(trait, method)}))`
+                  : `(call $hd.${importName(trait, method, "result")} ${callField(trait, method)})`
           })`,
         ];
   return [
@@ -186,6 +209,146 @@ function emitStringResult({ trait, method }: HostMethod): string {
   ].join("\n");
 }
 
+function emitStructuralResult(host: HostMethod): string {
+  const { emitter, method, program, trait } = host;
+  if (!structuralHostResult(program, method.result)) return "";
+  const functions: string[] = [];
+  const decoderByType = new Map<ValueType, string>();
+  const name = (path: string): string => `${structuralResultName(trait, method)}_${path}`;
+  const child = (node: string, index: string | number): string =>
+    `(call $hd.host_boundary_child ${node} ${typeof index === "number" ? `(i32.const ${index})` : index})`;
+  const decode = (type: ValueType, path: string): string => {
+    const existing = decoderByType.get(type);
+    if (existing) return existing;
+    const functionName = name(path);
+    // Register before descending so a recursive data shape calls back into
+    // the decoder currently being emitted instead of expanding forever.
+    decoderByType.set(type, functionName);
+    if (type === "string") {
+      functions.push(
+        [
+          `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})`,
+          `  (local $length i32)`,
+          `  (local $index i32)`,
+          `  (local $bytes (ref $hd.bytes))`,
+          `  (local.set $length (call $hd.host_boundary_string_length (local.get $node)))`,
+          `  (local.set $bytes (array.new_default $hd.bytes (local.get $length)))`,
+          `  (block $done`,
+          `    (loop $copy`,
+          `      (br_if $done (i32.ge_u (local.get $index) (local.get $length)))`,
+          `      (array.set $hd.bytes (local.get $bytes) (local.get $index)`,
+          `        (call $hd.host_boundary_string_byte (local.get $node) (local.get $index)))`,
+          `      (local.set $index (i32.add (local.get $index) (i32.const 1)))`,
+          `      (br $copy)))`,
+          `  (struct.new $hd.string (local.get $bytes) (i32.const 0) (local.get $length))`,
+          `)`,
+        ].join("\n"),
+      );
+      return functionName;
+    }
+    if (SCALAR_BOUNDARY.has(type)) {
+      const wasm = numericType(type)?.wasm ?? "i32";
+      const accessor =
+        wasm === "i64" ? "i64" : wasm === "f32" ? "f32" : wasm === "f64" ? "f64" : "i32";
+      functions.push(
+        `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})\n  (call $hd.host_boundary_${accessor} (local.get $node))\n)`,
+      );
+      return functionName;
+    }
+    const optional = optionalInner(type);
+    if (optional !== undefined) {
+      const valueDecoder = decode(optional, `${path}_value`);
+      const payload = emitter.boxErasedValue(
+        `(call ${valueDecoder} ${child("(local.get $node)", 0)})`,
+        optional,
+      );
+      functions.push(
+        [
+          `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})`,
+          `  (local $tag i32)`,
+          `  (local.set $tag (call $hd.host_boundary_tag (local.get $node)))`,
+          `  (struct.new $hd.variant (local.get $tag)`,
+          `    (if (result anyref) (local.get $tag)`,
+          `      (then ${payload})`,
+          `      (else (ref.null any))))`,
+          `)`,
+        ].join("\n"),
+      );
+      return functionName;
+    }
+    const tuple = tupleParts(type);
+    if (tuple) {
+      const elements = tuple.map((element, index) => {
+        const decoder = decode(element, `${path}_${index}`);
+        return emitter.boxErasedValue(
+          `(call ${decoder} ${child("(local.get $node)", index)})`,
+          element,
+        );
+      });
+      functions.push(
+        `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})\n  (array.new_fixed $hd.list ${elements.length}${elements.length ? " " + elements.join(" ") : ""})\n)`,
+      );
+      return functionName;
+    }
+    const nominal = nominalGenericParts(type);
+    if (nominal?.name === "List" && nominal.arguments.length === 1) {
+      const element = nominal.arguments[0]!;
+      const decoder = decode(element, `${path}_element`);
+      const boxed = emitter.boxErasedValue(
+        `(call ${decoder} ${child("(local.get $node)", "(local.get $index)")})`,
+        element,
+      );
+      functions.push(
+        [
+          `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})`,
+          `  (local $length i32)`,
+          `  (local $index i32)`,
+          `  (local $values (ref $hd.list))`,
+          `  (local.set $length (call $hd.host_boundary_length (local.get $node)))`,
+          `  (local.set $values (array.new_default $hd.list (local.get $length)))`,
+          `  (block $done`,
+          `    (loop $copy`,
+          `      (br_if $done (i32.ge_u (local.get $index) (local.get $length)))`,
+          `      (array.set $hd.list (local.get $values) (local.get $index) ${boxed})`,
+          `      (local.set $index (i32.add (local.get $index) (i32.const 1)))`,
+          `      (br $copy)))`,
+          `  (struct.new $hd.vector (local.get $length) (local.get $values) (i32.const 0))`,
+          `)`,
+        ].join("\n"),
+      );
+      return functionName;
+    }
+    const dataName = nominal?.name ?? type;
+    const data = program.data.find((declaration) => declaration.name === dataName);
+    if (!data) throw new Error(`cannot emit a structural host result decoder for '${type}'`);
+    if (data.fields.length === 0) {
+      functions.push(
+        `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})\n  (drop (local.get $node))\n  (global.get $d${data.index}c)\n)`,
+      );
+      return functionName;
+    }
+    const arguments_ = nominal?.arguments ?? [];
+    const substitutions = new Map(
+      data.genericParameters.map((parameter, index) => [parameter, arguments_[index]!] as const),
+    );
+    const fields = data.fields.map((field, index) => {
+      const fieldType = substituteTypeParameters(field.type, substitutions);
+      const decoder = decode(fieldType, `${path}_${index}`);
+      const value = `(call ${decoder} ${child("(local.get $node)", index)})`;
+      return isGenericValueType(field.type) ? emitter.boxErasedValue(value, fieldType) : value;
+    });
+    functions.push(
+      `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})\n  (struct.new $d${data.index} ${fields.join(" ")})\n)`,
+    );
+    return functionName;
+  };
+  const root = decode(method.result, "root");
+  functions.push(
+    `(func ${structuralResultName(trait, method)} (param $node externref) (result ${emitter.watType(method.result)})\n  (call ${root} (local.get $node))\n)`,
+  );
+  return functions.join("\n\n");
+}
+
 function emitCancel({ trait, method }: HostMethod): string {
   const frame = frameName(trait, method);
   return [
@@ -204,9 +367,9 @@ function emitCancel({ trait, method }: HostMethod): string {
   ].join("\n");
 }
 
-function emitResult({ trait, method }: HostMethod): string {
+function emitResult({ emitter, trait, method }: HostMethod): string {
   const frame = frameName(trait, method);
-  const result = method.result === "void" ? "" : ` (result ${watType(method.result)})`;
+  const result = method.result === "void" ? "" : ` (result ${emitter.watType(method.result)})`;
   const value =
     method.result === "void"
       ? ""
@@ -220,9 +383,9 @@ function emitResult({ trait, method }: HostMethod): string {
     .join("\n");
 }
 
-function emitMethod({ trait, method }: HostMethod): string {
+function emitMethod({ emitter, program, trait, method }: HostMethod): string {
   const parameters = method.parameters.map(
-    (parameter, index) => `(param $argument${index} ${watType(parameter)})`,
+    (parameter, index) => `(param $argument${index} ${emitter.watType(parameter)})`,
   );
   const beginArguments = method.parameters.map((parameter, index) =>
     parameter === "string"
@@ -261,7 +424,7 @@ function emitMethod({ trait, method }: HostMethod): string {
   // A plain method is answered at once: the host never leaves it pending
   // (src/compiler.ts), so it reads the result right after the one poll.
   if (!method.suspending) {
-    const result = method.result === "void" ? "" : ` (result ${watType(method.result)})`;
+    const result = method.result === "void" ? "" : ` (result ${emitter.watType(method.result)})`;
     const value =
       method.result === "void"
         ? []
@@ -271,7 +434,9 @@ function emitMethod({ trait, method }: HostMethod): string {
                 ? `(call ${stringResultName(trait, method)} (local.get $call))`
                 : resultSides(method.result)
                   ? `(call ${variantResultName(trait, method)} (local.get $call))`
-                  : `(call $hd.${importName(trait, method, "result")} (local.get $call))`
+                  : structuralHostResult(program, method.result)
+                    ? `(call ${structuralResultName(trait, method)} (call $hd.${importName(trait, method, "result_node")} (local.get $call)))`
+                    : `(call $hd.${importName(trait, method, "result")} (local.get $call))`
             }`,
           ];
     return [
@@ -283,16 +448,7 @@ function emitMethod({ trait, method }: HostMethod): string {
       `)`,
     ].join("\n");
   }
-  const defaultResult =
-    method.result === "void"
-      ? ""
-      : numericType(method.result)
-        ? ` (${scalarWasm(method.result)}.const 0)`
-        : method.result === "string"
-          ? " (ref.null $hd.string)"
-          : resultSides(method.result)
-            ? " (ref.null $hd.variant)"
-            : " (i32.const 0)";
+  const defaultResult = method.result === "void" ? "" : ` ${emitter.defaultValue(method.result)}`;
   return [
     `${header} (result (ref null $ts${trait.index}_${method.index}))`,
     ...locals,
@@ -330,7 +486,7 @@ function emitTraitFactory(trait: HirTrait, called: ReadonlySet<string>): string 
   ].join("\n");
 }
 
-function emitImports({ trait, method }: HostMethod): readonly string[] {
+function emitImports({ program, trait, method }: HostMethod): readonly string[] {
   const parameters = method.parameters.map((parameter) => `(param ${boundaryWatType(parameter)})`);
   const argumentByteImport = method.parameters.includes("string")
     ? [
@@ -343,6 +499,7 @@ function emitImports({ trait, method }: HostMethod): readonly string[] {
   ): string =>
     `  (import "hd" "${importName(trait, method, operation)}" (func $hd.${importName(trait, method, operation)} (param externref) (result ${boundaryWatType(type)})))`;
   const sides = resultSides(method.result);
+  const structural = structuralHostResult(program, method.result);
   const resultImport = [
     ...(crossesAsString(method.result)
       ? [
@@ -350,15 +507,19 @@ function emitImports({ trait, method }: HostMethod): readonly string[] {
           `  (import "hd" "${importName(trait, method, "result_byte")}" (func $hd.${importName(trait, method, "result_byte")} (param externref i32) (result i32)))`,
         ]
       : []),
-    ...(sides
+    ...(structural
       ? [
-          scalarImport("result_tag", "i32"),
-          ...(SCALAR_BOUNDARY.has(sides[0]) ? [scalarImport("result_ok", sides[0])] : []),
-          ...(SCALAR_BOUNDARY.has(sides[1]) ? [scalarImport("result_err", sides[1])] : []),
+          `  (import "hd" "${importName(trait, method, "result_node")}" (func $hd.${importName(trait, method, "result_node")} (param externref) (result externref)))`,
         ]
-      : method.result === "void" || method.result === "string"
-        ? []
-        : [scalarImport("result", method.result)]),
+      : sides
+        ? [
+            scalarImport("result_tag", "i32"),
+            ...(SCALAR_BOUNDARY.has(sides[0]) ? [scalarImport("result_ok", sides[0])] : []),
+            ...(SCALAR_BOUNDARY.has(sides[1]) ? [scalarImport("result_err", sides[1])] : []),
+          ]
+        : method.result === "void" || method.result === "string"
+          ? []
+          : [scalarImport("result", method.result)]),
   ];
   return [
     `  (import "hd" "${importName(trait, method, "begin")}" (func $hd.${importName(trait, method, "begin")} (param externref i32 i32)${parameters.length ? " " + parameters.join(" ") : ""} (result externref)))`,
@@ -369,12 +530,12 @@ function emitImports({ trait, method }: HostMethod): readonly string[] {
   ];
 }
 
-function emitFrameType({ trait, method }: HostMethod): string {
+function emitFrameType({ emitter, trait, method }: HostMethod): string {
   const frame = frameName(trait, method);
   const result =
     method.result === "void"
       ? ""
-      : `\n      (field ${frame}result (mut ${watType(method.result)}))`;
+      : `\n      (field ${frame}result (mut ${emitter.watType(method.result)}))`;
   return `    (type ${frame} (struct
       (field ${frame}call externref)
       (field ${frame}state (mut i32))${result}))`;
@@ -389,17 +550,32 @@ function emitFrameType({ trait, method }: HostMethod): string {
 export function emitHostProviders(
   program: HirProgram,
   called: ReadonlySet<string>,
+  emitter: HostValueEmitter,
 ): HostProviderEmission {
   const capabilities = new Set(program.hostCapabilities);
   const traits = program.traits.filter((trait) => capabilities.has(trait.name));
   const methods = traits.flatMap((trait) =>
-    trait.methods.map((method) => ({ enums: program.enums, trait, method })),
+    trait.methods.map((method) => ({ emitter, enums: program.enums, program, trait, method })),
   );
   if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
   const liveMethods = methods.filter(({ trait, method }) =>
     called.has(traitMethodKey(trait.index, method.index)),
   );
-  const imports = liveMethods.flatMap(emitImports).join("\n");
+  const structural = liveMethods.some(({ method }) => structuralHostResult(program, method.result));
+  const boundaryImports = structural
+    ? [
+        `  (import "hd" "host_boundary_tag" (func $hd.host_boundary_tag (param externref) (result i32)))`,
+        `  (import "hd" "host_boundary_length" (func $hd.host_boundary_length (param externref) (result i32)))`,
+        `  (import "hd" "host_boundary_child" (func $hd.host_boundary_child (param externref i32) (result externref)))`,
+        `  (import "hd" "host_boundary_i32" (func $hd.host_boundary_i32 (param externref) (result i32)))`,
+        `  (import "hd" "host_boundary_i64" (func $hd.host_boundary_i64 (param externref) (result i64)))`,
+        `  (import "hd" "host_boundary_f32" (func $hd.host_boundary_f32 (param externref) (result f32)))`,
+        `  (import "hd" "host_boundary_f64" (func $hd.host_boundary_f64 (param externref) (result f64)))`,
+        `  (import "hd" "host_boundary_string_length" (func $hd.host_boundary_string_length (param externref) (result i32)))`,
+        `  (import "hd" "host_boundary_string_byte" (func $hd.host_boundary_string_byte (param externref i32) (result i32)))`,
+      ]
+    : [];
+  const imports = [...boundaryImports, ...liveMethods.flatMap(emitImports)].join("\n");
   // A suspending method returns a frame that the caller polls; a plain one
   // needs only the method itself and its result decoders.
   const suspending = liveMethods.filter(({ method }) => method.suspending);
@@ -410,6 +586,7 @@ export function emitHostProviders(
         : []),
       emitStringResult(hostMethod),
       emitVariantResult(hostMethod),
+      emitStructuralResult(hostMethod),
       emitMethod(hostMethod),
     ]),
     ...traits.map((trait) => emitTraitFactory(trait, called)),

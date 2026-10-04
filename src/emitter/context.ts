@@ -312,8 +312,10 @@ export class EmitterContext {
     return this.floatRemainder;
   }
 
-  protected emitRuntimePanic(name: RuntimePanicName): string {
-    return `(call $hd.panic (i32.const ${runtimePanicCode(name)})) unreachable`;
+  protected emitRuntimePanic(name: RuntimePanicName, message?: string): string {
+    return message === undefined
+      ? `(call $hd.panic (i32.const ${runtimePanicCode(name)})) unreachable`
+      : `(block (call $hd.panic_with_message (i32.const ${runtimePanicCode(name)}) (call $hd.string_to_host ${message})) unreachable)`;
   }
 
   get adapters(): readonly CallableAdapter[] {

@@ -11,6 +11,8 @@ import type { RegressionStore } from "./property-tests.ts";
 interface SnapshotRun {
   /** Starts a test case, or one `it_each` row of it. */
   readonly begin: (name: string, row: number | undefined) => void;
+  /** Compares the running case's next snapshot with `text`. */
+  readonly check: (text: string) => string;
   readonly hostFunctions: Readonly<Record<string, HostFunction>>;
 }
 
@@ -38,26 +40,28 @@ export function snapshotRun(file: string, update: boolean): SnapshotRun {
   const { root, module } = snapshotModule(file);
   let slug = "";
   let count = 0;
+  const check = (text: string): string => {
+    count += 1;
+    const path = join(root, "__snapshots__", module, `${slug}-${count}.snap`);
+    const actual = String(text);
+    if (existsSync(path) && readFileSync(path, "utf8") === actual) return "";
+    if (update) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, actual);
+      return "";
+    }
+    return existsSync(path)
+      ? `snapshot_file: the text differs from ${relative(root, path)}; run hd test --update to accept it`
+      : `snapshot_file: ${relative(root, path)} is missing; run hd test --update to record it`;
+  };
   return {
     begin(name, row) {
       slug = `${testSlug(name)}${row === undefined ? "" : `.${row}`}`;
       count = 0;
     },
+    check,
     hostFunctions: {
-      snapshot_file_check(text) {
-        count += 1;
-        const path = join(root, "__snapshots__", module, `${slug}-${count}.snap`);
-        const actual = String(text);
-        if (existsSync(path) && readFileSync(path, "utf8") === actual) return "";
-        if (update) {
-          mkdirSync(dirname(path), { recursive: true });
-          writeFileSync(path, actual);
-          return "";
-        }
-        return existsSync(path)
-          ? `snapshot_file: the text differs from ${relative(root, path)}; run hd test --update to accept it`
-          : `snapshot_file: ${relative(root, path)} is missing; run hd test --update to record it`;
-      },
+      snapshot_file_check: (text) => check(String(text)),
     },
   };
 }

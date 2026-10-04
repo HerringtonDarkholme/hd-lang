@@ -86,6 +86,18 @@ function hostFunctions(program: HirProgram): readonly HirFunction[] {
   });
 }
 
+/** Whether reachable executable HIR can raise an explicit panic with a message. */
+function hasPanicDetail(program: HirProgram): boolean {
+  const visit = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(visit);
+    if (!value || typeof value !== "object") return false;
+    const node = value as Record<string, unknown>;
+    if (node.kind === "panic") return true;
+    return Object.entries(node).some(([key, child]) => key !== "span" && visit(child));
+  };
+  return [...program.functions, ...program.closures].some((declaration) => visit(declaration.body));
+}
+
 function hostSignature(declaration: HirFunction): string {
   const parameters = declaration.parameters.map((parameter) => {
     const type = boundaryWatType(parameter.type);
@@ -132,21 +144,28 @@ export function emitHostFunctionImports(program: HirProgram): {
   readonly boundary: boolean;
 } {
   const functions = hostFunctions(program);
+  const panicDetail = hasPanicDetail(program);
   const imports = functions.map(
     (declaration) =>
       `  (import "hd" "host:${declaration.intrinsic}" (func ${hostImportName(declaration.intrinsic!)} ${hostSignature(declaration)}))`,
   );
-  const boundary = functions.some(
-    (declaration) =>
-      declaration.result === "string" ||
-      declaration.parameters.some((parameter) => parameter.type === "string"),
-  );
+  const boundary =
+    panicDetail ||
+    functions.some(
+      (declaration) =>
+        declaration.result === "string" ||
+        declaration.parameters.some((parameter) => parameter.type === "string"),
+    );
   if (boundary)
     imports.push(
       `  (import "hd" "host_string_new" (func $hd.host_string_new (param i32) (result externref)))`,
       `  (import "hd" "host_string_set" (func $hd.host_string_set (param externref i32 i32)))`,
       `  (import "hd" "host_string_length" (func $hd.host_string_length (param externref) (result i32)))`,
       `  (import "hd" "host_string_get" (func $hd.host_string_get (param externref i32) (result i32)))`,
+    );
+  if (panicDetail)
+    imports.push(
+      `  (import "hd" "panic_with_message" (func $hd.panic_with_message (param i32 externref)))`,
     );
   return { imports: imports.join("\n"), boundary };
 }

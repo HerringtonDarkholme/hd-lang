@@ -233,6 +233,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
         (await instantiate(source, { ...instantiateOptions, compilation })).instance.exports,
       snapshots.begin,
       properties,
+      snapshots.check,
     );
     if (outcome.kind === "exit") return outcome.code;
     if (outcome.kind === "failed") {

@@ -48,6 +48,7 @@ function runnerProvider(
   row: number,
   report: CaseReport,
   properties: PropertyRun | undefined,
+  snapshotCheck: ((text: string) => string) | undefined,
 ): AnsweringProvider & { readonly requirement: string } {
   return {
     requirement: "test runner",
@@ -61,8 +62,15 @@ function runnerProvider(
         report.timeoutMs = Number(first);
         return { pending: false };
       }
+      if (call.methodName === "snapshot_check") {
+        if (!snapshotCheck) throw new Error("the test runner has no snapshot checker");
+        return { pending: false, value: snapshotCheck(String(first)) };
+      }
       if (!properties) throw new Error(`the test runner has no method ${call.methodName}`);
-      return { pending: false, ...properties.answer(call.methodName, call.arguments) };
+      return {
+        pending: false,
+        ...properties.answer(call.methodName, call.arguments, call.resultType),
+      };
     },
   };
 }
@@ -73,12 +81,15 @@ function call(
   row: number,
   report: CaseReport,
   properties?: PropertyRun,
+  snapshotCheck?: (text: string) => string,
 ): unknown {
   if (declaration.parameters.length > 0)
     throw new Error(`${declaration.name} must not declare ordinary parameters`);
   const entry = exports[exportName(declaration)];
   if (typeof entry !== "function") throw new Error(`${declaration.name} has no runnable export`);
-  const provider = declaration.testOptions ? runnerProvider(row, report, properties) : undefined;
+  const provider = declaration.testOptions
+    ? runnerProvider(row, report, properties, snapshotCheck)
+    : undefined;
   return entry(...declaration.requirements.map((requirement) => provider ?? { requirement }));
 }
 
@@ -115,12 +126,21 @@ function overran(report: CaseReport, started: number, subject: string): RunOutco
   return { kind: "failed", subject: `${subject} exceeding its ${limit}ms timeout` };
 }
 
+function isDiscardPanic(error: RuntimePanicError, properties: PropertyRun): boolean {
+  return (
+    error.code === "explicit-panic" &&
+    error.detail === "std.testing: case discarded" &&
+    properties.shown() === undefined
+  );
+}
+
 /** Runs one test case (or table row) in `exports`; undefined when it passes. */
 function runCase(
   exports: Exports,
   declaration: HirFunction,
   row: number | undefined,
   properties?: PropertyRun,
+  snapshotCheck?: (text: string) => string,
 ): { readonly outcome?: RunOutcome; readonly rowCount: number } {
   const expected = declaration.testOptions?.expectPanic;
   const subject = `test "${caseName(declaration, row)}"`;
@@ -128,11 +148,12 @@ function runCase(
   const started = performance.now();
   let result: unknown;
   try {
-    result = call(exports, declaration, row ?? 0, report, properties);
+    result = call(exports, declaration, row ?? 0, report, properties, snapshotCheck);
   } catch (error) {
     if (!(error instanceof RuntimePanicError)) throw error;
     // A table with no rows reports count 0, then indexes row 0.
     if (row === 0 && report.rowCount === 0) return { rowCount: 0 };
+    if (properties && isDiscardPanic(error, properties)) throw error;
     if (error.code !== expected) throw error;
     const late = overran(report, started, subject);
     return late ? { outcome: late, rowCount: report.rowCount } : { rowCount: report.rowCount };
@@ -159,6 +180,8 @@ export async function runSelected(
   begin?: (name: string, row: number | undefined) => void,
   // The draws of property test cases (src/property-tests.ts).
   properties: PropertyRun = propertyRun(),
+  // Compares the running case's next snapshot file.
+  snapshotCheck?: (text: string) => string,
 ): Promise<RunOutcome> {
   let count = 0;
   let last: unknown;
@@ -178,11 +201,13 @@ export async function runSelected(
         const exports = await fresh();
         begin?.(name, undefined);
         try {
-          const { outcome } = runCase(exports, declaration, undefined, properties);
+          const { outcome } = runCase(exports, declaration, undefined, properties, snapshotCheck);
           if (outcome?.kind !== "failed") return "pass";
           return { failure: outcome.outcome ?? outcome.subject };
         } catch (error) {
           if (error instanceof PropertyDiscard) return "discard";
+          if (error instanceof RuntimePanicError && isDiscardPanic(error, properties))
+            return "discard";
           if (error instanceof RuntimePanicError)
             return { failure: `panicked with ${error.message}` };
           throw error;
@@ -198,7 +223,13 @@ export async function runSelected(
     for (let row = 0; row < rows; row += 1) {
       const exports = await fresh();
       begin?.(declaration.testOptions.name ?? declaration.name, table ? row : undefined);
-      const { outcome, rowCount } = runCase(exports, declaration, table ? row : undefined);
+      const { outcome, rowCount } = runCase(
+        exports,
+        declaration,
+        table ? row : undefined,
+        undefined,
+        snapshotCheck,
+      );
       if (outcome) return outcome;
       if (table && rowCount === 0) break;
       count += 1;

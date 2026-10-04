@@ -988,7 +988,10 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         );
       case "panic":
         this.rejectUnsupported(expression);
-        return `(block (drop ${this.emitExpression(expression.message)}) ${this.emitRuntimePanic(expression.category ?? "explicit-panic")})`;
+        return this.emitRuntimePanic(
+          expression.category ?? "explicit-panic",
+          this.emitExpression(expression.message),
+        );
       default:
         return undefined;
     }
