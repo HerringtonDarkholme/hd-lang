@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
-import { inventory } from "../spec/tools/rule-inventory.ts";
-import { knownCodes } from "../spec/tools/spec-prose.ts";
-import { audit, auditTotals, normalizeSentence } from "../spec/tools/spec-audit.ts";
-import { chapterNames, loadCorpus, REPO_ROOT, SPEC_ROOT } from "../spec/tools/spec-corpus.ts";
-import { counts } from "../spec/tools/spec-counts.ts";
+import { inventory } from "./rule-inventory.ts";
+import { knownCodes } from "./spec-prose.ts";
+import { audit, auditTotals, normalizeSentence } from "./spec-audit.ts";
+import { chapterNames, loadCorpus, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
+import { counts } from "./spec-counts.ts";
 import {
   areaOf,
   type Citation,
@@ -17,16 +17,16 @@ import {
   deadCitations,
   type RefIndex,
   ruleHistory,
-} from "../spec/tools/spec-refs.ts";
+} from "./spec-refs.ts";
 import {
   glossary,
   glossaryMarkdown,
   glossaryReport,
   rebaseLinks,
   termKeys,
-} from "../spec/tools/spec-glossary.ts";
-import { failures, rewrite, rewriteSummary } from "../spec/tools/spec-rewrite.ts";
-import { run } from "../spec/tools/spec.ts";
+} from "./spec-glossary.ts";
+import { failures, rewrite, rewriteSummary } from "./spec-rewrite.ts";
+import { run } from "./spec.ts";
 
 /** Whether this checkout's history holds `rev`; a shallow clone may not. */
 function hasCommit(rev: string): boolean {

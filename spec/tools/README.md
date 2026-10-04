@@ -15,6 +15,7 @@ implementation. The one exception is an adapter module that
 | `rule-inventory.ts` | one chapter's inventory, and the restyle diff ([STYLE.md](../STYLE.md#restyling-a-chapter)) |
 | `run-conformance.ts` | the conformance runner for any implementation ([Adapters](#adapters)) |
 | `fuzz/` | the implementation-neutral fuzzer ([README](fuzz/README.md)) |
+| `spec-tools.test.ts` | the tests of these tools, run by `pnpm test` |
 
 ## Adapters
 

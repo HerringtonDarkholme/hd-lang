@@ -12,7 +12,7 @@
     "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "lint": "oxlint .",
-    "test": "pnpm run test:portable && node --test --experimental-strip-types 'test/**/*.test.ts' 'website/test/*.test.ts' 'website/playground/test/**/*.test.ts'",
+    "test": "pnpm run test:portable && node --test --experimental-strip-types 'test/**/*.test.ts' 'spec/tools/*.test.ts' 'website/test/*.test.ts' 'website/playground/test/**/*.test.ts'",
     "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --compiler \"node --experimental-strip-types bin/hd.js\" --fuzzer parse,contract,phase --fail-on phase --seed smoke --cases 100",
     "perf:check": "node --experimental-strip-types test/perf/inference/gate.ts",
     "test:portable": "node --experimental-strip-types test/run-portable.ts",
