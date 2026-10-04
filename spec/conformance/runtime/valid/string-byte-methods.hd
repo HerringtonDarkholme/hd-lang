@@ -24,7 +24,7 @@ tests:
         assert_equal(found, ['a', 'é', '😀'], reason="one char per scalar")
 
     it("char_indices yields byte offsets"):
-        let offsets: mut List[i32] = []
+        let offsets: mut List[usize] = []
         for (offset, letter) in "aé!".char_indices():
             offsets.push(offset)
         assert_equal(offsets, [0, 1, 3], reason="é starts at 1 and takes two bytes")

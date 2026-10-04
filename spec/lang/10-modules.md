@@ -1011,13 +1011,13 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 4. r[module.testing.reg.identity.spellings] So a bare `it_each(...)`, a call of a renamed import such as `use std.testing.{it_each as each}`, and `testing.it_each(...)` after `use std.testing` all call `it_each`.
 5. r[module.testing.reg.identity.all] The same holds for `it`, `it_prop`, and `it_prop_with`. `it` is a prelude name, and code may also import it under another name or call it as `testing.it`.
 6. r[module.testing.reg.row-body-closure] The body of `it_each` has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
-4. r[module.testing.reg.row-name-clash] Another test case of the module must not be named `name[i]` for any index `i` of an `it_each` call's rows. Error: `duplicate-test-name`.
-5. r[module.testing.reg.prop-registers] A call of `it_prop` or `it_prop_with` in test position registers one property test case.
-6. r[module.testing.reg.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
-7. r[module.testing.reg.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
-8. r[module.testing.reg.body-result] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
-9. r[module.testing.reg.body-closure-result] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](05-expressions.md#r-expr.try.test.without-try), as a trailing block given to `it` does.
-10. r[module.testing.reg.prop-debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
+7. r[module.testing.reg.row-name-clash] Another test case of the module must not be named `name[i]` for any index `i` of an `it_each` call's rows. Error: `duplicate-test-name`.
+8. r[module.testing.reg.prop-registers] A call of `it_prop` or `it_prop_with` in test position registers one property test case.
+9. r[module.testing.reg.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
+10. r[module.testing.reg.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
+11. r[module.testing.reg.body-result] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
+12. r[module.testing.reg.body-closure-result] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](05-expressions.md#r-expr.try.test.without-try), as a trailing block given to `it` does.
+13. r[module.testing.reg.prop-debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.testing.it_each

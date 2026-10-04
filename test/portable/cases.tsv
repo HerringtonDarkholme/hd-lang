@@ -485,6 +485,7 @@ runtime/valid/short-circuit-and-conditional-evaluation.hd	runtime
 runtime/valid/logical-operators.hd	runtime
 runtime/valid/bang-call-arguments-before-body.hd	runtime
 runtime/valid/operands-across-suspension-order.hd	runtime
+runtime/valid/assignment-place-before-value.hd	runtime
 runtime/valid/propagation-before-cleanup.hd	runtime
 runtime/valid/cancellation-lifo-across-three-frames.hd	runtime
 runtime/valid/cancellation-loop-and-branch-scopes.hd	runtime
@@ -515,6 +516,7 @@ runtime/valid/split-empty-input-nonempty-separator.hd	runtime
 runtime/valid/interpolation-display-order.hd	runtime
 parse/invalid/surrogate-unicode-escape.hd	parse
 parse/invalid/out-of-range-unicode-escape.hd	parse
+runtime/valid/evaluation-order-elements-and-indexing.hd	runtime
 runtime/valid/result-propagation-evaluates-once.hd	runtime
 runtime/valid/abrupt-assignment-stores-nothing.hd	runtime
 runtime/valid/method-receiver-before-arguments.hd	runtime
@@ -1807,6 +1809,7 @@ runtime/valid/list-access-building.hd	runtime
 runtime/valid/choices-choose.hd	runtime
 runtime/valid/string-more-methods.hd	runtime
 runtime/valid/text-join-builder.hd	runtime
+runtime/valid/text-prefix-helpers.hd	runtime
 runtime/valid/primitive-bool-eq-method-direct.hd	runtime
 runtime/valid/primitive-char-cmp-method-direct.hd	runtime
 runtime/valid/primitive-float-cmp-method-direct.hd	runtime
@@ -1866,6 +1869,7 @@ runtime/panic/manual-clock-negative-sleep.hd	runtime
 runtime/valid/error-find.hd	runtime
 runtime/valid/error-root-cause.hd	runtime
 runtime/valid/error-find-erased.hd	runtime
+runtime/valid/error-find-trait-value.hd	runtime
 typing/invalid/error-find-non-error.hd	type
 runtime/valid/error-context.hd	runtime
 typing/valid/std-types-debug.hd	type
@@ -1873,10 +1877,12 @@ runtime/valid/time-date-utc.hd	runtime
 runtime/valid/time-rfc3339-text.hd	runtime
 runtime/valid/time-rfc3339-parse.hd	runtime
 runtime/valid/time-parse-errors.hd	runtime
+runtime/valid/deque-ends.hd	runtime
 runtime/panic/deque-invalidated.hd	runtime
 runtime/valid/heap-order.hd	runtime
 runtime/valid/heap-reverse.hd	runtime
 runtime/valid/cmp-reverse.hd	runtime
+runtime/valid/task-all-list-order.hd	runtime
 typing/valid/std-joined-types-debug.hd	type
 runtime/valid/task-all-list-empty.hd	runtime
 runtime/valid/num-parse-f64-errors.hd	runtime
@@ -1966,6 +1972,7 @@ typing/invalid/eq-contextual-both-operands.hd	type
 typing/valid/eq-fresh-literal-readonly-operand.hd	type
 typing/valid/generic-join-fresh-list-elements.hd	type
 typing/valid/numeric-literal-left-operand.hd	type
+typing/valid/generic-bound-names-later-parameter.hd	type
 typing/valid/generic-mutual-bounds.hd	type
 runtime/valid/generic-forward-bound-explicit-first-slot.hd	runtime
 typing/invalid/default-names-later-beside-forward-bound.hd	type
@@ -1995,6 +2002,7 @@ runtime/valid/iterator-adapters-run.hd	runtime
 typing/valid/iterator-adapters.hd	type
 runtime/valid/collect-target-from-try-hint.hd	runtime
 typing/valid/string-bytes.hd	type
+runtime/valid/string-byte-methods.hd	runtime
 typing/valid/index-traits-builtin.hd	type
 runtime/valid/index-traits-builtin-run.hd	runtime
 runtime/valid/trait-delegation-vararg.hd	runtime
@@ -2016,6 +2024,7 @@ typing/valid/slice-types.hd	type
 runtime/panic/list-view-invalidated.hd	runtime
 typing/valid/random-trait.hd	type
 runtime/valid/range-inclusive-field.hd	runtime
+typing/valid/test-body-uses-test-runner.hd	type
 runtime/valid/result-and-then.hd	runtime
 runtime/valid/string-split-whitespace.hd	runtime
 runtime/valid/list-counts.hd	runtime
@@ -2050,6 +2059,7 @@ runtime/valid/regex-leftmost-first.hd	runtime
 runtime/valid/regex-linear-time.hd	runtime
 runtime/valid/regex-errors.hd	runtime
 runtime/valid/regex-find-all.hd	runtime
+runtime/valid/regex-captures.hd	runtime
 runtime/valid/regex-named-groups.hd	runtime
 runtime/valid/regex-replace.hd	runtime
 runtime/valid/regex-split.hd	runtime

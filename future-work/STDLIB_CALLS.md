@@ -129,7 +129,7 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | 82 (#238) | `Choices.list` and `Choices.map` take a `usize` `max`, and `Choices.string` a `usize` `max_chars`. `PropertyCase.size` stays `i32`, since it is a reach exponent, not a size. | They bound a generated collection's length. | own |
 | 82 (#238) | `TestRunner.row` takes and returns `usize`, `PropertyRunner.start` takes `usize` counts, and `PropertyCase.example` is `usize?`. `Random.fill` takes a `usize` count. | A row is a list index; the rest are counts. These are host traits, so the report asks the owner. | own |
 | 82 (#238) | The primitives `bytes_len`, `bytes_at`, `bytes_slice`, and `format_f64_fixed` use `usize`. `list_version`, `char_scalar`, and `char_from_scalar` stay `i32`, since a version and a scalar value are not sizes. | The primitives serve `len`, indexing, `slice`, and `to_fixed`. | changed: the owner's CHAR-SCALAR-U32 decision (2026-10-03, audit Q4) makes them `char_scalar(c) -> u32` and `char_from_scalar(u32) -> char?` (pass 89) |
-| 82 (#238) | `lib/std` and `test/std` keep `i32` until the compiler session adds `usize` and an unsigned `len`, as the Decided, Not Yet Applied row SIZES-UNSIGNED in STDLIB_PLAN.md lists. | `lib/std` cannot name `usize` before the compiler declares it. | own |
+| 82 (#238) | `lib/std` and `test/std` keep `i32` until the compiler session adds `usize` and an unsigned `len`, as the Decided, Not Yet Applied row SIZES-UNSIGNED in STDLIB_PLAN.md lists. | `lib/std` cannot name `usize` before the compiler declares it. | own; done: the compiler session declared `usize` and moved `lib/std` and `test/std` to it |
 
 
 ## Random Numbers

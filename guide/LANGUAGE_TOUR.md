@@ -465,9 +465,9 @@ fn log_start() -> void $ Console:
 Tuples are built in for lightweight grouped values:
 
 ```text
-point := (10, 20)                 # (i32, i32)
-entry := ("Ada", 36, true)        # (string, i32, bool)
-single := (1,)                    # (i32,)
+point := (10, 20)                 # (usize, usize)
+entry := ("Ada", 36, true)        # (string, usize, bool)
+single := (1,)                    # (usize,)
 empty := ()                       # empty tuple
 ```
 
@@ -524,7 +524,7 @@ Collections are typed:
 
 ```text
 names := ["Ada", "Grace", "Linus"]       # List[string]
-scores := {"Ada": 10, "Grace": 12}       # Map[string, i32]
+scores := {"Ada": 10, "Grace": 12}       # Map[string, usize]
 ```
 
 List comprehensions build lists from iterables:

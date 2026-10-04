@@ -11,6 +11,10 @@ fn note(log: mut Log, label: string, value: i32) -> i32:
     log.text = log.text + label
     value
 
+fn slot(log: mut Log, label: string, value: usize) -> usize:
+    log.text = log.text + label
+    value
+
 fn items(log: mut Log) -> List[i32]:
     log.text = log.text + "r"
     [10, 20, 30]
@@ -30,6 +34,6 @@ tests:
 
     it("an index receiver evaluates before its index"):
         let mut log = Log { text: "" }
-        value := items(log)[note(log, "i", 1)]
+        value := items(log)[slot(log, "i", 1)]
         assert_equal(log.text, "ri", reason="receiver, then index, each once")
         assert_equal(value, 20, reason="indexed value")

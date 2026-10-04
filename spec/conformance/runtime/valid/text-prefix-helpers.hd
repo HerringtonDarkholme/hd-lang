@@ -13,10 +13,10 @@ fn cooked(t: Template[i32]) -> string:
             .Err(error) => pieces.push("?${error.position}")
     interpolate(Template { raw_parts: pieces, values: t.values })
 
-fn position(text: string) -> i32:
+fn position(text: string) -> usize?:
     match process_escapes(text):
-        .Ok(_) => -1
-        .Err(error) => error.position
+        .Ok(_) => .None
+        .Err(error) => .Some(error.position)
 
 tests:
     it("joins and processes"):
@@ -26,6 +26,6 @@ tests:
         assert_equal(process_escapes("a\\tb"), .Ok("a\tb"), reason="a tab")
 
     it("reports the backslash"):
-        assert_equal(position("é\\q"), 2, reason="a byte offset")
-        assert_equal(position("end\\"), 3, reason="a lone final backslash")
+        assert_equal(position("é\\q"), .Some(2), reason="a byte offset")
+        assert_equal(position("end\\"), .Some(3), reason="a lone final backslash")
         assert_equal(process_escapes("\\q"), .Err(EscapeError { position: 0 }), reason="Eq and Debug")

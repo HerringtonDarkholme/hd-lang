@@ -883,7 +883,7 @@ first::[string](names)
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
-value := pair::[string]("left", 1)  # Right is inferred as i32
+value := pair::[string]("left", 1)  # Right is inferred as usize, the fallback
 ```
 
 ```text

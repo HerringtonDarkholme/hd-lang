@@ -13,7 +13,7 @@ fn groups(pattern: string, text: string) -> List[string]:
     match Regex::new(pattern).expect("compiles").captures(text):
         .Some(found) =>
             let shown: mut List[string] = []
-            let index = 0
+            let index: usize = 0
             while index < found.len():
                 shown.push(show(found.get(index)))
                 index = index + 1

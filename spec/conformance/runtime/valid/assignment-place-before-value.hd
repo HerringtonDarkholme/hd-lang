@@ -12,6 +12,10 @@ fn note(log: mut Log, tag: string, value: i32) -> i32:
     log.text = log.text + tag
     value
 
+fn slot(log: mut Log, tag: string, value: usize) -> usize:
+    log.text = log.text + tag
+    value
+
 fn key(log: mut Log, tag: string, value: string) -> string:
     log.text = log.text + tag
     value
@@ -32,7 +36,7 @@ tests:
     it("indexed list assignment: receiver, index, value"):
         let mut log = Log { text: "" }
         let values: mut List[i32] = [0, 0]
-        list_of(log, values)[note(log, "i", 1)] = note(log, "v", 7)
+        list_of(log, values)[slot(log, "i", 1)] = note(log, "v", 7)
         assert_equal(log.text, "riv", reason="receiver, then index, then value")
         assert_equal(values, [0, 7], reason="one store to the selected slot")
 

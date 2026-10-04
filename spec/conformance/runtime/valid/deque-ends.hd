@@ -32,7 +32,6 @@ tests:
         assert_equal(queue.get(0), .Some("a"), reason="the front")
         assert_equal(queue.get(1), .Some("b"), reason="the back")
         assert_equal(queue.get(2), .None, reason="past the back")
-        assert_equal(queue.get(-1), .None, reason="never from the end")
 
     it("an empty deque"):
         let queue: mut Deque[i32] = Deque::new()
