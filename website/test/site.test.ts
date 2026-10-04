@@ -16,7 +16,7 @@ import { renderLayout } from "../src/layout.ts";
 import { checkLinks } from "../src/links.ts";
 import { createMarkdown, type RenderEnv } from "../src/markdown.ts";
 import { PAGES, PLAYGROUND_PAGE } from "../src/pages.ts";
-import { editedCode, loadTour, parseTourPage } from "../src/tour-pages.ts";
+import { editedCode, loadTour, parseTourPage, tourProject } from "../src/tour-pages.ts";
 import { tourEditor } from "../src/tour.ts";
 
 const REPO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -295,7 +295,10 @@ describe("website build", () => {
     const tourPage = await readFile(join(outDir, "tour/1-hello/index.html"), "utf8");
     assert.match(tourPage, /<script type="module" src="\/assets\/tour\.js"><\/script>/);
     assert.match(tourPage, /data-worker="\/playground\/assets\/worker\.js"/);
-    assert.match(tourPage, /<script type="application\/json" id="tour-source">"# Press Run/);
+    assert.match(
+      tourPage,
+      /<script type="application\/json" id="tour-source">\{"src\/main.hd":"# Press Run/,
+    );
     assert.ok(existsSync(join(outDir, "assets/tour.js")));
     const panel = await readFile(join(outDir, "assets/repl.js"), "utf8");
     assert.ok(panel.length < 100_000, `the panel bundle stays small (${panel.length} bytes)`);
@@ -399,6 +402,46 @@ describe("tour pages", () => {
     );
     assert.doesNotMatch(tested, /id="tour-run"/);
     assert.match(tested, /Press Test to run the tests\./);
+  });
+
+  test("a tour page may hold several files: tabs online, every file listed offline", () => {
+    const env: RenderEnv = {
+      source: "website/tour/01-t.md",
+      resolveLink: (href) => href,
+      playgroundUrl: () => "",
+      headings: [],
+      slugCounts: new Map(),
+    };
+    const text =
+      "---\ntitle: T\n---\n\n# C\n\n```hd\nuse pkg.a.{f}\n```\n\n```hd src/a.hd\n" +
+      "pub fn f() -> i32:\n    1\n```\n\n```output\nx\n```\n";
+    const page = parseTourPage("website/tour/01-t.md", text, 1);
+    assert.deepEqual(page.files, { "src/a.hd": "pub fn f() -> i32:\n    1\n" });
+    assert.deepEqual(tourProject(page, "b"), {
+      files: { "src/main.hd": "b", "src/a.hd": "pub fn f() -> i32:\n    1\n" },
+      main: "src/main.hd",
+    });
+    for (const bad of ["```hd src/main.hd", "```hd lib/a.hd", "```output src/a.hd"])
+      assert.throws(
+        () => parseTourPage("website/tour/01-t.md", text.replace("```hd src/a.hd", bad), 1),
+        /is not ```hd src\/<name>.hd/,
+      );
+    const render = { md: createMarkdown(), env, pageUrl: (output: string) => output };
+    const online = tourEditor(page, { ...render, workerUrl: "w.js" });
+    assert.match(
+      online,
+      /<button type="button" role="tab" class="tour-tab" data-file="src\/main.hd" aria-selected="true">main.hd<\/button><button type="button" role="tab" class="tour-tab" data-file="src\/a.hd" aria-selected="false">a.hd<\/button>/,
+    );
+    assert.match(online, /data-file="src\/a.hd" hidden>/);
+    assert.match(online, /id="tour-source">\{"src\/main.hd":"use pkg.a.\{f\}\\n","src\/a.hd":/);
+    const offline = tourEditor(page, render);
+    assert.match(offline, /<p class="tour-file-heading">a.hd<\/p>/);
+    assert.doesNotMatch(offline, /hidden/);
+    // Each listed line carries its hang: its indentation plus one step.
+    assert.match(
+      offline,
+      /<span class="tour-line" style="--hang: 8ch">    <span class="hl-number">1/,
+    );
   });
 });
 

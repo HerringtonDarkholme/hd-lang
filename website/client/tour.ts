@@ -2,7 +2,9 @@
 // static listing with the playground's CodeMirror setup and runs the code in
 // the playground's compiler worker. Edits are kept per page in localStorage,
 // and Reset restores the original snippet. A page has a Run button, a Test
-// button, or both (website/src/tour.ts).
+// button, or both (website/src/tour.ts). A page with several files has one
+// tab per file; Run sends them all as one package, and a diagnostic's jump
+// opens the file it is in.
 //
 // Keys: Ctrl+Enter or Cmd+Enter presses the page's main button, Run or Test
 // (with Shift it only checks), and Alt+Left and Alt+Right go to the previous
@@ -11,7 +13,6 @@
 // website/build.ts bundles this file to assets/tour.js when the playground
 // build exists.
 
-import { setDiagnostics } from "@codemirror/lint";
 import { EditorSelection, EditorState, RangeSetBuilder } from "@codemirror/state";
 import {
   Decoration,
@@ -22,7 +23,7 @@ import {
 } from "@codemirror/view";
 
 import { CompilerClient } from "../playground/src/compiler-client.ts";
-import { editorExtensions, lintDiagnostics, offsetOf } from "../playground/src/editor.ts";
+import { editorExtensions, offsetOf, withDiagnostics } from "../playground/src/editor.ts";
 import { OutputPanel } from "../playground/src/output.ts";
 import type { RunDiagnostic, RunMode } from "../playground/src/runner.ts";
 
@@ -83,7 +84,15 @@ const hangingIndent = ViewPlugin.fromClass(
 
 function start(root: HTMLElement): void {
   const key = root.dataset.tourKey!;
-  const original = JSON.parse(document.getElementById("tour-source")!.textContent!) as string;
+  // Package path to source, src/main.hd first (website/src/tour.ts).
+  const originals = JSON.parse(document.getElementById("tour-source")!.textContent!) as Record<
+    string,
+    string
+  >;
+  const paths = Object.keys(originals);
+  // src/main.hd's edits keep the page's key; another file's add its path.
+  const storageKey = (path: string): string => (path === MAIN ? key : `${key}:${path}`);
+  const tabs = [...root.querySelectorAll<HTMLButtonElement>(".tour-tab")];
   const status = document.getElementById("tour-status")!;
   const outputRoot = document.getElementById("tour-output")!;
   const code = document.getElementById("tour-code")!;
@@ -99,20 +108,48 @@ function start(root: HTMLElement): void {
   });
   status.textContent = "Loading the compiler…";
 
+  // One editor state per file; the view shows the current file's.
+  const states = new Map<string, EditorState>();
+  let current = MAIN;
+
+  /** Shows `path`'s file in the editor and marks its tab. */
+  const open = (path: string): void => {
+    if (path === current || !states.has(path)) return;
+    states.set(current, view.state);
+    current = path;
+    view.setState(states.get(path)!);
+    for (const tab of tabs) tab.setAttribute("aria-selected", String(tab.dataset.file === path));
+  };
+
   const jumpTo = (diagnostic: RunDiagnostic): void => {
+    open(diagnostic.path);
     const at = offsetOf(view.state.doc, diagnostic.line, diagnostic.column);
     view.dispatch({ selection: EditorSelection.cursor(at), scrollIntoView: true });
     view.focus();
   };
   const output = new OutputPanel(outputRoot, jumpTo);
 
-  const showDiagnostics = (diagnostics: readonly RunDiagnostic[]): void =>
-    view.dispatch(setDiagnostics(view.state, lintDiagnostics(view.state.doc, diagnostics)));
+  // Each file shows the diagnostics located in it.
+  const showDiagnostics = (diagnostics: readonly RunDiagnostic[]): void => {
+    states.set(current, view.state);
+    for (const [path, state] of states) {
+      const located = diagnostics.filter((diagnostic) => diagnostic.path === path);
+      const next = withDiagnostics(state, located);
+      states.set(path, next);
+      if (path === current) view.setState(next);
+    }
+  };
+
+  const project = (): { files: Record<string, string>; main: string } => {
+    states.set(current, view.state);
+    const files: Record<string, string> = {};
+    for (const [path, state] of states) files[path] = state.doc.toString();
+    return { files, main: MAIN };
+  };
 
   const run = async (mode: RunMode): Promise<void> => {
-    const project = { files: { [MAIN]: view.state.doc.toString() }, main: MAIN };
     output.begin(mode === "check" ? "Checking…" : mode === "test" ? "Testing…" : "Running…");
-    const result = await client.run(mode, project, (line) => output.line(line));
+    const result = await client.run(mode, project(), (line) => output.line(line));
     output.finish(result, mode);
     showDiagnostics(typeof result === "string" ? [] : result.diagnostics);
   };
@@ -122,24 +159,30 @@ function start(root: HTMLElement): void {
     check: () => void run("check"),
     changed: () => {
       const text = view.state.doc.toString();
-      saveEdit(key, text === original ? undefined : text);
+      saveEdit(storageKey(current), text === originals[current] ? undefined : text);
     },
   });
-  const view = new EditorView({
-    state: EditorState.create({
-      doc: loadEdit(key) ?? original,
-      // The editor column is narrow, so long lines wrap instead of scrolling.
+  // The editor column is narrow, so long lines wrap instead of scrolling.
+  const newState = (text: string): EditorState =>
+    EditorState.create({
+      doc: text,
       extensions: [extensions, EditorView.lineWrapping, hangingIndent],
-    }),
-  });
+    });
+  for (const path of paths)
+    states.set(path, newState(loadEdit(storageKey(path)) ?? originals[path]!));
+  const view = new EditorView({ state: states.get(MAIN)! });
   code.replaceChildren(view.dom);
 
+  for (const tab of tabs) tab.addEventListener("click", () => open(tab.dataset.file!));
   for (const mode of ["run", "test"] as const)
     document.getElementById(`tour-${mode}`)?.addEventListener("click", () => void run(mode));
   document.getElementById("tour-reset")!.addEventListener("click", () => {
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: original } });
-    saveEdit(key, undefined);
-    showDiagnostics([]);
+    open(MAIN);
+    for (const path of paths) {
+      states.set(path, newState(originals[path]!));
+      saveEdit(storageKey(path), undefined);
+    }
+    view.setState(states.get(MAIN)!);
     showHint();
   });
 
@@ -165,7 +208,7 @@ function start(root: HTMLElement): void {
   });
 
   // Tests and the console can drive the editor.
-  (window as unknown as { hdTour?: unknown }).hdTour = { view, run, client };
+  (window as unknown as { hdTour?: unknown }).hdTour = { view, run, client, open };
 }
 
 const root = document.getElementById("tour-editor");

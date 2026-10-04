@@ -7,7 +7,8 @@
 //   ---
 //   # The claim               (the headline)
 //   Prose...
-//   ```hd                     (the snippet the editor opens with)
+//   ```hd                     (the snippet the editor opens with, src/main.hd)
+//   ```hd src/pricing.hd      (optional: more files of the package, as tabs)
 //   ```edit                   (optional: a one-line edit and what it breaks)
 //   replace: <a whole line of the snippet>
 //   with: <its replacement, or nothing to delete the line>
@@ -19,7 +20,8 @@
 //   ```
 //
 // A page has an output block, a tests block, or both; a tests block gives
-// the editor a Test button. An edit names either the compile error it gives
+// the editor a Test button. A page with more files than src/main.hd shows
+// each as an editor tab, and its edit applies to src/main.hd. An edit names either the compile error it gives
 // (`error:`) or, on a page with a tests block, the failure Test reports for
 // code that still compiles (`failure:`).
 //
@@ -37,6 +39,9 @@ export const TOUR_DIR = "website/tour";
 
 /** The tour's contents page. */
 export const TOUR_INDEX = "tour/index.html";
+
+/** The package path of a page's snippet, the entry module. */
+export const TOUR_MAIN = "src/main.hd";
 
 export type TourEdit = {
   /** A whole line of the snippet, as written. */
@@ -67,7 +72,10 @@ export interface TourPage {
   readonly claim: string;
   /** The prose under the headline, as Markdown. */
   readonly prose: string;
+  /** The source of src/main.hd. */
   readonly code: string;
+  /** The package's other files: package path to source, in tab order. */
+  readonly files: Readonly<Record<string, string>>;
   readonly edit?: TourEdit;
   /** Console lines a run prints, when the page has an output block. */
   readonly output?: readonly string[];
@@ -85,7 +93,10 @@ export function tourKey(page: TourPage): string {
   return `${page.number}-${page.slug}`;
 }
 
-const FENCE = /^```(\w+)\n([\s\S]*?)^```[ \t]*\n?/gm;
+const FENCE = /^```(\w+)(?: (\S+))?\n([\s\S]*?)^```[ \t]*\n?/gm;
+
+/** A tour file's path: src/, identifier names, and .hd, as the playground's projects take. */
+const FILE_PATH = /^src\/(?:[a-z_][a-z0-9_]*\/)*[a-z_][a-z0-9_]*\.hd$/;
 
 function parseEdit(source: string, text: string): TourEdit {
   const fields = new Map<string, string>();
@@ -118,11 +129,21 @@ export function parseTourPage(source: string, text: string, number: number): Tou
   const front = /^---\ntitle: (.+)\n---\n/.exec(text);
   if (!front) throw new Error(`${source}: a tour page starts with a title: front matter block`);
   const blocks = new Map<string, string>();
-  const body = text.slice(front[0].length).replaceAll(FENCE, (_, info: string, code: string) => {
-    if (blocks.has(info)) throw new Error(`${source}: more than one \`\`\`${info} block`);
-    blocks.set(info, code);
-    return "";
-  });
+  const files: Record<string, string> = {};
+  const body = text
+    .slice(front[0].length)
+    .replaceAll(FENCE, (_, info: string, path: string | undefined, code: string) => {
+      if (path !== undefined) {
+        if (info !== "hd" || !FILE_PATH.test(path) || path === TOUR_MAIN)
+          throw new Error(`${source}: \`\`\`${info} ${path} is not \`\`\`hd src/<name>.hd`);
+        if (path in files) throw new Error(`${source}: more than one \`\`\`hd ${path} block`);
+        files[path] = code;
+        return "";
+      }
+      if (blocks.has(info)) throw new Error(`${source}: more than one \`\`\`${info} block`);
+      blocks.set(info, code);
+      return "";
+    });
   const code = blocks.get("hd");
   const output = blocks.get("output");
   const tests = blocks.get("tests")?.trim();
@@ -148,6 +169,7 @@ export function parseTourPage(source: string, text: string, number: number): Tou
     claim: heading[1]!.trim(),
     prose: body.slice(heading.index + heading[0].length).trim(),
     code,
+    files,
     edit,
     output: output?.replace(/\n$/, "").split("\n"),
     tests,
@@ -163,6 +185,14 @@ export function loadTour(repoDir: string): TourPage[] {
       const source = `${TOUR_DIR}/${name}`;
       return parseTourPage(source, readFileSync(join(repoDir, source), "utf8"), index + 1);
     });
+}
+
+/** The page's package, with `code` as src/main.hd. */
+export function tourProject(
+  page: TourPage,
+  code = page.code,
+): { files: Record<string, string>; main: string } {
+  return { files: { [TOUR_MAIN]: code, ...page.files }, main: TOUR_MAIN };
 }
 
 /** The snippet with the page's edit applied; throws unless it names exactly one line. */

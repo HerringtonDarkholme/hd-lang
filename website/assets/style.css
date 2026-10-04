@@ -1703,6 +1703,55 @@ pre.ebnf .eb-definition:target {
   border-radius: 0;
 }
 
+/* The static listing hangs wrapped lines the same way (website/src/tour.ts). */
+.tour-static .tour-line {
+  display: block;
+  padding-left: var(--hang, 0ch);
+  text-indent: calc(-1 * var(--hang, 0ch));
+}
+
+.tour-static .tour-line:empty::before {
+  content: " ";
+}
+
+/* A page with several files: one tab per file in the toolbar. */
+.tour-tabs {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.tour-tab {
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tour-tab:hover {
+  color: var(--text);
+}
+
+.tour-tab[aria-selected="true"] {
+  border-color: var(--border);
+  background: var(--bg-code);
+  color: var(--text);
+}
+
+.tour-file-heading {
+  margin: 0;
+  padding: 8px 16px 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
 .tour-output {
   flex: 2 1 0;
   min-height: 0;

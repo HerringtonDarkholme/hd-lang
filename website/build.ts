@@ -74,6 +74,8 @@ function linkResolver(base: string, errors: string[]): RenderEnv["resolveLink"] 
     const target = posix.normalize(posix.join(posix.dirname(source), path)).replace(/\/$/, "");
     const page = pageBySource.get(target);
     if (page) return siteLink(base, page.output) + fragment;
+    // A link to the playground's directory opens the site's playground page.
+    if (target === "website/playground") return siteLink(base, PLAYGROUND_PAGE) + fragment;
     const onDisk = join(REPO_DIR, target);
     if (target.startsWith("..") || !existsSync(onDisk)) {
       errors.push(`${source}: link ${href} names a missing repository path`);

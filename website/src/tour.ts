@@ -5,7 +5,7 @@
 import type { MarkdownIt } from "markdown-it";
 
 import { escapeHtml, highlightHd, type RenderEnv } from "./markdown.ts";
-import { TOUR_INDEX, tourKey, tourOutput, type TourPage } from "./tour-pages.ts";
+import { TOUR_INDEX, tourKey, tourOutput, tourProject, type TourPage } from "./tour-pages.ts";
 
 /** The site asset that runs a tour page's editor; website/build.ts bundles it. */
 export const TOUR_SCRIPT = "assets/tour.js";
@@ -67,21 +67,68 @@ function tourHint(page: TourPage): string {
   return page.output ? "Press Run to see the output here." : "Press Test to run the tests.";
 }
 
+/** How far a wrapped line hangs past its own indentation, as in website/client/tour.ts. */
+const HANG_STEP = 4;
+
+/**
+ * A highlighted listing of one file whose wrapped lines hang under their
+ * own indentation, as the editor's do: each line is a block carrying its
+ * hang in `--hang` (website/assets/style.css).
+ */
+function staticListing(code: string, path: string, hidden: boolean): string {
+  const text = code.replace(/\n$/, "");
+  const sources = text.split("\n");
+  const lines = highlightHd(text)
+    .split("\n")
+    .map((html, index) => {
+      const indent = /^ */.exec(sources[index] ?? "")![0].length;
+      return `<span class="tour-line" style="--hang: ${indent + HANG_STEP}ch">${html}</span>`;
+    })
+    .join("");
+  const hide = hidden ? " hidden" : "";
+  return `<pre class="code hd tour-static" data-file="${escapeHtml(path)}"${hide}><code>${lines}</code></pre>`;
+}
+
+/** A file's tab label: its package path without `src/`. */
+function fileLabel(path: string): string {
+  return path.replace(/^src\//, "");
+}
+
 /**
  * A tour page's editor column. The snippet is shown highlighted until the
  * script replaces it with an editor; without the playground build it stays
  * a static listing. A page with an output block gets a Run button, and one
  * with a tests block a Test button; Ctrl+Enter presses the first of them.
+ * A page with several files gets one tab per file, src/main.hd first; the
+ * static listing shows every file under its name.
  */
 export function tourEditor(page: TourPage, input: TourRender): string {
-  const source = JSON.stringify(page.code).replaceAll("<", "\\u003c");
-  const static_ = `<pre class="code hd tour-static"><code>${highlightHd(page.code.replace(/\n$/, ""))}</code></pre>`;
-  if (!input.workerUrl)
+  const { files } = tourProject(page);
+  const paths = Object.keys(files);
+  const several = paths.length > 1;
+  const source = JSON.stringify(files).replaceAll("<", "\\u003c");
+  if (!input.workerUrl) {
+    const listings = paths.map((path) => {
+      const heading = several
+        ? `<p class="tour-file-heading">${escapeHtml(fileLabel(path))}</p>`
+        : "";
+      return heading + staticListing(files[path]!, path, false);
+    });
     return `<div class="tour-editor tour-offline">
-<div class="tour-toolbar"><span class="tour-file">main.hd</span></div>
-<div class="tour-code">${static_}</div>
+<div class="tour-toolbar"><span class="tour-file">${several ? `${paths.length} files` : "main.hd"}</span></div>
+<div class="tour-code">${listings.join("")}</div>
 <div class="tour-output"><p class="notice">Running code needs the playground build: <code>pnpm run website:build</code> includes it.</p></div>
 </div>`;
+  }
+  const tabs = several
+    ? `<div class="tour-tabs" role="tablist" aria-label="Files">${paths
+        .map(
+          (path, index) =>
+            `<button type="button" role="tab" class="tour-tab" data-file="${escapeHtml(path)}" aria-selected="${index === 0}">${escapeHtml(fileLabel(path))}</button>`,
+        )
+        .join("")}</div>`
+    : '<span class="tour-file">main.hd</span>';
+  const listings = paths.map((path, index) => staticListing(files[path]!, path, index > 0));
   const primary = page.output ? "run" : "test";
   const button = (mode: "run" | "test", label: string): string => {
     const keys = mode === primary ? " (Ctrl+Enter)" : "";
@@ -93,8 +140,8 @@ export function tourEditor(page: TourPage, input: TourRender): string {
     page.tests ? button("test", "Test") : "",
   ];
   return `<div class="tour-editor" id="tour-editor" data-tour-key="${escapeHtml(tourKey(page))}" data-worker="${escapeHtml(input.workerUrl)}" data-primary="${primary}">
-<div class="tour-toolbar"><span class="tour-file">main.hd</span><span class="tour-status" id="tour-status" role="status"></span><button type="button" class="button button-quiet" id="tour-reset" title="Restore the original code">Reset</button>${buttons.join("")}</div>
-<div class="tour-code" id="tour-code">${static_}</div>
+<div class="tour-toolbar">${tabs}<span class="tour-status" id="tour-status" role="status"></span><button type="button" class="button button-quiet" id="tour-reset" title="Restore the original code">Reset</button>${buttons.join("")}</div>
+<div class="tour-code" id="tour-code">${listings.join("")}</div>
 <div class="tour-output" id="tour-output" aria-live="polite"><p class="tour-hint">${tourHint(page)}</p></div>
 <script type="application/json" id="tour-source">${source}</script>
 </div>`;

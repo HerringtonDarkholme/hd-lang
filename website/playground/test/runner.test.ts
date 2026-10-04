@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 import * as esbuild from "esbuild";
 
-import { editedCode, loadTour } from "../../src/tour-pages.ts";
+import { editedCode, loadTour, tourProject } from "../../src/tour-pages.ts";
 import { buildOptions } from "../build.ts";
 import { createHash as shimHash } from "../src/shims/crypto.ts";
 import type { Example } from "../src/examples.ts";
@@ -452,24 +452,24 @@ test("each tour snippet runs and tests as its page says; each edit breaks it as 
   assert.ok(pages.length > 0);
   for (const page of pages) {
     if (page.output) {
-      const result = await runner.runProject(single(page.code), "run");
+      const result = await runner.runProject(tourProject(page), "run");
       assert.equal(result.status, "ok", `${page.source}: ${result.summary}`);
       assert.deepEqual(result.stdout, page.output, page.source);
     }
     if (page.tests) {
-      const result = await runner.runProject(single(page.code), "test");
+      const result = await runner.runProject(tourProject(page), "test");
       assert.equal(result.status, "ok", `${page.source}: ${result.summary}`);
       assert.equal(result.summary, page.tests, page.source);
     }
     const { edit } = page;
     if (!edit) continue;
     if (edit.failure !== undefined) {
-      const tested = await runner.runProject(single(editedCode(page)), "test");
+      const tested = await runner.runProject(tourProject(page, editedCode(page)), "test");
       assert.ok(["failure", "panic"].includes(tested.status), `${page.source}: the edit passes`);
       assert.ok(tested.summary.includes(edit.failure), `${page.source}: ${tested.summary}`);
       continue;
     }
-    const edited = await runner.runProject(single(editedCode(page)), "run");
+    const edited = await runner.runProject(tourProject(page, editedCode(page)), "run");
     assert.equal(edited.status, "compile-error", `${page.source}: the edit compiles`);
     const errors = edited.diagnostics.map(({ code, message }) => `${code}: ${message}`);
     assert.ok(errors.includes(edit.error), `${page.source}: ${errors.join("; ")}`);

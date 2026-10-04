@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import { createMarkdown, fencedBlocks } from "./markdown.ts";
-import { editedCode, type TourPage } from "./tour-pages.ts";
+import { editedCode, TOUR_MAIN, type TourPage } from "./tour-pages.ts";
 
 /** The learn page's source; every ```hd block in it must parse. */
 export const LEARN_PAGE = "guide/LEARN_IN_10_MINUTES.md";
@@ -24,16 +24,22 @@ function compilerCommand(): string[] {
 
 /**
  * Runs `IMPL ACTION [OPTION]... FILE`; resolves to the located diagnostic
- * lines without the file name, or none on exit 0.
+ * lines without the file name, or none on exit 0. With `tree`, a directory
+ * passed as `--package-tree`, a diagnostic in a tree file keeps its path in
+ * the tree, such as `src/pricing.hd:3:5: ...`.
  */
-function compilerErrors(action: readonly string[], file: string): Promise<string[]> {
+function compilerErrors(action: readonly string[], file: string, tree?: string): Promise<string[]> {
   const [program, ...args] = compilerCommand();
   return new Promise((complete) => {
     execFile(program!, [...args, ...action, file], { cwd: REPO_DIR }, (error, stdout, stderr) => {
       if (!error) return complete([]);
-      const lines = `${stdout}\n${stderr}`.split("\n").filter((line) => line.startsWith(file));
+      const lines = `${stdout}\n${stderr}`.split("\n").flatMap((line) => {
+        if (line.startsWith(`${file}:`)) return [line.slice(file.length + 1)];
+        if (tree && line.startsWith(`${tree}/`)) return [line.slice(tree.length + 1)];
+        return [];
+      });
       const crash = `${stderr}`.trim().split("\n")[0] || error.message.split("\n")[0]!;
-      complete(lines.length ? lines.map((line) => line.slice(file.length + 1)) : [crash]);
+      complete(lines.length ? lines : [crash]);
     });
   });
 }
@@ -80,7 +86,8 @@ export async function checkHdBlocksParse(root: string, path: string): Promise<st
 
 /**
  * Returns one message per problem with a tour page: its snippet does not
- * type-check (`IMPL check --tests FILE`), its edit does not give the error it
+ * type-check (`IMPL check --tests FILE`, in a package tree when the page has
+ * several files), its edit does not give the error it
  * names, a `failure:` edit does not type-check, or the snippet does not quote
  * the edit's error or failure in a comment. The command contract has no
  * action that runs a program with `main`, so the playground's runner test
@@ -91,7 +98,16 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
   const check = async (page: TourPage, code: string, name: string): Promise<string[]> => {
     const file = join(scratch, `${page.number}-${name}.hd`);
     await writeFile(file, code);
-    return compilerErrors(["check", "--tests"], file);
+    const paths = Object.keys(page.files);
+    if (paths.length === 0) return compilerErrors(["check", "--tests"], file);
+    // The snippet is src/main.hd of a package that holds the page's other files.
+    const tree = join(scratch, `${page.number}-${name}-tree`);
+    for (const path of paths) {
+      await mkdir(dirname(join(tree, path)), { recursive: true });
+      await writeFile(join(tree, path), page.files[path]!);
+    }
+    const options = ["--package-tree", tree, "--package-path", TOUR_MAIN];
+    return compilerErrors(["check", "--tests", ...options], file, tree);
   };
   const snippet = (page: TourPage) => async (): Promise<string[]> =>
     (await check(page, page.code, "snippet")).map((error) => `${page.source}: snippet: ${error}`);

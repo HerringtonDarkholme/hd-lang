@@ -472,7 +472,7 @@ try {
   });
 
   await step("a tour page with tests has a Test button, and wrapped lines hang", async () => {
-    const { page } = await openPage("tour/11-requirements/", { ready: "#tour-editor .cm-editor" });
+    const { page } = await openPage("tour/12-requirements/", { ready: "#tour-editor .cm-editor" });
     const output = page.locator("#tour-output");
     await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
     await page.click("#tour-test");
@@ -500,7 +500,7 @@ try {
     await page.context().close();
 
     // A page with only tests has no Run button, and Ctrl+Enter tests.
-    const tests = await openPage("tour/12-tests/", { ready: "#tour-editor .cm-editor" });
+    const tests = await openPage("tour/13-tests/", { ready: "#tour-editor .cm-editor" });
     assert.equal(await tests.page.locator("#tour-run").count(), 0, "no Run button");
     await tests.page.locator("#tour-status", { hasText: "Ready" }).waitFor({
       timeout: FIRST_REPLY_MS,
@@ -512,6 +512,51 @@ try {
       .waitFor({ timeout: FIRST_REPLY_MS });
     await tests.page.context().close();
   });
+
+  await step(
+    "a tour page with several files shows a tab per file and runs them together",
+    async () => {
+      const { page } = await openPage("tour/14-modules/", { ready: "#tour-editor .cm-editor" });
+      const output = page.locator("#tour-output");
+      const tab = (name: string) => page.locator(".tour-tab", { hasText: name });
+      assert.equal(await tab("main.hd").getAttribute("aria-selected"), "true");
+      await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
+      await page.click("#tour-run");
+      await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
+      assert.equal(await output.locator(".stdout").textContent(), "total: 4149 cents\n");
+
+      // Break pricing.hd: its fee becomes a string.
+      await tab("pricing.hd").click();
+      assert.equal(await tab("pricing.hd").getAttribute("aria-selected"), "true");
+      await page.locator(".cm-line", { hasText: "if subtotal >= 5000: 0 else: 499" }).click();
+      await page.keyboard.press("End");
+      for (let index = 0; index < 3; index += 1) await page.keyboard.press("Backspace");
+      await page.keyboard.type('"free"');
+      await tab("main.hd").click();
+      await page.locator(".cm-line", { hasText: "use pkg.pricing.{Line, total}  #" }).waitFor();
+      await page.click("#tour-run");
+      await output.locator(".outcome.failed").waitFor({ timeout: FIRST_REPLY_MS });
+      const location = await output.locator(".diagnostic .location").first().textContent();
+      assert.match(location ?? "", /^src\/pricing\.hd:/);
+      // The diagnostic's jump opens the file it is in.
+      await output.locator(".diagnostic .jump").first().click();
+      assert.equal(await tab("pricing.hd").getAttribute("aria-selected"), "true");
+
+      // Each file's edit survives a reload; Reset restores every file.
+      await page.reload();
+      await page.locator("#tour-editor .cm-editor").waitFor();
+      await tab("pricing.hd").click();
+      await page.locator(".cm-line", { hasText: 'else: "free"' }).waitFor();
+      await page.click("#tour-reset");
+      assert.equal(await tab("main.hd").getAttribute("aria-selected"), "true");
+      await tab("pricing.hd").click();
+      await page.locator(".cm-line", { hasText: "else: 499" }).waitFor();
+      await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
+      await page.click("#tour-run");
+      await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
+      await page.context().close();
+    },
+  );
 
   await step("the Playground link opens the playground with the code it carries", async () => {
     const home = await openPage("index.html");
