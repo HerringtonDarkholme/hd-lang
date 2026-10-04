@@ -6,6 +6,7 @@
 
 export {
   bufferedIo,
+  EXIT_HD_FAILURE,
   processIo,
   type CommandEnvironment,
   type CommandIo,

@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,469 cases: 2,298 selected in `test/portable/cases.tsv` and 171 known
-failures. The selected cases are 2,021 language tier, 275 stdlib tier, and 2
-CLI tier; the known failures are 126 language tier, 10 stdlib tier, and 35
+2,469 cases: 2,299 selected in `test/portable/cases.tsv` and 170 known
+failures. The selected cases are 2,021 language tier, 275 stdlib tier, and 3
+CLI tier; the known failures are 126 language tier, 10 stdlib tier, and 34
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -22,9 +22,9 @@ CLI tier.
 | CLI-DOC | 8 | no `hd doc` command |
 | MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
 | CLI-JSON | 9 | `--format json` prints diagnostics to stderr with a nested `span`, has no summary object, and has no test objects |
-| CLI-EXIT | 2 | a rejected program or command line exits 1 or 2, not 101 |
+| CLI-EXIT | 1 | a program the checker rejects exits 1, not 101 ([`cli.exit.hd-failure`](../spec/cli/command-line.md#r-cli.exit.hd-failure)), because the conformance Command Contract reads exit 1 as rejection and fails any other status; with 101, every `check` rejection of the 2,000 language cases fails. |
 | CLI-PKG-CMD | 5 | `hd check`, `hd build`, and `hd run` take a FILE and have no whole-package form and no `[[executable]]` tables; outside a package `hd test` exits 0 |
-| CLI-TEST-EMPTY | 1 | `hd test FILE` for a file with no test case exits 0, not 101 |
+| CLI-TEST-EMPTY | 1 | `hd test FILE` for a file with no test case exits 0, not 101 ([`cli.test.file-empty`](../spec/cli/command-line.md#r-cli.test.file-empty)), because six runtime fixtures run `test FILE` on such a file and must exit 0; the two rules need the owner's ruling |
 | F-250 | 6 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | TQ-2 | 1 | a package-role fixture cannot express ownership of a trait argument |

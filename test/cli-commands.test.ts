@@ -25,14 +25,14 @@ function hd(args: readonly string[], cwd = root): Promise<CommandResult> {
   return hdInProcess(args, { cwd });
 }
 
-/** Runs `hd` expecting exit status 2, and returns its output. */
+/** Runs `hd` expecting exit status 101 (a rejected command line), and returns its output. */
 async function usageError(args: readonly string[]): Promise<CommandResult> {
   let failure: CommandResult | undefined;
   await assert.rejects(hd(args), (error: CommandResult) => {
     failure = error;
     return true;
   });
-  assert.equal(failure!.code, 2, `hd ${args.join(" ")} exits 2`);
+  assert.equal(failure!.code, 101, `hd ${args.join(" ")} exits 101`);
   assert.equal(failure!.stdout, "");
   return failure!;
 }
@@ -373,6 +373,6 @@ test("pending-first-poll is a harness hook of the adapter, not an hd option", as
   assert.equal(pending.stdout, plain.stdout);
   assert.match(pending.stdout, /: 1 passed$/m);
   const io = bufferedIo();
-  assert.equal(await main(["test", "--scenario", "pending-first-poll", fixture], io), 2);
+  assert.equal(await main(["test", "--scenario", "pending-first-poll", fixture], io), 101);
   assert.match(io.output().stderr, /--scenario must be one of/);
 });

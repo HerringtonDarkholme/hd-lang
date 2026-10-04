@@ -340,7 +340,7 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
     assert.match(tested.stdout, /warned\.hd: 1 passed/);
 
     const bad = await hd(["check", "--format", "yaml", warned]);
-    assert.equal(bad.code, 2);
+    assert.equal(bad.code, 101);
   });
 });
 

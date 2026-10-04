@@ -10,6 +10,7 @@ import {
   checkCommand,
   defCommand,
   docCommand,
+  EXIT_HD_FAILURE,
   explainCommand,
   helpCommand,
   hirCommand,
@@ -93,7 +94,7 @@ export async function main(
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     io.err(error.message);
-    return 2;
+    return EXIT_HD_FAILURE;
   }
   if (parsed.kind === "help") return helpCommand({ topic: parsed.topic }, io);
   const [first, second] = parsed.operands;

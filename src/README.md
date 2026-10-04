@@ -68,9 +68,9 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
 
 - Each command owns its flags. `--format text|json` is the only global flag,
   and it may come before or after the command. A flag given to a command
-  that does not own it exits 2 and names the commands that do.
+  that does not own it exits 101 and names the commands that do.
 - Flags may come before or after the operands; `--` ends the flags.
-- A usage error prints to stderr and exits 2.
+- A usage error prints to stderr and exits 101 ([`cli.exit.hd-failure`](../spec/cli/command-line.md#r-cli.exit.hd-failure)).
 - `hd debug parse` and `hd debug hir` print internal compiler output.
   `hd parse FILE` stays as a hidden spelling of `hd debug parse`, because
   the conformance command contract names it

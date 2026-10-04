@@ -17,6 +17,13 @@ export const processIo: CommandIo = {
   err: (line) => console.error(line),
 };
 
+/**
+ * The status of a command line that `hd` rejects (`cli.exit.hd-failure`). A
+ * program the checker rejects still exits 1, because the conformance Command
+ * Contract reads exit 1 as rejection and fails any other status.
+ */
+export const EXIT_HD_FAILURE = 101;
+
 /** What a command wrote to a {@link bufferedIo}. */
 export interface CommandOutput {
   readonly stdout: string;

@@ -47,7 +47,7 @@ test("the hd executable passes its arguments and sets the exit status", async ()
   assert.equal((await spawned(["--format", "json", "run", "examples/core.hd"])).stdout, "7\n");
 
   const unknown = await failed(["bogus"]);
-  assert.equal(unknown.code, 2);
+  assert.equal(unknown.code, 101);
   assert.equal(
     unknown.stderr,
     "hd: unknown command 'bogus'\nRun 'hd help' for the command list.\n",
@@ -111,12 +111,12 @@ test("documented CLI commands work end to end", async () => {
 
 // trace, record, replay, and explain-requirements were removed from the CLI,
 // and dump-hir moved to `hd debug hir`; each is now an unknown command,
-// which exits 2.
+// which exits 101.
 test("removed CLI commands fail as unknown commands", async () => {
   const suspension = resolve(root, "examples/suspension.hd");
   for (const command of ["trace", "record", "replay", "explain-requirements", "dump-hir"]) {
     await assert.rejects(hd([command, suspension]), (error: CommandResult & { code?: number }) => {
-      assert.equal(error.code, 2);
+      assert.equal(error.code, 101);
       assert.equal(error.stdout, "");
       assert.equal(
         error.stderr,
