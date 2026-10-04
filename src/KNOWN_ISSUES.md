@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,206 cases: 2,077 selected in `test/portable/cases.tsv` and 129 known
-failures. The selected cases are 1,828 language tier and 249 stdlib tier;
-the known failures are 101 language tier and 28 stdlib tier.
+2,214 cases: 2,085 selected in `test/portable/cases.tsv` and 129 known
+failures. The selected cases are 1,830 language tier and 255 stdlib tier;
+the known failures are 107 language tier and 22 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -39,23 +39,20 @@ the known failures are 101 language tier and 28 stdlib tier.
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
-| STD-HELPERS | 8 | std helper declarations remain blocked by eager host glue and unresolved helper/provider support |
-| ERR-HELPERS | 1 | trait-value `find` enters a forwarding adapter with static TypeId evidence and traps on an illegal cast |
-| SNAPSHOT-ROW | 3 | snapshot operations do not use the current TestRunner row |
+| STD-HELPERS | 8 | `lib/std` lacks the console, clock, and file helpers, and the host has no `Console.write_error_line` entry |
+| SNAPSHOT-ROW | 2 | snapshot operations do not use the current TestRunner row |
 | RUNNER-SURFACE | 1 | PropertyRunner lacks the current PropertyCase protocol |
 | LIST-POP | 4 | `List.pop`, `insert`, `remove_at`, `clear`, and their list-truncate hook are absent |
 | STD-DEBUG | 1 | std derivation ordering leaves TypeId and SelfRef without Debug |
-| ALL-LIST | 1 | erasing concrete closures in generic lists can produce an illegal cast |
 | METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
 | STD-1 | 3 | the checker accepts bounded inherent Map impls, but the specified Map methods are absent from `lib/std` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
-| SPEC-U32-DRIFT | 6 | fixtures still encode the retired signed-size behavior; `audit/compiler/u32-spec-drift.md` records the conflicts |
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
 | EQ-CONTEXTUAL | 2 | equality does not contextually type a variant from the opposite operand |
 | FRESH-MUT | 1 | generic inference does not weaken `mut T` and `T` to their readonly join |
-| FORWARD-BOUNDS | 1 | inference does not solve a bound that names a later type parameter |
 | QUALIFIED-PREFIX | 3 | a string prefix after `.` does not report `qualified-string-prefix` |
 | LITERAL-FIRST-USE | 23 | an unannotated literal binding falls back before its first deciding use |
+| SIGN-FALLBACK | 10 | an unsigned literal group falls back to `i32`, not `usize`, and `unsigned-comparison-always` is not checked |
 
 ## Findings
 

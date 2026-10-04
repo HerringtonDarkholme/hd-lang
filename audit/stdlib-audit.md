@@ -46,7 +46,7 @@ each call.
 | Top 10: items 1, 2, 4, 5, 9, 10 | applied |
 | Top 10: item 6 | applied: every item specified; none made private |
 | Top 10: item 7 | applied: tag `STD-HELPERS`, STDLIB_PLAN row |
-| Top 10: item 8 | `ScriptedInput` applied; `write_error_line!` blocked by host glue (STD-HELPERS); `ScriptedProcess::new` applied in pass 90 with [process.md](../spec/std/process.md) |
+| Top 10: item 8 | `ScriptedInput` applied; `write_error_line!` waits for its `lib/std` declaration and a host entry (STD-HELPERS; the host-glue cause is fixed); `ScriptedProcess::new` applied in pass 90 with [process.md](../spec/std/process.md) |
 | Inconsistencies 1, 2, 4, 5, 6, 8, 10 to 17, 22, 29 | applied; 9, 18, 19, 24, 25, 26, 28 kept as recommended; 3 kept; 27 waits for Q3 |
 | Inconsistencies 7, 20, 21, 30 | applied in pass 90 (#247); 27 applied with Q3 |
 | Inconsistency 23 (lib) | not yet applied |
@@ -146,7 +146,7 @@ Rows are in [STDLIB_CALLS.md](../future-work/STDLIB_CALLS.md) order.
 | --- | --- | --- |
 | `std.cmp.Reverse` specified | keep | Rust's `Reverse` |
 | `List.push` forwards to `append` | keep | temporary; LIST-PUSH-POP removes it |
-| `all_list!` from nested `all!` | keep | no intrinsic; ALL-LIST tracks the trap |
+| `all_list!` from nested `all!` | keep | no intrinsic; the ALL-LIST trap is fixed, and `task-all-list-order` passes |
 | `partition` is `(kept, rest)`; `windows(0)` panics | keep | Rust's order and panic |
 | `take_while` consumes the rejected item; `zip` pulls `self` first | keep | Rust |
 | `zip`, `chain` call `other.iter()` once at the call | keep | Rust's `into_iter` at the call |
@@ -274,7 +274,7 @@ Ranked by how often real code hit them. "Log" rows are lines of
 | 3 | `Map.keys`, `get_or`, `contains_key` | 3 | log: `fields.keys()`; F5; textstats' `match counts.get(word)` counter | specified; STD-1 pending |
 | 4 | `Display` for an optional | 2 | log: `"${a.checked_add(10)}"`, `"${'z'.to_digit(36)}"` | keep none (Rust has none); have `unsatisfied-trait-bound` suggest `debug(...)` |
 | 5 | `min`/`max` need a `use` | 2 | log: `max(at, level[dep] + 1)`; F11 | keep: owner decision 7, the prelude does not grow |
-| 6 | `all!` over a list | 2 | log: `all!(...items.map(...))`; F8 | `all_list!` specified; ALL-LIST traps |
+| 6 | `all!` over a list | 2 | log: `all!(...items.map(...))`; F8 | `all_list!` specified; ALL-LIST fixed, its fixture passes |
 | 7 | `List.take(n)` | 1 | textstats: `.chunks(limit).first().unwrap_or([])` | add `take(count)` (top 5) |
 | 8 | sum of a list | 1 | textstats: `.iter().fold(0, ...)` | add `Iterator.sum()` for `T < Num`, as Rust |
 | 9 | `Result.unwrap` | 1 | log: `Regex::new(p).unwrap()` | keep `expect` only: it names the assumption; have `unknown-method` suggest `expect` |
