@@ -31,8 +31,12 @@ A case fails when any of these holds:
 | --- | --- |
 | crash or timeout | 90 s per case |
 | growth from the smaller to the larger size | 12x per 10x of input: `12^log10(step)`, so 3.7x for a step of 3.33. Ignored when the larger time is under 250 ms. |
-| growth of a known super-linear case | 1.5x the ratio recorded in `baseline.json` |
+| growth of a known super-linear case | 2x the ratio recorded in `baseline.json` |
 | slowdown at either size | 1.5x the score recorded in `baseline.json`. Ignored when the time is under 100 ms. |
+
+A case that fails a timing rule is measured once more, and fails the gate
+only if it fails again. A load spike on a shared machine then passes, with
+a warning; a real regression fails both times.
 
 A score is a case's time divided by the reference program's time in the
 same process. A diagnostic result that differs from `baseline.json` is a
@@ -58,6 +62,15 @@ A score cannot catch a slowdown that hits the reference program as much as
 the case, such as a checker that is twice as slow everywhere. The growth
 rule still catches anything that becomes super-linear.
 
+### Laptop Baseline, GitHub Runner
+
+`baseline.json` is recorded on a laptop (Apple M-series). On the first CI
+run, the reference program took 450 ms against 170 ms locally, and the
+scores came out 0.63x to 1.09x of the baseline. So on CI a case must slow
+down by up to 2x, not 1.5x, before the slowdown rule fails it. The same run
+showed growth ratios of near-linear cases about 1.5x higher than locally,
+which is why a known case may grow to 2x its recorded ratio.
+
 ### Sizes
 
 The larger size takes 0.3 s to 1 s on a laptop. The smaller size takes
@@ -79,7 +92,7 @@ change that changes a case's diagnostics.
 ## Known Super-Linear Cases on Main
 
 Measured on 2026-10-03 at ba7c830e. The gate fails these only when they
-grow 1.5x faster than recorded.
+grow 2x faster than recorded.
 
 | Case | Gate sizes | Time (ms) | Growth |
 | --- | --- | --- | --- |

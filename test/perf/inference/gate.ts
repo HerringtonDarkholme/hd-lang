@@ -9,11 +9,12 @@
 // - it crashes, or runs over the timeout;
 // - its time grows by more than 12x per 10x of input (12^log10(step) for
 //   another step) and the larger time is over 250 ms; a known super-linear
-//   case fails when it grows more than 1.5x its recorded ratio instead;
+//   case fails when it grows more than 2x its recorded ratio instead;
 // - its score (time over the reference program's time) is more than 1.5x its
 //   score in baseline.json, and its time is over 100 ms.
-// A diagnostic result that differs from baseline.json is a warning: the
-// case may no longer measure the path it was written for.
+// A case that fails a timing rule is measured again and fails only if it
+// fails twice. A diagnostic result that differs from baseline.json is a
+// warning: the case may no longer measure the path it was written for.
 //
 // --update records the current scores, ratios, and results in baseline.json.
 // README.md explains the rules.
@@ -49,7 +50,9 @@ export const GATE: readonly GateCase[] = [
 ];
 
 const MAX_RATIO_PER_10X = 12;
-const KNOWN_RATIO_TOLERANCE = 1.5;
+// Ratios of near-linear cases read about 1.5x higher on GitHub runners than
+// on a laptop (open-lets-reverse 11x locally, 17.5x on CI).
+const KNOWN_RATIO_TOLERANCE = 2;
 const GROWTH_FLOOR_MS = 250;
 const MAX_SLOWDOWN = 1.5;
 const SLOWDOWN_FLOOR_MS = 100;
@@ -123,33 +126,25 @@ console.log(
   "| case | scales | small ms | large ms | parse ms | check ms | growth (limit) | vs baseline | verdict |",
 );
 console.log("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
-for (const entry of GATE.filter(
-  (gateCase) => selected.length === 0 || selected.includes(gateCase.name),
-)) {
+const evaluate = (entry: GateCase) => {
   const [small, large] = entry.scales;
   const outcome = measureInChild(
     [entry.name, String(small), String(large), "--reference", String(REFERENCE_SCALE)],
     TIMEOUT_SECONDS,
   );
+  if (outcome.status !== "ok")
+    return {
+      status: outcome.status,
+      problems: [
+        outcome.status === "timeout"
+          ? `over ${TIMEOUT_SECONDS} s`
+          : `crash${outcome.detail ? ` (${outcome.detail})` : ""}`,
+      ],
+    } as const;
   const problems: string[] = [];
   const warnings: string[] = [];
-  if (outcome.status !== "ok") {
-    problems.push(
-      outcome.status === "timeout"
-        ? `over ${TIMEOUT_SECONDS} s`
-        : `crash${outcome.detail ? ` (${outcome.detail})` : ""}`,
-    );
-    failures += 1;
-    console.log(
-      `| ${entry.name} | ${small}, ${large} | | | | | | | FAIL: ${problems.join("; ")} |`,
-    );
-    annotate("error", `${entry.name}: ${problems.join("; ")}`);
-    report.push({ case: entry.name, problems });
-    continue;
-  }
   const { reference, scales } = outcome.report;
   const referenceMs = Math.max(reference!.total, 1);
-  referenceTimes.push(referenceMs);
   const [low, high] = [scales[0]!, scales[1]!];
   const scores = [low.net.total / referenceMs, high.net.total / referenceMs] as const;
   const ratio = scores[1] / Math.max(scores[0], LOW_SCORE_FLOOR);
@@ -159,7 +154,7 @@ for (const entry of GATE.filter(
   if (before && !comparable && !update)
     problems.push("scales differ from baseline.json; re-record with --update");
 
-  // Growth: at most 12x per 10x of input, or 1.5x a known case's ratio.
+  // Growth: at most 12x per 10x of input, or 2x a known case's ratio.
   const step = large / small;
   const stepLimit = MAX_RATIO_PER_10X ** Math.log10(step);
   const limit =
@@ -188,6 +183,49 @@ for (const entry of GATE.filter(
     warnings.push(
       `result changed from ${before.codes.join(",") || "accept"} to ${codes.join(",") || "accept"}`,
     );
+  return {
+    status: "ok",
+    problems,
+    warnings,
+    referenceMs,
+    low,
+    high,
+    scores,
+    ratio,
+    step,
+    limit,
+    slowdowns,
+    codes,
+  } as const;
+};
+
+for (const entry of GATE.filter(
+  (gateCase) => selected.length === 0 || selected.includes(gateCase.name),
+)) {
+  const [small, large] = entry.scales;
+  let result = evaluate(entry);
+  // A timing failure is measured once more, so a burst of load on the
+  // machine does not fail the gate; a regression fails both times.
+  let firstTry = "";
+  if (result.status === "ok" && result.problems.length > 0 && !update) {
+    firstTry = result.problems.join("; ");
+    result = evaluate(entry);
+  }
+  if (result.status !== "ok") {
+    failures += 1;
+    console.log(
+      `| ${entry.name} | ${small}, ${large} | | | | | | | FAIL: ${result.problems.join("; ")} |`,
+    );
+    annotate("error", `${entry.name}: ${result.problems.join("; ")}`);
+    report.push({ case: entry.name, problems: result.problems });
+    continue;
+  }
+  const { problems, warnings, referenceMs, low, high, scores, ratio, step, limit, slowdowns } =
+    result;
+  const codes = [...result.codes];
+  referenceTimes.push(referenceMs);
+  if (firstTry && problems.length === 0)
+    warnings.push(`passed on a second try (first try: ${firstTry})`);
 
   if (problems.length > 0 && !update) failures += 1;
   for (const problem of problems)
