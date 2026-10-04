@@ -147,6 +147,35 @@ test("a module may declare its own all! without importing std.task.all", () => {
   assert.deepEqual(analyze(fixture("suspension/05-user-defined-all")).diagnostics, []);
 });
 
+test("race! with an empty list literal is argument-count", () => {
+  const diagnostics = analyze(conformance("typing/invalid/race-empty-list-literal")).diagnostics;
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0]?.code, "argument-count");
+});
+
+test("race! over a task list empty at run time panics explicit-panic", async () => {
+  const source = [
+    "use std.task.{block_on, race}",
+    "",
+    "fn first!(tasks: List[mut Suspend[i32]]) -> i32:",
+    "    race!(tasks...)",
+    "",
+    "pub fn main() -> void:",
+    "    let tasks: List[mut Suspend[i32]] = []",
+    "    let pending: mut Suspend[i32] = first(tasks)",
+    "    block_on(pending)",
+  ].join("\n");
+  const { instance } = await instantiate(source);
+  assert.throws(
+    () => (instance.exports.main as CallableFunction)(),
+    (error: unknown) => {
+      assert.ok(error instanceof RuntimePanicError);
+      assert.equal(error.code, "explicit-panic");
+      return true;
+    },
+  );
+});
+
 test("cold suspension cancellation is synchronous and idempotent", async () => {
   const source = conformance("runtime/valid/cold-suspension-cancel-idempotent");
   const { instance, compilation } = await instantiate(source);

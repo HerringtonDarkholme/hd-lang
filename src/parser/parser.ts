@@ -3,6 +3,7 @@ import type {
   AssociatedTypeBinding,
   AssociatedTypeDecl,
   Decorators,
+  InitGroup,
   MemberLine,
   DataDecl,
   EnumDecl,
@@ -121,6 +122,7 @@ class Parser extends LetParser {
         tests,
         statements,
         ...(items.testOnlyNames.size > 0 ? { testOnlyNames: [...items.testOnlyNames] } : {}),
+        ...(this.options.joinedModules === true ? { joinedModules: true as const } : {}),
         ...(testsBlock ||
         this.options.testModule === true ||
         (this.options.joinedModules === true && tests.length > 0)
@@ -1421,5 +1423,33 @@ class Parser extends LetParser {
 export function parse(source: string, options: ParseOptions = {}): ParseResult {
   const lexed = lex(source);
   if (lexed.diagnostics.length > 0) return { diagnostics: lexed.diagnostics };
-  return new Parser(lexed.tokens).withOptions(options).parse();
+  const parsed = new Parser(lexed.tokens).withOptions(options).parse();
+  if (
+    parsed.program !== undefined &&
+    options.joinedModules === true &&
+    lexed.initGroupMarkers.length > 0
+  )
+    return {
+      ...parsed,
+      program: {
+        ...parsed.program,
+        initGroups: initGroupBreaks(parsed.program.statements, lexed.initGroupMarkers),
+      },
+    };
+  return parsed;
+}
+
+// Initialization-group boundaries for a joined program: each linker marker
+// opens a group at the first top-level statement starting after its line. A
+// marker with no statement after it opens an empty group, which the checker
+// skips. Markers apply only under `joinedModules`; anywhere else they stay
+// plain comments.
+function initGroupBreaks(
+  statements: readonly Statement[],
+  markers: readonly { readonly line: number; readonly multi: boolean }[],
+): InitGroup[] {
+  return markers.map((marker) => {
+    const start = statements.findIndex((statement) => statement.span.start.line > marker.line);
+    return { start: start === -1 ? statements.length : start, multi: marker.multi };
+  });
 }

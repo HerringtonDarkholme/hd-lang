@@ -18,6 +18,43 @@ test("lexer emits layout tokens and source positions", () => {
   assert.deepEqual(choose?.span.start, { offset: 3, line: 1, column: 4 });
 });
 
+test("lexer records init-group markers alone on a line and skips them as comments", () => {
+  const source = [
+    "# hd:init-group(multi)",
+    "let featured = 1",
+    "    # hd:init-group(multi)",
+    "let trailing = 2 # hd:init-group(multi)",
+    "# hd:init-group(single)",
+    "",
+  ].join("\n");
+  const result = lex(source);
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(result.initGroupMarkers, [
+    { line: 1, multi: true },
+    { line: 5, multi: false },
+  ]);
+  assert.ok(result.tokens.every((token) => !token.text.includes("hd:init-group")));
+});
+
+test("parser maps init-group markers to statement breaks under joinedModules only", () => {
+  const source = [
+    "# hd:init-group(multi)",
+    "let featured = 1",
+    "# hd:init-group(single)",
+    "let markup = 2",
+    "",
+  ].join("\n");
+  const joined = parse(source, { joinedModules: true });
+  assert.deepEqual(joined.diagnostics, []);
+  assert.deepEqual(joined.program?.initGroups, [
+    { start: 0, multi: true },
+    { start: 1, multi: false },
+  ]);
+  const single = parse(source, {});
+  assert.deepEqual(single.diagnostics, []);
+  assert.equal(single.program?.initGroups, undefined);
+});
+
 test("lexer keeps literal suffixes on decimal and float numbers only", () => {
   const result = lex("a := 250ms\nb := 1e3ms\nc := 5em\nd := 0xffB\ne := 1e3\n");
   assert.deepEqual(result.diagnostics, []);

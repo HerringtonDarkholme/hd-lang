@@ -61,3 +61,8 @@ test("a row alias's right side without '$' gets a fix-it that adds it", () => {
   assert.equal(fixed, source.replace("= Db", "= $ Db").replace("= AppRow", "= $ AppRow"));
   assert.deepEqual(analyze(fixed).diagnostics, []);
 });
+
+test("a script top level infers its entry requirement row (module.init.script-row)", () => {
+  const source = ['greeting := "hello"', "println(greeting)", 'println("done")', ""].join("\n");
+  assert.deepEqual(analyze(source).diagnostics, []);
+});

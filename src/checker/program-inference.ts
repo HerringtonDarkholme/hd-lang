@@ -173,27 +173,40 @@ export class SignatureInference {
       this.rowNames.has(declaration.name),
     );
     if (rowDeclarations.length === 0) return;
+    let changed = false;
+    const grow = (name: string, requirements: readonly string[]): void => {
+      const signature = this.signatures.get(name);
+      if (!signature || this.failed.has(name)) return;
+      const row = new Set(signature.requirements);
+      const before = row.size;
+      for (const requirement of requirements) row.add(requirement);
+      if (row.size === before) return;
+      this.signatures.set(name, { ...signature, requirements: [...row].sort() });
+      changed = true;
+    };
     for (;;) {
       this.globals = new Map();
-      if (this.moduleDeclaration)
-        this.run(
+      changed = false;
+      if (this.moduleDeclaration) {
+        // The module body populates globals, so it runs once per round here;
+        // the row loop below skips it. A script's top level infers its entry
+        // requirement row instead of failing its requirements
+        // (spec/lang/10-modules.md#r-module.init.script-row).
+        const checked = this.run(
           this.moduleDeclaration,
           this.signatures.get(this.moduleDeclaration.name)!,
-          false,
+          this.moduleDeclaration.requirementsOmitted === true,
           false,
         );
-      let changed = false;
+        if (checked.function) grow(this.moduleDeclaration.name, checked.function.requirements);
+      }
       for (const declaration of rowDeclarations) {
+        if (declaration === this.moduleDeclaration) continue;
         const signature = this.signatures.get(declaration.name);
         if (!signature || this.failed.has(declaration.name)) continue;
         const checked = this.run(declaration, signature, true, false);
         if (!checked.function) continue;
-        const row = new Set(signature.requirements);
-        const before = row.size;
-        for (const requirement of checked.function.requirements) row.add(requirement);
-        if (row.size === before) continue;
-        this.signatures.set(declaration.name, { ...signature, requirements: [...row].sort() });
-        changed = true;
+        grow(declaration.name, checked.function.requirements);
       }
       if (!changed) return;
     }

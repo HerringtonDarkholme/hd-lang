@@ -51,6 +51,10 @@ const COMBINATOR_RUNTIME = `(func $hd.combinator_new (param $race i32) (param $t
   (local $size i32)
   (local $children (ref $hd.list))
   (local.set $size (struct.get $hd.vector $hd.vector-size (local.get $tasks)))
+  ;; A race call whose task list is empty at run time panics when it is
+  ;; called (11-requirements-and-suspension.md#r-req.combinator.race-empty-run).
+  (if (i32.and (local.get $race) (i32.eqz (local.get $size)))
+    (then (call $hd.panic (i32.const ${runtimePanicCode("explicit-panic")})) unreachable))
   (local.set $children (array.new $hd.list (ref.null any) (local.get $size)))
   (array.copy $hd.list $hd.list (local.get $children) (i32.const 0)
     (struct.get $hd.vector $hd.vector-values (local.get $tasks)) (i32.const 0) (local.get $size))

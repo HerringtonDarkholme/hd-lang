@@ -181,6 +181,18 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
             expression.arguments.length === 0
           )
             this.fail("argument-count", "race! expects at least one task", expression.span);
+          // An empty list literal by name is the same error
+          // (11-requirements-and-suspension.md#r-req.combinator.race-empty-literal).
+          const [tasks] = expression.arguments;
+          if (
+            this.imports.get(expression.callee.name) === RACE_COMBINATOR &&
+            expression.arguments.length === 1 &&
+            expression.argumentNames?.[0] === "tasks" &&
+            !expression.argumentSpreads?.[0] &&
+            tasks?.kind === "list" &&
+            tasks.elements.length === 0
+          )
+            this.fail("argument-count", "race! expects at least one task", expression.span);
           const checkedArguments = this.checkSignatureArguments(expression, signature, expected);
           const { substitutions, rowSubstitutions } = checkedArguments;
           const unresolved = signature.genericParameters.filter(

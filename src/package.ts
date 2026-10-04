@@ -3,6 +3,7 @@ import type { Diagnostic, SourcePosition, SourceSpan } from "./diagnostics.ts";
 import { physicalDiagnostic, sourceDocument } from "./diagnostics.ts";
 import { KEYWORDS } from "./lexer.ts";
 import { parse } from "./parser/index.ts";
+import { nominalGenericParts } from "./types.ts";
 
 // Package linking for the prototype (10-modules.md). Every source file of one
 // package is a module named by its path under `src/`, and every file under
@@ -233,16 +234,62 @@ interface ResolvedUse {
   readonly names: readonly string[];
 }
 
-/** Links the package `files` (path to source) whose entry module is `entry`. */
-export function linkPackage(
+// Implementation Modules (09-traits.md#r-trait.own.module): a trait
+// implementation must be declared in the module that declares the trait,
+// the target's outer constructor, or an outer constructor of a trait
+// argument; any other module of the owning package is `nonlocal-impl`. The
+// checker only sees the joined program, so the linker reports it from the
+// per-module programs, where each declaration's module is still known.
+// Names the package owns but no package module declares (standard or
+// primitive names) resolve to no home and are left to the checker's
+// package-ownership codes.
+function reportNonlocalImplementations(
+  modules: Iterable<PackageModule>,
+  report: (path: string, code: string, message: string, span?: SourceSpan) => void,
+): void {
+  const listed = [...modules];
+  const traitHomes = new Map<string, PackageModule>();
+  const typeHomes = new Map<string, PackageModule>();
+  for (const module of listed) {
+    const program = module.program;
+    if (!program) continue;
+    for (const declaration of program.traits)
+      if (!traitHomes.has(declaration.name)) traitHomes.set(declaration.name, module);
+    for (const declaration of [...program.data, ...program.enums, ...(program.types ?? [])])
+      if (!typeHomes.has(declaration.name)) typeHomes.set(declaration.name, module);
+  }
+  const typeHome = (type: string): PackageModule | undefined =>
+    typeHomes.get(nominalGenericParts(type)?.name ?? type);
+  for (const module of listed) {
+    for (const implementation of module.program?.implementations ?? []) {
+      if (implementation.traitName === undefined || implementation.standard) continue;
+      const trait = nominalGenericParts(implementation.traitName);
+      const homes = new Set<PackageModule>();
+      const traitHome = traitHomes.get(trait?.name ?? implementation.traitName);
+      if (traitHome) homes.add(traitHome);
+      const targetHome = typeHome(implementation.targetName);
+      if (targetHome) homes.add(targetHome);
+      for (const argument of trait?.arguments ?? []) {
+        const argumentHome = typeHome(argument);
+        if (argumentHome) homes.add(argumentHome);
+      }
+      if (homes.size === 0 || homes.has(module)) continue;
+      const legal = [...homes].map((home) => `'${home.path}'`).join(", ");
+      report(
+        module.path,
+        "nonlocal-impl",
+        `implementation of trait '${trait?.name ?? implementation.traitName}' for '${implementation.targetName}' must be declared in a module that declares the trait, the target, or a trait argument (${legal}), not in '${module.path}'`,
+        implementation.span,
+      );
+    }
+  }
+}
+
+function parsePackageModules(
   files: Readonly<Record<string, string>>,
-  entry: string,
-  options: LinkOptions = {},
-): LinkedPackage {
-  const diagnostics: PackageDiagnostic[] = [];
-  const report = (path: string, code: string, message: string, span = fileStart()): void => {
-    diagnostics.push({ path, code, message, span });
-  };
+  diagnostics: PackageDiagnostic[],
+  report: (path: string, code: string, message: string, span?: SourceSpan) => void,
+): Map<string, PackageModule> {
   const modules = new Map<string, PackageModule>();
   const folded = new Map<string, string>();
   for (const path of Object.keys(files).sort()) {
@@ -272,6 +319,21 @@ export function linkPackage(
       ...(parsed.program ? { program: parsed.program } : {}),
     });
   }
+  return modules;
+}
+
+/** Links the package `files` (path to source) whose entry module is `entry`. */
+export function linkPackage(
+  files: Readonly<Record<string, string>>,
+  entry: string,
+  options: LinkOptions = {},
+): LinkedPackage {
+  const diagnostics: PackageDiagnostic[] = [];
+  const report = (path: string, code: string, message: string, span = fileStart()): void => {
+    diagnostics.push({ path, code, message, span });
+  };
+  const modules = parsePackageModules(files, diagnostics, report);
+  reportNonlocalImplementations(modules.values(), report);
   const byPath = new Map([...modules.values()].map((module) => [module.path, module]));
   const entryModule = byPath.get(entry);
   if (!entryModule && !diagnostics.some((diagnostic) => diagnostic.path === entry))
@@ -462,7 +524,7 @@ export function linkPackage(
     for (const module of modules.values())
       if (isTestModulePath(module.path) && !isIntegrationTestPath(module.path)) visit(module);
 
-  const order = initializationOrder(reachable, edges);
+  const { order, groups } = initializationOrder(reachable, edges);
 
   // The joined program has one namespace for every linked module: a name is
   // either one module's declaration or one standard-library declaration.
@@ -541,7 +603,20 @@ export function linkPackage(
   const importedStd = new Set<string>();
   let source = "";
   let line = 1;
+  // An initialization-group marker opens each group's statement block, so the
+  // checker can tell a group of one module (source order,
+  // 10-modules.md#r-module.init.source-order-single) from a larger group
+  // (dependency order, 10-modules.md#order-inside-a-group). The marker is its
+  // own joined line outside every segment, so diagnostic mapping is
+  // unaffected; the parser reads it only under `joinedModules`.
+  const markerBefore = new Map<PackageModule, boolean>();
+  for (const group of groups) markerBefore.set(group[0]!, group.length > 1);
   for (const module of order) {
+    const marker = markerBefore.get(module);
+    if (marker !== undefined) {
+      source += `# hd:init-group(${marker ? "multi" : "single"})\n`;
+      line += 1;
+    }
     let text = joinedText(module, files[module.path]!, importedStd);
     if (!text.endsWith("\n")) text += "\n";
     const lineCount = text.split("\n").length - 1;
@@ -624,7 +699,7 @@ function joinedText(module: PackageModule, source: string, importedStd: Set<stri
 function initializationOrder(
   reachable: ReadonlySet<PackageModule>,
   edges: ReadonlyMap<PackageModule, ReadonlySet<PackageModule>>,
-): PackageModule[] {
+): { readonly order: readonly PackageModule[]; readonly groups: readonly PackageModule[][] } {
   const groups = stronglyConnected([...reachable], (module) =>
     [...(edges.get(module) ?? [])].filter((target) => reachable.has(target)),
   ).map((group) => group.sort(byIdentity));
@@ -633,6 +708,7 @@ function initializationOrder(
   const libraryGroup = (group: PackageModule[]): boolean =>
     group.some(({ path }) => !isTestModulePath(path));
   const order: PackageModule[] = [];
+  const emitted: PackageModule[][] = [];
   const pending = new Set(groups);
   while (pending.size > 0) {
     const ready = [...pending]
@@ -648,9 +724,10 @@ function initializationOrder(
     const library = [...pending].some(libraryGroup);
     const next = (library ? ready.find(libraryGroup) : undefined) ?? ready[0] ?? [...pending][0]!;
     order.push(...next);
+    emitted.push(next);
     pending.delete(next);
   }
-  return order;
+  return { order, groups: emitted };
 }
 
 function byIdentity(left: PackageModule, right: PackageModule): number {

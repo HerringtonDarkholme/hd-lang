@@ -231,6 +231,7 @@ export function lowerCheckedProgram(
         functions,
         closures,
         implementations,
+        { statements: program.statements, groups: program.initGroups ?? [] },
       ),
     );
   }

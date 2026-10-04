@@ -67,10 +67,24 @@ function nullableWatType(type: string): string {
     : type;
 }
 
+function nullRefValue(type: string): string {
+  if (type === "externref") return "(ref.null extern)";
+  if (type === "anyref") return "(ref.null any)";
+  const match = /^\(ref null (\S+)\)$/.exec(nullableWatType(type));
+  return `(ref.null ${match?.[1] ?? "any"})`;
+}
+
 class FunctionEmitter extends FunctionBodyEmitter {
-  emit(declaration: HirFunction): string {
+  emit(declaration: HirFunction, isStart = false): string {
     this.currentRequirements = declaration.requirements;
     this.currentFunctionIndex = declaration.suspensionIndex ?? declaration.index;
+    // The module initializer runs as the Wasm `start` function, which takes
+    // no parameters, so a script's entry requirements arrive as null
+    // providers: using one fails at run time. Binding entry requirements
+    // needs host support alongside `main!` rows. Check-time acceptance is
+    // unaffected: the row still reaches the host configuration.
+    const startProviders = isStart && !declaration.suspending ? declaration.requirements : [];
+    const emittedRequirements = startProviders.length > 0 ? [] : declaration.requirements;
     const parameters = declaration.parameters
       .map(
         (parameter) =>
@@ -84,7 +98,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       ? [
           `(param $env anyref)`,
           parameters,
-          ...declaration.requirements.map(
+          ...emittedRequirements.map(
             (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
           ),
         ]
@@ -93,7 +107,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       : [
           parameters,
           ...boundParameters,
-          ...declaration.requirements.map(
+          ...emittedRequirements.map(
             (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
           ),
         ]
@@ -106,6 +120,13 @@ class FunctionEmitter extends FunctionBodyEmitter {
       .filter((local) => !local.parameter)
       .map((local) => `  (local ${localName(local.index)} ${this.watType(local.type)})`)
       .concat(closureBounds.locals);
+    const startProviderLocals = startProviders.map(
+      (requirement, index) => `  (local $provider${index} ${this.providerType(requirement)})`,
+    );
+    const startProviderSets = startProviders.map(
+      (requirement, index) =>
+        `  (local.set $provider${index} ${nullRefValue(this.providerType(requirement))})`,
+    );
     this.temporaryTypes.length = 0;
     this.cleanupFrames.length = 0;
     const cache = enumSharedCache(declaration);
@@ -153,12 +174,15 @@ class FunctionEmitter extends FunctionBodyEmitter {
             ),
           )})`
         : "";
+    const startBody =
+      startProviderSets.length > 0 ? [...startProviderSets, indent(body)].join("\n") : indent(body);
     return [
       `(func ${internalName}${signature}${exportClause}${allParameters ? " " + allParameters : ""}${result}`,
       ...locals,
+      ...startProviderLocals,
       ...temporaries,
       ...closureBounds.loads.map((load) => indent(load)),
-      indent(body),
+      startBody,
       `)`,
       ...this.emitResultEntryExport(declaration, internalName),
       ...(exportable && hostProviders && declaration.genericBounds.length === 0
@@ -1141,7 +1165,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
       [
         declaration.suspending && suspensionPlans.has(suspensionIndex(declaration))
           ? ""
-          : indent(emitter.emit(declaration)),
+          : indent(emitter.emit(declaration, declaration.index === program.initializer)),
         declaration.suspending ? indent(emitter.emitSuspensionSupport(declaration)) : "",
         (!declaration.closure && declaration.genericParameters.length === 0) ||
         (declaration.closure && declaration.suspending)

@@ -1,3 +1,4 @@
+import type { InitGroup, Statement } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import type { HirFunction, HirGlobal, HirStatement, HirTraitImplementation } from "../hir.ts";
 
@@ -9,13 +10,98 @@ interface DirectReferences {
 // Checks spec/lang/10-modules.md#module-initialization. Each function's transitive
 // read set is computed once over the module call graph (Tarjan SCCs), so the
 // check is linear in the graph size rather than in the number of call paths.
+interface InitBoundaries {
+  /** The parsed top-level statements, for aligning group boundaries. */
+  readonly statements: readonly Statement[];
+  /** Initialization-group boundaries over `statements`. */
+  readonly groups: readonly InitGroup[];
+}
+
 export function checkModuleInitialization(
   moduleFunction: HirFunction | undefined,
   functions: readonly HirFunction[],
   closures: readonly HirFunction[],
   implementations: readonly HirTraitImplementation[] = [],
+  init: InitBoundaries,
 ): readonly Diagnostic[] {
   if (!moduleFunction) return [];
+  const context = initializationContext(functions, closures, implementations);
+  const original = checkBody(moduleFunction.body, context, new Set());
+  if (original.length === 0) return original;
+  // The source order fails, so a larger initialization group may still run
+  // in dependency order (spec/lang/10-modules.md#module.init.group.step).
+  // A group of one module runs in source order instead
+  // (spec/lang/10-modules.md#r-module.init.source-order-single), so only the
+  // linker's marked multi-module groups may reorder. Without verified group
+  // boundaries keep the source order and its diagnostics, which leaves every
+  // program that passes today exactly as it was.
+  const partition = partitionBody(moduleFunction.body, init);
+  if (!partition) return original;
+  const adopted: HirStatement[] = [];
+  const running = new Set<number>();
+  for (const group of partition) {
+    const ordered = group.multi
+      ? rescueOrder(group.statements, context, running)
+      : checkBody(group.statements, context, running).length === 0
+        ? [...group.statements]
+        : undefined;
+    if (!ordered) return original;
+    adopted.push(...ordered);
+    for (const defined of definedGlobals(ordered)) running.add(defined);
+  }
+  if (checkBody(adopted, context, new Set()).length > 0) return original;
+  (moduleFunction.body as HirStatement[]).splice(0, moduleFunction.body.length, ...adopted);
+  return [];
+}
+
+// Splits the initializer body into the linker's initialization groups: the
+// statements from each group break stay in that group until the next break,
+// and statements before the first break form a leading single-module group.
+// Undefined unless the HIR body matches the parsed statements one to one
+// (same length, same span starts): anything else keeps the source order.
+function partitionBody(
+  body: readonly HirStatement[],
+  init: InitBoundaries,
+): { readonly statements: readonly HirStatement[]; readonly multi: boolean }[] | undefined {
+  const { statements, groups } = init;
+  if (body.length !== statements.length) return undefined;
+  if (
+    !body.every(
+      (statement, index) => statement.span.start.offset === statements[index]!.span.start.offset,
+    )
+  )
+    return undefined;
+  const partition: { statements: readonly HirStatement[]; multi: boolean }[] = [];
+  let cursor = 0;
+  let multi = false;
+  for (const group of groups) {
+    if (group.start < cursor || group.start > body.length) return undefined;
+    if (group.start > cursor)
+      partition.push({ statements: body.slice(cursor, group.start), multi });
+    cursor = group.start;
+    multi = group.multi;
+  }
+  partition.push({ statements: body.slice(cursor), multi });
+  return partition.filter((group) => group.statements.length > 0);
+}
+
+function definedGlobals(statements: readonly HirStatement[]): number[] {
+  const globals: number[] = [];
+  for (const statement of statements)
+    if (statement.kind === "global-binding") globals.push(statement.global.index);
+  return globals;
+}
+
+interface InitializationContext {
+  readonly summaries: ReadSummaries;
+  readonly dispatchTargets: ReadonlyMap<string, readonly string[]>;
+}
+
+function initializationContext(
+  functions: readonly HirFunction[],
+  closures: readonly HirFunction[],
+  implementations: readonly HirTraitImplementation[],
+): InitializationContext {
   const declarations = new Map<string, HirFunction>();
   functions.forEach((declaration) =>
     declarations.set(`function:${declaration.index}`, declaration),
@@ -30,17 +116,21 @@ export function checkModuleInitialization(
       dispatchTargets.set(key, targets);
     }
   }
-  const summaries = new ReadSummaries(declarations, dispatchTargets);
-  const initialized = new Set<number>();
+  return { summaries: new ReadSummaries(declarations, dispatchTargets), dispatchTargets };
+}
+
+function checkBody(
+  body: readonly HirStatement[],
+  context: InitializationContext,
+  initialized: ReadonlySet<number>,
+): Diagnostic[] {
+  const running = new Set(initialized);
   const diagnostics: Diagnostic[] = [];
 
-  for (const statement of moduleFunction.body) {
-    const direct = collectReferences(statementValue(statement), dispatchTargets);
-    const reads = new Map(direct.reads);
-    for (const callee of direct.callees) {
-      for (const [index, global] of summaries.readsOf(callee)) reads.set(index, global);
-    }
-    const uninitialized = [...reads.values()].filter((global) => !initialized.has(global.index));
+  for (const statement of body) {
+    const uninitialized = [...readsOf(statement, context).values()].filter(
+      (global) => !running.has(global.index),
+    );
     if (uninitialized.length > 0) {
       diagnostics.push({
         code: "top-level-read-before-initialization",
@@ -48,9 +138,54 @@ export function checkModuleInitialization(
         span: statement.span,
       });
     }
-    if (statement.kind === "global-binding") initialized.add(statement.global.index);
+    if (statement.kind === "global-binding") running.add(statement.global.index);
   }
   return diagnostics;
+}
+
+function readsOf(
+  statement: HirStatement,
+  context: InitializationContext,
+): ReadonlyMap<number, HirGlobal> {
+  const direct = collectReferences(statementValue(statement), context.dispatchTargets);
+  const reads = new Map(direct.reads);
+  for (const callee of direct.callees) {
+    for (const [index, global] of context.summaries.readsOf(callee)) reads.set(index, global);
+  }
+  return reads;
+}
+
+// The group's dependency order (spec/lang/10-modules.md#module.init.group.step):
+// one top-level statement at a time, each step the earliest remaining
+// statement whose read bindings are all initialized. Earliest means earliest
+// in the joined source, which already orders modules by identity, then by
+// source position (spec/lang/10-modules.md#r-module.init.group.earliest).
+// Undefined when statements remain but none is ready: an initialization
+// cycle (spec/lang/10-modules.md#r-module.init.group.cycle).
+function rescueOrder(
+  body: readonly HirStatement[],
+  context: InitializationContext,
+  seed: ReadonlySet<number>,
+): HirStatement[] | undefined {
+  const reads = body.map((statement) => readsOf(statement, context));
+  const initialized = new Set(seed);
+  const remaining = new Set(body.map((_, index) => index));
+  const order: HirStatement[] = [];
+  while (remaining.size > 0) {
+    let next: number | undefined;
+    for (const index of remaining) {
+      if ([...reads[index]!.keys()].every((global) => initialized.has(global))) {
+        next = index;
+        break;
+      }
+    }
+    if (next === undefined) return undefined;
+    remaining.delete(next);
+    order.push(body[next]!);
+    const defined = body[next]!;
+    if (defined.kind === "global-binding") initialized.add(defined.global.index);
+  }
+  return order;
 }
 
 class ReadSummaries {

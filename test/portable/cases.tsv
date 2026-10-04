@@ -862,6 +862,7 @@ runtime/valid/optional-erased-to-any.hd	runtime
 parse/valid/declarations.hd	parse
 typing/valid/local-types.hd	type
 typing/invalid/local-impl-nonlocal-pair.hd	type
+typing/invalid/nonlocal-impl.hd	type
 typing/invalid/error-implementation-local-type.hd	type
 runtime/valid/closure-captured-let-shared.hd	runtime
 runtime/valid/closure-mutable-capture-runtime.hd	runtime
@@ -1223,6 +1224,7 @@ runtime/valid/folder-graph-test-edges.hd	runtime
 typing/valid/pub-use-chain.hd	type
 typing/invalid/pub-use-loop.hd	type
 typing/invalid/init-group-cycle.hd	type
+runtime/valid/init-group-order.hd	runtime
 runtime/valid/string-prefix-plain-dollar-digit.hd	runtime
 runtime/valid/literal-suffix-default-parameter.hd	runtime
 typing/valid/row-union-private-result.hd	type
@@ -1701,7 +1703,10 @@ typing/invalid/integration-super-above-test-root.hd	type
 typing/invalid/integration-program-use.hd	type
 runtime/valid/test-block-on.hd	runtime
 runtime/valid/println-in-test-body.hd	runtime
+typing/valid/println-top-level-script.hd	type
 typing/invalid/race-no-tasks.hd	type
+typing/invalid/race-empty-list-literal.hd	type
+runtime/panic/race-empty-at-run-time.hd	runtime
 runtime/valid/integration-shared-use.hd	runtime
 typing/valid/relative-self-mod-file.hd	type
 typing/invalid/root-file-super.hd	type

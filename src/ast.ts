@@ -502,6 +502,20 @@ export type ProviderContextEntry =
     }
   | { readonly kind: "spread"; readonly value: Expression; readonly span: SourceSpan };
 
+/**
+ * One initialization group's statement block in a joined program. The
+ * package linker marks each group's block, so the checker can tell a group
+ * of one module (its statements run in source order,
+ * spec/lang/10-modules.md#r-module.init.source-order-single) from a larger
+ * group (dependency order, spec/lang/10-modules.md#order-inside-a-group).
+ */
+export interface InitGroup {
+  /** Index into `Program.statements` where the group's block starts. */
+  readonly start: number;
+  /** Whether the group holds several modules and may run in dependency order. */
+  readonly multi: boolean;
+}
+
 export interface Program {
   readonly uses: readonly UseDecl[];
   /** Present when the module declares a `type`. */
@@ -525,6 +539,20 @@ export interface Program {
   readonly functions: readonly FunctionDecl[];
   readonly tests: readonly TestDecl[];
   readonly statements: readonly Statement[];
+  /**
+   * Set when the source joins several package modules
+   * (spec/lang/10-modules.md#initialization-order). A program without it is
+   * one file: with top-level statements and no `main` it is a script
+   * (spec/lang/10-modules.md#r-module.init.script).
+   */
+  readonly joinedModules?: true;
+  /**
+   * Initialization-group boundaries over `statements`, in marker order: the
+   * parser maps the linker's group markers to statement indices, but only
+   * under `joinedModules`. Absent in a single file (one single-module group)
+   * and in joined sources without markers.
+   */
+  readonly initGroups?: readonly InitGroup[];
   /** Names that the `tests:` block declares or uses (spec/lang/03-names-and-scopes.md#tests-blocks). */
   readonly testOnlyNames?: readonly string[];
   /**

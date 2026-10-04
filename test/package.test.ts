@@ -9,6 +9,9 @@ async function runPackage(files: Record<string, string>, entry = "src/main.hd"):
   assert.deepEqual(linked.diagnostics, []);
   const lines: string[] = [];
   const { instance, compilation } = await instantiate(linked.source!, {
+    // Linked source parses as joined modules, as on the command path: group
+    // markers, test blocks, and top-level `it` all take their joined meaning.
+    parse: { joinedModules: true },
     console: (text) => lines.push(text),
   });
   const main = compilation.hir.functions.find(({ entry: isEntry }) => isEntry)!;
@@ -86,6 +89,37 @@ test("relative uses, re-exports, and initialization order follow the use graph",
   );
 });
 
+test("an initialization group runs statements in dependency order", async () => {
+  const lines = await runPackage({
+    "src/main.hd": [
+      "use pkg.shop.catalog.{featured}",
+      "",
+      "pub fn main() -> void $ Console:",
+      "    println(featured())",
+    ].join("\n"),
+    "src/shop/catalog.hd": [
+      "use super.prices.{price_of}",
+      "",
+      'let cached = price_of("tea")',
+      "",
+      "pub fn featured() -> i32:",
+      "    cached",
+      "",
+      "pub fn base_price(sku: string) -> i32:",
+      '    if sku == "tea": 10 else: 20',
+    ].join("\n"),
+    "src/shop/prices.hd": [
+      "use super.catalog.{base_price}",
+      "",
+      "let markup = 5",
+      "",
+      "pub fn price_of(sku: string) -> i32:",
+      "    base_price(sku) + markup",
+    ].join("\n"),
+  });
+  assert.deepEqual(lines, ["15"]);
+});
+
 test("modules not reachable from the entry are not linked", () => {
   const linked = linkPackage(
     {
@@ -116,6 +150,96 @@ test("package use errors point at the use declaration of their file", () => {
   assert.deepEqual(codes(main("use super.models.{User}")), ["src/main.hd:2:unknown-module"]);
   assert.deepEqual(codes(main("use dep.billing.{User}")), ["src/main.hd:2:unknown-module"]);
   assert.deepEqual(codes(main("use pkg.models.{}")), ["src/main.hd:2:syntax-error"]);
+});
+
+test("linked source marks each initialization group single or multi", () => {
+  const linked = linkPackage(
+    {
+      "src/main.hd": "use pkg.shop.catalog.{featured}\n\npub fn main() -> void:\n    pass\n",
+      "src/shop/catalog.hd":
+        'use super.prices.{price_of}\n\nlet cached = price_of("tea")\n\npub fn featured() -> i32:\n    cached\n\npub fn base_price(sku: string) -> i32:\n    10\n',
+      "src/shop/prices.hd":
+        "use super.catalog.{base_price}\n\nlet markup = 5\n\npub fn price_of(sku: string) -> i32:\n    base_price(sku) + markup\n",
+    },
+    "src/main.hd",
+  );
+  assert.deepEqual(linked.diagnostics, []);
+  assert.deepEqual(
+    linked
+      .source!.split("\n")
+      .filter((line) => line.includes("hd:init-group"))
+      .map((line) => line.trim()),
+    ["# hd:init-group(multi)", "# hd:init-group(single)"],
+  );
+});
+
+test("a source-order violation in a single-module group is still rejected in a package", () => {
+  const linked = linkPackage(
+    {
+      "src/main.hd": "use pkg.broken.{first}\n\npub fn main() -> void:\n    pass\n",
+      "src/broken.hd": [
+        "use pkg.helper.{apply}",
+        "",
+        "first := apply(first_name)",
+        'let names: List[string] = ["Ada"]',
+        "",
+        "fn first_name() -> string:",
+        "    names[0]",
+        "",
+        "pub fn first() -> string:",
+        "    first",
+        "",
+      ].join("\n"),
+      "src/helper.hd": [
+        "pub fn apply(callback: fn() -> string) -> string:",
+        "    callback()",
+        "",
+      ].join("\n"),
+    },
+    "src/main.hd",
+  );
+  assert.deepEqual(linked.diagnostics, []);
+  const diagnostics = analyze(linked.source!, { parse: { joinedModules: true } }).diagnostics;
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["top-level-read-before-initialization"],
+  );
+});
+
+test("a trait implementation outside the trait's and target's modules is nonlocal-impl", () => {
+  const alpha =
+    "pub trait Greeter:\n    fn greet(self) -> string\npub data Person:\n    name: string\n";
+  const body = "impl Greeter for Person:\n    fn greet(self) -> string:\n        self.name\n";
+  const beta = `use pkg.alpha.{Greeter, Person}\n\n${body}`;
+  assert.deepEqual(codes({ "src/alpha.hd": alpha, "src/beta.hd": beta }, "src/beta.hd"), [
+    "src/beta.hd:3:nonlocal-impl",
+  ]);
+  // The trait's module and the target's module may each host the implementation.
+  assert.deepEqual(codes({ "src/alpha.hd": `${alpha}\n${body}` }, "src/alpha.hd"), []);
+  assert.deepEqual(
+    codes(
+      {
+        "src/alpha.hd": "pub trait Greeter:\n    fn greet(self) -> string\n",
+        "src/beta.hd":
+          "pub data Person:\n    name: string\nuse pkg.alpha.{Greeter}\n\nimpl Greeter for Person:\n    fn greet(self) -> string:\n        self.name\n",
+      },
+      "src/beta.hd",
+    ),
+    [],
+  );
+  // The module declaring an outer constructor of a trait argument may too.
+  assert.deepEqual(
+    codes(
+      {
+        "src/alpha.hd":
+          "pub trait Holds[T]:\n    fn get(self) -> T\npub data Box:\n    item: string\n",
+        "src/beta.hd":
+          "pub data Token: pass\nuse pkg.alpha.{Holds, Box}\n\nimpl Holds[Token] for Box:\n    fn get(self) -> Token:\n        Token\n",
+      },
+      "src/beta.hd",
+    ),
+    [],
+  );
 });
 
 test("folders that depend on each other in a loop are rejected", () => {
