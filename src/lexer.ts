@@ -769,7 +769,7 @@ class Scanner {
       const expectedOpen = CLOSE_TO_OPEN[symbol];
       const open = this.delimiters.at(-1);
       if (!open || open.text !== expectedOpen) {
-        this.report("mismatched-delimiter", `unexpected '${symbol}' delimiter`, start);
+        this.report("unmatched-delimiter", `unexpected '${symbol}' delimiter`, start);
       } else {
         this.delimiters.pop();
       }

@@ -97,7 +97,7 @@ typing/invalid/trait-method-signature.hd	type
 typing/invalid/readonly-mut-field-method.hd	type
 typing/invalid/duplicate-inherent-member.hd	type
 typing/invalid/duplicate-generic-embedded-name.hd	type
-typing/invalid/duplicate-data-field.hd	type
+typing/invalid/duplicate-field.hd	type
 typing/invalid/some-pattern-nonoptional.hd	type
 typing/invalid/missing-requirement.hd	type
 typing/invalid/bang-call-outside-suspension.hd	type

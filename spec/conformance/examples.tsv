@@ -381,7 +381,7 @@ lang/08-data-and-enums.md	3	mixed	typing/invalid/private-type-embedded-in-public
 lang/08-data-and-enums.md	4	accept	runtime/valid/fieldless-data-canonical.hd
 lang/08-data-and-enums.md	5	mixed	parse/invalid/old-struct-declaration.hd
 lang/08-data-and-enums.md	6	accept	typing/valid/data-types.hd
-lang/08-data-and-enums.md	7	mixed	typing/invalid/missing-required-data-field.hd|typing/invalid/data-literal-unknown-field.hd|typing/invalid/duplicate-data-field.hd
+lang/08-data-and-enums.md	7	mixed	typing/invalid/missing-required-data-field.hd|typing/invalid/data-literal-unknown-field.hd|typing/invalid/duplicate-field.hd
 lang/08-data-and-enums.md	8	mixed	runtime/valid/data-field-shorthand.hd|typing/invalid/data-field-shorthand-unknown-name.hd
 lang/08-data-and-enums.md	9	accept	typing/valid/data-types.hd
 lang/08-data-and-enums.md	10	accept	parse/valid/data-embedding.hd

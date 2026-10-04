@@ -164,7 +164,7 @@ typing/valid/private-data-embeds-private-type.hd	type	accept	lang/08-data-and-en
 typing/invalid/variance-position.hd	type	reject:invalid-variance	lang/04-type-system.md#variance
 typing/warnings/unreachable-code.hd	type	warn:unreachable-code	lang/06-control-flow.md#unreachable-code
 typing/warnings/unused-local-binding.hd	type	warn:unused-local-binding	lang/06-control-flow.md#blocks-and-completion
-typing/invalid/duplicate-data-field.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#construction-and-access
+typing/invalid/duplicate-field.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#construction-and-access
 typing/valid/requirements-and-suspension.hd	type	accept	lang/11-requirements-and-suspension.md
 typing/valid/gadts.hd	type	accept	lang/13-gadts.md
 typing/valid/annotations.hd	type	accept	lang/14-annotations.md#member-metadata

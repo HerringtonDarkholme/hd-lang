@@ -190,7 +190,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
     const fields = declaration.fields.map((field, index) => {
       if (names.has(field.name))
         diagnostics.push({
-          code: field.embedded ? "duplicate-embedded-field" : "duplicate-data-field",
+          code: field.embedded ? "duplicate-embedded-field" : "duplicate-field",
           message: `field '${field.name}' is declared more than once`,
           span: field.span,
         });
@@ -303,7 +303,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
       if (!field.positional) sharedNamed.add(field.name);
       if (sharedNames.has(field.name))
         diagnostics.push({
-          code: "duplicate-data-field",
+          code: "duplicate-field",
           message: `shared enum field '${field.name}' is declared more than once`,
           span: field.span,
         });
@@ -350,13 +350,13 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
       const fields = variant.fields.map((field) => {
         if (!field.positional && sharedNamed.has(field.name))
           diagnostics.push({
-            code: "duplicate-data-field",
+            code: "duplicate-field",
             message: `payload field '${field.name}' duplicates a shared enum field`,
             span: field.span,
           });
         if (fieldNames.has(field.name))
           diagnostics.push({
-            code: "duplicate-data-field",
+            code: "duplicate-field",
             message: `payload field '${field.name}' is declared more than once`,
             span: field.span,
           });

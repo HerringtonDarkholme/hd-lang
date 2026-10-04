@@ -33,7 +33,7 @@ interface Part {
 export function checkEmbeddedMemberConflicts(context: ProgramCheckContext): void {
   for (const declaration of context.dataTypes.values()) {
     if (!declaration.fields.some((field) => field.embedded)) continue;
-    // A repeated field name is already `duplicate-embedded-field` or `duplicate-data-field`.
+    // A repeated field name is already `duplicate-embedded-field` or `duplicate-field`.
     const names = declaration.fields.map((field) => field.name);
     if (new Set(names).size !== names.length) continue;
     const reported = new Set<HirDataField>();
