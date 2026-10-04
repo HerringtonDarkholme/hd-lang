@@ -292,15 +292,15 @@ later task deletes them.
 - test/std/providers.hd :: ManualClock covers a Clock row -> duplicate of runtime/valid/manual-clock.hd and runtime/valid/clock-helpers.hd
 - test/std/providers.hd :: SeededRandom repeats its draws for a seed -> duplicate of runtime/valid/seeded-random.hd
 - test/std/providers.hd :: SeededRandom covers a Random row -> duplicate of runtime/valid/seeded-random.hd and runtime/valid/rng-from-random.hd
-- test/std/property.hd :: addition commutes -> runtime/valid/property-generators.hd
-- test/std/property.hd :: draws stay in range -> runtime/valid/property-generators.hd
-- test/std/property.hd :: lists stay short -> runtime/valid/property-generators.hd
-- test/std/property.hd :: assume discards odd values -> runtime/valid/property-generators.hd; also a duplicate of runtime/valid/property-assume-discards.hd
+- test/std/property.hd :: addition commutes -> runtime/valid/property-generators-scalars.hd
+- test/std/property.hd :: draws stay in range -> runtime/valid/property-generators-scalars.hd
+- test/std/property.hd :: lists stay short -> runtime/valid/property-generators-collections.hd
+- test/std/property.hd :: assume discards odd values -> runtime/valid/property-generators-scalars.hd; also a duplicate of runtime/valid/property-assume-discards.hd
 - test/std/property.hd :: a string is at most 16 chars -> not migrated: the spec gives `Arbitrary` for `string` no length limit, and `Choices` has no size (`std-testing.choices.no-size`) (Q11)
-- test/std/property.hd :: a map holds at most max entries -> runtime/valid/property-generators.hd
-- test/std/property.hd :: int takes its type from the context -> runtime/valid/property-generators.hd
-- test/std/property.hd :: the draw budget ends recursion -> runtime/valid/property-generators.hd; also a duplicate of runtime/valid/property-draw-budget.hd
-- test/std/property.hd :: an f64 may be any value -> runtime/valid/property-generators.hd
+- test/std/property.hd :: a map holds at most max entries -> runtime/valid/property-generators-collections.hd
+- test/std/property.hd :: int takes its type from the context -> runtime/valid/property-generators-scalars.hd
+- test/std/property.hd :: the draw budget ends recursion -> runtime/valid/property-generators-collections.hd; also a duplicate of runtime/valid/property-draw-budget.hd
+- test/std/property.hd :: an f64 may be any value -> runtime/valid/property-generators-scalars.hd
 - test/std/option-result.hd :: option map and unwrap_or -> runtime/valid/list-and-optional-map.hd for `map`; `unwrap_or` is a duplicate of runtime/valid/option-and-then.hd
 - test/std/option-result.hd :: option ok_or, is_some, is_none, expect -> duplicate of runtime/valid/option-tests-conversions.hd
 - test/std/option-result.hd :: option expect panics on None -> duplicate of runtime/panic/option-expect-none.hd

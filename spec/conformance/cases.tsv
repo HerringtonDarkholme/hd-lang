@@ -2398,7 +2398,8 @@ runtime/valid/handle-fact-exact-type.hd	runtime	accept	lang/14-annotations.md#r-
 runtime/valid/sized-integer-arithmetic.hd	runtime	accept	lang/04-type-system.md#r-types.arith.checked
 runtime/valid/numeric-casts-in-range.hd	runtime	accept	lang/04-type-system.md#r-types.cast.float-int-saturate
 runtime/valid/list-and-optional-map.hd	runtime	accept	std/iter.md#r-std-iter.method.map
-runtime/valid/property-generators.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-generic
+runtime/valid/property-generators-scalars.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-generic
+runtime/valid/property-generators-collections.hd	runtime	accept	std/testing.md#r-std-testing.choices.list-max
 runtime/valid/map-key-types.hd	runtime	accept	lang/04-type-system.md#r-types.map-key.builtin-hash
 runtime/valid/derived-equality-generic.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.eq.eq
 runtime/valid/error-chain-derived-causes.hd	runtime	accept	std/error.md#r-std-error.chain.end

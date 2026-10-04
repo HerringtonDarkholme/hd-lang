@@ -2243,7 +2243,8 @@ runtime/valid/handle-fact-exact-type.hd	runtime
 runtime/valid/sized-integer-arithmetic.hd	runtime
 runtime/valid/numeric-casts-in-range.hd	runtime
 runtime/valid/list-and-optional-map.hd	runtime
-runtime/valid/property-generators.hd	runtime
+runtime/valid/property-generators-scalars.hd	runtime
+runtime/valid/property-generators-collections.hd	runtime
 runtime/valid/map-key-types.hd	runtime
 runtime/valid/derived-equality-generic.hd	runtime
 runtime/valid/error-chain-derived-causes.hd	runtime

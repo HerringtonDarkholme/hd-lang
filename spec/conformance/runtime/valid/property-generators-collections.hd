@@ -1,0 +1,29 @@
+# test: it_prop_with runs generated cases whose list, map, and recursive draws obey their bounds
+# Spec std/testing Choices And Arbitrary: std-testing.choices.list-max, std-testing.choices.map-max,
+# std-testing.choices.map.duplicate, std-testing.budget.every-draw.
+use std.testing.{assert, Choices, it_prop_with}
+
+fn pair(c: mut Choices) -> List[i64]:
+    c.list(3, fn(inner: mut Choices) -> i64: inner.int(-5, 5))
+
+fn stock(c: mut Choices) -> Map[string, i32]:
+    c.map(3, key=fn(inner: mut Choices) -> string: inner.string(max_chars=1), value=fn(inner: mut Choices) -> i32: inner.int(0, 9))
+
+# A leaf-first recursive generator ends once the draw budget is spent.
+fn depth(c: mut Choices) -> i32:
+    match c.int(0, 3):
+        0 => 0
+        _ => 1 + depth(c)
+
+tests:
+    it_prop_with("lists stay short", pair, prop=fn!(items: List[i64]):
+        assert(items.len() <= 3, reason="at most max items")
+    )
+
+    it_prop_with("a map holds at most max entries", gen=stock, prop=fn!(entries: Map[string, i32]):
+        assert(entries.len() <= 3, reason="a drawn key again keeps one entry")
+    )
+
+    it_prop_with("the draw budget ends recursion", gen=depth, prop=fn!(d: i32):
+        assert(d >= 0, reason="a finite depth")
+    )
