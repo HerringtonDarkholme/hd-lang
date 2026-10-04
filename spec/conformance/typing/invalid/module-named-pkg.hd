@@ -1,0 +1,5 @@
+# test: a module named pkg is an error, since pkg names the package root module
+# Spec 10 Root Files: module.path.reserved-pkg (RESERVE-PKG).
+# fixture-package-tree: reserved-pkg/src/pkg.hd
+pub fn helper() -> string:  # diagnostic: reserved-module-name
+    "helper"

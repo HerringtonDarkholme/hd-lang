@@ -1,0 +1,5 @@
+## The shop program.
+
+## Prints a greeting.
+pub fn main() -> void $ Console:
+    println("shop")

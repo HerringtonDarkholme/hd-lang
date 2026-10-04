@@ -1,6 +1,8 @@
 run: hd doc --out site
 file: site/index.md
 file: site/index.html
+file: site/pkg.md
+file: site/pkg.html
 file: site/text.md
 file: site/text.html
 file: site/llms.txt

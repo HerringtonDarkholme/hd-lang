@@ -33,6 +33,7 @@ for the error-code revamp, task #101, which may merge codes.
 | TY-29 | type audit | `trait-method-visibility`, `local-impl-nonlocal-pair`, `missing-partial-eq`, `missing-partial-ord`, `duplicate-annotation-impl`, and `overlapping-annotation-impl` appear in no chapter. | Settle each in the error-code revamp, task #101: give it a rule or merge it. |
 | DEFAULT-CODE | batch 51 | The decision names no code for zero or several `@default` variants. | A new code, `invalid-default-variant` ([`std-ops.default.derive.one-variant`](../spec/std/ops.md#r-std-ops.default.derive.one-variant)), reported on the `@derive` line or the second `@default`. |
 | RACE-PANIC | batch 51 | The decision leaves the panic code of a `race!` over a list that is empty at run time to the agent. | `explicit-panic` ([`req.combinator.race-empty-run`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-empty-run)), as for `chunks` with a size of 0 ([`std-collections.list.chunks.size`](../spec/std/collections.md#r-std-collections.list.chunks.size)). |
+| RESERVE-PKG-code | 2026-10-04, task #288 | The decision makes a module named `pkg` an error but names no code. | A new code, `reserved-module-name` ([`module.path.reserved-pkg`](../spec/lang/10-modules.md#r-module.path.reserved-pkg)); `duplicate-module-name` and `unknown-module` name other faults. |
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
@@ -286,6 +287,18 @@ From the archived Testing Redesign.
 - **A deferred fixture** (T54). A test-layout fixture package for
   `cyclic-test-dependency` is added when that rule needs coverage. The `# fixture-test-layout:`
   header exists ([Test Layouts](../spec/conformance/README.md#test-layouts)).
+### CLI Open Points
+
+- **Doc entry page and a module named `index`** (task #288). The root
+  module's pages are `pkg.md` and `pkg.html`, and `index.md` and
+  `index.html` are the entry page ([`cli.doc.files`](../spec/cli/command-line.md#r-cli.doc.files)).
+  A user module `index` still maps to `index.md` and `index.html`, so it
+  collides with the entry page. **Recommendation:** write the entry page
+  only as `index.html`, and an `index` module's HTML page under
+  `index/index.html`, or reserve `index` for `hd doc` only.
+- **`file` in single-file mode** (task #288). [`cli.json.diagnostic.file`](../spec/cli/command-line.md#r-cli.json.diagnostic.file)
+  gives the package-relative path in a package only. **Recommendation:**
+  outside a package, `file` is the path as written on the command line.
 
 ## Runtime, Library, ABI, And Tooling Work
 

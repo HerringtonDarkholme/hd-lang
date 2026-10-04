@@ -315,10 +315,11 @@ their `##` [documentation comments](../lang/01-lexical-structure.md#documentatio
 
 ```sh
 hd doc                   # writes the pages into the build directory's doc/
-hd doc --open            # also opens index.html
+hd doc --open            # also opens index.html, the entry page
 hd doc --private         # also documents the private items
 hd doc --out site        # writes the pages into site/
 hd doc text.slugify      # prints the Markdown of one item
+hd doc std.text.split    # prints a std item and links to its spec
 ```
 
 A module's page looks like this, in Markdown:
@@ -355,7 +356,8 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 5. r[cli.doc.markdown] The text of a documentation comment is Markdown, as CommonMark defines it.
 6. r[cli.doc.items] `hd doc` documents each `pub` item of every module under the source root, with the `pub` members of each, as the table below lists. Items are functions, data types, enums, traits, and type aliases.
 7. r[cli.doc.private] `--private` also documents the private items and members. It applies to the package only, and to `hd doc NAME` as to the pages.
-8. r[cli.doc.reexport] A `pub use` of a module is listed under that module, with a link to the page of the module that declares the item. It copies no signature and no doc, since the item keeps its [identity](../lang/10-modules.md#r-module.pub-use.identity).
+8. r[cli.doc.main] An application's `src/main.hd` is no library module, so it has a page only with `--private`. That page is the module `main`, as `main.md` and `main.html`.
+9. r[cli.doc.reexport] A `pub use` of a module is listed under that module, with a link to the page of the module that declares the item. It copies no signature and no doc, since the item keeps its [identity](../lang/10-modules.md#r-module.pub-use.identity).
 
 | Item | The signature block holds |
 | --- | --- |
@@ -369,21 +371,23 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 ### Output
 
 1. r[cli.doc.dir] `hd doc` writes into the directory `doc` of the build directory, which is where `hd` writes its build and cache output. `--out DIR` writes into DIR instead.
-2. r[cli.doc.open] `--open` opens `index.html` of the output with the platform's default program, after the files are written.
+2. r[cli.doc.open] `--open` opens the entry page `index.html` of the output with the platform's default program, after the files are written.
 3. r[cli.doc.files] The output holds the files of the table below. A module's HTML and Markdown pages sit side by side.
-4. r[cli.doc.relative] A link between the output's files is a relative path, so the output works from any base path.
-5. r[cli.doc.html] A module's HTML page holds everything its Markdown page holds, under the same anchors. Its styling and navigation are not specified.
+4. r[cli.doc.root-page] The root module's pages are named `pkg`, as [`module.path.reserved-pkg`](../lang/10-modules.md#r-module.path.reserved-pkg) reserves the name, so no user module's page takes their file names.
+5. r[cli.doc.relative] A link between the output's files is a relative path, so the output works from any base path.
+6. r[cli.doc.html] A module's HTML page holds everything its Markdown page holds, under the same anchors. Its styling and navigation are not specified.
 
 | Files | Hold |
 | --- | --- |
-| `index.md`, `index.html` | the root module `pkg`, which is `src/lib.hd`; with no `src/lib.hd`, only the package name and the list of modules |
+| `index.md`, `index.html` | a small entry page: the package name, a link to the root module `pkg` when `src/lib.hd` exists, and the list of the other modules |
+| `pkg.md`, `pkg.html` | the root module `pkg`, which is `src/lib.hd`; present only when `src/lib.hd` exists |
 | `PATH.md`, `PATH.html` | one pair for each other module under the source root; `PATH` is the module path with each `.` a `/`, so module `shop.cart` is `shop/cart.md` |
 | `llms.txt` | the index for agents, by [`cli.doc.llms`](#r-cli.doc.llms) |
 | `llms-full.txt` | the whole documentation in one file, by [`cli.doc.llms-full`](#r-cli.doc.llms-full) |
 
 ### Pages
 
-1. r[cli.doc.page] A module's Markdown page starts with the heading `` # Module `PATH` ``, then the module's documentation, then a list of its items. Each list entry links to the item's anchor and ends with the item's summary.
+1. r[cli.doc.page] A module's Markdown page starts with the heading `` # Module `PATH` ``, which reads `` # Module `pkg` `` for the root module, then the module's documentation, then a list of its items. Each list entry links to the item's anchor and ends with the item's summary.
 2. r[cli.doc.summary] An item's **summary** is the first sentence of its documentation, or empty when it has none.
 3. r[cli.doc.item] Each item has a second-level heading with its name in code, and each member a third-level heading with `Type.member` in code. Below the heading come the signature, the documentation, and the examples.
 4. r[cli.doc.anchor] An item's anchor is its item name, as [`cli.test.doc.name`](#r-cli.test.doc.name) forms `<item>`, such as `slugify` or `Slug.new`.
@@ -396,7 +400,7 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 ### Pages For Agents
 
 1. r[cli.doc.llms] `llms.txt` starts with a heading of the package's name. Then it holds a blockquote with the summary of the root module's documentation, and a `## Modules` list.
-2. r[cli.doc.llms.modules] The list has one entry for each module: a link to its `.md` page, a colon, and the summary of the module's documentation.
+2. r[cli.doc.llms.modules] The list has one entry for each module, `pkg` first: a link to its `.md` page, a colon, and the summary of the module's documentation.
 3. r[cli.doc.llms-full] `llms-full.txt` holds the Markdown of every module page, the root module first and the others in path order.
 
 ### Links
@@ -413,7 +417,9 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 2. r[cli.doc.name.form] NAME is a module path and an item name joined by a dot, as in `text.slugify` or `text.Slug.new`. The module is the longest prefix that names a module, and `pkg` names the root module.
 3. r[cli.doc.name.module] A NAME that names only a module prints that module's whole Markdown page.
 4. r[cli.doc.name.dependency] A NAME that starts with `dep.` and a dependency's key, as in `dep.json.parse`, names an item of that dependency. Only its `pub` items are found.
-5. r[cli.doc.name.missing] A NAME that names no documented item is an error.
+5. r[cli.doc.name.std] A NAME that starts with `std.`, as in `std.text.split`, names an item of the standard library: `std`, a module, and an item of that module.
+6. r[cli.doc.name.std.output] It prints the item's signature in an `hd` block, its summary, and a link to the item's section of the standard library reference.
+7. r[cli.doc.name.missing] A NAME that names no documented item is an error. That includes a `std` NAME that names no item the standard library reference specifies.
 
 > **Why.** The Markdown pages let an agent fetch one module in one
 > request, and `hd doc NAME` answers a lookup without any file. A broken
@@ -440,10 +446,12 @@ hd check --format json
 5. r[cli.json.kind] Each object's `kind` field is `"diagnostic"`, `"test"`, or `"summary"`.
 6. r[cli.json.diagnostic] Each diagnostic is one object, with its stable code, its severity, and its file and position.
 7. r[cli.json.diagnostic.fields] A diagnostic object has the fields `code`, `severity`, `message`, `file`, `line`, and `column`.
-8. r[cli.json.test] Each test case's result is one object, with the test case's name and its outcome: passed, failed, skipped, or ignored.
-9. r[cli.json.test.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, `"skipped"`, or `"ignored"`, and `message` holds the failure, skip, or ignore reason, or `""` when there is none.
-10. r[cli.json.summary] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
-11. r[cli.json.summary.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, `skipped`, and `ignored`, and `status`, the command's exit status.
+8. r[cli.json.diagnostic.file] In a package, `file` is the path relative to the package root, as `src/cart.hd`, whatever the working directory.
+9. r[cli.json.test] Each test case's result is one object, with the test case's name and its outcome: passed, failed, skipped, or ignored.
+10. r[cli.json.test.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, `"skipped"`, or `"ignored"`, and `message` holds the failure, skip, or ignore reason, or `""` when there is none.
+11. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.
+12. r[cli.json.summary] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
+13. r[cli.json.summary.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, `skipped`, and `ignored`, and `status`, the command's exit status.
 
 > **Why.** A stream lets an agent act on the first error. The summary
 > makes a clean run explicit, as Cargo's

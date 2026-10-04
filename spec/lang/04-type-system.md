@@ -1729,14 +1729,16 @@ fn name(label: Label) -> string:
 4. r[types.generic.infer.bound.none] If the type implements the bound's trait for no instantiation, the call is an error. Error: `unsatisfied-trait-bound`.
 5. r[types.generic.infer.bound.ambiguous] If the type implements the bound's trait for several instantiations, this step leaves the bound-only parameter unsolved.
 6. r[types.generic.infer.bound.default] A bound-only parameter left unsolved takes its type-argument default, as [`types.generic.default.fill`](#r-types.generic.default.fill) gives, and the bound is then checked.
-7. r[types.generic.infer.bound.no-default] A bound-only parameter left unsolved without a default is an error, and an explicit type argument resolves it. Error: `cannot-infer-type`.
-8. r[types.generic.infer.bound.several-bounds] When several bounds name one bound-only parameter, this step solves it only once every parameter those bounds constrain is known.
-9. r[types.generic.infer.bound.agree] It then solves the parameter only if each of those bounds allows exactly one instantiation and they all allow the same one.
-10. r[types.generic.infer.bound.disagree] Otherwise, when bounds allow different instantiations or one allows several, the parameter is left unsolved, as for one bound.
-11. r[types.generic.infer.bound.fixed-point] The step repeats until it solves no further parameter, so a chain of such bounds is solved in dependency order.
-12. r[types.generic.infer.bound.precedence] An explicit type argument and an expected type take precedence: this step never solves a parameter that either of them solves.
-13. r[types.generic.infer.bound.placeholder] An explicit list may mix written arguments with `_` slots, as in `read::[string, _](both)`; each `_` slot is inferred by the steps above.
-14. r[types.generic.infer.bound.call-site] This step is call-site inference only. A declaration's generic parameters and signature are never inferred, as [`types.infer.explicit`](#r-types.infer.explicit) requires.
+7. r[types.generic.infer.bound.no-default] A bound-only parameter left unsolved without a default is an error, and an explicit type argument resolves it.
+8. r[types.generic.infer.bound.no-default.ambiguous] When a bound of the parameter allows several instantiations, the error is `ambiguous-type`, by [`types.infer.ambiguous.code`](#r-types.infer.ambiguous.code). Error: `ambiguous-type`.
+9. r[types.generic.infer.bound.no-default.disagree] When each bound allows exactly one instantiation and they differ, no solution exists. Error: `cannot-infer-type`.
+10. r[types.generic.infer.bound.several-bounds] When several bounds name one bound-only parameter, this step solves it only once every parameter those bounds constrain is known.
+11. r[types.generic.infer.bound.agree] It then solves the parameter only if each of those bounds allows exactly one instantiation and they all allow the same one.
+12. r[types.generic.infer.bound.disagree] Otherwise, when bounds allow different instantiations or one allows several, the parameter is left unsolved, as for one bound.
+13. r[types.generic.infer.bound.fixed-point] The step repeats until it solves no further parameter, so a chain of such bounds is solved in dependency order.
+14. r[types.generic.infer.bound.precedence] An explicit type argument and an expected type take precedence: this step never solves a parameter that either of them solves.
+15. r[types.generic.infer.bound.placeholder] An explicit list may mix written arguments with `_` slots, as in `read::[string, _](both)`; each `_` slot is inferred by the steps above.
+16. r[types.generic.infer.bound.call-site] This step is call-site inference only. A declaration's generic parameters and signature are never inferred, as [`types.infer.explicit`](#r-types.infer.explicit) requires.
 
 ```text
 data Both:
@@ -1754,7 +1756,7 @@ data Plain:
     count: i32
 
 fn several(both: Both) -> void:
-    value := read(both)  # error: cannot-infer-type
+    value := read(both)  # error: ambiguous-type
 
 fn none(plain: Plain) -> void:
     value := read(plain)  # error: unsatisfied-trait-bound
@@ -1817,7 +1819,7 @@ fn titles(label: Label, note: Note) -> List[string]:
     found
 
 fn mixed(label: Label, both: Both) -> void:
-    items := joined(label, both)  # error: cannot-infer-type
+    items := joined(label, both)  # error: ambiguous-type
 ```
 
 > **Note.** The std adapter `zip[U, I < Iterable[U]](self, other: I)`
@@ -1939,7 +1941,7 @@ data Cell[T]:
 
 1. r[types.variance.markers] Generic type declarations mark covariance with `+T`, contravariance with `-T`, and invariance by leaving `T` unmarked.
 2. r[types.variance.verified] The compiler verifies each declared parameter against its use on the type's readonly surface.
-3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, trait method signatures, and the signature of every inherent method of the nominal type, private methods included.
+3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, trait method signatures, and the signature of every inherent method of the nominal type that has a `self` receiver, private methods included.
 4. r[types.variance.trait-impl] A separate trait implementation does not alter the nominal type declaration's variance; its own instantiated signatures must still type-check.
 5. r[types.variance.trait-params] A trait's generic parameters are invariant. A variance marker on one is an error. Error: `invalid-variance`.
 
@@ -1968,6 +1970,19 @@ data Box[+T]:
 impl[U] Box[U]:
     pub fn set(mut self, value: U) -> void:  # error: invalid-variance
         self.value = value
+```
+
+An associated function with no receiver is not on that surface:
+
+1. r[types.variance.surface.no-receiver] An inherent associated function with no `self` receiver does not count toward declared variance. Only instance methods do, whether `self` or `mut self`.
+
+```text
+data Box[+T]:
+    value: T
+
+impl[U] Box[U]:
+    pub fn new(value: U) -> Box[U]:
+        Box { value: value }
 ```
 
 ### GADT Results

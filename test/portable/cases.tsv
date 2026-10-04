@@ -1958,7 +1958,6 @@ typing/invalid/vararg-function-value-arity.hd	type
 typing/invalid/vararg-function-value-list.hd	type
 runtime/valid/string-length-counts-bytes.hd	runtime
 runtime/valid/bound-inference-explicit.hd	runtime
-typing/invalid/bound-inference-several-impls.hd	type
 runtime/valid/bound-inference-default.hd	runtime
 typing/invalid/bound-inference-bounds-disagree.hd	type
 runtime/valid/rng-seeded-sequence.hd	runtime
@@ -2267,3 +2266,4 @@ typing/invalid/bound-inference-blanket-impl-unmet.hd	type
 typing/invalid/bound-inference-incompatible-argument.hd	type
 typing/valid/index-unsigned-widths.hd	type
 typing/invalid/compound-index-negative-literal.hd	type
+typing/valid/variance-receiverless-function.hd	type

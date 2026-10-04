@@ -1,0 +1,2 @@
+run: hd test --format json
+stdout-json: [{"kind":"test","name":"zeta","outcome":"passed"},{"kind":"test","name":"yankee","outcome":"passed"},{"kind":"test","name":"xray","outcome":"passed"},{"kind":"summary","passed":3,"failed":0,"status":0}]

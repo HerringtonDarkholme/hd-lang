@@ -89,7 +89,7 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/variance.test.ts :: a separate trait implementation does not change nominal variance -> typing/valid/variance-separate-trait-impl.hd
 - test/variance.test.ts :: enum inherent methods are included in the readonly public surface -> typing/invalid/covariant-enum-method-parameter.hd
 - test/variance.test.ts :: suspending inherent methods have the same variance obligations -> typing/invalid/covariant-suspending-method-parameter.hd
-- test/variance.test.ts :: associated construction and mutable receiver signatures are not readonly instance views -> not migrated (partial: the `mut self` method is typing/invalid/covariant-mut-self-method-parameter.hd, Q4, VARIANCE-MUT-SELF, and the TS test asserts a result the decision makes wrong, since it expects no error for `pub fn set(mut self, value: U)` on `Box[+T]`; the associated function `pub fn new(value: U) -> Self` waits for owner question Q9)
+- test/variance.test.ts :: associated construction and mutable receiver signatures are not readonly instance views -> not migrated (partial: the `mut self` method is typing/invalid/covariant-mut-self-method-parameter.hd, Q4, VARIANCE-MUT-SELF, and the TS test asserts a result the decision makes wrong, since it expects no error for `pub fn set(mut self, value: U)` on `Box[+T]`; the associated function `pub fn new(value: U) -> Self` is typing/valid/variance-receiverless-function.hd, Q9, VARIANCE-ASSOC-FN)
 - test/variance.test.ts :: a public method cannot infer its result past the variance check -> duplicate of typing/invalid/public-method-missing-result-type.hd
 - test/variance.test.ts :: private readonly inherent methods participate in declared variance -> duplicate of typing/invalid/covariant-private-method-parameter.hd and typing/invalid/contravariant-method-result.hd
 - test/variance.test.ts :: inferred private inherent results cannot bypass variance checking -> typing/invalid/contravariant-inferred-private-result.hd, typing/valid/covariant-inferred-private-result.hd
@@ -403,12 +403,11 @@ and each line above names the fixture that covers it.
 | Q7. Which code does a module path to a private std function report? | `private-import`, as for any module (PRIVATE-STD) | [`expr.name.qualified.private`](../spec/lang/05-expressions.md#r-expr.name.qualified.private) |
 | Q8. Which code does `@derive(Missing)` report? | `unknown-trait`; `underivable-trait` stays for a real trait with no template (DERIVE-MISSING) | [`annot.derive.unknown`](../spec/lang/14-annotations.md#r-annot.derive.unknown) |
 
-- **Q9.** Does an inherent associated function count toward declared
-  variance? The test accepts `pub fn new(value: U) -> Self` on `Box[+T]`.
-  [`types.variance.surface`](../spec/lang/04-type-system.md#r-types.variance.surface)
-  names every inherent method, and
-  [`grammar.trait.method-kind`](../spec/lang/02-grammar.md#r-grammar.trait.method-kind)
-  calls a receiverless member an associated function, not a method.
+- **Q9, answered 2026-10-04.** An inherent associated function with no
+  receiver does not count toward declared variance, so `pub fn new(value: U)`
+  on `Box[+T]` is accepted
+  ([`types.variance.surface.no-receiver`](../spec/lang/04-type-system.md#r-types.variance.surface.no-receiver),
+  VARIANCE-ASSOC-FN).
 
 - **Q10.** What text does `debug(value)` give for a composite? Several std
   tests assert compact text: `[2, 1]` for a set, `{"a": 1}` for a map,

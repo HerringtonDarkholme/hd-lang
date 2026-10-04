@@ -1,0 +1,8 @@
+use pkg.util.{double}
+use std.testing.assert_equal
+
+it("zeta"):
+    assert_equal(double(1), 2, reason="double doubles")
+
+it("yankee"):
+    assert_equal(double(2), 4, reason="double doubles")

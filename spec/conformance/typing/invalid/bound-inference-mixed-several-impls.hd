@@ -1,0 +1,29 @@
+# test: two bounds name one parameter and one bound allows several instantiations, so the parameter is ambiguous
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.no-default.ambiguous (BOUND-AMBIGUOUS).
+
+trait Source[T]:
+    fn take(self) -> T
+
+data Label:
+    text: string
+
+impl Source[string] for Label:
+    fn take(self) -> string:
+        self.text
+
+data Both:
+    count: i32
+
+impl Source[i32] for Both:
+    fn take(self) -> i32:
+        self.count
+
+impl Source[string] for Both:
+    fn take(self) -> string:
+        "both"
+
+fn joined[U, A < Source[U], B < Source[U]](first: A, second: B) -> List[U]:
+    [first.take(), second.take()]
+
+fn mixed(label: Label, both: Both) -> void:
+    items := joined(label, both)  # diagnostic: ambiguous-type

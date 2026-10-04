@@ -1,0 +1,8 @@
+run: hd doc --out site
+file: site/pkg.md
+no-file: site/main.md
+no-file: site/main.html
+run: hd doc --private --out site-private
+file: site-private/pkg.md
+file: site-private/main.md
+file: site-private/main.html

@@ -1,0 +1,5 @@
+use pkg.util.{double}
+use std.testing.assert_equal
+
+it("xray"):
+    assert_equal(double(3), 6, reason="double doubles")

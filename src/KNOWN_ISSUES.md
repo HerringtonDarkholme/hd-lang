@@ -11,18 +11,18 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,422 cases: 2,238 selected in `test/portable/cases.tsv` and 184 known
-failures. The selected cases are 1,967 language tier, 269 stdlib tier, and 2
-CLI tier; the known failures are 146 language tier, 10 stdlib tier, and 28
+2,457 cases: 2,268 selected in `test/portable/cases.tsv` and 189 known
+failures. The selected cases are 1,991 language tier, 275 stdlib tier, and 2
+CLI tier; the known failures are 149 language tier, 10 stdlib tier, and 30
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
 | PENDING-FIRST-POLL | 13 | the CLI has no `pending-first-poll` scenario: no host hook makes every host call pending on its first poll |
 | CLI-NEW | 9 | no `hd new` command |
-| CLI-DOC | 5 | no `hd doc` command |
+| CLI-DOC | 6 | no `hd doc` command |
 | MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
-| CLI-JSON | 7 | `--format json` prints diagnostics to stderr with a nested `span`, has no summary object, and has no test objects |
+| CLI-JSON | 8 | `--format json` prints diagnostics to stderr with a nested `span`, has no summary object, and has no test objects |
 | CLI-EXIT | 2 | a rejected program or command line exits 1 or 2, not 101 |
 | CLI-PKG-CMD | 3 | `hd check`, `hd build`, and `hd run` take a FILE and have no whole-package form; outside a package `hd test` exits 0 |
 | CLI-TEST-EMPTY | 1 | `hd test FILE` for a file with no test case exits 0, not 101 |
@@ -68,6 +68,8 @@ CLI tier.
 | ALIAS-MISSING | 2 | an unused alias's right side is never resolved |
 | PRIVATE-STD | 1 | a module path to a private std function reports `unknown-name` |
 | DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
+| BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
+| RESERVE-PKG | 1 | a module named `pkg` is accepted, not `reserved-module-name` |
 
 ## Findings
 
@@ -167,6 +169,8 @@ Compiler structure:
 | ALIAS-MISSING | Owner, 2026-10-04: an alias whose right side names nothing is `unknown-type`, or `unknown-trait` for a row key, at the alias, used or not (`types.alias.target-unknown`). The prototype checks the right side only where the alias is used. |
 | PRIVATE-STD | Owner, 2026-10-04: a module path to a `std` declaration without `pub` is `private-import` (`expr.name.qualified.private`). The prototype reports `unknown-name` for the module. |
 | DERIVE-MISSING | Owner, 2026-10-04: `@derive` of a name that resolves to nothing is `unknown-trait` (`annot.derive.unknown`). The prototype reports `underivable-trait`. |
+| BOUND-AMBIGUOUS | Owner, 2026-10-04: a bound-only parameter with no default that several instantiations fit is `ambiguous-type` (`types.generic.infer.bound.no-default.ambiguous`). The prototype reports `cannot-infer-type`. |
+| RESERVE-PKG | Owner, 2026-10-04: a module named `pkg` is the error `reserved-module-name` (`module.path.reserved-pkg`). The prototype accepts `src/pkg.hd`. |
 | DOC-ROOT-NAME | Owner, 2026-10-04: the `<module>` of `src/lib.hd` is `pkg` in a doc test's name and a snapshot file's path (`cli.test.doc.name.root`, `std-testing.snapshot-file.module.root`). The prototype's snapshot files for `src/lib.hd` go to `__snapshots__/lib/`. No fixture reaches it. |
 
 ## Gaps No Fixture Reaches

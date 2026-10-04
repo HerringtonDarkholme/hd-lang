@@ -250,17 +250,20 @@ Two files directly under the source root have fixed roles:
 7. r[module.path.lib-target] A package has a library exactly when it has `src/lib.hd`.
 8. r[module.path.executable-only] A package without `src/lib.hd` is executable-only: no dependent can use its modules.
 9. r[module.path.no-lib-dependency] Depending on a package that has no library is an error.
+10. r[module.path.reserved-pkg] A module named `pkg` directly under the source root, as `src/pkg.hd` or `src/pkg/mod.hd`, is an error. `pkg` names the root module. Error: `reserved-module-name`.
 
 ```text
 src/lib.hd     # the package root module
 src/mod.hd     # invalid: rename it src/lib.hd
+src/pkg.hd     # invalid: pkg names the package root module
 ```
 
 > **Note.** `src/main.hd` reaches the library's declarations through
 > `pkg` or `self`, as in `use self.{Config}`.
 
 > **Why.** One root file per role, as in Cargo: `src/lib.rs` makes the
-> library, and `src/main.rs` the default binary.
+> library, and `src/main.rs` the default binary. `pkg` is reserved as
+> Rust reserves `crate`, so a module never shares the root's name.
 
 ### Module Identity
 

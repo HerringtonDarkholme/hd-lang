@@ -13,7 +13,7 @@ json-check-warning	cli.json.diagnostic.fields,cli.json.summary,cli.json.summary.
 json-test-pass	cli.json.lines.build,cli.json.test,cli.json.test.fields,cli.json.summary.fields
 json-test-fail	cli.json.test,cli.json.test.fields,cli.json.summary.fields,cli.exit.test-failure
 json-test-ignored	cli.json.test.fields,cli.json.summary.fields,cli.exit.success
-json-file-location	cli.package.file,cli.json.diagnostic,cli.json.diagnostic.fields
+json-file-location	cli.package.file,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.diagnostic.file
 json-run	cli.json.commands,cli.json.run,cli.json.run.program,cli.json.summary
 new-app	cli.new.kind,cli.new.app,cli.new.app.test,cli.new.here.dir,cli.new.no-executable-table,cli.new.test-name,cli.new.vcs-none
 new-lib	cli.new.kind,cli.new.lib,cli.new.lib.test,cli.new.here.dir,cli.new.test-name,cli.new.vcs-none
@@ -21,11 +21,13 @@ new-path	cli.new.app,cli.new.lib,cli.new.test-name,cli.name.hyphen
 new-vcs	cli.new.vcs,cli.new.vcs-none
 new-existing	cli.new.existing,cli.exit.hd-failure
 new-no-kind	cli.new.kind.no-terminal,cli.exit.hd-failure
-doc-out	cli.doc.command,cli.doc.package,cli.doc.dir,cli.doc.files,cli.doc.llms,cli.doc.llms-full
+doc-out	cli.doc.command,cli.doc.package,cli.doc.dir,cli.doc.files,cli.doc.root-page,cli.doc.llms,cli.doc.llms-full
 doc-outside-package	cli.doc.package,cli.exit.hd-failure
 doc-check-error	cli.doc.check,cli.exit.hd-failure
-doc-name	cli.doc.name,cli.doc.name.form,cli.doc.name.module,cli.doc.name.missing,cli.exit.hd-failure
+doc-name	cli.doc.name,cli.doc.name.form,cli.doc.name.module,cli.doc.name.std,cli.doc.name.std.output,cli.doc.name.missing,cli.exit.hd-failure
 doc-private	cli.doc.private,cli.doc.items,cli.exit.hd-failure
 new-pages	cli.new.pages,cli.new.pages.workflow
 new-no-pages	cli.new.pages.default
 new-pages-existing	cli.new.existing,cli.new.pages,cli.exit.hd-failure
+doc-main-page	cli.doc.main,cli.doc.private,cli.doc.items
+json-test-order	cli.json.test,cli.json.test.order

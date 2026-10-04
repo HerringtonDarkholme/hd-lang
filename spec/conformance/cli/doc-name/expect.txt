@@ -4,3 +4,6 @@ no-file: site/index.md
 run: hd doc text.missing
 exit: 101
 run: hd doc text
+run: hd doc std.text.split
+run: hd doc std.text.missing
+exit: 101

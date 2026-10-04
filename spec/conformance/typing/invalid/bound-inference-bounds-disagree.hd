@@ -1,5 +1,5 @@
 # test: two bounds that name one parameter but allow different instantiations leave it unsolved
-# Spec 04 Inference Through A Bound: types.generic.infer.bound.disagree (owner decision BOUND-INFER-TWO-BOUNDS, batch 78, 2026-10-03).
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.no-default.disagree (owner decision BOUND-INFER-TWO-BOUNDS, batch 78, 2026-10-03).
 
 trait Source[T]:
     fn take(self) -> T

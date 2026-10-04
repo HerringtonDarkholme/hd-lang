@@ -1,5 +1,5 @@
 # test: a bounded type implementing the bound's trait at several instantiations leaves a parameter without a default unsolved
-# Spec 04 Inference Through A Bound: types.generic.infer.bound.no-default (owner decisions BOUND-INFERENCE, batch 77, and BOUND-INFER-DEFAULT, batch 78, 2026-10-03).
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.no-default.ambiguous (owner decisions BOUND-INFERENCE, batch 77, and BOUND-INFER-DEFAULT, batch 78, 2026-10-03).
 
 trait Source[T]:
     fn take(self) -> T
@@ -19,4 +19,4 @@ fn read[U, S < Source[U]](source: S) -> U:
     source.take()
 
 fn several(both: Both) -> void:
-    value := read(both)  # diagnostic: cannot-infer-type
+    value := read(both)  # diagnostic: ambiguous-type

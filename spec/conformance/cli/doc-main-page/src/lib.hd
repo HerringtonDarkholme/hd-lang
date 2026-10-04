@@ -1,0 +1,8 @@
+## A small shop.
+
+## Adds the prices of a cart.
+pub fn total(prices: List[i32]) -> i32:
+    let sum = 0
+    for price in prices:
+        sum = sum + price
+    sum

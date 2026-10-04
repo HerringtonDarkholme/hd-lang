@@ -1,0 +1,11 @@
+# test: an associated function with no receiver does not count toward declared variance
+# Spec 04 Variance: types.variance.surface.no-receiver (VARIANCE-ASSOC-FN).
+data Box[+T]:
+    value: T
+
+impl[U] Box[U]:
+    pub fn new(value: U) -> Box[U]:
+        Box { value: value }
+
+    pub fn get(self) -> U:
+        self.value
