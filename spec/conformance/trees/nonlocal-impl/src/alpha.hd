@@ -1,0 +1,5 @@
+pub trait Greeter:
+    fn greet(self) -> string
+
+pub data Person:
+    name: string

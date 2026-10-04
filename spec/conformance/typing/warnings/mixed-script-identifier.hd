@@ -1,0 +1,6 @@
+# test: one identifier that mixes the Cyrillic and Latin scripts warns
+# Spec 01 Identifiers: lex.ident.mixed-script.warning. The name is the
+# Cyrillic small a, U+0430, followed by the Latin letters b and c.
+fn total() -> i32:
+    аbc := 1  # warning: mixed-script-identifier
+    аbc

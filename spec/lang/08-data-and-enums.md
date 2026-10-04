@@ -580,6 +580,7 @@ enum JobStatus:
 4. r[data.enum.shorthand] `.Queued` is also valid where an expected type fixes `JobStatus`.
 5. r[data.enum.shorthand.other-enum] A matching name in another enum does not create ambiguity when that expected type is known.
 6. r[data.enum.shorthand.needs-type] A unique name across the program does not make the shorthand valid without an expected enum type.
+7. r[data.enum.unknown-variant] A qualified or shorthand variant name that names no variant of the enum is an error. Error: `unknown-variant`.
 
 ### Variant Payloads
 

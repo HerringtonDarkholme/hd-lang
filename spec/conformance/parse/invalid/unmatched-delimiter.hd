@@ -1,0 +1,5 @@
+# test: a closing bracket with no open delimiter is an error
+# Spec 01 Delimiter Matching: lex.delim.unmatched.
+fn total() -> i32:
+    1
+]  # diagnostic: unmatched-delimiter

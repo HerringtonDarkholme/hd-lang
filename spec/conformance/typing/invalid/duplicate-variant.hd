@@ -1,0 +1,6 @@
+# test: an enum that declares a variant name twice is an error
+# Spec 08 Enums: data.enum.unique.
+enum Color:
+    Red
+    Red  # diagnostic: duplicate-variant
+    Blue

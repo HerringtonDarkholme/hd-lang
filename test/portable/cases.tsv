@@ -2280,3 +2280,7 @@ runtime/valid/list-pop.hd	runtime
 runtime/valid/list-insert-remove-clear.hd	runtime
 runtime/panic/list-insert-out-of-range.hd	runtime
 runtime/panic/list-remove-at-out-of-range.hd	runtime
+typing/invalid/duplicate-variant.hd	type
+typing/invalid/unknown-variant.hd	type
+parse/invalid/unclosed-delimiter.hd	parse
+parse/invalid/unmatched-delimiter.hd	parse

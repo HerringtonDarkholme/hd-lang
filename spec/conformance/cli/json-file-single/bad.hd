@@ -1,0 +1,2 @@
+fn total() -> i32:
+    "one"

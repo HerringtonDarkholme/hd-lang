@@ -1,0 +1,5 @@
+## The product index.
+
+## Looks up a product.
+pub fn find(id: i32) -> i32:
+    id

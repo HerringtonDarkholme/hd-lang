@@ -31,3 +31,8 @@ new-no-pages	cli.new.pages.default
 new-pages-existing	cli.new.existing,cli.new.pages,cli.exit.hd-failure
 doc-main-page	cli.doc.main,cli.doc.private,cli.doc.items
 json-test-order	cli.json.test,cli.json.test.order
+exe-missing-module	cli.exe.missing-module,cli.exit.hd-failure
+exe-unselected-main	cli.exe.unselected-main
+doc-broken-link	cli.doc.link.broken
+doc-index-module	cli.doc.index-module,cli.doc.files,cli.doc.llms.modules
+json-file-single	cli.json.diagnostic.file,cli.file.check-test

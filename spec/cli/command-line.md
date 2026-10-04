@@ -374,14 +374,15 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 2. r[cli.doc.open] `--open` opens the entry page `index.html` of the output with the platform's default program, after the files are written.
 3. r[cli.doc.files] The output holds the files of the table below. A module's HTML and Markdown pages sit side by side.
 4. r[cli.doc.root-page] The root module's pages are named `pkg`, as [`module.path.reserved-pkg`](../lang/10-modules.md#r-module.path.reserved-pkg) reserves the name, so no user module's page takes their file names.
-5. r[cli.doc.relative] A link between the output's files is a relative path, so the output works from any base path.
-6. r[cli.doc.html] A module's HTML page holds everything its Markdown page holds, under the same anchors. Its styling and navigation are not specified.
+5. r[cli.doc.index-module] A top-level module named `index` has its pages at `index/index.html` and `index/index.md`, so the entry page keeps the names `index.html` and `index.md`.
+6. r[cli.doc.relative] A link between the output's files is a relative path, so the output works from any base path.
+7. r[cli.doc.html] A module's HTML page holds everything its Markdown page holds, under the same anchors. Its styling and navigation are not specified.
 
 | Files | Hold |
 | --- | --- |
 | `index.md`, `index.html` | a small entry page: the package name, a link to the root module `pkg` when `src/lib.hd` exists, and the list of the other modules |
 | `pkg.md`, `pkg.html` | the root module `pkg`, which is `src/lib.hd`; present only when `src/lib.hd` exists |
-| `PATH.md`, `PATH.html` | one pair for each other module under the source root; `PATH` is the module path with each `.` a `/`, so module `shop.cart` is `shop/cart.md` |
+| `PATH.md`, `PATH.html` | one pair for each other module under the source root; `PATH` is the module path with each `.` a `/`, so module `shop.cart` is `shop/cart.md`; a top-level module `index` is the exception of [`cli.doc.index-module`](#r-cli.doc.index-module) |
 | `llms.txt` | the index for agents, by [`cli.doc.llms`](#r-cli.doc.llms) |
 | `llms-full.txt` | the whole documentation in one file, by [`cli.doc.llms-full`](#r-cli.doc.llms-full) |
 
@@ -400,7 +401,7 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 ### Pages For Agents
 
 1. r[cli.doc.llms] `llms.txt` starts with a heading of the package's name. Then it holds a blockquote with the summary of the root module's documentation, and a `## Modules` list.
-2. r[cli.doc.llms.modules] The list has one entry for each module, `pkg` first: a link to its `.md` page, a colon, and the summary of the module's documentation.
+2. r[cli.doc.llms.modules] The list has one entry for each module, `pkg` first: a link to its `.md` page, a colon, and the summary of the module's documentation. The link of a top-level module `index` is to `index/index.md`.
 3. r[cli.doc.llms-full] `llms-full.txt` holds the Markdown of every module page, the root module first and the others in path order.
 
 ### Links
@@ -446,7 +447,7 @@ hd check --format json
 5. r[cli.json.kind] Each object's `kind` field is `"diagnostic"`, `"test"`, or `"summary"`.
 6. r[cli.json.diagnostic] Each diagnostic is one object, with its stable code, its severity, and its file and position.
 7. r[cli.json.diagnostic.fields] A diagnostic object has the fields `code`, `severity`, `message`, `file`, `line`, and `column`.
-8. r[cli.json.diagnostic.file] In a package, `file` is the path relative to the package root, as `src/cart.hd`, whatever the working directory.
+8. r[cli.json.diagnostic.file] In a package, `file` is the path relative to the package root, as `src/cart.hd`, whatever the working directory. Outside a package, `file` is the path as written on the command line.
 9. r[cli.json.test] Each test case's result is one object, with the test case's name and its outcome: passed, failed, skipped, or ignored.
 10. r[cli.json.test.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, `"skipped"`, or `"ignored"`, and `message` holds the failure, skip, or ignore reason, or `""` when there is none.
 11. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.

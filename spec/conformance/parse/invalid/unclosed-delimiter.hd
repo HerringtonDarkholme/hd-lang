@@ -1,0 +1,4 @@
+# test: an opening parenthesis that is never closed is an error
+# Spec 01 Delimiter Matching: lex.delim.unclosed.
+fn total() -> i32:
+    x := (1 + 2  # diagnostic: unclosed-delimiter

@@ -1670,7 +1670,7 @@ See also: [Error Trait](09-traits.md#error-trait).
 ### Boundary Encoding
 
 1. r[module.boundary.tree] Boundary values have tree semantics.
-2. r[module.boundary.cycle] Encoding a cycle is a boundary error.
+2. r[module.boundary.cycle] Encoding a cycle is a boundary error. Boundary failure: `boundary-cycle`.
 3. r[module.boundary.sharing] When an acyclic graph shares a node, each incoming path encodes a duplicate tree value, and decoding does not restore sharing.
 4. r[module.boundary.pub] Every field and enum payload that crosses a boundary must be `pub`.
 5. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.

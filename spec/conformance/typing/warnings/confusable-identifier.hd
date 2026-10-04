@@ -1,0 +1,8 @@
+# test: an identifier that looks like a visible one in the same scope warns
+# Spec 01 Identifiers: lex.ident.confusable.warning. The first name is the
+# Cyrillic small a, U+0430. The second name is the Latin a, U+0061, and it
+# is the one that is confusable with a name already visible.
+fn total() -> i32:
+    а := 1
+    a := 2  # warning: confusable-identifier
+    а + a

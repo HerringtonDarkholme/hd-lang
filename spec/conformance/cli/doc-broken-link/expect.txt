@@ -1,0 +1,6 @@
+# The broken link is a warning, so the pages are still written.
+# No expect.txt line observes a warning of `hd doc`, so the code
+# broken-doc-link itself is not judged here.
+run: hd doc --out site
+file: site/pkg.md
+file: site/pkg.html

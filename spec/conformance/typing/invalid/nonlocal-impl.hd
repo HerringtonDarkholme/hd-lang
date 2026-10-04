@@ -1,0 +1,9 @@
+# test: an implementation in a module that declares neither the trait nor the target is an error
+# Spec 09 Implementation Modules: trait.own.module.error. The tree's alpha
+# module declares both the trait and the type.
+# fixture-package-tree: nonlocal-impl/src/beta.hd
+use pkg.alpha.{Greeter, Person}
+
+impl Greeter for Person:  # diagnostic: nonlocal-impl
+    fn greet(self) -> string:
+        self.name

@@ -279,7 +279,8 @@ See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
 ### Delimiter Matching
 
 1. r[lex.delim.match] A closing delimiter must match the most recent unclosed delimiter.
-2. r[lex.delim.unmatched] An unmatched or mismatched delimiter is a compile-time error.
+2. r[lex.delim.unmatched] A closing delimiter with no open delimiter, or one that closes a different kind of delimiter, is an error. Error: `unmatched-delimiter`.
+3. r[lex.delim.unclosed] An opening delimiter that is still unclosed at the end of the file is an error. Error: `unclosed-delimiter`.
 
 ## Whitespace And Indentation
 

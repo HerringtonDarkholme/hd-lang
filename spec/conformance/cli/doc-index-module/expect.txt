@@ -1,0 +1,7 @@
+# A top-level module named index has its pages under index/, so the entry page keeps its name.
+run: hd doc --out site
+file: site/index.html
+file: site/index.md
+file: site/index/index.html
+file: site/index/index.md
+file: site/pkg.md

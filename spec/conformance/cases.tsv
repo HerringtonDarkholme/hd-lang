@@ -2424,3 +2424,10 @@ typing/invalid/compound-index-negative-literal.hd	type	reject:unsigned-negation	
 typing/invalid/bound-inference-mixed-several-impls.hd	type	reject:ambiguous-type	lang/04-type-system.md#r-types.generic.infer.bound.no-default.ambiguous
 typing/valid/variance-receiverless-function.hd	type	accept	lang/04-type-system.md#r-types.variance.surface.no-receiver
 typing/invalid/module-named-pkg.hd	type	reject:reserved-module-name	lang/10-modules.md#r-module.path.reserved-pkg
+typing/invalid/duplicate-variant.hd	type	reject:duplicate-variant	lang/08-data-and-enums.md#r-data.enum.unique
+typing/invalid/unknown-variant.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
+typing/warnings/confusable-identifier.hd	type	warn:confusable-identifier	lang/01-lexical-structure.md#r-lex.ident.confusable.warning
+typing/warnings/mixed-script-identifier.hd	type	warn:mixed-script-identifier	lang/01-lexical-structure.md#r-lex.ident.mixed-script.warning
+parse/invalid/unclosed-delimiter.hd	parse	reject:unclosed-delimiter	lang/01-lexical-structure.md#r-lex.delim.unclosed
+parse/invalid/unmatched-delimiter.hd	parse	reject:unmatched-delimiter	lang/01-lexical-structure.md#r-lex.delim.unmatched
+typing/invalid/nonlocal-impl.hd	type	reject:nonlocal-impl	lang/09-traits.md#r-trait.own.module.error

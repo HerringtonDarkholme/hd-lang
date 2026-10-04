@@ -1,0 +1,5 @@
+## A small shop.
+
+## Adds one to a price.
+pub fn bump(price: i32) -> i32:
+    price + 1

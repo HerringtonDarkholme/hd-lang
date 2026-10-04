@@ -1,0 +1,8 @@
+# test: a qualified variant name that the enum does not declare is an error
+# Spec 08 Enums: data.enum.unknown-variant.
+enum Color:
+    Red
+    Green
+
+fn pick() -> Color:
+    Color.Blue  # diagnostic: unknown-variant

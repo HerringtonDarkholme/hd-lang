@@ -1,0 +1,4 @@
+# No src/tools/migrate.hd exists, so the executable names no module of the package.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-entry-point","severity":"error","message":null},{"kind":"summary","errors":1,"warnings":0,"status":101}]
