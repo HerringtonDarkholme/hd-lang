@@ -88,7 +88,10 @@ function walk(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory())
-      return path === join(conformance, "packages") || path === join(conformance, "trees")
+      // The inputs of a CLI case (cli/NAME) are indexed by cli-cases.tsv, below.
+      return path === join(conformance, "packages") ||
+        path === join(conformance, "trees") ||
+        path === join(conformance, "cli")
         ? []
         : walk(path);
     return entry.isFile() && entry.name.endsWith(".hd") ? [path] : [];
@@ -99,6 +102,34 @@ for (const file of walk(conformance).sort()) {
   const count = entries.get(path) ?? 0;
   if (count !== 1) fail(`fixture ${path} has ${count} manifest entries`);
 }
+
+// cli-cases.tsv: every directory under cli/ is one case with an expect.txt and
+// one row, and each row cites rules that spec/cli/command-line.md defines.
+const cliRules = new Set(
+  [
+    ...readFileSync(join(specDir, "cli/command-line.md"), "utf8").matchAll(/\br\[(cli\.[^\]]+)\]/g),
+  ].map((match) => match[1]!),
+);
+const [cliHeader, ...cliRows] = readRows(join(conformance, "cli-cases.tsv"));
+if (cliHeader?.join("\t") !== "case\trules") fail("malformed conformance/cli-cases.tsv");
+const cliNamed = new Set<string>();
+for (const row of cliRows) {
+  const [name = "", rules = ""] = row;
+  if (row.length !== 2 || !/^[a-z0-9][a-z0-9-]*$/.test(name) || rules === "") {
+    fail(`malformed conformance/cli-cases.tsv row ${row.join("\t")}`);
+    continue;
+  }
+  if (cliNamed.has(name)) fail(`cli case ${name} has two rows`);
+  cliNamed.add(name);
+  if (!existsSync(join(conformance, "cli", name, "expect.txt")))
+    fail(`cli case ${name} has no expect.txt`);
+  for (const rule of rules.split(","))
+    if (!cliRules.has(rule))
+      fail(`cli case ${name} cites ${rule}, which cli/command-line.md lacks`);
+}
+for (const entry of readdirSync(join(conformance, "cli"), { withFileTypes: true }))
+  if (entry.isDirectory() && !cliNamed.has(entry.name))
+    fail(`cli case directory ${entry.name} has no cli-cases.tsv row`);
 
 // examples.tsv
 const fragments = new Set([

@@ -1,0 +1,28 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: suspending match scrutinees and guards resume after a pending host call and keep their bindings
+use std.testing.assert_equal
+
+enum Number:
+    Value(value: i32)
+    Empty
+
+fn number!(value: Number) -> Number $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("number")
+    value
+
+fn probe!(value: i32) -> i32 $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("probe ${value}")
+    value
+
+fn classify!(input: Number) -> i32 $ Console:
+    match number!(input):
+        Number.Value(value) if probe!(value) == 20 => probe!(value) + 22
+        Number.Value(value) => value
+        Number.Empty => 0
+
+pub fn main!() -> void $ Console:
+    assert_equal(classify!(Number.Value(20)), 42, reason="the guard passes and the arm uses the binding")
+    assert_equal(classify!(Number.Value(7)), 7, reason="a failed guard falls to the next arm")
+    assert_equal(classify!(Number.Empty), 0, reason="a payload-free variant matches its arm")

@@ -113,7 +113,7 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/callable-storage.test.ts :: generic maps invoke stored callables -> runtime/valid/generic-storage-invokes-callables.hd
 - test/callable-storage.test.ts :: callable storage preserves mutable list identity -> runtime/valid/generic-storage-callable-list-identity.hd
 - test/callable-storage.test.ts :: generic provider rows survive callable storage -> runtime/valid/row-parameter-callable-in-list.hd
-- test/callable-storage.test.ts :: generic lists invoke suspending callables after pending -> not migrated (needs pending-first-poll scenario)
+- test/callable-storage.test.ts :: generic lists invoke suspending callables after pending -> runtime/valid/pending-first-poll-generic-callable-list.hd
 
 ## test/generic-callable-requirements.test.ts
 
@@ -201,6 +201,36 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/test-runner-requirements.test.ts :: a property test body receives the TestRunner capability -> typing/valid/test-runner-every-registration-form.hd
 - test/test-runner-requirements.test.ts :: a property with a generator test body receives the TestRunner capability -> typing/valid/test-runner-every-registration-form.hd
 - test/test-runner-requirements.test.ts :: a unit test body does not receive PropertyRunner -> duplicate of typing/invalid/test-body-uses-property-runner.hd
+
+## test/compiler-suspension.test.ts and test/suspension.test.ts (pending-first-poll)
+
+Each fixture runs under `# fixture-runtime-scenario: pending-first-poll`. Its suspension points are `Console.write_line!` host calls, because the scenario makes only host calls pending. The poll-order and WAT assertions of the TypeScript tests are implementation details and stay there.
+
+- test/compiler-suspension.test.ts :: CFG suspension lowering preserves nested argument order -> runtime/valid/pending-first-poll-argument-order.hd; the per-function poll trace is not migrated
+- test/compiler-suspension.test.ts :: CFG suspension lowering branches and short-circuits around child frames -> runtime/valid/pending-first-poll-branches.hd; the poll trace is not migrated
+- test/compiler-suspension.test.ts :: CFG suspension lowering preserves loops, continue, break values, and cleanup -> runtime/valid/pending-first-poll-loops.hd
+- test/compiler-suspension.test.ts :: CFG suspension lowering preserves match bindings and suspending guards -> runtime/valid/pending-first-poll-match-guards.hd
+- test/compiler-suspension.test.ts :: CFG suspension lowering propagates Result failures after child completion -> runtime/valid/pending-first-poll-result-propagation.hd
+- test/compiler-suspension.test.ts :: CFG suspension lowering nests dynamic trait suspensions -> runtime/valid/pending-first-poll-dynamic-method.hd
+- test/suspension.test.ts :: a nested return after a direct drive completes the frame and unwinds defer once -> runtime/valid/pending-first-poll-nested-return-defer.hd
+- test/suspension.test.ts :: nested returns after a direct drive use the language result type, not the poll type -> runtime/valid/pending-first-poll-return-wide-result.hd
+- test/suspension.test.ts :: a nested void return after a direct drive completes with poll-ready -> runtime/valid/pending-first-poll-void-return.hd
+- test/suspension.test.ts :: a void return operand runs once before suspension cleanup -> runtime/valid/pending-first-poll-void-return-operand.hd
+- test/suspension.test.ts :: separate Result propagation after a direct drive completes and unwinds the frame -> runtime/valid/pending-first-poll-result-defer.hd
+- test/suspension.test.ts :: non-suspending comprehensions propagate through the surrounding suspension frame -> runtime/valid/pending-first-poll-comprehension-propagation.hd
+- test/suspension.test.ts :: cleanup cannot propagate out of an ordinary or suspending function -> not migrated (no pending host call; a diagnostic test)
+- test/suspension.test.ts :: a closure declared in cleanup can propagate within its own function -> not migrated (no pending host call)
+
+## test/cli.test.ts and test/cli-commands.test.ts (CLI cases)
+
+Paths `cli/NAME` are CLI cases under `spec/conformance/cli/`, indexed by `cli-cases.tsv`.
+
+- test/cli.test.ts :: the hd executable passes its arguments and sets the exit status -> cli/exit-program-status (the ExitCode(3) status), cli/exit-usage-error (a rejected command line); the unknown-command text and the escaped internal error are not migrated
+- test/cli.test.ts :: hd test fails a test whose result is .Err -> cli/exit-test-failure; the message text is not migrated
+- test/cli.test.ts :: hd run and hd test judge suspending results by Termination -> cli/exit-program-status (statuses 0, 3, and 1), cli/exit-test-failure; the message text is not migrated
+- test/cli-commands.test.ts :: hd test on a package tests each module, and with no path the current package -> cli/exit-test-failure, cli/exit-package-file; the printed counts and the loose-directory case are not migrated
+- test/cli-commands.test.ts :: hd run, check, and build on a package file link the package -> cli/exit-package-file for the check; the run and build forms are not migrated (cli.run.file makes `hd run FILE` an error)
+- test/cli-commands.test.ts :: hd run resolves super uses, and reports a package error in its own file -> cli/json-file-location for the file of the error; the run part is not migrated
 
 ## Owner Questions
 

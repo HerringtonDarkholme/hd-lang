@@ -1,0 +1,2 @@
+run: hd check --format json src/util.hd
+stdout-json: [{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":null,"file":"src/util.hd","line":2,"column":null},{"kind":"summary","errors":0,"warnings":1,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":0}]

@@ -1,0 +1,8 @@
+run: hd new --app tracked
+file: tracked/hd.toml
+file: tracked/.git
+file: tracked/.gitignore
+run: hd new --app --vcs none untracked
+file: untracked/hd.toml
+no-file: untracked/.git
+no-file: untracked/.gitignore

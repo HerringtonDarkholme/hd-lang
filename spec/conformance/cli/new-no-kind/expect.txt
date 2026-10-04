@@ -1,0 +1,3 @@
+run: hd new --vcs none hello
+exit: 101
+no-file: hello

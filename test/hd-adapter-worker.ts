@@ -10,7 +10,7 @@ const { runHd } = await import("./hd-in-process.ts");
 
 const port = parentPort!;
 
-port.on("message", async (args: readonly string[]) => {
-  port.postMessage(await runHd(args));
+port.on("message", async ({ args, cwd }: { args: readonly string[]; cwd?: string }) => {
+  port.postMessage(await runHd(args, cwd === undefined ? {} : { cwd }));
 });
 port.postMessage("ready");

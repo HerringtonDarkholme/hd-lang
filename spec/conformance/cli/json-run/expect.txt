@@ -1,0 +1,3 @@
+run: hd run --format json
+stdout: hello
+stderr-json: [{"kind":"summary","errors":0,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":0}]

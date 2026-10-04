@@ -1,0 +1,22 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: dynamic suspending trait methods resume after a pending host call
+use std.testing.assert_equal
+
+trait Reader:
+    fn read!(self, value: i32) -> i32 $ Console
+
+data FixedReader:
+    offset: i32
+
+impl Reader for FixedReader:
+    fn read!(self, value: i32) -> i32 $ Console:
+        let mut console = $.use(Console)
+        _ := console.write_line!("read ${value}")
+        self.offset + value
+
+fn combine!(reader: Reader) -> i32 $ Console:
+    reader.read!(20) + reader.read!(22)
+
+pub fn main!() -> void $ Console:
+    assert_equal(combine!(FixedReader { offset: 0 }), 42, reason="both dynamic reads complete")
+    assert_equal(combine!(FixedReader { offset: 1 }), 44, reason="the offset applies to each read")

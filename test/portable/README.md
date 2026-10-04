@@ -31,12 +31,17 @@ The commands use exit status for success, rejection, and runtime panic.
 Diagnostics must include their stable code followed by `:`. The `test` command
 runs `main` and every test case of a fixture's `tests:` block.
 
-Select one tier of the specification with `--tier language` or `--tier std`
-([Tiers](../../spec/conformance/README.md#tiers)). A case whose
-`specification` column in `spec/conformance/cases.tsv` cites a `std/` path
-is stdlib tier, and every other case is language tier. Like `--phase`,
-`--tier` runs only conformance cases, not `test/fixtures`. Without it, both
-tiers run. The summary line counts passes per tier.
+Select one tier of the specification with `--tier language`, `--tier std`,
+or `--tier cli` ([Tiers](../../spec/conformance/README.md#tiers)). A case
+whose `specification` column in `spec/conformance/cases.tsv` cites a `std/`
+path is stdlib tier, a [CLI case](../../spec/conformance/README.md#cli-cases)
+is CLI tier, and every other case is language tier. Like `--phase`,
+`--tier` runs only conformance cases, not `test/fixtures`. Without it, every
+tier runs. The summary line counts passes per tier.
+
+`cases.tsv` lists a CLI case as `cli/NAME`, with the phase column `cli`. A
+CLI case the prototype fails stays out of `cases.tsv` and has a row in
+`KNOWN_FAILURES.tsv`, as a language fixture does.
 
 ```sh
 pnpm run test:portable --tier language

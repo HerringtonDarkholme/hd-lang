@@ -1,0 +1,25 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: a nested return after a pending host call completes the frame and runs defer once
+use std.testing.assert_equal
+
+data State:
+    count: i32
+
+fn child!() -> i32 $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("child")
+    40
+
+fn run!(state: mut State) -> i32 $ Console:
+    defer:
+        state.count = state.count + 1
+    value := child!()
+    if value == 40:
+        return value + 2
+    0
+
+pub fn main!() -> void $ Console:
+    let mut state = State { count: 0 }
+    result := run!(state)
+    assert_equal(result, 42, reason="the nested return gives the result")
+    assert_equal(state.count, 1, reason="defer ran once")

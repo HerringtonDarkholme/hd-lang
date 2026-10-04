@@ -1,0 +1,7 @@
+run: hd new --app --vcs none
+file: hd.toml
+file: src/main.hd
+file: tests/new_app.hd
+run: hd run
+stdout: hello, world
+run: hd test

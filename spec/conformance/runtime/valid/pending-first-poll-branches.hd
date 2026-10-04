@@ -1,0 +1,23 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: suspending calls in branches and short-circuits resume after a pending host call
+use std.testing.assert_equal
+
+let calls: i32 = 0
+
+fn value!(input: i32) -> i32 $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("value ${input}")
+    calls = calls + 1
+    input
+
+fn choose!(flag: bool) -> i32 $ Console:
+    if flag && value!(1) == 1:
+        value!(20) + value!(22)
+    else:
+        value!(99)
+
+pub fn main!() -> void $ Console:
+    assert_equal(choose!(true), 42, reason="the true branch runs both calls")
+    assert_equal(calls, 3, reason="the condition and two branch calls ran")
+    assert_equal(choose!(false), 99, reason="a false flag short-circuits the condition call")
+    assert_equal(calls, 4, reason="only the else call ran")

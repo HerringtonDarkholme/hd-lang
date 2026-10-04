@@ -1,0 +1,5 @@
+run: hd new --lib --vcs none
+file: hd.toml
+file: src/lib.hd
+file: tests/new_lib.hd
+run: hd test

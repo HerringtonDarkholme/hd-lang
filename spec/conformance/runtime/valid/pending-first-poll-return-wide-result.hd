@@ -1,0 +1,17 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: a nested return after a pending host call keeps the function's i64 result type
+use std.testing.assert_equal
+
+fn child!() -> i32 $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("child")
+    1
+
+fn wide!() -> i64 $ Console:
+    value := child!()
+    if value == 1:
+        return 42
+    0
+
+pub fn main!() -> void $ Console:
+    assert_equal(wide!(), 42, reason="the nested return keeps the i64 result")

@@ -1,0 +1,6 @@
+run: hd ok.hd
+stdout: hi
+run: hd code.hd
+exit: 3
+run: hd err.hd
+exit: 1

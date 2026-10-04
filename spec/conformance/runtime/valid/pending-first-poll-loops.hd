@@ -1,0 +1,24 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: suspending calls in loops resume after a pending host call, with continue, break values, and cleanup
+use std.testing.assert_equal
+
+fn step!(value: i32) -> i32 $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("step ${value}")
+    value
+
+pub fn main!() -> void $ Console:
+    let index: i32 = 0
+    let total: i32 = 0
+    value := while index < 5:
+        defer:
+            total = total + 10
+        index = step!(index + 1)
+        if index == 2:
+            continue
+        total = total + step!(index)
+        if index == 4:
+            break total
+    else:
+        0
+    assert_equal(value + total - 44, 42, reason="continue, break value, and cleanup keep their results")

@@ -2376,3 +2376,16 @@ typing/invalid/alias-unknown-target.hd	type	reject:unknown-type	lang/04-type-sys
 typing/invalid/row-alias-unknown-key.hd	type	reject:unknown-trait	lang/04-type-system.md#r-types.alias.target-unknown.key
 typing/invalid/module-path-private-std-function.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
 typing/invalid/derive-unknown-trait.hd	type	reject:unknown-trait	lang/14-annotations.md#r-annot.derive.unknown
+runtime/valid/pending-first-poll-argument-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-branches.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-comprehension-propagation.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-dynamic-method.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-generic-callable-list.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-loops.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-match-guards.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-nested-return-defer.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-result-defer.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-result-propagation.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-return-wide-result.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-void-return-operand.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang
+runtime/valid/pending-first-poll-void-return.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.bang

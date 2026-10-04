@@ -1,0 +1,2 @@
+run: hd check --no-such-flag
+exit: 101

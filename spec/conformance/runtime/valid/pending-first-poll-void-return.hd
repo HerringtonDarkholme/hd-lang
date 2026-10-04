@@ -1,0 +1,24 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: a void return after a pending host call completes the frame and runs defer once
+use std.testing.assert_equal
+
+data State:
+    count: i32
+
+fn child!() -> i32 $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("child")
+    1
+
+fn run!(state: mut State) -> void $ Console:
+    defer:
+        state.count = state.count + 1
+    value := child!()
+    if value == 1:
+        return
+    state.count = 100
+
+pub fn main!() -> void $ Console:
+    let mut state = State { count: 0 }
+    run!(state)
+    assert_equal(state.count, 1, reason="the early return skipped the assignment and defer ran once")

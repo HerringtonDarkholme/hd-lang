@@ -1,0 +1,8 @@
+run: hd new --app --vcs none hello
+file: hello/hd.toml
+file: hello/src/main.hd
+file: hello/tests/hello.hd
+run: hd new --lib --vcs none my-lib
+file: my-lib/hd.toml
+file: my-lib/src/lib.hd
+file: my-lib/tests/my_lib.hd

@@ -1,0 +1,21 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: suspending calls as arguments run left to right when each host call is pending first
+use std.testing.assert_equal
+
+let order: i32 = 0
+
+fn mark!(id: i32) -> i32 $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("mark ${id}")
+    order = order * 10 + id
+    id
+
+fn add!(left: i32, right: i32) -> i32: left + right
+
+fn sum!(first: i32, second: i32, third: i32) -> i32: first + second + third
+
+pub fn main!() -> void $ Console:
+    assert_equal(add!(mark!(1), mark!(2)), 3, reason="the nested results add")
+    assert_equal(order, 12, reason="the first argument runs before the second")
+    assert_equal(sum!(mark!(3), add!(mark!(4), mark!(5)), mark!(6)), 18, reason="nested arguments add")
+    assert_equal(order, 123456, reason="arguments run in source order")

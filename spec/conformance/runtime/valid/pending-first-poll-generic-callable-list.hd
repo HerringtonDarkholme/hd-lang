@@ -1,0 +1,15 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: a generic list invokes a stored suspending callable whose host call is pending first
+use std.testing.assert_equal
+
+fn stored!() -> i32 $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("stored")
+    42
+
+fn invoke_first![T](tasks: List[fn!() -> T $ Console]) -> T $ Console:
+    task := tasks[0]
+    task!()
+
+pub fn main!() -> void $ Console:
+    assert_equal(invoke_first!([stored]), 42, reason="the stored callable completes after its pending write")

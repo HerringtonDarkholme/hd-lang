@@ -20,27 +20,32 @@
 //                      field is `path` is a header. Unlisted cases are not run.
 //   --jobs N           parallel cases (default: $HD_TEST_JOBS, else min(8, cpus))
 //   --phase PHASE      run only cases of phase parse, type, or runtime
-//   --tier TIER        run only cases of tier language or std (README, Tiers):
-//                      a case whose specification cites a std/ path is std,
-//                      every other case is language (default: both tiers)
+//   --tier TIER        run only cases of tier language, std, or cli (README,
+//                      Tiers): a case whose specification cites a std/ path is
+//                      std, a CLI-tier case is cli, every other case is
+//                      language (default: every tier)
 //   --cases PATH       case index (default: spec/conformance/cases.tsv)
+//   --cli-cases PATH   CLI-tier case index (default: cli-cases.tsv beside the
+//                      default case index; none when --cases is given)
 //   --root DIR         directory the index paths are relative to
 //                      (default: the directory of the case index)
 //
 // Exit status: 0 when every selected case passes, 1 when any fails, 2 on a
 // usage or index error.
 import { spawn } from "node:child_process";
-import { readdir, readFile, realpath } from "node:fs/promises";
-import { availableParallelism } from "node:os";
-import { dirname, resolve, sep } from "node:path";
+import { existsSync } from "node:fs";
+import { cp, mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
+import { availableParallelism, tmpdir } from "node:os";
+import { dirname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 type Phase = "parse" | "runtime" | "type";
-type Tier = "language" | "std";
+type Tier = "cli" | "language" | "std";
 
 interface Options {
   readonly adapter?: string;
   readonly cases: string;
+  readonly cliCases?: string;
   readonly command: readonly string[];
   readonly jobs: number;
   readonly manifest?: string;
@@ -54,6 +59,25 @@ interface IndexRow {
   readonly path: string;
   readonly phase: Phase;
   readonly tier: Tier;
+}
+
+/** One row of the CLI-tier index (README, CLI Cases). */
+interface CliRow {
+  readonly name: string;
+  /** `cli/NAME`, the case's path under the conformance directory. */
+  readonly path: string;
+  readonly tier: "cli";
+}
+
+/** One `run:` line of an `expect.txt`, with the assertions that follow it. */
+interface CliStep {
+  readonly command: string;
+  readonly exit: number;
+  readonly files: readonly string[];
+  readonly noFiles: readonly string[];
+  readonly stderrJson?: readonly unknown[];
+  readonly stdout?: string;
+  readonly stdoutJson?: readonly unknown[];
 }
 
 interface Fixture {
@@ -83,7 +107,7 @@ interface CommandResult {
  * module's in-process implementation (spec/tools/README.md, Adapters).
  */
 interface Implementation {
-  run(args: readonly string[], timeoutMs: number): Promise<CommandResult>;
+  run(args: readonly string[], timeoutMs: number, cwd?: string): Promise<CommandResult>;
   close(): Promise<void>;
 }
 
@@ -105,6 +129,8 @@ interface Verdict {
 
 const specRoot = resolve(import.meta.dirname, "..");
 const defaultCases = resolve(specRoot, "conformance/cases.tsv");
+const defaultCliCases = resolve(specRoot, "conformance/cli-cases.tsv");
+const cliIndexHeader = "case\trules";
 const defaultCommand = "node --experimental-strip-types bin/hd.js";
 const timeoutMs = 10_000;
 const indexHeader = "path\tphase\texpectation\tspecification";
@@ -121,6 +147,12 @@ const headerDirectives = new Set([
   "fixture-package-tree",
   "expect-empty-stdout",
 ]);
+const runtimeScenarios = new Set([
+  "cancellation-cleanup",
+  "competing-drivers",
+  "reentrant-poll",
+  "pending-first-poll",
+]);
 
 class UsageError extends Error {}
 
@@ -136,6 +168,7 @@ function parseOptions(args: readonly string[]): Options {
   let adapter: string | undefined;
   let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()));
   let cases = defaultCases;
+  let cliCases: string | undefined = defaultCliCases;
   let manifest: string | undefined;
   let phase: Phase | undefined;
   let root: string | undefined;
@@ -148,15 +181,31 @@ function parseOptions(args: readonly string[]): Options {
     else if (option === "--adapter") adapter = resolve(value);
     else if (option === "--jobs") jobs = Number(value);
     else if (option === "--manifest") manifest = resolve(value);
-    else if (option === "--cases") cases = resolve(value);
+    else if (option === "--cases") {
+      cases = resolve(value);
+      if (cliCases === defaultCliCases) cliCases = undefined;
+    } else if (option === "--cli-cases") cliCases = resolve(value);
     else if (option === "--root") root = resolve(value);
     else if (option === "--phase" && /^(parse|type|runtime)$/.test(value)) phase = value as Phase;
-    else if (option === "--tier" && /^(language|std)$/.test(value)) tier = value as Tier;
+    else if (option === "--tier" && /^(language|std|cli)$/.test(value)) tier = value as Tier;
     else throw new UsageError(`invalid option ${option} ${value}`);
   }
   if (command.length === 0) throw new UsageError("compiler command must not be empty");
   if (!Number.isInteger(jobs) || jobs < 1) throw new UsageError("jobs must be a positive integer");
-  return { adapter, cases, command, jobs, manifest, phase, root: root ?? dirname(cases), tier };
+  // A CLI case runs the command in another directory, so a relative path to a
+  // file in the command, such as `bin/hd.js`, must name that file absolutely.
+  command = command.map((word) => (word.includes("/") && existsSync(word) ? resolve(word) : word));
+  return {
+    adapter,
+    cases,
+    cliCases,
+    command,
+    jobs,
+    manifest,
+    phase,
+    root: root ?? dirname(cases),
+    tier,
+  };
 }
 
 async function readPanicCategories(): Promise<Set<string>> {
@@ -270,6 +319,14 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   if (expect !== undefined && (row.expectation !== "accept" || expectPhase !== row.phase))
     return `'# expect: ${expect}' disagrees with index row ${row.phase} ${row.expectation}`;
   const scenario = headers.get("fixture-runtime-scenario");
+  if (scenario !== undefined && !runtimeScenarios.has(scenario))
+    return `unknown runtime scenario '${scenario}'`;
+  if (scenario === "pending-first-poll") {
+    if (row.phase !== "runtime" || row.expectation !== "accept")
+      return "the pending-first-poll scenario is valid only in a runtime accept case";
+    if (headers.has("fixture-runtime-profile"))
+      return "the pending-first-poll scenario names no runtime profile";
+  }
   const pendingFunction = headers.get("fixture-runtime-pending-function");
   if (pendingFunction !== undefined && scenario !== "cancellation-cleanup")
     return "'# fixture-runtime-pending-function' requires the cancellation-cleanup scenario";
@@ -322,10 +379,12 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
 /** Spawns `COMMAND ARGS...` for each run. */
 function spawnImplementation(command: readonly string[]): Implementation {
   return {
-    run(args, limitMs) {
+    run(args, limitMs, cwd) {
       return new Promise((complete) => {
-        // No cwd: the working directory is not part of the contract.
+        // A language case sets no cwd: its working directory is not part of
+        // the contract. A CLI case runs in its own directory.
         const child = spawn(command[0]!, [...command.slice(1), ...args], {
+          cwd,
           stdio: ["ignore", "pipe", "pipe"],
         });
         let stdout = "";
@@ -571,6 +630,14 @@ async function runCase(
   const checkViolation = await contractViolation(checked, file, panics, tree);
   if (checkViolation) return fail(`check: ${checkViolation}`, [checked]);
   if (checked.status !== 0) return fail("check: runtime case did not type-check", [checked]);
+  // The pending-first-poll scenario must give the ordinary run's result, so
+  // the ordinary run comes first (README, Runtime Scenarios).
+  if (fixture.scenario === "pending-first-poll") {
+    const ordinary = await invoke(implementation, "test", profile, file);
+    const ordinaryViolation = await contractViolation(ordinary, file, panics, tree);
+    if (ordinaryViolation) return fail(`test: ${ordinaryViolation}`, [checked, ordinary]);
+    if (ordinary.status !== 0) return fail("test: expected exit 0, got exit 1", [ordinary]);
+  }
   const testOptions = [
     ...profile,
     ...(fixture.scenario ? ["--scenario", fixture.scenario] : []),
@@ -604,6 +671,208 @@ async function runCase(
   return { path: row.path };
 }
 
+async function readCliIndex(path: string): Promise<Map<string, CliRow>> {
+  const lines = (await readFile(path, "utf8")).split("\n").filter((line) => line !== "");
+  if (lines.shift() !== cliIndexHeader) throw new UsageError(`${path}: invalid header`);
+  const rows = new Map<string, CliRow>();
+  for (const line of lines) {
+    const fields = line.split("\t");
+    const [name, rules] = fields;
+    if (fields.length !== 2 || !/^[a-z0-9][a-z0-9-]*$/.test(name!) || rules === "")
+      throw new UsageError(`${path}: invalid row: ${line}`);
+    if (rows.has(`cli/${name}`)) throw new UsageError(`${path}: duplicate row for ${name}`);
+    rows.set(`cli/${name}`, { name: name!, path: `cli/${name}`, tier: "cli" });
+  }
+  return rows;
+}
+
+// Parses an `expect.txt` (README, CLI Cases). Returns a string when the file
+// is invalid; such a case fails without running.
+function parseCliExpect(text: string): CliStep[] | string {
+  interface Draft {
+    command: string;
+    exit?: number;
+    files: string[];
+    noFiles: string[];
+    stderrJson?: unknown[];
+    stdoutJson?: unknown[];
+    stdoutLines?: string[];
+  }
+  const drafts: Draft[] = [];
+  const jsonLines = (value: string): unknown[] | undefined => {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  for (const [index, raw] of text.split("\n").entries()) {
+    const line = raw.replace(/\r$/, "");
+    if (line.trim() === "" || line.startsWith("#")) continue;
+    const where = `expect.txt line ${index + 1}`;
+    const match = /^([a-z-]+):(?: (.*))?$/.exec(line);
+    if (!match) return `${where}: expected 'KIND: VALUE'`;
+    const [, kind, value = ""] = match;
+    if (kind === "run") {
+      if (!/^hd( \S+)*$/.test(value))
+        return `${where}: 'run:' takes 'hd' and words with no quoting`;
+      drafts.push({ command: value, files: [], noFiles: [] });
+      continue;
+    }
+    const step = drafts.at(-1);
+    if (!step) return `${where}: '${kind}:' comes before the first 'run:'`;
+    if (kind === "exit") {
+      if (step.exit !== undefined) return `${where}: a step has one 'exit:'`;
+      if (!/^\d{1,3}$/.test(value) || Number(value) > 255)
+        return `${where}: 'exit:' takes a status from 0 to 255`;
+      step.exit = Number(value);
+    } else if (kind === "stdout") {
+      if (step.stdoutJson) return `${where}: 'stdout:' and 'stdout-json:' exclude each other`;
+      const decoded = decodeStdoutLine(value);
+      if (decoded === undefined) return `${where}: invalid 'stdout:' text`;
+      (step.stdoutLines ??= []).push(decoded);
+    } else if (kind === "stdout-json" || kind === "stderr-json") {
+      const parsed = jsonLines(value);
+      if (!parsed) return `${where}: '${kind}:' takes a JSON array`;
+      if (kind === "stdout-json") {
+        if (step.stdoutJson || step.stdoutLines)
+          return `${where}: 'stdout-json:' appears once and excludes 'stdout:'`;
+        step.stdoutJson = parsed;
+      } else {
+        if (step.stderrJson) return `${where}: a step has one 'stderr-json:'`;
+        step.stderrJson = parsed;
+      }
+    } else if (kind === "file" || kind === "no-file") {
+      if (value === "" || value.startsWith("/") || value.split("/").includes(".."))
+        return `${where}: '${kind}:' takes a relative path with no '..'`;
+      (kind === "file" ? step.files : step.noFiles).push(value);
+    } else return `${where}: unknown line kind '${kind}'`;
+  }
+  if (drafts.length === 0) return "expect.txt has no 'run:' line";
+  return drafts.map((draft) => ({
+    command: draft.command,
+    exit: draft.exit ?? 0,
+    files: draft.files,
+    noFiles: draft.noFiles,
+    stderrJson: draft.stderrJson,
+    stdout: draft.stdoutLines?.map((line) => `${line}\n`).join(""),
+    stdoutJson: draft.stdoutJson,
+  }));
+}
+
+// Splits JSON-lines output into objects. Returns a string for any other text.
+function parseJsonLines(text: string): unknown[] | string {
+  const lines = text.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  const objects: unknown[] = [];
+  for (const [index, line] of lines.entries()) {
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      return `line ${index + 1} is not JSON`;
+    }
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+      return `line ${index + 1} is not a JSON object`;
+    objects.push(value);
+  }
+  return objects;
+}
+
+// The subset match of `stdout-json:` (README, CLI Cases). Returns a reason
+// when `actual` does not match `expected`.
+function jsonMismatch(expected: unknown, actual: unknown, where: string): string | undefined {
+  if (expected === null) return undefined;
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual) || actual.length !== expected.length)
+      return `${where}: expected an array of ${expected.length}, got ${JSON.stringify(actual)}`;
+    for (const [index, item] of expected.entries()) {
+      const mismatch = jsonMismatch(item, actual[index], `${where}[${index}]`);
+      if (mismatch) return mismatch;
+    }
+    return undefined;
+  }
+  if (typeof expected === "object") {
+    if (typeof actual !== "object" || actual === null || Array.isArray(actual))
+      return `${where}: expected an object, got ${JSON.stringify(actual)}`;
+    for (const [key, item] of Object.entries(expected)) {
+      if (!(key in actual)) return `${where}: missing key '${key}'`;
+      const mismatch = jsonMismatch(
+        item,
+        (actual as Record<string, unknown>)[key],
+        `${where}.${key}`,
+      );
+      if (mismatch) return mismatch;
+    }
+    return undefined;
+  }
+  return expected === actual
+    ? undefined
+    : `${where}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`;
+}
+
+async function runCliCase(
+  options: Options,
+  implementation: Implementation,
+  row: CliRow,
+): Promise<Verdict> {
+  const directory = resolve(options.root, row.path);
+  let text: string;
+  try {
+    text = await readFile(join(directory, "expect.txt"), "utf8");
+  } catch {
+    return { path: row.path, reason: `cannot read ${join(directory, "expect.txt")}` };
+  }
+  const steps = parseCliExpect(text);
+  if (typeof steps === "string") return { path: row.path, reason: steps };
+  // The case runs in a copy named after the case, without expect.txt, so a
+  // command may write files and a package takes its name from the directory.
+  const work = await mkdtemp(join(tmpdir(), "hd-cli-"));
+  const cwd = join(work, row.name);
+  try {
+    await cp(directory, cwd, {
+      recursive: true,
+      filter: (source) => source !== join(directory, "expect.txt"),
+    });
+    for (const [index, step] of steps.entries()) {
+      const label = `step ${index + 1} (${step.command})`;
+      const result = await implementation.run(step.command.split(" ").slice(1), timeoutMs, cwd);
+      const fail = (reason: string): Verdict => ({
+        output: snippet([result]),
+        path: row.path,
+        reason: `${label}: ${reason}`,
+      });
+      if (result.error) return fail(`could not start the implementation: ${result.error}`);
+      if (result.timedOut) return fail(`ran longer than ${timeoutMs / 1000} s`);
+      if (result.signal) return fail(`terminated by signal ${result.signal}`);
+      if (result.status !== step.exit)
+        return fail(`expected exit ${step.exit}, got exit ${result.status}`);
+      if (step.stdout !== undefined && result.stdout !== step.stdout)
+        return fail(
+          `stdout ${JSON.stringify(result.stdout)} differs from expected ${JSON.stringify(step.stdout)}`,
+        );
+      for (const [stream, expected, actual] of [
+        ["stdout-json", step.stdoutJson, result.stdout],
+        ["stderr-json", step.stderrJson, result.stderr],
+      ] as const) {
+        if (expected === undefined) continue;
+        const parsed = parseJsonLines(actual);
+        if (typeof parsed === "string") return fail(`${stream}: ${parsed}`);
+        const mismatch = jsonMismatch(expected, parsed, stream);
+        if (mismatch) return fail(mismatch);
+      }
+      for (const file of step.files)
+        if (!existsSync(join(cwd, file))) return fail(`expected file ${file} does not exist`);
+      for (const file of step.noFiles)
+        if (existsSync(join(cwd, file))) return fail(`file ${file} exists, and should not`);
+    }
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+  return { path: row.path };
+}
+
 async function mapParallel<T, U>(
   values: readonly T[],
   jobs: number,
@@ -625,14 +894,18 @@ async function mapParallel<T, U>(
 async function main(): Promise<number> {
   let options: Options;
   let index: Map<string, IndexRow>;
+  let cliIndex: Map<string, CliRow>;
   let panics: Set<string>;
   let selected: string[];
   let implementation: Implementation;
   try {
     options = parseOptions(process.argv.slice(2));
     index = await readIndex(options.cases);
+    cliIndex = options.cliCases ? await readCliIndex(options.cliCases) : new Map();
     panics = await readPanicCategories();
-    selected = options.manifest ? await readManifest(options.manifest) : [...index.keys()];
+    selected = options.manifest
+      ? await readManifest(options.manifest)
+      : [...index.keys(), ...cliIndex.keys()];
     implementation = options.adapter
       ? await adapterImplementation(options.adapter, options.jobs)
       : spawnImplementation(options.command);
@@ -641,19 +914,22 @@ async function main(): Promise<number> {
     return 2;
   }
   const verdicts: Verdict[] = [];
-  const rows: IndexRow[] = [];
+  const rows: Array<IndexRow | CliRow> = [];
   for (const path of selected) {
-    const row = index.get(path);
+    const row = index.get(path) ?? cliIndex.get(path);
     if (!row) verdicts.push({ path, reason: "selected case is not in the case index" });
     else if (
-      (!options.phase || row.phase === options.phase) &&
+      // A CLI case has no phase, so `--phase` leaves it out.
+      (!options.phase || ("phase" in row && row.phase === options.phase)) &&
       (!options.tier || row.tier === options.tier)
     )
       rows.push(row);
   }
   verdicts.push(
     ...(await mapParallel(rows, options.jobs, async (row) => ({
-      ...(await runCase(options, implementation, row, panics)),
+      ...("phase" in row
+        ? await runCase(options, implementation, row, panics)
+        : await runCliCase(options, implementation, row)),
       tier: row.tier,
     }))),
   );
@@ -668,14 +944,15 @@ async function main(): Promise<number> {
     console.log(`FAIL  ${verdict.path}: ${verdict.reason}`);
     if (verdict.output) console.log(verdict.output.replace(/^/gm, "      | "));
   }
-  // Per-tier passes, as spec/conformance/README.md#case-selection states: "language: X of Y; stdlib: X of Y".
+  // Per-tier passes, as spec/conformance/README.md#case-selection states:
+  // "language: X of Y; stdlib: X of Y; cli: X of Y".
   const tierCount = (tier: Tier): string => {
     const ran = verdicts.filter((verdict) => verdict.tier === tier);
     return `${ran.filter((verdict) => !verdict.reason).length} of ${ran.length}`;
   };
   console.log(
     `conformance: ${verdicts.length - failed} passed, ${failed} failed, ${verdicts.length} selected` +
-      ` (language: ${tierCount("language")}; stdlib: ${tierCount("std")})`,
+      ` (language: ${tierCount("language")}; stdlib: ${tierCount("std")}; cli: ${tierCount("cli")})`,
   );
   return failed ? 1 : 0;
 }

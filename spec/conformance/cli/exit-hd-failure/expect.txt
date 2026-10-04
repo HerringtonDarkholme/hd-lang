@@ -1,0 +1,4 @@
+run: hd check src/util.hd
+exit: 101
+run: hd test
+exit: 101

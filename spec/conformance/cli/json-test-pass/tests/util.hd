@@ -1,0 +1,5 @@
+use pkg.util.{double}
+use std.testing.assert_equal
+
+it("adds"):
+    assert_equal(double(2), 4, reason="double doubles")

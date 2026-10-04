@@ -1,0 +1,5 @@
+run: hd test tests/passing.hd
+run: hd test tests/failing.hd
+exit: 1
+run: hd test
+exit: 1

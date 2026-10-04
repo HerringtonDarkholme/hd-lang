@@ -38,7 +38,7 @@ interface Options {
   readonly jobs: number;
   readonly phase?: Phase;
   readonly suite: "all" | "conformance" | "fixtures";
-  readonly tier?: "language" | "std";
+  readonly tier?: "cli" | "language" | "std";
 }
 
 const root = resolve(import.meta.dirname, "..");
@@ -86,7 +86,7 @@ function parseOptions(args: readonly string[]): Options {
       phase = value as Phase;
     else if (option === "--suite" && /^(all|conformance|fixtures)$/.test(value ?? ""))
       suite = value as Options["suite"];
-    else if (option === "--tier" && /^(language|std)$/.test(value ?? ""))
+    else if (option === "--tier" && /^(language|std|cli)$/.test(value ?? ""))
       tier = value as Options["tier"];
     else throw new Error(`invalid option ${option ?? ""}`);
     index += 1;
@@ -215,8 +215,10 @@ async function changedManifest(base: string): Promise<string | undefined> {
           encoding: "utf8",
         }).split("\n"),
       )
-      .filter((path) => path.endsWith(".hd"))
-      .map((path) => path.slice(prefix.length)),
+      .filter((path) => path.endsWith(".hd") || path.startsWith(`${prefix}cli/`))
+      .map((path) => path.slice(prefix.length))
+      // A file of a CLI case selects the case, `cli/NAME`.
+      .map((path) => (path.startsWith("cli/") ? path.split("/").slice(0, 2).join("/") : path)),
   );
   const [header, ...rows] = (await readFile(portableManifest, "utf8")).trimEnd().split("\n");
   const selected = rows.filter((row) => changed.has(row.split("\t")[0]!));

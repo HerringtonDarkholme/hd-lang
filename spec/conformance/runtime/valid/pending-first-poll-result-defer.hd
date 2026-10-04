@@ -1,0 +1,32 @@
+# fixture-runtime-scenario: pending-first-poll
+# test: result propagation after a pending host call completes the frame and runs defer
+use std.testing.assert_equal
+
+data State:
+    count: i32
+
+data Failure:
+    code: i32
+
+fn child!(ok: bool) -> Result[i32, Failure] $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("child")
+    if ok: .Ok(40) else: .Err(Failure { code: 7 })
+
+fn run!(state: mut State, ok: bool) -> Result[i32, Failure] $ Console:
+    defer:
+        state.count = state.count + 1
+    answer := child!(ok)
+    value := answer?
+    .Ok(value + 2)
+
+fn inspect(value: Result[i32, Failure]) -> i32:
+    match value:
+        .Ok(actual) => actual
+        .Err(error) => -error.code
+
+pub fn main!() -> void $ Console:
+    let mut state = State { count: 0 }
+    assert_equal(inspect(run!(state, true)), 42, reason="success returns the sum")
+    assert_equal(inspect(run!(state, false)), -7, reason="failure returns the error")
+    assert_equal(state.count, 2, reason="defer ran once per call")

@@ -20,8 +20,11 @@ export interface AdapterResult {
 }
 
 export interface Adapter {
-  /** Runs `hd ARGS...`; a run longer than `timeoutMs` stops with `timedOut`. */
-  run(args: readonly string[], timeoutMs: number): Promise<AdapterResult>;
+  /**
+   * Runs `hd ARGS...` as if started in `cwd` (the process's own directory when
+   * unset); a run longer than `timeoutMs` stops with `timedOut`.
+   */
+  run(args: readonly string[], timeoutMs: number, cwd?: string): Promise<AdapterResult>;
   /** Terminates the workers. */
   close(): Promise<void>;
 }
@@ -87,7 +90,7 @@ export function createAdapter(options: { readonly jobs?: number } = {}): Adapter
   };
 
   return {
-    async run(args, timeoutMs) {
+    async run(args, timeoutMs, cwd) {
       const worker = await acquire();
       return new Promise((resolve) => {
         const finish = (result: AdapterResult, keep: boolean): void => {
@@ -112,7 +115,7 @@ export function createAdapter(options: { readonly jobs?: number } = {}): Adapter
         worker.on("message", onMessage);
         worker.on("error", onError);
         worker.on("exit", onExit);
-        worker.postMessage(args);
+        worker.postMessage({ args, cwd });
       });
     },
     async close() {

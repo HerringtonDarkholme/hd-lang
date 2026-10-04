@@ -30,7 +30,7 @@ has two methods:
 
 | Method | Does |
 | --- | --- |
-| `run(args, timeoutMs)` | runs `IMPL ARGS...` and resolves to `{ status, stdout, stderr, timedOut }`, as a spawned command would report them |
+| `run(args, timeoutMs, cwd?)` | runs `IMPL ARGS...` as if started in `cwd`, the runner's own directory when unset, and resolves to `{ status, stdout, stderr, timedOut }`, as a spawned command would report them. A [CLI case](../conformance/README.md#cli-cases) sets `cwd` |
 | `close()` | releases the adapter's workers |
 
 `run` must stop a command that passes `timeoutMs` and resolve with

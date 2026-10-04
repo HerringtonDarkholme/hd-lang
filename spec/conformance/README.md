@@ -14,6 +14,8 @@ outside `spec/` to run the suite.
   `packages/` and `trees/`, the single primary input of one case.
 - **Case:** one row of `cases.tsv`. It names a fixture, a phase, and an
   expectation.
+- **CLI case:** one row of `cli-cases.tsv`. It names a directory under `cli/`
+  that holds input files and an `expect.txt`. See [CLI Cases](#cli-cases).
 - **Implementation under test:** a command prefix, such as `hd` or
   `node --experimental-strip-types bin/hd.js`. The runner appends an action,
   if any, options, and the fixture path. See [Command Contract](#command-contract).
@@ -38,6 +40,9 @@ outside `spec/` to run the suite.
 
 The directory is informative. A case's phase and expectation come from
 `cases.tsv`, and the two must agree.
+
+`cli/NAME/` holds the inputs and the `expect.txt` of one CLI case. It holds no
+fixture of the `cases.tsv` suite, and `cases.tsv` has no row for it.
 
 ## Self-Containment and Determinism
 
@@ -169,7 +174,7 @@ The suite covers both tiers of the specification
 
 1. A case's tier is the tier of its `specification` column. A value that
    starts with `std/` makes the case stdlib tier. Every other case is
-   language tier.
+   language tier. A [CLI case](#cli-cases) is CLI tier.
 2. There is no tier column, directive, or directory. The fixture's
    directory stays informative.
 3. A language-tier fixture uses only language-tier standard items (see
@@ -207,11 +212,15 @@ The runner then runs only the listed cases, and reports pass and fail counts
 for them. Unlisted cases are not run and are not reported as passing. Without
 a manifest, the runner runs every case.
 
-A runner may also select cases by [tier](#tiers) with `--tier language` or
-`--tier std`, and by phase with `--phase parse`, `type`, or `runtime`. Each
+A selection manifest names a [CLI case](#cli-cases) by its directory,
+`cli/NAME`, in the same list as the fixtures.
+
+A runner may also select cases by [tier](#tiers) with `--tier language`,
+`--tier std`, or `--tier cli`, and by phase with `--phase parse`, `type`, or
+`runtime`. A CLI case has no phase, so `--phase` leaves it out. Each
 option narrows a manifest's selection further. Without them, the runner
 runs cases of every tier and phase. Its summary line reports passes per
-tier, as `language: X of Y; stdlib: X of Y`.
+tier, as `language: X of Y; stdlib: X of Y; cli: X of Y`.
 
 There is no "unsupported" result. A case that an implementation runs is
 judged only by the rules below.
@@ -231,6 +240,7 @@ judged only by the rules below.
 | `runtime` | `accept`      | `check FILE`, then `test FILE` | both exit 0 |
 | `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the stdout of the last equals the expected text |
 | `runtime` | `accept` with `# expect-empty-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the last writes no standard output |
+| `runtime` | `accept` with the `pending-first-poll` scenario | `check FILE`, `test FILE`, then `test --scenario pending-first-poll FILE` | all exit 0 |
 | `runtime` | `panic:CODE`  | `check FILE`, then `test FILE` | `check` exits 0; `test` exits 1 and reports panic category `CODE` |
 
 Rules that apply to every case:
@@ -342,9 +352,9 @@ fixture may name only the profiles listed here.
 ### Runtime Scenarios
 
 A scenario is a fixed host procedure for protocol states that
-single-threaded source cannot create by itself. Each scenario starts from a
-fresh instance, with the entry `main!` and its row supplied by the selected
-profile. Its steps use only host operations on the `main!` suspension: poll
+single-threaded source cannot create by itself. Each scenario but
+`pending-first-poll` starts from a fresh instance, with the entry `main!` and
+its row supplied by the selected profile. Its steps use only host operations on the `main!` suspension: poll
 it with a `PollContext`, and cancel it
 ([`Suspend[T]` Protocol](../lang/11-requirements-and-suspension.md#suspendt-protocol)).
 It also uses two actions of the deterministic fixture runtime:
@@ -385,6 +395,21 @@ its own `PollContext`.
      again with the same `PollContext`.
   4. The case passes when the poll in step 3 raises
      `suspension-reentrant-poll`.
+
+- `pending-first-poll`:
+  1. Run steps 1 and 2 of [Runtime Execution](#runtime-execution) under the
+     `console` profile, except that every `write_line!` call is pending on
+     its first poll, as under `pending-write`. The call's second poll writes
+     the line and completes with `.Ok(())`.
+  2. The case passes when that run exits 0, as the ordinary `test` run of
+     the same fixture does. The runner runs the ordinary `test FILE` first,
+     so the case passes only when both runs succeed.
+
+`pending-first-poll` is a fixture format, not a language rule: it shows that
+a program's observable result does not depend on whether a host call
+completes at once or after one pending poll. The fixture is a `runtime`
+`accept` case, names no runtime profile, and reaches every suspension point
+through a `Console` call, because only host calls become pending.
 
 `# fixture-runtime-pending-function: NAME` makes the deterministic runtime
 hold every call of the named suspending function. The directive is valid only
@@ -522,7 +547,8 @@ IMPL FILE
 - The runner always passes `check` the `--tests` option, so `check` also
   covers the fixture's test code, as a test build does. Without `--tests`,
   `hd check` does not check test code, while `hd test` always compiles it.
-- The working directory is not part of the contract.
+- The working directory is not part of the contract. A [CLI case](#cli-cases)
+  is the exception: it runs each command in the case's own directory.
 - stdin is closed. stdout and stderr are both read.
 - A runner may run the command lines in its own process through an adapter
   ([Adapters](../tools/README.md#adapters)). The adapter reports the exit
@@ -559,3 +585,101 @@ Output lines the runner reads:
   `PATH:LINE:COL: `.
 
 The runner ignores all other output.
+
+## CLI Cases
+
+A CLI case judges the `hd` command line itself: exit statuses, the files a
+command writes, and the machine output of `--format json`. It covers the
+`cli.*` rules of [Command Line](../cli/command-line.md) that have such an
+observable contract. The REPL, the wording of messages, and agent tooling
+are not CLI cases.
+
+The CLI tier is separate from the `cases.tsv` suite. A CLI case needs a
+runner that starts the implementation in a directory, so an implementation
+may run the language and stdlib tiers without it.
+
+### Layout and Index
+
+- `cli/NAME/` holds the input files of one case, such as an `hd.toml` and
+  a source tree, and one `expect.txt`. `NAME` matches
+  `[a-z0-9][a-z0-9-]*`. The case's path is `cli/NAME`.
+- `cli-cases.tsv` is the index. Its header is `case	rules`, and each row
+  has two non-empty tab-separated fields:
+  - `case`: the directory name `NAME`;
+  - `rules`: the comma-separated IDs of the `cli.*` rules the case checks,
+    such as `cli.new.app,cli.new.test-name`. Each ID is defined in
+    [`command-line.md`](../cli/command-line.md).
+- Every directory under `cli/` has exactly one row, and every row has a
+  directory with an `expect.txt`. `spec/check.sh` enforces both.
+- The `.hd` files of a case are inputs. They carry no fixture directives and
+  have no row in `cases.tsv`.
+- A case's tier is CLI. A [selection manifest](#case-selection) lists it
+  as `cli/NAME`.
+
+### Running a Case
+
+The runner:
+
+1. copies the case directory, without `expect.txt`, to a fresh directory
+   named `NAME`, so a package that a command creates there takes the name
+   `NAME`;
+2. runs each `run:` line of `expect.txt` in order, in that directory, with
+   standard input closed. The first word, `hd`, stands for the
+   implementation under test; the runner passes the other words as
+   arguments, split at spaces, with no quoting;
+3. after each command, judges the lines that follow its `run:` line, and
+   stops the case at the first failure;
+4. removes the directory.
+
+A command that runs longer than 10 seconds, or ends with a signal, fails the
+case. An implementation command that names a file by a relative path must
+work from any directory, so the runner makes such a path absolute. A case
+that expects a `.git` entry needs `git` on the `PATH`.
+
+### expect.txt
+
+Blank lines and lines that start with `#` are ignored. Every other line is
+`KIND: VALUE`. A `run:` line starts a step, and the lines after it, up to
+the next `run:`, are that step's assertions. A line before the first
+`run:` is invalid.
+
+| Line | Meaning |
+| --- | --- |
+| `run: hd WORDS` | Starts a step. `WORDS` may be empty. |
+| `exit: CODE` | The step's exit status, from 0 to 255. A step with no `exit:` line must exit 0. At most one per step. |
+| `stdout: TEXT` | One line of the step's exact standard output. `TEXT` follows the escapes of [Standard Output](#standard-output). The expected output is each `TEXT` followed by U+000A, in order. May repeat. Excludes `stdout-json:`. |
+| `stdout-json: JSON` | The step's standard output is JSON lines that match `JSON`, as below. At most one. Excludes `stdout:`. |
+| `stderr-json: JSON` | The same, for standard error. At most one. |
+| `file: PATH` | After the step, `PATH` exists, as a file or a directory. `PATH` is relative to the case directory and has no `..`. |
+| `no-file: PATH` | After the step, `PATH` does not exist. |
+
+A step with neither `stdout:` nor `stdout-json:` does not judge standard
+output, and one with no `stderr-json:` does not judge standard error.
+Diagnostic message text is free text and no line asserts it.
+
+**JSON lines.** The runner splits the stream at U+000A, drops the empty
+piece after the last U+000A, and parses each remaining line as JSON. Every
+line must be a JSON object, and a blank line is an error. This is
+[`cli.json.lines.build`](../cli/command-line.md#r-cli.json.lines.build)'s
+"no other text".
+
+**Matching.** `JSON` is an array with one element per line, and the stream
+must have exactly that many lines. `[]` means no output. Element `i` matches
+line `i` by these rules, where `E` is the expected value and `A` the actual
+one:
+
+| `E` is | `E` matches `A` when |
+| --- | --- |
+| an object | `A` is an object, and for each key of `E`, `A` has the key and the values match |
+| an array | `A` is an array of the same length, and the elements match in order |
+| `null` | `A` is any value, so the key must exist and nothing more is checked |
+| a string, number, or boolean | `A` equals it |
+
+Keys of `A` that `E` does not name are ignored. A field of free text, such as
+`message`, is written `null` to require that it exists.
+
+```text
+run: hd check --format json src/cart.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":null,"file":"src/cart.hd","line":3},{"kind":"summary","errors":1,"status":101}]
+```

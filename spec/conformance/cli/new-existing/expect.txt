@@ -1,0 +1,4 @@
+run: hd new --app --vcs none
+exit: 101
+no-file: hd.toml
+no-file: tests/new_existing.hd

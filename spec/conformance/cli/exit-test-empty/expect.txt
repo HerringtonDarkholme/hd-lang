@@ -1,0 +1,3 @@
+run: hd test
+run: hd test src/util.hd
+exit: 101
