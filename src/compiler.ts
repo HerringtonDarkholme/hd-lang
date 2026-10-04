@@ -10,14 +10,15 @@ import {
   UNRECORDED_PROVIDERS,
   type HostFunction,
 } from "./host-functions.ts";
-import { payloadlessSingletonEnum } from "./host-boundary.ts";
-import { NUMERIC_TYPES, numericType } from "./numeric.ts";
 import {
-  nominalGenericParts,
-  optionalInner,
-  substituteTypeParameters,
-  tupleParts,
-} from "./types.ts";
+  boundaryShape,
+  isBoundaryScalar,
+  payloadlessSingletonEnum,
+  resultSides,
+  structuralHostResult,
+} from "./host-boundary.ts";
+import { numericType } from "./numeric.ts";
+import { substituteTypeParameters } from "./types.ts";
 import type { HirEnum, HirProgram, HirTraitMethod, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
@@ -250,15 +251,6 @@ interface Instantiation {
 }
 
 /** The `[T, E]` of a `Result[T, E]` boundary result. */
-function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefined {
-  const parts = nominalGenericParts(type);
-  return parts?.name === "Result" && parts.arguments.length === 2
-    ? [parts.arguments[0]!, parts.arguments[1]!]
-    : undefined;
-}
-
-const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "string", ...NUMERIC_TYPES.keys()]);
-
 /** Whether a JavaScript string contains only complete Unicode scalar values. */
 function isWellFormedText(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -378,12 +370,14 @@ function checkedHostBoundaryNode(
   value: HostBoundaryValue,
   ancestors: Set<object> = new Set(),
 ): HostBoundaryNode {
-  if (SCALAR_BOUNDARY.has(type)) {
+  const shape = boundaryShape(type, (name) =>
+    program.data.find((declaration) => declaration.name === name),
+  );
+  if (shape.kind === "scalar" || shape.kind === "string") {
     if (typeof value === "object") throw new Error(`expected a ${type} scalar`);
     return { kind: "scalar", type, value: checkedHostValue(type, value) };
   }
-  const optional = optionalInner(type);
-  if (optional !== undefined)
+  if (shape.kind === "optional")
     return withBoundaryObject(value, ancestors, () => {
       const tagged = hostObject(value);
       if (tagged.tag === "none") {
@@ -395,43 +389,42 @@ function checkedHostBoundaryNode(
       return {
         kind: "variant",
         tag: 1,
-        children: [checkedHostBoundaryNode(program, optional, tagged.value!, ancestors)],
+        children: [checkedHostBoundaryNode(program, shape.inner, tagged.value!, ancestors)],
       };
     });
-  const tuple = tupleParts(type);
-  if (tuple)
+  if (shape.kind === "tuple")
     return withBoundaryObject(value, ancestors, () => {
-      if (!Array.isArray(value) || value.length !== tuple.length)
-        throw new Error(`expected '${type}' as an array of ${tuple.length} values`);
+      if (!Array.isArray(value) || value.length !== shape.elements.length)
+        throw new Error(`expected '${type}' as an array of ${shape.elements.length} values`);
       return {
         kind: "sequence",
-        children: tuple.map((element, index) =>
+        children: shape.elements.map((element, index) =>
           checkedHostBoundaryNode(program, element, value[index]!, ancestors),
         ),
       };
     });
-  const nominal = nominalGenericParts(type);
-  if (nominal?.name === "List" && nominal.arguments.length === 1)
+  if (shape.kind === "list")
     return withBoundaryObject(value, ancestors, () => {
       if (!Array.isArray(value)) throw new Error(`expected '${type}' as an array`);
       return {
         kind: "sequence",
         children: value.map((element) =>
-          checkedHostBoundaryNode(program, nominal.arguments[0]!, element, ancestors),
+          checkedHostBoundaryNode(program, shape.element, element, ancestors),
         ),
       };
     });
-  const dataName = nominal?.name ?? type;
-  const data = program.data.find((declaration) => declaration.name === dataName);
-  if (data)
+  if (shape.kind === "data") {
+    const data = shape.declaration;
+    const dataName = data.name;
     return withBoundaryObject(value, ancestors, () => {
       const object = hostObject(value);
       const expected = new Set(data.fields.map((field) => field.name));
       const extra = Object.keys(object).find((name) => !expected.has(name));
       if (extra) throw new Error(`host '${dataName}' has an unknown field '${extra}'`);
-      const arguments_ = nominal?.arguments ?? [];
       const substitutions = new Map(
-        data.genericParameters.map((parameter, index) => [parameter, arguments_[index]!] as const),
+        data.genericParameters.map(
+          (parameter, index) => [parameter, shape.arguments[index]!] as const,
+        ),
       );
       return {
         kind: "record",
@@ -449,16 +442,8 @@ function checkedHostBoundaryNode(
         }),
       };
     });
+  }
   throw new Error(`the host cannot build a '${type}' boundary value`);
-}
-
-function structuralHostResult(program: HirProgram, type: ValueType): boolean {
-  if (optionalInner(type) !== undefined || tupleParts(type) !== undefined) return true;
-  const nominal = nominalGenericParts(type);
-  return (
-    (nominal?.name === "List" && nominal.arguments.length === 1) ||
-    program.data.some((declaration) => declaration.name === (nominal?.name ?? type))
-  );
 }
 
 function checkedHostResult(
@@ -487,7 +472,8 @@ function checkedHostResult(
       throw new Error(`host ${type} '${result.tag}' has an implicit enum payload`);
     return { tag: result.tag };
   }
-  if (!SCALAR_BOUNDARY.has(side)) throw new Error(`the host cannot build a '${side}' for ${type}`);
+  if (side !== "string" && !isBoundaryScalar(side))
+    throw new Error(`the host cannot build a '${side}' for ${type}`);
   if (result.value === undefined) throw new Error(`host ${type} result has no '${side}' payload`);
   return { tag: result.tag, value: checkedHostValue(side, result.value) };
 }
@@ -564,62 +550,63 @@ function encodeHostBoundaryNode(
   type: ValueType,
   node: HostBoundaryNode,
 ): EncodedHostValue {
-  if (SCALAR_BOUNDARY.has(type)) {
+  const shape = boundaryShape(type, (name) =>
+    program.data.find((declaration) => declaration.name === name),
+  );
+  if (shape.kind === "scalar" || shape.kind === "string") {
     if (node.kind !== "scalar") throw new Error(`host boundary node does not match '${type}'`);
     return encodeHostValue(type, node.value);
   }
-  const optional = optionalInner(type);
-  if (optional !== undefined) {
+  if (shape.kind === "optional") {
     if (node.kind !== "variant" || (node.tag !== 0 && node.tag !== 1))
       throw new Error(`host boundary node does not match '${type}'`);
     return node.tag === 0
       ? { kind: "none" }
       : {
           kind: "some",
-          value: encodeHostBoundaryNode(program, optional, node.children[0]!),
+          value: encodeHostBoundaryNode(program, shape.inner, node.children[0]!),
         };
   }
-  const tuple = tupleParts(type);
-  if (tuple) {
-    if (node.kind !== "sequence" || node.children.length !== tuple.length)
+  if (shape.kind === "tuple") {
+    if (node.kind !== "sequence" || node.children.length !== shape.elements.length)
       throw new Error(`host boundary node does not match '${type}'`);
     return {
       kind: "tuple",
-      values: tuple.map((element, index) =>
+      values: shape.elements.map((element, index) =>
         encodeHostBoundaryNode(program, element, node.children[index]!),
       ),
     };
   }
-  const nominal = nominalGenericParts(type);
-  if (nominal?.name === "List" && nominal.arguments.length === 1) {
+  if (shape.kind === "list") {
     if (node.kind !== "sequence") throw new Error(`host boundary node does not match '${type}'`);
     return {
       kind: "list",
-      values: node.children.map((child) =>
-        encodeHostBoundaryNode(program, nominal.arguments[0]!, child),
-      ),
+      values: node.children.map((child) => encodeHostBoundaryNode(program, shape.element, child)),
     };
   }
-  const dataName = nominal?.name ?? type;
-  const data = program.data.find((declaration) => declaration.name === dataName);
-  if (!data || node.kind !== "record" || node.children.length !== data.fields.length)
-    throw new Error(`host boundary node does not match '${type}'`);
-  const arguments_ = nominal?.arguments ?? [];
-  const substitutions = new Map(
-    data.genericParameters.map((parameter, index) => [parameter, arguments_[index]!] as const),
-  );
-  return {
-    kind: "data",
-    name: data.standardName ?? data.name,
-    fields: data.fields.map((field, index) => ({
-      name: field.name,
-      value: encodeHostBoundaryNode(
-        program,
-        substituteTypeParameters(field.type, substitutions),
-        node.children[index]!,
+  if (shape.kind === "data") {
+    const data = shape.declaration;
+    if (node.kind !== "record" || node.children.length !== data.fields.length)
+      throw new Error(`host boundary node does not match '${type}'`);
+    const substitutions = new Map(
+      data.genericParameters.map(
+        (parameter, index) => [parameter, shape.arguments[index]!] as const,
       ),
-    })),
-  };
+    );
+    return {
+      kind: "data",
+      name: data.standardName ?? data.name,
+      fields: data.fields.map((field, index) => ({
+        name: field.name,
+        value: encodeHostBoundaryNode(
+          program,
+          substituteTypeParameters(field.type, substitutions),
+          node.children[index]!,
+        ),
+      })),
+    };
+  }
+  throw new Error(`host boundary node does not match '${type}'`);
 }
 
 function decodeHostBoundaryNode(
@@ -627,10 +614,12 @@ function decodeHostBoundaryNode(
   type: ValueType,
   encoded: EncodedHostValue,
 ): HostBoundaryNode {
-  if (SCALAR_BOUNDARY.has(type))
+  const shape = boundaryShape(type, (name) =>
+    program.data.find((declaration) => declaration.name === name),
+  );
+  if (shape.kind === "scalar" || shape.kind === "string")
     return { kind: "scalar", type, value: decodeHostValue(type, encoded) };
-  const optional = optionalInner(type);
-  if (optional !== undefined) {
+  if (shape.kind === "optional") {
     if (encoded.kind === "none") {
       if (encoded.value !== undefined)
         throw new Error(`replay boundary type 'none' has a payload for '${type}'`);
@@ -641,63 +630,63 @@ function decodeHostBoundaryNode(
     return {
       kind: "variant",
       tag: 1,
-      children: [decodeHostBoundaryNode(program, optional, encoded.value)],
+      children: [decodeHostBoundaryNode(program, shape.inner, encoded.value)],
     };
   }
-  const tuple = tupleParts(type);
-  if (tuple) {
+  if (shape.kind === "tuple") {
     if (
       encoded.kind !== "tuple" ||
       !Array.isArray(encoded.values) ||
-      encoded.values.length !== tuple.length
+      encoded.values.length !== shape.elements.length
     )
       throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
     return {
       kind: "sequence",
-      children: tuple.map((element, index) =>
+      children: shape.elements.map((element, index) =>
         decodeHostBoundaryNode(program, element, encoded.values[index]!),
       ),
     };
   }
-  const nominal = nominalGenericParts(type);
-  if (nominal?.name === "List" && nominal.arguments.length === 1) {
+  if (shape.kind === "list") {
     if (encoded.kind !== "list" || !Array.isArray(encoded.values))
       throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
     return {
       kind: "sequence",
       children: encoded.values.map((value) =>
-        decodeHostBoundaryNode(program, nominal.arguments[0]!, value),
+        decodeHostBoundaryNode(program, shape.element, value),
       ),
     };
   }
-  const dataName = nominal?.name ?? type;
-  const data = program.data.find((declaration) => declaration.name === dataName);
-  if (
-    !data ||
-    encoded.kind !== "data" ||
-    encoded.name !== (data.standardName ?? data.name) ||
-    !Array.isArray(encoded.fields)
-  )
-    throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
-  if (
-    encoded.fields.length !== data.fields.length ||
-    encoded.fields.some((field, index) => field.name !== data.fields[index]!.name)
-  )
-    throw new Error(`replay data fields do not match '${type}'`);
-  const arguments_ = nominal?.arguments ?? [];
-  const substitutions = new Map(
-    data.genericParameters.map((parameter, index) => [parameter, arguments_[index]!] as const),
-  );
-  return {
-    kind: "record",
-    children: data.fields.map((field, index) =>
-      decodeHostBoundaryNode(
-        program,
-        substituteTypeParameters(field.type, substitutions),
-        encoded.fields[index]!.value,
+  if (shape.kind === "data") {
+    const data = shape.declaration;
+    if (
+      encoded.kind !== "data" ||
+      encoded.name !== (data.standardName ?? data.name) ||
+      !Array.isArray(encoded.fields)
+    )
+      throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
+    if (
+      encoded.fields.length !== data.fields.length ||
+      encoded.fields.some((field, index) => field.name !== data.fields[index]!.name)
+    )
+      throw new Error(`replay data fields do not match '${type}'`);
+    const substitutions = new Map(
+      data.genericParameters.map(
+        (parameter, index) => [parameter, shape.arguments[index]!] as const,
       ),
-    ),
-  };
+    );
+    return {
+      kind: "record",
+      children: data.fields.map((field, index) =>
+        decodeHostBoundaryNode(
+          program,
+          substituteTypeParameters(field.type, substitutions),
+          encoded.fields[index]!.value,
+        ),
+      ),
+    };
+  }
+  throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
 }
 
 function hexBytes(bytes: Uint8Array): string {

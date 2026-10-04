@@ -1,13 +1,14 @@
-import { payloadlessSingletonEnum } from "../host-boundary.ts";
-import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
-import { NUMERIC_TYPES, numericType } from "../numeric.ts";
-import { runtimePanicCode } from "../runtime-panic.ts";
 import {
-  nominalGenericParts,
-  optionalInner,
-  substituteTypeParameters,
-  tupleParts,
-} from "../types.ts";
+  boundaryShape,
+  isBoundaryScalar,
+  payloadlessSingletonEnum,
+  resultSides,
+  structuralHostResult,
+} from "../host-boundary.ts";
+import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
+import { numericType } from "../numeric.ts";
+import { runtimePanicCode } from "../runtime-panic.ts";
+import { substituteTypeParameters } from "../types.ts";
 import { boxScalar, scalarWasm } from "./scalars.ts";
 import { traitMethodKey } from "./reachability.ts";
 import { isGenericValueType } from "./shared.ts";
@@ -32,19 +33,6 @@ interface HostValueEmitter {
   defaultValue(type: ValueType): string;
   watType(type: ValueType): string;
 }
-
-/**
- * The two sides of a `Result[T, E]` boundary result. Each side crosses like a
- * plain boundary result. `void` and a payload-free singleton enum carry no
- * separate host payload.
- */
-function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefined {
-  const parts = nominalGenericParts(type);
-  if (parts?.name !== "Result" || parts.arguments.length !== 2) return undefined;
-  return [parts.arguments[0]!, parts.arguments[1]!];
-}
-
-const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", ...NUMERIC_TYPES.keys()]);
 
 /** Whether `type`'s value crosses as UTF-8 bytes, alone or as a result side. */
 function crossesAsString(type: ValueType): boolean {
@@ -106,15 +94,6 @@ function structuralResultName(trait: HirTrait, method: HirTraitMethod): string {
   return `${methodName(trait, method)}_decode_structural`;
 }
 
-function structuralHostResult(program: HirProgram, type: ValueType): boolean {
-  if (optionalInner(type) !== undefined || tupleParts(type) !== undefined) return true;
-  const nominal = nominalGenericParts(type);
-  return (
-    (nominal?.name === "List" && nominal.arguments.length === 1) ||
-    program.data.some((declaration) => declaration.name === (nominal?.name ?? type))
-  );
-}
-
 function callField(trait: HirTrait, method: HirTraitMethod): string {
   const frame = frameName(trait, method);
   return `(struct.get ${frame} ${frame}call (local.get $frame))`;
@@ -169,7 +148,7 @@ function emitVariantResult({ enums, trait, method }: HostMethod): string {
   const payload = (type: ValueType, side: "result_ok" | "result_err"): string => {
     const value = `(call $hd.${importName(trait, method, side)} (local.get $call))`;
     if (type === "string") return `(call ${stringResultName(trait, method)} (local.get $call))`;
-    if (SCALAR_BOUNDARY.has(type)) return boxScalar(value, type);
+    if (isBoundaryScalar(type)) return boxScalar(value, type);
     const singleton = payloadlessSingletonEnum(enums, type);
     if (singleton) return `(global.get $e${singleton.enumIndex}v${singleton.tag})`;
     return "(ref.null any)";
@@ -224,7 +203,10 @@ function emitStructuralResult(host: HostMethod): string {
     // Register before descending so a recursive data shape calls back into
     // the decoder currently being emitted instead of expanding forever.
     decoderByType.set(type, functionName);
-    if (type === "string") {
+    const shape = boundaryShape(type, (item) =>
+      program.data.find((declaration) => declaration.name === item),
+    );
+    if (shape.kind === "string") {
       functions.push(
         [
           `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})`,
@@ -246,7 +228,7 @@ function emitStructuralResult(host: HostMethod): string {
       );
       return functionName;
     }
-    if (SCALAR_BOUNDARY.has(type)) {
+    if (shape.kind === "scalar") {
       const wasm = numericType(type)?.wasm ?? "i32";
       const accessor =
         wasm === "i64" ? "i64" : wasm === "f32" ? "f32" : wasm === "f64" ? "f64" : "i32";
@@ -255,12 +237,11 @@ function emitStructuralResult(host: HostMethod): string {
       );
       return functionName;
     }
-    const optional = optionalInner(type);
-    if (optional !== undefined) {
-      const valueDecoder = decode(optional, `${path}_value`);
+    if (shape.kind === "optional") {
+      const valueDecoder = decode(shape.inner, `${path}_value`);
       const payload = emitter.boxErasedValue(
         `(call ${valueDecoder} ${child("(local.get $node)", 0)})`,
-        optional,
+        shape.inner,
       );
       functions.push(
         [
@@ -276,9 +257,8 @@ function emitStructuralResult(host: HostMethod): string {
       );
       return functionName;
     }
-    const tuple = tupleParts(type);
-    if (tuple) {
-      const elements = tuple.map((element, index) => {
+    if (shape.kind === "tuple") {
+      const elements = shape.elements.map((element, index) => {
         const decoder = decode(element, `${path}_${index}`);
         return emitter.boxErasedValue(
           `(call ${decoder} ${child("(local.get $node)", index)})`,
@@ -290,9 +270,8 @@ function emitStructuralResult(host: HostMethod): string {
       );
       return functionName;
     }
-    const nominal = nominalGenericParts(type);
-    if (nominal?.name === "List" && nominal.arguments.length === 1) {
-      const element = nominal.arguments[0]!;
+    if (shape.kind === "list") {
+      const element = shape.element;
       const decoder = decode(element, `${path}_element`);
       const boxed = emitter.boxErasedValue(
         `(call ${decoder} ${child("(local.get $node)", "(local.get $index)")})`,
@@ -318,29 +297,31 @@ function emitStructuralResult(host: HostMethod): string {
       );
       return functionName;
     }
-    const dataName = nominal?.name ?? type;
-    const data = program.data.find((declaration) => declaration.name === dataName);
-    if (!data) throw new Error(`cannot emit a structural host result decoder for '${type}'`);
-    if (data.fields.length === 0) {
+    if (shape.kind === "data") {
+      const data = shape.declaration;
+      if (data.fields.length === 0) {
+        functions.push(
+          `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})\n  (drop (local.get $node))\n  (global.get $d${data.index}c)\n)`,
+        );
+        return functionName;
+      }
+      const substitutions = new Map(
+        data.genericParameters.map(
+          (parameter, index) => [parameter, shape.arguments[index]!] as const,
+        ),
+      );
+      const fields = data.fields.map((field, index) => {
+        const fieldType = substituteTypeParameters(field.type, substitutions);
+        const decoder = decode(fieldType, `${path}_${index}`);
+        const value = `(call ${decoder} ${child("(local.get $node)", index)})`;
+        return isGenericValueType(field.type) ? emitter.boxErasedValue(value, fieldType) : value;
+      });
       functions.push(
-        `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})\n  (drop (local.get $node))\n  (global.get $d${data.index}c)\n)`,
+        `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})\n  (struct.new $d${data.index} ${fields.join(" ")})\n)`,
       );
       return functionName;
     }
-    const arguments_ = nominal?.arguments ?? [];
-    const substitutions = new Map(
-      data.genericParameters.map((parameter, index) => [parameter, arguments_[index]!] as const),
-    );
-    const fields = data.fields.map((field, index) => {
-      const fieldType = substituteTypeParameters(field.type, substitutions);
-      const decoder = decode(fieldType, `${path}_${index}`);
-      const value = `(call ${decoder} ${child("(local.get $node)", index)})`;
-      return isGenericValueType(field.type) ? emitter.boxErasedValue(value, fieldType) : value;
-    });
-    functions.push(
-      `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})\n  (struct.new $d${data.index} ${fields.join(" ")})\n)`,
-    );
-    return functionName;
+    throw new Error(`cannot emit a structural host result decoder for '${type}'`);
   };
   const root = decode(method.result, "root");
   functions.push(
@@ -514,8 +495,8 @@ function emitImports({ program, trait, method }: HostMethod): readonly string[] 
       : sides
         ? [
             scalarImport("result_tag", "i32"),
-            ...(SCALAR_BOUNDARY.has(sides[0]) ? [scalarImport("result_ok", sides[0])] : []),
-            ...(SCALAR_BOUNDARY.has(sides[1]) ? [scalarImport("result_err", sides[1])] : []),
+            ...(isBoundaryScalar(sides[0]) ? [scalarImport("result_ok", sides[0])] : []),
+            ...(isBoundaryScalar(sides[1]) ? [scalarImport("result_err", sides[1])] : []),
           ]
         : method.result === "void" || method.result === "string"
           ? []
