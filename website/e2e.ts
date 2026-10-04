@@ -75,7 +75,7 @@ interface Opened {
 
 async function openPage(
   path: string,
-  options: { colorScheme?: "light" | "dark"; width?: number } = {},
+  options: { colorScheme?: "light" | "dark"; width?: number; ready?: string } = {},
 ): Promise<Opened> {
   const context = await browser.newContext({
     colorScheme: options.colorScheme ?? "light",
@@ -88,7 +88,7 @@ async function openPage(
     if (request.url().endsWith("/worker.js")) workers.push(request.url());
   });
   await page.goto(`${origin}${PAGES_BASE}${path}`);
-  await page.locator("#repl-toggle").waitFor();
+  await page.locator(options.ready ?? "#repl-toggle").waitFor();
   return { page, workers };
 }
 
@@ -359,6 +359,116 @@ try {
     assert.equal(await background(), "rgb(20, 23, 29)", "the choice persists");
     if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "home-phone-dark.png") });
     await page.context().close();
+  });
+
+  await step("the tour runs a page, keeps edits, resets, and moves between pages", async () => {
+    const home = await openPage("index.html");
+    await home.page.locator(".hero-actions a", { hasText: "Take the tour" }).click();
+    await home.page.waitForURL(`${origin}${PAGES_BASE}tour/`);
+    await home.page.locator(".topnav a[aria-current=page]", { hasText: "Tour" }).waitFor();
+    await home.page.locator(".tour-index a").first().click();
+    await home.page.waitForURL(`${origin}${PAGES_BASE}tour/1-hello/`);
+    await home.page.context().close();
+
+    const { page, workers } = await openPage("tour/1-hello/", { ready: "#tour-editor .cm-editor" });
+    const output = page.locator("#tour-output");
+    await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
+    assert.deepEqual(workers, [`${origin}${PAGES_BASE}${PLAYGROUND_APP_DIR}/assets/worker.js`]);
+    await page.click("#tour-run");
+    await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
+    assert.equal(
+      await output.locator(".stdout").textContent(),
+      "Hello, Ada! Your order has shipped.\n",
+    );
+    assert.equal(
+      await page.locator("#sidebar .tour-contents a[aria-current=page]").textContent(),
+      "1Hello, hd",
+      "the contents mark the current page",
+    );
+
+    await page.locator(".tour-pager a[rel=next]").click();
+    await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-mut/`);
+    await page.locator("#tour-editor .cm-editor").waitFor();
+    // Change the discount from 10 to 50 percent, one line, as a reader would.
+    await page.locator(".cm-line", { hasText: "apply_discount(order, 10)" }).click();
+    await page.keyboard.press("End");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("50)");
+    await page.keyboard.press("Control+Enter");
+    await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
+    assert.equal(await output.locator(".stdout").textContent(), "A-1042: 2500 cents\n");
+
+    // The edit survives a reload; Reset brings back the original.
+    await page.reload();
+    await page.locator(".cm-line", { hasText: "apply_discount(order, 50)" }).waitFor();
+    await page.click("#tour-reset");
+    await page.locator(".cm-line", { hasText: "apply_discount(order, 10)" }).waitFor();
+    await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
+    await page.click("#tour-run");
+    await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
+    assert.equal(await output.locator(".stdout").textContent(), "A-1042: 4500 cents\n");
+    await page.reload();
+    await page.locator(".cm-line", { hasText: "apply_discount(order, 10)" }).waitFor();
+
+    // The page's edit, deleting `mut` from the parameter, lists its diagnostic.
+    await page
+      .locator(".cm-line", { hasText: "fn apply_discount(order: mut Order" })
+      .locator(".hd-keyword", { hasText: /^mut$/ })
+      .dblclick();
+    await page.keyboard.press("Backspace");
+    assert.ok(
+      await page.locator(".cm-line", { hasText: "fn apply_discount(order:  Order" }).isVisible(),
+    );
+    await page.click("#tour-run");
+    await output.locator(".outcome.failed").waitFor({ timeout: FIRST_REPLY_MS });
+    assert.equal(await output.locator(".diagnostic .code").textContent(), "readonly-root");
+    await page.click("#tour-reset");
+
+    // Alt+Left goes back a page when the focus is outside the editor.
+    await page.locator("h1").click();
+    await page.keyboard.press("Alt+ArrowLeft");
+    await page.waitForURL(`${origin}${PAGES_BASE}tour/1-hello/`);
+    await page.keyboard.press("Alt+ArrowRight");
+    await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-mut/`);
+    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "tour-desktop.png") });
+    await page.context().close();
+  });
+
+  await step("a tour page fits a phone in light and dark", async () => {
+    for (const colorScheme of ["light", "dark"] as const) {
+      const { page } = await openPage("tour/1-hello/", {
+        colorScheme,
+        width: 375,
+        ready: "#tour-editor .cm-editor",
+      });
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      assert.equal(overflow, 0, `${colorScheme}: no horizontal page scroll`);
+      const editor = await page.locator(".split-aside").boundingBox();
+      assert.ok(
+        editor && editor.width <= 375 && editor.height >= 300,
+        `${colorScheme}: editor box`,
+      );
+      const background = await page
+        .locator(".tour-code .cm-editor")
+        .evaluate((node) => getComputedStyle(node).backgroundColor);
+      assert.equal(
+        background,
+        colorScheme === "dark" ? "rgb(24, 27, 34)" : "rgb(246, 246, 250)",
+        `${colorScheme}: the editor uses the site's code background`,
+      );
+      await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
+      await page.click("#tour-run");
+      await page.locator("#tour-output .outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
+      if (SCREENSHOTS) {
+        await page.locator(".split-aside").scrollIntoViewIfNeeded();
+        await page.screenshot({ path: join(SCREENSHOTS, `tour-phone-${colorScheme}.png`) });
+      }
+      await page.context().close();
+    }
   });
 
   await step("the Playground link opens the playground with the code it carries", async () => {

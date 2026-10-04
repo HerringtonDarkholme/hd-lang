@@ -68,7 +68,11 @@ export function offsetOf(doc: Text, line: number, column: number): number {
   return target.from + Math.min(Math.max(0, column - 1), target.length);
 }
 
-function lintDiagnostics(doc: Text, diagnostics: readonly RunDiagnostic[]): LintDiagnostic[] {
+/** Run diagnostics as editor lint diagnostics over `doc`. */
+export function lintDiagnostics(
+  doc: Text,
+  diagnostics: readonly RunDiagnostic[],
+): LintDiagnostic[] {
   return diagnostics.map((diagnostic) => {
     const from = offsetOf(doc, diagnostic.line, diagnostic.column);
     let to = offsetOf(doc, diagnostic.endLine, diagnostic.endColumn);

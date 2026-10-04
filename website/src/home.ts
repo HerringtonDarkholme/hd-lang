@@ -79,7 +79,8 @@ export function renderHome(input: HomeInput): string {
 <h1 id="hero-title">${md.renderInline(slogan, env)}</h1>
 <p class="hero-pitch">${md.renderInline(pitch, env)}</p>
 <div class="hero-actions">
-<a class="button button-primary" href="${pageUrl("playground.html")}">Open the playground</a>
+<a class="button button-primary" href="${pageUrl("tour/index.html")}">Take the tour</a>
+<a class="button" href="${pageUrl("playground.html")}">Open the playground</a>
 <a class="button" href="${pageUrl("guide/learn-in-10-minutes.html")}">Learn in 10 minutes</a>
 <a class="button button-quiet" href="${pageUrl("spec/index.html")}">Read the spec</a>
 </div>

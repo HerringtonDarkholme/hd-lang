@@ -41,6 +41,10 @@ interface LayoutInput {
    * worker it loads when the panel first opens.
    */
   readonly repl?: boolean;
+  /** Sidebar contents in place of the site's page sections, such as the tour's. */
+  readonly nav?: string;
+  /** Module scripts the page loads, as paths under the base. */
+  readonly scripts?: readonly string[];
 }
 
 /** The site asset that runs the REPL panel; website/build.ts bundles it. */
@@ -65,12 +69,8 @@ function link(base: string, output: string): string {
 /** The top bar's links, each with the test that marks it as the current area. */
 const PRIMARY: readonly [label: string, output: string, current: (output: string) => boolean][] = [
   ["Home", "index.html", (output) => output === "index.html"],
-  [
-    "Learn",
-    "guide/learn-in-10-minutes.html",
-    (output) => output.startsWith("guide/") && output !== "guide/language-tour.html",
-  ],
-  ["Tour", "guide/language-tour.html", (output) => output === "guide/language-tour.html"],
+  ["Learn", "guide/learn-in-10-minutes.html", (output) => output.startsWith("guide/")],
+  ["Tour", "tour/index.html", (output) => output.startsWith("tour/")],
   ["Playground", PLAYGROUND_PAGE, (output) => output === PLAYGROUND_PAGE],
   ["Spec", "spec/index.html", (output) => output.startsWith("spec/")],
 ];
@@ -88,20 +88,26 @@ const OPEN_SECTION_LIMIT = 20;
 function sidebar(input: LayoutInput): string {
   const item = (href: string, label: string, active: boolean): string =>
     `<li><a href="${href}"${active ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a></li>`;
-  const sections = navSections().map((section) => {
-    const current = section.pages.some((entry) => entry.output === input.output);
-    const open = current || section.pages.length <= OPEN_SECTION_LIMIT;
-    const items = section.pages
-      .map((entry) =>
-        item(link(input.base, entry.output), entry.navTitle, entry.output === input.output),
-      )
-      .join("");
-    const playground =
-      section.title === "Start"
-        ? item(link(input.base, PLAYGROUND_PAGE), "Playground", input.output === PLAYGROUND_PAGE)
-        : "";
-    return `<details class="nav-section"${open ? " open" : ""}><summary>${escapeHtml(section.title)}</summary><ul>${items}${playground}</ul></details>`;
-  });
+  const sections = input.nav
+    ? [input.nav]
+    : navSections().map((section) => {
+        const current = section.pages.some((entry) => entry.output === input.output);
+        const open = current || section.pages.length <= OPEN_SECTION_LIMIT;
+        const items = section.pages
+          .map((entry) =>
+            item(link(input.base, entry.output), entry.navTitle, entry.output === input.output),
+          )
+          .join("");
+        const playground =
+          section.title === "Start"
+            ? item(
+                link(input.base, PLAYGROUND_PAGE),
+                "Playground",
+                input.output === PLAYGROUND_PAGE,
+              )
+            : "";
+        return `<details class="nav-section"${open ? " open" : ""}><summary>${escapeHtml(section.title)}</summary><ul>${items}${playground}</ul></details>`;
+      });
   return `<nav class="sidebar" id="sidebar" aria-label="Site">
 <div class="sidebar-primary">${primaryLinks(input)}<a href="${REPOSITORY_URL}">GitHub</a></div>
 ${sections.join("")}</nav>`;
@@ -177,9 +183,12 @@ export function renderLayout(input: LayoutInput): string {
 <script>try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="stylesheet" href="${base}assets/style.css">
 <link rel="icon" href="${base}assets/favicon.svg" type="image/svg+xml">
-<script src="${base}assets/site.js" defer></script>${
-    input.repl ? `\n<script type="module" src="${base}${REPL_SCRIPT}"></script>` : ""
-  }
+<script src="${base}assets/site.js" defer></script>${[
+    ...(input.repl ? [REPL_SCRIPT] : []),
+    ...(input.scripts ?? []),
+  ]
+    .map((script) => `\n<script type="module" src="${base}${script}"></script>`)
+    .join("")}
 </head>
 <body data-base="${escapeHtml(base)}"${
     input.repl

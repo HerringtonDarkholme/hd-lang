@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url";
 
 import * as esbuild from "esbuild";
 
+import { editedCode, loadTour } from "../../src/tour-pages.ts";
 import { buildOptions } from "../build.ts";
 import { createHash as shimHash } from "../src/shims/crypto.ts";
 import type { Example } from "../src/examples.ts";
@@ -444,6 +445,21 @@ test("the bundled examples run", async () => {
     "Point { x: 3, y: 4 } : Point",
     "[7, 12] : List[i32]",
   ]);
+});
+
+test("each tour snippet runs and prints its page's output; each edit fails to compile", async () => {
+  const pages = loadTour(resolve(playground, "../.."));
+  assert.ok(pages.length > 0);
+  for (const page of pages) {
+    const result = await runner.runProject(single(page.code), "run");
+    assert.equal(result.status, "ok", `${page.source}: ${result.summary}`);
+    assert.deepEqual(result.stdout, page.output, page.source);
+    if (!page.edit) continue;
+    const edited = await runner.runProject(single(editedCode(page)), "run");
+    assert.equal(edited.status, "compile-error", `${page.source}: the edit compiles`);
+    const errors = edited.diagnostics.map(({ code, message }) => `${code}: ${message}`);
+    assert.ok(errors.includes(page.edit.error), `${page.source}: ${errors.join("; ")}`);
+  }
 });
 
 async function bundleExamples(): Promise<string> {

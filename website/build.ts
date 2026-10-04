@@ -11,7 +11,7 @@ import { glossary, glossaryMarkdown } from "../spec/tools/spec-glossary.ts";
 import { buildOptions, buildPlayground } from "./playground/build.ts";
 import { renderHome } from "./src/home.ts";
 import { renderLayout, REPL_SCRIPT } from "./src/layout.ts";
-import { checkHdBlocksParse, LEARN_PAGE } from "./src/learn-check.ts";
+import { checkHdBlocksParse, checkTourSnippets, LEARN_PAGE } from "./src/learn-check.ts";
 import { checkLinks } from "./src/links.ts";
 import { buildGrammarIndex, type GrammarIndex } from "./src/ebnf.ts";
 import { createMarkdown, fencedBlocks, type Heading, type RenderEnv } from "./src/markdown.ts";
@@ -22,6 +22,8 @@ import {
   PLAYGROUND_PAGE,
   REPOSITORY_URL,
 } from "./src/pages.ts";
+import { loadTour, plainClaim, TOUR_INDEX, tourOutput } from "./src/tour-pages.ts";
+import { TOUR_SCRIPT, tourContents, tourEditor, tourIndexBody, tourProse } from "./src/tour.ts";
 
 const WEBSITE_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = resolve(WEBSITE_DIR, "..");
@@ -88,14 +90,14 @@ function playgroundUrl(base: string): (code: string) => string {
 }
 
 /**
- * Bundles the REPL panel, website/client/repl.ts, into the site's assets.
- * The panel is small; the compiler worker it starts comes from the playground
- * build and loads only when the panel first opens.
+ * Bundles a page script from website/client/ into the site's assets: the
+ * REPL panel (repl.ts), which is small, or the tour's editor (tour.ts). The
+ * compiler worker each starts comes from the playground build.
  */
-async function bundleRepl(outfile: string): Promise<void> {
+async function bundleClient(name: "repl" | "tour", outfile: string): Promise<void> {
   await esbuild.build(
     buildOptions({
-      entryPoints: [join(WEBSITE_DIR, "client", "repl.ts")],
+      entryPoints: [join(WEBSITE_DIR, "client", `${name}.ts`)],
       outdir: undefined,
       outfile,
       logLevel: "warning",
@@ -149,9 +151,15 @@ function searchEntries(
 export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   const base = normalizeBase(options.base);
   const outDir = resolve(options.outDir);
-  const failures = await checkHdBlocksParse(REPO_DIR, LEARN_PAGE);
+  const tour = loadTour(REPO_DIR);
+  const [failures, tourFailures] = await Promise.all([
+    checkHdBlocksParse(REPO_DIR, LEARN_PAGE),
+    checkTourSnippets(tour),
+  ]);
   if (failures.length > 0)
     throw new Error(`learn page examples do not parse:\n${failures.join("\n")}`);
+  if (tourFailures.length > 0)
+    throw new Error(`tour snippets fail their checks:\n${tourFailures.join("\n")}`);
 
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -162,7 +170,11 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   if (playgroundDist === undefined) await buildPlayground(join(outDir, PLAYGROUND_APP_DIR));
   else if (playground)
     await cp(playgroundDist, join(outDir, PLAYGROUND_APP_DIR), { recursive: true });
-  if (playground) await bundleRepl(join(outDir, REPL_SCRIPT));
+  if (playground)
+    await Promise.all([
+      bundleClient("repl", join(outDir, REPL_SCRIPT)),
+      bundleClient("tour", join(outDir, TOUR_SCRIPT)),
+    ]);
 
   const md = createMarkdown();
   const linkErrors: string[] = [];
@@ -244,6 +256,52 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
     }),
   );
   search.push({ title: "Playground", page: "Playground", url: siteLink(base, PLAYGROUND_PAGE) });
+
+  const pageUrl = (output: string): string => siteLink(base, output);
+  const tourEnv = (source: string): RenderEnv => ({
+    source,
+    resolveLink,
+    playgroundUrl: playgroundUrl(base),
+    headings: [],
+    slugCounts: new Map(),
+    grammar,
+  });
+  const workerUrl = playground ? `${base}${PLAYGROUND_APP_DIR}/assets/worker.js` : undefined;
+  await write(
+    TOUR_INDEX,
+    renderLayout({
+      base,
+      output: TOUR_INDEX,
+      title: "A Tour of hd",
+      description:
+        "An interactive tour of hd-lang: one claim per page, with code you run and edit in the browser.",
+      body: tourIndexBody(tour, { md, env: tourEnv(tour[0]!.source), pageUrl }),
+      headings: [],
+      nav: tourContents(tour, pageUrl),
+    }),
+  );
+  search.push({ title: "A Tour of hd", page: "Tour", url: pageUrl(TOUR_INDEX) });
+  for (const page of tour) {
+    const render = { md, env: tourEnv(page.source), pageUrl, workerUrl };
+    const output = tourOutput(page);
+    await write(
+      output,
+      renderLayout({
+        base,
+        output,
+        title: `${page.title} · Tour`,
+        description: firstParagraph(page.prose),
+        body: tourProse(tour, page, render),
+        aside: tourEditor(page, render),
+        headings: [],
+        shape: "split",
+        nav: tourContents(tour, pageUrl, page),
+        scripts: playground ? [TOUR_SCRIPT] : [],
+      }),
+    );
+    search.push({ title: plainClaim(page), page: "Tour", url: pageUrl(output) });
+  }
+  if (linkErrors.length > 0) throw new Error(`broken tour links:\n${linkErrors.join("\n")}`);
 
   await write(
     "404.html",

@@ -16,6 +16,7 @@ import { renderLayout } from "../src/layout.ts";
 import { checkLinks } from "../src/links.ts";
 import { createMarkdown, type RenderEnv } from "../src/markdown.ts";
 import { PAGES, PLAYGROUND_PAGE } from "../src/pages.ts";
+import { editedCode, loadTour, parseTourPage } from "../src/tour-pages.ts";
 
 const REPO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const EXAMPLES_DIR = join(REPO_DIR, "website/playground/examples");
@@ -147,7 +148,8 @@ describe("website build", () => {
     const slogan = /^\*\*(.+)\*\*$/m.exec(readme)![1]!;
     assert.match(home, new RegExp(`<h1 id="hero-title">${slogan.replaceAll(".", "\\.")}</h1>`));
     assert.match(home, /<div class="layout layout-home">/);
-    assert.match(home, /<a class="button button-primary" href="\/hd-lang\/playground\.html">/);
+    assert.match(home, /<a class="button button-primary" href="\/hd-lang\/tour\/">Take the tour/);
+    assert.match(home, /<a class="button" href="\/hd-lang\/playground\.html">/);
     assert.match(home, /href="\/hd-lang\/guide\/learn-in-10-minutes\.html">Learn in 10 minutes/);
     // The hero sample is the README's own code, highlighted.
     assert.match(
@@ -223,7 +225,7 @@ describe("website build", () => {
   test("renders the split shell with prose and an aside", () => {
     const html = renderLayout({
       base: "/b/",
-      output: "guide/language-tour.html",
+      output: "tour/1-hello/index.html",
       title: "Tour",
       description: "",
       body: "<h1>Step</h1>",
@@ -235,7 +237,57 @@ describe("website build", () => {
       html,
       /<div class="split">\s*<article class="prose split-prose">\s*<h1>Step<\/h1>[\s\S]*<\/article>\s*<aside class="split-aside" aria-label="Live editor">\s*<iframe title="editor">/,
     );
-    assert.match(html, /<a href="\/b\/guide\/language-tour\.html" aria-current="page">Tour<\/a>/);
+    assert.match(html, /<a href="\/b\/tour\/" aria-current="page">Tour<\/a>/);
+  });
+
+  test("renders the tour: contents, one split page per file, and a static listing offline", async () => {
+    const outDir = join(scratch, "pages");
+    const tour = loadTour(REPO_DIR);
+    assert.ok(tour.length >= 6);
+    const index = await readFile(join(outDir, "tour/index.html"), "utf8");
+    assert.match(index, /<a href="\/hd-lang\/tour\/" aria-current="page">Tour<\/a>/);
+    for (const page of tour) {
+      assert.match(index, new RegExp(`<a href="/hd-lang/tour/${page.number}-${page.slug}/">`));
+      const html = await readFile(
+        join(outDir, `tour/${page.number}-${page.slug}/index.html`),
+        "utf8",
+      );
+      assert.match(html, /<div class="layout layout-split">/);
+      assert.match(
+        html,
+        new RegExp(`<p class="tour-step">.*· ${page.number} of ${tour.length}</p>`),
+      );
+      assert.match(
+        html,
+        new RegExp(`aria-current="page"><span class="tour-number">${page.number}<`),
+      );
+      // Without the playground build there is no editor script, only the listing.
+      assert.match(html, /class="tour-editor tour-offline"/);
+      assert.doesNotMatch(html, /tour\.js|id="tour-run"/);
+      // The edit and output blocks are check data, not page text.
+      assert.doesNotMatch(html, /replace: |```/);
+      if (page.number > 1) assert.match(html, /<a class="tour-prev" rel="prev"/);
+      if (page.number < tour.length) assert.match(html, /<a class="tour-next" rel="next"/);
+    }
+  });
+
+  test("tour pages are well formed, and an edit must name one line", () => {
+    const text =
+      "---\ntitle: T\n---\n\n# Claim\n\nProse.\n\n```hd\na\nb\n```\n\n```output\nx\n```\n";
+    const page = parseTourPage("website/tour/01-t.md", text, 1);
+    assert.deepEqual(
+      [page.title, page.claim, page.prose, page.code],
+      ["T", "Claim", "Prose.", "a\nb\n"],
+    );
+    assert.deepEqual(page.output, ["x"]);
+    assert.throws(() => editedCode(page), /has no edit/);
+    const edit = text.replace(
+      "```output",
+      "```edit\nreplace: c\nwith: d\nerror: e\n```\n\n```output",
+    );
+    assert.throws(() => editedCode(parseTourPage("website/tour/01-t.md", edit, 1)), /0 times/);
+    assert.throws(() => parseTourPage("website/tour/01-t.md", text.replace("```hd", "```js"), 1));
+    assert.throws(() => parseTourPage("website/tour/t.md", text, 1), /NN-slug/);
   });
 
   test("serves a playground build at playground/ when one exists", async () => {
@@ -257,6 +309,12 @@ describe("website build", () => {
       chapter,
       /<body data-base="\/" data-repl-worker="\/playground\/assets\/worker\.js">/,
     );
+    // A tour page gets the editor script and the worker it runs code in.
+    const tourPage = await readFile(join(outDir, "tour/1-hello/index.html"), "utf8");
+    assert.match(tourPage, /<script type="module" src="\/assets\/tour\.js"><\/script>/);
+    assert.match(tourPage, /data-worker="\/playground\/assets\/worker\.js"/);
+    assert.match(tourPage, /<script type="application\/json" id="tour-source">"# Press Run/);
+    assert.ok(existsSync(join(outDir, "assets/tour.js")));
     const panel = await readFile(join(outDir, "assets/repl.js"), "utf8");
     assert.ok(panel.length < 100_000, `the panel bundle stays small (${panel.length} bytes)`);
     assert.doesNotMatch(panel, /binaryen/i, "the compiler stays in the worker");
