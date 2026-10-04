@@ -86,15 +86,19 @@ export type {
 
 export class CheckFailure extends Error {}
 
-function hirValueReadsLocal(value: unknown, local: HirLocal): boolean {
-  if (Array.isArray(value)) return value.some((item) => hirValueReadsLocal(item, local));
-  if (!value || typeof value !== "object") return false;
+function collectReadLocals(value: unknown, into: Set<HirLocal>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectReadLocals(item, into);
+    return;
+  }
+  if (!value || typeof value !== "object") return;
   const node = value as Record<string, unknown>;
-  if (node.kind === "local" && node.local === local) return true;
-  return Object.entries(node).some(
-    ([key, child]) =>
-      key !== "span" && key !== "local" && key !== "bindings" && hirValueReadsLocal(child, local),
-  );
+  if (node.kind === "local" && node.local !== null && typeof node.local === "object") {
+    into.add(node.local as HirLocal);
+  }
+  for (const [key, child] of Object.entries(node)) {
+    if (key !== "span" && key !== "local" && key !== "bindings") collectReadLocals(child, into);
+  }
 }
 
 export { PRELUDE_NAMES };
@@ -341,9 +345,10 @@ export abstract class CheckerContext {
         );
         if (failure) this.fail("unsatisfied-trait-bound", failure.message, failure.span);
       }
+      const readLocals = new Set<HirLocal>();
+      collectReadLocals(body, readLocals);
       for (const local of this.locals) {
-        if (local.parameter || local.name.startsWith("$") || hirValueReadsLocal(body, local))
-          continue;
+        if (local.parameter || local.name.startsWith("$") || readLocals.has(local)) continue;
         this.diagnostics.push({
           code: "unused-local-binding",
           message: `local binding '${local.name}' is never read`,
