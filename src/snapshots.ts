@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, sep } from "node:path";
-import type { HostFunction } from "./host-functions.ts";
 import type { RegressionStore } from "./property-tests.ts";
 
 // The runner side of `std.testing.snapshot_file` (spec/std/testing.md#snapshot-files,
@@ -13,7 +12,6 @@ interface SnapshotRun {
   readonly begin: (name: string, row: number | undefined) => void;
   /** Compares the running case's next snapshot with `text`. */
   readonly check: (text: string) => string;
-  readonly hostFunctions: Readonly<Record<string, HostFunction>>;
 }
 
 /** The test name, lowercased, with each run of other characters turned into `-`. */
@@ -60,9 +58,6 @@ export function snapshotRun(file: string, update: boolean): SnapshotRun {
       count = 0;
     },
     check,
-    hostFunctions: {
-      snapshot_file_check: (text) => check(String(text)),
-    },
   };
 }
 

@@ -69,7 +69,7 @@ function runnerProvider(
       if (!properties) throw new Error(`the test runner has no method ${call.methodName}`);
       return {
         pending: false,
-        ...properties.answer(call.methodName, call.arguments, call.resultType),
+        ...properties.answer(call.methodName, call.arguments),
       };
     },
   };

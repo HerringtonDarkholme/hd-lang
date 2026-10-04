@@ -85,7 +85,7 @@ tests:
 test("the property runner returns a structural case and records choices", () => {
   const run = propertyRun({ seed: 41 });
   run.start([3n, 5n], 43, 7, true);
-  assert.deepEqual(run.answer("start", [10, 20, 0], "PropertyCase"), {
+  assert.deepEqual(run.answer("start", [10, 20, 0]), {
     value: {
       example: { tag: "none" },
       seed: 43n,
@@ -93,12 +93,12 @@ test("the property runner returns a structural case and records choices", () => 
       replay: [3n, 5n],
     },
   });
-  run.answer("record", [3n], "void");
-  run.answer("record", [5n], "void");
+  run.answer("record", [3n]);
+  run.answer("record", [5n]);
   assert.deepEqual(run.recorded(), [3n, 5n]);
 
   run.startExample(0);
-  assert.deepEqual(run.answer("start", [10, 20, 1], "PropertyCase"), {
+  assert.deepEqual(run.answer("start", [10, 20, 1]), {
     value: {
       example: { tag: "some", value: 0 },
       seed: 41n,

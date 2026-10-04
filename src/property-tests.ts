@@ -15,9 +15,10 @@
 //   shorter or smaller choice streams through the same generator, and a
 //   draw past the end of a replayed stream is 0. Each attempt is a fresh
 //   instance and counts toward the `shrink` cap (T51);
-// - `Choices.assume(false)` calls `discard`, which ends the case as
-//   neither passing nor failing. A discarded case does not count toward
-//   `cases`, and the property fails after more than 10 × `cases` discards
+// - `Choices.assume(false)` panics with the discard message, which the
+//   runner reads as a discard before `show` (it never reaches `show`).
+//   A discarded case does not count toward `cases`, and the property fails
+//   after more than 10 × `cases` discards
 //   (spec/std/testing.md#r-std-testing.prop.discard-limit);
 // - the lowered test reports its input's `Debug` text through `show`,
 //   and the failure report prints the shrunk case's text
@@ -70,7 +71,6 @@ export interface PropertyRun {
   answer(
     method: string,
     arguments_: readonly RunnerValue[],
-    resultType?: string,
   ): { readonly value?: HostBoundaryValue };
   readonly seed: number;
   readonly options: PropertyOptions;
@@ -94,7 +94,6 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
   let recorded: bigint[] = [];
   let caseSeed = seed;
   let size = 0;
-  let shrinking = false;
   let caps = { cases: 100, shrink: 500 };
   let shown: string | undefined;
   let example: number | undefined;
@@ -103,13 +102,12 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
     next: readonly bigint[],
     nextSeed: number,
     caseSize: number,
-    shrinkingCase: boolean,
+    _shrinkingCase: boolean,
   ): void => {
     stream = next;
     recorded = [];
     caseSeed = nextSeed;
     size = caseSize;
-    shrinking = shrinkingCase;
     shown = undefined;
     example = undefined;
   };
@@ -126,7 +124,7 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
     recorded: () => recorded,
     caps: () => caps,
     shown: () => shown,
-    answer(method, arguments_, resultType) {
+    answer(method, arguments_) {
       const [first, second, third] = arguments_;
       switch (method) {
         case "start":
@@ -135,11 +133,6 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
             examplesDone = true;
             throw new PropertyDiscard();
           }
-          // Keep answering the old std.testing surface until its coordinated
-          // switch lands. The declared result type distinguishes that i32
-          // answer from the structural PropertyCase answer without naming the
-          // std data declaration in the runner.
-          if (resultType === "i32") return { value: example ?? -1 };
           return {
             value: {
               example: example === undefined ? { tag: "none" } : { tag: "some", value: example },
@@ -148,32 +141,9 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
               replay: [...stream],
             },
           };
-        // The case's random draws start from its seed, and reach further
-        // as cases grow (Testing T38).
-        case "seed":
-          return { value: BigInt(caseSeed) };
-        case "size":
-          return { value: size };
-        case "draw": {
-          const limit = BigInt(first as bigint);
-          const replayed = stream[recorded.length];
-          const value =
-            replayed !== undefined
-              ? replayed < limit
-                ? replayed
-                : limit
-              : shrinking
-                ? 0n
-                : BigInt(second as bigint);
-          const drawn = value < 0n ? 0n : value > limit ? limit : value;
-          recorded.push(drawn);
-          return { value: drawn };
-        }
         case "record":
           recorded.push(first as bigint);
           return {};
-        case "discard":
-          throw new PropertyDiscard();
         case "show":
           shown = String(first);
           return {};

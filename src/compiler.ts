@@ -237,7 +237,7 @@ export interface InstantiateOptions {
   readonly hostSuspensionCancel?: (call: HostSuspensionCall) => void;
   readonly hostSuspensionInvoke?: (call: HostSuspensionCall) => HostSuspensionOutcome;
   readonly hostSuspensionPending?: (call: HostSuspensionCall) => boolean;
-  /** Host functions that override or add to `HOST_FUNCTIONS`, such as a runner's `snapshot_file_check`. */
+  /** Host functions that override or add to `HOST_FUNCTIONS`. */
   readonly hostFunctions?: Readonly<Record<string, HostFunction>>;
   readonly parse?: ParseOptions;
   /** A compilation of `source` to instantiate again, as for a fresh test instance. */

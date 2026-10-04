@@ -157,7 +157,6 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       regressions: regressionStore(packageRoot, testModule),
     });
     const instantiateOptions: Parameters<typeof instantiate>[1] = {
-      hostFunctions: snapshots.hostFunctions,
       console: (text) => io.out(text),
       consoleError: (text) => io.err(text),
       pending:

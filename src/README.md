@@ -1371,8 +1371,7 @@ RUNTIME_AND_LIBRARY.md).
      copies byte by byte. The host looks the name up in
      `src/host-functions.ts` (today `string_lower`, `string_upper`,
      `format_f64`, `format_f32`, `parse_f64`, `format_f64_fixed`, and `panic`, which raises a checked runtime
-     panic of a named category, such as `index-out-of-bounds`), or
-     in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
+     panic of a named category, such as `index-out-of-bounds`).
    - An **operation intrinsic** is a bodiless `@intrinsic` trait method,
      one per primitive operation, such as `Add.add` or `Eq.eq`
      (spec/lang/09-traits.md#intrinsic-methods). An implementation of
@@ -1437,7 +1436,7 @@ marks what this refactor removed.
 | Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
 | HIR | `assert` | `std.testing` | Done: `assert` is hd code in `lib/std/testing.hd` over the `panic` host function (migration M4) |
 | HIR | `assert-equal` | `std.testing` | Done: the compiler checks an `assert_equal` or `snapshot` call and lowers it to a call of the hd `check_equal` |
-| HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
+| HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` over the `TestRunner` capability |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Done: `it_each`, `it_prop`, `it_prop_with`, and `timeout` run hd functions in `lib/std/testing.hd` (migration M3) over the host capabilities `TestRunner` and `PropertyRunner` (task #201) |
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
 | Checker | `@derive(Debug)` generator (`deriveDebug`), builtin `debug` dictionary that wrote nothing, `implementsDebug` | `std.format` | Done: `impl[T] Debug for T by Structure` and `Debug` for `Map` are hd in `lib/std/format.hd` (migration M7) |
