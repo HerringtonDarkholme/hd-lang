@@ -12,6 +12,7 @@ import { workingDirectory, type CommandEnvironment, type CommandIo } from "./io.
 import {
   exportedFunction,
   RUNTIME_PROFILES,
+  pendingFirstPoll,
   runRuntimeScenario,
   type RuntimeScenario,
 } from "./profiles.ts";
@@ -174,7 +175,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       hostCapabilities: runtimeProfile?.hostCapabilities,
       parse: loaded.parseOptions,
       hostSuspensionInvoke: runtimeProfile?.invoke,
-      hostSuspensionPending: runtimeProfile?.pending,
+      hostSuspensionPending: test?.pendingFirstPoll ? pendingFirstPoll : runtimeProfile?.pending,
     };
     const { instance, compilation } = await instantiate(source, instantiateOptions);
     scenarioInstance = instance;

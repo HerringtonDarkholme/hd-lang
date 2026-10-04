@@ -15,6 +15,7 @@ function consoleCall(methodName: string, text: string, provider: unknown): HostS
     providerKey: "Console",
     resultType: "Result[void, ConsoleError]",
     siteId: "console-test:0",
+    suspending: false,
   };
 }
 

@@ -175,6 +175,8 @@ export interface HostSuspensionCall {
   readonly providerKey: string;
   readonly resultType: ValueType;
   readonly siteId: string;
+  /** The method is a suspending (`!`) method, so its call may stay pending. */
+  readonly suspending: boolean;
 }
 
 export interface HostSuspensionOutcome {
@@ -990,6 +992,7 @@ function makeHostCall(
   providerKey: string,
   methodName: string,
   resultType: ValueType,
+  suspending: boolean,
   functionIndex: number,
   siteOffset: number,
   arguments_: HostSuspensionValue[],
@@ -1006,6 +1009,7 @@ function makeHostCall(
     providerKey,
     resultType,
     siteId: `${identity.name}:provider:${providerKey}.${methodName}:${siteOffset - identity.start}`,
+    suspending,
   };
 }
 
@@ -1119,6 +1123,7 @@ export async function instantiate(
           trait.name,
           method.name,
           method.result,
+          method.suspending,
           functionIndex as number,
           siteOffset as number,
           method.parameters.map((parameter, index) =>

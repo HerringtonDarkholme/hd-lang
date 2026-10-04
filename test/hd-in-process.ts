@@ -16,6 +16,27 @@ export interface HdResult {
 }
 
 /**
+ * The conformance runner passes `--scenario pending-first-poll` as a command
+ * line option, but that scenario is a harness hook, not an `hd` option
+ * (`CommandEnvironment.pendingFirstPoll`): the adapter takes it out of the
+ * arguments before they reach the command-line parser.
+ */
+function interceptPendingFirstPoll(args: readonly string[]): {
+  readonly args: string[];
+  readonly pendingFirstPoll: boolean;
+} {
+  const kept: string[] = [];
+  let pendingFirstPoll = false;
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === "--scenario" && args[index + 1] === "pending-first-poll") {
+      pendingFirstPoll = true;
+      index += 1;
+    } else kept.push(args[index]!);
+  }
+  return { args: kept, pendingFirstPoll };
+}
+
+/**
  * Runs `hd ARGS...`. `environment` stands in for the process's current
  * directory and `HD_SPEC_DIR`, so a test never changes the process's own.
  */
@@ -26,7 +47,12 @@ export async function runHd(
   const io = bufferedIo();
   let status: number;
   try {
-    status = await main([...args], io, environment);
+    const intercepted = interceptPendingFirstPoll(args);
+    status = await main(
+      intercepted.args,
+      io,
+      intercepted.pendingFirstPoll ? { ...environment, pendingFirstPoll: true } : environment,
+    );
   } catch (error) {
     // An error that escapes `main` ends the `hd` process with status 1 after
     // Node prints it.

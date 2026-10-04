@@ -27,6 +27,19 @@ function pendingWrite(call: HostSuspensionCall): boolean {
   return true;
 }
 
+/**
+ * The `pending-first-poll` scenario (spec/conformance/README.md, Runtime
+ * Scenarios): every suspending host call is pending on its first poll and
+ * completes on the next.
+ */
+export function pendingFirstPoll(call: HostSuspensionCall): boolean {
+  if (!call.suspending || pendingFirstPolls.has(call)) return false;
+  pendingFirstPolls.add(call);
+  return true;
+}
+
+const pendingFirstPolls = new WeakSet<HostSuspensionCall>();
+
 function invokeMisbehavingHost(call: HostSuspensionCall): HostSuspensionOutcome {
   if (call.providerKey !== "Gauge" || call.methodName !== "level")
     throw new Error(`misbehaving-host cannot invoke ${call.providerKey}.${call.methodName}`);

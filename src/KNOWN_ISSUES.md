@@ -11,14 +11,13 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,469 cases: 2,285 selected in `test/portable/cases.tsv` and 184 known
-failures. The selected cases are 2,008 language tier, 275 stdlib tier, and 2
-CLI tier; the known failures are 139 language tier, 10 stdlib tier, and 35
+2,469 cases: 2,298 selected in `test/portable/cases.tsv` and 171 known
+failures. The selected cases are 2,021 language tier, 275 stdlib tier, and 2
+CLI tier; the known failures are 126 language tier, 10 stdlib tier, and 35
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
-| PENDING-FIRST-POLL | 13 | the CLI has no `pending-first-poll` scenario: no host hook makes every host call pending on its first poll |
 | CLI-NEW | 9 | no `hd new` command |
 | CLI-DOC | 8 | no `hd doc` command |
 | MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |

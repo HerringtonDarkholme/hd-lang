@@ -53,6 +53,13 @@ export interface CommandEnvironment {
   readonly cwd?: string;
   /** The specification directory: `HD_SPEC_DIR`, else the repository's `spec/`. */
   readonly specDir?: string;
+  /**
+   * Conformance harness hook, not an `hd` option: `hd test` holds the first
+   * poll of every suspending host call pending (spec/conformance/README.md,
+   * Runtime Scenarios, `pending-first-poll`). The in-process adapter
+   * (test/hd-in-process.ts) sets it from `--scenario pending-first-poll`.
+   */
+  readonly pendingFirstPoll?: boolean;
 }
 
 /** The directory `environment`'s relative paths resolve against. */

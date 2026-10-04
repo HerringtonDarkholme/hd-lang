@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
+import { main } from "../src/cli.ts";
+import { bufferedIo } from "../src/commands/index.ts";
 import { hd as hdInProcess } from "./hd-in-process.ts";
 
 // The shape of the `hd` command line (src/cli-args.ts): help output, the
@@ -362,4 +364,15 @@ test("hd test links integration test modules under tests/", async () => {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("pending-first-poll is a harness hook of the adapter, not an hd option", async () => {
+  const fixture = resolve(root, "spec/conformance/runtime/valid/pending-first-poll-loops.hd");
+  const plain = await hd(["test", fixture]);
+  const pending = await hd(["test", "--scenario", "pending-first-poll", fixture]);
+  assert.equal(pending.stdout, plain.stdout);
+  assert.match(pending.stdout, /: 1 passed$/m);
+  const io = bufferedIo();
+  assert.equal(await main(["test", "--scenario", "pending-first-poll", fixture], io), 2);
+  assert.match(io.output().stderr, /--scenario must be one of/);
 });
