@@ -2094,3 +2094,7 @@ runtime/valid/module-qualified-function-value-parenthesized.hd	runtime
 typing/invalid/module-qualified-without-use.hd	type
 typing/invalid/signature-key-bound-not-implied.hd	type
 typing/valid/declared-key-bounds.hd	type
+typing/invalid/literal-trait-value-no-one-fit.hd	type
+runtime/valid/literal-trait-value-float-fallback.hd	runtime
+runtime/valid/literal-receiver-params-differ-annotated.hd	runtime
+typing/invalid/absolute-path-in-expression.hd	type

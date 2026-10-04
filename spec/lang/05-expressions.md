@@ -147,10 +147,12 @@ This section defines identifier, qualified, and contextual variant names.
 
 1. r[expr.name.identifier] An identifier expression evaluates the declaration or local binding selected by lexical name resolution.
 2. r[expr.name.qualified] A qualified name selects a declaration or enum variant through a module or type namespace.
-3. r[expr.name.contextual] `.Variant` selects a variant only when the expression has an expected type that fixes one nominal enum.
-4. r[expr.name.contextual.rules] `.Variant` has the same construction and argument rules as `Enum.Variant`; a payload-bearing variant still requires a call.
-5. r[expr.name.contextual.no-search] The compiler does not search all visible enums for a matching variant name.
-6. r[expr.name.contextual.no-type] Without a unique expected enum type, `.Variant` is a type error. Error: `missing-contextual-enum-type`.
+3. r[expr.name.qualified.private] A module path to a declaration that its module declares without `pub` is an error, as a use of it would be. Error: `private-import`.
+4. r[expr.name.qualified.missing] A module path to a declaration that its module does not declare is an error, as a use of it would be. Error: `unknown-import`.
+5. r[expr.name.contextual] `.Variant` selects a variant only when the expression has an expected type that fixes one nominal enum.
+6. r[expr.name.contextual.rules] `.Variant` has the same construction and argument rules as `Enum.Variant`; a payload-bearing variant still requires a call.
+7. r[expr.name.contextual.no-search] The compiler does not search all visible enums for a matching variant name.
+8. r[expr.name.contextual.no-type] Without a unique expected enum type, `.Variant` is a type error. Error: `missing-contextual-enum-type`.
 
 ```text
 enum Status:
@@ -161,7 +163,18 @@ fn invalid() -> void:
     pass
 ```
 
-See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
+```text
+use pkg.words
+
+fn shout(word: string) -> string:
+    words.squash(word)                # error: private-import
+
+fn headline(titles: List[string]) -> string:
+    words.join_wordz(titles, " ")     # error: unknown-import
+```
+
+See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
+[Use Forms](10-modules.md#use-forms), [Use Roots](10-modules.md#use-roots).
 
 ### Literals
 

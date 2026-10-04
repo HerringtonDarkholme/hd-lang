@@ -1,0 +1,25 @@
+# test: annotating the literal receiver selects the one scale method its type provides
+# Spec 04 One Fitting Candidate: types.literal.open.one-fit.params-differ (ONE-FIT).
+use std.testing.assert_equal
+
+trait ScaleBy:
+    fn scale(self, by: i64) -> Self
+
+impl ScaleBy for i64:
+    fn scale(self, by: i64) -> i64:
+        self * by
+
+trait Markup:
+    fn scale(self) -> Self
+
+impl Markup for i32:
+    fn scale(self) -> i32:
+        self * 2
+
+fn quote() -> i64:
+    let cents: i64 = 250
+    cents.scale(4)
+
+tests:
+    it("four items at 250 cents"):
+        assert_equal(quote(), 1000, reason="cents is an i64, so scale is the ScaleBy method")

@@ -336,6 +336,13 @@ Every absolute use path begins with one of these roots:
 1. r[module.root.absolute] Every absolute use path begins with one of the roots in the table.
 2. r[module.root.manifest] The package manifest distinguishes standard library, current package, and external dependency namespaces.
 3. r[module.root.dep-prefix] Source syntax does not require a different prefix for each dependency beyond `dep.<name>`.
+4. r[module.root.use-only] Only a use declaration may begin a path with a root. Only a use brings a module name into scope.
+5. r[module.root.use-only.error] So an absolute path in an expression or a type, such as `std.text.join(words, " ")` with no `use std.text`, is an error. Error: `unknown-name`.
+
+```text
+fn headline(words: List[string]) -> string:
+    std.text.join(words, " ")  # error: unknown-name
+```
 
 ### Relative Uses
 
@@ -439,6 +446,11 @@ use pkg.models.{Secret}           # error: private-import
 use pkg.status.{Status.Queued}    # error: direct-variant-use
 pub use std.testing.assert_equal  # error: syntax-error
 ```
+
+> **Note.** A qualified name that reaches a declaration through a module
+> name reports these codes too, by
+> [`expr.name.qualified.private`](05-expressions.md#r-expr.name.qualified.private)
+> and [`expr.name.qualified.missing`](05-expressions.md#r-expr.name.qualified.missing).
 
 ## Dependency Cycles
 

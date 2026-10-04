@@ -1,0 +1,11 @@
+# A word joiner for the module-path fixtures: `use pkg.words` then
+# `words.join_words(...)` calls the public function, `words.squash` names a
+# private one, and `words.join_wordz` names nothing.
+pub fn join_words(words: List[string], separator: string) -> string:
+    let out = ""
+    for word in words:
+        out = if out == "": squash(word) else: "$out$separator${squash(word)}"
+    out
+
+fn squash(word: string) -> string:
+    word

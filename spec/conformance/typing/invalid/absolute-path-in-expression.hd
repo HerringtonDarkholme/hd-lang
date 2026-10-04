@@ -1,0 +1,4 @@
+# test: an absolute path in an expression is an unknown name; only a use brings a module name into scope
+# Spec 10 Use Roots: module.root.use-only.
+fn headline(words: List[string]) -> string:
+    std.text.join(words, " ")  # diagnostic: unknown-name

@@ -1068,6 +1068,11 @@ each supply the method, as with `impl Add[i32] for Money` and
 11. r[trait.resolve.no-fit] When no candidate fits, the call is an error whose message lists the available instantiations. Error: `type-mismatch`.
 12. r[trait.resolve.one-trait-only] This choice applies only among instantiations of one trait. Methods of two different traits stay ambiguous whatever the argument types. Error: `ambiguous-method`.
 
+> **Note.** When the receiver's type is an open variable, the receiver
+> alone chooses that type, before any argument is checked, by
+> [`types.literal.open.one-fit.receiver-width`](04-type-system.md#r-types.literal.open.one-fit.receiver-width).
+> A candidate here is then an instantiation of that one type.
+
 ```text
 trait Pick[T]:
     fn pick(self) -> T

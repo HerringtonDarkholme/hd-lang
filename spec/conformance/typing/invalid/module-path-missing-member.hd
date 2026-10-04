@@ -1,0 +1,7 @@
+# test: a module path to a declaration the module lacks is unknown-import, as a use of it would be
+# Spec 05 Names: expr.name.qualified.missing.
+# fixture-package-tree: word-joiner/src/main.hd
+use pkg.words
+
+fn headline(titles: List[string]) -> string:
+    words.join_wordz(titles, " ")  # diagnostic: unknown-import

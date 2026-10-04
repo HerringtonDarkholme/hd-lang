@@ -406,6 +406,7 @@ A neutral use accepts any width, so it fixes nothing:
 | r[types.literal.open.neutral.instantiations] Several instantiations | a method call or operator for which several instantiations of one generic trait fit, as `price.add(n)` with `Add[i32]` and `Add[i64]`, or `k * price` with an open `k` and a data `price` | the choice waits for the end of the body |
 | r[types.literal.open.neutral.several-widths] Method of several widths | a method call that two or more widths of the kind provide, but not every width, as `i.neg()` | the method is resolved at the end of the body |
 | r[types.literal.open.neutral.erased] Erasure | a value converted to `Any`, or to a trait value type that every width of the kind implements, as in `let x: Any = 42` or `let p: Inspectable = 42` | none: with no other use, the variable takes its fallback type, so `x` holds a `usize` |
+| r[types.literal.open.neutral.erased-some] Partial erasure | a value converted to a trait value type that not every width of the kind implements, as in `let reading: Gauge = 0.0` with only `impl Gauge for f64` | none: the conversion is checked at the variable's fixed type, by [`types.literal.open.one-fit.not-conversion`](#r-types.literal.open.one-fit.not-conversion) |
 
 1. r[types.literal.open.method.dependent] Until a method of some widths is resolved, its call's result type is a **dependent variable**: the type the resolved method returns. No use fixes a dependent variable, and a use that needs a specific type for one is checked at the resolution.
 2. r[types.literal.open.method.missing] When the variable's type at the end of the body does not provide the method, the call is an error. Error: `unknown-method`.
@@ -459,7 +460,7 @@ fn narrow() -> i8:
 #### Checks At The Fixed Width
 
 1. r[types.literal.open.end-check] A use whose check depends on an open variable's width records an **obligation**. At the end of the body, after the fallback, each obligation is checked at the variable's fixed type, and an error is reported at the use that recorded it.
-2. r[types.literal.open.end-check.kinds] The obligations are a choice among several instantiations of one generic trait, a generic call's bounds, a method of some widths, a literal's range, and unary `-` on an unsigned type.
+2. r[types.literal.open.end-check.uses] The obligations are a choice among several instantiations of one generic trait, a generic call's bounds, and a method of some widths. A conversion to a trait value type that not every width implements is one too. So are a literal's range and unary `-` on an unsigned type.
 3. r[types.literal.open.bound] A generic call whose bound the fixed width does not satisfy is an error at that call. Error: `unsatisfied-trait-bound`.
 4. r[types.literal.open.range] A literal of the open variable that the fixed width cannot hold is an error at the literal, by [`types.literal.int-range`](#r-types.literal.int-range) or [`types.literal.float-finite`](#r-types.literal.float-finite). Error: `integer-literal-range`.
 5. r[types.literal.open.conflict.blame] When the uses of one open variable need two different types, the error is reported at the later use of the first such pair in source order, and it names the earlier use. This is the sense in which the first deciding use fixes the variable.
@@ -514,9 +515,15 @@ fn run() -> i64:
 ```
 
 1. r[types.literal.open.one-fit] When exactly one candidate fits an obligation, that candidate decides the variable, as a deciding use at the use that recorded the obligation.
-2. r[types.literal.open.one-fit.candidates] The candidates are the kind's types that satisfy a call's bounds or provide a method or operator, or the fitting instantiations of a generic trait.
+2. r[types.literal.open.one-fit.candidates] The only candidates are the kind's types that satisfy a call's bounds or provide a method or operator, and a generic trait's fitting instantiations. No other use has candidates.
 3. r[types.literal.open.one-fit.several] When two or more candidates fit, none decides, and the obligation waits for the end of the body and its fallback.
-4. r[types.literal.open.fallback-hint] When an argument that took its fallback type fails a check, the diagnostic should suggest a signed literal, as `+5`, or an annotation.
+4. r[types.literal.open.one-fit.not-conversion] A conversion to a trait value type has no candidates, even when only one type of the kind implements the trait. With no other deciding use, the variable takes its fallback type.
+5. r[types.literal.open.one-fit.not-conversion.error] So `let reading: Gauge = 0`, with only `impl Gauge for f64`, is an error: `0` falls back to `usize`, which does not implement `Gauge`. Write `0.0`, or annotate. Error: `type-mismatch`.
+6. r[types.literal.open.one-fit.receiver-width] For a method call whose receiver has an open variable, a type of the kind fits when it provides the method. The call's arguments are not checked to choose among those types.
+7. r[types.literal.open.one-fit.params-differ] Suppose two or more types fit a method call, and their methods have different parameter lists. Unless another use fixes the variable, the call is then an error, whatever the fallback type would provide. Error: `ambiguous-method`.
+8. r[types.literal.open.one-fit.params-differ.self] Parameter lists are compared as declared, with each type read as `Self`, so methods of one trait never differ.
+9. r[types.literal.open.one-fit.params-differ.fix] An annotation fixes the call, as in `let cents: i64 = 250` before `cents.scale(4)`.
+10. r[types.literal.open.fallback-hint] When an argument that took its fallback type fails a check, the diagnostic should suggest a signed literal, as `+5`, or an annotation.
 
 ```text
 use std.ops.Add
@@ -541,6 +548,40 @@ fn charge(price: Money) -> Money:
 Two instantiations fit `5`, so neither decides. The literal falls back to
 `usize`, which neither accepts, and the diagnostic suggests `+5` or an
 annotation.
+
+```text
+trait Gauge:
+    fn level(self) -> f64
+
+impl Gauge for f64:
+    fn level(self) -> f64:
+        self
+
+trait ScaleBy:
+    fn scale(self, by: i64) -> Self
+
+impl ScaleBy for i64:
+    fn scale(self, by: i64) -> i64:
+        self * by
+
+trait Markup:
+    fn scale(self) -> Self
+
+impl Markup for i32:
+    fn scale(self) -> i32:
+        self * 2
+
+fn idle_sensor() -> f64:
+    let reading: Gauge = 0      # error: type-mismatch
+    let fixed: Gauge = 0.0      # valid: 0.0 falls back to f64
+    fixed.level()
+
+fn quote() -> i64:
+    let cents = 250
+    let total = cents.scale(4)  # error: ambiguous-method
+    let priced: i64 = 250
+    priced.scale(4)             # valid: the annotation selects ScaleBy
+```
 
 > **Why.** When only one type can make a call work, any other choice is an
 > error. The one candidate is the only reading that type-checks. Waiting

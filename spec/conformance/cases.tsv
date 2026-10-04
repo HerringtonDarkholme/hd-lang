@@ -2236,3 +2236,10 @@ typing/invalid/impl-target-key-bound-not-implied.hd	type	reject:unsatisfied-trai
 typing/invalid/signature-key-bound-not-implied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.no-implied.enclosing
 typing/invalid/field-key-bound-not-implied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.no-implied.enclosing
 typing/valid/declared-key-bounds.hd	type	accept	lang/09-traits.md#r-trait.bound.no-implied
+typing/invalid/literal-trait-value-no-one-fit.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.open.one-fit.not-conversion
+runtime/valid/literal-trait-value-float-fallback.hd	runtime	accept	lang/04-type-system.md#r-types.literal.open.neutral.erased-some
+typing/invalid/literal-receiver-params-differ.hd	type	reject:ambiguous-method	lang/04-type-system.md#r-types.literal.open.one-fit.params-differ
+runtime/valid/literal-receiver-params-differ-annotated.hd	runtime	accept	lang/04-type-system.md#r-types.literal.open.one-fit.params-differ
+typing/invalid/absolute-path-in-expression.hd	type	reject:unknown-name	lang/10-modules.md#r-module.root.use-only
+typing/invalid/module-path-private-member.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
+typing/invalid/module-path-missing-member.hd	type	reject:unknown-import	lang/05-expressions.md#r-expr.name.qualified.missing

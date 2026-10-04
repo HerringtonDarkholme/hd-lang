@@ -1,0 +1,7 @@
+# test: a module path to a declaration without pub is private-import, as a use of it would be
+# Spec 05 Names: expr.name.qualified.private.
+# fixture-package-tree: word-joiner/src/main.hd
+use pkg.words
+
+fn shout(word: string) -> string:
+    words.squash(word)  # diagnostic: private-import
