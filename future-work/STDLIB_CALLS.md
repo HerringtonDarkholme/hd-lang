@@ -231,3 +231,9 @@ leftovers of the [stdlib audit](../audit/stdlib-audit.md).
 | 90 (#247) | `Captures` implements `Debug` with the derived builder calls on its private fields. | `std-format.debug.std-types` already required it. | own |
 | 90 (#247) | `Json.pretty()` is a method, and the free `pretty(value)` is removed. | Audit inconsistency 20: text output of a value is a method, as `to_rfc3339()` is; one spelling is enough. | own |
 | 90 (#247) | `hd_run!` stays in `std.testing`. Moving it out drops only `std.process` from a test program's joins; `std.time` and `std.random` stay, for timeouts and `Choices`. One-it compile time goes from about 240 ms to about 232 ms, within run-to-run noise, and the emitted WAT is unchanged. | The move would change the `use std.testing.hd_run` path that `hd new --app` writes, for about 3 percent of one test's compile time. | own |
+
+## Console Closed (2026-10-03)
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| orchestrator | Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write (a closed pipe); `read_line!` returns it when stdin is not attached or a read fails. End of input is `.Ok(.None)`, repeated on later reads (`cli.host.default-profile.console-closed`, `.input-closed`). | `println` already panics on `.Err`, as Rust's `println!` does on a closed pipe; Rust's `read_line` returns `Ok(0)` at end of input on every call. | own |

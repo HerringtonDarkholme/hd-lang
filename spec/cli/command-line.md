@@ -226,6 +226,13 @@ these traits:
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
 3. r[cli.host.default-profile.row] The entry module's row still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-row`](#r-cli.host.entry-row).
 4. r[cli.host.default-profile.other] A row key outside the default profile is an error, as [`module.entry.row.host`](../lang/10-modules.md#r-module.entry.row.host) states. Error: `nonhost-entry-requirement`.
+5. r[cli.host.default-profile.console-closed] Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write the line, as when the reader of a pipe has closed it.
+6. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
+
+> **Why.** A closed pipe makes `println` panic, by
+> [`module.console.println-error`](../lang/10-modules.md#r-module.console.println-error),
+> as Rust's `println!` does; `hd FILE | head -1` stops the program
+> instead of writing into nothing.
 
 > **Note.** `Process` and an HTTP client are not in the default profile.
 > They come later, as host extensions.
