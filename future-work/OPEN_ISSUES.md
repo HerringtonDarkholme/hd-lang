@@ -227,6 +227,47 @@ Revisit: a public `ContextError::new(message, cause)` and
 `message(self) -> string`, keeping the layout private, if users need to
 wrap by hand or match on it.
 
+### Literal Typing: The Simple Model (Revisit)
+
+**Deferred (owner, 2026-10-03).** An alternative to the open-variable
+literal rules of [Open Literal Width](../spec/lang/04-type-system.md#open-literal-width),
+kept for a later revisit. Nothing here is decided.
+
+The model fixes a literal's type at the literal, with no type variables:
+
+1. the expected type at its site, when there is one: a typed binding,
+   parameter, field, return, or an index position (`usize`);
+2. otherwise the join with its siblings: the other operand of an
+   operator, the other arms of `if` or `match`, the other list elements,
+   whose typed or signed members are checked first;
+3. otherwise a fallback by the literal's own form: a bare literal is
+   `usize`, and one written with a sign (`+1`, `-1`) is `i32`.
+
+```text
+let i = 0                 # usize
+i < items.len()           # usize, no inference needed
+let x = -1                # i32
+[5, 150, -1000]           # List[i32]: the signed member decides the join
+let at = 0                # usize
+at = max(at, level + 1)   # error when level: i32; write `let at: i32 = 0`
+```
+
+Evidence from a prototype build of the model (task #253, 2026-10-03):
+
+| Measure | Result |
+| --- | --- |
+| Checker change | +153 / -55 lines in 6 files, against +2844 / -1360 in 23 files for the solver; no type variables, obligations, or sweep |
+| Real programs (examples, dogfood, std tests, real-code fixtures) | 17 of 28 compile, against 28 of 28 for the open-variable solver and 23 of 28 for the i32 default; every failure is an untyped local, list or map literal that later meets a signed typed value |
+| `lib/std` | 95 `: usize` / `: u32` literal annotations and 6 literal casts become unnecessary and were removed with no new failure |
+| Conformance (2225 cases) | 2007 pass (25 newly pass, 94 newly fail against the i32 default); the failures are expected-type propagation gaps in the prototype (`let p: (string, i32)? = ("a", 1)`) and the untyped-local idiom above. The solver: 2118, with no regression |
+| Performance | same as the baseline once a pre-existing quadratic unused-local check was fixed |
+
+The cost against the open-variable model is one recurring idiom: an
+untyped local or capture that later meets a signed typed value needs an
+annotation or a sign (`let at: i32 = 0`, `rate := +20`).
+
+Revisit when the open-variable solver's comparison (task #253) is in.
+
 ### Iterator Performance
 
 The flat-stage iterator design waits for a specializing compiler, one of
