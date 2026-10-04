@@ -952,6 +952,20 @@ function structuralBoundaryImports(textEncoder: TextEncoder): Record<string, Hos
     if (node.kind !== "scalar") throw new Error("host boundary node is not a scalar");
     return node.value;
   };
+  // The UTF-8 bytes of a string node, encoded once and cached by node: the
+  // Wasm side reads one byte per call, so re-encoding per byte is quadratic.
+  const stringBytes = new WeakMap<object, Uint8Array>();
+  const boundaryStringBytes = (value: unknown): Uint8Array => {
+    const node = boundaryNode(value);
+    if (node.kind !== "scalar" || typeof node.value !== "string")
+      throw new Error("host boundary node is not a string scalar");
+    let bytes = stringBytes.get(node);
+    if (!bytes) {
+      bytes = textEncoder.encode(node.value);
+      stringBytes.set(node, bytes);
+    }
+    return bytes;
+  };
   return {
     host_boundary_tag(value) {
       const node = boundaryNode(value);
@@ -976,10 +990,8 @@ function structuralBoundaryImports(textEncoder: TextEncoder): Record<string, Hos
     host_boundary_i64: boundaryScalar,
     host_boundary_f32: boundaryScalar,
     host_boundary_f64: boundaryScalar,
-    host_boundary_string_length: (value) =>
-      textEncoder.encode(String(boundaryScalar(value))).length,
-    host_boundary_string_byte: (value, index) =>
-      textEncoder.encode(String(boundaryScalar(value)))[Number(index)],
+    host_boundary_string_length: (value) => boundaryStringBytes(value).length,
+    host_boundary_string_byte: (value, index) => boundaryStringBytes(value)[Number(index)],
   };
 }
 
