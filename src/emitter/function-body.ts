@@ -247,7 +247,10 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           `      (array.new_default $hd.list (i32.const ${capacity}))`,
           `      (array.new_default $hd.list (i32.const ${capacity}))`,
           `      (i32.const 0)`,
-          `      ${this.keyEquality(expression.keyType, expression.keyKind, expression.keyDispatch, expression.keyDictionary)}))`,
+          `      ${this.keyEquality(expression.keyType, expression.keyKind, expression.keyDispatch, expression.keyDictionary)}`,
+          `      (array.new_default $hd.map-index (i32.const ${capacity}))`,
+          `      (array.new_default $hd.map-index (i32.const ${capacity}))`,
+          `      ${this.keyHash(expression.keyType, expression.keyKind)}))`,
           ...expression.entries.map((entry) =>
             [
               `  (call $hd.map_insert`,

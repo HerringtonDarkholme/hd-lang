@@ -204,6 +204,37 @@ export function emissionReachability(program: HirProgram): EmissionReachability 
         methodFunction(implementation, 0);
       }
     }
+    // A map with a concrete key type hashes through its `Hash` implementation over a fresh
+    // `DefaultHasher`, in its map runtime adapter; the `Hasher` write behind that adapter needs
+    // its dictionary adapter too. A type-parameter key (kind 3) keeps the constant hash instead.
+    if (
+      (node.kind === "map" || node.kind === "map-comprehension") &&
+      node.keyKind !== 3 &&
+      typeof node.keyType === "string"
+    ) {
+      const hash = program.traits.find((trait) => trait.name === "Hash");
+      const implementation = program.implementations.find(
+        (item) =>
+          item.traitIndex === hash?.index &&
+          item.targetType === readonlyType(node.keyType as string),
+      );
+      const hasher = program.traits.find((trait) => trait.name === "Hasher");
+      const hasherData = program.data.find((data) => data.name.endsWith("DefaultHasher"));
+      const hasherImpl =
+        hasher &&
+        hasherData &&
+        program.implementations.find(
+          (item) => item.traitIndex === hasher.index && item.targetType === hasherData.name,
+        );
+      if (implementation) {
+        implementationByIndex(implementation.index);
+        methodFunction(implementation, 0);
+      }
+      if (hasher && hasherImpl) {
+        implementationByIndex(hasherImpl.index);
+        traitMethod(hasher.index, 0);
+      }
+    }
     for (const [key, child] of Object.entries(node)) if (key !== "span") visit(child);
   };
   for (const declaration of program.functions)

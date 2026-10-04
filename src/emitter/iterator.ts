@@ -144,7 +144,10 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
             `  (array.new_default $hd.list (i32.const 0))`,
             `  (array.new_default $hd.list (i32.const 0))`,
             `  (i32.const 0)`,
-            `  ${this.keyEquality(expression.keyType, expression.keyKind, expression.keyDispatch, expression.keyDictionary)})`,
+            `  ${this.keyEquality(expression.keyType, expression.keyKind, expression.keyDispatch, expression.keyDictionary)}`,
+            `  (array.new_default $hd.map-index (i32.const 0))`,
+            `  (array.new_default $hd.map-index (i32.const 0))`,
+            `  ${this.keyHash(expression.keyType, expression.keyKind)})`,
           ].join("\n");
     const append =
       expression.kind === "list-comprehension"

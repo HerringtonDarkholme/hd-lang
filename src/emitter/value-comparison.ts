@@ -194,6 +194,88 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     ];
   }
 
+  /** A map's key hash, by the key type's `Hash` implementation function index. */
+  private readonly keyHashTypes = new Map<
+    number,
+    {
+      readonly keyType: ValueType;
+      readonly hasherTrait: number;
+      readonly hasherImpl: number;
+      readonly hasherData: number;
+      readonly hasherField: number;
+    }
+  >();
+
+  /** Whether a map needs the constant hash: a type-parameter key (kind 3), or a key type with no concrete `Hash`. */
+  private constantHashNeeded = false;
+
+  /**
+   * A map's key hash and key hash context, two more `$hd.map` operands: a wrapper of the key type's `Hash`
+   * implementation over a fresh `DefaultHasher` (as `hash_of` hashes), or the constant hash when no concrete
+   * `Hash` implementation can be called (a type-parameter or otherwise generic key, kind 3), which degrades
+   * that map to one chain: still a correct linear scan under `Eq`.
+   */
+  protected keyHash(keyType: ValueType, keyKind: number): string {
+    if (keyKind !== 3) {
+      const type = readonlyType(keyType);
+      const hash = this.traitsByName.get("Hash");
+      const implementation = [...this.implementationsByIndex.values()].find(
+        (candidate) => candidate.traitIndex === hash?.index && candidate.targetType === type,
+      );
+      const method = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
+      const hasher = this.traitsByName.get("Hasher");
+      const hasherData = [...this.dataByName.values()].find((data) =>
+        data.name.endsWith("DefaultHasher"),
+      );
+      const hasherImpl =
+        hasher &&
+        hasherData &&
+        [...this.implementationsByIndex.values()].find(
+          (candidate) =>
+            candidate.traitIndex === hasher.index && candidate.targetType === hasherData.name,
+        );
+      const hasherMethod = hasherImpl?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
+      const hasherField = hasherData?.fields.find((field) => field.name === "state")?.index ?? 0;
+      if (method && hasher && hasherData && hasherImpl && hasherMethod) {
+        this.keyHashTypes.set(method.functionIndex, {
+          keyType: type,
+          hasherTrait: hasher.index,
+          hasherImpl: hasherImpl.index,
+          hasherData: hasherData.index,
+          hasherField,
+        });
+        return `(ref.func $hd.kh${method.functionIndex}) (ref.null any)`;
+      }
+    }
+    this.constantHashNeeded = true;
+    return `(ref.func $hd.kh_const) (ref.null any)`;
+  }
+
+  keyHashNames(): string[] {
+    return [
+      ...[...this.keyHashTypes.keys()].map((index) => `$hd.kh${index}`),
+      ...(this.constantHashNeeded ? ["$hd.kh_const"] : []),
+    ];
+  }
+
+  emitKeyHashes(): string {
+    // The FNV offset basis that `DefaultHasher::new` starts from (lib/std/hash.hd).
+    const basis = "(i64.const -3750763034362895579)";
+    const wrappers = [...this.keyHashTypes].map(
+      ([index, setup]) =>
+        `(func $hd.kh${index} (type $hd.key-hash) (param $key anyref) (param $context anyref) (result i64)\n` +
+        `  (local $hasher (ref null $d${setup.hasherData}))\n` +
+        `  (local.set $hasher (struct.new $d${setup.hasherData} ${basis}))\n` +
+        `  (call ${functionName(index)} ${this.unboxValue("(local.get $key)", setup.keyType)} (struct.new $trait${setup.hasherTrait} (local.get $hasher) (ref.null $hd.list) (ref.func $tadapt${setup.hasherImpl}_0)))\n` +
+        `  (struct.get $d${setup.hasherData} $d${setup.hasherData}f${setup.hasherField} (local.get $hasher)))`,
+    );
+    if (this.constantHashNeeded)
+      wrappers.push(
+        `(func $hd.kh_const (type $hd.key-hash) (param $key anyref) (param $context anyref) (result i64)\n  (i64.const 0))`,
+      );
+    return wrappers.join("\n\n");
+  }
+
   emitKeyEqualities(): string {
     const signature =
       "(type $hd.key-eq) (param $left anyref) (param $right anyref) (param $context anyref) (result i32)";

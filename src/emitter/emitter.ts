@@ -997,6 +997,7 @@ function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>
       (field $hd.string-start i32)
       (field $hd.string-length i32)))
     (type $hd.list (array (mut anyref)))
+    (type $hd.map-index (array (mut i32)))
     (type $hd.cell (struct (field $hd.cell-value (mut anyref))))
     (type $hd.vector (struct
       (field $hd.vector-size (mut i32))
@@ -1009,6 +1010,7 @@ function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>
       (field $hd.iterator-version i32)
       (field $hd.iterator-source (ref null struct))))
     (type $hd.key-eq (func (param anyref) (param anyref) (param anyref) (result i32)))
+    (type $hd.key-hash (func (param anyref) (param anyref) (result i64)))
     (type $hd.map (struct
       (field $hd.map-key-kind i32)
       (field $hd.map-size (mut i32))
@@ -1016,7 +1018,11 @@ function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>
       (field $hd.map-values (mut (ref $hd.list)))
       (field $hd.map-version (mut i32))
       (field $hd.map-key-eq (ref null $hd.key-eq))
-      (field $hd.map-key-context anyref)))
+      (field $hd.map-key-context anyref)
+      (field $hd.map-buckets (mut (ref $hd.map-index)))
+      (field $hd.map-chain (mut (ref $hd.map-index)))
+      (field $hd.map-key-hash (ref null $hd.key-hash))
+      (field $hd.map-key-hash-context anyref)))
     (type $hd.providers (struct
       (field $hd.provider-key i32)
       (field $hd.provider-value anyref)
@@ -1157,6 +1163,9 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
   const traitSuspensionHelpers = [emitter.emitTraitSuspensionHelpers(), emitter.emitKeyEqualities()]
     .filter(Boolean)
     .join("\n\n");
+  // Map key-hash wrappers: nothing when no map hashes through one, so an
+  // unused `Map` still emits no code (the size-guard programs are unaffected).
+  const keyHashHelpers = emitter.emitKeyHashes();
   const storedSuspensionAdapters = emitProgramStoredSuspensionAdapters(
     program,
     emitter,
@@ -1196,6 +1205,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
     ...hostProviders.references,
     ...storedSuspensionAdapterReferences(program, methodIsLive),
     ...emitter.keyEqualityNames(),
+    ...emitter.keyHashNames(),
   ];
   const declarations =
     referenceableFunctions.length > 0
@@ -1226,5 +1236,5 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
     .filter(Boolean)
     .map((runtime) => `\n\n${runtime}`)
     .join("");
-  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}\n\n${emitter.emitStringKeyEqual()}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
+  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}\n\n${emitter.emitStringKeyEqual()}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${keyHashHelpers ? "\n\n" + indent(keyHashHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
 }
