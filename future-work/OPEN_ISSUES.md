@@ -266,7 +266,10 @@ The cost against the open-variable model is one recurring idiom: an
 untyped local or capture that later meets a signed typed value needs an
 annotation or a sign (`let at: i32 = 0`, `rate := +20`).
 
-Revisit when the open-variable solver's comparison (task #253) is in.
+The owner kept the open-variable model and refined it (one fitting
+candidate decides, 2026-10-03). Revisit if that solver cannot land in the
+compiler within the CI performance gate, or if real code shows the
+open-variable rules confuse users.
 
 ### Iterator Performance
 

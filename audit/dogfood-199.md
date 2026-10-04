@@ -82,13 +82,8 @@ bug was found that required leaving a program out.
 | F2 | types print as `mut:List[char]` instead of `mut List[char]` in diagnostics | diagnostic bug | compiler session |
 | F3 | `Walk { state: {} }` with a field typed `mut Map[string, i32]` reports `cannot-infer-type`; the expected field type should type the empty literal | checker bug | compiler session |
 | F4 | `hd test FILE` also runs `main` and counts it as a passed case | CLI bug | compiler session |
-| F5 | `Map.keys` is specified but missing in the prototype | std/prototype gap | compiler session |
-| F6 | std.fs, std.json, std.path, std.host, std.encoding, std.digest are not on the loader list | prototype gap | compiler session |
 | F7 | `List` had no `pop` and used `append` | std | spec pass 76 (#228): renamed to `push`, `pop` added |
 | F8 | `all!` cannot await a runtime-sized list | std | spec pass 76 (#228): `std.task.all_list!` |
-| F9 | `char` has no `is_digit` (or other classification) | std | queued owner question |
-| F10 | `Timestamp`'s milliseconds have no public accessor | std | queued owner question |
 | F11 | `min`/`max` need `use std.cmp.max`; not in the prelude | std, by design (the prelude does not grow) | no action |
-| F12 | inner lists of `mut List[List[T]]` are readonly, so `out[i].push(x)` fails | language, by design (inner permission is part of the type; write `mut List[mut List[T]]`) | guide: add an example |
 | F13 | list spread is postfix (`[xs..., y]`) but a data spread is prefix (`...x`); `[...xs]` gives a bare `expected-expression` | diagnostic | compiler session: suggest the postfix form |
 
