@@ -1,6 +1,6 @@
 import type { Expression, FunctionDecl, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import type { HirData, HirDataField, HirExpression, ValueType } from "../hir.ts";
+import type { HirData, HirDataField, HirExpression, HirTrait, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
 import {
   mutableInner,
@@ -64,6 +64,36 @@ const MAX_EMBEDDING_DEPTH = 64;
  * `Self` is taken as the trait method (the body was written against the trait).
  */
 export const traitDefaultDeclarations = new WeakMap<FunctionDecl, number>();
+
+interface TraitLookupIndex {
+  readonly byIndex: ReadonlyMap<number, HirTrait>;
+  readonly byMember: ReadonlyMap<string, ReadonlySet<number>>;
+  readonly sourceSize: number;
+}
+
+const traitLookupCache = new WeakMap<ReadonlyMap<string, HirTrait>, TraitLookupIndex>();
+
+function traitLookupIndex(traitTypes: ReadonlyMap<string, HirTrait>): TraitLookupIndex {
+  const cached = traitLookupCache.get(traitTypes);
+  if (cached && cached.sourceSize === traitTypes.size) return cached;
+  const byIndex = new Map<number, HirTrait>();
+  const byMember = new Map<string, Set<number>>();
+  for (const trait of traitTypes.values()) {
+    byIndex.set(trait.index, trait);
+    for (const method of trait.methods) {
+      if (method.associated) continue;
+      let owners = byMember.get(method.name);
+      if (!owners) {
+        owners = new Set();
+        byMember.set(method.name, owners);
+      }
+      owners.add(trait.index);
+    }
+  }
+  const index: TraitLookupIndex = { byIndex, byMember, sourceSize: traitTypes.size };
+  traitLookupCache.set(traitTypes, index);
+  return index;
+}
 
 export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   /**
@@ -272,11 +302,11 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * method lookup (spec 03 Member Resolution, Rust-style trait lookup).
    */
   private traitWithMember(type: ValueType, name: string): string | undefined {
+    const index = traitLookupIndex(this.traitTypes);
+    if (!index.byMember.has(name)) return undefined;
     for (const implementation of implementationsFor(this.implementations, type)) {
       if (!matchImplementationTarget(implementation, type, new Map())) continue;
-      const trait = [...this.traitTypes.values()].find(
-        (candidate) => candidate.index === implementation.traitIndex,
-      );
+      const trait = index.byIndex.get(implementation.traitIndex);
       if (
         trait &&
         this.traitAvailable(trait.name) &&
@@ -452,9 +482,11 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     name: string,
     seen: Set<number> = new Set(),
   ): boolean {
+    const index = traitLookupIndex(this.traitTypes);
+    if (!index.byMember.has(name)) return false;
     if (seen.has(traitIndex)) return false;
     seen.add(traitIndex);
-    const trait = [...this.traitTypes.values()].find((candidate) => candidate.index === traitIndex);
+    const trait = index.byIndex.get(traitIndex);
     if (!trait) return false;
     return (
       trait.methods.some((method) => !method.associated && method.name === name) ||
