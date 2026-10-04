@@ -1,4 +1,12 @@
-import type { Expression, Statement, TypeRef, UseDecl, UseName, VarianceMarker } from "../ast.ts";
+import type {
+  Expression,
+  InitGroupStart,
+  Statement,
+  TypeRef,
+  UseDecl,
+  UseName,
+  VarianceMarker,
+} from "../ast.ts";
 import type { Diagnostic, DiagnosticFix, SourcePosition, SourceSpan } from "../diagnostics.ts";
 import type { Token, TokenKind } from "../lexer.ts";
 import {
@@ -47,6 +55,13 @@ export interface ParseOptions {
    * `tests:` block (src/package.ts), so `duplicate-tests-block` does not apply.
    */
   readonly joinedModules?: boolean;
+  /**
+   * Initialization-group starts from the package linker, as joined-source
+   * line numbers (src/package.ts). The parser maps them to statement indices
+   * on `Program.initGroups`, but only under `joinedModules`; without them a
+   * joined source has no group boundaries.
+   */
+  readonly initGroupStarts?: readonly InitGroupStart[];
   /** The source is a `lib/std` module, which may write `collect`'s type-argument default. */
   readonly standardLibrary?: boolean;
 }

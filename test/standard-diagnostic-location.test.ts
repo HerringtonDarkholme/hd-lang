@@ -54,7 +54,9 @@ pub fn main() -> void: pass
 
     const linked = linkPackage({ "src/main.hd": source }, "src/main.hd");
     assert.ok(linked.source);
-    const analysis = analyze(linked.source, { parse: { joinedModules: true } });
+    const analysis = analyze(linked.source, {
+      parse: { joinedModules: true, initGroupStarts: linked.initGroups },
+    });
     const located = linked.locate(analysis.diagnostics[0]!);
     assert.equal(located.path, "lib/std/digest.hd");
     assert.equal(located.span.start.line, 2);

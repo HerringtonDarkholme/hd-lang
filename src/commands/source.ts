@@ -99,7 +99,7 @@ export async function loadSource(
   // is a file that `--test-layout` places as one (spec/conformance, Test
   // Layouts); the prototype has no separate integration test view.
   const parseOptions = linked
-    ? { joinedModules: true }
+    ? { joinedModules: true as const, initGroupStarts: linked.initGroups }
     : path.endsWith("_test.hd") || options.testLayout !== undefined
       ? { testModule: true }
       : {};

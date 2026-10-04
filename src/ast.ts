@@ -504,14 +504,32 @@ export type ProviderContextEntry =
 
 /**
  * One initialization group's statement block in a joined program. The
- * package linker marks each group's block, so the checker can tell a group
- * of one module (its statements run in source order,
+ * package linker reports each group's block as data, so the checker can
+ * tell a group of one module (its statements run in source order,
  * spec/lang/10-modules.md#r-module.init.source-order-single) from a larger
  * group (dependency order, spec/lang/10-modules.md#order-inside-a-group).
  */
 export interface InitGroup {
   /** Index into `Program.statements` where the group's block starts. */
   readonly start: number;
+  /** Whether the group holds several modules and may run in dependency order. */
+  readonly multi: boolean;
+}
+
+/**
+ * One initialization group's start in a joined program, as the package
+ * linker reports it: a line number in the joined source. The parser maps
+ * these to the statement indices of {@link InitGroup}, but only under
+ * `joinedModules`.
+ */
+export interface InitGroupStart {
+  /**
+   * The joined-source line before the group's block starts (0 when the block
+   * is the first line): the parser opens the group at the first statement
+   * after this line. Never a line of the source itself, so no user comment
+   * can collide with it.
+   */
+  readonly line: number;
   /** Whether the group holds several modules and may run in dependency order. */
   readonly multi: boolean;
 }
@@ -547,10 +565,10 @@ export interface Program {
    */
   readonly joinedModules?: true;
   /**
-   * Initialization-group boundaries over `statements`, in marker order: the
-   * parser maps the linker's group markers to statement indices, but only
+   * Initialization-group boundaries over `statements`, in linker order: the
+   * parser maps the linker's group starts to statement indices, but only
    * under `joinedModules`. Absent in a single file (one single-module group)
-   * and in joined sources without markers.
+   * and in joined sources without group data.
    */
   readonly initGroups?: readonly InitGroup[];
   /** Names that the `tests:` block declares or uses (spec/lang/03-names-and-scopes.md#tests-blocks). */

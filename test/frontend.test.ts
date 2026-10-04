@@ -18,7 +18,7 @@ test("lexer emits layout tokens and source positions", () => {
   assert.deepEqual(choose?.span.start, { offset: 3, line: 1, column: 4 });
 });
 
-test("lexer records init-group markers alone on a line and skips them as comments", () => {
+test("lexer skips init-group-looking comments as plain comments", () => {
   const source = [
     "# hd:init-group(multi)",
     "let featured = 1",
@@ -29,28 +29,23 @@ test("lexer records init-group markers alone on a line and skips them as comment
   ].join("\n");
   const result = lex(source);
   assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(result.initGroupMarkers, [
-    { line: 1, multi: true },
-    { line: 5, multi: false },
-  ]);
+  assert.ok(!("initGroupMarkers" in result));
   assert.ok(result.tokens.every((token) => !token.text.includes("hd:init-group")));
 });
 
-test("parser maps init-group markers to statement breaks under joinedModules only", () => {
-  const source = [
-    "# hd:init-group(multi)",
-    "let featured = 1",
-    "# hd:init-group(single)",
-    "let markup = 2",
-    "",
-  ].join("\n");
-  const joined = parse(source, { joinedModules: true });
+test("parser maps linker group starts to statement breaks under joinedModules only", () => {
+  const source = ["let featured = 1", "let markup = 2", ""].join("\n");
+  const starts = [
+    { line: 0, multi: true },
+    { line: 1, multi: false },
+  ];
+  const joined = parse(source, { joinedModules: true, initGroupStarts: starts });
   assert.deepEqual(joined.diagnostics, []);
   assert.deepEqual(joined.program?.initGroups, [
     { start: 0, multi: true },
     { start: 1, multi: false },
   ]);
-  const single = parse(source, {});
+  const single = parse(source, { initGroupStarts: starts });
   assert.deepEqual(single.diagnostics, []);
   assert.equal(single.program?.initGroups, undefined);
 });

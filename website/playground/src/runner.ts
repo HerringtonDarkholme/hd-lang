@@ -92,8 +92,14 @@ export interface WatResult {
   readonly summary: string;
 }
 
-/** A linked source joins modules, each of which may hold a `tests:` block. */
-const JOINED = { joinedModules: true } as const;
+/**
+ * A linked source joins modules, each of which may hold a `tests:` block,
+ * with the linker's initialization-group starts beside it.
+ */
+const joinedParse = (linked: LinkedPackage) => ({
+  joinedModules: true as const,
+  initGroupStarts: linked.initGroups,
+});
 
 const hasErrors = (diagnostics: readonly RunDiagnostic[]): boolean =>
   diagnostics.some(({ severity }) => severity === "error");
@@ -136,14 +142,14 @@ export async function runProject(
   if (!linked.source || hasErrors(linkDiagnostics))
     return finish("compile-error", linkDiagnostics, "compilation failed");
   const source = linked.source;
-  const program = parse(source, JOINED).program;
+  const program = parse(source, joinedParse(linked)).program;
   if (mode !== "test") {
     const inputs = topLevelInputs(linked, program);
     if (inputs)
       return evaluateTopLevel(linked, project.main, inputs, mode === "run", emit, finish, onModule);
   }
 
-  const analysis = analyze(source, { parse: JOINED });
+  const analysis = analyze(source, { parse: joinedParse(linked) });
   const diagnostics = analysis.diagnostics.map((diagnostic: Diagnostic) =>
     toRunDiagnostic(linked.locate(diagnostic)),
   );
@@ -153,7 +159,11 @@ export async function runProject(
 
   let current = "module initialization";
   try {
-    const options = { console: emit, providerConfigurationId: "playground", parse: JOINED };
+    const options = {
+      console: emit,
+      providerConfigurationId: "playground",
+      parse: joinedParse(linked),
+    };
     const { instance, compilation } = await instantiate(source, options);
     onModule({ wat: compilation.wat, origin: "program", count: 1 });
     // `hd run` and `hd test` judge outcomes with the same runner: exit codes,
@@ -225,7 +235,7 @@ export async function watProject(project: Project): Promise<WatResult> {
       summary:
         "Without main, Run compiles one module for each top-level input it evaluates. Run the project to see the last one.",
     };
-  const analysis = analyze(linked.source, { parse: JOINED });
+  const analysis = analyze(linked.source, { parse: joinedParse(linked) });
   const diagnostics = analysis.diagnostics.map((diagnostic: Diagnostic) =>
     toRunDiagnostic(linked.locate(diagnostic)),
   );
@@ -265,7 +275,7 @@ export function watFromRun(
  */
 function topLevelInputs(
   linked: LinkedPackage,
-  program = parse(linked.source!, JOINED).program,
+  program = parse(linked.source!, joinedParse(linked)).program,
 ): readonly SourceInput[] | undefined {
   if (!program || program.functions.some(({ name }) => name === "main")) return undefined;
   const inputs = splitInputs(entryText(linked));

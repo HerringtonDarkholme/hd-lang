@@ -4,6 +4,7 @@ import type {
   AssociatedTypeDecl,
   Decorators,
   InitGroup,
+  InitGroupStart,
   MemberLine,
   DataDecl,
   EnumDecl,
@@ -1427,29 +1428,28 @@ export function parse(source: string, options: ParseOptions = {}): ParseResult {
   if (
     parsed.program !== undefined &&
     options.joinedModules === true &&
-    lexed.initGroupMarkers.length > 0
+    (options.initGroupStarts?.length ?? 0) > 0
   )
     return {
       ...parsed,
       program: {
         ...parsed.program,
-        initGroups: initGroupBreaks(parsed.program.statements, lexed.initGroupMarkers),
+        initGroups: initGroupBreaks(parsed.program.statements, options.initGroupStarts!),
       },
     };
   return parsed;
 }
 
-// Initialization-group boundaries for a joined program: each linker marker
-// opens a group at the first top-level statement starting after its line. A
-// marker with no statement after it opens an empty group, which the checker
-// skips. Markers apply only under `joinedModules`; anywhere else they stay
-// plain comments.
+// Initialization-group boundaries for a joined program: each linker group
+// start opens a group at the first top-level statement starting after its
+// line. A start with no statement after it opens an empty group, which the
+// checker skips. Starts apply only under `joinedModules`.
 function initGroupBreaks(
   statements: readonly Statement[],
-  markers: readonly { readonly line: number; readonly multi: boolean }[],
+  starts: readonly InitGroupStart[],
 ): InitGroup[] {
-  return markers.map((marker) => {
-    const start = statements.findIndex((statement) => statement.span.start.line > marker.line);
-    return { start: start === -1 ? statements.length : start, multi: marker.multi };
+  return starts.map((start) => {
+    const index = statements.findIndex((statement) => statement.span.start.line > start.line);
+    return { start: index === -1 ? statements.length : index, multi: start.multi };
   });
 }

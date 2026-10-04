@@ -44,13 +44,6 @@ export interface Token {
 interface LexResult {
   readonly tokens: readonly Token[];
   readonly diagnostics: readonly Diagnostic[];
-  /**
-   * Initialization-group markers the package linker emits between the
-   * statement blocks of each group (`# hd:init-group(single|multi)` alone on
-   * its line). The parser maps them to statement indices under
-   * `joinedModules`; every other consumer skips them as plain comments.
-   */
-  readonly initGroupMarkers: readonly { readonly line: number; readonly multi: boolean }[];
 }
 
 interface Delimiter {
@@ -141,7 +134,6 @@ class Scanner {
   private readonly source: string;
   private readonly tokens: Token[] = [];
   private readonly diagnostics: Diagnostic[] = [];
-  private readonly initGroupMarkers: { line: number; multi: boolean }[] = [];
   private readonly indents = [0];
   private readonly delimiters: Delimiter[] = [];
   private offset = 0;
@@ -172,10 +164,7 @@ class Scanner {
         this.advance();
       } else if (value === "#") {
         if (this.peek(1) === "#" && !this.lineHasToken) this.scanDocComment();
-        else {
-          this.scanInitGroupMarker();
-          this.skipComment();
-        }
+        else this.skipComment();
       } else if (value === "\n") {
         this.scanNewline();
       } else if (value === "\r") {
@@ -230,7 +219,6 @@ class Scanner {
     return {
       tokens: this.tokens,
       diagnostics: this.diagnostics,
-      initGroupMarkers: this.initGroupMarkers,
     };
   }
 
@@ -337,20 +325,6 @@ class Scanner {
 
   private skipComment(): void {
     while (!this.done() && this.peek() !== "\n" && this.peek() !== "\r") this.advance();
-  }
-
-  // An initialization-group marker the package linker emits between the
-  // statement blocks of each group (`# hd:init-group(single|multi)`). Only a
-  // marker alone on its top-level line counts, so an indented, trailing, or
-  // bracketed note stays a plain comment. The comment is still skipped
-  // either way: the parser maps recorded markers to statement indices under
-  // `joinedModules`.
-  private scanInitGroupMarker(): void {
-    if (this.column !== 1 || this.delimiters.length > 0) return;
-    const end = this.source.indexOf("\n", this.offset);
-    const text = this.source.slice(this.offset, end === -1 ? undefined : end).trimEnd();
-    const marker = /^# hd:init-group\((single|multi)\)$/.exec(text);
-    if (marker) this.initGroupMarkers.push({ line: this.line, multi: marker[1] === "multi" });
   }
 
   private scanDocComment(): void {

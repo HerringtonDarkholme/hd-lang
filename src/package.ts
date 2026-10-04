@@ -1,4 +1,4 @@
-import type { Program, UseDecl } from "./ast.ts";
+import type { InitGroupStart, Program, UseDecl } from "./ast.ts";
 import type { Diagnostic, SourcePosition, SourceSpan } from "./diagnostics.ts";
 import { physicalDiagnostic, sourceDocument } from "./diagnostics.ts";
 import { KEYWORDS } from "./lexer.ts";
@@ -100,6 +100,12 @@ function isTestModulePath(path: string): boolean {
 export interface LinkedPackage {
   /** The joined single-module source; absent when linking failed. */
   readonly source?: string;
+  /**
+   * Initialization-group starts, as joined-source line numbers in linker
+   * order; empty when linking failed. The parser maps them to statement
+   * indices on `Program.initGroups` under `joinedModules`.
+   */
+  readonly initGroups: readonly InitGroupStart[];
   /** Linked modules in initialization order. */
   readonly modules: readonly PackageModule[];
   readonly diagnostics: readonly PackageDiagnostic[];
@@ -596,27 +602,27 @@ export function linkPackage(
     };
   };
   if (diagnostics.some(({ severity }) => severity !== "warning") || !entryModule)
-    return { modules: order, diagnostics, locate };
+    return { modules: order, diagnostics, locate, initGroups: [] };
 
   // Join the modules. Package uses are dropped and a standard use keeps only
   // the names no earlier module imported; every other line stays in place.
   const importedStd = new Set<string>();
   let source = "";
   let line = 1;
-  // An initialization-group marker opens each group's statement block, so the
+  // An initialization-group start opens each group's statement block, so the
   // checker can tell a group of one module (source order,
   // 10-modules.md#r-module.init.source-order-single) from a larger group
-  // (dependency order, 10-modules.md#order-inside-a-group). The marker is its
-  // own joined line outside every segment, so diagnostic mapping is
-  // unaffected; the parser reads it only under `joinedModules`.
-  const markerBefore = new Map<PackageModule, boolean>();
-  for (const group of groups) markerBefore.set(group[0]!, group.length > 1);
+  // (dependency order, 10-modules.md#order-inside-a-group). The starts travel
+  // beside the source as line numbers, never in it, so user comments cannot
+  // collide with them and diagnostic mapping needs no hole for marker lines.
+  const initGroups: InitGroupStart[] = [];
+  const multiBefore = new Map<PackageModule, boolean>();
+  for (const group of groups) multiBefore.set(group[0]!, group.length > 1);
   for (const module of order) {
-    const marker = markerBefore.get(module);
-    if (marker !== undefined) {
-      source += `# hd:init-group(${marker ? "multi" : "single"})\n`;
-      line += 1;
-    }
+    const multi = multiBefore.get(module);
+    // The start line precedes the group's text, matching the old marker
+    // line: the parser opens the group at the first statement after it.
+    if (multi !== undefined) initGroups.push({ line: line - 1, multi });
     let text = joinedText(module, files[module.path]!, importedStd);
     if (!text.endsWith("\n")) text += "\n";
     const lineCount = text.split("\n").length - 1;
@@ -641,6 +647,7 @@ export function linkPackage(
     modules: order,
     diagnostics,
     locate,
+    initGroups,
     entryLine: segments.find(({ path }) => path === entry)?.firstLine,
   };
 }

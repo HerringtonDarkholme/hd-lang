@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { analyze, instantiate } from "../src/compiler.ts";
 import { linkPackage, moduleIdentity } from "../src/package.ts";
+import { parse } from "../src/parser/index.ts";
 
 async function runPackage(files: Record<string, string>, entry = "src/main.hd"): Promise<string[]> {
   const linked = linkPackage(files, entry);
@@ -10,8 +11,8 @@ async function runPackage(files: Record<string, string>, entry = "src/main.hd"):
   const lines: string[] = [];
   const { instance, compilation } = await instantiate(linked.source!, {
     // Linked source parses as joined modules, as on the command path: group
-    // markers, test blocks, and top-level `it` all take their joined meaning.
-    parse: { joinedModules: true },
+    // starts, test blocks, and top-level `it` all take their joined meaning.
+    parse: { joinedModules: true, initGroupStarts: linked.initGroups },
     console: (text) => lines.push(text),
   });
   const main = compilation.hir.functions.find(({ entry: isEntry }) => isEntry)!;
@@ -152,7 +153,7 @@ test("package use errors point at the use declaration of their file", () => {
   assert.deepEqual(codes(main("use pkg.models.{}")), ["src/main.hd:2:syntax-error"]);
 });
 
-test("linked source marks each initialization group single or multi", () => {
+test("linked source reports each initialization group single or multi as data", () => {
   const linked = linkPackage(
     {
       "src/main.hd": "use pkg.shop.catalog.{featured}\n\npub fn main() -> void:\n    pass\n",
@@ -164,13 +165,19 @@ test("linked source marks each initialization group single or multi", () => {
     "src/main.hd",
   );
   assert.deepEqual(linked.diagnostics, []);
+  assert.ok(!linked.source!.includes("hd:init-group"));
   assert.deepEqual(
-    linked
-      .source!.split("\n")
-      .filter((line) => line.includes("hd:init-group"))
-      .map((line) => line.trim()),
-    ["# hd:init-group(multi)", "# hd:init-group(single)"],
+    linked.initGroups.map(({ multi }) => multi),
+    [true, false],
   );
+  const program = parse(linked.source!, {
+    joinedModules: true,
+    initGroupStarts: linked.initGroups,
+  }).program!;
+  assert.deepEqual(program.initGroups, [
+    { start: 0, multi: true },
+    { start: program.statements.length, multi: false },
+  ]);
 });
 
 test("a source-order violation in a single-module group is still rejected in a package", () => {
@@ -199,7 +206,9 @@ test("a source-order violation in a single-module group is still rejected in a p
     "src/main.hd",
   );
   assert.deepEqual(linked.diagnostics, []);
-  const diagnostics = analyze(linked.source!, { parse: { joinedModules: true } }).diagnostics;
+  const diagnostics = analyze(linked.source!, {
+    parse: { joinedModules: true, initGroupStarts: linked.initGroups },
+  }).diagnostics;
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
     ["top-level-read-before-initialization"],
@@ -455,7 +464,9 @@ test("integration test sources join without re-indenting or stripping pub", () =
   assert.ok(linked.source!.includes('\nline two"""'));
   assert.ok(!linked.source!.includes("\n    line two"));
   // Top-level `it` in the joined source parses as a test case.
-  const analysis = analyze(linked.source!, { parse: { joinedModules: true } });
+  const analysis = analyze(linked.source!, {
+    parse: { joinedModules: true, initGroupStarts: linked.initGroups },
+  });
   assert.deepEqual(
     analysis.diagnostics.filter(({ severity }) => severity !== "warning"),
     [],
@@ -481,7 +492,9 @@ test("a string line starting with pub fn keeps its pub", () => {
   const linked = linkPackage(files, "tests/probe.hd", { tests: true });
   assert.deepEqual(linked.diagnostics, []);
   assert.ok(linked.source!.includes("\npub fn not_a_declaration\n"));
-  const analysis = analyze(linked.source!, { parse: { joinedModules: true } });
+  const analysis = analyze(linked.source!, {
+    parse: { joinedModules: true, initGroupStarts: linked.initGroups },
+  });
   assert.deepEqual(
     analysis.diagnostics.filter(({ severity }) => severity !== "warning"),
     [],
