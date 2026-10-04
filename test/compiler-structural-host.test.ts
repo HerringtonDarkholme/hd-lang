@@ -13,14 +13,17 @@ const SOURCE = `pub data Case:
 pub trait Cases:
     fn start(self) -> Case
 
-let observed: i64 = 0
+let observed: i32 = 0
 
 pub fn main() -> void $ Cases:
     case := $.use(Cases).start()
     example := match case.example:
         .Some(value) => value
         .None => u32(0)
-    observed = case.seed + i64(case.size) + i64(example) + case.replay[0]
+    observed = i32(case.seed) + case.size + i32(example) + i32(case.replay[0])
+
+pub fn read() -> i32:
+    observed
 `;
 
 test("structural host results cross the live and replay boundaries", async () => {
@@ -40,6 +43,7 @@ test("structural host results cross the live and replay boundaries", async () =>
     record: (event) => events.push(event),
   });
   (recorded.instance.exports.main as CallableFunction)({});
+  assert.equal((recorded.instance.exports.read as CallableFunction)(), 23);
   assert.equal(events.length, 1);
 
   const replayed = await instantiate(SOURCE, {
@@ -52,6 +56,7 @@ test("structural host results cross the live and replay boundaries", async () =>
     replay: JSON.parse(JSON.stringify(events)) as ReplayEvent[],
   });
   (replayed.instance.exports.main as CallableFunction)({});
+  assert.equal((replayed.instance.exports.read as CallableFunction)(), 23);
   replayed.replay.assertComplete();
 });
 
