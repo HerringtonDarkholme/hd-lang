@@ -638,6 +638,69 @@ export function containsGenericParameter(type: ValueType, parameter: string): bo
   );
 }
 
+/**
+ * Every generic parameter name `type` mentions, in one structural walk.
+ * Mirrors `containsGenericParameter` exactly (same traversal, same leaf
+ * test): collecting the names up front turns per-parameter scans into one
+ * pass with set lookups.
+ */
+export function mentionedGenericParameters(type: ValueType): Set<string> {
+  const names = new Set<string>();
+  const visit = (node: ValueType): void => {
+    const leaf = genericTypeName(node);
+    if (leaf !== undefined) {
+      names.add(leaf);
+      return;
+    }
+    const inputs = inputsInner(node) ?? restInner(node);
+    if (inputs !== undefined) {
+      visit(inputs);
+      return;
+    }
+    const binding = bindingParts(node);
+    if (binding) {
+      visit(binding.type);
+      return;
+    }
+    const mutable = mutableInner(node);
+    if (mutable !== undefined) {
+      visit(mutable);
+      return;
+    }
+    const tuple = tupleParts(node);
+    if (tuple !== undefined) {
+      tuple.forEach(visit);
+      return;
+    }
+    const optional = optionalInner(node);
+    if (optional !== undefined) {
+      visit(optional);
+      return;
+    }
+    const result = resultParts(node);
+    if (result) {
+      visit(result.ok);
+      visit(result.error);
+      return;
+    }
+    const nominal = nominalGenericParts(node);
+    if (nominal) {
+      nominal.arguments.forEach(visit);
+      return;
+    }
+    const callable = functionParts(node);
+    if (callable) {
+      callable.parameters.forEach(visit);
+      visit(callable.result);
+      callable.requirements.forEach((requirement) => {
+        if (!rowParameterName(requirement)) visit(requirement);
+      });
+    }
+  };
+  visit(type);
+  return names;
+}
+
 function inferRequirementTypeArguments(
   formal: readonly string[],
   actual: readonly string[],
