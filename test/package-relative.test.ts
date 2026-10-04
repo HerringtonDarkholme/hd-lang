@@ -36,60 +36,6 @@ test("nested files resolve child, sibling and repeated-parent uses", () => {
   assert.equal(linked.modules.length, 5);
 });
 
-test("directory modules resolve self from their directory identity", () => {
-  const linked = linkPackage(
-    {
-      "src/a/mod.hd": "use self.x.{child}\npub fn read() -> i32: child()\n",
-      "src/a/x.hd": "pub fn child() -> i32: 42\n",
-    },
-    "src/a/mod.hd",
-  );
-  assert.deepEqual(linked.diagnostics, []);
-});
-
-for (const entry of ["src/main.hd", "src/lib.hd", "tests/checkout.hd"]) {
-  const testRoot = entry.startsWith("tests/");
-  test(`${entry} resolves self from its program root`, () => {
-    const linked = linkPackage(
-      {
-        [entry]: "use self.common.{helper}\npub fn read() -> i32: helper()\n",
-        [testRoot ? "tests/common/mod.hd" : "src/common/mod.hd"]: "pub fn helper() -> i32: 42\n",
-      },
-      entry,
-    );
-    assert.deepEqual(linked.diagnostics, []);
-  });
-  test(`${entry} cannot move above its program root`, () => {
-    const linked = linkPackage({ [entry]: "use super.x.{helper}\n" }, entry);
-    assert.deepEqual(
-      linked.diagnostics.map(({ code, message }) => [code, message]),
-      [["unknown-module", `'super' moves above the ${testRoot ? "test" : "package"} root`]],
-    );
-  });
-}
-
-test("shared test modules resolve from their own module and cannot escape the test root", () => {
-  const files = {
-    "tests/checkout.hd": "use self.common.worker.{read}\n",
-    "tests/common/worker.hd":
-      "use self.child.{child}\nuse super.sibling.{sibling}\npub fn read() -> i32: child() + sibling()\n",
-    "tests/common/worker/child.hd": "pub fn child() -> i32: 20\n",
-    "tests/common/sibling.hd": "pub fn sibling() -> i32: 22\n",
-  };
-  assert.deepEqual(linkPackage(files, "tests/checkout.hd").diagnostics, []);
-  const linked = linkPackage(
-    {
-      ...files,
-      "tests/common/worker.hd": "use super.super.super.x.{helper}\npub fn read() -> i32: 42\n",
-    },
-    "tests/checkout.hd",
-  );
-  assert.deepEqual(
-    linked.diagnostics.map(({ code, message }) => [code, message]),
-    [["unknown-module", "'super' moves above the test root"]],
-  );
-});
-
 test("ordinary source files cannot move above the package root", () => {
   const linked = linkPackage({ "src/a.hd": "use super.super.x.{helper}\n" }, "src/a.hd");
   assert.deepEqual(

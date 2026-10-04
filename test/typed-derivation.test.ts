@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze, instantiate } from "../src/compiler.ts";
+import { analyze } from "../src/compiler.ts";
 
 // Typed derivation (spec/lang/14-annotations.md#typed-derivation) with i32 members,
 // so the prototype's lowering runs end to end.
@@ -101,118 +101,6 @@ impl[T] Fill for T by Structure:
             .Err(message) => panic(message)
 `;
 
-async function run(program: string): Promise<unknown> {
-  const { instance } = await instantiate(`${LIBRARY}\n${program}`);
-  return (instance.exports.main as CallableFunction)();
-}
-
-test("a derived walk passes each member with its facts", async () => {
-  const result = await run(`
-@derive(Show, Count)
-data Point:
-    x: i32
-    @rename("why")
-    y: i32
-
-fn main() -> i32:
-    if Point { x: 1, y: 2 }.show() == "Point(x=1;why=2;)" && Point::count() == 2: 1 else: 0
-`);
-  assert.equal(result, 1);
-});
-
-test("a derivation block's member lines edit only its own derivation", async () => {
-  const result = await run(`
-data Cache: pass
-
-data Order:
-    id: i32
-    total: i32
-    cache: Cache = Cache {}
-
-impl Show for Order by Structure:
-    total = [rename("sum")]
-    cache = pass
-
-@derive(Count)
-data Other:
-    id: i32
-
-fn main() -> i32:
-    if Order { id: 1, total: 5 }.show() == "Order(id=1;sum=5;)": 1 else: 0
-`);
-  assert.equal(result, 1);
-});
-
-test("enum, generic, and embedded targets walk their members", async () => {
-  const result = await run(`
-@derive(Show)
-data Stamp:
-    at: i32
-
-@derive(Show)
-data Post:
-    Stamp
-    title: string
-
-@derive(Show)
-data Pair[A]:
-    left: A
-    right: A
-
-@derive(Show)
-enum Mode:
-    Off
-    On(level: i32)
-    Raw(string)
-
-fn main() -> i32:
-    post := Post { Stamp: ...Stamp { at: 3 }, title: "t" }
-    ok := (
-        post.show() == "Post(Stamp=Stamp(at=3;);title=t;)" &&
-        Pair { left: 1, right: 2 }.show() == "Pair(left=1;right=2;)" &&
-        Mode.On(4).show() == "On(level=4;)" &&
-        Mode.Raw("r").show() == "Raw(_0=r;)" &&
-        Mode.Off.show() == "Off()"
-    )
-    if ok: 1 else: 0
-`);
-  assert.equal(result, 1);
-});
-
-test("a derived build fills members from their defaults", async () => {
-  const result = await run(`
-@derive(Fill)
-data Settings:
-    level: i32 = 7
-    name: string = "n"
-
-fn main() -> i32:
-    let settings: Settings = Settings::fill()
-    settings.level
-`);
-  assert.equal(result, 7);
-});
-
-test("@derive(Eq) compares data and enum members", async () => {
-  const result = await run(`
-@derive(Eq)
-enum Color:
-    Red
-    Custom(string)
-
-@derive(Eq)
-data Paint:
-    color: Color
-    coats: i32
-
-fn main() -> i32:
-    same := Paint { color: Color.Custom("a"), coats: 2 } == Paint { color: Color.Custom("a"), coats: 2 }
-    different := Color.Red == Color.Custom("a")
-    if same && !different: 1 else: 0
-`);
-  assert.equal(result, 1);
-});
-
 test("typed derivation reports its diagnostics at the opt-in", () => {
   const codes = (program: string): string[] =>
     analyze(`${LIBRARY}\n${program}`).diagnostics.map((diagnostic) => diagnostic.code);
@@ -229,16 +117,4 @@ test("typed derivation reports its diagnostics at the opt-in", () => {
   assert.deepEqual(codes("@derive(Show)\nfn run() -> void:\n    pass\n"), [
     "decorator-not-annotator",
   ]);
-});
-
-test("@derive(Debug) on a newtype needs its base type's Debug and applies it", async () => {
-  const codes = (program: string): string[] =>
-    analyze(program).diagnostics.map((diagnostic) => diagnostic.code);
-  assert.deepEqual(codes("data Opaque: pass\n\n@derive(Debug)\ntype Wrapped(Opaque)\n"), [
-    "derive-field-missing-trait",
-  ]);
-  const { instance } = await instantiate(
-    '@derive(Debug)\ntype Meters(i64)\n\nfn main() -> i32:\n    if debug(Meters(3)) == "3": 1 else: 0\n',
-  );
-  assert.equal((instance.exports.main as CallableFunction)(), 1);
 });

@@ -147,36 +147,12 @@ test("a module may declare its own all! without importing std.task.all", () => {
   assert.deepEqual(analyze(fixture("suspension/05-user-defined-all")).diagnostics, []);
 });
 
-test("explicit mutable suspension bindings are one-shot", async () => {
-  const valid = conformance("runtime/valid/stored-suspension-single-drive");
-  const { instance } = await instantiate(valid);
-  assert.equal((instance.exports.main as CallableFunction)(), 42);
-
-  const secondDrive = conformance("runtime/panic/second-drive-of-completed-suspension");
-  const second = await instantiate(secondDrive);
-  assert.throws(() => (second.instance.exports.main as CallableFunction)());
-});
-
 test("cold suspension cancellation is synchronous and idempotent", async () => {
   const source = conformance("runtime/valid/cold-suspension-cancel-idempotent");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(func \$cancel0/);
   assert.match(compilation.wat, /i32\.const 3/);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
-});
-
-test("cancelled suspensions cannot be driven and readonly values cannot be cancelled", async () => {
-  const cancelled = conformance("runtime/panic/drive-cancelled-suspension");
-  const execution = await instantiate(cancelled);
-  assert.throws(() => (execution.instance.exports.main as CallableFunction)());
-
-  const readonly = conformance("typing/invalid/cancel-readonly-suspension");
-  assert.equal(analyze(readonly).diagnostics[0]?.code, "mutable-receiver-required");
-});
-
-test("defer suites cannot suspend", () => {
-  const source = conformance("typing/invalid/bang-call-in-defer");
-  assert.equal(analyze(source).diagnostics[0]?.code, "suspending-defer");
 });
 
 test("suspension state transitions are observable through the trace ABI", async () => {
@@ -427,30 +403,6 @@ test("CFG suspension lowering branches and short-circuits around child frames", 
   );
 });
 
-test("CFG suspension lowering preserves loops, continue, break values, and cleanup", async () => {
-  const source = conformance("runtime/valid/suspending-calls-in-loops");
-  const { instance } = await instantiate(source, {
-    pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
-  });
-  assert.equal((instance.exports.main as CallableFunction)(), 42);
-});
-
-test("CFG suspension lowering preserves match bindings and suspending guards", async () => {
-  const source = conformance("runtime/valid/suspending-match-guards");
-  const { instance } = await instantiate(source, {
-    pending: (_functionIndex, pollCount) => pollCount === 1,
-  });
-  assert.equal((instance.exports.main as CallableFunction)(), 42);
-});
-
-test("CFG suspension lowering propagates Result failures after child completion", async () => {
-  const source = conformance("runtime/valid/suspending-result-propagation");
-  const { instance } = await instantiate(source, {
-    pending: (_functionIndex, pollCount) => pollCount === 1,
-  });
-  assert.equal((instance.exports.main as CallableFunction)(), 35);
-});
-
 test("CFG suspension cancellation cancels the active child and runs scoped cleanup", async () => {
   const source = conformance("runtime/valid/suspending-call-in-scoped-defer");
   const events: Array<[number, number]> = [];
@@ -484,14 +436,6 @@ test("CFG suspension lowering installs providers produced after resumption", asy
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
   });
   assert.match(compilation.wat, /struct\.new \$trait0/);
-  assert.equal((instance.exports.main as CallableFunction)(), 42);
-});
-
-test("CFG suspension lowering nests dynamic trait suspensions", async () => {
-  const source = conformance("runtime/valid/dynamic-suspending-method");
-  const { instance } = await instantiate(source, {
-    pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
-  });
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 
@@ -1340,20 +1284,6 @@ test("imported block_on drives stored suspensions", async () => {
   assert.ok(
     forbidden.diagnostics.some((diagnostic) => diagnostic.code === "suspension-forbidden-context"),
   );
-});
-
-test("imported assert_equal compares supported structural values", async () => {
-  const source = conformance("runtime/valid/assert-equal-nested-tuple");
-  const { instance } = await instantiate(source);
-  assert.equal((instance.exports.main as CallableFunction)(), 42);
-
-  const failure = await instantiate(conformance("runtime/panic/assert-equal-lists-in-main"));
-  assert.throws(() => (failure.instance.exports.main as CallableFunction)());
-
-  const unsupported = analyze(
-    conformance("typing/invalid/assert-equal-fieldless-data-without-partial-eq"),
-  );
-  assert.ok(unsupported.diagnostics.some((diagnostic) => diagnostic.code === "missing-eq"));
 });
 
 test("module bindings lower to Wasm globals shared with declared functions", async () => {

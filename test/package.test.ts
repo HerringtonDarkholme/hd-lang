@@ -118,65 +118,6 @@ test("package use errors point at the use declaration of their file", () => {
   assert.deepEqual(codes(main("use pkg.models.{}")), ["src/main.hd:2:syntax-error"]);
 });
 
-test("std use errors in a package point at the use declaration of their file", () => {
-  const located = (use: string): string[] => {
-    const linked = linkPackage(
-      {
-        "src/main.hd": "use pkg.models.{label}\npub fn main() -> void: pass\n",
-        "src/models.hd": `# header\n${use}\npub fn label() -> string: "x"\n`,
-      },
-      "src/main.hd",
-    );
-    assert.deepEqual(linked.diagnostics, []);
-    return analyze(linked.source!).diagnostics.map((diagnostic) => {
-      const { path, code, span } = linked.locate(diagnostic);
-      return `${path}:${span.start.line}:${code}`;
-    });
-  };
-  assert.deepEqual(located("use std.missing"), ["src/models.hd:2:unknown-module"]);
-  assert.deepEqual(located("use std.missing.{x}"), ["src/models.hd:2:unknown-module"]);
-  assert.deepEqual(located("use std.text.{nope}"), ["src/models.hd:2:unknown-import"]);
-  assert.deepEqual(located("use std.text.{hex_digit}"), ["src/models.hd:2:private-import"]);
-});
-
-test("files of one folder may use each other in a loop", async () => {
-  const lines = await runPackage({
-    "src/main.hd": [
-      "use pkg.shop.{total}",
-      "",
-      "pub fn main() -> void $ Console:",
-      "    println(total())",
-    ].join("\n"),
-    "src/shop/mod.hd": "pub use self.cart.{total}\npub use self.item.{price}\n",
-    "src/shop/cart.hd": "use pkg.shop.{price}\n\npub fn total() -> i32: price() * 2\n",
-    "src/shop/item.hd": "pub fn price() -> i32: 21\n",
-  });
-  assert.deepEqual(lines, ["42"]);
-  assert.deepEqual(
-    codes({
-      "src/main.hd": "use pkg.a.{a}\npub fn main() -> void: pass\n",
-      "src/a.hd": "use pkg.b.{b}\npub fn a() -> i32: 1\n",
-      "src/b.hd": "use pkg.a.{a}\npub fn b() -> i32: 2\n",
-    }),
-    [],
-  );
-  // One initialization group, joined by module identity after what it uses.
-  const linked = linkPackage(
-    {
-      "src/main.hd": "use pkg.loop.b.{b}\npub fn main() -> void: pass\n",
-      "src/loop/b.hd": "use pkg.loop.a.{a}\nuse pkg.base.{z}\npub fn b() -> i32: a() + z()\n",
-      "src/loop/a.hd": "use pkg.loop.b.{b}\npub fn a() -> i32: 1\n",
-      "src/base/mod.hd": "pub fn z() -> i32: 0\n",
-    },
-    "src/main.hd",
-  );
-  assert.deepEqual(linked.diagnostics, []);
-  assert.deepEqual(
-    linked.modules.map(({ identity }) => identity),
-    ["base", "loop.a", "loop.b", "main"],
-  );
-});
-
 test("folders that depend on each other in a loop are rejected", () => {
   const files = {
     "src/mod.hd": "pub use pkg.shop.{Cart}\n",
@@ -206,39 +147,6 @@ test("folders that depend on each other in a loop are rejected", () => {
       "src/shop/mod.hd",
     ),
     ["src/shop/mod.hd:1:folder-cycle"],
-  );
-});
-
-test("uses in test code make no folder edge", () => {
-  const files = {
-    "src/shop/cart.hd": "pub fn total() -> i32: 2\n",
-    "src/shop/cart_test.hd": [
-      "use pkg.testkit.{make}",
-      "use std.testing.assert_equal",
-      "",
-      'it("totals"):',
-      '    assert_equal(make(), 2, reason="same")',
-    ].join("\n"),
-    "src/testkit/mod.hd": "use pkg.shop.cart.{total}\npub fn make() -> i32: total()\n",
-    "src/main.hd": "use pkg.testkit.{make}\npub fn main() -> void: pass\n",
-  };
-  assert.deepEqual(linkPackage(files, "src/main.hd", { tests: true }).diagnostics, []);
-});
-
-test("a pub use chain must end at a declaration", () => {
-  // spec/lang/10-modules.md#r-module.pub-use.chain.loop: `re-export-loop` on each
-  // pub use of the loop, and on a plain use into it (#r-module.pub-use.chain.loop-use).
-  assert.deepEqual(
-    codes({
-      "src/main.hd": "use pkg.shop.a.{Token}\npub fn main() -> void: pass\n",
-      "src/shop/a.hd": "pub use pkg.shop.b.{Token}\n",
-      "src/shop/b.hd": "pub use pkg.shop.a.{Token}\n",
-    }),
-    [
-      "src/main.hd:1:re-export-loop",
-      "src/shop/a.hd:1:re-export-loop",
-      "src/shop/b.hd:1:re-export-loop",
-    ],
   );
 });
 

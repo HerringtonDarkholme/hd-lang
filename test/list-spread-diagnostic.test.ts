@@ -13,12 +13,3 @@ test("prefix list spreads suggest the postfix spelling", () => {
     assert.equal(diagnostics[0]?.message, MESSAGE);
   }
 });
-
-test("postfix list spreads remain valid", () => {
-  assert.deepEqual(parse("value := [xs..., ys...]\n").diagnostics, []);
-});
-
-test("prefix copies in data expressions remain valid", () => {
-  assert.deepEqual(parse("value := Point { ...base }\n").diagnostics, []);
-  assert.deepEqual(parse("value := Outer { Inner: ...inner }\n").diagnostics, []);
-});

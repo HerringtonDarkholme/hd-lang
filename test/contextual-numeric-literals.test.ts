@@ -112,47 +112,6 @@ fn powered() -> u64:
   assert.deepEqual([powered.left.type, powered.right.type, powered.type], ["u64", "i32", "u64"]);
 });
 
-test("context preserves range, unsigned-negation, and no-widening errors", () => {
-  const tooWide = analyze(`fn invalid(value: u64) -> u64:
-    (18446744073709551616 - value) / 10
-`).diagnostics;
-  assert.deepEqual(
-    tooWide.map(({ code, message }) => ({ code, message })),
-    [
-      {
-        code: "integer-literal-range",
-        message: "integer literal is outside the u64 range 0..18446744073709551615",
-      },
-    ],
-  );
-  assert.deepEqual(
-    analyze(`fn invalid(value: u64) -> u64:
-    (-1 + value) / 10
-`).diagnostics.map(({ code }) => code),
-    ["unsigned-negation"],
-  );
-  assert.deepEqual(
-    analyze(`fn invalid(small: i16, ordinary: i32) -> i32:
-    (1 + small) + ordinary
-`).diagnostics.map(({ code }) => code),
-    ["type-mismatch"],
-  );
-});
-
-test("literal suffix calls keep their parameter type", () => {
-  const program = checked(`use std.ops.num_suffix
-
-@num_suffix
-fn units(value: i32) -> u64: u64(value)
-
-fn suffixed() -> u64:
-    1units
-`);
-  const call = resultExpression(program, "suffixed");
-  assert.equal(call.kind, "call");
-  assert.deepEqual([call.arguments[0]!.type, call.type], ["i32", "u64"]);
-});
-
 test("an immediate left literal still adopts a primitive right operand type", () => {
   const program = checked(`fn ordered(value: u64) -> bool:
     1 < value

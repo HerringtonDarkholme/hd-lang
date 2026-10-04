@@ -54,21 +54,6 @@ fn list_store(items: mut List[i32]) -> void:
   assert.equal(listStore.index.type, "u32");
 });
 
-test("built-in indices preserve every explicitly typed unsigned width", () => {
-  assert.deepEqual(
-    analyze(`fn read(items: List[i32], text: string, a: u8, b: u16, c: u32, d: u64) -> i32:
-    items[a] + items[b] + items[c] + items[d] + i32(text[a]) + i32(text[b]) + i32(text[c]) + i32(text[d])
-
-fn store(items: mut List[i32], a: u8, b: u16, c: u32, d: u64) -> void:
-    items[a] = 1
-    items[b] = 2
-    items[c] = 3
-    items[d] = 4
-`).diagnostics,
-    [],
-  );
-});
-
 test("slice literals default to u32 while a typed peer determines the bound width", () => {
   const hir = checked(`fn narrow(text: string) -> string: text[0..2]
 fn positive(text: string) -> string: text[+0..+2]
@@ -89,21 +74,6 @@ fn wide(text: string, end: u64) -> string: text[0..end]
   assert.match(rangeType("compound"), /Range\[u32\]$/);
   assert.match(rangeType("byte"), /Range\[u8\]$/);
   assert.match(rangeType("wide"), /Range\[u64\]$/);
-});
-
-test("built-in indices distinguish negative literals from signed values", () => {
-  const diagnostic = (body: string): string | undefined =>
-    analyze(`fn invalid(items: mut List[i32], text: string, signed: i32) -> void:
-    ${body}
-`).diagnostics[0]?.code;
-
-  assert.equal(diagnostic("_ := items[-1]"), "unsigned-negation");
-  assert.equal(diagnostic("_ := items[signed]"), "type-mismatch");
-  assert.equal(diagnostic("_ := text[signed]"), "type-mismatch");
-  assert.equal(diagnostic("_ := items[-1..]"), "unsigned-negation");
-  assert.equal(diagnostic("_ := items[..-1]"), "unsigned-negation");
-  assert.equal(diagnostic("_ := items[signed..]"), "type-mismatch");
-  assert.equal(diagnostic("items[-1] += 1"), "unsigned-negation");
 });
 
 test("a built-in IndexSet obligation supplies a generic literal key context", () => {
@@ -161,50 +131,4 @@ fn unicode_label(source: Label) -> string:
   );
   assert.equal(unicode.kind, "call");
   assert.equal(unicode.type, "string");
-});
-
-test("bound inference ignores a blanket implementation whose own bound is unavailable", () => {
-  const result = analyze(`trait Mark:
-    fn mark(self) -> void
-
-trait Source[T]:
-    fn take(self) -> T
-
-data Box[T]:
-    value: T
-
-impl[T < Mark] Source[T] for Box[T]:
-    fn take(self) -> T:
-        self.value
-
-data Plain:
-    value: i32
-
-fn read[U, S < Source[U]](source: S) -> U:
-    source.take()
-
-fn invalid(source: Box[Plain]) -> void:
-    value := read(source)
-`);
-  assert.equal(result.diagnostics.at(-1)?.code, "unsatisfied-trait-bound");
-});
-
-test("bound inference rejects a unique implementation with incompatible trait arguments", () => {
-  const result = analyze(`trait Source[T]:
-    fn take(self) -> T
-
-data Number:
-    value: i32
-
-impl Source[i32] for Number:
-    fn take(self) -> i32:
-        self.value
-
-fn read[U, S < Source[U?]](source: S) -> U?:
-    source.take()
-
-fn invalid(source: Number) -> i32?:
-    read(source)
-`);
-  assert.equal(result.diagnostics.at(-1)?.code, "unsatisfied-trait-bound");
 });

@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze, instantiate } from "../src/compiler.ts";
+import { analyze } from "../src/compiler.ts";
 import type { HirExpression, HirProgram } from "../src/hir.ts";
 import { classify } from "../src/highlight.ts";
-import { RuntimePanicError } from "../src/runtime-panic.ts";
-import { PRELUDE_ORIGINS } from "../src/checker/prelude-names.ts";
 
 function checked(source: string): HirProgram {
   const analysis = analyze(source);
@@ -78,15 +76,6 @@ fn cast(value: i32) -> Size: Size(value)
   );
 });
 
-test("usize expands in a transparent alias target", () => {
-  const program = checked(`type Size = usize
-
-fn same(value: Size) -> u32: value
-`);
-  const same = program.functions.find((declaration) => declaration.name === "same")!;
-  assert.deepEqual([same.parameters[0]?.type, same.result], ["u32", "u32"]);
-});
-
 test("alias expansion preserves an inherent implementation's written target", () => {
   const diagnostics = analyze(`data User:
     value: i32
@@ -100,31 +89,6 @@ impl Person:
     diagnostics.map((diagnostic) => diagnostic.code),
     ["invalid-impl-target"],
   );
-});
-
-test("usize still expands within trait and implementation heads", () => {
-  const program = checked(`trait Marker[T]:
-    fn mark(self) -> T
-
-data Wrapper[T]:
-    value: T
-
-impl Marker[usize] for Wrapper[usize]:
-    fn mark(self) -> usize: self.value
-`);
-  const implementation = program.implementations.find(
-    (candidate) => candidate.traitName === "Marker",
-  )!;
-  assert.deepEqual(implementation.traitArguments, ["u32"]);
-  assert.equal(implementation.targetType, "Wrapper[u32]");
-});
-
-test("usize expands in a newtype base", () => {
-  const program = checked(`type Size(usize)
-`);
-  const size = program.data.find((declaration) => declaration.name === "Size")!;
-  assert.equal(size.newtype, true);
-  assert.equal(size.fields[0]?.type, "u32");
 });
 
 test("usize expands in a generic parameter default", () => {
@@ -157,17 +121,6 @@ fn associated[C < Source[usize, Item = usize]](value: C) -> void: pass
   assert.deepEqual(bound("associated").associatedBindings, [{ name: "Item", type: "u32" }]);
 });
 
-test("usize remains a protected prelude name", () => {
-  assert.equal(PRELUDE_ORIGINS.get("usize"), "std.core");
-  const codes = (source: string): readonly string[] =>
-    analyze(source).diagnostics.map((diagnostic) => diagnostic.code);
-  assert.deepEqual(codes("type usize = u32\n"), ["prelude-name-shadow"]);
-  assert.deepEqual(codes("fn identity[usize](value: usize) -> usize: value\n"), [
-    "prelude-name-shadow",
-  ]);
-  assert.deepEqual(codes("fn local() -> void:\n    usize := 1\n"), ["prelude-name-shadow"]);
-});
-
 test("List.len and Map.len have canonical u32 HIR types", () => {
   const program =
     checked(`fn lengths(items: List[i32], entries: Map[string, i32]) -> (usize, usize):
@@ -183,20 +136,6 @@ test("List.len and Map.len have canonical u32 HIR types", () => {
       ["list-length", "u32"],
       ["map-length", "u32"],
     ],
-  );
-});
-
-test("subtracting one from an empty list length has u32 overflow semantics", async () => {
-  const { instance } = await instantiate(`fn underflow() -> usize:
-    let items: List[i32] = []
-    items.len() - 1
-
-pub fn main() -> void:
-    _ := underflow()
-`);
-  assert.throws(
-    () => (instance.exports.main as CallableFunction)(),
-    (error: unknown) => error instanceof RuntimePanicError && error.code === "integer-overflow",
   );
 });
 

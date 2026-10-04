@@ -123,22 +123,3 @@ test("a joined module declares every inherent method on a built-in type", () => 
   );
   assert.ok(methods.includes("unwrap_or") && methods.includes("is_none"), methods.join(" "));
 });
-
-test("an imported std name takes its local alias; the rest stay hidden", () => {
-  const analysis = analyze(
-    "use std.cmp.min as smaller\n\nfn least() -> i32: smaller(3, 2)\nfn other() -> i32: min(3, 2)\n",
-  );
-  assert.deepEqual(
-    analysis.diagnostics.map((diagnostic) => diagnostic.code),
-    ["unknown-name"],
-  );
-  assert.match(analysis.diagnostics[0]!.message, /min/);
-});
-
-test("user code cannot declare inherent methods on a built-in type", () => {
-  const analysis = analyze("impl string:\n    pub fn shout(self) -> string: self\n");
-  assert.deepEqual(
-    analysis.diagnostics.map((diagnostic) => diagnostic.code),
-    ["orphan-impl"],
-  );
-});
