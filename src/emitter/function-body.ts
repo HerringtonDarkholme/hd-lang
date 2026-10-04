@@ -702,7 +702,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       case "trait-bound": {
         const trait = this.traitsByIndex.get(expression.traitIndex)!;
         const dictionary = `(local.get $bound${expression.boundIndex})`;
-        const methods = trait.methods.map(
+        const methods = this.liveTraitMethods(trait).map(
           (method) =>
             `(struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dictionary})`,
         );
@@ -1203,7 +1203,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
   emitTraitSuspensionHelpers(): string {
     return [...this.traitsByIndex.values()]
       .flatMap((trait) =>
-        trait.methods.flatMap((method) => {
+        this.liveTraitMethods(trait).flatMap((method) => {
           if (!method.suspending) return [];
           const wrapper = traitSuspensionName(trait.index, method.index);
           const frame = `(local.get $frame)`;

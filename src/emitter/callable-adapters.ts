@@ -209,6 +209,7 @@ export abstract class CallableAdapterEmitter extends DataEmitter {
           type,
         }));
         return implementation.methodFunctions.flatMap((mapping) => {
+          if (!this.methodIsLive(implementation.traitIndex, mapping.methodIndex)) return [];
           const method = trait.methods[mapping.methodIndex]!;
           const parameters = method.parameters.map(
             (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,

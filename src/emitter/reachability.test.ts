@@ -100,6 +100,8 @@ pub fn read() -> i32 $ Device:
     compilation.wat,
     new RegExp(`\\(func \\$hd\\.host_trait${device.index}_method1`),
   );
+  assert.doesNotMatch(compilation.wat, new RegExp(`\\$tsig${device.index}_1`));
+  assert.doesNotMatch(compilation.wat, new RegExp(`\\$trait${device.index}m1`));
 
   const invoked: string[] = [];
   const { instance } = await instantiate(source, {
@@ -117,6 +119,64 @@ pub fn read() -> i32 $ Device:
   });
   assert.doesNotMatch(second.wat, new RegExp(`"host_${device.index}_0_begin"`));
   assert.match(second.wat, new RegExp(`"host_${device.index}_1_begin"`));
+});
+
+test("trait dictionary layouts contain only dynamically called methods", async () => {
+  const source = `pub trait Device:
+    fn first(self) -> i32
+    fn second(self) -> i32
+data Box: pass
+impl Device for Box:
+    fn first(self) -> i32: 1
+    fn second(self) -> i32: 42
+fn main() -> i32:
+    let device: Device = Box {}
+    device.second()
+`;
+  const { instance, compilation } = await instantiate(source);
+  const device = compilation.hir.traits.find((trait) => trait.name === "Device")!;
+  assert.equal((instance.exports.main as CallableFunction)(), 42);
+  assert.doesNotMatch(compilation.wat, new RegExp(`\\$tsig${device.index}_0`));
+  assert.doesNotMatch(compilation.wat, new RegExp(`\\$trait${device.index}m0`));
+  assert.doesNotMatch(compilation.wat, new RegExp(`\\$tadapt0_0`));
+  assert.match(compilation.wat, new RegExp(`\\$tsig${device.index}_1`));
+  assert.match(compilation.wat, new RegExp(`\\$trait${device.index}m1`));
+  assert.match(compilation.wat, new RegExp(`\\$tadapt0_1`));
+});
+
+test("an uncalled default trait method adds no WAT bytes", () => {
+  const source = (extra: string): string => `pub trait Device:
+    fn read(self) -> i32${extra}
+data Box: pass
+impl Device for Box:
+    fn read(self) -> i32: 42
+fn main() -> i32:
+    let device: Device = Box {}
+    device.read()
+`;
+  const baseline = compileToWat(source("")).wat;
+  const withDefault = compileToWat(source("\n    fn unused(self) -> i32: 99")).wat;
+  assert.equal(Buffer.byteLength(withDefault), Buffer.byteLength(baseline));
+  assert.equal(withDefault, baseline);
+});
+
+test("a live default method adds trait calls reached from its body", async () => {
+  const source = `pub trait Device:
+    fn value(self) -> i32
+    fn through(self, other: Device) -> i32:
+        other.value()
+data Box: pass
+impl Device for Box:
+    fn value(self) -> i32: 42
+fn main() -> i32:
+    let device: Device = Box {}
+    device.through(device)
+`;
+  const { instance, compilation } = await instantiate(source);
+  const device = compilation.hir.traits.find((trait) => trait.name === "Device")!;
+  assert.equal((instance.exports.main as CallableFunction)(), 42);
+  assert.match(compilation.wat, new RegExp(`\\$trait${device.index}m0`));
+  assert.match(compilation.wat, new RegExp(`\\$trait${device.index}m1`));
 });
 
 test("host Result errors materialize a payloadless singleton enum", async () => {

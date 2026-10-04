@@ -1,9 +1,48 @@
 import type { HirFunction, HirProgram, HirStatement, HirTraitImplementation } from "../hir.ts";
-import { readonlyType } from "../types.ts";
+import { readonlyType, traitSuspensionParts } from "../types.ts";
 
 /** A stable identity for one resolved trait method in HIR. */
 export function traitMethodKey(traitIndex: number, methodIndex: number): string {
   return `${traitIndex}:${methodIndex}`;
+}
+
+const TRAIT_METHOD_DISPATCH_KINDS = new Set([
+  "trait-call",
+  "trait-suspend-construct",
+  "trait-suspend-drive",
+  "trait-suspend-cancel",
+  "bound",
+]);
+
+function markTraitMethods(
+  node: Record<string, unknown>,
+  mark: (traitIndex: number, methodIndex: number) => void,
+): void {
+  if (
+    TRAIT_METHOD_DISPATCH_KINDS.has(String(node.kind)) &&
+    typeof node.traitIndex === "number" &&
+    typeof node.methodIndex === "number"
+  )
+    mark(node.traitIndex, node.methodIndex);
+  if (
+    (node.kind === "inspect-type-id" || node.kind === "inspect-downcast") &&
+    typeof node.traitIndex === "number"
+  )
+    mark(node.traitIndex, 0);
+  if (
+    (node.kind === "map" || node.kind === "map-comprehension") &&
+    node.keyKind === 3 &&
+    node.keyDictionary &&
+    typeof node.keyDictionary === "object" &&
+    (node.keyDictionary as { readonly kind?: unknown }).kind === "trait-dictionary" &&
+    typeof (node.keyDictionary as { readonly traitIndex?: unknown }).traitIndex === "number"
+  )
+    mark((node.keyDictionary as { readonly traitIndex: number }).traitIndex, 0);
+  if (node.kind === "suspension-wrap") {
+    const type = (node.suspension as { readonly type?: unknown } | undefined)?.type;
+    const method = typeof type === "string" ? traitSuspensionParts(type) : undefined;
+    if (method) mark(method.traitIndex, method.methodIndex);
+  }
 }
 
 /**
@@ -20,17 +59,9 @@ export function calledTraitMethods(program: HirProgram): ReadonlySet<string> {
     }
     if (!value || typeof value !== "object") return;
     const node = value as Record<string, unknown>;
-    if (
-      [
-        "trait-call",
-        "trait-suspend-construct",
-        "trait-suspend-drive",
-        "trait-suspend-cancel",
-      ].includes(String(node.kind)) &&
-      typeof node.traitIndex === "number" &&
-      typeof node.methodIndex === "number"
-    )
-      called.add(traitMethodKey(node.traitIndex, node.methodIndex));
+    markTraitMethods(node, (traitIndex, methodIndex) =>
+      called.add(traitMethodKey(traitIndex, methodIndex)),
+    );
     for (const [key, child] of Object.entries(node)) if (key !== "span") visit(child);
   };
   for (const declaration of [...program.functions, ...program.closures]) visit(declaration.body);
@@ -43,7 +74,12 @@ export function calledTraitMethods(program: HirProgram): ReadonlySet<string> {
  * calls, function values, closures, default arguments, or dictionary plans.
  * Keep original indices: references and replay identities are not renumbered.
  */
-export function reachableProgram(program: HirProgram): HirProgram {
+export interface EmissionReachability {
+  readonly program: HirProgram;
+  readonly traitMethods: ReadonlySet<string>;
+}
+
+export function emissionReachability(program: HirProgram): EmissionReachability {
   const functions = new Map(program.functions.map((item) => [item.index, item]));
   const closures = new Map(program.closures.map((item) => [item.index, item]));
   const implementations = new Map(program.implementations.map((item) => [item.index, item]));
@@ -64,7 +100,8 @@ export function reachableProgram(program: HirProgram): HirProgram {
   const liveClosures = new Set<number>();
   const liveImplementations = new Set<number>();
   const liveGlobals = new Set<number>();
-  const pending: Array<HirFunction | HirTraitImplementation> = [];
+  const liveTraitMethods = new Set<string>();
+  const pending: HirFunction[] = [];
   const retainInitializer = (): void => {
     if (initializer) liveFunctions.add(initializer.index);
   };
@@ -85,14 +122,28 @@ export function reachableProgram(program: HirProgram): HirProgram {
     liveClosures.add(index);
     pending.push(declaration);
   };
+  const methodFunction = (implementation: HirTraitImplementation, methodIndex: number): void => {
+    const mapping = implementation.methodFunctions.find(
+      (candidate) => candidate.methodIndex === methodIndex,
+    );
+    if (mapping && !mapping.strengthened) functionByIndex(mapping.functionIndex);
+  };
+  const traitMethod = (traitIndex: number, methodIndex: number): void => {
+    const key = traitMethodKey(traitIndex, methodIndex);
+    if (liveTraitMethods.has(key)) return;
+    liveTraitMethods.add(key);
+    for (const implementation of implementations.values())
+      if (implementation.traitIndex === traitIndex && liveImplementations.has(implementation.index))
+        methodFunction(implementation, methodIndex);
+  };
   const implementationByIndex = (index: number): void => {
     if (liveImplementations.has(index)) return;
     const declaration = implementations.get(index);
     if (!declaration) return; // Builtin dictionaries have no source impl.
     liveImplementations.add(index);
-    pending.push(declaration);
-    // Materializing a dictionary exposes its complete method table.
-    declaration.methodFunctions.forEach((method) => functionByIndex(method.functionIndex));
+    for (const mapping of declaration.methodFunctions)
+      if (liveTraitMethods.has(traitMethodKey(declaration.traitIndex, mapping.methodIndex)))
+        methodFunction(declaration, mapping.methodIndex);
     declaration.supertraitImplementations.forEach(implementationByIndex);
   };
   const kernel = (name: "concat" | "equal" | "compare"): void => {
@@ -118,6 +169,7 @@ export function reachableProgram(program: HirProgram): HirProgram {
     }
     if (!value || typeof value !== "object") return;
     const node = value as Record<string, unknown>;
+    markTraitMethods(node, traitMethod);
     // These are declaration identities in the HIR, never source spellings.
     if (typeof node.functionIndex === "number") functionByIndex(node.functionIndex);
     if (typeof node.iteratorFunctionIndex === "number") functionByIndex(node.iteratorFunctionIndex);
@@ -147,7 +199,10 @@ export function reachableProgram(program: HirProgram): HirProgram {
         (item) =>
           item.traitIndex === eq?.index && item.targetType === readonlyType(node.keyType as string),
       );
-      if (implementation) implementationByIndex(implementation.index);
+      if (implementation) {
+        implementationByIndex(implementation.index);
+        methodFunction(implementation, 0);
+      }
     }
     for (const [key, child] of Object.entries(node)) if (key !== "span") visit(child);
   };
@@ -182,13 +237,24 @@ export function reachableProgram(program: HirProgram): HirProgram {
   );
   const keepInitializer = initializer !== undefined && initializerBody.length > 0;
   return {
-    ...program,
-    globals: program.globals.filter((item) => !item.standard || liveGlobals.has(item.index)),
-    functions: program.functions
-      .filter((item) => liveFunctions.has(item.index) && (item !== initializer || keepInitializer))
-      .map((item) => (item === initializer ? { ...item, body: initializerBody } : item)),
-    closures: program.closures.filter((item) => liveClosures.has(item.index)),
-    implementations: program.implementations.filter((item) => liveImplementations.has(item.index)),
-    ...(keepInitializer ? {} : { initializer: undefined }),
+    traitMethods: liveTraitMethods,
+    program: {
+      ...program,
+      globals: program.globals.filter((item) => !item.standard || liveGlobals.has(item.index)),
+      functions: program.functions
+        .filter(
+          (item) => liveFunctions.has(item.index) && (item !== initializer || keepInitializer),
+        )
+        .map((item) => (item === initializer ? { ...item, body: initializerBody } : item)),
+      closures: program.closures.filter((item) => liveClosures.has(item.index)),
+      implementations: program.implementations.filter((item) =>
+        liveImplementations.has(item.index),
+      ),
+      ...(keepInitializer ? {} : { initializer: undefined }),
+    },
   };
+}
+
+export function reachableProgram(program: HirProgram): HirProgram {
+  return emissionReachability(program).program;
 }

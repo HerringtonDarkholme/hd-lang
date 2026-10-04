@@ -56,7 +56,10 @@ class SignatureMap extends Map<ValueType, number> {
   }
 }
 
-export function collectModuleTypes(program: HirProgram): CollectedModuleTypes {
+export function collectModuleTypes(
+  program: HirProgram,
+  methodIsLive: (traitIndex: number, methodIndex: number) => boolean,
+): CollectedModuleTypes {
   const signatureNames = new SignatureMap();
   const contextNames = new Map<ValueType, number>();
   const collectType = (type: ValueType): void => {
@@ -144,10 +147,12 @@ export function collectModuleTypes(program: HirProgram): CollectedModuleTypes {
     declaration.fields.forEach((field) => collectType(field.type)),
   );
   program.traits.forEach((trait) =>
-    trait.methods.forEach((method) => {
-      method.parameters.forEach(collectType);
-      collectType(method.result);
-    }),
+    trait.methods
+      .filter((method) => methodIsLive(trait.index, method.index))
+      .forEach((method) => {
+        method.parameters.forEach(collectType);
+        collectType(method.result);
+      }),
   );
   return { signatureNames, contextNames };
 }

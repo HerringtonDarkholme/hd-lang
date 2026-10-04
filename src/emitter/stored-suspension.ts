@@ -177,7 +177,10 @@ function suspensionIndex(declaration: HirProgram["functions"][number]): number {
   return declaration.suspensionIndex ?? declaration.index;
 }
 
-export function storedSuspensionAdapterReferences(program: HirProgram): readonly string[] {
+export function storedSuspensionAdapterReferences(
+  program: HirProgram,
+  methodIsLive: (traitIndex: number, methodIndex: number) => boolean,
+): readonly string[] {
   return [
     ...COMBINATOR_FUNCTIONS,
     ...[...program.functions, ...program.closures]
@@ -189,7 +192,7 @@ export function storedSuspensionAdapterReferences(program: HirProgram): readonly
       ]),
     ...program.traits.flatMap((trait) =>
       trait.methods.flatMap((method) =>
-        method.suspending
+        method.suspending && methodIsLive(trait.index, method.index)
           ? [
               traitSuspensionWrapperPollAdapterName(trait.index, method.index),
               traitSuspensionWrapperCancelAdapterName(trait.index, method.index),
@@ -204,6 +207,7 @@ export function storedSuspensionAdapterReferences(program: HirProgram): readonly
 export function emitStoredSuspensionAdapters(
   program: HirProgram,
   boxResult: (value: string, type: ValueType) => string,
+  methodIsLive: (traitIndex: number, methodIndex: number) => boolean,
 ): string {
   const functionAdapters = [...program.functions, ...program.closures]
     .filter((declaration) => declaration.suspending)
@@ -229,7 +233,7 @@ export function emitStoredSuspensionAdapters(
     });
   const traitAdapters = program.traits.flatMap((trait) =>
     trait.methods.flatMap((method) => {
-      if (!method.suspending) return [];
+      if (!method.suspending || !methodIsLive(trait.index, method.index)) return [];
       const wrapper = traitSuspensionName(trait.index, method.index);
       const inner = `(ref.cast (ref ${wrapper}) (local.get $inner))`;
       const rawValue =

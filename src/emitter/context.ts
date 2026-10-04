@@ -48,6 +48,7 @@ import {
   traitSuspensionName,
   traitTypeBase,
 } from "./shared.ts";
+import { traitMethodKey } from "./reachability.ts";
 
 interface LoopContext {
   readonly breakLabel: string;
@@ -99,6 +100,7 @@ export class EmitterContext {
   protected readonly implementationsByIndex: ReadonlyMap<number, HirTraitImplementation>;
   protected readonly suspensionPlans: ReadonlyMap<number, SuspensionPlan>;
   protected readonly hostCapabilities: ReadonlySet<string>;
+  protected readonly traitMethods: ReadonlySet<string>;
   protected loopCounter = 0;
   protected readonly loops: LoopContext[] = [];
   protected readonly cleanupFrames: CleanupFrame[] = [];
@@ -126,6 +128,7 @@ export class EmitterContext {
     suspensionPlans: ReadonlyMap<number, SuspensionPlan> = new Map(),
     hostCapabilities: readonly string[] = [],
     functions: readonly HirFunction[] = [],
+    traitMethods: ReadonlySet<string> = new Set(),
   ) {
     this.stringKernel = new Map(
       functions
@@ -145,6 +148,15 @@ export class EmitterContext {
     );
     this.suspensionPlans = suspensionPlans;
     this.hostCapabilities = new Set(hostCapabilities);
+    this.traitMethods = traitMethods;
+  }
+
+  protected methodIsLive(traitIndex: number, methodIndex: number): boolean {
+    return this.traitMethods.has(traitMethodKey(traitIndex, methodIndex));
+  }
+
+  protected liveTraitMethods(trait: HirTrait): readonly HirTrait["methods"][number][] {
+    return trait.methods.filter((method) => this.methodIsLive(trait.index, method.index));
   }
 
   /**
@@ -175,7 +187,7 @@ export class EmitterContext {
     parents: readonly string[],
   ): string {
     const trait = this.traitsByIndex.get(implementation.traitIndex)!;
-    const adapters = trait.methods.map(
+    const adapters = this.liveTraitMethods(trait).map(
       (method) => `(ref.func $tadapt${implementation.index}_${method.index})`,
     );
     const boundPack =
@@ -233,7 +245,7 @@ export class EmitterContext {
     value: string,
   ): string {
     const { dictionary } = this.traitDictionaryPath(`trait:${sourceTrait.name}`, path, value);
-    const methods = targetTrait.methods.map(
+    const methods = this.liveTraitMethods(targetTrait).map(
       (method) =>
         `(struct.get $trait${targetTrait.index} $trait${targetTrait.index}m${method.index} ${dictionary})`,
     );

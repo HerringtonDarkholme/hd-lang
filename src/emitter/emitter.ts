@@ -1,6 +1,6 @@
 import type { HirExpression, HirFunction, HirLocal, HirMatchArm, HirProgram } from "../hir.ts";
 import { scalarWasm } from "./scalars.ts";
-import { reachableProgram } from "./reachability.ts";
+import { emissionReachability, traitMethodKey } from "./reachability.ts";
 import { linkWat } from "./link-wat.ts";
 import { contextKeys, functionParts, functionType } from "../types.ts";
 import { collectModuleTypes } from "./module-types.ts";
@@ -873,14 +873,16 @@ function emittedFunctions(program: HirProgram): readonly HirFunction[] {
 }
 
 export function emitWat(program: HirProgram): string {
-  return linkWat(emitReachableWat(reachableProgram(program)));
+  const reachable = emissionReachability(program);
+  return linkWat(emitReachableWat(reachable.program, reachable.traitMethods));
 }
 
 function emitProgramStoredSuspensionAdapters(
   program: HirProgram,
   emitter: FunctionEmitter,
+  methodIsLive: (traitIndex: number, methodIndex: number) => boolean,
 ): string {
-  return emitStoredSuspensionAdapters(program, emitter.boxErasedValue.bind(emitter));
+  return emitStoredSuspensionAdapters(program, emitter.boxErasedValue.bind(emitter), methodIsLive);
 }
 
 function suspensionPlansFor(program: HirProgram) {
@@ -893,8 +895,66 @@ function suspensionPlansFor(program: HirProgram) {
   );
 }
 
-function emitReachableWat(program: HirProgram): string {
-  const { signatureNames, contextNames } = collectModuleTypes(program);
+function emitTraitMethodTypes(
+  program: HirProgram,
+  emitter: FunctionEmitter,
+  traitsByName: ReadonlyMap<string, HirProgram["traits"][number]>,
+  methodIsLive: (traitIndex: number, methodIndex: number) => boolean,
+): string {
+  return program.traits
+    .flatMap((trait) =>
+      trait.methods
+        .filter((method) => methodIsLive(trait.index, method.index))
+        .map((method) => {
+          const parameters = [
+            `(param anyref)`,
+            `(param anyref)`,
+            ...method.parameters.map(
+              (parameter) => `(param ${emitter.parameterWatType(parameter)})`,
+            ),
+            ...methodBoundParameters(method),
+            ...method.requirements.map(
+              (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
+            ),
+          ].join(" ");
+          const result = method.suspending
+            ? ` (result (ref null ${traitSuspensionName(trait.index, method.index)}))`
+            : method.result === "void"
+              ? ""
+              : ` (result ${emitter.watType(method.result)})`;
+          return `    (type $tsig${trait.index}_${method.index} (func ${parameters}${result}))`;
+        }),
+    )
+    .join("\n");
+}
+
+function emitTraitSuspensionTypes(
+  program: HirProgram,
+  emitter: FunctionEmitter,
+  methodIsLive: (traitIndex: number, methodIndex: number) => boolean,
+): string {
+  return program.traits
+    .flatMap((trait) =>
+      trait.methods.flatMap((method) => {
+        if (!method.suspending || !methodIsLive(trait.index, method.index)) return [];
+        const result =
+          method.result === "void" ? "" : ` (result ${emitter.watType(method.result)})`;
+        const wrapper = traitSuspensionName(trait.index, method.index);
+        return [
+          `    (type $tspollsig${trait.index}_${method.index} (func (param anyref) (result i32)))`,
+          `    (type $tscancelsig${trait.index}_${method.index} (func (param anyref)))`,
+          `    (type $tsresultsig${trait.index}_${method.index} (func (param anyref)${result}))`,
+          `    (type ${wrapper} (struct\n      (field ${wrapper}inner anyref)\n      (field ${wrapper}poll (ref $tspollsig${trait.index}_${method.index}))\n      (field ${wrapper}cancel (ref $tscancelsig${trait.index}_${method.index}))\n      (field ${wrapper}result (ref $tsresultsig${trait.index}_${method.index}))\n      (field ${wrapper}result_adapter (mut (ref null $hd.suspension-result-adapt-sig)))))`,
+        ];
+      }),
+    )
+    .join("\n");
+}
+
+function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>): string {
+  const methodIsLive = (traitIndex: number, methodIndex: number): boolean =>
+    traitMethods.has(traitMethodKey(traitIndex, methodIndex));
+  const { signatureNames, contextNames } = collectModuleTypes(program, methodIsLive);
   const traitsByName = new Map(program.traits.map((trait) => [trait.name, trait]));
   const suspensionPlans = suspensionPlansFor(program);
   const emitter = new FunctionEmitter(
@@ -908,8 +968,9 @@ function emitReachableWat(program: HirProgram): string {
     suspensionPlans,
     program.hostCapabilities,
     program.functions,
+    traitMethods,
   );
-  const hostProviders = emitHostProviders(program);
+  const hostProviders = emitHostProviders(program, traitMethods);
   const signatureTypes = [...signatureNames]
     .map(([type, index]) => {
       const callable = functionParts(type)!;
@@ -928,43 +989,8 @@ function emitReachableWat(program: HirProgram): string {
       return `    (type $sig${index} (func${parameters ? " " + parameters : ""}${result}))`;
     })
     .join("\n");
-  const traitMethodTypes = program.traits
-    .flatMap((trait) =>
-      trait.methods.map((method) => {
-        const parameters = [
-          `(param anyref)`,
-          `(param anyref)`,
-          ...method.parameters.map((parameter) => `(param ${emitter.parameterWatType(parameter)})`),
-          ...methodBoundParameters(method),
-          ...method.requirements.map(
-            (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
-          ),
-        ].join(" ");
-        const result = method.suspending
-          ? ` (result (ref null ${traitSuspensionName(trait.index, method.index)}))`
-          : method.result === "void"
-            ? ""
-            : ` (result ${emitter.watType(method.result)})`;
-        return `    (type $tsig${trait.index}_${method.index} (func ${parameters}${result}))`;
-      }),
-    )
-    .join("\n");
-  const traitSuspensionTypes = program.traits
-    .flatMap((trait) =>
-      trait.methods.flatMap((method) => {
-        if (!method.suspending) return [];
-        const result =
-          method.result === "void" ? "" : ` (result ${emitter.watType(method.result)})`;
-        const wrapper = traitSuspensionName(trait.index, method.index);
-        return [
-          `    (type $tspollsig${trait.index}_${method.index} (func (param anyref) (result i32)))`,
-          `    (type $tscancelsig${trait.index}_${method.index} (func (param anyref)))`,
-          `    (type $tsresultsig${trait.index}_${method.index} (func (param anyref)${result}))`,
-          `    (type ${wrapper} (struct\n      (field ${wrapper}inner anyref)\n      (field ${wrapper}poll (ref $tspollsig${trait.index}_${method.index}))\n      (field ${wrapper}cancel (ref $tscancelsig${trait.index}_${method.index}))\n      (field ${wrapper}result (ref $tsresultsig${trait.index}_${method.index}))\n      (field ${wrapper}result_adapter (mut (ref null $hd.suspension-result-adapt-sig)))))`,
-        ];
-      }),
-    )
-    .join("\n");
+  const traitMethodTypes = emitTraitMethodTypes(program, emitter, traitsByName, methodIsLive);
+  const traitSuspensionTypes = emitTraitSuspensionTypes(program, emitter, methodIsLive);
   const dataTypes = `\n  (rec\n${signatureTypes ? signatureTypes + "\n" : ""}${traitMethodTypes ? traitMethodTypes + "\n" : ""}${traitSuspensionTypes ? traitSuspensionTypes + "\n" : ""}${STORED_SUSPENSION_TYPES}\n    (type $hd.bytes (array (mut i8)))
     (type $hd.string (struct
       (field $hd.string-bytes (ref $hd.bytes))
@@ -1029,7 +1055,15 @@ ${program.traits
   .map(
     (trait) => `    (type $trait${trait.index} (struct
       (field $trait${trait.index}value anyref)
-      (field $trait${trait.index}bounds (ref null $hd.list))${trait.methods.map((method) => `\n      (field $trait${trait.index}m${method.index} (ref null $tsig${trait.index}_${method.index}))`).join("")}${trait.supertraits.map((supertrait, index) => `\n      (field $trait${trait.index}s${index} (ref null $trait${supertrait.traitIndex}))`).join("")}))`,
+      (field $trait${trait.index}bounds (ref null $hd.list))${trait.methods
+        .filter((method) => methodIsLive(trait.index, method.index))
+        .map(
+          (method) =>
+            `\n      (field $trait${trait.index}m${method.index} (ref null $tsig${trait.index}_${method.index}))`,
+        )
+        .join(
+          "",
+        )}${trait.supertraits.map((supertrait, index) => `\n      (field $trait${trait.index}s${index} (ref null $trait${supertrait.traitIndex}))`).join("")}))`,
   )
   .join("\n")}
 ${[...program.functions, ...program.closures]
@@ -1123,7 +1157,11 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
   const traitSuspensionHelpers = [emitter.emitTraitSuspensionHelpers(), emitter.emitKeyEqualities()]
     .filter(Boolean)
     .join("\n\n");
-  const storedSuspensionAdapters = emitProgramStoredSuspensionAdapters(program, emitter);
+  const storedSuspensionAdapters = emitProgramStoredSuspensionAdapters(
+    program,
+    emitter,
+    methodIsLive,
+  );
   const adapters = emitter.emitCallableAdapters();
   const referenceableFunctions = [
     ...program.closures.map((closure) => `$c${closure.index}`),
@@ -1137,14 +1175,15 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
     ...program.implementations
       .filter((implementation) => !implementation.intrinsic)
       .flatMap((implementation) =>
-        implementation.methodFunctions.map(
-          (method) => `$tadapt${implementation.index}_${method.methodIndex}`,
-        ),
+        implementation.methodFunctions
+          .filter((method) => methodIsLive(implementation.traitIndex, method.methodIndex))
+          .map((method) => `$tadapt${implementation.index}_${method.methodIndex}`),
       ),
     ...program.implementations.flatMap((implementation) => {
       // Trait indices may skip a compiler trait the program does not declare.
       const trait = program.traits.find((item) => item.index === implementation.traitIndex)!;
       return implementation.methodFunctions.flatMap((mapping) =>
+        methodIsLive(implementation.traitIndex, mapping.methodIndex) &&
         trait.methods[mapping.methodIndex]?.suspending
           ? [
               `$tspolladapt${implementation.index}_${mapping.methodIndex}`,
@@ -1155,7 +1194,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
       );
     }),
     ...hostProviders.references,
-    ...storedSuspensionAdapterReferences(program),
+    ...storedSuspensionAdapterReferences(program, methodIsLive),
     ...emitter.keyEqualityNames(),
   ];
   const declarations =

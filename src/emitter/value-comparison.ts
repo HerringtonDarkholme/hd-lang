@@ -251,8 +251,10 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     if (builtin.kind === "marker")
       return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list))`;
     if (builtin.kind === "intrinsic") {
-      const methods = builtin.methods.map(
-        (_, methodIndex) => `(ref.func ${this.intrinsicAdapter(builtin, methodIndex)})`,
+      const methods = builtin.methods.flatMap((_, methodIndex) =>
+        this.methodIsLive(trait.index, methodIndex)
+          ? [`(ref.func ${this.intrinsicAdapter(builtin, methodIndex)})`]
+          : [],
       );
       return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list)${[...methods, ...parents].map((part) => ` ${part}`).join("")})`;
     }
@@ -262,16 +264,18 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const boundTraits = boundExpressions.map((bound) =>
       bound.kind === "trait-bound-dictionary" ? bound.traitIndex : builtin.traitIndex,
     );
+    const boundPack =
+      bounds.length > 0
+        ? `(array.new_fixed $hd.list ${bounds.length} ${bounds.join(" ")})`
+        : `(ref.null $hd.list)`;
+    if (!this.methodIsLive(trait.index, 0))
+      return `(struct.new $trait${trait.index} ${value} ${boundPack}${parents.map((parent) => ` ${parent}`).join("")})`;
     const key = JSON.stringify([builtin, boundTraits]);
     let adapter = this.builtinTraitAdapters.get(key);
     if (!adapter) {
       adapter = { index: this.builtinTraitAdapters.size, implementation: builtin, boundTraits };
       this.builtinTraitAdapters.set(key, adapter);
     }
-    const boundPack =
-      bounds.length > 0
-        ? `(array.new_fixed $hd.list ${bounds.length} ${bounds.join(" ")})`
-        : `(ref.null $hd.list)`;
     return `(struct.new $trait${trait.index} ${value} ${boundPack} (ref.func $tbuiltin${adapter.index})${parents.map((parent) => ` ${parent}`).join("")})`;
   }
 
@@ -466,7 +470,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       ...[...this.forwardingAdapters.values()].flatMap((adapter) =>
         this.traitsByIndex
           .get(adapter.builtin.traitIndex)!
-          .methods.map((method) => `$tforward${adapter.index}_${method.index}`),
+          .methods.filter((method) => this.methodIsLive(adapter.builtin.traitIndex, method.index))
+          .map((method) => `$tforward${adapter.index}_${method.index}`),
       ),
     ];
   }
@@ -491,7 +496,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       this.forwardingAdapters.set(key, adapter);
     }
     const trait = this.traitsByIndex.get(builtin.traitIndex)!;
-    const methods = trait.methods.map(
+    const methods = this.liveTraitMethods(trait).map(
       (method) => `(ref.func $tforward${adapter.index}_${method.index})`,
     );
     const parents = trait.supertraits.map((parent, fieldIndex) =>
@@ -536,7 +541,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
             `(struct.get $trait${step.traitIndex} $trait${step.traitIndex}s${step.fieldIndex} ${current})`,
           source,
         );
-        return trait.methods.map((method) => {
+        return this.liveTraitMethods(trait).map((method) => {
           const parameters = method.parameters.map(
             (parameter, parameterIndex) =>
               `(param $a${parameterIndex} ${this.parameterWatType(parameter)})`,

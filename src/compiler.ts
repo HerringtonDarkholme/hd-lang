@@ -17,7 +17,7 @@ import type { HirEnum, HirProgram, HirTraitMethod, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
-import { calledTraitMethods, reachableProgram, traitMethodKey } from "./emitter/reachability.ts";
+import { emissionReachability, traitMethodKey } from "./emitter/reachability.ts";
 
 /** A checked program and its WAT, before Wasm assembly. */
 export interface WatCompilation {
@@ -686,7 +686,7 @@ export async function instantiate(
   };
   const hostImports: Record<string, HostImport> = {};
   const hostCapabilities = new Set(compilation.hir.hostCapabilities);
-  const calledHostMethods = calledTraitMethods(reachableProgram(compilation.hir));
+  const calledHostMethods = emissionReachability(compilation.hir).traitMethods;
   const hostCall = (
     provider: unknown,
     providerKey: string,

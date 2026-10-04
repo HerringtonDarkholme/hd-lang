@@ -4,7 +4,7 @@ import { NUMERIC_TYPES, numericType } from "../numeric.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
 import { nominalGenericParts } from "../types.ts";
 import { boxScalar, scalarWasm } from "./scalars.ts";
-import { calledTraitMethods, traitMethodKey } from "./reachability.ts";
+import { traitMethodKey } from "./reachability.ts";
 
 interface HostProviderEmission {
   readonly functions: string;
@@ -321,11 +321,9 @@ function emitTraitFactory(trait: HirTrait, called: ReadonlySet<string>): string 
     `  (struct.new $trait${trait.index}`,
     `    (struct.new $hd.box-extern (local.get $provider))`,
     `    (ref.null $hd.list)`,
-    ...trait.methods.map((method) =>
-      called.has(traitMethodKey(trait.index, method.index))
-        ? `    (ref.func ${methodName(trait, method)})`
-        : `    (ref.null $tsig${trait.index}_${method.index})`,
-    ),
+    ...trait.methods
+      .filter((method) => called.has(traitMethodKey(trait.index, method.index)))
+      .map((method) => `    (ref.func ${methodName(trait, method)})`),
     ...trait.supertraits.map((supertrait) => `    (ref.null $trait${supertrait.traitIndex})`),
     `  )`,
     `)`,
@@ -388,14 +386,16 @@ function emitFrameType({ trait, method }: HostMethod): string {
  * generic imports, and the host answers through one callback keyed by trait
  * and method name (src/compiler.ts, src/host-functions.ts).
  */
-export function emitHostProviders(program: HirProgram): HostProviderEmission {
+export function emitHostProviders(
+  program: HirProgram,
+  called: ReadonlySet<string>,
+): HostProviderEmission {
   const capabilities = new Set(program.hostCapabilities);
   const traits = program.traits.filter((trait) => capabilities.has(trait.name));
   const methods = traits.flatMap((trait) =>
     trait.methods.map((method) => ({ enums: program.enums, trait, method })),
   );
   if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
-  const called = calledTraitMethods(program);
   const liveMethods = methods.filter(({ trait, method }) =>
     called.has(traitMethodKey(trait.index, method.index)),
   );
