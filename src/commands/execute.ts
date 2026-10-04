@@ -4,6 +4,7 @@ import { readdir } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 
 import { instantiate } from "../compiler.ts";
+import { Report } from "../diagnostic-report.ts";
 import type { HirFunction } from "../hir.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
@@ -40,10 +41,19 @@ export interface RunArgs extends SourceArgs {
 
 /** `hd run FILE`: runs FILE's entry point, the public `main` or `main!`. */
 export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> {
+  // The program's standard output passes through, so a JSON run writes its
+  // records to standard error (spec/cli/command-line.md#r-cli.json.run).
+  const report = new Report(args.format, io, { stream: "stderr", summary: true });
   const placement = await placementOf(args.file, undefined, undefined, args);
-  const loaded = await loadSource(args, io, { profile: args.profile, linkTests: false }, placement);
-  if (typeof loaded === "number") return loaded;
-  return execute(loaded, io, { kind: "run", entry: args.entry, profile: args.profile });
+  const loaded = await loadSource(
+    args,
+    { report, profile: args.profile, linkTests: false },
+    placement,
+  );
+  if (typeof loaded === "number") return report.finish(loaded);
+  return report.finish(
+    await execute(loaded, io, { kind: "run", entry: args.entry, profile: args.profile }),
+  );
 }
 
 export interface TestArgs extends CommandEnvironment {
@@ -66,27 +76,32 @@ export interface TestArgs extends CommandEnvironment {
 
 /** `hd test [FILE|DIR]`: runs the test cases of FILE, of DIR, or of the current package. */
 export async function testCommand(args: TestArgs, io: CommandIo): Promise<number> {
+  const report = new Report(args.format, io, { stream: "stdout", summary: true });
+  return report.finish(await test(args, io, report));
+}
+
+async function test(args: TestArgs, io: CommandIo, report: Report): Promise<number> {
   const cwd = workingDirectory(args);
   if (args.path === undefined) {
     const root = enclosingPackageRoot(cwd) ?? cwd;
-    return testDirectory(args, relative(cwd, root) || ".", io);
+    return testDirectory(args, relative(cwd, root) || ".", io, report);
   }
-  if (await isDirectory(resolve(cwd, args.path))) return testDirectory(args, args.path, io);
+  if (await isDirectory(resolve(cwd, args.path))) return testDirectory(args, args.path, io, report);
   const placement = await placementOf(args.path, args.packageTree, args.testLayout, args);
-  return testFile(args, args.path, io, placement, false);
+  return testFile(args, args.path, io, report, placement, false);
 }
 
 async function testFile(
   args: TestArgs,
   file: string,
   io: CommandIo,
+  report: Report,
   placement: PackagePlacement | undefined,
   quietWhenEmpty: boolean,
 ): Promise<number> {
   const loaded = await loadSource(
     { file, format: args.format, cwd: args.cwd, specDir: args.specDir },
-    io,
-    { profile: args.profile, testLayout: args.testLayout, linkTests: true },
+    { report, profile: args.profile, testLayout: args.testLayout, linkTests: true },
     placement,
   );
   if (typeof loaded === "number") return loaded;
@@ -98,7 +113,12 @@ async function testFile(
  * module under `src/` and `tests/` with the other modules linked; any other
  * directory tests each `.hd` file directly in it.
  */
-async function testDirectory(args: TestArgs, directory: string, io: CommandIo): Promise<number> {
+async function testDirectory(
+  args: TestArgs,
+  directory: string,
+  io: CommandIo,
+  report: Report,
+): Promise<number> {
   const root = resolve(workingDirectory(args), directory);
   let status = 0;
   let ran = 0;
@@ -111,6 +131,7 @@ async function testDirectory(args: TestArgs, directory: string, io: CommandIo): 
         args,
         join(directory, path),
         io,
+        report,
         { root: directory, path, files, reported },
         true,
       );
@@ -123,10 +144,13 @@ async function testDirectory(args: TestArgs, directory: string, io: CommandIo): 
       .sort();
     for (const name of names) {
       ran += 1;
-      status = Math.max(status, await testFile(args, join(directory, name), io, undefined, true));
+      status = Math.max(
+        status,
+        await testFile(args, join(directory, name), io, report, undefined, true),
+      );
     }
   }
-  if (ran === 0) io.out(`${directory}: no .hd files to test`);
+  if (ran === 0 && args.format === "text") io.out(`${directory}: no .hd files to test`);
   return status;
 }
 
@@ -203,15 +227,14 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     // Only the entry point and test cases execute
     // (spec/conformance/README.md#runtime-execution); `--entry` names any
     // exported function for `run`.
-    // A test case with the `ignore` option does not run
+    // A test case with the `ignore` option is selected too: the runner
+    // reports it as ignored without running it
     // (spec/lang/10-modules.md#r-module.testing.option.ignore).
     const selected = compilation.hir.functions.filter((declaration) => {
       if (command === "test")
         return (
           declaration.entry === true ||
-          (/^\$test\.\d+$/.test(declaration.name) &&
-            declaration.testOptions?.ignore === undefined &&
-            inFileModule(declaration))
+          (/^\$test\.\d+$/.test(declaration.name) && inFileModule(declaration))
         );
       if (explicitEntry) return declaration.name === entryName;
       // A non-`pub` `main` is not an entry point; implementation tests may
@@ -219,7 +242,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       return declaration.entry === true;
     });
     if (selected.length === 0 && test) {
-      if (!test.quietWhenEmpty) io.out(`${file}: 0 passed`);
+      if (!test.quietWhenEmpty && test.format === "text") io.out(`${file}: 0 passed`);
       return 0;
     }
     // A module without an entry point runs its initialization and exits 0
@@ -234,14 +257,24 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       snapshots.begin,
       properties,
       snapshots.check,
+      test && {
+        record: (name, outcome, message) => loaded.output.test(name, outcome, message),
+        // With `--format json` every test case reports (cli.json.test), so a
+        // failure does not stop the run.
+        keepGoing: test.format === "json",
+      },
     );
     if (outcome.kind === "exit") return outcome.code;
     if (outcome.kind === "failed") {
       reporter.entryError(outcome.subject, outcome.outcome);
       return 1;
     }
-    if (test) io.out(`${file}: ${outcome.count} passed`);
-    else if (outcome.result !== undefined) io.out(outcome.result);
+    if (test) {
+      if (test.format === "text" && (outcome.count > 0 || !test.quietWhenEmpty))
+        io.out(`${file}: ${outcome.count} passed`);
+      return loaded.output.counts.failed > 0 ? 1 : 0;
+    }
+    if (outcome.result !== undefined) io.out(outcome.result);
     return 0;
   } catch (error) {
     return reportFailure(loaded, error);

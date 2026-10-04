@@ -25,6 +25,17 @@ type RunOutcome =
 
 type Exports = WebAssembly.Exports;
 
+/** Where the runner reports each test case, and whether a failure ends the run. */
+export interface TestReporting {
+  readonly record: (
+    name: string,
+    outcome: "passed" | "failed" | "ignored",
+    message: string,
+  ) => void;
+  /** Run every test case after a failure, and record a panic as a failure. */
+  readonly keepGoing: boolean;
+}
+
 function exportName(declaration: HirFunction): string {
   return /^\$test\.\d+$/.test(declaration.name)
     ? `__hd_test_${declaration.name.slice(6)}`
@@ -182,7 +193,11 @@ export async function runSelected(
   properties: PropertyRun = propertyRun(),
   // Compares the running case's next snapshot file.
   snapshotCheck?: (text: string) => string,
+  reporting?: TestReporting,
 ): Promise<RunOutcome> {
+  const keepGoing = reporting?.keepGoing === true;
+  const failure = (subject: string, outcome?: string): string =>
+    `${subject} ${outcome ?? "returned Err"}`;
   let count = 0;
   let last: unknown;
   for (const declaration of selected) {
@@ -193,6 +208,14 @@ export async function runSelected(
       // An entry point returns its exit code, which is not printed.
       last = declaration.entry && typeof result === "number" ? undefined : result;
       count += 1;
+      continue;
+    }
+    if (declaration.testOptions.ignore !== undefined) {
+      reporting?.record(
+        caseName(declaration, undefined),
+        "ignored",
+        declaration.testOptions.ignore,
+      );
       continue;
     }
     if (declaration.testOptions.property) {
@@ -214,8 +237,10 @@ export async function runSelected(
         }
       };
       const failed = await runProperty(properties, name, once);
-      if (failed) return { kind: "failed", ...failed };
-      count += 1;
+      if (failed && !keepGoing) return { kind: "failed", ...failed };
+      if (failed) reporting?.record(name, "failed", failure(failed.subject, failed.outcome));
+      else reporting?.record(name, "passed", "");
+      if (!failed) count += 1;
       continue;
     }
     const table = declaration.testOptions?.table === true;
@@ -223,15 +248,27 @@ export async function runSelected(
     for (let row = 0; row < rows; row += 1) {
       const exports = await fresh();
       begin?.(declaration.testOptions.name ?? declaration.name, table ? row : undefined);
-      const { outcome, rowCount } = runCase(
-        exports,
-        declaration,
-        table ? row : undefined,
-        undefined,
-        snapshotCheck,
-      );
-      if (outcome) return outcome;
+      const name = caseName(declaration, table ? row : undefined);
+      let result: ReturnType<typeof runCase>;
+      try {
+        result = runCase(exports, declaration, table ? row : undefined, undefined, snapshotCheck);
+      } catch (error) {
+        if (!keepGoing || !(error instanceof RuntimePanicError)) throw error;
+        // A panic in a row leaves the table's row count unknown: it ends the table.
+        reporting?.record(name, "failed", error.message);
+        break;
+      }
+      const { outcome, rowCount } = result;
+      if (outcome && !keepGoing) return outcome;
+      if (outcome) {
+        if (outcome.kind !== "failed") return outcome;
+        reporting?.record(name, "failed", failure(outcome.subject, outcome.outcome));
+        if (!table) break;
+        rows = rowCount;
+        continue;
+      }
       if (table && rowCount === 0) break;
+      reporting?.record(name, "passed", "");
       count += 1;
       if (!table) break;
       rows = rowCount;

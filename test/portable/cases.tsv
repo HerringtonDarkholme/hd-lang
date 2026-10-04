@@ -2297,4 +2297,10 @@ runtime/valid/pending-first-poll-result-propagation.hd	runtime
 runtime/valid/pending-first-poll-return-wide-result.hd	runtime
 runtime/valid/pending-first-poll-void-return-operand.hd	runtime
 runtime/valid/pending-first-poll-void-return.hd	runtime
+cli/json-check-clean	cli
+cli/json-check-warning	cli
+cli/json-test-pass	cli
+cli/json-test-fail	cli
+cli/json-test-ignored	cli
+cli/json-test-order	cli
 cli/exit-usage-error	cli

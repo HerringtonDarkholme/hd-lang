@@ -27,11 +27,12 @@ async function hd(args: readonly string[], specDir?: string): Promise<CommandRes
   return { code: status, stdout, stderr };
 }
 
-function jsonLines(text: string): JsonDiagnostic[] {
+/** The JSON lines of a stream: diagnostics, test objects, and a summary. */
+function jsonLines(text: string): (JsonDiagnostic & Record<string, unknown>)[] {
   return text
     .split("\n")
     .filter((line) => line.trim() !== "")
-    .map((line) => JSON.parse(line) as JsonDiagnostic);
+    .map((line) => JSON.parse(line) as JsonDiagnostic & Record<string, unknown>);
 }
 
 async function withDirectory(run: (directory: string) => Promise<void>): Promise<void> {
@@ -218,7 +219,7 @@ test("suggested fixes come only from codes whose message names the replacement",
   assert.equal(diagnosticFix(diagnosticAt("unknown-name", struct, "P"), struct), undefined);
 });
 
-test("check --format json writes one JSON diagnostic per stderr line", async () => {
+test("check --format json writes one JSON line per diagnostic, then a summary, to stdout", async () => {
   await withDirectory(async (directory) => {
     const spec = await writeSpec(directory);
     const file = join(directory, "legacy.hd");
@@ -234,19 +235,27 @@ test("check --format json writes one JSON diagnostic per stderr line", async () 
 
     const json = await hd(["check", "--format", "json", file], spec);
     assert.equal(json.code, 1);
-    assert.equal(json.stdout, "");
-    const [diagnostic, ...rest] = jsonLines(json.stderr);
+    assert.equal(json.stderr, "");
+    const [diagnostic, summary, ...rest] = jsonLines(json.stdout);
     assert.equal(rest.length, 0);
+    assert.deepEqual(summary, {
+      kind: "summary",
+      errors: 1,
+      warnings: 0,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
+      ignored: 0,
+      status: 1,
+    });
     assert.deepEqual(diagnostic, {
       kind: "diagnostic",
       code: "old-struct-declaration",
       severity: "error",
       message: "'struct' was replaced by 'data'",
       file,
-      span: {
-        start: { line: 1, column: 1, offset: 0 },
-        end: { line: 1, column: 7, offset: 6 },
-      },
+      line: 1,
+      column: 1,
       notes: [],
       related: [],
       fix: {
@@ -271,7 +280,7 @@ test("check --format json writes one JSON diagnostic per stderr line", async () 
     });
 
     // Applying the suggested edit resolves the diagnostic.
-    const edit = diagnostic!.fix!.edits[0]!;
+    const edit = (diagnostic as JsonDiagnostic).fix!.edits[0]!;
     await writeFile(
       file,
       source.slice(0, edit.span.start.offset) +
@@ -281,7 +290,19 @@ test("check --format json writes one JSON diagnostic per stderr line", async () 
     const fixed = await hd(["check", "--format", "json", file]);
     assert.equal(fixed.code, 0);
     assert.equal(fixed.stderr, "");
-    assert.match(fixed.stdout, /legacy\.hd: ok/);
+    // A clean run writes only the summary, with no `ok` line.
+    assert.deepEqual(jsonLines(fixed.stdout), [
+      {
+        kind: "summary",
+        errors: 0,
+        warnings: 0,
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        ignored: 0,
+        status: 0,
+      },
+    ]);
   });
 });
 
@@ -292,10 +313,13 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
     await writeFile(warned, "pub fn main() -> void:\n    unused := 1\n");
     const check = await hd(["check", "--format", "json", warned], spec);
     assert.equal(check.code, 0);
-    const [warning] = jsonLines(check.stderr);
+    const [warning, summary] = jsonLines(check.stdout);
+    assert.equal(check.stderr, "");
     assert.equal(warning?.code, "unused-local-binding");
     assert.equal(warning?.severity, "warning");
-    assert.equal(warning?.span?.start.line, 2);
+    assert.equal(warning?.line, 2);
+    assert.equal(summary?.warnings, 1);
+    assert.equal(summary?.status, 0);
     assert.equal(warning?.rule, null);
     assert.deepEqual(warning?.rules, []);
 
@@ -304,7 +328,7 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
       ambiguous,
       "data P:\n    x: i32\n\npub fn main() -> void:\n    _ := P { x: 1, y: 2 }\n",
     );
-    const unknown = jsonLines((await hd(["check", "--format", "json", ambiguous], spec)).stderr);
+    const unknown = jsonLines((await hd(["check", "--format", "json", ambiguous], spec)).stdout);
     assert.equal(unknown[0]?.code, "unknown-data-field");
     // Two rules name the code, so no single rule is chosen.
     assert.equal(unknown[0]?.rule, null);
@@ -317,19 +341,32 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
     );
     const run = await hd(["run", "--format", "json", panics]);
     assert.equal(run.code, 1);
+    // `hd run` writes only its own records, to stderr (cli.json.run).
+    assert.equal(run.stdout, "");
     assert.deepEqual(jsonLines(run.stderr), [
       {
-        kind: "runtime-panic",
+        kind: "diagnostic",
         code: "integer-division-by-zero",
         severity: "error",
         message: "runtime panic",
         file: panics,
-        span: null,
+        line: null,
+        column: null,
         notes: [],
         related: [],
         fix: null,
         rule: null,
         rules: [],
+      },
+      {
+        kind: "summary",
+        errors: 1,
+        warnings: 0,
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        ignored: 0,
+        status: 1,
       },
     ]);
     const plain = await hd(["run", panics]);
@@ -337,7 +374,19 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
 
     const tested = await hd(["test", "--format", "json", warned]);
     assert.equal(tested.code, 0);
-    assert.match(tested.stdout, /warned\.hd: 1 passed/);
+    // `main` is not a test case, so only the summary is written.
+    assert.deepEqual(jsonLines(tested.stdout), [
+      {
+        kind: "summary",
+        errors: 0,
+        warnings: 0,
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        ignored: 0,
+        status: 0,
+      },
+    ]);
 
     const bad = await hd(["check", "--format", "yaml", warned]);
     assert.equal(bad.code, 101);

@@ -147,7 +147,10 @@ test("a flag given to the wrong command names the commands that accept it", asyn
 test("flags may follow FILE, and --format is global", async () => {
   assert.match((await hd(["build", core, "--wat"])).stdout, /^\(module/m);
   assert.equal((await hd(["--format", "json", "run", core])).stdout.trim(), "7");
-  assert.match((await hd(["check", core, "--format", "json"])).stdout, /core\.hd: ok/);
+  assert.match(
+    (await hd(["check", core, "--format", "json"])).stdout,
+    /^\{"kind":"summary",.*"status":0\}\n$/,
+  );
 });
 
 test("hd debug parse and hd debug hir replace hd parse and hd dump-hir", async () => {
@@ -375,4 +378,83 @@ test("pending-first-poll is a harness hook of the adapter, not an hd option", as
   const io = bufferedIo();
   assert.equal(await main(["test", "--scenario", "pending-first-poll", fixture], io), 101);
   assert.match(io.output().stderr, /--scenario must be one of/);
+});
+
+test("hd test --format json reports every test case", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-json-"));
+  try {
+    await writeTree(directory, {
+      "hd.toml": '[package]\nname = "shop"\n',
+      "src/util.hd": "pub fn double(value: i32) -> i32:\n    value * 2\n",
+      "tests/util.hd": [
+        "use pkg.util.{double}",
+        "use std.testing.assert_equal",
+        "",
+        'it("wrong"):',
+        '    assert_equal(double(2), 5, reason="double doubles")',
+        "",
+        'it("right"):',
+        '    assert_equal(double(2), 4, reason="double doubles")',
+        "",
+        'it("slow", ignore="slow"):',
+        '    assert_equal(double(2), 4, reason="double doubles")',
+        "",
+      ].join("\n"),
+    });
+    let failed: CommandResult | undefined;
+    await assert.rejects(hd(["test", "--format", "json"], directory), (error: CommandResult) => {
+      failed = error;
+      return true;
+    });
+    assert.equal(failed!.code, 1);
+    const records = failed!.stdout
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    assert.deepEqual(
+      records.map(({ kind, name, outcome }) => [kind, name, outcome]),
+      [
+        ["test", "wrong", "failed"],
+        ["test", "right", "passed"],
+        ["test", "slow", "ignored"],
+        ["summary", undefined, undefined],
+      ],
+    );
+    assert.equal(records[2]!.message, "slow");
+    assert.deepEqual(records[3], {
+      kind: "summary",
+      errors: 0,
+      warnings: 0,
+      passed: 1,
+      failed: 1,
+      skipped: 0,
+      ignored: 1,
+      status: 1,
+    });
+
+    // The diagnostic's `file` is relative to the package root, from any directory.
+    await writeTree(directory, { "src/bad.hd": "pub fn bad() -> i32:\n    true\n" });
+    await assert.rejects(
+      hd(["check", "--format", "json", "bad.hd"], join(directory, "src")),
+      (error: CommandResult) => {
+        const parsed = JSON.parse(error.stdout.split("\n")[0]!) as {
+          file: string;
+          line: number;
+          column: number;
+        };
+        assert.equal(parsed.file, "src/bad.hd");
+        assert.equal(parsed.line, 2);
+        assert.equal(typeof parsed.column, "number");
+        assert.equal(error.stderr, "");
+        return true;
+      },
+    );
+
+    // The whole-package `hd test` passes a file with no test case.
+    await rm(join(directory, "tests"), { recursive: true });
+    await rm(join(directory, "src/bad.hd"));
+    assert.equal((await hd(["test"], directory)).stdout, "");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

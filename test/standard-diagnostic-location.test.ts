@@ -43,12 +43,14 @@ pub fn main() -> void: pass
 
     const json = bufferedIo();
     assert.equal(await main(["check", "--format", "json", file], json), 1);
-    const diagnostic = JSON.parse(json.output().stderr) as {
+    const [first] = json.output().stdout.split("\n");
+    const diagnostic = JSON.parse(first!) as {
       readonly file: string;
-      readonly span: { readonly start: { readonly line: number; readonly column: number } };
+      readonly line: number;
+      readonly column: number;
     };
     assert.equal(diagnostic.file, "lib/std/digest.hd");
-    assert.deepEqual(diagnostic.span.start, { line: 2, column: 5, offset: 28 });
+    assert.deepEqual({ line: diagnostic.line, column: diagnostic.column }, { line: 2, column: 5 });
 
     const linked = linkPackage({ "src/main.hd": source }, "src/main.hd");
     assert.ok(linked.source);

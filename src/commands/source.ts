@@ -7,7 +7,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 
 import type { RUNTIME_PROFILE_NAMES } from "../cli-args.ts";
 import type { CompileOptions } from "../compiler.ts";
-import { DiagnosticReporter, type OutputFormat } from "../diagnostic-report.ts";
+import { DiagnosticReporter, type OutputFormat, type Report } from "../diagnostic-report.ts";
 import { DiagnosticError, physicalSpan, sourceDocument, type Diagnostic } from "../diagnostics.ts";
 import { linkPackage, SOURCE_ROOT, TEST_ROOT, type LinkedPackage } from "../package.ts";
 import type { PackageDiagnostic } from "../package.ts";
@@ -15,7 +15,7 @@ import type { ParseOptions } from "../parser/index.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "../runtime-panic.ts";
 import { loadSpecIndex } from "../spec-index.ts";
 import { RUNTIME_PROFILES } from "./profiles.ts";
-import { workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
+import { workingDirectory, type CommandEnvironment } from "./io.ts";
 
 export type RuntimeProfileName = (typeof RUNTIME_PROFILE_NAMES)[number];
 export type TestLayout = "test-module" | "integration";
@@ -59,10 +59,14 @@ export interface LoadedSource {
   readonly linked?: LinkedPackage;
   readonly placement?: PackagePlacement;
   readonly reporter: DiagnosticReporter;
+  /** The command's output: its test results and summary counts. */
+  readonly output: Report;
   readonly report: (diagnostic: Diagnostic | PackageDiagnostic) => void;
 }
 
 interface LoadOptions {
+  /** Where the diagnostics go, and what the command's summary counts. */
+  readonly report: Report;
   readonly profile?: RuntimeProfileName;
   readonly testLayout?: TestLayout;
   /** Link the test modules of FILE's package too. */
@@ -76,7 +80,6 @@ interface LoadOptions {
  */
 export async function loadSource(
   args: SourceArgs,
-  io: CommandIo,
   options: LoadOptions,
   placement?: PackagePlacement,
 ): Promise<LoadedSource | number> {
@@ -108,7 +111,15 @@ export async function loadSource(
     entryModule: !("testModule" in parseOptions),
   };
   const specIndex = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
-  const reporter = new DiagnosticReporter(format, file, fileSource, specIndex, io.err);
+  // The JSON `file` is relative to the package root, and outside a package
+  // the path as written (spec/cli/command-line.md#r-cli.json.diagnostic.file).
+  const reporter = new DiagnosticReporter(
+    options.report,
+    file,
+    fileSource,
+    specIndex,
+    placement?.path,
+  );
   // A diagnostic in a package names the file it points into.
   const treeReporters = new Map<string, DiagnosticReporter>();
   const report = (diagnostic: Diagnostic | PackageDiagnostic): void => {
@@ -132,11 +143,11 @@ export async function loadSource(
     let treeReporter = treeReporters.get(located.path);
     if (!treeReporter) {
       treeReporter = new DiagnosticReporter(
-        format,
+        options.report,
         join(placement.root, located.path),
         treeFiles[located.path] ?? "",
         specIndex,
-        io.err,
+        located.path,
       );
       treeReporters.set(located.path, treeReporter);
     }
@@ -155,6 +166,7 @@ export async function loadSource(
     linked,
     placement,
     reporter,
+    output: options.report,
     report,
   };
 }

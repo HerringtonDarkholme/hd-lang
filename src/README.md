@@ -150,14 +150,16 @@ format a person needs.
 
 ### Machine-Readable Diagnostics
 
-`--format json` is the one global flag. It matters for every command that
-compiles a file: `check`, `test`, `run`, `build`, and `debug`. It changes only the diagnostic stream: each
-diagnostic the text format would print goes to stderr as one JSON object per
-line (JSON Lines), in the same order. Stdout keeps what the command prints,
-such as the `ok` line or program output, and exit codes do not change.
+`--format json` is the one global flag. It follows
+[Machine Output](../spec/cli/command-line.md#machine-output): `check`,
+`build`, and `test` write JSON lines to stdout and nothing else, and `run`
+writes `hd`'s own records to stderr, so the program's stdout passes through.
+The records are diagnostics, one test object per test case (`hd test`), and
+a last summary object, written on success too. The `ok` and `N passed` text
+lines and the `build` path are not written. Exit codes do not change.
 
 ```sh
-hd check --format json app.hd 2> diagnostics.jsonl
+hd check --format json app.hd > diagnostics.jsonl
 ```
 
 ```json
@@ -167,10 +169,8 @@ hd check --format json app.hd 2> diagnostics.jsonl
   "severity": "error",
   "message": "'struct' was replaced by 'data'",
   "file": "app.hd",
-  "span": {
-    "start": { "line": 1, "column": 1, "offset": 0 },
-    "end": { "line": 1, "column": 7, "offset": 6 }
-  },
+  "line": 1,
+  "column": 1,
   "notes": [],
   "related": [],
   "fix": {
@@ -190,20 +190,28 @@ hd check --format json app.hd 2> diagnostics.jsonl
     { "id": "data.decl.no-struct", "anchor": "spec/lang/08-data-and-enums.md#r-data.decl.no-struct" }
   ]
 }
+{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":1}
 ```
 
-(Each record is printed on one line; it is spread out here to read.)
+(Each record is printed on one line; the diagnostic is spread out here to read.)
+
+A test object is `{"kind":"test","name","outcome","message"}`, with `outcome`
+`passed`, `failed`, or `ignored` (the prototype has no skipped test case) and
+the failure or ignore reason in `message`. With `--format json`, `hd test`
+runs every test case after a failure, and lists the objects in file path
+order, then declaration order. The summary object counts `errors`,
+`warnings`, and each outcome, and holds the command's exit `status`.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `diagnostic` for compiler diagnostics, `runtime-panic` for a panic while running, `entry-error` when a `Result`-returning `main` returns `Err`. |
-| `code` | The stable code from [spec/README.md](../spec/README.md#diagnostics) or the panic category; `null` only for `entry-error`. |
+| `kind` | `diagnostic` for a compiler diagnostic, a panic while running, or a `Result`-returning `main` that returns `Err`. |
+| `code` | The stable code from [spec/README.md](../spec/README.md#diagnostics) or the panic category; `null` when a `main` returns `Err`. |
 | `severity` | `error` or `warning`. |
 | `message`, `notes` | The prose the text format prints. |
-| `file` | The source containing the primary span: normally the command-line path, or `lib/std/<module>.hd` for a standard-library diagnostic. |
-| `span` | Primary location. Lines and columns are 1-based, columns count UTF-16 code units, `offset` is the 0-based UTF-16 offset, and `end` is exclusive. `null` for runtime records. |
-| `related` | Secondary locations as `{message, file, span}`. |
-| `fix` | `{message, edits}` when the prototype knows the one correct edit, else `null`. An edit replaces its `span` with `replacement`; an empty span inserts and an empty replacement deletes. |
+| `file` | The source containing the position: in a package the path relative to the package root, outside one the path as written, or `lib/std/<module>.hd` for a standard-library diagnostic. |
+| `line`, `column` | Primary position. Both are 1-based, and columns count UTF-16 code units. `null` for a failure with no source location, such as a panic. |
+| `related` | Secondary positions as `{message, file, line, column}`. |
+| `fix` | `{message, edits}` when the prototype knows the one correct edit, else `null`. An edit replaces its `span` (`offset` is the 0-based UTF-16 offset, and `end` is exclusive) with `replacement`; an empty span inserts and an empty replacement deletes. |
 | `rule` | The rule ID naming this code, when exactly one rule does; else `null`. |
 | `rules` | Every rule whose text names this code, as `{id, anchor}`. |
 

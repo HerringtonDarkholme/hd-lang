@@ -2,7 +2,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { analyze } from "../compiler.ts";
-import { DiagnosticReporter, type OutputFormat } from "../diagnostic-report.ts";
+import { DiagnosticReporter, Report, type OutputFormat } from "../diagnostic-report.ts";
 import { moduleIdentity, SOURCE_ROOT } from "../package.ts";
 import { parse } from "../parser/index.ts";
 import { explainCode, loadSpecIndex, type SpecMention } from "../spec-index.ts";
@@ -132,12 +132,13 @@ async function loadProject(args: LookupArgs, io: CommandIo): Promise<Project | u
     io.err(`hd: cannot read ${target}`);
     return undefined;
   }
+  const report = new Report(format, io);
   const load = async (path: string, identity: string, display: string) => {
     const source = await readFile(path, "utf8");
     const result = parse(source);
     if (!result.program) {
       const index = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
-      const reporter = new DiagnosticReporter(format, display, source, index, io.err);
+      const reporter = new DiagnosticReporter(report, display, source, index);
       for (const diagnostic of result.diagnostics) reporter.diagnostic(diagnostic);
       return { source, module: undefined };
     }

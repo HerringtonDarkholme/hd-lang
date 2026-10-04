@@ -8,9 +8,10 @@ import type {
 import { formatDiagnostic, physicalSpan, sourceDocument } from "./diagnostics.ts";
 import type { SpecIndex } from "./spec-index.ts";
 
-// Machine-readable diagnostics for `--format json`. Each record is one JSON
-// object on its own line of stderr (JSON Lines); src/README.md documents the
-// schema. The text format stays the one `formatDiagnostic` prints.
+// Machine-readable output for `--format json` (spec/cli/command-line.md,
+// Machine Output). Each record is one JSON object on its own line (JSON
+// Lines); src/README.md documents the schema. The text format stays the one
+// `formatDiagnostic` prints.
 
 export type OutputFormat = "text" | "json";
 
@@ -34,20 +35,24 @@ interface JsonRuleRef {
   readonly anchor: string;
 }
 
+/** A diagnostic object (`cli.json.diagnostic.fields`), plus the prototype's agent fields. */
 export interface JsonDiagnostic {
-  readonly kind: "diagnostic" | "runtime-panic" | "entry-error";
-  /** A stable code from spec/README.md#diagnostics; null only for `entry-error`. */
+  readonly kind: "diagnostic";
+  /** A stable code from spec/README.md#diagnostics; null for a `main` that returned `Err`. */
   readonly code: string | null;
   readonly severity: "error" | "warning";
   readonly message: string;
   readonly file: string;
-  /** Null when the failure has no source location (runtime records). */
-  readonly span: JsonSpan | null;
+  /** 1-based line; null when the failure has no source location (runtime records). */
+  readonly line: number | null;
+  /** 1-based column in UTF-16 code units; null with `line`. */
+  readonly column: number | null;
   readonly notes: readonly string[];
   readonly related: readonly {
     readonly message: string;
     readonly file: string;
-    readonly span: JsonSpan;
+    readonly line: number;
+    readonly column: number;
   }[];
   readonly fix: {
     readonly message: string;
@@ -122,19 +127,25 @@ function jsonDiagnostic(
   const rules = ruleRefs(index, diagnostic.code);
   const document = sourceDocument(diagnostic.span);
   const fix = diagnosticFix(diagnostic, document?.text ?? source);
+  const { line, column } = physicalSpan(diagnostic.span).start;
   return {
     kind: "diagnostic",
     code: diagnostic.code,
     severity: diagnostic.severity ?? "error",
     message: diagnostic.message,
     file: document?.file ?? file,
-    span: jsonSpan(diagnostic.span),
+    line,
+    column,
     notes: diagnostic.notes ?? [],
-    related: (diagnostic.related ?? []).map((related) => ({
-      message: related.message,
-      file: sourceDocument(related.span)?.file ?? file,
-      span: jsonSpan(related.span),
-    })),
+    related: (diagnostic.related ?? []).map((related) => {
+      const start = physicalSpan(related.span).start;
+      return {
+        message: related.message,
+        file: sourceDocument(related.span)?.file ?? file,
+        line: start.line,
+        column: start.column,
+      };
+    }),
     fix: fix
       ? {
           message: fix.message,
@@ -149,76 +160,100 @@ function jsonDiagnostic(
   };
 }
 
-/** Writes a command's diagnostics and runtime failures in one output format. */
-export class DiagnosticReporter {
+/** A test case's outcome (`cli.json.test.fields`). */
+export type TestOutcome = "passed" | "failed" | "skipped" | "ignored";
+
+/**
+ * One command's output: where its diagnostics, test objects, and summary
+ * go, and the counts the summary reports (`cli.json.summary.fields`).
+ * Text diagnostics always go to standard error. With `--format json` the
+ * records go to `stream`: standard output for `build`, `check`, and `test`
+ * (`cli.json.lines.build`), standard error for `run` and `hd FILE`
+ * (`cli.json.run`).
+ */
+export class Report {
   readonly format: OutputFormat;
-  private readonly file: string;
-  private readonly source: string;
-  private readonly index: SpecIndex | undefined;
-  private readonly write: (line: string) => void;
+  readonly counts = { errors: 0, warnings: 0, passed: 0, failed: 0, skipped: 0, ignored: 0 };
+  private readonly writeText: (line: string) => void;
+  private readonly writeJson: (line: string) => void;
+  private readonly summary: boolean;
 
   constructor(
     format: OutputFormat,
-    file: string,
-    source: string,
-    index?: SpecIndex,
-    write: (line: string) => void = (line) => console.error(line),
+    io: { readonly out: (value: unknown) => void; readonly err: (line: string) => void },
+    options: { readonly stream?: "stdout" | "stderr"; readonly summary?: boolean } = {},
   ) {
     this.format = format;
+    this.writeText = io.err;
+    this.writeJson = options.stream === "stdout" ? (line) => io.out(line) : io.err;
+    this.summary = options.summary ?? false;
+  }
+
+  /** Writes one line of text diagnostics, or one JSON record. */
+  write(text: string, record?: object): void {
+    if (this.format === "json" && record) this.writeJson(JSON.stringify(record));
+    else this.writeText(text);
+  }
+
+  count(severity: "error" | "warning"): void {
+    this.counts[severity === "error" ? "errors" : "warnings"] += 1;
+  }
+
+  /** A test case's result: one test object with `--format json`, nothing in text. */
+  test(name: string, outcome: TestOutcome, message = ""): void {
+    this.counts[outcome] += 1;
+    if (this.format === "json")
+      this.writeJson(JSON.stringify({ kind: "test", name, outcome, message }));
+  }
+
+  /** Ends the command with `status`; with `--format json` the summary object comes last. */
+  finish(status: number): number {
+    if (this.format === "json" && this.summary)
+      this.writeJson(JSON.stringify({ kind: "summary", ...this.counts, status }));
+    return status;
+  }
+}
+
+/** Writes a command's diagnostics and runtime failures in one output format. */
+export class DiagnosticReporter {
+  readonly format: OutputFormat;
+  private readonly report: Report;
+  private readonly file: string;
+  private readonly source: string;
+  private readonly index: SpecIndex | undefined;
+  private readonly jsonFile: string;
+
+  /**
+   * `file` is the path text diagnostics name; `jsonFile` is the path the
+   * JSON `file` field holds, which is relative to the package root in a
+   * package (`cli.json.diagnostic.file`).
+   */
+  constructor(report: Report, file: string, source: string, index?: SpecIndex, jsonFile = file) {
+    this.format = report.format;
+    this.report = report;
     this.file = file;
     this.source = source;
     this.index = index;
-    this.write = write;
+    this.jsonFile = jsonFile;
   }
 
   diagnostic(diagnostic: Diagnostic): void {
-    this.write(
+    this.report.count(diagnostic.severity ?? "error");
+    this.report.write(
+      formatDiagnostic(this.file, diagnostic),
       this.format === "json"
-        ? JSON.stringify(jsonDiagnostic(this.file, diagnostic, this.source, this.index))
-        : formatDiagnostic(this.file, diagnostic),
+        ? jsonDiagnostic(this.jsonFile, diagnostic, this.source, this.index)
+        : undefined,
     );
   }
 
   runtimePanic(code: string, detail = "runtime panic"): void {
-    if (this.format === "text") {
-      this.write(`${code}: ${detail}`);
-      return;
-    }
-    const rules = ruleRefs(this.index, code);
-    this.record({
-      kind: "runtime-panic",
-      code,
-      severity: "error",
-      message: detail,
-      file: this.file,
-      span: null,
-      notes: [],
-      related: [],
-      fix: null,
-      rule: rules.length === 1 ? rules[0]!.id : null,
-      rules,
-    });
+    this.located(`${code}: ${detail}`, code, detail);
   }
 
   /** A checked program that stopped at a feature the prototype does not run. */
   unsupported(code: string, message: string): void {
-    if (this.format === "text") {
-      this.write(`${this.file}: ${code}: ${message}`);
-      return;
-    }
-    this.record({
-      kind: "diagnostic",
-      code,
-      severity: "error",
-      message,
-      file: this.file,
-      span: null,
-      notes: [],
-      related: [],
-      fix: null,
-      rule: null,
-      rules: [],
-    });
+    this.located(`${this.file}: ${code}: ${message}`, code, message, false);
   }
 
   /**
@@ -226,26 +261,27 @@ export class DiagnosticReporter {
    * (`outcome`); the program ran, so no code applies.
    */
   entryError(subject = "main", outcome = "returned Err"): void {
-    if (this.format === "text") {
-      this.write(`${this.file}: ${subject} ${outcome}`);
-      return;
-    }
-    this.record({
-      kind: "entry-error",
-      code: null,
+    this.located(`${this.file}: ${subject} ${outcome}`, null, `${subject} ${outcome}`);
+  }
+
+  /** A failure with no source location. */
+  private located(text: string, code: string | null, message: string, applyRules = true): void {
+    this.report.count("error");
+    const rules = code && applyRules ? ruleRefs(this.index, code) : [];
+    const record: JsonDiagnostic = {
+      kind: "diagnostic",
+      code,
       severity: "error",
-      message: `${subject} ${outcome}`,
-      file: this.file,
-      span: null,
+      message,
+      file: this.jsonFile,
+      line: null,
+      column: null,
       notes: [],
       related: [],
       fix: null,
-      rule: null,
-      rules: [],
-    });
-  }
-
-  private record(record: JsonDiagnostic): void {
-    this.write(JSON.stringify(record));
+      rule: rules.length === 1 ? rules[0]!.id : null,
+      rules,
+    };
+    this.report.write(text, this.format === "json" ? record : undefined);
   }
 }
