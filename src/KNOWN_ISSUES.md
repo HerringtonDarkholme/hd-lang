@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,214 cases: 2,085 selected in `test/portable/cases.tsv` and 129 known
-failures. The selected cases are 1,830 language tier and 255 stdlib tier;
-the known failures are 107 language tier and 22 stdlib tier.
+2,225 cases: 2,089 selected in `test/portable/cases.tsv` and 136 known
+failures. The selected cases are 1,834 language tier and 255 stdlib tier;
+the known failures are 114 language tier and 22 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -53,6 +53,7 @@ the known failures are 107 language tier and 22 stdlib tier.
 | QUALIFIED-PREFIX | 3 | a string prefix after `.` does not report `qualified-string-prefix` |
 | LITERAL-FIRST-USE | 23 | an unannotated literal binding falls back before its first deciding use |
 | SIGN-FALLBACK | 10 | an unsigned literal group falls back to `i32`, not `usize`, and `unsigned-comparison-always` is not checked |
+| ONE-FIT | 7 | a literal is `i32` on the spot, so one fitting candidate never decides it, several fitting candidates never wait for the `usize` fallback, and the fallback hint is absent |
 
 ## Findings
 
@@ -143,6 +144,7 @@ Compiler structure:
 | DEFAULT-FIELD | Batch 59: a member that declares a default needs no `Default` on its type. The `std.ops` template's `member[F < Default]` bound still covers it, so the prototype reports `member-not-derivable`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, and of the new items it declares only `Random`. |
 | STD-1 | Batch 64 specifies Map helpers. Bounded inherent Map implementations are now legal, but `lib/std/collections.hd` does not yet define `get_or`, `keys`, or `values`. |
+| ONE-FIT | Task #254: exactly one fitting candidate (a bound's one implementing type, one receiver or left-operand type, one instantiation) decides an open literal; two or more decide nothing, and a failure after the fallback suggests `+5` or an annotation. A literal joined with a dependent method result takes its resolved type, no use of a method result decides the receiver, and a literal erased to `Any` or `Inspectable` takes the fallback. The prototype types the literal as `i32` on the spot and emits no hint. |
 
 ## Gaps No Fixture Reaches
 
