@@ -10,10 +10,10 @@ git history keeps the audit evidence behind each finding.
 
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
-finding below or with an applied decision. On 2026-10-03 the suite has
-2,244 cases: 2,110 selected in `test/portable/cases.tsv` and 134 known
-failures. The selected cases are 1,845 language tier and 265 stdlib tier;
-the known failures are 122 language tier and 12 stdlib tier.
+finding below or with an applied decision. On 2026-10-04 the suite has
+2,244 cases: 2,112 selected in `test/portable/cases.tsv` and 132 known
+failures. The selected cases are 1,845 language tier and 267 stdlib tier;
+the known failures are 122 language tier and 10 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -39,8 +39,6 @@ the known failures are 122 language tier and 12 stdlib tier.
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
-| SNAPSHOT-ROW | 1 | the host runner provider does not answer `TestRunner.snapshot_check`, so `snapshot_file` has no `$ TestRunner` row |
-| RUNNER-SURFACE | 1 | the host property runner does not answer `start` with a `PropertyCase`, or `record` |
 | LIST-POP | 4 | `List.pop`, `insert`, `remove_at`, `clear`, and their list-truncate hook are absent |
 | STD-DEBUG | 1 | std derivation ordering leaves TypeId and SelfRef without Debug |
 | METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |

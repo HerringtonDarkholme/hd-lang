@@ -429,7 +429,7 @@ Findings:
 | # | Finding | Recommendation |
 | --- | --- | --- |
 | 1 | Every host-touching public function in `lib/std` declares its row: `println`, `args`, `env`, `rng`, `Cli.parse_args`, `hd_run!`, `case_timeout`. The missing helpers (`eprintln`, `read_line!`, `now`, `sleep!`, `read_text!`, `write_text!`) will need theirs. | none |
-| 2 | One primitive outside the [primitives table](../spec/std/README.md#standard-library-primitives): `snapshot_file_check` (`lib/std/testing.hd:456`). | tracked by SNAPSHOT-ROW, which drops it |
+| 2 | `snapshot_file` reaches the runner through `TestRunner.snapshot_check`, so `lib/std` no longer declares the `snapshot_file_check` primitive, which was outside the [primitives table](../spec/std/README.md#standard-library-primitives). | none |
 | 3 | `panic`, `char_scalar`, and `string_from_bytes` are declared in several modules (`ops`, `text`, `collections`, `testing`; `format`, `text`, `hash`). Each is a table primitive; the copies are a loader limitation. | none now; one declaration once modules can share private items |
 | 4 | Test providers: `Console`, `Args`, `Env`, `FsRead`/`FsWrite`, `Clock`, `Random` have one. `ConsoleInput` has none. `ScriptedProcess` has no public constructor, so code outside `std` cannot build one. `TestRunner` and `PropertyRunner` have none, which is fine for runner hooks. | `ScriptedInput::new(lines)`; `ScriptedProcess::new(outputs)` |
 

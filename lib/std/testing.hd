@@ -27,54 +27,47 @@ pub trait TestRunner:
     fn report_timeout(mut self, millis: i64) -> void
     # Compares `text` with the case's next snapshot file, and records the
     # file in an update run; "" when it matches or was recorded, else why
-    # not (r-std-testing.runner.snapshot-check). The host runner provider
-    # does not answer it yet, so `snapshot_file` still calls the
-    # `snapshot_file_check` primitive (SNAPSHOT-ROW in
-    # test/portable/KNOWN_FAILURES.tsv).
+    # not (r-std-testing.runner.snapshot-check).
     fn snapshot_check(mut self, text: string) -> string
 
 # What a property runner's `start` returns for one case
-# (r-std-testing.runner.case-type). `PropertyRunner` does not return it
-# yet: the host property runner still answers the older methods below
-# (RUNNER-SURFACE in test/portable/KNOWN_FAILURES.tsv).
+# (r-std-testing.runner.case-type).
 pub data PropertyCase:
     pub example: usize?
     pub seed: i64
     pub size: i32
     pub replay: List[i64]
 
-# The property runner records, replays, and shrinks each case's draws
-# (src/property-tests.ts).
+# The property runner records and shrinks each case's draws
+# (src/property-tests.ts); `Choices` replays them.
 pub trait PropertyRunner:
-    # Reports the caps and the example count; the example this case runs,
-    # or -1 for a generated case. Once every example has run, the runner
-    # ends the case as discarded instead.
-    fn start(mut self, cases: usize, shrink: usize, examples: usize) -> i32
-    # The seed of the case's random draws.
-    fn seed(self) -> i64
-    # How far the case's random draws may reach: up to 2^(3 + size).
-    fn size(self) -> i32
-    # The case's next draw from 0 to `bound`, which the runner records: a
-    # replayed or shrunk draw, else `fresh`.
-    fn draw(mut self, bound: i64, fresh: i64) -> i64
-    # Ends the case as discarded; it does not return.
-    fn discard(mut self) -> void
+    # Reports the caps and the example count, and returns the case to run
+    # (r-std-testing.runner.start-case). Once every example has run, the
+    # runner ends the case as discarded instead
+    # (r-std-testing.runner.examples-done).
+    fn start(mut self, cases: usize, shrink: usize, examples: usize) -> PropertyCase
+    # Records the case's next draw, a value from 0 to that draw's bound
+    # (r-std-testing.runner.record).
+    fn record(mut self, value: i64) -> void
     # The `Debug` text of the case's input, for the failure report.
     fn show(mut self, text: string) -> void
 
 # The only source of randomness a generator sees
-# (spec/std/testing.md#property-tests). The runner creates each one and
-# records each draw, so it can replay and shrink a case: every member draws
-# through the case's `PropertyRunner`, which returns an integer from 0 to a
-# bound, and a replayed or shrunk case returns the recorded values
-# (src/property-tests.ts). A generated case offers each draw from a
-# `SeededRandom` that the runner's seed starts (r-std-testing.runner.random). Once
-# a case's draws have spent the draw budget, every member returns its
-# simplest value without drawing (spec/std/testing.md#draw-budget).
+# (spec/std/testing.md#property-tests). `std.testing` creates each one from
+# the case's `PropertyCase` (r-std-testing.choices.from-case). Every member
+# draws an integer from 0 to a bound: the draw at position `i` replays
+# `replay[i]`, limited to the bound, and every other draw is fresh, from a
+# `SeededRandom` that the case's seed starts (r-std-testing.runner.replay,
+# r-std-testing.runner.random). Each draw is recorded through the case's
+# `PropertyRunner` before it is used (r-std-testing.runner.record-every), so
+# the runner can replay and shrink the case. Once a case's draws have spent
+# the draw budget, every member returns its simplest value without drawing
+# (spec/std/testing.md#draw-budget).
 pub data Choices:
     runner: mut PropertyRunner
     random: mut Random
     size: i32
+    replay: List[i64]
     draws: usize
 
 impl Choices:
@@ -83,10 +76,23 @@ impl Choices:
     fn spent(self) -> bool:
         self.draws >= 256
 
-    # One recorded draw from 0 to `bound`; a shrunk draw moves toward 0.
+    # One recorded draw from 0 to `bound`: the replayed draw at this
+    # position, limited to `bound`, else a fresh one. A shrunk draw moves
+    # toward 0.
     fn next(mut self, bound: i64) -> i64:
+        index := self.draws
         self.draws = self.draws + 1
-        self.runner.draw(bound, self.fresh(bound))
+        let value: i64 = 0
+        if index < self.replay.len():
+            value = self.replay[index]
+            if value > bound:
+                value = bound
+            if value < 0:
+                value = 0
+        else:
+            value = self.fresh(bound)
+        self.runner.record(value)
+        value
 
     # A random draw from 0 to `bound`, at most 2^(3 + size), so draws grow
     # from case to case: 0 one time in ten, the top one time in twenty, and
@@ -189,10 +195,12 @@ impl Choices:
             index = index + 1
         text
 
-    # A false `ok` discards the case (spec/std/testing.md#property-tests).
+    # A false `ok` discards the case with the discard panic, which the
+    # runner reads as a discard before `show`
+    # (r-std-testing.runner.discard-panic).
     pub fn assume(mut self, ok: bool) -> void:
         if !ok:
-            self.runner.discard()
+            panic("std.testing: case discarded")
 
     pub fn draw[T < Arbitrary](mut self) -> T:
         T::arbitrary(self)
@@ -405,29 +413,35 @@ fn each_case![T, R, $Q](rows: List[T], body: fn!(T) -> R $ Q) -> R $ Q + TestRun
 # The body of an `it_prop` test case (spec/std/testing.md#property-tests):
 # the runner calls it once per generated case, each in a fresh instance
 # (src/property-tests.ts). It reports its case and shrink caps and its
-# examples to the runner's `PropertyRunner`, takes the example the runner
-# selects or draws the input with `T`'s `Arbitrary` from a fresh `Choices`,
-# shows the input's `Debug` text, and runs `prop`.
+# examples to the runner's `PropertyRunner`, takes the example the case
+# names or draws the input with `T`'s `Arbitrary` from a fresh `Choices`,
+# shows the input's `Debug` text, and runs `prop`
+# (r-std-testing.runner.show-before-body).
 fn prop_case![T < Arbitrary & Debug, R, $Q](cases: usize, shrink: usize, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
     let mut runner = $.use(PropertyRunner)
-    index := runner.start(cases, shrink, examples.len())
-    value := if index >= 0: examples[usize(index)] else: choices(runner).draw::[T]()
+    current := runner.start(cases, shrink, examples.len())
+    value := match current.example:
+        .Some(index) => examples[index]
+        .None => choices(runner, current).draw::[T]()
     runner.show(debug(value))
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
 fn prop_with_case![T < Debug, R, $Q](cases: usize, shrink: usize, gen: fn(mut Choices) -> T, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
     let mut runner = $.use(PropertyRunner)
-    index := runner.start(cases, shrink, examples.len())
-    value := if index >= 0: examples[usize(index)] else: gen(choices(runner))
+    current := runner.start(cases, shrink, examples.len())
+    value := match current.example:
+        .Some(index) => examples[index]
+        .None => gen(choices(runner, current))
     runner.show(debug(value))
     prop!(value)
 
-# A fresh `Choices` for one generated case. It holds the runner's provider
-# value, so a generator draws through it with no requirement row
+# A fresh `Choices` for one generated case, from the `PropertyCase` that
+# `start` returned. It holds the runner's provider value, so a generator
+# records its draws through it with no requirement row
 # (r-std-testing.runner.choices).
-fn choices(runner: mut PropertyRunner) -> mut Choices:
-    Choices { runner: runner, random: SeededRandom::new(u64(runner.seed())), size: runner.size(), draws: 0 }
+fn choices(runner: mut PropertyRunner, current: PropertyCase) -> mut Choices:
+    Choices { runner: runner, random: SeededRandom::new(u64(current.seed)), size: current.size, replay: current.replay, draws: 0 }
 
 # The body of a timed `it` test case, after `case_timeout`: the written
 # body as a closure, so the runner's `TestRunner` covers only the test
@@ -468,14 +482,12 @@ fn panic_with(category: string, message: string) -> void:
 # reads, and on `hd test --update` writes, the file, and returns why it
 # differs, or "" when it matches. A missing file fails except on `--update`.
 # A mismatch or a missing file is a failed assertion (Testing T54), so it
-# panics with `assertion-failed`, as `assert_equal` does.
-pub fn snapshot_file(text: string) -> void:
-    problem := snapshot_file_check(text)
+# panics with `assertion-failed`, as `assert_equal` does. The check runs on
+# the `TestRunner` provider that covers the call
+# (r-std-testing.snapshot-file.runner).
+pub fn snapshot_file(text: string) -> void $ TestRunner:
+    problem := $.use(TestRunner).snapshot_check(text)
     assert(problem == "", problem)
-
-@intrinsic("snapshot_file_check")
-fn snapshot_file_check(text: string) -> string:
-    panic("intrinsic")
 
 # What `hd_run!` returns (spec/std/testing.md#running-executables).
 pub data RunOutput:
