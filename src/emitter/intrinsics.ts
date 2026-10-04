@@ -38,8 +38,15 @@ const RUNTIME_PRIMITIVES: Readonly<
   bytes_concat: ([left, right]) =>
     `(call $hd.bytes_concat (ref.as_non_null ${left}) (ref.as_non_null ${right}))`,
   string_from_bytes: ([items]) => `(call $hd.string_from_bytes (ref.as_non_null ${items}))`,
-  // A `char` is its scalar value at run time, both ways.
-  char_from_scalar: ([point]) => point!,
+  // A `char` is its scalar value at run time, both ways. A surrogate or a
+  // value above 0x10FFFF has no `char`, so it gives the absent optional.
+  char_from_scalar: ([point]) =>
+    [
+      `(if (result (ref $hd.variant))`,
+      `  (i32.or (i32.lt_u (i32.sub ${point} (i32.const 0xD800)) (i32.const 0x800)) (i32.gt_u ${point} (i32.const 0x10FFFF)))`,
+      `  (then (struct.new $hd.variant (i32.const 0) (ref.null any)))`,
+      `  (else (struct.new $hd.variant (i32.const 1) (struct.new $hd.box-i32 ${point}))))`,
+    ].join("\n"),
   char_scalar: ([value]) => value!,
   // A list's structural-version counter, which `List.view` records and checks
   // (spec/std/collections.md#views, open issue VIEW-TIER).

@@ -105,9 +105,11 @@ fn unicode_escape(text: string, start: usize) -> EscapedScalar?:
         point = point * 16 + value
         digits = digits + 1
         index = index + 1
-    if index >= size || digits == 0 || !scalar_value(point):
+    if index >= size || digits == 0:
         return .None
-    .Some(EscapedScalar { text: "${scalar_char(point)}", end: index + 1 })
+    match char_from_scalar(u32(point)):
+        .Some(scalar) => .Some(EscapedScalar { text: "${scalar}", end: index + 1 })
+        .None => .None
 
 # The value of an ASCII hex digit byte, or -1.
 fn hex_digit(byte: i32) -> i32:
@@ -159,7 +161,7 @@ impl string:
                 return .None
             point := scalar_at(self, at)
             at = scalar_end(self, at)
-            .Some(scalar_char(point))
+            char_from_scalar(u32(point))
         )
 
     # Each scalar value with the byte offset where its encoding starts
@@ -171,7 +173,9 @@ impl string:
                 return .None
             start := at
             at = scalar_end(self, start)
-            .Some((start, scalar_char(scalar_at(self, start))))
+            match char_from_scalar(u32(scalar_at(self, start))):
+                .Some(scalar) => .Some((start, scalar))
+                .None => .None
         )
 
     # The bytes in order (spec/lang/10-modules.md#r-module.string.bytes).
@@ -791,12 +795,10 @@ fn host_lower(text: string) -> string:
 fn host_upper(text: string) -> string:
     panic("intrinsic")
 
-# The `char` of a scalar value. The specified primitive is
-# `char_from_scalar(point: u32) -> char?`; the prototype's intrinsic still
-# returns the `char` unchecked (CHAR-SCALAR in future-work/STDLIB_PLAN.md),
-# so every caller passes a checked scalar value.
+# The `char` of a scalar value, or `.None` for a surrogate or a value above
+# `0x10FFFF`. Every caller passes the scalar value of a valid UTF-8 string.
 @intrinsic("char_from_scalar")
-fn scalar_char(point: i32) -> char:
+fn char_from_scalar(point: u32) -> char?:
     panic("intrinsic")
 
 # A `char` is its scalar value at run time.
