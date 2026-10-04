@@ -11,6 +11,12 @@ import type {
 } from "../hir.ts";
 
 export interface CaptureCellMapper {
+  /**
+   * Whether mapping `fn` could change it. Return false only when the mapped
+   * function would be identical to the input; a false negative silently
+   * skips conversion. Absent means every function is mapped.
+   */
+  shouldMap?(fn: HirFunction): boolean;
   local(local: HirLocal): HirLocal;
   expression(
     mapped: HirExpression,
@@ -22,6 +28,7 @@ export interface CaptureCellMapper {
 
 /** Typed capture-conversion traversal; scalar metadata is always retained unchanged. */
 export function mapCapturedFunction(fn: HirFunction, mapper: CaptureCellMapper): HirFunction {
+  if (mapper.shouldMap?.(fn) === false) return fn;
   const walk = captureTraversal(mapper);
   return {
     ...fn,
