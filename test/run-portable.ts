@@ -63,7 +63,7 @@ function splitCommand(value: string): string[] {
 function parseOptions(args: readonly string[]): Options {
   let commandText = process.env.HD_TEST_COMMAND ?? "node --experimental-strip-types bin/hd.js";
   let inProcess = process.env.HD_TEST_COMMAND === undefined;
-  let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()));
+  let jobs = Number(process.env.HD_TEST_JOBS ?? availableParallelism());
   let phase: Options["phase"];
   let suite: Options["suite"] = "all";
   let tier: Options["tier"];
