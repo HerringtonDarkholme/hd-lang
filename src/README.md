@@ -1183,9 +1183,11 @@ invalid shifts, list bounds, iterator invalidation, and suspension driver/state
 failures. Portable panic fixtures verify the declared code rather than
 accepting an arbitrary Wasm trap.
 
-The active boundary is intentionally narrower than the language specification.
-Strings and structural values in the host-provider ABI remain in later
-MVP slices. `all!` calls are typed by their rule (each child a
+The host boundary covers scalars, strings, and structural results
+(optionals, tuples, lists, and data with public fields). Enums, maps, and
+results with a structural success type remain narrower than the language
+specification (`module.boundary.allowed`), tracked in KNOWN_ISSUES.
+`all!` calls are typed by their rule (each child a
 `mut Suspend[X_i]`, the result `(X_1, ..., X_n)`), and `race!` calls by the
 plain signature in `lib/std/task.hd`. Both drive one polling frame, a stored
 suspension that `$hd.combinator` in `emitter/stored-suspension.ts`

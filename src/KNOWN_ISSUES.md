@@ -149,6 +149,13 @@ Compiler structure:
 
 ## Gaps No Fixture Reaches
 
+- **Host boundary shapes**: the checker rejects boundary types the
+  specification allows (`module.boundary.allowed`,
+  `module.profile.host-result.shape`): an enum, a `Map`, or a
+  `Result[T, E]` with a structural `T` reports
+  `unsupported-host-provider-signature`. Data with private fields is
+  correctly rejected (`module.boundary.pub`), pinned by the
+  `host structural results expose only public data fields` test.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.
