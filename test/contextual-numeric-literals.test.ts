@@ -164,3 +164,33 @@ test("an immediate left literal still adopts a primitive right operand type", ()
     ["u64", "u64", "u64"],
   );
 });
+
+test("a literal argument takes the width another argument solves for its type parameter", () => {
+  const program = checked(`fn biggest[T < Ord](left: T, right: T) -> T:
+    if left > right: left else: right
+
+fn apply[B](init: B, step: fn(B) -> B) -> B:
+    step(init)
+
+fn widest(sizes: List[usize]) -> usize:
+    biggest(0, sizes.len())
+
+fn total(sizes: List[usize]) -> usize:
+    sizes.iter().fold(0, fn(acc: usize, n: usize) -> usize: acc + n)
+
+fn stepped() -> i64:
+    apply(-1, fn(value: i64) -> i64: value + 1)
+
+fn counted(sizes: List[usize]) -> i32:
+    sizes.iter().fold(0, fn(acc, n): acc + 1)
+`);
+  const literalTypes = (name: string): string[] =>
+    integerLeaves(program.functions.find((candidate) => candidate.name === name)!.body).map(
+      ({ type }) => type,
+    );
+  assert.deepEqual(literalTypes("widest"), ["u32"]);
+  assert.deepEqual(literalTypes("total"), ["u32"]);
+  assert.deepEqual(literalTypes("stepped"), ["i64"]);
+  // A closure with an unannotated parameter reads the literal's own width.
+  assert.deepEqual(literalTypes("counted"), ["i32"]);
+});

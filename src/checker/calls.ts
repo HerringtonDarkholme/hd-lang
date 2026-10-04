@@ -55,6 +55,7 @@ import {
   traitKeyName,
   traitTypeName,
 } from "./shared.ts";
+import { checkLiteralArgumentsLast } from "./literal-arguments.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
 import { StatementChecker } from "./statements.ts";
 
@@ -284,16 +285,23 @@ export abstract class CallChecker extends StatementChecker {
     let positionalIndex = 0;
     let varargElements: number[] = [];
 
-    const flushVarargElements = (): void => {
-      if (varargElements.length === 0) return;
-      const parameterIndex = parameterNames.length - 1;
-      if (assigned.has(parameterIndex)) {
+    const rejectDuplicate = (parameterIndex: number, argumentIndex: number): void => {
+      if (assigned.has(parameterIndex))
         this.fail(
           "duplicate-argument",
           `parameter '${parameterNames[parameterIndex]}' is supplied more than once`,
-          expression.arguments[varargElements[0]!]!.span,
+          expression.arguments[argumentIndex]!.span,
         );
-      }
+    };
+    const supply = (parameterIndex: number, argumentIndex: number): void => {
+      rejectDuplicate(parameterIndex, argumentIndex);
+      assigned.add(parameterIndex);
+      entries.push({ parameterIndex, argumentIndices: [argumentIndex], kind: "single" });
+    };
+    const flushVarargElements = (): void => {
+      if (varargElements.length === 0) return;
+      const parameterIndex = parameterNames.length - 1;
+      rejectDuplicate(parameterIndex, varargElements[0]!);
       assigned.add(parameterIndex);
       entries.push({ parameterIndex, argumentIndices: varargElements, kind: "vararg-elements" });
       varargElements = [];
@@ -308,15 +316,7 @@ export abstract class CallChecker extends StatementChecker {
         if (parameterIndex < 0) {
           this.fail(unknownNameCode, `${callable} has no parameter named '${name}'`, argument.span);
         }
-        if (assigned.has(parameterIndex)) {
-          this.fail(
-            "duplicate-argument",
-            `parameter '${parameterNames[parameterIndex]}' is supplied more than once`,
-            argument.span,
-          );
-        }
-        assigned.add(parameterIndex);
-        entries.push({ parameterIndex, argumentIndices: [argumentIndex], kind: "single" });
+        supply(parameterIndex, argumentIndex);
         return;
       }
       if (spread) {
@@ -328,16 +328,7 @@ export abstract class CallChecker extends StatementChecker {
           );
         }
         flushVarargElements();
-        const parameterIndex = parameterNames.length - 1;
-        if (assigned.has(parameterIndex)) {
-          this.fail(
-            "duplicate-argument",
-            `parameter '${parameterNames[parameterIndex]}' is supplied more than once`,
-            argument.span,
-          );
-        }
-        assigned.add(parameterIndex);
-        entries.push({ parameterIndex, argumentIndices: [argumentIndex], kind: "single" });
+        supply(parameterNames.length - 1, argumentIndex);
         return;
       }
       // A trailing block always supplies the final parameter, so defaulted
@@ -349,16 +340,7 @@ export abstract class CallChecker extends StatementChecker {
         argumentIndex === expression.arguments.length - 1 &&
         parameterNames.length > 0
       ) {
-        const parameterIndex = parameterNames.length - 1;
-        if (assigned.has(parameterIndex)) {
-          this.fail(
-            "duplicate-argument",
-            `parameter '${parameterNames[parameterIndex]}' is supplied more than once`,
-            argument.span,
-          );
-        }
-        assigned.add(parameterIndex);
-        entries.push({ parameterIndex, argumentIndices: [argumentIndex], kind: "single" });
+        supply(parameterNames.length - 1, argumentIndex);
         return;
       }
       if (positionalIndex < fixedCount) {
@@ -374,14 +356,7 @@ export abstract class CallChecker extends StatementChecker {
           argument.span,
         );
       }
-      const parameterIndex = parameterNames.length - 1;
-      if (assigned.has(parameterIndex)) {
-        this.fail(
-          "duplicate-argument",
-          `parameter '${parameterNames[parameterIndex]}' is supplied more than once`,
-          argument.span,
-        );
-      }
+      rejectDuplicate(parameterNames.length - 1, argumentIndex);
       varargElements.push(argumentIndex);
     });
     flushVarargElements();
@@ -896,7 +871,7 @@ export abstract class CallChecker extends StatementChecker {
       callable,
       defaultParameters,
     );
-    const arguments_ = plan.map((entry): HirExpression => {
+    const checkEntry = (entry: PlannedArgument): HirExpression => {
       const formal = signature.parameters[entry.parameterIndex]!;
       if (entry.kind === "single") {
         const source = expression.arguments[entry.argumentIndices[0]!]!;
@@ -1006,7 +981,15 @@ export abstract class CallChecker extends StatementChecker {
         type: nominalGenericType("List", [elementType]),
         span: expression.span,
       };
-    });
+    };
+    const arguments_ = checkLiteralArgumentsLast(
+      plan,
+      expression.arguments,
+      signature,
+      substitutions,
+      (source) => this.isGenericFunctionValue(source),
+      checkEntry,
+    );
     const missingBound = this.inferTypesThroughBounds(signature, substitutions);
     if (missingBound) {
       const actual = substitutions.get(missingBound.parameter)!;

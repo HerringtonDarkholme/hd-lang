@@ -447,10 +447,19 @@ export function genericTypeName(type: ValueType): string | undefined {
  * literal takes its expected type directly, so it has no type of its own
  * here (04-type-system.md#inference-from-several-arguments).
  */
-export function argumentOwnType(source: Expression, checked: HirExpression): ValueType | undefined {
+/**
+ * An unsuffixed numeric literal argument, possibly negated: its type comes
+ * from the parameter it fills, so it never solves a type parameter that
+ * another argument solves (types.literal.open.decide.generic).
+ */
+export function isNumericLiteralArgument(source: Expression): boolean {
   let literal = source;
   while (literal.kind === "unary" && literal.operator === "-") literal = literal.operand;
-  if (literal.kind === "integer" || literal.kind === "float") return undefined;
+  return literal.kind === "integer" || literal.kind === "float";
+}
+
+export function argumentOwnType(source: Expression, checked: HirExpression): ValueType | undefined {
+  if (isNumericLiteralArgument(source)) return undefined;
   if (checked.type === "never") return undefined;
   if (checked.kind === "unary" && checked.operator === "widen") return checked.operand.type;
   if (checked.kind === "trait-wrap" || checked.kind === "trait-bound") return checked.value.type;
