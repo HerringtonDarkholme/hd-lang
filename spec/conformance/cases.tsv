@@ -1358,7 +1358,7 @@ runtime/valid/row-union-closure-result-runs.hd	runtime	accept	lang/11-requiremen
 typing/valid/decorator-target-newtype-kind.hd	type	accept	lang/14-annotations.md#r-annot.target.kind.newtype-kind
 typing/valid/operator-traits.hd	type	accept	lang/05-expressions.md#operator-traits
 runtime/valid/operator-traits-run.hd	runtime	accept	lang/05-expressions.md#r-expr.op.desugar
-typing/invalid/operator-left-literal.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.left-open-var.example
+typing/invalid/operator-left-literal.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.left-open-var.no-fit
 typing/invalid/operator-newtype-no-inherit.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.newtype
 typing/valid/operator-newtype-hand-written.hd	type	accept	lang/05-expressions.md#r-expr.op.newtype
 typing/valid/operator-bitwise-user.hd	type	accept	lang/05-expressions.md#operator-traits
@@ -2189,7 +2189,7 @@ typing/valid/literal-var-for-range-index.hd	type	accept	lang/04-type-system.md#r
 typing/valid/literal-var-range-bound.hd	type	accept	lang/04-type-system.md#r-types.literal.open.decide.construct
 typing/invalid/literal-var-range-bound-conflict.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.open.decide.construct
 typing/valid/literal-var-tuple.hd	type	accept	lang/04-type-system.md#r-types.literal.open.bind.tuple
-typing/invalid/literal-var-tuple-fallback.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.open.float-fallback
+typing/invalid/literal-var-tuple-fallback.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.open.float-fallback
 typing/valid/literal-var-list-push.hd	type	accept	lang/04-type-system.md#r-types.literal.open.decide.type-argument
 typing/valid/literal-var-match-payload.hd	type	accept	lang/04-type-system.md#r-types.literal.open.bind.payload
 typing/valid/literal-var-data-pattern.hd	type	accept	lang/04-type-system.md#r-types.literal.open.bind.data
@@ -2198,7 +2198,7 @@ typing/valid/literal-var-fallback.hd	type	accept	lang/04-type-system.md#r-types.
 typing/valid/literal-var-flow-types.hd	type	accept	lang/04-type-system.md#flow-through-types
 runtime/valid/literal-var-flow.hd	runtime	accept	lang/04-type-system.md#flow-through-types
 runtime/panic/literal-var-fallback-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.literal.open.int-fallback
-typing/valid/literal-var-method-fallback.hd	type	accept	lang/04-type-system.md#r-types.literal.open.neutral.some-widths
+typing/valid/literal-var-method-fallback.hd	type	accept	lang/04-type-system.md#r-types.literal.open.neutral.several-widths
 typing/invalid/literal-var-method-missing.hd	type	reject:unknown-method	lang/04-type-system.md#r-types.literal.open.method.missing
 typing/invalid/literal-var-top-level-undecided.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.literal.open.module-undecided
 typing/invalid/literal-var-int-to-float.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.open.kind
@@ -2209,6 +2209,17 @@ typing/valid/sign-fallback-unsigned.hd	type	accept	lang/04-type-system.md#r-type
 typing/valid/sign-fallback-signed.hd	type	accept	lang/04-type-system.md#r-types.literal.open.signed
 typing/valid/sign-fallback-separate-groups.hd	type	accept	lang/04-type-system.md#r-types.literal.open.fallback-separate
 typing/invalid/sign-fallback-no-instantiation.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.open-fallback-type.no-fit
+typing/valid/literal-one-fit-bound.hd	type	accept	lang/04-type-system.md#r-types.literal.open.one-fit
+typing/valid/literal-one-fit-receiver.hd	type	accept	lang/04-type-system.md#r-types.literal.open.decide.one-receiver
+typing/valid/literal-one-fit-left-operand.hd	type	accept	lang/05-expressions.md#r-expr.op.left-open-var.one-fit
+typing/invalid/literal-several-fit-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.literal.open.one-fit.several
+typing/invalid/literal-fallback-hint.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.open.fallback-hint
+runtime/valid/literal-fallback-hint-fix.hd	runtime	accept	lang/04-type-system.md#r-types.literal.open.fallback-hint
+typing/valid/literal-dependent-join.hd	type	accept	lang/04-type-system.md#r-types.literal.open.method.dependent.join
+typing/invalid/literal-dependent-no-backward.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.open.method.no-backward
+typing/invalid/literal-dependent-no-backward-annotation.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.open.method.no-backward
+typing/invalid/literal-erased-any-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.open.neutral.erased
+runtime/valid/literal-erased-fallback.hd	runtime	accept	lang/04-type-system.md#r-types.literal.open.neutral.erased
 typing/invalid/unsigned-comparison-countdown.hd	type	reject:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero.type
 typing/invalid/unsigned-comparison-explicit.hd	type	reject:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero
 typing/valid/unsigned-comparison-signed-countdown.hd	type	accept	lang/05-expressions.md#unsigned-comparisons-with-zero

@@ -1,0 +1,19 @@
+# test: with two integer types satisfying the bound, neither decides, and the usize fallback fails the bound
+# Spec 04 One Fitting Candidate: types.literal.open.one-fit.several, types.literal.open.bound (ONE-FIT).
+
+trait Scale:
+    fn scale(self) -> Self
+
+impl Scale for i32:
+    fn scale(self) -> i32:
+        self * 2
+
+impl Scale for i64:
+    fn scale(self) -> i64:
+        self * 2
+
+fn grow[T < Scale](x: T) -> T:
+    x.scale()
+
+fn run() -> void:
+    let n = grow(5)  # diagnostic: unsatisfied-trait-bound

@@ -1679,13 +1679,15 @@ pub trait Neg:
 16. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
 17. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
 18. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
-19. r[expr.op.left-open-var] When a left operand's type is an [open variable](04-type-system.md#r-types.literal.open.var) and the right operand is not primitive, the implementation is chosen at the end of the body. The choice uses the variable's fixed type, or its [fallback type](04-type-system.md#r-types.literal.open.int-fallback), and never fixes the variable.
-20. r[expr.op.left-open-var.example] So `3 * price` needs an `impl Mul[Money] for usize`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
-21. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
-22. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
-23. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
-24. r[expr.op.not-overloaded] `&&`, `||`, prefix `!`, unary `+`, `**`, `is`, `=`, `:=`, and postfix `?` have no trait and keep their built-in meaning.
-25. r[expr.op.comparison] `==`, `!=`, and the relational operators call `Eq` and `PartialOrd`, as [Equality](#equality) and [Ordering](#ordering) define. `std.ops` declares no comparison trait.
+19. r[expr.op.left-open-var.candidates] With an [open variable](04-type-system.md#r-types.literal.open.var) left operand and a non-primitive right operand, the candidates are the kind's types that implement the operator for the right operand.
+20. r[expr.op.left-open-var.one-fit] Exactly one candidate decides the variable, by [`types.literal.open.one-fit`](04-type-system.md#r-types.literal.open.one-fit). So with only `impl Mul[Money] for i64`, `3 * price` makes `3` an `i64`.
+21. r[expr.op.left-open-var.wait] Otherwise the implementation is chosen at the end of the body, at the variable's fixed or [fallback type](04-type-system.md#r-types.literal.open.int-fallback), and never fixes the variable.
+22. r[expr.op.left-open-var.no-fit] So with only `impl Mul[i64] for Money`, `3 * price` has no candidate, `3` falls back to `usize`, and the operator is an error; write `price * 3`. Error: `type-mismatch`.
+23. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
+24. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
+25. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
+26. r[expr.op.not-overloaded] `&&`, `||`, prefix `!`, unary `+`, `**`, `is`, `=`, `:=`, and postfix `?` have no trait and keep their built-in meaning.
+27. r[expr.op.comparison] `==`, `!=`, and the relational operators call `Eq` and `PartialOrd`, as [Equality](#equality) and [Ordering](#ordering) define. `std.ops` declares no comparison trait.
 
 ```text
 use std.ops.Mul

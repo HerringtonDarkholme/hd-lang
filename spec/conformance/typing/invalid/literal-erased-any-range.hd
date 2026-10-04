@@ -1,0 +1,5 @@
+# test: a literal erased to Any with no other use takes the usize fallback, so 2^32 is out of range
+# Spec 04 Neutral Uses: types.literal.open.neutral.erased (ONE-FIT).
+
+fn run() -> void:
+    let x: Any = 4294967296  # diagnostic: integer-literal-range

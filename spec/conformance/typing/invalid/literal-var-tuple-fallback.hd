@@ -1,4 +1,5 @@
-# test: a tuple slot that nothing decides is f64 for every caller
+# test: a tuple slot that nothing decides is f64 for every caller, so an f32 result is narrowing
+# Spec 04: types.literal.open.float-fallback; the f64 into f32 error is types.num.narrowing.
 
 fn take(value: u8) -> u8:
     value
@@ -9,4 +10,4 @@ fn second():
     b
 
 fn run() -> f32:
-    second()  # diagnostic: type-mismatch
+    second()  # diagnostic: implicit-narrowing

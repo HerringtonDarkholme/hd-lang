@@ -2084,3 +2084,7 @@ runtime/valid/block-on-pending-write.hd	runtime
 runtime/valid/host-result-special-floats.hd	runtime
 typing/valid/sign-fallback-signed.hd	type
 typing/valid/unsigned-comparison-signed-countdown.hd	type
+typing/valid/literal-dependent-join.hd	type
+typing/invalid/literal-dependent-no-backward.hd	type
+typing/invalid/literal-dependent-no-backward-annotation.hd	type
+typing/invalid/literal-erased-any-range.hd	type

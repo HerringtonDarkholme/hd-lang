@@ -1,5 +1,5 @@
-# test: a literal on the left of a data operand is not typed from its implementations
-# Spec 05 Operator Traits: expr.op.left-open-var (Operator Traits OP4); write price * 3.
+# test: a literal on the left of a data operand with no candidate falls back to usize, which has no implementation
+# Spec 05 Operator Traits: expr.op.left-open-var.no-fit (Operator Traits OP4); write price * 3.
 use std.ops.Mul
 
 data Money:

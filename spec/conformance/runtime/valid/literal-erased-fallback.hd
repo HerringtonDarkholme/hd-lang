@@ -1,0 +1,22 @@
+# test: a literal erased to Inspectable records its fallback type: usize, or i32 for a signed literal
+# Spec 04 Neutral Uses: types.literal.open.neutral.erased (ONE-FIT).
+use std.inspect.{Inspectable, downcast_val}
+use std.testing.assert_equal
+
+fn width(value: Inspectable) -> string:
+    match downcast_val::[usize](value):
+        .Some(_) => return "usize"
+        .None => pass
+    match downcast_val::[i32](value):
+        .Some(_) => return "i32"
+        .None => pass
+    "other"
+
+tests:
+    it("a bare literal is a usize"):
+        let p: Inspectable = 42
+        assert_equal(width(p), "usize", reason="no use fixes 42, so it falls back to usize")
+
+    it("a signed literal is an i32"):
+        let q: Inspectable = -42
+        assert_equal(width(q), "i32", reason="-42 is a signed literal, so it falls back to i32")

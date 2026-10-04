@@ -1,0 +1,16 @@
+# test: a literal argument whose bound exactly one integer type satisfies takes that type
+# Spec 04 One Fitting Candidate: types.literal.open.one-fit, types.literal.open.decide.one-impl (ONE-FIT).
+
+trait Scale:
+    fn scale(self) -> Self
+
+impl Scale for i64:
+    fn scale(self) -> i64:
+        self * 2
+
+fn grow[T < Scale](x: T) -> T:
+    x.scale()
+
+fn run() -> i64:
+    let n = grow(5)
+    n

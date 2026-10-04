@@ -1,0 +1,27 @@
+# test: the fix the fallback hint suggests: a signed literal or an annotation picks among several instantiations
+# Spec 04 One Fitting Candidate: types.literal.open.fallback-hint, types.literal.open.one-fit.several (ONE-FIT).
+use std.ops.Add
+use std.testing.assert_equal
+
+data Money:
+    cents: i64
+
+impl Add[i32] for Money:
+    type Out = string
+    fn add(self, rhs: i32) -> string:
+        "i32"
+
+impl Add[i64] for Money:
+    type Out = string
+    fn add(self, rhs: i64) -> string:
+        "i64"
+
+tests:
+    it("a signed literal falls back to i32"):
+        price := Money { cents: 100 }
+        assert_equal(price.add(+5), "i32", reason="+5 is a signed literal, so it falls back to i32")
+
+    it("an annotation fixes the width"):
+        price := Money { cents: 100 }
+        let step: i64 = 5
+        assert_equal(price.add(step), "i64", reason="the annotation makes step an i64")

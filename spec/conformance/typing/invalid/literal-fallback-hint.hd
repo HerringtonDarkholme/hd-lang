@@ -1,0 +1,20 @@
+# test: two fitting instantiations decide nothing, so 5 falls back to usize and fits neither
+# Spec 04 One Fitting Candidate: types.literal.open.fallback-hint (ONE-FIT). The diagnostic
+# should suggest `+5` or an annotation; the fixture checks only the code.
+use std.ops.Add
+
+data Money:
+    cents: i64
+
+impl Add[i32] for Money:
+    type Out = Money
+    fn add(self, rhs: i32) -> Money:
+        Money { cents: self.cents + i64(rhs) }
+
+impl Add[i64] for Money:
+    type Out = Money
+    fn add(self, rhs: i64) -> Money:
+        Money { cents: self.cents + rhs }
+
+fn charge(price: Money) -> Money:
+    price.add(5)  # diagnostic: type-mismatch

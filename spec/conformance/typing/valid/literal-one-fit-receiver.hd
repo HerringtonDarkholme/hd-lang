@@ -1,0 +1,13 @@
+# test: a method that exactly one integer type provides decides its literal receiver
+# Spec 04 Deciding Uses: types.literal.open.decide.one-receiver, types.literal.open.one-fit (ONE-FIT).
+
+trait Halve:
+    fn halve(self) -> Self
+
+impl Halve for i64:
+    fn halve(self) -> i64:
+        self / 2
+
+fn run() -> i64:
+    let n = 10
+    n.halve()

@@ -1,4 +1,4 @@
-# test: a method only some widths provide waits for the end of the body, where the signed group's fallback i32 has it
+# test: a method that several widths provide waits for the end of the body, where the signed group's fallback i32 has it
 
 use std.ops.Neg
 

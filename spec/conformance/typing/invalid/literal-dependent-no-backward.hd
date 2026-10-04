@@ -1,0 +1,12 @@
+# test: a typed use of a method result does not decide the receiver; i stays i32 and m is narrowed implicitly
+# Spec 04 Neutral Uses: types.literal.open.method.no-backward (ONE-FIT).
+
+use std.ops.Neg
+
+fn take_i8(value: i8) -> i8:
+    value
+
+fn run() -> i8:
+    let i = +1
+    let m = i.neg()
+    take_i8(m)  # diagnostic: implicit-narrowing

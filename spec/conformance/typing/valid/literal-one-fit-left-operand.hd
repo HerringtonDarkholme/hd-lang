@@ -1,0 +1,14 @@
+# test: a literal left operand takes the one integer type that implements the operator for the right operand
+# Spec 05 Operator Traits: expr.op.left-open-var.one-fit (ONE-FIT).
+use std.ops.Mul
+
+data Money:
+    cents: i64
+
+impl Mul[Money] for i64:
+    type Out = Money
+    fn mul(self, rhs: Money) -> Money:
+        Money { cents: self * rhs.cents }
+
+fn triple(price: Money) -> Money:
+    3 * price

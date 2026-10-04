@@ -385,6 +385,8 @@ fn count(items: List[string]) -> usize:
 | r[types.literal.open.decide.generic] Generic argument | an argument whose type parameter another argument solves, as in `biggest(i, items.len())`, or a generic call whose result is used in a typed place | the solved type |
 | r[types.literal.open.decide.type-argument] Type argument | a value of a specific type where checking needs the variable's position inside a type, as in `xs.push(n)` with a `u16` `n` and a `mut List[{integer}]` `xs` | that value's type |
 | r[types.literal.open.decide.one-instantiation] One instantiation | a method call or operator for which exactly one instantiation of a generic trait fits, by [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) | that instantiation's parameter type |
+| r[types.literal.open.decide.one-impl] One implementation | an argument to a generic parameter whose bounds exactly one type of the variable's kind satisfies, as `grow(5)` with `fn grow[T < Scale](x: T) -> T` and only `impl Scale for i64` | that type |
+| r[types.literal.open.decide.one-receiver] One receiver type | a receiver of a method call, or a left operand of an operator, whose method exactly one type of the variable's kind provides, as `n.halve()` with only `impl Halve for i64` | that type |
 
 1. r[types.literal.open.decide.other] Any other use that needs one specific numeric type is also a deciding use, such as a branch of a value-producing `if` beside a `u64` branch.
 2. r[types.literal.open.decide.through] A deciding use of a value fixes the variable for every place that holds it. So `items[i]`, with `i` from `for i in 0..10`, makes the range a `Range[usize]`.
@@ -402,10 +404,13 @@ A neutral use accepts any width, so it fixes nothing:
 | r[types.literal.open.neutral.method] Method of every width | a method call that every width of the kind provides, as in `i.to_string()` | the method is resolved once the variable is fixed |
 | r[types.literal.open.neutral.any-width] Any width | a numeric cast, as in `u8(i)`, or an interpolation, as in `"$i"` | none |
 | r[types.literal.open.neutral.instantiations] Several instantiations | a method call or operator for which several instantiations of one generic trait fit, as `price.add(n)` with `Add[i32]` and `Add[i64]`, or `k * price` with an open `k` and a data `price` | the choice waits for the end of the body |
-| r[types.literal.open.neutral.some-widths] Method of some widths | a method call that only some widths of the kind provide, as `i.neg()` | the method is resolved at the end of the body |
+| r[types.literal.open.neutral.several-widths] Method of several widths | a method call that two or more widths of the kind provide, but not every width, as `i.neg()` | the method is resolved at the end of the body |
+| r[types.literal.open.neutral.erased] Erasure | a value converted to `Any`, or to a trait value type that every width of the kind implements, as in `let x: Any = 42` or `let p: Inspectable = 42` | none: with no other use, the variable takes its fallback type, so `x` holds a `usize` |
 
 1. r[types.literal.open.method.dependent] Until a method of some widths is resolved, its call's result type is a **dependent variable**: the type the resolved method returns. No use fixes a dependent variable, and a use that needs a specific type for one is checked at the resolution.
 2. r[types.literal.open.method.missing] When the variable's type at the end of the body does not provide the method, the call is an error. Error: `unknown-method`.
+3. r[types.literal.open.method.dependent.join] An open variable joined with a dependent variable, as the `1` in `i.neg() + 1`, takes the type the resolved method returns instead of a fallback type.
+4. r[types.literal.open.method.no-backward] No use of a dependent variable decides the receiver's variable: inference never runs backward through a method result. So neither `take_i8(m)` after `let m = i.neg()`, nor `let m: i8 = i.neg()`, makes `i` an `i8`.
 
 ```text
 use std.ops.Neg
@@ -437,18 +442,29 @@ fn wide() -> u32:
     let flipped = i.neg()              # error: unknown-method
     let count: u32 = i
     count
+
+fn offset() -> i32:
+    let i = +1
+    i.neg() + 1                        # valid: the 1 takes the i32 that neg returns
+
+fn take_i8(value: i8) -> i8:
+    value
+
+fn narrow() -> i8:
+    let i = +1
+    let m = i.neg()                    # m does not make i an i8
+    take_i8(m)                         # error: implicit-narrowing
 ```
 
 #### Checks At The Fixed Width
 
 1. r[types.literal.open.end-check] A use whose check depends on an open variable's width records an **obligation**. At the end of the body, after the fallback, each obligation is checked at the variable's fixed type, and an error is reported at the use that recorded it.
 2. r[types.literal.open.end-check.kinds] The obligations are a choice among several instantiations of one generic trait, a generic call's bounds, a method of some widths, a literal's range, and unary `-` on an unsigned type.
-3. r[types.literal.open.end-check.no-forcing] An obligation never fixes a variable, and none is checked before the end of the body.
-4. r[types.literal.open.bound] A generic call whose bound the fixed width does not satisfy is an error at that call. Error: `unsatisfied-trait-bound`.
-5. r[types.literal.open.range] A literal of the open variable that the fixed width cannot hold is an error at the literal, by [`types.literal.int-range`](#r-types.literal.int-range) or [`types.literal.float-finite`](#r-types.literal.float-finite). Error: `integer-literal-range`.
-6. r[types.literal.open.conflict.blame] When the uses of one open variable need two different types, the error is reported at the later use of the first such pair in source order, and it names the earlier use. This is the sense in which the first deciding use fixes the variable.
-7. r[types.literal.open.conflict.error] So a later argument, assignment, or result that needs another width is an error. Error: `type-mismatch`.
-8. r[types.literal.open.names-decider] A diagnostic of this subsection must name the deciding use, as in "`i` became `usize` at line 4".
+3. r[types.literal.open.bound] A generic call whose bound the fixed width does not satisfy is an error at that call. Error: `unsatisfied-trait-bound`.
+4. r[types.literal.open.range] A literal of the open variable that the fixed width cannot hold is an error at the literal, by [`types.literal.int-range`](#r-types.literal.int-range) or [`types.literal.float-finite`](#r-types.literal.float-finite). Error: `integer-literal-range`.
+5. r[types.literal.open.conflict.blame] When the uses of one open variable need two different types, the error is reported at the later use of the first such pair in source order, and it names the earlier use. This is the sense in which the first deciding use fixes the variable.
+6. r[types.literal.open.conflict.error] So a later argument, assignment, or result that needs another width is an error. Error: `type-mismatch`.
+7. r[types.literal.open.names-decider] A diagnostic of this subsection must name the deciding use, as in "`i` became `usize` at line 4".
 
 ```text
 fn take(n: i32) -> i32:
@@ -475,6 +491,62 @@ fn mixed() -> u32:
     let low = put(xs[0])  # the first deciding use: the list is a List[u8]
     wide(xs[1])           # error: type-mismatch
 ```
+
+#### One Fitting Candidate
+
+An obligation with exactly one fitting candidate decides its variable at
+once; with several, it waits for the end of the body:
+
+```text
+trait Scale:
+    fn scale(self) -> Self
+
+impl Scale for i64:
+    fn scale(self) -> i64:
+        self * 2
+
+fn grow[T < Scale](x: T) -> T:
+    x.scale()
+
+fn run() -> i64:
+    let n = grow(5)   # one fit: only i64 implements Scale, so 5 is an i64
+    n
+```
+
+1. r[types.literal.open.one-fit] When exactly one candidate fits an obligation, that candidate decides the variable, as a deciding use at the use that recorded the obligation.
+2. r[types.literal.open.one-fit.candidates] The candidates are the kind's types that satisfy a call's bounds or provide a method or operator, or the fitting instantiations of a generic trait.
+3. r[types.literal.open.one-fit.several] When two or more candidates fit, none decides, and the obligation waits for the end of the body and its fallback.
+4. r[types.literal.open.fallback-hint] When an argument that took its fallback type fails a check, the diagnostic should suggest a signed literal, as `+5`, or an annotation.
+
+```text
+use std.ops.Add
+
+data Money:
+    cents: i64
+
+impl Add[i32] for Money:
+    type Out = Money
+    fn add(self, rhs: i32) -> Money:
+        Money { cents: self.cents + i64(rhs) }
+
+impl Add[i64] for Money:
+    type Out = Money
+    fn add(self, rhs: i64) -> Money:
+        Money { cents: self.cents + rhs }
+
+fn charge(price: Money) -> Money:
+    price.add(5)      # error: type-mismatch
+```
+
+Two instantiations fit `5`, so neither decides. The literal falls back to
+`usize`, which neither accepts, and the diagnostic suggests `+5` or an
+annotation.
+
+> **Why.** When only one type can make a call work, any other choice is an
+> error. The one candidate is the only reading that type-checks. Waiting
+> for the fallback would reject `grow(5)` for no gain. With two or more
+> candidates the compiler does not guess between them: the fallback applies,
+> and the error names the fix.
 
 #### Scope Of The Rule
 

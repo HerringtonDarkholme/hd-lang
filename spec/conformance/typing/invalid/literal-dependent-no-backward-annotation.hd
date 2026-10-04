@@ -1,0 +1,9 @@
+# test: an annotated binding of a method result does not decide the receiver; i stays i32
+# Spec 04 Neutral Uses: types.literal.open.method.no-backward (ONE-FIT).
+
+use std.ops.Neg
+
+fn run() -> i8:
+    let i = +1
+    let m: i8 = i.neg()  # diagnostic: implicit-narrowing
+    m
