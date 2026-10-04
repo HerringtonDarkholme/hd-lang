@@ -1,0 +1,8 @@
+# test: a mut self method counts toward declared variance as a self method does
+# Spec 04 Variance: types.variance.surface.mut-self (VARIANCE-MUT-SELF).
+data Box[+T]:
+    value: T
+
+impl[U] Box[U]:
+    pub fn set(mut self, value: U) -> void:  # diagnostic: invalid-variance
+        self.value = value

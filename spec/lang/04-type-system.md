@@ -837,11 +837,18 @@ type UserName = string
 3. r[types.alias.row] A transparent alias may also name a requirement row, as [Row Aliases](11-requirements-and-suspension.md#row-aliases) defines.
 4. r[types.alias.cycle] An alias that expands to itself, directly or through other aliases, is an error. Error: `alias-cycle`.
 5. r[types.alias.cycle.reported] The error is reported once per cycle, on the declaration of the cycle that comes first in the source.
+6. r[types.alias.target-unknown] A name on an alias's right side that resolves to nothing is an error at the alias declaration, whether or not anything uses the alias. Error: `unknown-type`.
+7. r[types.alias.target-unknown.key] A key after `$` on a row alias's right side that resolves to no trait is likewise an error at the alias declaration. Error: `unknown-trait`.
 
 ```text
 type Left = List[Right]  # error: alias-cycle
 
 type Right = Left?
+```
+
+```text
+type Owner = Account  # error: unknown-type
+type AppRow = $ Ledger  # error: unknown-trait
 ```
 
 > **Why.** A transparent alias is replaced by its right side, so a cycle
@@ -1950,6 +1957,19 @@ impl[T] Box[T]:
 > it. So a private method's signature counts toward variance as a public
 > one's does.
 
+A `mut self` method is on that surface too:
+
+1. r[types.variance.surface.mut-self] An inherent method with a `mut self` receiver counts toward declared variance, as a method with a `self` receiver does.
+
+```text
+data Box[+T]:
+    value: T
+
+impl[U] Box[U]:
+    pub fn set(mut self, value: U) -> void:  # error: invalid-variance
+        self.value = value
+```
+
 ### GADT Results
 
 1. r[types.variance.gadt] Each declaration parameter whose argument position in an explicit GADT variant result is not exactly that parameter is invariant.
@@ -1980,6 +2000,47 @@ r[types.polarity] Polarity is computed as follows:
 3. r[types.variance.unmarked] An unmarked invariant parameter may occur in any position.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
+
+### Variance On A Non-Bare Target
+
+An inherent implementation whose target is not the bare declared
+parameters checks its methods by the variance each `impl` parameter has
+in the target:
+
+```text
+data Box[+T]:
+    value: T
+
+data Consumer[-T]:
+    consume: fn(T) -> void
+
+impl[U] Box[Consumer[U]]:
+    pub fn feed(self, value: U) -> void:  # U is contravariant in the target
+        pass
+```
+
+1. r[types.variance.target.derived] For an inherent `impl[U, ...] G[A1, ..., An]`, each `impl` parameter `U` has a **derived variance**: its variance in the target type, which the [Polarity](#polarity) rules compute.
+2. r[types.variance.target.compose] A covariant parameter of `G` keeps `U`'s variance in its argument, a contravariant one reverses it, and an unmarked one makes it invariant.
+3. r[types.variance.target.both] A `U` that the target places both covariantly and contravariantly, as in `impl[U] Pair[U, U]` for `Pair[+A, -B]`, is invariant.
+4. r[types.variance.target.check] Each method signature of that implementation is checked as if `U` were declared with its derived variance: covariant `U` by `types.variance.covariant-check`, contravariant `U` by `types.variance.contravariant-check`. Error: `invalid-variance`.
+5. r[types.variance.target.invariant] An invariant `U`, as in `impl[U] Box[U?]`, may occur in any position, as `types.variance.unmarked` allows.
+
+```text
+impl[U] Box[Consumer[U]]:
+    pub fn make(self, factory: fn() -> U) -> U:  # error: invalid-variance
+        factory()
+```
+
+> **Note.** For a bare target, as in `impl[U] Box[U]`, the derived
+> variance is `T`'s declared marker, so the check is the one
+> [Polarity](#polarity) states.
+
+> **Why.** A variance conversion changes a target's arguments only as
+> `G`'s markers allow. So `U` can change only as its place in the target
+> lets it, and an invariant place fixes it. Kotlin and Scala compose
+> variance the same way.
+
+See also: [Polarity](#polarity), [`types.option.invariant`](#r-types.option.invariant).
 
 ### Readonly Outer Views
 
@@ -2252,8 +2313,32 @@ r[types.infer.named-fn] For a named function, inference covers only its result t
 
 1. r[types.infer.no-overload] Inference must not select among overloaded functions.
 2. r[types.infer.ambiguous] If inference has multiple valid solutions, compilation fails and the diagnostic must identify an annotation site that disambiguates the program.
+3. r[types.infer.ambiguous.code] That error is distinct from `cannot-infer-type`, which a rule names when no solution exists. Error: `ambiguous-type`.
 
-> **Why.** hd-lang has no function overloading.
+```text
+trait Repo[T]:
+    fn number(self) -> i32
+
+data User: pass
+data Post: pass
+
+data Job[A, B]:
+    callback: fn() -> i32 $ Repo[A] + Repo[B]
+
+fn read_both() -> i32 $ Repo[User] + Repo[Post]:
+    $.use(Repo[User]).number() + $.use(Repo[Post]).number()
+
+fn schedule() -> void:
+    _ := Job { callback: read_both }  # error: ambiguous-type
+    let job: Job[User, Post] = Job { callback: read_both }  # the annotation picks one
+```
+
+The callback's row fits `Repo[A] + Repo[B]` with `A = User, B = Post`
+and with the reverse, so the unannotated literal has two solutions.
+
+> **Why.** hd-lang has no function overloading. A separate code tells the
+> reader that inference found several answers, not none, so an annotation
+> picks one.
 
 ## Implementation Model (Non-Normative)
 

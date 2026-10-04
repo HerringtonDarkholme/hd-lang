@@ -1,0 +1,5 @@
+# test: a local value must not reuse an enclosing type parameter's name
+# Spec 03 Type Parameters: names.type-param.no-redeclare.body (SHADOW-TPARAM).
+fn work[T < Display](value: T) -> string:
+    T := value  # diagnostic: duplicate-binding
+    "${value}"

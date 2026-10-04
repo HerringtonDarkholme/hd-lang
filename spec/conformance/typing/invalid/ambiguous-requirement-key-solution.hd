@@ -1,0 +1,16 @@
+# test: a callback row that fits two generic keys in either order has two solutions, which is ambiguous-type
+# Spec 04 Ambiguous Inference: types.infer.ambiguous, types.infer.ambiguous.code (AMBIGUOUS-TYPE).
+trait Repo[T]:
+    fn number(self) -> i32
+
+data User: pass
+data Post: pass
+
+data Job[A, B]:
+    callback: fn() -> i32 $ Repo[A] + Repo[B]
+
+fn read_both() -> i32 $ Repo[User] + Repo[Post]:
+    $.use(Repo[User]).number() + $.use(Repo[Post]).number()
+
+fn schedule() -> void:
+    _ := Job { callback: read_both }  # diagnostic: ambiguous-type

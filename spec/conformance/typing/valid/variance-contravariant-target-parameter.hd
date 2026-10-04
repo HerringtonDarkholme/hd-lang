@@ -1,0 +1,11 @@
+# test: a parameter contravariant in a covariant target's argument may be a method input
+# Spec 04 Variance On A Non-Bare Target: types.variance.target.derived, types.variance.target.check (VARIANCE-NONBARE).
+data Box[+T]:
+    value: T
+
+data Consumer[-T]:
+    consume: fn(T) -> void
+
+impl[U] Box[Consumer[U]]:
+    pub fn feed(self, value: U) -> void:
+        pass

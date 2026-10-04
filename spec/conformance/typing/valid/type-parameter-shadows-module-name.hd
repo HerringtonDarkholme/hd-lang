@@ -1,0 +1,9 @@
+# test: a type parameter may still shadow a module name within its declaration
+# Spec 03 Type Parameters: names.type-param.shadow (SHADOW-TPARAM).
+data Item:
+    name: string
+
+fn first[Item](items: List[Item]) -> Item?:
+    for item in items:
+        return .Some(item)
+    .None

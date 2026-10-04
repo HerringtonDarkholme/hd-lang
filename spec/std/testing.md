@@ -374,6 +374,7 @@ pub fn snapshot_file(text: string) -> void $ TestRunner:
 | --- | --- | --- |
 | r[std-testing.snapshot-file.folder] Folder | `__snapshots__/` | one folder at the package root, beside `hd.toml`; it has no `mod.hd`, so it is never a module |
 | r[std-testing.snapshot-file.module] Module | `<module>` | the test's module path, such as `billing`; a module under `tests/` is `tests.<name>` |
+| r[std-testing.snapshot-file.module.root] Root module | `pkg` | the `<module>` of `src/lib.hd`, the package root module that `pkg` names by [`module.path.lib-file`](../lang/10-modules.md#r-module.path.lib-file) |
 | r[std-testing.snapshot-file.slug] Slug | `<test-slug>` | the test case name, lowercased, with each run of characters other than ASCII letters and digits turned into `-` |
 | r[std-testing.snapshot-file.counter] Counter | `<n>` | the count of `snapshot_file` calls within one test case run, from 1 |
 | r[std-testing.snapshot-file.row] Table row | `<test-slug>.<i>` | the slug of an `it_each` row adds the row's index |

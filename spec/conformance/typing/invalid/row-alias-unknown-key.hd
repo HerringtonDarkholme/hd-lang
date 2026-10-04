@@ -1,0 +1,3 @@
+# test: a row alias key that names no trait is an error at the alias, even when nothing uses it
+# Spec 04 Transparent Aliases And Newtypes: types.alias.target-unknown.key (ALIAS-MISSING).
+type AppRow = $ Ledger  # diagnostic: unknown-trait

@@ -173,6 +173,10 @@ fn headline(titles: List[string]) -> string:
     words.join_wordz(titles, " ")     # error: unknown-import
 ```
 
+> **Note.** A `std` module is no exception. A module path to a `std`
+> declaration without `pub` is `private-import` by
+> `expr.name.qualified.private`, as for a module of the package.
+
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 [Use Forms](10-modules.md#use-forms), [Use Roots](10-modules.md#use-roots).
 

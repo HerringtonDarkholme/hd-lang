@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,249 cases: 2,116 selected in `test/portable/cases.tsv` and 133 known
-failures. The selected cases are 1,849 language tier and 267 stdlib tier;
-the known failures are 123 language tier and 10 stdlib tier.
+2,377 cases: 2,235 selected in `test/portable/cases.tsv` and 142 known
+failures. The selected cases are 1,966 language tier and 269 stdlib tier;
+the known failures are 132 language tier and 10 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -53,6 +53,12 @@ the known failures are 123 language tier and 10 stdlib tier.
 | QUALIFIED-PATH | 6 | a used module name works before a function, but not before a type, a variant, a variant pattern, or an associated call; a whole-module use of a package module is `unsupported-package-use` |
 | NO-IMPLIED-BOUND | 2 | a missing key bound at an impl target is reported again at each method's `self`, and at a field it adds `void-data-field` |
 | DOC-TESTS | 1 | `hd` blocks in `##` comments are not extracted or run as doc tests |
+| AMBIGUOUS-TYPE | 1 | an ambiguous requirement-key solution reports `cannot-infer-type`, not `ambiguous-type` |
+| SHADOW-TPARAM | 3 | a method type parameter, local declaration, or local value may reuse an enclosing type parameter's name |
+| VARIANCE-MUT-SELF | 1 | `mut self` inherent methods are skipped by the variance check |
+| ALIAS-MISSING | 2 | an unused alias's right side is never resolved |
+| PRIVATE-STD | 1 | a module path to a private std function reports `unknown-name` |
+| DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
 
 ## Findings
 
@@ -146,6 +152,13 @@ Compiler structure:
 | NO-IMPLIED-BOUND | Task #261: a generic type's declared bounds are never implied where the type is written, so a declaration that writes `Map[K, V]` must bound its own `K`. The prototype reports the missing bound, but repeats it at each method's implicit `self` and turns the field's type into `void`. |
 | QUALIFIED-PATH | Task #260: a used module name qualifies a function, a type, a variant, a variant pattern, and an associated call. Task #262: a module path to a private or missing declaration reports `private-import` or `unknown-import`, and an absolute path outside a use is `unknown-name`. The prototype rejects `use pkg.words` as `unsupported-package-use`. |
 | DOC-TESTS | Owner design, 2026-10-04: each fenced `hd` block in a `##` comment under `src/` is a doc test, compiled as its own program with the public view and run by `hd test` (`module.test.doc.*`, `cli.test.doc.*`). The prototype ignores the blocks, so `hd test` runs none, and `hd check --tests` checks none. |
+| AMBIGUOUS-TYPE | Owner, 2026-10-04: inference with several valid solutions is `ambiguous-type` (`types.infer.ambiguous.code`). The prototype reports `cannot-infer-type` for a callback row that fits two generic keys in either order. |
+| SHADOW-TPARAM | Owner, 2026-10-04: no declaration within a type parameter's scope may reuse its name (`names.type-param.no-redeclare`). The prototype renames a method's shadowing binder, and accepts a local `data T` or value `T` inside `fn work[T]`. |
+| VARIANCE-MUT-SELF | Owner, 2026-10-04: a `mut self` inherent method counts toward declared variance (`types.variance.surface.mut-self`). The prototype skips those methods. |
+| ALIAS-MISSING | Owner, 2026-10-04: an alias whose right side names nothing is `unknown-type`, or `unknown-trait` for a row key, at the alias, used or not (`types.alias.target-unknown`). The prototype checks the right side only where the alias is used. |
+| PRIVATE-STD | Owner, 2026-10-04: a module path to a `std` declaration without `pub` is `private-import` (`expr.name.qualified.private`). The prototype reports `unknown-name` for the module. |
+| DERIVE-MISSING | Owner, 2026-10-04: `@derive` of a name that resolves to nothing is `unknown-trait` (`annot.derive.unknown`). The prototype reports `underivable-trait`. |
+| DOC-ROOT-NAME | Owner, 2026-10-04: the `<module>` of `src/lib.hd` is `pkg` in a doc test's name and a snapshot file's path (`cli.test.doc.name.root`, `std-testing.snapshot-file.module.root`). The prototype's snapshot files for `src/lib.hd` go to `__snapshots__/lib/`. No fixture reaches it. |
 
 ## Gaps No Fixture Reaches
 

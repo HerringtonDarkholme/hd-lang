@@ -285,16 +285,20 @@ hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 15. r[cli.test.doc.filter] `--filter` matches a doc test by that name, so `--filter doc` selects every doc test, and `--filter text.slugify` the doc tests of `slugify` in `src/text.hd`.
 16. r[cli.test.doc.location] A diagnostic or a failure of a doc test names the `.hd` source file and a `##` line of the doc test's block.
 17. r[cli.test.doc.json] With `--format json`, a doc test's test object holds that name in `name`, and its diagnostics give that file and line in `file` and `line`.
+18. r[cli.test.doc.name.root] For a block in `src/lib.hd`, `<module>` is `pkg`, which names the package root module by [`module.path.lib-file`](../lang/10-modules.md#r-module.path.lib-file).
+19. r[cli.test.doc.name.member] For a block on a member, `<item>` is `Type.member`, so the first block on `new` of `Slug` in `src/text.hd` is `doc text.Slug.new[0]`.
+20. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
 
 | Part | Value |
 | --- | --- |
-| `<module>` | the path of the module whose comment holds the block, such as `text` for `src/text.hd` |
+| `<module>` | the path of the module whose comment holds the block, such as `text` for `src/text.hd`, and `pkg` for `src/lib.hd` |
 | `<item>` | the name of the documented declaration, such as `slugify`; for a member, the declaration's name, a dot, and the member's name, such as `Slug.new` |
 | `[i]` | the block's index among that item's doc tests, from 0, as in the `name[i]` of an `it_each` row |
 
 So the first `hd` block on `slugify` in `src/text.hd` is `doc text.slugify[0]`,
 and the JSON line of its result is
 `{"kind":"test","name":"doc text.slugify[0]","outcome":"passed","message":""}`.
+The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 
 > **Why.** Naming a FILE asks for its tests, so none is a mistake, while a
 > new package may have none yet. A filter that matches nothing in a named

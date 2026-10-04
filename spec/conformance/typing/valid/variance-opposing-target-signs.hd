@@ -1,0 +1,12 @@
+# test: a parameter that the target places both covariantly and contravariantly is invariant
+# Spec 04 Variance On A Non-Bare Target: types.variance.target.both (VARIANCE-NONBARE).
+data Pair[+A, -B]:
+    value: A
+    consume: fn(B) -> void
+
+impl[U] Pair[U, U]:
+    pub fn feed(self, value: U) -> void:
+        pass
+
+    pub fn take(self) -> U:
+        self.value

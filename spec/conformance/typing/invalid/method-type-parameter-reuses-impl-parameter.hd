@@ -1,0 +1,8 @@
+# test: a method's own type parameter must not reuse its implementation's parameter name
+# Spec 03 Type Parameters: names.type-param.no-redeclare.method (SHADOW-TPARAM).
+data Box[+T]:
+    value: T
+
+impl[T] Box[T]:
+    pub fn echo[T](self, value: T) -> T:  # diagnostic: duplicate-binding
+        value

@@ -1,0 +1,17 @@
+# test: an annotation picks one of the two solutions of an ambiguous requirement-key match
+# Spec 04 Ambiguous Inference: types.infer.ambiguous (AMBIGUOUS-TYPE).
+trait Repo[T]:
+    fn number(self) -> i32
+
+data User: pass
+data Post: pass
+
+data Job[A, B]:
+    callback: fn() -> i32 $ Repo[A] + Repo[B]
+
+fn read_both() -> i32 $ Repo[User] + Repo[Post]:
+    $.use(Repo[User]).number() + $.use(Repo[Post]).number()
+
+fn schedule() -> void:
+    let job: Job[User, Post] = Job { callback: read_both }
+    _ := job

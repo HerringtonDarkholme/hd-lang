@@ -1,0 +1,11 @@
+# test: a parameter contravariant in a covariant target's argument must not be a method result
+# Spec 04 Variance On A Non-Bare Target: types.variance.target.check (VARIANCE-NONBARE).
+data Box[+T]:
+    value: T
+
+data Consumer[-T]:
+    consume: fn(T) -> void
+
+impl[U] Box[Consumer[U]]:
+    pub fn make(self, factory: fn() -> U) -> U:  # diagnostic: invalid-variance
+        factory()

@@ -1,0 +1,6 @@
+# test: a module path to a std function without pub is private-import, as for any module
+# Spec 05 Names: expr.name.qualified.private (PRIVATE-STD).
+use std.text
+
+pub fn digit() -> i32:
+    text.hex_digit(48)  # diagnostic: private-import

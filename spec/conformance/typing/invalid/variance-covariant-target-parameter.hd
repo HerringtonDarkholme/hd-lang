@@ -1,0 +1,11 @@
+# test: a parameter covariant in a covariant target's argument must not be a method input
+# Spec 04 Variance On A Non-Bare Target: types.variance.target.compose, types.variance.target.check (VARIANCE-NONBARE).
+data Box[+T]:
+    value: T
+
+data Producer[+T]:
+    produce: fn() -> T
+
+impl[U] Box[Producer[U]]:
+    pub fn feed(self, value: U) -> void:  # diagnostic: invalid-variance
+        pass

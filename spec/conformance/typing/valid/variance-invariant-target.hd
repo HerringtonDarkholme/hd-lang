@@ -1,0 +1,8 @@
+# test: a parameter in an invariant place of the target is invariant, so a method may use it anywhere
+# Spec 04 Variance On A Non-Bare Target: types.variance.target.compose, types.variance.target.check (VARIANCE-NONBARE).
+data Box[+T]:
+    value: T
+
+impl[U] Box[U?]:
+    pub fn feed(self, value: U) -> void:
+        pass

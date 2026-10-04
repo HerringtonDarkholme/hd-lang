@@ -1,0 +1,5 @@
+# test: a @derive entry that names nothing is unknown-trait
+# Spec 14 Opting In: annot.derive.unknown (DERIVE-MISSING).
+@derive(Sortable)  # diagnostic: unknown-trait
+data Coord:
+    x: i64

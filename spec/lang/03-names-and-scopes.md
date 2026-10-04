@@ -60,6 +60,27 @@ shadowing a prelude name an error.
 1. r[names.type-param.local] Type parameters are type names local to their declaration.
 2. r[names.type-param.shadow] A type parameter may shadow a module name within that declaration.
 3. r[names.type-param.unique] A type parameter must not duplicate another type parameter in the same parameter list.
+4. r[names.type-param.no-redeclare] No declaration within a type parameter's scope may reuse its name: no nested type parameter, local declaration, local value, or parameter. Error: `duplicate-binding`.
+5. r[names.type-param.no-redeclare.method] So a method's own type parameter must not reuse a type parameter of its `impl` or trait, as `fn echo[T]` inside `impl[T] Box[T]` would.
+6. r[names.type-param.no-redeclare.body] Inside `fn work[T]`, a local `data T`, a local value `T`, and a local `fn convert[T]` are each an error.
+
+```text
+data Box[+T]:
+    value: T
+
+impl[T] Box[T]:
+    pub fn echo[T](self, value: T) -> T:  # error: duplicate-binding
+        value
+
+fn work[T < Display](value: T) -> string:
+    data T:  # error: duplicate-binding
+        count: i32
+    T := value  # error: duplicate-binding
+    "${value}"
+```
+
+> **Why.** One name then means one thing inside a declaration. A reader
+> never has to work out which `T` a signature or a `T::` call names.
 
 ### The `Self` Name
 

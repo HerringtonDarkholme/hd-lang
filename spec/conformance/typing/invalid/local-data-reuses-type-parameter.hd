@@ -1,0 +1,6 @@
+# test: a local data declaration must not reuse an enclosing type parameter's name
+# Spec 03 Type Parameters: names.type-param.no-redeclare.body (SHADOW-TPARAM).
+fn work[T](value: T) -> T:
+    data T:  # diagnostic: duplicate-binding
+        count: i32
+    value

@@ -16,3 +16,4 @@ runtime/valid/module-qualified-generic-function-value.hd	std.cmp	the task asks f
 runtime/valid/module-qualified-prelude-function.hd	std.format	debug is language tier, but the whole-module import use std.format also covers the stdlib-tier items of std.format
 runtime/valid/module-qualified-beside-direct-use.hd	std.cmp, std.cmp.max, std.cmp.min	the task asks for cmp.max and cmp.min beside direct and aliased uses of the same std functions, which are stdlib tier
 runtime/valid/local-shadows-module-namespace.hd	std.cmp	the task asks for a local value that shadows a real std module name, which needs the whole-module import use std.cmp
+typing/invalid/module-path-private-std-function.hd	std.text	the owner decision (PRIVATE-STD, 2026-10-04) names the module path text.hex_digit through a real std module, which needs the whole-module import use std.text

@@ -7,8 +7,8 @@ in TypeScript, for the reason given. Delete a test only when its line names
 fixtures or duplicates and no "not migrated" part. Remove a line once its
 test is deleted, and delete this file when it is empty.
 
-Paths are relative to `spec/conformance/`. Owner questions Q1 to Q8 are
-listed at the end.
+Paths are relative to `spec/conformance/`. Owner questions are listed at
+the end.
 
 ## test/requirement-key-validation.test.ts
 
@@ -30,7 +30,7 @@ listed at the end.
 - test/requirement-key-validation.test.ts :: context types validate their key rows -> typing/invalid/context-row-unknown-trait.hd
 - test/requirement-key-validation.test.ts :: trait method rows are validated even without an implementation -> typing/invalid/trait-method-row-unknown-trait.hd
 - test/requirement-key-validation.test.ts :: marked row parameters remain symbolic rather than becoming trait keys -> duplicate of typing/valid/dynamic-safety-row-parameter.hd
-- test/requirement-key-validation.test.ts :: aliases are expanded before requirement keys are validated -> not migrated (owner question Q5)
+- test/requirement-key-validation.test.ts :: aliases are expanded before requirement keys are validated -> typing/invalid/alias-unknown-target.hd, typing/invalid/row-alias-unknown-key.hd (Q5, ALIAS-MISSING); the TS test asserts a result the decision makes wrong: it expects `unknown-trait` at the use `$ MissingAlias`, and the spec gives `unknown-type` at the alias declaration
 
 ## test/dynamic-safety-nested.test.ts
 
@@ -72,7 +72,7 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 
 ## test/variance.test.ts
 
-- test/variance.test.ts :: distinct method binders preserve runtime arguments, dictionaries and captured values -> not migrated (owner question Q1; it also names a local value `T`, owner question Q2)
+- test/variance.test.ts :: distinct method binders preserve runtime arguments, dictionaries and captured values -> typing/invalid/method-type-parameter-reuses-impl-parameter.hd, typing/invalid/local-value-reuses-type-parameter.hd (Q1 and Q2, SHADOW-TPARAM); the TS test asserts a result the decision makes wrong: it expects the program to compile and run, and `fn echo[T]` inside `impl[T]` and `let T = value` are each `duplicate-binding`
 - test/variance.test.ts :: readonly public method inputs participate in nominal variance -> duplicate of typing/invalid/covariant-private-method-parameter.hd
 - test/variance.test.ts :: readonly public method results participate in nominal variance -> typing/invalid/contravariant-method-result.hd
 - test/variance.test.ts :: nested function parameter polarity reverses rather than becoming invariant -> typing/valid/covariant-callback-parameter.hd, typing/invalid/covariant-producer-callback-parameter.hd
@@ -81,26 +81,26 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/variance.test.ts :: callable requirement rows are invariant in data and enum surfaces -> typing/invalid/covariant-data-requirement-row.hd, typing/invalid/contravariant-enum-requirement-row.hd
 - test/variance.test.ts :: callable requirement rows stay invariant through method polarity -> typing/invalid/covariant-method-requirement-row.hd, typing/invalid/contravariant-method-requirement-row.hd
 - test/variance.test.ts :: callable requirements unrelated to the nominal parameter remain valid -> typing/valid/covariant-unrelated-requirement-row.hd
-- test/variance.test.ts :: method generic binders do not capture implementation parameters in Self -> not migrated (owner question Q1)
-- test/variance.test.ts :: nested implementation targets compose their declared variance signs -> not migrated (owner question Q3)
-- test/variance.test.ts :: an invariant implementation target does not impose signed method constraints -> not migrated (owner question Q3)
-- test/variance.test.ts :: opposing target signs constrain a shared parameter to equality -> not migrated (owner question Q3)
+- test/variance.test.ts :: method generic binders do not capture implementation parameters in Self -> typing/invalid/method-type-parameter-reuses-impl-parameter.hd (Q1, SHADOW-TPARAM); the TS test asserts a result the decision makes wrong: it expects no error for `fn echo[T]` and `fn copy[T]` inside `impl[T]`, and only `invalid-variance` for `fn consume[T]`, and each binder is `duplicate-binding`
+- test/variance.test.ts :: nested implementation targets compose their declared variance signs -> typing/valid/variance-contravariant-target-parameter.hd, typing/invalid/variance-contravariant-target-result.hd (Q3, VARIANCE-NONBARE)
+- test/variance.test.ts :: an invariant implementation target does not impose signed method constraints -> typing/valid/variance-invariant-target.hd (Q3, VARIANCE-NONBARE)
+- test/variance.test.ts :: opposing target signs constrain a shared parameter to equality -> typing/valid/variance-opposing-target-signs.hd (Q3, VARIANCE-NONBARE)
 - test/variance.test.ts :: trait arguments in method signatures retain their invariant polarity -> typing/invalid/covariant-trait-argument-parameter.hd
 - test/variance.test.ts :: a separate trait implementation does not change nominal variance -> typing/valid/variance-separate-trait-impl.hd
 - test/variance.test.ts :: enum inherent methods are included in the readonly public surface -> typing/invalid/covariant-enum-method-parameter.hd
 - test/variance.test.ts :: suspending inherent methods have the same variance obligations -> typing/invalid/covariant-suspending-method-parameter.hd
-- test/variance.test.ts :: associated construction and mutable receiver signatures are not readonly instance views -> not migrated (owner question Q4)
+- test/variance.test.ts :: associated construction and mutable receiver signatures are not readonly instance views -> not migrated (partial: the `mut self` method is typing/invalid/covariant-mut-self-method-parameter.hd, Q4, VARIANCE-MUT-SELF, and the TS test asserts a result the decision makes wrong, since it expects no error for `pub fn set(mut self, value: U)` on `Box[+T]`; the associated function `pub fn new(value: U) -> Self` waits for owner question Q9)
 - test/variance.test.ts :: a public method cannot infer its result past the variance check -> duplicate of typing/invalid/public-method-missing-result-type.hd
 - test/variance.test.ts :: private readonly inherent methods participate in declared variance -> duplicate of typing/invalid/covariant-private-method-parameter.hd and typing/invalid/contravariant-method-result.hd
 - test/variance.test.ts :: inferred private inherent results cannot bypass variance checking -> typing/invalid/contravariant-inferred-private-result.hd, typing/valid/covariant-inferred-private-result.hd
-- test/variance.test.ts :: shadowed method binders cannot erase Self-derived invariant inferred results -> not migrated (partial: typing/invalid/contravariant-inferred-invariant-result.hd covers the case without a shadowing binder; the shadowing cases wait for owner question Q1)
-- test/variance.test.ts :: method-owned inferred and callable results remain independent of the receiver binder -> not migrated (owner question Q1)
+- test/variance.test.ts :: shadowed method binders cannot erase Self-derived invariant inferred results -> typing/invalid/contravariant-inferred-invariant-result.hd covers the binder `V`; the binder `T` is typing/invalid/method-type-parameter-reuses-impl-parameter.hd (Q1, SHADOW-TPARAM), and the TS test asserts a result the decision makes wrong, since it expects only `invalid-variance` for `fn hidden[T]` inside `impl[T]`
+- test/variance.test.ts :: method-owned inferred and callable results remain independent of the receiver binder -> typing/invalid/method-type-parameter-reuses-impl-parameter.hd (Q1, SHADOW-TPARAM); the TS test asserts a result the decision makes wrong: it expects no error, and each method binder `T` inside `impl[T]` is `duplicate-binding`
 - test/variance.test.ts :: method binder normalization preserves defaults, bounds and nested declaration scope -> not migrated (implementation detail: inspects the checker's binder renaming)
 - test/variance.test.ts :: structural binder renaming retains type heads and labels while visiting rows and projections -> not migrated (implementation detail: inspects the checker's binder renaming)
-- test/variance.test.ts :: a local nominal shadows a method binder from its declaration point without leaking out -> not migrated (owner questions Q1 and Q2)
+- test/variance.test.ts :: a local nominal shadows a method binder from its declaration point without leaking out -> typing/invalid/method-type-parameter-reuses-impl-parameter.hd, typing/invalid/local-data-reuses-type-parameter.hd (Q1 and Q2, SHADOW-TPARAM); the TS test asserts a result the decision makes wrong: it expects only `unused-local-binding`, and `fn work[T]` inside `impl[T]` and the local `data T` are each `duplicate-binding`
 - test/variance.test.ts :: qualified type owners rename binders but preserve unrelated owners -> not migrated (implementation detail: inspects the checker's binder renaming)
 - test/variance.test.ts :: internal method identities retain Unicode binder spellings in diagnostics -> not migrated (implementation detail: diagnostic message text)
-- test/variance.test.ts :: qualified owner resolution distinguishes type binders from lexical values -> not migrated (owner questions Q1 and Q2)
+- test/variance.test.ts :: qualified owner resolution distinguishes type binders from lexical values -> typing/invalid/method-type-parameter-reuses-impl-parameter.hd, typing/invalid/local-value-reuses-type-parameter.hd (Q1 and Q2, SHADOW-TPARAM); the TS test asserts a result the decision makes wrong: it expects no error, and each method binder `T` inside `impl[T]`, each `let T = value`, and the pattern binding `T` are `duplicate-binding`
 - test/variance.test.ts :: nested closure type scopes do not change later method annotations -> not migrated (implementation detail: inspects the checker's binder renaming)
 
 ## test/callable-storage.test.ts
@@ -127,7 +127,7 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/generic-callable-requirements.test.ts :: dynamic trait calls adapt generic callable parameters and results -> runtime/valid/requirement-row-order-trait-value.hd
 - test/generic-callable-requirements.test.ts :: provider adaptation follows binder identity across reordered rows -> runtime/valid/requirement-row-order-data-field.hd
 - test/generic-callable-requirements.test.ts :: two generic keys may collapse to one concrete row during adaptation -> runtime/valid/requirement-row-duplicate-after-substitution.hd
-- test/generic-callable-requirements.test.ts :: unordered requirement keys do not guess an ambiguous binder mapping -> not migrated (owner question Q6)
+- test/generic-callable-requirements.test.ts :: unordered requirement keys do not guess an ambiguous binder mapping -> typing/invalid/ambiguous-requirement-key-solution.hd, typing/valid/ambiguous-requirement-key-annotated.hd (Q6, AMBIGUOUS-TYPE); the TS test asserts a result the decision makes wrong: it expects `cannot-infer-type`, and the spec gives `ambiguous-type`
 - test/generic-callable-requirements.test.ts :: enum payload extraction retains generic callable provider substitutions -> runtime/valid/generic-requirement-key-substitution.hd
 
 ## test/inspectable-forwarding.test.ts
@@ -149,7 +149,7 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/standard-module-values.test.ts :: module selection finds the same directly imported declaration -> runtime/valid/module-qualified-beside-direct-use.hd
 - test/standard-module-values.test.ts :: module selection finds the same declaration imported under an alias -> runtime/valid/module-qualified-beside-direct-use.hd
 - test/standard-module-values.test.ts :: a local value shadows a standard module namespace -> runtime/valid/local-shadows-module-namespace.hd
-- test/standard-module-values.test.ts :: a module namespace does not expose a private standard function -> not migrated (owner question Q7)
+- test/standard-module-values.test.ts :: a module namespace does not expose a private standard function -> typing/invalid/module-path-private-std-function.hd (Q7, PRIVATE-STD); the TS test asserts a result the decision makes wrong: it expects `unknown-name`, and the spec gives `private-import`
 
 ## test/local-implementation-extent.test.ts
 
@@ -190,7 +190,7 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/typed-derivation.test.ts :: enum, generic, and embedded targets walk their members -> runtime/valid/typed-derivation-embedded-generic-walk.hd; the enum target is a duplicate of runtime/valid/typed-derivation-walk.hd
 - test/typed-derivation.test.ts :: a derived build fills members from their defaults -> runtime/valid/typed-derivation-build-defaults.hd
 - test/typed-derivation.test.ts :: @derive(Eq) compares data and enum members -> runtime/valid/derived-equality-members.hd; typing/valid/derived-equality.hd checks the same program at the type phase only
-- test/typed-derivation.test.ts :: typed derivation reports its diagnostics at the opt-in -> not migrated (partial: duplicates of typing/invalid/derive-member-not-derivable.hd, typing/invalid/derive-error-trait.hd, typing/invalid/unknown-annotation-member.hd, typing/invalid/omitted-member-without-default.hd, and typing/invalid/derive-before-function.hd; `@derive(Missing)` waits for owner question Q8)
+- test/typed-derivation.test.ts :: typed derivation reports its diagnostics at the opt-in -> duplicates of typing/invalid/derive-member-not-derivable.hd, typing/invalid/derive-error-trait.hd, typing/invalid/unknown-annotation-member.hd, typing/invalid/omitted-member-without-default.hd, and typing/invalid/derive-before-function.hd; `@derive(Missing)` is typing/invalid/derive-unknown-trait.hd (Q8, DERIVE-MISSING), and the TS test asserts a result the decision makes wrong, since it expects `underivable-trait` and the spec gives `unknown-trait`
 - test/typed-derivation.test.ts :: @derive(Debug) on a newtype needs its base type's Debug and applies it -> runtime/valid/derived-debug-newtype.hd; the missing base trait is a duplicate of typing/invalid/derive-newtype-base-missing-trait.hd
 
 ## test/test-runner-requirements.test.ts
@@ -204,44 +204,23 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 
 ## Owner Questions
 
-- **Q1.** May a method's own type parameter reuse its implementation's
-  parameter name, as `fn echo[T]` inside `impl[T] Box[T]`? The tests say
-  yes, and the method's `T` is a separate parameter.
-  [`names.type-param.shadow`](../spec/lang/03-names-and-scopes.md#r-names.type-param.shadow)
-  allows shadowing only a module name.
-- **Q2.** May a local name in a method body reuse a type parameter's name?
-  The tests accept a local `data T`, and a local value `T` called as
-  `T::to_string()`, inside `fn work[T]`. The spec does not say whether
-  the type parameters share the body's outermost scope, or which `T` a
-  `T::` owner picks.
-- **Q3.** How is an inherent method checked against declared variance when
-  its implementation's target is not the bare parameters, as in
-  `impl[U] Box[Consumer[U]]`, `impl[U] Box[U?]`, or `impl[U] Pair[U, U]`?
-  The tests multiply each method position by the sign of `U` in the target.
-  An invariant position in the target imposes nothing.
-- **Q4.** Do `mut self` methods count toward declared variance?
+Q1 to Q8 are answered (owner, 2026-10-04); each answer is in the spec,
+and each line above names the fixture that covers it.
+
+| Question | Answer | Spec |
+| --- | --- | --- |
+| Q1. May a method's own type parameter reuse its `impl`'s parameter name? | No: `fn echo[T]` inside `impl[T] Box[T]` is `duplicate-binding` (SHADOW-TPARAM) | [`names.type-param.no-redeclare.method`](../spec/lang/03-names-and-scopes.md#r-names.type-param.no-redeclare.method) |
+| Q2. May a local name in a body reuse a type parameter's name? | No: a local `data T` or value `T` inside `fn work[T]` is `duplicate-binding` (SHADOW-TPARAM) | [`names.type-param.no-redeclare.body`](../spec/lang/03-names-and-scopes.md#r-names.type-param.no-redeclare.body) |
+| Q3. How is a method on a non-bare target checked against variance? | By each `impl` parameter's variance in the target, composed as Kotlin and Scala do (VARIANCE-NONBARE) | [Variance On A Non-Bare Target](../spec/lang/04-type-system.md#variance-on-a-non-bare-target) |
+| Q4. Do `mut self` methods count toward declared variance? | Yes: `pub fn set(mut self, value: U)` on `Box[+T]` is `invalid-variance` (VARIANCE-MUT-SELF) | [`types.variance.surface.mut-self`](../spec/lang/04-type-system.md#r-types.variance.surface.mut-self) |
+| Q5. Is an alias whose target names nothing an error at the alias? | Yes, used or not: `unknown-type`, or `unknown-trait` for a row key (ALIAS-MISSING) | [`types.alias.target-unknown`](../spec/lang/04-type-system.md#r-types.alias.target-unknown) |
+| Q6. Which code does an ambiguous generic solution report? | The new code `ambiguous-type`; `cannot-infer-type` stays for no solution (AMBIGUOUS-TYPE) | [`types.infer.ambiguous.code`](../spec/lang/04-type-system.md#r-types.infer.ambiguous.code) |
+| Q7. Which code does a module path to a private std function report? | `private-import`, as for any module (PRIVATE-STD) | [`expr.name.qualified.private`](../spec/lang/05-expressions.md#r-expr.name.qualified.private) |
+| Q8. Which code does `@derive(Missing)` report? | `unknown-trait`; `underivable-trait` stays for a real trait with no template (DERIVE-MISSING) | [`annot.derive.unknown`](../spec/lang/14-annotations.md#r-annot.derive.unknown) |
+
+- **Q9.** Does an inherent associated function count toward declared
+  variance? The test accepts `pub fn new(value: U) -> Self` on `Box[+T]`.
   [`types.variance.surface`](../spec/lang/04-type-system.md#r-types.variance.surface)
-  includes every inherent method. The test accepts
-  `pub fn set(mut self, value: U)` on `Box[+T]`.
-- **Q5.** Is an alias whose target names nothing an error at the alias, as
-  in `type MissingAlias = Missing`? The prototype accepts it there, and
-  reports `unknown-trait` only where `$ MissingAlias` uses it.
-- **Q6.** Which code does an ambiguous generic solution report? With
-  `data Job[A, B]` holding `fn() -> i32 $ Repo[A] + Repo[B]`,
-  `Job { callback: read_both }` for a `$ Repo[User] + Repo[Post]` callback
-  fits both `A = User, B = Post` and the reverse. The test expects
-  `cannot-infer-type`.
-  [`types.infer.ambiguous`](../spec/lang/04-type-system.md#r-types.infer.ambiguous)
-  says compilation fails but names no code.
-- **Q7.** Which code does a module path to a std function that is not
-  public report, as in `text.hex_digit` after `use std.text`? The test
-  expects `unknown-name`.
-  [`expr.name.qualified.private`](../spec/lang/05-expressions.md#r-expr.name.qualified.private)
-  gives `private-import`. The spec declares no `hex_digit` in `std.text`,
-  so [`expr.name.qualified.missing`](../spec/lang/05-expressions.md#r-expr.name.qualified.missing)
-  would give `unknown-import`.
-- **Q8.** Which code does `@derive(Missing)` report when `Missing` names
-  nothing? The test expects `underivable-trait`.
-  [`annot.derive.other`](../spec/lang/14-annotations.md#r-annot.derive.other)
-  covers only a trait without a template, so `unknown-trait` is also a
-  reading.
+  names every inherent method, and
+  [`grammar.trait.method-kind`](../spec/lang/02-grammar.md#r-grammar.trait.method-kind)
+  calls a receiverless member an associated function, not a method.

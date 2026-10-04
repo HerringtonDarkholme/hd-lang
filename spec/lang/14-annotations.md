@@ -658,6 +658,7 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 6. r[annot.derive.error-trait] `Error` has no template, so `@derive(Error)` is an error. Error: `underivable-trait`.
 7. r[annot.derive.facts-only] Every other decorator only attaches information: a configuration decorator such as `@style(prefix="user_")` attaches a fact and creates no implementation.
 8. r[annot.derive.overlap] Listing a trait in `@derive` and also writing a derivation block for it on the same type is an error, reported on the block. Error: `overlapping-impl`.
+9. r[annot.derive.unknown] A name in a `@derive` list that resolves to nothing is an error, reported on the `@derive` line. Error: `unknown-trait`.
 
 ```text
 use std.error.Error
@@ -666,6 +667,10 @@ use std.structure.Structure
 @derive(Error)  # error: underivable-trait
 enum LoadError:
     Missing
+
+@derive(Sortable)  # error: unknown-trait
+data Coord:
+    x: i64
 
 @derive(Show)
 data Point:
