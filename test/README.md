@@ -66,6 +66,11 @@ The specification grammar oracle is also TypeScript and parses fixtures in a
 worker-thread pool. It shares `HD_TEST_JOBS` by default; set `HD_SPEC_JOBS` to
 tune that gate independently.
 
+`pnpm run perf:check` is the type checker's performance gate. It is not part
+of `pnpm run check`, since it takes about a minute; CI runs it as its own
+job. [`perf/inference/README.md`](perf/inference/README.md) describes the
+cases, the rules, and how to update the baseline.
+
 ## Held-Back Fixtures
 
 `test/fixtures` keeps only implementation-detail inputs and fixtures that

@@ -41,6 +41,31 @@ jobs:
       - name: Fuzz smoke
         run: pnpm run fuzz:smoke
 
+  # Its own job, so it runs next to the check job and on a quieter machine.
+  # test/perf/inference/README.md explains the rules and the baseline.
+  perf:
+    name: Type checker performance gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Performance gate
+        run: pnpm run perf:check
+
   e2e:
     name: End-to-end (playground and website)
     runs-on: ubuntu-latest

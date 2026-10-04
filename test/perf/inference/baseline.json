@@ -1,0 +1,159 @@
+{
+  "note": "Recorded by `node --experimental-strip-types test/perf/inference/gate.ts --update`; see README.md.",
+  "recorded": {
+    "date": "2026-10-04",
+    "node": "v24.19.0",
+    "platform": "darwin-arm64"
+  },
+  "referenceMs": 170.9,
+  "cases": {
+    "list-nest": {
+      "scales": [
+        300,
+        1000
+      ],
+      "scores": [
+        0.298,
+        3.2402
+      ],
+      "ratio": 10.87,
+      "codes": [
+        "type-mismatch"
+      ]
+    },
+    "open-lets-reverse": {
+      "scales": [
+        5,
+        50
+      ],
+      "scores": [
+        0.214,
+        2.4987
+      ],
+      "ratio": 11.68,
+      "codes": [
+        "type-mismatch"
+      ]
+    },
+    "method-calls-one-var": {
+      "scales": [
+        30,
+        300
+      ],
+      "scores": [
+        0.2109,
+        2.3087
+      ],
+      "ratio": 10.95,
+      "codes": [
+        "mixed-signedness"
+      ]
+    },
+    "add-many-types": {
+      "scales": [
+        10,
+        30
+      ],
+      "scores": [
+        0.6972,
+        4.8688
+      ],
+      "ratio": 6.98,
+      "codes": [
+        "type-mismatch"
+      ]
+    },
+    "overload-candidates": {
+      "scales": [
+        10,
+        100
+      ],
+      "scores": [
+        0.4223,
+        4.0878
+      ],
+      "ratio": 9.68,
+      "codes": []
+    },
+    "big-body": {
+      "scales": [
+        10,
+        100
+      ],
+      "scores": [
+        0.3803,
+        3.9766
+      ],
+      "ratio": 10.46,
+      "codes": [
+        "mixed-signedness"
+      ]
+    },
+    "mutual-bounds": {
+      "scales": [
+        10,
+        30
+      ],
+      "scores": [
+        0.2386,
+        5.1969
+      ],
+      "ratio": 21.78,
+      "codes": []
+    },
+    "closures-shared-var": {
+      "scales": [
+        100,
+        300
+      ],
+      "scores": [
+        0.5464,
+        3.5689
+      ],
+      "ratio": 6.53,
+      "codes": [
+        "type-mismatch"
+      ]
+    },
+    "polymorphic-recursion": {
+      "scales": [
+        30,
+        300
+      ],
+      "scores": [
+        0.3073,
+        2.2776
+      ],
+      "ratio": 7.41,
+      "codes": []
+    },
+    "late-conflict": {
+      "scales": [
+        10,
+        100
+      ],
+      "scores": [
+        0.1928,
+        2.3735
+      ],
+      "ratio": 12.31,
+      "codes": [
+        "type-mismatch"
+      ]
+    },
+    "occurs-check": {
+      "scales": [
+        40,
+        400
+      ],
+      "scores": [
+        0.2746,
+        2.7522
+      ],
+      "ratio": 10.02,
+      "codes": [
+        "type-mismatch"
+      ]
+    }
+  }
+}
