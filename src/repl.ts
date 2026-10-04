@@ -267,6 +267,7 @@ export class ReplSession {
       const { instance, compilation } = await instantiate(source, {
         ...this.options,
         console: (text) => lines.push(text),
+        consoleError: (text) => lines.push(text),
       });
       this.lastModule = compilation.wat;
       this.modules += 1;

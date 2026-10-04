@@ -176,6 +176,7 @@ type HostImport = (...arguments_: unknown[]) => unknown;
 
 export interface InstantiateOptions {
   readonly console?: (text: string, provider: unknown) => void;
+  readonly consoleError?: (text: string, provider: unknown) => void;
   readonly trace?: (functionIndex: number, event: SuspensionTraceEvent) => void;
   readonly pending?: (functionIndex: number, pollCount: number) => boolean;
   readonly record?: (event: ReplayEvent) => void;
@@ -810,7 +811,10 @@ export async function instantiate(
         state.outcome = heldPending
           ? { pending: true }
           : builtIn
-            ? builtIn(call, { console: options.console })
+            ? builtIn(call, {
+                console: options.console,
+                consoleError: options.consoleError,
+              })
             : answering
               ? answering.answer(call)
               : (options.hostSuspensionInvoke?.(call) ?? { pending: false });

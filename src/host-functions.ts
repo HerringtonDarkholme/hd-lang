@@ -229,6 +229,7 @@ function formatF64Fixed(value: number, digits: number): string {
 /** What a built-in host provider may use from the embedder. */
 interface HostProviderContext {
   readonly console?: (text: string, provider: unknown) => void;
+  readonly consoleError?: (text: string, provider: unknown) => void;
 }
 
 /**
@@ -244,6 +245,10 @@ export const HOST_PROVIDERS: Readonly<
   // no write failure, so it never builds a `ConsoleError`.
   "Console.write_line": (call, host) => {
     host.console?.(String(call.arguments[0]), call.provider);
+    return { pending: false, value: { tag: "ok" } };
+  },
+  "Console.write_error_line": (call, host) => {
+    host.consoleError?.(String(call.arguments[0]), call.provider);
     return { pending: false, value: { tag: "ok" } };
   },
 };

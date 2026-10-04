@@ -159,6 +159,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     const instantiateOptions: Parameters<typeof instantiate>[1] = {
       hostFunctions: snapshots.hostFunctions,
       console: (text) => io.out(text),
+      consoleError: (text) => io.err(text),
       pending:
         scenario === "cancellation-cleanup"
           ? (functionIndex) => functionIndex === pendingFunctionIndex
