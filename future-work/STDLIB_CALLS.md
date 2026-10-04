@@ -192,7 +192,7 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 
 ## Audit Pass 89
 
-Pass 89 (#246) applied the stdlib audit ([stdlib-audit.md](../audit/stdlib-audit.md)).
+Pass 89 (#246) applied the stdlib audit (task #239); its open gaps are in [STDLIB_PLAN.md](STDLIB_PLAN.md#audit-gaps-left).
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
@@ -220,7 +220,7 @@ Pass 89 (#246) applied the stdlib audit ([stdlib-audit.md](../audit/stdlib-audit
 ## Process And Pass 90
 
 Pass 90 (#247) applied batch 80's PROCESS-RESULT and the pass-89
-leftovers of the [stdlib audit](../audit/stdlib-audit.md).
+leftovers of the stdlib audit (task #239).
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |

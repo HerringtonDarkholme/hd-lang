@@ -49,14 +49,15 @@ every feature belongs in `std`.
 2. [What Exists Today](#what-exists-today)
 3. [Earlier Owner Decisions](#earlier-owner-decisions)
 4. [Decided, Not Yet Applied](#decided-not-yet-applied)
-5. [Compiler Handoff](#compiler-handoff)
-6. [Survey Matrices](#survey-matrices)
-7. [Gap Survey By Area](#gap-survey-by-area)
-8. [A Script With The Proposed Surface](#a-script-with-the-proposed-surface)
-9. [The Effect Review](#the-effect-review)
-10. [Ranked Rollout](#ranked-rollout)
-11. [Sources](#sources)
-12. [Parse Log](#parse-log)
+5. [Audit Gaps Left](#audit-gaps-left)
+6. [Compiler Handoff](#compiler-handoff)
+7. [Survey Matrices](#survey-matrices)
+8. [Gap Survey By Area](#gap-survey-by-area)
+9. [A Script With The Proposed Surface](#a-script-with-the-proposed-surface)
+10. [The Effect Review](#the-effect-review)
+11. [Ranked Rollout](#ranked-rollout)
+12. [Sources](#sources)
+13. [Parse Log](#parse-log)
 
 ## Findings In Brief
 
@@ -187,6 +188,23 @@ only for `src/` or `lib/std`, is in [Compiler Handoff](#compiler-handoff).
 | 9 | 2026-09-26 | `decimal` is the only number type past the primitives; `BigInt` is a package | waits for design: a `decimal` design |
 | 11 | 2026-09-26 | tasks are structured scopes only: `scope!`, `start`, `join!`; no detached spawn | waits for design: a new polling intrinsic, a language-tier item |
 | JSON-FIELD-FACTS | 2026-10-03 | `ToJson` and `FromJson` get renames, conditional skips, and defaults per field through typed member facts, not in the first version ([Typed JSON](../spec/std/json.md#typed-json)) | waits for design: a `std.json` fact design: fact types, such as a rename, that the two templates read through `h.fact::[D]()`; an omit line `f = pass` already leaves a member out of one derivation |
+
+## Audit Gaps Left
+
+The stdlib audit (task #239) was applied in passes 89 and 90. These of its
+recommendations are not applied yet; each is a stdlib call to make in a
+later pass.
+
+| Gap | Recommendation |
+| --- | --- |
+| `Console.write_error_line!` | add it to `lib/std/console.hd` with its spec default; `BufferConsole` records both streams (audit inconsistency 23) |
+| sum of a list | `Iterator.sum()` for `T < Num`, as Rust |
+| float math | `sqrt`, `floor`, `round`, `abs`, `powi` on `f64` in `std.num`; most need a host hook, so the primitives need owner approval |
+| `Path` operations | `join`, `parent`, `file_name`, `extension`, as Go's `path/filepath` |
+| unsigned parsing | `parse_u32`, `parse_u64`, `parse_usize` beside `parse_i32` |
+| `print` without a newline | add when a prompt needs it; it needs a `Console` method (language tier) |
+| integer rotation | `rotate_left`, `rotate_right` in `std.num` |
+| hint diagnostics | `unsatisfied-trait-bound` on `Display` for an optional suggests `debug(...)`; `unknown-method` `unwrap` suggests `expect`; `Map::new()` suggests `{}` |
 
 ## Compiler Handoff
 
