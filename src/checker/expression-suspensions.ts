@@ -8,8 +8,8 @@ import {
   suspensionParts,
   suspensionType,
   traitSuspensionParts,
-  typeSourceText,
   tupleType,
+  displayType,
 } from "../types.ts";
 import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC, RACE_COMBINATOR } from "./standard-traits.ts";
 import { orderedTypeSubstitutions, substituteGenericType } from "./shared.ts";
@@ -46,7 +46,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
       if (result === undefined)
         this.fail(
           "type-mismatch",
-          `an argument of all! must be a mut Suspend[T], such as a cold call, found '${typeSourceText(child.type)}'`,
+          `an argument of all! must be a mut Suspend[T], such as a cold call, found '${displayType(child.type)}'`,
           argument.span,
         );
       return result;
@@ -171,7 +171,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
           if (!signature.suspending)
             this.fail(
               "not-suspending",
-              `function '${signature.name}' is not suspending`,
+              `function '${displayType(signature.name)}' is not suspending`,
               expression.span,
             );
           // `race!` has no first result without a task
@@ -218,7 +218,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
           if (missing.length > 0)
             this.fail(
               "missing-requirement",
-              `call to '${signature.name}' requires ${missing.map(typeSourceText).join(", ")}`,
+              `call to '${displayType(signature.name)}' requires ${missing.map(displayType).join(", ")}`,
               expression.span,
             );
           const resultType = substituteGenericType(
@@ -335,7 +335,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
         }
         this.fail(
           "not-suspending",
-          `type '${typeSourceText(suspension.type)}' is not a suspension`,
+          `type '${displayType(suspension.type)}' is not a suspension`,
           expression.span,
         );
       }

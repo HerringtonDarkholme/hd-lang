@@ -12,8 +12,8 @@ import {
   nominalGenericParts,
   nominalGenericType,
   readonlyType,
-  typeSourceText,
   tupleParts,
+  displayType,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import { patternsExhaustive } from "./exhaustiveness.ts";
@@ -159,7 +159,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
     if (!patternsExhaustive([pattern], type, { enums: this.enumTypes, data: this.dataTypes }))
       this.fail(
         "refutable-let-pattern",
-        `a for pattern must match every value of '${typeSourceText(type)}'; this one may fail`,
+        `a for pattern must match every value of '${displayType(type)}'; this one may fail`,
         pattern.span,
       );
   }
@@ -193,14 +193,14 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
     if (!statement.elseBody && !exhaustive)
       this.fail(
         "refutable-let-pattern",
-        `this let pattern may not match every value of '${typeSourceText(type)}'; add an else block that leaves the enclosing block`,
+        `this let pattern may not match every value of '${displayType(type)}'; add an else block that leaves the enclosing block`,
         pattern.span,
       );
     // (06-control-flow.md#r-flow.let.else.unreachable)
     if (statement.elseBody && exhaustive)
       this.fail(
         "unreachable-match-arm",
-        `this let pattern matches every value of '${typeSourceText(type)}', so its else block could never run; remove it`,
+        `this let pattern matches every value of '${displayType(type)}', so its else block could never run; remove it`,
         span,
       );
     const item: HirLocal = {
@@ -341,7 +341,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
     if (!bindingTypes || bindingTypes.length !== clause.bindings.length)
       this.fail(
         "type-mismatch",
-        `comprehension binding has ${clause.bindings.length} names but '${typeSourceText(info.yieldType)}' yields ${bindingTypes?.length ?? 1} value${bindingTypes?.length === 1 ? "" : "s"}`,
+        `comprehension binding has ${clause.bindings.length} names but '${displayType(info.yieldType)}' yields ${bindingTypes?.length ?? 1} value${bindingTypes?.length === 1 ? "" : "s"}`,
         clause.span,
       );
     const bindings = clause.bindings.map((binding, index) =>
@@ -363,7 +363,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
     if (info) return { iterable, ...info };
     this.fail(
       "unsatisfied-trait-bound",
-      `type '${typeSourceText(iterable.type)}' does not implement Iterable, required by the comprehension's for clause`,
+      `type '${displayType(iterable.type)}' does not implement Iterable, required by the comprehension's for clause`,
       expression.span,
     );
   }

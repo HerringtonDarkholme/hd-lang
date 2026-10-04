@@ -1,7 +1,7 @@
 import { ambiguousProjection, bindingNameProblem } from "./associated-bindings.ts";
 import { listVararg, tupleVararg, type FunctionDecl } from "../ast.ts";
 import type { HirAssociatedBinding, HirGenericBound, HirTrait } from "../hir.ts";
-import { mutableInner, nominalGenericParts, typeSourceText } from "../types.ts";
+import { mutableInner, nominalGenericParts, displayType } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
@@ -146,7 +146,7 @@ export function createProgramSignatures(
       if (PRELUDE_NAMES.has(parameter))
         diagnostics.push({
           code: "prelude-name-shadow",
-          message: `generic parameter '${parameter}' shadows a prelude name`,
+          message: `generic parameter '${displayType(parameter)}' shadows a prelude name`,
           span: declaration.span,
         });
     // A parameter declared `$R` is a row parameter (11-requirements-and-suspension.md#r-req.row.param.marked).
@@ -174,7 +174,7 @@ export function createProgramSignatures(
       if (rowParameterSet.has(bound.parameter)) {
         diagnostics.push({
           code: "generic-kind-conflict",
-          message: `generic parameter '${bound.parameter}' cannot be both a type and a requirement row`,
+          message: `generic parameter '${displayType(bound.parameter)}' cannot be both a type and a requirement row`,
           span: bound.span,
         });
         return [];
@@ -210,7 +210,7 @@ export function createProgramSignatures(
         if (!trait) {
           diagnostics.push({
             code: "unknown-trait",
-            message: `unknown trait '${traitName}'`,
+            message: `unknown trait '${displayType(traitName)}'`,
             span: bound.span,
           });
           return [];
@@ -221,7 +221,7 @@ export function createProgramSignatures(
         if (traitArguments.length !== trait.genericParameters.length) {
           diagnostics.push({
             code: "generic-arity",
-            message: `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
+            message: `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
             span: bound.span,
           });
           return [];
@@ -365,7 +365,7 @@ export function createProgramSignatures(
         if (nonhost) {
           diagnostics.push({
             code: "nonhost-entry-requirement",
-            message: `entry point requirement '${typeSourceText(nonhost)}' is not supplied by the MVP host profile`,
+            message: `entry point requirement '${displayType(nonhost)}' is not supplied by the MVP host profile`,
             span: declaration.span,
           });
         }

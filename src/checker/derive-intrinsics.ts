@@ -1,6 +1,6 @@
 import type { DataField, Program, TypeDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import { readonlyType, typeSourceText } from "../types.ts";
+import { readonlyType, typeSourceText, displayType } from "../types.ts";
 
 // ---------------------------------------------------------------------------
 // The derive checks of the comparison traits, whose implementations come from
@@ -144,13 +144,13 @@ export function checkLawPartners(
       if (missing)
         error(
           "mixed-derived-law",
-          `deriving ${trait.name} for '${declaration.name}' requires deriving ${missing} in the same list`,
+          `deriving ${displayType(trait.name)} for '${declaration.name}' requires deriving ${missing} in the same list`,
           trait.span,
         );
       else if (mixed)
         error(
           "mixed-derived-law",
-          `'${declaration.name}' derives ${trait.name} but implements its law partner ${mixed} by hand; derive both or write both`,
+          `'${declaration.name}' derives ${displayType(trait.name)} but implements its law partner ${mixed} by hand; derive both or write both`,
           trait.span,
         );
     }

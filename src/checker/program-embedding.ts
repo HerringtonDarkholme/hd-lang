@@ -1,6 +1,6 @@
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, ValueType } from "../hir.ts";
-import { nominalGenericParts, readonlyType } from "../types.ts";
+import { displayType, nominalGenericParts, readonlyType } from "../types.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 
 const MAX_EMBEDDING_DEPTH = 64;
@@ -47,7 +47,7 @@ export function checkEmbeddedMemberConflicts(context: ProgramCheckContext): void
         promoted.delete(member.name);
         context.diagnostics.push({
           code: "ambiguous-promoted-member",
-          message: `private ${namespace} '${member.name}' of '${declaration.name}' has the name of the promoted ${namespace} ${memberPath(declaration, shadowed[0]!)}; a private member cannot shadow a promoted one, so mark it pub or rename it`,
+          message: `private ${namespace} '${member.name}' of '${declaration.name}' duplicates promoted ${namespace} ${memberPath(declaration, shadowed[0]!)}; private members cannot shadow promoted ones; mark it pub or rename`,
           span: member.span,
         });
       }
@@ -61,7 +61,7 @@ export function checkEmbeddedMemberConflicts(context: ProgramCheckContext): void
         const paths = members.slice(0, 2).map((member) => memberPath(declaration, member));
         context.diagnostics.push({
           code: "ambiguous-promoted-member",
-          message: `${namespace} '${name}' is promoted twice at one depth, as ${paths[0]} and as ${paths[1]}; declare a pub '${name}' on '${declaration.name}' or embed differently`,
+          message: `${namespace} '${name}' is promoted twice at one depth (${paths[0]}, ${paths[1]}); add a pub '${name}' to '${declaration.name}' or embed differently`,
           span: later.span,
         });
       }
@@ -117,7 +117,7 @@ export function checkEmbeddingLimits(context: ProgramCheckContext): void {
       if (!chain) continue;
       context.diagnostics.push({
         code: "embedding-too-deep",
-        message: `data '${declaration.name}' embeds ${chain.length - 1} levels deep through ${chain.join(" > ").replaceAll("generic:", "")}; at most ${MAX_PART_DEPTH} levels are allowed`,
+        message: `data '${declaration.name}' embeds ${chain.length - 1} levels deep through ${displayType(chain.join(" > "))}; at most ${MAX_PART_DEPTH} levels are allowed`,
         span: field.span,
       });
       break;

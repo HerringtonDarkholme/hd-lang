@@ -8,7 +8,7 @@ import {
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
-import { mutableInner, nominalGenericParts, rowArgumentType, typeSourceText } from "../types.ts";
+import { mutableInner, nominalGenericParts, rowArgumentType, displayType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   requirementKeyDiagnostics,
@@ -182,7 +182,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
       if (PRELUDE_NAMES.has(parameter))
         diagnostics.push({
           code: "prelude-name-shadow",
-          message: `generic parameter '${parameter}' shadows a prelude name`,
+          message: `generic parameter '${displayType(parameter)}' shadows a prelude name`,
           span: declaration.span,
         });
     }
@@ -232,7 +232,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
       if (field.embedded && type !== "void" && (!embeddedData || embeddedData.newtype))
         diagnostics.push({
           code: "embedded-non-data",
-          message: `an embedded field must name a data type, not '${typeSourceText(field.type.name)}'`,
+          message: `an embedded field must name a data type, not '${displayType(field.type.name)}'`,
           span: field.span,
         });
       // An embedded field is always public (08-data-and-enums.md#data-declarations).
@@ -290,7 +290,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
       if (PRELUDE_NAMES.has(parameter))
         diagnostics.push({
           code: "prelude-name-shadow",
-          message: `generic parameter '${parameter}' shadows a prelude name`,
+          message: `generic parameter '${displayType(parameter)}' shadows a prelude name`,
           span: declaration.span,
         });
     }
@@ -418,7 +418,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
       if (PRELUDE_NAMES.has(parameter))
         diagnostics.push({
           code: "prelude-name-shadow",
-          message: `generic parameter '${parameter}' shadows a prelude name`,
+          message: `generic parameter '${displayType(parameter)}' shadows a prelude name`,
           span: declaration.span,
         });
     }
@@ -459,7 +459,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
       if (traitArguments.length !== supertrait.genericParameters.length) {
         diagnostics.push({
           code: "generic-arity",
-          message: `trait '${supertrait.name}' expects ${supertrait.genericParameters.length} type arguments`,
+          message: `trait '${displayType(supertrait.name)}' expects ${supertrait.genericParameters.length} type arguments`,
           span: reference.span,
         });
         return [];
@@ -479,8 +479,8 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
             code: declaring.length === 0 ? "unknown-associated-type" : "ambiguous-associated-type",
             message:
               declaring.length === 0
-                ? `trait '${supertrait.name}' declares or reaches no associated type '${binding.name}'`
-                : `'${binding.name}' of '${supertrait.name}' is ambiguous: ${declaring.join(" and ")} each declare it`,
+                ? `trait '${displayType(supertrait.name)}' declares or reaches no associated type '${binding.name}'`
+                : `'${binding.name}' of '${displayType(supertrait.name)}' is ambiguous: ${declaring.join(" and ")} each declare it`,
             span: binding.span,
           });
           continue;
@@ -488,7 +488,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         if (associatedBindings.some((existing) => existing.name === binding.name)) {
           diagnostics.push({
             code: "duplicate-associated-binding",
-            message: `associated type '${binding.name}' of '${supertrait.name}' is bound more than once`,
+            message: `associated type '${binding.name}' of '${displayType(supertrait.name)}' is bound more than once`,
             span: binding.span,
           });
           continue;
@@ -910,7 +910,7 @@ function diagnoseSupertraitMemberNames(context: ProgramCheckContext): void {
       if (inspectable && INSPECTABLE_MEMBERS.has(member.name)) {
         context.diagnostics.push({
           code: "sealed-trait-implementation",
-          message: `trait '${trait.name}' redeclares '${member.name}', a member of the sealed Inspectable`,
+          message: `trait '${displayType(trait.name)}' redeclares '${member.name}', a member of the sealed Inspectable`,
           span: member.span,
         });
         continue;
@@ -919,7 +919,7 @@ function diagnoseSupertraitMemberNames(context: ProgramCheckContext): void {
       if (owner)
         context.diagnostics.push({
           code: "duplicate-trait-member",
-          message: `trait '${trait.name}' declares '${member.name}', which its supertrait '${owner}' already declares`,
+          message: `trait '${displayType(trait.name)}' declares '${member.name}', which its supertrait '${owner}' already declares`,
           span: member.span,
         });
     }
@@ -957,7 +957,7 @@ function diagnoseSupertraitCycles(context: ProgramCheckContext): void {
     )
       context.diagnostics.push({
         code: "supertrait-cycle",
-        message: `trait '${trait.name}' participates in a supertrait cycle`,
+        message: `trait '${displayType(trait.name)}' participates in a supertrait cycle`,
         span: declaration.span,
       });
   });

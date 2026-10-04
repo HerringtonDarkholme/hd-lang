@@ -21,9 +21,9 @@ import {
   nominalGenericType,
   PRIMITIVE_TYPES,
   readonlyType,
-  typeSourceText,
   tupleParts,
   tupleType,
+  displayType,
 } from "../types.ts";
 import {
   collectRowParameterReferences,
@@ -214,7 +214,7 @@ function specializeTrait(
   if (trait.genericParameters.length !== (application?.arguments.length ?? 0)) {
     context.diagnostics.push({
       code: "generic-arity",
-      message: `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
+      message: `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
       span: implementation.span,
     });
     return undefined;
@@ -265,7 +265,7 @@ function registerImplementationPair(
   if (conflict) {
     diagnostics.push({
       code: "overlapping-impl",
-      message: `${typeSourceText(implementation.targetName)} overlaps the ${trait.name} implementation for '${typeSourceText(readonlyType(conflict.targetType).replaceAll("generic:", ""))}': their heads unify`,
+      message: `${displayType(implementation.targetName)} overlaps the ${displayType(trait.name)} implementation for '${displayType(readonlyType(conflict.targetType))}': their heads unify`,
       span: implementation.span,
     });
     return false;
@@ -290,7 +290,7 @@ function checkImplementationTarget(
   if (mutableInner(implementation.targetName) !== undefined) {
     diagnostics.push({
       code: "mutable-impl-target",
-      message: `implementation target '${typeSourceText(readonlyType(implementation.targetName))}' cannot be written with mut; permission belongs to receivers and bounds`,
+      message: `implementation target '${displayType(readonlyType(implementation.targetName))}' cannot be written with mut; permission belongs to receivers and bounds`,
       span: implementation.span,
     });
     return false;
@@ -298,7 +298,7 @@ function checkImplementationTarget(
   if (!family && implementation.genericParameters.includes(implementation.targetName)) {
     diagnostics.push({
       code: "bare-parameter-impl-target",
-      message: `implementation target '${typeSourceText(implementation.targetName)}' is a bare type parameter; a target must start with a type constructor`,
+      message: `implementation target '${displayType(implementation.targetName)}' is a bare type parameter; a target must start with a type constructor`,
       span: implementation.span,
     });
     return false;
@@ -395,13 +395,13 @@ function invalidInherentTarget(
   if (tupleParts(target) !== undefined)
     return {
       code: "invalid-impl-target",
-      message: `an inherent implementation cannot target the tuple type '${typeSourceText(target)}'; tuples get only trait implementations`,
+      message: `an inherent implementation cannot target the tuple type '${displayType(target)}'; tuples get only trait implementations`,
       span,
     };
   if (traitTypes.has(targetBase))
     return {
       code: "trait-value-impl-target",
-      message: `an inherent implementation cannot target the trait value type '${typeSourceText(target)}'; add a provided method to the trait instead`,
+      message: `an inherent implementation cannot target the trait value type '${displayType(target)}'; add a provided method to the trait instead`,
       span,
     };
   const known = typeName(
@@ -416,12 +416,12 @@ function invalidInherentTarget(
   if (known !== undefined)
     return {
       code: "orphan-impl",
-      message: `an inherent implementation of '${typeSourceText(target)}' must be declared in the package that owns it`,
+      message: `an inherent implementation of '${displayType(target)}' must be declared in the package that owns it`,
       span,
     };
   return {
     code: "unknown-type",
-    message: `unknown inherent implementation target '${typeSourceText(target)}'`,
+    message: `unknown inherent implementation target '${displayType(target)}'`,
     span,
   };
 }
@@ -460,7 +460,7 @@ function prepareInherentImplementation(
   } else if (target.genericParameters.length > 0 && targetBase === implementation.targetName) {
     diagnostics.push({
       code: "unsupported-generic-impl",
-      message: `inherent implementation of generic type '${typeSourceText(implementation.targetName)}' requires explicit generic parameters`,
+      message: `inherent implementation of generic type '${displayType(implementation.targetName)}' requires explicit generic parameters`,
       span: implementation.span,
     });
     return;
@@ -479,7 +479,7 @@ function prepareInherentImplementation(
     if (clash) {
       diagnostics.push({
         code: "duplicate-inherent-member",
-        message: `inherent method '${typeSourceText(implementation.targetName)}.${method.name}' is declared more than once for unifying targets`,
+        message: `inherent method '${displayType(implementation.targetName)}.${method.name}' is declared more than once for unifying targets`,
         span: method.span,
       });
       continue;
@@ -671,7 +671,7 @@ function resolveImplementationTarget(
   if (isKnownType(targetType, dataTypes, enumTypes, traitTypes)) return targetType;
   diagnostics.push({
     code: "unknown-type",
-    message: `unknown implementation target '${typeSourceText(implementation.targetName)}'`,
+    message: `unknown implementation target '${displayType(implementation.targetName)}'`,
     span: implementation.span,
   });
   return undefined;
@@ -709,7 +709,7 @@ function checkImplementationOwnership(
   if (traitIsLocal || isLocalConstructor(targetType) || argumentIsLocal) return true;
   context.diagnostics.push({
     code: "orphan-impl",
-    message: `implementation of nonlocal trait '${trait.name}' for nonlocal type '${typeSourceText(constructorOf(targetType))}' is not allowed`,
+    message: `implementation of nonlocal trait '${displayType(trait.name)}' for nonlocal type '${displayType(constructorOf(targetType))}' is not allowed`,
     span: implementation.span,
   });
   return false;
@@ -733,7 +733,7 @@ function prepareAssociatedTypes(
     if (!trait.associatedTypes.some((associated) => associated.name === binding.name))
       diagnostics.push({
         code: "extra-trait-member",
-        message: `associated type '${binding.name}' is not declared by trait ${trait.name}`,
+        message: `associated type '${binding.name}' is not declared by trait ${displayType(trait.name)}`,
         span: binding.span,
       });
   }
@@ -743,7 +743,7 @@ function prepareAssociatedTypes(
     if (!binding?.value) {
       diagnostics.push({
         code: "missing-associated-type",
-        message: `${typeSourceText(implementation.targetName)} does not bind ${trait.name}.${associated.name}`,
+        message: `${displayType(implementation.targetName)} does not bind ${displayType(trait.name)}.${associated.name}`,
         span: implementation.span,
       });
       return "void";
@@ -811,7 +811,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     if (!trait) {
       diagnostics.push({
         code: "unknown-trait",
-        message: `unknown trait '${implementation.traitName}'`,
+        message: `unknown trait '${displayType(implementation.traitName)}'`,
         span: implementation.span,
       });
       continue;
@@ -819,7 +819,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     if (trait.standardName === TUPLE_TRAIT) {
       diagnostics.push({
         code: "sealed-trait-implementation",
-        message: `${trait.name} is sealed: the compiler implements it for every tuple type`,
+        message: `${displayType(trait.name)} is sealed: the compiler implements it for every tuple type`,
         span: implementation.span,
       });
       continue;
@@ -833,7 +833,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     ) {
       diagnostics.push({
         code: "sealed-trait-implementation",
-        message: `${trait.name} is sealed: only the standard library implements it, for the primitive number types`,
+        message: `${displayType(trait.name)} is sealed: only the standard library implements it, for the primitive number types`,
         span: implementation.span,
       });
       continue;
@@ -843,7 +843,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     if (traitTypes.has(targetBase ?? implementation.targetName)) {
       diagnostics.push({
         code: "trait-value-impl-target",
-        message: `implementation target '${typeSourceText(implementation.targetName)}' is a trait value type; implement the trait for concrete types instead`,
+        message: `implementation target '${displayType(implementation.targetName)}' is a trait value type; implement the trait for concrete types instead`,
         span: implementation.span,
       });
       continue;
@@ -914,7 +914,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       if (!trait.methods.some((required) => required.name === method.name)) {
         diagnostics.push({
           code: "extra-trait-method",
-          message: `method '${method.name}' is not declared by trait ${trait.name}`,
+          message: `method '${method.name}' is not declared by trait ${displayType(trait.name)}`,
           span: method.span,
         });
       }
@@ -933,7 +933,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       if (!method) {
         diagnostics.push({
           code: "missing-trait-method",
-          message: `${typeSourceText(implementation.targetName)} does not implement ${trait.name}.${required.name}`,
+          message: `${displayType(implementation.targetName)} does not implement ${displayType(trait.name)}.${required.name}`,
           span: implementation.span,
         });
         continue;
@@ -1021,7 +1021,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         ) {
           diagnostics.push({
             code: "trait-method-signature",
-            message: `method '${method.name}' does not match ${trait.name}.${required.name}`,
+            message: `method '${method.name}' does not match ${displayType(trait.name)}.${required.name}`,
             span: method.span,
           });
         }
@@ -1140,7 +1140,7 @@ function prepareDelegation(
   const field = target?.fields.find((candidate) => candidate.name === delegate.name);
   if (!field?.embedded)
     return fail(
-      `'${delegate.name}' is not an embedded field of '${typeSourceText(implementation.targetName)}'`,
+      `'${delegate.name}' is not an embedded field of '${displayType(implementation.targetName)}'`,
     );
   if (implementation.associatedTypes.length > 0)
     return fail(
@@ -1222,7 +1222,7 @@ function validateDelegations(
     if (!implemented)
       context.diagnostics.push({
         code: "invalid-delegation",
-        message: `'${delegation.implementation.delegate!.name}' has type '${typeSourceText(delegation.partType)}', which does not implement ${delegation.implementation.traitName}`,
+        message: `'${delegation.implementation.delegate!.name}' has type '${displayType(delegation.partType)}', which does not implement ${displayType(delegation.implementation.traitName ?? "")}`,
         span: delegation.implementation.delegate!.span,
       });
   }
@@ -1310,7 +1310,7 @@ function validateSupertraits(
     )
       context.diagnostics.push({
         code: "missing-supertrait-implementation",
-        message: `${typeSourceText(implementation.declaration.targetName)} must implement ${category} before ${implementation.trait.name}`,
+        message: `${displayType(implementation.declaration.targetName)} must implement ${category} before ${displayType(implementation.trait.name)}`,
         span: implementation.declaration.span,
       });
   }
@@ -1358,7 +1358,7 @@ function validateSupertraits(
     if (!found)
       context.diagnostics.push({
         code: "missing-supertrait-implementation",
-        message: `${typeSourceText(implementation.declaration.targetName)} must implement ${supertrait.traitName} before ${implementation.trait.name}`,
+        message: `${displayType(implementation.declaration.targetName)} must implement ${displayType(supertrait.traitName)} before ${displayType(implementation.trait.name)}`,
         span: implementation.declaration.span,
       });
   }

@@ -7,7 +7,7 @@ import {
   optionalInner,
   optionalType,
   readonlyType,
-  typeSourceText,
+  displayType,
 } from "../types.ts";
 import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
 import { MemberLookupChecker } from "./member-lookup.ts";
@@ -72,7 +72,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     if (!plan)
       this.fail(
         "unsatisfied-trait-bound",
-        `type '${typeSourceText(type)}' does not implement Inspectable`,
+        `type '${displayType(type)}' does not implement Inspectable`,
         span,
       );
     return {
@@ -161,7 +161,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     if (erased.type !== erasedType)
       this.fail(
         "unsatisfied-trait-bound",
-        `type '${typeSourceText(receiver.type)}' does not implement Inspectable`,
+        `type '${displayType(receiver.type)}' does not implement Inspectable`,
         expression.span,
       );
     const target = readonlyType(
@@ -176,7 +176,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     )
       this.fail(
         "unsatisfied-trait-bound",
-        `type '${typeSourceText(target)}' does not implement AnyRef, required by the bound on '${name}'; recover a value type with downcast_val`,
+        `type '${displayType(target)}' does not implement AnyRef, required by the bound on '${name}'; recover a value type with downcast_val`,
         expression.span,
       );
     const dictionary = this.inspectTargetDictionary(trait, target, expression.span);

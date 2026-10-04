@@ -7,7 +7,7 @@ import {
   mutableType,
   nominalGenericParts,
   readonlyType,
-  typeSourceText,
+  displayType,
 } from "../types.ts";
 import { numericType } from "../numeric.ts";
 import {
@@ -147,7 +147,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       if (!unwraps)
         this.fail(
           "type-mismatch",
-          `'${name}(...)' casts a numeric value, found '${typeSourceText(value.type)}'`,
+          `'${name}(...)' casts a numeric value, found '${displayType(value.type)}'`,
           expression.span,
         );
       return this.unwrapNewtype(name, value, expression.span);
@@ -207,7 +207,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     if (!declaration || !field)
       this.fail(
         "type-mismatch",
-        `'${name}(...)' unwraps a newtype over '${name}', found '${typeSourceText(value.type)}'`,
+        `'${name}(...)' unwraps a newtype over '${name}', found '${displayType(value.type)}'`,
         expression.span,
       );
     const substitutions = this.dataSubstitutions(declaration, value.type);
@@ -215,7 +215,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     if (constructorOf(base) !== name)
       this.fail(
         "type-mismatch",
-        `'${name}(...)' cannot unwrap '${typeSourceText(value.type)}', a newtype over '${typeSourceText(base)}'`,
+        `'${name}(...)' cannot unwrap '${displayType(value.type)}', a newtype over '${displayType(base)}'`,
         expression.span,
       );
     const member = this.dataMember(value, declaration, field, substitutions, expression.span);
@@ -461,7 +461,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       const path = selected.steps.map((step) => step.field.name).join(".");
       this.fail(
         "ambiguous-method",
-        `'${name}' is a ${traitCandidate} method of this type and also a method promoted from the embedded field '${path}'; call it as ${traitCandidate}::${name}(x, ...) or x.${path}.${name}(...)`,
+        `'${name}' is a ${traitCandidate} method here and also a method promoted from the embedded field '${path}'; call it as ${traitCandidate}::${name}(...) or x.${path}.${name}(...)`,
         span,
       );
     }

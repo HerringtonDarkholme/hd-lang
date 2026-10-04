@@ -6,7 +6,7 @@ import {
   mutableInner,
   nominalGenericParts,
   readonlyType,
-  typeSourceText,
+  displayType,
 } from "../types.ts";
 import { ExpressionCallChecker, type MemberCallExpression } from "./expression-calls.ts";
 import { genericTypeName, matchImplementationTarget } from "./shared.ts";
@@ -36,7 +36,7 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
       () =>
         this.fail(
           "type-mismatch",
-          `operator '${operator}' needs an implementation of std.ops.${traitName} for '${typeSourceText(readonlyType(receiver.type))}'` +
+          `operator '${operator}' needs an implementation of std.ops.${traitName} for '${displayType(readonlyType(receiver.type))}'` +
             // A function-typed left operand gets no row subsumption
             // (05-expressions.md#r-expr.op.left-dispatch.exact-function.message).
             (functionParts(readonlyType(receiver.type))
@@ -63,7 +63,7 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
       () =>
         this.fail(
           "invalid-assignment-target",
-          `an indexed place needs an implementation of std.ops.IndexSet for '${typeSourceText(readonlyType(receiver.type))}'`,
+          `an indexed place needs an implementation of std.ops.IndexSet for '${displayType(readonlyType(receiver.type))}'`,
           statement.target.span,
         ),
     );
@@ -89,14 +89,14 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
       () =>
         this.fail(
           "not-callable",
-          `type '${typeSourceText(callee.type)}' is not callable: it is not a function type and does not implement std.ops.Apply`,
+          `type '${displayType(callee.type)}' is not callable: it is not a function type and does not implement std.ops.Apply`,
           expression.callee.span,
         ),
     );
     if (expression.arguments.length > 0)
       this.fail(
         "argument-count",
-        `a callable value of type '${typeSourceText(readonlyType(callee.type))}' takes no arguments`,
+        `a callable value of type '${displayType(readonlyType(callee.type))}' takes no arguments`,
         expression.span,
       );
     return call;
@@ -132,7 +132,7 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
       "invalid-assignment-target",
       calleeType === undefined
         ? "a function or method call is not a place; only a callable value whose type implements std.ops.Update is"
-        : `a call is a place only when its callee's type implements std.ops.Update, and '${typeSourceText(readonlyType(calleeType))}' does not`,
+        : `a call is a place only when its callee's type implements std.ops.Update, and '${displayType(readonlyType(calleeType))}' does not`,
       target.span,
     );
   }
@@ -153,7 +153,7 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
     if (target.arguments.length > 0)
       this.fail(
         "argument-count",
-        `a callable value of type '${typeSourceText(readonlyType(callee.type))}' takes no arguments`,
+        `a callable value of type '${displayType(readonlyType(callee.type))}' takes no arguments`,
         target.span,
       );
     if (mutableInner(callee.type) === undefined && genericTypeName(callee.type) === undefined) {
@@ -166,7 +166,7 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
       const edge = root !== calleeSource && binding && mutableInner(binding.type) !== undefined;
       this.fail(
         edge ? "readonly-edge" : "readonly-root",
-        `a store through '${typeSourceText(readonlyType(callee.type))}' needs mutable access to it`,
+        `a store through '${displayType(readonlyType(callee.type))}' needs mutable access to it`,
         calleeSource.span,
       );
     }

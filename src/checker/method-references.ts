@@ -10,7 +10,7 @@ import {
   nominalGenericType,
   PRIMITIVE_TYPES,
   readonlyType,
-  typeSourceText,
+  displayType,
 } from "../types.ts";
 import type { MemberCallExpression } from "./expression-calls.ts";
 import {
@@ -105,7 +105,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
     if (base(readonlyType(receiver.type)) !== base(ownerType))
       this.fail(
         "type-mismatch",
-        `expected a '${typeSourceText(ownerType)}' receiver, found ${typeSourceText(receiver.type)}`,
+        `expected a '${displayType(ownerType)}' receiver, found ${displayType(receiver.type)}`,
         expression.arguments[0]!.span,
       );
     return this.checkImplementedMemberCall(
@@ -178,8 +178,8 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
       this.fail(
         "unknown-method",
         member
-          ? `'${expression.name}' is an associated function, which a bound reference cannot name; write '${typeSourceText(readonlyType(value.type))}::${expression.name}'`
-          : `type '${typeSourceText(readonlyType(value.type))}' has no method '${expression.name}'`,
+          ? `'${expression.name}' is an associated function, which a bound reference cannot name; write '${displayType(readonlyType(value.type))}::${expression.name}'`
+          : `type '${displayType(readonlyType(value.type))}' has no method '${expression.name}'`,
         span,
       );
     if (mutableInner(member.receiver) !== undefined && mutableInner(value.type) === undefined)
@@ -346,7 +346,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
       if (traitArguments.length !== trait.genericParameters.length)
         this.fail(
           "generic-arity",
-          `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
+          `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
           span,
         );
       const found = this.findTraitMethods(trait, name);
@@ -355,7 +355,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
           this.findTraitMethods(trait, name, [], new Set(), true).length > 0
             ? "associated-function-needs-target"
             : "unknown-method",
-          `trait '${trait.name}' has no method '${name}' to reference`,
+          `trait '${displayType(trait.name)}' has no method '${name}' to reference`,
           span,
         );
       if (found.length > 1)
@@ -516,7 +516,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
     if (candidates.length > 1)
       this.fail(
         "ambiguous-method",
-        `several traits give '${typeSourceText(ownerType)}' a '${name}'`,
+        `several traits give '${displayType(ownerType)}' a '${name}'`,
         span,
       );
     const candidate = candidates[0];

@@ -12,8 +12,8 @@ import {
   restInner,
   resultParts,
   rowArgumentKeys,
-  typeSourceText,
   tupleParts,
+  displayType,
 } from "../types.ts";
 import { associatedNames, bindingNameProblem, traitKeyParts } from "./associated-bindings.ts";
 import { traitIsDynamicallySafe } from "./dynamic-safety.ts";
@@ -56,7 +56,7 @@ export function requirementKeyDiagnostics(
     if (!trait) {
       diagnostics.push({
         code: "unknown-trait",
-        message: `unknown trait '${key.name}' in requirement key '${typeSourceText(requirement)}'`,
+        message: `unknown trait '${displayType(key.name)}' in requirement key '${displayType(requirement)}'`,
         span,
       });
       continue;
@@ -64,7 +64,7 @@ export function requirementKeyDiagnostics(
     if (hasStandardInspectable && extendsInspectable(traitTypes, trait.name)) {
       diagnostics.push({
         code: "inspectable-requirement",
-        message: `'${trait.name}' extends Inspectable, so it cannot be a requirement key`,
+        message: `'${displayType(trait.name)}' extends Inspectable, so it cannot be a requirement key`,
         span,
       });
       continue;
@@ -72,7 +72,7 @@ export function requirementKeyDiagnostics(
     if (trait.genericParameters.length !== key.positional.length) {
       diagnostics.push({
         code: "generic-arity",
-        message: `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
+        message: `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
         span,
       });
       continue;
@@ -83,7 +83,7 @@ export function requirementKeyDiagnostics(
     if (duplicate) {
       diagnostics.push({
         code: "duplicate-associated-binding",
-        message: `associated type '${duplicate.name}' of '${trait.name}' is bound more than once`,
+        message: `associated type '${duplicate.name}' of '${displayType(trait.name)}' is bound more than once`,
         span,
       });
       continue;
@@ -99,7 +99,7 @@ export function requirementKeyDiagnostics(
     if (knownType && !arguments_.every(knownType)) {
       diagnostics.push({
         code: "unknown-type",
-        message: `requirement key '${typeSourceText(requirement)}' contains an unknown type`,
+        message: `requirement key '${displayType(requirement)}' contains an unknown type`,
         span,
       });
       continue;
@@ -109,7 +109,7 @@ export function requirementKeyDiagnostics(
     if (unbound.length > 0) {
       diagnostics.push({
         code: "trait-not-dynamically-safe",
-        message: `requirement key '${typeSourceText(requirement)}' leaves the associated type${unbound.length === 1 ? "" : "s"} ${unbound.join(", ")} of '${trait.name}' unbound; write '${trait.name}[${unbound.map((name) => `${name} = ...`).join(", ")}]'`,
+        message: `requirement key '${displayType(requirement)}' leaves the associated type${unbound.length === 1 ? "" : "s"} ${unbound.join(", ")} of '${displayType(trait.name)}' unbound; write '${displayType(trait.name)}[${unbound.map((name) => `${name} = ...`).join(", ")}]'`,
         span,
       });
       continue;
@@ -117,7 +117,7 @@ export function requirementKeyDiagnostics(
     if (!traitIsDynamicallySafe(trait, traitTypes, bound)) {
       diagnostics.push({
         code: "trait-not-dynamically-safe",
-        message: `trait '${trait.name}' cannot be used as requirement key '${typeSourceText(requirement)}' because it is not dynamically safe`,
+        message: `trait '${displayType(trait.name)}' cannot be used as requirement key '${displayType(requirement)}' because it is not dynamically safe`,
         span,
       });
       continue;

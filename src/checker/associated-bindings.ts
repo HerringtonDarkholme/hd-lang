@@ -9,6 +9,7 @@ import {
   splitTypeBindings,
   tupleParts,
   type TypeBinding,
+  displayType,
 } from "../types.ts";
 
 // Associated type bindings by name (09-traits.md#binding-names): a binding
@@ -75,12 +76,12 @@ export function bindingNameProblem(
   if (declarations.length === 0)
     return {
       code: "unknown-associated-type",
-      message: `trait '${trait.name}' declares or reaches no associated type '${name}'`,
+      message: `trait '${displayType(trait.name)}' declares or reaches no associated type '${name}'`,
     };
   if (declarations.length > 1)
     return {
       code: "ambiguous-associated-type",
-      message: `'${name}' of '${trait.name}' is ambiguous: ${declarations.map((candidate) => candidate.name).join(" and ")} each declare it`,
+      message: `'${name}' of '${displayType(trait.name)}' is ambiguous: ${declarations.map((candidate) => candidate.name).join(" and ")} each declare it`,
     };
   return undefined;
 }

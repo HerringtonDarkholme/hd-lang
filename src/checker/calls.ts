@@ -26,7 +26,7 @@ import {
   tupleRest,
   tupleType,
   inputsInner,
-  typeSourceText,
+  displayType,
 } from "../types.ts";
 import {
   isKnownType,
@@ -449,7 +449,7 @@ export abstract class CallChecker extends StatementChecker {
     if (missing.length > 0)
       this.fail(
         "missing-requirement",
-        `method '${method.name}' requires ${missing.map(typeSourceText).join(", ")}`,
+        `method '${method.name}' requires ${missing.map(displayType).join(", ")}`,
         expression.span,
       );
     const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);
@@ -521,7 +521,7 @@ export abstract class CallChecker extends StatementChecker {
         if (mutableInner(formal) === checked.type) {
           this.fail(
             "readonly-argument-to-mutable-parameter",
-            `readonly argument '${typeSourceText(checked.type)}' cannot satisfy mutable parameter '${typeSourceText(formal)}'`,
+            `readonly argument '${displayType(checked.type)}' cannot satisfy mutable parameter '${displayType(formal)}'`,
             source.span,
           );
         }
@@ -557,7 +557,7 @@ export abstract class CallChecker extends StatementChecker {
     receiver: HirExpression,
   ): never {
     const bindingName = source.kind === "name" ? source.name : undefined;
-    const receiverType = genericTypeName(receiver.type) ?? typeSourceText(receiver.type);
+    const receiverType = displayType(genericTypeName(receiver.type) ?? receiver.type);
     const binding =
       bindingName !== undefined
         ? (this.resolveLocal(bindingName) ??
@@ -706,7 +706,7 @@ export abstract class CallChecker extends StatementChecker {
     if (nominalGenericParts(actual)?.name === "List")
       this.fail(
         "positional-spread-needs-vararg",
-        `a List spread needs a vararg as the next positional parameter, which takes '${typeSourceText(readonlyType(parameterTypes[0]!))}'`,
+        `a List spread needs a vararg as the next positional parameter, which takes '${displayType(readonlyType(parameterTypes[0]!))}'`,
         operandSource.span,
       );
     const expectedTuple = tupleRest(remaining);
@@ -722,7 +722,7 @@ export abstract class CallChecker extends StatementChecker {
     if (!same)
       this.fail(
         "type-mismatch",
-        `a spread before fixed parameters needs the tuple of the remaining inputs '${typeSourceText(remaining)}', found '${typeSourceText(operand.type)}'`,
+        `a spread before fixed parameters needs the tuple of the remaining inputs '${displayType(remaining)}', found '${displayType(operand.type)}'`,
         operandSource.span,
       );
     if (inputs !== undefined) {
@@ -794,7 +794,7 @@ export abstract class CallChecker extends StatementChecker {
     written: Extract<Expression, { kind: "call" | "suspend-call" }>,
     signature: Signature,
     expected?: ValueType,
-    callable = `function '${signature.name}'`,
+    callable = `function '${displayType(signature.name)}'`,
     initialSubstitutions: ReadonlyMap<string, ValueType> = new Map(),
   ): CheckedSignatureArguments {
     const expression = this.spreadIntoInputs(
@@ -832,7 +832,7 @@ export abstract class CallChecker extends StatementChecker {
           if (!row)
             this.fail(
               "generic-kind-mismatch",
-              `${callable} takes a requirement row for '${parameter}', written after '$', as in '$ ${typeSourceText(argument.name.replace(/^trait:/, ""))}'`,
+              `${callable} takes a requirement row for '${displayType(parameter)}', written after '$', as in '$ ${displayType(argument.name)}'`,
               argument.span,
             );
           rowSubstitutions.set(
@@ -846,7 +846,7 @@ export abstract class CallChecker extends StatementChecker {
         if (row)
           this.fail(
             "generic-kind-mismatch",
-            `${callable} takes a type, not the requirement row '${typeSourceText(argument.name)}', for '${parameter}'`,
+            `${callable} takes a type, not the requirement row '${displayType(argument.name)}', for '${displayType(parameter)}'`,
             argument.span,
           );
         substitutions.set(parameter, this.resolveType(argument));
@@ -912,7 +912,7 @@ export abstract class CallChecker extends StatementChecker {
         )
           this.fail(
             "unsatisfied-trait-bound",
-            `readonly type '${typeSourceText(checked.type)}' does not satisfy the mut bound on '${formalGeneric}' of '${signature.name}'`,
+            `readonly type '${displayType(checked.type)}' does not satisfy the mut bound on '${displayType(formalGeneric)}' of '${displayType(signature.name)}'`,
             source.span,
           );
         const boundedParameters = new Set(signature.genericBounds.map((bound) => bound.parameter));
@@ -941,7 +941,7 @@ export abstract class CallChecker extends StatementChecker {
           if (upgraded)
             this.fail(
               "mutable-upgrade",
-              `readonly argument '${typeSourceText(checked.type)}' cannot infer '${upgraded[0]}' as mutable '${typeSourceText(substitutions.get(upgraded[0])!)}'`,
+              `readonly argument '${displayType(checked.type)}' cannot infer '${upgraded[0]}' as mutable '${displayType(substitutions.get(upgraded[0])!)}'`,
               source.span,
             );
           this.fail("type-mismatch", conflict, source.span);
@@ -950,7 +950,7 @@ export abstract class CallChecker extends StatementChecker {
         if (mutableInner(instantiatedFormal) === checked.type) {
           this.fail(
             "readonly-argument-to-mutable-parameter",
-            `readonly argument '${typeSourceText(checked.type)}' cannot satisfy mutable parameter '${typeSourceText(instantiatedFormal)}'`,
+            `readonly argument '${displayType(checked.type)}' cannot satisfy mutable parameter '${displayType(instantiatedFormal)}'`,
             source.span,
           );
         }
@@ -1007,7 +1007,7 @@ export abstract class CallChecker extends StatementChecker {
       const actual = substitutions.get(missingBound.parameter)!;
       this.fail(
         "unsatisfied-trait-bound",
-        `type '${typeSourceText(actual)}' does not implement ${missingBound.traitName}, required by the bound on '${missingBound.parameter}' of '${signature.name}'`,
+        `type '${displayType(actual)}' does not implement ${displayType(missingBound.traitName)}, required by the bound on '${displayType(missingBound.parameter)}' of '${displayType(signature.name)}'`,
         expression.span,
       );
     }
@@ -1084,12 +1084,12 @@ export abstract class CallChecker extends StatementChecker {
     if (traitTypeName(earlier) !== undefined || traitTypeName(current) !== undefined)
       this.fail(
         "no-common-type",
-        `arguments of types '${typeSourceText(earlier)}' and '${typeSourceText(current)}' both solve '${parameter}' of '${name}', and inference never converts to a trait value; write the type argument, as in '${name}::[${traitTypeName(earlier) ?? traitTypeName(current)}](...)'`,
+        `arguments of types '${displayType(earlier)}' and '${displayType(current)}' both solve '${displayType(parameter)}' of '${name}', and inference never converts to a trait value; write '${name}::[${displayType(traitTypeName(earlier) ?? traitTypeName(current)!)}](...)'`,
         span,
       );
     this.fail(
       "type-mismatch",
-      `arguments of types '${typeSourceText(earlier)}' and '${typeSourceText(current)}' both solve '${parameter}' of '${name}', and inference never widens a number; convert one argument to the other's type`,
+      `arguments of types '${displayType(earlier)}' and '${displayType(current)}' both solve '${displayType(parameter)}' of '${name}', and inference never widens a number; convert one argument to the other's type`,
       span,
     );
   }
@@ -1136,14 +1136,14 @@ export abstract class CallChecker extends StatementChecker {
         )
           this.fail(
             "mutable-upgrade",
-            `readonly value '${typeSourceText(value.type)}' cannot provide the mutable requirement trait '${typeSourceText(key)}'`,
+            `readonly value '${displayType(value.type)}' cannot provide the mutable requirement trait '${displayType(key)}'`,
             entry.value.span,
           );
         if (providerType) value = this.requireCoercion(value, providerType, entry.value.span);
         else if (!value.type.startsWith("provider:")) {
           this.fail(
             "provider-type-mismatch",
-            `provider binding '${typeSourceText(key)}' requires an opaque provider value`,
+            `provider binding '${displayType(key)}' requires an opaque provider value`,
             entry.value.span,
           );
         }
@@ -1157,7 +1157,7 @@ export abstract class CallChecker extends StatementChecker {
       if (!keys)
         this.fail(
           "type-mismatch",
-          `context spread requires a $.Context value, found '${typeSourceText(value.type)}'`,
+          `context spread requires a $.Context value, found '${displayType(value.type)}'`,
           entry.value.span,
         );
       const contextLocal: HirLocal = {
@@ -1232,7 +1232,7 @@ export abstract class CallChecker extends StatementChecker {
     if (collision) {
       this.fail(
         "generic-requirement-key-collision",
-        `provider keys '${typeSourceText(collision)}' and '${typeSourceText(key)}' can become identical after generic substitution`,
+        `provider keys '${displayType(collision)}' and '${displayType(key)}' can become identical after generic substitution`,
         span,
       );
     }
@@ -1259,6 +1259,15 @@ export abstract class CallChecker extends StatementChecker {
     return resolved;
   }
 
+  /** `cannot-infer-type` for a generic parameter inference left unsolved. */
+  protected failUninferredGenericParameter(parameter: string, span: SourceSpan): never {
+    this.fail(
+      "cannot-infer-type",
+      `could not infer generic parameter ${displayType(parameter)}`,
+      span,
+    );
+  }
+
   protected resolveBoundDictionaries(
     signature: Signature,
     substitutions: ReadonlyMap<string, ValueType>,
@@ -1266,21 +1275,20 @@ export abstract class CallChecker extends StatementChecker {
   ): HirExpression[] {
     for (const parameter of signature.referenceParameters ?? []) {
       const actual = substitutions.get(parameter);
-      if (!actual)
-        this.fail("cannot-infer-type", `could not infer generic parameter ${parameter}`, span);
+      if (!actual) this.failUninferredGenericParameter(parameter, span);
       const forwarded = genericTypeName(actual);
       if (forwarded) {
         if (!(this.signature.referenceParameters ?? []).includes(forwarded)) {
           this.fail(
             "unsatisfied-trait-bound",
-            `generic parameter '${forwarded}' does not implement AnyRef, required by the bound on '${parameter}' of '${signature.name}'`,
+            `generic parameter '${displayType(forwarded)}' does not implement AnyRef, required by the bound on '${displayType(parameter)}' of '${displayType(signature.name)}'`,
             span,
           );
         }
       } else if (!this.isIdentityType(actual)) {
         this.fail(
           "unsatisfied-trait-bound",
-          `type '${typeSourceText(actual)}' does not implement AnyRef, required by the bound on '${parameter}' of '${signature.name}'`,
+          `type '${displayType(actual)}' does not implement AnyRef, required by the bound on '${displayType(parameter)}' of '${displayType(signature.name)}'`,
           span,
         );
       }
@@ -1289,21 +1297,20 @@ export abstract class CallChecker extends StatementChecker {
     // (04-type-system.md#trait-values-and-any).
     for (const parameter of signature.valueParameters ?? []) {
       const actual = substitutions.get(parameter);
-      if (!actual)
-        this.fail("cannot-infer-type", `could not infer generic parameter ${parameter}`, span);
+      if (!actual) this.failUninferredGenericParameter(parameter, span);
       const forwarded = genericTypeName(actual);
       if (forwarded) {
         if (!(this.signature.valueParameters ?? []).includes(forwarded)) {
           this.fail(
             "unsatisfied-trait-bound",
-            `generic parameter '${forwarded}' does not implement AnyVal, required by the bound on '${parameter}' of '${signature.name}'`,
+            `generic parameter '${displayType(forwarded)}' does not implement AnyVal, required by the bound on '${displayType(parameter)}' of '${displayType(signature.name)}'`,
             span,
           );
         }
       } else if (this.isIdentityType(actual)) {
         this.fail(
           "unsatisfied-trait-bound",
-          `type '${typeSourceText(actual)}' does not implement AnyVal, required by the bound on '${parameter}' of '${signature.name}'`,
+          `type '${displayType(actual)}' does not implement AnyVal, required by the bound on '${displayType(parameter)}' of '${displayType(signature.name)}'`,
           span,
         );
       }
@@ -1320,7 +1327,7 @@ export abstract class CallChecker extends StatementChecker {
       )
         this.fail(
           "unsatisfied-trait-bound",
-          `type '${typeSourceText(actual)}' does not implement Tuple, required by the bound on '${parameter}' of '${signature.name}'`,
+          `type '${displayType(actual)}' does not implement Tuple, required by the bound on '${displayType(parameter)}' of '${displayType(signature.name)}'`,
           span,
         );
     }
@@ -1331,12 +1338,7 @@ export abstract class CallChecker extends StatementChecker {
       : "unsatisfied-trait-bound";
     return signature.genericBounds.map((bound) => {
       const actual = substitutions.get(bound.parameter);
-      if (!actual)
-        this.fail(
-          "cannot-infer-type",
-          `could not infer generic parameter ${bound.parameter}`,
-          span,
-        );
+      if (!actual) this.failUninferredGenericParameter(bound.parameter, span);
       const traitArguments = bound.traitArguments.map((argument) =>
         substituteGenericType(argument, substitutions),
       );
@@ -1356,7 +1358,7 @@ export abstract class CallChecker extends StatementChecker {
         if (boundIndex < 0) {
           this.fail(
             boundCode,
-            `generic parameter '${forwarded}' does not implement ${bound.traitName}, required by the bound on '${bound.parameter}' of '${signature.name}'`,
+            `generic parameter '${displayType(forwarded)}' does not implement ${displayType(bound.traitName)}, required by the bound on '${displayType(bound.parameter)}' of '${displayType(signature.name)}'`,
             span,
           );
         }
@@ -1390,7 +1392,7 @@ export abstract class CallChecker extends StatementChecker {
           };
         this.fail(
           boundCode,
-          `type '${typeSourceText(actual)}' does not implement ${bound.traitName}, required by the bound on '${bound.parameter}' of '${signature.name}'`,
+          `type '${displayType(actual)}' does not implement ${displayType(bound.traitName)}, required by the bound on '${displayType(bound.parameter)}' of '${displayType(signature.name)}'`,
           span,
         );
       }
@@ -1458,7 +1460,7 @@ export abstract class CallChecker extends StatementChecker {
         if (inferred !== undefined && inferred !== resolved && mutableInner(resolved) !== inferred)
           this.fail(
             "associated-type-mismatch",
-            `projection '${bound.parameter}::${name}' resolves to '${typeSourceText(resolved)}', not '${typeSourceText(inferred)}'`,
+            `projection '${bound.parameter}::${name}' resolves to '${displayType(resolved)}', not '${displayType(inferred)}'`,
             signature.span,
           );
         substitutions.set(key, resolved);
@@ -1488,7 +1490,7 @@ export abstract class CallChecker extends StatementChecker {
     if (expected !== resolved)
       this.fail(
         "unsatisfied-trait-bound",
-        `'${bound.parameter}::${name}' is '${typeSourceText(resolved)}', but the bound on '${bound.parameter}' of '${signature.name}' requires '${typeSourceText(expected)}'`,
+        `'${bound.parameter}::${name}' is '${displayType(resolved)}', but the bound on '${bound.parameter}' of '${signature.name}' requires '${displayType(expected)}'`,
         span,
       );
   }

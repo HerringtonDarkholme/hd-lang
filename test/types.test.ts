@@ -9,6 +9,7 @@ import { inspectKey } from "../src/checker/inspectable.ts";
 import { unresolvedTypeMessage } from "../src/checker/cannot-infer.ts";
 import { matchGenericTypePattern, resolveGenericType } from "../src/checker/shared.ts";
 import {
+  displayType,
   eraseTypePermissions,
   functionParts,
   functionType,
@@ -110,6 +111,28 @@ test("deep permission erasure rebuilds canonical option and function types", () 
     eraseTypePermissions("fn((mut:User)?,mut:User?)->Result[(mut:User)??,List[mut:User]]"),
     "fn(User?,User?)->Result[User??,List[User]]",
   );
+});
+
+test("display rendering hides compiler-internal names but keeps user spellings", () => {
+  for (const [internal, shown] of [
+    ["generic:T", "T"],
+    ["generic:hd_E1", "element 1"],
+    ["hd_E1", "element 1"],
+    ["trait:ToJson", "ToJson"],
+    ["trait:__std_json_ToJson", "ToJson"],
+    ["__std_json_ToJson", "ToJson"],
+    ["__std_iter_FromIterator[E]", "FromIterator[E]"],
+    ["$impl352.member", "member"],
+    ["$inherent110.collect", "collect"],
+    ["row:R", "$ R"],
+    ["R$row:R", "R$ R"],
+    ["fn(*Args)->O$row:R", "fn(*Args) -> O$ R"],
+    ["Map[K,V]", "Map[K, V]"],
+    ["mut List[generic:T]", "mut List[T]"],
+    ["i32", "i32"],
+    ["Result[void, HiddenError]", "Result[void, HiddenError]"],
+  ])
+    assert.equal(displayType(internal!), shown);
 });
 
 test("source type rendering round-trips mutable constructors rather than changing prefix scope", () => {

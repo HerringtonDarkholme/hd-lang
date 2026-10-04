@@ -24,7 +24,7 @@ test("compiler-injected structure diagnostics retain their physical source", (t)
     const result = analyze("@derive(Eq)\ndata P:\n    x: i32\n");
     const diagnostic = result.diagnostics.find(({ code }) => code === "type-mismatch");
     assert.ok(diagnostic);
-    assert.equal(diagnostic.message, "expected generic:HdF?, found string");
+    assert.equal(diagnostic.message, "expected HdF?, found string");
     assert.equal(sourceDocument(diagnostic.span)?.file, "lib/std/structure.hd");
     const start = physicalSpan(diagnostic.span).start;
     assert.deepEqual(

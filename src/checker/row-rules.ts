@@ -7,8 +7,8 @@ import {
   nominalGenericParts,
   optionalInner,
   rowArgumentKeys,
-  typeSourceText,
   tupleParts,
+  displayType,
 } from "../types.ts";
 
 export { isRowSubsumption } from "./assignability.ts";
@@ -26,8 +26,8 @@ export function mismatchMessage(actual: string, expected: string): string {
   const wide = functionParts(expected)?.requirements;
   const extra = functionParts(actual)?.requirements.filter((key) => !wide?.includes(key));
   const lacks =
-    wide && extra?.length ? `; the expected row lacks ${extra.map(typeSourceText).join(", ")}` : "";
-  return `expected ${typeSourceText(expected)}, found ${typeSourceText(actual)}${lacks}`;
+    wide && extra?.length ? `; the expected row lacks ${extra.map(displayType).join(", ")}` : "";
+  return `expected ${displayType(expected)}, found ${displayType(actual)}${lacks}`;
 }
 
 /**
@@ -38,7 +38,7 @@ export function mismatchMessage(actual: string, expected: string): string {
 function aliasedRowNote(code: string, declaration: FunctionDecl): string {
   const written = declaration.writtenRequirements;
   if (!written || (code !== "missing-requirement" && code !== "type-mismatch")) return "";
-  const expanded = declaration.requirements.map(typeSourceText).join(" + ") || "()";
+  const expanded = declaration.requirements.map(displayType).join(" + ") || "()";
   return `; the row '$ ${written.join(" + ")}' expands to '$ ${expanded}'`;
 }
 

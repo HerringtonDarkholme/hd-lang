@@ -54,7 +54,7 @@ test("an unbounded standard inherent Map implementation still fails its key boun
     [
       [
         "unsatisfied-trait-bound",
-        "type 'generic:K' does not implement Eq and Hash, required by the bound on 'K' of 'Map'",
+        "type 'K' does not implement Eq and Hash, required by the bound on 'K' of 'Map'",
       ],
     ],
   );

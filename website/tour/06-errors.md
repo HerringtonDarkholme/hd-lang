@@ -24,7 +24,7 @@ pub fn main() -> void $ Console:
             .Err(reason) => println("checkout failed: $reason")
 
 # Delete the `?` after `discount(coupon)` and Run:
-#     type-mismatch: expected i32, found Result[i32,string]
+#     type-mismatch: expected i32, found Result[i32, string]
 
 # ── plumbing ──
 fn discount(coupon: string) -> Result[i32, string]:
@@ -38,7 +38,7 @@ fn charge(card: string, cents: i32, percent: i32) -> Result[string, string]:
 ```edit
 replace:     percent := discount(coupon)?  # ← on .Err, return it to the caller
 with:     percent := discount(coupon)
-error: type-mismatch: expected i32, found Result[i32,string]
+error: type-mismatch: expected i32, found Result[i32, string]
 ```
 
 ```output

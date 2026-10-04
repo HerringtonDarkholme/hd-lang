@@ -25,9 +25,9 @@ import {
   rowArgumentKeys,
   rowArgumentType,
   splitTypeBindings,
-  typeSourceText,
   tupleParts,
   tupleType,
+  displayType,
 } from "../types.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 import {
@@ -155,8 +155,8 @@ class DefaultFiller {
           code: "partial-generic-arguments",
           message:
             fallback === undefined
-              ? `'${name}' needs a type argument for '${parameter}', which has no default`
-              : `'${name}' omits '${parameter}', whose default names Self, and no Self is known here`,
+              ? `'${name}' needs a type argument for '${displayType(parameter)}', which has no default`
+              : `'${name}' omits '${displayType(parameter)}', whose default names Self, and no Self is known here`,
           span,
         });
         return type;
@@ -393,7 +393,7 @@ function defaultDeclarationDiagnostics(program: Program): Diagnostic[] {
       if (later !== undefined) {
         diagnostics.push({
           code: "binding-not-yet-visible",
-          message: `the default of '${parameter}' names '${later}', which is not declared before it`,
+          message: `the default of '${displayType(parameter)}' names '${later}', which is not declared before it`,
           span: fallback.span,
         });
         return;
@@ -401,7 +401,7 @@ function defaultDeclarationDiagnostics(program: Program): Diagnostic[] {
       if (rowArgumentKeys(fallback.name) !== undefined && !rows.has(parameter))
         diagnostics.push({
           code: "generic-kind-mismatch",
-          message: `'${parameter}' is a type parameter, so its default must be a type, not the row '${typeSourceText(fallback.name)}'`,
+          message: `'${displayType(parameter)}' is a type parameter, so its default must be a type, not the row '${displayType(fallback.name)}'`,
           span: fallback.span,
         });
     });
@@ -510,7 +510,7 @@ export function defaultBoundDiagnostics(context: ProgramCheckContext): Diagnosti
         if (!implemented)
           diagnostics.push({
             code: "unsatisfied-trait-bound",
-            message: `the default '${typeSourceText(fallback.name)}' of '${bound.parameter}' does not implement ${typeSourceText(traitKey)}`,
+            message: `the default '${displayType(fallback.name)}' of '${displayType(bound.parameter)}' does not implement ${displayType(traitKey)}`,
             span: fallback.span,
           });
       }

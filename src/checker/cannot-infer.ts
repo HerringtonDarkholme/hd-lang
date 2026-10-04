@@ -4,7 +4,7 @@
 
 import type { SourceSpan } from "../diagnostics.ts";
 import type { ValueType } from "../hir.ts";
-import { typeSourceText } from "../types.ts";
+import { displayType } from "../types.ts";
 
 /** A `name := value` binding whose initializer is checked without an annotation. */
 export interface InferredBinding {
@@ -37,16 +37,14 @@ export function unresolvedCallMessage(unresolved: readonly string[], callee: str
   return `cannot infer ${parameterList(unresolved)} in the call to \`${callee}\`; annotate the binding, or write the type arguments: \`${callee}::[...]\``;
 }
 
-/** A type as source writes it: `mut User`, `Result[i32, E]`. */
+/** A type as its author wrote it: `mut User`, `Result[i32, E]`, never an internal name. */
 function writtenType(type: ValueType): string {
-  return typeSourceText(type)
-    .replaceAll("generic:", "")
-    .replace(/,(?! )/g, ", ");
+  return displayType(type);
 }
 
 /** `` `T` ``, `` `T` and `E` ``, or `` `A`, `B`, and `C` ``. */
 function parameterList(names: readonly string[]): string {
-  const quoted = names.map((name) => `\`${name}\``);
+  const quoted = names.map((name) => `\`${displayType(name)}\``);
   if (quoted.length <= 2) return quoted.join(" and ");
   return `${quoted.slice(0, -1).join(", ")}, and ${quoted.at(-1)}`;
 }

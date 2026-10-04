@@ -48,8 +48,8 @@ import {
   suspensionParts,
   traitSuspensionParts,
   functionInputsTuple,
-  typeSourceText,
   type FunctionParts,
+  displayType,
 } from "../types.ts";
 
 interface NamedParameter {
@@ -560,7 +560,7 @@ export function resultMisfit(
   const head = nominalGenericParts(readonlyType(result))?.name;
   if (expected === undefined || head === undefined) return undefined;
   if (head !== nominalGenericParts(readonlyType(expected))?.name) return undefined;
-  return `expected '${typeSourceText(expected)}', but the call returns '${typeSourceText(result.replace(/\b(generic|row):/g, ""))}'`;
+  return `expected '${displayType(expected)}', but the call returns '${displayType(result)}'`;
 }
 
 /**
@@ -771,7 +771,7 @@ export function inferGenericType(
     // A `mut T` argument weakens to a parameter already inferred as `T`.
     if (existing && mutableInner(actual) === existing) return undefined;
     if (existing && existing !== actual)
-      return `generic parameter '${generic}' was inferred as both ${typeSourceText(existing)} and ${typeSourceText(actual)}`;
+      return `generic parameter '${generic}' was inferred as both ${displayType(existing)} and ${displayType(actual)}`;
     substitutions.set(generic, actual);
     return undefined;
   }
@@ -1291,12 +1291,12 @@ export function normalizeRowArguments(
         const row = rowArgumentKeys(argument);
         if (!rows.has(parameters[index] ?? "")) {
           if (row)
-            mismatch ??= `'${nominal.name}' takes a type, not the row '${typeSourceText(argument)}', for '${parameters[index]}'`;
+            mismatch ??= `'${nominal.name}' takes a type, not the row '${displayType(argument)}', for '${displayType(parameters[index])}'`;
           return visit(argument);
         }
         if (row) return rowArgumentType(row);
         // A row slot writes its row after `$` (11-requirements-and-suspension.md#r-req.row.slot.bare).
-        mismatch ??= `'${nominal.name}' takes a requirement row, not the type '${typeSourceText(argument.replace(/^trait:/, ""))}', for '${parameters[index]}'; write '$ ${typeSourceText(argument.replace(/^trait:/, ""))}'`;
+        mismatch ??= `'${nominal.name}' takes a requirement row, not the type '${displayType(argument)}', for '${displayType(parameters[index])}'; write '$ ${displayType(argument)}'`;
         return argument;
       }),
     );
@@ -1369,7 +1369,7 @@ export function typeName(
   if (!isKnownType(resolved, dataTypes, enumTypes, traitTypes)) {
     diagnostics.push({
       code: "unknown-type",
-      message: `unknown or unsupported type '${typeSourceText(type.name)}'`,
+      message: `unknown or unsupported type '${displayType(type.name)}'`,
       span: type.span,
     });
     return undefined;

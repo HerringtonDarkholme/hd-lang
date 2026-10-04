@@ -1,7 +1,7 @@
 import type { GenericBound, Program } from "../ast.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import { functionResultText, rowArgumentKeys, tupleParts, typeSourceText } from "../types.ts";
+import { functionResultText, rowArgumentKeys, tupleParts, displayType } from "../types.ts";
 
 // The spelled function type constructors of `std.function`
 // (07-functions.md#function-type-constructors). `Fn[(A, B), O, $ R]` is exactly
@@ -104,7 +104,7 @@ function lowerConstructor(
       type: spelled,
       error: {
         code: "generic-kind-mismatch",
-        message: `the inputs of '${constructor}' must be a tuple type or a type parameter bounded by Tuple, not '${typeSourceText(inputs)}'`,
+        message: `the inputs of '${constructor}' must be a tuple type or a type parameter bounded by Tuple, not '${displayType(inputs)}'`,
       },
     };
   const parameters = elements;
@@ -115,7 +115,7 @@ function lowerConstructor(
       type: spelled,
       error: {
         code: "generic-kind-mismatch",
-        message: `the row of '${constructor}' is written after '$', as in '$ ${typeSourceText(row)}', not as the type '${typeSourceText(row)}'`,
+        message: `the row of '${constructor}' is written after '$', as in '$ ${displayType(row)}', not as the type '${displayType(row)}'`,
       },
     };
   const clause = keys.length > 0 ? `$${keys.join("+")}` : "";

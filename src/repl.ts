@@ -4,7 +4,7 @@ import { physicalSpan, sourceDocument } from "./diagnostics.ts";
 import type { HirData, HirEnum, HirProgram } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
-import { optionalInner, readonlyType, typeSourceText } from "./types.ts";
+import { optionalInner, readonlyType, displayType } from "./types.ts";
 
 export {
   backspaceWidth,
@@ -404,10 +404,6 @@ function findValueBinding(node: unknown): BindingNode | undefined {
   };
   visit(node);
   return found;
-}
-
-function displayType(type: string): string {
-  return typeSourceText(type).replace(/,(?! )/g, ", ");
 }
 
 interface Renderers {

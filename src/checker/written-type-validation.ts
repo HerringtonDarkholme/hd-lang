@@ -13,7 +13,7 @@ import {
   resultParts,
   rowArgumentKeys,
   tupleParts,
-  typeSourceText,
+  displayType,
 } from "../types.ts";
 import {
   ambiguousProjection,
@@ -111,7 +111,7 @@ export function restElementProblem(type: ValueType): TypeProblem | undefined {
     ? undefined
     : {
         code: "type-mismatch",
-        message: `a rest element must be a List[T], as in 'List[${typeSourceText(rest)}]...', not '${typeSourceText(rest)}...'`,
+        message: `a rest element must be a List[T], as in 'List[${displayType(rest)}]...', not '${displayType(rest)}...'`,
       };
 }
 

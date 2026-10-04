@@ -1,5 +1,5 @@
 import { boundaryShape, isBoundaryScalar, resultSides } from "../host-boundary.ts";
-import { substituteTypeParameters } from "../types.ts";
+import { substituteTypeParameters, displayType } from "../types.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 
 // A boundary result is `void`, a boundary value, or `Result[T, E]` whose `T`
@@ -75,7 +75,7 @@ export function validateHostCapabilities(context: ProgramCheckContext): void {
     context.diagnostics.push({
       code: "unsupported-host-provider-signature",
       message:
-        `host capability '${trait.name}' currently requires non-generic methods ` +
+        `host capability '${displayType(trait.name)}' currently requires non-generic methods ` +
         "whose arguments are scalar boundary values and whose results are boundary-safe values",
       span: trait.span,
     });

@@ -206,7 +206,7 @@ impl[Τ] Box[Τ]:
     result.map((d) => d.code),
     ["type-mismatch"],
   );
-  assert.match(result[0]!.message, /generic:Τ/u);
+  assert.match(result[0]!.message, /found Τ/u);
   assert.doesNotMatch(result[0]!.message, /%method/u);
 });
 

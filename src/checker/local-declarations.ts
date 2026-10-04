@@ -8,6 +8,7 @@ import type {
   TypeDecl,
 } from "../ast.ts";
 import { preserveSourceOrigin, type Diagnostic } from "../diagnostics.ts";
+import { displayType } from "../types.ts";
 
 // Local declarations (03-names-and-scopes.md#function-and-closure-scopes). A
 // `data`, `enum`, `trait`, or `type` declared in a block suite is visible from
@@ -162,7 +163,7 @@ export function hoistLocalDeclarations(program: Program): {
             message:
               declaration.traitName === undefined
                 ? `a local inherent implementation must target a local type, not '${declaration.targetName}'`
-                : `a local implementation of '${declaration.traitName}' for '${declaration.targetName}' involves no local type or trait; declare it at module scope`,
+                : `a local implementation of '${displayType(declaration.traitName ?? "")}' for '${displayType(declaration.targetName)}' involves no local type or trait; declare it at module scope`,
             span: statement.span,
           });
           continue;

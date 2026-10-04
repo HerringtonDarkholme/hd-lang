@@ -64,7 +64,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
-  typeSourceText,
+  displayType,
 } from "../types.ts";
 import { narrowsTo, numericType, widensTo } from "../numeric.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
@@ -323,7 +323,7 @@ export abstract class CheckerContext {
         );
         if (!("type" in inferred)) {
           const listed = [...new Set(this.inferredReturns.map(({ type }) => type))]
-            .map(typeSourceText)
+            .map(displayType)
             .join(", ");
           this.fail(
             inferred.code,
@@ -473,7 +473,7 @@ export abstract class CheckerContext {
     if (variance === "representation-change")
       this.fail(
         "variance-representation-change",
-        `'${typeSourceText(value.type)}' cannot become '${typeSourceText(expected)}': a variance conversion must not change a value's representation`,
+        `'${displayType(value.type)}' cannot become '${displayType(expected)}': a variance conversion must not change a value's representation`,
         span,
       );
     if (variance) return { kind: "permission-weaken", operand: value, type: expected, span };
@@ -496,7 +496,7 @@ export abstract class CheckerContext {
         if (inspectTarget && inspectKey(value.type, this.inspectEnvironment()))
           this.fail(
             "mutable-upgrade",
-            `readonly type '${typeSourceText(value.type)}' cannot be erased to mut Inspectable`,
+            `readonly type '${displayType(value.type)}' cannot be erased to mut Inspectable`,
             span,
           );
         return value;
@@ -714,14 +714,14 @@ export abstract class CheckerContext {
     if (seen.has(key))
       this.fail(
         "recursive-trait-dictionary",
-        `constructing the trait dictionary for '${typeSourceText(targetType)}' requires itself`,
+        `constructing the trait dictionary for '${displayType(targetType)}' requires itself`,
         span,
       );
     // This plan proves a bound of depth `seen.size + 1` (09-traits.md#r-trait.bound.depth).
     if (seen.size >= MAX_BOUND_DEPTH)
       this.fail(
         "trait-resolution-depth",
-        `proving the bound for '${typeSourceText(targetType)}' needs a bound deeper than ${MAX_BOUND_DEPTH}`,
+        `proving the bound for '${displayType(targetType)}' needs a bound deeper than ${MAX_BOUND_DEPTH}`,
         span,
       );
     const substitutions = matchTraitImplementation(
@@ -782,7 +782,7 @@ export abstract class CheckerContext {
       if (!parent)
         this.fail(
           "unsatisfied-trait-bound",
-          `the required supertrait '${trait.supertraits[index]!.traitName}' is not visible here`,
+          `the required supertrait '${displayType(trait.supertraits[index]!.traitName)}' is not visible here`,
           span,
         );
       return this.traitDictionaryPlan(parent, targetType, parentArguments, span, next);
@@ -837,7 +837,7 @@ export abstract class CheckerContext {
     if (!actual)
       this.fail(
         "cannot-infer-type",
-        `could not infer implementation parameter ${bound.parameter}`,
+        `could not infer implementation parameter ${displayType(bound.parameter)}`,
         span,
       );
     const traitArguments = bound.traitArguments.map((argument) =>
@@ -853,7 +853,7 @@ export abstract class CheckerContext {
       if (!found)
         this.fail(
           code,
-          `generic parameter '${forwarded}' does not implement ${bound.traitName}, required by the implementation bound on '${bound.parameter}'`,
+          `generic parameter '${displayType(forwarded)}' does not implement ${displayType(bound.traitName)}, required by the implementation bound on '${displayType(bound.parameter)}'`,
           span,
         );
       const { boundIndex, supertrait } = found;
@@ -885,7 +885,7 @@ export abstract class CheckerContext {
         };
       this.fail(
         code,
-        `type '${typeSourceText(actual)}' does not implement ${bound.traitName}, required by the implementation bound on '${bound.parameter}'`,
+        `type '${displayType(actual)}' does not implement ${displayType(bound.traitName)}, required by the implementation bound on '${displayType(bound.parameter)}'`,
         span,
       );
     }
@@ -1020,7 +1020,7 @@ export abstract class CheckerContext {
   ): HirExpression {
     const type = readonlyType(value.type);
     if (type === "string") return value;
-    const missing = `type '${typeSourceText(value.type)}' does not implement Display, required by ${origin}`;
+    const missing = `type '${displayType(value.type)}' does not implement Display, required by ${origin}`;
     // A program that mentions no `Display` has none declared (spec/lang/10-modules.md#prelude).
     const trait = this.traitTypes.get("Display");
     if (!trait) return this.fail("unsatisfied-trait-bound", missing, span);
@@ -1280,7 +1280,7 @@ export abstract class CheckerContext {
     if (!isKnownType(declared, this.dataTypes, this.enumTypes, this.traitTypes))
       this.fail(
         "unknown-type",
-        `unknown or unsupported type '${typeSourceText(type.name)}'`,
+        `unknown or unsupported type '${displayType(type.name)}'`,
         type.span,
       );
     return declared;
@@ -1381,18 +1381,18 @@ export abstract class CheckerContext {
     if (mutableInner(expected) === actual)
       this.fail(
         "mutable-upgrade",
-        `readonly type '${typeSourceText(actual)}' cannot be upgraded to '${typeSourceText(expected)}'`,
+        `readonly type '${displayType(actual)}' cannot be upgraded to '${displayType(expected)}'`,
         span,
       );
     if (narrowsTo(actual, expected))
       this.fail(
         "implicit-narrowing",
-        `'${typeSourceText(actual)}' does not convert implicitly to '${typeSourceText(expected)}'; write an explicit cast`,
+        `'${displayType(actual)}' does not convert implicitly to '${displayType(expected)}'; write an explicit cast`,
         span,
       );
     if (widensTo(actual, expected))
       this.failWithConversion(
-        `'${typeSourceText(actual)}' does not widen implicitly to '${typeSourceText(expected)}'; write ${typeSourceText(expected)}(...)`,
+        `'${displayType(actual)}' does not widen implicitly to '${displayType(expected)}'; write ${displayType(expected)}(...)`,
         expected,
         span,
       );
@@ -1401,7 +1401,7 @@ export abstract class CheckerContext {
 
   /** `type-mismatch` for a narrower number, with a fix-it writing the conversion (04-type-system.md#r-types.num.no-implicit.fix). */
   protected failWithConversion(message: string, target: ValueType, span: SourceSpan): never {
-    const shownTarget = typeSourceText(target);
+    const shownTarget = displayType(target);
     let code = "type-mismatch";
     ({ code, message } = rowDiagnostic(code, message, this.declaration));
     ({ code, message } = derivedFieldDiagnostic(code, message, span));

@@ -23,7 +23,7 @@ import {
   tupleType,
   CURSOR_TYPE,
   splitTypeBindings,
-  typeSourceText,
+  displayType,
 } from "../types.ts";
 import {
   containsGenericType,
@@ -555,7 +555,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (missing.length > 0)
         this.fail(
           "missing-requirement",
-          `method '${method.name}' requires ${missing.map(typeSourceText).join(", ")}`,
+          `method '${method.name}' requires ${missing.map(displayType).join(", ")}`,
           expression.span,
         );
       return method.suspending
@@ -719,7 +719,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       )
         this.fail(
           "type-mismatch",
-          `the arguments of '${candidate.method.name}' fit no instantiation of trait '${candidate.trait.name}' implemented by '${typeSourceText(receiverImplementationType)}'`,
+          `the arguments of '${candidate.method.name}' fit no instantiation of trait '${displayType(candidate.trait.name)}' implemented by '${displayType(receiverImplementationType)}'`,
           expression.span,
         );
       const unresolvedRows = signature.rowParameters.filter(
@@ -746,7 +746,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (missing.length > 0)
         this.fail(
           "missing-requirement",
-          `method '${candidate.method.name}' requires ${missing.map(typeSourceText).join(", ")}`,
+          `method '${candidate.method.name}' requires ${missing.map(displayType).join(", ")}`,
           expression.span,
         );
       const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);
@@ -843,19 +843,19 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (fitting.length > 1)
         this.fail(
           "ambiguous-method",
-          `method '${expression.callee.name}' fits ${fitting.length} instantiations of trait '${trait.name}'; qualify the call as ${trait.name}::[...]::${expression.callee.name}(value, ...)`,
+          `method '${expression.callee.name}' fits ${fitting.length} instantiations of trait '${displayType(trait.name)}'; qualify the call as ${displayType(trait.name)}::[...]::${expression.callee.name}(value, ...)`,
           expression.callee.span,
         );
       if (fitting.length === 0) {
         const available = candidates
           .map(
             (candidate) =>
-              `${trait.name}[${candidate.implementation.traitArguments.map(typeSourceText).join(", ")}]`,
+              `${displayType(trait.name)}[${candidate.implementation.traitArguments.map(displayType).join(", ")}]`,
           )
           .join(", ");
         this.fail(
           "type-mismatch",
-          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${trait.name}' implemented by '${typeSourceText(receiverImplementationType)}'; available: ${available}`,
+          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${displayType(trait.name)}' implemented by '${displayType(receiverImplementationType)}'; available: ${available}`,
           expression.span,
         );
       }
@@ -864,7 +864,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     const traitPath = this.embeddedTraitMethodPath(receiver.type, expression.callee.name);
     this.fail(
       "unknown-method",
-      `type '${typeSourceText(receiver.type)}' has no supported method '${expression.callee.name}'${
+      `type '${displayType(receiver.type)}' has no supported method '${expression.callee.name}'${
         this.hasFieldNamed(receiver.type, expression.callee.name)
           ? `; to call the function stored in the field, write (value.${expression.callee.name})(...)`
           : ""
@@ -907,7 +907,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (missing.length > 0) {
       this.fail(
         "missing-requirement",
-        `closure call requires ${missing.map(typeSourceText).join(", ")}`,
+        `closure call requires ${missing.map(displayType).join(", ")}`,
         expression.span,
       );
     }
@@ -998,7 +998,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       }
       this.fail(
         "type-mismatch",
-        `block_on expects mut Suspend[T], found ${typeSourceText(suspension.type)}`,
+        `block_on expects mut Suspend[T], found ${displayType(suspension.type)}`,
         source.span,
       );
     }
@@ -1037,7 +1037,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       // compares with a readonly expected value.
       const checkedActual = this.checkExpression(expression.arguments[actualIndex]!);
       const actual = { ...checkedActual, type: readonlyType(checkedActual.type) };
-      const shownActual = typeSourceText(actual.type);
+      const shownActual = displayType(actual.type);
       if (!this.equalityStrategy(actual.type))
         this.fail("missing-eq", `type '${shownActual}' does not implement Eq`, actual.span);
       // spec/lang/10-modules.md#r-module.testing.assert-equal-debug
@@ -1250,7 +1250,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (missing.length > 0) {
       this.fail(
         "missing-requirement",
-        `call to '${signature.name}' requires ${missing.map(typeSourceText).join(", ")}`,
+        `call to '${displayType(signature.name)}' requires ${missing.map(displayType).join(", ")}`,
         expression.span,
       );
     }
@@ -1330,7 +1330,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (sourceArguments.length !== trait.genericParameters.length)
         this.fail(
           "generic-arity",
-          `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
+          `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
           expression.callee.span,
         );
       const traitArguments = sourceArguments.map((argument) => this.resolveType(argument));
@@ -1338,19 +1338,19 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (!traitMethod)
         this.fail(
           "unknown-method",
-          `trait '${trait.name}' has no method '${expression.callee.name}'`,
+          `trait '${displayType(trait.name)}' has no method '${expression.callee.name}'`,
           expression.callee.span,
         );
       if (traitMethod.associated)
         this.fail(
           "associated-function-needs-target",
-          `associated function '${trait.name}.${traitMethod.name}' must be qualified by an implementing type`,
+          `associated function '${displayType(trait.name)}.${traitMethod.name}' must be qualified by an implementing type`,
           expression.callee.span,
         );
       if (expression.arguments.length === 0)
         this.fail(
           "argument-count",
-          `qualified method '${trait.name}.${expression.callee.name}' requires a receiver`,
+          `qualified method '${displayType(trait.name)}.${expression.callee.name}' requires a receiver`,
           expression.span,
         );
       if (expression.argumentNames?.[0] !== undefined || expression.argumentSpreads?.[0])
@@ -1461,7 +1461,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (fitting.length === 0)
         this.fail(
           "type-mismatch",
-          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${associatedCandidates[0]!.candidateTrait.name}' implemented by '${typeSourceText(ownerType)}'; available: ${associatedCandidates.map((candidate) => `${candidate.candidateTrait.name}[${candidate.traitArguments.map((argument) => typeSourceText(substituteGenericType(argument, candidate.substitutions))).join(", ")}]`).join(", ")}`,
+          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${displayType(associatedCandidates[0]!.candidateTrait.name)}' implemented by '${displayType(ownerType)}'; available: ${associatedCandidates.map((candidate) => `${displayType(candidate.candidateTrait.name)}[${candidate.traitArguments.map((argument) => displayType(substituteGenericType(argument, candidate.substitutions))).join(", ")}]`).join(", ")}`,
           expression.span,
         );
       if (fitting.length === 1)
@@ -1470,7 +1470,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (associatedCandidates.length > 1)
       this.fail(
         "ambiguous-method",
-        `associated function '${expression.callee.name}' is supplied by multiple traits for '${typeSourceText(ownerType)}'`,
+        `associated function '${expression.callee.name}' is supplied by multiple traits for '${displayType(ownerType)}'`,
         expression.callee.span,
       );
     const associated = associatedCandidates[0];
@@ -1479,12 +1479,12 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (!this.dataTypes.has(ownerBase) && !this.enumTypes.has(ownerBase))
         this.fail(
           "unknown-type",
-          `unknown associated-function owner '${typeSourceText(ownerType)}'`,
+          `unknown associated-function owner '${displayType(ownerType)}'`,
           expression.callee.span,
         );
       this.fail(
         "unknown-associated-function",
-        `type '${typeSourceText(ownerType)}' has no associated function '${expression.callee.name}'`,
+        `type '${displayType(ownerType)}' has no associated function '${expression.callee.name}'`,
         expression.callee.span,
       );
     }

@@ -314,6 +314,34 @@ export function typeSourceText(type: ValueType): string {
   return type;
 }
 
+/**
+ * Renders a type, trait, or related compiler name the way the user wrote it,
+ * for diagnostics (audit/job3-error-message-quality.md). The canonical
+ * `typeSourceText` keeps hidden and synthetic spellings (`__std_` renames,
+ * `generic:`/`trait:`/`row:` markers, `$impl`/`$inherent` qualifiers,
+ * `hd_E` tuple-element parameters, spacing-free arrows) because type strings
+ * round-trip through the checker; this is the display layer over it.
+ *
+ * Each pattern below matches only spellings the user cannot write (a `:`
+ * never appears in an identifier, and `$` never starts one), except two
+ * documented heuristics: an `__std_<module>_<Name>` segment reads as the
+ * hidden rename the standard library loader generates, and `hd_E<N>` reads
+ * as tuple element N. A user identifier that apes either keeps its meaning
+ * but prints in the generated form.
+ */
+export function displayType(type: ValueType): string {
+  return typeSourceText(type)
+    .replace(/\$(?:impl|inherent)\d+\./g, "")
+    .replace(/(?<![A-Za-z0-9_])hd_E(\d+)(?![A-Za-z0-9_])/g, "element $1")
+    .replaceAll("$row:", "$ ")
+    .replace(/(?<![A-Za-z0-9_])row:/g, "$ ")
+    .replace(/(?<![A-Za-z0-9_])generic:/g, "")
+    .replace(/(?<![A-Za-z0-9_])trait:/g, "")
+    .replace(/(?<![A-Za-z0-9_])__std_[a-z0-9_]+_([A-Z][A-Za-z0-9_]*)/g, "$1")
+    .replaceAll(")->", ") -> ")
+    .replace(/,(?! )/g, ", ");
+}
+
 export function resultParts(type: ValueType): ResultParts | undefined {
   if (!type.startsWith("Result[") || !type.endsWith("]")) return undefined;
   const contents = type.slice("Result[".length, -1);
