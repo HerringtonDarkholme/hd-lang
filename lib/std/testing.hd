@@ -25,6 +25,23 @@ pub trait TestRunner:
     fn row(mut self, count: usize) -> usize
     # The case's `timeout`, which the runner checks against the body's run.
     fn report_timeout(mut self, millis: i64) -> void
+    # Compares `text` with the case's next snapshot file, and records the
+    # file in an update run; "" when it matches or was recorded, else why
+    # not (r-std-testing.runner.snapshot-check). The host runner provider
+    # does not answer it yet, so `snapshot_file` still calls the
+    # `snapshot_file_check` primitive (SNAPSHOT-ROW in
+    # test/portable/KNOWN_FAILURES.tsv).
+    fn snapshot_check(mut self, text: string) -> string
+
+# What a property runner's `start` returns for one case
+# (r-std-testing.runner.case-type). `PropertyRunner` does not return it
+# yet: the host property runner still answers the older methods below
+# (RUNNER-SURFACE in test/portable/KNOWN_FAILURES.tsv).
+pub data PropertyCase:
+    pub example: usize?
+    pub seed: i64
+    pub size: i32
+    pub replay: List[i64]
 
 # The property runner records, replays, and shrinks each case's draws
 # (src/property-tests.ts).
@@ -483,6 +500,10 @@ pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> Run
 # (r-std-format.debug.derive-builders.mapping): the prototype runs the
 # derivation pass before it joins std (src/checker/program.ts), so a
 # `@derive` on a std declaration has no effect.
+
+impl Debug for PropertyCase:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("PropertyCase").field("example", self.example).field("seed", self.seed).field("size", self.size).field("replay", self.replay).finish()
 
 impl Debug for RunOutput:
     fn debug(self, out: mut DebugWriter) -> void:

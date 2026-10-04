@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,244 cases: 2,099 selected in `test/portable/cases.tsv` and 145 known
-failures. The selected cases are 1,844 language tier and 255 stdlib tier;
-the known failures are 123 language tier and 22 stdlib tier.
+2,244 cases: 2,110 selected in `test/portable/cases.tsv` and 134 known
+failures. The selected cases are 1,845 language tier and 265 stdlib tier;
+the known failures are 122 language tier and 12 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -38,14 +38,12 @@ the known failures are 123 language tier and 22 stdlib tier.
 | DEFAULT-FIELD | 1 | derived `Default` requires `Default` of a member that declares a default |
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
-| VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
-| STD-HELPERS | 8 | `lib/std` lacks the console, clock, and file helpers, and the host has no `Console.write_error_line` entry |
-| SNAPSHOT-ROW | 2 | snapshot operations do not use the current TestRunner row |
-| RUNNER-SURFACE | 1 | PropertyRunner lacks the current PropertyCase protocol |
+| VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
+| SNAPSHOT-ROW | 1 | the host runner provider does not answer `TestRunner.snapshot_check`, so `snapshot_file` has no `$ TestRunner` row |
+| RUNNER-SURFACE | 1 | the host property runner does not answer `start` with a `PropertyCase`, or `record` |
 | LIST-POP | 4 | `List.pop`, `insert`, `remove_at`, `clear`, and their list-truncate hook are absent |
 | STD-DEBUG | 1 | std derivation ordering leaves TypeId and SelfRef without Debug |
 | METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
-| STD-1 | 3 | the checker accepts bounded inherent Map impls, but the specified Map methods are absent from `lib/std` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
 | EQ-CONTEXTUAL | 2 | equality does not contextually type a variant from the opposite operand |
@@ -144,8 +142,7 @@ Compiler structure:
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 | DEFAULT-FIELD | Batch 59: a member that declares a default needs no `Default` on its type. The `std.ops` template's `member[F < Default]` bound still covers it, so the prototype reports `member-not-derivable`. |
-| HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, and of the new items it declares only `Random`. |
-| STD-1 | Batch 64 specifies Map helpers. Bounded inherent Map implementations are now legal, but `lib/std/collections.hd` does not yet define `get_or`, `keys`, or `values`. |
+| HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, with no host `Console.write_error_line` entry, so `eprintln` under the default profile fails with `host-contract`. `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 | ONE-FIT | Task #254: exactly one fitting candidate (a bound's one implementing type, one receiver or left-operand type, one instantiation) decides an open literal; two or more decide nothing, and a failure after the fallback suggests `+5` or an annotation. A literal joined with a dependent method result takes its resolved type, no use of a method result decides the receiver, and a literal erased to `Any` or `Inspectable` takes the fallback. The prototype types the literal as `i32` on the spot and emits no hint. Task #262: a conversion to a trait value is no one-fit site, and widths whose methods declare different parameter lists make a literal receiver `ambiguous-method`; the prototype checks `cents.scale(4)` at `i32` and reports `argument-count`. |
 | NO-IMPLIED-BOUND | Task #261: a generic type's declared bounds are never implied where the type is written, so a declaration that writes `Map[K, V]` must bound its own `K`. The prototype reports the missing bound, but repeats it at each method's implicit `self` and turns the field's type into `void`. |
 | QUALIFIED-PATH | Task #260: a used module name qualifies a function, a type, a variant, a variant pattern, and an associated call. Task #262: a module path to a private or missing declaration reports `private-import` or `unknown-import`, and an absolute path outside a use is `unknown-name`. The prototype rejects `use pkg.words` as `unsupported-package-use`. |

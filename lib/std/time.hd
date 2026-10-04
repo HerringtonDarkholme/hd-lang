@@ -142,6 +142,17 @@ pub trait Clock:
     fn monotonic(self) -> Instant
     fn sleep!(mut self, duration: Duration) -> void
 
+# The current time of the covering `Clock` provider
+# (spec/std/time.md#r-std-time.helper.now).
+pub fn now() -> Timestamp $ Clock:
+    $.use(Clock).now()
+
+# Waits `duration` on the covering `Clock` provider
+# (spec/std/time.md#r-std-time.helper.sleep).
+pub fn sleep!(duration: Duration) -> void $ Clock:
+    let mut clock = $.use(Clock)
+    clock.sleep!(duration)
+
 # Whole milliseconds since the Unix epoch, in UTC (r-std-time.timestamp.decl).
 pub data Timestamp:
     millis: i64

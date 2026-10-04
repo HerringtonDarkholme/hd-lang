@@ -2098,3 +2098,14 @@ typing/invalid/literal-trait-value-no-one-fit.hd	type
 runtime/valid/literal-trait-value-float-fallback.hd	runtime
 runtime/valid/literal-receiver-params-differ-annotated.hd	runtime
 typing/invalid/absolute-path-in-expression.hd	type
+runtime/valid/clock-helpers.hd	runtime
+runtime/valid/eprintln-error-line.hd	runtime
+runtime/valid/console-error-line-default.hd	runtime
+typing/invalid/eprintln-without-console.hd	type
+runtime/valid/console-input-helper.hd	runtime
+runtime/valid/map-keys-values.hd	runtime
+typing/valid/test-runner-capabilities.hd	type
+runtime/valid/memory-fs.hd	runtime
+runtime/valid/map-get-or.hd	runtime
+runtime/valid/buffer-console-error-lines.hd	runtime
+runtime/valid/map-is-empty.hd	runtime

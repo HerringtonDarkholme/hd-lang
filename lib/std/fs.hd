@@ -2,10 +2,7 @@
 # `Entry`, and the deterministic provider `MemoryFs` (spec/std/fs.md). The
 # prototype's std loader does not list this module yet
 # (src/checker/standard-sources.ts), and no runtime profile binds a host
-# file system. The helpers `read_text!` and `write_text!`
-# (r-std-fs.helper.read-text) are not written yet: the loader renames every
-# top-level name textually (src/checker/standard-library.ts), so a helper
-# cannot share the name of the trait method it calls.
+# file system.
 use std.path.Path
 use std.format.DebugWriter
 use std.error.Error
@@ -77,6 +74,17 @@ pub trait FsWrite:
     fn create_dir_all!(mut self, path: Path) -> Result[void, FsError]
     fn remove!(mut self, path: Path) -> Result[void, FsError]
     fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]
+
+# Reads a file through the covering `FsRead` provider
+# (spec/std/fs.md#r-std-fs.helper.read-text).
+pub fn read_text!(path: Path) -> Result[string, FsError] $ FsRead:
+    $.use(FsRead).read_text!(path)
+
+# Writes a file through the covering `FsWrite` provider
+# (spec/std/fs.md#r-std-fs.helper.write-text).
+pub fn write_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite:
+    let mut files = $.use(FsWrite)
+    files.write_text!(path, text)
 
 # The deterministic file system (spec/std/fs.md#memory-file-system). A
 # file's key is its path's text, as written. A directory is a key that

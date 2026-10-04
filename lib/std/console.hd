@@ -1,4 +1,5 @@
-# std.console: `println`, console input, and the recording `BufferConsole`.
+# std.console: `println`, `eprintln`, console input, and the recording
+# `BufferConsole`.
 # `Console`, `ConsoleError`, and `println`
 # are prelude names (spec/lang/10-modules.md#console), all declared here.
 # The checker still also knows `ConsoleError` by name. No prototype runtime
@@ -13,28 +14,41 @@ use std.format.DebugWriter
 pub trait Console:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]
 
-# `write_error_line!` (r-module.console.write-error-line) and `eprintln` are
-# not declared yet: the prototype emits host glue for every method of a host
-# trait, called or not, so a second `Console` method would grow every
-# program that prints (STD-HELPERS in test/portable/KNOWN_FAILURES.tsv).
+    # One line of error output. A provider that does not override it
+    # records error lines with `write_line!`
+    # (spec/lang/10-modules.md#r-module.console.write-error-line.default).
+    fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_line!(text)
 
 # `read_line!` takes `mut self`, so a scripted provider can advance
 # through its lines (spec/std/console.md#r-std-console.input.mut).
 pub trait ConsoleInput:
     fn read_line!(mut self) -> Result[string?, ConsoleError]
 
+# The next line of the covering provider's input
+# (spec/std/console.md#r-std-console.input.helper).
+pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
+    let mut input = $.use(ConsoleInput)
+    input.read_line!()
+
 # The recording `Console` provider (spec/std/console.md#buffer-console).
-# `error_output` waits for `write_error_line!` (STD-HELPERS).
+# It keeps error lines apart from output lines.
 pub data BufferConsole:
     lines: mut List[string]
+    error_lines: mut List[string]
 
 impl BufferConsole:
     pub fn new() -> mut BufferConsole:
-        BufferConsole { lines: [] }
+        BufferConsole { lines: [], error_lines: [] }
 
     # The lines `write_line!` received, in order (r-std-console.buffer.output).
     pub fn output(self) -> List[string]:
         self.lines
+
+    # The lines `write_error_line!` received, in order
+    # (r-std-console.buffer.error-output).
+    pub fn error_output(self) -> List[string]:
+        self.error_lines
 
 # The scripted `ConsoleInput` provider (spec/std/console.md#scripted-input):
 # it returns its lines in order, then `.None`.
@@ -62,11 +76,15 @@ impl Debug for ScriptedInput:
 # run inside lib/std (r-std-format.debug.std-types).
 impl Debug for BufferConsole:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("BufferConsole").field("lines", self.lines).finish()
+        out.debug_struct("BufferConsole").field("lines", self.lines).field("error_lines", self.error_lines).finish()
 
 impl Console for BufferConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
+        .Ok(())
+
+    fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.error_lines.push(text)
         .Ok(())
 
 # `println` (spec/lang/10-modules.md#console) is ordinary std code: it drives the
@@ -80,6 +98,15 @@ pub fn println[T < Display](value: T) -> void $ Console:
     match block_on(call):
         .Ok(()) => pass
         .Err(_) => panic("println: write_line! returned .Err(ConsoleError)")
+
+# `eprintln` (spec/std/console.md#standard-error) drives the covering
+# provider's `write_error_line!` as `println` drives `write_line!`.
+pub fn eprintln[T < Display](value: T) -> void $ Console:
+    let mut console = $.use(Console)
+    let call: mut Suspend[Result[void, ConsoleError]] = console.write_error_line("$value")
+    match block_on(call):
+        .Ok(()) => pass
+        .Err(_) => panic("eprintln: write_error_line! returned .Err(ConsoleError)")
 
 # The error of a console write or read (spec/lang/10-modules.md#r-module.console.error.closed).
 pub enum ConsoleError:

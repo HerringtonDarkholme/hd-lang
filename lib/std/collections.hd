@@ -259,6 +259,35 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
             .None => 1
     tally
 
+# The std `Map` methods beside the language-tier `len`, `get`, and `remove`
+# (spec/std/collections.md#map-methods). `keys` and `values` copy into new
+# lists, so a later change to the map does not show in them.
+impl[K < Eq & Hash, V] Map[K, V]:
+    pub fn contains_key(self, key: K) -> bool:
+        match self.get(key):
+            .Some(_) => true
+            .None => false
+
+    pub fn keys(self) -> List[K]:
+        let found: mut List[K] = []
+        for (key, _) in self:
+            found.push(key)
+        found
+
+    pub fn values(self) -> List[V]:
+        let found: mut List[V] = []
+        for (_, value) in self:
+            found.push(value)
+        found
+
+    pub fn get_or(self, key: K, fallback: V) -> V:
+        match self.get(key):
+            .Some(value) => value
+            .None => fallback
+
+    pub fn is_empty(self) -> bool:
+        self.len() == 0
+
 # A read-only window on a run of a list's elements
 # (spec/std/collections.md#views). It holds the list, not a copy, so an
 # element write shows through it. It records the list's structural
