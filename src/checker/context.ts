@@ -185,6 +185,8 @@ export abstract class CheckerContext {
   protected handleWitness?: { readonly type: ValueType; readonly dictionary: HirExpression };
   /** A private field read synthesized by the checker rather than written in source. */
   protected compilerPrivateMember = false;
+  /** Whether checking this function produced a panic node carrying a message. */
+  protected hasPanicDetail = false;
   /** Whether every type is inspectable, for a fact value or a handle witness. */
   protected anyTypeInspectable = false;
 
@@ -390,10 +392,11 @@ export abstract class CheckerContext {
           ...(this.declaration.intrinsic ? { intrinsic: this.declaration.intrinsic } : {}),
         },
         diagnostics: this.diagnostics,
+        hasPanicDetail: this.hasPanicDetail,
       };
     } catch (error) {
       if (!(error instanceof CheckFailure)) throw error;
-      return { diagnostics: this.diagnostics };
+      return { diagnostics: this.diagnostics, hasPanicDetail: this.hasPanicDetail };
     }
   }
 
@@ -1396,10 +1399,7 @@ export abstract class CheckerContext {
     this.fail("type-mismatch", mismatchMessage(actual, expected), span);
   }
 
-  /**
-   * `type-mismatch` for a number of another width, with a fix-it that writes
-   * the conversion around the value at `span` (04-type-system.md#r-types.num.no-implicit.fix).
-   */
+  /** `type-mismatch` for a narrower number, with a fix-it writing the conversion (04-type-system.md#r-types.num.no-implicit.fix). */
   protected failWithConversion(message: string, target: ValueType, span: SourceSpan): never {
     const shownTarget = typeSourceText(target);
     let code = "type-mismatch";

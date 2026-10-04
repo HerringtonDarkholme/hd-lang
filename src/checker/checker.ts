@@ -502,6 +502,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           throw new CheckFailure("closure checking failed");
         }
         this.closures[closureIndex] = checked.function;
+        if (checked.hasPanicDetail) this.hasPanicDetail = true;
         const captures = checked.function.captures.map((capture) =>
           this.captureValue(capture.source, expression.span),
         );

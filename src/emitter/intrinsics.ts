@@ -96,18 +96,6 @@ function hostFunctions(program: HirProgram): readonly HirFunction[] {
   });
 }
 
-/** Whether reachable executable HIR can raise an explicit panic with a message. */
-function hasPanicDetail(program: HirProgram): boolean {
-  const visit = (value: unknown): boolean => {
-    if (Array.isArray(value)) return value.some(visit);
-    if (!value || typeof value !== "object") return false;
-    const node = value as Record<string, unknown>;
-    if (node.kind === "panic") return true;
-    return Object.entries(node).some(([key, child]) => key !== "span" && visit(child));
-  };
-  return [...program.functions, ...program.closures].some((declaration) => visit(declaration.body));
-}
-
 function hostSignature(declaration: HirFunction): string {
   const parameters = declaration.parameters.map((parameter) => {
     const type = boundaryWatType(parameter.type);
@@ -154,7 +142,7 @@ export function emitHostFunctionImports(program: HirProgram): {
   readonly boundary: boolean;
 } {
   const functions = hostFunctions(program);
-  const panicDetail = hasPanicDetail(program);
+  const panicDetail = program.hasPanicDetail;
   const imports = functions.map(
     (declaration) =>
       `  (import "hd" "host:${declaration.intrinsic}" (func ${hostImportName(declaration.intrinsic!)} ${hostSignature(declaration)}))`,

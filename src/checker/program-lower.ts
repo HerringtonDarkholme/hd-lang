@@ -163,6 +163,7 @@ export function lowerCheckedProgram(
     inference.useGlobals(globals);
   }
   const checkedFunctions = new Map<number, HirFunction>();
+  let hasPanicDetail = false;
   checkingOrder.forEach((declaration) => {
     const signature = signatures.get(declaration.name)!;
     if (inference.failed.has(declaration.name)) return;
@@ -191,6 +192,7 @@ export function lowerCheckedProgram(
       new Set(declaration.localImplementations ?? []),
     ).check();
     diagnostics.push(...checked.diagnostics);
+    if (checked.hasPanicDetail) hasPanicDetail = true;
     if (checked.function)
       checkedFunctions.set(
         checked.function.index,
@@ -242,6 +244,7 @@ export function lowerCheckedProgram(
           implementations,
           globals: [...globals.values()],
           ...shareCapturedLocals(functions, closures),
+          hasPanicDetail,
           hostCapabilities: [...hostCapabilities],
           initializer: moduleDeclaration
             ? signatures.get(moduleDeclaration.name)!.index

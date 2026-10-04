@@ -79,4 +79,6 @@ export interface ResolvedTraitPath {
 export interface FunctionCheckResult {
   readonly function?: HirFunction;
   readonly diagnostics: readonly Diagnostic[];
+  /** Whether checking produced a panic node carrying a message. */
+  readonly hasPanicDetail: boolean;
 }

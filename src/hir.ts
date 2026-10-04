@@ -379,6 +379,8 @@ export interface HirProgram {
   readonly closures: readonly HirFunction[];
   readonly hostCapabilities: readonly string[];
   readonly initializer?: number;
+  /** Whether reachable HIR can raise an explicit panic with a message. */
+  readonly hasPanicDetail: boolean;
 }
 
 export type HirProviderContextEntry =

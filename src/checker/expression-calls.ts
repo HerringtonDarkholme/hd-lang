@@ -1118,7 +1118,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     }
     // Checker intrinsics that only typed derivation generates
     // (spec/lang/14-annotations.md#handles).
-    if (expression.callee.name === STRUCTURE_MISMATCH)
+    if (expression.callee.name === STRUCTURE_MISMATCH) {
+      this.hasPanicDetail = true;
       return {
         kind: "panic",
         message: this.checkExpression({
@@ -1130,6 +1131,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         type: "never",
         span: expression.span,
       };
+    }
     if (expression.callee.name === STRUCTURE_AS_DECLARED && expression.arguments.length === 1) {
       const value = this.checkExpression(expression.arguments[0]!);
       return { ...value, type: mutableType(readonlyType(value.type)) };
@@ -1148,6 +1150,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       this.resolveArgumentMapping(expression, ["message"], "panic");
       const message = this.checkExpression(expression.arguments[0]!);
       this.requireAssignable(message.type, "string", message.span);
+      this.hasPanicDetail = true;
       return { kind: "panic", message, type: "never", span: expression.span };
     }
 

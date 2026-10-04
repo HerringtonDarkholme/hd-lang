@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze, type Compilation, compileToWasm, instantiate } from "../src/compiler.ts";
+import {
+  analyze,
+  type Compilation,
+  compileToWasm,
+  compileToWat,
+  instantiate,
+} from "../src/compiler.ts";
 import { PRELUDE_NAMES, PRELUDE_ORIGINS } from "../src/checker/prelude-names.ts";
+import { emitHostFunctionImports } from "../src/emitter/intrinsics.ts";
+import type { HirProgram } from "../src/hir.ts";
 import { RUNTIME_WAT } from "../src/emitter/runtime/index.ts";
 import { type RuntimePanicName, runtimePanicCode } from "../src/runtime-panic.ts";
 import { conformance } from "./fixture.ts";
@@ -600,6 +608,28 @@ test("explicit panic lowers to unreachable and skips pending defer", async () =>
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /unreachable/);
   assert.throws(() => (instance.exports.main as CallableFunction)());
+});
+
+test("panic detail import follows the checker-set flag", () => {
+  const panicking = compileToWat('fn main() -> void:\n    panic("boom")\n');
+  assert.match(panicking.wat, /panic_with_message/);
+  const program: HirProgram = {
+    data: [],
+    enums: [],
+    traits: [],
+    implementations: [],
+    globals: [],
+    functions: [],
+    closures: [],
+    hostCapabilities: [],
+    hasPanicDetail: false,
+  };
+  assert.ok(!emitHostFunctionImports(program).imports.includes("panic_with_message"));
+  assert.ok(
+    emitHostFunctionImports({ ...program, hasPanicDetail: true }).imports.includes(
+      "panic_with_message",
+    ),
+  );
 });
 
 test("enums use tagged GC structs and match binds payloads", async () => {
