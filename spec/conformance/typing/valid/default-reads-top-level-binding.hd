@@ -1,5 +1,5 @@
 # test: parameter and data-field defaults may read top-level bindings
-let limit: i32 = 10
+limit := +10
 let counter: i32 = 0
 
 fn current(value: i32 = limit, seen: i32 = counter) -> i32:
