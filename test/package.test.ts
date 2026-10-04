@@ -115,6 +115,7 @@ test("package use errors point at the use declaration of their file", () => {
   ]);
   assert.deepEqual(codes(main("use super.models.{User}")), ["src/main.hd:2:unknown-module"]);
   assert.deepEqual(codes(main("use dep.billing.{User}")), ["src/main.hd:2:unknown-module"]);
+  assert.deepEqual(codes(main("use pkg.models.{}")), ["src/main.hd:2:syntax-error"]);
 });
 
 test("std use errors in a package point at the use declaration of their file", () => {

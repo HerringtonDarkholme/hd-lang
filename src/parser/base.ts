@@ -736,21 +736,19 @@ export abstract class ParserBase {
     let module: string;
     if (grouped) {
       module = parts.join(".");
-      if (!this.atText("}")) {
-        do {
-          const name = this.expectKind("identifier", "expected an imported declaration name").text;
-          if (this.atText("."))
-            this.fail(
-              "direct-variant-use",
-              "enum variants cannot be imported directly",
-              this.current().span,
-            );
-          const alias = this.matchText("as")
-            ? this.expectKind("identifier", "expected an import alias").text
-            : undefined;
-          names.push({ name, ...(alias ? { alias } : {}) });
-        } while (this.matchText(",") && !this.atText("}"));
-      }
+      do {
+        const name = this.expectKind("identifier", "expected an imported declaration name").text;
+        if (this.atText("."))
+          this.fail(
+            "direct-variant-use",
+            "enum variants cannot be imported directly",
+            this.current().span,
+          );
+        const alias = this.matchText("as")
+          ? this.expectKind("identifier", "expected an import alias").text
+          : undefined;
+        names.push({ name, ...(alias ? { alias } : {}) });
+      } while (this.matchText(",") && !this.atText("}"));
       this.expectText("}");
     } else {
       // Only the grouped form accepts a `pub` prefix (10 Use Forms).
