@@ -1,0 +1,21 @@
+# test: a doc test whose assertion fails is a failed test case, with the panic of the failed assertion
+# Spec 10 Doc Tests: module.test.doc.program.
+# fixture-package-tree: doc-tests/src/headline.hd
+
+## Turns a headline into a URL slug. The example is stale: slugs now use
+## hyphens, not underscores.
+##
+## ```hd
+## use pkg.headline.{slugify}
+## use std.testing.assert_equal
+##
+## assert_equal(slugify("Ship It"), "Ship_It", reason="each space becomes a separator")  # panic: assertion-failed
+## ```
+pub fn slugify(headline: string) -> string:
+    let slug = ""
+    for letter in headline.chars():
+        if letter == ' ':
+            slug = "${slug}-"
+        else:
+            slug = "${slug}${letter}"
+    slug

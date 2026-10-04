@@ -1,0 +1,26 @@
+# test: a doc test on a private item runs, and it reaches the package only through the public API
+# Spec 10 Doc Tests: module.test.doc.private-items.
+# fixture-package-tree: doc-tests/src/words.hd
+
+## Whether `letter` ends a word. The example checks it through `count_words`,
+## since a doc test sees only the public API.
+##
+## ```hd
+## use pkg.words.{count_words}
+## use std.testing.assert_equal
+##
+## assert_equal(count_words("ship it-now"), 3, reason="a space and a hyphen both end a word")
+## ```
+fn is_separator(letter: char) -> bool:
+    letter == ' ' || letter == '-'
+
+pub fn count_words(text: string) -> usize:
+    let count: usize = 0
+    let in_word = false
+    for letter in text.chars():
+        if is_separator(letter):
+            in_word = false
+        else if !in_word:
+            in_word = true
+            count += 1
+    count

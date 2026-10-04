@@ -1,0 +1,23 @@
+# test: a doc test with a # error: CODE comment passes when compiling it fails with that code
+# Spec 10 Doc Tests: module.test.doc.compile-fail.
+# fixture-package-tree: doc-tests/src/slug.hd
+
+## A URL slug. Its text is private, so every slug comes from `make_slug`.
+##
+## ```hd
+## use pkg.slug.{make_slug}
+##
+## slug := make_slug("Ship It")
+## _ := slug.text  # error: private-member
+## ```
+pub data Slug:
+    text: string
+
+pub fn make_slug(title: string) -> Slug:
+    let text = ""
+    for letter in title.chars():
+        if letter == ' ':
+            text = "${text}-"
+        else:
+            text = "${text}${letter}"
+    Slug { text: text }

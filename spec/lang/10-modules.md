@@ -290,23 +290,24 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 1. r[module.test.module] A source file whose name ends in `_test.hd` is a **test module**, such as `src/billing_test.hd`, whose module is `billing_test`.
 2. r[module.test.integration] An **integration test module** is a module under the package's test root, which is `tests` by default.
 3. r[module.test.code] **Test code** is a package's `tests:` blocks, test modules, and integration test modules. Only a test build, such as `hd test` makes, compiles it.
-4. r[module.test.module.view] A test module is otherwise an ordinary module of its package: it sees public declarations package-wide and may use other test modules.
-5. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
-6. r[module.test.integration.program] Each file directly under the test root, such as `tests/checkout.hd`, is an **integration test program**: its own program, compiled separately from the others.
-7. r[module.test.integration.shared] A module in a subdirectory of the test root, such as `tests/common/mod.hd`, is a **shared test module**. Every integration test program of the package may use it.
-8. r[module.test.integration.beside-dir] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is invalid. Its fix-it moves the file to `tests/common/mod.hd`.
-9. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
-10. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
-11. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
-12. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
-13. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
-14. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`.
-15. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
-16. r[module.test.dev-dependency] A **dev dependency** is a dependency that the manifest declares in `[dev-dependencies]`. Test code may use it, and a dependent package never sees it.
-17. r[module.test.non-test-use.test-module] Non-test code that uses a test module is an error. Error: `test-only-use`.
-18. r[module.test.non-test-use.dev-dependency] Code under the source root, other than test code, that uses a dev dependency is an error. Error: `test-only-use`.
-19. r[module.test.cyclic-dev-unit] A dev dependency that itself depends on the package must not be used from a `tests:` block or a test module. Error: `cyclic-test-dependency`.
-20. r[module.test.cyclic-dev-allowed] Integration test modules and [tasks](../cli/command-line.md#tasks) may use such a dev dependency.
+4. r[module.test.code.doc] The package's [doc tests](#doc-tests) are test code too.
+5. r[module.test.module.view] A test module is otherwise an ordinary module of its package: it sees public declarations package-wide and may use other test modules.
+6. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
+7. r[module.test.integration.program] Each file directly under the test root, such as `tests/checkout.hd`, is an **integration test program**: its own program, compiled separately from the others.
+8. r[module.test.integration.shared] A module in a subdirectory of the test root, such as `tests/common/mod.hd`, is a **shared test module**. Every integration test program of the package may use it.
+9. r[module.test.integration.beside-dir] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is invalid. Its fix-it moves the file to `tests/common/mod.hd`.
+10. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
+11. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
+12. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
+13. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
+14. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
+15. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`.
+16. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
+17. r[module.test.dev-dependency] A **dev dependency** is a dependency that the manifest declares in `[dev-dependencies]`. Test code may use it, and a dependent package never sees it.
+18. r[module.test.non-test-use.test-module] Non-test code that uses a test module is an error. Error: `test-only-use`.
+19. r[module.test.non-test-use.dev-dependency] Code under the source root, other than test code, that uses a dev dependency is an error. Error: `test-only-use`.
+20. r[module.test.cyclic-dev-unit] A dev dependency that itself depends on the package must not be used from a `tests:` block or a test module. Error: `cyclic-test-dependency`.
+21. r[module.test.cyclic-dev-allowed] Integration test modules and [tasks](../cli/command-line.md#tasks) may use such a dev dependency.
 
 > **Why.** Each integration test program builds on its own, as each Cargo
 > integration test is its own crate, so helpers go in a subdirectory such
@@ -322,6 +323,87 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 
 See also: [Test Blocks](02-grammar.md#test-blocks),
 [Standard Testing](#standard-testing).
+
+#### Doc Tests
+
+A fenced `hd` block in a documentation comment is a test of its own, which
+`hd test` compiles and runs:
+
+```text
+# src/text.hd
+## Turns a title into a URL slug: each space becomes a hyphen.
+##
+## ```hd
+## use pkg.text.{slugify}
+## use std.testing.assert_equal
+##
+## assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a hyphen")
+## ```
+pub fn slugify(title: string) -> string:
+    let slug = ""
+    for letter in title.chars():
+        if letter == ' ':
+            slug = "${slug}-"
+        else:
+            slug = "${slug}${letter}"
+    slug
+```
+
+1. r[module.test.doc.block] Each fenced code block whose info string is `hd`, inside a [documentation comment](01-lexical-structure.md#documentation-comments) of a module under the source root, is a **doc test**.
+2. r[module.test.doc.fence] A fence with any other info string, such as `text`, is not a doc test, and no build compiles its contents.
+3. r[module.test.doc.program] Each doc test compiles as its own program, separately from the package's other test code, and holds exactly one test case.
+4. r[module.test.doc.uses] A doc test's `use` declarations must come first in its block, and they are the uses of its program.
+5. r[module.test.doc.body] The rest of the block is the body of that test case, as a trailing block given to `it` is.
+6. r[module.test.doc.view] A doc test sees the package as an integration test module does, by [`module.test.integration.view`](#r-module.test.integration.view) and [`module.test.integration.pkg-root`](#r-module.test.integration.pkg-root).
+7. r[module.test.doc.relative] A use path in a doc test that starts with `self` or `super` is an error. Error: `unknown-module`.
+8. r[module.test.doc.not-integration] A doc test is not an integration test module, and a rule for those applies to it only where this section cites the rule.
+9. r[module.test.doc.row] The runner binds a doc test's requirement row from the run's profile, by [`module.testing.integration-row`](#r-module.testing.integration-row) and [`module.testing.skipped`](#r-module.testing.skipped), as for an integration test case.
+10. r[module.test.doc.private-items] The documentation comment of a private declaration or member holds doc tests too, and they still see only the package's public declarations.
+11. r[module.test.doc.compile-fail] A doc test that holds a line comment `# error: CODE` is a compile-fail doc test. It never runs, and it passes only when compiling it reports `CODE`.
+12. r[module.test.doc.compile-fail.fails] A compile-fail doc test whose compilation reports no diagnostic with that code fails, including when it compiles.
+13. r[module.test.doc.no-attributes] A doc test has no other attributes: no hidden lines, no ignore option, and no comparison of its output.
+
+A compile-fail doc test shows a misuse that the compiler rejects:
+
+```text
+# src/slug.hd
+## A URL slug. Its text is private, so every slug comes from `make_slug`.
+##
+## ```hd
+## use pkg.slug.{make_slug}
+##
+## slug := make_slug("Ship It")
+## _ := slug.text  # error: private-member
+## ```
+pub data Slug:
+    text: string
+
+pub fn make_slug(title: string) -> Slug:
+    let text = ""
+    for letter in title.chars():
+        if letter == ' ':
+            text = "${text}-"
+        else:
+            text = "${text}${letter}"
+    Slug { text: text }
+```
+
+> **Note.** A doc test is test code, so it may use the package's dev
+> dependencies, by [`module.test.dev-dependency`](#r-module.test.dev-dependency).
+> It checks output with `snapshot`, as in
+> `snapshot(slugify("Ship It"), expect="Ship-It")`.
+
+> **Note.** `hd_run!` runs only in an integration test module
+> ([`std-testing.hd-run.integration-only`](../std/testing.md#r-std-testing.hd-run.integration-only)),
+> so a doc test that calls it is a `test-only-use` error.
+
+> **Why.** A doc test checks an example as a reader would copy it, so it
+> sees only what a dependent sees. Blocks on private items run too, as
+> rustdoc runs them, so internal docs stay true. `snapshot` already
+> compares output, so a block needs no output attribute.
+
+See also: [Test Runs](../cli/command-line.md#test-runs), for how `hd test`
+names, filters, and reports doc tests.
 
 ## Use Roots
 

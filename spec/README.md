@@ -199,6 +199,7 @@ The stdlib chapters' terms are in the
 | **depth** | The number of embedded fields on a part's path. See [`names.part.depth`](lang/03-names-and-scopes.md#r-names.part.depth). |
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](lang/14-annotations.md#derivation-blocks). |
 | **dev dependency** | A dependency that the manifest declares in `[dev-dependencies]`, which test code and tasks may use and a dependent never sees. See [`module.test.dev-dependency`](lang/10-modules.md#r-module.test.dev-dependency). |
+| **doc test** | A fenced `hd` block in a documentation comment of a module under the source root, compiled as its own program with one test case. See [`module.test.doc.block`](lang/10-modules.md#r-module.test.doc.block). |
 | **driver context** | Where a bang call is valid: a suspending function or closure body, or the host executor driving `main!`. See [`req.bang.driver-contexts`](lang/11-requirements-and-suspension.md#r-req.bang.driver-contexts). |
 | **dynamic provider** | A provider a closure gets at each call, because its row keeps the key. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](lang/08-data-and-enums.md#data-embedding). |
@@ -302,7 +303,7 @@ The stdlib chapters' terms are in the
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](lang/14-annotations.md#templates). |
 | **tuple template** | A trait's derivation for every tuple type, written `impl[T < Tuple] Trait for T by Structure:` in the trait's module. See [Tuple Templates](lang/14-annotations.md#tuple-templates). |
 | **test case** | One test, registered by a call of the prelude function `it` in test position, by one row of an `it_each` call, or by an `it_prop` or `it_prop_with` call. See [Test Cases](lang/10-modules.md#test-cases). |
-| **test code** | A package's `tests:` blocks, test modules, and integration test modules, compiled only by a test build. See [`module.test.code`](lang/10-modules.md#r-module.test.code). |
+| **test code** | A package's `tests:` blocks, test modules, integration test modules, and doc tests, compiled only by a test build. See [`module.test.code`](lang/10-modules.md#r-module.test.code). |
 | **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](lang/10-modules.md#test-modules). |
 | **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](lang/10-modules.md#r-module.testing.test-position). |
 | **test registration function** | `it`, `it_each`, `it_prop`, or `it_prop_with`; only a direct call of one may stand in test position. See [`module.testing.position-statements`](lang/10-modules.md#r-module.testing.position-statements). |

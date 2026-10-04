@@ -350,6 +350,9 @@ fn run() -> void:
     value := 1
 ```
 
+> **Note.** A fenced `hd` block inside a documentation comment is a
+> [doc test](10-modules.md#doc-tests), which `hd test` runs.
+
 ### Comment Grammar
 
 The lexical form is:

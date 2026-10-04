@@ -471,7 +471,9 @@ A tree case differs from the Judging a Case table in two points:
 
 `test FILE` runs the primary module's entry point and test cases, after
 initializing that module and the modules it uses, as
-[Runtime Execution](#runtime-execution) describes.
+[Runtime Execution](#runtime-execution) describes. Its test cases include
+the [doc tests](../lang/10-modules.md#doc-tests) of the primary file, and
+`check FILE` covers them as `hd check --tests` does.
 
 ### Standard Output
 

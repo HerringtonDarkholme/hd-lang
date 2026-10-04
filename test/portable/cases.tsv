@@ -2111,3 +2111,7 @@ runtime/valid/memory-fs.hd	runtime
 runtime/valid/map-get-or.hd	runtime
 runtime/valid/buffer-console-error-lines.hd	runtime
 runtime/valid/map-is-empty.hd	runtime
+runtime/valid/doc-test-passes.hd	runtime
+runtime/valid/doc-test-compile-fail.hd	runtime
+runtime/valid/doc-test-private-item.hd	runtime
+runtime/valid/doc-test-text-fence.hd	runtime

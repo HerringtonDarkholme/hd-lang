@@ -2243,3 +2243,8 @@ runtime/valid/literal-receiver-params-differ-annotated.hd	runtime	accept	lang/04
 typing/invalid/absolute-path-in-expression.hd	type	reject:unknown-name	lang/10-modules.md#r-module.root.use-only
 typing/invalid/module-path-private-member.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
 typing/invalid/module-path-missing-member.hd	type	reject:unknown-import	lang/05-expressions.md#r-expr.name.qualified.missing
+runtime/valid/doc-test-passes.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.block
+runtime/panic/doc-test-failing-assert.hd	runtime	panic:assertion-failed	lang/10-modules.md#r-module.test.doc.program
+runtime/valid/doc-test-compile-fail.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.compile-fail
+runtime/valid/doc-test-private-item.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.private-items
+runtime/valid/doc-test-text-fence.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.fence

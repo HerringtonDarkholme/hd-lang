@@ -1,0 +1,17 @@
+# test: a text fence in a ## comment is not a doc test, so its sample output is never compiled
+# Spec 10 Doc Tests: module.test.doc.block.
+# fixture-package-tree: doc-tests/src/banner.hd
+use std.testing.assert_equal
+
+## Frames a title for a terminal banner:
+##
+## ```text
+## $ banner "Ship It"
+## == Ship It ==
+## ```
+pub fn banner(title: string) -> string:
+    "== ${title} =="
+
+tests:
+    it("frames the title"):
+        assert_equal(banner("Ship It"), "== Ship It ==", reason="two equals signs on each side")

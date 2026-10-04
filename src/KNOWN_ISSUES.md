@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,244 cases: 2,112 selected in `test/portable/cases.tsv` and 132 known
-failures. The selected cases are 1,845 language tier and 267 stdlib tier;
-the known failures are 122 language tier and 10 stdlib tier.
+2,249 cases: 2,116 selected in `test/portable/cases.tsv` and 133 known
+failures. The selected cases are 1,849 language tier and 267 stdlib tier;
+the known failures are 123 language tier and 10 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -52,6 +52,7 @@ the known failures are 122 language tier and 10 stdlib tier.
 | ONE-FIT | 8 | a literal is `i32` on the spot, so one fitting candidate never decides it, several fitting candidates never wait for the `usize` fallback, a literal receiver's arguments are checked at `i32`, and the fallback hint is absent |
 | QUALIFIED-PATH | 6 | a used module name works before a function, but not before a type, a variant, a variant pattern, or an associated call; a whole-module use of a package module is `unsupported-package-use` |
 | NO-IMPLIED-BOUND | 2 | a missing key bound at an impl target is reported again at each method's `self`, and at a field it adds `void-data-field` |
+| DOC-TESTS | 1 | `hd` blocks in `##` comments are not extracted or run as doc tests |
 
 ## Findings
 
@@ -144,6 +145,7 @@ Compiler structure:
 | ONE-FIT | Task #254: exactly one fitting candidate (a bound's one implementing type, one receiver or left-operand type, one instantiation) decides an open literal; two or more decide nothing, and a failure after the fallback suggests `+5` or an annotation. A literal joined with a dependent method result takes its resolved type, no use of a method result decides the receiver, and a literal erased to `Any` or `Inspectable` takes the fallback. The prototype types the literal as `i32` on the spot and emits no hint. Task #262: a conversion to a trait value is no one-fit site, and widths whose methods declare different parameter lists make a literal receiver `ambiguous-method`; the prototype checks `cents.scale(4)` at `i32` and reports `argument-count`. |
 | NO-IMPLIED-BOUND | Task #261: a generic type's declared bounds are never implied where the type is written, so a declaration that writes `Map[K, V]` must bound its own `K`. The prototype reports the missing bound, but repeats it at each method's implicit `self` and turns the field's type into `void`. |
 | QUALIFIED-PATH | Task #260: a used module name qualifies a function, a type, a variant, a variant pattern, and an associated call. Task #262: a module path to a private or missing declaration reports `private-import` or `unknown-import`, and an absolute path outside a use is `unknown-name`. The prototype rejects `use pkg.words` as `unsupported-package-use`. |
+| DOC-TESTS | Owner design, 2026-10-04: each fenced `hd` block in a `##` comment under `src/` is a doc test, compiled as its own program with the public view and run by `hd test` (`module.test.doc.*`, `cli.test.doc.*`). The prototype ignores the blocks, so `hd test` runs none, and `hd check --tests` checks none. |
 
 ## Gaps No Fixture Reaches
 

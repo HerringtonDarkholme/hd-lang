@@ -1,0 +1,20 @@
+# test: a fenced hd block in a ## comment is a doc test that uses the package's public API, and it passes
+# Spec 10 Doc Tests: module.test.doc.block, module.test.doc.program.
+# fixture-package-tree: doc-tests/src/text.hd
+
+## Turns a title into a URL slug: each space becomes a hyphen.
+##
+## ```hd
+## use pkg.text.{slugify}
+## use std.testing.assert_equal
+##
+## assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a hyphen")
+## ```
+pub fn slugify(title: string) -> string:
+    let slug = ""
+    for letter in title.chars():
+        if letter == ' ':
+            slug = "${slug}-"
+        else:
+            slug = "${slug}${letter}"
+    slug

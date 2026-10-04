@@ -256,13 +256,16 @@ hd test src/billing.hd    # the tests of module billing
 3. r[cli.package.no-root] In package mode, `hd check FILE` and `hd test FILE` treat a FILE under no root as a single-file program, as `hd FILE` does. The roots are the source root, the test root, and `tasks`.
 4. r[cli.check.default] A whole-package `hd check` checks what `hd build` compiles, the library and the executables, and no [test code](../lang/10-modules.md#r-module.test.code), as Cargo's `cargo check` does without `--all-targets`.
 5. r[cli.check.tests] `hd check --tests` also checks the package's test code: its `tests:` blocks, test modules, and integration test modules.
-6. r[cli.check.all] `hd check --all` checks the library, the executables, the test code, and the package's [tasks](#tasks).
+6. r[cli.check.tests.doc] `hd check --tests` also checks the package's [doc tests](../lang/10-modules.md#doc-tests), except compile-fail ones, which only `hd test` judges.
+7. r[cli.check.all] `hd check --all` checks the library, the executables, the test code, and the package's [tasks](#tasks).
 
 ### Test Runs
 
 ```sh
 hd test --filter "sums prices"    # only the test cases whose name holds it
 hd test --deny-skipped            # a skipped test case fails the run
+hd test --filter doc              # only the doc tests
+hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 ```
 
 1. r[cli.test.file-empty] `hd test FILE` is an error when FILE registers no test case.
@@ -277,6 +280,21 @@ hd test --deny-skipped            # a skipped test case fails the run
 10. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
 11. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
 12. r[cli.test.runner] When it runs a test case, `hd test` binds the host traits [`TestRunner` and `PropertyRunner`](../std/testing.md#runner-capabilities) for the `std.testing` code around the body, by [`std-testing.runner.binding`](../std/testing.md#r-std-testing.runner.binding).
+13. r[cli.test.doc.default] `hd test` runs the package's [doc tests](../lang/10-modules.md#doc-tests) with its other test cases. With a FILE, it runs the doc tests of that file's module.
+14. r[cli.test.doc.name] A doc test is named `doc <module>.<item>[i]`, by the table below.
+15. r[cli.test.doc.filter] `--filter` matches a doc test by that name, so `--filter doc` selects every doc test, and `--filter text.slugify` the doc tests of `slugify` in `src/text.hd`.
+16. r[cli.test.doc.location] A diagnostic or a failure of a doc test names the `.hd` source file and a `##` line of the doc test's block.
+17. r[cli.test.doc.json] With `--format json`, a doc test's test object holds that name in `name`, and its diagnostics give that file and line in `file` and `line`.
+
+| Part | Value |
+| --- | --- |
+| `<module>` | the path of the module whose comment holds the block, such as `text` for `src/text.hd` |
+| `<item>` | the name of the documented declaration, such as `slugify`; for a member, the declaration's name, a dot, and the member's name, such as `Slug.new` |
+| `[i]` | the block's index among that item's doc tests, from 0, as in the `name[i]` of an `it_each` row |
+
+So the first `hd` block on `slugify` in `src/text.hd` is `doc text.slugify[0]`,
+and the JSON line of its result is
+`{"kind":"test","name":"doc text.slugify[0]","outcome":"passed","message":""}`.
 
 > **Why.** Naming a FILE asks for its tests, so none is a mistake, while a
 > new package may have none yet. A filter that matches nothing in a named

@@ -330,11 +330,13 @@ These items remain required but do not currently require new core syntax:
   log. The property-test API is decided and applied
   (Testing PT1-PT9,
   [Property Tests](../spec/std/testing.md#property-tests));
-- doc tests and benchmarks, which no decision covers yet. The testing
-  stress test (TS-15) found a direction: doc tests as fenced `hd` blocks in
-  `##` comments of `pub` items, run with the `tests/` view, and benchmarks
-  with a host clock and their own registration, like Go's `b.Loop` or a
-  `benches/` root;
+- benchmarks, which no decision covers yet. The testing stress test
+  (TS-15) found a direction: benchmarks with a host clock and their own
+  registration, like Go's `b.Loop` or a `benches/` root;
+- two doc test details ([Doc Tests](../spec/lang/10-modules.md#doc-tests)):
+  whether `hd test --update` rewrites a `snapshot` `expect` inside `##`
+  lines or skips doc tests, and the `<module>` part of the name of a doc
+  test in `src/lib.hd`;
 - final signatures, behavior, and the complete intrinsic set for the
   compiler-intrinsic `std.task` combinators, such as racing, timeout,
   and heterogeneous scheduling (`retry!` is a library loop, decided in
