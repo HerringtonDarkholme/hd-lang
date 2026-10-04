@@ -1,0 +1,9 @@
+# test: a requirement key's associated binding that names no type is unknown-type
+# Spec 11 Bound Requirement Keys: req.key.binding.
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+fn count() -> i32 $ Store[Item = Account]:  # diagnostic: unknown-type
+    0

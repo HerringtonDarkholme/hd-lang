@@ -1,0 +1,8 @@
+# test: a trait that is not dynamically safe is rejected in a function type's input and result
+# Spec 09 Dynamic Safety: trait.dyn.safe.error.
+
+trait Factory:
+    fn create() -> Self
+
+fn register(build: fn(Factory) -> Result[i32, Factory]) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

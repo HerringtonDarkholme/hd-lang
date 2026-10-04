@@ -1,0 +1,10 @@
+# test: a newtype's parameter bound is checked like any bound
+# Spec 09 Dynamic Safety: trait.dyn.safe.error.
+
+trait Source[T]:
+    fn read(self) -> T
+
+type Wrapped[S < Source[Factory]](S)  # diagnostic: trait-not-dynamically-safe
+
+trait Factory:
+    fn create() -> Self

@@ -1,0 +1,8 @@
+# test: a requirement key whose method has an unbounded type parameter is not dynamically safe
+# Spec 11 Requirement Keys: req.key.dynamically-safe; Spec 09 Dynamic Safety: trait.dyn.safe.implied-anyref-param.
+
+trait Codec:
+    fn round_trip[T](self, value: T) -> T
+
+fn sync() -> void $ Codec:  # diagnostic: trait-not-dynamically-safe
+    pass

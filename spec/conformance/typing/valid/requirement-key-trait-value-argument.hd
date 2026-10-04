@@ -1,0 +1,21 @@
+# test: a key whose argument is a trait value type is one key in a provider scope and a row
+# Spec 11 Requirement Rows: req.row.entail.generic; Bound Requirement Keys: req.key.binding.identity.
+
+trait Event:
+    fn name(self) -> string
+
+trait Bus[T]:
+    fn send(self, message: T) -> void
+
+data LocalBus: pass
+
+impl Bus[Event] for LocalBus:
+    fn send(self, message: Event) -> void:
+        pass
+
+fn publish(event: Event) -> void $ Bus[Event]:
+    $.use(Bus[Event]).send(event)
+
+fn run(event: Event) -> void:
+    $.with(Bus[Event]=LocalBus {}):
+        publish(event)

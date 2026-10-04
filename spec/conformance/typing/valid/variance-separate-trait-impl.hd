@@ -1,0 +1,12 @@
+# test: a trait implementation does not change the target's declared variance
+# Spec 04 Variance: types.variance.trait-impl.
+
+trait Sink[T]:
+    fn put(self, value: T) -> void
+
+data Feed[+T]:
+    latest: T
+
+impl[T] Sink[T] for Feed[T]:
+    fn put(self, value: T) -> void:
+        pass

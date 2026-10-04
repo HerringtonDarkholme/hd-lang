@@ -1,0 +1,12 @@
+# test: a method type parameter whose bound reaches AnyRef through two supertraits keeps a trait dynamically safe
+# Spec 09 Dynamic Safety: trait.dyn.safe.implied-anyref-param; Bounds: trait.bound.supertraits.
+
+trait Record < Entity
+
+trait Entity < AnyRef
+
+trait Registry:
+    fn lookup[T < Record](self, name: string) -> T?
+
+fn valid(registry: Registry) -> void:
+    pass

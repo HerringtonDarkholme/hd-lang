@@ -1,0 +1,9 @@
+# test: an optional method parameter cannot hide a covariant parameter in a negative position
+# Spec 04 Optional Identity And Variance: types.option.invariant; Variance: types.variance.covariant-check.
+
+data Feed[+T]:
+    latest: T
+
+impl[T] Feed[T]:
+    pub fn merge(self, other: T?) -> void:  # diagnostic: invalid-variance
+        pass

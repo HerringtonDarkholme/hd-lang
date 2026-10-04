@@ -1,0 +1,6 @@
+# test: the row argument of Fn is checked like any row
+# Spec 11 Row Slots: req.row.slot.list; Requirement Keys: req.key.traits.
+use std.function.Fn
+
+fn schedule(job: Fn[(), void, $ Mailer]) -> void:  # diagnostic: unknown-trait
+    pass

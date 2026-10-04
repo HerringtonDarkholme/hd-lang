@@ -1,0 +1,16 @@
+# test: an Inspectable subtrait is not a requirement key in a provider scope
+# Spec 11 Requirement Keys: req.key.inspectable.error covers a provider scope.
+use std.inspect.Inspectable
+
+trait Storage < Inspectable:
+    fn get(self, key: string) -> string?
+
+data MemoryStorage: pass
+
+impl Storage for MemoryStorage:
+    fn get(self, key: string) -> string?:
+        .None
+
+fn run() -> void:
+    $.with(Storage=MemoryStorage {}):  # diagnostic: inspectable-requirement
+        pass

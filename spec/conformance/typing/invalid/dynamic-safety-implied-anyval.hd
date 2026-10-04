@@ -1,0 +1,10 @@
+# test: a method type parameter whose bound implies AnyVal makes the trait not dynamically safe
+# Spec 09 Dynamic Safety: trait.dyn.safe.implied-anyref-param.
+
+trait Scalar < AnyVal
+
+trait Registry:
+    fn lookup[T < Scalar](self, name: string) -> T?
+
+fn invalid(registry: Registry) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

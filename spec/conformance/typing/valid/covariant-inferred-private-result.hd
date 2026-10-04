@@ -1,0 +1,9 @@
+# test: a private method may infer a result that uses a covariant parameter positively
+# Spec 04 Variance: types.variance.surface, types.variance.covariant-check.
+
+data Feed[+T]:
+    latest: T
+
+impl[T] Feed[T]:
+    fn peek(self):
+        self.latest

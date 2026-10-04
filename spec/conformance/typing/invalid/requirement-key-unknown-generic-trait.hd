@@ -1,0 +1,8 @@
+# test: a generic requirement key that names no trait is unknown-trait
+# Spec 11 Requirement Keys: req.key.traits.
+
+data Invoice:
+    total: i64
+
+fn archive(invoice: Invoice) -> void $ Ledger[Invoice]:  # diagnostic: unknown-trait
+    pass

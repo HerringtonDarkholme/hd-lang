@@ -1,0 +1,10 @@
+# test: an enum's inherent methods count toward its declared variance
+# Spec 04 Variance: types.variance.surface, types.variance.covariant-check.
+
+enum Reply[+T]:
+    Ready(value: T)
+    Waiting
+
+impl[T] Reply[T]:
+    pub fn fill(self, value: T) -> void:  # diagnostic: invalid-variance
+        pass

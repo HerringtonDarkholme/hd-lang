@@ -1,0 +1,9 @@
+# test: a requirement row that does not mention the parameter leaves its variance alone
+# Spec 04 Readonly Outer Views: types.variance.function; Variance: types.variance.verified.
+
+trait Cache[T]:
+    fn get(self, key: string) -> T?
+
+data Loader[+T]:
+    latest: T
+    refresh: fn() -> void $ Cache[i32]

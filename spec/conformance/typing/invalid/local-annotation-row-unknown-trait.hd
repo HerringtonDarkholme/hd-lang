@@ -1,0 +1,6 @@
+# test: a function type's row in a local annotation is checked
+# Spec 11 Requirement Keys: req.key.traits.
+
+fn run() -> void:
+    let job: fn() -> void $ Mailer = fn() -> void: pass  # diagnostic: unknown-trait
+    job()

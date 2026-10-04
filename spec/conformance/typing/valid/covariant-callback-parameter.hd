@@ -1,0 +1,9 @@
+# test: a callback parameter that takes a covariant parameter reverses polarity twice
+# Spec 04 Polarity: types.polarity.function, types.polarity.negative.
+
+data Feed[+T]:
+    latest: T
+
+impl[T] Feed[T]:
+    pub fn each(self, visit: fn(T) -> void) -> void:
+        visit(self.latest)

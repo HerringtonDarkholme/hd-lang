@@ -1,0 +1,11 @@
+# test: a bound's trait argument is a value type, so it must be dynamically safe
+# Spec 09 Dynamic Safety: trait.dyn.safe.error.
+
+trait Source[T]:
+    fn read(self) -> T
+
+trait Factory:
+    fn create() -> Self
+
+fn drain[S < Source[List[Factory]]](source: S) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

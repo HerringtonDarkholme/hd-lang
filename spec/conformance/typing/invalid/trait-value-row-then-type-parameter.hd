@@ -1,0 +1,8 @@
+# test: a method type parameter after a callable row in a tuple still makes the trait not dynamically safe
+# Spec 09 Dynamic Safety: trait.dyn.safe.implied-anyref-param, trait.dyn.safe.error.
+
+trait Show:
+    fn show[T](self, pair: (fn() -> void $ Console, T)) -> i32
+
+fn render(value: Show) -> i32:  # diagnostic: trait-not-dynamically-safe
+    0

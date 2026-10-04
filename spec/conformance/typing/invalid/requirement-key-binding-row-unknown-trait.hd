@@ -1,0 +1,9 @@
+# test: a row inside a requirement key's associated binding is checked like any row
+# Spec 11 Bound Requirement Keys: req.key.binding; Requirement Keys: req.key.traits.
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+fn count() -> i32 $ Store[Item = fn() -> void $ Mailer]:  # diagnostic: unknown-trait
+    0

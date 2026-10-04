@@ -1,0 +1,12 @@
+# test: a requirement row in a method parameter stays invariant under the parameter's polarity
+# Spec 04 Readonly Outer Views: types.variance.function; Variance: types.variance.surface.
+
+trait Cache[T]:
+    fn get(self, key: string) -> T?
+
+data Feed[+T]:
+    latest: T
+
+impl[T] Feed[T]:
+    fn warm(self, job: fn() -> void $ Cache[T]) -> void:  # diagnostic: invalid-variance
+        pass

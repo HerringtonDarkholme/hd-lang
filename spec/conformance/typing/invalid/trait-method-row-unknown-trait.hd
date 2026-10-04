@@ -1,0 +1,5 @@
+# test: a trait method's row is checked even when nothing implements the trait
+# Spec 11 Requirement Rows: req.row.callable.methods; Requirement Keys: req.key.traits.
+
+trait Worker:
+    fn run(self) -> void $ Mailer  # diagnostic: unknown-trait

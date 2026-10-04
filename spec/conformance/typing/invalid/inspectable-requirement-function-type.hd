@@ -1,0 +1,9 @@
+# test: an Inspectable subtrait is not a requirement key in a function type's row
+# Spec 11 Requirement Keys: req.key.inspectable.error covers every place a key is named.
+use std.inspect.Inspectable
+
+trait Storage < Inspectable:
+    fn get(self, key: string) -> string?
+
+fn schedule(job: fn() -> void $ Storage) -> void:  # diagnostic: inspectable-requirement
+    pass

@@ -1,0 +1,9 @@
+# test: a trait that is not dynamically safe is rejected as a list element type in a local annotation
+# Spec 09 Dynamic Safety: trait.dyn.safe.error.
+
+trait Factory:
+    fn create() -> Self
+
+fn collect() -> void:
+    let factories: List[Factory] = []  # diagnostic: trait-not-dynamically-safe
+    _ := factories

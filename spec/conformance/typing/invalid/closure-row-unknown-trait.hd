@@ -1,0 +1,6 @@
+# test: a closure's written row is checked like a declaration's
+# Spec 11 Requirement Rows: req.row.callable.same-clause; Requirement Keys: req.key.traits.
+
+fn run() -> void:
+    job := fn() -> void $ Mailer: pass  # diagnostic: unknown-trait
+    _ := job

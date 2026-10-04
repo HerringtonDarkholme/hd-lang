@@ -1,0 +1,5 @@
+# test: a function type's row is checked inside a type argument
+# Spec 11 Requirement Keys: req.key.traits.
+
+fn schedule(jobs: List[fn() -> void $ Mailer]) -> void:  # diagnostic: unknown-trait
+    pass

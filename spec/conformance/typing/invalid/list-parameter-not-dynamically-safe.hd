@@ -1,0 +1,8 @@
+# test: a trait that is not dynamically safe is rejected as a list element type in a parameter
+# Spec 09 Dynamic Safety: trait.dyn.safe.error.
+
+trait Factory:
+    fn create() -> Self
+
+fn register(factories: List[Factory]) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

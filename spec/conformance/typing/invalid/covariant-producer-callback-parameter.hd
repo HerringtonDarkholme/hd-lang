@@ -1,0 +1,9 @@
+# test: a callback parameter that returns a covariant parameter is a negative position
+# Spec 04 Polarity: types.polarity.function; Variance: types.variance.covariant-check.
+
+data Feed[+T]:
+    latest: T
+
+impl[T] Feed[T]:
+    pub fn refill(self, source: fn() -> T) -> void:  # diagnostic: invalid-variance
+        pass

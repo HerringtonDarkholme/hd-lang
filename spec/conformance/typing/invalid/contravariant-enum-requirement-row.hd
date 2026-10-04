@@ -1,0 +1,9 @@
+# test: a contravariant parameter in a variant payload's requirement row is invariant
+# Spec 04 Readonly Outer Views: types.variance.function; Polarity: types.polarity.generic.
+
+trait Cache[T]:
+    fn get(self, key: string) -> T?
+
+enum Refresh[-T]:
+    Scheduled(job: fn() -> void $ Cache[T])  # diagnostic: invalid-variance
+    Idle

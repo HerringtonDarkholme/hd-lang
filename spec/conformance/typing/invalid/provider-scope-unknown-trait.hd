@@ -1,0 +1,6 @@
+# test: a provider scope key that names no trait is unknown-trait
+# Spec 11 Requirement Keys: req.key.traits.
+
+fn run() -> void:
+    $.with(Mailer=1):  # diagnostic: unknown-trait
+        pass

@@ -1,0 +1,15 @@
+# test: a user trait that extends AnyRef can be implemented for reference newtypes
+# Spec 09 Sealed Traits: trait.sealed.extend, trait.super.impl-bounds; Spec 04 Trait Values And Any: types.sealed.newtype.
+
+trait Entity < AnyRef
+
+data User:
+    name: string
+
+type Owner(User)
+
+impl Entity for Owner
+
+type Shared[T](T)
+
+impl[T < AnyRef] Entity for Shared[T]

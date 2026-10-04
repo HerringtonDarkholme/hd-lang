@@ -1,0 +1,9 @@
+# test: a requirement key that binds one associated type twice is duplicate-associated-binding
+# Spec 11 Bound Requirement Keys: req.key.binding.names applies Spec 09 Binding Names: trait.binding.once.error.
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+fn count() -> i32 $ Store[Item = i32, Item = i32]:  # diagnostic: duplicate-associated-binding
+    0

@@ -1,0 +1,12 @@
+# test: an associated binding's value is a value type, so it must be dynamically safe
+# Spec 09 Dynamic Safety: trait.dyn.safe.error; Bound Associated Types: trait.dyn.binding.form.
+
+trait Store:
+    type Item
+    fn load(self) -> Self::Item
+
+trait Factory:
+    fn create() -> Self
+
+fn open(source: Store[Item = Factory]) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

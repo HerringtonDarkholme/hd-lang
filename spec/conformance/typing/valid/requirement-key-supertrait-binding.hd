@@ -1,0 +1,12 @@
+# test: a requirement key may bind an associated type that its supertrait declares
+# Spec 11 Bound Requirement Keys: req.key.binding.names, req.key.binding.complete.
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+trait NamedStore < Store:
+    fn name(self) -> string
+
+fn count(id: string) -> i32 $ NamedStore[Item = i32]:
+    $.use(NamedStore[Item = i32]).load(id)

@@ -1,0 +1,12 @@
+# test: a covariant parameter as a trait argument in a method parameter is invariant
+# Spec 04 Variance: types.variance.trait-params; Polarity: types.polarity.generic.
+
+trait Sink[T]:
+    fn put(self, value: T) -> void
+
+data Feed[+T]:
+    latest: T
+
+impl[T] Feed[T]:
+    pub fn pipe(self, sink: Sink[T]) -> void:  # diagnostic: invalid-variance
+        pass

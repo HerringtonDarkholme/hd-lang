@@ -1,0 +1,12 @@
+# test: a requirement row in a method result stays invariant under the result's polarity
+# Spec 04 Readonly Outer Views: types.variance.function; Variance: types.variance.surface.
+
+trait Cache[T]:
+    fn get(self, key: string) -> T?
+
+data Handler[-T]:
+    handle: fn(T) -> void
+
+impl[T] Handler[T]:
+    fn warmer(self) -> (fn() -> void $ Cache[T]):  # diagnostic: invalid-variance
+        fn() -> void: pass

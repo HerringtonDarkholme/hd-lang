@@ -1,0 +1,6 @@
+# test: a user package cannot implement a standard trait for a standard enum
+# Spec 09 Implementation Ownership: trait.own.rule, trait.own.orphan.
+
+impl Hash for ConsoleError:  # diagnostic: orphan-impl
+    fn hash(self, hasher: mut Hasher) -> void:
+        0.hash(hasher)

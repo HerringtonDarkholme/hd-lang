@@ -1,0 +1,9 @@
+# test: a private method's inferred result counts toward the declared variance
+# Spec 04 Variance: types.variance.surface, types.variance.contravariant-check.
+
+data Handler[-T]:
+    handle: fn(T) -> void
+
+impl[T] Handler[T]:
+    fn replay(self, source: fn() -> T):  # diagnostic: invalid-variance
+        source()

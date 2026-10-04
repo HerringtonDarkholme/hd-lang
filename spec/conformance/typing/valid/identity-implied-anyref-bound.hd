@@ -1,0 +1,7 @@
+# test: a bound on a trait that extends AnyRef permits identity comparison
+# Spec 04 Generic Identity: types.generic.identity; Spec 09 Bounds: trait.bound.supertraits.
+
+trait Entity < AnyRef
+
+fn same[T < Entity](left: T, right: T) -> bool:
+    left is right

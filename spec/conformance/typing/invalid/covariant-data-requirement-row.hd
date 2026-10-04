@@ -1,0 +1,8 @@
+# test: a covariant parameter in a field's requirement row is invariant
+# Spec 04 Readonly Outer Views: types.variance.function; Polarity: types.polarity.generic.
+
+trait Cache[T]:
+    fn get(self, key: string) -> T?
+
+data Loader[+T]:
+    refresh: fn() -> void $ Cache[T]  # diagnostic: invalid-variance

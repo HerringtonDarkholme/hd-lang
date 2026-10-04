@@ -1,0 +1,8 @@
+# test: a trait method's parameter may not use a trait that is not dynamically safe as a value type
+# Spec 09 Dynamic Safety: trait.dyn.safe.error.
+
+trait Factory:
+    fn create() -> Self
+
+trait Consumer:
+    fn consume(self, factories: List[Factory]) -> void  # diagnostic: trait-not-dynamically-safe

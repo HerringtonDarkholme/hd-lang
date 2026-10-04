@@ -1,0 +1,8 @@
+# test: an implementation's bounds must prove AnyRef when its trait extends AnyRef
+# Spec 09 Supertraits: trait.super.impl-bounds; Sealed Traits: trait.sealed.extend.missing.
+
+trait Entity < AnyRef
+
+type Shared[T](T)
+
+impl[T] Entity for Shared[T]  # diagnostic: missing-supertrait-implementation

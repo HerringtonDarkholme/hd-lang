@@ -1,0 +1,8 @@
+# test: a requirement key's type argument that names no type is unknown-type
+# Spec 11 Requirement Keys: req.key.traits.
+
+trait Repo[T]:
+    fn find(self, id: string) -> T?
+
+fn refresh() -> void $ Repo[Account]:  # diagnostic: unknown-type
+    pass

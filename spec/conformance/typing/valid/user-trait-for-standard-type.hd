@@ -1,0 +1,14 @@
+# test: a package that owns a trait may implement it for standard types
+# Spec 09 Implementation Ownership: trait.own.trait.
+use std.inspect.TypeId
+
+trait Loggable:
+    fn log_name(self) -> string
+
+impl Loggable for TypeId:
+    fn log_name(self) -> string:
+        "type"
+
+impl Loggable for ConsoleError:
+    fn log_name(self) -> string:
+        "console"

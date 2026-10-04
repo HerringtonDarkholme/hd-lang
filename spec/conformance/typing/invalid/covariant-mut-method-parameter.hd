@@ -1,0 +1,9 @@
+# test: a covariant parameter beneath mut in a method parameter is invariant
+# Spec 04 Polarity: types.polarity.mut; Variance: types.variance.covariant-check.
+
+data Feed[+T]:
+    latest: T
+
+impl[T] Feed[T]:
+    pub fn swap(self, other: mut T) -> void:  # diagnostic: invalid-variance
+        pass

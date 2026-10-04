@@ -1,0 +1,5 @@
+# test: the row of a context type is checked like any row
+# Spec 11 Row Slots: req.row.slot.list; Requirement Keys: req.key.traits.
+
+fn take(providers: $.Context[$ Mailer]) -> void:  # diagnostic: unknown-trait
+    pass

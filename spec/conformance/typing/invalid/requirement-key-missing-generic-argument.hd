@@ -1,0 +1,8 @@
+# test: a requirement key that omits its trait's generic argument is partial-generic-arguments
+# Spec 04 Generic Defaults: types.generic.default.written-missing; Spec 09 Dynamic Safety: trait.dyn.generic-trait.
+
+trait Repo[T]:
+    fn find(self, id: string) -> T?
+
+fn refresh() -> void $ Repo:  # diagnostic: partial-generic-arguments
+    pass

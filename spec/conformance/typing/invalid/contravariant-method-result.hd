@@ -1,0 +1,9 @@
+# test: a public inherent method that returns a contravariant parameter is invalid-variance
+# Spec 04 Variance: types.variance.surface, types.variance.contravariant-check.
+
+data Handler[-T]:
+    handle: fn(T) -> void
+
+impl[T] Handler[T]:
+    pub fn replay(self, source: fn() -> T) -> T:  # diagnostic: invalid-variance
+        source()

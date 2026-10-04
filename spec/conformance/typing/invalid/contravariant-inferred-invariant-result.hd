@@ -1,0 +1,12 @@
+# test: a method's inferred result that wraps a contravariant parameter in an invariant type is invalid-variance
+# Spec 04 Variance: types.variance.surface; Polarity: types.polarity.generic.
+
+data Slot[T]:
+    value: T
+
+data Handler[-T]:
+    handle: fn(T) -> void
+
+impl[T] Handler[T]:
+    fn boxed(self):  # diagnostic: invalid-variance
+        Slot { value: self.handle }
