@@ -437,6 +437,7 @@ function tupleInputs(callable: FunctionParts): ValueType | undefined {
 }
 
 export function genericTypeName(type: ValueType): string | undefined {
+  if (!type.startsWith("generic:")) return undefined;
   const match = /^generic:([^?[\](),]+)$/.exec(type);
   return match?.[1];
 }
