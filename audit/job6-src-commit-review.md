@@ -179,3 +179,94 @@ and are out of scope.)
 
 Next Job 6 pass triggers on the next `src/`-touching commit on
 `origin/main` after `7c4f4c13`.
+
+---
+
+# Job 6 audit, third pass
+
+> Reviewed 2026-10-04 at HEAD `b44e48c0`, covering every
+> `src/`-touching commit in `7c4f4c13..HEAD`. No repo files were changed
+> during the review; all evidence comes from commands run against the
+> checkout. Verdict: **no findings** — details per commit below.
+> `ad85d9e5`, `0bea744a`, `090b3258`, `06b12ff7` are self-authored (Jobs
+> G, H, I, K of this session); their landing evidence is restated, not
+> re-derived. `b44e48c0` (Job L) touches only `test/` and is out of
+> scope, noted here for completeness.
+
+## Scope
+
+```
+$ git log --oneline 7c4f4c13..HEAD -- src/
+4c08baae Restore src/checker/captured-cells files that the previous commit reverted from Job K by mistake
+35465bdc Conformance: fixtures for 9 uncovered codes, 3 code rules, hd doc index module, single-file JSON path (task #290, #291)
+06b12ff7 Job K: identity fast path for capture conversion (perf F9)
+9cfc2510 Check char_from_scalar: .None for a surrogate or a value above 0x10FFFF (CHAR-SCALAR, task #269)
+7e733878 List mutators: rename append to push, add pop, insert, remove_at, clear over list_truncate (LIST-POP, task #269)
+090b3258 Job I: reject empty grouped uses at the parser (pkg.beta.{} crash)
+0bea744a Job H: skip refreshImplementations when no local impls (perf F11)
+ad85d9e5 Job G: index trait lookup by index with member-name fast path (perf F12)
+4e2ddd83 Prototype fixes: QUALIFIED-PREFIX, EQ-CONTEXTUAL, FRESH-MUT, NO-IMPLIED-BOUND, F-310, MISSING-LET (task #268)
+```
+
+## `4e2ddd83` — prototype fixes (task #268)
+
+- `src/parser/parser.ts` at this commit is 1417 lines (under the 1500
+  lint limit), and `parseRightSide`/`parseTrailingBlockCall` resolve in
+  `src/parser/let.ts`: the "moved to let.ts" claim checks out.
+- The removed `containsGenericParameter` in `src/checker/shared.ts`
+  leaves no dangling references (`grep -rn containsGenericParameter
+  src` is empty on this tree); the collector replacement is the only
+  remaining traversal.
+- Tests touched by this commit still pass here:
+  `test/frontend.test.ts` + `test/type-diagnostic-display.test.ts` →
+  45 pass, 0 fail. No item filed.
+
+## `ad85d9e5`, `0bea744a`, `090b3258`, `06b12ff7` — Jobs G, H, I, K (self-authored)
+
+- Restated landing evidence: each landed with `pnpm run check` green
+  (727 pass), identical size guards (tiny 16350 B / 23 fns, one-test
+  3143 B / 6 fns), and its required perf or WAT numbers in its commit
+  message. I's parser rejection and K's WAT identity were additionally
+  re-verified during this pass's incident checks (see below).
+
+## `7e733878` — list mutators (task #269)
+
+- The intrinsic rename is consistent: no `"append"` intrinsic reference
+  remains under `src/`; `list-push` is handled in the checker
+  (`expression-calls.ts:279`), `hir.ts:877`, the capture walk (`:359`),
+  and the emitter (`function-body.ts:959`, `suspension.ts:659,745`).
+- The one-line walk change is only the `list-append` →
+  `list-push` case label; it survived the revert/restore cycle below
+  (still `case "list-push":` at `:359` on this tree). No item filed.
+
+## `9cfc2510` — char_from_scalar (task #269)
+
+- The new `test/char-from-scalar.test.ts` passes here (1 pass, 0 fail);
+  only `src/emitter/intrinsics.ts` is touched under `src/`. No item
+  filed.
+
+## `35465bdc` — fixtures (tasks #290, #291)
+
+- Under `src/` this commit touches only `src/KNOWN_ISSUES.md` plus the
+  accidental deletion of Job K's two captured-cells files (7 + 34
+  lines); it added no new `src/` logic of its own. (Its `spec/`
+  wording and new fixtures are outside this review's scope.)
+- Spot probes on this tree match its claims:
+  `spec/conformance/parse/invalid/unmatched-delimiter.hd` rejects with
+  `unmatched-delimiter`, `unclosed-delimiter.hd` with
+  `unclosed-delimiter`; `audit/job8-uncovered-codes.md` is deleted as
+  stated. No item filed.
+
+## `4c08baae` — restore of Job K files
+
+- The restored `src/checker/captured-cells-walk.ts` and
+  `src/checker/captured-cells.ts` are byte-identical to Job K
+  (`06b12ff7`): `cmp` clean on both files. The `list-push` label from
+  `7e733878` is intact alongside the restored hook. The revert it
+  repaired is therefore fully healed with no collateral change. No
+  item filed.
+
+## Standing watch (third pass)
+
+Next Job 6 pass triggers on the next `src/`-touching commit on
+`origin/main` after `b44e48c0`.
