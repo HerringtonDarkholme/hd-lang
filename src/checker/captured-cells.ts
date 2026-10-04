@@ -17,6 +17,26 @@ export function cellInner(type: ValueType): ValueType | undefined {
   return type.startsWith(CELL) ? type.slice(CELL.length) : undefined;
 }
 
+/**
+ * Whether `value` reaches a shared local: any `HirLocal` identity the
+ * `shared` map knows, wherever it appears (parameters hold bare locals, so
+ * every visited object is checked, not only `local` properties). Any
+ * `capture` node counts: it resolves through its closure's captures, which
+ * live outside this function object. Scalar metadata (`Map`/`Set`) and spans
+ * never hold locals and are skipped.
+ */
+function reachesShared(value: unknown, shared: ReadonlyMap<HirLocal, HirLocal>): boolean {
+  if (value === null || typeof value !== "object") return false;
+  if (value instanceof Map || value instanceof Set) return false;
+  if (shared.has(value as HirLocal)) return true;
+  if (Array.isArray(value)) return value.some((item) => reachesShared(item, shared));
+  const node = value as Record<string, unknown>;
+  if (node.kind === "capture") return true;
+  return Object.entries(node).some(
+    ([key, child]) => key !== "span" && reachesShared(child, shared),
+  );
+}
+
 export function shareCapturedLocals(
   functions: readonly HirFunction[],
   closures: readonly HirFunction[],
@@ -40,7 +60,21 @@ export function shareCapturedLocals(
     return source && shared.get(source);
   };
 
+  // Whether conversion could change `fn`. `shared` is keyed by `HirLocal`
+  // object identity and `local` maps through it (`shared.get(local) ??
+  // local`), so a function none of whose locals the map knows is rebuilt
+  // identically; returning it unchanged preserves every identity
+  // downstream code relies on. An empty `captures` alone is not enough to
+  // skip: the function defining a captured `let` keeps `captures: []` while
+  // its binding still becomes a cell.
+  const needsMapping = (fn: HirFunction): boolean =>
+    fn.parameters.some((local) => shared.has(local)) ||
+    fn.locals.some((local) => shared.has(local)) ||
+    fn.captures.some((capture) => shared.has(capture.source)) ||
+    reachesShared(fn.body, shared);
+
   const mapper: CaptureCellMapper = {
+    shouldMap: needsMapping,
     local: (local) => shared.get(local) ?? local,
     expression: (mapped, original, captureOperand) => {
       let cell: HirExpression | undefined;
