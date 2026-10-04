@@ -1,0 +1,11 @@
+# test: a generic data literal inside a field infers its type argument from the field's type, so its empty list has a type
+# Spec 04 Generic Arguments: types.generic.infer; the field type mut Batch[i32] solves T = i32 for the inner literal.
+data Batch[T]:
+    items: mut List[T]
+
+data Scheduler:
+    pending: mut Batch[i32]
+
+fn schedule() -> void:
+    let mut scheduler = Scheduler { pending: Batch { items: [] } }
+    scheduler.pending.items.push(1)

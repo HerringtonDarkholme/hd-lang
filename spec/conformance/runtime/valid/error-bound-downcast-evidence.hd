@@ -1,0 +1,23 @@
+# test: a type parameter bounded by Error can be a downcast target, because Error extends Inspectable
+# Spec 09 Inspectable Types: trait.inspectable.parameter; a bound by a trait with Inspectable as a supertrait makes T inspectable.
+use std.error.Error
+use std.testing.assert
+
+data Timeout:
+    seconds: i32
+
+impl Display for Timeout:
+    fn to_string(self) -> string: "timed out after ${self.seconds}s"
+
+impl Error for Timeout
+
+fn recover[T < Error](error: Error) -> T?:
+    error.downcast::[T]()
+
+tests:
+    it("T = Timeout recovers the erased Timeout"):
+        timeout := Timeout { seconds: 30 }
+        let error: Error = timeout
+        match recover::[Timeout](error):
+            .Some(found) => assert(found is timeout, reason="the same reference comes back")
+            .None => assert(false, reason="Timeout must match Timeout")

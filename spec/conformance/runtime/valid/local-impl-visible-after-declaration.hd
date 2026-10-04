@@ -1,0 +1,105 @@
+# test: after a local implementation, its methods are found in the suite, in closures written there, in its own methods, and in later local defaults
+# Spec 09 Local Implementations: trait.impl.local.lookup; lookup runs from the impl declaration point through its enclosing suite and child scopes.
+use std.testing.assert_equal
+
+fn trait_label(number: string) -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    impl Labeled for Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    Invoice { number }.label()
+
+fn inherent_label(number: string) -> string:
+    data Invoice:
+        number: string
+
+    invoice := Invoice { number }
+    impl Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    invoice.label()
+
+fn closure_label(number: string) -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    invoice := Invoice { number }
+    impl Labeled for Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    read := fn() -> string: invoice.label()
+    read()
+
+fn recursive_label(number: string) -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    impl Labeled for Invoice:
+        fn label(self) -> string:
+            if self.number == "": Invoice { number: "pending" }.label() else: "INV-" + self.number
+
+    Invoice { number }.label()
+
+fn receipt_header() -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    impl Labeled for Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    data Receipt:
+        header: string = Invoice { number: "1001" }.label()
+
+    Receipt {}.header
+
+fn render_page() -> string:
+    data Heading:
+        text: string
+
+    data Page: pass
+
+    trait Render:
+        fn render(self) -> string
+
+    impl Render for Heading:
+        fn render(self) -> string: "# " + self.text
+
+    trait Layout:
+        fn title(self, heading: Heading) -> string: heading.render()
+
+    impl Layout for Page
+
+    Page {}.title(Heading { text: "Release notes" })
+
+tests:
+    it("a local trait method after its impl"):
+        assert_equal(trait_label("7"), "INV-7", reason="found after the declaration point")
+
+    it("a local inherent method after its impl"):
+        assert_equal(inherent_label("8"), "INV-8", reason="same extent as a trait impl")
+
+    it("a closure written after the impl"):
+        assert_equal(closure_label("9"), "INV-9", reason="the closure body is after the declaration point")
+
+    it("an impl method calls its own implementation"):
+        assert_equal(recursive_label(""), "INV-pending", reason="the method body is inside the extent")
+
+    it("a local field default written after the impl"):
+        assert_equal(receipt_header(), "INV-1001", reason="the default is looked up where it is written")
+
+    it("a local trait default written after the impl"):
+        assert_equal(render_page(), "# Release notes", reason="the default method is looked up where it is written")

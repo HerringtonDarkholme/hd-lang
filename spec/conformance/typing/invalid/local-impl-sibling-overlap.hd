@@ -1,0 +1,23 @@
+# test: two local implementations of one pair in sibling suites overlap, though neither is visible to the other
+# Spec 09 Local Implementations: trait.impl.local.checks; local implementations obey the module-level overlap check.
+fn invoice_label(number: string, draft: bool) -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    invoice := Invoice { number }
+    if draft:
+        impl Labeled for Invoice:
+            fn label(self) -> string: "DRAFT-" + self.number
+
+        return invoice.label()
+
+    if !draft:
+        impl Labeled for Invoice:  # diagnostic: overlapping-impl
+            fn label(self) -> string: "INV-" + self.number
+
+        return invoice.label()
+
+    number

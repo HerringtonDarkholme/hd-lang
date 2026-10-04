@@ -1,0 +1,38 @@
+# test: stored suspensions built with the keys in either order give a callable that reads each provider by its key
+# Spec 11 Row Sets: req.row.set.order; Repo[A] + Repo[B] with A = Post, B = User is the row Repo[User] + Repo[Post].
+use std.testing.assert_equal
+
+trait Repo[T]:
+    fn count(self) -> i32
+
+data User: pass
+data Post: pass
+data UserRepo: pass
+data PostRepo: pass
+
+impl Repo[User] for UserRepo:
+    fn count(self) -> i32: 20
+
+impl Repo[Post] for PostRepo:
+    fn count(self) -> i32: 1
+
+fn keep![A, B](callback: fn() -> i32 $ Repo[A] + Repo[B]) -> (fn() -> i32 $ Repo[A] + Repo[B]):
+    callback
+
+fn activity() -> i32 $ Repo[User] + Repo[Post]:
+    $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()
+
+fn choose!(reverse: bool) -> (fn() -> i32 $ Repo[User] + Repo[Post]):
+    let pending: mut Suspend[fn() -> i32 $ Repo[User] + Repo[Post]] = if reverse:
+        keep::[Post, User](activity)
+    else:
+        keep::[User, Post](activity)
+    pending!()
+
+tests:
+    it("both orders read Repo[User] as 20 and Repo[Post] as 1"):
+        $.with(Repo[User]=UserRepo {}, Repo[Post]=PostRepo {}):
+            forward := choose!(false)
+            reverse := choose!(true)
+            assert_equal(forward(), 201, reason="keys in declaration order")
+            assert_equal(reverse(), 201, reason="keys in reverse order")

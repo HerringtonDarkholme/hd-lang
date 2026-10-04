@@ -1,0 +1,16 @@
+# test: a local data field default written before a local trait implementation cannot call its method
+# Spec 09 Local Implementations: trait.impl.local.lookup; a default is looked up where the data declaration is written.
+fn receipt_header() -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    data Receipt:
+        header: string = Invoice { number: "1001" }.label()  # diagnostic: unknown-method
+
+    impl Labeled for Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    Receipt {}.header

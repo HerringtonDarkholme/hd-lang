@@ -1,0 +1,11 @@
+# test: a readonly value may initialize a direct mut field when the literal is used as readonly
+# Spec 04 Fresh Literals With Readonly Parts: types.fresh.readonly-field; the literal then produces a readonly Crawl.
+data Crawl:
+    visits: mut Map[string, i32]
+
+fn snapshot(visits: Map[string, i32]) -> Crawl:
+    Crawl { visits: visits }
+
+fn bind_snapshot() -> void:
+    let visits: Map[string, i32] = {}
+    _ := Crawl { visits: visits }

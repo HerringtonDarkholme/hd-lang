@@ -1,0 +1,47 @@
+# test: declared and built-in readonly variance join values at every least-common-type site
+# Spec 04 Least Common Type: types.lct.conversions; declared readonly variance contributes in list and map literals, if, match, and inferred results.
+data Account:
+    balance: i64
+
+data Feed[+T]:
+    latest: T
+
+data Sink[-T]:
+    accept: fn(T) -> void
+
+data Envelope[+T]:
+    content: T
+
+fn inferred_feed(editable: Feed[mut Account], shared: Feed[Account], prefer_editable: bool):
+    if prefer_editable: editable else: shared
+
+fn feeds(editable: Feed[mut Account], shared: Feed[Account]) -> List[Feed[Account]]:
+    joined := [editable, shared]
+    joined
+
+fn ledgers(editable: Map[string, mut Account], shared: Map[string, Account]) -> Map[string, Map[string, Account]]:
+    joined := {"editable": editable, "shared": shared}
+    joined
+
+fn handlers(wide: fn(Account) -> mut Account, exact: fn(mut Account) -> Account) -> List[fn(mut Account) -> Account]:
+    joined := [wide, exact]
+    joined
+
+fn crossed_handlers(left: fn(mut Account, Account) -> Account, right: fn(Account, mut Account) -> Account) -> List[fn(mut Account, mut Account) -> Account]:
+    joined := [left, right]
+    joined
+
+fn sinks(shared: Sink[Account], editable: Sink[mut Account], prefer_shared: bool) -> Sink[mut Account]:
+    match prefer_shared:
+        true => shared
+        false => editable
+
+fn ledger(editable: Map[string, mut Account], shared: Map[string, Account], prefer_editable: bool) -> Map[string, Account]:
+    picked := if prefer_editable: editable else: shared
+    picked
+
+fn nested(editable: Envelope[Feed[mut Account]], shared: Envelope[Feed[Account]], prefer_editable: bool) -> Envelope[Feed[Account]]:
+    if prefer_editable: editable else: shared
+
+fn read_inferred(editable: Feed[mut Account], shared: Feed[Account]) -> Feed[Account]:
+    inferred_feed(editable, shared, true)

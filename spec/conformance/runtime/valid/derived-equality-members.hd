@@ -1,0 +1,24 @@
+# test: derived Eq compares every data field, and for an enum the variant and then its payload
+# Spec std.cmp Derived Equality: std-cmp.derive.eq.compare-fields; no field is excluded, and different variants are unequal.
+use std.testing.assert
+
+@derive(Eq)
+enum Finish:
+    Matte
+    Custom(code: string)
+
+@derive(Eq)
+data Paint:
+    finish: Finish
+    coats: i32
+
+tests:
+    it("equal fields make equal values"):
+        assert(Paint { finish: Finish.Custom("teal"), coats: 2 } == Paint { finish: Finish.Custom("teal"), coats: 2 }, reason="every field equal")
+
+    it("a field difference makes values unequal"):
+        assert(Paint { finish: Finish.Matte, coats: 2 } != Paint { finish: Finish.Matte, coats: 3 }, reason="coats differ")
+        assert(Finish.Custom("teal") != Finish.Custom("navy"), reason="payloads differ")
+
+    it("different variants are unequal"):
+        assert(Finish.Matte != Finish.Custom("teal"), reason="the variant is compared first")

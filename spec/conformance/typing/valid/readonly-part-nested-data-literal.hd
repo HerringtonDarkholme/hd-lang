@@ -1,0 +1,12 @@
+# test: a readonly list in a nested data literal makes both literals readonly, and a fresh list keeps both mutable
+# Spec 04 Fresh Literals With Readonly Parts: types.fresh.expected-readonly; a := binding permits the weaker field value at each level.
+data Batch:
+    items: mut List[i32]
+
+data Scheduler:
+    pending: mut Batch
+
+fn schedule(saved: List[i32]) -> void:
+    _ := Scheduler { pending: Batch { items: saved } }
+    let mut scheduler = Scheduler { pending: Batch { items: [] } }
+    scheduler.pending.items.push(1)

@@ -1,0 +1,7 @@
+# test: an empty list in a generic field does not solve the data type's parameter
+# Spec 04 Type-Argument Defaults: types.generic.default.unsolved; nothing solves T in Batch { items: [] }, and T has no default.
+data Batch[T]:
+    items: mut List[T]
+
+fn schedule() -> void:
+    _ := Batch { items: [] }  # diagnostic: cannot-infer-type

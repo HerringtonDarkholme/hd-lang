@@ -1,0 +1,16 @@
+# test: a closure written before a local trait implementation cannot call its method, even if it runs later
+# Spec 09 Local Implementations: trait.impl.local.lookup; lookup follows where the closure is written, not where it runs.
+fn invoice_label(number: string) -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    invoice := Invoice { number }
+    read := fn() -> string: invoice.label()  # diagnostic: unknown-method
+
+    impl Labeled for Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    read()

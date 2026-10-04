@@ -1,0 +1,16 @@
+# test: a local trait implementation's method is not available before the impl
+# Spec 09 Local Implementations: trait.impl.local.lookup; lookup starts at the local impl declaration point.
+fn invoice_label(number: string) -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    invoice := Invoice { number }
+    early := invoice.label()  # diagnostic: unknown-method
+
+    impl Labeled for Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    early

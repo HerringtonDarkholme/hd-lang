@@ -1,0 +1,26 @@
+# test: a timed, table, property, and generated-property test body may each use TestRunner
+# Spec std Testing, Runner Capabilities: std-testing.runner.body-property; every test body's row may hold TestRunner, by module.testing.unit-row.test-runner.
+use std.testing.{Choices, TestRunner, it_each, it_prop, it_prop_with}
+use std.time.s
+
+fn pick_region(regions: List[string]) -> string $ TestRunner:
+    regions[$.use(TestRunner).row(regions.len())]
+
+fn small_quantity(choices: mut Choices) -> i32:
+    choices.int(1, 10)
+
+tests:
+    it("timed body picks a region", timeout=1s):
+        _ := pick_region(["us-east", "eu-west"])
+
+    it_each("table body picks a region", [1, 2], body=fn!(attempt: i32):
+        _ := pick_region(["us-east", "eu-west"])
+    )
+
+    it_prop("property body picks a region", prop=fn!(quantity: i32):
+        _ := pick_region(["us-east", "eu-west"])
+    )
+
+    it_prop_with("generated property body picks a region", gen=small_quantity, prop=fn!(quantity: i32):
+        _ := pick_region(["us-east", "eu-west"])
+    )

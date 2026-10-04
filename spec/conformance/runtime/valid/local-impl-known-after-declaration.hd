@@ -1,0 +1,39 @@
+# test: after a local implementation, its target converts to the trait value type and satisfies a later child-trait impl
+# Spec 03 Members: names.member.known-impl; a local implementation is known from where its methods are available.
+use std.testing.assert_equal
+
+fn erased_label(number: string) -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    invoice := Invoice { number }
+    impl Labeled for Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    let labeled: Labeled = invoice
+    labeled.label()
+
+fn shipping_cost() -> i32:
+    data Parcel: pass
+
+    trait Weighed
+
+    trait Priced < Weighed:
+        fn cost(self) -> i32
+
+    impl Weighed for Parcel
+
+    impl Priced for Parcel:
+        fn cost(self) -> i32: 42
+
+    Parcel {}.cost()
+
+tests:
+    it("the target converts to the trait value after the impl"):
+        assert_equal(erased_label("7"), "INV-7", reason="the local impl is known here")
+
+    it("a child impl after the supertrait impl"):
+        assert_equal(shipping_cost(), 42, reason="the supertrait impl is already known")

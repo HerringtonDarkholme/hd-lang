@@ -1,0 +1,21 @@
+# test: an empty list or map literal takes its type from the data field it initializes, also through explicit type arguments and if branches
+# Spec 05 Element Types: expr.collection.empty; the field type is the expected collection type.
+data Crawl:
+    visits: mut Map[string, i32]
+    queue: mut List[string]
+
+data Batch[T]:
+    items: mut List[T]
+
+fn start_crawl() -> void:
+    let mut crawl = Crawl { visits: {}, queue: [] }
+    crawl.visits["https://example.com"] = 1
+    crawl.queue.push("https://example.com/about")
+
+fn start_batch() -> void:
+    let mut batch = Batch::[i32] { items: [] }
+    batch.items.push(7)
+
+fn resume_crawl(fresh: bool) -> void:
+    let mut crawl = Crawl { visits: if fresh: {} else: {}, queue: [] }
+    crawl.visits["https://example.com"] = 2

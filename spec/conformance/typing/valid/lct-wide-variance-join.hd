@@ -1,0 +1,40 @@
+# test: two values of a 24-parameter covariant type that alternate mut join argument by argument
+# Spec 04 Least Common Type: types.lct.unique; each covariant argument weakens on its own, so the join is Snapshot with every argument Account.
+data Account:
+    balance: i64
+
+data Snapshot[+T0, +T1, +T2, +T3, +T4, +T5, +T6, +T7, +T8, +T9, +T10, +T11, +T12, +T13, +T14, +T15, +T16, +T17, +T18, +T19, +T20, +T21, +T22, +T23]:
+    slot0: T0
+    slot1: T1
+    slot2: T2
+    slot3: T3
+    slot4: T4
+    slot5: T5
+    slot6: T6
+    slot7: T7
+    slot8: T8
+    slot9: T9
+    slot10: T10
+    slot11: T11
+    slot12: T12
+    slot13: T13
+    slot14: T14
+    slot15: T15
+    slot16: T16
+    slot17: T17
+    slot18: T18
+    slot19: T19
+    slot20: T20
+    slot21: T21
+    slot22: T22
+    slot23: T23
+
+type EvenEditable = Snapshot[mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account]
+
+type OddEditable = Snapshot[Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account, Account, mut Account]
+
+type Shared = Snapshot[Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account, Account]
+
+fn history(even: EvenEditable, odd: OddEditable) -> List[Shared]:
+    joined := [even, odd]
+    joined

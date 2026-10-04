@@ -1,0 +1,50 @@
+# test: a generic key Repo[T] in a stored callable's type becomes Repo[User] once T is User
+# Spec 11 Entailment: req.row.entail.generic; after substitution, the key Repo[User] is entailed by the provider of Repo[User].
+use std.testing.assert_equal
+
+trait Repo[T]:
+    fn count(self) -> i32
+
+data User: pass
+data UserRepo: pass
+
+impl Repo[User] for UserRepo:
+    fn count(self) -> i32: 20
+
+data Job[T]:
+    callback: fn() -> i32 $ Repo[T]
+
+enum Task[T]:
+    Run(callback: fn() -> i32 $ Repo[T])
+
+fn count_users() -> i32 $ Repo[User]:
+    $.use(Repo[User]).count()
+
+fn keep[T](callback: fn() -> i32 $ Repo[T]) -> (fn() -> i32 $ Repo[T]):
+    callback
+
+fn keep_later![T](callback: fn() -> i32 $ Repo[T]) -> (fn() -> i32 $ Repo[T]):
+    callback
+
+tests:
+    it("a field of Job[User] calls with the Repo[User] provider"):
+        $.with(Repo[User]=UserRepo {}):
+            let job: Job[User] = Job { callback: count_users }
+            assert_equal((job.callback)(), 20, reason="the field row is Repo[User]")
+
+    it("a generic result is called with the Repo[User] provider"):
+        $.with(Repo[User]=UserRepo {}):
+            callback := keep(count_users)
+            assert_equal(callback(), 20, reason="the result row is Repo[User]")
+
+    it("a suspending generic result is called with the Repo[User] provider"):
+        $.with(Repo[User]=UserRepo {}):
+            callback := keep_later!(count_users)
+            assert_equal(callback(), 20, reason="the result row is Repo[User]")
+
+    it("an enum payload of Task[User] calls with the Repo[User] provider"):
+        $.with(Repo[User]=UserRepo {}):
+            let task: Task[User] = Task.Run(count_users)
+            total := match task:
+                .Run(callback) => callback()
+            assert_equal(total, 20, reason="the payload row is Repo[User]")

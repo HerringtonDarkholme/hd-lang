@@ -1,0 +1,44 @@
+# test: a derived build whose source names no member fills every member from its declared default
+# Spec 14 Walk, Describe, And Build: annot.build.missing; after the end key, build calls missing once per member, and the source reads the default.
+use std.structure.{Structure, Field, Variant, Members, Key, Source}
+use std.testing.assert_equal
+
+trait Defaults:
+    fn defaults() -> Self
+
+data DefaultSource: pass
+
+impl[S] Source[S] for DefaultSource:
+    type Error = string
+
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+        .Ok(choices[choices.len() - 1])
+
+    fn next(mut self, members: Members[S]) -> Result[Key[S], string]:
+        .Ok(members.end())
+
+    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+        .Err("no input")
+
+    fn missing[F](mut self, h: Field[S, F]) -> Result[F, string]:
+        match h.default():
+            .Some(value) => .Ok(value)
+            .None => .Err("missing " + h.info.name)
+
+impl[T] Defaults for T by Structure:
+    fn defaults() -> T:
+        let source: mut DefaultSource = DefaultSource {}
+        match T::build(source):
+            .Ok(value) => value
+            .Err(message) => panic(message)
+
+@derive(Defaults)
+data RetryPolicy:
+    attempts: i32 = 7
+    label: string = "standard"
+
+tests:
+    it("every member takes its default"):
+        policy := RetryPolicy::defaults()
+        assert_equal(policy.attempts, 7, reason="attempts default")
+        assert_equal(policy.label, "standard", reason="label default")

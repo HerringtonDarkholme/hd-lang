@@ -7,7 +7,7 @@ in TypeScript, for the reason given. Delete a test only when its line names
 fixtures or duplicates and no "not migrated" part. Remove a line once its
 test is deleted, and delete this file when it is empty.
 
-Paths are relative to `spec/conformance/`. Owner questions Q1 to Q5 are
+Paths are relative to `spec/conformance/`. Owner questions Q1 to Q8 are
 listed at the end.
 
 ## test/requirement-key-validation.test.ts
@@ -103,6 +103,105 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/variance.test.ts :: qualified owner resolution distinguishes type binders from lexical values -> not migrated (owner questions Q1 and Q2)
 - test/variance.test.ts :: nested closure type scopes do not change later method annotations -> not migrated (implementation detail: inspects the checker's binder renaming)
 
+## test/callable-storage.test.ts
+
+- test/callable-storage.test.ts :: generic lists invoke stored callables -> runtime/valid/generic-storage-invokes-callables.hd
+- test/callable-storage.test.ts :: generic callable-list results retain their concrete callable ABI -> runtime/valid/generic-storage-invokes-callables.hd
+- test/callable-storage.test.ts :: generic lists invoke callables with erased inputs -> runtime/valid/generic-storage-invokes-callables.hd
+- test/callable-storage.test.ts :: nested generic storage uses the same callable representation -> runtime/valid/generic-storage-invokes-callables.hd
+- test/callable-storage.test.ts :: generic tuples invoke stored callables -> runtime/valid/generic-storage-invokes-callables.hd
+- test/callable-storage.test.ts :: generic maps invoke stored callables -> runtime/valid/generic-storage-invokes-callables.hd
+- test/callable-storage.test.ts :: callable storage preserves mutable list identity -> runtime/valid/generic-storage-callable-list-identity.hd
+- test/callable-storage.test.ts :: generic provider rows survive callable storage -> runtime/valid/row-parameter-callable-in-list.hd
+- test/callable-storage.test.ts :: generic lists invoke suspending callables after pending -> not migrated (needs pending-first-poll scenario)
+
+## test/generic-callable-requirements.test.ts
+
+- test/generic-callable-requirements.test.ts :: a generic field substitutes its callable requirement key through storage -> runtime/valid/generic-requirement-key-substitution.hd
+- test/generic-callable-requirements.test.ts :: callable rows infer generic data arguments from requirement keys -> runtime/valid/generic-inference-from-requirement-key.hd
+- test/generic-callable-requirements.test.ts :: generic calls infer type arguments from callable requirement keys -> runtime/valid/generic-inference-from-requirement-key.hd
+- test/generic-callable-requirements.test.ts :: generic callable results restore concrete requirement keys -> runtime/valid/generic-requirement-key-substitution.hd
+- test/generic-callable-requirements.test.ts :: suspending generic callable results retain their requirement substitutions -> runtime/valid/generic-requirement-key-substitution.hd
+- test/generic-callable-requirements.test.ts :: stored suspensions carry each call site's provider permutation -> runtime/valid/requirement-row-order-stored-suspension.hd
+- test/generic-callable-requirements.test.ts :: dynamic trait suspensions carry concrete provider-key substitutions -> runtime/valid/requirement-row-order-trait-value.hd
+- test/generic-callable-requirements.test.ts :: dynamic trait calls adapt generic callable parameters and results -> runtime/valid/requirement-row-order-trait-value.hd
+- test/generic-callable-requirements.test.ts :: provider adaptation follows binder identity across reordered rows -> runtime/valid/requirement-row-order-data-field.hd
+- test/generic-callable-requirements.test.ts :: two generic keys may collapse to one concrete row during adaptation -> runtime/valid/requirement-row-duplicate-after-substitution.hd
+- test/generic-callable-requirements.test.ts :: unordered requirement keys do not guess an ambiguous binder mapping -> not migrated (owner question Q6)
+- test/generic-callable-requirements.test.ts :: enum payload extraction retains generic callable provider substitutions -> runtime/valid/generic-requirement-key-substitution.hd
+
+## test/inspectable-forwarding.test.ts
+
+- test/inspectable-forwarding.test.ts :: forwarded inspection distinguishes dynamic and static type identity -> runtime/valid/inspectable-dynamic-vs-static-identity.hd
+- test/inspectable-forwarding.test.ts :: a dynamic trait is an exact generic downcast target -> runtime/valid/inspectable-generic-downcast-targets.hd
+- test/inspectable-forwarding.test.ts :: concrete generic downcasts still recover the same reference -> runtime/valid/inspectable-generic-downcast-targets.hd
+- test/inspectable-forwarding.test.ts :: an Error bound supplies transitive Inspectable evidence -> runtime/valid/error-bound-downcast-evidence.hd
+- test/inspectable-forwarding.test.ts :: nested static identity retains a mutable dynamic trait argument -> runtime/valid/typeid-nested-mut-trait-argument.hd; it compares `TypeId` values instead of the printed name, because the spec prints a fixture-declared trait by its absolute qualified name
+
+## test/standard-module-values.test.ts
+
+- test/standard-module-values.test.ts :: a standard module member is a function value -> duplicate of runtime/valid/module-qualified-function-value.hd
+- test/standard-module-values.test.ts :: a renamed standard module resolves member values -> runtime/valid/module-alias-function-value.hd
+- test/standard-module-values.test.ts :: an expected function type instantiates a generic module member -> runtime/valid/module-qualified-generic-function-value.hd
+- test/standard-module-values.test.ts :: explicit type arguments instantiate a generic module member value -> runtime/valid/module-qualified-generic-function-value.hd
+- test/standard-module-values.test.ts :: a parenthesized module member remains an ordinary function value -> duplicate of runtime/valid/module-qualified-function-value-parenthesized.hd
+- test/standard-module-values.test.ts :: module selection finds a function bound through the prelude -> runtime/valid/module-qualified-prelude-function.hd
+- test/standard-module-values.test.ts :: module selection finds the same directly imported declaration -> runtime/valid/module-qualified-beside-direct-use.hd
+- test/standard-module-values.test.ts :: module selection finds the same declaration imported under an alias -> runtime/valid/module-qualified-beside-direct-use.hd
+- test/standard-module-values.test.ts :: a local value shadows a standard module namespace -> runtime/valid/local-shadows-module-namespace.hd
+- test/standard-module-values.test.ts :: a module namespace does not expose a private standard function -> not migrated (owner question Q7)
+
+## test/local-implementation-extent.test.ts
+
+- test/local-implementation-extent.test.ts :: a local trait implementation is unavailable before its declaration -> typing/invalid/local-impl-before-declaration.hd
+- test/local-implementation-extent.test.ts :: a child-suite implementation does not leak into its parent suite -> typing/invalid/local-impl-child-suite-not-parent.hd
+- test/local-implementation-extent.test.ts :: a local trait implementation works after its declaration -> runtime/valid/local-impl-visible-after-declaration.hd
+- test/local-implementation-extent.test.ts :: a local inherent implementation has the same lexical extent -> typing/invalid/local-inherent-impl-before-declaration.hd, runtime/valid/local-impl-visible-after-declaration.hd
+- test/local-implementation-extent.test.ts :: trait-value conformance follows local implementation extent -> typing/invalid/local-impl-trait-value-before-declaration.hd, runtime/valid/local-impl-known-after-declaration.hd
+- test/local-implementation-extent.test.ts :: closures inherit implementations visible where the closure is written -> typing/invalid/local-impl-closure-before-declaration.hd, runtime/valid/local-impl-visible-after-declaration.hd
+- test/local-implementation-extent.test.ts :: local implementations remain global for overlap checking -> typing/invalid/local-impl-sibling-overlap.hd
+- test/local-implementation-extent.test.ts :: an implementation method can use its own local implementation -> runtime/valid/local-impl-visible-after-declaration.hd
+- test/local-implementation-extent.test.ts :: a local supertrait implementation must already be visible -> typing/invalid/local-supertrait-impl-after-child.hd, runtime/valid/local-impl-known-after-declaration.hd
+- test/local-implementation-extent.test.ts :: local declaration defaults keep their declaration-point implementation scope -> typing/invalid/local-impl-after-field-default.hd, runtime/valid/local-impl-visible-after-declaration.hd
+- test/local-implementation-extent.test.ts :: local trait defaults keep their declaration-point implementation scope -> typing/invalid/local-impl-after-trait-default.hd, runtime/valid/local-impl-visible-after-declaration.hd
+
+## test/least-common-type.test.ts
+
+- test/least-common-type.test.ts :: optional injection uses one LCT across literals, if, match, and inferred results -> duplicate of runtime/valid/lct-optional-injection.hd
+- test/least-common-type.test.ts :: declared and built-in variance contribute at every shared LCT site -> typing/valid/lct-variance-every-site.hd
+- test/least-common-type.test.ts :: LCT remains order-independent when variance arguments need a structural join -> typing/valid/lct-structural-join-order.hd
+- test/least-common-type.test.ts :: wide declarations solve variance positions without a candidate product -> typing/valid/lct-wide-variance-join.hd; the 5-second time limit is an implementation goal, and the suite's own limit is 10 seconds
+- test/least-common-type.test.ts :: LCT rejects two optional layers and distinguishes a forbidden combined step -> duplicate of typing/invalid/lct-optional-two-layers.hd and typing/invalid/least-type-weakening-variance.hd
+
+## test/contextual-data-fields.test.ts
+
+- test/contextual-data-fields.test.ts :: known mutable field types contextualize empty collection literals -> typing/valid/empty-literal-field-context.hd
+- test/contextual-data-fields.test.ts :: explicit data arguments contextualize empty mutable fields -> typing/valid/empty-literal-field-context.hd
+- test/contextual-data-fields.test.ts :: mutable generic data context infers nested data arguments -> typing/valid/nested-data-argument-from-field-type.hd
+- test/contextual-data-fields.test.ts :: inference-only field context reaches empty literals through control flow -> typing/valid/empty-literal-field-context.hd
+- test/contextual-data-fields.test.ts :: an unresolved field type does not guess an empty literal's element type -> typing/invalid/empty-literal-generic-field-unsolved.hd
+- test/contextual-data-fields.test.ts :: a readonly value can still initialize a direct mutable field -> typing/valid/readonly-value-direct-mut-field.hd
+- test/contextual-data-fields.test.ts :: an inference hint does not require nested data to be mutable -> typing/valid/readonly-part-nested-data-literal.hd
+
+## test/typed-derivation.test.ts
+
+- test/typed-derivation.test.ts :: a derived walk passes each member with its facts -> duplicate of runtime/valid/typed-derivation-walk.hd
+- test/typed-derivation.test.ts :: a derivation block's member lines edit only its own derivation -> duplicate of runtime/valid/typed-derivation-walk.hd
+- test/typed-derivation.test.ts :: enum, generic, and embedded targets walk their members -> runtime/valid/typed-derivation-embedded-generic-walk.hd; the enum target is a duplicate of runtime/valid/typed-derivation-walk.hd
+- test/typed-derivation.test.ts :: a derived build fills members from their defaults -> runtime/valid/typed-derivation-build-defaults.hd
+- test/typed-derivation.test.ts :: @derive(Eq) compares data and enum members -> runtime/valid/derived-equality-members.hd; typing/valid/derived-equality.hd checks the same program at the type phase only
+- test/typed-derivation.test.ts :: typed derivation reports its diagnostics at the opt-in -> not migrated (partial: duplicates of typing/invalid/derive-member-not-derivable.hd, typing/invalid/derive-error-trait.hd, typing/invalid/unknown-annotation-member.hd, typing/invalid/omitted-member-without-default.hd, and typing/invalid/derive-before-function.hd; `@derive(Missing)` waits for owner question Q8)
+- test/typed-derivation.test.ts :: @derive(Debug) on a newtype needs its base type's Debug and applies it -> runtime/valid/derived-debug-newtype.hd; the missing base trait is a duplicate of typing/invalid/derive-newtype-base-missing-trait.hd
+
+## test/test-runner-requirements.test.ts
+
+- test/test-runner-requirements.test.ts :: a plain test body receives the TestRunner capability -> duplicate of typing/valid/test-body-uses-test-runner.hd; the checker's requirement list that it also inspects is an implementation detail
+- test/test-runner-requirements.test.ts :: a timed test body receives the TestRunner capability -> typing/valid/test-runner-every-registration-form.hd
+- test/test-runner-requirements.test.ts :: a table test body receives the TestRunner capability -> typing/valid/test-runner-every-registration-form.hd
+- test/test-runner-requirements.test.ts :: a property test body receives the TestRunner capability -> typing/valid/test-runner-every-registration-form.hd
+- test/test-runner-requirements.test.ts :: a property with a generator test body receives the TestRunner capability -> typing/valid/test-runner-every-registration-form.hd
+- test/test-runner-requirements.test.ts :: a unit test body does not receive PropertyRunner -> duplicate of typing/invalid/test-body-uses-property-runner.hd
+
 ## Owner Questions
 
 - **Q1.** May a method's own type parameter reuse its implementation's
@@ -127,3 +226,22 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - **Q5.** Is an alias whose target names nothing an error at the alias, as
   in `type MissingAlias = Missing`? The prototype accepts it there, and
   reports `unknown-trait` only where `$ MissingAlias` uses it.
+- **Q6.** Which code does an ambiguous generic solution report? With
+  `data Job[A, B]` holding `fn() -> i32 $ Repo[A] + Repo[B]`,
+  `Job { callback: read_both }` for a `$ Repo[User] + Repo[Post]` callback
+  fits both `A = User, B = Post` and the reverse. The test expects
+  `cannot-infer-type`.
+  [`types.infer.ambiguous`](../spec/lang/04-type-system.md#r-types.infer.ambiguous)
+  says compilation fails but names no code.
+- **Q7.** Which code does a module path to a std function that is not
+  public report, as in `text.hex_digit` after `use std.text`? The test
+  expects `unknown-name`.
+  [`expr.name.qualified.private`](../spec/lang/05-expressions.md#r-expr.name.qualified.private)
+  gives `private-import`. The spec declares no `hex_digit` in `std.text`,
+  so [`expr.name.qualified.missing`](../spec/lang/05-expressions.md#r-expr.name.qualified.missing)
+  would give `unknown-import`.
+- **Q8.** Which code does `@derive(Missing)` report when `Missing` names
+  nothing? The test expects `underivable-trait`.
+  [`annot.derive.other`](../spec/lang/14-annotations.md#r-annot.derive.other)
+  covers only a trait without a template, so `unknown-trait` is also a
+  reading.

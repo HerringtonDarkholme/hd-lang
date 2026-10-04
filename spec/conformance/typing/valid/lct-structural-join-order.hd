@@ -1,0 +1,29 @@
+# test: the least common type of three covariant pairs is the same whatever the order of the match arms
+# Spec 04 Least Common Type: types.lct.unique; Pair[Account, mut Account] and Pair[mut Account, Account] join per argument to Pair[Account, Account].
+data Account:
+    balance: i64
+
+data Pair[+A, +B]:
+    debit: A
+    credit: B
+
+fn joined_first(key: i32, left: Pair[Account, mut Account], right: Pair[mut Account, Account], both: Pair[Account, Account]) -> Pair[Account, Account]:
+    value := match key:
+        0 => both
+        1 => left
+        _ => right
+    value
+
+fn joined_middle(key: i32, left: Pair[Account, mut Account], right: Pair[mut Account, Account], both: Pair[Account, Account]) -> Pair[Account, Account]:
+    value := match key:
+        0 => right
+        1 => both
+        _ => left
+    value
+
+fn joined_last(key: i32, left: Pair[Account, mut Account], right: Pair[mut Account, Account], both: Pair[Account, Account]) -> Pair[Account, Account]:
+    value := match key:
+        0 => left
+        1 => right
+        _ => both
+    value

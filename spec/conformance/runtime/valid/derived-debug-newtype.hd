@@ -1,0 +1,11 @@
+# test: @derive(Debug) on a newtype renders the wrapped value as its base type's Debug does
+# Spec 09 Derived Newtypes: trait.derive.newtype.templated; the base type's implementation is rewrapped.
+use std.testing.assert_equal
+
+@derive(Debug)
+type Meters(i64)
+
+tests:
+    it("debug of the newtype is debug of the base value"):
+        let distance: i64 = 3
+        assert_equal(debug(Meters(distance)), debug(distance), reason="the base implementation is applied")

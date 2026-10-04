@@ -1,0 +1,30 @@
+# test: a generic downcast helper recovers the same reference for a concrete target and never matches a trait value target
+# Spec 09 Ordinary Rules For Recovery: trait.downcast.pass-on; the helper's bound passes T on, and the ordinary downcast rules apply.
+use std.inspect.Inspectable
+use std.testing.assert
+
+trait Named < Inspectable & AnyRef:
+    fn name(self) -> string
+
+data User:
+    name: string
+
+impl Named for User:
+    fn name(self) -> string: self.name
+
+fn recover[T < AnyRef & Inspectable](value: Inspectable) -> T?:
+    value.downcast::[T]()
+
+tests:
+    it("a concrete target recovers the same reference"):
+        author := User { name: "Ada" }
+        let erased: Inspectable = author
+        match recover::[User](erased):
+            .Some(found) => assert(found is author, reason="the erased reference comes back")
+            .None => assert(false, reason="User must match User")
+
+    it("a trait value target never matches"):
+        let author: Named = User { name: "Ada" }
+        match recover::[Named](author):
+            .Some(_) => assert(false, reason="a recorded type is never a trait value type")
+            .None => pass

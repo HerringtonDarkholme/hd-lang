@@ -1,0 +1,16 @@
+# test: a local binding named cmp shadows the module namespace that use std.cmp binds
+# Spec 03 Shadowing: names.scope.shadow; inside the body, cmp.min reads the field of the local value.
+use std.cmp
+use std.testing.assert_equal
+
+data PriceRange:
+    min: i32
+    max: i32
+
+fn lowest_price(range: PriceRange) -> i32:
+    cmp := range
+    cmp.min
+
+tests:
+    it("cmp.min is the local value's field"):
+        assert_equal(lowest_price(PriceRange { min: 42, max: 50 }), 42, reason="the local cmp shadows the module")

@@ -1,0 +1,16 @@
+# test: before a local trait implementation, its target does not convert to the trait value type
+# Spec 03 Members: names.member.known-impl; a local implementation is known only where its methods are available.
+fn invoice_label(number: string) -> string:
+    data Invoice:
+        number: string
+
+    trait Labeled:
+        fn label(self) -> string
+
+    invoice := Invoice { number }
+    let labeled: Labeled = invoice  # diagnostic: type-mismatch
+
+    impl Labeled for Invoice:
+        fn label(self) -> string: "INV-" + self.number
+
+    labeled.label()

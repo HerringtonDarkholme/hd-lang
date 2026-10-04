@@ -1,0 +1,57 @@
+# test: a derived walk passes an embedded field as one member named by its type, and walks a generic target's members
+# Spec 14 Members: annot.member.embedded; an embedded field is one member, named by its embedded type's final name.
+use std.structure.{Structure, Field, Variant, Walker}
+use std.testing.assert_equal
+
+trait Show:
+    fn show(self) -> string
+
+impl Show for i32:
+    fn show(self) -> string:
+        "$self"
+
+impl Show for string:
+    fn show(self) -> string:
+        self
+
+data Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + v.info.name + "("
+        .Ok(())
+
+    fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + "=" + value.show() + ";"
+        .Ok(())
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let w: mut Shower = Shower { out: "" }
+        _ := Structure::walk(self, w)
+        w.out + ")"
+
+@derive(Show)
+data Timestamp:
+    seconds: i32
+
+@derive(Show)
+data Post:
+    Timestamp
+    title: string
+
+@derive(Show)
+data Range[A]:
+    low: A
+    high: A
+
+tests:
+    it("an embedded field is one member named by its type"):
+        post := Post { Timestamp: ...Timestamp { seconds: 3 }, title: "Launch" }
+        assert_equal(post.show(), "Post(Timestamp=Timestamp(seconds=3;);title=Launch;)", reason="the embedded part is walked as one value")
+
+    it("a generic target walks its members"):
+        assert_equal(Range { low: 1, high: 9 }.show(), "Range(low=1;high=9;)", reason="A is i32")
