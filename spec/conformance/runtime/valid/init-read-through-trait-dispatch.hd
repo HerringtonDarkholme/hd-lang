@@ -9,7 +9,7 @@ trait Reader:
 fn via_bound[T < Reader](value: T) -> i32:
     value.read()
 
-later := 5
+let later: i32 = 5
 bounded := via_bound(Box { value: 2 })
 let reader: Reader = Box { value: 3 }
 dynamic := reader.read()

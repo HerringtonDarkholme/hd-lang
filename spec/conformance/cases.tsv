@@ -890,7 +890,7 @@ runtime/valid/option-impl-target.hd	runtime	accept	lang/09-traits.md#implementat
 typing/invalid/overlapping-option-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#overlap
 parse/invalid/optional-question-pattern.hd	parse	reject:syntax-error	lang/02-grammar.md#patterns
 runtime/valid/generic-trait-literal-default-instantiation.hd	runtime	accept	lang/09-traits.md#method-resolution
-typing/invalid/generic-trait-literal-without-default.hd	type	reject:ambiguous-method	lang/09-traits.md#method-resolution
+typing/invalid/generic-trait-literal-without-default.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.open-fallback-type.no-fit
 typing/invalid/trait-value-impl-target.hd	type	reject:trait-value-impl-target	lang/09-traits.md#implementation-targets
 typing/valid/trait-value-as-target-argument.hd	type	accept	lang/09-traits.md#implementation-targets
 typing/invalid/private-field-nothing-visible.hd	type	reject:private-member	lang/03-names-and-scopes.md#member-resolution

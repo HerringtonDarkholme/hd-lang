@@ -1,4 +1,5 @@
-# test: a literal that fits several instantiations, none at its default type, stays ambiguous
+# test: a literal that fits several instantiations waits, falls back to usize, and then fits none
+# Spec: trait.resolve.open-fallback-type.no-fit
 trait Combine[T]:
     fn combine(self, other: T) -> string
 
@@ -14,4 +15,4 @@ impl Combine[u8] for Money:
         "u8"
 
 fn invalid(price: Money) -> string:
-    price.combine(5)  # diagnostic: ambiguous-method
+    price.combine(5)  # diagnostic: type-mismatch
