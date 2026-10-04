@@ -2166,7 +2166,7 @@ can key a map:
 ```text
 use std.function.{Fn, Tuple}
 
-data Memo[Args, O]:
+data Memo[Args < Tuple & Eq & Hash, O]:
     f: Fn[Args, O, $()]
     cache: mut Map[Args, O]
 

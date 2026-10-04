@@ -2092,3 +2092,5 @@ runtime/valid/module-qualified-function-call.hd	runtime
 runtime/valid/module-qualified-function-value.hd	runtime
 runtime/valid/module-qualified-function-value-parenthesized.hd	runtime
 typing/invalid/module-qualified-without-use.hd	type
+typing/invalid/signature-key-bound-not-implied.hd	type
+typing/valid/declared-key-bounds.hd	type

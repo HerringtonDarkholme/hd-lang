@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,233 cases: 2,093 selected in `test/portable/cases.tsv` and 140 known
-failures. The selected cases are 1,838 language tier and 255 stdlib tier;
-the known failures are 118 language tier and 22 stdlib tier.
+2,237 cases: 2,095 selected in `test/portable/cases.tsv` and 142 known
+failures. The selected cases are 1,840 language tier and 255 stdlib tier;
+the known failures are 120 language tier and 22 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -55,6 +55,7 @@ the known failures are 118 language tier and 22 stdlib tier.
 | SIGN-FALLBACK | 10 | an unsigned literal group falls back to `i32`, not `usize`, and `unsigned-comparison-always` is not checked |
 | ONE-FIT | 7 | a literal is `i32` on the spot, so one fitting candidate never decides it, several fitting candidates never wait for the `usize` fallback, and the fallback hint is absent |
 | QUALIFIED-PATH | 4 | a used module name works before a function, but not before a type, a variant, a variant pattern, or an associated call |
+| NO-IMPLIED-BOUND | 2 | a missing key bound at an impl target is reported again at each method's `self`, and at a field it adds `void-data-field` |
 
 ## Findings
 
@@ -146,6 +147,7 @@ Compiler structure:
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, and of the new items it declares only `Random`. |
 | STD-1 | Batch 64 specifies Map helpers. Bounded inherent Map implementations are now legal, but `lib/std/collections.hd` does not yet define `get_or`, `keys`, or `values`. |
 | ONE-FIT | Task #254: exactly one fitting candidate (a bound's one implementing type, one receiver or left-operand type, one instantiation) decides an open literal; two or more decide nothing, and a failure after the fallback suggests `+5` or an annotation. A literal joined with a dependent method result takes its resolved type, no use of a method result decides the receiver, and a literal erased to `Any` or `Inspectable` takes the fallback. The prototype types the literal as `i32` on the spot and emits no hint. |
+| NO-IMPLIED-BOUND | Task #261: a generic type's declared bounds are never implied where the type is written, so a declaration that writes `Map[K, V]` must bound its own `K`. The prototype reports the missing bound, but repeats it at each method's implicit `self` and turns the field's type into `void`. |
 
 ## Gaps No Fixture Reaches
 

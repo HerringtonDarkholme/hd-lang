@@ -1,0 +1,8 @@
+# test: an impl whose target writes Map[K, V] must bound K itself; Map's own bound is not implied
+# Spec 09 Generic Bounds And Static Dispatch: trait.bound.no-implied (owner decision IMPLIED-BOUNDS = A, task #261).
+trait Catalog:
+    fn catalog_name(self) -> string
+
+impl[K, V] Catalog for Map[K, V]:  # diagnostic: unsatisfied-trait-bound
+    fn catalog_name(self) -> string:
+        "inventory"

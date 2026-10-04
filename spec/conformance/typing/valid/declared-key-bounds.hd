@@ -1,0 +1,28 @@
+# test: an impl target, a signature, and a field that write Map[K, V] accept K when each declaration bounds it by Eq & Hash
+# Spec 09 Generic Bounds And Static Dispatch: trait.bound.no-implied (owner decision IMPLIED-BOUNDS = A, task #261).
+trait Catalog:
+    fn catalog_name(self) -> string
+
+impl[K < Eq & Hash, V] Catalog for Map[K, V]:
+    fn catalog_name(self) -> string:
+        "inventory"
+
+fn stock_of[K < Eq & Hash, V](stock: Map[K, V], item: K) -> V?:
+    stock.get(item)
+
+data Index[K < Eq & Hash, V]:
+    name: string
+    entries: Map[K, V]
+
+impl[K < Eq & Hash, V] Index[K, V]:
+    fn lookup(self, key: K) -> V?:
+        self.entries.get(key)
+
+fn apples_in_stock() -> i32?:
+    let counts: Map[string, i32] = {"apple": 3, "pear": 5}
+    index := Index { name: "fruit", entries: counts }
+    index.lookup("apple")
+
+fn pears_in_stock() -> i32?:
+    let counts: Map[string, i32] = {"apple": 3, "pear": 5}
+    stock_of(counts, "pear")

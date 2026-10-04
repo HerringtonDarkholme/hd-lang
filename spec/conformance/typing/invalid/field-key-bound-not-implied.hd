@@ -1,0 +1,5 @@
+# test: a field type that writes Map[K, V] must use a K its data declaration bounds; Map's own bound is not implied
+# Spec 09 Generic Bounds And Static Dispatch: trait.bound.no-implied (owner decision IMPLIED-BOUNDS = A, task #261).
+data Index[K, V]:
+    name: string
+    entries: Map[K, V]  # diagnostic: unsatisfied-trait-bound

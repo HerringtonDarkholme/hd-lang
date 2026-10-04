@@ -1211,6 +1211,61 @@ fn has_child[T < Child](value: T) -> i32:
 See also: the non-normative
 [Implementation Model](04-type-system.md#implementation-model-non-normative).
 
+### Declared Bounds Are Not Implied
+
+A generic type's declared bounds are never implied where the type is
+written. `Map` is declared as `Map[K < Eq & Hash, V]`, so each declaration
+that writes `Map[K, V]` bounds its own `K`:
+
+```text
+fn stock_of[K < Eq & Hash, V](stock: Map[K, V], item: K) -> V?:
+    stock.get(item)
+
+data Index[K < Eq & Hash, V]:
+    name: string
+    entries: Map[K, V]
+
+impl[K < Eq & Hash, V] Index[K, V]:
+    fn lookup(self, key: K) -> V?:
+        self.entries.get(key)
+```
+
+1. r[trait.bound.no-implied] A generic type's declared bounds are never implied where the type is written.
+2. r[trait.bound.no-implied.positions] This holds wherever a type is written, including an impl header's target and trait arguments, a function or method signature, a field, and a bound.
+3. r[trait.bound.no-implied.enclosing] A declaration whose generic parameter `T` appears in a written `C[T]` must itself give `T` every bound that `C`'s parameter requires. Error: `unsatisfied-trait-bound`.
+
+So `impl[K, V] Iterable[(K, V)] for Map[K, V]` and
+`fn count[K, V](m: Map[K, V]) -> usize` are errors. Writing the bound fixes
+each, as in `impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]`.
+
+```text
+trait Catalog:
+    fn catalog_name(self) -> string
+
+impl[K, V] Catalog for Map[K, V]:  # error: unsatisfied-trait-bound
+    fn catalog_name(self) -> string:
+        "inventory"
+
+fn stock_report[K, V](stock: Map[K, V], title: string) -> string:  # error: unsatisfied-trait-bound
+    "Stock report: " + title
+
+data Index[K, V]:
+    name: string
+    entries: Map[K, V]  # error: unsatisfied-trait-bound
+```
+
+> **Note.** The bounds a declaration writes are ordinary bounds, so its
+> bodies may use them, as `lookup` calls `get` above. There is no separate
+> implied-bound mechanism.
+
+> **Why.** Every requirement is visible in the declaration that relies on
+> it, as in Rust. A bound written once at the type would otherwise leak
+> silently into every impl and signature that names the type.
+
+See also: [`trait.bound.unsatisfied`](#r-trait.bound.unsatisfied),
+[`trait.avail.generic`](#r-trait.avail.generic), and
+[`types.map-key.declared-bound`](04-type-system.md#r-types.map-key.declared-bound).
+
 ### Associated Type Bindings
 
 A trait in a generic parameter bound may bind associated types after its

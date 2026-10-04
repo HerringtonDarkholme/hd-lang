@@ -1,0 +1,4 @@
+# test: a function signature that writes Map[K, V] must bound K itself; Map's own bound is not implied
+# Spec 09 Generic Bounds And Static Dispatch: trait.bound.no-implied (owner decision IMPLIED-BOUNDS = A, task #261).
+fn stock_report[K, V](stock: Map[K, V], title: string) -> string:  # diagnostic: unsatisfied-trait-bound
+    "Stock report: " + title
