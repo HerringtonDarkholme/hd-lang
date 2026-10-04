@@ -1,0 +1,4 @@
+# test: a negated literal index of a compound assignment negates an unsigned value
+# Spec 05 Indexing: expr.index.negative-literal; Compound Assignment: expr.assign.compound.index-read-write.
+fn bump(items: mut List[i32]) -> void:
+    items[-1] += 1  # diagnostic: unsigned-negation

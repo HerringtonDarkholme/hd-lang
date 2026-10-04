@@ -1,0 +1,2 @@
+pub fn child_name() -> string:
+    "common.worker.child"

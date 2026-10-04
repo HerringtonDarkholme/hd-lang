@@ -1,0 +1,5 @@
+# test: a store at a u64 list index past the u32 range is out of bounds, not wrapped to a valid index
+# Spec 05 Indexing: expr.index.list.assign, expr.index.list.range, expr.index.list.panic.
+let values: mut List[i32] = [7]
+let at: u64 = 4294967296
+values[at] = 9  # panic: index-out-of-bounds

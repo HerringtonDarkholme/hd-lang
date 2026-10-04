@@ -1,0 +1,12 @@
+# test: == uses a derived Eq on a generic data type under the bound its field needs
+# Spec std/cmp Derived Equality: std-cmp.derive.eq.template, std-cmp.derive.eq.compare-fields, std-cmp.derive.eq.eq.
+use std.testing.assert
+
+@derive(Eq)
+data Box[T]:
+    value: T
+
+tests:
+    it("== compares the field of each instantiation"):
+        assert(Box { value: 1 } == Box { value: 1 }, reason="equal")
+        assert(Box { value: "a" } != Box { value: "b" }, reason="unequal")

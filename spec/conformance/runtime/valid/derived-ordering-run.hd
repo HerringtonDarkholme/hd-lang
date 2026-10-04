@@ -1,0 +1,41 @@
+# test: derived ordering is lexicographic in field order, variants compare by declaration order, and a float field makes it partial
+# Spec std/cmp Derived Ordering: std-cmp.derive.ord.data, std-cmp.derive.ord.variants,
+# std-cmp.derive.ord.same-variant, std-cmp.derive.ord.partial, std-cmp.derive.ord.ord.
+use std.testing.{assert, assert_equal}
+
+@derive(Eq, PartialOrd, Ord)
+data Key:
+    first: i32
+    second: string
+
+@derive(Eq, PartialOrd, Ord)
+enum Priority:
+    Low(value: i32)
+    High(value: i32)
+    Urgent
+
+@derive(Eq, PartialOrd)
+data Measurement:
+    value: f64
+
+fn total[T < Ord](left: T, right: T) -> string:
+    match left.cmp(right):
+        .Less => "less"
+        .Equal => "equal"
+        .Greater => "greater"
+
+tests:
+    it("data fields compare in declaration order"):
+        assert(Key { first: 1, second: "z" } < Key { first: 2, second: "a" }, reason="the first field decides")
+        assert(Key { first: 1, second: "a" } < Key { first: 1, second: "b" }, reason="the second field breaks a tie")
+        assert_equal(total(Key { first: 1, second: "a" }, Key { first: 1, second: "a" }), "equal", reason="Ord")
+
+    it("enum variants compare by declaration order, then payloads"):
+        assert(Priority.Low(99) < Priority.High(0), reason="an earlier variant is less")
+        assert(Priority.Low(2) < Priority.Low(3), reason="the same variant compares payloads")
+        assert_equal(total(Priority.Urgent, Priority.High(5)), "greater", reason="a later variant is greater")
+
+    it("a float field leaves the ordering partial"):
+        assert(Measurement { value: 1.0 } < Measurement { value: 2.0 }, reason="ordered values")
+        assert(!(Measurement { value: 0.0 / 0.0 } < Measurement { value: 2.0 }), reason="NaN is unordered")
+        assert_equal(Measurement { value: 0.0 / 0.0 }.partial_cmp(Measurement { value: 2.0 }), .None, reason="partial_cmp gives .None")

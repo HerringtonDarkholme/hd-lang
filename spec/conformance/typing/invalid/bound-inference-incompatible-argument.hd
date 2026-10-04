@@ -1,0 +1,17 @@
+# test: a type whose only implementation has other trait arguments than the bound allows gives no instantiation
+# Spec 04 Bound-Only Parameters: types.generic.infer.bound.none.
+trait Source[T]:
+    fn take(self) -> T
+
+data Number:
+    value: i32
+
+impl Source[i32] for Number:
+    fn take(self) -> i32:
+        self.value
+
+fn read[U, S < Source[U?]](source: S) -> U?:
+    source.take()
+
+fn invalid(source: Number) -> i32?:
+    read(source)  # diagnostic: unsatisfied-trait-bound

@@ -1,0 +1,7 @@
+# test: a shared test module that moves above the test root with super names no module
+# Spec 10 Relative Uses: module.relative.above-test-root.
+# fixture-package-tree: test-relative/tests/common/worker.hd
+use super.super.super.sibling.{sibling_name}  # diagnostic: unknown-module
+
+pub fn read() -> string:
+    sibling_name()

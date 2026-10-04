@@ -1,0 +1,4 @@
+# test: a negated literal operand of a u64 expression is invalid, even when it is nested in arithmetic
+# Spec 04 Integer Literals: types.literal.negation.unsigned, types.literal.open.decide.operand.
+fn scaled(value: u64) -> u64:
+    (-1 + value) / 10  # diagnostic: unsigned-negation

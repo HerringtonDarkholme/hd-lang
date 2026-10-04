@@ -1,0 +1,22 @@
+# test: numeric casts convert in-range values exactly, a float-to-integer cast truncates, and f32 arithmetic keeps f32 width
+# Spec 04 Numeric Casts: types.cast.int-int-wrap, types.cast.float-int-saturate, types.cast.f32-f64, types.cast.f64-f32; Display: types.display.width.
+use std.testing.{assert, assert_equal}
+
+tests:
+    it("numeric casts convert in range"):
+        let wide: i64 = 300
+        assert_equal("${i16(wide)}", "300", reason="in range")
+        assert_equal("${u8(i32(200))}", "200", reason="i32 to u8")
+        assert_equal("${i32(2.9)}", "2", reason="a float truncates toward zero")
+        assert_equal("${i32(-2.9)}", "-2", reason="toward zero for negatives")
+        let single: f32 = 0.5
+        assert_equal("${f64(single)}", "0.5", reason="f32 to f64")
+        assert_equal("${f32(0.1)}", "0.1", reason="f64 to f32 rounds")
+        assert_equal("${u64(i64(7))}", "7", reason="i64 to u64")
+
+    it("f32 arithmetic keeps f32 width"):
+        let a: f32 = 0.1
+        let b: f32 = 0.2
+        assert_equal("${a + b}", "0.3", reason="f32 sum displays at f32 width")
+        wide := f64(a)
+        assert(wide != 0.1, reason="f32 0.1 widens exactly, not to f64 0.1")

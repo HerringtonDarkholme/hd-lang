@@ -1,0 +1,7 @@
+# test: each leading super moves to the parent, so two supers from src/user/service.hd reach the package root namespace
+# Spec 10 Relative Uses: module.relative.super, module.relative.example.nested.
+# fixture-package-tree: self-current/src/user/service.hd
+use super.super.b.{origin}
+
+pub fn read() -> string:
+    origin()

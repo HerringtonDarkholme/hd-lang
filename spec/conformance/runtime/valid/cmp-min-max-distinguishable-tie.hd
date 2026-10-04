@@ -1,0 +1,34 @@
+# test: min and max return the first argument when two distinguishable values compare equal
+# Spec std/cmp Min And Max: std-cmp.min-max.tie, std-cmp.min-max.result; lists order lexicographically (expr.ord.std.sequences).
+use std.cmp.{max, min}
+use std.testing.assert_equal
+
+# Ordered by `rank` only, so two entries can be equal and still differ.
+data Entry:
+    rank: i32
+    label: string
+
+impl Eq for Entry:
+    fn eq(self, other: Entry) -> bool:
+        self.rank == other.rank
+
+impl PartialOrd for Entry:
+    fn partial_cmp(self, other: Entry) -> Ordering?:
+        .Some(self.cmp(other))
+
+impl Ord for Entry:
+    fn cmp(self, other: Entry) -> Ordering:
+        self.rank.cmp(other.rank)
+
+tests:
+    it("the first of two equal values is the result"):
+        first := Entry { rank: 1, label: "first" }
+        second := Entry { rank: 1, label: "second" }
+        assert_equal(min(first, second).label, "first", reason="min")
+        assert_equal(max(first, second).label, "first", reason="max")
+        assert_equal(min(second, first).label, "second", reason="min with the arguments swapped")
+        assert_equal(max(second, first).label, "second", reason="max with the arguments swapped")
+
+    it("min and max order lists lexicographically"):
+        assert_equal(min([2, 1], [1, 9]), [1, 9], reason="the first element decides")
+        assert_equal(max([2, 1], [1, 9]), [2, 1], reason="the larger list")

@@ -1,0 +1,9 @@
+# test: an aliased use binds only the alias, so the original name is unknown
+# Spec 03 Use Declarations: names.use.introduces, names.use.grouped.
+use std.testing.assert as check
+
+fn aliased() -> void:
+    check(true, reason="the alias is bound")
+
+fn original() -> void:
+    assert(true, reason="the original name is not")  # diagnostic: unknown-name

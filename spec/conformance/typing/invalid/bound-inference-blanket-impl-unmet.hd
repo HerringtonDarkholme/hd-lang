@@ -1,0 +1,23 @@
+# test: a blanket implementation whose own bound is unmet gives the type no instantiation of the bound's trait
+# Spec 04 Bound-Only Parameters: types.generic.infer.bound.none.
+trait Mark:
+    fn mark(self) -> void
+
+trait Source[T]:
+    fn take(self) -> T
+
+data Box[T]:
+    value: T
+
+impl[T < Mark] Source[T] for Box[T]:
+    fn take(self) -> T:
+        self.value
+
+data Plain:
+    value: i32
+
+fn read[U, S < Source[U]](source: S) -> U:
+    source.take()
+
+fn invalid(source: Box[Plain]) -> void:
+    value := read(source)  # diagnostic: unsatisfied-trait-bound

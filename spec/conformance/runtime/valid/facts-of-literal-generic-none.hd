@@ -1,0 +1,48 @@
+# test: facts_of finds a data value, a literal value, and a bare-marker value by type, on a generic function, and finds none on an undecorated one
+# Spec 14 Function Facts: annot.facts-of.result, annot.decorator.facts-of, annot.decorator.bare-call, annot.target.limit.
+use std.annotation.{annotate, facts_of}
+use std.testing.{assert, assert_equal}
+
+@annotate(.Fn)
+data Route:
+    path: string
+
+fn route(path: string) -> Route:
+    Route { path: path }
+
+@annotate(.Fn)
+data Hidden: pass
+
+fn hidden() -> Hidden:
+    Hidden {}
+
+@route("/users")
+@"lists users"
+@hidden
+fn list_users() -> string:
+    "[]"
+
+@route("/items")
+fn first[T](items: List[T]) -> T?:
+    items.first()
+
+fn plain() -> void:
+    pass
+
+fn path_of(found: Route?) -> string:
+    match found:
+        .Some(value) => value.path
+        .None => ""
+
+tests:
+    it("finds each attached value by its type"):
+        assert_equal(path_of(facts_of(list_users).find::[Route]()), "/users", reason="a data value")
+        assert_equal(facts_of(list_users).find::[string](), "lists users", reason="a literal value")
+        assert(facts_of(list_users).find::[Hidden]().is_some(), reason="a bare marker is called")
+
+    it("reads a generic function's values"):
+        assert_equal(path_of(facts_of(first).find::[Route]()), "/items", reason="the generic target")
+
+    it("a function without decorators holds none"):
+        assert(facts_of(plain).find::[string]().is_none(), reason="no literal")
+        assert(facts_of(plain).find::[Route]().is_none(), reason="no route")

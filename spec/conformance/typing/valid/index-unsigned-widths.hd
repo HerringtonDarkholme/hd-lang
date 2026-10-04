@@ -1,0 +1,10 @@
+# test: a list or string index may have any unsigned integer type, for reads and for stores
+# Spec 05 Indexing: expr.index.list.unsigned, expr.index.string.unsigned, expr.index.list.assign.
+fn read(items: List[i32], text: string, a: u8, b: u16, c: u32, d: u64) -> i32:
+    items[a] + items[b] + items[c] + items[d] + i32(text[a]) + i32(text[b]) + i32(text[c]) + i32(text[d])
+
+fn store(items: mut List[i32], a: u8, b: u16, c: u32, d: u64) -> void:
+    items[a] = 1
+    items[b] = 2
+    items[c] = 3
+    items[d] = 4

@@ -1,0 +1,15 @@
+# test: the index of a compound assignment is evaluated once, with its own expected type, before the right-hand side
+# Spec 05 Compound Assignment: expr.assign.compound.once, expr.assign.compound.index-read-write.
+use std.testing.assert_equal
+
+fn next(counter: mut List[i32]) -> u64:
+    counter[0] = counter[0] + 1
+    u64(0)
+
+tests:
+    it("a call in the index runs once"):
+        let counter: mut List[i32] = [0]
+        let items: mut List[i32] = [1]
+        items[next(counter)] += 2
+        assert_equal(counter[0], 1, reason="the index expression ran once")
+        assert_equal(items[0], 3, reason="the element was read and stored once")

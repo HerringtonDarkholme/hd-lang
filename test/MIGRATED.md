@@ -232,6 +232,161 @@ Paths `cli/NAME` are CLI cases under `spec/conformance/cli/`, indexed by `cli-ca
 - test/cli-commands.test.ts :: hd run, check, and build on a package file link the package -> cli/exit-package-file for the check; the run and build forms are not migrated (cli.run.file makes `hd run FILE` an error)
 - test/cli-commands.test.ts :: hd run resolves super uses, and reports a package error in its own file -> cli/json-file-location for the file of the error; the run part is not migrated
 
+## test/std/*.hd (stdlib-tier tests, run by test/std.test.ts)
+
+The hd files stay: `test/std.test.ts` still runs each through `hd test`. A
+later task deletes them.
+
+- test/std/annotation.hd :: finds each attached value by its type -> runtime/valid/facts-of-literal-generic-none.hd
+- test/std/annotation.hd :: reads a generic function's values -> runtime/valid/facts-of-literal-generic-none.hd
+- test/std/annotation.hd :: a function without decorators holds none -> runtime/valid/facts-of-literal-generic-none.hd
+- test/std/collections.hd :: map and filter -> runtime/valid/list-and-optional-map.hd for `map`; `filter` is a duplicate of runtime/valid/list-access-building.hd
+- test/std/collections.hd :: first, last, and reversed -> duplicate of runtime/valid/list-access-building.hd
+- test/std/collections.hd :: sorted_by is stable -> duplicate of runtime/valid/list-access-building.hd
+- test/std/collections.hd :: chunks and zip -> duplicate of runtime/valid/list-chunks.hd and runtime/valid/list-access-building.hd
+- test/std/collections.hd :: chunks rejects a zero size -> duplicate of runtime/panic/list-chunks-zero.hd
+- test/std/collections.hd :: Set writes one debug_list entry per element, in insertion order -> not migrated: the test asserts the compact text `[2, 1]` of `debug(set)`, and `std-format.debug.render` says `debug` text is multi-line (Q10)
+- test/std/collections.hd :: windows rejects a zero size -> duplicate of runtime/panic/list-windows-size.hd
+- test/std/cmp-iter.hd :: min, max, and clamp -> duplicate of runtime/valid/cmp-min-max.hd and runtime/valid/cmp-clamp.hd
+- test/std/cmp-iter.hd :: min and max give the first of equal values -> runtime/valid/cmp-min-max-distinguishable-tie.hd
+- test/std/cmp-iter.hd :: clamp rejects an empty range -> duplicate of runtime/panic/cmp-clamp-reversed.hd
+- test/std/cmp-iter.hd :: Reverse inverts the order -> duplicate of runtime/valid/cmp-reverse.hd
+- test/std/cmp-iter.hd :: adapters -> duplicate of runtime/valid/iterator-adapters-run.hd
+- test/std/cmp-iter.hd :: take reads only what it yields -> duplicate of runtime/valid/iterator-adapters-run.hd (`std-iter.adapter.take.limit`)
+- test/std/cmp-iter.hd :: composites compare through std.cmp -> duplicate of runtime/valid/structural-ordering.hd, runtime/valid/structural-equality.hd, and runtime/valid/nan-ordering-composites.hd; `min` of two lists is in runtime/valid/cmp-min-max-distinguishable-tie.hd
+- test/std/cmp-iter.hd :: repeated comparisons start each time from the first element -> not migrated: a regression guard of the prototype, with no rule beyond ordinary comparison
+- test/std/handle-fact.hd :: reads a typed fact through a handle whose F has no Inspectable bound -> runtime/valid/handle-fact-exact-type.hd
+- test/std/console.hd :: BufferConsole records each line -> duplicate of runtime/valid/buffer-console.hd
+- test/std/console.hd :: println records inside a test body -> duplicate of runtime/valid/println-in-test-body.hd
+- test/std/console.hd :: a new BufferConsole is empty -> duplicate of runtime/valid/buffer-console.hd
+- test/std/derive.hd :: derived ordering is lexicographic in field order -> runtime/valid/derived-ordering-run.hd
+- test/std/derive.hd :: derived enum ordering follows variant order, then payloads -> runtime/valid/derived-ordering-run.hd
+- test/std/derive.hd :: derived partial ordering of floats -> runtime/valid/derived-ordering-run.hd
+- test/std/derive.hd :: derived Hash hashes the fields in order -> duplicate of runtime/valid/hash-bytes-derived.hd
+- test/std/derive.hd :: == uses a generic derived Eq -> runtime/valid/derived-equality-generic.hd
+- test/std/derive.hd :: a newtype derives from its base type -> duplicate of runtime/valid/derived-newtype.hd
+- test/std/derive.hd :: a type with Eq and Hash keys a map -> runtime/valid/map-key-types.hd
+- test/std/error.hd :: an absent optional source ends the chain -> runtime/valid/error-chain-derived-causes.hd
+- test/std/error.hd :: a transparent variant skips its member -> runtime/valid/error-chain-derived-causes.hd
+- test/std/error.hd :: an erased error reports its causes -> runtime/valid/error-chain-derived-causes.hd
+- test/std/error.hd :: an empty report displays its message alone -> duplicate of runtime/valid/error-report.hd
+- test/std/hash.hd :: a string hashes its UTF-8 length as a u64, then its UTF-8 bytes -> duplicate of runtime/valid/hash-bytes-sequences.hd
+- test/std/hash.hd :: integers hash their little-endian bytes at their own width -> duplicate of runtime/valid/hash-bytes-scalars.hd
+- test/std/hash.hd :: a type parameter bounded by Eq and Hash keys a map -> runtime/valid/map-key-types.hd
+- test/std/map.hd :: a char keys a map -> runtime/valid/map-key-types.hd
+- test/std/map.hd :: an i64 keys a map -> runtime/valid/map-key-types.hd
+- test/std/map.hd :: a derived Eq and Hash type keys a map -> runtime/valid/map-key-types.hd
+- test/std/map.hd :: a type parameter keys a map -> runtime/valid/map-key-types.hd
+- test/std/map.hd :: collect builds a map, the later value wins in the first position -> duplicate of runtime/valid/collect-targets-run.hd
+- test/std/map.hd :: collect builds a map over a type-parameter key -> not migrated: no rule beyond `std-iter.collect.map`, which runtime/valid/collect-targets-run.hd covers for concrete keys
+- test/std/map.hd :: a map entry meets a Display bound -> duplicate of runtime/valid/display-tuples.hd (an entry is a tuple)
+- test/std/map.hd :: debug writes a map's entries in order -> not migrated: the test asserts the compact text `{"a": 1}`, and `std-format.debug.render` says `debug` text is multi-line (Q10)
+- test/std/num.hd :: checked arithmetic reports overflow as None -> duplicate of runtime/valid/num-checked-wrapping.hd
+- test/std/num.hd :: wrapping and saturating arithmetic -> duplicate of runtime/valid/num-checked-wrapping.hd, runtime/valid/num-saturating.hd, and runtime/valid/num-abs-diff.hd
+- test/std/num.hd :: bit counts -> duplicate of runtime/valid/num-bit-counts.hd
+- test/std/num.hd :: i64 methods -> duplicate of runtime/valid/num-every-width.hd
+- test/std/num.hd :: f64 classification -> duplicate of runtime/valid/num-is-nan.hd and runtime/valid/num-is-finite.hd
+- test/std/num.hd :: parse_i32 and parse_i64 -> duplicate of runtime/valid/num-parse-integers.hd
+- test/std/num.hd :: every integer width -> duplicate of runtime/valid/num-every-width.hd
+- test/std/providers.hd :: ManualClock starts where it is told and sleep! advances it -> duplicate of runtime/valid/manual-clock.hd
+- test/std/providers.hd :: ManualClock covers a Clock row -> duplicate of runtime/valid/manual-clock.hd and runtime/valid/clock-helpers.hd
+- test/std/providers.hd :: SeededRandom repeats its draws for a seed -> duplicate of runtime/valid/seeded-random.hd
+- test/std/providers.hd :: SeededRandom covers a Random row -> duplicate of runtime/valid/seeded-random.hd and runtime/valid/rng-from-random.hd
+- test/std/property.hd :: addition commutes -> runtime/valid/property-generators.hd
+- test/std/property.hd :: draws stay in range -> runtime/valid/property-generators.hd
+- test/std/property.hd :: lists stay short -> runtime/valid/property-generators.hd
+- test/std/property.hd :: assume discards odd values -> runtime/valid/property-generators.hd; also a duplicate of runtime/valid/property-assume-discards.hd
+- test/std/property.hd :: a string is at most 16 chars -> not migrated: the spec gives `Arbitrary` for `string` no length limit, and `Choices` has no size (`std-testing.choices.no-size`) (Q11)
+- test/std/property.hd :: a map holds at most max entries -> runtime/valid/property-generators.hd
+- test/std/property.hd :: int takes its type from the context -> runtime/valid/property-generators.hd
+- test/std/property.hd :: the draw budget ends recursion -> runtime/valid/property-generators.hd; also a duplicate of runtime/valid/property-draw-budget.hd
+- test/std/property.hd :: an f64 may be any value -> runtime/valid/property-generators.hd
+- test/std/option-result.hd :: option map and unwrap_or -> runtime/valid/list-and-optional-map.hd for `map`; `unwrap_or` is a duplicate of runtime/valid/option-and-then.hd
+- test/std/option-result.hd :: option ok_or, is_some, is_none, expect -> duplicate of runtime/valid/option-tests-conversions.hd
+- test/std/option-result.hd :: option expect panics on None -> duplicate of runtime/panic/option-expect-none.hd
+- test/std/option-result.hd :: result map and map_err -> duplicate of runtime/valid/result-map.hd and runtime/valid/result-and-then.hd
+- test/std/option-result.hd :: result ok, err, is_ok, is_err, unwrap_or, expect -> duplicate of runtime/valid/result-tests-conversions.hd and runtime/valid/result-and-then.hd
+- test/std/sized-numeric.hd :: narrow signed arithmetic stays in range -> runtime/valid/sized-integer-arithmetic.hd
+- test/std/sized-numeric.hd :: i8 overflow panics -> runtime/valid/sized-integer-arithmetic.hd
+- test/std/sized-numeric.hd :: i8 MIN / -1 panics -> runtime/valid/sized-integer-arithmetic.hd
+- test/std/sized-numeric.hd :: unsigned 32-bit values compare and display as unsigned -> runtime/valid/sized-integer-arithmetic.hd
+- test/std/sized-numeric.hd :: u32 subtraction below zero panics -> runtime/valid/sized-integer-arithmetic.hd
+- test/std/sized-numeric.hd :: u64 keeps its full range -> runtime/valid/sized-integer-arithmetic.hd
+- test/std/sized-numeric.hd :: u64 overflow panics -> runtime/valid/sized-integer-arithmetic.hd
+- test/std/sized-numeric.hd :: numeric casts convert in range -> runtime/valid/numeric-casts-in-range.hd
+- test/std/sized-numeric.hd :: an out-of-range integer cast wraps -> duplicate of runtime/valid/narrowing-cast-wraps.hd
+- test/std/sized-numeric.hd :: an out-of-range float cast saturates -> duplicate of runtime/valid/float-cast-saturates.hd
+- test/std/sized-numeric.hd :: f32 arithmetic keeps f32 width -> runtime/valid/numeric-casts-in-range.hd
+- test/std/sized-numeric.hd :: narrow shifts keep the width -> runtime/valid/sized-integer-arithmetic.hd
+- test/std/time-process.hd :: Duration counts whole milliseconds -> duplicate of runtime/valid/duration-api.hd
+- test/std/time-process.hd :: Duration arithmetic and Display -> duplicate of runtime/valid/duration-arithmetic.hd and runtime/valid/duration-display.hd
+- test/std/time-process.hd :: Termination reports exit codes -> duplicate of runtime/valid/termination-report.hd
+- test/std/time-process.hd :: ScriptedProcess answers by program -> duplicate of runtime/valid/scripted-process.hd
+- test/std/text.hd :: is_empty, ends_with, and contains -> duplicate of runtime/valid/string-more-methods.hd
+- test/std/text.hd :: find returns a byte offset -> duplicate of runtime/valid/string-more-methods.hd
+- test/std/text.hd :: trim_start, trim_end, and upper -> duplicate of runtime/valid/string-more-methods.hd
+- test/std/text.hd :: strip_prefix and strip_suffix -> duplicate of runtime/valid/string-more-methods.hd
+- test/std/text.hd :: lines and repeat -> duplicate of runtime/valid/string-lines.hd and runtime/valid/string-repeat.hd
+- test/std/text.hd :: join and StringBuilder -> duplicate of runtime/valid/text-join-builder.hd
+- test/std/text.hd :: to_utf8 and string::from_utf8 -> duplicate of runtime/valid/utf8-valid-text.hd, runtime/valid/utf8-invalid-bytes.hd, runtime/valid/utf8-truncated.hd, and runtime/valid/utf8-overlong.hd
+- test/std/text-prefix.hd :: interpolate joins pieces and values in order -> duplicate of runtime/valid/text-prefix-helpers.hd
+- test/std/text-prefix.hd :: process_escapes replaces each escape -> duplicate of runtime/valid/text-prefix-helpers.hd
+- test/std/text-prefix.hd :: a prefix can process escapes in its pieces -> duplicate of runtime/valid/text-prefix-helpers.hd
+- test/std/tuple-text.hd :: writes a one-element tuple with a comma -> the Display half is a duplicate of runtime/valid/display-tuples.hd; the Debug half is not migrated: it asserts the compact text `(1,)` of `debug((1,))` (Q10)
+- test/std/tuple-text.hd :: writes the empty tuple and wider tuples without one -> not migrated: it asserts the compact `debug` text of `()`, `(1, 2)`, and `Some(1)` (Q10)
+
+## test/std.test.ts (non-hd rows)
+
+- test/std.test.ts :: an imported std name takes its local alias; the rest stay hidden -> typing/invalid/use-alias-original-name-unbound.hd (with `std.testing.assert`, a language-tier name, in place of `std.cmp.min`)
+
+## test/package-relative.test.ts
+
+- test/package-relative.test.ts :: ordinary source files resolve self children and super siblings from their own module -> duplicate of runtime/valid/relative-self-top-level.hd
+- test/package-relative.test.ts :: nested files resolve child, sibling and repeated-parent uses -> duplicate of runtime/valid/relative-self-current.hd for `self` and `super`; typing/valid/relative-repeated-super.hd for `super.super`
+- test/package-relative.test.ts :: directory modules resolve self from their directory identity -> duplicate of typing/valid/relative-self-mod-file.hd
+- test/package-relative.test.ts :: src/main.hd resolves self from its program root -> duplicate of typing/valid/relative-self-main.hd
+- test/package-relative.test.ts :: src/main.hd cannot move above its program root -> duplicate of typing/invalid/root-file-super.hd
+- test/package-relative.test.ts :: src/lib.hd resolves self from its program root -> duplicate of typing/valid/relative-self-lib.hd
+- test/package-relative.test.ts :: src/lib.hd cannot move above its program root -> typing/invalid/root-file-lib-super.hd
+- test/package-relative.test.ts :: tests/checkout.hd resolves self from its program root -> duplicate of runtime/valid/integration-shared-use.hd
+- test/package-relative.test.ts :: tests/checkout.hd cannot move above its program root -> duplicate of typing/invalid/integration-super-above-test-root.hd
+- test/package-relative.test.ts :: shared test modules resolve from their own module and cannot escape the test root -> typing/valid/relative-shared-test-module.hd, typing/invalid/relative-shared-test-above-test-root.hd
+- test/package-relative.test.ts :: ordinary source files cannot move above the package root -> not migrated: `module.relative.above-root` names no error code, and a fixture needs one (Q12)
+
+## test/package.test.ts
+
+- test/package.test.ts :: a use of another module's public declarations links and runs -> duplicate of runtime/valid/init-group-order.hd
+- test/package.test.ts :: relative uses, re-exports, and initialization order follow the use graph -> typing/valid/relative-repeated-super.hd for `super.super`; duplicate of typing/valid/pub-use-chain.hd and runtime/valid/init-group-order.hd
+- test/package.test.ts :: package use errors point at the use declaration of their file -> typing/invalid/unknown-package-name.hd for `unknown-import`; duplicate of typing/invalid/unknown-pkg-module.hd, typing/invalid/private-package-name.hd, typing/invalid/unknown-dep-module.hd, and typing/invalid/root-file-super.hd; the `unsupported-package-use` cases are not migrated (no such code in the spec)
+- test/package.test.ts :: std use errors in a package point at the use declaration of their file -> duplicate of typing/invalid/unknown-std-module.hd, typing/invalid/unknown-std-name.hd, and typing/invalid/private-std-function.hd (where the error is reported is not specified)
+- test/package.test.ts :: files of one folder may use each other in a loop -> duplicate of typing/valid/folder-loop-within-folder.hd
+- test/package.test.ts :: folders that depend on each other in a loop are rejected -> duplicate of typing/invalid/folder-cycle-facade.hd, typing/valid/folder-cycle-leaf-folder.hd, and typing/invalid/folder-cycle-nested.hd; the message text is not migrated
+- test/package.test.ts :: uses in test code make no folder edge -> duplicate of runtime/valid/folder-graph-test-edges.hd
+- test/package.test.ts :: a pub use chain must end at a declaration -> duplicate of typing/invalid/pub-use-loop.hd and typing/invalid/use-through-pub-use-loop.hd
+- test/package.test.ts :: shared names and bad paths are rejected -> not migrated: `package-name-collision` and `duplicate-module-path` name no rule of the spec (a module's private names are its own), a used name that collides with a declaration has no code (`names.use.no-collision`), and `unclosed-delimiter` appears only in the README table (Q13)
+- test/package.test.ts :: single-declaration uses and the package root module resolve -> typing/valid/use-path-only-declaration.hd for the path-only use of one declaration; the `src/mod.hd` root is not migrated, since `module.path.no-root-mod` makes it an error, and typing/valid/lib-root-pkg.hd covers `pkg.{X}` from `src/lib.hd`
+
+## Mixed-file rows (batch 3)
+
+- test/index-width.test.ts :: a u64 list index is bounds-checked before it can wrap to u32 -> runtime/panic/list-index-u64-beyond-u32.hd, runtime/panic/list-set-u64-beyond-u32.hd
+- test/index-width.test.ts :: a compound list index keeps its context and is evaluated once -> runtime/valid/compound-assign-index-once.hd
+- test/list-spread-diagnostic.test.ts :: postfix list spreads remain valid -> duplicate of runtime/valid/list-suffix-spread.hd
+- test/list-spread-diagnostic.test.ts :: prefix copies in data expressions remain valid -> duplicate of parse/valid/copy-update-spread.hd
+- test/unused-locals.test.ts :: unused-local warnings name exactly the unread bindings -> duplicate of typing/warnings/unused-local-binding.hd (a fixture holds one marker, so the second unread name is not asserted)
+- test/usize-alias.test.ts :: usize expands in a transparent alias target -> typing/valid/usize-alias-positions.hd
+- test/usize-alias.test.ts :: usize still expands within trait and implementation heads -> typing/valid/usize-alias-positions.hd
+- test/usize-alias.test.ts :: usize expands in a newtype base -> typing/valid/usize-alias-positions.hd
+- test/usize-alias.test.ts :: usize remains a protected prelude name -> typing/invalid/prelude-shadow-usize-alias.hd; the type-parameter and local forms are covered by typing/invalid/prelude-shadow-result-generic.hd and typing/invalid/prelude-shadow-hash-local.hd
+- test/usize-alias.test.ts :: subtracting one from an empty list length has u32 overflow semantics -> duplicate of runtime/panic/usize-len-underflow.hd
+- test/contextual-numeric-literals.test.ts :: context preserves range, unsigned-negation, and no-widening errors -> typing/invalid/literal-operand-range-wide.hd, typing/invalid/literal-operand-negation-unsigned.hd, typing/invalid/mixed-width-operands-no-widening.hd
+- test/contextual-numeric-literals.test.ts :: literal suffix calls keep their parameter type -> duplicate of typing/valid/literal-suffix-generic-num.hd and typing/invalid/literal-suffix-parameter-type.hd (`types.literal.suffixed.in`)
+- test/index-context.test.ts :: built-in indices preserve every explicitly typed unsigned width -> typing/valid/index-unsigned-widths.hd
+- test/index-context.test.ts :: built-in indices distinguish negative literals from signed values -> typing/invalid/compound-index-negative-literal.hd; duplicate of typing/invalid/list-index-negative-literal.hd, typing/invalid/list-slice-negative-literal.hd, typing/invalid/list-index-signed.hd, typing/invalid/string-index-signed.hd, and typing/invalid/list-slice-signed-bound.hd
+- test/index-context.test.ts :: bound inference ignores a blanket implementation whose own bound is unavailable -> typing/invalid/bound-inference-blanket-impl-unmet.hd
+- test/index-context.test.ts :: bound inference rejects a unique implementation with incompatible trait arguments -> typing/invalid/bound-inference-incompatible-argument.hd
+- test/inherent-implementation-bounds.test.ts :: a bounded standard inherent Map implementation keeps its key bounds -> not migrated: it marks a user implementation as `standard`, which user code cannot do (a user `impl Map[K, V]` is `orphan-impl`)
+- test/inherent-implementation-bounds.test.ts :: an unbounded standard inherent Map implementation still fails its key bound -> not migrated: same reason
+
 ## Owner Questions
 
 Q1 to Q8 are answered (owner, 2026-10-04); each answer is in the spec,
@@ -254,3 +409,29 @@ and each line above names the fixture that covers it.
   names every inherent method, and
   [`grammar.trait.method-kind`](../spec/lang/02-grammar.md#r-grammar.trait.method-kind)
   calls a receiverless member an associated function, not a method.
+
+- **Q10.** What text does `debug(value)` give for a composite? Several std
+  tests assert compact text: `[2, 1]` for a set, `{"a": 1}` for a map,
+  `(1,)` for a tuple, `Some(1)` for an optional.
+  [`std-format.debug.render`](../spec/std/format.md#r-std-format.debug.render)
+  says the text is multi-line and consistently indented, and
+  [`std-format.debug.layout`](../spec/std/format.md#r-std-format.debug.layout)
+  leaves compact or pretty layout to the writer. No fixture can assert the
+  text until the spec fixes it.
+- **Q11.** Does the default `Arbitrary` for `string` have a length limit? The
+  test asserts at most 16 chars.
+  [`std-testing.choices.no-size`](../spec/std/testing.md#r-std-testing.choices.no-size)
+  says `Choices` has no size, and no rule gives the default generator a limit.
+- **Q12.** Which code does a `super` above the package root report in a file
+  that is not a root file, as `use super.super.x` in `src/a.hd`? The test
+  expects `unknown-module`.
+  [`module.relative.above-root`](../spec/lang/10-modules.md#r-module.relative.above-root)
+  says only "compile-time error".
+- **Q13.** The package-link test asserts four codes that no rule gives. A
+  private name of one module that another module also declares reports
+  `package-name-collision`. A `use` of a name that a module also declares
+  reports `duplicate-module-name`
+  ([`names.use.no-collision`](../spec/lang/03-names-and-scopes.md#r-names.use.no-collision)
+  gives no code). Two paths such as `src/main.hd` and `src/Main.hd` report
+  `duplicate-module-path`. An unclosed `(` reports `unclosed-delimiter`,
+  which only the README table lists. Which of these belong in the spec?

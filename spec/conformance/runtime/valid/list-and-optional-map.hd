@@ -1,0 +1,21 @@
+# test: List.map and optional map apply the transform in source order, and optional map keeps .None
+# Spec std/iter List And Optional Map: std-iter.method.map.
+use std.testing.assert_equal
+
+fn tag(trace: mut List[i32], value: i32) -> string:
+    trace.push(value)
+    "<$value>"
+
+tests:
+    it("List.map transforms each element in order"):
+        items := [3, 1, 2]
+        assert_equal(items.map(fn(value: i32) -> string: "<$value>"), ["<3>", "<1>", "<2>"], reason="mapped")
+        let trace: mut List[i32] = []
+        assert_equal(items.map(fn(value: i32) -> string: tag(trace, value)), ["<3>", "<1>", "<2>"], reason="the result")
+        assert_equal(trace, [3, 1, 2], reason="the transform ran in list order")
+
+    it("optional map applies to .Some and keeps .None"):
+        let present: i32? = .Some(3)
+        let absent: i32? = .None
+        assert_equal(present.map(fn(value: i32) -> i32: value * 2), .Some(6), reason="map applies")
+        assert_equal(absent.map(fn(value: i32) -> i32: value * 2), .None, reason="map keeps None")

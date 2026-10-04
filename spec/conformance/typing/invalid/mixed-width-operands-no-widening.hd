@@ -1,0 +1,4 @@
+# test: a literal adopts the width of its operand, but an i16 and an i32 operand do not mix without a cast
+# Spec 04 Numeric Conversions: types.num.no-implicit, types.num.no-implicit.wider.
+fn total(small: i16, ordinary: i32) -> i32:
+    (1 + small) + ordinary  # diagnostic: type-mismatch

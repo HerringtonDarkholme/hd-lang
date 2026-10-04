@@ -1,0 +1,60 @@
+# test: char, i64, derived, hand-written, and type-parameter keys work in a map, and lookup uses the key type's own Eq and Hash
+# Spec 04 Map Key Types: types.map-key.declared-bound, types.map-key.builtin-hash, types.map-key.user; Map Semantics: types.map.eq-hash.
+use std.testing.assert_equal
+
+@derive(Eq, Hash)
+data Id:
+    value: string
+
+@derive(Eq, Hash)
+enum Level:
+    High(value: i32)
+    Urgent
+
+# A hand-written Eq and Hash: only `id` takes part, so entries with one id are one key.
+data Tag:
+    id: i32
+    note: string
+
+impl Eq for Tag:
+    fn eq(self, other: Tag) -> bool:
+        self.id == other.id
+
+impl Hash for Tag:
+    fn hash(self, state: mut Hasher) -> void:
+        self.id.hash(state)
+
+fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
+    items.get(key)
+
+fn doubled[K < Eq & Hash & Display](keys: List[K]) -> Map[K, string]:
+    {for k in keys => k: "${k}${k}"}
+
+tests:
+    it("a char keys a map"):
+        let m: Map[char, i32] = {'a': 1, 'b': 2}
+        assert_equal(m['b'], 2, reason="char key")
+
+    it("an i64 keys a map"):
+        let m: mut Map[i64, string] = {}
+        m[5000000000] = "big"
+        m[5000000000] = "bigger"
+        assert_equal(m.len(), 1, reason="one i64 key")
+        assert_equal(m[5000000000], "bigger", reason="the later value")
+
+    it("derived Eq and Hash make a data type or an enum a key"):
+        m := {Id { value: "x" }: 1}
+        assert_equal(m[Id { value: "x" }], 1, reason="user key")
+        ranks := {Level.High(1): "high", Level.Urgent: "urgent"}
+        assert_equal(ranks.get(Level.Urgent), .Some("urgent"), reason="a payload-free variant")
+        assert_equal(ranks.get(Level.High(1)), .Some("high"), reason="a payload variant")
+        assert_equal(ranks.get(Level.High(2)), .None, reason="another payload")
+
+    it("lookup uses the key type's own Eq and Hash"):
+        tags := {Tag { id: 1, note: "red" }: 10}
+        assert_equal(tags.get(Tag { id: 1, note: "other" }), .Some(10), reason="equal by id")
+        assert_equal(tags.get(Tag { id: 2, note: "red" }), .None, reason="a different id")
+
+    it("a type parameter bounded by Eq and Hash keys a map"):
+        assert_equal(lookup({"a": 1}, "a"), .Some(1), reason="generic lookup")
+        assert_equal(doubled(["a", "b"])["b"], "bb", reason="generic comprehension")

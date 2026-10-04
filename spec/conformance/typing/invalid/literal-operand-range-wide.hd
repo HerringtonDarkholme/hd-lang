@@ -1,0 +1,4 @@
+# test: a literal operand of a u64 expression is range-checked against u64 even when it is nested in arithmetic
+# Spec 04 Integer Literals: types.literal.int-range, types.literal.open.decide.operand.
+fn within(value: u64) -> u64:
+    (18446744073709551616 - value) / 10  # diagnostic: integer-literal-range

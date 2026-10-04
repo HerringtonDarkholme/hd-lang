@@ -1,0 +1,48 @@
+# test: chain and report_of follow the causes of derived errors: an absent optional source ends the chain, and a transparent variant is not listed twice
+# Spec std/error Cause Chain: std-error.chain.order, std-error.chain.end, std-error.report.causes, std-error.report.display;
+# 14 Error Derivation: annot.error.cause.optional, annot.error.form.variant-transparent.
+use std.error.{Error, ErrorReport, chain, report_of}
+use std.testing.assert_equal
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum RepoError:
+    @error("cannot write $path")
+    Write(path: string, @source error: DiskError?)
+    @error(transparent)
+    Disk(@from error: DiskError)
+
+@error("sync failed")
+data SyncError:
+    @source
+    repo: RepoError
+
+fn load() -> Result[i32, Error]:
+    let failed: Result[i32, RepoError] = .Err(RepoError.Write("a.txt", .Some(DiskError { free: 0 })))
+    value := failed?
+    .Ok(value)
+
+fn texts(error: Error) -> List[string]:
+    chain(error).map(fn(item: Error) -> string: item.to_string())
+
+tests:
+    it("an absent optional source ends the chain"):
+        assert_equal(texts(RepoError.Write("a.txt", .None)), ["cannot write a.txt"], reason="no cause")
+
+    it("a transparent variant skips its member"):
+        failure := SyncError { repo: RepoError.Disk(DiskError { free: 0 }) }
+        assert_equal(texts(failure), ["sync failed", "disk full"], reason="the member is not listed twice")
+
+    it("an erased error reports its causes"):
+        match load():
+            .Ok(_) => assert_equal(0, 1, reason="load fails")
+            .Err(error) =>
+                report := report_of(error)
+                assert_equal(report.message, "cannot write a.txt", reason="message")
+                assert_equal(report.causes, ["disk full"], reason="causes")
+
+    it("an empty report displays its message alone"):
+        assert_equal(ErrorReport { message: "m", causes: [] }.to_string(), "m", reason="no caused-by line")

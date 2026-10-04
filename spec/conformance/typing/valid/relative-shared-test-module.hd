@@ -1,0 +1,8 @@
+# test: a shared test module resolves self and super from its own module, as a module under src does
+# Spec 10 Relative Uses: module.relative.test-root.current, module.relative.base.current, module.relative.super.
+# fixture-package-tree: test-relative/tests/common/worker.hd
+use self.child.{child_name}
+use super.sibling.{sibling_name}
+
+pub fn read() -> string:
+    child_name() + sibling_name()

@@ -1,0 +1,7 @@
+# test: a use of a name that a package module does not declare is an unknown import at the use
+# Spec 10 Use Forms: module.use.missing-name.
+# fixture-package-tree: self-current/src/c.hd
+use pkg.b.{missing}  # diagnostic: unknown-import
+
+pub fn label() -> string:
+    missing()

@@ -1,0 +1,7 @@
+# test: a path-only use may name one public declaration of a package module, and binds its final component
+# Spec 03 Use Declarations: names.use.path-only, names.use.final-component.
+# fixture-package-tree: self-current/src/c.hd
+use pkg.b.origin
+
+pub fn label() -> string:
+    origin()

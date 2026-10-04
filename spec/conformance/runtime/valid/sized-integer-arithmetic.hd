@@ -1,0 +1,57 @@
+# test: sized integers stay in range, overflow panics at their own width, unsigned values compare and display as unsigned, and shifts keep the width
+# Spec 04 Integer Arithmetic: types.arith.checked, types.arith.failure, types.arith.division, types.arith.shift-right, types.arith.min-division.
+use std.testing.{assert, assert_equal}
+
+fn widen_signed(value: i8) -> i64:
+    i64(value)
+
+fn widen_unsigned(value: u16) -> u64:
+    u64(value)
+
+tests:
+    it("narrow signed arithmetic stays in range"):
+        let small: i8 = 100
+        let other: i8 = 27
+        assert_equal("${small + other}", "127", reason="i8 maximum")
+        let minimum: i16 = -32768
+        assert_equal("$minimum", "-32768", reason="i16 minimum")
+        assert_equal(widen_signed(small), 100, reason="i8 widens to i64")
+
+    it("i8 overflow panics", expect_panic="integer-overflow"):
+        let small: i8 = 100
+        _ := small + small
+
+    it("i8 minimum divided by -1 panics", expect_panic="integer-overflow"):
+        let minimum: i8 = -128
+        let divisor: i8 = -1
+        _ := minimum / divisor
+
+    it("unsigned 32-bit values compare and display as unsigned"):
+        let large: u32 = 4000000000
+        let small: u32 = 5
+        assert(large > small, reason="unsigned comparison")
+        assert_equal("$large", "4000000000", reason="u32 Display")
+        assert_equal("${large / small}", "800000000", reason="unsigned division")
+
+    it("u32 subtraction below zero panics", expect_panic="integer-overflow"):
+        let small: u32 = 5
+        let large: u32 = 6
+        _ := small - large
+
+    it("u64 keeps its full range"):
+        let top: u64 = 18446744073709551615
+        let half: u64 = 9223372036854775808
+        assert(top > half, reason="unsigned 64-bit comparison")
+        assert_equal("${top - half}", "9223372036854775807", reason="u64 subtraction")
+        assert_equal("${half / 2}", "4611686018427387904", reason="u64 division")
+        assert_equal(widen_unsigned(65535), 65535, reason="u16 widens to u64")
+
+    it("u64 overflow panics", expect_panic="integer-overflow"):
+        let top: u64 = 18446744073709551615
+        _ := top + 1
+
+    it("narrow shifts keep the width"):
+        let bits: u8 = 1
+        assert_equal("${bits << 7}", "128", reason="u8 shift")
+        let signed: i16 = -8
+        assert_equal("${signed >> 1}", "-4", reason="arithmetic shift")
