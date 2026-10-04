@@ -471,6 +471,48 @@ try {
     }
   });
 
+  await step("a tour page with tests has a Test button, and wrapped lines hang", async () => {
+    const { page } = await openPage("tour/11-requirements/", { ready: "#tour-editor .cm-editor" });
+    const output = page.locator("#tour-output");
+    await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
+    await page.click("#tour-test");
+    await output.locator(".outcome.passed", { hasText: "1 test passed" }).waitFor({
+      timeout: FIRST_REPLY_MS,
+    });
+    await page.click("#tour-run");
+    await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
+    assert.equal(await output.locator(".stdout").textContent(), "Reminder: invoice INV-7 is due\n");
+
+    // A wrapped line hangs one step under its own indentation: 8 spaces + 4.
+    const hang = await page
+      .locator(".cm-line", { hasText: "assert_equal(console.output()" })
+      .evaluate((line) => {
+        const style = getComputedStyle(line);
+        const rows = Math.round(line.getBoundingClientRect().height / parseFloat(style.lineHeight));
+        return {
+          padding: parseFloat(style.paddingLeft),
+          indent: parseFloat(style.textIndent),
+          rows,
+        };
+      });
+    assert.ok(hang.rows > 1, "the long assertion line wraps in the editor column");
+    assert.ok(hang.indent < 0 && Math.abs(hang.padding + hang.indent - 6) < 0.5, "hang");
+    await page.context().close();
+
+    // A page with only tests has no Run button, and Ctrl+Enter tests.
+    const tests = await openPage("tour/12-tests/", { ready: "#tour-editor .cm-editor" });
+    assert.equal(await tests.page.locator("#tour-run").count(), 0, "no Run button");
+    await tests.page.locator("#tour-status", { hasText: "Ready" }).waitFor({
+      timeout: FIRST_REPLY_MS,
+    });
+    await tests.page.locator("h1").click();
+    await tests.page.keyboard.press("Control+Enter");
+    await tests.page
+      .locator("#tour-output .outcome.passed", { hasText: "3 tests passed" })
+      .waitFor({ timeout: FIRST_REPLY_MS });
+    await tests.page.context().close();
+  });
+
   await step("the Playground link opens the playground with the code it carries", async () => {
     const home = await openPage("index.html");
     await home.page.locator(".topnav a", { hasText: "Playground" }).click();

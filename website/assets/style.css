@@ -1686,6 +1686,16 @@ pre.ebnf .eb-definition:target {
   outline: none;
 }
 
+/*
+ * A wrapped line hangs under its own indentation plus one step: each line
+ * carries its hang in --hang (website/client/tour.ts). The padding keeps
+ * CodeMirror's 6px, and the negative indent puts the first row back.
+ */
+.tour-code .cm-content .cm-line {
+  padding-left: calc(6px + var(--hang, 0ch));
+  text-indent: calc(-1 * var(--hang, 0ch));
+}
+
 .tour-static {
   white-space: pre-wrap;
   margin: 0;

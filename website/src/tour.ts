@@ -56,14 +56,22 @@ export function tourProse(pages: readonly TourPage[], page: TourPage, input: Tou
   return `<p class="tour-step"><a href="${pageUrl(TOUR_INDEX)}">Tour</a> · ${page.number} of ${pages.length}</p>
 <h1>${md.renderInline(page.claim, env)}</h1>
 ${md.render(page.prose, env)}
-<p class="tour-keys">Run: <kbd>Ctrl</kbd>+<kbd>Enter</kbd> · Pages: <kbd>Alt</kbd>+<kbd>←</kbd> <kbd>Alt</kbd>+<kbd>→</kbd></p>
+<p class="tour-keys">${page.output ? "Run" : "Test"}: <kbd>Ctrl</kbd>+<kbd>Enter</kbd> · Pages: <kbd>Alt</kbd>+<kbd>←</kbd> <kbd>Alt</kbd>+<kbd>→</kbd></p>
 ${pager(pages, page, pageUrl)}`;
+}
+
+/** The output panel's text before the first run. */
+function tourHint(page: TourPage): string {
+  if (page.output && page.tests)
+    return "Press Run to see the output here, or Test to run the tests.";
+  return page.output ? "Press Run to see the output here." : "Press Test to run the tests.";
 }
 
 /**
  * A tour page's editor column. The snippet is shown highlighted until the
  * script replaces it with an editor; without the playground build it stays
- * a static listing.
+ * a static listing. A page with an output block gets a Run button, and one
+ * with a tests block a Test button; Ctrl+Enter presses the first of them.
  */
 export function tourEditor(page: TourPage, input: TourRender): string {
   const source = JSON.stringify(page.code).replaceAll("<", "\\u003c");
@@ -74,10 +82,20 @@ export function tourEditor(page: TourPage, input: TourRender): string {
 <div class="tour-code">${static_}</div>
 <div class="tour-output"><p class="notice">Running code needs the playground build: <code>pnpm run website:build</code> includes it.</p></div>
 </div>`;
-  return `<div class="tour-editor" id="tour-editor" data-tour-key="${escapeHtml(tourKey(page))}" data-worker="${escapeHtml(input.workerUrl)}">
-<div class="tour-toolbar"><span class="tour-file">main.hd</span><span class="tour-status" id="tour-status" role="status"></span><button type="button" class="button button-quiet" id="tour-reset" title="Restore the original code">Reset</button><button type="button" class="button button-primary" id="tour-run" title="Run (Ctrl+Enter)">Run</button></div>
+  const primary = page.output ? "run" : "test";
+  const button = (mode: "run" | "test", label: string): string => {
+    const keys = mode === primary ? " (Ctrl+Enter)" : "";
+    const style = mode === primary ? "button button-primary" : "button";
+    return `<button type="button" class="${style}" id="tour-${mode}" title="${label}${keys}">${label}</button>`;
+  };
+  const buttons = [
+    page.output ? button("run", "Run") : "",
+    page.tests ? button("test", "Test") : "",
+  ];
+  return `<div class="tour-editor" id="tour-editor" data-tour-key="${escapeHtml(tourKey(page))}" data-worker="${escapeHtml(input.workerUrl)}" data-primary="${primary}">
+<div class="tour-toolbar"><span class="tour-file">main.hd</span><span class="tour-status" id="tour-status" role="status"></span><button type="button" class="button button-quiet" id="tour-reset" title="Restore the original code">Reset</button>${buttons.join("")}</div>
 <div class="tour-code" id="tour-code">${static_}</div>
-<div class="tour-output" id="tour-output" aria-live="polite"><p class="tour-hint">Press Run to see the output here.</p></div>
+<div class="tour-output" id="tour-output" aria-live="polite"><p class="tour-hint">${tourHint(page)}</p></div>
 <script type="application/json" id="tour-source">${source}</script>
 </div>`;
 }

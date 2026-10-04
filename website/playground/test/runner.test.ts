@@ -447,18 +447,32 @@ test("the bundled examples run", async () => {
   ]);
 });
 
-test("each tour snippet runs and prints its page's output; each edit fails to compile", async () => {
+test("each tour snippet runs and tests as its page says; each edit breaks it as named", async () => {
   const pages = loadTour(resolve(playground, "../.."));
   assert.ok(pages.length > 0);
   for (const page of pages) {
-    const result = await runner.runProject(single(page.code), "run");
-    assert.equal(result.status, "ok", `${page.source}: ${result.summary}`);
-    assert.deepEqual(result.stdout, page.output, page.source);
-    if (!page.edit) continue;
+    if (page.output) {
+      const result = await runner.runProject(single(page.code), "run");
+      assert.equal(result.status, "ok", `${page.source}: ${result.summary}`);
+      assert.deepEqual(result.stdout, page.output, page.source);
+    }
+    if (page.tests) {
+      const result = await runner.runProject(single(page.code), "test");
+      assert.equal(result.status, "ok", `${page.source}: ${result.summary}`);
+      assert.equal(result.summary, page.tests, page.source);
+    }
+    const { edit } = page;
+    if (!edit) continue;
+    if (edit.failure !== undefined) {
+      const tested = await runner.runProject(single(editedCode(page)), "test");
+      assert.ok(["failure", "panic"].includes(tested.status), `${page.source}: the edit passes`);
+      assert.ok(tested.summary.includes(edit.failure), `${page.source}: ${tested.summary}`);
+      continue;
+    }
     const edited = await runner.runProject(single(editedCode(page)), "run");
     assert.equal(edited.status, "compile-error", `${page.source}: the edit compiles`);
     const errors = edited.diagnostics.map(({ code, message }) => `${code}: ${message}`);
-    assert.ok(errors.includes(page.edit.error), `${page.source}: ${errors.join("; ")}`);
+    assert.ok(errors.includes(edit.error), `${page.source}: ${errors.join("; ")}`);
   }
 });
 

@@ -17,6 +17,7 @@ import { checkLinks } from "../src/links.ts";
 import { createMarkdown, type RenderEnv } from "../src/markdown.ts";
 import { PAGES, PLAYGROUND_PAGE } from "../src/pages.ts";
 import { editedCode, loadTour, parseTourPage } from "../src/tour-pages.ts";
+import { tourEditor } from "../src/tour.ts";
 
 const REPO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const EXAMPLES_DIR = join(REPO_DIR, "website/playground/examples");
@@ -271,25 +272,6 @@ describe("website build", () => {
     }
   });
 
-  test("tour pages are well formed, and an edit must name one line", () => {
-    const text =
-      "---\ntitle: T\n---\n\n# Claim\n\nProse.\n\n```hd\na\nb\n```\n\n```output\nx\n```\n";
-    const page = parseTourPage("website/tour/01-t.md", text, 1);
-    assert.deepEqual(
-      [page.title, page.claim, page.prose, page.code],
-      ["T", "Claim", "Prose.", "a\nb\n"],
-    );
-    assert.deepEqual(page.output, ["x"]);
-    assert.throws(() => editedCode(page), /has no edit/);
-    const edit = text.replace(
-      "```output",
-      "```edit\nreplace: c\nwith: d\nerror: e\n```\n\n```output",
-    );
-    assert.throws(() => editedCode(parseTourPage("website/tour/01-t.md", edit, 1)), /0 times/);
-    assert.throws(() => parseTourPage("website/tour/01-t.md", text.replace("```hd", "```js"), 1));
-    assert.throws(() => parseTourPage("website/tour/t.md", text, 1), /NN-slug/);
-  });
-
   test("serves a playground build at playground/ when one exists", async () => {
     const playgroundDist = join(scratch, "playground-dist");
     await mkdir(join(playgroundDist, "assets"), { recursive: true });
@@ -338,6 +320,85 @@ describe("website build", () => {
     assert.equal(links.length, 1, "one whole program on the page");
     assert.match(Buffer.from(links[0]![1]!, "base64url").toString("utf8"), /^pub fn main!\(\)/m);
     assert.doesNotMatch(learn, /Try in playground/);
+  });
+});
+
+describe("tour pages", () => {
+  test("tour pages are well formed, and an edit must name one line", () => {
+    const text =
+      "---\ntitle: T\n---\n\n# Claim\n\nProse.\n\n```hd\na\nb\n```\n\n```output\nx\n```\n";
+    const page = parseTourPage("website/tour/01-t.md", text, 1);
+    assert.deepEqual(
+      [page.title, page.claim, page.prose, page.code],
+      ["T", "Claim", "Prose.", "a\nb\n"],
+    );
+    assert.deepEqual(page.output, ["x"]);
+    assert.throws(() => editedCode(page), /has no edit/);
+    const edit = text.replace(
+      "```output",
+      "```edit\nreplace: c\nwith: d\nerror: e\n```\n\n```output",
+    );
+    assert.throws(() => editedCode(parseTourPage("website/tour/01-t.md", edit, 1)), /0 times/);
+    assert.throws(() => parseTourPage("website/tour/01-t.md", text.replace("```hd", "```js"), 1));
+    assert.throws(() => parseTourPage("website/tour/t.md", text, 1), /NN-slug/);
+    // A tests block may stand in for the output block; an empty with: deletes the line.
+    const tested = text.replace(
+      "```output\nx\n```",
+      "```edit\nreplace: a\nwith:\nfailure: f\n```\n\n```tests\n2 tests passed\n```",
+    );
+    const testPage = parseTourPage("website/tour/01-t.md", tested, 1);
+    assert.deepEqual([testPage.output, testPage.tests], [undefined, "2 tests passed"]);
+    assert.deepEqual(testPage.edit, { replace: "a", with: "", failure: "f" });
+    assert.equal(editedCode(testPage), "\nb\n");
+    assert.throws(
+      () => parseTourPage("website/tour/01-t.md", edit.replace("error: e", "failure: f"), 1),
+      /needs a ```tests block/,
+    );
+    assert.throws(
+      () =>
+        parseTourPage("website/tour/01-t.md", edit.replace("error: e", "error: e\nfailure: f"), 1),
+      /one of error: or failure:/,
+    );
+    assert.throws(
+      () => parseTourPage("website/tour/01-t.md", text.replace("```output\nx\n```", ""), 1),
+      /```output or ```tests block/,
+    );
+  });
+
+  test("a tour page's buttons follow its blocks: Run for output, Test for tests", () => {
+    const env: RenderEnv = {
+      source: "website/tour/01-t.md",
+      resolveLink: (href) => href,
+      playgroundUrl: () => "",
+      headings: [],
+      slugCounts: new Map(),
+    };
+    const render = {
+      md: createMarkdown(),
+      env,
+      pageUrl: (output: string) => output,
+      workerUrl: "w.js",
+    };
+    const page = (blocks: string) =>
+      parseTourPage(
+        "website/tour/01-t.md",
+        `---\ntitle: T\n---\n\n# C\n\n\`\`\`hd\na\n\`\`\`\n\n${blocks}`,
+        1,
+      );
+    const ran = tourEditor(page("```output\nx\n```\n"), render);
+    assert.match(ran, /data-primary="run"/);
+    assert.match(ran, /class="button button-primary" id="tour-run"/);
+    assert.doesNotMatch(ran, /id="tour-test"/);
+    const both = tourEditor(page("```output\nx\n```\n\n```tests\n1 test passed\n```\n"), render);
+    assert.match(both, /id="tour-run".*class="button" id="tour-test" title="Test"/);
+    const tested = tourEditor(page("```tests\n1 test passed\n```\n"), render);
+    assert.match(tested, /data-primary="test"/);
+    assert.match(
+      tested,
+      /class="button button-primary" id="tour-test" title="Test \(Ctrl\+Enter\)"/,
+    );
+    assert.doesNotMatch(tested, /id="tour-run"/);
+    assert.match(tested, /Press Test to run the tests\./);
   });
 });
 

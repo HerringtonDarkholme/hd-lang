@@ -81,9 +81,10 @@ export async function checkHdBlocksParse(root: string, path: string): Promise<st
 /**
  * Returns one message per problem with a tour page: its snippet does not
  * type-check (`IMPL check --tests FILE`), its edit does not give the error it
- * names, or the snippet does not quote that error in a comment. The command
- * contract has no action that runs a program with `main`, so the playground's
- * runner test runs the snippets (website/playground/test/runner.test.ts).
+ * names, a `failure:` edit does not type-check, or the snippet does not quote
+ * the edit's error or failure in a comment. The command contract has no
+ * action that runs a program with `main`, so the playground's runner test
+ * runs and tests the snippets (website/playground/test/runner.test.ts).
  */
 export async function checkTourSnippets(pages: readonly TourPage[]): Promise<string[]> {
   const scratch = await mkdtemp(join(tmpdir(), "hd-tour-check-"));
@@ -98,9 +99,10 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
     const { edit } = page;
     if (!edit) return [];
     const problems: string[] = [];
+    const quoted = edit.error ?? edit.failure;
     const comments = page.code.split("\n").filter((line) => line.startsWith("#"));
-    if (!comments.some((line) => line.includes(edit.error)))
-      problems.push(`${page.source}: no comment in the snippet quotes '${edit.error}'`);
+    if (!comments.some((line) => line.includes(quoted)))
+      problems.push(`${page.source}: no comment in the snippet quotes '${quoted}'`);
     let code: string;
     try {
       code = editedCode(page);
@@ -108,6 +110,12 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
       return [...problems, (error as Error).message];
     }
     const errors = await check(page, code, "edit");
+    if (edit.error === undefined) {
+      // A failure: edit still compiles; Test reports the failure.
+      if (errors.length > 0)
+        problems.push(`${page.source}: the failure: edit does not compile: ${errors.join("; ")}`);
+      return problems;
+    }
     if (!errors.some((error) => error.includes(edit.error)))
       problems.push(
         `${page.source}: the edit gives ${errors.length ? errors.join("; ") : "no error"}, not '${edit.error}'`,

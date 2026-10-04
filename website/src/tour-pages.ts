@@ -8,17 +8,25 @@
 //   # The claim               (the headline)
 //   Prose...
 //   ```hd                     (the snippet the editor opens with)
-//   ```edit                   (optional: a one-line edit and the error it gives)
+//   ```edit                   (optional: a one-line edit and what it breaks)
 //   replace: <a whole line of the snippet>
-//   with: <its replacement>
+//   with: <its replacement, or nothing to delete the line>
 //   error: <code: message the check prints>
 //   ```
 //   ```output                 (the console output of a run)
 //   ```
+//   ```tests                  (the summary Test prints, such as `2 tests passed`)
+//   ```
+//
+// A page has an output block, a tests block, or both; a tests block gives
+// the editor a Test button. An edit names either the compile error it gives
+// (`error:`) or, on a page with a tests block, the failure Test reports for
+// code that still compiles (`failure:`).
 //
 // website/src/learn-check.ts checks that each snippet compiles and that each
-// edit gives its error; website/playground/test/runner.test.ts runs each
-// snippet through the playground's pipeline and compares the output.
+// edit gives its error; website/playground/test/runner.test.ts runs and
+// tests each snippet through the playground's pipeline and compares the
+// output and the summary.
 // website/src/tour.ts renders the pages.
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -30,13 +38,22 @@ export const TOUR_DIR = "website/tour";
 /** The tour's contents page. */
 export const TOUR_INDEX = "tour/index.html";
 
-export interface TourEdit {
+export type TourEdit = {
   /** A whole line of the snippet, as written. */
   readonly replace: string;
   readonly with: string;
-  /** `code: message` of the diagnostic the edited snippet gives. */
-  readonly error: string;
-}
+} & (
+  | {
+      /** `code: message` of the diagnostic the edited snippet gives. */
+      readonly error: string;
+      readonly failure?: undefined;
+    }
+  | {
+      /** Text of the failing summary Test gives for the edited snippet. */
+      readonly failure: string;
+      readonly error?: undefined;
+    }
+);
 
 export interface TourPage {
   /** 1-based position in the tour. */
@@ -52,8 +69,10 @@ export interface TourPage {
   readonly prose: string;
   readonly code: string;
   readonly edit?: TourEdit;
-  /** Console lines a run prints. */
-  readonly output: readonly string[];
+  /** Console lines a run prints, when the page has an output block. */
+  readonly output?: readonly string[];
+  /** The summary Test prints, when the page has a tests block. */
+  readonly tests?: string;
 }
 
 /** Output path of a tour page relative to the site root. */
@@ -71,14 +90,26 @@ const FENCE = /^```(\w+)\n([\s\S]*?)^```[ \t]*\n?/gm;
 function parseEdit(source: string, text: string): TourEdit {
   const fields = new Map<string, string>();
   for (const line of text.split("\n").filter((line) => line !== "")) {
-    const match = /^(replace|with|error): (.*)$/.exec(line);
-    if (!match) throw new Error(`${source}: edit block line '${line}' is not replace/with/error`);
-    fields.set(match[1]!, match[2]!);
+    // An empty `with:` deletes the line.
+    const match = /^(replace|with|error|failure):(?: (.*))?$/.exec(line);
+    if (!match)
+      throw new Error(`${source}: edit block line '${line}' is not replace/with/error/failure`);
+    fields.set(match[1]!, match[2] ?? "");
   }
-  const [replace, replacement, error] = ["replace", "with", "error"].map((key) => fields.get(key));
-  if (replace === undefined || replacement === undefined || error === undefined)
-    throw new Error(`${source}: an edit block needs replace:, with:, and error:`);
-  return { replace, with: replacement, error };
+  const [replace, replacement, error, failure] = ["replace", "with", "error", "failure"].map(
+    (key) => fields.get(key),
+  );
+  if (
+    replace === undefined ||
+    replacement === undefined ||
+    (error === undefined) === (failure === undefined)
+  )
+    throw new Error(
+      `${source}: an edit block needs replace:, with:, and one of error: or failure:`,
+    );
+  return error === undefined
+    ? { replace, with: replacement, failure: failure! }
+    : { replace, with: replacement, error };
 }
 
 export function parseTourPage(source: string, text: string, number: number): TourPage {
@@ -94,13 +125,21 @@ export function parseTourPage(source: string, text: string, number: number): Tou
   });
   const code = blocks.get("hd");
   const output = blocks.get("output");
-  if (code === undefined || output === undefined)
-    throw new Error(`${source}: a tour page needs one \`\`\`hd and one \`\`\`output block`);
-  const unknown = [...blocks.keys()].filter((info) => !["hd", "edit", "output"].includes(info));
+  const tests = blocks.get("tests")?.trim();
+  if (code === undefined || (output === undefined && tests === undefined))
+    throw new Error(
+      `${source}: a tour page needs one \`\`\`hd block and an \`\`\`output or \`\`\`tests block`,
+    );
+  const unknown = [...blocks.keys()].filter(
+    (info) => !["hd", "edit", "output", "tests"].includes(info),
+  );
   if (unknown.length > 0) throw new Error(`${source}: unknown block \`\`\`${unknown[0]}`);
   const heading = /^# (.+)\n/m.exec(body);
   if (!heading) throw new Error(`${source}: a tour page needs a # headline`);
-  const edit = blocks.get("edit");
+  const editText = blocks.get("edit");
+  const edit = editText === undefined ? undefined : parseEdit(source, editText);
+  if (edit?.failure !== undefined && tests === undefined)
+    throw new Error(`${source}: a failure: edit needs a \`\`\`tests block`);
   return {
     number,
     slug,
@@ -109,8 +148,9 @@ export function parseTourPage(source: string, text: string, number: number): Tou
     claim: heading[1]!.trim(),
     prose: body.slice(heading.index + heading[0].length).trim(),
     code,
-    edit: edit === undefined ? undefined : parseEdit(source, edit),
-    output: output.replace(/\n$/, "").split("\n"),
+    edit,
+    output: output?.replace(/\n$/, "").split("\n"),
+    tests,
   };
 }
 
