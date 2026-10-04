@@ -78,7 +78,7 @@ interface CallableAdapter {
   readonly typeSubstitutions: readonly HirTypeSubstitution[];
 }
 
-export interface CallableStorageAdapter {
+interface CallableStorageAdapter {
   readonly index: number;
   readonly type: ValueType;
 }

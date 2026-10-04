@@ -32,7 +32,7 @@ export function importsFactsOf(program: Program): boolean {
 }
 
 /** The local name of an imported `std.annotation.facts_of`, if any. */
-export function factsOfName(program: Program): string | undefined {
+function factsOfName(program: Program): string | undefined {
   for (const use of program.uses) {
     if (use.module !== ANNOTATION_MODULE) continue;
     const imported = use.names.find((name) => name.name === "facts_of");

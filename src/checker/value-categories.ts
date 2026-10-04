@@ -31,7 +31,7 @@ export function traitImpliesValueCategory(
   });
 }
 
-export interface ValueCategoryEnvironment {
+interface ValueCategoryEnvironment {
   readonly dataTypes: ReadonlyMap<string, HirData>;
   readonly enumTypes: ReadonlyMap<string, HirEnum>;
   readonly referenceParameters?: ReadonlySet<string>;

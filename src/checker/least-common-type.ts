@@ -10,12 +10,12 @@ import {
 } from "../types.ts";
 import { conversionVariances, varianceConversion } from "./variance.ts";
 
-export interface TypeDeclarations {
+interface TypeDeclarations {
   readonly data: ReadonlyMap<string, HirData>;
   readonly enums: ReadonlyMap<string, HirEnum>;
 }
 
-export type LeastCommonType =
+type LeastCommonType =
   | { readonly type: ValueType }
   | { readonly code: "no-common-type" | "no-least-common-type" };
 

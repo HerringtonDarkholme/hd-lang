@@ -14,7 +14,7 @@ import {
 } from "../types.ts";
 
 /** The generic parameters in scope at a declaration, by kind. */
-export interface GenericKinds {
+interface GenericKinds {
   readonly types: ReadonlySet<string>;
   /** The parameters declared `$R` (11-requirements-and-suspension.md#r-req.row.param.marked). */
   readonly rows: ReadonlySet<string>;

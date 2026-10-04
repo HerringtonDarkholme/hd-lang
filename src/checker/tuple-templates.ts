@@ -30,7 +30,7 @@ import type { Generated } from "./typed-derivation.ts";
 // every trait the program sees is instantiated for them.
 
 /** A tuple's shape: its fixed elements, and whether a rest element `List[T]...` follows them. */
-export interface TupleShape {
+interface TupleShape {
   readonly fixed: number;
   readonly rest: boolean;
 }
@@ -51,7 +51,7 @@ export interface TupleInstance extends TupleShape {
 const shapeKey = (shape: TupleShape): string => `${shape.fixed}${shape.rest ? "+" : ""}`;
 
 /** The tuple shapes in each type text, tuple expression, and implementation target of `node`. */
-export function tupleShapes(node: unknown): TupleShape[] {
+function tupleShapes(node: unknown): TupleShape[] {
   const shapes = new Map<string, TupleShape>();
   const add = (shape: TupleShape): void => {
     shapes.set(shapeKey(shape), shape);
@@ -109,7 +109,7 @@ export function tupleShapesInJoinedProgram(program: Program): readonly TupleShap
 }
 
 /** The synthetic target, type, and variant of a tuple shape (annot.tuple.*). */
-export function tupleTarget(
+function tupleTarget(
   shape: TupleShape,
   span: SourceSpan,
 ): { readonly target: Target; readonly type: string; readonly variant: VariantModel } {
@@ -194,7 +194,7 @@ function firstBound(method: ImplDecl["methods"][number]): readonly string[] {
  * describers, and sources that the template passes
  * (annot.template.tuple.implements, annot.walker.obligation).
  */
-export function elementBound(
+function elementBound(
   compiled: CompiledTemplate,
   implementations: readonly ImplDecl[],
   renames: ReadonlyMap<string, string>,
@@ -210,7 +210,7 @@ export function elementBound(
  * implementation for `List[T]`, and with none, as for `Hash`, no rest
  * tuple has the trait.
  */
-export function restBound(
+function restBound(
   compiled: CompiledTemplate,
   elements: readonly string[],
   implementations: readonly ImplDecl[],
@@ -244,7 +244,7 @@ export function restBound(
 }
 
 /** Whether the walker implementation for `visitor` declares `rest`. */
-export function implementsRest(
+function implementsRest(
   implementations: readonly ImplDecl[],
   walker: string,
 ): (visitor: string) => boolean {

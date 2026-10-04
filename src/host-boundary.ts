@@ -2,7 +2,7 @@ import type { HirData, HirEnum, HirProgram, ValueType } from "./hir.ts";
 import { NUMERIC_TYPES } from "./numeric.ts";
 import { nominalGenericParts, optionalInner, tupleParts } from "./types.ts";
 
-export interface PayloadlessEnumValue {
+interface PayloadlessEnumValue {
   readonly enumIndex: number;
   readonly tag: number;
 }
@@ -45,7 +45,7 @@ export function isBoundaryScalar(type: ValueType): boolean {
  * substitution over a data shape's `arguments` stays with the caller, next
  * to the recursion each site already owns.
  */
-export type BoundaryShape =
+type BoundaryShape =
   | { readonly kind: "scalar"; readonly type: ValueType }
   | { readonly kind: "string" }
   | { readonly kind: "optional"; readonly inner: ValueType }

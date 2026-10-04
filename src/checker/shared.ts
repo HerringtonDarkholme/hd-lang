@@ -615,7 +615,7 @@ export function containsGenericType(type: ValueType): boolean {
 }
 
 /** Whether `type` structurally contains the named generic parameter. */
-export function containsGenericParameter(type: ValueType, parameter: string): boolean {
+function containsGenericParameter(type: ValueType, parameter: string): boolean {
   if (genericTypeName(type) === parameter) return true;
   const inputs = inputsInner(type) ?? restInner(type);
   if (inputs !== undefined) return containsGenericParameter(inputs, parameter);

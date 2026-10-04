@@ -53,7 +53,7 @@ export type StandardModule = (typeof STANDARD_MODULES)[number];
  * than the loader: `std.structure` (checker/typed-derivation.ts) and
  * `std.inspect` (checker/standard-traits.ts).
  */
-export type CompilerModule = "structure" | "inspect";
+type CompilerModule = "structure" | "inspect";
 
 const sources = new Map<string, string>();
 const documents = new Map<string, SourceDocument>();

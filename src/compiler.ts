@@ -26,7 +26,7 @@ import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
 import { emissionReachability, traitMethodKey } from "./emitter/reachability.ts";
 
 /** A checked program and its WAT, before Wasm assembly. */
-export interface WatCompilation {
+interface WatCompilation {
   readonly wat: string;
   readonly hir: HirProgram;
   readonly diagnostics: readonly Diagnostic[];
@@ -225,7 +225,7 @@ interface FunctionIdentity {
 
 type HostImport = (...arguments_: unknown[]) => unknown;
 
-export interface InstantiateOptions {
+interface InstantiateOptions {
   readonly console?: (text: string, provider: unknown) => void;
   readonly consoleError?: (text: string, provider: unknown) => void;
   readonly trace?: (functionIndex: number, event: SuspensionTraceEvent) => void;

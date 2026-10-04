@@ -3,7 +3,7 @@
 // flag. src/README.md (CLI) documents the commands.
 
 /** A flag a command accepts. */
-export interface FlagSpec {
+interface FlagSpec {
   /** The spelling, such as `--seed`. */
   readonly name: string;
   /** The value's placeholder, such as `N`; absent for a switch. */
@@ -20,7 +20,7 @@ export interface FlagSpec {
   readonly conformance?: boolean;
 }
 
-export interface CommandSpec {
+interface CommandSpec {
   /** `build`, or `debug hir` for a subcommand. */
   readonly name: string;
   /** What follows the flags in the usage line, such as `FILE`. */
@@ -91,7 +91,7 @@ const PACKAGE_NOTE =
 
 const PARSE_SUMMARY = "parse FILE and its tests: block, and print 'FILE: ok'";
 
-export const COMMANDS: readonly CommandSpec[] = [
+const COMMANDS: readonly CommandSpec[] = [
   {
     name: "build",
     operands: "FILE",

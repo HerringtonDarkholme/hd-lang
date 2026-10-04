@@ -196,7 +196,7 @@ export function inspectableBuiltin(
 }
 
 /** Merges adjacent literal parts. */
-export function compactKey(parts: readonly InspectKeyPart[]): InspectKeyPart[] {
+function compactKey(parts: readonly InspectKeyPart[]): InspectKeyPart[] {
   const result: InspectKeyPart[] = [];
   for (const part of parts) {
     const last = result.at(-1);

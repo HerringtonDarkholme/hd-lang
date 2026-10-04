@@ -74,7 +74,7 @@ export function calledTraitMethods(program: HirProgram): ReadonlySet<string> {
  * calls, function values, closures, default arguments, or dictionary plans.
  * Keep original indices: references and replay identities are not renumbered.
  */
-export interface EmissionReachability {
+interface EmissionReachability {
   readonly program: HirProgram;
   readonly traitMethods: ReadonlySet<string>;
 }

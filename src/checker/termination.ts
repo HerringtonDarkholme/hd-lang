@@ -7,7 +7,7 @@ import { matchTraitImplementation, traitTypeName } from "./shared.ts";
 import { HIDDEN_EXIT_CODE, HIDDEN_TERMINATION } from "./standard-traits.ts";
 
 /** The synthetic function name of an `it(...)` test case. */
-export const TEST_FUNCTION = /^\$test\.\d+$/;
+const TEST_FUNCTION = /^\$test\.\d+$/;
 
 /** A `?` met while a function's result is inferred; `error` is unset for an optional. */
 export interface InferredPropagation {
@@ -39,7 +39,7 @@ export function mismatchedPropagation(
 }
 
 /** The local name of `std.process.Termination`, declared when std.process is imported. */
-export function terminationTraitName(imports: ReadonlyMap<string, string>): string {
+function terminationTraitName(imports: ReadonlyMap<string, string>): string {
   for (const [local, qualified] of imports)
     if (qualified === "std.process.Termination") return local;
   return HIDDEN_TERMINATION;
@@ -50,10 +50,7 @@ export function terminationTraitName(imports: ReadonlyMap<string, string>): stri
  * or a `Result` over one. The prototype does not call a program's own
  * `Termination` implementation for `main`.
  */
-export function runnableEntryResult(
-  type: ValueType,
-  imports: ReadonlyMap<string, string>,
-): boolean {
+function runnableEntryResult(type: ValueType, imports: ReadonlyMap<string, string>): boolean {
   if (type === "void" || type === "never") return true;
   const target = readonlyType(type);
   const parts = resultParts(target);
@@ -67,7 +64,7 @@ export function runnableEntryResult(
 // std.process.Termination (spec/lang/10-modules.md#exit-status): `void`,
 // `Result[T, E]` with a terminating `T` and a `Display` error, or a type with
 // a `Termination` implementation, such as `ExitCode`.
-export function terminates(
+function terminates(
   type: ValueType,
   traitTypes: ReadonlyMap<string, HirTrait>,
   implementations: readonly HirTraitImplementation[],

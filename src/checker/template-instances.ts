@@ -25,8 +25,8 @@ export const TUPLE_REST = "hd_R";
 // ---------------------------------------------------------------------------
 // Generic AST helpers.
 
-export const TYPE_KEYS = new Set(["type", "result", "annotation", "alias", "base"]);
-export const TYPE_LIST_KEYS = new Set(["typeArguments", "ownerTypeArguments", "supertraits"]);
+const TYPE_KEYS = new Set(["type", "result", "annotation", "alias", "base"]);
+const TYPE_LIST_KEYS = new Set(["typeArguments", "ownerTypeArguments", "supertraits"]);
 
 export function isTypeRef(value: unknown): value is TypeRef {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -44,7 +44,7 @@ export function renameWords(text: string, renames: ReadonlyMap<string, string>):
 }
 
 /** Renames generic parameters in every type position of `node`. */
-export function renameTypes<T>(node: T, renames: ReadonlyMap<string, string>): T {
+function renameTypes<T>(node: T, renames: ReadonlyMap<string, string>): T {
   if (Array.isArray(node)) return node.map((item) => renameTypes(item, renames)) as T;
   if (!node || typeof node !== "object") return node;
   const result: Record<string, unknown> = {};
@@ -97,7 +97,7 @@ export function headName(type: string): string {
 }
 
 /** The declared type of local `name` in a method body. */
-export function localType(statements: readonly Statement[], name: string): string | undefined {
+function localType(statements: readonly Statement[], name: string): string | undefined {
   let type: string | undefined;
   visit(statements, (value) => {
     if (value.kind !== "binding" || value.name !== name || type !== undefined) return;
@@ -129,7 +129,7 @@ export function sourceMemberBound(support: readonly ImplDecl[], source: string):
 }
 
 /** The `Error` type an implementation of `protocol` for `type` declares. */
-export function protocolError(
+function protocolError(
   implementations: readonly ImplDecl[],
   protocol: string,
   type: string,
@@ -157,7 +157,7 @@ export function protocolError(
 // A template checked once.
 
 /** One call of `walk`, `describe`, or `build` in a template. */
-export interface TemplateSite {
+interface TemplateSite {
   readonly traversal: "walk" | "describe" | "build";
   /** The walker, describer, or source type, written with the template's parameter. */
   readonly visitor: string;
@@ -185,7 +185,7 @@ export interface CompiledTemplate {
 }
 
 /** The receiver of a template method, as a parameter of its function. */
-export const TEMPLATE_SELF = "hd_self";
+const TEMPLATE_SELF = "hd_self";
 
 export function compileTemplate(
   template: ImplDecl,
@@ -372,7 +372,7 @@ export function compileTemplate(
 }
 
 /** What one derivation's two implementations are built from. */
-export interface InstanceInput {
+interface InstanceInput {
   readonly compiled: CompiledTemplate;
   readonly block?: ImplDecl;
   /** The target's declared name, its parameters, and its type with them. */
@@ -534,7 +534,7 @@ export function instanceImplementations(input: InstanceInput): {
 // ---------------------------------------------------------------------------
 // Newtypes derive through their base (annot.derive.means, trait.derive.newtype).
 
-export function forwardingAllowed(type: string): boolean {
+function forwardingAllowed(type: string): boolean {
   if (!/\bSelf\b/.test(type)) return true;
   const plain = readonlyType(type);
   return (
@@ -550,7 +550,7 @@ export function forwardingAllowed(type: string): boolean {
  * newtype's base type without the trait is an unsatisfied bound at the call
  * (trait.derive.newtype.requires.error).
  */
-export function newtypeHelper(
+function newtypeHelper(
   trait: string,
   method: MethodDecl,
   parameter: string,
