@@ -72,6 +72,20 @@ test("--filter matching nothing in a named FILE is an error, but not in a packag
   });
 });
 
+test("a workspace manifest says workspaces are not supported yet", async () => {
+  await withPackage(async (directory) => {
+    await writeFile(join(directory, "hd.toml"), '[workspace]\nmembers = ["a"]\n');
+    for (const command of ["check", "build", "test", "run", "fetch"]) {
+      const ran = await runHd([command], { cwd: directory });
+      assert.equal(ran.status, 101);
+      assert.match(ran.stderr, /does not support workspaces yet/);
+    }
+    // A directory word no longer points at -p.
+    const word = await runHd(["check", "src"], { cwd: directory });
+    assert.doesNotMatch(word.stderr, /-p NAME|workspace member/);
+  });
+});
+
 test("--deny-skipped passes when no test case is skipped", async () => {
   await withPackage(async (directory) => {
     const ran = await runHd(["test", "tests/good.hd", "--deny-skipped"], { cwd: directory });

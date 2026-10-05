@@ -62,7 +62,7 @@ async function directoryWord(
 ): Promise<boolean> {
   if (!(await isDirectory(resolve(workingDirectory(environment), word)))) return false;
   report.commandError(
-    `hd ${command}: '${word}' is a directory, which is neither a NAME nor a FILE; to work on a workspace member, select it with -p NAME`,
+    `hd ${command}: '${word}' is a directory, which is neither a NAME nor a FILE; to work on it, run hd ${command} inside that directory`,
   );
   return true;
 }

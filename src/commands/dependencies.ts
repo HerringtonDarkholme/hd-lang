@@ -135,7 +135,7 @@ async function dependencyCommand(
   if (mode.kind !== "package") {
     report.commandError(
       mode.kind === "workspace"
-        ? `hd ${command}: ${join(mode.root, MANIFEST_FILE)} is a workspace manifest; run hd ${command} inside a member's directory`
+        ? `hd ${command}: ${join(mode.root, MANIFEST_FILE)} is a workspace manifest, and the prototype does not support workspaces yet; run hd ${command} inside a member's directory`
         : `hd ${command}: not in a package (no ${MANIFEST_FILE} in ${start} or a directory above it); create one with hd new`,
     );
     return report.finish(EXIT_HD_FAILURE);
