@@ -58,6 +58,34 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### BD. Hints From Usability Probe 2
+
+Probe 2 (Haiku, rows dated 2026-10-05 "usability probe 2" in
+`audit/hd-writing-log.md`) wrote three real programs. Its two worst
+problems had unhelpful messages. Message and docs only; no rule changes.
+
+1. **Importing the package under test.** In `tests/integration.hd`,
+   `use self.{Item, total_value}` gives `unknown-module: no package module
+   'tests'`, and the probe gave up and copied the code into the test.
+   The right form is `use pkg.{Item, total_value}`, which the file that
+   `hd new` generates already uses. In an integration test module, when a
+   `self` (or bare) path doesn't resolve, add: "an integration test sees
+   the package as a dependent does: write `use pkg.{Item, total_value}`".
+   Also make the base message name the real path instead of 'tests'.
+2. **`?` in a function that returns `void`.** `main!() -> void` using
+   `write_line!(...)?` gives `invalid-result-propagation: Result
+   propagation requires a function with a compatible Result error type`.
+   Add the fix: "change the result type to `Result[void, ConsoleError]`
+   (the error type of `write_line!`)", naming the actual error type, or
+   suggest `println` when the call is `Console` output.
+3. **Guide.** `guide/LANGUAGE_TOUR.md` (and `guide/LEARN_IN_10_MINUTES.md`
+   if it covers tests): in the testing section, show an integration test
+   that imports the package with `use pkg.{...}`, reads a fixture through
+   its relative path (tests run from the package root), and has its cases
+   at the top level, not in a `tests:` block. Keep examples realistic.
+
+Add a test per message.
+
 ### BB. Messages Never Show Hidden Names
 
 Found while reviewing AT. A message printed the linker's hidden name:
