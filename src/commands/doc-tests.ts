@@ -28,6 +28,8 @@ import {
 export interface TestTally {
   passed: number;
   failed: number;
+  /** Skipped test cases (spec/lang/10-modules.md#r-module.testing.skipped). */
+  skipped: number;
   /** The test cases the run selected, by `--filter` (cli.test.filter). */
   selected: number;
   /** Every test case, selected or not. */

@@ -33,11 +33,17 @@ type Exports = WebAssembly.Exports;
 export interface TestReporting {
   readonly record: (
     name: string,
-    outcome: "passed" | "failed" | "ignored",
+    outcome: "passed" | "failed" | "ignored" | "skipped",
     message: string,
   ) => void;
   /** Run every test case after a failure, and record a panic as a failure. */
   readonly keepGoing: boolean;
+  /**
+   * Why the runner does not run a test case, or undefined when it does: an
+   * integration test case whose row names a trait the profile does not
+   * bind is skipped (spec/lang/10-modules.md#r-module.testing.skipped).
+   */
+  readonly skip?: (declaration: HirFunction) => string | undefined;
 }
 
 function exportName(declaration: HirFunction): string {
@@ -274,6 +280,11 @@ export async function runSelected(
         "ignored",
         declaration.testOptions.ignore,
       );
+      continue;
+    }
+    const skipped = reporting?.skip?.(declaration);
+    if (skipped !== undefined) {
+      reporting?.record(caseName(declaration, undefined), "skipped", skipped);
       continue;
     }
     if (declaration.testOptions.property) {

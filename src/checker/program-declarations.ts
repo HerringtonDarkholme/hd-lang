@@ -67,6 +67,10 @@ function createTestDeclarations(
       result: test.result ?? { name: "void", span: test.span },
       ...(inferred ? { resultOmitted: true } : {}),
       requirements: [runners.test, ...(test.property ? [runners.property] : []), ...hostRow],
+      // An integration test case's row is its body's: one that names a trait
+      // the profile does not bind is skipped when it runs, not rejected
+      // (spec/lang/10-modules.md#r-module.testing.skipped).
+      ...(hostRow.length > 0 ? { requirementsOmitted: true } : {}),
       body: bindTestBodyRequirements(test.body, runners.test),
       testOnly: true,
       testOptions: options,

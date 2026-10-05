@@ -132,9 +132,9 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `--wat` prints the WAT. Outside any package `hd build` and `hd run` are
   errors, and `hd check` and `hd test` need a FILE.
 - `hd run [NAME]` runs the executable or task NAME, or the package's one
-  executable. `hd run FILE` and a directory word are errors. The prototype
-  has no file system capability, so a task's working directory, the package
-  directory by `cli.run.cwd.task`, has no effect yet.
+  executable. `hd run FILE` and a directory word are errors. A task runs in
+  its package directory, and an executable in `hd`'s working directory
+  (`cli.run.cwd.task`, `cli.run.cwd.executable`).
 - `hd test` without FILE checks the executables, then tests each module
   under `src/` and `tasks/` and each integration test program (a file
   directly under `tests/`), one link each, in path order, running only that
@@ -373,8 +373,14 @@ hd check --format json app.hd > diagnostics.jsonl
 (Each record is printed on one line; the diagnostic is spread out here to read.)
 
 A test object is `{"kind":"test","name","outcome","message"}`, with `outcome`
-`passed`, `failed`, or `ignored` (the prototype has no skipped test case) and
-the failure or ignore reason in `message`. With `--format json`, `hd test`
+`passed`, `failed`, `skipped`, or `ignored`, and the failure, skip, or ignore
+reason in `message`. An integration test case or a doc test is skipped when
+its row names a trait the run's profile does not bind
+(`profileSkip` in `commands/test-host.ts`): the checker infers such a test
+case's row from its body instead of rejecting the extra trait. In text, a
+skip prints a line and the file's result line counts it; with
+`--deny-skipped` the run exits 1, and the object's outcome stays
+`skipped`. With `--format json`, `hd test`
 runs every test case after a failure, and lists the objects in file path
 order, then declaration order. The summary object counts `errors`,
 `warnings`, and each outcome, and holds the command's exit `status`.

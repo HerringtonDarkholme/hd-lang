@@ -33,7 +33,7 @@ import {
 } from "./io.ts";
 import { packageMode, type Executable, type LocalPackage } from "./package-mode.ts";
 import { executableProcesses, isProcessCall, type ProcessProvider } from "./processes.ts";
-import { integrationTestHost, TEST_TEMP_DIRS } from "./test-host.ts";
+import { integrationTestHost, profileSkip, TEST_TEMP_DIRS } from "./test-host.ts";
 import {
   exportedFunction,
   RUNTIME_PROFILES,
@@ -394,7 +394,13 @@ async function testWithDocTests(
   placement: PackagePlacement,
   options: { readonly quietWhenEmpty: boolean; readonly processes?: ProcessProvider },
 ): Promise<number> {
-  const tally: TestTally = { passed: 0, failed: 0, selected: 0, registered: docs.length };
+  const tally: TestTally = {
+    passed: 0,
+    failed: 0,
+    skipped: 0,
+    selected: 0,
+    registered: docs.length,
+  };
   const module: DocTestModule = { ...args, report, file: loaded.file, placement };
   // `--filter` matches a doc test by its name (cli.test.doc.filter).
   const filter = args.filter;
@@ -414,7 +420,7 @@ async function testWithDocTests(
         if (outcome === "failed") rewritten = snapshotRewrite(test, message, moduleSource);
         return rewritten !== undefined;
       };
-      const counts: TestTally = { passed: 0, failed: 0, selected: 0, registered: 0 };
+      const counts: TestTally = { passed: 0, failed: 0, skipped: 0, selected: 0, registered: 0 };
       const status = await execute(doc, io, {
         kind: "test",
         ...args,
@@ -426,6 +432,7 @@ async function testWithDocTests(
       if (rewritten === undefined) {
         tally.passed += counts.passed;
         tally.failed += counts.failed;
+        tally.skipped += counts.skipped;
         return status;
       }
       moduleSource = rewritten;
@@ -460,11 +467,22 @@ async function testWithDocTests(
     loaded.reporter.noTestCases(tally.registered > 0 ? filter : undefined);
     return EXIT_HD_FAILURE;
   }
-  if (args.format === "text" && tally.passed + tally.failed > 0)
-    io.out(
-      `${loaded.file}: ${tally.passed} passed${tally.failed > 0 ? `, ${tally.failed} failed` : ""}`,
-    );
+  if (args.format === "text" && tally.passed + tally.failed + tally.skipped > 0)
+    io.out(resultLine(loaded.file, tally));
   return tally.failed > 0 ? combinedStatus(status, 1) : status;
+}
+
+/**
+ * A file's result line in text: its passed test cases, then its failed and
+ * skipped ones when there are any (spec/cli/command-line.md#r-cli.test.summary.skipped).
+ */
+function resultLine(
+  file: string,
+  counts: { readonly passed: number; readonly failed: number; readonly skipped: number },
+): string {
+  const failed = counts.failed > 0 ? `, ${counts.failed} failed` : "";
+  const skipped = counts.skipped > 0 ? `, ${counts.skipped} skipped` : "";
+  return `${file}: ${counts.passed} passed${failed}${skipped}`;
 }
 
 /**
@@ -613,11 +631,13 @@ export async function execute(
   // cases that passed before the failure ended the run, and the failure.
   let running = false;
   let passedCases = 0;
+  let skippedCases = 0;
   const failedLine = (): void => {
     if (test?.tally) {
       test.tally.passed += passedCases;
       test.tally.failed += 1;
-    } else if (test?.format === "text") io.out(`${file}: ${passedCases} passed, 1 failed`);
+    } else if (test?.format === "text")
+      io.out(resultLine(file, { passed: passedCases, failed: 1, skipped: skippedCases }));
   };
   // `hd test` keeps a test case's `dbg` lines and shows them only when it
   // fails; `hd run` writes them to standard error (spec/cli/command-line.md#debug-output).
@@ -769,6 +789,14 @@ export async function execute(
         record: (name, outcome, message) => {
           if (test.intercept?.(name, outcome, message)) return;
           if (outcome === "passed") passedCases += 1;
+          if (outcome === "skipped") {
+            skippedCases += 1;
+            if (test.tally) test.tally.skipped += 1;
+            if (test.format === "text")
+              io.out(
+                `${file}: test "${name}" skipped: ${message}${test.denySkipped ? ", which --deny-skipped makes a failure" : ""}`,
+              );
+          }
           if (outcome === "failed") {
             showDebugLines();
             if (test.tally) test.tally.failed += 1;
@@ -780,6 +808,17 @@ export async function execute(
         // With `--format json` every test case reports (cli.json.test), so a
         // failure does not stop the run.
         keepGoing: test.keepGoing ?? test.format === "json",
+        // An integration test case, or a doc test, whose row names a trait
+        // the profile does not bind is skipped (spec/lang/10-modules.md#r-module.testing.skipped).
+        ...(loaded.compileOptions.integrationTest
+          ? {
+              skip: profileSkip(
+                compilation.hir.traits,
+                test.profile ?? "default",
+                runtimeProfile?.hostCapabilities ?? [],
+              ),
+            }
+          : {}),
       },
       test && TEST_TEMP_DIRS,
     );
@@ -792,10 +831,10 @@ export async function execute(
     }
     if (test) {
       if (test.tally) test.tally.passed += outcome.count;
-      else if (test.format === "text" && (outcome.count > 0 || !test.quietWhenEmpty))
-        io.out(`${file}: ${outcome.count} passed`);
+      else if (test.format === "text" && (outcome.count + skippedCases > 0 || !test.quietWhenEmpty))
+        io.out(resultLine(file, { passed: outcome.count, failed: 0, skipped: skippedCases }));
       // With --deny-skipped, a skipped test case is a failure (cli.test.deny-skipped).
-      if (test.denySkipped && loaded.output.counts.skipped > 0) return 1;
+      if (test.denySkipped && skippedCases > 0) return 1;
       return loaded.output.counts.failed > 0 ? 1 : 0;
     }
     if (outcome.result !== undefined) io.out(outcome.result);

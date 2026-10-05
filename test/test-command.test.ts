@@ -119,6 +119,36 @@ test("--deny-skipped passes when no test case is skipped", async () => {
   });
 });
 
+// An integration test case whose row names a trait the profile does not
+// bind is skipped, not an error (spec/lang/10-modules.md#r-module.testing.skipped).
+const NEEDS_REPO = [
+  "trait Repo:",
+  "    fn count(self) -> i32",
+  "",
+  "fn total() -> i32 $ Repo:",
+  "    $.use(Repo).count()",
+  "",
+  'it("needs a repo"):',
+  "    _ := total()",
+  "",
+].join("\n");
+
+test("a test case needing a trait the profile does not bind is skipped", async () => {
+  await withPackage(async (directory) => {
+    await writeFile(join(directory, "tests/repo.hd"), NEEDS_REPO);
+    const ran = await runHd(["test", "tests/repo.hd"], { cwd: directory });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.match(ran.stdout, /test "needs a repo" skipped: the default profile does not bind Repo/);
+    assert.match(ran.stdout, /^tests\/repo\.hd: 0 passed, 1 skipped$/m);
+    const json = await runHd(["test", "tests/repo.hd", "--format", "json"], { cwd: directory });
+    assert.equal(json.status, 0, json.stderr);
+    assert.match(json.stdout, /"outcome":"skipped"/);
+    assert.match(json.stdout, /"skipped":1/);
+    const denied = await runHd(["test", "tests/repo.hd", "--deny-skipped"], { cwd: directory });
+    assert.equal(denied.status, 1, denied.stderr);
+  });
+});
+
 // Each run of a test body gets its own temporary directory, which the
 // runner removes once the run ends, pass or fail
 // (spec/cli/command-line.md#r-cli.test.env.temp-dir,
