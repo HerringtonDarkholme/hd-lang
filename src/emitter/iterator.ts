@@ -30,7 +30,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
       `    ${list}`,
       `    (ref.null $hd.map)`,
       `    (i32.const 0)`,
-      `    (struct.get $hd.vector $hd.vector-version ${list})`,
+      `    (struct.get $hd.vector $hd.vector-size ${list})`,
       `    (ref.null none))`,
       `)`,
     ].join("\n");
@@ -46,7 +46,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
       `    (ref.null $hd.vector)`,
       `    ${map}`,
       `    (i32.const 0)`,
-      `    (struct.get $hd.map $hd.map-version ${map})`,
+      `    (struct.get $hd.map $hd.map-size ${map})`,
       `    (ref.null none))`,
       `)`,
     ].join("\n");
@@ -136,14 +136,13 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
     const resultValue = `(ref.as_non_null (local.get ${result}))`;
     const initialize =
       expression.kind === "list-comprehension"
-        ? `(struct.new $hd.vector (i32.const 0) (array.new_default $hd.list (i32.const 0)) (i32.const 0))`
+        ? `(struct.new $hd.vector (i32.const 0) (array.new_default $hd.list (i32.const 0)))`
         : [
             `(struct.new $hd.map`,
             `  (i32.const ${expression.keyKind})`,
             `  (i32.const 0)`,
             `  (array.new_default $hd.list (i32.const 0))`,
             `  (array.new_default $hd.list (i32.const 0))`,
-            `  (i32.const 0)`,
             `  ${this.keyEquality(expression.keyType, expression.keyKind, expression.keyDispatch, expression.keyDictionary)}`,
             `  (array.new_default $hd.map-index (i32.const 0))`,
             `  (array.new_default $hd.map-index (i32.const 0))`,
@@ -263,7 +262,6 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
     const prefix = kind === "list" ? "$hd.vector" : "$hd.map";
     const sourceField = kind === "list" ? "$hd.iterator-list" : "$hd.iterator-map";
     const source = `(ref.as_non_null (struct.get $hd.iterator ${sourceField} ${iterator}))`;
-    const version = `(struct.get ${prefix} ${prefix}-version ${source})`;
     const size = `(struct.get ${prefix} ${prefix}-size ${source})`;
     const index = `(struct.get $hd.iterator $hd.iterator-index ${iterator})`;
     const payload =
@@ -273,7 +271,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
     return [
       `(block (result (ref null $hd.variant))`,
       `  (if`,
-      `    (i32.ne ${version} (struct.get $hd.iterator $hd.iterator-version ${iterator}))`,
+      `    (i32.ne ${size} (struct.get $hd.iterator $hd.iterator-length ${iterator}))`,
       `    (then ${this.emitRuntimePanic("iterator-invalidated")}))`,
       `  (if (result (ref null $hd.variant))`,
       `    (i32.ge_u ${index} ${size})`,

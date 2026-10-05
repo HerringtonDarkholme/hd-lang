@@ -202,12 +202,7 @@
       (i32.add (local.get $size) (i32.const 1)))
     (struct.set $hd.map $hd.map-size
       (local.get $map)
-      (i32.add (local.get $size) (i32.const 1)))
-    (struct.set $hd.map $hd.map-version
-      (local.get $map)
-      (i32.add
-        (struct.get $hd.map $hd.map-version (local.get $map))
-        (i32.const 1))))
+      (i32.add (local.get $size) (i32.const 1))))
 
   (func $hd.map_get
     (param $map (ref $hd.map))
@@ -353,11 +348,6 @@
             (struct.set $hd.map $hd.map-size
               (local.get $map)
               (i32.sub (local.get $size) (i32.const 1)))
-            (struct.set $hd.map $hd.map-version
-              (local.get $map)
-              (i32.add
-                (struct.get $hd.map $hd.map-version (local.get $map))
-                (i32.const 1)))
             ;; The entry indices moved, so rebuild the index from the entries.
             (call $hd.map_reindex (local.get $map))
             (return

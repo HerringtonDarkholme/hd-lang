@@ -67,7 +67,7 @@ a `char`, or a list.
 | `bytes_concat` | `(a: string, b: string) -> string` | allocates a string's representation; hd has no byte buffer |
 | `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8 |
 | `char_scalar`, `char_from_scalar` | `(c: char) -> u32`, `(point: u32) -> char?` | a `char` is its scalar value at run time; `char_from_scalar` gives `.None` for a value that is not a Unicode scalar value, a surrogate or one above `0x10FFFF` |
-| `list_version` | `[T](items: List[T]) -> i32` | reads the structural version that [`flow.for.version`](../lang/06-control-flow.md#r-flow.for.version) counts, which `ListView` checks |
+| `list_truncate` | `[T](items: mut List[T], len: usize) -> void` | shortens a list to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at`, and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
 
 **Panic.** One primitive raises every checked runtime panic that `lib/std`
 raises with a category other than `explicit-panic`.

@@ -230,7 +230,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           expression.elements.length === 0
             ? `(array.new_default $hd.list (i32.const 0))`
             : `(array.new_fixed $hd.list ${expression.elements.length} ${expression.elements.map((element) => this.boxValue(element, expression.elementType)).join(" ")})`
-        } (i32.const 0))`;
+        })`;
       case "tuple":
         return expression.elements.length === 0
           ? `(array.new_default $hd.list (i32.const 0))`
@@ -246,7 +246,6 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           `      (i32.const 0)`,
           `      (array.new_default $hd.list (i32.const ${capacity}))`,
           `      (array.new_default $hd.list (i32.const ${capacity}))`,
-          `      (i32.const 0)`,
           `      ${this.keyEquality(expression.keyType, expression.keyKind, expression.keyDispatch, expression.keyDictionary)}`,
           `      (array.new_default $hd.map-index (i32.const ${capacity}))`,
           `      (array.new_default $hd.map-index (i32.const ${capacity}))`,

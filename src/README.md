@@ -1305,7 +1305,7 @@ What it provides:
 | `std.task` | `retry!`, and `race!`, which drives the frame of the `@intrinsic("task_race_frame")` builder; `all!`'s frame builder, `@intrinsic("task_all_frame")`; `block_on`, `all!` (which has no written signature), and `Waker` stay compiler-provided names of the module |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
-| `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip`, `view`; `ListView[T]` with `len`, `to_list`, `Index[i32]`, and `Iterable[T]`, which checks the list's structural version through the `list_version` intrinsic |
+| `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip`, `view`; `ListView[T]` with `len`, `to_list`, `Index[i32]`, and `Iterable[T]`, which checks the list's length |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List` and `Map` (not `Iterator`, which a loop advances directly) |
 | `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for every primitive, `PartialOrd` for the numbers, `char`, and `string`, and `Ord` for the integers, `char`, and `string`: bodiless `@intrinsic` methods, the numbers' in `impl[N < Num]` and `impl[N < Integer]` blocks, except `string`'s, which compare bytes in hd; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?`; the tuple templates of `Eq`, `PartialOrd`, and `Ord` |
@@ -1370,11 +1370,8 @@ RUNTIME_AND_LIBRARY.md).
      the string primitives `bytes_len`, `bytes_at`, `bytes_slice`,
      `bytes_concat`, and `string_from_bytes`,
      `char_from_scalar`, `char_scalar`,
-     `list_version`, `list_truncate`, and the frames `task_race_frame` and
-     `task_all_frame`. `list_version` reads a list's structural-version
-     counter, so `ListView` in `lib/std/collections.hd` fails fast as an
-     iterator does; it is the one intrinsic that the open issue VIEW-TIER
-     proposes. `list_truncate` shortens a list and advances that counter;
+     `list_truncate`, and the frames `task_race_frame` and
+     `task_all_frame`. `list_truncate` shortens a list;
      `pop`, `insert`, `remove_at`, and `clear` are hd code over it.
    - Every other name is a **host function**, imported as `hd`
      `host:<name>` through one generic path. Scalars cross as Wasm numbers,

@@ -915,7 +915,7 @@ The following built-in methods are normative:
 | `clear()` | `[]` |
 
 > **Note.** `push`, `insert`, `remove_at`, and a `pop` or `clear` that
-> removes an element change the list's shape, so each invalidates the
+> removes an element change the list's length, so each invalidates the
 > list's iterators by
 > [`flow.for.invalidate`](06-control-flow.md#r-flow.for.invalidate).
 

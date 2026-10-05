@@ -311,12 +311,16 @@ fn invalid(n: i32) -> void:
 
 ### Iterator Invalidation
 
-1. r[flow.for.version] Built-in list and map iterators capture a structural-version counter.
-2. r[flow.for.invalidate] Inserting, removing, clearing, or otherwise changing collection shape invalidates existing iterators.
+1. r[flow.for.length] Built-in list and map iterators capture the collection's length when they are created.
+2. r[flow.for.invalidate] An iterator is invalidated when the collection's length differs from the captured length.
 3. r[flow.for.invalidate.panic] An invalidated iterator's next `next` call causes a checked runtime panic, even when the iterator was already exhausted. Panic: `iterator-invalidated`.
-4. r[flow.for.replace] Replacing an existing list element or map value without changing collection shape does not invalidate the iterator.
+4. r[flow.for.replace] Replacing an existing list element or map value keeps the length, so it does not invalidate the iterator.
 5. r[flow.for.replace.observed] Later visits observe the replacement.
 6. r[flow.for.user-defined] User-defined iterables must document equivalent mutation behavior in their own contract.
+
+> **Note.** The check compares lengths only, so a removal and an addition
+> between two `next` calls that restore the length are not detected. This is
+> memory-safe: the iterator reads the collection's current contents.
 
 ## While Loops
 

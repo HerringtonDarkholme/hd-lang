@@ -48,10 +48,6 @@ const RUNTIME_PRIMITIVES: Readonly<
       `  (else (struct.new $hd.variant (i32.const 1) (struct.new $hd.box-i32 ${point}))))`,
     ].join("\n"),
   char_scalar: ([value]) => value!,
-  // A list's structural-version counter, which `List.view` records and checks
-  // (spec/std/collections.md#views, open issue VIEW-TIER).
-  list_version: ([items]) =>
-    `(struct.get $hd.vector $hd.vector-version (ref.as_non_null ${items}))`,
   // Shrinks a list to `len` elements; std checks the bound first.
   list_truncate: ([items, length]) =>
     `(call $hd.vector_truncate (ref.as_non_null ${items}) ${length})`,

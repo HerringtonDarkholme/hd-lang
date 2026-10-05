@@ -128,15 +128,9 @@
       (local.get $value))
     (struct.set $hd.vector $hd.vector-size
       (local.get $vector)
-      (i32.add (local.get $size) (i32.const 1)))
-    (struct.set $hd.vector $hd.vector-version
-      (local.get $vector)
-      (i32.add
-        (struct.get $hd.vector $hd.vector-version (local.get $vector))
-        (i32.const 1))))
+      (i32.add (local.get $size) (i32.const 1))))
 
-  ;; Drops the elements from `length` on, clears their slots, and advances
-  ;; the structural version. A length past the size is a bug in the caller.
+  ;; Drops the elements from `length` on and clears their slots. A length past the size is a bug in the caller.
   (func $hd.vector_truncate
     (param $vector (ref $hd.vector))
     (param $length i32)
@@ -149,12 +143,7 @@
       (local.get $length)
       (ref.null none)
       (i32.sub (local.get $size) (local.get $length)))
-    (struct.set $hd.vector $hd.vector-size (local.get $vector) (local.get $length))
-    (struct.set $hd.vector $hd.vector-version
-      (local.get $vector)
-      (i32.add
-        (struct.get $hd.vector $hd.vector-version (local.get $vector))
-        (i32.const 1))))
+    (struct.set $hd.vector $hd.vector-size (local.get $vector) (local.get $length)))
 
   (func $hd.add_i32 (param $left i32) (param $right i32) (result i32)
     (local $wide i64)

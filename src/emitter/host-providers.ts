@@ -291,7 +291,7 @@ function emitStructuralResult(host: HostMethod): string {
           `      (array.set $hd.list (local.get $values) (local.get $index) ${boxed})`,
           `      (local.set $index (i32.add (local.get $index) (i32.const 1)))`,
           `      (br $copy)))`,
-          `  (struct.new $hd.vector (local.get $length) (local.get $values) (i32.const 0))`,
+          `  (struct.new $hd.vector (local.get $length) (local.get $values))`,
           `)`,
         ].join("\n"),
       );

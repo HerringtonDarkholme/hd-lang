@@ -57,7 +57,7 @@ impl[T] List[T]:
     pub fn view(self, start: usize, end: usize) -> ListView[T]:
         if end > self.len() || start > end:
             panic_with("index-out-of-bounds", "")
-        ListView::[T] { items: self, start: start, end: end, version: list_version(self) }
+        ListView::[T] { items: self, start: start, end: end, len: self.len() }
 
     pub fn map[U](self, transform: fn(T) -> U) -> List[U]:
         let mapped: mut List[U] = []
@@ -327,20 +327,20 @@ impl[K < Eq & Hash, V] Map[K, V]:
 
 # A read-only window on a run of a list's elements
 # (spec/std/collections.md#views). It holds the list, not a copy, so an
-# element write shows through it. It records the list's structural
-# version, and any later change of shape invalidates it: its next use is
+# element write shows through it. It records the list's length, and any
+# later change of length invalidates it: its next use is
 # the checked panic `iterator-invalidated` (r-std-collections.view.invalid-use).
 pub data ListView[T]:
     items: List[T]
     start: usize
     end: usize
-    version: i32
+    len: usize
 
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
 impl[T < Debug] Debug for ListView[T]:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("ListView").field("items", self.items).field("start", self.start).field("end", self.end).field("version", self.version).finish()
+        out.debug_struct("ListView").field("items", self.items).field("start", self.start).field("end", self.end).field("len", self.len).finish()
 
 impl[T] ListView[T]:
     pub fn len(self) -> usize:
@@ -357,7 +357,7 @@ impl[T] ListView[T]:
         copy
 
     fn check(self) -> void:
-        if list_version(self.items) != self.version:
+        if self.items.len() != self.len:
             panic_with("iterator-invalidated", "")
 
 impl[T] Index[usize] for ListView[T]:
@@ -658,16 +658,8 @@ impl[T < Ord & Debug] Debug for Heap[T]:
         list.finish()
 
 # Primitives. The compiler supplies each body (src/README.md,
-# Compiler/library boundary). `list_version` reads the structural-version
-# counter that `push` and the other shape changes advance
-# (spec/lang/06-control-flow.md#r-flow.for.version), as the open issue
-# VIEW-TIER proposes.
-@intrinsic("list_version")
-fn list_version[T](items: List[T]) -> i32:
-    panic("intrinsic")
-
-# Shrinks `items` to its first `len` elements and advances the structural
-# version, as `push` does; `len` is at most the current length, which
+# Compiler/library boundary).
+# Shrinks `items` to its first `len` elements; `len` is at most the current length, which
 # every caller in this file checks.
 @intrinsic("list_truncate")
 fn list_truncate[T](items: mut List[T], len: usize) -> void:

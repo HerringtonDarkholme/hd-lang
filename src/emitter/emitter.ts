@@ -1025,13 +1025,12 @@ function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>
     (type $hd.cell (struct (field $hd.cell-value (mut anyref))))
     (type $hd.vector (struct
       (field $hd.vector-size (mut i32))
-      (field $hd.vector-values (mut (ref $hd.list)))
-      (field $hd.vector-version (mut i32))))
+      (field $hd.vector-values (mut (ref $hd.list)))))
     (type $hd.iterator (struct
       (field $hd.iterator-list (ref null $hd.vector))
       (field $hd.iterator-map (ref null $hd.map))
       (field $hd.iterator-index (mut i32))
-      (field $hd.iterator-version i32)
+      (field $hd.iterator-length i32)
       (field $hd.iterator-source (ref null struct))))
     (type $hd.key-eq (func (param anyref) (param anyref) (param anyref) (result i32)))
     (type $hd.key-hash (func (param anyref) (param anyref) (result i64)))
@@ -1040,7 +1039,6 @@ function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>
       (field $hd.map-size (mut i32))
       (field $hd.map-keys (mut (ref $hd.list)))
       (field $hd.map-values (mut (ref $hd.list)))
-      (field $hd.map-version (mut i32))
       (field $hd.map-key-eq (ref null $hd.key-eq))
       (field $hd.map-key-context anyref)
       (field $hd.map-buckets (mut (ref $hd.map-index)))
