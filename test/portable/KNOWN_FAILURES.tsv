@@ -12,12 +12,8 @@ typing/invalid/typed-fact-fn-pattern-suspending.hd	check reports type-mismatch o
 typing/valid/typed-fact-concrete-pattern.hd	check exits 1: the prototype accepts only a trivial pattern, one of the fact type's own type parameters, so it reports type-mismatch at the `@annotate` decorator (Member-Typed Facts, annot.typed-fact.pattern)	FACT-PATTERN
 typing/invalid/typed-fact-concrete-pattern-mismatch.hd	check reports type-mismatch on the wrong line: the prototype accepts only a trivial pattern, one of the fact type's own type parameters, so it reports type-mismatch at the `@annotate` decorator (Member-Typed Facts, annot.typed-fact.pattern)	FACT-PATTERN
 typing/valid/typed-fact-pattern-other-params.hd	check exits 1: the prototype accepts only a trivial pattern, one of the fact type's own type parameters, so it reports type-mismatch at the `@annotate` decorator (Member-Typed Facts, annot.typed-fact.pattern)	FACT-PATTERN
-typing/invalid/generic-inference-variance-conflict.hd	a List[mut User] and a List[User] argument of one T are accepted instead of reported as type-mismatch (types.generic.infer.join.other-conflict)	TYPE-GAPS
-typing/invalid/generic-inference-optional-conflict.hd	an i32 and an i32? argument of one T are accepted instead of reported as type-mismatch (types.generic.infer.join.other-conflict)	TYPE-GAPS
-typing/invalid/unconstrained-impl-parameter.hd	an impl parameter that appears only in a bound is accepted (trait.overlap.constrained-head)	TYPE-GAPS
 runtime/valid/gadt-existential-evidence.hd	GADT variant results (13-gadts.md) are not implemented: a variant with its own generic parameters is a syntax error	F-250
-typing/invalid/supertrait-impl-bounds.hd	a generic impl whose bounds do not prove its supertrait is accepted (trait.super.impl-bounds)	TYPE-GAPS
-typing/valid/any-void-never.hd	a void value is not assignable to Any, though void is the tuple () (types.any.all)	TYPE-GAPS
+typing/valid/any-void-never.hd	a void value is not assignable to Any, though void is the tuple () (types.any.all)	VOID-UNIT
 typing/valid/void-unit-alias.hd	the prototype keeps void apart from the empty tuple (), so a () value or (void, i32) is rejected where void is written (types.void)	VOID-UNIT
 typing/valid/typed-fact-pattern-mut-field.hd	check exits 1: the prototype accepts only a trivial pattern, one of the fact type's own type parameters, so it reports type-mismatch at the `@annotate` decorator (Member-Typed Facts, annot.typed-fact.infer.weaken)	FACT-PATTERN
 typing/valid/handle-fact-pattern.hd	check exits 1: the prototype accepts only a trivial pattern, so it reports type-mismatch at the @annotate decorator, and h.fact::[D]() with a bare D is not inferred (Handles, annot.handle.fact.pattern)	FACT-PATTERN

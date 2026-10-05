@@ -2544,3 +2544,7 @@ typing/invalid/covariant-mut-self-method-parameter.hd	type
 typing/invalid/ambiguous-requirement-key-solution.hd	type
 typing/invalid/bound-inference-several-impls.hd	type
 typing/invalid/bound-inference-mixed-several-impls.hd	type
+typing/invalid/generic-inference-variance-conflict.hd	type
+typing/invalid/generic-inference-optional-conflict.hd	type
+typing/invalid/unconstrained-impl-parameter.hd	type
+typing/invalid/supertrait-impl-bounds.hd	type

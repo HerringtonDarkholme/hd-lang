@@ -14,7 +14,6 @@ import {
 } from "../ast.ts";
 import { traitDefaultDeclarations } from "./member-lookup.ts";
 import type { HirSupertrait, HirTrait, NumericFamily, ValueType } from "../hir.ts";
-import { numericType } from "../numeric.ts";
 import {
   mutableInner,
   mutableType,
@@ -43,10 +42,11 @@ import {
 } from "./shared.ts";
 import { resolveRequirementKeyTypes } from "./requirement-keys.ts";
 import {
-  traitImpliesValueCategory,
-  typeSatisfiesValueCategory,
-  type ValueCategory,
-} from "./value-categories.ts";
+  boundsHold,
+  builtInSupertraitHolds,
+  implementationCategoryParameters,
+} from "./supertrait-bounds.ts";
+import { typeSatisfiesValueCategory } from "./value-categories.ts";
 
 import type {
   ImplementationMethodPreparation,
@@ -1296,19 +1296,6 @@ function validateDelegations(
 }
 
 /**
- * The standard library's implementations that have no source `impl`, as far
- * as a supertrait check of a primitive number type needs them: `Eq`,
- * `PartialOrd`, and `Display` for every number type, and `Ord` for integers
- * (05-expressions.md#equality, #ordering).
- */
-function builtInSupertraitHolds(traitName: string, targetType: ValueType): boolean {
-  const numeric = numericType(targetType);
-  if (!numeric) return false;
-  if (traitName === "Ord") return numeric.family !== "float";
-  return traitName === "Eq" || traitName === "PartialOrd" || traitName === "Display";
-}
-
-/**
  * Whether `candidate`, matched with `matched`, binds each associated type
  * the supertrait binds, after `Self` is the target.
  */
@@ -1419,7 +1406,8 @@ function validateSupertraits(
           matched,
           context.traitTypes,
           traitSubstitutions,
-        )
+        ) &&
+        boundsHold(candidate, matched, implementation.declaration, context)
       );
     });
     if (!found)
@@ -1429,27 +1417,4 @@ function validateSupertraits(
         span: implementation.declaration.span,
       });
   }
-}
-
-/** Generic implementation parameters whose written bounds prove one category. */
-function implementationCategoryParameters(
-  implementation: ImplDecl,
-  traitTypes: ReadonlyMap<string, HirTrait>,
-  category: ValueCategory,
-): Set<string> {
-  return new Set(
-    implementation.genericParameters.filter((parameter) =>
-      implementation.genericBounds.some(
-        (bound) =>
-          bound.parameter === parameter &&
-          bound.traits.some((written) => {
-            const key = mutableInner(written) ?? written;
-            const name = nominalGenericParts(key)?.name ?? key;
-            if (name === category) return true;
-            const trait = traitTypes.get(name);
-            return trait !== undefined && traitImpliesValueCategory(trait, traitTypes, category);
-          }),
-      ),
-    ),
-  );
 }

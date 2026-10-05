@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,581 cases: 2,545 selected in `test/portable/cases.tsv` and 36 known
-failures. The selected cases are 2,194 language tier, 300 stdlib tier, and 51
-CLI tier; the known failures are 24 language tier, 2 stdlib tier, and 10
+2,581 cases: 2,549 selected in `test/portable/cases.tsv` and 32 known
+failures. The selected cases are 2,198 language tier, 300 stdlib tier, and 51
+CLI tier; the known failures are 20 language tier, 2 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -22,8 +22,7 @@ CLI tier.
 | F-250 | 5 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
-| TYPE-GAPS | 5 | remaining batch 51 inference codes and batch 51b type rules are not checked |
-| VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
+| VOID-UNIT | 3 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` and a void value is not `Any` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | MVP-PATTERN | 1 | a `let` data pattern on a generic data value is `unsupported-match-subject` |
 
@@ -103,8 +102,7 @@ Compiler structure:
 | --- | --- |
 | EMB-S | A trait method is a candidate only where its trait is available. The prototype tracks trait imports only for a trait of another package (`checker/package-ownership.ts`); every trait of the calling module's own package, and every std trait, stays available. No fixture shows the gap. |
 | P2 | Member lookup skips members not visible from the calling module. The prototype hides a member without `pub` from another package and a std type's from code outside std; another module of the same package still sees it. No fixture shows the gap. |
-| TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The requirement-key dynamic-safety rule is implemented; the prototype does not check these remaining gaps. |
-| VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
+| VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, `(void, i32)`, and a void value where `Any` is expected (`types.any.all`) are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds the whole profile (src/commands/default-profile.ts). `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 

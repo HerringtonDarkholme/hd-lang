@@ -84,6 +84,12 @@ interface CheckedProviderEntries {
 }
 
 export abstract class CallChecker extends StatementChecker {
+  /** Checks `expression` with `expected` as context, before any conversion to it. */
+  protected abstract checkExpressionRaw(
+    expression: Expression,
+    expected?: ValueType,
+  ): HirExpression;
+
   /** Arguments a call rewrite has already checked, such as a spread tuple's elements. */
   // Enumerable so argument trials can roll back context-dependent entries.
   // Its lifetime is the function checker, not a process-wide AST cache.
@@ -865,10 +871,15 @@ export abstract class CallChecker extends StatementChecker {
         const formalGeneric = genericTypeName(formal);
         const inferredFormal = substituteGenericType(formal, substitutions, rowSubstitutions);
         let checked: HirExpression;
+        // The argument's type before it converts to a known formal: the join
+        // compares these, even for a parameter the expected type solved
+        // (types.generic.infer.join.other-conflict).
+        let unconverted: HirExpression | undefined;
         // A formal that mentions only the caller's own type parameters is a
         // known expected type; only the callee's unsolved ones leave it open.
         if (!mentionsUnsolved(inferredFormal, signature, substitutions, rowSubstitutions)) {
-          checked = this.checkExpression(source, inferredFormal);
+          unconverted = this.checkExpressionRaw(source, inferredFormal);
+          checked = this.coerce(unconverted, inferredFormal, source.span);
         } else if (source.kind === "closure" || this.isGenericFunctionValue(source)) {
           this.pendingCallGenerics = new Set(
             signature.genericParameters.filter((parameter) => !substitutions.has(parameter)),
@@ -881,7 +892,7 @@ export abstract class CallChecker extends StatementChecker {
         } else {
           checked = this.checkExpression(source);
         }
-        const own = argumentOwnType(source, checked);
+        const own = argumentOwnType(source, unconverted ?? checked);
         if (formalGeneric && own !== undefined && !inferredBeforeExpected.has(formalGeneric)) {
           const earlier = joined.get(formalGeneric);
           const current = readonlyType(own);
@@ -1057,8 +1068,8 @@ export abstract class CallChecker extends StatementChecker {
 
   /**
    * Two arguments that solve one type parameter have different types. The
-   * join converts only `mut X` to `X`: never by numeric widening, and never
-   * to a trait value (types.num.no-implicit, types.generic.infer.join.no-trait-value).
+   * join converts only `mut X` to `X`: never by numeric widening, variance,
+   * an optional wrap, or to a trait value (types.generic.infer.join).
    */
   protected failArgumentJoin(
     name: string,
@@ -1075,7 +1086,7 @@ export abstract class CallChecker extends StatementChecker {
       );
     this.fail(
       "type-mismatch",
-      `arguments of types '${displayType(earlier)}' and '${displayType(current)}' both solve '${displayType(parameter)}' of '${name}', and inference never widens a number; convert one argument to the other's type`,
+      `arguments of types '${displayType(earlier)}' and '${displayType(current)}' both solve '${displayType(parameter)}' of '${name}', and inference converts only 'mut X' to 'X'; convert one argument to the other's type`,
       span,
     );
   }

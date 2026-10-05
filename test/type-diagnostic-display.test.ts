@@ -83,7 +83,7 @@ pub fn main() -> void:
   assert.equal(diagnostic.code, "type-mismatch");
   assert.equal(
     diagnostic.message,
-    "arguments of types 'List[mut Box]' and 'List[Box]' both solve 'T' of 'same', and inference never widens a number; convert one argument to the other's type",
+    "arguments of types 'List[mut Box]' and 'List[Box]' both solve 'T' of 'same', and inference converts only 'mut X' to 'X'; convert one argument to the other's type",
   );
 });
 

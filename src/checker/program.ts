@@ -39,6 +39,7 @@ import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { typeParameterRedeclarations } from "./type-parameter-names.ts";
 import { inherentVarianceDiagnostics, varianceDiagnostics } from "./variance.ts";
 import { rowRuleDiagnostics } from "./row-rules.ts";
+import { unconstrainedImplementationParameters } from "./impl-parameters.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
 import { withTypedDerivation, withTypedDerivationSupport } from "./typed-derivation.ts";
@@ -274,6 +275,7 @@ function checkProgram(
       ...targetDiagnostics,
       ...declared.diagnostics,
       ...rowRuleDiagnostics(program),
+      ...unconstrainedImplementationParameters(program),
     ],
     imports: new Map(),
     standardAliases,
