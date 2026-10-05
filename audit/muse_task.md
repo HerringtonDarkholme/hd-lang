@@ -62,6 +62,54 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### AU. Blocker, Do First: `usize` Stopped Being The Same Type As `u32`
+
+Review of AN (ee489e28). Blocker. Code that worked before AN fails now:
+
+```
+fn pick[T](a: T, b: T) -> T:
+    a
+
+pub fn main() -> void $ Console:
+    xs := [1, 2]
+    let a: u32 = 7
+    println("${pick(a, xs.len())}")   # type-mismatch: 'u32' and 'usize' both solve 'T'
+    mixed := [a, xs.len()]             # no-common-type: u32, usize
+```
+
+Both ran before AN (`7`; a two-element list). `usize` is a transparent
+alias (`types.alias.usize`), so nothing may treat it as a different type.
+
+Fix the cause, not these two sites. AN keeps the spelling `usize` inside
+the type value and expands it at some comparison sites, but the checker and
+emitter compare types with `===`, `includes`, and map keys in hundreds of
+places, so every missed site is a bug. Instead: keep type identity
+canonical (`u32`) everywhere, and carry the display spelling as metadata
+that only messages and the REPL read (for example, the binding's written
+or defaulted spelling, as the literal-default hint already tracks
+`DEFAULTED_LOCALS`). Then revert `sameExpandedType` and the other
+per-site expansions. If you find the canonical approach cannot keep a
+message AN fixed, say which one in Questions instead of patching sites.
+
+Tests, each with a u32 value and a `len()` result: generic inference,
+list and map literals, `if`/`match` branch joins, tuples, `==` and `<`,
+arithmetic, a `Map[u32, V]` keyed by a `usize`, a trait implemented for
+`u32` called on a `usize`, `List[usize]` passed as `List[u32]`, and the
+messages and REPL still showing `usize`.
+
+### AV. Runner: A Crash Beside A Timeout Must Not Pass
+
+Review of AO (3ce7c345). Non-blocking.
+
+If the first conformance run exits non-zero for a reason that prints no
+`FAIL  path: reason` line (a runner exception), and some cases timed out,
+`runConformance` counts zero real failures, retries the timeouts, and
+returns success, hiding the crash. Fix: retry only when the run's own
+failed count (its summary line) equals the number of timeout verdicts;
+otherwise fail. Also delete the `hd-selected-*` temp directories the
+selection manifests create. Add a test for the crash case.
+
+
 ### AP. Hints From The Usability Probe
 
 The Haiku probe (rows dated 2026-10-05 in `audit/hd-writing-log.md`) hit
