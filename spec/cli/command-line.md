@@ -821,16 +821,18 @@ version = "1.0.0"   # warning: unknown-manifest-key, since a tag is the version
 
 | Table | Keys with a meaning |
 | --- | --- |
-| `[package]` | `name` |
+| `[package]` | `name`, `hd` |
 | `[source]` | `root` |
 | `[[executable]]` | `name`, `module` |
 | `[dependencies]`, `[dev-dependencies]` | every key, each a [dependency requirement](../lang/10-modules.md#dependency-requirements) |
 | `[workspace]` | `members`, `exclude` |
+| `[toolchain]` | `pin` |
 
 1. r[cli.manifest.unknown-key] A table or key of `hd.toml` that the table above does not list is a warning at its line. Warning: `unknown-manifest-key`.
 2. r[cli.manifest.known-key] A listed key whose value breaks the rule that gives it a meaning stays an error.
-3. r[cli.tooling.package-schema] The complete `hd.toml` schema belongs to package tooling. [Dependencies](#dependencies) defines the `hd.sum` format and the commands that fetch, add, and upgrade dependencies.
-4. r[cli.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
+3. r[cli.manifest.toolchain-keys] `[package] hd` is the minimum toolchain version of [`module.toolchain.minimum`](../lang/10-modules.md#r-module.toolchain.minimum), and `[toolchain] pin` is the exact version of [`module.toolchain.pin`](../lang/10-modules.md#r-module.toolchain.pin). Each is a version string.
+4. r[cli.tooling.package-schema] The complete `hd.toml` schema belongs to package tooling. [Dependencies](#dependencies) defines the `hd.sum` format and the commands that fetch, add, and upgrade dependencies.
+5. r[cli.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
 
 See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 [Workspaces](../lang/10-modules.md#workspaces),

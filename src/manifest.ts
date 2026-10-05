@@ -67,12 +67,13 @@ export interface Manifest {
  * `null` for a table whose every key has one, as `[dependencies]`.
  */
 const KNOWN_KEYS: Readonly<Record<string, readonly string[] | null>> = {
-  package: ["name"],
+  package: ["name", "hd"],
   source: ["root"],
   executable: ["name", "module"],
   dependencies: null,
   "dev-dependencies": null,
   workspace: ["members", "exclude"],
+  toolchain: ["pin"],
 };
 
 class TomlError extends Error {
@@ -397,6 +398,9 @@ function unknownManifestKeys(root: TomlTable, reader: TomlReader): ManifestError
   return unknown.sort((left, right) => left.line - right.line);
 }
 
+/** A toolchain version: `MAJOR.MINOR` or `MAJOR.MINOR.PATCH`. */
+const TOOLCHAIN_VERSION = /^\d+\.\d+(\.\d+)?$/;
+
 /** A dotted module path under the source root, such as `tools.migrate`. */
 const MODULE_PATH = /^[\p{ID_Start}_][\p{ID_Continue}_]*(\.[\p{ID_Start}_][\p{ID_Continue}_]*)*$/u;
 
@@ -451,6 +455,22 @@ export function readManifest(
         line: lineOf(isTable(source) ? source : undefined),
         message: `the prototype supports only the default source root, root = "src", not ${JSON.stringify(sourceRoot)}`,
       });
+  }
+  // Toolchain keys (spec/lang/10-modules.md#toolchain-version). The prototype
+  // checks their shape only; see src/KNOWN_ISSUES.md.
+  for (const [table, key] of [
+    ["package", "hd"],
+    ["toolchain", "pin"],
+  ] as const) {
+    const holder = root[table];
+    const value = isTable(holder) ? holder[key] : undefined;
+    if (value === undefined || (typeof value === "string" && TOOLCHAIN_VERSION.test(value)))
+      continue;
+    errors.push({
+      line:
+        (isTable(holder) && reader.keyLines.get(holder)?.get(key)) || lineOf(holder as TomlTable),
+      message: `'${table}.${key}' must be a toolchain version string, such as ${key} = "1.2"`,
+    });
   }
   const executables: ExecutableDeclaration[] = [];
   const declared = root.executable;

@@ -216,3 +216,16 @@ test("a manifest table or key with no meaning is listed for a warning", () => {
     [3, 5, 11, 16],
   );
 });
+
+test("toolchain keys are known, and a malformed one is an error", () => {
+  // spec/cli/command-line.md#r-cli.manifest.toolchain-keys
+  const ok = readManifest('[package]\nname = "shop"\nhd = "0.3"\n\n[toolchain]\npin = "0.3.1"\n');
+  assert.ok("manifest" in ok);
+  assert.deepEqual(ok.manifest.unknownKeys, []);
+  const bad = readManifest('[package]\nname = "shop"\nhd = 3\n');
+  assert.ok("errors" in bad);
+  assert.equal(bad.errors[0]!.line, 3);
+  const badPin = readManifest('[package]\nname = "shop"\n\n[toolchain]\npin = "latest"\n');
+  assert.ok("errors" in badPin);
+  assert.equal(badPin.errors[0]!.line, 5);
+});

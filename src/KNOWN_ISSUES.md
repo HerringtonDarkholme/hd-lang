@@ -140,6 +140,11 @@ Compiler structure:
   `host structural results expose only public data fields` test. A std
   type crosses with its private fields, as `Timestamp` must for the
   default profile's `Clock`; no rule states that exception yet.
+- **Toolchain keys**: `[package] hd` and `[toolchain] pin`
+  (`cli.manifest.toolchain-keys`) are checked for shape only. The prototype
+  has no toolchain version, so it rejects no graph for a too-new minimum
+  (`module.toolchain.graph-minimum`), does not fetch a pinned toolchain, and
+  accepts `[toolchain]` in a dependency's manifest (`module.toolchain.pin`).
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.
