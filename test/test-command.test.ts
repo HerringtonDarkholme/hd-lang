@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { runHd } from "./hd-in-process.ts";
 
-// `hd test` result lines, --filter, and --deny-skipped
+// `hd test` result lines and --filter
 // (spec/cli/command-line.md#test-runs).
 
 const PASSING =
@@ -111,16 +111,8 @@ test("a FILE that does not exist is an error, not a crash", async () => {
   });
 });
 
-test("--deny-skipped passes when no test case is skipped", async () => {
-  await withPackage(async (directory) => {
-    const ran = await runHd(["test", "tests/good.hd", "--deny-skipped"], { cwd: directory });
-    assert.equal(ran.status, 0, ran.stderr);
-    assert.equal(ran.stdout, "tests/good.hd: 1 passed\n");
-  });
-});
-
-// An integration test case whose row names a trait the profile does not
-// bind is skipped, not an error (spec/lang/10-modules.md#r-module.testing.skipped).
+// An integration test case must explicitly bind a trait the profile does not
+// bind (spec/lang/10-modules.md#r-module.testing.integration-row.unbound).
 const NEEDS_REPO = [
   "trait Repo:",
   "    fn count(self) -> i32",
@@ -133,19 +125,45 @@ const NEEDS_REPO = [
   "",
 ].join("\n");
 
-test("a test case needing a trait the profile does not bind is skipped", async () => {
+test("an integration test must bind a trait missing from its profile", async () => {
   await withPackage(async (directory) => {
     await writeFile(join(directory, "tests/repo.hd"), NEEDS_REPO);
     const ran = await runHd(["test", "tests/repo.hd"], { cwd: directory });
-    assert.equal(ran.status, 0, ran.stderr);
-    assert.match(ran.stdout, /test "needs a repo" skipped: the default profile does not bind Repo/);
-    assert.match(ran.stdout, /^tests\/repo\.hd: 0 passed, 1 skipped$/m);
+    assert.equal(ran.status, 101);
+    assert.match(ran.stderr, /missing-requirement: call to 'total' requires Repo/);
+    assert.match(ran.stderr, /bind it with `\$\.with\(Repo=\.\.\.\)`/);
     const json = await runHd(["test", "tests/repo.hd", "--format", "json"], { cwd: directory });
-    assert.equal(json.status, 0, json.stderr);
-    assert.match(json.stdout, /"outcome":"skipped"/);
-    assert.match(json.stdout, /"skipped":1/);
-    const denied = await runHd(["test", "tests/repo.hd", "--deny-skipped"], { cwd: directory });
-    assert.equal(denied.status, 1, denied.stderr);
+    assert.equal(json.status, 101, json.stderr);
+    assert.match(json.stdout, /"code":"missing-requirement"/);
+    assert.doesNotMatch(json.stdout, /"kind":"test"/);
+    assert.doesNotMatch(json.stdout, /"skipped"/);
+  });
+});
+
+test("a doc test must bind a trait missing from its profile", async () => {
+  await withPackage(async (directory) => {
+    await writeFile(
+      join(directory, "src/lib.hd"),
+      [
+        "pub trait Repo:",
+        "    fn count(self) -> i32",
+        "",
+        "## Counts repository entries.",
+        "##",
+        "## ```hd",
+        "## use pkg.{total}",
+        "##",
+        "## _ := total()",
+        "## ```",
+        "pub fn total() -> i32 $ Repo:",
+        "    $.use(Repo).count()",
+        "",
+      ].join("\n"),
+    );
+    const ran = await runHd(["test", "src/lib.hd"], { cwd: directory });
+    assert.equal(ran.status, 101);
+    assert.match(ran.stderr, /missing-requirement: call to 'total' requires Repo/);
+    assert.match(ran.stderr, /bind it with `\$\.with\(Repo=\.\.\.\)`/);
   });
 });
 

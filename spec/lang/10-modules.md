@@ -394,7 +394,7 @@ pub fn slugify(title: string) -> string:
 6. r[module.test.doc.view] A doc test sees the package as an integration test module does, by [`module.test.integration.view`](#r-module.test.integration.view) and [`module.test.integration.pkg-root`](#r-module.test.integration.pkg-root).
 7. r[module.test.doc.relative] A use path in a doc test that starts with `self` or `super` is an error. Error: `unknown-module`.
 8. r[module.test.doc.not-integration] A doc test is not an integration test module, and a rule for those applies to it only where this section cites the rule.
-9. r[module.test.doc.row] The runner binds a doc test's requirement row from the run's profile, by [`module.testing.integration-row`](#r-module.testing.integration-row) and [`module.testing.skipped`](#r-module.testing.skipped), as for an integration test case.
+9. r[module.test.doc.requirements] The runner binds a doc test's requirements by [`module.testing.integration-row`](#r-module.testing.integration-row) and [`module.testing.integration-row.unbound`](#r-module.testing.integration-row.unbound), as for an integration test case.
 10. r[module.test.doc.private-items] The documentation comment of a private declaration or member holds doc tests too, and they still see only the package's public declarations.
 11. r[module.test.doc.compile-fail] A doc test that holds a line comment `# error: CODE` is a compile-fail doc test. It never runs, and it passes only when compiling it reports `CODE`.
 12. r[module.test.doc.compile-fail.fails] A compile-fail doc test whose compilation reports no diagnostic with that code fails, including when it compiles.
@@ -1356,11 +1356,12 @@ tests:
 8. r[module.testing.kind-decides] The kind of a test case decides what the runner binds for it, never the directory of its file. Only an integration test case and a [doc test](#doc-tests) get the profile's providers.
 9. r[module.testing.profile] A test run compiles against one [runtime profile](#runtime-profiles), the default profile unless the run selects another.
 10. r[module.testing.integration-row] For a test case in an integration test module, the runner binds the body's requirement row from that profile, as the host binds the row of `main`.
-11. r[module.testing.skipped] An integration test case whose row names a trait that the profile does not bind is not run. It is reported as skipped, and it is not an error.
-12. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
-13. r[module.testing.fail] It fails when `report()` returns another code or when its body panics, including by a failed assertion.
-14. r[module.testing.err-print] When the result holds an `.Err`, the runner prints the error as [Entry Results](#entry-results) describes.
-15. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
+11. r[module.testing.integration-row.unbound] An integration test case whose body needs a trait that the profile does not bind must bind it explicitly with `$.with`.
+12. r[module.testing.integration-row.unbound.error] Otherwise checking reports `missing-requirement` with the hint `bind it with $.with(Trait=...)`.
+13. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
+14. r[module.testing.fail] It fails when `report()` returns another code or when its body panics, including by a failed assertion.
+15. r[module.testing.err-print] When the result holds an `.Err`, the runner prints the error as [Entry Results](#entry-results) describes.
+16. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
 
 ```text
 trait Clock:

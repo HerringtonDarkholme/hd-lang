@@ -1,0 +1,10 @@
+# fixture-test-layout: integration
+# test: an integration test must bind a user capability that its profile does not provide
+trait Repo:
+    fn count(self) -> i32
+
+fn total() -> i32 $ Repo:
+    $.use(Repo).count()
+
+it("needs a repo"):
+    _ := total()  # diagnostic: missing-requirement

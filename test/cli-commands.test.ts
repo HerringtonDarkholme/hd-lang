@@ -83,12 +83,11 @@ test("hd help COMMAND lists only that command's flags", async () => {
   const tested = (await hd(["help", "test"])).stdout;
   assert.match(
     tested,
-    /^usage: hd test \[--update\] \[--filter PATTERN\] \[--deny-skipped\] \[--seed N\] \[--cases N\] \[--shrink N\] \[-p NAME\] \[FILE\]$/m,
+    /^usage: hd test \[--update\] \[--filter PATTERN\] \[--seed N\] \[--cases N\] \[--shrink N\] \[-p NAME\] \[FILE\]$/m,
   );
   assert.deepEqual(flagsOf(tested), [
     "--update",
     "--filter",
-    "--deny-skipped",
     "--seed",
     "--cases",
     "--shrink",
@@ -105,6 +104,9 @@ test("hd help COMMAND lists only that command's flags", async () => {
   assert.equal((await hd(["run", "--help"])).stdout, run);
   assert.match((await hd(["help", "debug"])).stdout, /^ {2}hir FILE +print FILE's checked HIR/m);
   assert.deepEqual(flagsOf((await hd(["help", "debug", "hir"])).stdout), ["--format"]);
+
+  const removed = await usageError(["test", "--deny-skipped"]);
+  assert.match(removed.stderr, /hd test: unknown flag --deny-skipped/);
 
   const unknown = await usageError(["help", "nope"]);
   assert.match(unknown.stderr, /^hd help: no command 'nope'$/m);
@@ -511,7 +513,6 @@ test("hd test --format json reports every test case", async () => {
       warnings: 0,
       passed: 1,
       failed: 1,
-      skipped: 0,
       ignored: 1,
       status: 1,
     });

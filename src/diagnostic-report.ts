@@ -166,12 +166,12 @@ function jsonDiagnostic(
   };
 }
 
-/** A test case's outcome (`cli.json.test.fields`). */
-export type TestOutcome = "passed" | "failed" | "skipped" | "ignored";
+/** A test case's outcome (`cli.json.test.result.fields`). */
+export type TestOutcome = "passed" | "failed" | "ignored";
 
 /**
  * One command's output: where its diagnostics, test objects, and summary
- * go, and the counts the summary reports (`cli.json.summary.fields`).
+ * go, and the counts the summary reports (`cli.json.summary.result.fields`).
  * Text diagnostics always go to standard error. With `--format json` the
  * records go to `stream`: standard output for `build`, `check`, and `test`
  * (`cli.json.lines.build`), standard error for `run` and `hd FILE`
@@ -179,7 +179,7 @@ export type TestOutcome = "passed" | "failed" | "skipped" | "ignored";
  */
 export class Report {
   readonly format: OutputFormat;
-  readonly counts = { errors: 0, warnings: 0, passed: 0, failed: 0, skipped: 0, ignored: 0 };
+  readonly counts = { errors: 0, warnings: 0, passed: 0, failed: 0, ignored: 0 };
   private readonly writeText: (line: string) => void;
   private readonly writeJson: (line: string) => void;
   private readonly summary: boolean;

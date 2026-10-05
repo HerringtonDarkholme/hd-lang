@@ -1168,6 +1168,7 @@ runtime/valid/test-body-explicit-closure.hd	runtime	accept	lang/05-expressions.m
 typing/invalid/test-body-string-error.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.test.converts
 runtime/valid/it-each-rows.hd	runtime	accept	std/testing.md#r-std-testing.it-each
 typing/invalid/unit-test-missing-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.testing.unit-row.test-runner
+typing/invalid/integration-test-missing-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.testing.integration-row.unbound.error
 typing/valid/default-before-final-function.hd	type	accept	lang/07-functions.md#r-fn.default.final-function
 runtime/valid/it-body-by-name.hd	runtime	accept	lang/10-modules.md#r-module.testing.it-function
 typing/invalid/public-test-item.hd	type	reject:public-test-item	lang/03-names-and-scopes.md#r-names.tests.no-pub

@@ -116,7 +116,6 @@ const COMMANDS: readonly CommandSpec[] = [
         value: "PATTERN",
         help: "run only the test cases whose name contains PATTERN",
       },
-      { name: "--deny-skipped", help: "fail the run when a test case is skipped" },
       { name: "--seed", value: "N", count: true, help: "property-test seed; a failure prints it" },
       { name: "--cases", value: "N", count: true, help: "cases per property test" },
       { name: "--shrink", value: "N", count: true, help: "most shrink steps for a failing case" },

@@ -3,7 +3,7 @@
 // source root compiles as its own program, which the linker places at a
 // fresh path under the test root, so that it sees the package as an
 // integration test program does (module.test.doc.view) and its row comes
-// from the profile (module.test.doc.row). `loadSource` moves its
+// from the profile (module.test.doc.requirements). `loadSource` moves its
 // diagnostics to the module's `##` lines (DocTestLoad). src/doc-tests.ts
 // finds the blocks.
 
@@ -28,8 +28,6 @@ import {
 export interface TestTally {
   passed: number;
   failed: number;
-  /** Skipped test cases (spec/lang/10-modules.md#r-module.testing.skipped). */
-  skipped: number;
   /** The test cases the run selected, by `--filter` (cli.test.filter). */
   selected: number;
   /** Every test case, selected or not. */

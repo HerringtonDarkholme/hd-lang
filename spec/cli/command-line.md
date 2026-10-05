@@ -279,7 +279,6 @@ hd test src/billing.hd    # the tests of module billing
 
 ```sh
 hd test --filter "sums prices"    # only the test cases whose name holds it
-hd test --deny-skipped            # a skipped test case fails the run
 hd test --filter doc              # only the doc tests
 hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 ```
@@ -288,24 +287,22 @@ hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 2. r[cli.test.package-empty] A whole-package `hd test` that registers no test case passes.
 3. r[cli.test.filter] `hd test --filter PATTERN` runs only the test cases whose name contains PATTERN, with a FILE or without one.
 4. r[cli.test.filter.none] `hd test FILE --filter PATTERN` is an error when no test case of FILE has a name that contains PATTERN, as when FILE registers none.
-5. r[cli.test.summary.skipped] The summary of `hd test` counts [skipped](../lang/10-modules.md#r-module.testing.skipped) test cases apart from ignored ones.
-6. r[cli.test.deny-skipped] With `--deny-skipped`, a skipped test case is a failure.
-7. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
-8. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider that starts the package's executables, each by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
-9. r[cli.test.process.tasks] That provider also starts each [task](#tasks) of the package by its name, as `hd run NAME` does. A name names at most one program, by [`cli.task.name-clash`](#r-cli.task.name-clash).
-10. r[cli.test.process.unknown] That provider returns `.Err(ProcessError.NotFound)` for a program name that names neither an executable nor a task of the package.
-11. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
-12. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
-13. r[cli.test.runner] When it runs a test case, `hd test` binds the host traits [`TestRunner` and `PropertyRunner`](../std/testing.md#runner-capabilities) for the `std.testing` code around the body, by [`std-testing.runner.binding`](../std/testing.md#r-std-testing.runner.binding).
-14. r[cli.test.doc.default] `hd test` runs the package's [doc tests](../lang/10-modules.md#doc-tests) with its other test cases. With a FILE, it runs the doc tests of that file's module.
-15. r[cli.test.doc.name] A doc test is named `doc <module>.<item>[i]`, by the table below.
-16. r[cli.test.doc.filter] `--filter` matches a doc test by that name, so `--filter doc` selects every doc test, and `--filter text.slugify` the doc tests of `slugify` in `src/text.hd`.
-17. r[cli.test.doc.location] A diagnostic or a failure of a doc test names the `.hd` source file and a `##` line of the doc test's block.
-18. r[cli.test.doc.json] With `--format json`, a doc test's test object holds that name in `name`, and its diagnostics give that file and line in `file` and `line`.
-19. r[cli.test.doc.name.root] For a block in `src/lib.hd`, `<module>` is `pkg`, which names the package root module by [`module.path.lib-file`](../lang/10-modules.md#r-module.path.lib-file).
-20. r[cli.test.doc.name.member] For a block on a member, `<item>` is `Type.member`, so the first block on `new` of `Slug` in `src/text.hd` is `doc text.Slug.new[0]`.
-21. r[cli.test.doc.name.module] A block in a module's [module documentation](../lang/01-lexical-structure.md#r-lex.doc.module) has no `<item>` and no dot. The first such block in `src/text.hd` is `doc text[0]`.
-22. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
+5. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
+6. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider that starts the package's executables, each by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
+7. r[cli.test.process.tasks] That provider also starts each [task](#tasks) of the package by its name, as `hd run NAME` does. A name names at most one program, by [`cli.task.name-clash`](#r-cli.task.name-clash).
+8. r[cli.test.process.unknown] That provider returns `.Err(ProcessError.NotFound)` for a program name that names neither an executable nor a task of the package.
+9. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
+10. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
+11. r[cli.test.runner] When it runs a test case, `hd test` binds the host traits [`TestRunner` and `PropertyRunner`](../std/testing.md#runner-capabilities) for the `std.testing` code around the body, by [`std-testing.runner.binding`](../std/testing.md#r-std-testing.runner.binding).
+12. r[cli.test.doc.default] `hd test` runs the package's [doc tests](../lang/10-modules.md#doc-tests) with its other test cases. With a FILE, it runs the doc tests of that file's module.
+13. r[cli.test.doc.name] A doc test is named `doc <module>.<item>[i]`, by the table below.
+14. r[cli.test.doc.filter] `--filter` matches a doc test by that name, so `--filter doc` selects every doc test, and `--filter text.slugify` the doc tests of `slugify` in `src/text.hd`.
+15. r[cli.test.doc.location] A diagnostic or a failure of a doc test names the `.hd` source file and a `##` line of the doc test's block.
+16. r[cli.test.doc.json] With `--format json`, a doc test's test object holds that name in `name`, and its diagnostics give that file and line in `file` and `line`.
+17. r[cli.test.doc.name.root] For a block in `src/lib.hd`, `<module>` is `pkg`, which names the package root module by [`module.path.lib-file`](../lang/10-modules.md#r-module.path.lib-file).
+18. r[cli.test.doc.name.member] For a block on a member, `<item>` is `Type.member`, so the first block on `new` of `Slug` in `src/text.hd` is `doc text.Slug.new[0]`.
+19. r[cli.test.doc.name.module] A block in a module's [module documentation](../lang/01-lexical-structure.md#r-lex.doc.module) has no `<item>` and no dot. The first such block in `src/text.hd` is `doc text[0]`.
+20. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
 
 | Part | Value |
 | --- | --- |
@@ -320,8 +317,7 @@ The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 
 > **Why.** Naming a FILE asks for its tests, so none is a mistake, while a
 > new package may have none yet. A filter that matches nothing in a named
-> FILE is most often a typo, so it does not pass silently. A changed profile can skip a whole
-> suite, so CI can opt in to treating that as a failure.
+> FILE is most often a typo, so it does not pass silently.
 
 ### Test Environments
 
@@ -544,7 +540,7 @@ See also: [Doc Tests](../lang/10-modules.md#doc-tests),
 ```sh
 hd check --format json
 # {"kind":"diagnostic","code":"type-mismatch","severity":"error","message":"...","file":"src/cart.hd","line":3,"column":5}
-# {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":101}
+# {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101}
 ```
 
 1. r[cli.json.commands] `hd build`, `hd check`, `hd test`, `hd run`, `hd doc`, `hd FILE`, and the [dependency commands](#dependency-commands) take `--format json`.
@@ -555,11 +551,11 @@ hd check --format json
 6. r[cli.json.diagnostic] Each diagnostic is one object, with its stable code, its severity, and its file and position.
 7. r[cli.json.diagnostic.fields] A diagnostic object has the fields `code`, `severity`, `message`, `file`, `line`, and `column`.
 8. r[cli.json.diagnostic.file] In a package, `file` is the path relative to the package root, as `src/cart.hd`, whatever the working directory. Outside a package, `file` is the path as written on the command line.
-9. r[cli.json.test] Each test case's result is one object, with the test case's name and its outcome: passed, failed, skipped, or ignored.
-10. r[cli.json.test.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, `"skipped"`, or `"ignored"`, and `message` holds the failure, skip, or ignore reason, or `""` when there is none.
+9. r[cli.json.test.result] Each test case's result is one object, with the test case's name and its outcome: passed, failed, or ignored.
+10. r[cli.json.test.result.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, or `"ignored"`, and `message` holds the failure or ignore reason, or `""` when there is none.
 11. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.
-12. r[cli.json.summary] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
-13. r[cli.json.summary.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, `skipped`, and `ignored`, and `status`, the command's exit status.
+12. r[cli.json.summary.result] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
+13. r[cli.json.summary.result.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, and `ignored`, and `status`, the command's exit status.
 
 > **Why.** A stream lets an agent act on the first error. The summary
 > makes a clean run explicit, as Cargo's

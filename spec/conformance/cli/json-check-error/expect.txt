@@ -1,3 +1,3 @@
 run: hd check --format json src/util.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"type-mismatch","severity":"error","message":null,"file":"src/util.hd","line":2,"column":null},{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","severity":"error","message":null,"file":"src/util.hd","line":2,"column":null},{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101}]

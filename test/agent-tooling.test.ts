@@ -244,7 +244,6 @@ test("check --format json writes one JSON line per diagnostic, then a summary, t
       warnings: 0,
       passed: 0,
       failed: 0,
-      skipped: 0,
       ignored: 0,
       status: 101,
     });
@@ -300,7 +299,6 @@ test("check --format json writes one JSON line per diagnostic, then a summary, t
         warnings: 0,
         passed: 0,
         failed: 0,
-        skipped: 0,
         ignored: 0,
         status: 0,
       },
@@ -408,7 +406,6 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
         warnings: 0,
         passed: 0,
         failed: 0,
-        skipped: 0,
         ignored: 0,
         status: 1,
       },
@@ -427,7 +424,6 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
       warnings: 0,
       passed: 0,
       failed: 0,
-      skipped: 0,
       ignored: 0,
       status: 101,
     });

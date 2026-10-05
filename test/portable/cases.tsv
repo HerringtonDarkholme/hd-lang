@@ -983,6 +983,7 @@ runtime/valid/test-body-return.hd	runtime
 runtime/valid/test-body-explicit-closure.hd	runtime
 typing/invalid/test-body-string-error.hd	type
 typing/invalid/unit-test-missing-requirement.hd	type
+typing/invalid/integration-test-missing-requirement.hd	type
 runtime/valid/it-each-rows.hd	runtime
 typing/valid/default-before-final-function.hd	type
 runtime/valid/it-body-by-name.hd	runtime

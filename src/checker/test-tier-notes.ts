@@ -34,13 +34,18 @@ function within(inner: SourceSpan, outer: SourceSpan): boolean {
   return inner.start.offset >= outer.start.offset && inner.end.offset <= outer.end.offset;
 }
 
-/** The host traits a `missing-requirement` message names, by their std names. */
-function missingHostTraits(message: string, names: TestTierNames): string[] {
-  const listed =
+/** The traits a `missing-requirement` message names, as displayed to the user. */
+function missingTraits(message: string): string[] {
+  return (
     /requires (.+)$/.exec(message)?.[1]?.split(", ") ??
     /provider '([^']+)' is not available/.exec(message)?.slice(1) ??
-    [];
-  return listed.flatMap((name) => {
+    []
+  ).map((name) => name.trim());
+}
+
+/** The host traits a `missing-requirement` message names, by their std names. */
+function missingHostTraits(message: string, names: TestTierNames): string[] {
+  return missingTraits(message).flatMap((name) => {
     const standard = names.hostTraits.get(name.trim());
     return standard ? [standard] : [];
   });
@@ -57,9 +62,17 @@ function unitTestNote(traits: readonly string[]): string {
 const SCRIPT_NOTE =
   "a test build runs no entry behavior, so a script's top level is module initialization and must be requirement-free: move the script's work into `main`";
 
+function integrationTestNote(traits: readonly string[]): string | undefined {
+  if (traits.length === 0) return undefined;
+  const bindings = traits.map((trait) => `\`$.with(${trait}=...)\``);
+  return traits.length === 1
+    ? `the test profile does not bind ${traits[0]}: bind it with ${bindings[0]}`
+    : `the test profile does not bind ${traits.join(", ")}: bind them with ${bindings.join(", ")}`;
+}
+
 /**
- * `diagnostics` with a note on each `missing-requirement` error that a unit
- * test case's body or, in a test build, a script's top level reports.
+ * `diagnostics` with a note on each `missing-requirement` error that a test
+ * tier causes: a unit or integration test body, or a tested script's top level.
  */
 export function withTestTierNotes(
   diagnostics: readonly Diagnostic[],
@@ -77,6 +90,11 @@ export function withTestTierNotes(
     ) {
       const traits = missingHostTraits(diagnostic.message, names);
       if (traits.length > 0) note = unitTestNote(traits);
+    } else if (
+      options.integrationTest &&
+      program.tests.some((test) => within(diagnostic.span, test.span))
+    ) {
+      note = integrationTestNote(missingTraits(diagnostic.message));
     } else if (
       options.testBuild &&
       !hasMain &&

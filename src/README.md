@@ -62,7 +62,7 @@ in-process conformance adapter calls the same `main` with a buffering sink
 hd FILE  [-- ARGS]
 hd build [--wat] [--release] [FILE]
 hd run   [--release] [NAME] [-- ARGS]
-hd test  [--update] [--filter PATTERN] [--deny-skipped] [--seed N] [--cases N] [--shrink N] [FILE]
+hd test  [--update] [--filter PATTERN] [--seed N] [--cases N] [--shrink N] [FILE]
 hd check [--tests] [--all] [FILE]
 hd new   [--app] [--lib] [--vcs none] [PATH]
 hd add NAME PATH@VERSION    hd update [NAME]    hd remove NAME    hd fetch
@@ -160,7 +160,9 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   package directory, and a name that names neither is `.Err(.NotFound)`
   ([`cli.test.process`](../spec/cli/command-line.md#r-cli.test.process)).
   Each run of a test body gets its own `temp_dir()`, an `mkdtemp`
-  directory removed when the run ends.
+  directory removed when the run ends. A user capability outside that
+  profile is a `missing-requirement`; its note suggests
+  `$.with(Repo=...)`.
 - `hd test` never runs `main`, so neither its output nor its outcome counts
   as a test case. `hd test FILE` exits 101 with `FILE: no test case
   registered` when FILE registers no test case, even if it has an entry point
@@ -375,20 +377,14 @@ hd check --format json app.hd > diagnostics.jsonl
     { "id": "data.decl.no-struct", "anchor": "spec/lang/08-data-and-enums.md#r-data.decl.no-struct" }
   ]
 }
-{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":1}
+{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":1}
 ```
 
 (Each record is printed on one line; the diagnostic is spread out here to read.)
 
 A test object is `{"kind":"test","name","outcome","message"}`, with `outcome`
-`passed`, `failed`, `skipped`, or `ignored`, and the failure, skip, or ignore
-reason in `message`. An integration test case or a doc test is skipped when
-its row names a trait the run's profile does not bind
-(`profileSkip` in `commands/test-host.ts`): the checker infers such a test
-case's row from its body instead of rejecting the extra trait. In text, a
-skip prints a line and the file's result line counts it; with
-`--deny-skipped` the run exits 1, and the object's outcome stays
-`skipped`. With `--format json`, `hd test`
+`passed`, `failed`, or `ignored`, and the failure or ignore reason in
+`message`. With `--format json`, `hd test`
 runs every test case after a failure, and lists the objects in file path
 order, then declaration order. The summary object counts `errors`,
 `warnings`, and each outcome, and holds the command's exit `status`.

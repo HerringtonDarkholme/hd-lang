@@ -7,10 +7,8 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { HirFunction, HirTrait } from "../hir.ts";
 import type { TempDirs } from "../test-runner.ts";
-import { displayType } from "../types.ts";
-import { DEFAULT_PROFILE_TRAITS, type DefaultProfileHost } from "./default-profile.ts";
+import type { DefaultProfileHost } from "./default-profile.ts";
 
 /**
  * Each run's directory: a fresh `mkdtemp` directory under the system's
@@ -43,45 +41,5 @@ export function integrationTestHost(
     variables,
     workingDirectory: packageRoot,
     readLine: () => undefined,
-  };
-}
-
-/** The std traits a test run binds besides the default profile's (spec/cli/command-line.md#test-environments). */
-const RUN_TRAITS = [
-  "std.console.Console",
-  "std.testing.TestRunner",
-  "std.testing.PropertyRunner",
-  "std.process.Process",
-];
-
-/**
- * Why an integration test case, or a doc test, is skipped: its row names a
- * trait that the run's profile does not bind
- * (spec/lang/10-modules.md#r-module.testing.skipped). `profile` names the
- * profile, and `bound` holds the traits a runner profile binds by name;
- * the default profile binds its std traits.
- */
-export function profileSkip(
-  traits: readonly HirTrait[],
-  profile: string,
-  bound: readonly string[],
-): (declaration: HirFunction) => string | undefined {
-  const standard = new Set([
-    ...RUN_TRAITS,
-    ...DEFAULT_PROFILE_TRAITS.map(({ module, name }) => `${module}.${name}`),
-  ]);
-  const byName = new Map(traits.map((trait) => [trait.name, trait]));
-  return (declaration) => {
-    const unbound = declaration.requirements.filter((requirement) => {
-      const standardName = byName.get(requirement)?.standardName;
-      return (
-        !(standardName !== undefined && standard.has(standardName)) && !bound.includes(requirement)
-      );
-    });
-    if (unbound.length === 0) return undefined;
-    const names = unbound.map((requirement) =>
-      displayType(byName.get(requirement)?.standardName?.split(".").at(-1) ?? requirement),
-    );
-    return `the ${profile} profile does not bind ${names.join(", ")}`;
   };
 }

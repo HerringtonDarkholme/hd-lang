@@ -68,31 +68,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### BI. No Implicit Skips: An Unbound Capability Is An Error
-
-Owner decision, 2026-10-05. Replaces the earlier "only host traits skip"
-version of this job; discard any work on that version.
-
-Every capability can be bound explicitly, and today there is only one
-profile, so a test that needs a capability its profile doesn't bind is
-incomplete, not skippable.
-
-1. **Spec.** Remove `module.testing.skipped` and any rule that reports a
-   test as skipped because of its requirement row. An integration or doc
-   test whose row names a trait the profile doesn't bind is a check-time
-   `missing-requirement`, with the hint "bind it with
-   `$.with(Repo=...)`". Remove `cli.test.deny-skipped`, the
-   `--deny-skipped` flag, and the skipped count and outcome from the
-   summary and JSON rules, unless another rule still produces a skip
-   (check). Retire the IDs properly.
-2. **No parking, no Why line about hosts.** Don't add an OPEN_ISSUES
-   entry for skipping (owner, 2026-10-05).
-3. **Code.** Remove `profileSkip` (`src/commands/test-host.ts`) and the
-   skip path #274 added, and `--deny-skipped` from `src/cli-args.ts` and
-   help text. The checker reports the missing requirement for the test.
-4. **Tests.** Replace the skip tests and CLI cases with error cases (a
-   user trait like `Repo` with no `$.with`).
-
 ### BJ. `hd add` Across Tables Is An Error; Remove An Emptied Table Header
 
 Owner decision, 2026-10-05, on #322 (0342aee0):
