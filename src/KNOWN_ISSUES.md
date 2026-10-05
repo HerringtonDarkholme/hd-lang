@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,470 cases: 2,394 selected in `test/portable/cases.tsv` and 76 known
-failures. The selected cases are 2,080 language tier, 284 stdlib tier, and 30
-CLI tier; the known failures are 66 language tier, 2 stdlib tier, and 8
+2,470 cases: 2,403 selected in `test/portable/cases.tsv` and 67 known
+failures. The selected cases are 2,089 language tier, 284 stdlib tier, and 30
+CLI tier; the known failures are 57 language tier, 2 stdlib tier, and 8
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -26,7 +26,6 @@ CLI tier.
 | EMB-S | 4 | package trait visibility is not modeled by the linked checker namespace |
 | P2 | 5 | package member visibility is not modeled by the linked checker namespace |
 | M29 | 1 | the fixture needs a second package to distinguish derivation ownership |
-| SELF-CURRENT | 2 | relative lookup is fixed; these fixtures still need package import aliases |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
@@ -34,13 +33,11 @@ CLI tier.
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
 | MVP-PATTERN | 1 | a `let` data pattern on a generic data value is `unsupported-match-subject` |
 | PRIMITIVE-LEFT-TRAIT | 1 | a primitive left operand never searches operator traits, so `3 * price` with only `impl Mul[Money] for i64` is rejected |
-| QUALIFIED-PATH | 6 | a used module name works before a function, but not before a type, a variant, a variant pattern, or an associated call; a whole-module use of a package module is `unsupported-package-use` |
 | DOC-TESTS | 4 | `hd` blocks in `##` comments are not extracted or run as doc tests, so a doc-test file registers no test case and `hd test FILE` exits 101 |
 | AMBIGUOUS-TYPE | 1 | an ambiguous requirement-key solution reports `cannot-infer-type`, not `ambiguous-type` |
 | SHADOW-TPARAM | 3 | a method type parameter, local declaration, or local value may reuse an enclosing type parameter's name |
 | VARIANCE-MUT-SELF | 1 | `mut self` inherent methods are skipped by the variance check |
 | ALIAS-MISSING | 2 | an unused alias's right side is never resolved |
-| PRIVATE-STD | 1 | a module path to a private std function reports `unknown-name` |
 | DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
 | BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
 
@@ -124,13 +121,11 @@ Compiler structure:
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, with no host `Console.write_error_line` entry, so `eprintln` under the default profile fails with `host-contract`. `lib/std` declares the other items but `Backoff` and `retry_with!`. |
-| QUALIFIED-PATH | Task #260: a used module name qualifies a function, a type, a variant, a variant pattern, and an associated call. Task #262: a module path to a private or missing declaration reports `private-import` or `unknown-import`, and an absolute path outside a use is `unknown-name`. The prototype rejects `use pkg.words` as `unsupported-package-use`. |
 | DOC-TESTS | Owner design, 2026-10-04: each fenced `hd` block in a `##` comment under `src/` is a doc test, compiled as its own program with the public view and run by `hd test` (`module.test.doc.*`, `cli.test.doc.*`). The prototype ignores the blocks, so `hd test` runs none, and `hd check --tests` checks none. |
 | AMBIGUOUS-TYPE | Owner, 2026-10-04: inference with several valid solutions is `ambiguous-type` (`types.infer.ambiguous.code`). The prototype reports `cannot-infer-type` for a callback row that fits two generic keys in either order. |
 | SHADOW-TPARAM | Owner, 2026-10-04: no declaration within a type parameter's scope may reuse its name (`names.type-param.no-redeclare`). The prototype renames a method's shadowing binder, and accepts a local `data T` or value `T` inside `fn work[T]`. |
 | VARIANCE-MUT-SELF | Owner, 2026-10-04: a `mut self` inherent method counts toward declared variance (`types.variance.surface.mut-self`). The prototype skips those methods. |
 | ALIAS-MISSING | Owner, 2026-10-04: an alias whose right side names nothing is `unknown-type`, or `unknown-trait` for a row key, at the alias, used or not (`types.alias.target-unknown`). The prototype checks the right side only where the alias is used. |
-| PRIVATE-STD | Owner, 2026-10-04: a module path to a `std` declaration without `pub` is `private-import` (`expr.name.qualified.private`). The prototype reports `unknown-name` for the module. |
 | DERIVE-MISSING | Owner, 2026-10-04: `@derive` of a name that resolves to nothing is `unknown-trait` (`annot.derive.unknown`). The prototype reports `underivable-trait`. |
 | BOUND-AMBIGUOUS | Owner, 2026-10-04: a bound-only parameter with no default that several instantiations fit is `ambiguous-type` (`types.generic.infer.bound.no-default.ambiguous`). The prototype reports `cannot-infer-type`. |
 

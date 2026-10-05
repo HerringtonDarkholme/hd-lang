@@ -323,10 +323,11 @@ export function typeSourceText(type: ValueType): string {
  * round-trip through the checker; this is the display layer over it.
  *
  * Each pattern below matches only spellings the user cannot write (a `:`
- * never appears in an identifier, and `$` never starts one), except two
+ * never appears in an identifier, and `$` never starts one), except three
  * documented heuristics: an `__std_<module>_<Name>` segment reads as the
- * hidden rename the standard library loader generates, and `hd_E<N>` reads
- * as tuple element N. A user identifier that apes either keeps its meaning
+ * hidden rename the standard library loader generates, as an
+ * `__pkg_<module>_<Name>` segment does for the package linker's, and `hd_E<N>` reads
+ * as tuple element N. A user identifier that apes one keeps its meaning
  * but prints in the generated form.
  */
 export function displayType(type: ValueType): string {
@@ -338,6 +339,7 @@ export function displayType(type: ValueType): string {
     .replace(/(?<![A-Za-z0-9_])generic:/g, "")
     .replace(/(?<![A-Za-z0-9_])trait:/g, "")
     .replace(/(?<![A-Za-z0-9_])__std_[a-z0-9_]+_([A-Z][A-Za-z0-9_]*)/g, "$1")
+    .replace(/(?<![A-Za-z0-9_])__pkg_(?:[A-Za-z0-9_]*_)?([A-Z][A-Za-z0-9_]*)/g, "$1")
     .replaceAll(")->", ") -> ")
     .replace(/,(?! )/g, ", ");
 }

@@ -50,8 +50,17 @@ const MODULE_FILES: ReadonlyMap<string, string | undefined> = new Map<string, st
     .map((module): [string, undefined] => [module, undefined]),
 ]);
 
-/** Whether a std module declares `name` publicly, privately, or not at all. */
-function declares(module: string, name: string): "public" | "private" | undefined {
+/** Whether `module`, a path below `std` such as `testing.arbitrary`, is a std module. */
+export function isStandardModulePath(module: string): boolean {
+  return MODULE_FILES.has(module);
+}
+
+/**
+ * Whether a std module declares `name` publicly, privately, or not at all:
+ * what a use of it, or a module path to it, may select. A child module and a
+ * compiler-provided name count as public.
+ */
+export function declares(module: string, name: string): "public" | "private" | undefined {
   if (MODULE_FILES.has(`${module}.${name}`)) return "public";
   if ((COMPILER_NAMES.get(module) ?? []).includes(name)) return "public";
   const file = MODULE_FILES.get(module);

@@ -624,6 +624,29 @@ function standardNameOf(program: Program): (module: StandardModule, name: string
 }
 
 /**
+ * The spelling under which the program joins the public type `name` of the
+ * std module `module`, which a module path such as `cmp.Ordering` names, or
+ * undefined when `name` is no public data, enum, trait, or type there. A
+ * function keeps its module path, which the checker resolves itself.
+ */
+export function standardTypeSpelling(
+  program: Program,
+): (module: string, name: string) => string | undefined {
+  const nameOf = standardNameOf(program);
+  return (module, name) => {
+    if (!isStandardModule(module)) return undefined;
+    const declared = declaredModule(module).program;
+    const type = [
+      ...declared.data,
+      ...declared.enums,
+      ...declared.traits,
+      ...(declared.types ?? []),
+    ].some((declaration) => declaration.name === name && declaration.public === true);
+    return type ? nameOf(module, name) : undefined;
+  };
+}
+
+/**
  * Declaration identities and additional local spellings of ordinary
  * `lib/std` declarations, each bound to the one spelling under which the
  * declaration is joined. Compiler-owned names have their own resolution path.

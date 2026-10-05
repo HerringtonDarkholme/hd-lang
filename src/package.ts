@@ -1,4 +1,12 @@
-import type { InitGroupStart, Program, UseDecl } from "./ast.ts";
+import type {
+  InitGroupStart,
+  ModuleScope,
+  NamespaceModule,
+  PackageScopes,
+  Program,
+  UseDecl,
+} from "./ast.ts";
+import type { ParseOptions } from "./parser/base.ts";
 import type { Diagnostic, SourcePosition, SourceSpan } from "./diagnostics.ts";
 import { physicalDiagnostic, sourceDocument } from "./diagnostics.ts";
 import { KEYWORDS } from "./lexer.ts";
@@ -13,11 +21,15 @@ import { nominalGenericParts } from "./types.ts";
 // initialization order, with the package uses removed. That text is an
 // ordinary single-module program for the rest of the pipeline.
 //
-// Joining modules puts their top-level names in one namespace, so the linker
-// rejects a name that two linked modules declare (`package-name-collision`)
-// and does not stop one module from naming another's declaration without a
-// `use`. Module namespace uses (`use pkg.user.types`) and renaming uses
-// (`as`) of package declarations are `unsupported-package-use`.
+// Joining modules puts their top-level names in one namespace. Each module
+// keeps its own names through a scope (`ModuleScope`) that travels beside
+// the joined source: a declaration whose name another linked module also
+// declares joins under a hidden spelling, and the scope maps the module's
+// own spellings, its renamed (`as`) uses, and its module namespace uses
+// (`use pkg.user.types`) to the joined spellings. The checker applies the
+// scopes before anything else (checker/module-paths.ts). The joined
+// namespace still does not stop one module from naming another's
+// declaration without a `use`.
 //
 // A `*_test.hd` file is a test module. It joins as a `tests:` block, so the
 // joined source may hold several `tests:` blocks and is parsed with
@@ -130,6 +142,11 @@ export interface LinkedPackage {
   readonly initGroups: readonly InitGroupStart[];
   /** Linked modules in initialization order. */
   readonly modules: readonly PackageModule[];
+  /**
+   * Each linked module's scope over `source`, which the parser puts on the
+   * program under `joinedModules`; absent when linking failed.
+   */
+  readonly packageScopes?: PackageScopes;
   readonly diagnostics: readonly PackageDiagnostic[];
   /**
    * The line of `source` where the entry module starts. Outside a test build
@@ -300,7 +317,21 @@ function useModulePath(module: PackageModule, declaration: UseDecl): string[] | 
 interface ResolvedUse {
   readonly declaration: UseDecl;
   readonly target: PackageModule;
-  readonly names: readonly string[];
+  /** The declarations a use selects, each with its local name: `as` renames it. */
+  readonly names: readonly ImportedName[];
+  /** A module namespace use, as `use pkg.words`, binds the module itself to this name. */
+  readonly namespace?: string;
+}
+
+interface ImportedName {
+  readonly name: string;
+  readonly local: string;
+}
+
+/** A package declaration: its module and its name there. */
+interface Declared {
+  readonly module: PackageModule;
+  readonly name: string;
 }
 
 // Implementation Modules (09-traits.md#r-trait.own.module): a trait
@@ -444,21 +475,25 @@ export function linkPackage(
     report(entry, "unknown-module", `entry module '${entry}' is not a package source file`);
 
   const resolvedUses = new Map<PackageModule, ResolvedUse[]>();
-  // Follows `pub use` re-exports to the module that declares `name`; "loop"
-  // when the chain returns to a module it passed
+  // Follows `pub use` re-exports to the declaration that `name` names in
+  // `target`; "loop" when the chain returns to a module it passed
   // (spec/lang/10-modules.md#r-module.pub-use.chain.loop).
   const exporter = (
     target: PackageModule,
     name: string,
     seen: Set<PackageModule>,
-  ): PackageModule | "private" | "loop" | undefined => {
+  ): Declared | "private" | "loop" | undefined => {
     const program = target.program!;
-    if (topLevelNames(program).has(name)) return isPublic(program, name) ? target : "private";
+    if (topLevelNames(program).has(name))
+      return isPublic(program, name) ? { module: target, name } : "private";
     if (seen.has(target)) return "loop";
     seen.add(target);
-    for (const use of resolvedUses.get(target) ?? [])
-      if (use.declaration.public && use.names.includes(name))
-        return exporter(use.target, name, seen);
+    for (const use of resolvedUses.get(target) ?? []) {
+      const exported = use.declaration.public
+        ? use.names.find(({ local }) => local === name)
+        : undefined;
+      if (exported) return exporter(use.target, exported.name, seen);
+    }
     return undefined;
   };
 
@@ -473,22 +508,18 @@ export function linkPackage(
         report(module.path, "unknown-module", "the package has no dependencies", span);
         continue;
       }
-      const path = useModulePath(module, declaration);
-      if (typeof path === "string") report(module.path, "unknown-module", path, span);
-      if (!Array.isArray(path)) continue;
+      const modulePath = useModulePath(module, declaration);
+      if (typeof modulePath === "string") report(module.path, "unknown-module", modulePath, span);
+      if (!Array.isArray(modulePath)) continue;
+      // A single use whose last segment is a module names that module's
+      // namespace, as `use pkg.words` (spec/lang/10-modules.md#r-module.use.single).
+      const grouped = files[module.path]!.slice(span.start.offset, span.end.offset).includes("{");
+      const [first] = declaration.names;
+      const namespacePath = [...modulePath, first!.name];
+      const namespace = !grouped && modules.has(namespacePath.join("."));
+      const path = namespace ? namespacePath : modulePath;
       const identity = path.join(".");
       const target = modules.get(identity);
-      const grouped = files[module.path]!.slice(span.start.offset, span.end.offset).includes("{");
-      const namespace = modules.has([...path, declaration.names[0]!.name].join("."));
-      if (!grouped && namespace) {
-        report(
-          module.path,
-          "unsupported-package-use",
-          "module namespace uses are not supported; use selected declarations: `use pkg.m.{Name}`",
-          span,
-        );
-        continue;
-      }
       if (!target) {
         report(
           module.path,
@@ -519,36 +550,34 @@ export function linkPackage(
         continue;
       }
       if (!target.program) continue;
-      const renamed = declaration.names.find(({ name, alias }) => alias && alias !== name);
-      if (renamed) {
-        report(
-          module.path,
-          "unsupported-package-use",
-          `renaming '${renamed.name}' with 'as' is not supported for package declarations`,
-          span,
-        );
+      if (namespace) {
+        uses.push({ declaration, target, names: [], namespace: first!.alias ?? first!.name });
         continue;
       }
-      uses.push({ declaration, target, names: declaration.names.map(({ name }) => name) });
+      const names = declaration.names.map(({ name, alias }) => ({ name, local: alias ?? name }));
+      uses.push({ declaration, target, names });
     }
   }
 
   // Imported names must be public declarations of the target (or re-exported).
   const edges = new Map<PackageModule, Set<PackageModule>>();
+  // What each imported local name names, by module.
+  const importedNames = new Map<PackageModule, Map<string, Declared>>();
   // Uses outside test code, for the folder graph (spec/lang/10-modules.md#r-module.cycle.test-code).
   const folderUses: { module: PackageModule; use: ResolvedUse }[] = [];
   for (const [module, uses] of resolvedUses) {
     const local = module.program ? topLevelNames(module.program) : new Map();
     const imported = new Set<string>();
+    const resolved = new Map<string, Declared>();
+    importedNames.set(module, resolved);
     const targets = new Set<PackageModule>();
     edges.set(module, targets);
     const testNames = new Set(module.program?.testOnlyNames ?? []);
     for (const use of uses) {
       targets.add(use.target);
+      const locals = use.namespace !== undefined ? [use.namespace] : use.names.map((n) => n.local);
       // Only test code may use a test module (spec/lang/10-modules.md#r-module.test.non-test-use).
-      const testCode =
-        isTestModulePath(module.path) ||
-        use.declaration.names.every(({ name, alias }) => testNames.has(alias ?? name));
+      const testCode = isTestModulePath(module.path) || locals.every((name) => testNames.has(name));
       if (!testCode) folderUses.push({ module, use });
       if (isTestModulePath(use.target.path) && !testCode)
         report(
@@ -557,7 +586,17 @@ export function linkPackage(
           `only test code may use the test module '${shown(use.target)}'`,
           use.declaration.span,
         );
-      for (const name of use.names) {
+      if (use.namespace !== undefined) {
+        if (local.has(use.namespace) || imported.has(use.namespace))
+          report(
+            module.path,
+            "duplicate-module-name",
+            `imported name '${use.namespace}' is declared more than once`,
+            use.declaration.span,
+          );
+        imported.add(use.namespace);
+      }
+      for (const { name, local: localName } of use.names) {
         const found = exporter(use.target, name, new Set());
         // A plain use into a pub use loop has the loop's code
         // (spec/lang/10-modules.md#r-module.pub-use.chain.loop-use).
@@ -584,15 +623,18 @@ export function linkPackage(
             `'${name}' is private to module '${shown(use.target)}'; mark it 'pub'`,
             use.declaration.span,
           );
-        else if (found !== use.target) targets.add(found);
-        if (local.has(name) || imported.has(name))
+        else {
+          resolved.set(localName, found);
+          if (found.module !== use.target) targets.add(found.module);
+        }
+        if (local.has(localName) || imported.has(localName))
           report(
             module.path,
             "duplicate-module-name",
-            `imported name '${name}' is declared more than once`,
+            `imported name '${localName}' is declared more than once`,
             use.declaration.span,
           );
-        imported.add(name);
+        imported.add(localName);
       }
     }
   }
@@ -647,48 +689,7 @@ export function linkPackage(
 
   const { order, groups } = initializationOrder(reachable, edges);
 
-  // The joined program has one namespace for every linked module: a name is
-  // either one module's declaration or one standard-library declaration.
-  const namespace = new Map<string, { module: PackageModule; std?: string }>();
-  for (const module of order) {
-    const program = module.program;
-    if (!program) continue;
-    for (const [name, span] of topLevelNames(program)) {
-      const owner = namespace.get(name);
-      if (owner && owner.module !== module)
-        report(
-          module.path,
-          "package-name-collision",
-          `'${name}' is also declared in module '${shown(owner.module)}'; linked modules share one namespace, so top-level names must differ`,
-          span,
-        );
-      else namespace.set(name, { module });
-    }
-    const main = program.functions.find(({ name }) => name === "main");
-    if (module !== entryModule && main)
-      report(
-        module.path,
-        "package-name-collision",
-        "only the entry module may declare 'main' in a linked package",
-        main.span,
-      );
-    for (const declaration of program.uses) {
-      if (!isStandardUse(declaration)) continue;
-      for (const { name, alias } of declaration.names) {
-        const local = alias ?? name;
-        const std = `${declaration.module}.${name}`;
-        const owner = namespace.get(local);
-        if (owner && owner.module !== module && owner.std !== std)
-          report(
-            module.path,
-            "package-name-collision",
-            `'${local}' names a different declaration in module '${shown(owner.module)}'`,
-            declaration.span,
-          );
-        else if (!owner) namespace.set(local, { module, std });
-      }
-    }
-  }
+  const joinedName = joinedNames(order, entryModule, report);
 
   const segments: LinkSegment[] = [];
   const locate = (diagnostic: Diagnostic): PackageDiagnostic => {
@@ -731,6 +732,40 @@ export function linkPackage(
   // beside the source as line numbers, never in it, so user comments cannot
   // collide with them and diagnostic mapping needs no hole for marker lines.
   const initGroups: InitGroupStart[] = [];
+  // Each module's scope, and the members of each module a namespace use
+  // names (spec/lang/05-expressions.md#r-expr.name.qualified).
+  const scopes: ModuleScope[] = [];
+  const namespaceModules: Record<string, NamespaceModule> = {};
+  const namespaceMembers = (target: PackageModule): NamespaceModule => {
+    const members: Record<string, string | null> = {};
+    for (const name of topLevelNames(target.program!).keys())
+      members[name] = isPublic(target.program!, name) ? joinedName({ module: target, name }) : null;
+    for (const use of resolvedUses.get(target) ?? [])
+      if (use.declaration.public)
+        for (const { local } of use.names) {
+          const found = exporter(target, local, new Set());
+          if (typeof found === "object") members[local] = joinedName(found);
+        }
+    return { shown: shown(target), members };
+  };
+  const moduleScope = (module: PackageModule, firstLine: number, lastLine: number): ModuleScope => {
+    const names: Record<string, string> = {};
+    const namespaces: Record<string, string> = {};
+    for (const name of module.program ? topLevelNames(module.program).keys() : []) {
+      const joined = joinedName({ module, name });
+      if (joined !== name) names[name] = joined;
+    }
+    for (const [local, declared] of importedNames.get(module) ?? []) {
+      const joined = joinedName(declared);
+      if (joined !== local) names[local] = joined;
+    }
+    for (const use of resolvedUses.get(module) ?? []) {
+      if (use.namespace === undefined) continue;
+      namespaces[use.namespace] = use.target.identity;
+      namespaceModules[use.target.identity] ??= namespaceMembers(use.target);
+    }
+    return { firstLine, lastLine, names, namespaces };
+  };
   const multiBefore = new Map<PackageModule, boolean>();
   for (const group of groups) multiBefore.set(group[0]!, group.length > 1);
   for (const module of order) {
@@ -754,6 +789,7 @@ export function linkPackage(
     }
     const indent = wrapAsTestsBlock ? 4 : 0;
     segments.push({ path: module.path, firstLine: line, lineCount, indent, deleted });
+    scopes.push(moduleScope(module, line, line + lineCount - 1));
     source += text;
     line += lineCount;
   }
@@ -763,7 +799,30 @@ export function linkPackage(
     diagnostics,
     locate,
     initGroups,
+    packageScopes: { scopes, modules: namespaceModules },
     entryLine: segments.find(({ path }) => path === entry)?.firstLine,
+  };
+}
+
+/**
+ * The hidden spelling of a package declaration that shares its name with
+ * another linked module's, as `__pkg_user_types_origin` for `origin` in
+ * `user.types`. Like the std loader's `__std_` names, no source spells it.
+ */
+function hiddenPackageName(identity: string, name: string): string {
+  const path = identity.replace(/[^\p{ID_Continue}]+/gu, "_").replace(/^_+/, "");
+  return `__pkg_${path === "" ? "" : `${path}_`}${name}`;
+}
+
+/**
+ * How a linked package's joined source parses: as joined modules, with the
+ * linker's initialization-group starts and module scopes beside it.
+ */
+export function linkedParseOptions(linked: LinkedPackage): ParseOptions {
+  return {
+    joinedModules: true,
+    initGroupStarts: linked.initGroups,
+    ...(linked.packageScopes ? { packageScopes: linked.packageScopes } : {}),
   };
 }
 
@@ -972,4 +1031,68 @@ function stronglyConnected<T>(nodes: readonly T[], next: (node: T) => readonly T
   };
   for (const node of nodes) if (!index.has(node)) connect(node);
   return components;
+}
+
+// The joined program has one namespace for every linked module. Each
+// module keeps its own names through its scope (`ModuleScope`): a
+// declaration whose name another linked module also declares, or imports
+// from std, joins under a hidden spelling, except in the entry module.
+// Standard uses join once for every module, so two modules must not bind
+// one name to different std declarations.
+function joinedNames(
+  order: readonly PackageModule[],
+  entryModule: PackageModule | undefined,
+  report: (path: string, code: string, message: string, span?: SourceSpan) => void,
+): (declared: Declared) => string {
+  const standardBinders = new Map<string, { module: PackageModule; std: string }[]>();
+  const declarers = new Map<string, PackageModule[]>();
+  for (const module of order) {
+    const program = module.program;
+    if (!program) continue;
+    for (const name of topLevelNames(program).keys())
+      declarers.set(name, [...(declarers.get(name) ?? []), module]);
+    const main = program.functions.find(({ name }) => name === "main");
+    if (module !== entryModule && main)
+      report(
+        module.path,
+        "package-name-collision",
+        "only the entry module may declare 'main' in a linked package",
+        main.span,
+      );
+    for (const declaration of program.uses) {
+      if (!isStandardUse(declaration)) continue;
+      for (const { name, alias } of declaration.names) {
+        const local = alias ?? name;
+        const std = `${declaration.module}.${name}`;
+        const binders = standardBinders.get(local) ?? [];
+        const other = binders.find((binder) => binder.module !== module && binder.std !== std);
+        if (other)
+          report(
+            module.path,
+            "package-name-collision",
+            `'${local}' names a different declaration in module '${shown(other.module)}'; linked modules share their std uses, so these must agree`,
+            declaration.span,
+          );
+        standardBinders.set(local, [...binders, { module, std }]);
+      }
+    }
+  }
+  const spellings = new Set(declarers.keys());
+  const hiddenNames = new Map<string, string>();
+  return ({ module, name }: Declared): string => {
+    const shared =
+      (declarers.get(name) ?? []).some((other) => other !== module) ||
+      (standardBinders.get(name) ?? []).some((binder) => binder.module !== module);
+    if (!shared || (module === entryModule && !standardBinders.has(name))) return name;
+    const key = `${module.path}\0${name}`;
+    let hidden = hiddenNames.get(key);
+    if (hidden === undefined) {
+      const base = hiddenPackageName(module.identity, name);
+      hidden = base;
+      for (let index = 2; spellings.has(hidden); index += 1) hidden = `${base}_${index}`;
+      spellings.add(hidden);
+      hiddenNames.set(key, hidden);
+    }
+    return hidden;
+  };
 }

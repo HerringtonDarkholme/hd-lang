@@ -149,7 +149,7 @@ The fixtures use the language-tier `std.inspect.TypeId` and the prelude
 - test/standard-module-values.test.ts :: module selection finds the same directly imported declaration -> runtime/valid/module-qualified-beside-direct-use.hd [deleted]
 - test/standard-module-values.test.ts :: module selection finds the same declaration imported under an alias -> runtime/valid/module-qualified-beside-direct-use.hd [deleted]
 - test/standard-module-values.test.ts :: a local value shadows a standard module namespace -> runtime/valid/local-shadows-module-namespace.hd [deleted]
-- test/standard-module-values.test.ts :: a module namespace does not expose a private standard function -> typing/invalid/module-path-private-std-function.hd (Q7, PRIVATE-STD); the TS test asserts a result the decision makes wrong: it expects `unknown-name`, and the spec gives `private-import`
+- test/standard-module-values.test.ts :: a module namespace does not expose a private standard function -> typing/invalid/module-path-private-std-function.hd (Q7, PRIVATE-STD) [deleted]
 
 ## test/local-implementation-extent.test.ts
 
@@ -357,7 +357,7 @@ later task deletes them.
 
 - test/package.test.ts :: a use of another module's public declarations links and runs -> duplicate of runtime/valid/init-group-order.hd
 - test/package.test.ts :: relative uses, re-exports, and initialization order follow the use graph -> typing/valid/relative-repeated-super.hd for `super.super`; duplicate of typing/valid/pub-use-chain.hd and runtime/valid/init-group-order.hd
-- test/package.test.ts :: package use errors point at the use declaration of their file -> typing/invalid/unknown-package-name.hd for `unknown-import`; duplicate of typing/invalid/unknown-pkg-module.hd, typing/invalid/private-package-name.hd, typing/invalid/unknown-dep-module.hd, and typing/invalid/root-file-super.hd; the `unsupported-package-use` cases are not migrated (no such code in the spec)
+- test/package.test.ts :: package use errors point at the use declaration of their file -> typing/invalid/unknown-package-name.hd for `unknown-import`; duplicate of typing/invalid/unknown-pkg-module.hd, typing/invalid/private-package-name.hd, typing/invalid/unknown-dep-module.hd, and typing/invalid/root-file-super.hd; the namespace and `as` uses that now link duplicate runtime/valid/relative-self-current.hd and typing/invalid/module-path-missing-member.hd
 - test/package.test.ts :: std use errors in a package point at the use declaration of their file -> duplicate of typing/invalid/unknown-std-module.hd, typing/invalid/unknown-std-name.hd, and typing/invalid/private-std-function.hd (where the error is reported is not specified) [deleted]
 - test/package.test.ts :: files of one folder may use each other in a loop -> duplicate of typing/valid/folder-loop-within-folder.hd [deleted]
 - test/package.test.ts :: folders that depend on each other in a loop are rejected -> duplicate of typing/invalid/folder-cycle-facade.hd, typing/valid/folder-cycle-leaf-folder.hd, and typing/invalid/folder-cycle-nested.hd; the message text is not migrated

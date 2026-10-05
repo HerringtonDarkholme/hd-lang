@@ -8,7 +8,14 @@ import { SINGLE_FILE_USE } from "../checker/standard-uses.ts";
 import type { CompileOptions } from "../compiler.ts";
 import { DiagnosticReporter, type OutputFormat, type Report } from "../diagnostic-report.ts";
 import { DiagnosticError, physicalSpan, sourceDocument, type Diagnostic } from "../diagnostics.ts";
-import { linkPackage, SOURCE_ROOT, TASK_ROOT, TEST_ROOT, type LinkedPackage } from "../package.ts";
+import {
+  linkedParseOptions,
+  linkPackage,
+  SOURCE_ROOT,
+  TASK_ROOT,
+  TEST_ROOT,
+  type LinkedPackage,
+} from "../package.ts";
 import type { PackageDiagnostic } from "../package.ts";
 import type { ParseOptions } from "../parser/index.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "../runtime-panic.ts";
@@ -135,7 +142,7 @@ export async function loadSource(
   // is a file that the runner's test layout places as one (spec/conformance,
   // Test Layouts); the prototype has no separate integration test view.
   const parseOptions = linked
-    ? { joinedModules: true as const, initGroupStarts: linked.initGroups }
+    ? linkedParseOptions(linked)
     : path.endsWith("_test.hd") || options.testLayout !== undefined
       ? { testModule: true }
       : {};

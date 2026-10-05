@@ -534,6 +534,42 @@ export interface InitGroupStart {
   readonly multi: boolean;
 }
 
+/**
+ * The name scope of one package module in a joined program (src/package.ts):
+ * how the module's own spellings read in the joined program, which shares
+ * one namespace. It travels beside the joined source, as the init-group
+ * starts do, and the checker's module-path pass applies it
+ * (checker/module-paths.ts).
+ */
+export interface ModuleScope {
+  /** The module's first and last lines in the joined source. */
+  readonly firstLine: number;
+  readonly lastLine: number;
+  /**
+   * Local spellings that name a declaration under another joined spelling:
+   * the module's own declaration that the linker gave a hidden spelling, or
+   * a package use, renamed with `as` or of such a declaration.
+   */
+  readonly names: Readonly<Record<string, string>>;
+  /** Module namespace uses, such as `use pkg.words`: local name to module identity. */
+  readonly namespaces: Readonly<Record<string, string>>;
+}
+
+/** A package module that a namespace use names, with what a module path may select. */
+export interface NamespaceModule {
+  /** The module's name in a message: its identity, or `pkg` for the root module. */
+  readonly shown: string;
+  /** Each member's joined spelling, or null for a declaration without `pub`. */
+  readonly members: Readonly<Record<string, string | null>>;
+}
+
+/** The module scopes of a joined package program. */
+export interface PackageScopes {
+  readonly scopes: readonly ModuleScope[];
+  /** The modules that namespace uses name, by identity. */
+  readonly modules: Readonly<Record<string, NamespaceModule>>;
+}
+
 export interface Program {
   readonly uses: readonly UseDecl[];
   /** Present when the module declares a `type`. */
@@ -571,6 +607,8 @@ export interface Program {
    * and in joined sources without group data.
    */
   readonly initGroups?: readonly InitGroup[];
+  /** The linker's module scopes, under `joinedModules` (checker/module-paths.ts). */
+  readonly packageScopes?: PackageScopes;
   /** Names that the `tests:` block declares or uses (spec/lang/03-names-and-scopes.md#tests-blocks). */
   readonly testOnlyNames?: readonly string[];
   /**

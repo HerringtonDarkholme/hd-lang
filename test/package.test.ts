@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, instantiate } from "../src/compiler.ts";
-import { linkPackage, moduleIdentity } from "../src/package.ts";
+import { linkedParseOptions, linkPackage, moduleIdentity } from "../src/package.ts";
 import { parse } from "../src/parser/index.ts";
 
 async function runPackage(files: Record<string, string>, entry = "src/main.hd"): Promise<string[]> {
@@ -12,7 +12,7 @@ async function runPackage(files: Record<string, string>, entry = "src/main.hd"):
   const { instance, compilation } = await instantiate(linked.source!, {
     // Linked source parses as joined modules, as on the command path: group
     // starts, test blocks, and top-level `it` all take their joined meaning.
-    parse: { joinedModules: true, initGroupStarts: linked.initGroups },
+    parse: linkedParseOptions(linked),
     console: (text) => lines.push(text),
   });
   const main = compilation.hir.functions.find(({ entry: isEntry }) => isEntry)!;
@@ -222,9 +222,15 @@ test("package use errors point at the use declaration of their file", () => {
   assert.deepEqual(codes(main("use pkg.missing.{User}")), ["src/main.hd:2:unknown-module"]);
   assert.deepEqual(codes(main("use pkg.models.{Admin}")), ["src/main.hd:2:unknown-import"]);
   assert.deepEqual(codes(main("use pkg.models.{Secret}")), ["src/main.hd:2:private-import"]);
-  assert.deepEqual(codes(main("use pkg.models")), ["src/main.hd:2:unsupported-package-use"]);
-  assert.deepEqual(codes(main("use pkg.models.{User as Person}")), [
-    "src/main.hd:2:unsupported-package-use",
+  assert.deepEqual(codes(main("use pkg.models.{Admin as Person}")), [
+    "src/main.hd:2:unknown-import",
+  ]);
+  // A namespace use and a renaming use link (module.use.single, module.use.grouped).
+  assert.deepEqual(codes(main("use pkg.models")), []);
+  assert.deepEqual(codes(main("use pkg.models as people")), []);
+  assert.deepEqual(codes(main("use pkg.models.{User as Person}")), []);
+  assert.deepEqual(codes(main("use pkg.models\nuse pkg.models.{User as models}")), [
+    "src/main.hd:3:duplicate-module-name",
   ]);
   assert.deepEqual(codes(main("use super.models.{User}")), ["src/main.hd:2:unknown-module"]);
   assert.deepEqual(codes(main("use dep.billing.{User}")), ["src/main.hd:2:unknown-module"]);
@@ -285,7 +291,7 @@ test("a source-order violation in a single-module group is still rejected in a p
   );
   assert.deepEqual(linked.diagnostics, []);
   const diagnostics = analyze(linked.source!, {
-    parse: { joinedModules: true, initGroupStarts: linked.initGroups },
+    parse: linkedParseOptions(linked),
   }).diagnostics;
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
@@ -387,17 +393,18 @@ test("a parent file is in the folder of its child modules", () => {
 test("shared names and bad paths are rejected", () => {
   assert.deepEqual(
     codes({
-      "src/main.hd": "use pkg.a.{a}\nfn helper() -> i32: 1\npub fn main() -> void: pass\n",
-      "src/a.hd": "pub fn a() -> i32: helper()\nfn helper() -> i32: 2\n",
-    }),
-    ["src/main.hd:2:package-name-collision"],
-  );
-  assert.deepEqual(
-    codes({
       "src/main.hd": "use pkg.a.{User}\ndata User: pass\npub fn main() -> void: pass\n",
       "src/a.hd": "pub data User: pass\n",
     }),
-    ["src/main.hd:1:duplicate-module-name", "src/main.hd:2:package-name-collision"],
+    ["src/main.hd:1:duplicate-module-name"],
+  );
+  // Linked modules share their std uses, so these must agree.
+  assert.deepEqual(
+    codes({
+      "src/main.hd": "use pkg.a.{a}\nuse std.cmp.{max as pick}\npub fn main() -> void: pass\n",
+      "src/a.hd": "use std.cmp.{min as pick}\npub fn a() -> i32: pick(1, 2)\n",
+    }),
+    ["src/main.hd:2:package-name-collision"],
   );
   assert.deepEqual(
     codes({ "src/main.hd": "pub fn main() -> void: pass\n", "src/Main.hd": "pass\n" }),
@@ -497,6 +504,96 @@ test("single-declaration uses and the package root module resolve", async () => 
   assert.deepEqual(lines, ["hi!?"]);
 });
 
+// A small shop package: module paths name types, associated functions,
+// variants, variant patterns, and functions through namespace uses, and
+// each module keeps its own `label` (expr.name.qualified, module.use.single).
+const shop = {
+  "src/lib.hd": "pub use pkg.money.{Money, Currency}\n",
+  "src/money.hd": [
+    "pub enum Currency:",
+    "    Usd",
+    "    Eur",
+    "",
+    "pub data Money:",
+    "    pub cents: i32",
+    "    pub currency: Currency",
+    "",
+    "impl Money:",
+    "    pub fn of(cents: i32, currency: Currency) -> Money:",
+    "        Money { cents: cents, currency: currency }",
+    "",
+    "    pub fn add(self, other: Money) -> Money:",
+    "        Money { cents: self.cents + other.cents, currency: self.currency }",
+    "",
+    "pub fn label() -> string:",
+    '    "money"',
+  ].join("\n"),
+  "src/shop/cart.hd": [
+    "use pkg.money",
+    "use pkg.money.{Currency as Cur, label as money_label}",
+    "",
+    "pub data Cart:",
+    "    pub items: List[money.Money]",
+    "",
+    "pub fn total(cart: Cart) -> money.Money:",
+    "    let sum = money.Money::of(+0, Cur.Usd)",
+    "    for item in cart.items:",
+    "        sum = sum.add(item)",
+    "    sum",
+    "",
+    "pub fn symbol(price: money.Money) -> string:",
+    "    match price.currency:",
+    '        money.Currency.Usd => "$"',
+    '        money.Currency.Eur => "EUR "',
+    "",
+    "pub fn label() -> string:",
+    '    "cart of ${money_label()}"',
+  ].join("\n"),
+  "src/shop/checkout.hd": [
+    "use super.cart",
+    "use pkg.{Money, Currency}",
+    "use pkg.money.{label as money_label}",
+    "",
+    "pub fn main() -> void $ Console:",
+    "    basket := cart.Cart { items: [Money::of(+250, Currency.Usd), Money::of(+125, .Usd)] }",
+    "    price := cart.total(basket)",
+    '    println("${cart.symbol(price)}${price.cents}")',
+    "    println(cart.label())",
+    "    println(money_label())",
+    "    println(label())",
+    "",
+    "fn label() -> string:",
+    '    "checkout"',
+  ].join("\n"),
+};
+
+test("module paths select declarations through namespace uses", async () => {
+  const lines = await runPackage(shop, "src/shop/checkout.hd");
+  assert.deepEqual(lines, ["$375", "cart of money", "money", "checkout"]);
+});
+
+test("a module path to a private or missing member is an import error", () => {
+  const check = (body: string): string[] => {
+    const files = { ...shop, "src/shop/checkout.hd": `use super.cart\n\n${body}\n` };
+    const linked = linkPackage(files, "src/shop/checkout.hd");
+    assert.deepEqual(linked.diagnostics, []);
+    const { diagnostics } = analyze(linked.source!, { parse: linkedParseOptions(linked) });
+    return diagnostics.map((diagnostic) => {
+      const { path, span, code } = linked.locate(diagnostic);
+      return `${path}:${span.start.line}:${code}`;
+    });
+  };
+  assert.deepEqual(check("fn f() -> string: cart.lable()"), [
+    "src/shop/checkout.hd:3:unknown-import",
+  ]);
+  assert.deepEqual(
+    check('fn f() -> cart.Basket:\n    cart.Basket { items: [] }\nfn g() -> string: "x"'),
+    ["src/shop/checkout.hd:3:unknown-import", "src/shop/checkout.hd:4:unknown-import"],
+  );
+  // A local binding shadows the namespace name.
+  assert.deepEqual(check("fn f(cart: string) -> string: cart.trim()"), []);
+});
+
 test("each file directly under tests/ is its own program", () => {
   const files = {
     "src/text.hd": 'pub fn banner() -> string:\n    "hi"\n',
@@ -566,7 +663,7 @@ test("integration test sources join without re-indenting or stripping pub", () =
   assert.ok(!linked.source!.includes("\n    line two"));
   // Top-level `it` in the joined source parses as a test case.
   const analysis = analyze(linked.source!, {
-    parse: { joinedModules: true, initGroupStarts: linked.initGroups },
+    parse: linkedParseOptions(linked),
   });
   assert.deepEqual(
     analysis.diagnostics.filter(({ severity }) => severity !== "warning"),
@@ -594,7 +691,7 @@ test("a string line starting with pub fn keeps its pub", () => {
   assert.deepEqual(linked.diagnostics, []);
   assert.ok(linked.source!.includes("\npub fn not_a_declaration\n"));
   const analysis = analyze(linked.source!, {
-    parse: { joinedModules: true, initGroupStarts: linked.initGroups },
+    parse: linkedParseOptions(linked),
   });
   assert.deepEqual(
     analysis.diagnostics.filter(({ severity }) => severity !== "warning"),

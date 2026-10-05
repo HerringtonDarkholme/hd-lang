@@ -173,11 +173,16 @@ What works, relative to [10-modules.md](../../spec/lang/10-modules.md):
 - path-inferred modules under `src/`. `src/a/b.hd` is module `a.b`, and
   `src/a/mod.hd` is module `a`. Paths must be identifiers, and two paths may
   not name the same module after case folding;
-- `use pkg.a.b.{X, Y}` and `use pkg.a.b.X`;
+- `use pkg.a.b.{X, Y}` and `use pkg.a.b.X`, renaming with
+  `use pkg.a.b.{X as Z}`, and module namespace uses: after `use pkg.a.b`
+  (or `use pkg.a.b as ab`), `b.X` names `X` in a type, an expression, a
+  data expression, a pattern such as `b.Status.Done`, and an associated
+  call such as `b.X::new()`. A path to a private or missing declaration is
+  `private-import` or `unknown-import`;
 - relative uses, as in `use self.types.{User}` and
-  `use super.shared.{Email}`, but resolved from the containing directory
-  module. The spec now starts them at the file's own module, which the
-  prototype does not do yet;
+  `use super.shared.{Email}`, which start at the file's own module;
+- each module keeps its own top-level names: two modules may declare the
+  same name, and the linker joins one of them under a hidden spelling;
 - `pub use` re-exports, typically in `mod.hd`;
 - uses of missing modules, missing declarations, and private declarations
   are rejected. Files of one folder may use each other in a loop, but
@@ -198,17 +203,14 @@ What works, relative to [10-modules.md](../../spec/lang/10-modules.md):
 
 The linker's own diagnostic codes are `invalid-module-path`,
 `duplicate-module-path`, `unknown-module`, `unknown-import`,
-`private-import`, `unsupported-package-use`, and
-`package-name-collision`.
+`private-import`, and `package-name-collision`.
 
 Not supported yet:
 
-- Module namespace uses (`use pkg.user.types` and then `types.User`) and
-  renaming a package declaration with `as` are `unsupported-package-use`.
-- Linked modules share one namespace. Two modules cannot declare the same
-  top-level name, even privately (`package-name-collision`), and only the
-  entry module may declare `main`. Test case names share it too, so two
-  modules cannot name a test case alike (`duplicate-test-name`).
+- Linked modules share their standard-library uses, so two modules cannot
+  bind one name to different std declarations (`package-name-collision`),
+  and only the entry module may declare `main`. Test case names are shared
+  too, so two modules cannot name a test case alike (`duplicate-test-name`).
 - The linker checks that each `use` names a public declaration. It does not
   stop a module from naming another module's declaration without a `use`.
 - There are no dependencies (`dep.<name>`) and no `hd.toml` manifest.

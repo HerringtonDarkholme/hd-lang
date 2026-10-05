@@ -20,8 +20,13 @@ import type {
   TypeDecl,
   TypeRef,
 } from "../ast.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 
 type Renames = ReadonlyMap<string, string>;
+
+/** A name with its dotted segments, as `cmp.Ordering`. */
+const QUALIFIED_NAME =
+  /[\p{ID_Start}_][\p{ID_Continue}]*(?:\.[\p{ID_Start}_][\p{ID_Continue}]*)*/gu;
 
 function renameWords(text: string, names: Renames): string {
   if (names.size === 0) return text;
@@ -64,35 +69,127 @@ export function renameStandardBindings(program: Program, names: Renames): Progra
   return new BindingScope(names, names).program(program);
 }
 
+/** How module paths read in one module (checker/module-paths.ts). */
+export interface PathScope {
+  /**
+   * The joined spelling of `member` of the module `module` names, or
+   * undefined to keep the path as written, after reporting any error.
+   */
+  resolve(module: string, member: string, span: SourceSpan | undefined): string | undefined;
+}
+
+/** A module's scope: its renames, and its module namespace names with what each names. */
+export interface ModuleBindings {
+  readonly names: Renames;
+  readonly namespaces: Renames;
+  readonly paths: PathScope;
+}
+
+/**
+ * Applies each top-level item's module scope (`scopeOf`) to it: renames
+ * the module's spellings to their joined ones and replaces each module path,
+ * as `words.squash` or `cmp.Ordering`, that names a namespace in scope with
+ * the spelling its resolver gives. Locals shadow a namespace as they shadow
+ * any name. Uses stay as they are.
+ */
+export function resolveModuleBindings(
+  program: Program,
+  scopeOf: (span: SourceSpan) => ModuleBindings,
+): Program {
+  return BindingScope.inModules(program, scopeOf);
+}
+
 class BindingScope {
+  static inModules(program: Program, scopeOf: (span: SourceSpan) => ModuleBindings): Program {
+    const scope = (span: SourceSpan): BindingScope => {
+      const { names, namespaces, paths } = scopeOf(span);
+      return new BindingScope(names, names, namespaces, paths);
+    };
+    return {
+      ...program,
+      ...(program.types
+        ? { types: program.types.map((item) => scope(item.span).typeDeclaration(item)) }
+        : {}),
+      data: program.data.map((item) => scope(item.span).data(item)),
+      enums: program.enums.map((item) => scope(item.span).enum(item)),
+      traits: program.traits.map((item) => scope(item.span).trait(item)),
+      implementations: program.implementations.map((item) => scope(item.span).implementation(item)),
+      functions: program.functions.map((item) => scope(item.span).function(item)),
+      tests: program.tests.map((test) => scope(test.span).test(test)),
+      // A top-level binding is a module declaration, not a local: it keeps the
+      // module's renames for the statements after it.
+      statements: program.statements.map((item) => scope(item.span).topLevel(item)),
+    };
+  }
+
   private readonly values: Map<string, string>;
   private readonly types: Map<string, string>;
-  constructor(values: Renames, types: Renames) {
+  private readonly namespaces: Map<string, string>;
+  private readonly paths: PathScope | undefined;
+  constructor(values: Renames, types: Renames, namespaces: Renames = new Map(), paths?: PathScope) {
     // Every executable/type scope owns its maps: a binding expression mutates
     // the current value scope in evaluation order and must not leak out of a
     // branch, closure, comprehension, or other nested suite.
     this.values = new Map(values);
     this.types = new Map(types);
+    this.namespaces = new Map(namespaces);
+    this.paths = paths;
   }
 
   private shadowValues(hidden: readonly string[]): BindingScope {
-    return new BindingScope(without(this.values, hidden), this.types);
+    return new BindingScope(
+      without(this.values, hidden),
+      this.types,
+      without(this.namespaces, hidden),
+      this.paths,
+    );
   }
 
   private shadowTypes(hidden: readonly string[]): BindingScope {
-    return new BindingScope(this.values, without(this.types, hidden));
+    return new BindingScope(this.values, without(this.types, hidden), this.namespaces, this.paths);
   }
 
   private generics(parameters: readonly string[], rows: readonly string[] = []): BindingScope {
     return this.shadowTypes([...parameters, ...rows]);
   }
 
-  private text(text: string): string {
-    return renameWords(text, this.types);
+  /**
+   * A type text with its names renamed. A dotted name whose first segment
+   * is a module namespace in scope, as `cmp.Ordering`, is a module path:
+   * its first two segments become the spelling the path resolves to.
+   */
+  private text(text: string, span?: SourceSpan): string {
+    if (this.namespaces.size === 0 || !text.includes(".")) return renameWords(text, this.types);
+    return text.replace(QUALIFIED_NAME, (path) => {
+      const [first, member, ...rest] = path.split(".");
+      const module = member === undefined ? undefined : this.namespaces.get(first!);
+      const resolved =
+        module === undefined ? undefined : this.paths?.resolve(module, member!, span);
+      if (resolved !== undefined) return [resolved, ...rest].join(".");
+      return path
+        .split(".")
+        .map((word) => this.types.get(word) ?? word)
+        .join(".");
+    });
   }
 
   private type(value: TypeRef): TypeRef {
-    return { ...value, name: this.text(value.name) };
+    return { ...value, name: this.text(value.name, value.span) };
+  }
+
+  private test(value: Program["tests"][number]): Program["tests"][number] {
+    return {
+      ...value,
+      ...(value.result ? { result: this.type(value.result) } : {}),
+      body: this.statements(value.body),
+    };
+  }
+
+  private topLevel(value: Statement): Statement {
+    const renamed = this.statement(value);
+    return renamed.kind === "binding"
+      ? { ...renamed, name: this.values.get(renamed.name) ?? renamed.name }
+      : renamed;
   }
 
   private binding(value: AssociatedTypeBinding): AssociatedTypeBinding {
@@ -165,7 +262,7 @@ class BindingScope {
   }
 
   private parameters(values: readonly Parameter[]): readonly Parameter[] {
-    let scope = new BindingScope(this.values, this.types);
+    let scope = new BindingScope(this.values, this.types, this.namespaces, this.paths);
     return values.map((value) => {
       const renamed = scope.parameter(value);
       scope = scope.shadowValues([value.name]);
@@ -302,11 +399,7 @@ class BindingScope {
       traits: value.traits.map((item) => this.trait(item)),
       implementations: value.implementations.map((item) => this.implementation(item)),
       functions: value.functions.map((item) => this.function(item)),
-      tests: value.tests.map((test) => ({
-        ...test,
-        ...(test.result ? { result: this.type(test.result) } : {}),
-        body: this.statements(test.body),
-      })),
+      tests: value.tests.map((test) => this.test(test)),
       statements: this.statements(value.statements),
     };
   }
@@ -318,7 +411,7 @@ class BindingScope {
       case "data":
         return {
           ...value,
-          typeName: this.text(value.typeName),
+          typeName: this.text(value.typeName, value.span),
           fields: value.fields.map((field) => ({
             ...field,
             pattern: this.pattern(field.pattern),
@@ -327,7 +420,7 @@ class BindingScope {
       case "variant":
         return {
           ...value,
-          ...(value.enumName ? { enumName: this.text(value.enumName) } : {}),
+          ...(value.enumName ? { enumName: this.text(value.enumName, value.span) } : {}),
           ...(value.payloadPatterns
             ? { payloadPatterns: value.payloadPatterns.map((item) => this.pattern(item)) }
             : {}),
@@ -354,7 +447,7 @@ class BindingScope {
     readonly clauses: readonly ComprehensionClause[];
     readonly scope: BindingScope;
   } {
-    let scope = new BindingScope(this.values, this.types);
+    let scope = new BindingScope(this.values, this.types, this.namespaces, this.paths);
     const clauses = values.map((value) => {
       if (value.kind === "if") return { ...value, condition: scope.expression(value.condition) };
       const clause = {
@@ -405,9 +498,9 @@ class BindingScope {
       case "qualified-name":
         return {
           ...value,
-          owner: this.text(value.owner),
+          owner: this.text(value.owner, value.span),
           ...(value.genericTypeOwner
-            ? { genericTypeOwner: this.text(value.genericTypeOwner) }
+            ? { genericTypeOwner: this.text(value.genericTypeOwner, value.span) }
             : {}),
           ...(value.ownerTypeArguments
             ? { ownerTypeArguments: value.ownerTypeArguments.map((type) => this.type(type)) }
@@ -425,7 +518,10 @@ class BindingScope {
         };
       case "binding-expression": {
         const renamed = e(value.value);
-        value.bindings.forEach((binding) => this.values.delete(binding.name));
+        value.bindings.forEach((binding) => {
+          this.values.delete(binding.name);
+          this.namespaces.delete(binding.name);
+        });
         return { ...value, value: renamed };
       }
       case "list":
@@ -469,13 +565,22 @@ class BindingScope {
       case "data":
         return {
           ...value,
-          name: this.text(value.name),
+          name: this.text(value.name, value.span),
           ...typeArguments(value),
           ...(value.spread ? { spread: e(value.spread) } : {}),
           fields: value.fields.map((field) => ({ ...field, value: e(field.value) })),
         };
-      case "member":
+      case "member": {
+        // `words.squash` selects a declaration through a module namespace
+        // (05-expressions.md#r-expr.name.qualified).
+        const module =
+          value.receiver.kind === "name" ? this.namespaces.get(value.receiver.name) : undefined;
+        const resolved =
+          module === undefined ? undefined : this.paths?.resolve(module, value.name, value.span);
+        if (resolved !== undefined)
+          return { kind: "name", name: resolved, ...typeArguments(value), span: value.span };
         return { ...value, receiver: e(value.receiver), ...typeArguments(value) };
+      }
       case "index":
         return { ...value, receiver: e(value.receiver), index: e(value.index) };
       case "range":
@@ -645,7 +750,7 @@ class BindingScope {
   }
 
   private statements(values: readonly Statement[]): readonly Statement[] {
-    let scope = new BindingScope(this.values, this.types);
+    let scope = new BindingScope(this.values, this.types, this.namespaces, this.paths);
     return values.map((value) => {
       const renamed = scope.statement(value);
       if (value.kind === "binding") scope = scope.shadowValues([value.name]);

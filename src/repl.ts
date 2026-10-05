@@ -1,7 +1,7 @@
 import { analyze, instantiate, type CompileOptions } from "./compiler.ts";
 import type { Diagnostic, SourcePosition } from "./diagnostics.ts";
 import { physicalSpan, SOURCE_ORIGIN, sourceDocument } from "./diagnostics.ts";
-import { LIB_FILE, linkPackage, type PackageDiagnostic } from "./package.ts";
+import { LIB_FILE, linkedParseOptions, linkPackage, type PackageDiagnostic } from "./package.ts";
 import type { HirData, HirEnum, HirProgram } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
@@ -156,7 +156,7 @@ export class ReplSession {
       source: linked.source,
       options: {
         ...this.options,
-        parse: { ...this.options.parse, joinedModules: true, initGroupStarts: linked.initGroups },
+        parse: { ...this.options.parse, ...linkedParseOptions(linked) },
       },
       located,
     };

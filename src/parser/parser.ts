@@ -1450,15 +1450,18 @@ export function parse(source: string, options: ParseOptions = {}): ParseResult {
   const parsed = new Parser(lexed.tokens).withOptions(options).parse();
   if (parsed.program === undefined) return { diagnostics: [...lexWarnings, ...parsed.diagnostics] };
   const diagnostics = [...lexWarnings, ...parsed.diagnostics];
-  if (options.joinedModules === true && (options.initGroupStarts?.length ?? 0) > 0)
-    return {
-      program: {
-        ...parsed.program,
-        initGroups: initGroupBreaks(parsed.program.statements, options.initGroupStarts!),
-      },
-      diagnostics,
-    };
-  return { ...parsed, diagnostics };
+  if (options.joinedModules !== true) return { ...parsed, diagnostics };
+  const starts = options.initGroupStarts ?? [];
+  return {
+    program: {
+      ...parsed.program,
+      ...(starts.length > 0
+        ? { initGroups: initGroupBreaks(parsed.program.statements, starts) }
+        : {}),
+      ...(options.packageScopes ? { packageScopes: options.packageScopes } : {}),
+    },
+    diagnostics,
+  };
 }
 
 // Initialization-group boundaries for a joined program: each linker group

@@ -29,6 +29,7 @@ import {
 } from "./decorators.ts";
 import { withStandardTraits } from "./standard-traits.ts";
 import { standardUseDiagnostics } from "./standard-uses.ts";
+import { withModulePaths } from "./module-paths.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { withDistinctMethodBinders, displayMethodBinderNames } from "./generic-method-scope.ts";
@@ -63,9 +64,13 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   // (spec/lang/10-modules.md#use-forms); nothing else is checked without them.
   const uses = standardUseDiagnostics(written);
   if (uses.length > 0) return { diagnostics: uses };
+  // Module paths and each package module's scope resolve to joined
+  // spellings before any name is looked up (checker/module-paths.ts).
+  const paths = withModulePaths(written);
+  if (paths.diagnostics.length > 0) return { diagnostics: [...paths.diagnostics] };
   // `@error` is an intrinsic, lowered before any decorator is resolved
   // (spec/lang/14-annotations.md#error-derivation).
-  const errors = withErrorDerivation(written);
+  const errors = withErrorDerivation(paths.program);
   if (errors.diagnostics.length > 0) return { diagnostics: [...errors.diagnostics] };
   const source = errors.program;
   // A bare decorator name of a function with no parameters is a call

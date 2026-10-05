@@ -2372,6 +2372,8 @@ runtime/valid/derived-default-declared-no-bound.hd	runtime
 typing/valid/std-derivation-types-debug.hd	type
 runtime/valid/string-pad-default-fill.hd	runtime
 typing/invalid/single-file-self-use.hd	type
+runtime/valid/relative-self-current.hd	runtime
+runtime/valid/relative-self-top-level.hd	runtime
 typing/valid/lib-root-pkg.hd	type
 typing/invalid/main-not-importable.hd	type
 typing/valid/folder-parent-file.hd	type
@@ -2392,4 +2394,11 @@ cli/new-no-pages	cli
 cli/new-pages-existing	cli
 typing/valid/hd-run-integration.hd	type
 typing/invalid/hd-run-outside-integration.hd	type
+runtime/valid/module-qualified-type.hd	runtime
+runtime/valid/module-qualified-variant.hd	runtime
+runtime/valid/module-qualified-variant-pattern.hd	runtime
+runtime/valid/module-qualified-associated-call.hd	runtime
+typing/invalid/module-path-private-member.hd	type
+typing/invalid/module-path-missing-member.hd	type
+typing/invalid/module-path-private-std-function.hd	type
 cli/new-app	cli

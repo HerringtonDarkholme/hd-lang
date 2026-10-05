@@ -3,12 +3,15 @@ import test from "node:test";
 
 import { analyze } from "../src/compiler.ts";
 
-test("a module namespace does not expose a private standard function", () => {
+// The private case is the fixture typing/invalid/module-path-private-std-function.hd.
+test("a module path to a missing standard declaration is unknown-import", () => {
   const diagnostics = analyze(`use std.text
 
-fn main():
-    text.hex_digit
+fn main() -> string:
+    text.joinn(["a"], "")
 `).diagnostics;
-  assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0]?.code, "unknown-name");
+  assert.deepEqual(
+    diagnostics.map(({ code }) => code),
+    ["unknown-import"],
+  );
 });

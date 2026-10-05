@@ -1,6 +1,7 @@
 import type {
   Expression,
   InitGroupStart,
+  PackageScopes,
   Statement,
   TypeRef,
   UseDecl,
@@ -62,6 +63,12 @@ export interface ParseOptions {
    * joined source has no group boundaries.
    */
   readonly initGroupStarts?: readonly InitGroupStart[];
+  /**
+   * The package linker's module scopes over the joined source
+   * (src/package.ts). The parser puts them on `Program.packageScopes`, but
+   * only under `joinedModules`.
+   */
+  readonly packageScopes?: PackageScopes;
   /** The source is a `lib/std` module, which may write `collect`'s type-argument default. */
   readonly standardLibrary?: boolean;
 }
