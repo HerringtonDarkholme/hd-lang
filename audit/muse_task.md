@@ -118,6 +118,24 @@ run loads the machine (13 cases each time). Rerunning each alone passes.
   fails. Never raise the limit; never retry a real failure.
 - Add a test for both.
 
+### AP. Hints From The Usability Probe
+
+The Haiku probe (rows dated 2026-10-05 in `audit/hd-writing-log.md`) hit
+messages that were right but didn't say the fix. Add a hint (a note plus,
+where the edit is mechanical, a fix-it) to each:
+
+- `fn f(mut todos: List[Todo])` gives `syntax-error: expected a parameter
+  name`. Say "write `todos: mut List[Todo]`; `mut` goes on the type".
+- `loop:` gives `unknown-name: unknown function 'loop'` (two agents hit
+  it). Say "hd has no `loop`; write `while true:`".
+- `let todos = []` with no use that fixes it: the message already says to
+  annotate. Check that the suggested annotation uses the element type when
+  a later statement shows it, or a placeholder otherwise.
+- `unknown-method` on a std type: list up to three similarly named methods
+  that do exist (edit distance), as other "did you mean" hints do.
+
+Message text only; no language rule changes. Add a test per hint.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
