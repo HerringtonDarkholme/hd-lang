@@ -33,6 +33,29 @@ greet("Ada")
 The `$ Console` part is a requirement row. It is explained
 [below](#requirements-and-providers).
 
+A program that reads input or files makes bang calls, such as `read_line!()`,
+and only a `!` function may make them. So its entry point is `main!`, not
+`main`. Inside `main!`, write with `$.use(Console).write_line!`, because
+`println` panics under a running driver.
+
+```text
+use std.console.{ConsoleInput, read_line}
+
+pub fn main!() -> Result[void, ConsoleError] $ Console + ConsoleInput:
+    let words: usize = 0
+    while true:
+        line := match read_line!()?:
+            .Some(text) => text
+            .None => break
+        words = words + line.split_whitespace().len()
+    $.use(Console).write_line!("words: $words")
+```
+
+Written as plain `pub fn main()`, the same body is rejected:
+`bang-call-outside-suspension: a bang call requires a suspending driver
+context`. The fix is the `!` in `main!`. See
+[Suspension with `fn!`](#suspension-with-fn).
+
 ## Bindings and Values
 
 `:=` binds a name that cannot be reassigned, with an inferred type. `let`
@@ -98,6 +121,16 @@ long_names := [for name in names if name.len() > 3 => name]
 by_name := {for user in users => user.name: user.score}
 ```
 
+An empty `[]` or `{}` has no elements to infer a type from, and the compiler
+types each statement on its own: a later `push` does not tell an earlier
+`let todos = []` what it holds. So annotate the binding. A list you will
+change is `mut List[T]`, and the annotation already carries the `mut`.
+
+```hd
+let todos: mut List[Todo] = []
+todos.push(Todo { title: "buy milk", done: false })
+```
+
 ## Functions
 
 Parameters and results are typed. The last expression of a body is its
@@ -131,8 +164,11 @@ fn show[T < Display](value: T) -> string:
 
 ## Control Flow
 
-`if`, `match`, and loops with `else` are expressions. A `match` must be
-exhaustive.
+The whole list: `if` (with `else if` and `else`), `match`, `for`, `while`,
+`break`, `continue`, and `else` on a `for` or `while`. `return` leaves a
+function. There is no `loop`: an endless loop is `while true:`, left with
+`break`. `if`, `match`, and loops with `else` are expressions. A `match` must
+be exhaustive.
 
 ```hd
 label := if score >= 90:
@@ -153,6 +189,26 @@ found := for name in names:
         break name
 else:
     "nobody"
+
+let tries: i32 = 0
+while true:
+    tries = tries + 1
+    if tries == 3:
+        break
+```
+
+A `while` with `else` works like the `for` above: `break value` gives the
+loop's value, and `else` gives it when the condition turns false.
+
+```hd
+fn first_empty_slot(slots: List[string]) -> string:
+    let index: usize = 0
+    while index < slots.len():
+        if slots[index] == "":
+            break "slot ${index}"
+        index = index + 1
+    else:
+        "full"
 ```
 
 `defer:` registers cleanup that runs when the enclosing block exits.
@@ -195,6 +251,21 @@ let mut draft = User { id: "u2", email: " Grace@Example.com " }
 normalize(draft)
 ```
 
+The `mut` goes on the type: a parameter is `name: mut T`, and `mut name: T`
+is a syntax error. A function that fills in a list it is given:
+
+```hd
+data Todo:
+    title: string
+    done: bool
+
+fn add_todo(todos: mut List[Todo], title: string) -> void:
+    todos.push(Todo { title: title, done: false })
+
+let todos: mut List[Todo] = []
+add_todo(todos, "write docs")
+```
+
 A bare type name inside a `data` block embeds that type. Its `pub` fields
 and methods are promoted onto the outer type. This is composition, not
 inheritance. The `...` prefix copies a value into the embedded part.
@@ -221,9 +292,12 @@ An `enum` is a closed set of variants, and a variant may carry named
 payload fields. Where the expected type is known, `.Variant` names a
 variant. A `match` must cover every variant, so adding a variant to `Shape`
 below makes the compiler point at each `match` that needs a new arm
-(`nonexhaustive-match`). Avoid a `_` arm when you want that to-do list.
+(`nonexhaustive-match`). Avoid a `_` arm when you want that to-do list. Comparing two values with `==`
+needs `@derive(Eq)` on the enum, as written on `Shape` below; `match` does not.
+Without it, `==` is rejected: `missing-eq: type 'Shape' does not implement Eq`.
 
 ```hd
+@derive(Eq)
 enum Shape:
     Circle(radius: f64)
     Rect(width: f64, height: f64)
@@ -464,6 +538,94 @@ tests:
     it("stamps with the fixed clock"):
         $.with(Clock=FixedClock { at: 1 }):
             assert_equal(stamp("go"), "1: go", reason="uses the provider")
+```
+
+### Using a Local Library
+
+Today a path dependency works between members of one workspace. Put both
+packages under a root directory whose `hd.toml` lists them:
+
+```sh
+mkdir mystore && cd mystore
+printf '[workspace]\nmembers = ["money", "shop"]\n' > hd.toml
+hd new --lib money
+hd new --app shop
+```
+
+The specification says `hd new` adds the new directory to `members` itself;
+the current `hd` does not, so write the list as above. Then name the library
+in the app's `shop/hd.toml`:
+
+```text
+[package]
+name = "shop"
+
+[dependencies]
+money = { path = "../money" }
+```
+
+The app reaches the library as `dep.money`, and the library's `pub` items in
+`money/src/lib.hd` are its interface:
+
+```text
+use dep.money
+
+pub fn main() -> void $ Console:
+    price := money.of_cents(+1250)
+    println("total: ${money.show(price)}")
+```
+
+Run commands inside a member directory: `cd shop && hd run`, or
+`cd money && hd test`. At the workspace root the current `hd` stops with
+`the prototype does not support workspaces yet`, and `hd add money ../money@0.0.0`
+fails with `invalid-requirement` outside a workspace.
+
+## The Prelude
+
+These names need no `use` in any module ([Prelude](../spec/lang/10-modules.md#prelude)):
+
+| Kind | Names |
+| --- | --- |
+| Types | `bool`, `i8` to `i64`, `u8` to `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `never`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result` |
+| Traits | `Display`, `Debug`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Hasher`, `Iterator`, `Iterable` |
+| Other types | `Ordering`, `Console`, `ConsoleError`, `Suspend`, `Poll`, `PollContext`, `Waker` |
+| Functions | `println`, `panic`, `debug` |
+| Tests only | `it` |
+
+Everything else is imported: `From`, `Error`, `Inspectable`, `block_on`,
+`assert_equal`, `ConsoleInput`, `read_line`, and the `fs`, `time`, and `text`
+helpers. `@derive`, `@error`, and the other intrinsic annotations need no
+import.
+
+## Common String Methods
+
+A string is UTF-8 bytes, so `len()` counts bytes. The rest of the methods
+are in the [text module](../spec/std/text.md).
+
+| Method | Result |
+| --- | --- |
+| `s.len()` | byte count, `usize` |
+| `s.is_empty()` | `bool` |
+| `s.chars()` | an iterator of `char`; `for c in s.chars()` |
+| `s.lines()` | `List[string]`, without line endings |
+| `s.split(",")` | `List[string]`, keeping empty pieces |
+| `s.split_whitespace()` | `List[string]` of the words |
+| `s.split_once("=")` | `(string, string)?` around the first match |
+| `s.trim()`, `s.trim_start()`, `s.trim_end()` | `string` |
+| `s.lower()`, `s.upper()` | `string` |
+| `s.contains(t)`, `s.starts_with(t)`, `s.ends_with(t)` | `bool` |
+| `s.find(t)` | byte offset, `usize?` |
+| `s.replace(old, new)` | `string` |
+| `s.strip_prefix(t)`, `s.strip_suffix(t)` | the rest, `string?` |
+| `s.count(t)` | non-overlapping matches, `usize` |
+| `s.pad_start(width)`, `s.pad_end(width)` | `string` |
+| `s.repeat(n)` | `string` |
+
+```hd
+fn setting(line: string) -> string:
+    match line.split_once("="):
+        .Some((key, value)) => "${key.trim()} is ${value.trim()}"
+        .None => "no setting"
 ```
 
 ## Annotations
