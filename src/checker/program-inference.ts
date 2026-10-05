@@ -192,21 +192,30 @@ export class SignatureInference {
         // the row loop below skips it. A script's top level infers its entry
         // requirement row instead of failing its requirements
         // (spec/lang/10-modules.md#r-module.init.script-row).
+        // A trial that fails still grew genuine requirements from its
+        // checked prefix (BF): harvest them so one unknown name cannot
+        // starve the row and mask itself as a missing requirement.
         const checked = this.run(
           this.moduleDeclaration,
           this.signatures.get(this.moduleDeclaration.name)!,
           this.moduleDeclaration.requirementsOmitted === true,
           false,
         );
-        if (checked.function) grow(this.moduleDeclaration.name, checked.function.requirements);
+        grow(
+          this.moduleDeclaration.name,
+          checked.function ? checked.function.requirements : (checked.inferredRequirements ?? []),
+        );
       }
       for (const declaration of rowDeclarations) {
         if (declaration === this.moduleDeclaration) continue;
         const signature = this.signatures.get(declaration.name);
         if (!signature || this.failed.has(declaration.name)) continue;
         const checked = this.run(declaration, signature, true, false);
-        if (!checked.function) continue;
-        grow(declaration.name, checked.function.requirements);
+        if (!checked.function && (checked.inferredRequirements ?? []).length === 0) continue;
+        grow(
+          declaration.name,
+          checked.function ? checked.function.requirements : (checked.inferredRequirements ?? []),
+        );
       }
       if (!changed) return;
     }

@@ -83,4 +83,10 @@ export interface FunctionCheckResult {
   readonly diagnostics: readonly Diagnostic[];
   /** Whether checking produced a panic node carrying a message. */
   readonly hasPanicDetail: boolean;
+  /**
+   * Requirements inferred before checking stopped (BF): a failed trial
+   * still grew genuine requirements from its checked prefix, so row
+   * inference harvests them instead of discarding the round.
+   */
+  readonly inferredRequirements?: readonly string[];
 }

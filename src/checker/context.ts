@@ -403,7 +403,11 @@ export abstract class CheckerContext {
       };
     } catch (error) {
       if (!(error instanceof CheckFailure)) throw error;
-      return { diagnostics: this.diagnostics, hasPanicDetail: this.hasPanicDetail };
+      return {
+        diagnostics: this.diagnostics,
+        hasPanicDetail: this.hasPanicDetail,
+        inferredRequirements: [...this.inferredRequirements],
+      };
     }
   }
 

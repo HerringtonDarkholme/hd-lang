@@ -37,6 +37,13 @@ test("a diagnostic under an aliased row names the missing key and the expansion"
   );
 });
 
+test("an unknown call after a requiring call reports the unknown name", () => {
+  const codes = (source: string): readonly string[] =>
+    analyze(source).diagnostics.map((diagnostic) => diagnostic.code);
+  assert.deepEqual(codes('println("out")\neprintln("err")\n'), ["unknown-name"]);
+  assert.deepEqual(codes('eprintln("err")\n'), ["unknown-name"]);
+});
+
 test("a row alias's right side without '$' gets a fix-it that adds it", () => {
   const source = [
     "trait Db",
