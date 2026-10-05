@@ -22,6 +22,7 @@ import {
   rowArgumentKeys,
   storedSuspensionParts,
   suspensionType,
+  tupleElements,
   tupleParts,
   tupleLayout,
   tupleRest,
@@ -1320,7 +1321,7 @@ export abstract class CallChecker extends StatementChecker {
         actual &&
         (forwarded
           ? !(this.signature.tupleParameters ?? []).includes(forwarded)
-          : tupleParts(readonlyType(actual)) === undefined)
+          : tupleElements(readonlyType(actual)) === undefined)
       )
         this.fail(
           "unsatisfied-trait-bound",

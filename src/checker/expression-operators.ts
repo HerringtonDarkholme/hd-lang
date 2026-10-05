@@ -87,8 +87,7 @@ function operandText(expression: Expression): string {
 function isPrimitiveOperand(type: ValueType): boolean {
   const readonly = readonlyType(type);
   return (
-    numericType(readonly) !== undefined ||
-    ["bool", "char", "string", "never", "void"].includes(readonly)
+    numericType(readonly) !== undefined || ["bool", "char", "string", "never"].includes(readonly)
   );
 }
 
@@ -1113,8 +1112,6 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         "an inferred binding cannot have type never",
         expression.span,
       );
-    if (value.type === "void")
-      this.fail("void-binding", "a binding cannot store a void value", expression.span);
     const elementTypes = expression.bindings.length === 1 ? undefined : tupleParts(value.type);
     if (expression.bindings.length > 1 && elementTypes?.length !== expression.bindings.length)
       this.fail(

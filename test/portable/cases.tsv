@@ -2548,3 +2548,6 @@ typing/invalid/generic-inference-variance-conflict.hd	type
 typing/invalid/generic-inference-optional-conflict.hd	type
 typing/invalid/unconstrained-impl-parameter.hd	type
 typing/invalid/supertrait-impl-bounds.hd	type
+typing/valid/any-void-never.hd	type
+typing/valid/void-unit-alias.hd	type
+runtime/valid/fs-helpers.hd	runtime

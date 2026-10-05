@@ -509,8 +509,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         ? this.boxWatValue(computed, concrete.resultType)
         : computed;
       const parameters = method.parameters.map(
-        (parameter, parameterIndex) =>
-          `(param $a${parameterIndex} ${this.parameterWatType(parameter)})`,
+        (parameter, parameterIndex) => `(param $a${parameterIndex} ${this.slotWatType(parameter)})`,
       );
       const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
       const locals = operandTypes.map(
@@ -628,7 +627,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         return this.liveTraitMethods(trait).map((method) => {
           const parameters = method.parameters.map(
             (parameter, parameterIndex) =>
-              `(param $a${parameterIndex} ${this.parameterWatType(parameter)})`,
+              `(param $a${parameterIndex} ${this.slotWatType(parameter)})`,
           );
           const bounds = methodBoundParameters(method, "b");
           const providers = method.requirements.map(
@@ -687,7 +686,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         ? `(struct.new $d${typeId} (if (result (ref null $hd.string)) (ref.test (ref i31) (local.get $self)) (then (call ${this.stringFunction("concat")} ${this.emitStringLiteral("mut ")} ${key})) (else ${key})))`
         : `(struct.new $d${typeId} ${key})`;
       const parameters = method.parameters.map(
-        (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
+        (parameter, index) => `(param $a${index} ${this.slotWatType(parameter)})`,
       );
       const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
       const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds (ref.cast (ref $trait${trait.index}) (local.get $dictionary))))`;

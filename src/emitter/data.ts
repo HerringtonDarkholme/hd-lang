@@ -106,7 +106,7 @@ export abstract class DataEmitter extends IteratorEmitter {
           `  (local.set ${temporary} (call $hd.copy_d${this.embeddedDataIndex(declaration.fields[fieldIndex]!.type)} (struct.get $d${expression.dataIndex} $d${expression.dataIndex}f${fieldIndex} (local.get ${spreadTemporary}))))`,
       ),
       ...expression.fields.map(
-        (field, index) => `  (local.set ${temporaries[index]} ${this.emitExpression(field)})`,
+        (field, index) => `  (local.set ${temporaries[index]} ${this.boxVoid(field)})`,
       ),
       `  (struct.new $d${expression.dataIndex} ${storedFields.join(" ")})`,
       `)`,

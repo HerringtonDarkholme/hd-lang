@@ -1,7 +1,7 @@
 import type { GenericBound, Program } from "../ast.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import { functionResultText, rowArgumentKeys, tupleParts, displayType } from "../types.ts";
+import { functionResultText, rowArgumentKeys, tupleElements, displayType } from "../types.ts";
 
 // The spelled function type constructors of `std.function`
 // (07-functions.md#function-type-constructors). `Fn[(A, B), O, $ R]` is exactly
@@ -96,9 +96,7 @@ function lowerConstructor(
   const [inputs, output, row] = arguments_ as [string, string, string];
   // A `Tuple`-bounded type parameter is the one input `*Args`, which
   // substitution turns into the parameters of the tuple it is solved as.
-  const elements =
-    tupleParts(inputs) ??
-    (inputs === "()" ? [] : tupleBounded.has(inputs) ? [`*${inputs}`] : undefined);
+  const elements = tupleElements(inputs) ?? (tupleBounded.has(inputs) ? [`*${inputs}`] : undefined);
   if (!elements)
     return {
       type: spelled,

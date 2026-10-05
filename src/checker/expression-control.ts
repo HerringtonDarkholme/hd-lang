@@ -20,6 +20,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
+  tupleElements,
   tupleParts,
   displayType,
 } from "../types.ts";
@@ -49,6 +50,7 @@ import {
 import { spellBinding } from "./spelling.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionComprehensionChecker, FOR_PATTERN_ITEM } from "./expression-comprehensions.ts";
+import { STATEMENT_IFS } from "./statements.ts";
 type MatchExpression = Extract<Expression, { kind: "match" }>;
 type MatchSourceArm = MatchExpression["arms"][number];
 type MatchBinding = HirMatchArm["bindings"][number];
@@ -104,6 +106,12 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         // With an else suite each branch's final statement is the `if`'s
         // value, so the must-use check applies to the `if` instead.
         const valued = expression.elseBody.length > 0;
+        if (!valued && !STATEMENT_IFS.has(expression))
+          this.fail(
+            "type-mismatch",
+            "an `if` used as a value needs an `else`, for the value when the condition is false",
+            expression.span,
+          );
         const thenBody = this.checkConditionalSuite(
           expression.thenBody,
           bindingFlow.whenTrue,
@@ -447,7 +455,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const dataDeclaration = this.dataTypes.get(readonlyType(subject.type));
     const optional = optionalInner(subject.type);
     const result = resultParts(subject.type);
-    const tuple = tupleParts(subject.type) !== undefined;
+    const tuple = tupleElements(subject.type) !== undefined;
     const boolean = subject.type === "bool";
     const scalar =
       numericType(subject.type) !== undefined ||
@@ -849,51 +857,45 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
               ? { kind: "binding" as const, name, span: arm.pattern.span }
               : { kind: "wildcard" as const, span: arm.pattern.span },
           );
-        // A `void` success has one payload, `()`, which `_` or the unit
-        // pattern `()` matches (04-type-system.md#r-types.result.unit-pattern).
-        const voidSuccess = ok && payloadType === "void";
+        // A `void` success has one payload, `()`, which the unit pattern `()`
+        // matches as any pattern of `void` does (04-type-system.md#r-types.result.unit-pattern).
         this.requireUnitPayload(payloadPatterns[0], payloadType);
-        if (
-          payloadPatterns.length !== 1 ||
-          (voidSuccess && payloadPatterns[0]?.kind !== "wildcard")
-        ) {
+        if (payloadPatterns.length !== 1) {
           this.fail(
             "pattern-arity",
-            `${arm.pattern.variantName} expects 1 payload pattern${voidSuccess ? ", '_'" : ""}`,
+            `${arm.pattern.variantName} expects 1 payload pattern`,
             arm.pattern.span,
           );
         }
         let payloadRefutable = false;
-        if (!voidSuccess) {
-          const payloadPattern = payloadPatterns[0]!;
-          if (payloadPattern.kind === "binding") {
-            bindings.push({
-              local: this.addPatternLocal(payloadPattern.name, payloadType, payloadPattern.span),
+        const payloadPattern = payloadPatterns[0]!;
+        if (payloadPattern.kind === "binding") {
+          bindings.push({
+            local: this.addPatternLocal(payloadPattern.name, payloadType, payloadPattern.span),
+            fieldIndex: 0,
+            type: payloadType,
+          });
+        } else if (payloadPattern.kind !== "wildcard") {
+          const accessPath: HirPatternAccessStep[] = [
+            {
+              kind: "erased-variant",
+              typeIndex: -1,
               fieldIndex: 0,
-              type: payloadType,
-            });
-          } else if (payloadPattern.kind !== "wildcard") {
-            const accessPath: HirPatternAccessStep[] = [
-              {
-                kind: "erased-variant",
-                typeIndex: -1,
-                fieldIndex: 0,
-                valueType: payloadType,
-              },
-            ];
-            payloadRefutable = !this.checkNestedPattern(
-              payloadPattern,
-              payloadType,
-              accessPath,
-              bindings,
-              tests,
-            );
-          }
+              valueType: payloadType,
+            },
+          ];
+          payloadRefutable = !this.checkNestedPattern(
+            payloadPattern,
+            payloadType,
+            accessPath,
+            bindings,
+            tests,
+          );
         }
         if (!guarded && !payloadRefutable) context.covered.add(tag);
       } else if (arm.pattern.kind === "wildcard" || arm.pattern.kind === "binding") {
-        // A top-level `()` arm needs a `void` subject, which this prototype
-        // cannot match (`unsupported-match-subject`), so it needs no check here.
+        // A top-level `()` arm needs a `void` subject (06-control-flow.md#r-flow.match.unit.type).
+        this.requireUnitPayload(arm.pattern, context.subject.type);
         const bindingName = arm.pattern.kind === "binding" ? arm.pattern.name : undefined;
         if (context.optional !== undefined && (bindingName === "Some" || bindingName === "None")) {
           this.fail(

@@ -6,6 +6,7 @@ import type {
   ValueType,
 } from "../hir.ts";
 import { CURSOR_TYPE, mutableType, nominalGenericType, optionalType } from "../types.ts";
+import { voidThen } from "./scalars.ts";
 import { functionName, indent, localName } from "./shared.ts";
 import { ValueComparisonEmitter } from "./value-comparison.ts";
 
@@ -13,6 +14,15 @@ type IteratorSourceKind = "list" | "map";
 
 export abstract class IteratorEmitter extends ValueComparisonEmitter {
   protected abstract emitExpression(expression: HirExpression): string;
+
+  /**
+   * `expression` as a stored value: a `void` one runs, then gives the null
+   * its slot holds (`slotWatType`).
+   */
+  protected boxVoid(expression: HirExpression): string {
+    const value = this.emitExpression(expression);
+    return expression.type === "void" ? voidThen(value, `(ref.null any)`) : value;
+  }
   protected abstract boxValue(expression: HirExpression, type: ValueType): string;
   protected abstract emitBlock(
     statements: readonly HirStatement[],

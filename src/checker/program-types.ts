@@ -258,13 +258,6 @@ export function defineProgramData(context: ProgramCheckContext): void {
         declaration.genericBounds ?? [],
       );
       const type = resolved ?? "void";
-      // An unresolved type already has its own diagnostic: report it once, where it is written.
-      if (resolved === "void")
-        diagnostics.push({
-          code: "void-data-field",
-          message: "a data field cannot have type void",
-          span: field.span,
-        });
       // An embedded field names a data type (08-data-and-enums.md#r-data.embed.data-only).
       const embeddedData = field.embedded
         ? dataTypes.get(nominalGenericParts(type)?.name ?? type)
@@ -367,13 +360,6 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
         declaration.genericBounds ?? [],
       );
       const type = resolved ?? "void";
-      // An unresolved type already has its own diagnostic: report it once, where it is written.
-      if (resolved === "void")
-        diagnostics.push({
-          code: "void-data-field",
-          message: "a shared enum field cannot have type void",
-          span: field.span,
-        });
       const checked = {
         name: field.name,
         type,
@@ -426,13 +412,6 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           declaration.genericBounds ?? [],
         );
         const type = resolved ?? "void";
-        // An unresolved type already has its own diagnostic: report it once, where it is written.
-        if (resolved === "void")
-          diagnostics.push({
-            code: "void-data-field",
-            message: "an enum payload cannot have type void",
-            span: field.span,
-          });
         const checked = {
           name: field.name,
           type,

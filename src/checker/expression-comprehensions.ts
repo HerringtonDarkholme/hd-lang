@@ -184,8 +184,6 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
     let value = this.checkExpression(statement.value, annotation);
     if (annotation) value = this.requireCoercion(value, annotation, statement.value.span);
     const type = annotation ?? value.type;
-    if (type === "void")
-      this.fail("void-binding", "a binding cannot store a void value", statement.value.span);
     const exhaustive = patternsExhaustive([pattern], type, {
       enums: this.enumTypes,
       data: this.dataTypes,

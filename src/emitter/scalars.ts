@@ -15,13 +15,25 @@ function isScalar(type: ValueType): boolean {
   return numericType(type) !== undefined || type === "bool" || type === "char";
 }
 
-/** A scalar boxed as an erased value; any other value unchanged. */
+/**
+ * A scalar boxed as an erased value; any other value unchanged. A `void`
+ * slot holds null, whatever `value` is: a void expression that must run
+ * boxes through `voidThen`.
+ */
 export function boxScalar(value: string, type: ValueType): string {
   if (type === "void") return `(ref.null any)`;
   if (!isScalar(type)) return value;
   const wasm = scalarWasm(type);
   if (wasm === "f32") return `(struct.new $hd.box-f64 (f64.promote_f32 ${value}))`;
   return `(struct.new $hd.box-${wasm} ${value})`;
+}
+
+/**
+ * The void instruction `value`, run for its effects, then `then`. The unit
+ * value `()` is `(nop)`, which needs no block.
+ */
+export function voidThen(value: string, then: string): string {
+  return value === "(nop)" ? then : `(block (result anyref) ${value} ${then})`;
 }
 
 /** An erased value unboxed as a scalar, or undefined for another type. */

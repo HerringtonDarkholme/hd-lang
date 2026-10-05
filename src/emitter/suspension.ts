@@ -219,26 +219,27 @@ class SuspensionPlanBuilder {
         case "assignment":
           return this.lowerExpression(
             statement.value,
-            (value) => {
-              if (!value) throw new Error("a binding value cannot be void");
-              return this.block([{ kind: "assign", local: statement.local, value }], {
+            (value) =>
+              // A void local has no slot: its value only runs.
+              this.block(value ? [{ kind: "assign", local: statement.local, value }] : [], {
                 kind: "jump",
                 target: next(),
-              });
-            },
+              }),
             nextContext,
           );
         case "global-binding":
         case "global-assignment":
           return this.lowerExpression(
             statement.value,
-            (value) => {
-              if (!value) throw new Error("a global binding value cannot be void");
-              return this.block([{ kind: "global-assign", global: statement.global, value }], {
-                kind: "jump",
-                target: next(),
-              });
-            },
+            (value) =>
+              // A void global's slot keeps its null: its value only runs.
+              this.block(
+                value ? [{ kind: "global-assign", global: statement.global, value }] : [],
+                {
+                  kind: "jump",
+                  target: next(),
+                },
+              ),
             nextContext,
           );
         case "discard":
@@ -890,8 +891,24 @@ class SuspensionPlanBuilder {
     return this.lowerExpression(
       values[index]!,
       (value) => {
-        if (!value || value.type === "void")
-          throw new Error("void value in expression operand list");
+        // A `void` operand runs here and passes on as the unit value `()`.
+        if (!value || value.type === "void") {
+          const span = values[index]!.span;
+          const unit: HirExpression = {
+            kind: "tuple",
+            elements: [],
+            elementTypes: [],
+            type: "void",
+            span,
+          };
+          const next = this.lowerValueList(values, continuation, context, index + 1, [
+            ...lowered,
+            unit,
+          ]);
+          return value
+            ? this.block([{ kind: "evaluate", value }], { kind: "jump", target: next })
+            : next;
+        }
         const local = this.temporary(value.type, value.span, "operand");
         const next = this.lowerValueList(values, continuation, context, index + 1, [
           ...lowered,

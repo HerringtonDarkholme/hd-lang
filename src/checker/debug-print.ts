@@ -200,7 +200,7 @@ function debugShape(
   dataTypes: ReadonlyMap<string, HirData>,
   enumTypes: ReadonlyMap<string, HirEnum>,
 ): DebugShape {
-  if (type === "void" || type === "()") return { kind: "text", text: "()" };
+  if (type === "void") return { kind: "text", text: "()" };
   if (type === "never") return { kind: "text", text: "never" };
   if (
     type === CURSOR_TYPE ||
@@ -476,24 +476,21 @@ export function debugPrinters(
         "hd__out.tuple_close(COUNT, false)",
       );
     };
-    // A `void` payload binds no value, so its pattern is `_`; it prints `()`.
-    const binder = (type: ValueType, name: string): string =>
-      type === "void" || type === "()" ? "_" : name;
     switch (shape.kind) {
       case "text":
         add(0, `hd__out.write(${out.string(shape.text)})`);
         break;
       case "option":
         add(0, "match hd__value:");
-        add(1, `.Some(${binder(shape.inner, "hd__inner")}) =>`);
+        add(1, `.Some(hd__inner) =>`);
         variant(2, "Option.Some", [{ name: "0", type: shape.inner, value: "hd__inner" }]);
         add(1, `.None => hd__out.write(${out.string("Option.None")})`);
         break;
       case "result":
         add(0, "match hd__value:");
-        add(1, `.Ok(${binder(shape.ok, "hd__inner")}) =>`);
+        add(1, `.Ok(hd__inner) =>`);
         variant(2, "Result.Ok", [{ name: "0", type: shape.ok, value: "hd__inner" }]);
-        add(1, `.Err(${binder(shape.error, "hd__inner")}) =>`);
+        add(1, `.Err(hd__inner) =>`);
         variant(2, "Result.Err", [{ name: "0", type: shape.error, value: "hd__inner" }]);
         break;
       case "list":
@@ -566,9 +563,7 @@ export function debugPrinters(
         const owner = displayType(shape.name);
         for (const each of shape.variants) {
           const qualified = `${owner}.${each.name}`;
-          const binders = each.fields.map((field, index) =>
-            binder(field.type, `hd__field${index}`),
-          );
+          const binders = each.fields.map((_, index) => `hd__field${index}`);
           if (binders.length === 0) {
             add(2, `.${each.name} => hd__out.write(${out.string(qualified)})`);
             continue;

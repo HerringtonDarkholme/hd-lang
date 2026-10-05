@@ -293,10 +293,6 @@ export abstract class CheckerContext {
           );
         }
         const type = this.signature.parameters[index] ?? this.resolveType(parameter.type);
-        // `self` of an `impl ... for void` method, such as std.process's
-        // `Termination` implementation (10-modules.md#exit-status), is void.
-        if (type === "void" && !(parameter.name === "self" && index === 0))
-          this.fail("void-parameter", "a parameter cannot have type void", parameter.span);
         if (this.currentScope().has(parameter.name))
           this.fail("duplicate-binding", `duplicate parameter '${parameter.name}'`, parameter.span);
         const local: HirLocal = {
@@ -992,8 +988,8 @@ export abstract class CheckerContext {
       builtin: HirBuiltinTraitImplementation,
       bounds: readonly HirExpression[] = [],
     ): HirTraitDictionaryPlan => ({ bounds, implementationIndex: -1, supertraits: [], builtin });
-    // Every value type implements `Any` (04-type-system.md#trait-values-and-any).
-    if (traitName === "Any" && type !== "void" && type !== "never")
+    // Every value type implements `Any`, `void` included (04-type-system.md#trait-values-and-any).
+    if (traitName === "Any" && type !== "never")
       return plan({ kind: "marker", traitIndex, targetType: type });
     const inspectable = trait !== undefined && this.isStandardInspectable(trait);
     if (genericTypeName(type) && !(inspectable && this.anyTypeInspectable)) return undefined;

@@ -89,8 +89,18 @@ export function tupleParts(type: ValueType): readonly ValueType[] | undefined {
   return sawComma ? values : undefined;
 }
 
+/**
+ * The tuple type of `elements`. The empty tuple is `void`, its one spelling
+ * as a type (04-type-system.md#r-types.void).
+ */
 export function tupleType(elements: readonly ValueType[]): ValueType {
+  if (elements.length === 0) return "void";
   return `(${elements.join(",")}${elements.length === 1 ? "," : ""})`;
+}
+
+/** A tuple type's elements, `void` included as the empty tuple (04-type-system.md#r-types.void). */
+export function tupleElements(type: ValueType): readonly ValueType[] | undefined {
+  return type === "void" ? [] : tupleParts(type);
 }
 
 /**
@@ -433,7 +443,7 @@ export function functionType(
   // `*Args` solved as a tuple type is that tuple's elements, its rest
   // element the vararg (07-functions.md#r-fn.type.ctor.sugar).
   const inputs = parameters.length === 1 ? inputsInner(parameters[0]!) : undefined;
-  const solved = inputs !== undefined ? tupleParts(inputs) : undefined;
+  const solved = inputs !== undefined ? tupleElements(inputs) : undefined;
   if (solved) {
     const rest = solved.length > 0 && restInner(solved.at(-1)!) !== undefined;
     return functionType(

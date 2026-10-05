@@ -25,7 +25,7 @@ fn delivery_note(country: string, parcels: List[i32]) -> string:
 
 # Delete `else: "in 3-5 days"` and Run. An `if` without
 # `else` has no value when the test is false:
-#     void-binding: a binding cannot store a void value
+#     type-mismatch: an `if` used as a value needs an `else`, for the value when the condition is false
 
 # ── plumbing ──
 pub fn main() -> void $ Console:
@@ -36,7 +36,7 @@ pub fn main() -> void $ Console:
 ```edit
 replace:     speed := if country == "DE": "tomorrow" else: "in 3-5 days"
 with:     speed := if country == "DE": "tomorrow"
-error: void-binding: a binding cannot store a void value
+error: type-mismatch: an `if` used as a value needs an `else`, for the value when the condition is false
 ```
 
 ```output

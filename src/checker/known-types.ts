@@ -59,17 +59,13 @@ export function isKnownType(
   if (contextKeys(type)) return true;
   const tuple = tupleParts(type);
   if (tuple !== undefined)
-    return tuple.every(
-      (element) => element !== "void" && isKnownType(element, dataTypes, enumTypes, traitTypes),
-    );
+    return tuple.every((element) => isKnownType(element, dataTypes, enumTypes, traitTypes));
   const optional = optionalInner(type);
-  if (optional !== undefined)
-    return optional !== "void" && isKnownType(optional, dataTypes, enumTypes, traitTypes);
+  if (optional !== undefined) return isKnownType(optional, dataTypes, enumTypes, traitTypes);
   const result = resultParts(type);
   if (result)
     return (
       isKnownType(result.ok, dataTypes, enumTypes, traitTypes) &&
-      result.error !== "void" &&
       isKnownType(result.error, dataTypes, enumTypes, traitTypes)
     );
   const nominal = nominalGenericParts(type);
@@ -83,11 +79,9 @@ export function isKnownType(
     if (nominal.name === CURSOR_TYPE) {
       return (
         nominal.arguments.length === 1 &&
-        nominal.arguments[0] !== "void" &&
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }
-    // `List[void]` is a valid type, as a mapped `void` callback's result.
     if (nominal.name === "List") {
       return (
         nominal.arguments.length === 1 &&
@@ -98,7 +92,6 @@ export function isKnownType(
       return (
         nominal.arguments.length === 2 &&
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes) &&
-        nominal.arguments[1] !== "void" &&
         isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes)
       );
     }
@@ -123,9 +116,8 @@ export function isKnownType(
   const callable = functionParts(type);
   return Boolean(
     callable &&
-    callable.parameters.every(
-      (parameter) =>
-        parameter !== "void" && isKnownType(parameter, dataTypes, enumTypes, traitTypes),
+    callable.parameters.every((parameter) =>
+      isKnownType(parameter, dataTypes, enumTypes, traitTypes),
     ) &&
     isKnownType(callable.result, dataTypes, enumTypes, traitTypes),
   );

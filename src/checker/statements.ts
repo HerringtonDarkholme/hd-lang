@@ -32,6 +32,12 @@ import { numericType } from "../numeric.ts";
 import { CheckerContext, CheckFailure, PRELUDE_NAMES } from "./context.ts";
 import { statementsReferenceName } from "./shared.ts";
 
+/**
+ * The `if` expressions written as statements. Only there may an `if` omit
+ * `else` (06-control-flow.md#r-flow.if.value.else, #r-flow.if.statement).
+ */
+export const STATEMENT_IFS = new WeakSet<Expression>();
+
 export abstract class StatementChecker extends CheckerContext {
   /** Whether a resolved type is one of std.ops' range types. */
   protected abstract isRangeType(type: ValueType): boolean;
@@ -342,6 +348,7 @@ export abstract class StatementChecker extends CheckerContext {
           );
         return { kind: "continue", span: statement.span };
       case "expression": {
+        if (statement.expression.kind === "if") STATEMENT_IFS.add(statement.expression);
         const expression = this.checkExpression(statement.expression, expected);
         if (
           !valueContext &&
@@ -838,8 +845,6 @@ export abstract class StatementChecker extends CheckerContext {
         "an inferred binding cannot have type never",
         statement.span,
       );
-    if (type === "void")
-      this.fail("void-binding", "a binding cannot store a void value", statement.span);
     value = this.requireCoercion(value, type, statement.value.span);
     if (this.moduleBody) {
       const global: HirGlobal = recursiveGlobal ?? {

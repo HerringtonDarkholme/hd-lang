@@ -72,8 +72,7 @@ export abstract class CallableAdapterEmitter extends DataEmitter {
     ].join("\n");
 
     const parameters = callable.parameters.map(
-      (parameter, parameterIndex) =>
-        `(param $a${parameterIndex} ${this.parameterWatType(parameter)})`,
+      (parameter, parameterIndex) => `(param $a${parameterIndex} ${this.slotWatType(parameter)})`,
     );
     const providerParameters = callable.requirements.map(
       (requirement, providerIndex) =>
@@ -124,7 +123,7 @@ export abstract class CallableAdapterEmitter extends DataEmitter {
         const formalSignature = this.functionSignatures.get(adapter.formalType);
         const actualSignature = this.functionSignatures.get(adapter.actualType);
         const parameters = formal.parameters.map(
-          (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
+          (parameter, index) => `(param $a${index} ${this.slotWatType(parameter)})`,
         );
         const providers = formal.requirements.map(
           (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
@@ -212,7 +211,7 @@ export abstract class CallableAdapterEmitter extends DataEmitter {
           if (!this.methodIsLive(implementation.traitIndex, mapping.methodIndex)) return [];
           const method = trait.methods[mapping.methodIndex]!;
           const parameters = method.parameters.map(
-            (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
+            (parameter, index) => `(param $a${index} ${this.slotWatType(parameter)})`,
           );
           const methodBounds = methodBoundParameters(method, "b");
           const providers = method.requirements.map(

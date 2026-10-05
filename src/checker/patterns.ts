@@ -228,7 +228,6 @@ export abstract class PatternChecker extends CallChecker {
       );
     }
     const payloadType = ok ? parts.ok : parts.error;
-    const unitSuccess = ok && payloadType === "void";
     if (expression.arguments.length !== 1) {
       this.fail(
         "argument-count",
@@ -237,18 +236,11 @@ export abstract class PatternChecker extends CallChecker {
       );
     }
     this.resolveArgumentMapping(expression, [ok ? "value" : "error"], `Result.${variantName}`);
-    if (unitSuccess) {
-      const argument = expression.arguments[0]!;
-      if (argument.kind !== "tuple" || argument.elements.length > 0)
-        this.fail("type-mismatch", "a void success takes the value '()'", argument.span);
-    }
-    const payload = !unitSuccess
-      ? this.requireCoercion(
-          this.checkExpression(expression.arguments[0]!, payloadType),
-          payloadType,
-          expression.arguments[0]!.span,
-        )
-      : undefined;
+    const payload = this.requireCoercion(
+      this.checkExpression(expression.arguments[0]!, payloadType),
+      payloadType,
+      expression.arguments[0]!.span,
+    );
     return {
       kind: "variant-wrap",
       variant: ok ? "result-ok" : "result-error",

@@ -50,13 +50,18 @@ export interface TupleInstance extends TupleShape {
 
 const shapeKey = (shape: TupleShape): string => `${shape.fixed}${shape.rest ? "+" : ""}`;
 
-/** The tuple shapes in each type text, tuple expression, and implementation target of `node`. */
-function tupleShapes(node: unknown): TupleShape[] {
+/**
+ * The tuple shapes in each type text, tuple expression, and implementation
+ * target of `node`; with `voidElements`, also the empty tuple of each `void`
+ * type argument or element, as in `Result[void, E]`.
+ */
+function tupleShapes(node: unknown, voidElements = false): TupleShape[] {
   const shapes = new Map<string, TupleShape>();
   const add = (shape: TupleShape): void => {
     shapes.set(shapeKey(shape), shape);
   };
   const scanType = (text: string): void => {
+    if (voidElements && /[[(,]\s*void\s*[\]),]/.test(text)) add({ fixed: 0, rest: false });
     for (let index = text.indexOf("("); index >= 0; index = text.indexOf("(", index + 1)) {
       // A function type's inputs are not a tuple value.
       if (/fn!?$/.test(text.slice(0, index))) continue;
@@ -96,7 +101,7 @@ function tupleShapes(node: unknown): TupleShape[] {
 export function tupleShapesInJoinedProgram(program: Program): readonly TupleShape[] {
   // A std implementation's body works on its own type parameters, so it
   // needs no tuple implementation that its signature does not show.
-  return tupleShapes([
+  const shapes = tupleShapes([
     program.statements,
     program.tests,
     program.implementations.filter((implementation) => !implementation.standard),
@@ -106,6 +111,27 @@ export function tupleShapesInJoinedProgram(program: Program): readonly TupleShap
     program.traits,
     program.functions,
   ]);
+  // `void` is the empty tuple `()` (04-type-system.md#r-types.void). The
+  // program's own `Result[void, E]` or `(void, i32)` shows that shape; std's
+  // many `void` results alone do not instantiate it.
+  const own = <T extends object>(items: readonly T[]): T[] =>
+    items.filter((item) => !("standard" in item && item.standard === true));
+  const voidShape = tupleShapes(
+    [
+      own(program.statements),
+      program.tests,
+      own(program.implementations),
+      own(program.types ?? []),
+      own(program.data),
+      own(program.enums),
+      own(program.traits),
+      own(program.functions),
+    ],
+    true,
+  ).some((shape) => shape.fixed === 0 && !shape.rest);
+  return voidShape && !shapes.some((shape) => shape.fixed === 0 && !shape.rest)
+    ? [{ fixed: 0, rest: false }, ...shapes]
+    : shapes;
 }
 
 /** The synthetic target, type, and variant of a tuple shape (annot.tuple.*). */

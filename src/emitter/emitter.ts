@@ -86,8 +86,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const emittedRequirements = startProviders.length > 0 ? [] : declaration.requirements;
     const parameters = declaration.parameters
       .map(
-        (parameter) =>
-          `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+        (parameter) => `(param ${localName(parameter.index)} ${this.slotWatType(parameter.type)})`,
       )
       .join(" ");
     const boundParameters = declaration.genericBounds.map(
@@ -117,7 +116,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const closureBounds = closureBoundLoads(declaration);
     const locals = declaration.locals
       .filter((local) => !local.parameter)
-      .map((local) => `  (local ${localName(local.index)} ${this.watType(local.type)})`)
+      .map((local) => `  (local ${localName(local.index)} ${this.slotWatType(local.type)})`)
       .concat(closureBounds.locals);
     const startProviderLocals = startProviders.map(
       (requirement, index) => `  (local $provider${index} ${this.providerType(requirement)})`,
@@ -149,7 +148,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
           ].join("\n")
         : this.emitBlock(declaration.body, declaration.result);
     const temporaries = this.temporaryTypes.map(
-      (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
+      (type, index) => `  (local $tmp${index} ${this.slotWatType(type)})`,
     );
     const exportable =
       !declaration.name.startsWith("$") &&
@@ -204,8 +203,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     if (plan) return this.emitCfgSuspensionSupport(declaration, plan);
     const parameters = declaration.parameters
       .map(
-        (parameter) =>
-          `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+        (parameter) => `(param ${localName(parameter.index)} ${this.slotWatType(parameter.type)})`,
       )
       .join(" ");
     const boundParameters = declaration.genericBounds.map(
@@ -334,8 +332,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     this.cleanupFrames.length = 0;
     const parameters = declaration.parameters
       .map(
-        (parameter) =>
-          `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+        (parameter) => `(param ${localName(parameter.index)} ${this.slotWatType(parameter.type)})`,
       )
       .join(" ");
     const boundParameters = declaration.genericBounds.map(
@@ -469,7 +466,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     ];
 
     const localDeclarations = [...declaration.locals, ...plan.temporaries].map(
-      (local) => `  (local ${localName(local.index)} ${this.watType(local.type)})`,
+      (local) => `  (local ${localName(local.index)} ${this.slotWatType(local.type)})`,
     );
     const environmentLocals = declaration.closure ? [`  (local $env anyref)`] : [];
     const boundLocals = declaration.genericBounds.map(
@@ -479,7 +476,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       (requirement, index) => `  (local $provider${index} ${this.providerType(requirement)})`,
     );
     const temporaries = this.temporaryTypes.map(
-      (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
+      (type, index) => `  (local $tmp${index} ${this.slotWatType(type)})`,
     );
     const poll = [
       `(func $poll${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)})) (result i32)`,
@@ -547,9 +544,14 @@ class FunctionEmitter extends FunctionBodyEmitter {
   private emitCfgOperation(operation: SuspensionOperation): string {
     switch (operation.kind) {
       case "assign":
-        return `(local.set ${localName(operation.local.index)} ${this.emitExpression(operation.value)})`;
+        // A `void` local's slot keeps its null: the value only runs.
+        return operation.local.type === "void"
+          ? this.emitExpression(operation.value)
+          : `(local.set ${localName(operation.local.index)} ${this.emitExpression(operation.value)})`;
       case "global-assign":
-        return `(global.set ${globalName(operation.global.index)} ${this.emitExpression(operation.value)})`;
+        return operation.global.type === "void"
+          ? this.emitExpression(operation.value)
+          : `(global.set ${globalName(operation.global.index)} ${this.emitExpression(operation.value)})`;
       case "evaluate": {
         const value = this.emitExpression(operation.value);
         return operation.value.type === "void" || operation.value.type === "never"
@@ -867,8 +869,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     );
     const signature = this.functionSignatures.get(type);
     const parameters = declaration.parameters.map(
-      (parameter) =>
-        `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+      (parameter) => `(param ${localName(parameter.index)} ${this.slotWatType(parameter.type)})`,
     );
     const providers = declaration.requirements.map(
       (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
@@ -947,9 +948,7 @@ function emitTraitMethodTypes(
           const parameters = [
             `(param anyref)`,
             `(param anyref)`,
-            ...method.parameters.map(
-              (parameter) => `(param ${emitter.parameterWatType(parameter)})`,
-            ),
+            ...method.parameters.map((parameter) => `(param ${emitter.slotWatType(parameter)})`),
             ...methodBoundParameters(method),
             ...method.requirements.map(
               (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
@@ -1019,7 +1018,7 @@ function emitReachableWat(
       const callable = functionParts(type)!;
       const parameters = [
         `(param anyref)`,
-        ...callable.parameters.map((parameter) => `(param ${emitter.parameterWatType(parameter)})`),
+        ...callable.parameters.map((parameter) => `(param ${emitter.slotWatType(parameter)})`),
         ...callable.requirements.map(
           (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
         ),
@@ -1124,7 +1123,7 @@ ${[...program.functions, ...program.closures]
     return `    (type $s${suspensionIndex(declaration)} (struct
       (field $s${suspensionIndex(declaration)}state (mut i32))
       (field $s${suspensionIndex(declaration)}polls (mut i32))
-      (field $s${suspensionIndex(declaration)}result_adapter (mut (ref null $hd.suspension-result-adapt-sig)))${declaration.closure ? `\n      (field $s${suspensionIndex(declaration)}env anyref)` : ""}${declaration.parameters.map((parameter, index) => `\n      (field $s${suspensionIndex(declaration)}a${index} ${emitter.watType(parameter.type)})`).join("")}${declaration.genericBounds.map((bound, index) => `\n      (field $s${suspensionIndex(declaration)}b${index} (ref null $trait${bound.traitIndex}))`).join("")}${declaration.requirements.map((requirement, index) => `\n      (field $s${suspensionIndex(declaration)}p${index} ${providerWatType(requirement, traitsByName)})`).join("")}${storedLocals.map((local) => `\n      (field $s${suspensionIndex(declaration)}l${local.index} (mut ${emitter.watType(local.type)}))`).join("")}${sites.map((site) => `\n      (field $s${suspensionIndex(declaration)}child${site.siteIndex} (mut (ref null ${suspensionFrameTypeName(site.drive)})))`).join("")}${declaration.result === "void" ? "" : `\n      (field $s${suspensionIndex(declaration)}result (mut ${emitter.watType(declaration.result)}))`}))`;
+      (field $s${suspensionIndex(declaration)}result_adapter (mut (ref null $hd.suspension-result-adapt-sig)))${declaration.closure ? `\n      (field $s${suspensionIndex(declaration)}env anyref)` : ""}${declaration.parameters.map((parameter, index) => `\n      (field $s${suspensionIndex(declaration)}a${index} ${emitter.slotWatType(parameter.type)})`).join("")}${declaration.genericBounds.map((bound, index) => `\n      (field $s${suspensionIndex(declaration)}b${index} (ref null $trait${bound.traitIndex}))`).join("")}${declaration.requirements.map((requirement, index) => `\n      (field $s${suspensionIndex(declaration)}p${index} ${providerWatType(requirement, traitsByName)})`).join("")}${storedLocals.map((local) => `\n      (field $s${suspensionIndex(declaration)}l${local.index} (mut ${emitter.slotWatType(local.type)}))`).join("")}${sites.map((site) => `\n      (field $s${suspensionIndex(declaration)}child${site.siteIndex} (mut (ref null ${suspensionFrameTypeName(site.drive)})))`).join("")}${declaration.result === "void" ? "" : `\n      (field $s${suspensionIndex(declaration)}result (mut ${emitter.watType(declaration.result)}))`}))`;
   })
   .join("\n")}
 ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n")}\n${program.data
@@ -1132,7 +1131,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
       const fields = declaration.fields
         .map(
           (field) =>
-            `      (field $d${declaration.index}f${field.index} (mut ${emitter.watType(field.type)}))`,
+            `      (field $d${declaration.index}f${field.index} (mut ${emitter.slotWatType(field.type)}))`,
         )
         .join("\n");
       return `    (type $d${declaration.index} (struct\n${fields}))`;
@@ -1142,7 +1141,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
       const fields = declaration.fields
         .map(
           (field) =>
-            `      (field $e${declaration.index}f${field.index} (mut ${emitter.watType(field.type)}))`,
+            `      (field $e${declaration.index}f${field.index} (mut ${emitter.slotWatType(field.type)}))`,
         )
         .join("\n");
       return `    (type $e${declaration.index} (struct\n      (field $e${declaration.index}tag i32)${fields ? "\n" + fields : ""}))`;
@@ -1174,7 +1173,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
   const globals = program.globals
     .map(
       (global) =>
-        `  (global ${globalName(global.index)} (mut ${emitter.watType(global.type)}) ${emitter.defaultValue(global.type)})`,
+        `  (global ${globalName(global.index)} (mut ${emitter.slotWatType(global.type)}) ${emitter.defaultValue(global.type)})`,
     )
     .join("\n");
   const functions = [...emittedFunctions(program), ...program.closures]

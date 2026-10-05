@@ -48,6 +48,19 @@ import { scalarWasm } from "./scalars.ts";
 import { integerConstant, powerFunction, shiftCount } from "./sized-numeric.ts";
 import { numericType } from "../numeric.ts";
 
+/** The reads of a stored value, which give a `void` slot's null (`slotWatType`). */
+const VOID_SLOT_READS: ReadonlySet<HirExpression["kind"]> = new Set([
+  "variant-payload",
+  "list-index",
+  "tuple-index",
+  "map-index",
+  "map-entry-key",
+  "map-entry-value",
+  "member",
+  "enum-member",
+  "cell-get",
+]);
+
 export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
   protected abstract emitSuspensionFrameStores(
     declaration: HirFunction,
@@ -92,12 +105,15 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       case "defer":
         throw new Error("defer registration must be emitted by its containing block");
       case "binding":
-        return `(local.set ${localName(statement.local.index)} ${this.emitExpression(statement.value)})`;
       case "assignment":
-        return `(local.set ${localName(statement.local.index)} ${this.emitExpression(statement.value)})`;
+        return statement.local.type === "void"
+          ? this.emitExpression(statement.value)
+          : `(local.set ${localName(statement.local.index)} ${this.emitExpression(statement.value)})`;
       case "global-binding":
       case "global-assignment":
-        return `(global.set ${globalName(statement.global.index)} ${this.emitExpression(statement.value)})`;
+        return statement.global.type === "void"
+          ? this.emitExpression(statement.value)
+          : `(global.set ${globalName(statement.global.index)} ${this.emitExpression(statement.value)})`;
       case "discard": {
         const value = this.emitExpression(statement.value);
         return statement.value.type === "void" || statement.value.type === "never"
@@ -105,6 +121,13 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           : `(drop ${value})`;
       }
       case "return":
+        // A `void` value runs before the cleanups, and the return carries nothing.
+        if (statement.value?.type === "void")
+          return [
+            this.emitExpression(statement.value),
+            ...this.emitExitCleanups(false),
+            `(return)`,
+          ].join("\n");
         if (statement.value) {
           const temporary = this.allocateTemporary(statement.value.type);
           return [
@@ -116,8 +139,12 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         return [...this.emitExitCleanups(false), `(return)`].join("\n");
       case "break": {
         const loop = this.loops.at(-1)!;
-        if (!statement.value)
-          return [...this.emitExitCleanups(true), `(br ${loop.breakLabel})`].join("\n");
+        if (!statement.value || statement.value.type === "void")
+          return [
+            ...(statement.value ? [this.emitExpression(statement.value)] : []),
+            ...this.emitExitCleanups(true),
+            `(br ${loop.breakLabel})`,
+          ].join("\n");
         const temporary = this.allocateTemporary(statement.value.type);
         return [
           `(local.set ${temporary} ${this.emitExpression(statement.value)})`,
@@ -145,8 +172,11 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       this.emitCallExpression(expression) ??
       this.emitContainerExpression(expression) ??
       this.emitControlExpression(expression);
-    if (emitted !== undefined) return emitted;
-    throw new Error(`unsupported expression '${expression.kind}'`);
+    if (emitted === undefined) throw new Error(`unsupported expression '${expression.kind}'`);
+    // A stored `void` reads as its slot's null; as an expression it leaves nothing.
+    return expression.type === "void" && VOID_SLOT_READS.has(expression.kind)
+      ? `(drop ${emitted})`
+      : emitted;
   }
 
   /**
@@ -193,8 +223,8 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       }
       case "value-equality":
         return this.emitValueEquality(
-          this.emitExpression(expression.left),
-          this.emitExpression(expression.right),
+          this.boxVoid(expression.left),
+          this.boxVoid(expression.right),
           expression.valueType,
           expression.strategy,
         );
@@ -210,8 +240,8 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           ">=": `(i32.and (i32.ge_s ${ordering} (i32.const 0)) (i32.le_s ${ordering} (i32.const 1)))`,
         };
         const compared = this.emitValueOrdering(
-          this.emitExpression(expression.left),
-          this.emitExpression(expression.right),
+          this.boxVoid(expression.left),
+          this.boxVoid(expression.right),
           expression.valueType,
           expression.strategy,
         );
@@ -233,7 +263,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         })`;
       case "tuple":
         return expression.elements.length === 0
-          ? `(array.new_default $hd.list (i32.const 0))`
+          ? `(nop)`
           : `(array.new_fixed $hd.list ${expression.elements.length} ${expression.elements.map((element, index) => this.boxValue(element, expression.elementTypes[index]!)).join(" ")})`;
       case "map": {
         const temporary = this.allocateTemporary(expression.type);
@@ -313,10 +343,15 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         ].join("\n");
       }
       case "local":
-        return `(local.get ${localName(expression.local.index)})`;
+        return expression.local.type === "void"
+          ? `(nop)`
+          : `(local.get ${localName(expression.local.index)})`;
       case "global":
-        return `(global.get ${globalName(expression.global.index)})`;
+        return expression.global.type === "void"
+          ? `(nop)`
+          : `(global.get ${globalName(expression.global.index)})`;
       case "capture": {
+        if (expression.type === "void") return `(nop)`;
         return `(struct.get $env${expression.closureIndex} $env${expression.closureIndex}f${expression.fieldIndex} (ref.cast (ref $env${expression.closureIndex}) (local.get $env)))`;
       }
       case "cell-new":
@@ -672,7 +707,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       case "closure-self":
         return `(struct.new $closure${this.functionSignatures.get(readonlyType(expression.type))} (ref.func $c${expression.closureIndex}) (local.get $env))`;
       case "closure":
-        return `(struct.new $closure${this.functionSignatures.get(readonlyType(expression.type))} (ref.func $c${expression.closureIndex}) (struct.new $env${expression.closureIndex}${[...expression.captures.map((capture) => this.emitExpression(capture)), ...this.closureBoundValues(expression.closureIndex)].map((value) => ` ${value}`).join("")}))`;
+        return `(struct.new $closure${this.functionSignatures.get(readonlyType(expression.type))} (ref.func $c${expression.closureIndex}) (struct.new $env${expression.closureIndex}${[...expression.captures.map((capture) => this.boxVoid(capture)), ...this.closureBoundValues(expression.closureIndex)].map((value) => ` ${value}`).join("")}))`;
       case "closure-call": {
         const signature = this.functionSignatures.get(readonlyType(expression.callee.type));
         const temporary = this.allocateTemporary(expression.callee.type);
@@ -681,13 +716,16 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           `  (local.set ${temporary} ${this.emitExpression(expression.callee)})`,
           `  (call_ref $sig${signature}`,
           `    (struct.get $closure${signature} $closure${signature}env (local.get ${temporary}))`,
-          ...expression.arguments.map((argument) => `    ${this.emitExpression(argument)}`),
+          ...expression.arguments.map((argument) => `    ${this.boxVoid(argument)}`),
           ...expression.providers.map((provider) => `    ${this.emitExpression(provider)}`),
           `    (struct.get $closure${signature} $closure${signature}fn (local.get ${temporary})))`,
           `)`,
         ].join("\n");
       }
       case "trait-wrap": {
+        // A `void` value has no slot: it runs, and the trait value holds null.
+        if (expression.value.type === "void")
+          return `(block (result ${this.watType(expression.type)}) ${this.emitExpression(expression.value)} ${this.emitTraitDictionaryPlan(expression.dictionary, "(ref.null any)")})`;
         const temporary = this.allocateTemporary(expression.value.type);
         const wrapped = this.emitTraitDictionaryPlan(
           expression.dictionary,
@@ -907,7 +945,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         return [
           `(block (result ${this.watType(expression.type)})`,
           ...expression.fields.map(
-            (field, index) => `  (local.set ${temporaries[index]} ${this.emitExpression(field)})`,
+            (field, index) => `  (local.set ${temporaries[index]} ${this.boxVoid(field)})`,
           ),
           `  (struct.new $e${expression.enumIndex} (i32.const ${expression.tag})${storedFields.length ? " " : ""}${storedFields.join(" ")})`,
           `)`,
@@ -925,7 +963,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       case "embedded-copy":
         return this.emitEmbeddedCopy(expression);
       case "field-set": {
-        const value = this.emitExpression(expression.value);
+        const value = this.boxVoid(expression.value);
         const stored = this.storeErased(
           value,
           expression.erasedFieldType,
@@ -1103,7 +1141,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
             : ` (result ${this.watType(expression.type)})`;
         return [
           `(block${result}`,
-          `  (local.set ${subject} ${this.emitExpression(expression.subject)})`,
+          `  (local.set ${subject} ${this.boxVoid(expression.subject)})`,
           indent(
             this.emitMatchArms(
               expression.representation,
@@ -1155,6 +1193,8 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
     stage = false,
   ): EmittedArguments {
     const emitValue = (argument: HirExpression, parameterIndex: number): string => {
+      // A `void` parameter holds null (`slotWatType`).
+      if (argument.type === "void") return this.boxVoid(argument);
       const formal = erasedParameterTypes?.[parameterIndex];
       if (
         formal &&
@@ -1199,6 +1239,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
   }
 
   protected boxValue(expression: HirExpression, type: ValueType): string {
+    if (expression.type === "void") return this.boxVoid(expression);
     return this.boxWatValue(this.emitExpression(expression), type);
   }
 

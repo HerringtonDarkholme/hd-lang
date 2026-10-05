@@ -261,8 +261,12 @@ export class EmitterContext {
     return `(struct.new $trait${targetTrait.index} (struct.get $trait${sourceTrait.index} $trait${sourceTrait.index}value ${value}) (struct.get $trait${targetTrait.index} $trait${targetTrait.index}bounds ${dictionary}) ${[...methods, ...parents].join(" ")})`;
   }
 
-  /** A parameter's Wasm type; a void `self` (`impl ... for void`) is a null anyref. */
-  parameterWatType(type: ValueType): string {
+  /**
+   * The Wasm type of a stored value: a local, parameter, temporary, or
+   * field. A `void` one holds a null anyref, since `()` is its only value
+   * (04-type-system.md#r-types.void); as an expression it leaves nothing.
+   */
+  slotWatType(type: ValueType): string {
     return type === "void" ? "anyref" : this.watType(type);
   }
 
@@ -390,8 +394,7 @@ export class EmitterContext {
 
   protected emitHostProviderExport(declaration: HirFunction, internalName: string): string[] {
     const parameters = declaration.parameters.map(
-      (parameter) =>
-        `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+      (parameter) => `(param ${localName(parameter.index)} ${this.slotWatType(parameter.type)})`,
     );
     const providers = this.entryProviderParameters(declaration);
     const result =
@@ -474,9 +477,10 @@ export class EmitterContext {
     type: ValueType,
     typeSubstitutions: readonly HirTypeSubstitution[] = [],
   ): string {
-    return isGenericValueType(erased)
-      ? this.unboxValue(value, type)
-      : this.adaptCallable(value, readonlyType(type), erased, typeSubstitutions);
+    // A generic call's `void` result is an erased null, which the call drops.
+    if (isGenericValueType(erased))
+      return type === "void" ? `(drop ${value})` : this.unboxValue(value, type);
+    return this.adaptCallable(value, readonlyType(type), erased, typeSubstitutions);
   }
 
   /** Restore a callable result with the adapter captured by its suspension frame. */
@@ -686,6 +690,7 @@ export class EmitterContext {
     if (cellInner(type) !== undefined) return `(ref.cast (ref null $hd.cell) ${payload})`;
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.unboxValue(payload, mutable);
+    // A `void` slot holds null as an anyref, so a void parameter takes it as is.
     if (isGenericValueType(type) || type === "void") return payload;
     const scalar = unboxScalar(payload, type);
     if (scalar) return scalar;
@@ -731,7 +736,8 @@ export class EmitterContext {
     if (cellInner(type) !== undefined) return "(ref.null $hd.cell)";
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.defaultValue(mutable);
-    if (isGenericValueType(type)) return `(ref.null any)`;
+    // A `void` slot holds null (`slotWatType`).
+    if (isGenericValueType(type) || type === "void") return `(ref.null any)`;
     const numeric = numericType(type);
     if (numeric) return `(${numeric.wasm}.const 0)`;
     if (type === "bool" || type === "char") return `(i32.const 0)`;
@@ -784,12 +790,12 @@ const STRING_KERNEL_NAMES: ReadonlySet<string> = new Set(
 
 export function environmentType(
   closure: HirFunction,
-  emitter: { watType(type: ValueType): string },
+  emitter: { slotWatType(type: ValueType): string },
 ): string {
   const fields = [
     ...closure.captures.map(
       (capture) =>
-        `      (field $env${closure.index}f${capture.fieldIndex} ${emitter.watType(capture.source.type)})`,
+        `      (field $env${closure.index}f${capture.fieldIndex} ${emitter.slotWatType(capture.source.type)})`,
     ),
     ...closure.genericBounds.map(
       (bound, index) =>
