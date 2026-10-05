@@ -68,28 +68,33 @@ When the queue is empty, report that and wait.
 
 ### BI. No Implicit Skips: An Unbound Capability Is An Error
 
-Owner decision, 2026-10-05 ("why skip the test? why not ask users to
-bind the trait"). Replaces the earlier "only host traits skip" version of
-this job. If Muse already started that version, discard it.
+Owner decision, 2026-10-05. Replaces the earlier "only host traits skip"
+version of this job; discard any work on that version.
 
-Every capability can be bound explicitly, so a test that needs one its
-profile doesn't bind is incomplete, not skippable.
+Every capability can be bound explicitly, and today there is only one
+profile, so a test that needs a capability its profile doesn't bind is
+incomplete, not skippable.
 
-1. **Spec.** Remove `module.testing.skipped` (and any rule that reports a
-   test as skipped because of its row). An integration or doc test whose
-   requirement row names a trait the profile doesn't bind is a
-   check-time `missing-requirement`, with a hint: "bind it with
-   `$.with(Repo=...)`"; for a host capability trait another profile
-   could bind, also "or run with a profile that binds Http". Remove
-   `cli.test.deny-skipped` and the `--deny-skipped` flag from the spec,
-   help text, and JSON outcome docs (no `skipped` outcome remains unless
-   another rule still produces one; check). Retire the IDs properly.
-2. **Code.** Remove `profileSkip` (`src/commands/test-host.ts`) and the
-   skip path #274 added; remove `--deny-skipped` from `src/cli-args.ts`.
-   The checker reports the missing requirement for the test case.
-3. **Tests.** Replace the skip tests and CLI cases with error cases (a
-   user trait like `Repo`, and a host trait the default profile lacks if
-   one exists, else just the user trait).
+1. **Spec.** Remove `module.testing.skipped` and any rule that reports a
+   test as skipped because of its requirement row. An integration or doc
+   test whose row names a trait the profile doesn't bind is a check-time
+   `missing-requirement`, with the hint "bind it with
+   `$.with(Repo=...)`". Remove `cli.test.deny-skipped`, the
+   `--deny-skipped` flag, and the skipped count and outcome from the
+   summary and JSON rules, unless another rule still produces a skip
+   (check). Retire the IDs properly.
+2. **Park the design.** Add to `future-work/OPEN_ISSUES.md`: when hd has
+   a second profile (a `--profile` flag, tests in the browser
+   playground, an HTTP profile), revisit skipping. Only a host trait the
+   selected profile lacks would skip; a user trait still errors;
+   `--deny-skipped` comes back for CI that must run everything. Quote
+   the removed rules verbatim with their IDs and name the removing
+   commit.
+3. **Code.** Remove `profileSkip` (`src/commands/test-host.ts`) and the
+   skip path #274 added, and `--deny-skipped` from `src/cli-args.ts` and
+   help text. The checker reports the missing requirement for the test.
+4. **Tests.** Replace the skip tests and CLI cases with error cases (a
+   user trait like `Repo` with no `$.with`).
 
 ### BD. Hints From Usability Probe 2
 
