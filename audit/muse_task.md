@@ -143,4 +143,12 @@ Large recent ones to review:
 
 ## Questions
 
-(none)
+- **AM (batch 4) scope.** The job names "the remaining 52 home-A rows
+  of the TS-test triage" with per-file counts (call-speculation 12,
+  compiler-types 8, compiler 8, suspension 8, types 7,
+  compiler-suspension 6, captured-cells 2, cli 1), but that triage is
+  not in the repo and the counts match no inventory I can build: the
+  files hold far more top-level tests (e.g. compiler-suspension 43,
+  suspension only 2), and `test/MIGRATED.md` has no pending rows for
+  these files. Where is the triage, or which exact tests are the 52?
+  I did not start migrating rather than guess the scope.
