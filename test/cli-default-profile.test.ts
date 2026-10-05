@@ -189,9 +189,9 @@ test("a REPL session binds the default profile, and each host call runs once", a
     const lines = text.trimEnd().split("\n");
     const [first, second] = lines.filter((line) => line.endsWith(" : Timestamp"));
     // The clock is read once; the second display replays that reading.
-    assert.match(first!, /^\d{4}-\d\d-\d\dT/);
+    assert.match(first!, /^Timestamp \{ millis: \d+ \}/);
     assert.equal(second, first);
-    assert.ok(lines.includes('.Ok("remember the milk") : Result[string, FsError]'), text);
+    assert.ok(lines.includes('Ok("remember the milk") : Result[string, FsError]'), text);
     assert.ok(lines.includes("[] : List[string]"), text);
     // Three inputs ran after the append; the file still holds it once.
     assert.equal(await readFile(join(directory, "log.txt"), "utf8"), "once");
