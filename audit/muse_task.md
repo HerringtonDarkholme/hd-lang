@@ -45,14 +45,20 @@ When the queue is empty, report that and wait.
   `let total: i32 = 0`, except in a group of annotated declarations,
   where the `i32` stays annotated so the widths read side by side.
 
+- **Spec examples.** Adding, removing or moving a ```text block in a spec
+  chapter renumbers every later block, so realign that chapter's rows in
+  `spec/conformance/examples.tsv`, not only the new row. Job AN missed
+  this and broke `bash spec/check.sh` on main (fixed in c8c35a7e). After
+  any rebase, rerun `bash spec/check.sh` before pushing; never push with
+  it red.
+
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
-- Serde work (another agent is changing them): `lib/std/json.hd`, `lib/std/structure.hd`,
-  `lib/std/time.hd`, `src/commands/default-profile.ts`, `src/host-values.ts`,
-  `src/checker/derive*`, `src/checker/typed-derivation*`, and in `spec/`:
-  `std/json.md`, `lang/14-annotations.md`, the boundary sections of
-  `lang/10-modules.md`.
+- Test runner work (another agent is changing them): `lib/std/testing.hd`,
+  `src/commands/test*`, `src/test-runner*`, and in `spec/`: the Testing
+  sections of `lang/10-modules.md`, `std/testing.md`, and `hd test` in
+  `cli/command-line.md`.
 
 ## Jobs
 
