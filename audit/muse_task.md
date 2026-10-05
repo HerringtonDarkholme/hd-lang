@@ -46,22 +46,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AB. Review Findings O-08, O-09, O-11
-
-If this is already committed locally, rebase and push it.
-
-From `audit/compiler/opus.md`; each finding has a repro.
-
-- **O-08:** a spread list rejects a function element written as `if`,
-  `match`, or a closure.
-- **O-09:** a derived `Arbitrary` error does not name a member whose type
-  comes through an alias.
-- **O-11:** derive diagnostics travel through global tables keyed by span
-  objects. Key them by declaration identity instead.
-
-Add a regression test under `test/` for each one. Delete each fixed
-finding from `opus.md`.
-
 ### AC. Closure Capture Index
 
 If this is already committed locally, rebase and push it.

@@ -19,6 +19,7 @@ import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
 import { carriedStructureUses, renameStandardBindings } from "./standard-bindings.ts";
+import { expandTypeAlias, nullaryTypeAliases } from "./derive-aliases.ts";
 import { standardTemplate, standardTupleTraits } from "./standard-library.ts";
 import { withStandardSource } from "./standard-provenance.ts";
 import { standardDocument } from "./standard-sources.ts";
@@ -278,10 +279,10 @@ export function withTypedDerivationSupport(source: Program): Program {
     standardName: `std.structure.${original.traits[index]!.name}`,
     strengthenableMembers: ["member", "rest"],
   }));
-  const carriedUses = [...(inspectUse.names.length > 0 ? [inspectUse] : [])];
+  const carriedUses = inspectUse.names.length > 0 ? [...source.uses, inspectUse] : source.uses;
   return {
     ...source,
-    uses: carriedUses.length > 0 ? [...source.uses, ...carriedUses] : source.uses,
+    uses: carriedUses,
     ...(structure.types ? { types: [...(source.types ?? []), ...standard(structure.types)] } : {}),
     data: [...source.data, ...data],
     enums: [...source.enums, ...enums],
@@ -604,7 +605,10 @@ export function withTypedDerivation(source: Program): DerivationResult {
     const standard = standardTemplates.get(derivation.trait);
     const checked = standard !== undefined && DERIVE_CHECKED_TRAITS.has(derivation.trait);
     if (derivation.trait === arbitraryName)
-      arbitraryOptIns.push({ span: derivation.span, members: memberTypes(derivation.target) });
+      arbitraryOptIns.push({
+        span: derivation.span,
+        members: memberTypes(derivation.target, nullaryTypeAliases(source.types)),
+      });
     else if (!checked) optInSpans.push(derivation.span);
     const result = generateDerivation(
       derivation,
@@ -736,12 +740,20 @@ function lineTypes(
 }
 
 /** Each member's name and declared type, for a diagnostic that names the member. */
-function memberTypes(target: Target): { readonly name: string; readonly type: string }[] {
+function memberTypes(
+  target: Target,
+  aliases: ReadonlyMap<string, string>,
+): { readonly name: string; readonly type: string }[] {
   const fields =
     target.kind === "data"
       ? target.declaration.fields
       : target.declaration.variants.flatMap((variant) => variant.fields);
-  return fields.map((field) => ({ name: field.name, type: field.type.name }));
+  // The bound failure spells the member's type expanded, so a member
+  // written through an alias matches by its expansion (O-09).
+  return fields.map((field) => ({
+    name: field.name,
+    type: expandTypeAlias(field.type.name, aliases),
+  }));
 }
 
 /** Splits the implementations into templates, derivation blocks, and the rest. */

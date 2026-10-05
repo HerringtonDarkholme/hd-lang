@@ -1,5 +1,5 @@
 import type { DataField, Program, TypeDecl } from "../ast.ts";
-import type { SourceSpan } from "../diagnostics.ts";
+import { sourceSpanKey, type SourceSpan } from "../diagnostics.ts";
 import { readonlyType, typeSourceText, displayType } from "../types.ts";
 
 // ---------------------------------------------------------------------------
@@ -16,18 +16,43 @@ interface DerivedFieldCheck {
 }
 
 /**
- * The spans of generated lines that compare or hash one field. A trait
+ * Origins keyed by span value, not span object: a pass that copies a span,
+ * as generated-source patching does, still denotes the same origin (O-11).
+ */
+class SpanOrigins<Value> {
+  private readonly entries = new Map<string, Value>();
+  get(span: SourceSpan): Value | undefined {
+    return this.entries.get(sourceSpanKey(span));
+  }
+  set(span: SourceSpan, value: Value): void {
+    this.entries.set(sourceSpanKey(span), value);
+  }
+}
+
+class SpanOriginSet {
+  private readonly keys = new Set<string>();
+  has(span: SourceSpan): boolean {
+    return this.keys.has(sourceSpanKey(span));
+  }
+  add(span: SourceSpan): this {
+    this.keys.add(sourceSpanKey(span));
+    return this;
+  }
+}
+
+/**
+ * The origins of generated lines that compare or hash one field. A trait
  * error there is `derive-field-missing-trait` at the field
  * (spec/lang/09-traits.md#r-trait.derive.field-missing-trait).
  */
-const DERIVED_FIELD_CHECKS = new WeakMap<SourceSpan, DerivedFieldCheck>();
+const DERIVED_FIELD_CHECKS = new SpanOrigins<DerivedFieldCheck>();
 
 /**
- * The spans of derived implementations of the comparison traits. An unmet
+ * The origins of derived implementations of the comparison traits. An unmet
  * bound of one of their methods is `missing-derived-bound` at the use
  * (spec/lang/09-traits.md#r-trait.derive.bound-unmet).
  */
-export const DERIVED_IMPLEMENTATION_SPANS = new WeakSet<SourceSpan>();
+export const DERIVED_IMPLEMENTATION_SPANS = new SpanOriginSet();
 
 /** The traits whose derivation reports `derive-field-missing-trait` and `missing-derived-bound`. */
 export const DERIVE_CHECKED_TRAITS: ReadonlySet<string> = new Set([

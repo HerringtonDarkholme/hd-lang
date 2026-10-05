@@ -118,18 +118,18 @@ export function literalArgumentsUseDefaults(
   });
 }
 
-// Legacy collection-row rechecking is not a candidate transaction. Keep its
-// existing guard until collection inference is repaired separately; method
-// selection never uses this syntax filter.
+// Legacy collection-row rechecking is not a candidate transaction. The
+// guard keeps the kinds whose checking registers state (bindings,
+// comprehensions, loops, pipes, providers, suspensions); method selection
+// never uses this syntax filter. `if`, `match`, and `closure` recheck like
+// any pure expression: the check recurses, so one with an unsafe child is
+// still refused (O-08).
 const COLLECTION_RECHECK_UNSAFE_KINDS = new Set([
   "binding-expression",
-  "closure",
   "list-comprehension",
   "map-comprehension",
-  "if",
   "for",
   "while",
-  "match",
   "pipe",
   "provider-context",
   "provider-with",
