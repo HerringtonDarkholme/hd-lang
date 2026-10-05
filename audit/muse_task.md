@@ -55,6 +55,10 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
+- `dbg` work (another agent is adding it): `src/repl.ts`, REPL and
+  playground value printing (`website/playground/`), the prelude, and
+  `lib/std/format.hd`.
+
 ## Jobs
 
 ### AV. Runner: A Crash Beside A Timeout Must Not Pass
