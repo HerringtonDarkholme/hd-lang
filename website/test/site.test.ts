@@ -320,8 +320,11 @@ describe("website build", () => {
         /class="try-link try-playground" href="\/hd-lang\/playground\.html#code=([A-Za-z0-9_-]+)"/g,
       ),
     ];
-    assert.equal(links.length, 1, "one whole program on the page");
-    assert.match(Buffer.from(links[0]![1]!, "base64url").toString("utf8"), /^pub fn main!\(\)/m);
+    // Each block that declares `main` is a whole program: the page has three.
+    assert.equal(links.length, 3, "the whole programs on the page");
+    for (const link of links) {
+      assert.match(Buffer.from(link[1]!, "base64url").toString("utf8"), /^pub fn main!?\(\)/m);
+    }
     assert.doesNotMatch(learn, /Try in playground/);
   });
 });
