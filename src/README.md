@@ -105,8 +105,11 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   at the root or inside a member; with one member and no NAME, `hd run`
   chooses as in package mode, as `cargo run -p` does. The dependency
   commands work only inside a member. A package that an enclosing workspace
-  manifest does not list works on its own; the unlisted-member error is not
-  implemented (CLI-57). A `src/` directory without `hd.toml` makes no package.
+  manifest lists in neither `members` nor `exclude` is an error that names
+  the manifest, with a fix-it for each array
+  ([`cli.mode.member.unlisted`](../spec/cli/command-line.md#r-cli.mode.member.unlisted));
+  one in `exclude` works on its own. A `src/` directory without `hd.toml`
+  makes no package.
 - **Executables**: with no `[[executable]]` table, `src/main.hd` is the
   default executable, named after the package. A table's `module` that names
   no module is `missing-entry-point`; a `src/main.hd` that no table names is
@@ -323,8 +326,11 @@ format a person needs.
 
 `--format json` is the one global flag. It follows
 [Machine Output](../spec/cli/command-line.md#machine-output): `check`,
-`build`, and `test` write JSON lines to stdout and nothing else, and `run`
-writes `hd`'s own records to stderr, so the program's stdout passes through.
+`build`, `test`, and the dependency commands (`add`, `update`, `remove`,
+`fetch`) write JSON lines to stdout and nothing else, so a test body's
+console output goes to stderr there. `run` and `hd FILE` write `hd`'s own
+records to stderr, so the program's stdout passes through. `hd doc NAME`
+still prints the prototype's symbol object (`CLI-DOC`).
 The records are diagnostics, one test object per test case (`hd test`), and
 a last summary object, written on success too. The `ok` and `N passed` text
 lines and the `build` path are not written. Exit codes do not change.

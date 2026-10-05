@@ -641,7 +641,10 @@ export async function execute(
       regressions: regressionStore(packageRoot, testModule),
     });
     const instantiateOptions: Parameters<typeof instantiate>[1] = {
-      console: (text) => io.out(text),
+      // `hd test --format json` writes only JSON lines to stdout
+      // (spec/cli/command-line.md#r-cli.json.lines.build), so a test body's
+      // console output goes to stderr there.
+      console: (text) => (test?.format === "json" ? io.err(text) : io.out(text)),
       consoleError: (text) => io.err(text),
       debugOutput: test ? (line) => debugLines.push(line) : (line) => io.err(line),
       debugLocation: loaded.compileOptions.debugLocation,
@@ -698,7 +701,7 @@ export async function execute(
       mainDeclaration?.requirements.map((requirement) => ({ requirement })) ?? [];
     if (scenario) {
       runRuntimeScenario(scenario, instance, scenarioProviders);
-      io.out(`${file}: 1 passed`);
+      if (test?.format === "text") io.out(`${file}: 1 passed`);
       return 0;
     }
     // In a package, `hd test` runs the test cases of FILE's module only

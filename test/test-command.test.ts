@@ -150,8 +150,12 @@ test("each run gets a fresh temporary directory, removed when it ends", async ()
     await writeFile(join(directory, "tests/dirs.hd"), TEMP_DIRS);
     const ran = await runHd(["test", "--format", "json", "tests/dirs.hd"], { cwd: directory });
     assert.equal(ran.status, 1, ran.stderr);
-    const dirs = [...ran.stdout.matchAll(/^dir (.+)$/gm)].map((match) => match[1]!);
-    assert.equal(dirs.length, 3, ran.stdout);
+    // With `--format json`, stdout holds only JSON lines
+    // (spec/cli/command-line.md#r-cli.json.lines.build), so the test bodies'
+    // console output goes to stderr.
+    const dirs = [...ran.stderr.matchAll(/^dir (.+)$/gm)].map((match) => match[1]!);
+    assert.equal(dirs.length, 3, ran.stderr);
+    for (const line of ran.stdout.trim().split("\n")) JSON.parse(line);
     assert.equal(new Set(dirs).size, 3, "no two runs share a directory");
     for (const dir of dirs) assert.equal(existsSync(dir), false, `${dir} is removed`);
   });
