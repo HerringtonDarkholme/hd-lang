@@ -81,6 +81,25 @@ path), not per message. Then sweep: grep the conformance expectations and
 a run of `--phase type` output for `__std_` and `__pkg_`, fix what turns
 up, and add a test that fails if any diagnostic text contains them.
 
+### BC. A Leading `_` Must Silence The Unused Warning
+
+`flow.unused.underscore` (spec/lang/06-control-flow.md) says names
+beginning with `_` suppress `unused-local-binding`. The prototype ignores
+it, and has since at least e0401f5b:
+
+```
+pub fn main() -> void $ Console:
+    _g := 5          # warning: unused-local-binding: local binding '_g' is never read
+    let _f: fn(i32) -> i32 = twice   # same
+    println("ok")
+```
+
+Fix the warning (every binding form: `:=`, `let`, pattern bindings,
+parameters if they warn, loop variables), add a `typing/valid` fixture
+with no expected warning for each form (and keep a plain unread name
+warning), and find why no conformance case caught it: add the fixture
+row for `flow.unused.underscore` if it is missing.
+
 ### AZ. `usize` Display Follow-Ups (F-611)
 
 Task #325 (8e03da04) made `u32` the one type again and moved the `usize`
