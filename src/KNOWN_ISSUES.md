@@ -10,10 +10,10 @@ git history keeps the audit evidence behind each finding.
 
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
-finding below or with an applied decision. On 2026-10-04 the suite has
-2,470 cases: 2,393 selected in `test/portable/cases.tsv` and 77 known
-failures. The selected cases are 2,079 language tier, 284 stdlib tier, and 30
-CLI tier; the known failures are 67 language tier, 2 stdlib tier, and 8
+finding below or with an applied decision. On 2026-10-05 the suite has
+2,470 cases: 2,394 selected in `test/portable/cases.tsv` and 76 known
+failures. The selected cases are 2,080 language tier, 284 stdlib tier, and 30
+CLI tier; the known failures are 66 language tier, 2 stdlib tier, and 8
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -27,7 +27,6 @@ CLI tier.
 | P2 | 5 | package member visibility is not modeled by the linked checker namespace |
 | M29 | 1 | the fixture needs a second package to distinguish derivation ownership |
 | SELF-CURRENT | 2 | relative lookup is fixed; these fixtures still need package import aliases |
-| FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |

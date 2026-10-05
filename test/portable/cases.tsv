@@ -2374,6 +2374,7 @@ runtime/valid/string-pad-default-fill.hd	runtime
 typing/invalid/single-file-self-use.hd	type
 typing/valid/lib-root-pkg.hd	type
 typing/invalid/main-not-importable.hd	type
+typing/valid/folder-parent-file.hd	type
 typing/invalid/module-named-pkg.hd	type
 cli/exit-package-check	cli
 cli/exit-outside-package	cli

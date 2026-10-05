@@ -599,9 +599,15 @@ export function linkPackage(
 
   // The folder graph must be acyclic (spec/lang/10-modules.md#r-module.cycle.acyclic).
   // Files of one folder may use each other in a loop.
-  for (const loop of folderLoops(folderUses)) {
+  const folderOf = folders(modules.values());
+  for (const loop of folderLoops(folderUses, folderOf)) {
+    // Moving a file to `x/mod.hd` makes it a folder of its own, unless it
+    // already is the folder of its directory or of its child modules.
     const fix = loop.find(
-      ({ use }) => !use.target.path.endsWith("/mod.hd") && use.target.path !== LIB_FILE,
+      ({ use }) =>
+        folderOf(use.target) === directoryOf(use.target.path) &&
+        !use.target.path.endsWith("/mod.hd") &&
+        use.target.path !== LIB_FILE,
     );
     const at = fix ?? loop[0]!;
     const steps = loop.map(({ from, to, module, use }) => {
@@ -857,9 +863,27 @@ interface FolderEdge {
   readonly use: ResolvedUse;
 }
 
-/** The folder that holds a package file (spec/lang/10-modules.md#r-module.folder.directory). */
-function folderOf(path: string): string {
+/** The directory that holds a package file. */
+function directoryOf(path: string): string {
   return path.slice(0, path.lastIndexOf("/"));
+}
+
+/**
+ * Each module's folder (spec/lang/10-modules.md#folders): the directory that
+ * holds it (module.folder.holder), except that a file `x.hd` whose directory
+ * `x/` beside it holds its child modules is in folder `x/`, as `x/mod.hd`
+ * would be (module.folder.parent-file).
+ */
+function folders(modules: Iterable<PackageModule>): (module: PackageModule) => string {
+  // Each parent file that has a child module, as `src/shop.hd` for
+  // `src/shop/item.hd` or `src/shop/item/mod.hd`.
+  const parents = new Set<string>();
+  for (const { path, identity } of modules) {
+    if (!identity.includes(".")) continue;
+    const directory = directoryOf(path.endsWith("/mod.hd") ? directoryOf(path) : path);
+    parents.add(`${directory}.hd`);
+  }
+  return ({ path }) => (parents.has(path) ? path.slice(0, -".hd".length) : directoryOf(path));
 }
 
 // One shortest loop per strongly connected component of the folder graph
@@ -867,11 +891,12 @@ function folderOf(path: string): string {
 // that makes it; `tangle` is the component's size.
 function folderLoops(
   uses: readonly { module: PackageModule; use: ResolvedUse }[],
+  folderOf: (module: PackageModule) => string,
 ): (FolderEdge[] & { tangle: number })[] {
   const out = new Map<string, Map<string, FolderEdge>>();
   for (const { module, use } of uses) {
-    const from = folderOf(module.path);
-    const to = folderOf(use.target.path);
+    const from = folderOf(module);
+    const to = folderOf(use.target);
     if (from === to) continue;
     const targets = out.get(from) ?? new Map<string, FolderEdge>();
     out.set(from, targets);

@@ -361,6 +361,29 @@ test("folders that depend on each other in a loop are rejected", () => {
   );
 });
 
+test("a parent file is in the folder of its child modules", () => {
+  const files = {
+    "src/shop.hd": "use pkg.shop.item.{Item}\npub fn wrap(item: Item) -> i32: item.count\n",
+    "src/shop/item.hd": "use pkg.shop.{wrap}\npub data Item:\n    pub count: i32\n",
+  };
+  assert.deepEqual(codes(files, "src/shop.hd"), []);
+  // Without children, `src/error.hd` is in folder src, so the loop stays,
+  // and the help never suggests moving a parent file to its `mod.hd`.
+  const loop = linkPackage(
+    {
+      ...files,
+      "src/error.hd": "use pkg.shop.{wrap}\npub fn fail() -> i32: 1\n",
+      "src/shop/item.hd": "use pkg.error.{fail}\npub data Item:\n    pub count: i32\n",
+    },
+    "src/shop.hd",
+  );
+  assert.deepEqual(
+    loop.diagnostics.map(({ code }) => code),
+    ["folder-cycle"],
+  );
+  assert.match(loop.diagnostics[0]!.message, /move src\/error\.hd to src\/error\/mod\.hd/);
+});
+
 test("shared names and bad paths are rejected", () => {
   assert.deepEqual(
     codes({
