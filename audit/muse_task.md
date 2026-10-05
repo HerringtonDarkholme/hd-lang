@@ -66,6 +66,26 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### BI. Only Host Traits Make An Integration Test Skipped
+
+Review of #274 (`profileSkip` in `src/commands/test-host.ts`).
+`module.testing.skipped` skips an integration test whose requirement row
+names a trait the profile doesn't bind. #274 applies it to every trait,
+so an integration test that forgets `$.with(Repo=...)` for the user's own
+`Repo` trait is silently skipped, and the run passes unless
+`--deny-skipped`. A forgotten provider must not look like a green run.
+
+Reading to implement (orchestrator's recommendation, flagged for the
+owner): only a **host capability trait**, one that a runtime profile
+binds or could bind (std's host traits such as Console, Clock, FsRead,
+Process, and future HTTP), makes the test skipped when the selected
+profile doesn't bind it. Any other trait with no provider stays a
+check-time `missing-requirement`. Reword the rule
+(`module.testing.skipped`, plus a Why line), fix `profileSkip`, keep the
+skipped case for a host trait (for example `Process` if the default
+profile doesn't bind it), and add a fixture for the user-trait error.
+Mark the rule change "agent-made, pending owner" in the commit message.
+
 ### BF. A Missing-Requirement Error Hides An Unknown Name
 
 Found by #281. In one file, a call to an unknown name after `println`
