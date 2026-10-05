@@ -60,26 +60,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AT. Child-Path Error Names The Real Problem
-
-Review of AN (ee489e28). Non-blocking.
-
-```
-use std.testing
-
-pub fn main() -> void $ Console:
-    x := testing.arbitrary.With   # unknown-name: unknown name 'testing'
-```
-
-The user did import `testing` (`testing.assert(...)` works), so "unknown
-name 'testing'" sends them the wrong way. In a type position the fixture
-gets `unknown-type`, with the same problem. Keep the codes, and make the
-message say what happened: "'arbitrary' is a child module of
-'std.testing', which a path can't reach through its parent; import it
-with `use std.testing.arbitrary`" (for a package module, also mention that
-the parent can `pub use` it). Cover value and type positions, std and
-package modules. Add a test per case.
-
 ### AW. Timestamp Serializes As RFC 3339 Text
 
 Owner decision, 2026-10-05. `Timestamp`'s `Serialize`/`Deserialize`
@@ -103,14 +83,43 @@ RFC 3339 text, `Duration` its `Display` form (such as `250ms`), and
 `test/cli-default-profile.test.ts` back to an RFC 3339 match and add a
 REPL test.
 
-### AX. `it_each` At The Top Level Of An Integration Test
+### AZ. `usize` Display Follow-Ups (F-611)
 
-Found by #321. A top-level `it_each(...)` in `tests/x.hd` is rejected as
-`misplaced-test-case`, but test position includes integration test
-modules (see the testing rules in spec/lang/10-modules.md; `it(...)` there
-works). Fix the checker so `it_each` is accepted wherever `it` is, add a
-fixture for an integration module using `it_each`, and check the other
-test-case forms (property tests) the same way.
+Task #325 (8e03da04) made `u32` the one type again and moved the `usize`
+spelling into display-only data in `src/checker/spelling.ts`. Never change
+type identity here; only what messages print.
+
+1. These messages print `u32` where the source said `usize` (see F-611 in
+   `src/KNOWN_ISSUES.md`): the expected type when it was written `usize`
+   ("expected u32, found string" for a `usize` parameter); a field read of
+   a field declared `usize`; the types listed by `no-common-type`; and the
+   generic-inference conflict ("both solve T"). Route each through
+   `spelling.ts`, add a test per message, and delete F-611 when done.
+2. `xs := [1]` then `take_i32(xs.len())` adds the note "'xs' has usize in
+   its type… write '+1'". That is wrong: `len()` is a size whatever the
+   list holds, so no edit to `xs` helps. Give no literal hint when the
+   mismatched value is a length (or any value whose type does not come
+   from the named literal). Add a test.
+
+### AT. Child-Path Error Names The Real Problem
+
+Review of AN (ee489e28). Non-blocking.
+
+```
+use std.testing
+
+pub fn main() -> void $ Console:
+    x := testing.arbitrary.With   # unknown-name: unknown name 'testing'
+```
+
+The user did import `testing` (`testing.assert(...)` works), so "unknown
+name 'testing'" sends them the wrong way. In a type position the fixture
+gets `unknown-type`, with the same problem. Keep the codes, and make the
+message say what happened: "'arbitrary' is a child module of
+'std.testing', which a path can't reach through its parent; import it
+with `use std.testing.arbitrary`" (for a package module, also mention that
+the parent can `pub use` it). Cover value and type positions, std and
+package modules. Add a test per case.
 
 ### AY. Follow-Ups From The Review Of AP (cc5b1679)
 
@@ -129,23 +138,14 @@ Both non-blocking. The four hints work as a user sees them.
    binding: `let names: List[string] = ...` (keep the placeholder
    `List[T]` when no later push shows the type). Update its test.
 
-### AZ. `usize` Display Follow-Ups (F-611)
+### AX. `it_each` At The Top Level Of An Integration Test
 
-Task #325 (8e03da04) made `u32` the one type again and moved the `usize`
-spelling into display-only data in `src/checker/spelling.ts`. Never change
-type identity here; only what messages print.
-
-1. These messages print `u32` where the source said `usize` (see F-611 in
-   `src/KNOWN_ISSUES.md`): the expected type when it was written `usize`
-   ("expected u32, found string" for a `usize` parameter); a field read of
-   a field declared `usize`; the types listed by `no-common-type`; and the
-   generic-inference conflict ("both solve T"). Route each through
-   `spelling.ts`, add a test per message, and delete F-611 when done.
-2. `xs := [1]` then `take_i32(xs.len())` adds the note "'xs' has usize in
-   its type… write '+1'". That is wrong: `len()` is a size whatever the
-   list holds, so no edit to `xs` helps. Give no literal hint when the
-   mismatched value is a length (or any value whose type does not come
-   from the named literal). Add a test.
+Found by #321. A top-level `it_each(...)` in `tests/x.hd` is rejected as
+`misplaced-test-case`, but test position includes integration test
+modules (see the testing rules in spec/lang/10-modules.md; `it(...)` there
+works). Fix the checker so `it_each` is accepted wherever `it` is, add a
+fixture for an integration module using `it_each`, and check the other
+test-case forms (property tests) the same way.
 
 ### BA. Defer The Dead-Fact Warnings
 
