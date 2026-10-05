@@ -78,8 +78,15 @@ export interface PathScope {
   /**
    * The joined spelling of `member` of the module `module` names, or
    * undefined to keep the path as written, after reporting any error.
+   * `position` is where the path stands: a value member keeps
+   * `unknown-name`, a type text keeps `unknown-type`.
    */
-  resolve(module: string, member: string, span: SourceSpan | undefined): string | undefined;
+  resolve(
+    module: string,
+    member: string,
+    span: SourceSpan | undefined,
+    position: "value" | "type",
+  ): string | undefined;
 }
 
 /** A module's scope: its renames, and its module namespace names with what each names. */
@@ -168,7 +175,7 @@ class BindingScope {
       const [first, member, ...rest] = path.split(".");
       const module = member === undefined ? undefined : this.namespaces.get(first!);
       const resolved =
-        module === undefined ? undefined : this.paths?.resolve(module, member!, span);
+        module === undefined ? undefined : this.paths?.resolve(module, member!, span, "type");
       if (resolved !== undefined) return [resolved, ...rest].join(".");
       return path
         .split(".")
@@ -580,7 +587,9 @@ class BindingScope {
         const module =
           value.receiver.kind === "name" ? this.namespaces.get(value.receiver.name) : undefined;
         const resolved =
-          module === undefined ? undefined : this.paths?.resolve(module, value.name, value.span);
+          module === undefined
+            ? undefined
+            : this.paths?.resolve(module, value.name, value.span, "value");
         if (resolved !== undefined)
           return { kind: "name", name: resolved, ...typeArguments(value), span: value.span };
         return { ...value, receiver: e(value.receiver), ...typeArguments(value) };

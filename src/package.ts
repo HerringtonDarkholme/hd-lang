@@ -1012,7 +1012,19 @@ export function linkPackage(
           const found = exporterOf(resolvedUses, target, local, new Set());
           if (typeof found === "object") members[local] = joinedName(found);
         }
-    return { shown: shown(target), members };
+    // A path cannot reach a child module through its parent
+    // (10-modules.md#r-module.path.no-child-import): each direct child with
+    // the `use` path that imports it, for the diagnostic.
+    const children: Record<string, string> = {};
+    const prefix = target.identity === "" ? "" : `${target.identity}.`;
+    for (const candidate of modules.values()) {
+      if (candidate.dependency !== target.dependency) continue;
+      if (!candidate.identity.startsWith(prefix)) continue;
+      const rest = candidate.identity.slice(prefix.length);
+      if (rest === "" || rest.includes(".")) continue;
+      children[rest] = candidate.dependency ? shown(candidate) : `pkg.${candidate.identity}`;
+    }
+    return { shown: shown(target), members, children };
   };
   const moduleScope = (module: PackageModule, firstLine: number, lastLine: number): ModuleScope => {
     const names: Record<string, string> = {};

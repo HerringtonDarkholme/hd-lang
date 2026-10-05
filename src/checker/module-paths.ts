@@ -55,7 +55,7 @@ export function withModulePaths(program: Program): {
   };
   const typeSpelling = standardTypeSpelling(program);
   const paths: PathScope = {
-    resolve(key, member, span) {
+    resolve(key, member, span, position) {
       if (key.startsWith("std:")) {
         const module = key.slice("std:".length);
         const visibility = declares(module, member);
@@ -63,7 +63,18 @@ export function withModulePaths(program: Program): {
           return report("private-import", `'${member}' is private to module 'std.${module}'`, span);
         if (visibility === undefined)
           return report("unknown-import", `module 'std.${module}' declares no '${member}'`, span);
-        return typeSpelling(module, member);
+        const spelled = typeSpelling(module, member);
+        if (spelled !== undefined) return spelled;
+        // A public name with no type spelling is a child module (or a
+        // compiler name): a path cannot reach it through its parent
+        // (10-modules.md#r-module.path.no-std-child-import).
+        if (isStandardModulePath(`${module}.${member}`))
+          return report(
+            position === "value" ? "unknown-name" : "unknown-type",
+            `'${member}' is a child module of 'std.${module}', which a path can't reach through its parent; import it with \`use std.${module}.${member}\``,
+            span,
+          );
+        return undefined;
       }
       const target = scopes?.modules[key.slice("pkg:".length)];
       if (!target) return undefined;
@@ -74,8 +85,18 @@ export function withModulePaths(program: Program): {
           `'${member}' is private to module '${target.shown}'; mark it 'pub'`,
           span,
         );
-      if (joined === undefined)
+      if (joined === undefined) {
+        const child = target.children[member];
+        if (child !== undefined) {
+          const parent = child.slice(0, child.lastIndexOf("."));
+          return report(
+            "unknown-import",
+            `'${member}' is a child module of '${parent}', which a path can't reach through its parent; import it with \`use ${child}\`, or have the parent re-export it with \`pub use\``,
+            span,
+          );
+        }
         return report("unknown-import", `module '${target.shown}' declares no '${member}'`, span);
+      }
       return joined;
     },
   };

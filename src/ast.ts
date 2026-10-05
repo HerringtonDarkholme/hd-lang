@@ -583,6 +583,12 @@ export interface NamespaceModule {
   readonly shown: string;
   /** Each member's joined spelling, or null for a declaration without `pub`. */
   readonly members: Readonly<Record<string, string | null>>;
+  /**
+   * Each direct child module's name with the `use` path that imports it, as
+   * `cart` with `pkg.shop.cart`: a path cannot reach it through its parent
+   * (10-modules.md#r-module.path.no-child-import).
+   */
+  readonly children: Readonly<Record<string, string>>;
 }
 
 /** The module scopes of a joined package program. */
