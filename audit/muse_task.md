@@ -66,29 +66,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### BE. Small Known Failures (Compiler Baseline)
-
-The owner is preparing a compiler/CLI rewrite and needs the current
-compiler as a usable, spec-matching baseline. Clear these
-`test/portable/KNOWN_FAILURES.tsv` tags, each in its own commit, moving
-each row to `test/portable/cases.tsv` and updating the tag's row in
-`src/KNOWN_ISSUES.md` (delete it when its count reaches 0):
-
-1. **ALIAS-MISSING** (2): an unused alias's right side is never
-   resolved, so `type Owner = Account` with no `Account` is accepted;
-   it must be `unknown-type` at the alias, and `unknown-trait` for a
-   row alias key (`types.alias.target-unknown`).
-2. **DERIVE-MISSING** (1): `@derive` of a name that resolves to nothing
-   is `unknown-trait` (`annot.derive.unknown`), not `underivable-trait`.
-3. **PRIMITIVE-LEFT-TRAIT** (1): a primitive left operand never
-   searches operator traits, so `i64(3) * price` with only
-   `impl Mul[Money] for i64` reports type-mismatch
-   (src/checker/expression-operators.ts).
-4. **MVP-PATTERN** (1): a `let` data pattern on a generic data value is
-   `unsupported-match-subject`; support it.
-
-Root causes only; run each fixture before and after.
-
 ### BG. Fix The Examples' MIN Overflow, Don't Skip It
 
 Merge 8d227750 made property tests try i32 MIN early, which found a real

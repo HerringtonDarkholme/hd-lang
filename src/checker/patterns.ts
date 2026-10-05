@@ -718,6 +718,7 @@ export abstract class PatternChecker extends CallChecker {
   protected checkDataPattern(
     pattern: Extract<Pattern, { kind: "data" }>,
     declaration: HirData,
+    substitutions: ReadonlyMap<string, ValueType>,
     path: readonly HirPatternPathStep[],
     bindings: HirMatchBinding[],
     tests: HirMatchTest[],
@@ -746,6 +747,7 @@ export abstract class PatternChecker extends CallChecker {
           `type '${declaration.name}' has no field '${entry.name}'`,
           entry.span,
         );
+      const fieldType = substituteGenericType(field.type, substitutions);
       const fieldPath = [...path, { dataIndex: declaration.index, fieldIndex: field.index }];
       const nested = entry.pattern;
       if (nested.kind === "wildcard") continue;
@@ -753,28 +755,42 @@ export abstract class PatternChecker extends CallChecker {
         // A direct `mut U` field of a readonly subject binds as `U`
         // (06-control-flow.md#r-flow.match.data.readonly-mut).
         const view =
-          this.matchSubjectReadonly && mutableInner(field.type) !== undefined
-            ? readonlyType(field.type)
-            : field.type;
+          this.matchSubjectReadonly && mutableInner(fieldType) !== undefined
+            ? readonlyType(fieldType)
+            : fieldType;
         bindings.push({
           local: this.addPatternLocal(nested.name, view, nested.span),
           fieldIndex: -1,
-          type: field.type,
+          type: fieldType,
           path: fieldPath,
         });
         continue;
       }
       if (nested.kind === "data") {
-        const nestedDeclaration = this.dataTypes.get(field.type);
+        const readonlyField = readonlyType(fieldType);
+        const nestedName = nominalGenericParts(readonlyField)?.name ?? readonlyField;
+        const nestedDeclaration = this.dataTypes.get(nestedName);
         if (!nestedDeclaration)
           this.fail(
             "pattern-type-mismatch",
-            `field '${entry.name}' has non-data type '${displayType(field.type)}'`,
+            `field '${entry.name}' has non-data type '${displayType(fieldType)}'`,
             nested.span,
           );
+        const nestedArgs = nominalGenericParts(readonlyField)?.arguments ?? [];
+        const nestedSubstitutions = new Map<string, ValueType>();
+        nestedDeclaration.genericParameters.forEach((parameter, index) => {
+          const argument = nestedArgs[index];
+          if (argument !== undefined) nestedSubstitutions.set(parameter, argument);
+        });
         irrefutable =
-          this.checkDataPattern(nested, nestedDeclaration, fieldPath, bindings, tests) &&
-          irrefutable;
+          this.checkDataPattern(
+            nested,
+            nestedDeclaration,
+            nestedSubstitutions,
+            fieldPath,
+            bindings,
+            tests,
+          ) && irrefutable;
         continue;
       }
       if (["boolean", "integer", "float", "string", "character"].includes(nested.kind)) {
@@ -783,9 +799,9 @@ export abstract class PatternChecker extends CallChecker {
             Expression,
             { kind: "boolean" | "integer" | "float" | "string" | "character" }
           >,
-          field.type,
+          fieldType,
         );
-        this.requireType(literal.type, field.type, nested.span);
+        this.requireType(literal.type, fieldType, nested.span);
         tests.push({ path: fieldPath, literal });
         irrefutable = false;
         continue;
