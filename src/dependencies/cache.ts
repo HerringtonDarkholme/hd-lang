@@ -7,9 +7,22 @@
 
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod, cp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, parse, resolve } from "node:path";
 
 import { treeFiles, treeHash } from "./sum.ts";
 
@@ -128,4 +141,63 @@ export async function removeTree(path: string): Promise<void> {
   };
   await writable(path).catch(() => undefined);
   await rm(path, { recursive: true, force: true });
+}
+
+/** The entries `hd` keeps in a cache directory; `hd clean --cache` removes only these. */
+const CACHE_ENTRIES = ["pkg", "hash", "tmp"];
+
+/** What `hd clean --cache` did: the versions it removed, or why it refused. */
+export type CacheClearing =
+  | { readonly directory: string; readonly removed: readonly string[] }
+  | { readonly directory: string; readonly refused: string };
+
+/** The `HOST_PATH@VERSION` of each entry under `pkg/`, without following a symbolic link. */
+async function cachedVersions(directory: string, prefix = ""): Promise<string[]> {
+  const found: string[] = [];
+  if (!existsSync(directory)) return found;
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const name = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+    if (entry.name.includes("@")) found.push(name);
+    else found.push(...(await cachedVersions(join(directory, entry.name), name)));
+  }
+  return found;
+}
+
+/**
+ * Removes every fetched version from the cache directory
+ * (spec/cli/command-line.md#r-cli.clean.cache). It refuses the file system
+ * root, the home directory, a non-directory, and a directory that holds
+ * anything but `pkg`, `hash`, and `tmp` (cli.clean.cache.layout), and it
+ * removes only those three entries, never following a link out of the
+ * directory (cli.clean.cache.scope).
+ */
+export async function clearCache(variables: Variables): Promise<CacheClearing> {
+  const directory = resolve(cacheDirectory(variables));
+  if (!existsSync(directory)) return { directory, removed: [] };
+  const real = await realpath(directory);
+  const home = variables.HOME ?? homedir();
+  const homes = [resolve(home), existsSync(home) ? await realpath(home) : home];
+  if (real === parse(real).root || homes.includes(directory) || homes.includes(real))
+    return {
+      directory,
+      refused: `${directory} is the file system root or a home directory, which is no hd cache`,
+    };
+  if (!(await stat(real)).isDirectory())
+    return { directory, refused: `${directory} is not a directory` };
+  const foreign = (await readdir(real)).filter((name) => !CACHE_ENTRIES.includes(name)).sort();
+  if (foreign.length > 0)
+    return {
+      directory,
+      refused: `${directory} holds ${foreign[0]!}, which is not an hd cache entry (pkg, hash, tmp), so it is no hd cache`,
+    };
+  const removed = (await cachedVersions(join(real, "pkg"))).sort();
+  for (const name of CACHE_ENTRIES) {
+    const path = join(real, name);
+    const info = await lstat(path).catch(() => undefined);
+    if (!info) continue;
+    if (info.isSymbolicLink()) await unlink(path);
+    else await removeTree(path);
+  }
+  return { directory, removed };
 }

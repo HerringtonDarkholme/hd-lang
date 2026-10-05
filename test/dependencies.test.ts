@@ -429,6 +429,193 @@ describe("dependencies", needsGit, () => {
   });
 });
 
+describe("dev dependencies and hd clean", needsGit, () => {
+  before(setUp);
+
+  const TEXT = "github.com/acme/text@1.0.0";
+  const USE_TEXT = [
+    "use dep.text.{shout}",
+    "use std.testing.assert_equal",
+    "",
+    'it("shouts"):',
+    '    assert_equal(shout("a"), "a!", reason="the dev dependency")',
+    "",
+  ].join("\n");
+
+  test("hd add --dev writes [dev-dependencies], and only test code may use it", async () => {
+    const directory = await app("devs", 'pub fn main() -> void $ Console:\n    println("x")\n');
+    const added = await hd(directory, ["add", "--dev", "text", TEXT]);
+    assert.equal(added.status, 0, added.stderr);
+    assert.equal(
+      await readFile(join(directory, "hd.toml"), "utf8"),
+      `[package]\nname = "devs"\n\n[dev-dependencies]\ntext = "${TEXT}"\n`,
+    );
+    assert.equal(await readFile(join(directory, "hd.sum"), "utf8"), selectedLines(TEXT, TEXT_V1));
+    await writeTree(directory, { "tests/uses_text.hd": USE_TEXT });
+    const tested = await hd(directory, ["test"]);
+    assert.equal(tested.status, 0, tested.stderr);
+    assert.match(tested.stdout, /1 passed/);
+    // Non-test code is test-only-use, and the message names hd add
+    // (cli.dep.dev-use).
+    await writeTree(directory, { "src/main.hd": SHOUT_MAIN });
+    const misused = await hd(directory, ["check", "--format", "json"]);
+    assert.equal(misused.status, 101);
+    assert.match(misused.stdout, /"code":"test-only-use"/);
+    assert.match(misused.stdout, /hd add text PATH@VERSION/);
+  });
+
+  test("hd add moves a key between the tables, and hd remove and hd update find either", async () => {
+    const directory = join(root, "apps", "devs");
+    await writeTree(directory, {
+      "src/main.hd": 'pub fn main() -> void $ Console:\n    println("x")\n',
+    });
+    // Without --dev the key moves to [dependencies] (cli.dep.add.move).
+    const moved = await hd(directory, ["add", "text", TEXT]);
+    assert.equal(moved.status, 0, moved.stderr);
+    assert.match(moved.stdout, /moved text from \[dev-dependencies\] to \[dependencies\]/);
+    const manifest = await readFile(join(directory, "hd.toml"), "utf8");
+    assert.match(manifest, /\[dependencies\]\ntext = /);
+    assert.doesNotMatch(manifest, /text = .*\n[^]*text = /);
+    // And back, lowering nothing; the other table's line is gone.
+    const back = await hd(directory, ["add", "--dev", "text", "github.com/acme/text@1.1.0"]);
+    assert.equal(back.status, 0, back.stderr);
+    assert.match(back.stdout, /moved text from \[dependencies\] to \[dev-dependencies\]/);
+    assert.equal(
+      await readFile(join(directory, "hd.toml"), "utf8"),
+      '[package]\nname = "devs"\n\n[dev-dependencies]\ntext = "github.com/acme/text@1.1.0"\n\n[dependencies]\n',
+    );
+    // A lowering is compared with the line it replaces.
+    const lowered = await hd(directory, ["add", "text", TEXT]);
+    assert.match(lowered.stdout, /lowered text 1\.1\.0 -> 1\.0\.0/);
+    assert.match(lowered.stdout, /moved text from \[dev-dependencies\] to \[dependencies\]/);
+    await hd(directory, ["add", "--dev", "text", TEXT]);
+    // hd update finds the dev requirement (cli.dep.update.dev).
+    const updated = await hd(directory, ["update", "text"]);
+    assert.equal(updated.status, 0, updated.stderr);
+    assert.match(updated.stdout, /text: 1\.0\.0 -> 1\.1\.0/);
+    assert.match(
+      await readFile(join(directory, "hd.toml"), "utf8"),
+      /\[dev-dependencies\]\ntext = "github.com\/acme\/text@1\.1\.0"/,
+    );
+    // hd remove deletes it from [dev-dependencies] and tidies hd.sum.
+    const removed = await hd(directory, ["remove", "text"]);
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.doesNotMatch(await readFile(join(directory, "hd.toml"), "utf8"), /text/);
+    assert.equal(await readFile(join(directory, "hd.sum"), "utf8"), "");
+    assert.equal((await hd(directory, ["remove", "text"])).status, 101);
+  });
+
+  test("hd add --dev checks the requirement before it writes anything", async () => {
+    const directory = await app("devs-bad", 'pub fn main() -> void $ Console:\n    println("x")\n');
+    const bad = await hd(directory, ["add", "--dev", "text", "github.com/acme@1.0.0"]);
+    assert.equal(bad.status, 101);
+    assert.equal(
+      await readFile(join(directory, "hd.toml"), "utf8"),
+      '[package]\nname = "devs-bad"\n',
+    );
+    assert.equal(existsSync(join(directory, "hd.sum")), false);
+  });
+
+  test("hd clean removes build/ and nothing else", async () => {
+    const directory = await app("cleaner", 'pub fn main() -> void $ Console:\n    println("x")\n');
+    assert.equal((await hd(directory, ["clean"])).stdout, "nothing to clean\n");
+    assert.equal((await hd(directory, ["build"])).status, 0);
+    assert.ok(existsSync(join(directory, "build", "debug", "cleaner.wasm")));
+    const cleaned = await hd(directory, ["clean"]);
+    assert.equal(cleaned.status, 0, cleaned.stderr);
+    assert.equal(cleaned.stdout, "removed build\n");
+    assert.equal(existsSync(join(directory, "build")), false);
+    assert.ok(existsSync(join(directory, "hd.toml")));
+    assert.ok(existsSync(join(directory, "src", "main.hd")));
+    // Outside any package it is an error that names hd new and --cache.
+    const outside = await mkdtemp(join(root, "outside-"));
+    const lost = await hd(outside, ["clean"]);
+    assert.equal(lost.status, 101);
+    assert.match(lost.stderr, /hd new/);
+    assert.match(lost.stderr, /hd clean --cache/);
+  });
+
+  test("hd clean --cache removes read-only entries, then the next check refetches", async () => {
+    const directory = await app("refetch", SHOUT_MAIN, `\n[dependencies]\ntext = "${TEXT}"\n`);
+    const cache = join(root, "cache-clean");
+    const env = { HD_CACHE: cache };
+    assert.equal((await hd(directory, ["fetch"], env)).status, 0);
+    const entry = join(cache, "pkg", "github.com", "acme", "text@1.0.0");
+    assert.equal((await stat(join(entry, "src", "lib.hd"))).mode & 0o222, 0);
+    const sum = await readFile(join(directory, "hd.sum"), "utf8");
+    const cleaned = await hd(directory, ["clean", "--cache"], env);
+    assert.equal(cleaned.status, 0, cleaned.stderr);
+    assert.equal(
+      cleaned.stdout,
+      `removed github.com/acme/text@1.0.0\nremoved 1 version from ${cache}\n`,
+    );
+    assert.equal(existsSync(entry), false);
+    assert.deepEqual(
+      (await import("node:fs")).readdirSync(cache),
+      [],
+      "the cache directory stays and is empty",
+    );
+    assert.equal(await readFile(join(directory, "hd.sum"), "utf8"), sum);
+    const again = await hd(directory, ["clean", "--cache"], env);
+    assert.equal(again.stdout, `the cache ${cache} is empty\n`);
+    // The next command fetches it again.
+    const checked = await hd(directory, ["check"], env);
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.match(checked.stderr, /hd: fetching github\.com\/acme\/text@1\.0\.0/);
+    assert.ok(existsSync(entry));
+    // It works outside any package too, and leaves a build directory alone.
+    assert.equal((await hd(directory, ["build"], env)).status, 0);
+    const outside = await mkdtemp(join(root, "outside-"));
+    assert.equal((await hd(outside, ["clean", "--cache"], env)).status, 0);
+    assert.ok(existsSync(join(directory, "build")));
+    assert.equal(existsSync(entry), false);
+  });
+
+  test("hd clean --cache refuses what is not an hd cache, and removes nothing", async () => {
+    const outside = await mkdtemp(join(root, "outside-"));
+    const home = join(root, "home");
+    // The root, the home directory, and a directory that holds other files.
+    for (const dir of ["/", home]) {
+      const refused = await hd(outside, ["clean", "--cache"], { HD_CACHE: dir });
+      assert.equal(refused.status, 101, dir);
+      assert.match(refused.stderr, /no hd cache|not an hd cache|file system root/);
+    }
+    const project = join(root, "project");
+    await writeTree(project, { "notes.txt": "mine\n", "pkg/keep.txt": "mine too\n" });
+    const mixed = await hd(outside, ["clean", "--cache"], { HD_CACHE: project });
+    assert.equal(mixed.status, 101);
+    assert.match(mixed.stderr, /notes\.txt/);
+    assert.ok(existsSync(join(project, "notes.txt")));
+    assert.ok(existsSync(join(project, "pkg", "keep.txt")));
+    // A file, a relative path that resolves to the home directory, and a
+    // link out of the cache are never followed or removed.
+    const file = join(root, "a-file");
+    await writeFile(file, "x");
+    assert.equal((await hd(outside, ["clean", "--cache"], { HD_CACHE: file })).status, 101);
+    assert.equal(
+      (await hd(join(home, "sub-cwd-is-not-used"), ["clean", "--cache"], { HD_CACHE: home }))
+        .status,
+      101,
+    );
+    const target = join(root, "link-target");
+    await writeTree(target, { "precious.txt": "keep\n" });
+    const linked = join(root, "linked-cache");
+    await mkdir(linked);
+    (await import("node:fs")).symlinkSync(target, join(linked, "pkg"));
+    const cleared = await hd(outside, ["clean", "--cache"], { HD_CACHE: linked });
+    assert.equal(cleared.status, 0, cleared.stderr);
+    assert.ok(existsSync(join(target, "precious.txt")));
+    assert.equal(existsSync(join(linked, "pkg")), false);
+  });
+
+  test("hd help lists clean, and the help of add and clean names their flags", async () => {
+    const list = await hd(root, ["help"]);
+    assert.match(list.stdout, /^ {2}clean /m);
+    assert.match((await hd(root, ["help", "add"])).stdout, /--dev/);
+    assert.match((await hd(root, ["clean", "--help"])).stdout, /--cache/);
+  });
+});
+
 describe("pseudo-versions and workspaces", needsGit, () => {
   before(setUp);
 

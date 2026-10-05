@@ -169,11 +169,17 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 2,
     maxOperands: 2,
     summary: "require the dependency NAME at PATH@VERSION, fetch it, and record its hash",
-    flags: [],
+    flags: [
+      {
+        name: "--dev",
+        help: "write the requirement to [dev-dependencies], which only test code and tasks use",
+      },
+    ],
     notes: [
       PACKAGE_NOTE,
       "It sets NAME's line in [dependencies] of hd.toml, as in",
       "hd add json github.com/acme/json@2.1.0, and updates hd.sum.",
+      "A NAME in the other table moves to the one the command writes.",
       DEPENDENCY_NOTE,
     ],
   },
@@ -207,6 +213,24 @@ const COMMANDS: readonly CommandSpec[] = [
       "It adds a missing hd.sum entry and changes no other. Later commands then",
       "need no network.",
       DEPENDENCY_NOTE,
+    ],
+  },
+  {
+    name: "clean",
+    operands: "",
+    minOperands: 0,
+    maxOperands: 0,
+    summary: "remove the package's build directory, or with --cache the dependency cache",
+    flags: [
+      {
+        name: "--cache",
+        help: "remove every fetched dependency version from the cache directory instead",
+      },
+    ],
+    notes: [
+      "Without --cache it removes build/ of the package, or of each member at a workspace root.",
+      "With --cache it removes the user cache directory's contents, or HD_CACHE's, and",
+      "refuses a directory that is not an hd cache. The next command fetches again.",
     ],
   },
   {

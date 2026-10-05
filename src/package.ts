@@ -283,9 +283,14 @@ function hiddenBase(module: PackageModule): string {
   return module.dependency ? `dep_${module.dependency.id}_${module.identity}` : module.identity;
 }
 
+/** The `test-only-use` error of a dev dependency used from non-test code (cli.dep.dev-use). */
+interface TestOnlyUse {
+  readonly testOnly: string;
+}
+
 /**
  * The package that `dep.NAME` names from `module`, or the message of the
- * `unknown-module` error. A root module sees the root package's
+ * `unknown-module` error, or `test-only-use` for a dev dependency. A root module sees the root package's
  * dependencies, and its dev dependencies only from test code or a task
  * (spec/lang/10-modules.md#r-module.test.dev-dependency); a dependency's
  * module sees that package's own dependencies.
@@ -294,7 +299,7 @@ function dependencyNamed(
   dependencies: PackageDependencies | undefined,
   module: PackageModule,
   name: string,
-): DependencyPackage | string {
+): DependencyPackage | TestOnlyUse | string {
   const own = module.dependency;
   const id = own
     ? own.dependencies[name]
@@ -305,7 +310,9 @@ function dependencyNamed(
   const found = id === undefined ? undefined : dependencies?.packages[id];
   if (found) return found;
   if (!own && dependencies?.devDependencies[name] !== undefined)
-    return `'dep.${name}' is a dev dependency, which only test code and tasks may use; move it to [dependencies] in hd.toml to use it here`;
+    return {
+      testOnly: `'dep.${name}' is a dev dependency, which only test code and tasks may use; to use it here, move it to [dependencies] with hd add ${name} PATH@VERSION`,
+    };
   if (own) return `${own.shown} has no dependency named '${name}'`;
   return dependencies === undefined ||
     Object.keys(dependencies.dependencies).length +
@@ -345,7 +352,7 @@ function useTarget(
   module: PackageModule,
   declaration: UseDecl,
   dependencies: PackageDependencies | undefined,
-): UseTarget | string | undefined {
+): UseTarget | TestOnlyUse | string | undefined {
   const [root, name, ...rest] = declaration.module.split(".");
   if (root !== "dep") {
     const path = useModulePath(module, declaration);
@@ -354,8 +361,22 @@ function useTarget(
       : path;
   }
   const found = dependencyNamed(dependencies, module, name ?? declaration.names[0]!.name);
-  if (typeof found === "string") return found;
+  if (typeof found === "string" || "testOnly" in found) return found;
   return { dependency: found, path: rest, namespaceOnly: name === undefined };
+}
+
+/** `useTarget`, reporting the error a use names (`unknown-module` or `test-only-use`). */
+function reportedUseTarget(
+  module: PackageModule,
+  declaration: UseDecl,
+  dependencies: PackageDependencies | undefined,
+  report: (path: string, code: string, message: string, span?: SourceSpan) => void,
+): UseTarget | undefined {
+  const used = useTarget(module, declaration, dependencies);
+  if (typeof used === "string") report(module.path, "unknown-module", used, declaration.span);
+  else if (used !== undefined && "testOnly" in used)
+    report(module.path, "test-only-use", used.testOnly, declaration.span);
+  return typeof used === "object" && !("testOnly" in used) ? used : undefined;
 }
 
 /**
@@ -789,9 +810,8 @@ export function linkPackage(
       if (root === "std") continue;
       const span = declaration.span;
       const [first] = declaration.names;
-      const used = useTarget(module, declaration, options.dependencies);
-      if (typeof used === "string") report(module.path, "unknown-module", used, span);
-      if (typeof used !== "object") continue;
+      const used = reportedUseTarget(module, declaration, options.dependencies, report);
+      if (used === undefined) continue;
       const { dependency: targetPackage, path: modulePath, namespaceOnly } = used;
       // A single use whose last segment is a module names that module's
       // namespace, as `use pkg.words` (spec/lang/10-modules.md#r-module.use.single).

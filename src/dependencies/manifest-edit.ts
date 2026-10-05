@@ -65,12 +65,16 @@ export function setDependency(
 
 /**
  * Deletes `key`'s line from `[dependencies]` or `[dev-dependencies]`, or
- * returns undefined when neither table has a line for it.
+ * from the `tables` named, and returns undefined when none has a line for it.
  */
-export function removeDependency(text: string, key: string): string | undefined {
+export function removeDependency(
+  text: string,
+  key: string,
+  tables: readonly string[] = ["dependencies", "dev-dependencies"],
+): string | undefined {
   const lines = text.split("\n");
   const pattern = keyPattern(key);
-  for (const table of ["dependencies", "dev-dependencies"]) {
+  for (const table of tables) {
     const range = tableRange(lines, table);
     if (!range) continue;
     for (let index = range[0] + 1; index < range[1]; index += 1) {

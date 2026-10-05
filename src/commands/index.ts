@@ -43,6 +43,7 @@ export {
   type RemoveArgs,
   type UpdateArgs,
 } from "./dependencies.ts";
+export { cleanCommand, type CleanArgs } from "./clean.ts";
 export { helpCommand, replCommand, type HelpArgs } from "./help.ts";
 export { newCommand, type NewArgs, type PackageKind } from "./new.ts";
 export {

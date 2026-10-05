@@ -277,14 +277,19 @@ async function writeSum(
 export interface AddArgs extends DependencyArgs {
   readonly name: string;
   readonly requirement: string;
+  /** `--dev`: the requirement goes to `[dev-dependencies]` (cli.dep.add.dev). */
+  readonly dev?: boolean;
 }
 
 /**
- * `hd add NAME PATH@VERSION` (spec/cli/command-line.md#r-cli.dep.add): sets
- * NAME's requirement in `[dependencies]`, after checking both
- * (cli.dep.add.check), then fetches and records hashes.
+ * `hd add [--dev] NAME PATH@VERSION` (spec/cli/command-line.md#r-cli.dep.add):
+ * sets NAME's requirement in `[dependencies]`, or in `[dev-dependencies]`
+ * with `--dev`, after checking both (cli.dep.add.check), then fetches and
+ * records hashes.
  */
 export function addCommand(args: AddArgs, io: CommandIo): Promise<number> {
+  const table = args.dev ? "dev-dependencies" : "dependencies";
+  const other = args.dev ? "dependencies" : "dev-dependencies";
   return dependencyCommand(
     "add",
     args,
@@ -295,9 +300,24 @@ export function addCommand(args: AddArgs, io: CommandIo): Promise<number> {
       const requirement = parseHostRequirement(args.requirement);
       if (typeof requirement === "string")
         return { error: requirement, code: "invalid-requirement" };
-      // An earlier version of the same host path lowers the requirement,
-      // and hd add says so (spec/cli/command-line.md#r-cli.dep.add.lower).
-      const entry = manifest.dependencies.find(({ key, dev }) => key === args.name && !dev);
+      // The key lives in one table (cli.dep.add.move): a line in the other
+      // table is deleted. An earlier version of the same host path lowers
+      // the requirement, and hd add says so
+      // (spec/cli/command-line.md#r-cli.dep.add.lower).
+      const wanted = !!args.dev;
+      const entry =
+        manifest.dependencies.find(({ key, dev }) => key === args.name && dev === wanted) ??
+        manifest.dependencies.find(({ key }) => key === args.name);
+      const moved = entry !== undefined && entry.dev !== wanted;
+      let base = text;
+      if (moved) {
+        const removed = removeDependency(text, args.name, [other]);
+        if (removed === undefined)
+          return {
+            error: `${args.name} is a [${other}.${args.name}] table, which hd add cannot move; delete it from hd.toml by hand`,
+          };
+        base = removed;
+      }
       const current = entry && parseRequirement(entry.value);
       const lowered =
         typeof current === "object" &&
@@ -307,11 +327,12 @@ export function addCommand(args: AddArgs, io: CommandIo): Promise<number> {
           ? current.version
           : undefined;
       return {
-        text: setDependency(text, args.name, args.requirement),
+        text: setDependency(base, args.name, args.requirement, table),
         done: [
           lowered
             ? `lowered ${args.name} ${lowered.text} -> ${requirement.version.text}`
             : `${args.name} = "${args.requirement}"`,
+          ...(moved ? [`moved ${args.name} from [${other}] to [${table}]`] : []),
         ],
       };
     },

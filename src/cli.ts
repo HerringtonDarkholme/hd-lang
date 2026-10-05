@@ -9,6 +9,7 @@ import {
   addCommand,
   buildCommand,
   checkCommand,
+  cleanCommand,
   defCommand,
   docCommand,
   EXIT_HD_FAILURE,
@@ -135,7 +136,18 @@ export async function main(
     case "check":
       return checkCommand({ ...options, file: first }, io);
     case "add":
-      return addCommand({ ...environment, format, name: first!, requirement: second! }, io);
+      return addCommand(
+        {
+          ...environment,
+          format,
+          name: first!,
+          requirement: second!,
+          dev: parsed.flags.has("--dev"),
+        },
+        io,
+      );
+    case "clean":
+      return cleanCommand({ ...environment, format, cache: parsed.flags.has("--cache") }, io);
     case "update":
       return updateCommand({ ...environment, format, ...(first ? { name: first } : {}) }, io);
     case "remove":

@@ -94,14 +94,14 @@ test("only pub declarations of a dependency are visible", () => {
   ]);
 });
 
-test("an unknown key and a dev dependency in library code are unknown-module", () => {
+test("an unknown key is unknown-module, and a dev dependency in library code is test-only-use", () => {
   assert.deepEqual(codes({ "src/main.hd": "use dep.yaml.{parse}\n" }), [
     "src/main.hd:1:unknown-module",
   ]);
   // Only test code and tasks see dev dependencies
   // (spec/lang/10-modules.md#r-module.test.dev-dependency).
   assert.deepEqual(codes({ "src/main.hd": "use dep.fixtures.{sample}\n" }), [
-    "src/main.hd:1:unknown-module",
+    "src/main.hd:1:test-only-use",
   ]);
   assert.deepEqual(
     codes(

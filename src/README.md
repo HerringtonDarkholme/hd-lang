@@ -221,7 +221,15 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   workspace manifest when the package is a member. `hd fetch` at a workspace
   root selects for every member (`resolveWorkspaceDependencies`); `hd add`,
   `hd update`, and `hd remove` run in a member. `hd add` that lowers a
-  requirement prints `lowered NAME OLD -> NEW`. A pseudo-version's base tag
+  requirement prints `lowered NAME OLD -> NEW`. `hd add --dev` writes
+  `[dev-dependencies]`, and `hd add` moves a key that sits in the other
+  table (`moved NAME from [A] to [B]`). A dev dependency used from non-test
+  code is `test-only-use`, whose message names `hd add`. `hd clean`
+  (`commands/clean.ts`) removes `build/` of the package or of each member;
+  `hd clean --cache` (`clearCache` in `dependencies/cache.ts`) removes
+  `pkg`, `hash`, and `tmp` of the cache directory, makes read-only entries
+  writable first, and refuses the root, the home directory, and any
+  directory with other entries. A pseudo-version's base tag
   must exist and be an ancestor of its commit (`git merge-base
   --is-ancestor`), as Go checks. A package under a workspace manifest that
   neither lists nor excludes it is an uncoded error at the manifest, with
