@@ -227,6 +227,22 @@ test("hd run on a module without main exits 0 and prints nothing", async () => {
   }
 });
 
+// A script whose top level needs a requirement (here `Console` for
+// `println`) binds the entry row's providers on the run path, so `hd run`
+// prints and exits 0 instead of trapping on a null provider.
+test("hd run on a script that needs Console prints and exits 0", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const path = join(directory, "script.hd");
+    await writeFile(path, 'greeting := "hello"\nprintln(greeting)\nprintln("done")\n');
+    const ran = await hd(["run", path]);
+    assert.equal(ran.stdout, "hello\ndone\n");
+    assert.equal(ran.stderr, "");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 // `write_line!` runs on the host console and on a program-defined provider,
 // and `println` drives the covering provider's `write_line!`
 // (spec/lang/10-modules.md#console, MHP-1).

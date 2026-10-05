@@ -79,10 +79,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
     this.currentRequirements = declaration.requirements;
     this.currentFunctionIndex = declaration.suspensionIndex ?? declaration.index;
     // The module initializer runs as the Wasm `start` function, which takes
-    // no parameters, so a script's entry requirements arrive as null
-    // providers: using one fails at run time. Binding entry requirements
-    // needs host support alongside `main!` rows. Check-time acceptance is
-    // unaffected: the row still reaches the host configuration.
+    // no parameters, so a script's entry requirements arrive through the
+    // `hd.init_provider` host import: the host answers each requirement the
+    // same `{requirement}` stub it passes `main!` rows, keyed by position.
     const startProviders = isStart && !declaration.suspending ? declaration.requirements : [];
     const emittedRequirements = startProviders.length > 0 ? [] : declaration.requirements;
     const parameters = declaration.parameters
@@ -123,10 +122,18 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const startProviderLocals = startProviders.map(
       (requirement, index) => `  (local $provider${index} ${this.providerType(requirement)})`,
     );
-    const startProviderSets = startProviders.map(
-      (requirement, index) =>
-        `  (local.set $provider${index} ${nullRefValue(this.providerType(requirement))})`,
-    );
+    // A host trait provider arrives as an `externref` stub from the host and
+    // becomes a trait value through its `$hd.host_trait` factory, exactly as
+    // `main!` entry wrappers bind it; any other requirement keeps the null
+    // it had, failing at run time only when used.
+    const startProviderSets = startProviders.map((requirement, index) => {
+      const trait = this.hostTrait(requirement);
+      const stub = `(call $hd.init_provider (i32.const ${index}))`;
+      const value = trait
+        ? `(call $hd.host_trait${trait.index} ${stub})`
+        : nullRefValue(this.providerType(requirement));
+      return `  (local.set $provider${index} ${value})`;
+    });
     this.temporaryTypes.length = 0;
     this.cleanupFrames.length = 0;
     const cache = enumSharedCache(declaration);
@@ -1234,8 +1241,20 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
       ? `\n  (elem declare func ${referenceableFunctions.join(" ")})\n`
       : "";
   const hostFunctions = emitHostFunctionImports(program);
+  // The initializer's entry requirements arrive through this import, bound
+  // by the host the way `main!` rows are. It is declared only when the
+  // initializer actually takes providers, so provider-free programs (and
+  // the size guards) see no new import.
+  const initializer = program.functions.find(
+    (declaration) => declaration.index === program.initializer,
+  );
+  const initializerProviders =
+    initializer !== undefined && !initializer.suspending && initializer.requirements.length > 0;
   const imports = [
     hostProviders.imports,
+    initializerProviders
+      ? `  (import "hd" "init_provider" (func $hd.init_provider (param i32) (result externref)))`
+      : "",
     [...program.functions, ...program.closures].some((declaration) => declaration.suspending)
       ? `  (import "hd" "trace" (func $hd.trace (param i32 i32)))`
       : "",

@@ -1034,6 +1034,16 @@ function runtimeFunctionIdentities(source: string, program: HirProgram): Functio
   });
 }
 
+/**
+ * The module initializer's entry requirements, when the initializer takes
+ * providers: each arrives as the `{requirement}` stub the host passes
+ * `main!` rows. A suspending initializer keeps its driver path.
+ */
+function initializerEntryRequirements(hir: HirProgram): readonly string[] {
+  const initializer = hir.functions.find((declaration) => declaration.index === hir.initializer);
+  return initializer !== undefined && !initializer.suspending ? initializer.requirements : [];
+}
+
 export async function instantiate(
   source: string,
   options: InstantiateOptions = {},
@@ -1094,6 +1104,11 @@ export async function instantiate(
     return isPending ? 1 : 0;
   };
   const hostImports: Record<string, HostImport> = {};
+  // The module initializer's entry requirements, bound the way `main!` rows
+  // are. Only the run path instantiates, so check-time behavior is untouched.
+  const requirements = initializerEntryRequirements(compilation.hir);
+  if (requirements.length > 0)
+    hostImports.init_provider = (index) => ({ requirement: requirements[Number(index)]! });
   hostImports.panic_with_message = (code, message) => {
     const bytes = (message as HostString).bytes;
     throw new RuntimePanicError(runtimePanicName(Number(code)), textDecoder.decode(bytes));
