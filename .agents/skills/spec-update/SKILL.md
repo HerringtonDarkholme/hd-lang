@@ -136,7 +136,7 @@ the spec, and it adds exactly what the decision says, no more.
     | The change touches | Run |
     | --- | --- |
     | only `spec/`, `guide/`, `future-work/`, fixtures, or indexes | `bash spec/check.sh`, `node --experimental-strip-types test/run-portable.ts --changed`, and `pnpm run website:build` |
-    | also `src/`, `lib/std/`, `test/`, or `bin/` | `pnpm run check` and `pnpm run website:build` |
+    | also `src/`, `lib/std/`, `test/`, or `bin/` | the row above, plus `test/run-portable.ts --phase parse\|type\|runtime` and `node --test` on each test file the change touches |
     | the website or playground code | also `pnpm run website:e2e` |
 
     `--changed` runs only the conformance cases whose fixture differs from
@@ -145,9 +145,8 @@ the spec, and it adds exactly what the decision says, no more.
     `origin/main`, `--changed` also selects every fixture other agents
     changed since. While
     iterating on prototype code, run one phase
-    (`test/run-portable.ts --phase parse|type|runtime`); run the full
-    `pnpm run check` once before the push, not after every edit or rebase
-    of unrelated files.
+    (`test/run-portable.ts --phase parse|type|runtime`). Never run the full
+    `pnpm run check`: the merge subagent runs it once per merge.
 
 12. **Integrate.** Make logical commits (spec and fixtures, prototype,
     issue-list cleanup, docs), each message naming the decision and the rule

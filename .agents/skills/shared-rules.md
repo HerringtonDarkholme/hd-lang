@@ -140,8 +140,16 @@ blocks.forEach((m, i) => {
 - Run only the checks a change needs. A spec-, docs-, or fixture-only
   change needs `bash spec/check.sh`, `node --experimental-strip-types
   test/run-portable.ts --changed`, and `pnpm run website:build`, not the full
-  `pnpm run check`. The full check is for changes to `src/`, `lib/std/`,
-  `test/`, or `bin/`, and runs once before the push.
+  `pnpm run check`. A change to `src/`, `lib/std/`, `test/`, or `bin/`
+  adds `--changed` or `--phase parse|type|runtime` and `node --test` on the
+  test files it touches.
+- Worker agents never run the full `pnpm run check`. Only the merge
+  subagent runs it, once per merge.
+- Never wait for a check with an `until` or `while … sleep` loop. Run it in
+  the foreground with a timeout, or in the background and wait for its
+  completion notification. Wait for CI with `gh run watch`.
+- Background agents run one at a time. Don't start a full check while
+  another agent's full check runs, unless the owner asks for parallel runs.
 - Before any check, run `git fetch origin` and rebase on `origin/main`. A
   stale `origin/main` makes `--changed` select other agents' fixtures too,
   and the push would be rejected anyway.
