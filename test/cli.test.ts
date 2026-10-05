@@ -44,7 +44,7 @@ test("the hd executable passes its arguments and sets the exit status", async ()
     });
     return caught!;
   };
-  assert.equal((await spawned(["--format", "json", "run", "examples/core.hd"])).stdout, "7\n");
+  assert.equal((await spawned(["--format", "json", "examples/core.hd"])).stdout, "7\n");
 
   const unknown = await failed(["bogus"]);
   assert.equal(unknown.code, 101);
@@ -59,10 +59,10 @@ test("the hd executable passes its arguments and sets the exit status", async ()
       join(directory, "code.hd"),
       "use std.process.ExitCode\n\npub fn main!() -> Result[ExitCode, string]:\n    .Ok(ExitCode(3))\n",
     );
-    assert.equal((await failed(["run", "code.hd"], directory)).code, 3);
+    assert.equal((await failed(["code.hd"], directory)).code, 3);
     // An internal error that escapes `main` ends the process with status 1.
     await writeFile(join(directory, "library.hd"), "fn helper() -> i32:\n    1\n");
-    const escaped = await failed(["run", "--entry", "main", "library.hd"], directory);
+    const escaped = await failed(["library.hd", "--entry", "main"], directory);
     assert.equal(escaped.code, 1);
     assert.match(escaped.stderr, /no exported main function/);
   } finally {
@@ -84,26 +84,33 @@ test("documented CLI commands work end to end", async () => {
   const tested = await hd(["test", runtimeFixture]);
   assert.match(tested.stdout, /generic-data-fields\.hd: 1 passed/);
 
-  const run = await hd(["run", core]);
+  const run = await hd([core]);
   assert.equal(run.stdout.trim(), "7");
-
-  const wat = await hd(["build", "--wat", core]);
-  assert.match(wat.stdout, /^\(module/m);
-  assert.match(wat.stdout, /\(type \$d0 \(struct/);
 
   const hir = await hd(["debug", "hir", core]);
   const parsedHir = JSON.parse(hir.stdout) as SerializedHir;
   assert.ok(parsedHir.functions?.some((declaration) => declaration.name === "main"));
 
+  // `hd build` works on a package (cli.run.package-only).
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
-    const buildSource = join(directory, "suspension.hd");
-    await copyFile(suspension, buildSource);
+    await writeFile(join(directory, "hd.toml"), '[package]\nname = "demo"\n');
+    await mkdir(join(directory, "src"));
+    await copyFile(core, join(directory, "src/core.hd"));
+    const wat = await hd(["build", "--wat", "src/core.hd"], directory);
+    assert.match(wat.stdout, /^\(module/m);
+    assert.match(wat.stdout, /\(type \$d0 \(struct/);
 
+    const buildSource = join(directory, "src/main.hd");
+    await copyFile(suspension, buildSource);
     const built = await hd(["build", buildSource], directory);
     const wasmPath = built.stdout.trim();
-    assert.equal(basename(wasmPath), "suspension.wasm");
+    assert.equal(basename(wasmPath), "main.wasm");
     assert.ok((await stat(wasmPath)).size > 8);
+    await rm(join(directory, "src/core.hd"));
+    const whole = await hd(["build"], directory);
+    assert.equal(whole.stdout, "build/debug/demo.wasm\n");
+    assert.ok((await stat(join(directory, "build/debug/demo.wasm"))).size > 8);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -177,14 +184,14 @@ test("hd run and hd test judge suspending results by Termination", async () => {
   };
   try {
     const ok = await program("ok.hd", ["pub fn main!() -> Result[void, string]:", "    .Ok(())"]);
-    const passed = await hd(["run", ok]);
+    const passed = await hd([ok]);
     assert.equal(passed.stdout, "");
 
     const err = await program("err.hd", [
       "pub fn main!() -> Result[void, string]:",
       '    .Err("boom")',
     ]);
-    const erred = await failure(["run", err]);
+    const erred = await failure([err]);
     assert.equal(erred.code, 1);
     assert.match(erred.stdout + erred.stderr, /main returned Err/);
 
@@ -192,7 +199,7 @@ test("hd run and hd test judge suspending results by Termination", async () => {
       "pub fn main!() -> Result[ExitCode, string]:",
       "    .Ok(ExitCode(3))",
     ]);
-    const exited = await failure(["run", code]);
+    const exited = await failure([code]);
     assert.equal(exited.code, 3);
     assert.equal(exited.stdout, "");
 
@@ -218,10 +225,10 @@ test("hd run on a module without main exits 0 and prints nothing", async () => {
   try {
     const path = join(directory, "library.hd");
     await writeFile(path, "fn helper() -> i32:\n    1\n");
-    const ran = await hd(["run", path]);
+    const ran = await hd([path]);
     assert.equal(ran.stdout, "");
     assert.equal(ran.stderr, "");
-    await assert.rejects(hd(["run", "--entry", "main", path]), /no exported main function/);
+    await assert.rejects(hd([path, "--entry", "main"]), /no exported main function/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -235,7 +242,7 @@ test("hd run on a script that needs Console prints and exits 0", async () => {
   try {
     const path = join(directory, "script.hd");
     await writeFile(path, 'greeting := "hello"\nprintln(greeting)\nprintln("done")\n');
-    const ran = await hd(["run", path]);
+    const ran = await hd([path]);
     assert.equal(ran.stdout, "hello\ndone\n");
     assert.equal(ran.stderr, "");
   } finally {
@@ -271,7 +278,7 @@ test("hd run runs Console.write_line! on host and program providers", async () =
       '    $.use(Console).write_line!("recorded ${buffer.lines.len()}")?',
     ];
     await writeFile(source, [...lines, "    .Ok(())", ""].join("\n"));
-    const ran = await hd(["run", source]);
+    const ran = await hd([source]);
     assert.equal(ran.stdout, "hi\nrecorded 1\n");
 
     // `println` drives with `block_on`: it runs outside a driver, and under
@@ -286,14 +293,14 @@ test("hd run runs Console.write_line! on host and program providers", async () =
       "",
     ];
     await writeFile(source, printing.join("\n"));
-    const printed = await hd(["run", source]);
+    const printed = await hd([source]);
     assert.equal(printed.stdout, "recorded 1\n");
 
     await writeFile(
       source,
       [...lines, '    println("under a driver")', "    .Ok(())", ""].join("\n"),
     );
-    const nested = await hd(["run", source]);
+    const nested = await hd([source]);
     assert.equal(nested.stdout, "hi\nrecorded 1\nunder a driver\n");
   } finally {
     await rm(directory, { recursive: true, force: true });

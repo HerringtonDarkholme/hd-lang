@@ -1,11 +1,14 @@
-// `hd run` and `hd test`: the commands that compile FILE and run it.
+// `hd FILE`, `hd run`, and `hd test`: the commands that compile a program
+// and run it.
 
-import { readdir } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { stat } from "node:fs/promises";
+import { dirname, relative, resolve, sep } from "node:path";
 
-import { instantiate } from "../compiler.ts";
+import { analyze, instantiate } from "../compiler.ts";
 import { Report } from "../diagnostic-report.ts";
+import { DiagnosticError } from "../diagnostics.ts";
 import type { HirFunction } from "../hir.ts";
+import { SOURCE_ROOT, TEST_ROOT } from "../package.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
 import { runSelected } from "../test-runner.ts";
@@ -15,6 +18,7 @@ import {
   type CommandEnvironment,
   type CommandIo,
 } from "./io.ts";
+import { packageMode, type Executable, type LocalPackage } from "./package-mode.ts";
 import {
   exportedFunction,
   RUNTIME_PROFILES,
@@ -23,13 +27,13 @@ import {
   type RuntimeScenario,
 } from "./profiles.ts";
 import {
-  enclosingPackageRoot,
-  isDirectory,
-  isPackageRoot,
+  commandPackage,
   loadSource,
-  packageFiles,
   placementOf,
   reportFailure,
+  reportPackageProblems,
+  shownPath,
+  shownRoot,
   type LoadedSource,
   type PackagePlacement,
   type PackageTree,
@@ -38,34 +42,128 @@ import {
   type TestLayout,
 } from "./source.ts";
 
-export interface RunArgs extends SourceArgs {
-  /** `--entry NAME`: run this exported function instead, and print its result. */
-  readonly entry?: string;
-  /** `--release`: integer overflow wraps instead of panicking. */
-  readonly release?: boolean;
-  readonly profile?: RuntimeProfileName;
-  /** `hd FILE`: run FILE as a single-file program, whether or not it lies in a package. */
-  readonly single?: boolean;
+async function isDirectory(path: string): Promise<boolean> {
+  return (await stat(path).catch(() => undefined))?.isDirectory() ?? false;
 }
 
-/** `hd run FILE`: runs FILE's entry point, the public `main` or `main!`. */
-export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> {
+/**
+ * A positional word that names a directory is neither a NAME nor a FILE
+ * (spec/cli/command-line.md#r-cli.command.positional). Reports the error and
+ * returns true for one.
+ */
+async function directoryWord(
+  command: string,
+  word: string,
+  report: Report,
+  environment: CommandEnvironment,
+): Promise<boolean> {
+  if (!(await isDirectory(resolve(workingDirectory(environment), word)))) return false;
+  report.commandError(
+    `hd ${command}: '${word}' is a directory, which is neither a NAME nor a FILE; to work on a workspace member, select it with -p NAME`,
+  );
+  return true;
+}
+
+export interface FileArgs extends SourceArgs {
+  /** `--entry NAME`: run this exported function instead, and print its result. */
+  readonly entry?: string;
+  readonly profile?: RuntimeProfileName;
+  /** The program's arguments, after `--` (spec/cli/command-line.md#r-cli.args.pass). */
+  readonly programArguments?: readonly string[];
+}
+
+/**
+ * `hd FILE`: runs FILE as a single-file program, whether or not it lies in a
+ * package (spec/cli/command-line.md#r-cli.file.run).
+ */
+export async function fileCommand(args: FileArgs, io: CommandIo): Promise<number> {
   // The program's standard output passes through, so a JSON run writes its
   // records to standard error (spec/cli/command-line.md#r-cli.json.run).
   const report = new Report(args.format, io, { stream: "stderr", summary: true });
-  const placement = args.single
-    ? undefined
-    : await placementOf(args.file, undefined, undefined, args);
-  const loaded = await loadSource(
-    args,
-    { report, profile: args.profile, release: args.release, linkTests: false },
-    placement,
-  );
+  const loaded = await loadSource(args, {
+    report,
+    profile: args.profile,
+    linkTests: false,
+    singleFileNote: await singleFileNote(args),
+  });
   if (typeof loaded === "number") return report.finish(loaded);
   return report.finish(
     await execute(loaded, io, {
       kind: "run",
       entry: args.entry,
+      pendingFirstPoll: args.pendingFirstPoll,
+      profile: args.profile,
+    }),
+  );
+}
+
+/**
+ * The note on a package use in `hd FILE` when FILE lies in a package
+ * (spec/cli/command-line.md#r-cli.file.in-package): it names the executable
+ * whose entry module FILE is, with its `hd run` command
+ * (spec/cli/command-line.md#r-cli.file.entry-hint), or else suggests a task.
+ */
+async function singleFileNote(args: FileArgs): Promise<string | undefined> {
+  const path = resolve(workingDirectory(args), args.file);
+  const mode = await packageMode(dirname(path));
+  if (mode.kind !== "package") return undefined;
+  const pkg = mode.package;
+  const packagePath = relative(pkg.root, path).split(sep).join("/");
+  const executable = pkg.executables.find((candidate) => candidate.path === packagePath);
+  if (executable)
+    return `${args.file} is the entry module of the executable '${executable.name}' of package '${pkg.name}'; run it with: hd run ${executable.name}`;
+  return `hd FILE runs ${args.file} on its own, outside package '${pkg.name}'; to use the package's modules, make it a task, tasks/NAME.hd, and run it with: hd run NAME`;
+}
+
+export interface RunArgs extends CommandEnvironment {
+  /** NAME: the executable to run; absent for the package's one executable. */
+  readonly name?: string;
+  readonly format: SourceArgs["format"];
+  /** `--release`: integer overflow wraps instead of panicking. */
+  readonly release?: boolean;
+  readonly profile?: RuntimeProfileName;
+  /** The program's arguments, after `--` (spec/cli/command-line.md#r-cli.args.pass). */
+  readonly programArguments?: readonly string[];
+}
+
+/**
+ * `hd run [NAME]`: runs the package's executable named NAME, or its one
+ * executable (spec/cli/command-line.md#choosing-what-runs).
+ */
+export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> {
+  // The program's standard output passes through, so a JSON run writes its
+  // records to standard error (spec/cli/command-line.md#r-cli.json.run).
+  const report = new Report(args.format, io, { stream: "stderr", summary: true });
+  if (args.name !== undefined) {
+    // `hd run FILE` is an error (spec/cli/command-line.md#r-cli.run.file).
+    if (args.name.endsWith(".hd")) {
+      report.commandError(
+        `hd run: runs an executable of the package, not a FILE; use hd run, or hd run NAME for the executable NAME (run ${args.name} on its own with hd ${args.name})`,
+      );
+      return report.finish(EXIT_HD_FAILURE);
+    }
+    if (await directoryWord("run", args.name, report, args)) return report.finish(EXIT_HD_FAILURE);
+  }
+  const pkg = await commandPackage("run", report, args);
+  if (typeof pkg === "number") return report.finish(pkg);
+  if (await reportPackageProblems(report, pkg, pkg.problems, args))
+    return report.finish(EXIT_HD_FAILURE);
+  const executable = chosenExecutable(pkg, args.name, report);
+  if (!executable) return report.finish(EXIT_HD_FAILURE);
+  const loaded = await loadSource(
+    { ...args, file: shownPath(pkg, executable.path, args) },
+    { report, profile: args.profile, release: args.release, linkTests: false },
+    {
+      root: shownRoot(pkg, args),
+      path: executable.path,
+      files: pkg.files,
+      programs: pkg.executables.map(({ path }) => path),
+    },
+  );
+  if (typeof loaded === "number") return report.finish(loaded);
+  return report.finish(
+    await execute(loaded, io, {
+      kind: "run",
       pendingFirstPoll: args.pendingFirstPoll,
       release: args.release,
       profile: args.profile,
@@ -73,8 +171,37 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
   );
 }
 
+/**
+ * The executable `hd run [NAME]` runs (spec/cli/command-line.md#r-cli.run.name,
+ * spec/cli/command-line.md#r-cli.run.default.one), or undefined after
+ * reporting why there is none.
+ */
+function chosenExecutable(
+  pkg: LocalPackage,
+  name: string | undefined,
+  report: Report,
+): Executable | undefined {
+  const names = pkg.executables.map((executable) => executable.name);
+  const listed = names.length === 0 ? "it has none" : `its executables are ${names.join(", ")}`;
+  if (name !== undefined) {
+    const named = pkg.executables.find((executable) => executable.name === name);
+    if (!named)
+      report.commandError(
+        `hd run: package '${pkg.name}' has no executable named '${name}'; ${listed}`,
+      );
+    return named;
+  }
+  if (pkg.executables.length === 1) return pkg.executables[0];
+  report.commandError(
+    pkg.executables.length === 0
+      ? `hd run: package '${pkg.name}' has no executable; add src/main.hd, or an [[executable]] table to hd.toml`
+      : `hd run: package '${pkg.name}' has several executables, ${names.join(", ")}; name one, as in hd run ${names[0]}`,
+  );
+  return undefined;
+}
+
 export interface TestArgs extends CommandEnvironment {
-  /** FILE or DIR; the default is the package that holds the current directory. */
+  /** FILE; absent for the whole package. */
   readonly path?: string;
   readonly format: SourceArgs["format"];
   /** `--update`: record snapshot files instead of failing on a difference. */
@@ -91,21 +218,21 @@ export interface TestArgs extends CommandEnvironment {
   readonly packageTree?: PackageTree;
 }
 
-/** `hd test [FILE|DIR]`: runs the test cases of FILE, of DIR, or of the current package. */
+/** `hd test [FILE]`: runs the test cases of the package, or of FILE. */
 export async function testCommand(args: TestArgs, io: CommandIo): Promise<number> {
   const report = new Report(args.format, io, { stream: "stdout", summary: true });
   return report.finish(await test(args, io, report));
 }
 
 async function test(args: TestArgs, io: CommandIo, report: Report): Promise<number> {
-  const cwd = workingDirectory(args);
   if (args.path === undefined) {
-    const root = enclosingPackageRoot(cwd) ?? cwd;
-    return testDirectory(args, relative(cwd, root) || ".", io, report);
+    const pkg = await commandPackage("test", report, args);
+    if (typeof pkg === "number") return pkg;
+    return testPackage(pkg, args, io, report);
   }
-  if (await isDirectory(resolve(cwd, args.path))) return testDirectory(args, args.path, io, report);
+  if (await directoryWord("test", args.path, report, args)) return EXIT_HD_FAILURE;
   const placement = await placementOf(args.path, args.packageTree, args.testLayout, args);
-  return testFile(args, args.path, io, report, placement, false);
+  return testFile(args, args.path, io, report, placement, { quietWhenEmpty: false });
 }
 
 async function testFile(
@@ -114,7 +241,7 @@ async function testFile(
   io: CommandIo,
   report: Report,
   placement: PackagePlacement | undefined,
-  quietWhenEmpty: boolean,
+  options: { readonly quietWhenEmpty: boolean },
 ): Promise<number> {
   const loaded = await loadSource(
     { file, format: args.format, cwd: args.cwd, specDir: args.specDir },
@@ -122,52 +249,70 @@ async function testFile(
     placement,
   );
   if (typeof loaded === "number") return loaded;
-  return execute(loaded, io, { kind: "test", quietWhenEmpty, ...args });
+  // In package mode, `hd test` runs test cases only, never an executable's
+  // entry point (spec/cli/command-line.md#r-cli.package.file).
+  const inPackage = placement?.programs !== undefined;
+  return execute(loaded, io, { kind: "test", ...args, ...options, testsOnly: inPackage });
 }
 
 /**
- * `hd test DIR`: a package (a directory with `hd.toml` or `src/`) tests each
- * module under `src/` and `tests/` with the other modules linked; any other
- * directory tests each `.hd` file directly in it.
+ * Whole-package `hd test` (spec/cli/command-line.md#r-cli.package.whole):
+ * first it builds the executables
+ * (spec/cli/command-line.md#r-cli.test.builds-executables), then it runs the
+ * test cases of each module under the source root, with its `tests:` block
+ * and the test modules linked, and of each integration test program, in
+ * the order of their paths (spec/cli/command-line.md#r-cli.json.test.order).
+ * A run that registers no test case passes
+ * (spec/cli/command-line.md#r-cli.test.package-empty).
  */
-async function testDirectory(
+async function testPackage(
+  pkg: LocalPackage,
   args: TestArgs,
-  directory: string,
   io: CommandIo,
   report: Report,
 ): Promise<number> {
-  const root = resolve(workingDirectory(args), directory);
-  let status = 0;
-  let ran = 0;
-  if (isPackageRoot(root)) {
-    const files = await packageFiles(root);
-    const reported = new Set<string>();
-    for (const path of Object.keys(files).sort()) {
-      ran += 1;
-      const code = await testFile(
-        args,
-        join(directory, path),
-        io,
-        report,
-        { root: directory, path, files, reported },
-        true,
-      );
-      status = Math.max(status, code);
-    }
-  } else {
-    const names = (await readdir(root, { withFileTypes: true }))
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".hd"))
-      .map((entry) => entry.name)
-      .sort();
-    for (const name of names) {
-      ran += 1;
-      status = Math.max(
-        status,
-        await testFile(args, join(directory, name), io, report, undefined, true),
-      );
+  if (await reportPackageProblems(report, pkg, pkg.problems, args)) return EXIT_HD_FAILURE;
+  const programs = pkg.executables.map(({ path }) => path);
+  const reported = new Set<string>();
+  const placement = (path: string): PackagePlacement => ({
+    root: shownRoot(pkg, args),
+    path,
+    files: pkg.files,
+    reported,
+    programs,
+  });
+  // `hd test` always builds in the test profile, a checked build
+  // (spec/cli/command-line.md#r-cli.profile.test).
+  for (const executable of pkg.executables) {
+    const loaded = await loadSource(
+      { ...args, file: shownPath(pkg, executable.path, args) },
+      { report, linkTests: false },
+      placement(executable.path),
+    );
+    if (typeof loaded === "number") return loaded;
+    try {
+      const result = analyze(loaded.source, { ...loaded.compileOptions, skipTestCode: true });
+      if (!result.hir) throw new DiagnosticError(result.diagnostics);
+    } catch (error) {
+      return reportFailure(loaded, error);
     }
   }
-  if (ran === 0 && args.format === "text") io.out(`${directory}: no .hd files to test`);
+  const targets = Object.keys(pkg.files)
+    .filter(
+      (path) =>
+        path.startsWith(SOURCE_ROOT) ||
+        // Shared test modules are no programs of their own
+        // (spec/lang/10-modules.md#r-module.test.integration.shared).
+        (path.startsWith(TEST_ROOT) && !path.slice(TEST_ROOT.length).includes("/")),
+    )
+    .sort();
+  let status = 0;
+  for (const path of targets) {
+    const code = await testFile(args, shownPath(pkg, path, args), io, report, placement(path), {
+      quietWhenEmpty: true,
+    });
+    status = Math.max(status, code);
+  }
   return status;
 }
 
@@ -180,7 +325,13 @@ type Execution =
       readonly release?: boolean;
       readonly profile?: RuntimeProfileName;
     }
-  | ({ readonly kind: "test"; readonly quietWhenEmpty: boolean } & TestArgs);
+  | ({
+      readonly kind: "test";
+      /** A whole-package run, where a module without test cases is no error. */
+      readonly quietWhenEmpty: boolean;
+      /** Run the test cases only, not the entry point. */
+      readonly testsOnly: boolean;
+    } & TestArgs);
 
 async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution): Promise<number> {
   const { file, path, source, linked, placement, reporter } = loaded;
@@ -260,7 +411,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     const selected = compilation.hir.functions.filter((declaration) => {
       if (command === "test")
         return (
-          declaration.entry === true ||
+          (declaration.entry === true && test?.testsOnly !== true) ||
           (/^\$test\.\d+$/.test(declaration.name) && inFileModule(declaration))
         );
       if (explicitEntry) return declaration.name === entryName;

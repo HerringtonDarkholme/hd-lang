@@ -22,7 +22,14 @@ export {
   type CheckArgs,
   type HirArgs,
 } from "./compile.ts";
-export { runCommand, testCommand, type RunArgs, type TestArgs } from "./execute.ts";
+export {
+  fileCommand,
+  runCommand,
+  testCommand,
+  type FileArgs,
+  type RunArgs,
+  type TestArgs,
+} from "./execute.ts";
 export { helpCommand, replCommand, type HelpArgs } from "./help.ts";
 export {
   defCommand,

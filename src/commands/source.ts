@@ -1,10 +1,10 @@
 // What the commands that compile a FILE share: finding FILE's package,
 // linking it, and reporting diagnostics against the file they point into.
 
-import { existsSync, statSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { readFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
+import { SINGLE_FILE_USE } from "../checker/standard-uses.ts";
 import type { CompileOptions } from "../compiler.ts";
 import { DiagnosticReporter, type OutputFormat, type Report } from "../diagnostic-report.ts";
 import { DiagnosticError, physicalSpan, sourceDocument, type Diagnostic } from "../diagnostics.ts";
@@ -13,6 +13,13 @@ import type { PackageDiagnostic } from "../package.ts";
 import type { ParseOptions } from "../parser/index.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "../runtime-panic.ts";
 import { loadSpecIndex } from "../spec-index.ts";
+import {
+  hdFilesUnder,
+  MANIFEST_FILE,
+  packageMode,
+  type LocalPackage,
+  type PackageProblem,
+} from "./package-mode.ts";
 import { RUNTIME_PROFILES, type RUNTIME_PROFILE_NAMES } from "./profiles.ts";
 import { EXIT_HD_FAILURE, workingDirectory, type CommandEnvironment } from "./io.ts";
 
@@ -41,10 +48,15 @@ export interface PackagePlacement {
   readonly path: string;
   readonly files: Readonly<Record<string, string>>;
   /**
-   * Diagnostics already printed, shared by the module runs of `hd test DIR`,
-   * so that an error in a module that several others link prints once.
+   * Diagnostics already printed, shared by the module runs of a
+   * whole-package command, so that an error in a module that several others
+   * link prints once.
    */
   readonly reported?: Set<string>;
+  /** The executables' entry modules, each its own program (LinkOptions.programs). */
+  readonly programs?: readonly string[];
+  /** The package, in package mode; absent for a conformance package tree. */
+  readonly package?: LocalPackage;
 }
 
 /** A FILE ready to compile: its source, after linking, and where its diagnostics go. */
@@ -72,6 +84,16 @@ interface LoadOptions {
   readonly release?: boolean;
   /** Link the test modules of FILE's package too. */
   readonly linkTests: boolean;
+  /**
+   * FILE is a library module that a whole-package command checks on its own,
+   * not an entry module (spec/lang/10-modules.md#r-module.init.entry-module.selected).
+   */
+  readonly library?: boolean;
+  /**
+   * The note `hd FILE` adds to a package use's error when FILE lies in a
+   * package (spec/cli/command-line.md#r-cli.file.in-package).
+   */
+  readonly singleFileNote?: string;
 }
 
 /**
@@ -87,12 +109,23 @@ export async function loadSource(
   const { file, format } = args;
   const path = resolve(workingDirectory(args), file);
   const fileSource = await readFile(path, "utf8");
+  // `hd` rejects a package whose manifest is invalid
+  // (spec/cli/command-line.md#r-cli.exit.hd-failure). A whole-package
+  // command reports the manifest once itself, and leaves `package` unset.
+  if (placement?.package) {
+    const errors = placement.package.problems.filter(({ severity }) => severity === "error");
+    if (await reportPackageProblems(options.report, placement.package, errors, args))
+      return EXIT_HD_FAILURE;
+  }
   // In a package, FILE joins the package's files; the linker joins the
   // modules into one program (src/package.ts).
   const treeFiles = placement && { ...placement.files, [placement.path]: fileSource };
   const linked =
     placement && treeFiles
-      ? linkPackage(treeFiles, placement.path, { tests: options.linkTests })
+      ? linkPackage(treeFiles, placement.path, {
+          tests: options.linkTests,
+          ...(placement.programs ? { programs: placement.programs } : {}),
+        })
       : undefined;
   const source = linked?.source ?? fileSource;
   const profile = options.profile ? RUNTIME_PROFILES[options.profile] : undefined;
@@ -109,7 +142,7 @@ export async function loadSource(
   const compileOptions: CompileOptions = {
     hostCapabilities: profile?.hostCapabilities,
     parse: parseOptions,
-    entryModule: !("testModule" in parseOptions),
+    entryModule: !("testModule" in parseOptions) && options.library !== true,
     release: options.release ?? false,
   };
   const specIndex = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
@@ -124,7 +157,14 @@ export async function loadSource(
   );
   // A diagnostic in a package names the file it points into.
   const treeReporters = new Map<string, DiagnosticReporter>();
+  const note = options.singleFileNote;
   const report = (diagnostic: Diagnostic | PackageDiagnostic): void => {
+    if (
+      note &&
+      diagnostic.code === "unknown-module" &&
+      diagnostic.message.includes(SINGLE_FILE_USE)
+    )
+      return reporter.diagnostic({ ...diagnostic, notes: [...(diagnostic.notes ?? []), note] });
     if (!linked || !placement || !treeFiles) return reporter.diagnostic(diagnostic);
     // A checker diagnostic from lib/std already owns its physical source;
     // package coordinates apply only to the joined package source.
@@ -196,87 +236,123 @@ export function reportFailure(loaded: LoadedSource, error: unknown): number {
   throw error;
 }
 
-/** Every `.hd` file under a package tree, keyed by its package path. */
-async function packageTreeFiles(root: string): Promise<Record<string, string>> {
-  const files: Record<string, string> = {};
-  for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith(".hd")) continue;
-    const full = join(entry.parentPath, entry.name);
-    files[relative(root, full).split(sep).join("/")] = await readFile(full, "utf8");
-  }
-  return files;
-}
-
-export async function isDirectory(path: string): Promise<boolean> {
-  return (await stat(path).catch(() => undefined))?.isDirectory() ?? false;
-}
-
-function isDirectorySync(path: string): boolean {
-  return statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false;
-}
-
-/** Whether `directory` is a package root: it holds `hd.toml` or `src/`. */
-export function isPackageRoot(directory: string): boolean {
-  return existsSync(join(directory, "hd.toml")) || isDirectorySync(join(directory, SOURCE_ROOT));
-}
-
 /**
- * The root of the package that holds the directory `start`: the nearest
- * directory at or above it with `hd.toml`, else the parent of the nearest
- * `src/` (or of a `tests/` beside a `src/`). Undefined outside any package.
+ * Reports a package's problems (src/commands/package-mode.ts) and returns
+ * whether any is an error. Text names each file relative to the working
+ * directory; JSON names it relative to the package root
+ * (spec/cli/command-line.md#r-cli.json.diagnostic.file).
  */
-export function enclosingPackageRoot(start: string): string | undefined {
-  const ancestors: string[] = [];
-  for (let directory = resolve(start); ; directory = dirname(directory)) {
-    ancestors.push(directory);
-    if (dirname(directory) === directory) break;
-  }
-  const manifest = ancestors.find((directory) => existsSync(join(directory, "hd.toml")));
-  if (manifest) return manifest;
-  const root = ancestors.find((directory) => {
-    const name = basename(directory);
-    return (
-      name === SOURCE_ROOT.slice(0, -1) ||
-      (name === TEST_ROOT.slice(0, -1) && isDirectorySync(join(dirname(directory), SOURCE_ROOT)))
+export async function reportPackageProblems(
+  report: Report,
+  pkg: LocalPackage,
+  problems: readonly PackageProblem[],
+  environment: CommandEnvironment,
+): Promise<boolean> {
+  const specIndex = report.format === "json" ? await loadSpecIndex(environment.specDir) : undefined;
+  const cwd = workingDirectory(environment);
+  for (const problem of problems) {
+    const full = join(pkg.root, problem.path);
+    const reporter = new DiagnosticReporter(
+      report,
+      relative(cwd, full) || full,
+      pkg.files[problem.path] ?? "",
+      specIndex,
+      problem.path,
     );
-  });
-  return root && dirname(root);
-}
-
-/** A package's `.hd` files under `src/` and `tests/`, keyed by package path. */
-export async function packageFiles(root: string): Promise<Record<string, string>> {
-  const files: Record<string, string> = {};
-  for (const prefix of [SOURCE_ROOT, TEST_ROOT]) {
-    const directory = join(root, prefix);
-    if (!(await isDirectory(directory))) continue;
-    for (const [path, text] of Object.entries(await packageTreeFiles(directory)))
-      files[`${prefix}${path}`] = text;
+    if (problem.code === null) reporter.uncoded(problem.message, problem.line, problem.column);
+    else {
+      const position = { offset: 0, line: problem.line, column: problem.column };
+      reporter.diagnostic({
+        code: problem.code,
+        message: problem.message,
+        severity: problem.severity,
+        span: { start: position, end: position },
+      });
+    }
   }
-  return files;
+  return problems.some(({ severity }) => severity === "error");
 }
 
 /**
- * FILE's place in its enclosing package, when FILE is a package file under
- * `src/` or `tests/`; undefined for a lone file, which compiles on its own.
+ * The package a whole-package command works on: the package of the working
+ * directory (spec/cli/command-line.md#r-cli.package.whole). Outside any
+ * package, or in a workspace, it reports an error and returns the exit
+ * status instead (spec/cli/command-line.md#r-cli.run.package-only,
+ * spec/cli/command-line.md#r-cli.file.check-test.no-file).
+ */
+export async function commandPackage(
+  command: "build" | "check" | "run" | "test",
+  report: Report,
+  environment: CommandEnvironment,
+  file?: string,
+): Promise<LocalPackage | number> {
+  const cwd = workingDirectory(environment);
+  // The start directory is FILE's, or else the working directory
+  // (spec/cli/command-line.md#r-cli.mode.start).
+  const start = file === undefined ? cwd : dirname(resolve(cwd, file));
+  const mode = await packageMode(start);
+  if (mode.kind === "package") return mode.package;
+  if (mode.kind === "workspace") {
+    report.commandError(
+      `hd ${command}: ${join(mode.root, MANIFEST_FILE)} is a workspace manifest, and the prototype does not support workspaces yet; run hd ${command} inside a member's directory`,
+    );
+    return EXIT_HD_FAILURE;
+  }
+  const where = `no ${MANIFEST_FILE} in ${start} or a directory above it`;
+  report.commandError(
+    command === "check" || command === "test"
+      ? `hd ${command}: not in a package (${where}); pass a FILE, as in hd ${command} notes.hd, or create a package with hd new`
+      : `hd ${command}: not in a package (${where}); create a package with hd new, or run one file with hd FILE`,
+  );
+  return EXIT_HD_FAILURE;
+}
+
+/** Where a whole-package command names a package file: relative to the working directory. */
+export function shownPath(
+  pkg: LocalPackage,
+  path: string,
+  environment: CommandEnvironment,
+): string {
+  return relative(workingDirectory(environment), join(pkg.root, path)) || path;
+}
+
+/** The package root as a whole-package command names it, relative to the working directory. */
+export function shownRoot(pkg: LocalPackage, environment: CommandEnvironment): string {
+  return relative(workingDirectory(environment), pkg.root) || ".";
+}
+
+/**
+ * FILE's place in its package, when FILE lies in a package and under its
+ * source root or test root; undefined for a file that `hd` compiles as a
+ * single-file program (spec/cli/command-line.md#r-cli.package.no-root).
  */
 async function enclosingPlacement(
   file: string,
   cwd: string,
 ): Promise<PackagePlacement | undefined> {
   const path = resolve(cwd, file);
-  const root = enclosingPackageRoot(dirname(path));
-  if (root === undefined) return undefined;
-  const packagePath = relative(root, path).split(sep).join("/");
+  // The start directory is FILE's directory (spec/cli/command-line.md#r-cli.mode.start).
+  const mode = await packageMode(dirname(path));
+  if (mode.kind !== "package") return undefined;
+  const pkg = mode.package;
+  const packagePath = relative(pkg.root, path).split(sep).join("/");
   if (!packagePath.startsWith(SOURCE_ROOT) && !packagePath.startsWith(TEST_ROOT)) return undefined;
   // Diagnostics name the package's other files the way FILE was named.
-  const shown = isAbsolute(file) ? root : relative(cwd, root) || ".";
-  return { root: shown, path: packagePath, files: await packageFiles(root) };
+  const shown = isAbsolute(file) ? pkg.root : relative(cwd, pkg.root) || ".";
+  return {
+    root: shown,
+    path: packagePath,
+    files: pkg.files,
+    programs: pkg.executables.map((executable) => executable.path),
+    package: pkg,
+  };
 }
 
 /**
  * FILE's package for a command that links one: the tree the conformance
- * runner's package tree option names, else the package that holds FILE. A test layout turns linking off.
- * Relative paths resolve against `environment`'s directory.
+ * runner's package tree option names, else the package that holds FILE. A
+ * test layout turns linking off. Relative paths resolve against
+ * `environment`'s directory.
  */
 export async function placementOf(
   file: string,
@@ -289,7 +365,7 @@ export async function placementOf(
     return {
       root: resolve(cwd, packageTree.tree),
       path: packageTree.path,
-      files: await packageTreeFiles(resolve(cwd, packageTree.tree)),
+      files: await hdFilesUnder(resolve(cwd, packageTree.tree)),
     };
   return testLayout === undefined ? enclosingPlacement(file, cwd) : undefined;
 }

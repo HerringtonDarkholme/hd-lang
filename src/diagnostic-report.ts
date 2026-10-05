@@ -199,6 +199,30 @@ export class Report {
     this.counts[severity === "error" ? "errors" : "warnings"] += 1;
   }
 
+  /**
+   * An error of the command itself that names no file, such as `hd run`
+   * outside any package: a line of text, or a diagnostic record with no code
+   * and an empty `file`.
+   */
+  commandError(message: string): void {
+    this.count("error");
+    const record: JsonDiagnostic = {
+      kind: "diagnostic",
+      code: null,
+      severity: "error",
+      message,
+      file: "",
+      line: null,
+      column: null,
+      notes: [],
+      related: [],
+      fix: null,
+      rule: null,
+      rules: [],
+    };
+    this.write(message, record);
+  }
+
   /** A test case's result: one test object with `--format json`, nothing in text. */
   test(name: string, outcome: TestOutcome, message = ""): void {
     this.counts[outcome] += 1;
@@ -269,8 +293,23 @@ export class DiagnosticReporter {
     this.located(`${this.file}: no test case registered`, null, "no test case registered");
   }
 
-  /** A failure with no source location. */
-  private located(text: string, code: string | null, message: string, applyRules = true): void {
+  /**
+   * An error that the specification gives no code, at a line of the file,
+   * such as a mistake in `hd.toml`. Its text has no code, so no runner reads
+   * it as a located diagnostic.
+   */
+  uncoded(message: string, line: number, column: number): void {
+    this.located(`${this.file}:${line}: ${message}`, null, message, false, { line, column });
+  }
+
+  /** A failure with no code or no source location. */
+  private located(
+    text: string,
+    code: string | null,
+    message: string,
+    applyRules = true,
+    position?: { readonly line: number; readonly column: number },
+  ): void {
     this.report.count("error");
     const rules = code && applyRules ? ruleRefs(this.index, code) : [];
     const record: JsonDiagnostic = {
@@ -279,8 +318,8 @@ export class DiagnosticReporter {
       severity: "error",
       message,
       file: this.jsonFile,
-      line: null,
-      column: null,
+      line: position?.line ?? null,
+      column: position?.column ?? null,
       notes: [],
       related: [],
       fix: null,

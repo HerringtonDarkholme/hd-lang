@@ -339,9 +339,9 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
       panics,
       'pub fn main() -> void $ Console:\n    x := 1 / 0\n    println("$x")\n',
     );
-    const run = await hd(["run", "--format", "json", panics]);
+    const run = await hd([panics, "--format", "json"]);
     assert.equal(run.code, 1);
-    // `hd run` writes only its own records, to stderr (cli.json.run).
+    // `hd FILE` writes only its own records, to stderr (cli.json.run).
     assert.equal(run.stdout, "");
     assert.deepEqual(jsonLines(run.stderr), [
       {
@@ -369,7 +369,7 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
         status: 1,
       },
     ]);
-    const plain = await hd(["run", panics]);
+    const plain = await hd([panics]);
     assert.equal(plain.stderr.trim(), "integer-division-by-zero: runtime panic");
 
     // `main` is not a test case, so `hd test FILE` finds none (cli.test.file-empty).

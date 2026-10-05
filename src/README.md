@@ -32,9 +32,8 @@ pnpm run hd help
 pnpm run hd help test
 pnpm run hd check examples/core.hd
 pnpm run hd test spec/conformance/runtime/valid/defer-order.hd
-pnpm run hd test test/std
-pnpm run hd build --wat examples/core.hd
-pnpm run hd run examples/core.hd
+pnpm run hd test test/std/text.hd
+pnpm run hd examples/core.hd
 pnpm run hd repl
 pnpm run hd check --format json examples/core.hd
 pnpm run hd explain unknown-data-field
@@ -60,10 +59,11 @@ in-process conformance adapter calls the same `main` with a buffering sink
 ([`../test/portable/README.md`](../test/portable/README.md)).
 
 ```text
-hd build [--wat] [--release] FILE
-hd run   [--entry NAME] [--release] FILE
-hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE|DIR]
-hd check [--tests] FILE
+hd FILE  [--entry NAME] [-- ARGS]
+hd build [--wat] [--release] [FILE]
+hd run   [--release] [NAME] [-- ARGS]
+hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE]
+hd check [--tests] [FILE]
 hd explain CODE      hd doc NAME [FILE|PKG]      hd def NAME [FILE|PKG]
 hd repl              hd help [COMMAND]           hd debug parse|hir FILE
 ```
@@ -71,7 +71,10 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
 - Each command owns its flags. `--format text|json` is the only global flag,
   and it may come before or after the command. A flag given to a command
   that does not own it exits 101 and names the commands that do.
-- Flags may come before or after the operands; `--` ends the flags.
+- Flags may come before or after the operands. The words after the first
+  `--` are the program's arguments ([`cli.args.separator`](../spec/cli/command-line.md#r-cli.args.separator));
+  only `hd run` and `hd FILE` take them, and a further word before `--`
+  is an error that suggests `--`. No host capability reads them yet.
 - A usage error prints to stderr and exits 101 ([`cli.exit.hd-failure`](../spec/cli/command-line.md#r-cli.exit.hd-failure)).
 - `hd debug parse` and `hd debug hir` print internal compiler output.
   `hd parse FILE` stays as a hidden spelling of `hd debug parse`, because
@@ -83,33 +86,54 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   (`test/hd-adapter.ts`, `test/hd-in-process.ts`), which sets
   `CommandEnvironment.runner` for the command functions. No help text,
   usage error, or doc names them. The test layout and package tree stand in
-  for a package's layout, which should come from its `hd.toml`; the
-  prototype does not read that yet.
-- `hd FILE` (a first word that ends in `.hd` and names no command) runs FILE
-  as a single-file program, linked with no package ([`cli.file.run`](../spec/cli/command-line.md#r-cli.file.run)).
-  It is `hd run FILE` without package linking; the `pkg`, `self`, and `super`
-  hints of `cli.file.in-package` are not written yet.
+  for a package's layout, which a real package takes from its `hd.toml`.
+- **Package mode** ([Package Mode](../spec/cli/command-line.md#package-mode)):
+  `commands/package-mode.ts` finds the nearest `hd.toml` above the start
+  directory, FILE's directory or else the working directory. `manifest.ts`
+  reads it: the `[package]` name, the `[[executable]]` tables, and
+  `[source] root`, which must be `src`; it ignores other tables. A manifest
+  with `[workspace]` and no `[package]` is a workspace, which the prototype
+  rejects. A `src/` directory without `hd.toml` makes no package.
+- **Executables**: with no `[[executable]]` table, `src/main.hd` is the
+  default executable, named after the package. A table's `module` that names
+  no module is `missing-entry-point`; a `src/main.hd` that no table names is
+  an error. A public `main` in a library module warns `unselected-main`.
+  Every entry module is its own program, which no module may use.
+- `hd check` and `hd build` without FILE work on the whole package
+  (`compilePackage` in `commands/compile.ts`): each executable, each library
+  module, and with `--tests` each test module and integration test program
+  is the entry of its own link, unless an earlier link already joined it.
+  `hd build` writes each executable to `build/debug/NAME.wasm`, or
+  `build/release/` with `--release`; the spec does not name the build
+  directory. `hd build FILE` writes `NAME.wasm` to the working directory, and
+  `--wat` prints the WAT. Outside any package `hd build` and `hd run` are
+  errors, and `hd check` and `hd test` need a FILE.
+- `hd run [NAME]` runs the executable NAME, or the package's one executable.
+  `hd run FILE` and a directory word are errors.
+- `hd test` without FILE checks the executables, then tests each module
+  under `src/` and each integration test program (a file directly under
+  `tests/`), one link each, in path order, running only that module's test
+  cases and never an executable's `main`. An error in a module that several
+  links join prints once. A run with no test case passes.
 - `hd test FILE` exits 101 with `FILE: no test case registered` when FILE
   registers no test case, even if it has an entry point
   ([`cli.test.file-empty`](../spec/cli/command-line.md#r-cli.test.file-empty)).
-  A whole-package `hd test` passes with none. Doc tests are not extracted
-  yet, so a file with only doc tests counts as empty (`DOC-TESTS`).
-- `hd test DIR` tests a package (a directory with `hd.toml` or `src/`) one
-  module at a time: each file under `src/` and `tests/` is linked with the
-  rest of the package and runs only its own test cases. Any other directory
-  has each `.hd` file in it tested on its own. `hd test` with no path tests
-  the package that holds the current directory, or else the current
-  directory. An error in a module that several modules link prints once.
-- `hd run`, `hd build`, `hd check`, and `hd test` on a FILE link FILE with
-  its package, so `pkg`, `self`, and `super` uses between modules resolve.
-  The package is the one that holds FILE: the nearest directory with
-  `hd.toml`, else the parent of the nearest `src/`, or of a `tests/` beside
-  a `src/`. A FILE outside the package's `src/` and `tests/`, or outside any
-  package, compiles on its own. The runner's package tree and test layout
-  turn this off.
+  Doc tests are not extracted yet, so a file with only doc tests counts as
+  empty (`DOC-TESTS`).
+- `hd build`, `hd check`, and `hd test` on a FILE under a package's `src/`
+  or `tests/` link FILE with its package, so `pkg`, `self`, and `super`
+  uses between modules resolve. Any other FILE compiles as a single-file
+  program. The runner's package tree and test layout turn this off.
+- `hd FILE` (a first word that ends in `.hd` and names no command) runs FILE
+  as a single-file program, linked with no package ([`cli.file.run`](../spec/cli/command-line.md#r-cli.file.run)).
+  A `pkg`, `dep`, `self`, or `super` use in a single-file program is
+  `unknown-module`; when FILE lies in a package, its note names the
+  executable FILE is the entry of and its `hd run` command, or else
+  suggests a task ([`cli.file.in-package`](../spec/cli/command-line.md#r-cli.file.in-package)).
 
-`hd run` runs the public `main` or `main!`; a module without one runs its
-initialization and exits 0, while `--entry NAME` must name a function.
+`hd FILE` and `hd run` run the public `main` or `main!`; a module without one
+runs its initialization and exits 0, while `hd FILE --entry NAME` runs the
+exported function NAME and prints its result.
 `hd check` skips the test cases and test-only functions of a `tests:` block
 unless `--tests` is given (Testing T42); `hd test` always compiles them.
 `hd test` (`test-runner.ts`) runs each test case in a fresh instance of one

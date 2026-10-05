@@ -64,9 +64,6 @@ typing/invalid/alias-unknown-target.hd	the checker does not resolve an unused al
 typing/invalid/row-alias-unknown-key.hd	the checker does not resolve an unused row alias's keys, so `type AppRow = $ Ledger` with no `Ledger` is accepted instead of unknown-trait at the alias (types.alias.target-unknown.key)	ALIAS-MISSING
 typing/invalid/module-path-private-std-function.hd	a module path to a std function without pub, `text.hex_digit(48)` after `use std.text`, reports unknown-name for `text` instead of private-import (expr.name.qualified.private)	PRIVATE-STD
 typing/invalid/derive-unknown-trait.hd	`@derive(Sortable)` with no `Sortable` in scope reports underivable-trait instead of unknown-trait (annot.derive.unknown)	DERIVE-MISSING
-cli/exit-package-check	`hd check` takes a FILE and has no whole-package form: `hd check` exits 101 with 'missing FILE' (cli.package.whole)	CLI-PKG-CMD
-cli/exit-outside-package	outside a package `hd run`, `hd build`, and `hd check` take a FILE and exit 101 with 'missing FILE', and `hd test` exits 0 with 'no .hd files to test'; cli.run.package-only and cli.file.check-test.no-file want status 101	CLI-PKG-CMD
-cli/json-run	`hd run` takes a FILE and has no default executable form: `hd run --format json` exits 101 with 'missing FILE' (cli.run.default.one); `hd run --format json FILE` also writes no summary object to stderr (cli.json.run)	CLI-PKG-CMD
 cli/new-app	no `hd new` command: `hd new --app --vcs none` exits 101 as an unknown command (cli.new.app)	CLI-NEW
 cli/new-lib	no `hd new` command: `hd new --lib --vcs none` exits 101 as an unknown command (cli.new.lib)	CLI-NEW
 cli/new-path	no `hd new` command: `hd new --app --vcs none hello` exits 101 as an unknown command (cli.new.app, cli.new.lib)	CLI-NEW
@@ -80,11 +77,8 @@ cli/new-no-pages	no `hd new` command: `hd new --app --vcs none` exits 101 as an 
 typing/invalid/bound-inference-several-impls.hd	the checker reports cannot-infer-type for a bound-only parameter that several instantiations fit, not ambiguous-type (types.generic.infer.bound.no-default.ambiguous)	BOUND-AMBIGUOUS
 typing/invalid/bound-inference-mixed-several-impls.hd	the checker reports cannot-infer-type for `joined(label, both)`, where one bound allows several instantiations, not ambiguous-type (types.generic.infer.bound.no-default.ambiguous)	BOUND-AMBIGUOUS
 cli/doc-main-page	`hd doc --out site` exits 101 with 'unknown flag --out', so the pages and `main.md` under `--private` are never written (cli.doc.main)	CLI-DOC
-cli/exe-missing-module	`hd check` takes a FILE and has no whole-package form, and hd.toml has no [[executable]] tables: `hd check --format json` exits 101 with 'missing FILE', where cli.exe.missing-module wants missing-entry-point and status 101	CLI-PKG-CMD
-cli/exe-unselected-main	`hd check` takes a FILE and has no whole-package form, and hd.toml has no [[executable]] tables: `hd check --format json` exits 101 with 'missing FILE', where cli.exe.unselected-main wants the unselected-main warning	CLI-PKG-CMD
 cli/doc-broken-link	no `hd doc` flags: `hd doc --out site` exits 101 with 'unknown flag --out', so no page is written (cli.doc.link.broken: the warning is a warning and the pages are still written)	CLI-DOC
 cli/doc-index-module	no `hd doc` flags: `hd doc --out site` exits 101 with 'unknown flag --out', so no page is written under index/ (cli.doc.index-module)	CLI-DOC
-cli/release-wraps	`hd run` takes a FILE and has no default executable form: `hd run --release` exits 101 with missing FILE (cli.profile.release); `hd test` of the package matches (cli.profile.test)	CLI-PKG-CMD
 runtime/valid/doc-test-passes.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
 runtime/valid/doc-test-compile-fail.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
 runtime/valid/doc-test-private-item.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS

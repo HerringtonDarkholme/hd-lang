@@ -42,47 +42,51 @@ const RELEASE: FlagSpec = {
   help: "build for release: integer overflow wraps instead of panicking",
 };
 
-/** How a command finds FILE's package (src/README.md, Commands). */
-const PACKAGE_NOTE =
-  "A FILE under a package's src/ or tests/ is linked with the rest of the package.";
+/** How a command finds its package (spec/cli/command-line.md#package-mode). */
+const PACKAGE_NOTE = "The package is the one whose hd.toml is nearest above the current directory.";
+
+/** What a FILE in a package means (spec/cli/command-line.md#r-cli.package.file). */
+const FILE_NOTE =
+  "A FILE under a package's src/ or tests/ is that module, linked with the rest of the package.";
 
 const PARSE_SUMMARY = "parse FILE and its tests: block, and print 'FILE: ok'";
 
 const COMMANDS: readonly CommandSpec[] = [
   {
     name: "build",
-    operands: "FILE",
-    minOperands: 1,
+    operands: "[FILE]",
+    minOperands: 0,
     maxOperands: 1,
-    summary: "compile FILE to NAME.wasm in the current directory",
+    summary: "build the package's executables, or compile FILE to NAME.wasm",
     flags: [
-      { name: "--wat", help: "print the WebAssembly text instead of writing a file" },
+      { name: "--wat", help: "with FILE, print the WebAssembly text instead of writing a file" },
       RELEASE,
     ],
-    notes: [PACKAGE_NOTE],
+    notes: [
+      PACKAGE_NOTE,
+      "Each executable NAME is written to build/debug/NAME.wasm, or build/release/ with --release.",
+      FILE_NOTE,
+    ],
   },
   {
     name: "run",
-    operands: "FILE",
-    minOperands: 1,
+    operands: "[NAME]",
+    minOperands: 0,
     maxOperands: 1,
-    summary: "run FILE's entry point, the public main or main!",
-    flags: [
-      {
-        name: "--entry",
-        value: "NAME",
-        help: "run the exported function NAME instead, and print its result",
-      },
-      RELEASE,
+    summary: "run the package's executable, or the executable named NAME",
+    flags: [RELEASE],
+    notes: [
+      PACKAGE_NOTE,
+      "Without NAME, the package must have exactly one executable: src/main.hd, or",
+      "one [[executable]] table of hd.toml. Words after -- are the program's arguments.",
     ],
-    notes: [PACKAGE_NOTE],
   },
   {
     name: "test",
-    operands: "[FILE|DIR]",
+    operands: "[FILE]",
     minOperands: 0,
     maxOperands: 1,
-    summary: "run the test cases of FILE, of DIR, or of the current package",
+    summary: "run the test cases of the package, or of FILE",
     flags: [
       { name: "--update", help: "record snapshot files instead of failing on a difference" },
       { name: "--seed", value: "N", count: true, help: "property-test seed; a failure prints it" },
@@ -90,21 +94,19 @@ const COMMANDS: readonly CommandSpec[] = [
       { name: "--shrink", value: "N", count: true, help: "most shrink steps for a failing case" },
     ],
     notes: [
-      "With DIR, a package (a directory with hd.toml or src/) runs each module",
-      "under src/ and tests/ with the other modules linked; any other directory",
-      "runs each .hd file in it. With no path, it tests the package that holds",
-      "the current directory, or else the current directory.",
       PACKAGE_NOTE,
+      "Without FILE, it runs every tests: block, test module, and integration test.",
+      FILE_NOTE,
     ],
   },
   {
     name: "check",
-    operands: "FILE",
-    minOperands: 1,
+    operands: "[FILE]",
+    minOperands: 0,
     maxOperands: 1,
-    summary: "type-check FILE without running it",
-    flags: [{ name: "--tests", help: "also check the tests: block and test-only code" }],
-    notes: [PACKAGE_NOTE],
+    summary: "type-check the package, or FILE, without running it",
+    flags: [{ name: "--tests", help: "also check the test code" }],
+    notes: [PACKAGE_NOTE, "Without FILE, it checks the library and the executables.", FILE_NOTE],
   },
   {
     name: "explain",
@@ -163,7 +165,13 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 1,
     maxOperands: 1,
     summary: "run FILE as a single-file program",
-    flags: [RELEASE],
+    flags: [
+      {
+        name: "--entry",
+        value: "NAME",
+        help: "run the exported function NAME instead, and print its result",
+      },
+    ],
     hidden: true,
   },
   {
@@ -191,6 +199,11 @@ export type ParsedCommand =
       readonly format: "text" | "json";
       readonly flags: ReadonlyMap<string, string | true>;
       readonly operands: readonly string[];
+      /**
+       * The words after the first `--`, which are the program's arguments
+       * (spec/cli/command-line.md#r-cli.args.separator).
+       */
+      readonly programArguments: readonly string[];
     };
 
 function commandNamed(name: string): CommandSpec | undefined {
@@ -199,7 +212,9 @@ function commandNamed(name: string): CommandSpec | undefined {
 
 function usageLine(command: CommandSpec): string {
   const flags = command.flags.map((flag) => `[${flag.name}${flag.value ? ` ${flag.value}` : ""}]`);
-  return ["usage: hd", command.name, ...flags, command.operands].filter(Boolean).join(" ");
+  if (command.name === "file") return ["usage: hd FILE", ...flags, "[-- ARGS]"].join(" ");
+  const args = command.name === "run" ? "[-- ARGS]" : "";
+  return ["usage: hd", command.name, ...flags, command.operands, args].filter(Boolean).join(" ");
 }
 
 function sentence(text: string): string {
@@ -234,6 +249,7 @@ export function overviewHelp(): string {
     "",
     "commands:",
     ...columns([
+      ["FILE", "run FILE as a single-file program, which may use only std"],
       ...listed.map((command): [string, string] => [command.name, command.summary]),
       ["debug", DEBUG_SUMMARY],
       ["help", HELP_SUMMARY],
@@ -364,15 +380,20 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
   }
   const flags = new Map<string, string | true>();
   const operands: string[] = [];
-  let flagsEnded = false;
+  // `hd` reads none of the words after the first `--` as its own
+  // (spec/cli/command-line.md#r-cli.args.separator).
+  const separator = rest.indexOf("--");
+  const programArguments = separator === -1 ? [] : rest.splice(separator).slice(1);
+  const takesArguments = command.name === "run" || command.name === "file";
+  if (separator !== -1 && !takesArguments)
+    throw new UsageError(
+      `hd ${command.name}: takes no program arguments after --; only hd run and hd FILE pass them to a program\n${hint(command.name)}`,
+    );
+  const shown = command.name === "file" ? "FILE" : command.name;
   while (rest.length > 0) {
     const arg = rest.shift()!;
-    if (flagsEnded || !arg.startsWith("-") || arg === "-") {
+    if (!arg.startsWith("-") || arg === "-") {
       operands.push(arg);
-      continue;
-    }
-    if (arg === "--") {
-      flagsEnded = true;
       continue;
     }
     if (arg === "--help" || arg === "-h") return { kind: "help", topic: command.name };
@@ -385,22 +406,26 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
       const owners = ownersOf(arg);
       const why =
         owners.length > 0
-          ? `${arg} is not a flag of hd ${command.name}; ${listed(owners)} accept${owners.length === 1 ? "s" : ""} it`
+          ? `${arg} is not a flag of hd ${shown}; ${listed(owners)} accept${owners.length === 1 ? "s" : ""} it`
           : `unknown flag ${arg}`;
-      throw new UsageError(`hd ${command.name}: ${why}\n${hint(command.name)}`);
+      throw new UsageError(`hd ${shown}: ${why}\n${hint(command.name)}`);
     }
-    if (flags.has(flag.name))
-      throw new UsageError(`hd ${command.name}: ${flag.name} is given twice`);
+    if (flags.has(flag.name)) throw new UsageError(`hd ${shown}: ${flag.name} is given twice`);
     flags.set(flag.name, flag.value ? flagValue(command, flag, rest.shift()) : true);
   }
   if (operands.length < command.minOperands || operands.length > command.maxOperands) {
+    const extra = operands[command.maxOperands];
+    // A further word before `--` is an error that suggests `--`
+    // (spec/cli/command-line.md#r-cli.args.extra-word).
     const problem =
       operands.length < command.minOperands
         ? `missing ${command.operands.split(" ")[operands.length]}`
-        : `unexpected argument '${operands[command.maxOperands]}'`;
+        : takesArguments
+          ? `unexpected argument '${extra}'; pass the program's arguments after --, as in hd ${command.name === "file" ? operands[0] : `run ${operands[0]}`} -- ${extra}`
+          : `unexpected argument '${extra}'`;
     throw new UsageError(
-      `hd ${command.name}: ${problem}\n${usageLine(command)}\n${hint(command.name)}`,
+      `hd ${command.name === "file" ? "FILE" : command.name}: ${problem}\n${usageLine(command)}\n${hint(command.name)}`,
     );
   }
-  return { kind: "command", command, format, flags, operands };
+  return { kind: "command", command, format, flags, operands, programArguments };
 }

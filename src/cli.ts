@@ -12,6 +12,7 @@ import {
   docCommand,
   EXIT_HD_FAILURE,
   explainCommand,
+  fileCommand,
   helpCommand,
   hirCommand,
   parseCommand,
@@ -95,13 +96,13 @@ export async function main(
     case "debug hir":
       return hirCommand(options, io);
     case "check":
-      return checkCommand(options, io);
+      return checkCommand({ ...options, file: first }, io);
     case "build":
-      return buildCommand(options, io);
+      return buildCommand({ ...options, file: first }, io);
     case "run":
-      return runCommand(options, io);
+      return runCommand({ ...options, name: first, programArguments: parsed.programArguments }, io);
     case "file":
-      return runCommand({ ...options, single: true }, io);
+      return fileCommand({ ...options, programArguments: parsed.programArguments }, io);
     case "test":
       return testCommand({ ...options, path: first }, io);
     default:

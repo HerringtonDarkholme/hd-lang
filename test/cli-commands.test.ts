@@ -56,22 +56,22 @@ test("hd help COMMAND lists only that command's flags", async () => {
   const flagsOf = (text: string): string[] =>
     [...text.matchAll(/^ {2}(--[a-z-]+)/gm)].map((match) => match[1]!);
   const build = (await hd(["help", "build"])).stdout;
-  assert.match(build, /^usage: hd build \[--wat\] \[--release\] FILE$/m);
+  assert.match(build, /^usage: hd build \[--wat\] \[--release\] \[FILE\]$/m);
   assert.deepEqual(flagsOf(build), ["--wat", "--release", "--format"]);
 
   const run = (await hd(["help", "run"])).stdout;
-  assert.match(run, /^usage: hd run \[--entry NAME\] \[--release\] FILE$/m);
-  assert.deepEqual(flagsOf(run), ["--entry", "--release", "--format"]);
+  assert.match(run, /^usage: hd run \[--release\] \[NAME\] \[-- ARGS\]$/m);
+  assert.deepEqual(flagsOf(run), ["--release", "--format"]);
 
   const tested = (await hd(["help", "test"])).stdout;
   assert.match(
     tested,
-    /^usage: hd test \[--update\] \[--seed N\] \[--cases N\] \[--shrink N\] \[FILE\|DIR\]$/m,
+    /^usage: hd test \[--update\] \[--seed N\] \[--cases N\] \[--shrink N\] \[FILE\]$/m,
   );
   assert.deepEqual(flagsOf(tested), ["--update", "--seed", "--cases", "--shrink", "--format"]);
 
   const check = (await hd(["help", "check"])).stdout;
-  assert.match(check, /^usage: hd check \[--tests\] FILE$/m);
+  assert.match(check, /^usage: hd check \[--tests\] \[FILE\]$/m);
   assert.deepEqual(flagsOf(check), ["--tests", "--format"]);
 
   assert.deepEqual(flagsOf((await hd(["help", "explain"])).stdout), ["--format"]);
@@ -88,8 +88,8 @@ test("a flag given to the wrong command names the commands that accept it", asyn
   const cases: [string[], string][] = [
     [["run", "--wat", core], "hd run: --wat is not a flag of hd run; hd build accepts it"],
     [
-      ["build", "--entry", "main", core],
-      "hd build: --entry is not a flag of hd build; hd run accepts it",
+      ["build", "--update", core],
+      "hd build: --update is not a flag of hd build; hd test accepts it",
     ],
     [
       ["check", "--seed", "3", core],
@@ -112,8 +112,18 @@ test("a flag given to the wrong command names the commands that accept it", asyn
     (await usageError(["check", "--format", "yaml", core])).stderr,
     /--format must be one of text, json/,
   );
-  assert.match((await usageError(["build"])).stderr, /^hd build: missing FILE$/m);
   assert.match((await usageError(["build", core, core])).stderr, /^hd build: unexpected argument/m);
+  // A further word before `--` suggests `--` (cli.args.extra-word), and only
+  // hd run and hd FILE take program arguments (cli.args.separator).
+  assert.match(
+    (await usageError(["run", "gen", "x"])).stderr,
+    /^hd run: unexpected argument 'x'; pass the program's arguments after --, as in hd run gen -- x$/m,
+  );
+  assert.match(
+    (await usageError([core, "x"])).stderr,
+    /^hd FILE: unexpected argument 'x'; pass the program's arguments after --/m,
+  );
+  assert.match((await usageError(["check", core, "--", "x"])).stderr, /takes no program arguments/);
 });
 
 // The conformance runner's options reach the compiler through its adapter,
@@ -157,8 +167,8 @@ test("the conformance runner's options are not hd flags", async () => {
 });
 
 test("flags may follow FILE, and --format is global", async () => {
-  assert.match((await hd(["build", core, "--wat"])).stdout, /^\(module/m);
-  assert.equal((await hd(["--format", "json", "run", core])).stdout.trim(), "7");
+  assert.equal((await hd(["--format", "json", core])).stdout.trim(), "7");
+  assert.equal((await hd([core, "--format", "json", "--entry", "main"])).stdout.trim(), "7");
   assert.match(
     (await hd(["check", core, "--format", "json"])).stdout,
     /^\{"kind":"summary",.*"status":0\}\n$/,
@@ -177,12 +187,14 @@ test("hd debug parse and hd debug hir replace hd parse and hd dump-hir", async (
   assert.match((await usageError(["debug", "ast", core])).stderr, /no subcommand 'ast'/);
 });
 
-test("hd test on a package tests each module, and with no path the current package", async () => {
+const MANIFEST = '[package]\nname = "shop"\n';
+
+test("hd test without FILE tests the package of the working directory", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
     await mkdir(join(directory, "src/shop"), { recursive: true });
     await mkdir(join(directory, "src/testkit"), { recursive: true });
-    await writeFile(join(directory, "hd.toml"), "");
+    await writeFile(join(directory, "hd.toml"), MANIFEST);
     await writeFile(join(directory, "src/shop/cart.hd"), "pub fn total() -> i32:\n    2\n");
     await writeFile(
       join(directory, "src/testkit/mod.hd"),
@@ -204,21 +216,18 @@ test("hd test on a package tests each module, and with no path the current packa
     );
     const expected = "src/shop/cart_test.hd: 2 passed\n";
     assert.equal((await hd(["test"], directory)).stdout, expected);
-    assert.equal((await hd(["test"], join(directory, "src/shop"))).stdout, `../../${expected}`);
-    assert.equal((await hd(["test", directory])).stdout, `${join(directory, expected)}`);
-
-    // A directory that is not a package tests each .hd file in it.
-    const loose = join(directory, "loose");
-    await mkdir(loose);
-    await writeFile(
-      join(loose, "one.hd"),
-      'tests:\n    it("one"):\n        pass\n    it("two"):\n        pass\n',
-    );
-    await writeFile(join(loose, "two.hd"), 'tests:\n    it("three"):\n        pass\n');
+    // The nearest hd.toml above the working directory names the package
+    // (cli.mode.package.nearest); files are named from the working directory.
     assert.equal(
-      (await hd(["test", "loose"], directory)).stdout,
-      "loose/one.hd: 2 passed\nloose/two.hd: 1 passed\n",
+      (await hd(["test"], join(directory, "src/shop"))).stdout,
+      "cart_test.hd: 2 passed\n",
     );
+    // A directory is neither a NAME nor a FILE (cli.command.positional).
+    assert.match(await failure(["test", "src"], directory), /'src' is a directory.*-p NAME/);
+    // A src/ directory without hd.toml makes no package, so `hd test` outside
+    // a package needs a FILE (cli.file.check-test.no-file).
+    await rm(join(directory, "hd.toml"));
+    assert.match(await failure(["test"], directory), /not in a package.*hd new/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -228,7 +237,7 @@ test("hd test on a package prints an error in a shared module once", async () =>
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
     await mkdir(join(directory, "src"), { recursive: true });
-    await writeFile(join(directory, "hd.toml"), "");
+    await writeFile(join(directory, "hd.toml"), MANIFEST);
     await writeFile(join(directory, "src/base.hd"), 'pub fn one() -> i32:\n    "one"\n');
     for (const name of ["left", "right"])
       await writeFile(
@@ -272,22 +281,36 @@ async function failure(args: readonly string[], cwd = root): Promise<string> {
   return result!.stdout + result!.stderr;
 }
 
-test("hd run, check, and build on a package file link the package", async () => {
+test("hd run runs the package's executable, and check and build link a package file", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
     await writeTree(directory, {
-      "hd.toml": "",
+      "hd.toml": MANIFEST,
       "src/util.hd": 'pub fn greet() -> string: "hi"\n',
       "src/main.hd": "use self.util.greet\npub fn main() -> void $ Console: println(greet())\n",
     });
     const main = join(directory, "src/main.hd");
-    assert.equal((await hd(["run", main])).stdout, "hi\n");
+    assert.equal((await hd(["run"], directory)).stdout, "hi\n");
+    // The default executable is named after the package (cli.exe.default-name).
+    assert.equal((await hd(["run", "shop"], join(directory, "src"))).stdout, "hi\n");
+    assert.match(await failure(["run", "other"], directory), /no executable named 'other'/);
+    // `hd run FILE` is an error that suggests hd run NAME (cli.run.file).
+    assert.match(await failure(["run", "src/main.hd"], directory), /hd run NAME/);
     assert.equal((await hd(["check", main])).stdout, `${main}: ok\n`);
+    assert.equal((await hd(["check"], directory)).stdout, "shop: ok\n");
     assert.match((await hd(["build", "--wat", main])).stdout, /^\(module/);
-    assert.equal((await hd(["run", "src/main.hd"], directory)).stdout, "hi\n");
-    // A package without hd.toml is found by its src/ directory.
+    assert.equal((await hd(["build"], directory)).stdout, "build/debug/shop.wasm\n");
+    assert.equal((await hd(["build", "--release"], directory)).stdout, "build/release/shop.wasm\n");
+    // `hd FILE` runs src/main.hd on its own, and its package use names the
+    // executable to run instead (cli.file.entry-hint).
+    assert.match(
+      await failure([main]),
+      /unknown-module: 'self' names no module[^\n]*\n {2}note: .*hd run shop/,
+    );
+    // A src/ directory without hd.toml makes no package.
     await rm(join(directory, "hd.toml"));
-    assert.equal((await hd(["run", main])).stdout, "hi\n");
+    assert.match(await failure(["check", main]), /unknown-module/);
+    assert.match(await failure(["run"], directory), /not in a package.*hd new/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -297,14 +320,14 @@ test("hd run resolves super uses, and reports a package error in its own file", 
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
     await writeTree(directory, {
-      "hd.toml": "",
+      "hd.toml": `${MANIFEST}\n[[executable]]\nname = "app"\nmodule = "app"\n`,
       "src/base/util.hd": 'pub fn greet() -> string: "hi"\n',
       "src/shop/cart.hd":
         "use super.super.base.util.{greet}\n\npub fn label() -> string:\n    greet()\n",
       "src/app.hd":
         "use pkg.shop.cart.{label}\npub fn main() -> void $ Console: println(label())\n",
     });
-    assert.equal((await hd(["run", "src/app.hd"], directory)).stdout, "hi\n");
+    assert.equal((await hd(["run", "app"], directory)).stdout, "hi\n");
     await writeFile(join(directory, "src/base/util.hd"), "pub fn greet() -> string: 1\n");
     assert.match(
       await failure(["check", "src/app.hd"], directory),
@@ -315,7 +338,7 @@ test("hd run resolves super uses, and reports a package error in its own file", 
   }
 });
 
-test("hd run on a lone file outside any package compiles it on its own", async () => {
+test("hd FILE on a lone file outside any package compiles it on its own", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
     await writeTree(directory, {
@@ -323,12 +346,12 @@ test("hd run on a lone file outside any package compiles it on its own", async (
       "two.hd": "use self.one.{shout}\npub fn main() -> void $ Console: println(shout())\n",
     });
     // A single-file program may use only std (module.single-file.roots).
-    assert.match(await failure(["run", "two.hd"], directory), /two\.hd:1:\d+: unknown-module/);
+    assert.match(await failure(["two.hd"], directory), /two\.hd:1:\d+: unknown-module/);
     await writeFile(
       join(directory, "two.hd"),
       'pub fn main() -> void $ Console: println("lone")\n',
     );
-    assert.equal((await hd(["run", "two.hd"], directory)).stdout, "lone\n");
+    assert.equal((await hd(["two.hd"], directory)).stdout, "lone\n");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -338,7 +361,7 @@ test("hd test links integration test modules under tests/", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
     await writeTree(directory, {
-      "hd.toml": "",
+      "hd.toml": MANIFEST,
       "src/util.hd": 'pub fn greet() -> string: "hi"\n',
       "tests/common/mod.hd": 'pub fn expected() -> string: "hi"\n',
       "tests/greeting.hd": [
@@ -475,8 +498,10 @@ test("hd test --format json reports every test case", async () => {
 test("hd run --release wraps overflow, plain hd run and hd test panic", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-release-"));
   try {
+    await writeFile(join(directory, "hd.toml"), MANIFEST);
+    await mkdir(join(directory, "src"));
     await writeFile(
-      join(directory, "wrap.hd"),
+      join(directory, "src/main.hd"),
       [
         "use std.testing.assert_equal",
         "",
@@ -491,21 +516,28 @@ test("hd run --release wraps overflow, plain hd run and hd test panic", async ()
         "",
       ].join("\n"),
     );
-    const release = await hd(["run", "--release", "wrap.hd"], directory);
+    const release = await hd(["run", "--release"], directory);
     assert.equal(release.stdout.trim(), "-2147483648");
-    await assert.rejects(hd(["run", "wrap.hd"], directory), (error: CommandResult) => {
+    await assert.rejects(hd(["run"], directory), (error: CommandResult) => {
       assert.match(error.stderr, /integer-overflow/);
       return true;
     });
-    // `hd test` has no release profile: the overflow panics and the case fails.
-    await assert.rejects(hd(["test", "wrap.hd"], directory), (error: CommandResult) => {
+    // `hd test` has no release profile: the overflow panics and the case
+    // fails. It runs the test case, never main.
+    await assert.rejects(hd(["test"], directory), (error: CommandResult) => {
       assert.equal(error.code, 1);
+      assert.doesNotMatch(error.stdout, /-2147483648/);
       return true;
     });
-    const wat = await hd(["build", "--wat", "--release", "wrap.hd"], directory);
+    const wat = await hd(["build", "--wat", "--release", "src/main.hd"], directory);
     assert.doesNotMatch(wat.stdout, /\$hd\.add_i32/);
-    await usageError(["test", "--release", "wrap.hd"]);
-    await usageError(["check", "--release", "wrap.hd"]);
+    await usageError(["test", "--release", "src/main.hd"]);
+    await usageError(["check", "--release", "src/main.hd"]);
+    // Only hd build and hd run take --release (cli.profile.flag-only).
+    assert.match(
+      (await usageError(["src/main.hd", "--release"])).stderr,
+      /^hd FILE: --release is not a flag of hd FILE; hd build and hd run accept it$/m,
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

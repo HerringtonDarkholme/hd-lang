@@ -49,11 +49,12 @@ test("the in-process adapter reports what the spawned CLI reports", async () => 
     );
     for (const args of [
       ["test", printing],
+      [printing],
       ["run", printing],
       ["check", "--tests", rejected],
-      ["run", panicking],
+      [panicking],
       ["test", panicking],
-      ["run", "--entry", "main", printing],
+      [printing, "--entry", "main"],
       ["check", "--format", "json", rejected],
       ["bogus"],
       ["help", "test"],
@@ -72,7 +73,7 @@ test("a case past the timeout stops, and its worker is replaced", async () => {
   try {
     const hung = fixture("hung.hd", "pub fn main() -> void:\n    while true:\n        pass\n");
     const quick = fixture("quick.hd", "pub fn main() -> void:\n    pass\n");
-    const stopped = await adapter.run(["run", hung], 1_000);
+    const stopped = await adapter.run([hung], 1_000);
     assert.equal(stopped.timedOut, true);
     assert.equal(stopped.status, null);
     const next = await adapter.run(["check", quick], 10_000);

@@ -109,10 +109,13 @@ async function invoke(
   options: readonly string[] = [],
   profile?: string,
 ): Promise<CommandResult> {
+  // With no action, `IMPL FILE OPTION...` runs FILE as a single file
+  // (spec/cli/command-line.md#r-cli.file.run).
+  const args = action === "" ? [path, ...options] : [action, ...options, path];
   if (!Array.isArray(implementation)) {
     // The profile goes to the adapter, not to the command line.
     const result = await (implementation as Adapter).run(
-      [action, ...options, path],
+      args,
       timeoutMs,
       undefined,
       profile === undefined ? undefined : { profile },
@@ -130,7 +133,7 @@ async function invoke(
       stdout: "",
     };
   return new Promise((complete, reject) => {
-    const child = spawn(command[0]!, [...command.slice(1), action, ...options, path], {
+    const child = spawn(command[0]!, [...command.slice(1), ...args], {
       cwd: root,
       env: childEnv,
       stdio: ["ignore", "pipe", "pipe"],
@@ -292,13 +295,7 @@ async function runFixtureCase(
       if (separator < 1) return `${testCase.name}: expected '# expect-result: ENTRY = VALUE'`;
       const entry = directive.value.slice(0, separator);
       const expected = directive.value.slice(separator + 3);
-      const result = await invoke(
-        command,
-        "run",
-        testCase.path,
-        ["--entry", entry],
-        testCase.profile,
-      );
+      const result = await invoke(command, "", testCase.path, ["--entry", entry], testCase.profile);
       if (result.code !== 0) return failure(testCase.name, `${entry} failed`, result);
       if (result.stdout.trim() !== expected)
         return failure(
@@ -320,7 +317,7 @@ async function runFixtureCase(
         : directive.value === "test"
           ? hasTests
             ? "test"
-            : "run"
+            : ""
           : "check";
     if (!["accept", "parse", "test"].includes(directive.value))
       return `${testCase.name}: expected '# expect: accept', '# expect: parse', or '# expect: test'`;
@@ -341,7 +338,7 @@ async function runFixtureCase(
     return failure(testCase.name, "expected warning, but compilation failed", checked);
   if (kind === "panic") {
     if (checked.code !== 0) return failure(testCase.name, "panic fixture did not compile", checked);
-    result = await invoke(command, "run", testCase.path, [], testCase.profile);
+    result = await invoke(command, "", testCase.path, [], testCase.profile);
     if (result.code === 0) return failure(testCase.name, "expected a runtime panic", result);
   }
   const missing = testCase.directives.filter((directive) => {
