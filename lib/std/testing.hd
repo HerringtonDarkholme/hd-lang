@@ -499,9 +499,10 @@ pub data RunOutput:
     pub stderr: string
     pub status: i32
 
-# Runs the package's executable `name` through the `Process` provider that
-# `hd test` binds for an integration test (r-std-testing.hd-run.row). A name
-# that names no executable panics (r-std-testing.hd-run.missing-name), and so
+# Runs the package's executable or task `name` through the `Process`
+# provider that `hd test` binds for an integration test
+# (r-std-testing.hd-run.row, r-std-testing.hd-run.task). A name that names
+# neither panics (r-std-testing.hd-run.unknown-name), and so
 # does one that does not start (r-std-testing.hd-run.start-failure). The
 # integration-only check (r-std-testing.hd-run.integration-only) is not
 # implemented yet (src/KNOWN_ISSUES.md).

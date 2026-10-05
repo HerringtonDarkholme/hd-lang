@@ -1,0 +1,8 @@
+use std.time.{Clock, now}
+
+pub fn is_late(deadline_millis: i64) -> bool $ Clock:
+    now().unix_milliseconds() > deadline_millis
+
+tests:
+    it("reads the real clock"):
+        _ := is_late(0)

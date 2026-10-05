@@ -49,3 +49,6 @@ dep-path-local	cli.dep.path,cli.dep.fetch,cli.dep.offline,cli.json.lines.build
 dep-workspace-fetch	cli.dep.workspace-fetch,cli.dep.workspace-member-only,cli.exit.hd-failure
 member-unlisted	cli.mode.member.unlisted,cli.mode.member.excluded,cli.exit.hd-failure
 ambiguous-import	cli.package.whole,cli.check.default,cli.json.lines.build,cli.json.kind,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.diagnostic.file,cli.json.summary,cli.json.summary.fields,cli.exit.hd-failure
+test-unit-fakes	cli.test.env.unit,cli.test.tasks.file,cli.exit.hd-failure
+test-integration-env	cli.test.env.integration,cli.test.env.cwd,cli.test.env.args,cli.test.env.args.program,cli.test.env.stdin,cli.test.env.temp-dir
+test-tasks	cli.test.tasks,cli.test.tasks.file,cli.test.tasks.no-tests,cli.test.tasks.run,cli.test.process.tasks

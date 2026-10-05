@@ -1,0 +1,10 @@
+# test: a unit test case gets TestRunner alone, so a call that needs the host Clock is missing-requirement at check time
+# Spec std Testing, Unit Test Providers: std-testing.unit.hint; Modules: module.testing.unit-row.test-runner (task #321).
+use std.time.{Clock, now}
+
+fn receipt_header(store: string) -> string $ Clock:
+    "${store} at ${now().to_rfc3339()}"
+
+tests:
+    it("reads the real clock"):
+        _ := receipt_header("Main St")  # diagnostic: missing-requirement

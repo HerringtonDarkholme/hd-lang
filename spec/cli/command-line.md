@@ -82,6 +82,11 @@ hd notes.hd
 > **Why.** One file or one run uses only `std`. A program that needs
 > several files or a dependency is a package.
 
+> **Note.** The `tests:` block of a single file holds unit test cases, so
+> `hd test FILE` binds them `TestRunner` alone
+> ([`cli.test.env.unit`](#r-cli.test.env.unit)). A script is tested
+> against the real system by running it.
+
 ## Running A Package
 
 `hd run` runs the programs a package declares: its executables, which it
@@ -283,20 +288,21 @@ hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 5. r[cli.test.summary.skipped] The summary of `hd test` counts [skipped](../lang/10-modules.md#r-module.testing.skipped) test cases apart from ignored ones.
 6. r[cli.test.deny-skipped] With `--deny-skipped`, a skipped test case is a failure.
 7. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
-8. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider whose programs are the package's executables, each started by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
-9. r[cli.test.process.missing] That provider returns `.Err(ProcessError.NotFound)` for a program name that names no executable of the package.
-10. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
-11. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
-12. r[cli.test.runner] When it runs a test case, `hd test` binds the host traits [`TestRunner` and `PropertyRunner`](../std/testing.md#runner-capabilities) for the `std.testing` code around the body, by [`std-testing.runner.binding`](../std/testing.md#r-std-testing.runner.binding).
-13. r[cli.test.doc.default] `hd test` runs the package's [doc tests](../lang/10-modules.md#doc-tests) with its other test cases. With a FILE, it runs the doc tests of that file's module.
-14. r[cli.test.doc.name] A doc test is named `doc <module>.<item>[i]`, by the table below.
-15. r[cli.test.doc.filter] `--filter` matches a doc test by that name, so `--filter doc` selects every doc test, and `--filter text.slugify` the doc tests of `slugify` in `src/text.hd`.
-16. r[cli.test.doc.location] A diagnostic or a failure of a doc test names the `.hd` source file and a `##` line of the doc test's block.
-17. r[cli.test.doc.json] With `--format json`, a doc test's test object holds that name in `name`, and its diagnostics give that file and line in `file` and `line`.
-18. r[cli.test.doc.name.root] For a block in `src/lib.hd`, `<module>` is `pkg`, which names the package root module by [`module.path.lib-file`](../lang/10-modules.md#r-module.path.lib-file).
-19. r[cli.test.doc.name.member] For a block on a member, `<item>` is `Type.member`, so the first block on `new` of `Slug` in `src/text.hd` is `doc text.Slug.new[0]`.
-20. r[cli.test.doc.name.module] A block in a module's [module documentation](../lang/01-lexical-structure.md#r-lex.doc.module) has no `<item>` and no dot. The first such block in `src/text.hd` is `doc text[0]`.
-21. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
+8. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider that starts the package's executables, each by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
+9. r[cli.test.process.tasks] That provider also starts each [task](#tasks) of the package by its name, as `hd run NAME` does. A name names at most one program, by [`cli.task.name-clash`](#r-cli.task.name-clash).
+10. r[cli.test.process.unknown] That provider returns `.Err(ProcessError.NotFound)` for a program name that names neither an executable nor a task of the package.
+11. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
+12. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
+13. r[cli.test.runner] When it runs a test case, `hd test` binds the host traits [`TestRunner` and `PropertyRunner`](../std/testing.md#runner-capabilities) for the `std.testing` code around the body, by [`std-testing.runner.binding`](../std/testing.md#r-std-testing.runner.binding).
+14. r[cli.test.doc.default] `hd test` runs the package's [doc tests](../lang/10-modules.md#doc-tests) with its other test cases. With a FILE, it runs the doc tests of that file's module.
+15. r[cli.test.doc.name] A doc test is named `doc <module>.<item>[i]`, by the table below.
+16. r[cli.test.doc.filter] `--filter` matches a doc test by that name, so `--filter doc` selects every doc test, and `--filter text.slugify` the doc tests of `slugify` in `src/text.hd`.
+17. r[cli.test.doc.location] A diagnostic or a failure of a doc test names the `.hd` source file and a `##` line of the doc test's block.
+18. r[cli.test.doc.json] With `--format json`, a doc test's test object holds that name in `name`, and its diagnostics give that file and line in `file` and `line`.
+19. r[cli.test.doc.name.root] For a block in `src/lib.hd`, `<module>` is `pkg`, which names the package root module by [`module.path.lib-file`](../lang/10-modules.md#r-module.path.lib-file).
+20. r[cli.test.doc.name.member] For a block on a member, `<item>` is `Type.member`, so the first block on `new` of `Slug` in `src/text.hd` is `doc text.Slug.new[0]`.
+21. r[cli.test.doc.name.module] A block in a module's [module documentation](../lang/01-lexical-structure.md#r-lex.doc.module) has no `<item>` and no dot. The first such block in `src/text.hd` is `doc text[0]`.
+22. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
 
 | Part | Value |
 | --- | --- |
@@ -313,6 +319,58 @@ The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 > new package may have none yet. A filter that matches nothing in a named
 > FILE is most often a typo, so it does not pass silently. A changed profile can skip a whole
 > suite, so CI can opt in to treating that as a failure.
+
+### Test Environments
+
+The kind of a test case decides what `hd test` gives it, never where its
+file lies:
+
+| Test case | Host providers | Working directory | Program arguments | Standard input |
+| --- | --- | --- | --- | --- |
+| a [unit test case](../lang/10-modules.md#r-module.testing.unit-row.anywhere), in `src`, `tasks`, or a single file | `TestRunner` alone | not reachable | not reachable | not reachable |
+| an integration test case, or a doc test | the default profile, `TestRunner`, and `Process` | the package directory | none | closed |
+
+1. r[cli.test.env.unit] `hd test` binds `TestRunner` alone for a unit test case, in a package or outside one, by [`module.testing.unit-row.places`](../lang/10-modules.md#r-module.testing.unit-row.places).
+2. r[cli.test.env.integration] For an integration test case or a doc test, `hd test` binds the traits of the [default profile](#host-capabilities) that the body's row names, as `hd run` binds them, except as this list says.
+3. r[cli.test.env.cwd] Such a test case runs with the package directory, the directory of its `hd.toml`, as its working directory. A relative path such as `fixtures/orders.csv` then names a file of the package.
+4. r[cli.test.env.args] Its `Args` provider holds no program arguments, so `list` returns an empty list.
+5. r[cli.test.env.args.program] Its `Args.program` returns the path of the test case's file relative to the package directory, such as `tests/report.hd`.
+6. r[cli.test.env.stdin] Its standard input is closed, so every `read_line!` returns `.Ok(.None)`, as at the end of input.
+7. r[cli.test.env.temp-dir] `hd test` gives each test case its own fresh, empty temporary directory, which [`temp_dir`](../std/testing.md#temporary-directories) returns. No other test case shares it, in the same run or in another run at the same time.
+8. r[cli.test.env.temp-dir.removed] `hd test` removes that directory and everything in it once the test case ends, whether it passed or failed.
+
+```sh
+hd test                    # tests/report.hd reads fixtures/orders.csv from the package
+cd src && hd test          # the same: the working directory is still the package directory
+```
+
+> **Note.** A `$.with` provider scope inside an integration test case
+> still covers the calls in it, so `$.with(Clock=ManualClock::new(start))`
+> replaces the real clock there.
+
+> **Why.** An integration test checks the package on the real system, so
+> it gets the providers that `hd run` gives. Fixed arguments, a closed
+> standard input, and the package directory make its result independent
+> of how and where `hd test` ran. A directory of its own lets two test
+> cases write files without meeting, as Go's `t.TempDir` does.
+
+### Testing Tasks
+
+1. r[cli.test.tasks] A whole-package `hd test` also runs the test cases of the `tests:` blocks in the package's [tasks](#tasks) and shared task modules. They are unit test cases.
+2. r[cli.test.tasks.file] `hd test tasks/NAME.hd` runs the test cases of task `NAME`, by [`cli.package.file`](#r-cli.package.file).
+3. r[cli.test.tasks.no-tests] A whole-package `hd test` compiles no test build of a task, or of an executable's entry module, that holds no `tests:` block.
+4. r[cli.test.tasks.run] An integration test runs a task with [`hd_run!`](../std/testing.md#running-executables), by [`cli.test.process.tasks`](#r-cli.test.process.tasks).
+
+```sh
+hd test                    # also the tests: block of tasks/seed.hd
+hd test tasks/seed.hd      # only the tests of task seed
+```
+
+> **Why.** A test build runs no entry behavior, so a script's top level
+> must be requirement-free in it
+> ([`module.init.tests.requirement-free`](../lang/10-modules.md#r-module.init.tests.requirement-free)).
+> A task without tests then never fails `hd test` for printing at its top
+> level.
 
 ## Build Profiles
 

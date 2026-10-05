@@ -2124,7 +2124,6 @@ runtime/valid/console-error-line-default.hd	runtime
 typing/invalid/eprintln-without-console.hd	type
 runtime/valid/console-input-helper.hd	runtime
 runtime/valid/map-keys-values.hd	runtime
-typing/valid/test-runner-capabilities.hd	type
 runtime/valid/memory-fs.hd	runtime
 runtime/valid/map-get-or.hd	runtime
 runtime/valid/buffer-console-error-lines.hd	runtime
@@ -2487,3 +2486,6 @@ typing/invalid/expected-i32-found-usize.hd	type
 cli/ambiguous-import	cli
 typing/invalid/std-child-path-through-parent.hd	type
 typing/valid/std-reexported-child-item.hd	type
+runtime/valid/unit-test-manual-clock.hd	runtime
+typing/invalid/unit-test-real-clock.hd	type
+cli/test-unit-fakes	cli

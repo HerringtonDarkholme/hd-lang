@@ -35,6 +35,7 @@ CLI tier.
 | VARIANCE-MUT-SELF | 1 | `mut self` inherent methods are skipped by the variance check |
 | ALIAS-MISSING | 2 | an unused alias's right side is never resolved |
 | DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
+| TEST-TIERS | 5 | test host tiers (task #321): no `temp_dir`, an integration test case gets only `Process`, a single-file script's top level infers an entry row under `hd test`, and `hd test` neither runs tasks' `tests:` blocks nor starts tasks for `hd_run!` |
 | BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
 
 ## Findings

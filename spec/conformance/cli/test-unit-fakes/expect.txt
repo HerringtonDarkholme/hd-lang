@@ -1,0 +1,9 @@
+# A unit test case gets TestRunner alone, in src and in tasks alike;
+# a fake bound with $.with stands in for the host clock.
+run: hd test src/receipt.hd
+run: hd test --format json src/late.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-requirement","severity":"error","message":null,"file":"src/late.hd","line":8},{"kind":"summary","errors":1,"status":101}]
+run: hd test --format json tasks/seed.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-requirement","severity":"error","message":null,"file":"tasks/seed.hd","line":12},{"kind":"summary","errors":1,"status":101}]

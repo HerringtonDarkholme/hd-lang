@@ -1,0 +1,11 @@
+# test: a test build runs no entry behavior, so a script's top level is module initialization and a call that needs Console there is missing-requirement
+# Spec Modules, Entry Behavior: module.init.tests.no-entry, module.init.tests.requirement-free (task #321).
+use std.testing.assert_equal
+
+fn rows() -> List[string]: ["apple", "pear"]
+
+println("seeded ${rows().len()} rows")  # diagnostic: missing-requirement
+
+tests:
+    it("seeds two rows"):
+        assert_equal(rows().len(), 2, reason="the seed rows")

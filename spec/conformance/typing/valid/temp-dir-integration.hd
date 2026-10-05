@@ -1,0 +1,12 @@
+# fixture-test-layout: integration
+# test: an integration test case reads a package file and writes into its own temporary directory with the profile's FsRead and FsWrite
+# Spec std Testing, Temporary Directories: std-testing.temp-dir.decl, std-testing.temp-dir.fresh; Command Line: cli.test.env.integration (task #321).
+use std.fs.{read_text, write_text}
+use std.path.Path
+use std.testing.{assert_equal, temp_dir}
+
+it("exports the orders into its own directory"):
+    orders := read_text!(Path("fixtures/orders.csv")).expect("the orders fixture")
+    out := Path("${temp_dir()}/export.csv")
+    write_text!(out, orders).expect("the export")
+    assert_equal(read_text!(out).expect("the written export"), orders, reason="the export holds every order")

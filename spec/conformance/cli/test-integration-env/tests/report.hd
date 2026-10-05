@@ -1,0 +1,8 @@
+use std.fs.{FsRead, write_text}
+use std.path.Path
+use std.testing.{assert_equal, temp_dir}
+
+it("writes the same file name into another directory"):
+    dir := temp_dir()
+    assert_equal($.use(FsRead).list_dir!(dir).expect("the directory").len(), 0, reason="no export of another test")
+    write_text!(Path("${dir}/export.csv"), "B-2,1\n").expect("the report")

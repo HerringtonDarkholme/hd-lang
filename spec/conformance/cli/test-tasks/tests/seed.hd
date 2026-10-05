@@ -1,0 +1,6 @@
+use std.testing.{assert_equal, hd_run}
+
+it("runs the seed task"):
+    out := hd_run!("seed")
+    assert_equal(out.stdout, "seeded 2 rows\n", reason="the task's report")
+    assert_equal(out.status, 0, reason="a clean exit")

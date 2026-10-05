@@ -1,0 +1,2 @@
+pub fn order_count(csv: string) -> usize:
+    csv.lines().len() - 1

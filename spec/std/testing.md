@@ -11,7 +11,9 @@ runner implement over the language tier:
 - what the `timeout` option does;
 - how an `it_each` call expands and names its rows;
 - how snapshots compare text, and where snapshot files live;
-- how an integration test runs one of the package's executables;
+- how an integration test runs one of the package's executables or tasks;
+- the temporary directory of a test case;
+- which std fakes stand in for host providers in a unit test case;
 - the host capabilities through which `std.testing` reaches the test runner.
 
 The language tier keeps the assertion functions and the literal `expect` of
@@ -388,7 +390,7 @@ See also: [Debug Trait](../lang/09-traits.md#debug-trait).
 ## Running Executables
 
 `std.testing` declares a function that runs one of the package's
-executables from an integration test, and the data type of its result.
+executables or tasks from an integration test, and the data type of its result.
 It is plain hd over the host trait
 [`Process`](../lang/10-modules.md#processes):
 
@@ -403,20 +405,21 @@ pub data RunOutput:
 pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
     match $.use(Process).run!(name, args, stdin):
         .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
-        .Err(.NotFound) => panic("hd_run!: the package has no executable named '${name}'")
+        .Err(.NotFound) => panic("hd_run!: the package has no executable or task named '${name}'")
         .Err(error) => panic("hd_run!: '${name}' did not start: ${error}")
 ```
 
 1. r[std-testing.hd-run.import] Neither `hd_run` nor `RunOutput` is a prelude name; code imports them from `std.testing`.
 2. r[std-testing.hd-run.runs] `hd_run!(name, args, stdin)` runs the executable of the package under test whose name is `name`, as [`cli.exe.table`](../cli/command-line.md#r-cli.exe.table) names it. It passes `args` as the program's arguments and `stdin` as its standard input.
 3. r[std-testing.hd-run.default-name] The default executable is named after the package, by [`cli.exe.default-name`](../cli/command-line.md#r-cli.exe.default-name).
-4. r[std-testing.hd-run.waits] The call completes when the executable exits.
-5. r[std-testing.hd-run.output] Its result holds the text the executable wrote to standard output and to standard error, and the exit status it exited with.
-6. r[std-testing.hd-run.row] `hd_run!` has the requirement row `$ Process`, the host capability to start a process. It calls `run!` on the `Process` provider that covers the call.
-7. r[std-testing.hd-run.binding] In an integration test, the test runner binds `Process` to the package's executables, by [`cli.test.process`](../cli/command-line.md#r-cli.test.process). A test body's row takes `Process` from the call, so a test case writes no row for it.
-8. r[std-testing.hd-run.missing-name] When `name` names no executable of the package, `hd_run!` panics at run time, whether or not `name` is a literal. Its category is that of a `panic` call. Panic: `explicit-panic`.
-9. r[std-testing.hd-run.start-failure] When the executable exists but does not start, so `run!` returns `PermissionDenied` or `Other`, `hd_run!` panics too, with the error's text in its message. Panic: `explicit-panic`.
-10. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
+4. r[std-testing.hd-run.task] `name` may also name a [task](../cli/command-line.md#tasks) of the package, which runs as `hd run NAME` runs it. No name names both, by [`cli.task.name-clash`](../cli/command-line.md#r-cli.task.name-clash).
+5. r[std-testing.hd-run.waits] The call completes when the program exits.
+6. r[std-testing.hd-run.output] Its result holds the text the program wrote to standard output and to standard error, and the exit status it exited with.
+7. r[std-testing.hd-run.row] `hd_run!` has the requirement row `$ Process`, the host capability to start a process. It calls `run!` on the `Process` provider that covers the call.
+8. r[std-testing.hd-run.binding] In an integration test, the test runner binds `Process` to the package's executables and tasks, by [`cli.test.process`](../cli/command-line.md#r-cli.test.process). A test body's row takes `Process` from the call, so a test case writes no row for it.
+9. r[std-testing.hd-run.unknown-name] When `name` names neither an executable nor a task of the package, `hd_run!` panics at run time, whether or not `name` is a literal. Its category is that of a `panic` call. Panic: `explicit-panic`.
+10. r[std-testing.hd-run.start-failure] When the program exists but does not start, so `run!` returns `PermissionDenied` or `Other`, `hd_run!` panics too, with the error's text in its message. Panic: `explicit-panic`.
+11. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
 
 The integration test that `hd new --app` writes for a package `hello`:
 
@@ -447,6 +450,85 @@ tests:
 > runs on fakes alone, so it never starts a process. A real row, not a
 > hidden grant, lets `lib/std` write `hd_run!` in plain hd.
 
+## Temporary Directories
+
+`std.testing` declares a function that returns the running test case's own
+temporary directory, as Go's `t.TempDir` does:
+
+```text
+pub fn temp_dir() -> Path $ TestRunner:
+    Path($.use(TestRunner).temp_dir())
+```
+
+1. r[std-testing.temp-dir.decl] `std.testing` declares `temp_dir` with the signature above. It is not a prelude name; code imports it, as in `use std.testing.temp_dir`.
+2. r[std-testing.temp-dir.fresh] `temp_dir()` returns the absolute path of a fresh, empty directory that belongs to the running test case alone, by [`cli.test.env.temp-dir`](../cli/command-line.md#r-cli.test.env.temp-dir).
+3. r[std-testing.temp-dir.same] Every call within one run of a test body returns the same path.
+4. r[std-testing.temp-dir.per-run] Each row of an `it_each` call and each generated case of a property gets a directory of its own.
+5. r[std-testing.temp-dir.removed] The runner removes the directory once the test body's run ends, by [`cli.test.env.temp-dir.removed`](../cli/command-line.md#r-cli.test.env.temp-dir.removed).
+
+An integration test that reads a fixture of the package and writes its
+output into its own directory:
+
+```text
+# tests/export.hd
+use std.fs.{read_text, write_text}
+use std.path.Path
+use std.testing.{assert_equal, temp_dir}
+
+it("exports the orders into its own directory"):
+    orders := read_text!(Path("fixtures/orders.csv")).expect("the orders fixture")
+    out := Path("${temp_dir()}/export.csv")
+    write_text!(out, orders).expect("the export")
+    assert_equal(read_text!(out).expect("the written export"), orders, reason="the export holds every order")
+```
+
+> **Note.** A unit test case may call `temp_dir` too, but it reaches no
+> real file: only an integration test case gets `FsRead` and `FsWrite`
+> from the runner.
+
+> **Why.** A shared output path makes tests that run at once overwrite
+> each other's files. A directory per run of a body, which the runner
+> removes, leaves nothing behind in the package.
+
+## Unit Test Providers
+
+A unit test case gets `TestRunner` alone
+([`module.testing.unit-row.anywhere`](../lang/10-modules.md#r-module.testing.unit-row.anywhere)).
+Each host capability trait has a deterministic std provider that the test
+binds with `$.with` instead:
+
+| Host trait | Provider | Defined in |
+| --- | --- | --- |
+| `Console` | `BufferConsole` | [Buffer Console](console.md#buffer-console) |
+| `ConsoleInput` | `ScriptedInput` | [Scripted Input](console.md#scripted-input) |
+| `Args`, `Env` | `MapArgs`, `MapEnv` | [Map Providers](host.md#map-providers) |
+| `Clock` | `ManualClock` | [Manual Clock](time.md#manual-clock) |
+| `Random` | `SeededRandom` | [Seeded Random](random.md#seeded-random) |
+| `FsRead`, `FsWrite` | `MemoryFs` | [Memory File System](fs.md#memory-file-system) |
+| `Process` | `ScriptedProcess` | [Scripted Process](process.md#scripted-process) |
+
+```text
+use std.testing.assert_equal
+use std.time.{Clock, ManualClock, Timestamp, now}
+
+fn receipt_header(store: string) -> string $ Clock:
+    "${store} at ${now().to_rfc3339()}"
+
+tests:
+    it("stamps the receipt with the clock's time"):
+        $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
+            assert_equal(receipt_header("Main St"), "Main St at 1970-01-01T00:00:00Z", reason="a fixed clock")
+
+    it("reads the real clock"):
+        _ := receipt_header("Main St")  # error: missing-requirement
+```
+
+1. r[std-testing.unit.hint] The `missing-requirement` error for a host trait of this table, inside a unit test case, names the trait's provider and `$.with`, and suggests moving the test case to the test root.
+
+> **Why.** An agent that meets the error learns both fixes at once: a fake
+> keeps the test a unit test, and the test root makes it an integration
+> test.
+
 ## Runner Capabilities
 
 `std.testing` reaches the test runner through two host capability traits,
@@ -457,6 +539,7 @@ pub trait TestRunner:
     fn row(mut self, count: usize) -> usize
     fn report_timeout(mut self, millis: i64) -> void
     fn snapshot_check(mut self, text: string) -> string
+    fn temp_dir(mut self) -> string
 
 pub trait PropertyRunner:
     fn start(mut self, cases: usize, shrink: usize, examples: usize) -> PropertyCase
@@ -481,6 +564,7 @@ pub data PropertyCase:
 | r[std-testing.runner.row] Row | `row(count)` | reports that an `it_each` call has `count` rows, and returns the index of the row that the test case runs |
 | r[std-testing.runner.timeout] Timeout | `report_timeout(millis)` | reports the test case's `timeout` in milliseconds, before its body runs |
 | r[std-testing.runner.snapshot-check] Snapshot | `snapshot_check(text)` | compares `text` with the running test case's next [snapshot file](#snapshot-files), and records the file in an update run; returns `""` when the text matches or was recorded, else a message that says how the text differs or that the file is missing |
+| r[std-testing.runner.temp-dir] Temporary directory | `temp_dir()` | returns the absolute path of the running test case's [temporary directory](#temporary-directories), and makes the directory on the case's first call |
 | r[std-testing.runner.start-case] Start | `start(cases, shrink, examples)` | reports a property's `cases`, `shrink`, and count of `examples`, and returns the `PropertyCase` that the case runs |
 | r[std-testing.runner.record] Record | `record(value)` | records the case's next draw, a value from 0 to that draw's bound |
 | r[std-testing.runner.show] Show | `show(text)` | reports the `Debug` text of the case's input, which a failure report prints |
@@ -515,6 +599,9 @@ impl TestRunner for FirstRow:
 
     fn snapshot_check(mut self, text: string) -> string:
         ""
+
+    fn temp_dir(mut self) -> string:
+        "/tmp/first-row"
 
 fn pick(rows: List[string]) -> string $ TestRunner:
     rows[$.use(TestRunner).row(rows.len())]

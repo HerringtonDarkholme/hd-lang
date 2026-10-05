@@ -1,5 +1,5 @@
 # test: TestRunner is a host capability trait whose methods are plain calls
-# Spec std Testing, Runner Capabilities: std-testing.runner.declares, std-testing.runner.plain, and std-testing.runner.snapshot-check.
+# Spec std Testing, Runner Capabilities: std-testing.runner.declares, std-testing.runner.plain, std-testing.runner.snapshot-check, and std-testing.runner.temp-dir.
 use std.testing.TestRunner
 
 data FirstRow:
@@ -17,6 +17,9 @@ impl TestRunner for FirstRow:
     fn snapshot_check(mut self, text: string) -> string:
         self.snapshots = self.snapshots + 1
         ""
+
+    fn temp_dir(mut self) -> string:
+        "/tmp/first-row"
 
 fn pick(rows: List[string]) -> string $ TestRunner:
     rows[$.use(TestRunner).row(rows.len())]

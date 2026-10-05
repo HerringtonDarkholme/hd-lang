@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+fn seed_rows() -> List[string]:
+    ["apple", "pear"]
+
+pub fn main() -> void $ Console:
+    println("seeded ${seed_rows().len()} rows")
+
+tests:
+    it("seeds two rows"):
+        assert_equal(seed_rows().len(), 2, reason="the seed data")

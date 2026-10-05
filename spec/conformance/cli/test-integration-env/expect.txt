@@ -1,0 +1,7 @@
+# An integration test case gets the default profile, the package directory
+# as its working directory, no program arguments, a closed standard input,
+# and a fresh temporary directory of its own.
+run: hd test --format json
+stdout-json: [{"kind":"test","name":"reads a fixture from the package directory","outcome":"passed"},{"kind":"test","name":"writes the export into a fresh directory of its own","outcome":"passed"},{"kind":"test","name":"has no program arguments and a closed standard input","outcome":"passed"},{"kind":"test","name":"lets a provider scope replace the real clock","outcome":"passed"},{"kind":"test","name":"writes the same file name into another directory","outcome":"passed"},{"kind":"summary","passed":5,"failed":0,"status":0}]
+no-file: export.csv
+no-file: tests/export.csv

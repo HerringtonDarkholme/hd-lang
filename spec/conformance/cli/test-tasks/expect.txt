@@ -1,0 +1,6 @@
+# hd test runs the tests: blocks of tasks, skips a task without one, and
+# an integration test runs a task with hd_run!.
+run: hd test --format json tasks/seed.hd
+stdout-json: [{"kind":"test","name":"seeds two rows","outcome":"passed"},{"kind":"summary","passed":1,"failed":0,"status":0}]
+run: hd test --format json
+stdout-json: [{"kind":"test","name":"seeds two rows","outcome":"passed"},{"kind":"test","name":"runs the seed task","outcome":"passed"},{"kind":"summary","errors":0,"passed":2,"failed":0,"status":0}]

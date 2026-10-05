@@ -56,3 +56,8 @@ cli/doc-outside-package	`hd doc` takes a NAME: `hd doc --format json` exits 101 
 cli/doc-check-error	no `hd doc` flags: `hd doc --format json --out site` exits 101 with 'unknown flag --out' and no JSON on stdout, so `hd doc` never checks the package (cli.doc.check)	CLI-DOC
 cli/new-pages	`hd new --pages` is hidden until `hd doc` can build the site (task #309): the flag exits 101 with unknown flag --pages (cli.new.pages, cli.new.pages.workflow, planned)	CLI-PAGES-HIDDEN
 cli/new-pages-existing	`hd new --pages` is hidden until `hd doc` can build the site (task #309): the flag exits 101 with unknown flag --pages (cli.new.pages, planned)	CLI-PAGES-HIDDEN
+typing/valid/test-runner-capabilities.hd	`TestRunner` in lib/std/testing.hd has no `temp_dir` method yet, so the fixture's impl is extra-trait-method (std-testing.runner.temp-dir)	TEST-TIERS
+typing/valid/temp-dir-integration.hd	`std.testing` declares no `temp_dir` (std-testing.temp-dir.decl): unknown-import	TEST-TIERS
+typing/invalid/script-test-init-requirement.hd	`hd check --tests` of a single-file script still infers an entry row for its top level, so `println` there passes the check (module.init.tests.requirement-free)	TEST-TIERS
+cli/test-integration-env	`std.testing` declares no `temp_dir`, and an integration test case gets only `Process` from the host, not the default profile (cli.test.env.integration)	TEST-TIERS
+cli/test-tasks	`hd_run!` starts only executables, so `hd_run!("seed")` panics with 'no executable named seed'; a whole-package `hd test` runs no task's `tests:` block (cli.test.tasks, cli.test.process.tasks)	TEST-TIERS

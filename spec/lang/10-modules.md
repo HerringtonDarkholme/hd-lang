@@ -1219,13 +1219,16 @@ tests:
 3. r[module.testing.driven] The runner drives the body's suspension to completion, as the host drives `main!`.
 4. r[module.testing.runner-provider] A test run's profile also binds the host capability trait `std.testing.TestRunner`, and the runner binds a provider of it for the body of every test case.
 5. r[module.testing.unit-row.test-runner] A test case in a `tests:` block or a test module gets no other host provider. Its body's requirement row may hold `TestRunner` and no other key, so every other requirement comes from a `$.with` provider scope. Error: `missing-requirement`.
-6. r[module.testing.profile] A test run compiles against one [runtime profile](#runtime-profiles), the default profile unless the run selects another.
-7. r[module.testing.integration-row] For a test case in an integration test module, the runner binds the body's requirement row from that profile, as the host binds the row of `main`.
-8. r[module.testing.skipped] An integration test case whose row names a trait that the profile does not bind is not run. It is reported as skipped, and it is not an error.
-9. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
-10. r[module.testing.fail] It fails when `report()` returns another code or when its body panics, including by a failed assertion.
-11. r[module.testing.err-print] When the result holds an `.Err`, the runner prints the error as [Entry Results](#entry-results) describes.
-12. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
+6. r[module.testing.unit-row.anywhere] A **unit test case** is a test case in a `tests:` block or a test module. Rule `module.testing.unit-row.test-runner` holds for it wherever its file lies.
+7. r[module.testing.unit-row.places] So a `tests:` block under the source root, in a [task](../cli/command-line.md#tasks) or a shared task module, or in a [single-file program](#single-file-programs) gets `TestRunner` alone.
+8. r[module.testing.kind-decides] The kind of a test case decides what the runner binds for it, never the directory of its file. Only an integration test case and a [doc test](#doc-tests) get the profile's providers.
+9. r[module.testing.profile] A test run compiles against one [runtime profile](#runtime-profiles), the default profile unless the run selects another.
+10. r[module.testing.integration-row] For a test case in an integration test module, the runner binds the body's requirement row from that profile, as the host binds the row of `main`.
+11. r[module.testing.skipped] An integration test case whose row names a trait that the profile does not bind is not run. It is reported as skipped, and it is not an error.
+12. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
+13. r[module.testing.fail] It fails when `report()` returns another code or when its body panics, including by a failed assertion.
+14. r[module.testing.err-print] When the result holds an `.Err`, the runner prints the error as [Entry Results](#entry-results) describes.
+15. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
 
 ```text
 trait Clock:
@@ -1258,10 +1261,20 @@ tests:
 > unit test that reaches it through `TestRunner` still passes on every
 > machine.
 
+> **Why.** What a test may touch follows from what it tests, not from
+> where its code lives. A task's helper is checked on fakes as a library
+> function is, and a test that needs the real system is an integration
+> test.
+
 > **Note.** `TestRunner` is a stdlib-tier trait
 > ([Runner Capabilities](../std/testing.md#runner-capabilities)). The
 > language tier names it in these rules only and specifies none of its
 > methods.
+
+> **Note.** The `missing-requirement` error in a unit test case suggests
+> a std fake for the missing trait, such as `ManualClock` for `Clock`
+> ([Unit Test Providers](../std/testing.md#unit-test-providers)), or moving
+> the test case to the test root.
 
 See also: [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks),
 [Exit Status](#exit-status).
@@ -1387,6 +1400,25 @@ fn first_name() -> string:
 3. r[module.init.tests] Test runners initialize the module under test and the modules it uses before running its test cases.
 4. r[module.init.test-cases] The `it` calls of a `tests:` block or a test module, and their bodies, are not part of module initialization.
 5. r[module.init.script-empty] An entry module with no `main` and no top-level executable statements is a script with no entry behavior. Running it does nothing and exits with status 0.
+6. r[module.init.tests.no-entry] A test run runs no entry behavior, so the module under test is not an entry module in it, even when it is a script or a [task](../cli/command-line.md#tasks).
+7. r[module.init.tests.requirement-free] A script's top-level statements are then its module initialization, which must be requirement-free by [`module.init.requirement-free`](#r-module.init.requirement-free). Error: `missing-requirement`.
+
+```text
+# tasks/seed.hd, under `hd test`
+use std.testing.assert_equal
+
+fn rows() -> List[string]: ["apple", "pear"]
+
+println("seeded ${rows().len()} rows")  # error: missing-requirement
+
+tests:
+    it("seeds two rows"):
+        assert_equal(rows().len(), 2, reason="the seed rows")
+```
+
+> **Why.** A test run never runs `main`, and a script's top level plays
+> the part of `main`. The runner binds no host for initialization, so a
+> tested script keeps its work in `main`, as a Go or Rust program does.
 
 ### Requirement-Free Initialization
 

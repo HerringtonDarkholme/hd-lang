@@ -1,0 +1,27 @@
+use pkg.{order_count}
+use std.console.read_line
+use std.fs.{FsRead, read_text, write_text}
+use std.host.Args
+use std.path.Path
+use std.testing.{assert, assert_equal, temp_dir}
+use std.time.{Clock, ManualClock, Timestamp, now}
+
+it("reads a fixture from the package directory"):
+    orders := read_text!(Path("fixtures/orders.csv")).expect("the orders fixture")
+    assert_equal(order_count(orders), 2, reason="two orders")
+
+it("writes the export into a fresh directory of its own"):
+    dir := temp_dir()
+    assert_equal($.use(FsRead).list_dir!(dir).expect("the directory").len(), 0, reason="fresh and empty")
+    out := Path("${dir}/export.csv")
+    write_text!(out, "A-1,3\n").expect("the export")
+    assert_equal(read_text!(out).expect("the written export"), "A-1,3\n", reason="the export")
+
+it("has no program arguments and a closed standard input"):
+    assert_equal($.use(Args).list().len(), 0, reason="no arguments")
+    assert_equal($.use(Args).program(), "tests/export.hd", reason="the test file")
+    assert(read_line!() == .Ok(.None), reason="standard input is at its end")
+
+it("lets a provider scope replace the real clock"):
+    $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
+        assert_equal(now().unix_milliseconds(), 0, reason="the fake clock")

@@ -2494,3 +2494,7 @@ typing/valid/user-defined-all.hd	type	accept	lang/11-requirements-and-suspension
 typing/invalid/expected-i32-found-usize.hd	type	reject:type-mismatch	lang/04-type-system.md#the-usize-alias
 typing/invalid/std-child-path-through-parent.hd	type	reject:unknown-type	lang/10-modules.md#r-module.path.no-std-child-import
 typing/valid/std-reexported-child-item.hd	type	accept	lang/10-modules.md#r-module.path.no-std-child-import
+typing/invalid/script-test-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.tests.requirement-free
+typing/valid/temp-dir-integration.hd	type	accept	std/testing.md#r-std-testing.temp-dir.fresh
+runtime/valid/unit-test-manual-clock.hd	runtime	accept	std/testing.md#unit-test-providers
+typing/invalid/unit-test-real-clock.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.unit.hint
