@@ -48,6 +48,27 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
+
+## Jobs
+
+### AL. Review Finding O-03: Bounds Of Written Types
+
+From `audit/compiler/opus.md` (O-03, with its repro): a written type
+application such as `Box[T]` skips its declaration's generic bounds,
+except a top-level `Map` key. Check every written type application's
+arguments against the declaration's bounds, at the place it's written
+(`trait.bound.no-implied`, `types.generic.*`). Remove the Map-key
+special case once the general check covers it. Report the
+KNOWN_FAILURES rows this moves. Fixtures likely exist; add a TS test
+only where none does. Delete O-03 from `opus.md` when done.
+
+### AM. Test Migration Batch 4
+
+The remaining 52 home-A rows of the TS-test triage (call-speculation 12,
+compiler-types 8, compiler 8, suspension 8, types 7, compiler-suspension
+6, captured-cells 2, cli 1). Batches 1 to 3 (d082975f, 1d74c88c,
+494f29aa) show the conventions; `test/MIGRATED.md` is the ledger.
+
 - For this job you may add fixtures under `spec/conformance` and rows
   to its `cases.tsv`, but don't edit spec rule text or existing fixtures.
 - A TS test whose behavior no spec rule states isn't migrated: write
