@@ -149,7 +149,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.locator(".outcome.passed").waitFor();
     assert.equal(
       await page.locator(".stdout").textContent(),
-      "start\n42 : u32\n[21, 22] : List[u32]\n",
+      "start\n42 : usize\n[21, 22] : List[usize]\n",
     );
     assert.match((await outcome(page).textContent()) ?? "", /ran 4 top-level inputs/);
     await page.context().close();

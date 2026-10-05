@@ -101,7 +101,7 @@ async function enter(page: Page, text: string): Promise<void> {
 const last = (page: Page, selector: string) => page.locator(`.repl-log ${selector}`).last();
 
 try {
-  await step("the REPL opens on a spec page and evaluates x * 2 as 42 : u32", async () => {
+  await step("the REPL opens on a spec page and evaluates x * 2 as 42 : usize", async () => {
     const { page, workers } = await openPage("spec/04-type-system.html");
     assert.equal(await page.locator("#repl-panel").isVisible(), false);
     assert.deepEqual(workers, [], "the worker loads only when the panel opens");
@@ -114,8 +114,8 @@ try {
     await enter(page, "x := 21");
     await enter(page, "x * 2");
     await last(page, ".repl-value").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(await last(page, ".repl-value").textContent(), "42 : u32");
-    assert.equal(await last(page, ".repl-value .repl-type").textContent(), " : u32");
+    assert.equal(await last(page, ".repl-value").textContent(), "42 : usize");
+    assert.equal(await last(page, ".repl-value .repl-type").textContent(), " : usize");
     assert.equal(await page.locator(".repl-status").textContent(), "Ready");
 
     // Echoed input is highlighted with the repository highlighter's classes.
@@ -130,7 +130,7 @@ try {
     await page.click("#repl-toggle");
     await enter(page, "x + 1");
     await page.locator(".repl-log .repl-value").nth(1).waitFor();
-    assert.equal(await last(page, ".repl-value").textContent(), "22 : u32");
+    assert.equal(await last(page, ".repl-value").textContent(), "22 : usize");
     assert.equal(workers.length, 1, "reopening reuses the worker");
     if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "repl-open.png") });
     await page.context().close();
@@ -153,7 +153,7 @@ try {
     await enter(page, "[n,");
     await enter(page, "n * 2]");
     await last(page, ".repl-value").waitFor();
-    assert.equal(await last(page, ".repl-value").textContent(), "[3, 6] : List[u32]");
+    assert.equal(await last(page, ".repl-value").textContent(), "[3, 6] : List[usize]");
 
     await page.locator(".repl-input").press("ArrowUp");
     assert.equal(await page.locator(".repl-input").inputValue(), "[n,\nn * 2]");
@@ -162,7 +162,7 @@ try {
 
     await enter(page, ":type [n]");
     await last(page, ".repl-code").waitFor();
-    assert.equal(await last(page, ".repl-code").textContent(), "List[u32]");
+    assert.equal(await last(page, ".repl-code").textContent(), "List[usize]");
     await enter(page, ":help");
     await page.locator(".repl-info", { hasText: ":type EXPR" }).waitFor();
     await enter(page, ":reset");
@@ -193,7 +193,7 @@ try {
     // The restarted worker replays the accepted inputs before the next one.
     await enter(page, "kept + 1");
     await page.locator(".repl-log .repl-value").nth(1).waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(await last(page, ".repl-value").textContent(), "6 : u32");
+    assert.equal(await last(page, ".repl-value").textContent(), "6 : usize");
     assert.equal(workers.length, 2, "Stop replaced the worker");
     await page.context().close();
   });
