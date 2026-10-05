@@ -144,7 +144,8 @@ blocks.forEach((m, i) => {
   adds `--changed` or `--phase parse|type|runtime` and `node --test` on the
   test files it touches.
 - Worker agents never run the full `pnpm run check`. Only the merge
-  subagent runs it, once per merge.
+  subagent runs it, with `pnpm run test:ui` (REPL, website, playground),
+  once per merge.
 - Never wait for a check with an `until` or `while … sleep` loop. Run it in
   the foreground with a timeout, or in the background and wait for its
   completion notification. Wait for CI with `gh run watch`.

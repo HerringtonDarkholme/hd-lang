@@ -28,7 +28,7 @@ that a hung case times out). A test that runs an `hd` command line calls
 `runHd` or `hd` from `hd-in-process.ts`, which call `main` in the test's own
 process and pass the directory as `cwd` instead of changing the process's.
 Only three tests start `bin/hd.js`: the executable smoke test in
-`cli.test.ts`, the REPL's standard-input test in `repl.test.ts`, and the
+`cli.test.ts`, the REPL's standard-input test in `ui/repl.test.ts` (run by `pnpm run test:ui`, in CI and once per merge, not by `pnpm run check`), and the
 adapter comparison. When a TypeScript test
 finds a language-level regression, add or extend a `.hd` conformance fixture;
 keep a TS assertion only when it verifies one of those implementation details.

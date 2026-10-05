@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import test from "node:test";
 
-import { classify, highlight } from "../src/highlight.ts";
+import { classify, highlight } from "../../src/highlight.ts";
 import {
   backspaceWidth,
   boundNames,
@@ -17,10 +17,10 @@ import {
   ReplSession,
   respond,
   splitInputs,
-} from "../src/repl.ts";
-import { runRepl } from "../src/repl-terminal.ts";
+} from "../../src/repl.ts";
+import { runRepl } from "../../src/repl-terminal.ts";
 
-const root = resolve(import.meta.dirname, "..");
+const root = resolve(import.meta.dirname, "../..");
 const ESC = String.fromCharCode(27);
 
 function stripColor(text: string): string {
