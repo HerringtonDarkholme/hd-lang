@@ -120,7 +120,7 @@ export const FEATURES: readonly Feature[] = [
     example: "derive",
     ranges: [
       { from: "@derive(Arbitrary, Debug, Eq)", lines: 3 },
-      { from: 'it_prop("parse undoes print", prop=fn!(m: Money):', lines: 3 },
+      { from: 'it_prop("parse undoes print", prop=fn!(m: Money):', lines: 4 },
     ],
     marks: ["@derive(Arbitrary, Debug, Eq)", 'it_prop("parse undoes print", prop=fn!(m: Money):'],
     output: {
