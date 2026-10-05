@@ -98,8 +98,15 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   reads it: the `[package]` name, the `[[executable]]` tables,
   `[source] root`, which must be `src`, and the dependency tables. Any
   other table or key warns `unknown-manifest-key`. A manifest
-  with `[workspace]` and no `[package]` is a workspace, which the prototype
-  rejects. A `src/` directory without `hd.toml` makes no package.
+  with `[workspace]` and no `[package]` is a workspace. At its root,
+  `hd check`, `hd build`, and `hd test` act on every member in `members`
+  order, and `hd run NAME` runs the one member program named NAME
+  (`commandPackages` in `commands/source.ts`). `-p NAME` selects members,
+  at the root or inside a member; with one member and no NAME, `hd run`
+  chooses as in package mode, as `cargo run -p` does. The dependency
+  commands work only inside a member. A package that an enclosing workspace
+  manifest does not list works on its own; the unlisted-member error is not
+  implemented (CLI-57). A `src/` directory without `hd.toml` makes no package.
 - **Executables**: with no `[[executable]]` table, `src/main.hd` is the
   default executable, named after the package. A table's `module` that names
   no module is `missing-entry-point`; a `src/main.hd` that no table names is
@@ -153,8 +160,9 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   With neither `--app` nor `--lib` it asks on a terminal
   (`CommandEnvironment.terminal`), and fails otherwise. It writes nothing when one of its files exists. Outside a
   git repository it runs `git init` and writes a `.gitignore` of `/build/`.
-  `--pages` is hidden until `hd doc` exists (CLI-PAGES-HIDDEN). It does not add the package to an
-  enclosing workspace's `members`, since the prototype has no workspaces.
+  `--pages` is hidden until `hd doc` exists (CLI-PAGES-HIDDEN). Under a workspace root it
+  adds the new directory to the manifest's `members`, unless `members` or
+  `exclude` lists it already, editing that array line by line.
 - **Dependencies** ([Dependencies](../spec/cli/command-line.md#dependencies)):
   `manifest.ts` reads `[dependencies]` and `[dev-dependencies]`, and
   `dependencies/` does the rest. `requirement.ts` checks keys, host paths,
@@ -176,8 +184,9 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `hd.sum`. The linker (`package.ts`) joins each selected package's library
   under its own module keys, so `dep.NAME` sees only `pub` declarations.
   A path requirement needs both packages in one workspace's `members`, and
-  `hd.sum` then lives beside the workspace manifest. Not yet:
-  workspace-mode commands, `hd doc` and the REPL on a package with
+  `hd.sum` then lives beside the workspace manifest. `hd test` passes the command's environment to the
+  `hd run` that `hd_run!` starts, so it reads the same cache. Not yet:
+  `hd doc` and the REPL on a package with
   dependencies, and package ownership in the checker (orphan rule, member
   visibility, and trait availability across packages).
 - `hd FILE` (a first word that ends in `.hd` and names no command) runs FILE

@@ -28,10 +28,12 @@ import {
   hdFilesUnder,
   MANIFEST_FILE,
   packageMode,
+  workspaceMembers,
   type LocalPackage,
   type PackageProblem,
 } from "./package-mode.ts";
 import { withDependencies } from "./dependencies.ts";
+import { workspaceRoot } from "../dependencies/resolve.ts";
 import { RUNTIME_PROFILES, type RUNTIME_PROFILE_NAMES } from "./profiles.ts";
 import {
   EXIT_HD_FAILURE,
@@ -315,19 +317,39 @@ export async function reportPackageProblems(
   return problems.some(({ severity }) => severity === "error");
 }
 
+/** `-p NAME`: the workspace members a command acts on (spec/cli/command-line.md#selecting-members). */
+export interface MemberSelection {
+  readonly members?: readonly string[];
+}
+
+/** The packages a whole-package command acts on, and whether a workspace chose them. */
+export interface CommandPackages {
+  readonly packages: readonly LocalPackage[];
+  /**
+   * Whether the command works in workspace mode or selects members with
+   * `-p` (spec/cli/command-line.md#workspace-mode), rather than on the one
+   * package of package mode.
+   */
+  readonly workspace: boolean;
+}
+
 /**
- * The package a whole-package command works on: the package of the working
- * directory (spec/cli/command-line.md#r-cli.package.whole). Outside any
- * package, or in a workspace, it reports an error and returns the exit
- * status instead (spec/cli/command-line.md#r-cli.run.package-only,
+ * The packages a whole-package command works on: the package of the working
+ * directory (spec/cli/command-line.md#r-cli.package.whole), or in workspace
+ * mode every member (spec/cli/command-line.md#r-cli.workspace.members), or
+ * the members that `-p NAME` selects
+ * (spec/cli/command-line.md#r-cli.workspace.select.anywhere). Outside any
+ * package it reports an error and returns the exit status instead
+ * (spec/cli/command-line.md#r-cli.run.package-only,
  * spec/cli/command-line.md#r-cli.file.check-test.no-file).
  */
-export async function commandPackage(
+export async function commandPackages(
   command: "build" | "check" | "run" | "test",
   report: Report,
   environment: CommandEnvironment,
-  file?: string,
-): Promise<LocalPackage | number> {
+  options: { readonly file?: string; readonly members?: readonly string[] } = {},
+): Promise<CommandPackages | number> {
+  const { file, members = [] } = options;
   const cwd = workingDirectory(environment);
   // The start directory is FILE's, or else the working directory
   // (spec/cli/command-line.md#r-cli.mode.start).
@@ -336,17 +358,51 @@ export async function commandPackage(
   // The command selects and fetches the dependencies before it compiles
   // (spec/cli/command-line.md#r-cli.dep.implicit-fetch); each fetch is a
   // line on standard error.
-  if (mode.kind === "package")
-    return withDependencies(mode.package, environment, (version) =>
-      report.write(`hd: fetching ${version}`),
-    );
-  if (mode.kind === "workspace") {
+  const fetched = (pkg: LocalPackage): Promise<LocalPackage> =>
+    withDependencies(pkg, environment, (version) => report.write(`hd: fetching ${version}`));
+  if (members.length > 0 && file !== undefined) {
     report.commandError(
-      `hd ${command}: ${join(mode.root, MANIFEST_FILE)} is a workspace manifest, and the prototype does not support workspaces yet; run hd ${command} inside a member's directory`,
+      `hd ${command}: -p selects whole members, and ${file} is one file; pass -p NAME or a FILE, not both`,
     );
     return EXIT_HD_FAILURE;
   }
-  const where = `no ${MANIFEST_FILE} in ${start} or a directory above it`;
+  if (mode.kind === "package" && members.length === 0)
+    return { packages: [await fetched(mode.package)], workspace: false };
+  // A FILE under a workspace root but in no member is outside any package
+  // (spec/cli/command-line.md#r-cli.mode.workspace-file).
+  if (mode.kind === "package" || (mode.kind === "workspace" && file === undefined)) {
+    const root = mode.kind === "workspace" ? mode.root : await workspaceRoot(mode.package.root);
+    if (root === undefined) {
+      report.commandError(
+        `hd ${command}: -p selects a member of a workspace, and package '${mode.kind === "package" ? mode.package.name : ""}' is in none`,
+      );
+      return EXIT_HD_FAILURE;
+    }
+    const listed = await workspaceMembers(root);
+    if (typeof listed === "string") {
+      report.commandError(`hd ${command}: ${listed}`);
+      return EXIT_HD_FAILURE;
+    }
+    const chosen: LocalPackage[] = [];
+    for (const name of members) {
+      const member = listed.find((candidate) => candidate.name === name);
+      // A -p NAME that names no member is an error (cli.workspace.select.unknown).
+      if (!member) {
+        report.commandError(
+          `hd ${command}: the workspace ${join(root, MANIFEST_FILE)} has no member named '${name}'; its members are ${listed.map((candidate) => candidate.name).join(", ") || "none"}`,
+        );
+        return EXIT_HD_FAILURE;
+      }
+      if (!chosen.includes(member)) chosen.push(member);
+    }
+    const packages: LocalPackage[] = [];
+    for (const member of members.length > 0 ? chosen : listed) packages.push(await fetched(member));
+    return { packages, workspace: true };
+  }
+  const where =
+    mode.kind === "workspace"
+      ? `${start} is under the workspace ${join(mode.root, MANIFEST_FILE)} but in no member`
+      : `no ${MANIFEST_FILE} in ${start} or a directory above it`;
   report.commandError(
     command === "check" || command === "test"
       ? `hd ${command}: not in a package (${where}); pass a FILE, as in hd ${command} notes.hd, or create a package with hd new`

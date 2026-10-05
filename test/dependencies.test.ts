@@ -15,7 +15,11 @@ import { after, before, describe, test } from "node:test";
 
 import { removeTree } from "../src/dependencies/cache.ts";
 import { maskCredentials } from "../src/dependencies/git.ts";
-import { removeDependency, setDependency } from "../src/dependencies/manifest-edit.ts";
+import {
+  addWorkspaceMember,
+  removeDependency,
+  setDependency,
+} from "../src/dependencies/manifest-edit.ts";
 import {
   compareVersions,
   compatibilityLine,
@@ -114,46 +118,52 @@ const TEXT_V1_1 = {
 const SHOUT_MAIN =
   'use dep.text.{shout}\n\npub fn main() -> void $ Console:\n    println(shout("hello"))\n';
 
-describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
-  before(async () => {
-    root = await mkdtemp(join(tmpdir(), "hd-deps-"));
-    await mkdir(join(root, "home"));
-    const config = join(root, "gitconfig");
-    await writeFile(
-      config,
-      [
-        "[user]",
-        "\tname = hd test",
-        "\temail = test@example.invalid",
-        "[init]",
-        "\tdefaultBranch = main",
-        "[tag]",
-        "\tgpgSign = false",
-        "[commit]",
-        "\tgpgSign = false",
-        `[url "file://${join(root, "remotes")}/"]`,
-        "\tinsteadOf = https://github.com/",
-        "",
-      ].join("\n"),
-    );
-    variables = {
-      HOME: join(root, "home"),
-      HD_CACHE: join(root, "cache"),
-      GIT_CONFIG_GLOBAL: config,
-      GIT_CONFIG_NOSYSTEM: "1",
-      PATH: process.env.PATH ?? "",
-    };
-    await remote("text", [
-      ["v1.0.0", TEXT_V1],
-      ["v1.1.0", TEXT_V1_1],
-      ["v1.2.0-rc.1", { "NOTES.md": "release candidate\n" }],
-      ["v2.0.0", { "src/lib.hd": 'pub fn shout(word: string) -> string:\n    word + "!!"\n' }],
-    ]);
-  });
+const needsGit = { skip: !hasGit && "git is not installed" };
 
-  after(async () => {
-    if (root) await removeTree(root);
-  });
+/** Makes the temporary root, its git configuration, and the remote `text`, once. */
+async function setUp(): Promise<void> {
+  if (root) return;
+  root = await mkdtemp(join(tmpdir(), "hd-deps-"));
+  await mkdir(join(root, "home"));
+  const config = join(root, "gitconfig");
+  await writeFile(
+    config,
+    [
+      "[user]",
+      "\tname = hd test",
+      "\temail = test@example.invalid",
+      "[init]",
+      "\tdefaultBranch = main",
+      "[tag]",
+      "\tgpgSign = false",
+      "[commit]",
+      "\tgpgSign = false",
+      `[url "file://${join(root, "remotes")}/"]`,
+      "\tinsteadOf = https://github.com/",
+      "",
+    ].join("\n"),
+  );
+  variables = {
+    HOME: join(root, "home"),
+    HD_CACHE: join(root, "cache"),
+    GIT_CONFIG_GLOBAL: config,
+    GIT_CONFIG_NOSYSTEM: "1",
+    PATH: process.env.PATH ?? "",
+  };
+  await remote("text", [
+    ["v1.0.0", TEXT_V1],
+    ["v1.1.0", TEXT_V1_1],
+    ["v1.2.0-rc.1", { "NOTES.md": "release candidate\n" }],
+    ["v2.0.0", { "src/lib.hd": 'pub fn shout(word: string) -> string:\n    word + "!!"\n' }],
+  ]);
+}
+
+after(async () => {
+  if (root) await removeTree(root);
+});
+
+describe("dependencies", needsGit, () => {
+  before(setUp);
 
   test("hd add fetches a tag, records its hash, and dep.NAME runs", async () => {
     const directory = await app("greeter", SHOUT_MAIN, "\n# kept\n[dependencies]\n");
@@ -375,6 +385,10 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
       selectedLines("github.com/acme/text@1.0.0", TEXT_V1),
     );
   });
+});
+
+describe("pseudo-versions and workspaces", needsGit, () => {
+  before(setUp);
 
   test("a pseudo-version fetches its commit, and a wrong hash or time is unknown-version", async () => {
     const draft = await remote("draft", [["v0.4.0", TEXT_V1]]);
@@ -412,6 +426,71 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     assert.equal(unknown.status, 101);
     assert.match(unknown.stderr, /unknown-version: github\.com\/acme\/draft has no commit/);
     assert.match(await readFile(join(directory, "hd.toml"), "utf8"), new RegExp(pseudo));
+  });
+
+  test("a workspace selects once for every member, and root commands act on the members", async () => {
+    const workspace = join(root, "shop");
+    await writeTree(workspace, { "hd.toml": "[workspace]\nmembers = [\n]\n" });
+    // hd new inside a workspace adds the member (cli.new.workspace-member).
+    for (const [kind, path] of [
+      ["--lib", "libs/util"],
+      ["--app", "apps/web"],
+    ] as const) {
+      const created = await hd(workspace, ["new", kind, "--vcs", "none", path]);
+      assert.equal(created.status, 0, created.stderr);
+      assert.match(created.stdout, new RegExp(`Added "${path}" to the members of hd.toml`));
+    }
+    assert.equal(
+      await readFile(join(workspace, "hd.toml"), "utf8"),
+      '[workspace]\nmembers = [\n    "libs/util",\n    "apps/web",\n]\n',
+    );
+    // web requires text 1.0.0 and util requires 1.1.0, in one hd.sum.
+    const web = join(workspace, "apps", "web");
+    const util = join(workspace, "libs", "util");
+    assert.equal((await hd(web, ["add", "text", "github.com/acme/text@1.0.0"])).status, 0);
+    assert.equal((await hd(util, ["add", "text", "github.com/acme/text@1.1.0"])).status, 0);
+    assert.ok(!existsSync(join(web, "hd.sum")));
+    assert.equal(
+      await readFile(join(workspace, "hd.sum"), "utf8"),
+      manifestLine("github.com/acme/text@1.0.0", TEXT_V1) +
+        selectedLines("github.com/acme/text@1.1.0", TEXT_V1_1),
+    );
+    await writeFile(
+      join(web, "hd.toml"),
+      '[package]\nname = "web"\n\n[dependencies]\ntext = "github.com/acme/text@1.0.0"\nutil = { path = "../../libs/util" }\n',
+    );
+    // whisper exists only in text 1.1.0, which the workspace selects for web too.
+    await writeFile(
+      join(web, "src", "main.hd"),
+      'use dep.text.{whisper}\nuse dep.util.{greet}\n\npub fn main() -> void $ Console:\n    println(whisper(greet("world")))\n',
+    );
+    await writeFile(
+      join(web, "tests", "web.hd"),
+      'use std.testing.{assert_equal, hd_run}\n\nit("prints a quiet greeting"):\n    let out = hd_run!("web")\n    assert_equal(out.stdout, "(hello, world)\\n", reason="the greeting")\n',
+    );
+    const offline = { PATH: join(root, "empty-path") };
+    const checked = await hd(workspace, ["check"], offline);
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.equal(checked.stdout, "util: ok\nweb: ok\n");
+    const tested = await hd(workspace, ["test"]);
+    assert.equal(tested.status, 0, tested.stderr + tested.stdout);
+    assert.match(tested.stdout, /libs\/util\/tests\/util\.hd: 1 passed/);
+    assert.match(tested.stdout, /apps\/web\/tests\/web\.hd: 1 passed/);
+    const ran = await hd(workspace, ["run", "web"], offline);
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(ran.stdout, "(hello, world)\n");
+    // A bare hd run at the root names no program (cli.workspace.run-bare).
+    const bare = await hd(workspace, ["run"], offline);
+    assert.equal(bare.status, 101);
+    assert.match(bare.stderr, /util: none\n {2}web: web/);
+    // -p selects members, from the root or inside a member (cli.workspace.select.*).
+    const selected = await hd(util, ["check", "-p", "web"], offline);
+    assert.equal(selected.stdout, "web: ok\n");
+    const unknown = await hd(workspace, ["test", "-p", "shop"], offline);
+    assert.equal(unknown.status, 101);
+    assert.match(unknown.stderr, /no member named 'shop'; its members are util, web/);
+    const runP = await hd(workspace, ["run", "-p", "web"], offline);
+    assert.equal(runP.stdout, "(hello, world)\n");
   });
 
   test("a path requirement links another member of the workspace", async () => {
@@ -506,4 +585,22 @@ test("dependency commands edit hd.toml line by line", () => {
     text.replace('json = "github.com/x/json@1.0.0"  # pinned\n', ""),
   );
   assert.equal(removeDependency(text, "yaml"), undefined);
+  // hd new adds a member to the array as it is written (cli.new.workspace-member).
+  assert.equal(
+    addWorkspaceMember('[workspace]\nmembers = ["a"]  # all\n', "b"),
+    '[workspace]\nmembers = ["a", "b"]  # all\n',
+  );
+  assert.equal(
+    addWorkspaceMember("[workspace]\nmembers = []\n", "b"),
+    '[workspace]\nmembers = ["b"]\n',
+  );
+  assert.equal(
+    addWorkspaceMember('[workspace]\nmembers = [\n  "a"  # first\n]\n', "b"),
+    '[workspace]\nmembers = [\n  "a",  # first\n  "b",\n]\n',
+  );
+  assert.equal(
+    addWorkspaceMember('[workspace]\nexclude = ["x"]\n', "b"),
+    '[workspace]\nmembers = ["b"]\nexclude = ["x"]\n',
+  );
+  assert.equal(addWorkspaceMember('[package]\nname = "a"\n', "b"), undefined);
 });

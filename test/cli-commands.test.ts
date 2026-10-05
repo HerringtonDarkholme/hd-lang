@@ -69,19 +69,21 @@ test("hd --help and hd help print the same short command list", async () => {
 
 test("hd help COMMAND lists only that command's flags", async () => {
   const flagsOf = (text: string): string[] =>
-    [...text.matchAll(/^ {2}(--[a-z-]+)/gm)].map((match) => match[1]!);
+    [...text.matchAll(/^ {2}(?:-[a-z], )?(--[a-z-]+)/gm)].map((match) => match[1]!);
   const build = (await hd(["help", "build"])).stdout;
-  assert.match(build, /^usage: hd build \[--wat\] \[--release\] \[FILE\]$/m);
-  assert.deepEqual(flagsOf(build), ["--wat", "--release", "--format"]);
+  assert.match(build, /^usage: hd build \[--wat\] \[--release\] \[-p NAME\] \[FILE\]$/m);
+  assert.deepEqual(flagsOf(build), ["--wat", "--release", "--package", "--format"]);
+  // -p selects workspace members (cli.workspace.select.anywhere).
+  assert.match(build, /^ {2}-p, --package NAME +act on the workspace member NAME only/m);
 
   const run = (await hd(["help", "run"])).stdout;
-  assert.match(run, /^usage: hd run \[--release\] \[NAME\] \[-- ARGS\]$/m);
-  assert.deepEqual(flagsOf(run), ["--release", "--format"]);
+  assert.match(run, /^usage: hd run \[--release\] \[-p NAME\] \[NAME\] \[-- ARGS\]$/m);
+  assert.deepEqual(flagsOf(run), ["--release", "--package", "--format"]);
 
   const tested = (await hd(["help", "test"])).stdout;
   assert.match(
     tested,
-    /^usage: hd test \[--update\] \[--filter PATTERN\] \[--deny-skipped\] \[--seed N\] \[--cases N\] \[--shrink N\] \[FILE\]$/m,
+    /^usage: hd test \[--update\] \[--filter PATTERN\] \[--deny-skipped\] \[--seed N\] \[--cases N\] \[--shrink N\] \[-p NAME\] \[FILE\]$/m,
   );
   assert.deepEqual(flagsOf(tested), [
     "--update",
@@ -90,12 +92,13 @@ test("hd help COMMAND lists only that command's flags", async () => {
     "--seed",
     "--cases",
     "--shrink",
+    "--package",
     "--format",
   ]);
 
   const check = (await hd(["help", "check"])).stdout;
-  assert.match(check, /^usage: hd check \[--tests\] \[--all\] \[FILE\]$/m);
-  assert.deepEqual(flagsOf(check), ["--tests", "--all", "--format"]);
+  assert.match(check, /^usage: hd check \[--tests\] \[--all\] \[-p NAME\] \[FILE\]$/m);
+  assert.deepEqual(flagsOf(check), ["--tests", "--all", "--package", "--format"]);
 
   assert.deepEqual(flagsOf((await hd(["help", "explain"])).stdout), ["--format"]);
   assert.deepEqual(flagsOf((await hd(["help", "repl"])).stdout), []);

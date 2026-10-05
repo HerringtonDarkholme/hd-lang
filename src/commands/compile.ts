@@ -18,7 +18,8 @@ import {
 } from "./io.ts";
 import { BUILD_DIRECTORY, unselectedMains, type LocalPackage } from "./package-mode.ts";
 import {
-  commandPackage,
+  commandPackages,
+  type MemberSelection,
   loadSource,
   placementOf,
   reportFailure,
@@ -46,7 +47,7 @@ export async function parseCommand(args: SourceArgs, io: CommandIo): Promise<num
   }
 }
 
-export interface CheckArgs extends CommandEnvironment {
+export interface CheckArgs extends CommandEnvironment, MemberSelection {
   /** FILE; absent for the whole package. */
   readonly file?: string;
   readonly format: SourceArgs["format"];
@@ -61,19 +62,27 @@ export interface CheckArgs extends CommandEnvironment {
 
 /**
  * `hd check [FILE]`: type-checks the package, or FILE, and prints its
- * warnings, then `NAME: ok`.
+ * warnings, then `NAME: ok`. In workspace mode it checks every member, or
+ * the members `-p` selects (spec/cli/command-line.md#r-cli.workspace.members).
  */
 export async function checkCommand(args: CheckArgs, io: CommandIo): Promise<number> {
   const report = new Report(args.format, io, { stream: "stdout", summary: true });
-  if (args.file === undefined) {
-    const pkg = await commandPackage("check", report, args);
-    if (typeof pkg === "number") return report.finish(pkg);
-    return report.finish(
-      await compilePackage(pkg, args, io, report, {
-        tests: args.tests || args.all === true,
-        tasks: args.all === true,
-      }),
-    );
+  if (args.file === undefined || (args.members?.length ?? 0) > 0) {
+    const selected = await commandPackages("check", report, args, {
+      ...(args.file === undefined ? {} : { file: args.file }),
+      ...(args.members ? { members: args.members } : {}),
+    });
+    if (typeof selected === "number") return report.finish(selected);
+    let status = 0;
+    for (const pkg of selected.packages)
+      status = Math.max(
+        status,
+        await compilePackage(pkg, args, io, report, {
+          tests: args.tests || args.all === true,
+          tasks: args.all === true,
+        }),
+      );
+    return report.finish(status);
   }
   return report.finish(await check({ ...args, file: args.file }, io, report));
 }
@@ -231,7 +240,7 @@ export async function hirCommand(args: HirArgs, io: CommandIo): Promise<number> 
   }
 }
 
-export interface BuildArgs extends CommandEnvironment {
+export interface BuildArgs extends CommandEnvironment, MemberSelection {
   /** FILE; absent for the whole package. */
   readonly file?: string;
   readonly format: SourceArgs["format"];
@@ -254,19 +263,28 @@ export async function buildCommand(args: BuildArgs, io: CommandIo): Promise<numb
   const report = new Report(args.format, io, { stream: "stdout", summary: !args.wat });
   // Outside any package, `hd build` is an error, with a FILE too
   // (spec/cli/command-line.md#r-cli.run.package-only).
-  const pkg = await commandPackage("build", report, args, args.file);
-  if (typeof pkg === "number") return report.finish(pkg);
+  const selected = await commandPackages("build", report, args, {
+    ...(args.file === undefined ? {} : { file: args.file }),
+    ...(args.members ? { members: args.members } : {}),
+  });
+  if (typeof selected === "number") return report.finish(selected);
   if (args.file === undefined) {
     if (args.wat) {
       report.commandError("hd build: --wat needs a FILE, whose module it prints");
       return report.finish(EXIT_HD_FAILURE);
     }
-    return report.finish(
-      await compilePackage(pkg, args, io, report, {
-        tests: false,
-        build: { release: args.release ?? false },
-      }),
-    );
+    // In workspace mode, every member, or the members `-p` selects
+    // (spec/cli/command-line.md#r-cli.workspace.members).
+    let status = 0;
+    for (const pkg of selected.packages)
+      status = Math.max(
+        status,
+        await compilePackage(pkg, args, io, report, {
+          tests: false,
+          build: { release: args.release ?? false },
+        }),
+      );
+    return report.finish(status);
   }
   return report.finish(await build({ ...args, file: args.file }, io, report));
 }

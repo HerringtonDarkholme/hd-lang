@@ -53,6 +53,8 @@ export interface Manifest {
   readonly workspace: boolean;
   /** The workspace's `members`, directories relative to the manifest. */
   readonly members: readonly string[];
+  /** The workspace's `exclude`: directories that are no members (cli.mode.member.excluded). */
+  readonly exclude: readonly string[];
   /** The keys of `[dependencies]` and then `[dev-dependencies]`, in order. */
   readonly dependencies: readonly DependencyEntry[];
   /**
@@ -522,10 +524,14 @@ export function readManifest(
       });
   }
   const workspaceTable = root.workspace;
-  const members =
-    isTable(workspaceTable) && Array.isArray(workspaceTable.members)
-      ? workspaceTable.members.filter((member): member is string => typeof member === "string")
+  const directories = (key: "members" | "exclude"): string[] => {
+    const listed = isTable(workspaceTable) ? workspaceTable[key] : undefined;
+    return Array.isArray(listed)
+      ? listed.filter((member): member is string => typeof member === "string")
       : [];
+  };
+  const members = directories("members");
+  const exclude = directories("exclude");
   if (errors.length > 0) return { errors };
   const unknownKeys = unknownManifestKeys(root, reader);
   return {
@@ -536,6 +542,7 @@ export function readManifest(
       executables,
       workspace,
       members,
+      exclude,
       dependencies,
     },
   };

@@ -81,3 +81,44 @@ export function removeDependency(text: string, key: string): string | undefined 
   }
   return undefined;
 }
+
+/**
+ * Adds the directory `member` to the `members` array of a workspace
+ * manifest's `[workspace]` table (spec/cli/command-line.md#r-cli.new.workspace-member),
+ * on one line or on many as the array is written, so the other lines stay.
+ * Returns undefined when the manifest has no `[workspace]` table.
+ */
+export function addWorkspaceMember(text: string, member: string): string | undefined {
+  const lines = text.split("\n");
+  const range = tableRange(lines, "workspace");
+  if (!range) return undefined;
+  const [start, end] = range;
+  const quoted = JSON.stringify(member);
+  const pattern = keyPattern("members");
+  for (let index = start + 1; index < end; index += 1) {
+    const match = pattern.exec(lines[index]!);
+    if (!match) continue;
+    const value = match[3]!;
+    // On one line: `members = ["a"]`, maybe with a comment after it.
+    const inline = /^\[(.*)\](\s*#.*)?$/.exec(value.trim());
+    if (inline) {
+      const items = inline[1]!.trim().replace(/,$/, "");
+      lines[index] =
+        `${match[1]}members${match[2]}[${items === "" ? quoted : `${items}, ${quoted}`}]${inline[2] ?? ""}`;
+      return lines.join("\n");
+    }
+    // On many lines: a new item line before the line that closes the array.
+    let close = index + 1;
+    while (close < end && !/^\s*\]/.test(lines[close]!)) close += 1;
+    if (close === end) return undefined;
+    let last = close - 1;
+    while (last > index && !/^\s*["']/.test(lines[last]!)) last -= 1;
+    const indent = last > index ? /^\s*/.exec(lines[last]!)![0] : `${match[1]}    `;
+    if (last > index && !/,\s*(#.*)?$/.test(lines[last]!))
+      lines[last] = lines[last]!.replace(/^(\s*(?:"(?:[^"\\]|\\.)*"|'[^']*'))/, "$1,");
+    lines.splice(close, 0, `${indent}${quoted},`);
+    return lines.join("\n");
+  }
+  lines.splice(start + 1, 0, `members = [${quoted}]`);
+  return lines.join("\n");
+}

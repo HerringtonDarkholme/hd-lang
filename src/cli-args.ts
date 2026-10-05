@@ -13,6 +13,10 @@ interface FlagSpec {
   readonly choices?: readonly string[];
   /** The value is a non-negative integer. */
   readonly count?: boolean;
+  /** A short spelling, such as `-p`. */
+  readonly alias?: string;
+  /** The flag may be given more than once; each value is kept. */
+  readonly repeat?: boolean;
 }
 
 interface CommandSpec {
@@ -42,8 +46,21 @@ const RELEASE: FlagSpec = {
   help: "build for release: integer overflow wraps instead of panicking",
 };
 
+/**
+ * `-p NAME`: the workspace members a command acts on
+ * (spec/cli/command-line.md#selecting-members).
+ */
+const PACKAGE: FlagSpec = {
+  name: "--package",
+  alias: "-p",
+  value: "NAME",
+  repeat: true,
+  help: "act on the workspace member NAME only; may be repeated",
+};
+
 /** How a command finds its package (spec/cli/command-line.md#package-mode). */
-const PACKAGE_NOTE = "The package is the one whose hd.toml is nearest above the current directory.";
+const PACKAGE_NOTE =
+  "The package is the one whose hd.toml is nearest above the current directory; at a workspace root, every member.";
 
 /** What a FILE in a package means (spec/cli/command-line.md#r-cli.package.file). */
 const FILE_NOTE =
@@ -65,6 +82,7 @@ const COMMANDS: readonly CommandSpec[] = [
     flags: [
       { name: "--wat", help: "with FILE, print the WebAssembly text instead of writing a file" },
       RELEASE,
+      PACKAGE,
     ],
     notes: [
       PACKAGE_NOTE,
@@ -78,7 +96,7 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 0,
     maxOperands: 1,
     summary: "run the package's executable, or the executable or task named NAME",
-    flags: [RELEASE],
+    flags: [RELEASE, PACKAGE],
     notes: [
       PACKAGE_NOTE,
       "Without NAME, the package must have exactly one executable: src/main.hd, or",
@@ -102,6 +120,7 @@ const COMMANDS: readonly CommandSpec[] = [
       { name: "--seed", value: "N", count: true, help: "property-test seed; a failure prints it" },
       { name: "--cases", value: "N", count: true, help: "cases per property test" },
       { name: "--shrink", value: "N", count: true, help: "most shrink steps for a failing case" },
+      PACKAGE,
     ],
     notes: [
       PACKAGE_NOTE,
@@ -118,6 +137,7 @@ const COMMANDS: readonly CommandSpec[] = [
     flags: [
       { name: "--tests", help: "also check the test code" },
       { name: "--all", help: "also check the test code and the tasks" },
+      PACKAGE,
     ],
     notes: [PACKAGE_NOTE, "Without FILE, it checks the library and the executables.", FILE_NOTE],
   },
@@ -274,6 +294,8 @@ export type ParsedCommand =
       readonly command: CommandSpec;
       readonly format: "text" | "json";
       readonly flags: ReadonlyMap<string, string | true>;
+      /** Each value of a repeatable flag, by its long name, such as `--package`. */
+      readonly repeated: ReadonlyMap<string, readonly string[]>;
       readonly operands: readonly string[];
       /**
        * The words after the first `--`, which are the program's arguments
@@ -287,7 +309,9 @@ function commandNamed(name: string): CommandSpec | undefined {
 }
 
 function usageLine(command: CommandSpec): string {
-  const flags = command.flags.map((flag) => `[${flag.name}${flag.value ? ` ${flag.value}` : ""}]`);
+  const flags = command.flags.map(
+    (flag) => `[${flag.alias ?? flag.name}${flag.value ? ` ${flag.value}` : ""}]`,
+  );
   if (command.name === "file") return ["usage: hd FILE", ...flags, "[-- ARGS]"].join(" ");
   const args = command.name === "run" ? "[-- ARGS]" : "";
   return ["usage: hd", command.name, ...flags, command.operands, args].filter(Boolean).join(" ");
@@ -309,7 +333,7 @@ function columns(rows: readonly (readonly [string, string, ...string[]])[]): str
 function flagRows(flags: readonly FlagSpec[]): string[] {
   return columns(
     flags.map((flag): [string, string, ...string[]] => {
-      const label = `${flag.name}${flag.value ? ` ${flag.value}` : ""}`;
+      const label = `${flag.alias ? `${flag.alias}, ` : ""}${flag.name}${flag.value ? ` ${flag.value}` : ""}`;
       return flag.choices && flag !== FORMAT
         ? [label, flag.help, `${flag.value} is one of: ${flag.choices.join(", ")}`]
         : [label, flag.help];
@@ -379,7 +403,8 @@ function hint(command: string): string {
 /** Which commands accept a flag, for the wrong-command error. */
 function ownersOf(name: string): string[] {
   return COMMANDS.filter(
-    (command) => !command.hidden && command.flags.some((flag) => flag.name === name),
+    (command) =>
+      !command.hidden && command.flags.some((flag) => flag.name === name || flag.alias === name),
   ).map((command) => `hd ${command.name}`);
 }
 
@@ -457,6 +482,7 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
     throw new UsageError(`hd: ${known}\nRun 'hd help' for the command list.`);
   }
   const flags = new Map<string, string | true>();
+  const repeated = new Map<string, string[]>();
   const operands: string[] = [];
   // `hd` reads none of the words after the first `--` as its own
   // (spec/cli/command-line.md#r-cli.args.separator).
@@ -479,7 +505,9 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
       format = flagValue(command, FORMAT, rest.shift()) as "text" | "json";
       continue;
     }
-    const flag = command.flags.find((candidate) => candidate.name === arg);
+    const flag = command.flags.find(
+      (candidate) => candidate.name === arg || candidate.alias === arg,
+    );
     if (!flag) {
       const owners = ownersOf(arg);
       const why =
@@ -487,6 +515,12 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
           ? `${arg} is not a flag of hd ${shown}; ${listed(owners)} accept${owners.length === 1 ? "s" : ""} it`
           : `unknown flag ${arg}`;
       throw new UsageError(`hd ${shown}: ${why}\n${hint(command.name)}`);
+    }
+    if (flag.repeat) {
+      const values = repeated.get(flag.name) ?? [];
+      values.push(flagValue(command, flag, rest.shift()));
+      repeated.set(flag.name, values);
+      continue;
     }
     if (flags.has(flag.name)) throw new UsageError(`hd ${shown}: ${flag.name} is given twice`);
     flags.set(flag.name, flag.value ? flagValue(command, flag, rest.shift()) : true);
@@ -505,5 +539,5 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
       `hd ${command.name === "file" ? "FILE" : command.name}: ${problem}\n${usageLine(command)}\n${hint(command.name)}`,
     );
   }
-  return { kind: "command", command, format, flags, operands, programArguments };
+  return { kind: "command", command, format, flags, repeated, operands, programArguments };
 }

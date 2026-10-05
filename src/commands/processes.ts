@@ -33,6 +33,7 @@ export function isProcessCall(call: HostSuspensionCall): boolean {
  */
 export function executableProcesses(
   pkg: Pick<LocalPackage, "executables" | "root"> | undefined,
+  variables: Readonly<Record<string, string | undefined>> = process.env,
 ): ProcessProvider {
   // A `Result[ProcessOutput, ProcessError]` as the host boundary takes it.
   const ready = (tag: "ok" | "err", value: HostBoundaryValue): HostSuspensionOutcome => ({
@@ -44,8 +45,11 @@ export function executableProcesses(
     const [name, args, stdin] = call.arguments as readonly [string, readonly string[], string];
     const executable = pkg?.executables.find((candidate) => candidate.name === name);
     if (!pkg || !executable) return ready("err", { tag: "NotFound" });
+    // `hd run` gets the command's own environment, so it reads the same
+    // cache and git configuration (spec/cli/command-line.md#cache).
     const ran = spawnSync(process.execPath, ["--no-warnings", HD, "run", name, "--", ...args], {
       cwd: pkg.root,
+      env: variables,
       input: stdin,
       maxBuffer: 1 << 30,
     });

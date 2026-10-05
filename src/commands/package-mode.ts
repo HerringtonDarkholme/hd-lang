@@ -203,6 +203,28 @@ export async function packageMode(start: string): Promise<PackageMode> {
 }
 
 /**
+ * The members of the workspace whose manifest is in `root`, in the order
+ * its `members` lists them (spec/lang/10-modules.md#r-module.workspace.definition);
+ * or the message of why a listed directory holds no package.
+ */
+export async function workspaceMembers(root: string): Promise<LocalPackage[] | string> {
+  const read = readManifest(await readFile(join(root, MANIFEST_FILE), "utf8"));
+  if (!("manifest" in read))
+    return `${join(root, MANIFEST_FILE)}:${read.errors[0]!.line}: ${read.errors[0]!.message}`;
+  const members: LocalPackage[] = [];
+  for (const listed of read.manifest.members) {
+    const directory = resolve(root, listed);
+    const mode = existsSync(join(directory, MANIFEST_FILE))
+      ? await packageMode(directory)
+      : undefined;
+    if (mode?.kind !== "package")
+      return `the member '${listed}' that ${join(root, MANIFEST_FILE)} lists holds no package's ${MANIFEST_FILE}; create it with hd new ${listed}, or remove it from members`;
+    members.push(mode.package);
+  }
+  return members;
+}
+
+/**
  * The `unselected-main` warnings of a package: a public `main` or `main!` in
  * a module under the source root that no executable names is an ordinary
  * function (spec/cli/command-line.md#r-cli.exe.unselected-main).

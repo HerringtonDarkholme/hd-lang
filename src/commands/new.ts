@@ -2,10 +2,12 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
+import { addWorkspaceMember } from "../dependencies/manifest-edit.ts";
 import { KEYWORDS } from "../lexer.ts";
+import { readManifest } from "../manifest.ts";
 import { MAIN_FILE, LIB_FILE, TEST_ROOT } from "../package.ts";
 import {
   EXIT_HD_FAILURE,
@@ -113,6 +115,32 @@ async function askKind(
   return undefined;
 }
 
+/**
+ * The workspace manifest above `directory` whose `members` gains it, with
+ * its new text (spec/cli/command-line.md#r-cli.new.workspace-member); or
+ * undefined when no workspace manifest is above it, or that manifest lists
+ * the directory already in `members` or `exclude`.
+ */
+async function workspaceEdit(
+  directory: string,
+): Promise<{ readonly path: string; readonly text: string; readonly member: string } | undefined> {
+  for (let above = dirname(directory); ; above = dirname(above)) {
+    const path = join(above, MANIFEST_FILE);
+    if (existsSync(path)) {
+      const text = await readFile(path, "utf8");
+      const read = readManifest(text);
+      if ("manifest" in read && read.manifest.workspace) {
+        const member = relative(above, directory).split(sep).join("/");
+        const same = (listed: string): boolean => resolve(above, listed) === resolve(above, member);
+        if ([...read.manifest.members, ...read.manifest.exclude].some(same)) return undefined;
+        const edited = addWorkspaceMember(text, member);
+        return edited === undefined ? undefined : { path, text: edited, member };
+      }
+    }
+    if (dirname(above) === above) return undefined;
+  }
+}
+
 /** `hd new [--app|--lib] [--vcs none] [PATH]`: creates a package. */
 export async function newCommand(args: NewArgs, io: CommandIo): Promise<number> {
   const fail = (message: string): number => {
@@ -153,15 +181,21 @@ export async function newCommand(args: NewArgs, io: CommandIo): Promise<number> 
     return fail(
       `${existing.map((path) => relative(cwd, join(directory, path)) || path).join(", ")} already exist${existing.length === 1 ? "s" : ""}; hd new writes no file over another`,
     );
+  const workspace = await workspaceEdit(directory);
   for (const [path, text] of Object.entries(files)) {
     await mkdir(dirname(join(directory, path)), { recursive: true });
     await writeFile(join(directory, path), text);
   }
+  if (workspace) await writeFile(workspace.path, workspace.text);
   if (gitInit) {
     const result = spawnSync("git", ["init", "--quiet"], { cwd: directory, encoding: "utf8" });
     if (result.status !== 0) return fail(`git init failed: ${result.stderr.trim()}`);
   }
   const shown = relative(cwd, directory) || ".";
   io.out(`Created ${kind === "app" ? "application" : "library"} package '${name}' in ${shown}`);
+  if (workspace)
+    io.out(
+      `Added "${workspace.member}" to the members of ${relative(cwd, workspace.path) || workspace.path}`,
+    );
   return 0;
 }

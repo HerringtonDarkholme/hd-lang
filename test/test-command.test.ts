@@ -72,17 +72,23 @@ test("--filter matching nothing in a named FILE is an error, but not in a packag
   });
 });
 
-test("a workspace manifest says workspaces are not supported yet", async () => {
+test("a workspace member without a package, and a dependency command at the root, are errors", async () => {
   await withPackage(async (directory) => {
     await writeFile(join(directory, "hd.toml"), '[workspace]\nmembers = ["a"]\n');
-    for (const command of ["check", "build", "test", "run", "fetch"]) {
+    // Workspace mode acts on every member (cli.workspace.members), so a
+    // listed directory with no package is an error that names it.
+    for (const command of ["check", "build", "test", "run"]) {
       const ran = await runHd([command], { cwd: directory });
       assert.equal(ran.status, 101);
-      assert.match(ran.stderr, /does not support workspaces yet/);
+      assert.match(ran.stderr, /the member 'a' that .*hd\.toml lists holds no package's hd\.toml/);
     }
-    // A directory word no longer points at -p.
-    const word = await runHd(["check", "src"], { cwd: directory });
-    assert.doesNotMatch(word.stderr, /-p NAME|workspace member/);
+    // A dependency command works on one package (cli.dep.package-only).
+    const fetched = await runHd(["fetch"], { cwd: directory });
+    assert.equal(fetched.status, 101);
+    assert.match(fetched.stderr, /is a workspace manifest, and hd fetch works on one package/);
+    // A directory word suggests -p (cli.command.positional).
+    const word = await runHd(["test", "src"], { cwd: directory });
+    assert.match(word.stderr, /'src' is a directory.*pass -p NAME/);
   });
 });
 

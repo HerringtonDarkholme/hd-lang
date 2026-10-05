@@ -57,6 +57,7 @@ function flags(parsed: Command, runner: RunnerOptions = {}) {
     all: parsed.flags.has("--all"),
     wat: parsed.flags.has("--wat"),
     release: parsed.flags.has("--release"),
+    members: parsed.repeated.get("--package"),
     entry: runner.entry,
     update: parsed.flags.has("--update"),
     filter: value("--filter"),

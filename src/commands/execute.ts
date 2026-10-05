@@ -30,8 +30,10 @@ import {
   type RuntimeScenario,
 } from "./profiles.ts";
 import {
-  commandPackage,
+  commandPackages,
   loadSource,
+  type CommandPackages,
+  type MemberSelection,
   placementOf,
   reportFailure,
   reportPackageProblems,
@@ -62,7 +64,7 @@ async function directoryWord(
 ): Promise<boolean> {
   if (!(await isDirectory(resolve(workingDirectory(environment), word)))) return false;
   report.commandError(
-    `hd ${command}: '${word}' is a directory, which is neither a NAME nor a FILE; to work on it, run hd ${command} inside that directory`,
+    `hd ${command}: '${word}' is a directory, which is neither a NAME nor a FILE; to work on a workspace member, pass -p NAME, or run hd ${command} inside that directory`,
   );
   return true;
 }
@@ -140,7 +142,7 @@ async function singleFileNote(args: FileArgs): Promise<string | undefined> {
   return `hd FILE runs ${args.file} on its own, outside package '${pkg.name}'; to use the package's modules, make it a task, tasks/NAME.hd, and run it with: hd run NAME`;
 }
 
-export interface RunArgs extends CommandEnvironment {
+export interface RunArgs extends CommandEnvironment, MemberSelection {
   /** NAME: the executable to run; absent for the package's one executable. */
   readonly name?: string;
   readonly format: SourceArgs["format"];
@@ -169,12 +171,18 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
     }
     if (await directoryWord("run", args.name, report, args)) return report.finish(EXIT_HD_FAILURE);
   }
-  const pkg = await commandPackage("run", report, args);
-  if (typeof pkg === "number") return report.finish(pkg);
+  const selected = await commandPackages(
+    "run",
+    report,
+    args,
+    args.members ? { members: args.members } : {},
+  );
+  if (typeof selected === "number") return report.finish(selected);
+  const chosen = chosenProgram(selected, args.name, report);
+  if (!chosen) return report.finish(EXIT_HD_FAILURE);
+  const [pkg, executable] = chosen;
   if (await reportPackageProblems(report, pkg, pkg.problems, args))
     return report.finish(EXIT_HD_FAILURE);
-  const executable = chosenExecutable(pkg, args.name, report);
-  if (!executable) return report.finish(EXIT_HD_FAILURE);
   const loaded = await loadSource(
     { ...args, file: shownPath(pkg, executable.path, args) },
     { report, profile: args.profile, release: args.release, linkTests: false },
@@ -199,6 +207,55 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
       host: defaultHost(args, executable.name, task ? pkg.root : workingDirectory(args)),
     }),
   );
+}
+
+/**
+ * The package and the program `hd run [NAME]` runs, or undefined after
+ * reporting why there is none. In workspace mode NAME names the one member
+ * program of that name (spec/cli/command-line.md#r-cli.workspace.run-name).
+ * With one member that `-p` selects, `hd run` chooses as in package mode,
+ * as Cargo's `cargo run -p` does.
+ */
+function chosenProgram(
+  selected: CommandPackages,
+  name: string | undefined,
+  report: Report,
+): [LocalPackage, Executable] | undefined {
+  const { packages } = selected;
+  if (!selected.workspace || (packages.length === 1 && name === undefined)) {
+    const pkg = packages[0]!;
+    const executable = chosenExecutable(pkg, name, report);
+    return executable && [pkg, executable];
+  }
+  const programs = (pkg: LocalPackage): Executable[] => [...pkg.executables, ...pkg.tasks];
+  if (name === undefined) {
+    // A bare `hd run` names no program (cli.workspace.run-bare).
+    const listed = packages.map(
+      (pkg) =>
+        `  ${pkg.name}: ${
+          programs(pkg)
+            .map((program) => program.name)
+            .join(", ") || "none"
+        }`,
+    );
+    report.commandError(
+      `hd run: in a workspace, name the executable or task to run, as in hd run NAME; the members have:\n${listed.join("\n")}`,
+    );
+    return undefined;
+  }
+  const owners = packages.flatMap((pkg): [LocalPackage, Executable][] => {
+    const program = programs(pkg).find((candidate) => candidate.name === name);
+    return program ? [[pkg, program]] : [];
+  });
+  if (owners.length === 1) return owners[0];
+  report.commandError(
+    owners.length === 0
+      ? // No member has one (cli.workspace.run-missing).
+        `hd run: no member of the workspace has an executable or task named '${name}'; the members are ${packages.map((pkg) => pkg.name).join(", ")}`
+      : // Several members have one (cli.workspace.run-ambiguous).
+        `hd run: the members ${owners.map(([pkg]) => pkg.name).join(", ")} each have an executable or task named '${name}'; pick one with -p, as in hd run -p ${owners[0]![0].name} ${name}`,
+  );
+  return undefined;
 }
 
 /**
@@ -236,7 +293,7 @@ function chosenExecutable(
   return undefined;
 }
 
-export interface TestArgs extends CommandEnvironment {
+export interface TestArgs extends CommandEnvironment, MemberSelection {
   /** FILE; absent for the whole package. */
   readonly path?: string;
   readonly format: SourceArgs["format"];
@@ -265,16 +322,24 @@ export async function testCommand(args: TestArgs, io: CommandIo): Promise<number
 }
 
 async function test(args: TestArgs, io: CommandIo, report: Report): Promise<number> {
-  if (args.path === undefined) {
-    const pkg = await commandPackage("test", report, args);
-    if (typeof pkg === "number") return pkg;
-    return testPackage(pkg, args, io, report);
+  if (args.path === undefined || (args.members?.length ?? 0) > 0) {
+    const selected = await commandPackages("test", report, args, {
+      ...(args.path === undefined ? {} : { file: args.path }),
+      ...(args.members ? { members: args.members } : {}),
+    });
+    if (typeof selected === "number") return selected;
+    // In workspace mode, the tests of every member, or of the members `-p`
+    // selects (spec/cli/command-line.md#r-cli.workspace.members).
+    let status = 0;
+    for (const pkg of selected.packages)
+      status = Math.max(status, await testPackage(pkg, args, io, report));
+    return status;
   }
   if (await directoryWord("test", args.path, report, args)) return EXIT_HD_FAILURE;
   const placement = await placementOf(args.path, args.packageTree, args.testLayout, args);
   return testFile(args, args.path, io, report, placement, {
     quietWhenEmpty: false,
-    processes: executableProcesses(placement?.package),
+    processes: executableProcesses(placement?.package, variablesOf(args)),
   });
 }
 
@@ -338,7 +403,7 @@ async function testPackage(
       return reportFailure(loaded, error);
     }
   }
-  const processes = executableProcesses(pkg);
+  const processes = executableProcesses(pkg, variablesOf(args));
   const targets = Object.keys(pkg.files)
     .filter(
       (path) =>
