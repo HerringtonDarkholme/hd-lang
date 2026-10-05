@@ -2,6 +2,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { createAdapter, type Adapter } from "./hd-adapter.ts";
 
@@ -36,6 +37,9 @@ interface Options {
   // names an implementation.
   readonly inProcess: boolean;
   readonly jobs: number;
+  // Run only these conformance cases, by case path (`typing/invalid/foo.hd`,
+  // `cli/NAME`). A timed-out case reruns through the real harness this way.
+  readonly only: readonly string[];
   readonly phase?: Phase;
   readonly suite: "all" | "conformance" | "fixtures";
   readonly tier?: "cli" | "language" | "std";
@@ -68,6 +72,7 @@ function parseOptions(args: readonly string[]): Options {
   let suite: Options["suite"] = "all";
   let tier: Options["tier"];
   let changed: string | undefined;
+  const only: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const option = args[index];
     const value = args[index + 1];
@@ -78,7 +83,8 @@ function parseOptions(args: readonly string[]): Options {
         changed = "origin/main";
         index -= 1;
       }
-    } else if (option === "--compiler" && value) {
+    } else if (option === "--only" && value && !value.startsWith("--")) only.push(value);
+    else if (option === "--compiler" && value) {
       commandText = value;
       inProcess = false;
     } else if (option === "--jobs" && value) jobs = Number(value);
@@ -96,7 +102,11 @@ function parseOptions(args: readonly string[]): Options {
   if (!Number.isInteger(jobs) || jobs < 1) throw new Error("jobs must be a positive integer");
   if (phase && suite === "fixtures") throw new Error("--phase cannot use --suite fixtures");
   if (tier && suite === "fixtures") throw new Error("--tier cannot use --suite fixtures");
-  return { changed, command, commandText, inProcess, jobs, phase, suite, tier };
+  if (only.length > 0 && changed !== undefined)
+    throw new Error("--only cannot be combined with --changed");
+  if (only.length > 0 && suite === "fixtures")
+    throw new Error("--only selects conformance cases and cannot use --suite fixtures");
+  return { changed, command, commandText, inProcess, jobs, only, phase, suite, tier };
 }
 
 /** How the fixture runner runs `IMPL ARGS...`: in-process, or a spawned command. */
@@ -182,33 +192,119 @@ async function mapParallel<T, U>(
   return results;
 }
 
-// Runs the selected conformance cases through the implementation-neutral
-// runner in spec/tools, which judges them by spec/conformance/README.md.
-async function runConformance(options: Options): Promise<boolean> {
-  const manifest = options.changed ? await changedManifest(options.changed) : portableManifest;
-  if (!manifest) {
-    console.log(`conformance: no selected fixture differs from ${options.changed}`);
-    return true;
+// A verdict reason exactly equal to this failed only by the time limit: the
+// conformance runner reports `ran longer than ${timeoutMs / 1000} s` for a
+// timed-out command, with nothing else.
+const timeoutReason = `ran longer than ${timeoutMs / 1000} s`;
+
+interface CaseVerdict {
+  readonly path: string;
+  readonly reason: string;
+}
+
+/** The `FAIL  PATH: REASON` lines of a conformance run's stdout. */
+function failVerdicts(output: string): CaseVerdict[] {
+  const verdicts: CaseVerdict[] = [];
+  for (const line of output.split("\n")) {
+    if (!line.startsWith("FAIL  ")) continue;
+    const rest = line.slice("FAIL  ".length);
+    const separator = rest.indexOf(": ");
+    if (separator < 0) continue;
+    verdicts.push({ path: rest.slice(0, separator), reason: rest.slice(separator + 2) });
   }
+  return verdicts;
+}
+
+/** The case paths a conformance run's stdout reports as passed. */
+function passPaths(output: string): Set<string> {
+  const passed = new Set<string>();
+  for (const line of output.split("\n"))
+    if (line.startsWith("pass  ")) passed.add(line.slice("pass  ".length));
+  return passed;
+}
+
+// Whether a verdict reason is a timeout and nothing else: the bare message,
+// or a step label before it (`check:`, `run:`, `step N (CMD):`). No other
+// failure reason ends with the timeout sentence.
+function isTimeoutReason(reason: string): boolean {
+  return reason === timeoutReason || reason.endsWith(`: ${timeoutReason}`);
+}
+
+/** The case paths that failed only by the time limit. */
+function timeoutPaths(output: string): string[] {
+  return failVerdicts(output)
+    .filter(({ reason }) => isTimeoutReason(reason))
+    .map(({ path }) => path);
+}
+
+/** A selection manifest naming exactly `paths`, judged by the case index. */
+async function selectionManifest(paths: readonly string[]): Promise<string> {
+  const path = join(await mkdtemp(join(tmpdir(), "hd-selected-")), "cases.tsv");
+  await writeFile(path, `path\n${paths.join("\n")}\n`);
+  return path;
+}
+
+interface ConformanceResult {
+  readonly code: number;
+  /** The runner's stdout, re-emitted to this process's stdout as it arrives. */
+  readonly output: string;
+}
+
+// Runs one conformance pass through the implementation-neutral runner in
+// spec/tools, which judges cases by spec/conformance/README.md.
+async function runConformanceOnce(
+  options: Options,
+  manifest: string | undefined,
+  jobs: number,
+): Promise<ConformanceResult> {
   const args = [
     "--experimental-strip-types",
     conformanceRunner,
-    "--manifest",
-    manifest,
+    ...(manifest ? ["--manifest", manifest] : []),
     ...(options.inProcess ? ["--adapter", adapterModule] : ["--compiler", options.commandText]),
     "--jobs",
-    String(options.jobs),
+    String(jobs),
     ...(options.phase ? ["--phase", options.phase] : []),
     ...(options.tier ? ["--tier", options.tier] : []),
   ];
   return new Promise((complete, reject) => {
     const child = spawn(process.execPath, args, {
       cwd: root,
-      stdio: ["ignore", "inherit", "inherit"],
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    let output = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      output += chunk;
+      process.stdout.write(chunk);
     });
     child.on("error", reject);
-    child.on("close", (code) => complete(code === 0));
+    child.on("close", (code) => complete({ code: code ?? 1, output }));
   });
+}
+
+// Runs the selected conformance cases. Cases that fail only by the time
+// limit rerun once, serially; a case that times out again still fails, and a
+// real failure never reruns.
+async function runConformance(options: Options): Promise<boolean> {
+  const manifest =
+    options.only.length > 0
+      ? await selectionManifest(options.only)
+      : options.changed
+        ? await changedManifest(options.changed)
+        : undefined;
+  if (options.changed && !manifest) {
+    console.log(`conformance: no selected fixture differs from ${options.changed}`);
+    return true;
+  }
+  const first = await runConformanceOnce(options, manifest ?? portableManifest, options.jobs);
+  if (first.code === 0) return true;
+  const timeouts = timeoutPaths(first.output);
+  const realFailures = failVerdicts(first.output).length - timeouts.length;
+  if (timeouts.length === 0) return false;
+  const retry = await runConformanceOnce(options, await selectionManifest(timeouts), 1);
+  const passed = passPaths(retry.output);
+  console.log(`${timeouts.filter((path) => passed.has(path)).length} passed after a serial retry`);
+  return realFailures === 0 && retry.code === 0;
 }
 
 // The rows of the portable manifest whose fixture, under spec/conformance,
@@ -356,7 +452,14 @@ async function main(): Promise<number> {
   let passed = true;
   if (options.suite !== "fixtures") passed = await runConformance(options);
   // test/fixtures cases have no phase or tier; --phase and --tier select conformance cases only.
-  if (!options.phase && !options.tier && !options.changed && options.suite !== "conformance") {
+  // --only names conformance cases, so the fixtures run nothing to select.
+  if (
+    !options.phase &&
+    !options.tier &&
+    !options.changed &&
+    options.only.length === 0 &&
+    options.suite !== "conformance"
+  ) {
     const cases = await Promise.all((await fixturePaths(fixtureRoot)).map(readFixtureCase));
     const implementation = options.inProcess
       ? createAdapter({ jobs: options.jobs })
@@ -375,4 +478,14 @@ async function main(): Promise<number> {
   return passed ? 0 : 1;
 }
 
-process.exitCode = await main();
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) process.exitCode = await main();
+
+export {
+  failVerdicts,
+  parseOptions,
+  passPaths,
+  runConformanceOnce,
+  selectionManifest,
+  timeoutPaths,
+};
+export type { CaseVerdict, ConformanceResult, Options };

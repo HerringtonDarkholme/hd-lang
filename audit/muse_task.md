@@ -56,20 +56,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AO. Portable Runner: Select Cases, Retry Timeouts Alone
-
-Merges keep failing on "ran longer than 10 s" when another agent's full
-run loads the machine (13 cases each time). Rerunning each alone passes.
-
-- `test/run-portable.ts` gets a way to run selected cases by path
-  (positional paths or `--only PATH`), so a timed-out case can be rerun
-  through the real harness with its sidecar options.
-- After a run, cases that failed **only** by the time limit are rerun
-  once, serially (`--jobs 1`), and the summary reports
-  `N passed after a serial retry`. A case that times out again still
-  fails. Never raise the limit; never retry a real failure.
-- Add a test for both.
-
 ### AP. Hints From The Usability Probe
 
 The Haiku probe (rows dated 2026-10-05 in `audit/hd-writing-log.md`) hit

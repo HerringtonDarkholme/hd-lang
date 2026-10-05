@@ -51,3 +51,12 @@ pnpm run test:portable --tier language
 Independent cases run concurrently. Set `HD_TEST_JOBS` or pass `--jobs` to
 change the default of min(8, CPUs) workers, or compiler processes when
 spawning.
+
+Run selected conformance cases by path with repeatable `--only PATH`
+(`typing/invalid/foo.hd`, `cli/NAME`), so a timed-out case reruns through
+the real harness with its sidecar options. `--only` skips `test/fixtures`
+and cannot combine with `--changed`.
+
+Cases that fail only by the 10 s time limit rerun once, serially
+(`--jobs 1`); the summary then reports `N passed after a serial retry`. A
+case that times out again still fails, and a real failure never reruns.
