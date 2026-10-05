@@ -2,7 +2,7 @@ import { captureSources, isCaptureSource } from "./capture-view.ts";
 import { intrinsicDictionaryPlan } from "./intrinsic-dictionaries.ts";
 import { TRIAL_STATE, type TrialSnapshot } from "./call-speculation.ts";
 import { snapshotCheckerState } from "./checker-trial-state.ts";
-import { mapKeyKind, mapKeyProblem } from "./map-keys.ts";
+import { mapKeyKind } from "./map-keys.ts";
 import { traitKeyParts, traitValueBindings } from "./associated-bindings.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
 import type { AssignmentStatement, Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
@@ -51,12 +51,17 @@ import {
   traitTypeName,
   MAX_BOUND_DEPTH,
 } from "./shared.ts";
-import { dynamicTraitProblemInType, writtenTypeProblem } from "./written-type-validation.ts";
+import {
+  dynamicTraitProblemInType,
+  signatureBoundScope,
+  writtenApplicationBoundProblem,
+  writtenBoundProblem,
+  writtenTypeProblem,
+} from "./written-type-validation.ts";
 import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
 import {
   mutableInner,
   mutableType,
-  nominalGenericParts,
   nominalGenericType,
   optionalInner,
   readonlyType,
@@ -1090,6 +1095,20 @@ export abstract class CheckerContext {
    * meets `Map[K < Eq & Hash, V]` (04-type-system.md#map-key-types): a type
    * parameter key, kind 3, through its `Eq` bound's dictionary.
    */
+  /**
+   * The written-bound scope over the signature's bounds, through the same
+   * parameter lookup calls use.
+   */
+  private boundScope() {
+    return signatureBoundScope(
+      this.dataTypes,
+      this.enumTypes,
+      this.traitTypes,
+      this.signature.genericParameters,
+      (parameter, traitIndex) => this.parameterBound(parameter, traitIndex, []) !== undefined,
+    );
+  }
+
   protected mapKey(
     keyType: ValueType,
     span: SourceSpan,
@@ -1099,14 +1118,7 @@ export abstract class CheckerContext {
     readonly keyDictionary?: HirExpression;
   } {
     const generic = genericTypeName(keyType);
-    const bounded = (name: string): boolean => {
-      const trait = this.traitTypes.get(name);
-      return trait !== undefined && this.parameterBound(generic!, trait.index, []) !== undefined;
-    };
-    const problem = mapKeyProblem(
-      keyType,
-      new Set(generic && bounded("Eq") && bounded("Hash") ? [generic] : []),
-    );
+    const problem = writtenApplicationBoundProblem("Map", [keyType], this.boundScope());
     if (problem) this.fail(problem.code, problem.message, span);
     if (generic) return { keyKind: 3, keyDispatch: this.equalityDispatch(keyType) };
     // A key type whose `Eq` is a generic implementation, as a tuple's
@@ -1263,20 +1275,16 @@ export abstract class CheckerContext {
       this.fail(requirementDiagnostic.code, requirementDiagnostic.message, type.span);
     const dynamicProblem = dynamicTraitProblemInType(declared, this.traitTypes);
     if (dynamicProblem) this.fail(dynamicProblem.code, dynamicProblem.message, type.span);
-    const nominal = nominalGenericParts(declared);
-    if (
-      nominal?.name === "Map" &&
-      nominal.arguments.length === 2 &&
-      isKnownType(nominal.arguments[0]!, this.dataTypes, this.enumTypes, this.traitTypes) &&
-      isKnownType(nominal.arguments[1]!, this.dataTypes, this.enumTypes, this.traitTypes)
-    )
-      this.mapKey(nominal.arguments[0]!, type.span);
     if (!isKnownType(declared, this.dataTypes, this.enumTypes, this.traitTypes))
       this.fail(
         "unknown-type",
         `unknown or unsupported type '${displayType(type.name)}'`,
         type.span,
       );
+    // A written application meets its declaration's bounds, nested ones
+    // included (trait.bound.no-implied).
+    const boundProblem = writtenBoundProblem(declared, this.boundScope());
+    if (boundProblem) this.fail(boundProblem.code, boundProblem.message, type.span);
     return declared;
   }
 

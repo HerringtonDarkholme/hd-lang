@@ -1,8 +1,12 @@
-import { mapKeyProblem } from "./map-keys.ts";
 import { writtenBindingProblem } from "./associated-bindings.ts";
-import { dynamicTraitProblemInType, restElementProblem } from "./written-type-validation.ts";
+import {
+  dynamicTraitProblemInType,
+  enclosingBoundImplies,
+  pushWrittenBoundProblem,
+  restElementProblem,
+} from "./written-type-validation.ts";
 import { requirementKeyDiagnosticsInType, resolveRequirementKeyTypes } from "./requirement-keys.ts";
-import type { Expression, Program, Statement, TypeRef } from "../ast.ts";
+import type { Expression, GenericBound, Program, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { numericType, widensTo } from "../numeric.ts";
 import type {
@@ -1320,6 +1324,8 @@ export function typeName(
     readonly validateRequirementKeys?: boolean;
     readonly validateDynamicSafety?: boolean;
   } = {},
+  /** Generic bounds as written on the enclosing declaration, for checking arguments. */
+  enclosingBounds: readonly GenericBound[] = [],
 ): ValueType | undefined {
   const kinded = normalizeRowArguments(
     resolveTraitType(resolveGenericType(type.name, genericParameters, rowParameters), traitTypes),
@@ -1354,19 +1360,6 @@ export function typeName(
       ? undefined
       : dynamicTraitProblemInType(resolved, traitTypes);
   if (dynamicProblem) diagnostics.push({ ...dynamicProblem, span: type.span });
-  // An implementation target's own bounds were reported where it is written.
-  const nominal = type.implementationTarget ? undefined : nominalGenericParts(resolved);
-  const keyProblem =
-    nominal?.name === "Map" &&
-    nominal.arguments.length === 2 &&
-    isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes) &&
-    isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes)
-      ? mapKeyProblem(nominal.arguments[0]!, hashableParameters)
-      : undefined;
-  if (keyProblem) {
-    diagnostics.push({ ...keyProblem, span: type.span });
-    return undefined;
-  }
   if (!isKnownType(resolved, dataTypes, enumTypes, traitTypes)) {
     diagnostics.push({
       code: "unknown-type",
@@ -1375,6 +1368,19 @@ export function typeName(
     });
     return undefined;
   }
+  // Written applications meet their declarations' bounds (trait.bound.no-implied).
+  if (
+    !type.implementationTarget &&
+    pushWrittenBoundProblem(diagnostics, type.span, resolved, {
+      dataTypes,
+      enumTypes,
+      traitTypes,
+      hashableParameters,
+      parameterImplied: (parameter, traitName) =>
+        enclosingBoundImplies(enclosingBounds, parameter, traitName),
+    })
+  )
+    return undefined;
   const restProblem = restElementProblem(resolved);
   if (restProblem) {
     diagnostics.push({ ...restProblem, span: type.span });

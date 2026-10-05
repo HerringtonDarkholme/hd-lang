@@ -1,6 +1,6 @@
 import { ambiguousProjection, bindingNameProblem } from "./associated-bindings.ts";
-import { listVararg, tupleVararg, type FunctionDecl } from "../ast.ts";
-import type { HirAssociatedBinding, HirGenericBound, HirTrait } from "../hir.ts";
+import { listVararg, tupleVararg, type FunctionDecl, type TypeRef } from "../ast.ts";
+import type { HirAssociatedBinding, HirGenericBound, HirTrait, ValueType } from "../hir.ts";
 import { mutableInner, nominalGenericParts, displayType } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
@@ -51,10 +51,44 @@ function genericDefaultTypes(
     genericDefaults: new Map(
       written.map(([name, type]) => [
         name,
-        typeName(type, dataTypes, enumTypes, traitTypes, diagnostics, scope) ?? "void",
+        typeName(
+          type,
+          dataTypes,
+          enumTypes,
+          traitTypes,
+          diagnostics,
+          scope,
+          new Set(),
+          new Set(),
+          {},
+          declaration.genericBounds,
+        ) ?? "void",
       ]),
     ),
   };
+}
+
+/** One declared parameter or result type, resolved with the declaration's generics in scope. */
+function signatureDeclaredType(
+  type: TypeRef,
+  declaration: FunctionDecl,
+  context: ProgramCheckContext,
+  genericParameters: ReadonlySet<string>,
+  rowParameters: ReadonlySet<string>,
+  hashable: ReadonlySet<string>,
+): ValueType | undefined {
+  return typeName(
+    type,
+    context.dataTypes,
+    context.enumTypes,
+    context.traitTypes,
+    context.diagnostics,
+    genericParameters,
+    rowParameters,
+    hashable,
+    {},
+    declaration.genericBounds,
+  );
 }
 
 /**
@@ -290,29 +324,25 @@ export function createProgramSignatures(
         });
       }
     });
-    const parameters = declaration.parameters.map((parameter) => {
-      const type = typeName(
+    const parameters = declaration.parameters.map((parameter) =>
+      signatureDeclaredType(
         parameter.type,
-        dataTypes,
-        enumTypes,
-        traitTypes,
-        diagnostics,
+        declaration,
+        context,
         genericParameters,
         new Set(rowParameters),
         hashable,
-      );
-      return type;
-    });
-    const result = typeName(
-      declaration.result,
-      dataTypes,
-      enumTypes,
-      traitTypes,
-      diagnostics,
-      genericParameters,
-      new Set(rowParameters),
-      hashable,
+      ),
     );
+    const result =
+      signatureDeclaredType(
+        declaration.result,
+        declaration,
+        context,
+        genericParameters,
+        new Set(rowParameters),
+        hashable,
+      ) ?? "void";
     if (parameters.some((type) => type === undefined) || !result) return;
     const ambiguous = [...parameters, result]
       .map((type) => ambiguousProjection(type!, genericBounds, traitTypes))

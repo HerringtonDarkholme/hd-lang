@@ -54,17 +54,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AL. Review Finding O-03: Bounds Of Written Types
-
-From `audit/compiler/opus.md` (O-03, with its repro): a written type
-application such as `Box[T]` skips its declaration's generic bounds,
-except a top-level `Map` key. Check every written type application's
-arguments against the declaration's bounds, at the place it's written
-(`trait.bound.no-implied`, `types.generic.*`). Remove the Map-key
-special case once the general check covers it. Report the
-KNOWN_FAILURES rows this moves. Fixtures likely exist; add a TS test
-only where none does. Delete O-03 from `opus.md` when done.
-
 ### AM. Test Migration Batch 4
 
 The remaining 52 home-A rows of the TS-test triage (call-speculation 12,

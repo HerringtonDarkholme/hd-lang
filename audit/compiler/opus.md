@@ -4,41 +4,11 @@ Status: open findings of a bounded, read-only review of `src/` at `5ba7393e`. No
 
 ## Summary
 
-Open findings: O-03 (high: written type applications skip their declarations' generic bounds; task #280) and O-06 (whole-state speculation copies; perf F1). The others were fixed and deleted: O-05 and O-12 by 524f6816, O-08, O-09 and O-11 by bb5937bd.
+Open findings: O-06 (whole-state speculation copies; perf F1). The others were fixed and deleted: O-03 by the written-bounds check, O-05 and O-12 by 524f6816, O-08, O-09 and O-11 by bb5937bd.
 
 Each repro ran with `timeout 60 node bin/hd.js check|run|test FILE` from a scratch folder `scratch-230/` in the worktree, so output paths keep that prefix.
 
 ## Findings
-
-### O-03: type-argument bounds of written types are not checked, except a top-level `Map` key
-
-- Severity: high. Kind: bug (with a name-based special case).
-- Where: `src/checker/shared.ts:1309` and `src/checker/context.ts:1260` (both test `nominal?.name === "Map"` at the top level only).
-- A written type such as `Box[P]` never checks `P` against `Box`'s declared bound. The only bound check on a written type is a hard-coded `Map` key test, and it skips nested types such as `List[Map[P, i32]]`.
-
-Repro (`bound.hd`):
-
-```text
-data P:
-    x: i32
-
-data Box[T < Display]:
-    value: T
-
-fn nested(bs: List[Box[P]]) -> i32:
-    bs.len()
-
-fn count(ms: List[Map[P, i32]]) -> i32:
-    ms.len()
-
-pub fn main() -> void $ Console:
-    println("${nested([])} ${count([])}")
-```
-
-`node bin/hd.js check` reports `ok`. A top-level `fn top(b: Box[P])` is also accepted.
-
-- Expected: `unsatisfied-trait-bound` at `Box[P]` and at `Map[P, i32]` (`trait.bound.unsatisfied`, `types.map-key.declared-bound`).
-- Fix: check every type application's arguments against its declaration's bounds in the shared written-type validator; then `Map` needs no special case.
 
 ### O-06: overloaded trait calls copy the whole checker state per candidate
 

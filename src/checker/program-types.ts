@@ -58,6 +58,14 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       name: declaration.name,
       index,
       genericParameters: declaration.genericParameters,
+      ...((declaration.genericBounds ?? []).length > 0
+        ? {
+            declaredBounds: (declaration.genericBounds ?? []).map((bound) => ({
+              parameter: bound.parameter,
+              traits: [...bound.traits],
+            })),
+          }
+        : {}),
       ...(rows.size > 0
         ? { rowParameters: declaration.genericParameters.filter((name) => rows.has(name)) }
         : {}),
@@ -92,6 +100,14 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       ...(declaration.standardName ? { standardName: declaration.standardName } : {}),
       index,
       genericParameters: declaration.genericParameters,
+      ...((declaration.genericBounds ?? []).length > 0
+        ? {
+            declaredBounds: (declaration.genericBounds ?? []).map((bound) => ({
+              parameter: bound.parameter,
+              traits: [...bound.traits],
+            })),
+          }
+        : {}),
       sharedFields: [],
       variants: [],
       fields: [],
@@ -216,6 +232,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
         rowParameters,
         hashable,
         { validateRequirementKeys: false, validateDynamicSafety: false },
+        declaration.genericBounds ?? [],
       );
       const type = resolved ?? "void";
       // An unresolved type already has its own diagnostic: report it once, where it is written.
@@ -270,6 +287,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
             new Set(),
             new Set(),
             { validateRequirementKeys: false, validateDynamicSafety: false },
+            declaration.genericBounds ?? [],
           ) ?? "void",
         ] as const,
     );
@@ -319,6 +337,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
         new Set(),
         new Set(),
         { validateRequirementKeys: false, validateDynamicSafety: false },
+        declaration.genericBounds ?? [],
       );
       const type = resolved ?? "void";
       // An unresolved type already has its own diagnostic: report it once, where it is written.
@@ -373,6 +392,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           new Set(),
           new Set(),
           { validateRequirementKeys: false, validateDynamicSafety: false },
+          declaration.genericBounds ?? [],
         );
         const type = resolved ?? "void";
         // An unresolved type already has its own diagnostic: report it once, where it is written.
@@ -571,6 +591,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           rowParameters,
           new Set(),
           { validateRequirementKeys: false, validateDynamicSafety: false },
+          [...(declaration.genericBounds ?? []), ...method.genericBounds],
         );
         return type;
       });
@@ -585,6 +606,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           rowParameters,
           new Set(),
           { validateRequirementKeys: false, validateDynamicSafety: false },
+          [...(declaration.genericBounds ?? []), ...method.genericBounds],
         ) ?? "void";
       const referenceParameters: string[] = [];
       const valueParameters: string[] = [];
@@ -632,6 +654,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
               rowParameters,
               new Set(),
               { validateRequirementKeys: false, validateDynamicSafety: false },
+              [...(declaration.genericBounds ?? []), ...method.genericBounds],
             ) ?? "void",
           ] as const,
       );

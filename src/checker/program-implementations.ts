@@ -80,6 +80,42 @@ function parameterKinds(
   };
 }
 
+/**
+ * One trait-implementation method parameter type: `self` and `Self` name
+ * the target, anything else resolves against it.
+ */
+function implementationParameterType(
+  parameter: Parameter,
+  targetType: ValueType,
+  dataTypes: ProgramCheckContext["dataTypes"],
+  enumTypes: ProgramCheckContext["enumTypes"],
+  traitTypes: ProgramCheckContext["traitTypes"],
+  diagnostics: Diagnostic[],
+  methodGenerics: ReadonlySet<string>,
+  rows: ReadonlySet<string>,
+  hashable: ReadonlySet<string>,
+  enclosing: readonly GenericBound[],
+): ValueType {
+  if (parameter.name === "self") {
+    return parameter.type.name === "mut:Self" ? mutableType(targetType) : targetType;
+  }
+  if (parameter.type.name === "Self") return targetType;
+  return (
+    typeName(
+      parameter.type,
+      dataTypes,
+      enumTypes,
+      traitTypes,
+      diagnostics,
+      methodGenerics,
+      rows,
+      hashable,
+      {},
+      enclosing,
+    ) ?? "void"
+  );
+}
+
 function methodRequirements(
   method: MethodDecl,
   kinds: ReturnType<typeof parameterKinds>,
@@ -231,6 +267,9 @@ function specializeTrait(
           context.diagnostics,
           kinds.types,
           kinds.rows,
+          new Set(),
+          {},
+          implementation.genericBounds,
         ) ?? "void",
     ) ?? [];
   return {
@@ -416,6 +455,9 @@ function invalidInherentTarget(
     [],
     kinds.types,
     kinds.rows,
+    new Set(),
+    {},
+    implementation.genericBounds,
   );
   if (known !== undefined)
     return {
@@ -452,6 +494,8 @@ function prepareInherentImplementation(
       implementationKinds.types,
       implementationKinds.rows,
       hashableParameters(implementation),
+      {},
+      implementation.genericBounds,
     );
   let targetType: ValueType | undefined;
   if (!target && implementation.standard) {
@@ -516,6 +560,8 @@ function prepareInherentImplementation(
           kinds.types,
           kinds.rows,
           hashableParameters(implementation, method),
+          {},
+          [...implementation.genericBounds, ...(method.genericBounds ?? [])],
         ) ?? "void";
       return resolved;
     });
@@ -529,6 +575,8 @@ function prepareInherentImplementation(
         kinds.types,
         kinds.rows,
         hashableParameters(implementation, method),
+        {},
+        [...implementation.genericBounds, ...(method.genericBounds ?? [])],
       ) ?? "void";
     const functionName = `$inherent${implementationIndex}.${method.name}`;
     inherentMethods.push({
@@ -671,6 +719,8 @@ function resolveImplementationTarget(
       implementation.standard
         ? new Set(implementation.genericParameters)
         : hashableParameters(implementation),
+      {},
+      implementation.genericBounds,
     ) ?? "void";
   if (isKnownType(targetType, dataTypes, enumTypes, traitTypes)) return targetType;
   diagnostics.push({
@@ -761,6 +811,9 @@ function prepareAssociatedTypes(
         diagnostics,
         kinds.types,
         kinds.rows,
+        new Set(),
+        {},
+        implementation.genericBounds,
       ) ?? "void"
     );
   });
@@ -971,24 +1024,21 @@ export function prepareImplementations(context: ProgramCheckContext): void {
             expected.every((key, position) => key === actual[position])
           );
         });
-        const parameterTypes = method.parameters.map((parameter) => {
-          if (parameter.name === "self") {
-            return parameter.type.name === "mut:Self" ? mutableType(targetType) : targetType;
-          }
-          if (parameter.type.name === "Self") return targetType;
-          const type =
-            typeName(
-              parameter.type,
-              dataTypes,
-              enumTypes,
-              traitTypes,
-              diagnostics,
-              methodGenerics,
-              methodKinds.rows,
-              hashableParameters(implementation, method),
-            ) ?? "void";
-          return type;
-        });
+        const enclosing = [...implementation.genericBounds, ...(method.genericBounds ?? [])];
+        const parameterTypes = method.parameters.map((parameter) =>
+          implementationParameterType(
+            parameter,
+            targetType,
+            dataTypes,
+            enumTypes,
+            traitTypes,
+            diagnostics,
+            methodGenerics,
+            methodKinds.rows,
+            hashableParameters(implementation, method),
+            enclosing,
+          ),
+        );
         const expectedParameters = [
           ...(required.associated
             ? []
@@ -1010,6 +1060,8 @@ export function prepareImplementations(context: ProgramCheckContext): void {
             methodGenerics,
             methodKinds.rows,
             hashableParameters(implementation, method),
+            {},
+            enclosing,
           ) ?? "void";
         if (
           (method.parameters[0]?.name !== "self") !== required.associated ||

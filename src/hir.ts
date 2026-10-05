@@ -19,10 +19,25 @@ export interface HirDataField {
   readonly span: SourceSpan;
 }
 
+/**
+ * A generic bound as written on a data or enum declaration, such as
+ * `T < Display`: the parameter and the required trait names. Kept so a
+ * written type application can check its arguments
+ * (trait.bound.no-implied). Required trait arguments are left for the
+ * call-site check, which resolves them; comparing names only here never
+ * rejects valid code.
+ */
+export interface HirDeclaredBound {
+  readonly parameter: string;
+  readonly traits: readonly string[];
+}
+
 export interface HirData {
   readonly name: string;
   readonly index: number;
   readonly genericParameters: readonly string[];
+  /** Generic bounds as written on the declaration, for checking written applications. */
+  readonly declaredBounds?: readonly HirDeclaredBound[];
   /** Declared `+T`/`-T` markers (04-type-system.md#variance); absent means all invariant. */
   readonly variances?: readonly ("+" | "-" | undefined)[];
   /** Parameters used as requirement rows in a field type, as `R` in `fn() -> void $ R`. */
@@ -59,6 +74,8 @@ export interface HirEnum {
   /** Declared in a block suite, so not inspectable. */
   readonly local?: true;
   readonly genericParameters: readonly string[];
+  /** Generic bounds as written on the declaration, for checking written applications. */
+  readonly declaredBounds?: readonly HirDeclaredBound[];
   readonly sharedFields: readonly HirDataField[];
   readonly variants: readonly HirEnumVariant[];
   readonly fields: readonly HirDataField[];
