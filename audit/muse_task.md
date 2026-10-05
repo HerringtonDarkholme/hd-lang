@@ -48,10 +48,11 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
-- Dependencies, packages and the REPL (another agent is changing them): `src/dependencies/`,
-  `src/package.ts`, `src/manifest.ts`, `src/commands/dependencies.ts`,
-  `src/commands/package-mode.ts`, `src/commands/new.ts`, `src/repl*`,
-  `spec/cli/`.
+- Serde work (another agent is changing them): `lib/std/json.hd`, `lib/std/structure.hd`,
+  `lib/std/time.hd`, `src/commands/default-profile.ts`, `src/host-values.ts`,
+  `src/checker/derive*`, `src/checker/typed-derivation*`, and in `spec/`:
+  `std/json.md`, `lang/14-annotations.md`, the boundary sections of
+  `lang/10-modules.md`.
 
 ## Jobs
 
