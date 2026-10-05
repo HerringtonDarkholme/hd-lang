@@ -239,9 +239,6 @@ the performance tasks queued for later.
 
 From the archived Testing Redesign.
 
-- **Generator parameter style.** Generators take `mut Choices` today. The
-  owner is comparing a requirement-row style, `fn() -> T $ Choices`. It
-  waits for task #76, re-evaluation on a working compiler.
 - **A deferred fixture** (T54). A test-layout fixture package for
   `cyclic-test-dependency` is added when that rule needs coverage. The `# fixture-test-layout:`
   header exists ([Test Layouts](../spec/conformance/README.md#test-layouts)).
