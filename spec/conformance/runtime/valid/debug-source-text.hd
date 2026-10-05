@@ -8,7 +8,6 @@
 # expect-stdout: Option.None
 # expect-stdout: Result.Ok(3)
 # expect-stdout: Result.Err("bad")
-# expect-stdout: Meters(2.5)
 # expect-stdout: (1, "a")
 # expect-stdout: (1,)
 # expect-stdout: [1, 2]
@@ -19,7 +18,7 @@
 # test: debug writes each value the way hd source writes it, so the text pastes back as hd code
 # Spec std/format Debug Text: std-format.debug.source, std-format.debug.source.no-context,
 # std-format.debug.source.data, std-format.debug.source.variant, std-format.debug.source.prelude,
-# std-format.debug.source.newtype, std-format.debug.source.tuple, std-format.debug.source.list,
+# std-format.debug.source.tuple, std-format.debug.source.list,
 # std-format.debug.source.map, std-format.debug.source.string, std-format.debug.source.char.
 @derive(Debug)
 data Point:
@@ -36,9 +35,6 @@ enum Shape:
     Circle(radius: f64)
     Mixed(i32, label: string)
 
-@derive(Debug)
-type Meters(f64)
-
 pub fn main() -> void $ Console:
     println(debug(Point { x: 1, y: 2 }))
     println(debug(Empty {}))
@@ -53,7 +49,6 @@ pub fn main() -> void $ Console:
     println(debug(ok))
     let bad: Result[i32, string] = .Err("bad")
     println(debug(bad))
-    println(debug(Meters(2.5)))
     println(debug((+1, "a")))
     println(debug((+1,)))
     println(debug([+1, +2]))

@@ -1,5 +1,6 @@
 # test: dbg needs no requirement and prints any value
-# Spec 10 Debug Printing: module.dbg.no-requirement, module.dbg.value.no-bound.
+# Spec 10 Debug Printing: module.dbg.no-requirement, module.dbg.value.no-bound,
+# module.dbg.body.site, module.dbg.body.value.
 # Account implements no Debug, and dbg shows its private field; what dbg
 # prints is not judged.
 use std.testing.assert_equal
@@ -23,9 +24,16 @@ fn first[T](items: List[T]) -> T:
     dbg(items[0])
     items[0]
 
+fn show_all(pair: (i32, string)) -> void:
+    dbg(pair...)
+    dbg(values=pair)
+    let show: fn((i32, string)) -> void = dbg
+    show(pair)
+
 tests:
     it("dbg works in a pure function, generic code, and a unit test"):
         assert_equal(total([1, 2, 3]), 6, reason="dbg changes no sum")
         assert_equal(audit(Account { owner: "Ada", balance: 120 }), "Ada", reason="dbg changes no account")
         assert_equal(first(["a", "b"]), "a", reason="dbg prints a T")
         dbg(1, "two", [3])
+        show_all((+1, "one"))

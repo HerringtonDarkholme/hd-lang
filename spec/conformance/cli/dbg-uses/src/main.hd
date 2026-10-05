@@ -1,0 +1,7 @@
+pub fn main() -> void $ Console:
+    pair := (+1, "two")
+    dbg(pair...)
+    dbg(values=(+3, "x"))
+    let show: fn((i32, string)) -> void = dbg
+    show((+5, "five"))
+    println("done")

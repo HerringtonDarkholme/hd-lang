@@ -14,6 +14,7 @@ import {
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
+  tupleType,
 } from "../types.ts";
 import { Source_ } from "./generated-source.ts";
 import { substituteGenericType } from "./shared.ts";
@@ -50,6 +51,9 @@ const SUPPORT = {
   one: "__std_format_dbg_one",
   shown: "__std_format_dbg_shown",
   opaque: "__std_format_dbg_opaque",
+  bareOne: "__std_format_dbg_bare_one",
+  bareShown: "__std_format_dbg_bare_shown",
+  bareOpaque: "__std_format_dbg_bare_opaque",
   here: "__std_format_dbg_here",
   done: "__std_format_dbg_done",
   nested: "__std_format_dbg_nested",
@@ -63,16 +67,28 @@ export type DebugPrinter =
   | { readonly kind: "structural"; readonly type: ValueType }
   | { readonly kind: "opaque"; readonly text: string };
 
-/** A checked `dbg` or `dbg_text` call of the first pass. */
+/**
+ * What a first-pass site is: `dbg_text`, the REPL's value display; a direct
+ * `dbg` call with positional arguments, which has each argument's source
+ * text; a direct call without per-argument text (a spread, `values=`, or
+ * type arguments); or `dbg` used as a function value, which has no call site.
+ */
+export type DebugSiteMode = "text" | "positional" | "bare" | "value";
+
+/** A checked `dbg` or `dbg_text` use of the first pass. */
 interface DebugSite {
   readonly span: SourceSpan;
-  /** `dbg_text`: the REPL's value display, which returns the text. */
-  readonly text: boolean;
+  readonly mode: DebugSiteMode;
   readonly printers: readonly DebugPrinter[];
+  /** The static type of each value the site prints. */
+  readonly types: readonly ValueType[];
 }
 
 /** What the second pass checks a call as. */
 export interface DebugSitePlan {
+  readonly mode: DebugSiteMode;
+  /** A bare or value site's generated function, which prints every element. */
+  readonly site?: string;
   /** Each argument's printer, with structural ones named by their function. */
   readonly printers: readonly (DebugPrinter & { readonly function?: string })[];
 }
@@ -315,10 +331,11 @@ export function recordDebugSite(
   state: DebugPrintState,
   span: SourceSpan,
   key: string,
-  text: boolean,
+  mode: DebugSiteMode,
   printers: readonly DebugPrinter[],
+  types: readonly ValueType[],
 ): void {
-  state.sites.set(key, { span, text, printers });
+  state.sites.set(key, { span, mode, printers, types });
 }
 
 /** The first pass found a call that prints, so the program needs the second pass. */
@@ -361,14 +378,38 @@ export function debugPrinters(
     return `${printerName(type)}(${value}, hd__out)`;
   };
   const plans = new Map<string, DebugSitePlan>();
-  for (const [key, site] of state.sites)
-    plans.set(key, {
-      printers: site.printers.map((printer) =>
-        printer.kind === "structural"
-          ? { ...printer, function: printerName(printer.type) }
-          : printer,
-      ),
+  let siteCount = 0;
+  for (const [key, site] of state.sites) {
+    const printers = site.printers.map((printer) =>
+      printer.kind === "structural" ? { ...printer, function: printerName(printer.type) } : printer,
+    );
+    if (site.mode !== "bare" && site.mode !== "value") {
+      plans.set(key, { mode: site.mode, printers });
+      continue;
+    }
+    // A site without per-argument source text prints each value on a line of
+    // its own, after the call's location (a direct call) or alone (a
+    // function value), through one generated function that the call, or the
+    // function value, names (spec/lang/10-modules.md#r-module.dbg.body.site).
+    const site_ = `hd__dbg_site_${siteCount++}`;
+    const prefix = site.mode === "bare" ? `${state.locate(site.span)}: ` : "";
+    const header =
+      site.mode === "bare"
+        ? `fn ${site_}(values...: (${site.types.map((type) => out.type(type)).join(", ")}${site.types.length === 1 ? "," : ""})) -> void:`
+        : `fn ${site_}(values: ${out.type(tupleType(site.types))}) -> void:`;
+    out.add(header);
+    const lines = printers.map((printer, index) => {
+      const value = `values._${index}`;
+      const head = out.string(prefix);
+      if (printer.kind === "debug") return `${SUPPORT.bareShown}(${head}, ${value})`;
+      if (printer.kind === "opaque")
+        return `${SUPPORT.bareOpaque}(${head}, ${value}, ${out.string(printer.text)})`;
+      return `${SUPPORT.bareOne}(${head}, ${value}, ${printer.function!})`;
     });
+    for (const line of lines.length > 0 ? lines : ["pass"]) out.add(`    ${line}`);
+    out.add("");
+    plans.set(key, { mode: site.mode, site: site_, printers });
+  }
   const writerType = out.type(`mut:${writer.name}`);
   while (queue.length > 0) {
     const type = queue.shift()!;
@@ -547,7 +588,7 @@ export function debugPrinters(
     out.add("");
   }
   const functions =
-    names.size === 0
+    names.size === 0 && siteCount === 0
       ? []
       : out.program(span).functions.map((declaration): FunctionDecl => ({
           ...declaration,
@@ -565,7 +606,6 @@ export function debugPrintingCall(
   state: DebugPrintState,
   call: Extract<Expression, { kind: "call" }>,
   plan: DebugSitePlan,
-  text: boolean,
 ): Expression {
   const span = call.span;
   const name = (value: string): Expression => ({ kind: "name", name: value, span });
@@ -577,7 +617,13 @@ export function debugPrintingCall(
     span,
   });
   const location = state.locate(span);
-  if (text) {
+  if (plan.mode === "bare") {
+    // The same arguments, spread or named, reach the generated function,
+    // whose `values` vararg takes them by the plain rules.
+    const { typeArguments: _typeArguments, ...rest } = call;
+    return { ...rest, callee: name(plan.site!) };
+  }
+  if (plan.mode === "text") {
     const [value, width] = call.arguments;
     const printer = plan.printers[0]!;
     if (printer.kind === "debug") return invoke(SUPPORT.renderShown, [width!, value!]);

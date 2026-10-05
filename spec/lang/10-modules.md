@@ -773,9 +773,9 @@ fn check_order(id: i32, count: i32) -> bool:
 1. r[module.dbg.signature] `std.format` declares `dbg` as `@intrinsic pub fn dbg[Args < Tuple](values...: Args) -> void`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
 2. r[module.dbg.check] A `dbg` call is checked by the plain call rules and the [vararg rules](07-functions.md#varargs): `dbg()`, `dbg(x)`, and `dbg(a, b, c)` collect their arguments into `Args` as [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr) says. No rule gives `dbg` a type that the declaration does not.
 3. r[module.dbg.tuple-argument] `dbg((a, b, c))` is a call with one argument, a tuple, as [`fn.vararg.no-auto-spread`](07-functions.md#r-fn.vararg.no-auto-spread) says. It prints one line for the tuple, where `dbg(a, b, c)` prints one line for each argument.
-4. r[module.dbg.call] A use of `dbg` must be a direct call whose arguments are positional and not spread, with no type arguments. Any other use, such as `dbg` as a value, is an error. Error: `invalid-dbg-call`.
-5. r[module.dbg.body.print] The body evaluates the arguments from left to right and prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type.
-6. r[module.dbg.body.site] The body knows each argument's source text and the call's location, which no ordinary hd parameter can supply, as [Debug Lines](#debug-lines) says. `dbg()` prints only the location.
+4. r[module.dbg.body.print] The body evaluates the arguments from left to right and prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type.
+5. r[module.dbg.body.site] The body prints what it knows of the call site, which no ordinary hd parameter can supply, as [Debug Lines](#debug-lines) says. A direct call with only positional arguments and no explicit type arguments knows each argument's source text. Any other call knows only the location.
+6. r[module.dbg.body.value] A `dbg` used as a function value, as in `let show: fn((i32, string)) -> void = dbg`, has no call site, so its body prints each element of its one tuple argument on a line of its own, with no location.
 7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test case](#r-module.testing.unit-row.anywhere), and in generic code.
 8. r[module.dbg.not-behavior] What `dbg` prints is diagnostic output, not program behavior. It is not an effect, a replay does not record it, and tools that judge a program's output ignore it.
 
@@ -786,12 +786,16 @@ fn total(prices: List[i32]) -> i32:
         sum = sum + price
         dbg(sum)  # valid: no Console in the row
     sum
+
+fn show_all(pair: (i32, string)) -> void:
+    dbg(pair...)                           # a line per element, after the location
+    dbg(values=pair)                       # the same
+    let show: fn((i32, string)) -> void = dbg
+    show(pair)                             # a line per element, no location
 ```
 
 ```text
 pub fn main() -> void:
-    show := dbg          # error: invalid-dbg-call
-    _ := dbg::[i32](1)   # error: invalid-dbg-call
     let x: i32 = dbg(1)  # error: type-mismatch
 ```
 
@@ -804,9 +808,10 @@ pub fn main() -> void:
 
 #### Debug Lines
 
-1. r[module.dbg.line] Each argument of a `dbg` call prints one line: the call's location, `: `, the argument's source text, ` = `, and its value.
-2. r[module.dbg.location] The location is `FILE:LINE:COLUMN`: the file as diagnostics name it, and the line and column where the call begins.
-3. r[module.dbg.stream] A `dbg` line goes to the program's debug output, which a program that `hd` runs writes to standard error. [Debug Output](../cli/command-line.md#debug-output) says where it goes in tests and the REPL.
+1. r[module.dbg.line] Each argument of a direct `dbg` call with positional arguments prints one line: the call's location, `: `, the argument's source text, ` = `, and its value.
+2. r[module.dbg.line.bare] A call that has no per-argument source text, as [`module.dbg.body.site`](#r-module.dbg.body.site) says, prints one line for each element of `values`: the call's location, `: `, and the element's value.
+3. r[module.dbg.location] The location is `FILE:LINE:COLUMN`: the file as diagnostics name it, and the line and column where the call begins.
+4. r[module.dbg.stream] A `dbg` line goes to the program's debug output, which a program that `hd` runs writes to standard error. [Debug Output](../cli/command-line.md#debug-output) says where it goes in tests and the REPL.
 
 #### Debug Values
 

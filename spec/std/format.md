@@ -34,7 +34,7 @@ The language tier keeps what the compiler knows by name
 | r[std-format.debug.source.data] Data | a `data` value | `Point { x: 1, y: 2 }`, and `Empty {}` without fields |
 | r[std-format.debug.source.variant] Enum variant | a variant of an enum | the qualified variant, then a call's arguments: positional payloads first, then named ones as `name=value`, as in `Shape.Dot`, `Shape.Pair(1, 2)`, `Shape.Circle(radius=2.0)`, and `Shape.Mixed(1, label="x")` |
 | r[std-format.debug.source.prelude] Option and Result | `T?` and `Result[T, E]` | `Option.Some(1)`, `Option.None`, `Result.Ok(1)`, and `Result.Err("bad")`, as [`data.prelude.values`](../lang/08-data-and-enums.md#r-data.prelude.values) spells them |
-| r[std-format.debug.source.newtype] Newtype | a newtype value | its constructor call, as in `Meters(2.5)` |
+| r[std-format.debug.source.newtype] Newtype | a newtype value | its constructor call, as in `Meters(2.5)`, unless it derives `Debug`, which writes the base value as [`trait.derive.newtype.templated`](../lang/09-traits.md#r-trait.derive.newtype.templated) says |
 | r[std-format.debug.source.tuple] Tuple | a tuple | its elements in parentheses, as in `(1, "a")`, `(1,)`, and `()` |
 | r[std-format.debug.source.list] List | a `List[T]` | its elements in brackets, as in `[1, 2]`, and `[]` when empty |
 | r[std-format.debug.source.map] Map | a `Map[K, V]` | its entries in braces, as in `{"a": 1}` |
@@ -122,7 +122,7 @@ fn shown(timeout: Duration) -> string:
 
 1. r[std-format.debug.std-types] Every public data type, enum, and newtype that `std` declares implements `Debug` when the type of each of its members implements `Debug`.
 2. r[std-format.debug.std-types.generic] A generic one implements `Debug` under the bounds that its members need, as in `impl[T < Debug] Debug for Reverse[T]`.
-3. r[std-format.debug.std-types.calls] Its builder calls are those that `@derive(Debug)` generates for its declaration, by [`std-format.debug.derive-builders.source`](#r-std-format.debug.derive-builders.source). A newtype writes its constructor call, `out.debug_tuple(type_name)`, then `.field(base_value)`, then `.finish()`, so a derived newtype shows its name as [`std-format.debug.source.newtype`](#r-std-format.debug.source.newtype) says.
+3. r[std-format.debug.std-types.calls] Its builder calls are those that `@derive(Debug)` generates for its declaration, by [`std-format.debug.derive-builders.source`](#r-std-format.debug.derive-builders.source). A newtype with `@derive(Debug)` writes its base value, as [`trait.derive.newtype.templated`](../lang/09-traits.md#r-trait.derive.newtype.templated) gives. A std newtype with a hand-written `Debug`, such as `Path` or `ExitCode`, writes its constructor call.
 4. r[std-format.debug.std-types.sequences] `Deque` and `Heap` are exceptions to [`std-format.debug.std-types.calls`](#r-std-format.debug.std-types.calls): each writes one `debug_list` entry per element, as `List` does. A `Deque` writes them from front to back, and a `Heap` in an order this chapter does not specify.
 5. r[std-format.debug.std-types.set] `Set` is one more exception: it writes one `debug_list` entry per element, in iteration order.
 6. r[std-format.debug.std-types.exempt-members] A type with a member that holds a function value, or a trait value whose trait does not extend `Debug`, does not implement `Debug`. Examples are `Iterator[T]` and `Choices`.

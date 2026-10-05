@@ -2504,10 +2504,9 @@ cli/test-integration-env	cli
 cli/test-tasks	cli
 runtime/valid/dbg-prints-void.hd	runtime
 runtime/valid/dbg-without-requirement.hd	runtime
-typing/invalid/dbg-as-value.hd	type
 typing/invalid/dbg-void-binding.hd	type
-typing/invalid/dbg-type-arguments.hd	type
 typing/warnings/unused-debug-text.hd	type
 cli/dbg-release	cli
 cli/dbg-values	cli
 runtime/valid/debug-source-text.hd	runtime
+cli/dbg-uses	cli

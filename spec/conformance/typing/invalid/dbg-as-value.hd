@@ -1,4 +1,0 @@
-# test: dbg is a compiler intrinsic, so it is only called, never used as a value
-# Spec 10 Debug Printing: module.dbg.call.
-pub fn main() -> void:
-    show := dbg  # diagnostic: invalid-dbg-call

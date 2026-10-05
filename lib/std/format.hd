@@ -607,6 +607,17 @@ fn dbg_opaque[T](head: string, value: T, text: string) -> T:
     dbg_write("$head = $text")
     value
 
+# One line of a `dbg` call that has no per-argument source text, or no call
+# site at all: `prefix` is the location and `: `, or empty, then the value.
+fn dbg_bare_one[T](prefix: string, value: T, show: fn(T, mut DebugWriter) -> void) -> void:
+    dbg_write("$prefix${dbg_layout(prefix.len(), value, show)}")
+
+fn dbg_bare_shown[T < Debug](prefix: string, value: T) -> void:
+    dbg_bare_one(prefix, value, fn(shown: T, out: mut DebugWriter) -> void: shown.debug(out))
+
+fn dbg_bare_opaque[T](prefix: string, value: T, text: string) -> void:
+    dbg_write("$prefix$text")
+
 # What every `dbg(...)` call of one or more arguments ends in: the printed
 # values, as one value or a tuple of them, which the call then drops, so the
 # call has the type `void` (r-module.dbg.signature).

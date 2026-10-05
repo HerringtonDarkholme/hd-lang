@@ -509,7 +509,7 @@ lang/10-modules.md	19	mixed	typing/invalid/it-outside-test-code.hd
 lang/10-modules.md	20	mixed	typing/invalid/lowercase-list-type.hd
 lang/10-modules.md	21	accept	runtime/valid/dbg-prints-void.hd
 lang/10-modules.md	22	accept	runtime/valid/dbg-without-requirement.hd
-lang/10-modules.md	23	mixed	typing/invalid/dbg-as-value.hd|typing/invalid/dbg-type-arguments.hd|typing/invalid/dbg-void-binding.hd
+lang/10-modules.md	23	mixed	typing/invalid/dbg-void-binding.hd
 lang/10-modules.md	24	accept	runtime/valid/dbg-without-requirement.hd
 lang/10-modules.md	25	mixed	typing/warnings/unused-debug-text.hd
 lang/10-modules.md	26	type-fragment	-

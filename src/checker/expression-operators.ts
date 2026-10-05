@@ -19,7 +19,7 @@ import type { Signature } from "./context.ts";
 import { ALL_COMBINATOR } from "./standard-traits.ts";
 import { loopNameHint } from "./cannot-infer.ts";
 import { FACTS_OF_INTRINSIC } from "./function-facts.ts";
-import { DBG_INTRINSIC, DBG_TEXT_INTRINSIC } from "./debug-print.ts";
+import { DBG_INTRINSIC } from "./debug-print.ts";
 import {
   containsGenericType,
   genericTypeName,
@@ -92,6 +92,12 @@ function isPrimitiveOperand(type: ValueType): boolean {
 }
 
 export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker {
+  /** `dbg` named as a function value (checker/debug-print-calls.ts). */
+  protected abstract checkDebugFunctionValue(
+    expression: Extract<Expression, { kind: "name" }>,
+    expected: ValueType | undefined,
+  ): HirExpression | undefined;
+
   /**
    * The operator-trait call `Op::[R]::m(receiver, argument)` of a non-primitive
    * operand, or `Op::m(receiver)` for a unary operator
@@ -253,13 +259,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             `'${expression.name}' is a compiler intrinsic and must be called directly`,
             expression.span,
           );
-        // `dbg` is only a callee (spec/lang/10-modules.md#r-module.dbg.call).
-        if (signature?.intrinsic === DBG_INTRINSIC || signature?.intrinsic === DBG_TEXT_INTRINSIC)
-          this.fail(
-            "invalid-dbg-call",
-            `'${expression.name}' is a compiler intrinsic and must be called directly`,
-            expression.span,
-          );
+        // `dbg` as a function value is an ordinary use of its declaration;
+        // its body prints each argument without a call site.
+        if (signature?.intrinsic === DBG_INTRINSIC) {
+          const printing = this.checkDebugFunctionValue(expression, _expected);
+          if (printing) return printing;
+        }
         if (signature) {
           if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0) {
             const instantiated = this.instantiateFunctionValue(expression, signature, _expected);

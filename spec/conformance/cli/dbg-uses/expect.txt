@@ -1,0 +1,11 @@
+# A spread and values= have no per-argument source text, so each element
+# prints after the location. A dbg used as a function value has no call
+# site, so each element prints alone.
+run: hd run
+stdout: done
+stderr: src/main.hd:3:5: 1
+stderr: src/main.hd:3:5: "two"
+stderr: src/main.hd:4:5: 3
+stderr: src/main.hd:4:5: "x"
+stderr: 5
+stderr: "five"
