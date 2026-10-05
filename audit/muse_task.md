@@ -26,6 +26,10 @@ When the queue is empty, report that and wait.
   `node --test --experimental-strip-types <the test files you touch>`. Run
   the full `pnpm run check` and `pnpm run test:ui` once, right before the
   push.
+- Don't start a full `pnpm run check` or a full conformance run while
+  another agent's full run is going (check the load average with
+  `uptime`; above ~30, wait for it to drop). Two full runs at once push
+  the load past 300 and make both time out.
 - Never wait with an `until` or `while … sleep` loop: run a check in the
   foreground with a timeout. Use `gh run watch` if you ever need to wait for
   CI.
