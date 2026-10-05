@@ -21,6 +21,14 @@ When the queue is empty, report that and wait.
   `pnpm run check`, and push again. Never force-push.
 - A job is done only when its commit is on `origin/main`. A local commit
   is not done: push it.
+- While working, run only scoped checks: `node --experimental-strip-types
+  test/run-portable.ts --changed` (or `--phase parse|type|runtime`) and
+  `node --test --experimental-strip-types <the test files you touch>`. Run
+  the full `pnpm run check` and `pnpm run test:ui` once, right before the
+  push.
+- Never wait with an `until` or `while … sleep` loop: run a check in the
+  foreground with a timeout. Use `gh run watch` if you ever need to wait for
+  CI.
 - Use pnpm only. Add files by name, never `git add -A`.
 - Put the size-guard numbers in each commit message: `compileToWat` of the
   tiny program and the one-test program (today 16,350 B / 23 functions and
