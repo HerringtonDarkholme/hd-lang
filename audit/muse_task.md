@@ -44,15 +44,41 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
-- Literal typing: `src/checker/expression-literals.ts`,
-  `literal-arguments.ts`, `literal-join.ts`, `literal-retry.ts`,
-  `expression-operators.ts`, `calls.ts`, `statements.ts`.
 - Conformance harness, CLI and package mode (other agents are changing
   them): `src/cli-args.ts`, `src/commands/`, `src/package.ts` and any
   manifest or package-discovery code, `test/hd-adapter*.ts`,
   `test/hd-in-process.ts`, `test/run-portable.ts`, `spec/tools/`.
 
 ## Jobs
+
+### AF. Last Internal Names In Diagnostics
+
+From `audit/job11-resweep-after-literal-change.md`: one fixture still leaks
+`trait:Shown` (`typing/invalid/least-common-type-supertrait-widening.hd`),
+because `src/checker/expression-literals.ts` (~line 96) calls
+`typeSourceText`, not `displayType`. Literal typing has landed, so those
+files are open again.
+
+- Move every diagnostic site that still formats a type with
+  `typeSourceText` to `displayType`: `expression-literals.ts`,
+  `expression-operators.ts`, `derive-intrinsics.ts`, `trait-calls.ts`,
+  `parser.ts`, and any others a grep finds.
+- Done when a rerun of the job 3 sweep finds 0 leaks. Delete
+  `audit/job11-resweep-after-literal-change.md` in the same commit once
+  its points are handled (the `usize`/`u32` display point is the owner's
+  call; leave it out).
+
+### AG. Perf F7 And F10
+
+From `audit/compiler/perf-audit.md`:
+
+- **F7:** `collectReadLocals` walks each function body after checking.
+  Collect the read locals while checking instead.
+- **F10:** the WAT is parsed twice after it is generated. Parse it once.
+
+Report the tiny-program compile time before and after (median of 5) and
+`pnpm run perf:check`. Delete F7 and F10 from `perf-audit.md` when they
+are fixed.
 
 ### AE. `hd doc`
 
