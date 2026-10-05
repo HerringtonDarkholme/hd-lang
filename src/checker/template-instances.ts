@@ -719,6 +719,32 @@ export function forwardNewtype(
     // so a base type without it is `derive-field-missing-trait` at the base
     // type (trait.derive.newtype.requires.error).
     const at = derivedBaseSpan(item.declaration, item.trait);
+    if (item.trait === "Debug" && method.name === "debug" && receiver && checked) {
+      // A newtype's `Debug` writes its construction, `Meters(2.5)`, so the
+      // printed value pastes back as hd code. The `field` call is the line
+      // that needs the base type's `Debug`.
+      const send = (target: Expression, name: string, sent: Expression[], at: SourceSpan) =>
+        ({
+          kind: "call",
+          callee: { kind: "member", receiver: target, name, span },
+          arguments: sent,
+          span: at,
+        }) satisfies Expression;
+      const writer: Expression = { kind: "name", name: method.parameters[1]!.name, span };
+      const name: Expression = {
+        kind: "string",
+        value: displayType(item.declaration.name),
+        span,
+      };
+      const opened = send(writer, "debug_tuple", [name], span);
+      const field = send(opened, "field", [unwrap({ kind: "name", name: "self", span })], at);
+      methods.push({
+        ...renameTypes(method, new Map([[parameter, item.declaration.name]])),
+        body: [{ kind: "expression", expression: send(field, "finish", [], span), span }],
+        span,
+      });
+      continue;
+    }
     const helper = checked ? newtypeHelper(item.trait, method, parameter, helpers) : undefined;
     if (helper) usedHelpers.add(helper);
     const call: Expression = helper

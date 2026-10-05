@@ -12,4 +12,4 @@ tests:
         assert_equal(debug(()), "()", reason="Debug of the empty tuple")
         assert_equal(debug((1, 2)), "(1, 2)", reason="Debug of two elements")
         let some: i32? = .Some(1)
-        assert_equal(debug(some), "Some(1)", reason="a named value with one field has no comma")
+        assert_equal(debug(some), "Option.Some(1)", reason="a named value with one field has no comma")

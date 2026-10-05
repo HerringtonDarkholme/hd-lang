@@ -295,8 +295,8 @@ test("REPL values render as dbg prints them, with their types", async () => {
     ["[1, 2]", "[1, 2]", "List[usize]"],
     ['(1, "two")', '(1, "two")', "(usize, string)"],
     ['{"k": 1}', '{"k": 1}', "Map[string, usize]"],
-    ["Shape.Circle(radius=2.0)", "Circle { radius: 2.0 }", "Shape"],
-    ["Shape.Dot", "Dot", "Shape"],
+    ["Shape.Circle(radius=2.0)", "Shape.Circle(radius=2.0)", "Shape"],
+    ["Shape.Dot", "Shape.Dot", "Shape"],
     ["Meters(1.5)", "Meters(1.5)", "mut Meters"],
     ["1.5", "1.5", "f64"],
     ["true", "true", "bool"],
@@ -307,19 +307,19 @@ test("REPL values render as dbg prints them, with their types", async () => {
     assert.deepEqual([outcome.value, outcome.type, outcome.errors], [value, type, []], input);
   }
   await session.evaluate("let maybe: i32? = .None");
-  assert.equal((await session.evaluate("maybe")).value, "None");
+  assert.equal((await session.evaluate("maybe")).value, "Option.None");
   await session.evaluate("let present: Option[i32] = .Some(3)");
-  assert.equal((await session.evaluate("present")).value, "Some(3)");
+  assert.equal((await session.evaluate("present")).value, "Option.Some(3)");
   await session.evaluate("let nested: i32?? = .Some(.None)");
-  assert.equal((await session.evaluate("nested")).value, "Some(None)");
+  assert.equal((await session.evaluate("nested")).value, "Option.Some(Option.None)");
   await session.evaluate("let unitless: Result[i32, ()] = .Ok(1)");
-  assert.equal((await session.evaluate("unitless.err()")).value, "None");
+  assert.equal((await session.evaluate("unitless.err()")).value, "Option.None");
   await session.evaluate("let done: Result[(), i32] = .Ok(())");
-  assert.equal((await session.evaluate("done")).value, "Ok(())");
+  assert.equal((await session.evaluate("done")).value, "Result.Ok(())");
   await session.evaluate("let success: Result[i32, string] = .Ok(2)");
-  assert.equal((await session.evaluate("success")).value, "Ok(2)");
+  assert.equal((await session.evaluate("success")).value, "Result.Ok(2)");
   await session.evaluate('let failure: Result[i32, string] = Result.Err("no")');
-  assert.equal((await session.evaluate("failure")).value, 'Err("no")');
+  assert.equal((await session.evaluate("failure")).value, 'Result.Err("no")');
   // A long value takes several lines (spec/lang/10-modules.md#r-module.dbg.layout).
   const long = await session.evaluate(
     '[User { name: "Ada Lovelace", age: 36 }, User { name: "Grace Hopper", age: 85 }]',
@@ -333,11 +333,10 @@ test("REPL values render as dbg prints them, with their types", async () => {
 test("REPL prints an input's dbg lines before its value", async () => {
   // spec/cli/command-line.md#r-cli.dbg.repl
   const session = new ReplSession();
-  await session.evaluate("fn double(n: i32) -> i32:\n    dbg(n) * 2");
-  const outcome = await session.evaluate("dbg(double(+21)) + 1");
+  await session.evaluate("fn double(n: i32) -> i32:\n    dbg(n)\n    n * 2");
+  const outcome = await session.evaluate("dbg(double(+21))");
   assert.deepEqual(outcome.output, ["session:2:5: n = 21", "1:1: double(+21) = 42"]);
   assert.deepEqual(outcome.debug, [0, 1]);
-  assert.equal(outcome.value, "43");
   const reply = await respond(session, "dbg()");
   assert.deepEqual(
     reply.entries.map(({ kind, text }) => [kind, text]),

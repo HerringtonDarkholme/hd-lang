@@ -395,18 +395,18 @@ describe("dependencies", needsGit, () => {
         {
           "hd.toml": '[package]\nname = "noisy"\n',
           "src/lib.hd":
-            "pub fn twice(n: i32) -> i32:\n    dbg(n) * 2\n\npub fn thrice(n: i32) -> i32:\n    dbg(n) * 3\n",
+            "pub fn twice(n: i32) -> i32:\n    dbg(n)\n    n * 2\n\npub fn thrice(n: i32) -> i32:\n    dbg(n)\n    n * 3\n",
         },
       ],
     ]);
     const directory = await app(
       "debugger",
-      "use dep.noisy.{twice, thrice}\nuse dep.local.{inc}\n\npub fn main() -> void $ Console:\n    println(dbg(twice(thrice(inc(1)))))\n",
+      "use dep.noisy.{twice, thrice}\nuse dep.local.{inc}\n\npub fn main() -> void $ Console:\n    result := twice(thrice(inc(1)))\n    dbg(result)\n    println(result)\n",
       '\n[dependencies]\nnoisy = "github.com/acme/noisy@1.0.0"\nlocal = { path = "local" }\n',
     );
     await writeTree(join(directory, "local"), {
       "hd.toml": '[package]\nname = "local"\n',
-      "src/lib.hd": "pub fn inc(n: i32) -> i32:\n    dbg(n + 1)\n",
+      "src/lib.hd": "pub fn inc(n: i32) -> i32:\n    dbg(n + 1)\n    n + 1\n",
     });
     const fetched = await hd(directory, ["fetch"]);
     assert.equal(fetched.status, 0, fetched.stderr);
@@ -416,7 +416,7 @@ describe("dependencies", needsGit, () => {
     // The package and its path dependency print (module.dbg.own-code); the
     // fetched package prints nothing and warns once (module.dbg.dependency).
     assert.match(ran.stderr, /local\/src\/lib\.hd:2:5: n \+ 1 = 2$/m);
-    assert.match(ran.stderr, /src\/main\.hd:5:13: twice\(thrice\(inc\(1\)\)\) = 12$/m);
+    assert.match(ran.stderr, /src\/main\.hd:6:5: result = 12$/m);
     assert.doesNotMatch(ran.stderr, /: n = /);
     const checked = await hd(directory, ["check"]);
     assert.equal(checked.status, 0, checked.stderr);

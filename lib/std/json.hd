@@ -577,26 +577,26 @@ impl Debug for Number:
 impl Debug for Json:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .Null => out.debug_struct("Null").finish()
-            .Bool(value) => out.debug_struct("Bool").field("value", value).finish()
-            .Number(value) => out.debug_struct("Number").field("value", value).finish()
-            .Text(value) => out.debug_struct("Text").field("value", value).finish()
-            .Array(items) => out.debug_struct("Array").field("items", items).finish()
-            .Object(fields) => out.debug_struct("Object").field("fields", fields).finish()
+            .Null => out.write("Json.Null")
+            .Bool(value) => out.debug_tuple("Json.Bool").named_field("value", value).finish()
+            .Number(value) => out.debug_tuple("Json.Number").named_field("value", value).finish()
+            .Text(value) => out.debug_tuple("Json.Text").named_field("value", value).finish()
+            .Array(items) => out.debug_tuple("Json.Array").named_field("items", items).finish()
+            .Object(fields) => out.debug_tuple("Json.Object").named_field("fields", fields).finish()
 
 impl Debug for JsonError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .UnexpectedEnd(position) => out.debug_struct("UnexpectedEnd").field("position", position).finish()
-            .UnexpectedCharacter(position) => out.debug_struct("UnexpectedCharacter").field("position", position).finish()
-            .InvalidEscape(position) => out.debug_struct("InvalidEscape").field("position", position).finish()
-            .LoneSurrogate(position) => out.debug_struct("LoneSurrogate").field("position", position).finish()
-            .ControlCharacter(position) => out.debug_struct("ControlCharacter").field("position", position).finish()
-            .NumberOutOfRange(position) => out.debug_struct("NumberOutOfRange").field("position", position).finish()
-            .NestingTooDeep(position) => out.debug_struct("NestingTooDeep").field("position", position).finish()
-            .WrongType(path, expected) => out.debug_struct("WrongType").field("path", path).field("expected", expected).finish()
-            .MissingField(path) => out.debug_struct("MissingField").field("path", path).finish()
-            .UnknownVariant(path, name) => out.debug_struct("UnknownVariant").field("path", path).field("name", name).finish()
+            .UnexpectedEnd(position) => out.debug_tuple("JsonError.UnexpectedEnd").named_field("position", position).finish()
+            .UnexpectedCharacter(position) => out.debug_tuple("JsonError.UnexpectedCharacter").named_field("position", position).finish()
+            .InvalidEscape(position) => out.debug_tuple("JsonError.InvalidEscape").named_field("position", position).finish()
+            .LoneSurrogate(position) => out.debug_tuple("JsonError.LoneSurrogate").named_field("position", position).finish()
+            .ControlCharacter(position) => out.debug_tuple("JsonError.ControlCharacter").named_field("position", position).finish()
+            .NumberOutOfRange(position) => out.debug_tuple("JsonError.NumberOutOfRange").named_field("position", position).finish()
+            .NestingTooDeep(position) => out.debug_tuple("JsonError.NestingTooDeep").named_field("position", position).finish()
+            .WrongType(path, expected) => out.debug_tuple("JsonError.WrongType").named_field("path", path).named_field("expected", expected).finish()
+            .MissingField(path) => out.debug_tuple("JsonError.MissingField").named_field("path", path).finish()
+            .UnknownVariant(path, name) => out.debug_tuple("JsonError.UnknownVariant").named_field("path", path).named_field("name", name).finish()
 
 # ---------------------------------------------------------------------------
 # Typed JSON (spec/std/json.md#typed-json): JSON as a format that reads the

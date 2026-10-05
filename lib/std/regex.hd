@@ -997,19 +997,19 @@ impl Debug for Match:
 
 impl Debug for RegexErrorKind:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct(match self:
-            .MissingParen => "MissingParen"
-            .UnmatchedParen => "UnmatchedParen"
-            .MissingBracket => "MissingBracket"
-            .BadEscape => "BadEscape"
-            .BadRange => "BadRange"
-            .NothingToRepeat => "NothingToRepeat"
-            .BadRepeat => "BadRepeat"
-            .UnsupportedGroup => "UnsupportedGroup"
-            .BadGroupName => "BadGroupName"
-            .DuplicateGroupName => "DuplicateGroupName"
-            .TooLarge => "TooLarge"
-        ).finish()
+        out.write(match self:
+            .MissingParen => "RegexErrorKind.MissingParen"
+            .UnmatchedParen => "RegexErrorKind.UnmatchedParen"
+            .MissingBracket => "RegexErrorKind.MissingBracket"
+            .BadEscape => "RegexErrorKind.BadEscape"
+            .BadRange => "RegexErrorKind.BadRange"
+            .NothingToRepeat => "RegexErrorKind.NothingToRepeat"
+            .BadRepeat => "RegexErrorKind.BadRepeat"
+            .UnsupportedGroup => "RegexErrorKind.UnsupportedGroup"
+            .BadGroupName => "RegexErrorKind.BadGroupName"
+            .DuplicateGroupName => "RegexErrorKind.DuplicateGroupName"
+            .TooLarge => "RegexErrorKind.TooLarge"
+        )
 
 impl Debug for RegexError:
     fn debug(self, out: mut DebugWriter) -> void:

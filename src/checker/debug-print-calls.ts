@@ -6,8 +6,6 @@ import {
   DBG_TEXT_INTRINSIC,
   debugPrinter,
   debugPrintingCall,
-  debugQuietCall,
-  debugReleaseReplacement,
   recordDebugSite,
   registeredDebugPrint,
   type DebugPrinter,
@@ -21,6 +19,11 @@ interface NamedCallExpression extends Extract<Expression, { kind: "call" }> {
 
 /** Calls of the std functions that the checker lowers itself: `facts_of` and `dbg`. */
 export abstract class DebugPrintChecker extends InspectChecker {
+  protected abstract checkDeclaredCall(
+    expression: NamedCallExpression,
+    expected?: ValueType,
+  ): HirExpression;
+
   /** A call of `facts_of`, `dbg`, or the REPL's `dbg_text`; undefined for any other callee. */
   protected checkIntrinsicFunctionCall(
     expression: NamedCallExpression,
@@ -30,7 +33,7 @@ export abstract class DebugPrintChecker extends InspectChecker {
     if (intrinsic === FACTS_OF_INTRINSIC)
       return this.checkExpression(this.factsOfCall(expression), expected);
     if (intrinsic === DBG_INTRINSIC || intrinsic === DBG_TEXT_INTRINSIC)
-      return this.checkDebugPrintCall(expression, intrinsic === DBG_TEXT_INTRINSIC, expected);
+      return this.checkDebugPrintCall(expression, intrinsic === DBG_TEXT_INTRINSIC);
     return undefined;
   }
 
@@ -47,20 +50,14 @@ export abstract class DebugPrintChecker extends InspectChecker {
   }
 
   /**
-   * A `dbg` call, or the REPL's `dbg_text` call when `text`
-   * (spec/lang/10-modules.md#debug-printing, checker/debug-print.ts). The
-   * first pass checks its arguments alone and records their types; the
-   * second checks it as calls of `std.format`'s printing functions. A call in
-   * a fetched dependency stays its arguments alone in both.
+   * A `dbg` call is an ordinary call of its declaration
+   * (spec/lang/10-modules.md#r-module.dbg.signature), whose body prints
+   * nothing. In the user's own code the second pass swaps in the printing
+   * body (`debugPrintingCall`), which needs each argument's static type, so
+   * the first pass records the types that the ordinary check collected. The
+   * REPL's `dbg_text` call takes the same two passes.
    */
-  private checkDebugPrintCall(
-    expression: NamedCallExpression,
-    text: boolean,
-    context?: ValueType,
-  ): HirExpression {
-    // A `dbg(x)` statement returns `x` to no one, so `void` constrains nothing
-    // (spec/lang/10-modules.md#r-module.dbg.one.expected).
-    const expected = context === "void" ? undefined : context;
+  private checkDebugPrintCall(expression: NamedCallExpression, text: boolean): HirExpression {
     if (
       expression.typeArguments?.length ||
       expression.callee.typeArguments?.length ||
@@ -73,59 +70,53 @@ export abstract class DebugPrintChecker extends InspectChecker {
         expression.span,
       );
     const state = registeredDebugPrint(this.traitTypes);
-    if (!state) return this.checkExpression(debugQuietCall(expression), expected);
     const key = sourceSpanKey(expression.span);
-    const fetched = text ? undefined : state.fetchedPackage(expression.span);
-    if (fetched !== undefined) {
+    const fetched = text || !state ? undefined : state.fetchedPackage(expression.span);
+    if (fetched !== undefined && state) {
       // A fetched dependency's call prints nothing, and its package warns
       // once (spec/lang/10-modules.md#r-module.dbg.dependency).
       if (!state.quiet.has(fetched)) state.quiet.set(fetched, expression.span);
-      return this.checkExpression(debugQuietCall(expression), expected);
     }
+    if (!state || fetched !== undefined) return this.checkDeclaredCall(expression);
     if (!text && state.release && !state.plans) {
-      // spec/lang/10-modules.md#r-module.dbg.release, with its fix-it.
-      const replacement = debugReleaseReplacement(state, expression);
+      // spec/lang/10-modules.md#r-module.dbg.release, with its fix-it
+      // (r-module.dbg.release.delete).
       this.diagnostics.push({
         code: "dbg-in-release",
-        message:
-          replacement === ""
-            ? "a release build cannot hold a dbg call; delete it"
-            : `a release build cannot hold a dbg call; write '${replacement}' instead`,
+        message: "a release build cannot hold a dbg call; delete the statement",
         span: expression.span,
         fix: {
-          message:
-            replacement === "" ? "delete the dbg call" : `replace the call with '${replacement}'`,
-          edits: [{ span: expression.span, replacement }],
+          message: "delete the dbg statement",
+          edits: [{ span: expression.span, replacement: "" }],
         },
       });
     }
     const plan = state.plans?.get(key);
-    if (plan)
-      return this.checkExpression(debugPrintingCall(state, expression, plan, text), expected);
-    const values = text ? expression.arguments.slice(0, 1) : expression.arguments;
-    const checked = text
-      ? this.checkExpression(values[0]!)
-      : this.checkExpression(debugQuietCall(expression), expected);
-    const types =
-      values.length === 0
-        ? []
-        : values.length === 1
-          ? [checked.type]
-          : checked.kind === "tuple"
-            ? checked.elementTypes
-            : [];
-    if (types.length !== values.length) return checked;
+    if (plan) return this.checkExpression(debugPrintingCall(state, expression, plan, text));
+    const checked = this.checkDeclaredCall(expression);
+    const types = text
+      ? checked.kind === "call"
+        ? checked.arguments.slice(0, 1).map((argument) => argument.type)
+        : []
+      : this.collectedTypes(checked);
+    const values = text ? 1 : expression.arguments.length;
+    if (types.length !== values) return checked;
     const oracle = {
       implementsDebug: (type: ValueType) => this.implementsDebug(type),
       dataTypes: this.dataTypes,
       enumTypes: this.enumTypes,
     };
-    const printers: DebugPrinter[] = values.map((value, index) =>
-      debugPrinter(types[index]!, oracle, state.hasDebug, this.namedFunction(value)),
+    const printers: DebugPrinter[] = types.map((type, index) =>
+      debugPrinter(type, oracle, state.hasDebug, this.namedFunction(expression.arguments[index]!)),
     );
     recordDebugSite(state, expression.span, key, text, printers);
-    if (!text) return checked;
-    return this.checkExpression({ kind: "string", value: "", span: expression.span });
+    return checked;
+  }
+
+  /** The static type of each value that an ordinary `dbg` call collected into `Args`. */
+  private collectedTypes(checked: HirExpression): readonly ValueType[] {
+    const collected = checked.kind === "call" ? checked.arguments[0] : undefined;
+    return collected?.kind === "tuple" ? collected.elementTypes : [];
   }
 
   /** The function that `value` names, when it names one rather than a local value. */

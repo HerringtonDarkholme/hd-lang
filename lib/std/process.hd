@@ -95,7 +95,7 @@ impl Error for ProcessError
 
 impl Debug for ExitCode:
     fn debug(self, out: mut DebugWriter) -> void:
-        u8(self).debug(out)
+        out.debug_tuple("ExitCode").field(u8(self)).finish()
 
 impl Debug for ProcessOutput:
     fn debug(self, out: mut DebugWriter) -> void:
@@ -104,9 +104,9 @@ impl Debug for ProcessOutput:
 impl Debug for ProcessError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .NotFound => out.debug_struct("NotFound").finish()
-            .PermissionDenied => out.debug_struct("PermissionDenied").finish()
-            .Other(message) => out.debug_struct("Other").field("message", message).finish()
+            .NotFound => out.write("ProcessError.NotFound")
+            .PermissionDenied => out.write("ProcessError.PermissionDenied")
+            .Other(message) => out.debug_tuple("ProcessError.Other").named_field("message", message).finish()
 
 impl Debug for ScriptedProcess:
     fn debug(self, out: mut DebugWriter) -> void:

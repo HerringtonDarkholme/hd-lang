@@ -69,22 +69,22 @@ test("dbg lines stream to the output panel marked as debug output", async () => 
   // marked, beside the console's.
   const streamed: [string, boolean][] = [];
   const result = await runner.runProject(
-    single("pub fn main() -> void $ Console:\n    println(dbg(40 + 2))\n"),
+    single("pub fn main() -> void $ Console:\n    dbg(40 + 2)\n    println(42)\n"),
     "run",
     (line, debug) => streamed.push([line, debug === true]),
   );
   assert.equal(result.status, "ok", result.summary);
   assert.deepEqual(streamed, [
-    ["src/main.hd:2:13: 40 + 2 = 42", true],
+    ["src/main.hd:2:5: 40 + 2 = 42", true],
     ["42", false],
   ]);
   const topLevel: [string, boolean][] = [];
-  await runner.runProject(single("x := dbg(+2)\nx * 3\n"), "run", (line, debug) =>
+  await runner.runProject(single("dbg(+2)\n2 * 3\n"), "run", (line, debug) =>
     topLevel.push([line, debug === true]),
   );
   assert.deepEqual(topLevel, [
-    ["1:6: +2 = 2", true],
-    ["6 : i32", false],
+    ["1:1: +2 = 2", true],
+    ["6 : usize", false],
   ]);
 });
 

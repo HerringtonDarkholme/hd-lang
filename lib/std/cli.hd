@@ -233,7 +233,7 @@ impl Debug for Parsed:
 impl Debug for CliError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .UnknownOption(text) => out.debug_struct("UnknownOption").field("text", text).finish()
-            .MissingValue(name) => out.debug_struct("MissingValue").field("name", name).finish()
-            .UnexpectedValue(name) => out.debug_struct("UnexpectedValue").field("name", name).finish()
-            .MissingPositional(name) => out.debug_struct("MissingPositional").field("name", name).finish()
+            .UnknownOption(text) => out.debug_tuple("CliError.UnknownOption").named_field("text", text).finish()
+            .MissingValue(name) => out.debug_tuple("CliError.MissingValue").named_field("name", name).finish()
+            .UnexpectedValue(name) => out.debug_tuple("CliError.UnexpectedValue").named_field("name", name).finish()
+            .MissingPositional(name) => out.debug_tuple("CliError.MissingPositional").named_field("name", name).finish()

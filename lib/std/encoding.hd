@@ -187,6 +187,6 @@ fn ascii_text(codes: List[u8]) -> string:
 impl Debug for DecodeError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .InvalidCharacter(position) => out.debug_struct("InvalidCharacter").field("position", position).finish()
-            .InvalidLength(position) => out.debug_struct("InvalidLength").field("position", position).finish()
-            .InvalidPadding(position) => out.debug_struct("InvalidPadding").field("position", position).finish()
+            .InvalidCharacter(position) => out.debug_tuple("DecodeError.InvalidCharacter").named_field("position", position).finish()
+            .InvalidLength(position) => out.debug_tuple("DecodeError.InvalidLength").named_field("position", position).finish()
+            .InvalidPadding(position) => out.debug_tuple("DecodeError.InvalidPadding").named_field("position", position).finish()

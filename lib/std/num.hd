@@ -437,6 +437,6 @@ fn digit_value(scalar: string) -> i32?:
 impl Debug for ParseNumberError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .Empty => out.write("Empty")
-            .InvalidDigit(position) => out.debug_struct("InvalidDigit").field("position", position).finish()
-            .OutOfRange => out.write("OutOfRange")
+            .Empty => out.write("ParseNumberError.Empty")
+            .InvalidDigit(position) => out.debug_tuple("ParseNumberError.InvalidDigit").named_field("position", position).finish()
+            .OutOfRange => out.write("ParseNumberError.OutOfRange")

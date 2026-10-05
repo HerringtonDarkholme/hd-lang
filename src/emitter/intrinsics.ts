@@ -48,6 +48,11 @@ const RUNTIME_PRIMITIVES: Readonly<
       `  (else (struct.new $hd.variant (i32.const 1) (struct.new $hd.box-i32 ${point}))))`,
     ].join("\n"),
   char_scalar: ([value]) => value!,
+  // `dbg`'s own body prints nothing, as a fetched dependency's call must
+  // (spec/lang/10-modules.md#r-module.dbg.dependency). In the user's own code
+  // the checker supplies the printing body, which needs each argument's type
+  // and source text (checker/debug-print.ts).
+  dbg: () => "(nop)",
   // Shrinks a list to `len` elements; std checks the bound first.
   list_truncate: ([items, length]) =>
     `(call $hd.vector_truncate (ref.as_non_null ${items}) ${length})`,

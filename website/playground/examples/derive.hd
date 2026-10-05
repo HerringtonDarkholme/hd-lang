@@ -11,7 +11,7 @@ tests:
 # The first `print` wrote 5 cents as "0.5", which `parse` rejects.
 # Two hand-picked examples (150 and 1200) passed. `hd test` then reported:
 #   property test "parse undoes print" shrunk input Money { cents: -1000 };
-#   assertion-failed: round trip: actual None, expected Some(Money { cents: -1000 })
+#   assertion-failed: round trip: actual Option.None, expected Option.Some(Money { cents: -1000 })
 
 # ── plumbing ──────────
 use std.num.parse_i32

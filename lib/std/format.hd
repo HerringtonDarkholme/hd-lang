@@ -101,6 +101,12 @@ impl DebugWriter:
         else:
             self.write(if index == 0: "(" else: ", ")
 
+    # Starts the `index`-th field of a tuple part as the named argument
+    # `name=`, as a call writes it.
+    fn named_item(mut self, name: string, index: usize) -> void:
+        self.tuple_item(index)
+        self.write(name + "=")
+
     # Starts the `index`-th entry of a list part (`opening` "[") or a map
     # part ("{"). Under `dbg`'s limits an entry past the 100th is left out,
     # so this returns false (spec/lang/10-modules.md#r-module.dbg.limit.entries).
@@ -120,11 +126,14 @@ impl DebugWriter:
         if self.pretty:
             self.write(",\n")
 
-    # Closes a struct part that has `count` fields.
+    # Closes a struct part that has `count` fields; one without fields is
+    # the literal `Name {}`.
     fn struct_close(mut self, count: usize) -> void:
         self.depth = self.depth - 1
-        if count > 0:
-            self.write(if self.pretty: self.margin() + "}" else: " }")
+        if count == 0:
+            self.write(" {}")
+            return
+        self.write(if self.pretty: self.margin() + "}" else: " }")
 
     # Closes a tuple part that has `count` fields; an unnamed one is a tuple.
     fn tuple_close(mut self, count: usize, unnamed: bool) -> void:
@@ -213,6 +222,16 @@ impl DebugTuple:
     pub fn field[T < Debug](mut self, value: T) -> mut DebugTuple:
         if self.shown:
             self.out.tuple_item(self.count)
+            value.debug(self.out)
+            self.out.end_item()
+        self.count = self.count + 1
+        self
+
+    # A named field, written as the named argument `name=value` that follows
+    # the positional fields of a call, as in `Shape.Mixed(1, label="a")`.
+    pub fn named_field[T < Debug](mut self, name: string, value: T) -> mut DebugTuple:
+        if self.shown:
+            self.out.named_item(name, self.count)
             value.debug(self.out)
             self.out.end_item()
         self.count = self.count + 1
@@ -460,11 +479,47 @@ impl Debug for bool:
 
 impl Debug for char:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.write("'$self'")
+        out.write("'" + escape_char(self, '\'') + "'")
 
 impl Debug for string:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.write("\"${out.cut(self)}\"")
+        out.write("\"" + escape_text(out.cut(self), '"') + "\"")
+
+# A string's or char's text as it is written between the quotes of an hd
+# literal (spec/lang/01-lexical-structure.md#r-lex.escape.simple), so that
+# the printed value pastes back as hd code. `quote` is the literal's own
+# delimiter; a `$` is escaped only in a string, where it could start an
+# interpolation.
+fn escape_text(text: string, quote: char) -> string:
+    let escaped = ""
+    for each in text.chars():
+        escaped = escaped + escape_char(each, quote)
+    escaped
+
+fn escape_char(each: char, quote: char) -> string:
+    let scalar = char_scalar(each)
+    if each == quote:
+        return "\\" + scalar_text(i32(scalar))
+    if each == '\\':
+        return "\\\\"
+    if each == '\n':
+        return "\\n"
+    if each == '\r':
+        return "\\r"
+    if each == '\t':
+        return "\\t"
+    if each == '\0':
+        return "\\0"
+    if each == '$' && quote == '"':
+        return "\\$"
+    if scalar < 32 || scalar == 127:
+        return "\\u{" + digit_text(i32(scalar / 16)) + hex_digit(scalar % 16) + "}"
+    scalar_text(i32(scalar))
+
+fn hex_digit(digit: u32) -> string:
+    if digit < 10:
+        return digit_text(i32(digit))
+    scalar_text(i32(87 + digit))
 
 impl[T < Debug] Debug for List[T]:
     fn debug(self, out: mut DebugWriter) -> void:
@@ -476,14 +531,14 @@ impl[T < Debug] Debug for List[T]:
 impl[T < Debug] Debug for T?:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .Some(value) => out.debug_tuple("Some").field(value).finish()
-            .None => out.write("None")
+            .Some(value) => out.debug_tuple("Option.Some").field(value).finish()
+            .None => out.write("Option.None")
 
 impl[T < Debug, E < Debug] Debug for Result[T, E]:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .Ok(value) => out.debug_tuple("Ok").field(value).finish()
-            .Err(error) => out.debug_tuple("Err").field(error).finish()
+            .Ok(value) => out.debug_tuple("Result.Ok").field(value).finish()
+            .Err(error) => out.debug_tuple("Result.Err").field(error).finish()
 
 impl[K < Debug & Eq & Hash, V < Debug] Debug for Map[K, V]:
     fn debug(self, out: mut DebugWriter) -> void:
@@ -499,12 +554,14 @@ pub fn debug[T < Debug](value: T) -> string:
     value.debug(out)
     out.text
 
-# `dbg` (spec/lang/10-modules.md#debug-printing) is a compiler intrinsic: the
-# checker rewrites each call to the functions below, and never calls this
-# declaration (checker/debug-print.ts). Its signature only gives `dbg` a
-# binding; `dbg(a, b)` and `dbg()` are calls too.
+# `dbg` (spec/lang/10-modules.md#debug-printing) is an ordinary declaration:
+# one signature for every call, of any arity, returning `void`. Only its body
+# is intrinsic. The body that the emitter gives it prints nothing, which is
+# what a fetched dependency runs (r-module.dbg.dependency). In the user's own
+# code the checker swaps in the printing body, the functions below, which
+# need each argument's static type and source text (checker/debug-print.ts).
 @intrinsic("dbg")
-pub fn dbg[T](value: T) -> T:
+pub fn dbg[Args < Tuple](values...: Args) -> void:
     panic("intrinsic")
 
 # The REPL's value display (spec/cli/command-line.md#r-cli.repl.value): the
@@ -550,13 +607,15 @@ fn dbg_opaque[T](head: string, value: T, text: string) -> T:
     dbg_write("$head = $text")
     value
 
+# What every `dbg(...)` call of one or more arguments ends in: the printed
+# values, as one value or a tuple of them, which the call then drops, so the
+# call has the type `void` (r-module.dbg.signature).
+fn dbg_done[T](printed: T) -> void:
+    pass
+
 # `dbg()`: its location alone (r-module.dbg.body.site).
 fn dbg_here(head: string) -> void:
     dbg_write(head)
-
-# `dbg()` in a fetched dependency, which prints nothing (r-module.dbg.dependency).
-fn dbg_quiet() -> void:
-    pass
 
 # A part whose type implements `Debug`, inside a generated printer.
 fn dbg_nested[T < Debug](value: T, out: mut DebugWriter) -> void:
@@ -570,27 +629,28 @@ fn dbg_render_shown[T < Debug](width: usize, value: T) -> string:
     dbg_layout(width, value, fn(shown: T, out: mut DebugWriter) -> void: shown.debug(out))
 
 # Derived `Debug` (spec/std/format.md#r-std-format.debug.derive-builders.source):
-# Rust's builder per value. `debug_struct` for a data type, even a fieldless
-# one, and for a variant with a named member; `debug_tuple` for a variant
-# whose members are all positional; the bare name for a variant without
-# members. A mixed variant's positional members are named `_0`, `_1`, and
-# so on. A first walk reads the variant and counts its members, so the
-# builder is chosen before any field is written.
+# the value as hd source writes it. `debug_struct` for a data type, even a
+# fieldless one. A variant is written qualified by its enum: the bare
+# qualified name without members, else a call that `debug_tuple` builds,
+# with positional members first and named ones as `name=value`. A first
+# walk reads the variant and counts its members, so the builder is chosen
+# before any field is written.
 impl[T] Debug for T by Structure:
     fn debug(self, out: mut DebugWriter) -> void:
         let shape: mut DebugShape[T] = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
         _ := Structure::walk(self, shape)
-        if !shape.of_data && shape.members == 0:
-            out.write(shape.name)
+        if shape.of_data:
+            let named: mut DebugNamed[T] = DebugNamed::[T] { fields: out.debug_struct(shape.name) }
+            _ := Structure::walk(self, named)
+            named.fields.finish()
             return
-        if !shape.of_data && shape.positional == shape.members:
-            let fields: mut DebugFields[T] = DebugFields::[T] { tuple: out.debug_tuple(shape.name) }
-            _ := Structure::walk(self, fields)
-            fields.tuple.finish()
+        qualified := T::name() + "." + shape.name
+        if shape.members == 0:
+            out.write(qualified)
             return
-        let named: mut DebugNamed[T] = DebugNamed::[T] { fields: out.debug_struct(shape.name) }
-        _ := Structure::walk(self, named)
-        named.fields.finish()
+        let fields: mut DebugFields[T] = DebugFields::[T] { tuple: out.debug_tuple(qualified) }
+        _ := Structure::walk(self, fields)
+        fields.tuple.finish()
 
 # The value's variant name, and how many of its members are positional.
 # The fields are public because the prototype checks the instantiated
@@ -639,7 +699,8 @@ impl[T < Tuple] Debug for T by Structure:
         _ := Structure::walk(self, w)
         w.tuple.finish()
 
-# Writes each member as a positional field, for both templates.
+# Writes each member of a variant or tuple: a positional one as an argument,
+# a named one as `name=value`.
 # The field is public because the prototype checks the instantiated walker
 # in the program that uses it.
 data DebugFields[S]:
@@ -652,7 +713,10 @@ impl[S] Walker[S] for DebugFields[S]:
         .Ok(())
 
     fn member[F < Debug](mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        _ := self.tuple.field(value)
+        if h.info.positional:
+            _ := self.tuple.field(value)
+        else:
+            _ := self.tuple.named_field(h.info.name, value)
         .Ok(())
 
     fn rest[I < Debug](mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:

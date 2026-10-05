@@ -4,8 +4,8 @@ import test from "node:test";
 import { analyze, compileToWat, instantiate } from "../src/compiler.ts";
 import { linkedParseOptions, linkPackage } from "../src/package.ts";
 
-// `dbg` (spec/lang/10-modules.md#debug-printing): what a call prints and
-// returns, its limits, and its release-build error.
+// `dbg` (spec/lang/10-modules.md#debug-printing): what a call prints, that it
+// returns nothing, its limits, and its release-build error.
 
 /** Runs `source`'s `main` and returns its `dbg` lines and console lines. */
 async function run(
@@ -32,19 +32,35 @@ const main = (body: string, declarations = ""): string =>
     .map((line) => `    ${line}`)
     .join("\n")}\n`;
 
-test("dbg prints each argument's location, source text, and value, and returns it", async () => {
+test("dbg prints each argument's location, source text, and value, and returns nothing", async () => {
   const { debug, console } = await run(
-    "fn total(price: i32, qty: i32) -> i32:\n    dbg(price * qty) + 50\n" +
-      main('println(total(125, 10))\nlet (a, b) = dbg(1, "two")\ndbg()\nprintln(a)\nprintln(b)'),
+    "fn total(price: i32, qty: i32) -> i32:\n    dbg(price * qty)\n    price * qty + 50\n" +
+      main('println(total(125, 10))\ndbg(1, "two")\ndbg((1, "two"))\ndbg()\nprintln("done")'),
     { debugLocation: (span) => `cart.hd:${span.start.line}:${span.start.column}` },
   );
   assert.deepEqual(debug, [
     "cart.hd:2:5: price * qty = 1250",
-    "cart.hd:6:18: 1 = 1",
-    'cart.hd:6:18: "two" = "two"',
-    "cart.hd:7:5",
+    "cart.hd:7:5: 1 = 1",
+    'cart.hd:7:5: "two" = "two"',
+    'cart.hd:8:5: (1, "two") = (1, "two")',
+    "cart.hd:9:5",
   ]);
-  assert.deepEqual(console, ["1300", "1", "two"]);
+  assert.deepEqual(console, ["1300", "done"]);
+});
+
+test("a dbg call has the type void, so no value comes out of it", () => {
+  const { diagnostics } = analyze("pub fn main() -> void:\n    let x: i32 = dbg(1)\n");
+  assert.deepEqual(
+    diagnostics.map(({ code }) => code),
+    ["type-mismatch"],
+  );
+});
+
+test("dbg of an optional or a result is a statement that discards nothing", () => {
+  const { diagnostics } = analyze(
+    "fn find(id: i32) -> i32?:\n    if id > 0: .Some(id) else: .None\n\nfn run() -> void:\n    dbg(find(1))\n",
+  );
+  assert.deepEqual(diagnostics, []);
 });
 
 test("a type without Debug prints its structure, private fields and payloads included", async () => {
@@ -73,9 +89,9 @@ test("a type without Debug prints its structure, private fields and payloads inc
         "dbg(double)",
         "dbg(fn(x: i32) -> i32: x + 1)",
         'let found: Account? = .Some(Account { owner: "Bo", balance: 1 })',
-        "_ := dbg(found)",
+        "dbg(found)",
         "let done: Result[void, Account] = .Ok(())",
-        "_ := dbg(done)",
+        "dbg(done)",
       ].join("\n"),
       declarations,
     ),
@@ -84,15 +100,15 @@ test("a type without Debug prints its structure, private fields and payloads inc
     debug.map((line) => line.slice(line.indexOf(": ") + 2)),
     [
       'Account { owner: "Ada", balance: 120 } = Account {\n    owner: "Ada",\n    balance: 120,\n}',
-      "Shape.Circle(radius=1.5) = Circle { radius: 1.5 }",
-      'Shape.Pair(1, "a") = Pair(1, "a")',
-      'Shape.Mixed(2, label="x") = Mixed { _0: 2, label: "x" }',
-      "Shape.Dot = Dot",
+      "Shape.Circle(radius=1.5) = Shape.Circle(radius=1.5)",
+      'Shape.Pair(1, "a") = Shape.Pair(1, "a")',
+      'Shape.Mixed(2, label="x") = Shape.Mixed(2, label="x")',
+      "Shape.Dot = Shape.Dot",
       "Meters(2.5) = Meters(2.5)",
       "double = <fn double(i32) -> i32>",
       "fn(x: i32) -> i32: x + 1 = <fn(i32) -> i32>",
-      'found = Some(Account { owner: "Bo", balance: 1 })',
-      "done = Ok(())",
+      'found = Option.Some(Account { owner: "Bo", balance: 1 })',
+      "done = Result.Ok(())",
     ],
   );
 });
@@ -108,15 +124,15 @@ test("a type's own Debug wins, and generic code prints through a Debug bound or 
     "    fn debug(self, out: mut DebugWriter) -> void:",
     '        out.write("Secret(***)")',
     "",
-    "fn first[T](items: List[T]) -> T:",
+    "fn first[T](items: List[T]) -> void:",
     "    dbg(items[0])",
     "",
-    "fn shown[T < Debug](items: List[T]) -> T:",
+    "fn shown[T < Debug](items: List[T]) -> void:",
     "    dbg(items[0])",
     "",
   ].join("\n");
   const { debug } = await run(
-    main('dbg(Secret { key: "k" })\n_ := first([1])\n_ := shown([2])', declarations),
+    main('dbg(Secret { key: "k" })\nfirst([1])\nshown([2])', declarations),
   );
   assert.deepEqual(
     debug.map((line) => line.slice(line.indexOf(": ") + 2)),
@@ -158,7 +174,7 @@ test("a cycle prints <cycle>, and a list, a depth, and a string are cut", async 
     ),
   );
   const [cycle, list, tree, text] = debug.map((line) => line.slice(line.indexOf(" = ") + 3));
-  assert.equal(cycle, 'Node { name: "a", next: Some(<cycle>) }');
+  assert.equal(cycle, 'Node { name: "a", next: Option.Some(<cycle>) }');
   assert.match(list!, /^\[\n {4}0,\n {4}1,\n/);
   assert.match(list!, /\n {4}99,\n {4}… 400 more\n\]$/);
   assert.equal(list!.split("\n").length, 103);
@@ -180,24 +196,24 @@ test("debug applies none of dbg's limits", async () => {
 
 test("a release build rejects every dbg call of the user's own code, with a fix-it", () => {
   const source =
-    "fn f(a: i32, b: i32) -> i32:\n    dbg()\n    let (x, y) = dbg(a, b)\n    dbg(x + y)\n";
+    "fn f(a: i32, b: i32) -> i32:\n    dbg()\n    dbg(a, b)\n    dbg(a + b)\n    a + b\n";
   const { diagnostics } = analyze(source, { release: true });
   const errors = diagnostics.filter(({ code }) => code === "dbg-in-release");
   assert.deepEqual(
     errors.map(({ span, fix }) => [span.start.line, fix?.edits[0]?.replacement]),
     [
       [2, ""],
-      [3, "(a, b)"],
-      [4, "x + y"],
+      [3, ""],
+      [4, ""],
     ],
   );
   // A debug build accepts the same calls without a warning (module.dbg.release.debug-build).
   assert.deepEqual(analyze(source).diagnostics, []);
 });
 
-test("a call in a fetched package is its arguments alone and warns once for the package", async () => {
+test("a call in a fetched package prints nothing and warns once for the package", async () => {
   const files = {
-    "src/main.hd": main("println(dbg(twice(3)))", "use dep.noisy.{twice}\n"),
+    "src/main.hd": main("dbg(twice(3))\nprintln(twice(3))", "use dep.noisy.{twice}\n"),
   };
   const linked = linkPackage(files, "src/main.hd", {
     dependencies: {
@@ -208,7 +224,7 @@ test("a call in a fetched package is its arguments alone and warns once for the 
           id: "/deps/noisy",
           shown: "dep.noisy",
           sourceRoot: "/deps/noisy",
-          files: { "lib.hd": "pub fn twice(n: i32) -> i32:\n    dbg(n) * dbg(2)\n" },
+          files: { "lib.hd": "pub fn twice(n: i32) -> i32:\n    dbg(n, 2)\n    n * 2\n" },
           dependencies: {},
           fetched: "github.com/acme/noisy@1.0.0",
         },
@@ -244,6 +260,6 @@ test("a debug statement warns that it drops its text", () => {
 test("a program without dbg links no printer and no debug output", () => {
   const { wat } = compileToWat(main("println(1)"));
   assert.doesNotMatch(wat, /dbg/);
-  const printed = compileToWat(main("println(dbg(1))")).wat;
+  const printed = compileToWat(main("dbg(1)")).wat;
   assert.match(printed, /host:dbg_write/);
 });

@@ -277,9 +277,9 @@ impl Error for TimeParseError
 impl Debug for TimeParseError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .InvalidCharacter(position) => out.debug_struct("InvalidCharacter").field("position", position).finish()
-            .OutOfRange(position) => out.debug_struct("OutOfRange").field("position", position).finish()
-            .TooShort(position) => out.debug_struct("TooShort").field("position", position).finish()
+            .InvalidCharacter(position) => out.debug_tuple("TimeParseError.InvalidCharacter").named_field("position", position).finish()
+            .OutOfRange(position) => out.debug_tuple("TimeParseError.OutOfRange").named_field("position", position).finish()
+            .TooShort(position) => out.debug_tuple("TimeParseError.TooShort").named_field("position", position).finish()
 
 # Howard Hinnant's `civil_from_days`: the date `day` days after
 # 1970-01-01. An era is 400 years, 146097 days, and each year in it starts

@@ -124,4 +124,4 @@ impl Eq for ConsoleError:
 
 impl Debug for ConsoleError:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.write("Closed")
+        out.write("ConsoleError.Closed")

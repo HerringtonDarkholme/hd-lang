@@ -51,16 +51,16 @@ pub fn annotate[T = Any](kinds...: List[Target]) -> Annotate:
 impl Debug for Target:
     fn debug(self, out: mut DebugWriter) -> void:
         name := match self:
-            .Fn => "Fn"
-            .Data => "Data"
-            .Enum => "Enum"
-            .Newtype => "Newtype"
-            .Field => "Field"
-            .Variant => "Variant"
-            .Param => "Param"
-            .Trait => "Trait"
-            .Impl => "Impl"
-            .Method => "Method"
+            .Fn => "Target.Fn"
+            .Data => "Target.Data"
+            .Enum => "Target.Enum"
+            .Newtype => "Target.Newtype"
+            .Field => "Target.Field"
+            .Variant => "Target.Variant"
+            .Param => "Target.Param"
+            .Trait => "Target.Trait"
+            .Impl => "Target.Impl"
+            .Method => "Target.Method"
         out.write(name)
 
 impl Debug for Annotate:

@@ -27,5 +27,5 @@ impl[E < Error] Error for ResourceError[E]
 impl[E < Debug] Debug for ResourceError[E]:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .Operation(error) => out.debug_struct("Operation").field("error", error).finish()
-            .Disposed => out.write("Disposed")
+            .Operation(error) => out.debug_tuple("ResourceError.Operation").named_field("error", error).finish()
+            .Disposed => out.write("ResourceError.Disposed")

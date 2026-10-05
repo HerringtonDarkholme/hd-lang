@@ -18,19 +18,24 @@ import {
 import { Source_ } from "./generated-source.ts";
 import { substituteGenericType } from "./shared.ts";
 
-// `dbg` (spec/lang/10-modules.md#debug-printing) is a compiler intrinsic
-// whose printing depends on each argument's static type, so a program that
-// calls it checks in two passes:
+// `dbg` (spec/lang/10-modules.md#debug-printing) is an ordinary declaration,
+// `fn dbg[Args < Tuple](values...: Args) -> void`, so every call is checked
+// by the plain call rules. Only its body is intrinsic, and the printing body
+// of the user's own code depends on each argument's static type, so a program
+// that calls it checks in two passes:
 //
-// 1. The first pass checks each call as its arguments alone (`x`, `(a, b)`,
-//    or nothing) and records the static type of each argument. Where a type
-//    implements `Debug`, the value prints through it; elsewhere the pass
+// 1. The first pass checks each call as that ordinary call and records the
+//    static type of each element that the call collected into `Args`. Where a
+//    type implements `Debug`, the value prints through it; elsewhere the pass
 //    walks the type's parts and records which of them implement `Debug`.
 // 2. Between the passes, `debugPrinters` writes one printer function per
 //    type that prints structurally, over `std.format`'s `DebugWriter`, and a
-//    plan per call. The second pass checks each call as a call of
-//    `std.format`'s `dbg_one`, `dbg_shown`, or `dbg_opaque`, with its
+//    plan per call. The second pass checks each call as `dbg_done` of calls
+//    of `std.format`'s `dbg_one`, `dbg_shown`, or `dbg_opaque`, with its
 //    location and source text, and the generated printers.
+//
+// A call in a fetched dependency stays the ordinary call, whose body prints
+// nothing (spec/lang/10-modules.md#r-module.dbg.dependency).
 //
 // The REPL's value display (spec/cli/command-line.md#r-cli.repl.value) is a
 // call of the hidden `dbg_text`, which takes the same two passes. A program
@@ -46,7 +51,7 @@ const SUPPORT = {
   shown: "__std_format_dbg_shown",
   opaque: "__std_format_dbg_opaque",
   here: "__std_format_dbg_here",
-  quiet: "__std_format_dbg_quiet",
+  done: "__std_format_dbg_done",
   nested: "__std_format_dbg_nested",
   render: "__std_format_dbg_render",
   renderShown: "__std_format_dbg_render_shown",
@@ -378,7 +383,10 @@ export function debugPrinters(
       indent: number,
       name: string | undefined,
       items: readonly {
+        /** A named argument of a call: `name=value`. */
         readonly name?: string;
+        /** A named field of a data value: `name: value`. */
+        readonly field?: string;
         readonly type: ValueType;
         readonly value: string;
       }[],
@@ -389,18 +397,20 @@ export function debugPrinters(
       items.forEach((item, index) => {
         add(
           indent + 1,
-          item.name === undefined
-            ? `hd__out.tuple_item(${index})`
-            : `hd__out.struct_item(${out.string(item.name)}, ${index})`,
+          item.field === undefined
+            ? item.name === undefined
+              ? `hd__out.tuple_item(${index})`
+              : `hd__out.named_item(${out.string(item.name)}, ${index})`
+            : `hd__out.struct_item(${out.string(item.field)}, ${index})`,
         );
         add(indent + 1, part(item.type, item.value));
         add(indent + 1, "hd__out.end_item()");
       });
       add(indent + 1, close.replace("COUNT", String(items.length)));
     };
-    // A variant: its name alone, its positional fields in parentheses, or
-    // its named ones in braces, where a positional field of a mixed variant
-    // is named `_0`, `_1`, and so on (std-format.debug.derive-builders.mapping).
+    // A variant, written as hd source constructs it: its qualified name
+    // alone, or a call with its positional fields first and its named ones
+    // as `name=value` (std-format.debug.derive-builders.source).
     const variant = (
       indent: number,
       name: string,
@@ -414,24 +424,15 @@ export function debugPrinters(
         add(indent, `hd__out.write(${out.string(name)})`);
         return;
       }
-      const positional = fields.every((field) => /^\d+$/.test(field.name));
-      if (positional) {
-        opened(
-          indent,
-          name,
-          fields.map(({ type: fieldType, value }) => ({ type: fieldType, value })),
-          "hd__out.tuple_close(COUNT, false)",
-        );
-        return;
-      }
       opened(
         indent,
         name,
         fields.map((field) => ({
-          ...field,
-          name: /^\d+$/.test(field.name) ? `_${field.name}` : field.name,
+          type: field.type,
+          value: field.value,
+          ...(/^\d+$/.test(field.name) ? {} : { name: field.name }),
         })),
-        "hd__out.struct_close(COUNT)",
+        "hd__out.tuple_close(COUNT, false)",
       );
     };
     // A `void` payload binds no value, so its pattern is `_`; it prints `()`.
@@ -444,15 +445,15 @@ export function debugPrinters(
       case "option":
         add(0, "match hd__value:");
         add(1, `.Some(${binder(shape.inner, "hd__inner")}) =>`);
-        variant(2, "Some", [{ name: "0", type: shape.inner, value: "hd__inner" }]);
-        add(1, `.None => hd__out.write(${out.string("None")})`);
+        variant(2, "Option.Some", [{ name: "0", type: shape.inner, value: "hd__inner" }]);
+        add(1, `.None => hd__out.write(${out.string("Option.None")})`);
         break;
       case "result":
         add(0, "match hd__value:");
         add(1, `.Ok(${binder(shape.ok, "hd__inner")}) =>`);
-        variant(2, "Ok", [{ name: "0", type: shape.ok, value: "hd__inner" }]);
+        variant(2, "Result.Ok", [{ name: "0", type: shape.ok, value: "hd__inner" }]);
         add(1, `.Err(${binder(shape.error, "hd__inner")}) =>`);
-        variant(2, "Err", [{ name: "0", type: shape.error, value: "hd__inner" }]);
+        variant(2, "Result.Err", [{ name: "0", type: shape.error, value: "hd__inner" }]);
         break;
       case "list":
       case "map": {
@@ -508,7 +509,11 @@ export function debugPrinters(
           opened(
             indent,
             shown,
-            shape.fields.map((field) => ({ ...field, value: `hd__value.${field.name}` })),
+            shape.fields.map((field) => ({
+              type: field.type,
+              field: field.name,
+              value: `hd__value.${field.name}`,
+            })),
             "hd__out.struct_close(COUNT)",
           );
         if (tracked) add(1, "hd__out.leave()");
@@ -517,18 +522,20 @@ export function debugPrinters(
       case "enum":
         add(0, "if hd__out.enter(hd__value):");
         add(1, "match hd__value:");
+        const owner = displayType(shape.name);
         for (const each of shape.variants) {
+          const qualified = `${owner}.${each.name}`;
           const binders = each.fields.map((field, index) =>
             binder(field.type, `hd__field${index}`),
           );
           if (binders.length === 0) {
-            add(2, `.${each.name} => hd__out.write(${out.string(each.name)})`);
+            add(2, `.${each.name} => hd__out.write(${out.string(qualified)})`);
             continue;
           }
           add(2, `.${each.name}(${binders.join(", ")}) =>`);
           variant(
             3,
-            each.name,
+            qualified,
             each.fields.map((field, index) => ({ ...field, value: binders[index]! })),
           );
         }
@@ -586,34 +593,7 @@ export function debugPrintingCall(
       return invoke(SUPPORT.opaque, [head, argument, string(printer.text)]);
     return invoke(SUPPORT.one, [head, argument, name(printer.function!)]);
   });
-  return printed.length === 1 ? printed[0]! : { kind: "tuple", elements: printed, span };
-}
-
-/**
- * The expression the first pass checks a call as, which also stays the
- * call in a fetched dependency: its arguments, or nothing
- * (spec/lang/10-modules.md#r-module.dbg.dependency).
- */
-export function debugQuietCall(call: Extract<Expression, { kind: "call" }>): Expression {
-  const span = call.span;
-  if (call.arguments.length === 0)
-    return {
-      kind: "call",
-      callee: { kind: "name", name: SUPPORT.quiet, span },
-      arguments: [],
-      span,
-    };
-  if (call.arguments.length === 1) return call.arguments[0]!;
-  return { kind: "tuple", elements: call.arguments, span };
-}
-
-/** The fix-it text of a call in a release build (r-module.dbg.release.fix). */
-export function debugReleaseReplacement(
-  state: DebugPrintState,
-  call: Extract<Expression, { kind: "call" }>,
-): string {
-  const texts = call.arguments.map((argument) => state.text(argument.span));
-  if (texts.length === 1) return texts[0]!;
-  if (texts.length === 0) return "";
-  return `(${texts.join(", ")})`;
+  return invoke(SUPPORT.done, [
+    printed.length === 1 ? printed[0]! : { kind: "tuple", elements: printed, span },
+  ]);
 }

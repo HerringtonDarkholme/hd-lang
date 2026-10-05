@@ -170,7 +170,7 @@ test("the REPL renders invariant optional mutable payloads without erasing their
   }
   const outcome = await session.evaluate("present");
   assert.deepEqual(outcome.errors, []);
-  assert.equal(outcome.value, "Some(User { name: 42 })");
+  assert.equal(outcome.value, "Option.Some(User { name: 42 })");
 });
 
 test("typed build uses the shared optional constructor for declared mutable members", () => {
@@ -194,5 +194,5 @@ test("the REPL preserves mutable outer optionals nested inside another optional"
   }
   const outcome = await session.evaluate("present");
   assert.deepEqual(outcome.errors, []);
-  assert.equal(outcome.value, "Some(Some(User { name: 42 }))");
+  assert.equal(outcome.value, "Option.Some(Option.Some(User { name: 42 }))");
 });

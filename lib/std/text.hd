@@ -822,8 +822,8 @@ impl Debug for EscapeError:
 impl Debug for Utf8Error:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .InvalidSequence(position) => out.debug_struct("InvalidSequence").field("position", position).finish()
-            .Truncated => out.write("Truncated")
+            .InvalidSequence(position) => out.debug_tuple("Utf8Error.InvalidSequence").named_field("position", position).finish()
+            .Truncated => out.write("Utf8Error.Truncated")
 
 impl Debug for StringBuilder:
     fn debug(self, out: mut DebugWriter) -> void:

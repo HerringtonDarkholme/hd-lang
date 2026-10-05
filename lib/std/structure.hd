@@ -60,9 +60,9 @@ pub enum SelfRef:
 impl Debug for SelfRef:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .Absent => out.write("Absent")
-            .Optional => out.write("Optional")
-            .Required => out.write("Required")
+            .Absent => out.write("SelfRef.Absent")
+            .Optional => out.write("SelfRef.Optional")
+            .Required => out.write("SelfRef.Required")
 
 # A member's handle. `hd_witness` names the member's type, so that `fact`
 # needs no `Inspectable` bound on `HdF` (annot.handle.fact.key).

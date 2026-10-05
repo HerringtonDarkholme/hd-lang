@@ -153,7 +153,7 @@ test("a REPL session in a package uses its dependencies and dev dependencies", a
     { files: { "src/lib.hd": "" }, programs: [], dependencies: graph },
   );
   assert.deepEqual((await session.evaluate("use dep.json.{render}")).errors, []);
-  assert.equal((await session.evaluate('render("ada")')).value, '""ada""');
+  assert.equal((await session.evaluate('render("ada")')).value, '"\\"ada\\""');
   assert.deepEqual((await session.evaluate("use dep.fixtures.{sample}")).errors, []);
   assert.match((await session.evaluate("use dep.json.{secret}")).errors[0]!, /private-import/);
 });

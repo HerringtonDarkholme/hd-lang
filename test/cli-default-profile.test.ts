@@ -192,7 +192,7 @@ test("a REPL session binds the default profile, and each host call runs once", a
     // reading shows as RFC 3339 text, with milliseconds when nonzero.
     assert.match(first!, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z : Timestamp$/);
     assert.equal(second, first);
-    assert.ok(lines.includes('Ok("remember the milk") : Result[string, FsError]'), text);
+    assert.ok(lines.includes('Result.Ok("remember the milk") : Result[string, FsError]'), text);
     assert.ok(lines.includes("[] : List[string]"), text);
     // Three inputs ran after the append; the file still holds it once.
     assert.equal(await readFile(join(directory, "log.txt"), "utf8"), "once");

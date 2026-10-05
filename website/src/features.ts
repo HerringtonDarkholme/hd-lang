@@ -127,7 +127,7 @@ export const FEATURES: readonly Feature[] = [
       caption: "hd test, on the first version of print",
       lines: [
         'property test "parse undoes print" shrunk input Money { cents: -1000 };',
-        "assertion-failed: round trip: actual None, expected Some(Money { cents: -1000 })",
+        "assertion-failed: round trip: actual Option.None, expected Option.Some(Money { cents: -1000 })",
       ],
       kind: "error",
       source: "comment",

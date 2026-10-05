@@ -23,4 +23,4 @@ impl Display for Path:
 
 impl Debug for Path:
     fn debug(self, out: mut DebugWriter) -> void:
-        string(self).debug(out)
+        out.debug_tuple("Path").field(string(self)).finish()

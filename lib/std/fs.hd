@@ -297,20 +297,20 @@ impl FsWrite for MemoryFs:
 impl Debug for FsError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .NotFound(path) => out.debug_struct("NotFound").field("path", path).finish()
-            .PermissionDenied(path) => out.debug_struct("PermissionDenied").field("path", path).finish()
-            .AlreadyExists(path) => out.debug_struct("AlreadyExists").field("path", path).finish()
-            .NotADirectory(path) => out.debug_struct("NotADirectory").field("path", path).finish()
-            .IsADirectory(path) => out.debug_struct("IsADirectory").field("path", path).finish()
-            .InvalidUtf8(path) => out.debug_struct("InvalidUtf8").field("path", path).finish()
-            .Other(message) => out.debug_struct("Other").field("message", message).finish()
+            .NotFound(path) => out.debug_tuple("FsError.NotFound").named_field("path", path).finish()
+            .PermissionDenied(path) => out.debug_tuple("FsError.PermissionDenied").named_field("path", path).finish()
+            .AlreadyExists(path) => out.debug_tuple("FsError.AlreadyExists").named_field("path", path).finish()
+            .NotADirectory(path) => out.debug_tuple("FsError.NotADirectory").named_field("path", path).finish()
+            .IsADirectory(path) => out.debug_tuple("FsError.IsADirectory").named_field("path", path).finish()
+            .InvalidUtf8(path) => out.debug_tuple("FsError.InvalidUtf8").named_field("path", path).finish()
+            .Other(message) => out.debug_tuple("FsError.Other").named_field("message", message).finish()
 
 impl Debug for EntryKind:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .File => out.write("File")
-            .Directory => out.write("Directory")
-            .Symlink => out.write("Symlink")
+            .File => out.write("EntryKind.File")
+            .Directory => out.write("EntryKind.Directory")
+            .Symlink => out.write("EntryKind.Symlink")
 
 impl Debug for Entry:
     fn debug(self, out: mut DebugWriter) -> void:

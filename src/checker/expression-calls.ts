@@ -1194,7 +1194,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     };
   }
 
-  private checkDeclaredCall(
+  protected checkDeclaredCall(
     expression: NamedCallExpression,
     expected?: ValueType,
     initialSubstitutions?: ReadonlyMap<string, ValueType>,

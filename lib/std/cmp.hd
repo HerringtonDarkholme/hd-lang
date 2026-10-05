@@ -408,9 +408,9 @@ impl[T < Tuple] Ord for T by Structure:
 impl Debug for Ordering:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
-            .Less => out.write("Less")
-            .Equal => out.write("Equal")
-            .Greater => out.write("Greater")
+            .Less => out.write("Ordering.Less")
+            .Equal => out.write("Ordering.Equal")
+            .Greater => out.write("Ordering.Greater")
 
 impl[T < Debug] Debug for Reverse[T]:
     fn debug(self, out: mut DebugWriter) -> void:
