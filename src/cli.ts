@@ -6,21 +6,25 @@ import { pathToFileURL } from "node:url";
 
 import { parseCommandLine, UsageError, type ParsedCommand } from "./cli-args.ts";
 import {
+  addCommand,
   buildCommand,
   checkCommand,
   defCommand,
   docCommand,
   EXIT_HD_FAILURE,
   explainCommand,
+  fetchCommand,
   fileCommand,
   helpCommand,
   hirCommand,
   newCommand,
   parseCommand,
   processIo,
+  removeCommand,
   replCommand,
   runCommand,
   testCommand,
+  updateCommand,
   type CommandEnvironment,
   type CommandIo,
   type RunnerOptions,
@@ -128,6 +132,14 @@ export async function main(
       return hirCommand(options, io);
     case "check":
       return checkCommand({ ...options, file: first }, io);
+    case "add":
+      return addCommand({ ...environment, format, name: first!, requirement: second! }, io);
+    case "update":
+      return updateCommand({ ...environment, format, ...(first ? { name: first } : {}) }, io);
+    case "remove":
+      return removeCommand({ ...environment, format, name: first! }, io);
+    case "fetch":
+      return fetchCommand({ ...environment, format }, io);
     case "build":
       return buildCommand({ ...options, file: first }, io);
     case "run":

@@ -61,7 +61,3 @@ runtime/valid/doc-test-compile-fail.hd	`hd test FILE` exits 101 with 'no test ca
 runtime/valid/doc-test-private-item.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
 cli/doc-outside-package	`hd doc` takes a NAME: `hd doc --format json` exits 101 with 'missing NAME' and no JSON on stdout, where cli.doc.package wants an error diagnostic and a summary	CLI-DOC
 cli/doc-check-error	no `hd doc` flags: `hd doc --format json --out site` exits 101 with 'unknown flag --out' and no JSON on stdout, so `hd doc` never checks the package (cli.doc.check)	CLI-DOC
-cli/dep-missing-sum	the prototype reads no [dependencies] table and has no hd remove (cli.dep.missing-sum, cli.dep.remove)	DEP-FETCH
-cli/dep-invalid-add	the prototype has no hd add (cli.dep.add.check)	DEP-FETCH
-cli/dep-invalid-manifest	the prototype does not check dependency requirements and has no hd fetch (cli.dep.invalid)	DEP-FETCH
-cli/dep-outside-package	the prototype has no hd fetch, hd add, hd update, or hd remove (cli.dep.package-only)	DEP-FETCH

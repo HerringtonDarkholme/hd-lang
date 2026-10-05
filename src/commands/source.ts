@@ -31,6 +31,7 @@ import {
   type LocalPackage,
   type PackageProblem,
 } from "./package-mode.ts";
+import { withDependencies } from "./dependencies.ts";
 import { RUNTIME_PROFILES, type RUNTIME_PROFILE_NAMES } from "./profiles.ts";
 import {
   EXIT_HD_FAILURE,
@@ -321,7 +322,13 @@ export async function commandPackage(
   // (spec/cli/command-line.md#r-cli.mode.start).
   const start = file === undefined ? cwd : dirname(resolve(cwd, file));
   const mode = await packageMode(start);
-  if (mode.kind === "package") return mode.package;
+  // The command selects and fetches the dependencies before it compiles
+  // (spec/cli/command-line.md#r-cli.dep.implicit-fetch); each fetch is a
+  // line on standard error.
+  if (mode.kind === "package")
+    return withDependencies(mode.package, environment, (version) =>
+      report.write(`hd: fetching ${version}`),
+    );
   if (mode.kind === "workspace") {
     report.commandError(
       `hd ${command}: ${join(mode.root, MANIFEST_FILE)} is a workspace manifest, and the prototype does not support workspaces yet; run hd ${command} inside a member's directory`,
@@ -359,12 +366,13 @@ export function shownRoot(pkg: LocalPackage, environment: CommandEnvironment): s
 async function enclosingPlacement(
   file: string,
   cwd: string,
+  environment: CommandEnvironment,
 ): Promise<PackagePlacement | undefined> {
   const path = resolve(cwd, file);
   // The start directory is FILE's directory (spec/cli/command-line.md#r-cli.mode.start).
   const mode = await packageMode(dirname(path));
   if (mode.kind !== "package") return undefined;
-  const pkg = mode.package;
+  const pkg = await withDependencies(mode.package, environment);
   const packagePath = relative(pkg.root, path).split(sep).join("/");
   // The roots are the source root, the test root, and `tasks` (cli.package.no-root).
   if (![SOURCE_ROOT, TEST_ROOT, TASK_ROOT].some((root) => packagePath.startsWith(root)))
@@ -377,6 +385,7 @@ async function enclosingPlacement(
     files: pkg.files,
     programs: pkg.executables.map((executable) => executable.path),
     package: pkg,
+    ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
   };
 }
 
@@ -434,5 +443,5 @@ export async function placementOf(
     };
   const role = environment.runner?.packageRole;
   if (role) return rolePlacement(file, role, environment.runner?.packageDependencies ?? [], cwd);
-  return testLayout === undefined ? enclosingPlacement(file, cwd) : undefined;
+  return testLayout === undefined ? enclosingPlacement(file, cwd, environment) : undefined;
 }

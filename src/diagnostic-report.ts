@@ -202,13 +202,14 @@ export class Report {
   /**
    * An error of the command itself that names no file, such as `hd run`
    * outside any package: a line of text, or a diagnostic record with no code
-   * and an empty `file`.
+   * and an empty `file`. `code` is the error's code when a rule names one,
+   * as `invalid-requirement` for an argument of `hd add`.
    */
-  commandError(message: string): void {
+  commandError(message: string, code: string | null = null): void {
     this.count("error");
     const record: JsonDiagnostic = {
       kind: "diagnostic",
-      code: null,
+      code,
       severity: "error",
       message,
       file: "",

@@ -168,7 +168,14 @@ async function compilePackage(
         release: options.build?.release ?? false,
         library: library.includes(path),
       },
-      { root: shownRoot(pkg, environment), path, files: pkg.files, reported, programs },
+      {
+        root: shownRoot(pkg, environment),
+        path,
+        files: pkg.files,
+        reported,
+        programs,
+        ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
+      },
     );
     if (typeof loaded === "number") {
       status = Math.max(status, loaded);

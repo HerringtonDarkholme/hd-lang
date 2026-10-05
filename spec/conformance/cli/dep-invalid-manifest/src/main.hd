@@ -1,1 +1,2 @@
-println("ready")
+pub fn main() -> void $ Console:
+    println("ready")

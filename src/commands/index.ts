@@ -33,6 +33,16 @@ export {
   type RunArgs,
   type TestArgs,
 } from "./execute.ts";
+export {
+  addCommand,
+  fetchCommand,
+  removeCommand,
+  updateCommand,
+  type AddArgs,
+  type DependencyArgs,
+  type RemoveArgs,
+  type UpdateArgs,
+} from "./dependencies.ts";
 export { helpCommand, replCommand, type HelpArgs } from "./help.ts";
 export { newCommand, type NewArgs, type PackageKind } from "./new.ts";
 export {

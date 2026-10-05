@@ -2407,3 +2407,7 @@ runtime/valid/available-trait-method-across-packages.hd	runtime
 typing/invalid/private-promoted-method-nothing-visible.hd	type
 typing/invalid/private-embedded-field-nothing-visible.hd	type
 runtime/valid/pub-own-member-hides-promoted-other-module.hd	runtime
+cli/dep-missing-sum	cli
+cli/dep-invalid-add	cli
+cli/dep-invalid-manifest	cli
+cli/dep-outside-package	cli

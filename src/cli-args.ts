@@ -49,6 +49,10 @@ const PACKAGE_NOTE = "The package is the one whose hd.toml is nearest above the 
 const FILE_NOTE =
   "A FILE under a package's src/ or tests/ is that module, linked with the rest of the package.";
 
+/** Where fetched dependencies go (spec/cli/command-line.md#cache). */
+const DEPENDENCY_NOTE =
+  "Fetched versions go to the user cache directory, or to HD_CACHE when it is set.";
+
 const PARSE_SUMMARY = "parse FILE and its tests: block, and print 'FILE: ok'";
 
 const COMMANDS: readonly CommandSpec[] = [
@@ -135,6 +139,52 @@ const COMMANDS: readonly CommandSpec[] = [
       "With neither --app nor --lib, hd new asks which kind on a terminal, and is",
       "an error otherwise. The package is named after its directory. Unless the",
       "directory is in a git repository already, hd new runs git init there.",
+    ],
+  },
+  {
+    name: "add",
+    operands: "NAME PATH@VERSION",
+    minOperands: 2,
+    maxOperands: 2,
+    summary: "require the dependency NAME at PATH@VERSION, fetch it, and record its hash",
+    flags: [],
+    notes: [
+      PACKAGE_NOTE,
+      "It sets NAME's line in [dependencies] of hd.toml, as in",
+      "hd add json github.com/acme/json@2.1.0, and updates hd.sum.",
+      DEPENDENCY_NOTE,
+    ],
+  },
+  {
+    name: "update",
+    operands: "[NAME]",
+    minOperands: 0,
+    maxOperands: 1,
+    summary: "move dependencies to the newest release on their compatibility line",
+    flags: [],
+    notes: [PACKAGE_NOTE, "Without NAME, it moves every requirement.", DEPENDENCY_NOTE],
+  },
+  {
+    name: "remove",
+    operands: "NAME",
+    minOperands: 1,
+    maxOperands: 1,
+    summary: "delete the dependency NAME and its hd.sum entries",
+    flags: [],
+    notes: [PACKAGE_NOTE],
+  },
+  {
+    name: "fetch",
+    operands: "",
+    minOperands: 0,
+    maxOperands: 0,
+    summary: "fetch every selected dependency version the cache lacks, as CI does",
+    flags: [],
+    notes: [
+      PACKAGE_NOTE,
+      "It adds a missing hd.sum entry and changes no other. Later commands then",
+      "need no network.",
+      DEPENDENCY_NOTE,
     ],
   },
   {

@@ -65,6 +65,7 @@ hd run   [--release] [NAME] [-- ARGS]
 hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE]
 hd check [--tests] [--all] [FILE]
 hd new   [--app] [--lib] [--pages] [--vcs none] [PATH]
+hd add NAME PATH@VERSION    hd update [NAME]    hd remove NAME    hd fetch
 hd explain CODE      hd doc NAME [FILE|PKG]      hd def NAME [FILE|PKG]
 hd repl              hd help [COMMAND]           hd debug parse|hir FILE
 ```
@@ -87,7 +88,10 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   (`test/hd-adapter.ts`, `test/hd-in-process.ts`), which sets
   `CommandEnvironment.runner` for the command functions. No help text,
   usage error, or doc names them. The test layout and package tree stand in
-  for a package's layout, which a real package takes from its `hd.toml`.
+  for a package's layout, which a real package takes from its `hd.toml`. A
+  package role compiles FILE as `src/lib.hd` (library) or `src/main.hd`
+  (root application) of a package that depends on each runner dependency,
+  a source root holding `lib.hd`.
 - **Package mode** ([Package Mode](../spec/cli/command-line.md#package-mode)):
   `commands/package-mode.ts` finds the nearest `hd.toml` above the start
   directory, FILE's directory or else the working directory. `manifest.ts`
@@ -152,6 +156,26 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   git repository it runs `git init` and writes a `.gitignore` of `/build/`;
   `--pages` writes the docs workflow. It does not add the package to an
   enclosing workspace's `members`, since the prototype has no workspaces.
+- **Dependencies** ([Dependencies](../spec/cli/command-line.md#dependencies)):
+  `manifest.ts` reads `[dependencies]` and `[dev-dependencies]`, and
+  `dependencies/` does the rest. `requirement.ts` checks keys, host paths,
+  and versions (`invalid-requirement`). `resolve.ts` runs minimal version
+  selection over every reached version, fetching what the cache lacks.
+  `git.ts` runs the system `git` (`ls-remote`, then a shallow fetch of the
+  tag) with prompts off and credentials masked. `cache.ts` keeps each
+  version read-only under `HD_CACHE` or the user cache directory, with the
+  tree hash it recorded under `hash/`. `sum.ts` reads and writes `hd.sum`.
+  `hd check`, `hd build`, `hd run`, and `hd test` fetch implicitly and
+  verify (`missing-sum-entry`, `sum-mismatch`, `unknown-version`,
+  `fetch-failed`); `hd add`, `hd update`, `hd remove`, and `hd fetch`
+  (`commands/dependencies.ts`) edit `hd.toml` line by line and write
+  `hd.sum`. The linker (`package.ts`) joins each selected package's library
+  under its own module keys, so `dep.NAME` sees only `pub` declarations.
+  A path requirement needs both packages in one workspace's `members`, and
+  `hd.sum` then lives beside the workspace manifest. Not yet: pseudo-versions,
+  workspace-mode commands, `hd doc` and the REPL on a package with
+  dependencies, and package ownership in the checker (orphan rule, member
+  visibility, and trait availability across packages).
 - `hd FILE` (a first word that ends in `.hd` and names no command) runs FILE
   as a single-file program, linked with no package ([`cli.file.run`](../spec/cli/command-line.md#r-cli.file.run)).
   A `pkg`, `dep`, `self`, or `super` use in a single-file program is

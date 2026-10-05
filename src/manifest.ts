@@ -28,6 +28,20 @@ export interface ExecutableDeclaration {
   readonly line: number;
 }
 
+/**
+ * One key of `[dependencies]` or `[dev-dependencies]`
+ * (spec/lang/10-modules.md#dependency-requirements). Its value is checked by
+ * src/dependencies/requirement.ts.
+ */
+export interface DependencyEntry {
+  readonly key: string;
+  readonly value: TomlValue;
+  /** The line of the key, or of its table's header for a `[dependencies.KEY]` table. */
+  readonly line: number;
+  /** A dev dependency (spec/lang/10-modules.md#r-module.test.dev-dependency). */
+  readonly dev: boolean;
+}
+
 export interface Manifest {
   /** The `[package]` table's `name`; absent in a workspace manifest. */
   readonly name?: string;
@@ -37,6 +51,10 @@ export interface Manifest {
   readonly executables: readonly ExecutableDeclaration[];
   /** A workspace manifest lists members and declares no package (cli.mode.workspace). */
   readonly workspace: boolean;
+  /** The workspace's `members`, directories relative to the manifest. */
+  readonly members: readonly string[];
+  /** The keys of `[dependencies]` and then `[dev-dependencies]`, in order. */
+  readonly dependencies: readonly DependencyEntry[];
 }
 
 class TomlError extends Error {
@@ -58,6 +76,8 @@ class TomlReader {
   readonly root: MutableTable = {};
   /** The line of each table's header, for errors about its keys. */
   readonly headers = new Map<TomlTable, number>();
+  /** The line of each key a table's own lines define, by table. */
+  readonly keyLines = new Map<TomlTable, Map<string, number>>();
   /** Tables an inline value or a dotted key closed, which no header may reopen. */
   private readonly sealed = new Set<TomlTable>();
   /** Tables a header has defined, which no later header may define again. */
@@ -196,12 +216,16 @@ class TomlReader {
   }
 
   private keyValue(table: MutableTable): void {
+    const line = this.line;
     const path = this.keyPath();
     this.skipSpace();
     if (this.next() !== "=") this.fail(`expected '=' after the key '${path.join(".")}'`);
     this.skipSpace();
     const value = this.value();
     this.assign(table, path, value);
+    const lines = this.keyLines.get(table) ?? new Map<string, number>();
+    this.keyLines.set(table, lines);
+    if (!lines.has(path[0]!)) lines.set(path[0]!, line);
   }
 
   private assign(table: MutableTable, path: readonly string[], value: TomlValue): void {
@@ -407,8 +431,40 @@ export function readManifest(
       }
       executables.push({ name: executableName, module, line });
     }
+  const dependencies: DependencyEntry[] = [];
+  for (const [table, dev] of [
+    ["dependencies", false],
+    ["dev-dependencies", true],
+  ] as const) {
+    const declared = root[table];
+    if (declared === undefined) continue;
+    if (!isTable(declared)) {
+      errors.push({ line: 1, message: `'${table}' must be a table, [${table}]` });
+      continue;
+    }
+    const lines = reader.keyLines.get(declared);
+    for (const [key, value] of Object.entries(declared))
+      dependencies.push({
+        key,
+        value,
+        line: lines?.get(key) ?? (isTable(value) ? lineOf(value) : lineOf(declared)),
+        dev,
+      });
+  }
+  const workspaceTable = root.workspace;
+  const members =
+    isTable(workspaceTable) && Array.isArray(workspaceTable.members)
+      ? workspaceTable.members.filter((member): member is string => typeof member === "string")
+      : [];
   if (errors.length > 0) return { errors };
   return {
-    manifest: { ...(name === undefined ? {} : { name }), packageLine, executables, workspace },
+    manifest: {
+      ...(name === undefined ? {} : { name }),
+      packageLine,
+      executables,
+      workspace,
+      members,
+      dependencies,
+    },
   };
 }

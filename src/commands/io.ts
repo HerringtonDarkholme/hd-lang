@@ -80,6 +80,19 @@ export interface CommandEnvironment {
   readonly terminal?: Terminal | null;
   /** Reads all of standard input; undefined stands for the process's own. */
   readonly readInput?: () => Promise<string>;
+  /**
+   * The environment variables, such as `HD_CACHE` and those the version
+   * control tool reads (spec/cli/command-line.md#dependencies); undefined
+   * stands for the process's own.
+   */
+  readonly variables?: Readonly<Record<string, string | undefined>>;
+}
+
+/** The environment variables of `environment`. */
+export function variablesOf(
+  environment: CommandEnvironment,
+): Readonly<Record<string, string | undefined>> {
+  return environment.variables ?? process.env;
 }
 
 /** All of `environment`'s standard input, as text. */

@@ -162,6 +162,7 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
       path: executable.path,
       files: pkg.files,
       programs: pkg.executables.map(({ path }) => path),
+      ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
     },
   );
   if (typeof loaded === "number") return report.finish(loaded);
@@ -290,6 +291,7 @@ async function testPackage(
     files: pkg.files,
     reported,
     programs,
+    ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
   });
   // `hd test` always builds in the test profile, a checked build
   // (spec/cli/command-line.md#r-cli.profile.test).

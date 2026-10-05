@@ -7,8 +7,15 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
-import { readManifest } from "../manifest.ts";
-import { LIB_FILE, MAIN_FILE, SOURCE_ROOT, TASK_ROOT, TEST_ROOT } from "../package.ts";
+import { readManifest, type Manifest } from "../manifest.ts";
+import {
+  LIB_FILE,
+  MAIN_FILE,
+  SOURCE_ROOT,
+  TASK_ROOT,
+  TEST_ROOT,
+  type PackageDependencies,
+} from "../package.ts";
 import { parse } from "../parser/index.ts";
 
 /** A package's manifest file name (spec/lang/10-modules.md#r-module.manifest.file). */
@@ -57,6 +64,13 @@ export interface LocalPackage {
   readonly tasks: readonly Executable[];
   /** Errors in the manifest and in the executables it declares. */
   readonly problems: readonly PackageProblem[];
+  /** The manifest; absent when it is invalid. */
+  readonly manifest?: Manifest;
+  /**
+   * The selected dependency packages, once a command that compiles has
+   * fetched them (spec/cli/command-line.md#r-cli.dep.implicit-fetch).
+   */
+  readonly dependencies?: PackageDependencies;
 }
 
 /** The mode a command works in (spec/cli/command-line.md#package-mode). */
@@ -173,7 +187,10 @@ export async function packageMode(start: string): Promise<PackageMode> {
         null,
         `the task ${task.path} and the executable '${task.name}' have one name; rename one, since hd run ${task.name} must name one program`,
       );
-  return { kind: "package", package: { root, name, files, executables, tasks, problems } };
+  return {
+    kind: "package",
+    package: { root, name, files, executables, tasks, problems, manifest },
+  };
 }
 
 /**
