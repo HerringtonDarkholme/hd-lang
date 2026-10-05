@@ -435,7 +435,6 @@ class Fetcher {
     const { host, version, line } = edge;
     const key = sumKey(host.path, version.text);
     const url = repositoryUrl(host);
-    this.options.fetching?.(key);
     const tag = tagName(host, version);
     let scratch: string | undefined;
     try {
@@ -461,6 +460,7 @@ class Fetcher {
         );
         return undefined;
       }
+      this.options.fetching?.(key);
       scratch = await scratchDirectory(cache);
       const checkout = await checkOutTag(
         url,
