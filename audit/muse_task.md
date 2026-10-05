@@ -66,6 +66,25 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### BH. Blocker, Do First: PRIMITIVE-LEFT-TRAIT Doubled Checking Time
+
+Review of ead3d3b6 (BE item 3). The behavior is right (`i64(3) * price`
+with `impl Mul[Money] for i64` now works), but it made the speed gate's
+`overload-candidates` case twice as slow: 824 ms on e8b78ed1 (1.10x
+baseline) versus 1641 ms on ead3d3b6 (2.01x), measured back to back.
+CI's perf gate will fail on it.
+
+Search operator traits from a primitive left operand only when the
+built-in operator doesn't apply: when the right operand's type is not
+one the primitive operation accepts (for example a data type like
+`Money`). The common case, two primitives, must take the old fast path
+with no trait search, and no work may be added to candidate trials.
+Measure `pnpm run perf:check --case overload-candidates` and
+`--case method-calls-one-var` before and after (check `uptime`; compare
+against e8b78ed1 in a detached worktree), and keep the
+PRIMITIVE-LEFT-TRAIT fixture passing.
+
+
 ### BG. Fix The Examples' MIN Overflow, Don't Skip It
 
 Merge 8d227750 made property tests try i32 MIN early, which found a real
