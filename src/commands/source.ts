@@ -303,7 +303,8 @@ export async function reportPackageProblems(
       specIndex,
       problem.path,
     );
-    if (problem.code === null) reporter.uncoded(problem.message, problem.line, problem.column);
+    if (problem.code === null)
+      reporter.uncoded(problem.message, problem.line, problem.column, problem.fixes);
     else {
       const position = { offset: 0, line: problem.line, column: problem.column };
       reporter.diagnostic({

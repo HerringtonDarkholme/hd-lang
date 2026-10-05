@@ -183,8 +183,17 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   (`commands/dependencies.ts`) edit `hd.toml` line by line and write
   `hd.sum`. The linker (`package.ts`) joins each selected package's library
   under its own module keys, so `dep.NAME` sees only `pub` declarations.
-  A path requirement needs both packages in one workspace's `members`, and
-  `hd.sum` then lives beside the workspace manifest. `hd test` passes the command's environment to the
+  A path requirement names any local package, in a workspace or not; its
+  manifest joins the selection, its dev dependencies and own `hd.sum` are
+  never read, and it gets no `hd.sum` line. `hd.sum` lives beside the
+  workspace manifest when the package is a member. `hd fetch` at a workspace
+  root selects for every member (`resolveWorkspaceDependencies`); `hd add`,
+  `hd update`, and `hd remove` run in a member. `hd add` that lowers a
+  requirement prints `lowered NAME OLD -> NEW`. A pseudo-version's base tag
+  must exist and be an ancestor of its commit (`git merge-base
+  --is-ancestor`), as Go checks. A package under a workspace manifest that
+  neither lists nor excludes it is an uncoded error at the manifest, with
+  two fix-its (`package-mode.ts`). `hd test` passes the command's environment to the
   `hd run` that `hd_run!` starts, so it reads the same cache. Each linked module's scope names its
   package and the declarations its uses import, so the checker
   (`checker/package-ownership.ts`) applies the orphan rule across packages,
@@ -237,9 +246,21 @@ In a workspace or outside any package it may use only `std`.
 statement, or an expression; expressions print their value and type. A line
 ending in `:` starts a block, which an empty line ends. The session is kept as
 one program (`:source` shows it): declarations at the top level and statements
-in a synthesized `pub fn main() -> void $ Console`. Every input recompiles and
-reruns that program, skipping console output already shown, so declarations
-cannot see REPL bindings and suspending calls are not available. `:type EXPR`,
+in a synthesized entry point. Every input recompiles and reruns that program,
+skipping console output already shown, so declarations cannot see REPL
+bindings. `hd` and `hd repl` bind the default profile
+([`cli.repl.host.default-profile`](../spec/cli/command-line.md#r-cli.repl.host.default-profile)):
+the entry point is `pub fn main!()` whose row names `Console` and each trait
+of `commands/default-profile.ts` under a session alias, so bang calls work.
+A rerun answers the host calls of the inputs already accepted from their
+record, so a file is written and the clock is read once
+([`cli.repl.host.once`](../spec/cli/command-line.md#r-cli.repl.host.once)).
+`read_line!` reads a line from the terminal, with raw mode off for the read.
+The browser session binds no host, so its entry point stays
+`pub fn main() -> void $ Console`. A value of a std type that the session has
+not imported shows through a renderer-local `use` alias; a newtype shows as
+`Name(base)`, and a std data type with private fields by its `Display` text.
+`:type EXPR`,
 `:reset`, `:help`, and `:quit` are the commands. A pasted block, or a
 website snippet, is one entry of several inputs. When a binding input in it
 is rejected, its later inputs do not also report `unknown-name` for the
@@ -327,13 +348,17 @@ order, then declaration order. The summary object counts `errors`,
 | `line`, `column` | Primary position. Both are 1-based, and columns count UTF-16 code units. `null` for a failure with no source location, such as a panic. |
 | `related` | Secondary positions as `{message, file, line, column}`. |
 | `fix` | `{message, edits}` when the prototype knows the one correct edit, else `null`. An edit replaces its `span` (`offset` is the 0-based UTF-16 offset, and `end` is exclusive) with `replacement`; an empty span inserts and an empty replacement deletes. |
+| `fixes` | Every suggested fix-it: `[fix]` when there is one, or the alternatives, as the two of an unlisted workspace member. |
 | `rule` | The rule ID naming this code, when exactly one rule does; else `null`. |
 | `rules` | Every rule whose text names this code, as `{id, anchor}`. |
 
 Fixes are suggested only where the diagnostic's own message names the
 replacement: `old-struct-declaration`, `old-import-declaration`,
 `old-export-declaration`, `unexpected-bom`, and `missing-let`
-(`diagnostic-report.ts`). A producer may also attach a `fix` or `related`
+(`diagnostic-report.ts`), and `missing-eq` for `==` on an enum, which
+inserts `@derive(Eq)` above an enum of the same file. In a package build, a
+fix-it moves with its diagnostic into its file, and is dropped when an edit
+lies in another file (`package.ts`, `locate`). A producer may also attach a `fix` or `related`
 spans to a `Diagnostic` directly.
 
 Rule IDs are not kept in a table. `spec-index.ts` reads the specification

@@ -89,12 +89,26 @@ export function removeDependency(text: string, key: string): string | undefined 
  * Returns undefined when the manifest has no `[workspace]` table.
  */
 export function addWorkspaceMember(text: string, member: string): string | undefined {
+  return addWorkspaceEntry(text, "members", member);
+}
+
+/**
+ * Adds `directory` to the `members` or `exclude` array of a workspace
+ * manifest, as `addWorkspaceMember` does, for the fix-its of an unlisted
+ * member (spec/cli/command-line.md#r-cli.mode.member.unlisted.fix). A missing
+ * `members` key opens the table; a missing `exclude` key follows its last key.
+ */
+export function addWorkspaceEntry(
+  text: string,
+  key: "members" | "exclude",
+  directory: string,
+): string | undefined {
   const lines = text.split("\n");
   const range = tableRange(lines, "workspace");
   if (!range) return undefined;
   const [start, end] = range;
-  const quoted = JSON.stringify(member);
-  const pattern = keyPattern("members");
+  const quoted = JSON.stringify(directory);
+  const pattern = keyPattern(key);
   for (let index = start + 1; index < end; index += 1) {
     const match = pattern.exec(lines[index]!);
     if (!match) continue;
@@ -104,7 +118,7 @@ export function addWorkspaceMember(text: string, member: string): string | undef
     if (inline) {
       const items = inline[1]!.trim().replace(/,$/, "");
       lines[index] =
-        `${match[1]}members${match[2]}[${items === "" ? quoted : `${items}, ${quoted}`}]${inline[2] ?? ""}`;
+        `${match[1]}${key}${match[2]}[${items === "" ? quoted : `${items}, ${quoted}`}]${inline[2] ?? ""}`;
       return lines.join("\n");
     }
     // On many lines: a new item line before the line that closes the array.
@@ -119,6 +133,10 @@ export function addWorkspaceMember(text: string, member: string): string | undef
     lines.splice(close, 0, `${indent}${quoted},`);
     return lines.join("\n");
   }
-  lines.splice(start + 1, 0, `members = [${quoted}]`);
+  let at = start + 1;
+  if (key === "exclude")
+    for (let index = start + 1; index < end; index += 1)
+      if (/^\s*[^\s#]/.test(lines[index]!)) at = index + 1;
+  lines.splice(at, 0, `${key} = [${quoted}]`);
   return lines.join("\n");
 }

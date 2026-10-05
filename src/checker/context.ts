@@ -6,7 +6,7 @@ import { mapKeyKind } from "./map-keys.ts";
 import { traitKeyParts, traitValueBindings } from "./associated-bindings.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
 import type { AssignmentStatement, Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
-import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
+import type { Diagnostic, DiagnosticFix, SourceSpan } from "../diagnostics.ts";
 import type {
   HirExpression,
   HirEqualityDispatch,
@@ -1452,10 +1452,12 @@ export abstract class CheckerContext {
     this.fail("cannot-infer-type", unresolvedCallMessage(unresolved, callee), span);
   }
 
-  protected fail(code: string, message: string, span: SourceSpan): never {
+  /** Fails with `code`; a `fix` stays only while no rewrite changes the code. */
+  protected fail(code: string, message: string, span: SourceSpan, fix?: DiagnosticFix): never {
+    const written = code;
     ({ code, message } = rowDiagnostic(code, message, this.declaration));
     ({ code, message } = derivedFieldDiagnostic(code, message, span));
-    this.diagnostics.push({ code, message, span });
+    this.diagnostics.push({ code, message, span, ...(fix && code === written ? { fix } : {}) });
     throw new CheckFailure(message);
   }
 

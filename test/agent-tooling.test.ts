@@ -248,6 +248,18 @@ test("check --format json writes one JSON line per diagnostic, then a summary, t
       ignored: 0,
       status: 101,
     });
+    const fix = {
+      message: "replace 'struct' with 'data'",
+      edits: [
+        {
+          span: {
+            start: { line: 1, column: 1, offset: 0 },
+            end: { line: 1, column: 7, offset: 6 },
+          },
+          replacement: "data",
+        },
+      ],
+    };
     assert.deepEqual(diagnostic, {
       kind: "diagnostic",
       code: "old-struct-declaration",
@@ -258,18 +270,8 @@ test("check --format json writes one JSON line per diagnostic, then a summary, t
       column: 1,
       notes: [],
       related: [],
-      fix: {
-        message: "replace 'struct' with 'data'",
-        edits: [
-          {
-            span: {
-              start: { line: 1, column: 1, offset: 0 },
-              end: { line: 1, column: 7, offset: 6 },
-            },
-            replacement: "data",
-          },
-        ],
-      },
+      fix,
+      fixes: [fix],
       rule: "data.decl.no-struct",
       rules: [
         {
@@ -303,6 +305,47 @@ test("check --format json writes one JSON line per diagnostic, then a summary, t
         status: 0,
       },
     ]);
+  });
+});
+
+test("== on an enum without Eq names @derive(Eq), with a fix-it in the enum's file", async () => {
+  // spec/lang/05-expressions.md#r-expr.eq.enum-hint, #r-expr.eq.enum-hint.fix
+  await withDirectory(async (directory) => {
+    const file = join(directory, "paint.hd");
+    const source =
+      "# paint\n\nenum Color:\n    Red\n    Green\n\nfn same(left: Color, right: Color) -> bool:\n    left == right\n";
+    await writeFile(file, source);
+    const json = await hd(["check", "--format", "json", file]);
+    const [diagnostic] = jsonLines(json.stdout);
+    assert.equal(diagnostic!.code, "missing-eq");
+    assert.equal(
+      diagnostic!.message,
+      "type 'Color' does not implement Eq; add '@derive(Eq)' to 'Color'",
+    );
+    const edit = diagnostic!.fix!.edits[0]!;
+    assert.deepEqual(edit.span.start, { line: 3, column: 1, offset: 9 });
+    await writeFile(
+      file,
+      source.slice(0, edit.span.start.offset) +
+        edit.replacement +
+        source.slice(edit.span.end.offset),
+    );
+    assert.equal((await hd(["check", file])).code, 0);
+
+    // In a package, the fix-it stays only when the enum is in the comparison's file.
+    const pkg = join(directory, "shop");
+    await mkdir(join(pkg, "src"), { recursive: true });
+    await writeFile(join(pkg, "hd.toml"), '[package]\nname = "shop"\n');
+    await writeFile(join(pkg, "src", "color.hd"), "pub enum Color:\n    Red\n    Green\n");
+    await writeFile(
+      join(pkg, "src", "lib.hd"),
+      "use self.color.{Color}\n\npub fn same(left: Color, right: Color) -> bool:\n    left == right\n",
+    );
+    const other = await runHd(["check", "--format", "json"], { cwd: pkg });
+    const [elsewhere] = jsonLines(other.stdout);
+    assert.equal(elsewhere!.file, "src/lib.hd");
+    assert.match(elsewhere!.message, /add '@derive\(Eq\)' to 'Color'/);
+    assert.equal(elsewhere!.fix, null);
   });
 });
 
@@ -355,6 +398,7 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
         notes: [],
         related: [],
         fix: null,
+        fixes: [],
         rule: null,
         rules: [],
       },

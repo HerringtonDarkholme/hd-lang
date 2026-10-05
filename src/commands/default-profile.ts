@@ -41,6 +41,22 @@ export interface DefaultProfileHost {
   readonly readLine: () => string | undefined | null;
 }
 
+/**
+ * The traits of the default profile that this file answers, by module and
+ * name; `Console` is a built-in of every run. A REPL session's entry row
+ * names them (spec/cli/command-line.md#r-cli.repl.host.default-profile).
+ */
+export const DEFAULT_PROFILE_TRAITS: readonly { readonly module: string; readonly name: string }[] =
+  [
+    { module: "std.console", name: "ConsoleInput" },
+    { module: "std.host", name: "Args" },
+    { module: "std.host", name: "Env" },
+    { module: "std.time", name: "Clock" },
+    { module: "std.random", name: "Random" },
+    { module: "std.fs", name: "FsRead" },
+    { module: "std.fs", name: "FsWrite" },
+  ];
+
 type Answer = (call: HostSuspensionCall, host: DefaultProfileHost) => HostBoundaryValue | void;
 
 const ready = (value?: HostBoundaryValue): HostSuspensionOutcome =>

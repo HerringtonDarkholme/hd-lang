@@ -82,7 +82,26 @@ export function pseudoCommit(version: Version): PseudoCommit | undefined {
   const noTag =
     base.length === 0 && version.major === 0 && version.minor === 0 && version.patch === 0;
   if (!noTag && base.at(-1) !== "0") return undefined;
+  // `X.Y.(Z+1)-0.TIME-HASH` follows a release, so its patch is at least 1.
+  if (base.length === 1 && version.patch === 0) return undefined;
   return { time: match[1]!, hash: match[2]! };
+}
+
+/**
+ * The version of a pseudo-version's base tag
+ * (spec/cli/command-line.md#r-cli.dep.pseudo.base): `X.Y.Z` for
+ * `X.Y.(Z+1)-0.TIME-HASH`, `X.Y.Z-PRE` for `X.Y.Z-PRE.0.TIME-HASH`, and
+ * undefined for `0.0.0-TIME-HASH`, which has none.
+ */
+export function pseudoBase(version: Version): Version | undefined {
+  const base = version.pre.slice(0, -2);
+  const { major, minor, patch } = version;
+  if (version.pre.length === 1) return undefined;
+  if (base.length === 0) {
+    const text = `${major}.${minor}.${patch - 1}`;
+    return { major, minor, patch: patch - 1, pre: [], text };
+  }
+  return { major, minor, patch, pre: base, text: `${major}.${minor}.${patch}-${base.join(".")}` };
 }
 
 /** Whether a version is a pseudo-version (spec/lang/10-modules.md#r-module.version.pseudo). */
@@ -167,7 +186,9 @@ function requiredVersion(text: string): Version | string {
 }
 
 /** A requirement `PATH@VERSION`, or the message of why `text` is none. */
-export function parseHostRequirement(text: string): Requirement | string {
+export function parseHostRequirement(
+  text: string,
+): Extract<Requirement, { readonly kind: "host" }> | string {
   const at = text.lastIndexOf("@");
   if (at < 0) return `'${text}' has no version: write PATH@VERSION, as github.com/acme/json@2.1.0`;
   const host = parseHostPath(text.slice(0, at));
@@ -180,7 +201,7 @@ export function parseHostRequirement(text: string): Requirement | string {
 /**
  * A dependency key's value: `"PATH@VERSION"`, or a path requirement
  * `{ path = "DIR" }` with an optional version
- * (spec/lang/10-modules.md#r-module.dep.requirement-value); or the message
+ * (spec/lang/10-modules.md#r-module.dep.requirement-form); or the message
  * of why it is neither.
  */
 export function parseRequirement(value: TomlValue): Requirement | string {

@@ -1,4 +1,10 @@
-import { analyze, instantiate, type CompileOptions } from "./compiler.ts";
+import {
+  analyze,
+  instantiate,
+  type CompileOptions,
+  type HostSuspensionCall,
+  type HostSuspensionOutcome,
+} from "./compiler.ts";
 import type { Diagnostic, SourcePosition } from "./diagnostics.ts";
 import { physicalSpan, SOURCE_ORIGIN, sourceDocument } from "./diagnostics.ts";
 import {
@@ -78,6 +84,8 @@ interface EvaluateOptions {
 interface RunResult {
   readonly lines: readonly string[];
   readonly error?: string;
+  /** The host answers of the run: the accepted inputs' replayed, then this input's. */
+  readonly hostAnswers: readonly HostAnswer[];
 }
 
 /**
@@ -94,6 +102,27 @@ export interface ReplPackage {
   readonly dependencies?: PackageDependencies;
 }
 
+/**
+ * The host a session binds, as `hd FILE` does
+ * (spec/cli/command-line.md#r-cli.repl.host.default-profile): the traits of
+ * its profile, which the session's entry row names, and their answers.
+ */
+export interface ReplHost {
+  /** Each trait by its module and name, such as `std.time` and `Clock`. */
+  readonly traits: readonly { readonly module: string; readonly name: string }[];
+  /** The answer to a call on one of `traits`, or undefined for any other call. */
+  readonly invoke: (call: HostSuspensionCall) => HostSuspensionOutcome | undefined;
+}
+
+/** One host call of an accepted input, kept so a rerun answers it again without its effect. */
+interface HostAnswer {
+  readonly method: string;
+  readonly outcome: HostSuspensionOutcome;
+}
+
+/** The prefix of the names the session gives the host traits, apart from the user's. */
+const HOST_ALIAS = "__repl_host_";
+
 interface PreparedSource {
   readonly source: string;
   readonly options: CompileOptions;
@@ -109,17 +138,23 @@ export class ReplSession {
   private shownLines = 0;
   private lastModule: string | undefined;
   private modules = 0;
+  /** The host answers of the accepted inputs, in call order. */
+  private hostAnswers: readonly HostAnswer[] = [];
   private readonly options: CompileOptions;
   private readonly package?: ReplPackage;
+  private readonly host?: ReplHost;
 
   /**
    * With `pkg`, the session acts as code inside the package's `src/lib.hd`
    * (spec/cli/command-line.md#r-cli.repl.package.lib): its source joins the
    * end of that file, and the linker joins the package's modules it uses.
+   * With `host`, the session's entry row names the host's traits, and their
+   * calls go to the host (spec/cli/command-line.md#r-cli.repl.host.default-profile).
    */
-  constructor(options: CompileOptions = {}, pkg?: ReplPackage) {
+  constructor(options: CompileOptions = {}, pkg?: ReplPackage, host?: ReplHost) {
     this.options = options;
     if (pkg) this.package = pkg;
+    if (host) this.host = host;
   }
 
   /** The session source as the compiler sees it: alone, or linked into its package. */
@@ -203,6 +238,7 @@ export class ReplSession {
     this.shownLines = 0;
     this.lastModule = undefined;
     this.modules = 0;
+    this.hostAnswers = [];
   }
 
   /**
@@ -281,6 +317,7 @@ export class ReplSession {
     const output = run.lines.slice(this.shownLines);
     this.statements = statements;
     this.shownLines = run.lines.length;
+    this.hostAnswers = run.hostAnswers;
     return { output, errors: [], warnings, accepted: true };
   }
 
@@ -325,6 +362,7 @@ export class ReplSession {
     const output = run.lines.slice(this.shownLines, -1);
     this.statements = [...this.statements, `_ := ${text}`];
     this.shownLines = run.lines.length - 1;
+    this.hostAnswers = run.hostAnswers;
     return {
       output,
       value: run.lines.at(-1),
@@ -342,11 +380,22 @@ export class ReplSession {
   ): Attempt {
     const lines: string[] = [];
     let inputLine = 0;
+    // The host's traits under names of the session's own, so the entry row
+    // can name them whatever the inputs import (cli.repl.host.default-profile).
+    const traits = this.host?.traits ?? [];
+    for (const { module, name } of traits)
+      lines.push(`use ${module}.{${name} as ${HOST_ALIAS}${name}}`);
+    if (traits.length > 0) lines.push("");
     for (const declaration of declarations) {
       if (declaration === input) inputLine = lines.length;
       lines.push(...declaration.split("\n"), "");
     }
-    lines.push("pub fn main() -> void $ Console:");
+    const row = ["Console", ...traits.map(({ name }) => `${HOST_ALIAS}${name}`)];
+    lines.push(
+      traits.length === 0
+        ? "pub fn main() -> void $ Console:"
+        : `pub fn main!() -> void $ ${row.join(" + ")}:`,
+    );
     const body = statements.length === 0 ? ["pass"] : statements;
     body.forEach((statement, index) => {
       if (input === undefined && index === body.length - 1) inputLine = lines.length;
@@ -375,25 +424,46 @@ export class ReplSession {
 
   private async run(source: string): Promise<RunResult> {
     const lines: string[] = [];
+    // An accepted input's host calls are answered from the record on a
+    // rerun, so their effects happen once (cli.repl.host.once).
+    const replayed = this.hostAnswers;
+    const hostAnswers: HostAnswer[] = [];
+    const host = this.host;
     const prepared = this.prepare(source);
-    if (prepared.failure) return { lines, error: "internal: the session does not link" };
+    if (prepared.failure)
+      return { lines, error: "internal: the session does not link", hostAnswers: replayed };
+    // Once a call differs from the record, as after a redeclared function,
+    // every later call goes to the host.
+    let diverged = false;
+    const hostSuspensionInvoke = (call: HostSuspensionCall): HostSuspensionOutcome => {
+      const method = `${call.standardName ?? call.providerKey}.${call.methodName}`;
+      const kept = diverged ? undefined : replayed[hostAnswers.length];
+      diverged ||= kept?.method !== method;
+      const outcome = kept && !diverged ? kept.outcome : (host?.invoke(call) ?? { pending: false });
+      hostAnswers.push({ method, outcome });
+      return outcome;
+    };
     try {
       const { instance, compilation } = await instantiate(prepared.source, {
         ...prepared.options,
         console: (text) => lines.push(text),
         consoleError: (text) => lines.push(text),
+        ...(host ? { hostSuspensionInvoke } : {}),
       });
       this.lastModule = compilation.wat;
       this.modules += 1;
       const main = compilation.hir.functions.find(({ name }) => name === "main");
       const entry = instance.exports.main;
-      if (!main || typeof entry !== "function") return { lines, error: "internal: no entry point" };
+      if (!main || typeof entry !== "function")
+        return { lines, error: "internal: no entry point", hostAnswers };
       entry(...main.requirements.map((requirement) => ({ requirement })));
-      return { lines };
+      return { lines, hostAnswers };
     } catch (error) {
-      if (error instanceof RuntimePanicError)
-        return { lines, error: `panic: ${error.detail ? error.message : error.code}` };
-      return { lines, error: `internal error: ${(error as Error).message}` };
+      const message =
+        error instanceof RuntimePanicError
+          ? `panic: ${error.detail ? error.message : error.code}`
+          : `internal error: ${(error as Error).message}`;
+      return { lines, error: message, hostAnswers };
     }
   }
 }
@@ -529,6 +599,26 @@ interface Renderers {
 function renderers(type: string, hir: HirProgram): Renderers {
   const names = new Map<string, string>();
   const declarations: string[] = [];
+  // A std type that the session has not imported, such as the `FsError` of
+  // `read_text!`, gets a name of the renderer's own through a `use`.
+  const aliases = new Map<string, string>();
+  const spell = (valueType: string): string =>
+    displayType(
+      valueType.replace(/(?<![A-Za-z0-9_])__std_[a-z0-9_]+_[A-Z][A-Za-z0-9_]*/g, (word) => {
+        const standard = standardTypeName(hir, word);
+        if (standard === undefined) return word;
+        let alias = aliases.get(word);
+        if (alias === undefined) {
+          alias = `${SHOW}_type_${aliases.size}`;
+          aliases.set(word, alias);
+          const dot = standard.lastIndexOf(".");
+          declarations.push(
+            `use ${standard.slice(0, dot)}.{${standard.slice(dot + 1)} as ${alias}}`,
+          );
+        }
+        return alias;
+      }),
+    );
   const nameFor = (valueType: string): string => {
     // Only weaken the renderer argument's outer view. Erasing nested
     // permissions would convert invariant Option/Result generic arguments.
@@ -537,12 +627,11 @@ function renderers(type: string, hir: HirProgram): Renderers {
     if (existing) return existing;
     const name = `${SHOW}_${names.size}`;
     names.set(key, name);
-    const body = rendererBody(key, hir, nameFor);
+    const body = rendererBody(key, hir, nameFor, spell);
     declarations.push(
-      [
-        `fn ${name}(value: ${displayType(key)}) -> string:`,
-        ...body.map((line) => `    ${line}`),
-      ].join("\n"),
+      [`fn ${name}(value: ${spell(key)}) -> string:`, ...body.map((line) => `    ${line}`)].join(
+        "\n",
+      ),
     );
     return name;
   };
@@ -550,7 +639,17 @@ function renderers(type: string, hir: HirProgram): Renderers {
   return { declarations, call: (argument) => `${top}(${argument})` };
 }
 
-function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => string): string[] {
+/** The qualified name of the std data type or enum whose internal name is `name`. */
+function standardTypeName(hir: HirProgram, name: string): string | undefined {
+  return [...hir.data, ...hir.enums].find((declaration) => declaration.name === name)?.standardName;
+}
+
+function rendererBody(
+  type: string,
+  hir: HirProgram,
+  nameFor: (type: string) => string,
+  spell: (type: string) => string,
+): string[] {
   if (DISPLAY_PRIMITIVES.has(type)) return ['"$value"'];
   if (type === "string") return ['"\\"" + value + "\\""'];
   if (type === "char") return ["\"'$value'\""];
@@ -592,13 +691,13 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
     ];
   }
   if (generic?.name === "Result" && generic.arguments.length === 2) {
-    const ok = nameFor(generic.arguments[0]!);
     const error = nameFor(generic.arguments[1]!);
-    return [
-      "match value:",
-      `    .Ok(success) => ".Ok(" + ${ok}(success) + ")"`,
-      `    .Err(failure) => ".Err(" + ${error}(failure) + ")"`,
-    ];
+    // A void success, as of `write_text!`, has no value to show.
+    const success =
+      generic.arguments[0] === "void"
+        ? '    .Ok(_) => ".Ok(())"'
+        : `    .Ok(success) => ".Ok(" + ${nameFor(generic.arguments[0]!)}(success) + ")"`;
+    return ["match value:", success, `    .Err(failure) => ".Err(" + ${error}(failure) + ")"`];
   }
   if (type.startsWith("(") && type.endsWith(")")) {
     const elements = splitTopLevel(type.slice(1, -1));
@@ -608,6 +707,22 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
     return [`"(" + ${parts.join(' + ", " + ')} + ")"`];
   }
   const data = hir.data.find(({ name }) => name === (generic?.name ?? type));
+  // A newtype shows its constructor around its base value, which the base
+  // type's constructor unwraps (types.newtype.construct).
+  if (data?.newtype && data.fields.length === 1 && data.genericParameters.length === 0) {
+    const base = data.fields[0]!.type;
+    return [`"${displayType(data.name)}(" + ${nameFor(base)}(${spell(base)}(value)) + ")"`];
+  }
+  // A std data type's private fields are its own; it shows as its Display
+  // text, as `Timestamp` does, or else by name only.
+  if (data?.standard && data.fields.some((field) => !field.public)) {
+    const shown = hir.implementations.some(
+      ({ traitName, targetType }) =>
+        /(^|\.)Display$/.test(traitName) &&
+        (targetType === data.name || targetType === data.standardName),
+    );
+    return [shown ? '"$value"' : `"<${displayType(data.name)}>"`];
+  }
   if (data) return dataBody(data, type, generic?.arguments ?? [], nameFor);
   const enumeration = hir.enums.find(({ name }) => name === (generic?.name ?? type));
   if (enumeration) return enumBody(enumeration, generic?.arguments ?? [], nameFor);
@@ -625,7 +740,7 @@ function dataBody(
   const fields = data.fields.map(
     (field) => `"${field.name}: " + ${nameFor(substitute(field.type))}(value.${field.name})`,
   );
-  return [`"${data.name} { " + ${fields.join(' + ", " + ')} + " }"`];
+  return [`"${displayType(data.name)} { " + ${fields.join(' + ", " + ')} + " }"`];
 }
 
 function enumBody(
@@ -635,7 +750,7 @@ function enumBody(
 ): string[] {
   const substitute = substitution(enumeration.genericParameters, typeArguments);
   const arms = enumeration.variants.map((variant) => {
-    const label = `${enumeration.name}.${variant.name}`;
+    const label = `${displayType(enumeration.name)}.${variant.name}`;
     if (variant.fields.length === 0) return `    .${variant.name} => "${label}"`;
     const names = variant.fields.map((field) => field.name);
     const parts = variant.fields.map(

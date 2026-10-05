@@ -16,6 +16,7 @@ import { after, before, describe, test } from "node:test";
 import { removeTree } from "../src/dependencies/cache.ts";
 import { maskCredentials } from "../src/dependencies/git.ts";
 import {
+  addWorkspaceEntry,
   addWorkspaceMember,
   removeDependency,
   setDependency,
@@ -26,6 +27,7 @@ import {
   parseHostPath,
   parseHostRequirement,
   parseVersion,
+  pseudoBase,
   pseudoCommit,
 } from "../src/dependencies/requirement.ts";
 import { formatSum } from "../src/dependencies/sum.ts";
@@ -516,17 +518,188 @@ describe("pseudo-versions and workspaces", needsGit, () => {
       "app/hd.toml": '[package]\nname = "app"\n\n[dependencies]\nutil = { path = "../util" }\n',
       "app/src/main.hd":
         "use dep.util.{twice}\n\npub fn main() -> void $ Console:\n    println(twice(21))\n",
-      "loose/hd.toml": '[package]\nname = "loose"\n\n[dependencies]\nutil = { path = "../util" }\n',
+      "loose/hd.toml": '[package]\nname = "loose"\n',
       "loose/src/main.hd": "pub fn main() -> void $ Console:\n    println(1)\n",
     });
     const ran = await hd(join(workspace, "app"), ["run"], { PATH: "" });
     assert.equal(ran.status, 0, ran.stderr);
     assert.equal(ran.stdout, "42\n");
     assert.ok(!existsSync(join(workspace, "hd.sum")));
-    // loose is no member, so its path requirement is invalid.
+    // loose is under the workspace manifest, which neither lists nor
+    // excludes it (cli.mode.member.unlisted), with two fix-its
+    // (cli.mode.member.unlisted.fix).
     const loose = await hd(join(workspace, "loose"), ["check", "--format", "json"]);
     assert.equal(loose.status, 101);
-    assert.match(loose.stdout, /"code":"invalid-requirement"/);
+    const [diagnostic] = loose.stdout.split("\n").map((line) => JSON.parse(line || "{}"));
+    assert.equal(diagnostic.code, null);
+    assert.equal(diagnostic.file, "../hd.toml");
+    assert.equal(diagnostic.fix, null);
+    assert.deepEqual(
+      diagnostic.fixes.map((fix: { message: string; edits: { replacement: string }[] }) => [
+        fix.message,
+        fix.edits.map((edit) => edit.replacement).join(""),
+      ]),
+      [
+        ['add "loose" to members', ', "loose"'],
+        ['add "loose" to exclude', 'exclude = ["loose"]\n'],
+      ],
+    );
+    const text = await hd(join(workspace, "loose"), ["run"]);
+    assert.equal(text.status, 101);
+    assert.match(text.stderr, /lists it neither in members nor in exclude/);
+    assert.match(
+      text.stderr,
+      / {2}fix-it: add "loose" to members\n {2}fix-it: add "loose" to exclude/,
+    );
+    // The dependency commands refuse it too, and write nothing.
+    assert.equal((await hd(join(workspace, "loose"), ["fetch"])).status, 101);
+    // Excluded, it is a package of its own (cli.mode.member.excluded).
+    await writeFile(
+      join(workspace, "hd.toml"),
+      '[workspace]\nmembers = ["app", "util"]\nexclude = ["loose"]\n',
+    );
+    assert.equal((await hd(join(workspace, "loose"), ["run"])).stdout, "1\n");
+  });
+
+  test("a path requirement names a package outside any workspace, as Cargo's does", async () => {
+    // spec/lang/10-modules.md#path-requirements: money is a sibling, in no
+    // workspace; its requirement on text joins the selection of shop, whose
+    // hd.sum alone records it. money's own hd.sum and dev dependencies are
+    // never read.
+    const money = join(root, "local", "money");
+    await writeTree(money, {
+      "hd.toml":
+        '[package]\nname = "money"\n\n[dependencies]\ntext = "github.com/acme/text@1.1.0"\n\n[dev-dependencies]\nfixtures = "github.com/acme/missing@9.9.9"\n',
+      "hd.sum": "github.com/acme/text@1.1.0 h1:not-read\n",
+      "src/lib.hd":
+        'use dep.text.{whisper}\n\npub fn price(cents: i32) -> string:\n    whisper("${cents} cents")\n',
+    });
+    const shop = join(root, "local", "shop");
+    await writeTree(shop, {
+      "hd.toml":
+        '[package]\nname = "shop"\n\n[dependencies]\nmoney = { path = "../money" }\ntext = "github.com/acme/text@1.0.0"\n',
+      "src/main.hd":
+        "use dep.money.{price}\nuse dep.text.{shout}\n\npub fn main() -> void $ Console:\n    println(shout(price(250)))\n",
+    });
+    const checked = await hd(shop, ["check", "--format", "json"], { PATH: "" });
+    assert.equal(checked.status, 101);
+    assert.match(checked.stdout, /"code":"missing-sum-entry"/);
+    const fetched = await hd(shop, ["fetch"]);
+    assert.equal(fetched.status, 0, fetched.stderr);
+    assert.equal(
+      await readFile(join(shop, "hd.sum"), "utf8"),
+      manifestLine("github.com/acme/text@1.0.0", TEXT_V1) +
+        selectedLines("github.com/acme/text@1.1.0", TEXT_V1_1),
+    );
+    const ran = await hd(shop, ["run"], { PATH: join(root, "empty-path") });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(ran.stdout, "(250 cents)!\n");
+    // A path that holds no package is invalid (module.path-dep.no-package).
+    await writeFile(
+      join(shop, "hd.toml"),
+      '[package]\nname = "shop"\n\n[dependencies]\nmoney = { path = "../nowhere" }\n',
+    );
+    const missing = await hd(shop, ["check"]);
+    assert.equal(missing.status, 101);
+    assert.match(
+      missing.stderr,
+      /invalid-requirement: money: the path requirement names \.\.\/nowhere/,
+    );
+  });
+
+  test("hd fetch at a workspace root fetches every member's selection", async () => {
+    // spec/cli/command-line.md#r-cli.dep.workspace-fetch
+    const workspace = join(root, "ci");
+    await writeTree(workspace, {
+      "hd.toml": '[workspace]\nmembers = ["web", "util"]\n',
+      "web/hd.toml":
+        '[package]\nname = "web"\n\n[dependencies]\ntext = "github.com/acme/text@1.0.0"\n',
+      "web/src/main.hd": SHOUT_MAIN,
+      "util/hd.toml":
+        '[package]\nname = "util"\n\n[dependencies]\ntext = "github.com/acme/text@1.1.0"\n',
+      "util/src/lib.hd": "pub fn one() -> i32:\n    1\n",
+    });
+    const fresh = { HD_CACHE: join(root, "cache-ci") };
+    const fetched = await hd(workspace, ["fetch"], fresh);
+    assert.equal(fetched.status, 0, fetched.stderr);
+    assert.match(fetched.stderr, /hd: fetching github\.com\/acme\/text@1\.1\.0/);
+    assert.equal(
+      await readFile(join(workspace, "hd.sum"), "utf8"),
+      manifestLine("github.com/acme/text@1.0.0", TEXT_V1) +
+        selectedLines("github.com/acme/text@1.1.0", TEXT_V1_1),
+    );
+    const offline = await hd(join(workspace, "web"), ["run"], { ...fresh, PATH: "" });
+    assert.equal(offline.stdout, "hello!\n");
+    // The commands that edit a requirement stay member-only (cli.dep.workspace-member-only).
+    const added = await hd(workspace, ["add", "text", "github.com/acme/text@1.0.0"]);
+    assert.equal(added.status, 101);
+    assert.match(added.stderr, /run it inside that member's directory/);
+    // hd add may lower a requirement, and says so (cli.dep.add.lower); the
+    // other member's 1.1.0 still wins the selection (cli.dep.add.lower.selection).
+    const util = join(workspace, "util");
+    const lowered = await hd(util, ["add", "text", "github.com/acme/text@1.0.0"], fresh);
+    assert.equal(lowered.status, 0, lowered.stderr);
+    assert.equal(lowered.stdout, "lowered text 1.1.0 -> 1.0.0\n");
+    assert.match(await readFile(join(util, "hd.toml"), "utf8"), /text@1\.0\.0"/);
+    assert.equal(
+      await readFile(join(workspace, "hd.sum"), "utf8"),
+      selectedLines("github.com/acme/text@1.0.0", TEXT_V1),
+    );
+    const raised = await hd(util, ["add", "text", "github.com/acme/text@1.1.0"], fresh);
+    assert.equal(raised.stdout, 'text = "github.com/acme/text@1.1.0"\n');
+    await removeTree(join(root, "cache-ci"));
+  });
+
+  test("a pseudo-version's base tag must precede its commit, as Go checks", async () => {
+    // spec/cli/command-line.md#r-cli.dep.pseudo.base
+    const repo = await remote("based", [
+      ["v0.4.0", TEXT_V1],
+      ["v0.5.0", { "NOTES.md": "five\n" }],
+    ]);
+    const commit = async (file: string): Promise<string> => {
+      await writeFile(join(repo, file), `${file}\n`);
+      git(repo, "add", "--all");
+      git(repo, "commit", "--quiet", "-m", file);
+      const [hash, seconds] = git(repo, "log", "-1", "--format=%H %ct").trim().split(" ");
+      const time = new Date(Number(seconds) * 1000).toISOString().replace(/\.\d{3}Z$|[-T:]/g, "");
+      return `${time}-${hash!.slice(0, 12)}`;
+    };
+    const tagged = git(repo, "log", "-1", "--format=%H %ct").trim().split(" ");
+    const taggedCommit = `${new Date(Number(tagged[1]) * 1000).toISOString().replace(/\.\d{3}Z$|[-T:]/g, "")}-${tagged[0]!.slice(0, 12)}`;
+    const after = await commit("after.txt");
+    git(repo, "tag", "v0.6.0-rc.1");
+    const rc = await commit("rc.txt");
+    git(repo, "checkout", "--quiet", "-b", "side", "v0.4.0");
+    const side = await commit("side.txt");
+    git(repo, "checkout", "--quiet", "main");
+    const directory = await app("pseudo-base", SHOUT_MAIN, "\n[dependencies]\n");
+    const add = (version: string): Promise<HdResult> =>
+      hd(directory, ["add", "text", `github.com/acme/based@${version}`]);
+    // Any earlier tag on the commit's history may be the base, not only the
+    // closest; 0.0.0-TIME-HASH has none.
+    for (const version of [
+      `0.5.1-0.${after}`,
+      `0.4.1-0.${after}`,
+      `0.6.0-rc.1.0.${rc}`,
+      `0.0.0-${rc}`,
+    ]) {
+      const added = await add(version);
+      assert.equal(added.status, 0, `${version}: ${added.stderr}`);
+    }
+    const rejected: [string, RegExp][] = [
+      [`0.6.1-0.${after}`, /has no tag v0\.6\.0, which the pseudo-version/],
+      [`0.5.1-0.${side}`, /does not descend from the tag v0\.5\.0/],
+      [`0.5.1-0.${taggedCommit}`, /is the tag v0\.5\.0 itself, so require 0\.5\.0 instead/],
+    ];
+    for (const [version, message] of rejected) {
+      const added = await add(version);
+      assert.equal(added.status, 101, version);
+      assert.match(added.stderr, /unknown-version/);
+      assert.match(added.stderr, message);
+    }
+    // X.Y.0-0.TIME-HASH follows no release, so it is no pseudo-version and needs a tag.
+    const zero = await add(`0.5.0-0.${after}`);
+    assert.match(zero.stderr, /has no tag v0\.5\.0-0\./);
   });
 });
 
@@ -574,8 +747,15 @@ test("a pseudo-version takes one of Go's three forms", () => {
     "0.4.1-1.20260912081500-3f2c9e1a7b6d",
     "0.4.1-0.20260912081500-3F2C9E1A7B6D",
     "0.4.1-rc.1",
+    // A release base has patch Z, so the pseudo-version's patch is Z+1 >= 1.
+    "0.4.0-0.20260912081500-3f2c9e1a7b6d",
   ])
     assert.equal(pseudoCommit(parseVersion(text)!), undefined, text);
+  // Each form names its base tag's version (cli.dep.pseudo.base).
+  const base = (text: string): string | undefined => pseudoBase(parseVersion(text)!)?.text;
+  assert.equal(base("0.0.0-20260912081500-3f2c9e1a7b6d"), undefined);
+  assert.equal(base("0.4.1-0.20260912081500-3f2c9e1a7b6d"), "0.4.0");
+  assert.equal(base("1.0.0-rc.1.0.20260912081500-3f2c9e1a7b6d"), "1.0.0-rc.1");
   // A pseudo-version is a pre-release, so it orders below the release it precedes.
   assert.ok(
     compareVersions(parseVersion("0.4.1-0.20260912081500-3f2c9e1a7b6d")!, parseVersion("0.4.1")!) <
@@ -617,4 +797,13 @@ test("dependency commands edit hd.toml line by line", () => {
     '[workspace]\nmembers = ["b"]\nexclude = ["x"]\n',
   );
   assert.equal(addWorkspaceMember('[package]\nname = "a"\n', "b"), undefined);
+  // The unlisted-member fix-its add to members or to exclude (cli.mode.member.unlisted.fix).
+  assert.equal(
+    addWorkspaceEntry('[workspace]\nmembers = ["a"]\n\n[other]\n', "exclude", "b"),
+    '[workspace]\nmembers = ["a"]\nexclude = ["b"]\n\n[other]\n',
+  );
+  assert.equal(
+    addWorkspaceEntry('[workspace]\nmembers = ["a"]\nexclude = ["x"]\n', "exclude", "b"),
+    '[workspace]\nmembers = ["a"]\nexclude = ["x", "b"]\n',
+  );
 });

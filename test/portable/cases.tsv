@@ -2474,3 +2474,6 @@ runtime/valid/shared-enum-data-computed-once.hd	runtime
 runtime/valid/closure-result-keeps-requirement-row.hd	runtime
 runtime/valid/trait-default-method-instantiates-params.hd	runtime
 typing/valid/user-defined-all.hd	type
+cli/dep-path-local	cli
+cli/dep-workspace-fetch	cli
+cli/member-unlisted	cli

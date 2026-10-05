@@ -655,6 +655,67 @@ function parsePackageModules(
   return modules;
 }
 
+/**
+ * Maps a diagnostic on a linked source back to its package file
+ * (`LinkedPackage.locate`), with its fix-it's edits when they lie in that
+ * file: `sourceOf` gives a file's text, which places each moved edit.
+ */
+function segmentLocator(
+  segments: readonly LinkSegment[],
+  entry: string,
+  sourceOf: (path: string) => string | undefined,
+): (diagnostic: Diagnostic) => PackageDiagnostic {
+  return (diagnostic) => {
+    // REPL transports source-qualified diagnostics as text, so callers that
+    // parse that transport can retain its explicit non-package file here.
+    const explicitFile = (diagnostic as Diagnostic & { readonly file?: unknown }).file;
+    if (typeof explicitFile === "string") return { ...diagnostic, path: explicitFile };
+    const document = sourceDocument(diagnostic.span);
+    if (document) return { ...physicalDiagnostic(diagnostic), path: document.file };
+    const segmentOf = (position: SourcePosition): LinkSegment | undefined =>
+      segments.findLast(({ firstLine }) => firstLine <= position.line) ?? segments[0];
+    const segment = segmentOf(diagnostic.span.start);
+    if (!segment) return { ...diagnostic, path: entry };
+    const move = (position: SourcePosition): SourcePosition => {
+      const line = Math.min(Math.max(1, position.line - segment.firstLine + 1), segment.lineCount);
+      const deleted = segment.deleted.get(line - 1) ?? 0;
+      return {
+        ...position,
+        line,
+        column: Math.max(1, position.column - segment.indent + deleted),
+      };
+    };
+    const { fix, ...rest } = diagnostic;
+    const located: PackageDiagnostic = {
+      ...rest,
+      path: segment.path,
+      span: { start: move(diagnostic.span.start), end: move(diagnostic.span.end) },
+    };
+    // A fix-it's edits move with it, and it stays only when every edit is in
+    // the diagnostic's own file, whose text gives each moved edit its offset.
+    const text = sourceOf(segment.path);
+    if (!fix || text === undefined) return located;
+    if (
+      fix.edits.some(
+        ({ span }) => segmentOf(span.start) !== segment || segmentOf(span.end) !== segment,
+      )
+    )
+      return located;
+    const lineOffsets = [0];
+    for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1))
+      lineOffsets.push(index + 1);
+    const placed = (position: SourcePosition): SourcePosition => {
+      const moved = move(position);
+      return { ...moved, offset: (lineOffsets[moved.line - 1] ?? text.length) + moved.column - 1 };
+    };
+    const edits = fix.edits.map(({ span, replacement }) => ({
+      span: { start: placed(span.start), end: placed(span.end) },
+      replacement,
+    }));
+    return { ...located, fix: { message: fix.message, edits } };
+  };
+}
+
 /** Links the package `files` (path to source) whose entry module is `entry`. */
 export function linkPackage(
   files: Readonly<Record<string, string>>,
@@ -891,31 +952,7 @@ export function linkPackage(
   const joinedName = joinedNames(order, entryModule, report);
 
   const segments: LinkSegment[] = [];
-  const locate = (diagnostic: Diagnostic): PackageDiagnostic => {
-    // REPL transports source-qualified diagnostics as text, so callers that
-    // parse that transport can retain its explicit non-package file here.
-    const explicitFile = (diagnostic as Diagnostic & { readonly file?: unknown }).file;
-    if (typeof explicitFile === "string") return { ...diagnostic, path: explicitFile };
-    const document = sourceDocument(diagnostic.span);
-    if (document) return { ...physicalDiagnostic(diagnostic), path: document.file };
-    const segment =
-      segments.findLast(({ firstLine }) => firstLine <= diagnostic.span.start.line) ?? segments[0];
-    if (!segment) return { ...diagnostic, path: entry };
-    const move = (position: SourcePosition): SourcePosition => {
-      const line = Math.min(Math.max(1, position.line - segment.firstLine + 1), segment.lineCount);
-      const deleted = segment.deleted.get(line - 1) ?? 0;
-      return {
-        ...position,
-        line,
-        column: Math.max(1, position.column - segment.indent + deleted),
-      };
-    };
-    return {
-      ...diagnostic,
-      path: segment.path,
-      span: { start: move(diagnostic.span.start), end: move(diagnostic.span.end) },
-    };
-  };
+  const locate = segmentLocator(segments, entry, (path) => files[path] ?? dependencySources[path]);
   if (diagnostics.some(({ severity }) => severity !== "warning") || !entryModule)
     return { modules: order, diagnostics, locate, initGroups: [], dependencySources };
 

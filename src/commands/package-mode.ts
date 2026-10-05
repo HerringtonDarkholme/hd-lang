@@ -7,6 +7,8 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
+import { addWorkspaceEntry } from "../dependencies/manifest-edit.ts";
+import type { DiagnosticFix, SourcePosition, TextEdit } from "../diagnostics.ts";
 import { readManifest, type Manifest } from "../manifest.ts";
 import {
   LIB_FILE,
@@ -47,6 +49,8 @@ export interface PackageProblem {
   readonly code: string | null;
   readonly message: string;
   readonly severity: "error" | "warning";
+  /** Alternative fix-its, each a set of edits to the file at `path`. */
+  readonly fixes?: readonly DiagnosticFix[];
 }
 
 /** A package that a command works on in package mode. */
@@ -65,6 +69,12 @@ export interface LocalPackage {
   readonly problems: readonly PackageProblem[];
   /** The manifest; absent when it is invalid. */
   readonly manifest?: Manifest;
+  /**
+   * The error of a package under a workspace manifest that neither lists it
+   * nor excludes it (spec/cli/command-line.md#r-cli.mode.member.unlisted),
+   * which `problems` holds too.
+   */
+  readonly unlisted?: PackageProblem;
   /**
    * The selected dependency packages, once a command that compiles has
    * fetched them (spec/cli/command-line.md#r-cli.dep.implicit-fetch).
@@ -196,9 +206,83 @@ export async function packageMode(start: string): Promise<PackageMode> {
       message,
       severity: "warning",
     });
+  const unlisted = await unlistedMember(root);
+  if (unlisted) problems.push(unlisted);
   return {
     kind: "package",
-    package: { root, name, files, executables, tasks, problems, manifest },
+    package: {
+      root,
+      name,
+      files,
+      executables,
+      tasks,
+      problems,
+      manifest,
+      ...(unlisted ? { unlisted } : {}),
+    },
+  };
+}
+
+/**
+ * The error of a package in `root` whose nearest workspace manifest above
+ * lists it neither in `members` nor in `exclude`, as Cargo's "believes it's
+ * in a workspace when it's not" (spec/cli/command-line.md#r-cli.mode.member.unlisted).
+ * It has two fix-its: add the directory to `members`, or to `exclude`
+ * (spec/cli/command-line.md#r-cli.mode.member.unlisted.fix).
+ */
+async function unlistedMember(root: string): Promise<PackageProblem | undefined> {
+  for (let above = dirname(root); ; above = dirname(above)) {
+    const path = join(above, MANIFEST_FILE);
+    if (existsSync(path)) {
+      const text = await readFile(path, "utf8");
+      const read = readManifest(text);
+      if ("manifest" in read && read.manifest.workspace) {
+        const { members, exclude } = read.manifest;
+        if ([...members, ...exclude].some((listed) => resolve(above, listed) === root))
+          return undefined;
+        const directory = relative(above, root).split(sep).join("/");
+        const fixes = (["members", "exclude"] as const).flatMap((key): DiagnosticFix[] => {
+          const edited = addWorkspaceEntry(text, key, directory);
+          return edited === undefined
+            ? []
+            : [{ message: `add "${directory}" to ${key}`, edits: [textChange(text, edited)] }];
+        });
+        const shown = relative(root, path).split(sep).join("/");
+        const header = text.split("\n").findIndex((line) => /^\s*\[\s*workspace\s*\]/.test(line));
+        return {
+          path: shown,
+          line: header + 1,
+          column: 1,
+          code: null,
+          message: `this package is under the workspace manifest ${shown}, which lists it neither in members nor in exclude; add "${directory}" to members to make it a member, or to exclude to keep it apart`,
+          severity: "error",
+          fixes,
+        };
+      }
+    }
+    if (dirname(above) === above) return undefined;
+  }
+}
+
+/** The one edit that turns `before` into `after`: the span between their common ends. */
+function textChange(before: string, after: string): TextEdit {
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start])
+    start += 1;
+  let end = 0;
+  while (
+    end < before.length - start &&
+    end < after.length - start &&
+    before[before.length - 1 - end] === after[after.length - 1 - end]
+  )
+    end += 1;
+  const position = (offset: number): SourcePosition => {
+    const lines = before.slice(0, offset).split("\n");
+    return { offset, line: lines.length, column: lines.at(-1)!.length + 1 };
+  };
+  return {
+    span: { start: position(start), end: position(before.length - end) },
+    replacement: after.slice(start, after.length - end),
   };
 }
 

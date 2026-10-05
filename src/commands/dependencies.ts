@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
-import { Report, type OutputFormat } from "../diagnostic-report.ts";
+import { DiagnosticReporter, Report, type OutputFormat } from "../diagnostic-report.ts";
 import { removeDependency, setDependency } from "../dependencies/manifest-edit.ts";
 import {
   compareVersions,
@@ -18,7 +18,12 @@ import {
   tagVersion,
   type Version,
 } from "../dependencies/requirement.ts";
-import { resolveDependencies, workspaceRoot, type Resolution } from "../dependencies/resolve.ts";
+import {
+  resolveDependencies,
+  resolveWorkspaceDependencies,
+  workspaceRoot,
+  type Resolution,
+} from "../dependencies/resolve.ts";
 import { formatSum, readSum, SUM_FILE, type SumEntries } from "../dependencies/sum.ts";
 import { GitError, listTags } from "../dependencies/git.ts";
 import { readManifest, type Manifest } from "../manifest.ts";
@@ -136,10 +141,15 @@ async function dependencyCommand(
   const report = new Report(args.format, io, { stream: "stdout", summary: true });
   const start = workingDirectory(args);
   const mode = await packageMode(start);
+  // At a workspace root, hd fetch fetches for the whole workspace
+  // (cli.dep.workspace-fetch); the commands that edit a requirement run in
+  // a member (cli.dep.workspace-member-only).
+  if (mode.kind === "workspace" && command === "fetch")
+    return workspaceFetch(mode.root, args, io, report);
   if (mode.kind !== "package") {
     report.commandError(
       mode.kind === "workspace"
-        ? `hd ${command}: ${join(mode.root, MANIFEST_FILE)} is a workspace manifest, and hd ${command} works on one package; run it inside a member's directory`
+        ? `hd ${command}: ${join(mode.root, MANIFEST_FILE)} is a workspace manifest, and hd ${command} changes one member's requirements; run it inside that member's directory`
         : `hd ${command}: not in a package (no ${MANIFEST_FILE} in ${start} or a directory above it); create one with hd new`,
     );
     return report.finish(EXIT_HD_FAILURE);
@@ -150,6 +160,9 @@ async function dependencyCommand(
     return report.finish(EXIT_HD_FAILURE);
   };
   if (!pkg.manifest) return fail(pkg.problems);
+  // A package under a workspace manifest that does not list it is an error
+  // (spec/cli/command-line.md#r-cli.mode.member.unlisted).
+  if (pkg.unlisted) return fail([pkg.unlisted]);
   const manifestPath = join(pkg.root, MANIFEST_FILE);
   const before = await readFile(manifestPath, "utf8");
   const changed = await change(before, pkg.manifest, pkg);
@@ -181,15 +194,84 @@ async function dependencyCommand(
   if (resolution.problems.length > 0)
     return fail(manifestProblems(pkg, resolution).map((problem) => ({ ...problem })));
   // `hd fetch` only adds entries (cli.dep.fetch); the others tidy (cli.dep.tidy).
-  const entries = new Map(sumsOnly === "add" ? sums : []);
-  for (const [key, hash] of resolution.sums) entries.set(key, hash);
   if (changed.text !== before) await writeFile(manifestPath, changed.text);
+  await writeSum(path, sumsOnly === "add" ? sums : new Map(), resolution.sums);
+  if (args.format === "text") for (const line of changed.done) io.out(line);
+  return report.finish(0);
+}
+
+/**
+ * `hd fetch` at a workspace root (spec/cli/command-line.md#r-cli.dep.workspace-fetch):
+ * selects for every member at once, fetches what the cache lacks, and adds
+ * the missing lines to the workspace's `hd.sum`, as `hd fetch` in a member does.
+ */
+async function workspaceFetch(
+  root: string,
+  args: DependencyArgs,
+  io: CommandIo,
+  report: Report,
+): Promise<number> {
+  const read = readManifest(await readFile(join(root, MANIFEST_FILE), "utf8"));
+  if (!("manifest" in read)) {
+    report.commandError(
+      `hd fetch: ${join(root, MANIFEST_FILE)}:${read.errors[0]!.line}: ${read.errors[0]!.message}`,
+    );
+    return report.finish(EXIT_HD_FAILURE);
+  }
+  const path = join(root, SUM_FILE);
+  let sums: SumEntries = new Map();
+  if (existsSync(path)) {
+    const parsed = readSum(await readFile(path, "utf8"));
+    if (!("entries" in parsed)) {
+      report.commandError(`hd fetch: ${path}:${parsed.line}: ${parsed.message}`);
+      return report.finish(EXIT_HD_FAILURE);
+    }
+    sums = parsed.entries;
+  }
+  const resolution = await resolveWorkspaceDependencies(root, read.manifest.members, sums, {
+    variables: variablesOf(args),
+    sums: "record",
+    fetching: progress(io),
+  });
+  if (resolution.problems.length > 0) {
+    // Each problem is at a line of a member's hd.toml, shown from the root.
+    const cwd = workingDirectory(args);
+    for (const { directory, line, code, message } of resolution.problems) {
+      const file = relative(root, join(directory, MANIFEST_FILE)).split(sep).join("/");
+      const reporter = new DiagnosticReporter(
+        report,
+        relative(cwd, join(directory, MANIFEST_FILE)) || file,
+        "",
+        undefined,
+        file,
+      );
+      if (code === null) reporter.uncoded(message, line, 1);
+      else {
+        const position = { offset: 0, line, column: 1 };
+        reporter.diagnostic({ code, message, span: { start: position, end: position } });
+      }
+    }
+    return report.finish(EXIT_HD_FAILURE);
+  }
+  await writeSum(path, sums, resolution.sums);
+  return report.finish(0);
+}
+
+/**
+ * Writes `hd.sum` with `kept` and then `recorded`, unless that changes
+ * nothing; an empty selection writes no new file.
+ */
+async function writeSum(
+  path: string,
+  kept: SumEntries,
+  recorded: ReadonlyMap<string, string>,
+): Promise<void> {
+  const entries = new Map(kept);
+  for (const [key, hash] of recorded) entries.set(key, hash);
   const sumText = formatSum(entries);
   const sumBefore = existsSync(path) ? await readFile(path, "utf8") : undefined;
   if (sumText !== (sumBefore ?? "") && (sumBefore !== undefined || entries.size > 0))
     await writeFile(path, sumText);
-  if (args.format === "text") for (const line of changed.done) io.out(line);
-  return report.finish(0);
 }
 
 export interface AddArgs extends DependencyArgs {
@@ -207,15 +289,30 @@ export function addCommand(args: AddArgs, io: CommandIo): Promise<number> {
     "add",
     args,
     io,
-    async (text) => {
+    async (text, manifest) => {
       const badKey = invalidKey(args.name);
       if (badKey !== undefined) return { error: badKey, code: "invalid-requirement" };
       const requirement = parseHostRequirement(args.requirement);
       if (typeof requirement === "string")
         return { error: requirement, code: "invalid-requirement" };
+      // An earlier version of the same host path lowers the requirement,
+      // and hd add says so (spec/cli/command-line.md#r-cli.dep.add.lower).
+      const entry = manifest.dependencies.find(({ key, dev }) => key === args.name && !dev);
+      const current = entry && parseRequirement(entry.value);
+      const lowered =
+        typeof current === "object" &&
+        current.kind === "host" &&
+        current.host.path === requirement.host.path &&
+        compareVersions(requirement.version, current.version) < 0
+          ? current.version
+          : undefined;
       return {
         text: setDependency(text, args.name, args.requirement),
-        done: [`${args.name} = "${args.requirement}"`],
+        done: [
+          lowered
+            ? `lowered ${args.name} ${lowered.text} -> ${requirement.version.text}`
+            : `${args.name} = "${args.requirement}"`,
+        ],
       };
     },
     "tidy",

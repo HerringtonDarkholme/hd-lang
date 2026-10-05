@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 
+import { replCommand } from "../src/commands/help.ts";
+import { ReplSession } from "../src/repl.ts";
 import { hd } from "./hd-in-process.ts";
 
 // The default profile (spec/cli/command-line.md#host-capabilities): `hd
@@ -153,4 +156,64 @@ test("an entry row key outside the default profile is nonhost-entry-requirement"
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("a REPL session binds the default profile, and each host call runs once", async () => {
+  // spec/cli/command-line.md#r-cli.repl.host.default-profile, cli.repl.host.cwd,
+  // cli.repl.host.args, and cli.repl.host.once.
+  const directory = await mkdtemp(join(tmpdir(), "hd-default-profile-"));
+  try {
+    await writeFile(join(directory, "notes.txt"), "remember the milk");
+    const input = new PassThrough();
+    const output = new PassThrough();
+    let text = "";
+    output.on("data", (chunk: Buffer) => (text += chunk.toString()));
+    const done = replCommand({ input, output, terminal: false }, { cwd: directory });
+    input.end(
+      [
+        "use std.time.{now}",
+        "use std.fs.{FsWrite, read_text}",
+        "use std.path.{Path}",
+        "use std.host.{args}",
+        "started := now()",
+        "started",
+        'read_text!(Path("notes.txt"))',
+        "let mut files = $.use(FsWrite)",
+        'files.append_text!(Path("log.txt"), "once")',
+        "args()",
+        "started",
+        "",
+      ].join("\n"),
+    );
+    assert.equal(await done, 0);
+    const lines = text.trimEnd().split("\n");
+    const [first, second] = lines.filter((line) => line.endsWith(" : Timestamp"));
+    // The clock is read once; the second display replays that reading.
+    assert.match(first!, /^\d{4}-\d\d-\d\dT/);
+    assert.equal(second, first);
+    assert.ok(lines.includes('.Ok("remember the milk") : Result[string, FsError]'), text);
+    assert.ok(lines.includes("[] : List[string]"), text);
+    // Three inputs ran after the append; the file still holds it once.
+    assert.equal(await readFile(join(directory, "log.txt"), "utf8"), "once");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a REPL session answers an accepted input's host calls from its record", async () => {
+  let readings = 0;
+  const session = new ReplSession({}, undefined, {
+    traits: [{ module: "std.time", name: "Clock" }],
+    invoke: (call) => {
+      if (call.methodName !== "now") return undefined;
+      readings += 1;
+      return { pending: false, value: { millis: BigInt(readings * 1000) } as never };
+    },
+  });
+  await session.evaluate("use std.time.{now}");
+  assert.equal((await session.evaluate("now().to_rfc3339()")).value, '"1970-01-01T00:00:01Z"');
+  // An input that panics after its reading is rejected, and its reading is not kept.
+  assert.equal((await session.evaluate("[now().to_rfc3339()][3]")).accepted, false);
+  assert.equal((await session.evaluate("now().to_rfc3339()")).value, '"1970-01-01T00:00:03Z"');
+  assert.equal(readings, 3);
 });

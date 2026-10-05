@@ -35,6 +35,19 @@ interface JsonRuleRef {
   readonly anchor: string;
 }
 
+/** A fix-it in a JSON diagnostic: edits to the diagnostic's `file`, applied together. */
+export interface JsonFix {
+  readonly message: string;
+  readonly edits: readonly { readonly span: JsonSpan; readonly replacement: string }[];
+}
+
+function jsonFix(fix: DiagnosticFix): JsonFix {
+  return {
+    message: fix.message,
+    edits: fix.edits.map((edit) => ({ span: jsonSpan(edit.span), replacement: edit.replacement })),
+  };
+}
+
 /** A diagnostic object (`cli.json.diagnostic.fields`), plus the prototype's agent fields. */
 export interface JsonDiagnostic {
   readonly kind: "diagnostic";
@@ -54,10 +67,10 @@ export interface JsonDiagnostic {
     readonly line: number;
     readonly column: number;
   }[];
-  readonly fix: {
-    readonly message: string;
-    readonly edits: readonly { readonly span: JsonSpan; readonly replacement: string }[];
-  } | null;
+  /** The one correct fix, or null when there is none or there are several. */
+  readonly fix: JsonFix | null;
+  /** Every suggested fix: `fix` alone, or the alternatives, as for an unlisted member. */
+  readonly fixes: readonly JsonFix[];
   /** The one rule ID naming this code, or null when none or several do. */
   readonly rule: string | null;
   /** Every rule whose text names this code as its diagnostic. */
@@ -146,15 +159,8 @@ function jsonDiagnostic(
         column: start.column,
       };
     }),
-    fix: fix
-      ? {
-          message: fix.message,
-          edits: fix.edits.map((edit) => ({
-            span: jsonSpan(edit.span),
-            replacement: edit.replacement,
-          })),
-        }
-      : null,
+    fix: fix ? jsonFix(fix) : null,
+    fixes: fix ? [jsonFix(fix)] : [],
     rule: rules.length === 1 ? rules[0]!.id : null,
     rules,
   };
@@ -218,6 +224,7 @@ export class Report {
       notes: [],
       related: [],
       fix: null,
+      fixes: [],
       rule: null,
       rules: [],
     };
@@ -306,8 +313,18 @@ export class DiagnosticReporter {
    * such as a mistake in `hd.toml`. Its text has no code, so no runner reads
    * it as a located diagnostic.
    */
-  uncoded(message: string, line: number, column: number): void {
-    this.located(`${this.file}:${line}: ${message}`, null, message, false, { line, column });
+  uncoded(
+    message: string,
+    line: number,
+    column: number,
+    fixes: readonly DiagnosticFix[] = [],
+  ): void {
+    // Each fix-it is a line of the text too, so a reader sees the choices.
+    const text = [
+      `${this.file}:${line}: ${message}`,
+      ...fixes.map((fix) => `  fix-it: ${fix.message}`),
+    ].join("\n");
+    this.located(text, null, message, false, { line, column }, fixes);
   }
 
   /** A failure with no code or no source location. */
@@ -317,6 +334,7 @@ export class DiagnosticReporter {
     message: string,
     applyRules = true,
     position?: { readonly line: number; readonly column: number },
+    fixes: readonly DiagnosticFix[] = [],
   ): void {
     this.report.count("error");
     const rules = code && applyRules ? ruleRefs(this.index, code) : [];
@@ -330,7 +348,8 @@ export class DiagnosticReporter {
       column: position?.column ?? null,
       notes: [],
       related: [],
-      fix: null,
+      fix: fixes.length === 1 ? jsonFix(fixes[0]!) : null,
+      fixes: fixes.map(jsonFix),
       rule: rules.length === 1 ? rules[0]!.id : null,
       rules,
     };

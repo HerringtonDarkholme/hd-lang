@@ -1,6 +1,6 @@
-import type { SourceSpan } from "../diagnostics.ts";
+import { sourceDocument, type DiagnosticFix, type SourceSpan } from "../diagnostics.ts";
 import type { Expression } from "../ast.ts";
-import type { HirData, HirExpression, HirLocal, ValueType } from "../hir.ts";
+import type { HirData, HirEnum, HirExpression, HirLocal, ValueType } from "../hir.ts";
 import {
   eraseTypePermissions,
   functionType,
@@ -388,10 +388,20 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
                   span: expression.span,
                 };
           }
+          const enumeration = this.enumTypes.get(nominalGenericParts(left.type)?.name ?? left.type);
+          // The message names the opt-in (05-expressions.md#r-expr.eq.enum-hint),
+          // and an enum of the comparison's own file gets a fix-it
+          // (05-expressions.md#r-expr.eq.enum-hint.fix).
+          if (enumeration)
+            this.fail(
+              "missing-eq",
+              `type '${displayType(left.type)}' does not implement Eq; add '@derive(Eq)' to '${displayType(enumeration.name)}'`,
+              expression.span,
+              deriveEqFix(enumeration, expression.span),
+            );
           if (
             genericTypeName(left.type) ||
-            this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type) ||
-            this.enumTypes.has(nominalGenericParts(left.type)?.name ?? left.type)
+            this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type)
           ) {
             this.fail(
               "missing-eq",
@@ -1171,4 +1181,29 @@ function isLiteralExponent(expression: Expression): boolean {
 /** The type with `mut` removed at every level; permissions never affect identity. */
 function withoutPermissions(type: ValueType): ValueType {
   return eraseTypePermissions(type);
+}
+
+/**
+ * The fix-it that inserts `@derive(Eq)` on its own line above an enum's
+ * declaration (05-expressions.md#r-expr.eq.enum-hint.fix), or undefined for an
+ * enum of std or of another package. A package build keeps it only when the
+ * enum is in the comparison's file (package.ts, `locate`).
+ */
+function deriveEqFix(enumeration: HirEnum, span: SourceSpan): DiagnosticFix | undefined {
+  const own =
+    enumeration.standardName === undefined &&
+    !enumeration.name.startsWith("__pkg_") &&
+    sourceDocument(enumeration.span) === sourceDocument(span);
+  if (!own) return undefined;
+  const { start } = enumeration.span;
+  const lineStart = { ...start, column: 1, offset: start.offset - (start.column - 1) };
+  return {
+    message: `add '@derive(Eq)' to '${displayType(enumeration.name)}'`,
+    edits: [
+      {
+        span: { start: lineStart, end: lineStart },
+        replacement: `${" ".repeat(start.column - 1)}@derive(Eq)\n`,
+      },
+    ],
+  };
 }

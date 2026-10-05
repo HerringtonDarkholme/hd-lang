@@ -15,6 +15,7 @@ import {
   ReplSession,
   respond,
   type ReplEntry,
+  type ReplHost,
   type ReplPackage,
   type ReplReply,
 } from "./repl.ts";
@@ -44,8 +45,9 @@ export async function runRepl(
   io: ReplIo,
   options: CompileOptions = {},
   pkg?: ReplPackage,
+  host?: ReplHost,
 ): Promise<number> {
-  const session = new ReplSession(options, pkg);
+  const session = new ReplSession(options, pkg, host);
   const terminal = io.terminal ?? Boolean((io.output as { isTTY?: boolean }).isTTY);
   const reader = createInterface({ input: io.input, output: io.output, terminal });
   const write = (text: string): void => {

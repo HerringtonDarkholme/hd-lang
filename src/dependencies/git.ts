@@ -162,6 +162,35 @@ export async function checkOutCommit(
   return { time: pseudoTime(Number(time.stdout.trim())) };
 }
 
+/**
+ * How the commit checked out in `checkout` by `checkOutCommit` relates to
+ * the tag `tag`, which that fetch brought along: `missing` when there is no
+ * such tag, `same` when the tag names the commit itself, `descends` when the
+ * tag's commit is an ancestor, and `unrelated` otherwise
+ * (spec/cli/command-line.md#r-cli.dep.pseudo.base.ancestor).
+ */
+export async function tagRelation(
+  checkout: string,
+  tag: string,
+  variables: Variables,
+): Promise<"missing" | "same" | "descends" | "unrelated"> {
+  const found = await runGit(
+    ["-C", checkout, "rev-parse", "--verify", "--quiet", `refs/tags/${tag}^{commit}`],
+    variables,
+  );
+  if (found.status !== 0) return "missing";
+  const head = await runGit(["-C", checkout, "rev-parse", "HEAD"], variables);
+  if (head.status !== 0) throw new GitError(complaint(head));
+  if (head.stdout.trim() === found.stdout.trim()) return "same";
+  const ancestor = await runGit(
+    ["-C", checkout, "merge-base", "--is-ancestor", found.stdout.trim(), "HEAD"],
+    variables,
+  );
+  if (ancestor.status === 0) return "descends";
+  if (ancestor.status === 1) return "unrelated";
+  throw new GitError(complaint(ancestor));
+}
+
 /** The directory of a package inside a checked-out repository. */
 export function packageDirectory(checkout: string, subdirectory: string): string {
   return subdirectory === "" ? checkout : join(checkout, ...subdirectory.split("/"));

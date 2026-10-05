@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,481 cases: 2,423 selected in `test/portable/cases.tsv` and 58 known
-failures. The selected cases are 2,101 language tier, 284 stdlib tier, and 38
-CLI tier; the known failures are 45 language tier, 2 stdlib tier, and 11
+2,481 cases: 2,426 selected in `test/portable/cases.tsv` and 55 known
+failures. The selected cases are 2,101 language tier, 284 stdlib tier, and 41
+CLI tier; the known failures are 45 language tier, 2 stdlib tier, and 8
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -36,7 +36,6 @@ CLI tier.
 | ALIAS-MISSING | 2 | an unused alias's right side is never resolved |
 | DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
 | BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
-| DEP-CHUNK3 | 3 | path requirements outside a workspace, `hd fetch` at a workspace root, and the unlisted-member error are not implemented |
 
 ## Findings
 
@@ -112,7 +111,7 @@ Compiler structure:
 | P2 | Member lookup skips members not visible from the calling module. The prototype hides a member without `pub` from another package and a std type's from code outside std; another module of the same package still sees it. No fixture shows the gap. |
 | TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The requirement-key dynamic-safety rule is implemented; the prototype does not check these remaining gaps. |
 | CLI-53 | Batch 53 CLI rules: workspace mode and `-p` exist; `--filter` and `--deny-skipped` exist, but nothing is ever skipped. Most have no fixture format. |
-| CLI-57 | Batch 57 CLI rules: the prototype has neither the unlisted-member error with its two fix-its nor `--format json` with its named fields on any command. `exclude` and `-p` inside a member exist. |
+| CLI-57 | Batch 57 CLI rules: the prototype has no `--format json` with its named fields on any command. The unlisted-member error with its two fix-its, `exclude`, and `-p` inside a member exist. |
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds the whole profile (src/commands/default-profile.ts). `lib/std` declares the other items but `Backoff` and `retry_with!`. |
