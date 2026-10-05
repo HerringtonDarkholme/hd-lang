@@ -15,6 +15,7 @@ import {
   ReplSession,
   respond,
   type ReplEntry,
+  type ReplPackage,
   type ReplReply,
 } from "./repl.ts";
 
@@ -39,8 +40,12 @@ function colorEnabled(terminal: boolean): boolean {
 }
 
 /** Runs an interactive session until end of input or `:quit`. */
-export async function runRepl(io: ReplIo, options: CompileOptions = {}): Promise<number> {
-  const session = new ReplSession(options);
+export async function runRepl(
+  io: ReplIo,
+  options: CompileOptions = {},
+  pkg?: ReplPackage,
+): Promise<number> {
+  const session = new ReplSession(options, pkg);
   const terminal = io.terminal ?? Boolean((io.output as { isTTY?: boolean }).isTTY);
   const reader = createInterface({ input: io.input, output: io.output, terminal });
   const write = (text: string): void => {

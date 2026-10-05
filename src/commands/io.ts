@@ -78,6 +78,16 @@ export interface CommandEnvironment {
    * stands for the process's own standard input.
    */
   readonly terminal?: Terminal | null;
+  /** Reads all of standard input; undefined stands for the process's own. */
+  readonly readInput?: () => Promise<string>;
+}
+
+/** All of `environment`'s standard input, as text. */
+export async function standardInput(environment: CommandEnvironment): Promise<string> {
+  if (environment.readInput) return environment.readInput();
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk as Uint8Array));
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 /** A terminal on standard input and output: `hd new` asks which kind to create. */

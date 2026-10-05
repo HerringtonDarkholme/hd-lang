@@ -37,11 +37,26 @@ async function usageError(args: readonly string[]): Promise<CommandResult> {
   return failure!;
 }
 
-test("hd, hd --help, and hd help print the same short command list", async () => {
-  const outputs = await Promise.all([hd([]), hd(["--help"]), hd(["help"])]);
+test("hd without a terminal runs standard input as a single-file program", async () => {
+  // cli.stdin.program: `echo 'println(1 + 2)' | hd` prints 3, in every mode.
+  const piped = await hdInProcess([], { cwd: root, readInput: async () => "println(1 + 2)\n" });
+  assert.equal(piped.stdout, "3\n");
+  // Closed standard input is an empty program.
+  assert.equal((await hd([])).stdout, "");
+  const io = bufferedIo();
+  const status = await main([], io, {
+    terminal: null,
+    readInput: async () => "use self.util.{x}\n",
+  });
+  assert.equal(status, 101);
+  assert.match(io.output().stderr, /^<stdin>:1:\d+: unknown-module/m);
+});
+
+test("hd --help and hd help print the same short command list", async () => {
+  const outputs = await Promise.all([hd(["--help"]), hd(["help"])]);
   const [overview] = outputs;
   for (const output of outputs) assert.equal(output.stdout, overview!.stdout);
-  for (const command of ["build", "run", "test", "check", "explain", "doc", "def", "repl"])
+  for (const command of ["build", "run", "test", "check", "new", "explain", "doc", "def", "repl"])
     assert.match(overview!.stdout, new RegExp(`^  ${command} +\\S`, "m"));
   assert.match(overview!.stdout, /^ {2}debug +\S/m);
   assert.match(overview!.stdout, /^ {2}--format FORMAT/m);

@@ -1,6 +1,7 @@
 import { analyze, instantiate, type CompileOptions } from "./compiler.ts";
-import type { Diagnostic } from "./diagnostics.ts";
-import { physicalSpan, sourceDocument } from "./diagnostics.ts";
+import type { Diagnostic, SourcePosition } from "./diagnostics.ts";
+import { physicalSpan, SOURCE_ORIGIN, sourceDocument } from "./diagnostics.ts";
+import { LIB_FILE, linkPackage, type PackageDiagnostic } from "./package.ts";
 import type { HirData, HirEnum, HirProgram } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
@@ -73,6 +74,24 @@ interface RunResult {
   readonly error?: string;
 }
 
+/**
+ * The package a session started in (spec/cli/command-line.md#r-cli.repl.package.lib):
+ * its `.hd` files by package path, and its executables' entry modules.
+ */
+export interface ReplPackage {
+  readonly files: Readonly<Record<string, string>>;
+  readonly programs: readonly string[];
+}
+
+interface PreparedSource {
+  readonly source: string;
+  readonly options: CompileOptions;
+  /** Moves a diagnostic on `source` to session or package-file coordinates. */
+  readonly located: (diagnostic: Diagnostic) => Diagnostic;
+  /** The link errors, when the session does not link with its package. */
+  readonly failure?: readonly Diagnostic[];
+}
+
 export class ReplSession {
   private declarations: string[] = [];
   private statements: string[] = [];
@@ -80,9 +99,78 @@ export class ReplSession {
   private lastModule: string | undefined;
   private modules = 0;
   private readonly options: CompileOptions;
+  private readonly package?: ReplPackage;
 
-  constructor(options: CompileOptions = {}) {
+  /**
+   * With `pkg`, the session acts as code inside the package's `src/lib.hd`
+   * (spec/cli/command-line.md#r-cli.repl.package.lib): its source joins the
+   * end of that file, and the linker joins the package's modules it uses.
+   */
+  constructor(options: CompileOptions = {}, pkg?: ReplPackage) {
     this.options = options;
+    if (pkg) this.package = pkg;
+  }
+
+  /** The session source as the compiler sees it: alone, or linked into its package. */
+  private prepare(source: string): PreparedSource {
+    const pkg = this.package;
+    if (!pkg) return { source, options: this.options, located: (diagnostic) => diagnostic };
+    const lib = pkg.files[LIB_FILE] ?? "";
+    const prefix = lib === "" || lib.endsWith("\n") ? lib : `${lib}\n`;
+    const libLines = prefix.split("\n").length - 1;
+    const files: Readonly<Record<string, string>> = {
+      ...pkg.files,
+      [LIB_FILE]: `${prefix}${source}`,
+    };
+    const linked = linkPackage(files, LIB_FILE, { programs: pkg.programs });
+    // A diagnostic in the session's own lines keeps its session line; one in
+    // a package file names that file (cli.repl.package.lib).
+    const located = (diagnostic: Diagnostic): Diagnostic => {
+      if (sourceDocument(diagnostic.span)) return diagnostic;
+      const found =
+        "path" in diagnostic ? (diagnostic as PackageDiagnostic) : linked.locate(diagnostic);
+      const line = found.span.start.line;
+      if (found.path === LIB_FILE && line > libLines) {
+        const move = (position: SourcePosition): SourcePosition => ({
+          ...position,
+          line: position.line - libLines,
+        });
+        return {
+          ...diagnostic,
+          span: { start: move(found.span.start), end: move(found.span.end) },
+        };
+      }
+      const document = { file: found.path, text: files[found.path] ?? "" };
+      const origin = (position: SourcePosition): SourcePosition => ({
+        ...position,
+        [SOURCE_ORIGIN]: { document, ...position },
+      });
+      return {
+        ...diagnostic,
+        span: { start: origin(found.span.start), end: origin(found.span.end) },
+      };
+    };
+    if (!linked.source)
+      return { source, options: this.options, located, failure: linked.diagnostics.map(located) };
+    return {
+      source: linked.source,
+      options: {
+        ...this.options,
+        parse: { ...this.options.parse, joinedModules: true, initGroupStarts: linked.initGroups },
+      },
+      located,
+    };
+  }
+
+  /** Checks a session program, with its diagnostics in session coordinates. */
+  private analyze(source: string): {
+    readonly hir?: HirProgram;
+    readonly diagnostics: readonly Diagnostic[];
+  } {
+    const prepared = this.prepare(source);
+    if (prepared.failure) return { diagnostics: prepared.failure };
+    const analysis = analyze(prepared.source, prepared.options);
+    return { ...analysis, diagnostics: analysis.diagnostics.map(prepared.located) };
   }
 
   reset(): void {
@@ -128,7 +216,7 @@ export class ReplSession {
   typeOf(input: string): { readonly type?: string; readonly errors: readonly string[] } {
     const text = input.trim();
     const attempt = this.program(this.declarations, [...this.statements, `${VALUE} := ${text}`]);
-    const analysis = analyze(attempt.source, this.options);
+    const analysis = this.analyze(attempt.source);
     if (!analysis.hir)
       return {
         errors: this.format(analysis.diagnostics, { ...attempt, prefix: `${VALUE} := `.length }),
@@ -143,7 +231,7 @@ export class ReplSession {
   async declare(text: string): Promise<ReplOutcome> {
     const declarations = [...this.declarations, text];
     const attempt = this.program(declarations, this.statements, text);
-    const analysis = analyze(attempt.source, this.options);
+    const analysis = this.analyze(attempt.source);
     if (!analysis.hir) return rejected(this.format(analysis.diagnostics, attempt));
     this.declarations = declarations;
     return {
@@ -157,7 +245,7 @@ export class ReplSession {
   private async evaluateStatement(text: string, execute: boolean): Promise<ReplOutcome> {
     const statements = [...this.statements, text];
     const attempt = this.program(this.declarations, statements);
-    const analysis = analyze(attempt.source, this.options);
+    const analysis = this.analyze(attempt.source);
     if (!analysis.hir) return rejected(this.format(analysis.diagnostics, attempt));
     const warnings = this.warnings(analysis.diagnostics, attempt);
     if (!execute) {
@@ -177,7 +265,7 @@ export class ReplSession {
       ...this.program(this.declarations, [...this.statements, `${VALUE} := ${text}`]),
       prefix: `${VALUE} := `.length,
     };
-    const analysis = analyze(probe.source, this.options);
+    const analysis = this.analyze(probe.source);
     if (!analysis.hir) {
       // A void call, or a statement form such as `if` without `else`, is not a
       // value; run it as a statement. Its diagnostics are reported unless it
@@ -206,7 +294,7 @@ export class ReplSession {
       [...this.declarations, ...helpers.declarations],
       [...this.statements, `${VALUE} := ${text}`, `println(${helpers.call(VALUE)})`],
     );
-    const shownAnalysis = analyze(shown.source, this.options);
+    const shownAnalysis = this.analyze(shown.source);
     if (!shownAnalysis.hir) return rejected(this.format(shownAnalysis.diagnostics, shown));
     const run = await this.run(shown.source);
     if (run.error) return rejected([run.error], run.lines.slice(this.shownLines));
@@ -263,9 +351,11 @@ export class ReplSession {
 
   private async run(source: string): Promise<RunResult> {
     const lines: string[] = [];
+    const prepared = this.prepare(source);
+    if (prepared.failure) return { lines, error: "internal: the session does not link" };
     try {
-      const { instance, compilation } = await instantiate(source, {
-        ...this.options,
+      const { instance, compilation } = await instantiate(prepared.source, {
+        ...prepared.options,
         console: (text) => lines.push(text),
         consoleError: (text) => lines.push(text),
       });

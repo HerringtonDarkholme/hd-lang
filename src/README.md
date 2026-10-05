@@ -166,6 +166,15 @@ row; a failure names the test case. `report_timeout` hands the runner the
 longer. It checks after the call returns, so it cannot stop a body that
 never returns.
 
+`hd` with no arguments starts an interactive session when standard input is
+a terminal, and otherwise runs all of standard input as a single-file
+program named `<stdin>` ([`cli.stdin.program`](../spec/cli/command-line.md#r-cli.stdin.program));
+`hd repl` always starts a session. In package mode a session acts as code
+inside `src/lib.hd`: its source joins the end of that file, the linker joins
+the package modules it uses, and a diagnostic in another package file names
+that file ([`cli.repl.package.lib`](../spec/cli/command-line.md#r-cli.repl.package.lib)).
+In a workspace or outside any package it may use only `std`.
+
 `hd repl` starts an interactive session. Each input is a declaration, a
 statement, or an expression; expressions print their value and type. A line
 ending in `:` starts a block, which an empty line ends. The session is kept as

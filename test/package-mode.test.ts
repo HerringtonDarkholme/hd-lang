@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { packageMode, unselectedMains } from "../src/commands/package-mode.ts";
 import { readManifest } from "../src/manifest.ts";
+import { ReplSession } from "../src/repl.ts";
 
 // hd.toml (src/manifest.ts) and package mode (src/commands/package-mode.ts):
 // spec/cli/command-line.md#package-mode and #executables.
@@ -131,4 +132,37 @@ test("package mode comes from the nearest hd.toml above the start directory", as
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("a REPL session in a package acts as code inside src/lib.hd", async () => {
+  const files = {
+    "src/lib.hd": "fn secret() -> i32:\n    41\n",
+    "src/util.hd": "pub fn double(value: i32) -> i32:\n    value * 2\n",
+    "src/main.hd": 'pub fn main() -> void $ Console:\n    println("app")\n',
+  };
+  const session = new ReplSession({}, { files, programs: ["src/main.hd"] });
+  // It sees the private declarations of src/lib.hd (cli.repl.package.lib).
+  assert.equal((await session.evaluate("secret() + 1")).value, "42");
+  // `use self.util` names src/util.hd.
+  assert.deepEqual((await session.evaluate("use self.util.{double}")).errors, []);
+  assert.equal((await session.evaluate("double(21)")).value, "42");
+  // src/main.hd stays unusable (cli.repl.package.no-lib.main).
+  const main = await session.evaluate("use self.main.{main}");
+  assert.equal(main.accepted, false);
+  assert.match(main.errors[0]!, /unknown-module/);
+  // An error in a package file names that file.
+  const broken = new ReplSession(
+    {},
+    {
+      files: { ...files, "src/util.hd": "pub fn double(value: i32) -> i32:\n    true\n" },
+      programs: [],
+    },
+  );
+  const failed = await broken.evaluate("use self.util.{double}");
+  assert.match(failed.errors[0]!, /^src\/util\.hd:2:\d+: type-mismatch/);
+  // Outside any package, the session may use only std (cli.repl.outside).
+  assert.match(
+    (await new ReplSession().evaluate("use self.util.{double}")).errors[0]!,
+    /unknown-module/,
+  );
 });

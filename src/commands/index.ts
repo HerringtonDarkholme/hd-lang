@@ -8,6 +8,8 @@ export {
   bufferedIo,
   EXIT_HD_FAILURE,
   processIo,
+  standardInput,
+  terminalOf,
   type CommandEnvironment,
   type CommandIo,
   type CommandOutput,

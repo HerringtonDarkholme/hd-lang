@@ -36,6 +36,8 @@ export interface PackageTree {
 export interface SourceArgs extends CommandEnvironment {
   readonly file: string;
   readonly format: OutputFormat;
+  /** The source text, when it comes from standard input rather than FILE. */
+  readonly text?: string;
 }
 
 /**
@@ -108,7 +110,7 @@ export async function loadSource(
 ): Promise<LoadedSource | number> {
   const { file, format } = args;
   const path = resolve(workingDirectory(args), file);
-  const fileSource = await readFile(path, "utf8");
+  const fileSource = args.text ?? (await readFile(path, "utf8"));
   // `hd` rejects a package whose manifest is invalid
   // (spec/cli/command-line.md#r-cli.exit.hd-failure). A whole-package
   // command reports the manifest once itself, and leaves `package` unset.

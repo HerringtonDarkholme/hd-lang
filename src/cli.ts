@@ -24,6 +24,8 @@ import {
   type CommandEnvironment,
   type CommandIo,
   type RunnerOptions,
+  standardInput,
+  terminalOf,
 } from "./commands/index.ts";
 
 type Command = ParsedCommand & { kind: "command" };
@@ -79,12 +81,21 @@ export async function main(
     return EXIT_HD_FAILURE;
   }
   if (parsed.kind === "help") return helpCommand({ topic: parsed.topic }, io);
+  if (parsed.kind === "default") {
+    // `hd` opens the REPL on a terminal (cli.repl.open.terminal), and
+    // otherwise runs all of standard input as a single-file program, in
+    // every mode (cli.stdin.program).
+    if (terminalOf(environment))
+      return replCommand({ input: process.stdin, output: process.stdout }, environment);
+    const text = await standardInput(environment);
+    return fileCommand({ ...environment, file: "<stdin>", text, format: parsed.format }, io);
+  }
   const [first, second] = parsed.operands;
   const { format } = parsed;
   const options = { ...flags(parsed, environment.runner), ...environment };
   switch (parsed.command.name) {
     case "repl":
-      return replCommand({ input: process.stdin, output: process.stdout });
+      return replCommand({ input: process.stdin, output: process.stdout }, environment);
     case "new": {
       const app = parsed.flags.has("--app");
       const lib = parsed.flags.has("--lib");

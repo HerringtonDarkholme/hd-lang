@@ -219,6 +219,7 @@ export class UsageError extends Error {}
 
 export type ParsedCommand =
   | { readonly kind: "help"; readonly topic?: string }
+  | { readonly kind: "default"; readonly format: "text" | "json" }
   | {
       readonly kind: "command";
       readonly command: CommandSpec;
@@ -370,7 +371,9 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
     format = flagValue(undefined, FORMAT, rest.shift()) as "text" | "json";
   }
   const first = rest.shift();
-  if (first === undefined || first === "--help" || first === "-h") return { kind: "help" };
+  // `hd` alone opens the REPL, or runs standard input (cli.repl.open.terminal, cli.stdin.program).
+  if (first === undefined) return { kind: "default", format };
+  if (first === "--help" || first === "-h") return { kind: "help" };
   if (first === "help") {
     const topic = rest.join(" ");
     if (topic === "") return { kind: "help" };

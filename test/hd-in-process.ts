@@ -96,6 +96,7 @@ export async function runHd(
     // (spec/conformance/README.md#running-a-case), unless the caller gives a terminal.
     status = await main([...args], io, {
       terminal: null,
+      readInput: async () => "",
       ...environment,
       ...runnerEnvironment(runner),
     });
