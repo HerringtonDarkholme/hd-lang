@@ -95,21 +95,22 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
 - **Package mode** ([Package Mode](../spec/cli/command-line.md#package-mode)):
   `commands/package-mode.ts` finds the nearest `hd.toml` above the start
   directory, FILE's directory or else the working directory. `manifest.ts`
-  reads it: the `[package]` name, the `[[executable]]` tables, and
-  `[source] root`, which must be `src`; it ignores other tables. A manifest
+  reads it: the `[package]` name, the `[[executable]]` tables,
+  `[source] root`, which must be `src`, and the dependency tables. Any
+  other table or key warns `unknown-manifest-key`. A manifest
   with `[workspace]` and no `[package]` is a workspace, which the prototype
   rejects. A `src/` directory without `hd.toml` makes no package.
 - **Executables**: with no `[[executable]]` table, `src/main.hd` is the
   default executable, named after the package. A table's `module` that names
   no module is `missing-entry-point`; a `src/main.hd` that no table names is
-  an error. A public `main` in a library module warns `unselected-main`.
+  `unlisted-entry`. A public `main` in a library module warns `unselected-main`.
   Every entry module is its own program, which no module may use.
 - **Tasks** ([Tasks](../spec/cli/command-line.md#tasks)): each
   `tasks/NAME.hd` is a task, a program of its own whose relative lookup
   starts at `tasks/`, with shared task modules in its subdirectories. The
   linker gives task modules identities under `<tasks>`, which no use path
   spells; a `super` above `tasks/`, or a use of a task, is `unknown-module`.
-  A task named like an executable is an error, and a `tasks/x.hd` or
+  A task named like an executable is `duplicate-executable-name`, and a `tasks/x.hd` or
   `tests/x.hd` beside a directory `x/` is `invalid-module-path`.
 - `hd check` and `hd build` without FILE work on the whole package
   (`compilePackage` in `commands/compile.ts`): each executable, each library
@@ -117,8 +118,7 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   with `--all` also each task, is the entry of its own link, unless an
   earlier link already joined it.
   `hd build` writes each executable to `build/debug/NAME.wasm`, or
-  `build/release/` with `--release`; the spec does not name the build
-  directory. `hd build FILE` writes `NAME.wasm` to the working directory, and
+  `build/release/` with `--release` ([`cli.build.output`](../spec/cli/command-line.md#r-cli.build.output)). `hd build FILE` writes `NAME.wasm` to the working directory, and
   `--wat` prints the WAT. Outside any package `hd build` and `hd run` are
   errors, and `hd check` and `hd test` need a FILE.
 - `hd run [NAME]` runs the executable or task NAME, or the package's one

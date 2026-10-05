@@ -55,7 +55,25 @@ export interface Manifest {
   readonly members: readonly string[];
   /** The keys of `[dependencies]` and then `[dev-dependencies]`, in order. */
   readonly dependencies: readonly DependencyEntry[];
+  /**
+   * Each table or key that no rule gives a meaning, which `hd` warns about
+   * (spec/cli/command-line.md#r-cli.manifest.unknown-key).
+   */
+  readonly unknownKeys: readonly ManifestError[];
 }
+
+/**
+ * The keys with a meaning, by table (spec/cli/command-line.md#package-tooling):
+ * `null` for a table whose every key has one, as `[dependencies]`.
+ */
+const KNOWN_KEYS: Readonly<Record<string, readonly string[] | null>> = {
+  package: ["name"],
+  source: ["root"],
+  executable: ["name", "module"],
+  dependencies: null,
+  "dev-dependencies": null,
+  workspace: ["members", "exclude"],
+};
 
 class TomlError extends Error {
   readonly line: number;
@@ -347,6 +365,38 @@ class TomlReader {
   }
 }
 
+/** The tables and keys of `root` that have no meaning, each at its line. */
+function unknownManifestKeys(root: TomlTable, reader: TomlReader): ManifestError[] {
+  const unknown: ManifestError[] = [];
+  const lineOf = (table: TomlTable, key: string): number => {
+    const value = table[key];
+    const header = isTable(value) ? reader.headers.get(value) : undefined;
+    const first =
+      Array.isArray(value) && isTable(value[0]) ? reader.headers.get(value[0]) : undefined;
+    return (
+      reader.keyLines.get(table)?.get(key) ?? header ?? first ?? reader.headers.get(table) ?? 1
+    );
+  };
+  for (const key of Object.keys(root)) {
+    const known = KNOWN_KEYS[key];
+    if (known === undefined) {
+      unknown.push({ line: lineOf(root, key), message: `'${key}' has no meaning in hd.toml` });
+      continue;
+    }
+    if (known === null) continue;
+    const value = root[key];
+    const tables = Array.isArray(value) ? value.filter(isTable) : isTable(value) ? [value] : [];
+    for (const table of tables)
+      for (const inner of Object.keys(table))
+        if (!known.includes(inner))
+          unknown.push({
+            line: lineOf(table, inner),
+            message: `'${key}.${inner}' has no meaning in hd.toml; [${key}] has ${known.map((name) => `'${name}'`).join(" and ")}`,
+          });
+  }
+  return unknown.sort((left, right) => left.line - right.line);
+}
+
 /** A dotted module path under the source root, such as `tools.migrate`. */
 const MODULE_PATH = /^[\p{ID_Start}_][\p{ID_Continue}_]*(\.[\p{ID_Start}_][\p{ID_Continue}_]*)*$/u;
 
@@ -457,8 +507,10 @@ export function readManifest(
       ? workspaceTable.members.filter((member): member is string => typeof member === "string")
       : [];
   if (errors.length > 0) return { errors };
+  const unknownKeys = unknownManifestKeys(root, reader);
   return {
     manifest: {
+      unknownKeys,
       ...(name === undefined ? {} : { name }),
       packageLine,
       executables,

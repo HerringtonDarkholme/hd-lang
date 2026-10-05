@@ -61,6 +61,3 @@ runtime/valid/doc-test-compile-fail.hd	`hd test FILE` exits 101 with 'no test ca
 runtime/valid/doc-test-private-item.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
 cli/doc-outside-package	`hd doc` takes a NAME: `hd doc --format json` exits 101 with 'missing NAME' and no JSON on stdout, where cli.doc.package wants an error diagnostic and a summary	CLI-DOC
 cli/doc-check-error	no `hd doc` flags: `hd doc --format json --out site` exits 101 with 'unknown flag --out' and no JSON on stdout, so `hd doc` never checks the package (cli.doc.check)	CLI-DOC
-cli/exe-main-unlisted	the error for a src/main.hd that no [[executable]] table names has no code (cli.exe.main-unlisted)	CLI-MANIFEST
-cli/task-name-clash	the error for a task named like an executable has no code (cli.task.name-clash)	CLI-MANIFEST
-cli/manifest-unknown-key	unknown hd.toml keys are ignored without a warning (cli.manifest.unknown-key)	CLI-MANIFEST

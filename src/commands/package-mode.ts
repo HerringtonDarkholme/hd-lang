@@ -23,8 +23,7 @@ export const MANIFEST_FILE = "hd.toml";
 
 /**
  * The build directory, under the package directory: where `hd` writes its
- * build and cache output (spec/cli/command-line.md#r-cli.doc.dir). The
- * specification does not name it; the prototype uses `build`.
+ * build and cache output (spec/cli/command-line.md#r-cli.build.directory).
  */
 export const BUILD_DIRECTORY = "build";
 
@@ -168,7 +167,7 @@ export async function packageMode(start: string): Promise<PackageMode> {
     if (files[MAIN_FILE] !== undefined && !executables.some(({ path }) => path === MAIN_FILE))
       problem(
         manifest.packageLine,
-        null,
+        "unlisted-entry",
         `src/main.hd is no executable, since hd.toml declares [[executable]] tables and none names module "main"; add one:\n  [[executable]]\n  name = "${name}"\n  module = "main"`,
       );
   }
@@ -184,9 +183,19 @@ export async function packageMode(start: string): Promise<PackageMode> {
       problem(
         manifest.executables.find((executable) => executable.name === task.name)?.line ??
           manifest.packageLine,
-        null,
+        "duplicate-executable-name",
         `the task ${task.path} and the executable '${task.name}' have one name; rename one, since hd run ${task.name} must name one program`,
       );
+  // A key with no meaning is a warning (spec/cli/command-line.md#r-cli.manifest.unknown-key).
+  for (const { line, message } of manifest.unknownKeys)
+    problems.push({
+      path: MANIFEST_FILE,
+      line,
+      column: 1,
+      code: "unknown-manifest-key",
+      message,
+      severity: "warning",
+    });
   return {
     kind: "package",
     package: { root, name, files, executables, tasks, problems, manifest },

@@ -2412,3 +2412,6 @@ cli/dep-invalid-add	cli
 cli/dep-invalid-manifest	cli
 cli/dep-outside-package	cli
 cli/build-output	cli
+cli/exe-main-unlisted	cli
+cli/task-name-clash	cli
+cli/manifest-unknown-key	cli

@@ -120,7 +120,7 @@ test("package mode comes from the nearest hd.toml above the start directory", as
     assert.deepEqual(declared.package.executables, [{ name: "seed", path: "src/cart/mod.hd" }]);
     assert.deepEqual(
       declared.package.problems.map(({ line, code }) => `${line}:${code}`),
-      ["4:missing-entry-point", "1:null"],
+      ["4:missing-entry-point", "1:unlisted-entry"],
     );
     assert.deepEqual(
       unselectedMains(declared.package).map(({ path, line, code }) => `${path}:${line}:${code}`),
@@ -202,5 +202,17 @@ test("a REPL session in a package acts as code inside src/lib.hd", async () => {
   assert.match(
     (await new ReplSession().evaluate("use self.util.{double}")).errors[0]!,
     /unknown-module/,
+  );
+});
+
+test("a manifest table or key with no meaning is listed for a warning", () => {
+  // spec/cli/command-line.md#r-cli.manifest.unknown-key
+  const read = readManifest(
+    '[package]\nname = "shop"\nversion = "1.0.0"\n\n[package.metadata]\nteam = "a"\n\n[[executable]]\nname = "shop"\nmodule = "main"\nopt = 3\n\n[dependencies]\nanything = "github.com/acme/x@1.0.0"\n\n[profile]\nrelease = true\n',
+  );
+  assert.ok("manifest" in read);
+  assert.deepEqual(
+    read.manifest.unknownKeys.map(({ line }) => line),
+    [3, 5, 11, 16],
   );
 });
