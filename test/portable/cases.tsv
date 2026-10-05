@@ -1992,6 +1992,10 @@ runtime/valid/rng-shuffle-choose-sample.hd	runtime
 runtime/panic/rng-sample-too-many.hd	runtime
 runtime/valid/rng-from-random.hd	runtime
 typing/invalid/test-registration-renamed-misplaced.hd	type
+runtime/valid/test-registration-renamed-import.hd	runtime
+runtime/valid/test-registration-qualified-call.hd	runtime
+runtime/valid/test-registration-qualified-prop.hd	runtime
+typing/invalid/test-registration-qualified-duplicate.hd	type
 runtime/valid/leading-dot-statement-indent-tail.hd	runtime
 runtime/valid/leading-dot-deeper-continues.hd	runtime
 typing/invalid/eq-contextual-both-operands.hd	type

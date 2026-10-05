@@ -229,7 +229,11 @@ exported function it names and prints its result.
 `hd check` skips the test cases and test-only functions of a `tests:` block
 unless `--tests` is given (Testing T42); `hd test` always compiles them.
 `hd test` (`test-runner.ts`) runs each test case in a fresh instance of one
-compilation. The parser checks an `it_each`, `it_prop`, or `it_prop_with`
+compilation. The parser knows a registration call by the declaration it
+names, not its spelling (`registrationOf` in `parser/test-cases.ts`): `it`,
+an alias from `use std.testing.{it_each as each}`, or a member of a
+`std.testing` namespace use, as `testing.it_each(...)`. It registers the
+test cases in declaration order. It checks an `it_each`, `it_prop`, or `it_prop_with`
 call's registration and makes its test case's body one call of an hd
 function in `lib/std/testing.hd` (`each_case!`, `prop_case!`, or
 `prop_with_case!`), and a `timeout` a call of `case_timeout`, after which a

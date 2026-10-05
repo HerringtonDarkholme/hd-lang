@@ -682,7 +682,11 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         }
         const standard =
           expression.receiver.kind === "name" &&
-          this.standardSubmoduleFunction(expression.receiver.name, expression.name);
+          this.standardSubmoduleFunction(
+            expression.receiver.name,
+            expression.name,
+            expression.span,
+          );
         if (standard)
           return this.checkExpression(
             {

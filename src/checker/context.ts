@@ -1485,9 +1485,10 @@ export abstract class CheckerContext {
   }
 }
 
-// The imported test-case functions besides the prelude's `it`
-// (spec/lang/10-modules.md#r-module.testing.position-statements).
-const TEST_CASE_FUNCTIONS: ReadonlySet<string> = new Set([
+// The test registration functions under an import of any name, `it`
+// included (spec/lang/10-modules.md#r-module.testing.reg.identity).
+export const TEST_CASE_FUNCTIONS: ReadonlySet<string> = new Set([
+  "std.testing.it",
   "std.testing.it_each",
   "std.testing.it_prop",
   "std.testing.it_prop_with",

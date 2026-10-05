@@ -47,13 +47,43 @@ export function emptyModuleItems(): ModuleItems {
   };
 }
 
-export function isCallOf(statement: Statement, name: string): boolean {
-  return (
-    statement.kind === "expression" &&
-    statement.expression.kind === "call" &&
-    statement.expression.callee.kind === "name" &&
-    statement.expression.callee.name === name
+/** The test registration functions (spec/lang/10-modules.md#r-module.testing.position-statements). */
+type Registration = "it" | "it_each" | "it_prop" | "it_prop_with";
+
+const REGISTRATIONS: ReadonlySet<string> = new Set(["it", "it_each", "it_prop", "it_prop_with"]);
+
+/**
+ * The test registration function a statement calls, by declaration identity,
+ * not by spelling (spec/lang/10-modules.md#r-module.testing.reg.identity): the
+ * prelude's `it`, a name that `uses` import from `std.testing` under any
+ * alias, or a member of a `std.testing` namespace use, as `testing.it_each`.
+ */
+export function registrationOf(
+  statement: Statement,
+  uses: readonly UseDecl[],
+): Registration | undefined {
+  if (statement.kind !== "expression" || statement.expression.kind !== "call") return undefined;
+  const callee = statement.expression.callee;
+  if (callee.kind === "name") {
+    const imported = uses
+      .filter((use) => use.module === "std.testing")
+      .flatMap((use) => use.names)
+      .find((entry) => (entry.alias ?? entry.name) === callee.name);
+    if (imported)
+      return REGISTRATIONS.has(imported.name) ? (imported.name as Registration) : undefined;
+    // `it` is a prelude name (spec/lang/10-modules.md#r-module.testing.it-function).
+    return callee.name === "it" ? "it" : undefined;
+  }
+  if (callee.kind !== "member" || callee.receiver.kind !== "name") return undefined;
+  const receiver = callee.receiver.name;
+  const namespace = uses.some(
+    (use) =>
+      use.module === "std" &&
+      use.names.some(
+        (entry) => entry.name === "testing" && (entry.alias ?? entry.name) === receiver,
+      ),
   );
+  return namespace && REGISTRATIONS.has(callee.name) ? (callee.name as Registration) : undefined;
 }
 
 // Whether a test body uses `?` outside any nested closure or local function.
@@ -261,13 +291,7 @@ function timedBody(test: TestDecl): TestDecl {
 // function `it` with a literal name, its options, and a body
 // (spec/lang/10-modules.md#test-cases).
 export function testCase(statement: Statement, fail: Fail): TestDecl {
-  const call = statement.kind === "expression" ? statement.expression : undefined;
-  if (!call || call.kind !== "call" || call.callee.kind !== "name" || call.callee.name !== "it")
-    fail(
-      "invalid-test-statement",
-      "every top-level statement of a tests block must be an it(...) call",
-      statement.span,
-    );
+  const call = (statement as Extract<Statement, { kind: "expression" }>).expression as Call;
   const { name, body, options, timeout } = testArguments(call, "it", 1, fail);
   const explicit = body.trailing !== true;
   if (explicit && body.parameters.length > 0)
@@ -318,24 +342,8 @@ function libraryCase(
 // (spec/std/testing.md#table-test-rows). The prototype compiles one test
 // function that the runner calls once per row, each in a fresh instance; its
 // body is `each_case!(rows, body)`.
-function tableTest(
-  statement: Statement,
-  aliases: ReadonlySet<string>,
-  errorName: string,
-  fail: Fail,
-): TestDecl {
-  const call = statement.kind === "expression" ? statement.expression : undefined;
-  if (
-    !call ||
-    call.kind !== "call" ||
-    call.callee.kind !== "name" ||
-    !aliases.has(call.callee.name)
-  )
-    fail(
-      "invalid-test-statement",
-      "every top-level statement of a tests block must be a call of it or std.testing.it_each",
-      statement.span,
-    );
+function tableTest(statement: Statement, errorName: string, fail: Fail): TestDecl {
+  const call = (statement as Extract<Statement, { kind: "expression" }>).expression as Call;
   const { name, body, options, timeout, positional } = testArguments(call, "it_each", 2, fail);
   const rows = positional[0]!;
   if (body.trailing === true || body.parameters.length !== 1)
@@ -409,15 +417,12 @@ function propertyTest(
   };
 }
 
-/** Resolves `it_each` calls, checks name uniqueness, and fixes `?` bodies' results. */
+/**
+ * Registers the test-position statements in declaration order, each by the
+ * registration function it calls; checks name uniqueness; and fixes `?`
+ * bodies' results.
+ */
 export function finishTestCases(items: ModuleItems, fail: Fail): void {
-  const aliases = new Set(
-    items.uses
-      .filter((use) => use.module === "std.testing")
-      .flatMap((use) => use.names)
-      .filter((name) => name.name === "it_each")
-      .map((name) => name.alias ?? name.name),
-  );
   // A test body that uses `?` returns `Result[void, Error]`
   // (spec/lang/05-expressions.md#r-expr.try.test.with-try). The prototype declares
   // the erased `Error` through an implicit `use std.error.Error` when the
@@ -427,31 +432,23 @@ export function finishTestCases(items: ModuleItems, fail: Fail): void {
     .flatMap((use) => use.names)
     .find((name) => name.name === "Error");
   const errorName = imported ? (imported.alias ?? imported.name) : "Error";
-  const importedAs = (name: string): Set<string> =>
-    new Set(
-      items.uses
-        .filter((use) => use.module === "std.testing")
-        .flatMap((use) => use.names)
-        .filter((entry) => entry.name === name)
-        .map((entry) => entry.alias ?? entry.name),
-    );
-  const properties = [importedAs("it_prop"), importedAs("it_prop_with")] as const;
-  const calleeOf = (statement: Statement): string | undefined =>
-    statement.kind === "expression" &&
-    statement.expression.kind === "call" &&
-    statement.expression.callee.kind === "name"
-      ? statement.expression.callee.name
-      : undefined;
-  const tables = items.pendingEach
-    .filter((statement) => !properties.some((names) => names.has(calleeOf(statement) ?? "")))
-    .map((statement) => tableTest(statement, aliases, errorName, fail));
-  const propertyTests = items.pendingEach
-    .filter((statement) => properties.some((names) => names.has(calleeOf(statement) ?? "")))
-    .map((statement) =>
-      propertyTest(statement, properties[1].has(calleeOf(statement)!), errorName, fail),
-    );
-  items.tests.push(...propertyTests);
-  items.tests.push(...tables);
+  const tables: TestDecl[] = [];
+  for (const statement of items.pendingEach) {
+    const registration = registrationOf(statement, items.uses);
+    if (registration === undefined)
+      fail(
+        "invalid-test-statement",
+        "every statement in test position must call a test registration function: it, it_each, it_prop, or it_prop_with",
+        statement.span,
+      );
+    if (registration === "it") items.tests.push(testCase(statement, fail));
+    else if (registration === "it_each") {
+      const table = tableTest(statement, errorName, fail);
+      tables.push(table);
+      items.tests.push(table);
+    } else
+      items.tests.push(propertyTest(statement, registration === "it_prop_with", errorName, fail));
+  }
   const later = (left: TestDecl, right: TestDecl): TestDecl =>
     left.span.start.offset > right.span.start.offset ? left : right;
   const seen = new Map<string, TestDecl>();

@@ -11,7 +11,6 @@ import { forwardingPlan } from "./assignability.ts";
 import { enclosingBoundProof } from "./trait-paths.ts";
 import { inferTypesThroughBounds } from "./bound-inference.ts";
 import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
-import { standardSubmoduleFunctionIdentity } from "./standard-library.ts";
 import {
   contextKeys,
   mutableInner,
@@ -84,19 +83,6 @@ interface CheckedProviderEntries {
 }
 
 export abstract class CallChecker extends StatementChecker {
-  /** A std submodule member, unless a value binding owns the receiver name. */
-  protected standardSubmoduleFunction(receiver: string, member: string): string | undefined {
-    if (
-      this.resolveLocal(receiver) ||
-      this.availableCaptures.has(receiver) ||
-      this.globals.has(receiver) ||
-      this.signatures.has(receiver)
-    )
-      return undefined;
-    const identity = standardSubmoduleFunctionIdentity(this.imports.get(receiver), member);
-    return identity === undefined ? undefined : this.signatures.get(identity)?.name;
-  }
-
   /** Arguments a call rewrite has already checked, such as a spread tuple's elements. */
   // Enumerable so argument trials can roll back context-dependent entries.
   // Its lifetime is the function checker, not a process-wide AST cache.

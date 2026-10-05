@@ -165,7 +165,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     const moduleReceiver = expression.callee.receiver;
     const standard =
       moduleReceiver.kind === "name" &&
-      this.standardSubmoduleFunction(moduleReceiver.name, expression.callee.name);
+      this.standardSubmoduleFunction(moduleReceiver.name, expression.callee.name, expression.span);
     if (standard)
       return this.checkCall(
         { ...expression, callee: { kind: "name", name: standard, span: expression.callee.span } },

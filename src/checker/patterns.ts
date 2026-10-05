@@ -29,7 +29,8 @@ import {
   displayType,
 } from "../types.ts";
 import { isIntegerType, numericType } from "../numeric.ts";
-import { PRELUDE_NAMES } from "./context.ts";
+import { PRELUDE_NAMES, TEST_CASE_FUNCTIONS } from "./context.ts";
+import { standardSubmoduleFunctionIdentity } from "./standard-library.ts";
 import {
   containsGenericType,
   genericTypeName,
@@ -41,6 +42,35 @@ import { spelledApplication, spelledType } from "./spelling.ts";
 
 import { CallChecker } from "./calls.ts";
 export abstract class PatternChecker extends CallChecker {
+  /**
+   * A std submodule member, unless a value binding owns the receiver name.
+   * A test registration function reached through `std.testing`, as
+   * `testing.it_each`, is misplaced here, at `span`: it registers only as a
+   * direct call in test position (spec/lang/10-modules.md#r-module.testing.reg.identity).
+   */
+  protected standardSubmoduleFunction(
+    receiver: string,
+    member: string,
+    span: SourceSpan,
+  ): string | undefined {
+    if (
+      this.resolveLocal(receiver) ||
+      this.availableCaptures.has(receiver) ||
+      this.globals.has(receiver) ||
+      this.signatures.has(receiver)
+    )
+      return undefined;
+    const origin = this.imports.get(receiver);
+    if (origin === "std.testing" && TEST_CASE_FUNCTIONS.has(`${origin}.${member}`))
+      this.fail(
+        "misplaced-test-case",
+        `${receiver}.${member}(...) registers a test case only as a direct call in test position`,
+        span,
+      );
+    const identity = standardSubmoduleFunctionIdentity(origin, member);
+    return identity === undefined ? undefined : this.signatures.get(identity)?.name;
+  }
+
   protected isIdentityType(type: ValueType): boolean {
     // Access permission does not change the category (04 types.sealed.permission).
     if (readonlyType(type) !== type) return this.isIdentityType(readonlyType(type));

@@ -36,8 +36,7 @@ import { ParseFailure, type ExpressionParseResult, type ParseOptions } from "./b
 import {
   emptyModuleItems,
   finishTestCases,
-  isCallOf,
-  testCase,
+  registrationOf,
   type ModuleItems,
 } from "./test-cases.ts";
 
@@ -224,15 +223,16 @@ class Parser extends LetParser {
         );
       const statement = this.parseStatement(!inTests);
       // An integration test program joins as ordinary top-level source
-      // (src/package.ts): its top-level `it` calls are test cases, parsed
-      // here when the joined source holds several modules.
-      if (!inTests && !(this.options.joinedModules === true && isCallOf(statement, "it")))
-        items.statements.push(statement);
-      else if (isCallOf(statement, "it"))
-        items.tests.push(
-          testCase(statement, (code, message, span) => this.fail(code, message, span)),
-        );
-      else items.pendingEach.push(statement);
+      // (src/package.ts): its top-level registration calls are test cases,
+      // parsed here when the joined source holds several modules. Every
+      // statement in test position is registered once the uses are known
+      // (finishTestCases).
+      if (
+        inTests ||
+        (this.options.joinedModules === true && registrationOf(statement, items.uses) !== undefined)
+      )
+        items.pendingEach.push(statement);
+      else items.statements.push(statement);
     }
   }
 
