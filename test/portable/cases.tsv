@@ -2263,6 +2263,7 @@ typing/valid/variance-opposing-target-signs.hd	type
 cli/exit-test-failure	cli
 cli/exit-package-file	cli
 parse/invalid/module-documentation-second-block.hd	parse
+parse/valid/module-documentation.hd	parse
 runtime/valid/derived-ordering-run.hd	runtime
 runtime/valid/cmp-min-max-distinguishable-tie.hd	runtime
 runtime/valid/facts-of-literal-generic-none.hd	runtime

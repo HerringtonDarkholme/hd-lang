@@ -1154,6 +1154,15 @@ function joinedText(module: PackageModule, source: string, importedStd: Set<stri
   let text = source;
   const edits: { readonly start: number; readonly end: number; readonly text: string }[] = [];
   const moduleStd = new Set<string>();
+  // A module's documentation is its file's first block, so in the joined
+  // source it would attach to nothing: its lines stay, blank
+  // (spec/lang/01-lexical-structure.md#r-lex.doc.module).
+  const moduleDoc = module.program!.moduleDoc?.span;
+  if (moduleDoc) {
+    const { offset: start } = moduleDoc.start;
+    const end = moduleDoc.end.offset;
+    edits.push({ start, end, text: text.slice(start, end).replace(/[^\n]/g, "") });
+  }
   for (const declaration of module.program!.uses) {
     // A `pub use` span starts at `use`; the edit covers the `pub` too.
     const end = declaration.span.end.offset;

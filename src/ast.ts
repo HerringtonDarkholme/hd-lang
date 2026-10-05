@@ -600,6 +600,11 @@ export interface PackageScopes {
 
 export interface Program {
   readonly uses: readonly UseDecl[];
+  /**
+   * The file's module documentation, its first `##` block when a blank line
+   * follows it (01-lexical-structure.md#r-lex.doc.module); for tools.
+   */
+  readonly moduleDoc?: { readonly text: string; readonly span: SourceSpan };
   /** Present when the module declares a `type`. */
   readonly types?: readonly TypeDecl[];
   /** Set when a block suite declares a type or implementation. */

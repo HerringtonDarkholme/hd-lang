@@ -40,6 +40,9 @@ export interface Token {
   // A prefixed string's prefix (01-lexical-structure.md#prefixed-strings), as
   // in `sql"..."`; the value is always an `InterpolatedStringValue` of raw text.
   readonly prefix?: { readonly name: string; readonly span: SourceSpan };
+  // A documentation-comment line of the file's module documentation
+  // (01-lexical-structure.md#r-lex.doc.module).
+  readonly moduleDoc?: true;
 }
 
 interface LexResult {
@@ -854,5 +857,36 @@ class Scanner {
 }
 
 export function lex(source: string): LexResult {
-  return new Scanner(source).scan();
+  const result = new Scanner(source).scan();
+  const block = moduleDocBlock(source, result.tokens);
+  if (!block) return result;
+  return {
+    ...result,
+    tokens: result.tokens.map((token) =>
+      block.has(token) ? { ...token, moduleDoc: true } : token,
+    ),
+  };
+}
+
+/**
+ * The documentation-comment tokens of the file's module documentation: its
+ * first documentation block, when no token precedes it and a blank line
+ * follows it (01-lexical-structure.md#r-lex.doc.module).
+ */
+function moduleDocBlock(source: string, tokens: readonly Token[]): Set<Token> | undefined {
+  let index = 0;
+  while (tokens[index]?.kind === "newline") index += 1;
+  const block = new Set<Token>();
+  let line = 0;
+  for (; index < tokens.length; index += 1) {
+    const token = tokens[index]!;
+    if (token.kind === "newline") continue;
+    if (token.kind !== "doc-comment" || (line !== 0 && token.span.start.line !== line + 1)) break;
+    block.add(token);
+    line = token.span.start.line;
+  }
+  if (block.size === 0) return undefined;
+  // `line` is 1-based, so it indexes the line after the block.
+  const after = source.split(/\r?\n/)[line];
+  return after !== undefined && after.trim() === "" ? block : undefined;
 }

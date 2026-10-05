@@ -11,15 +11,14 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,575 cases: 2,523 selected in `test/portable/cases.tsv` and 52 known
-failures. The selected cases are 2,177 language tier, 300 stdlib tier, and 46
-CLI tier; the known failures are 40 language tier, 2 stdlib tier, and 10
+2,575 cases: 2,524 selected in `test/portable/cases.tsv` and 51 known
+failures. The selected cases are 2,178 language tier, 300 stdlib tier, and 46
+CLI tier; the known failures are 39 language tier, 2 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
 | CLI-DOC | 8 | no `hd doc` command |
-| MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
 | F-250 | 5 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |

@@ -72,9 +72,19 @@ class Parser extends LetParser {
     this.mutTuples = [];
     const start = this.current().span.start;
     let testsBlock = false;
+    // The module documentation, which the lexer marks (lex.doc.module): its
+    // text is for tools.
+    const moduleDoc: string[] = [];
+    let moduleDocSpan: SourceSpan | undefined;
     try {
       while (!this.atKind("eof")) {
         if (this.matchKind("newline")) continue;
+        if (this.current().moduleDoc) {
+          const line = this.advance();
+          moduleDoc.push(String(line.value ?? line.text));
+          moduleDocSpan = { start: moduleDocSpan?.start ?? line.span.start, end: line.span.end };
+          continue;
+        }
         const doc = this.parseDocComments();
         // A file holds at most one top-level `tests:` block
         // (spec/lang/02-grammar.md#test-blocks).
@@ -110,6 +120,9 @@ class Parser extends LetParser {
     return {
       program: {
         uses,
+        ...(moduleDocSpan
+          ? { moduleDoc: { text: moduleDoc.join("\n"), span: moduleDocSpan } }
+          : {}),
         ...(types.length > 0 ? { types } : {}),
         ...(this.localDeclarations ? { localDeclarations: true } : {}),
         ...(this.mutPrimitives.length > 0 ? { mutPrimitives: this.mutPrimitives } : {}),
