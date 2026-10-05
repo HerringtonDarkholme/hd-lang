@@ -3,6 +3,10 @@ name: Test
 on:
   push:
     branches: [main]
+    # Queue and log edits under audit/ change no code, and pushing them often
+    # would otherwise cancel every running check (cancel-in-progress below).
+    paths-ignore:
+      - "audit/**"
   pull_request:
 
 permissions:
