@@ -2381,3 +2381,11 @@ cli/json-run	cli
 cli/exe-missing-module	cli
 cli/exe-unselected-main	cli
 cli/release-wraps	cli
+cli/new-lib	cli
+cli/new-path	cli
+cli/new-vcs	cli
+cli/new-existing	cli
+cli/new-no-kind	cli
+cli/new-pages	cli
+cli/new-no-pages	cli
+cli/new-pages-existing	cli

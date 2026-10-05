@@ -11,14 +11,13 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,470 cases: 2,382 selected in `test/portable/cases.tsv` and 88 known
-failures. The selected cases are 2,079 language tier, 282 stdlib tier, and 21
-CLI tier; the known failures are 67 language tier, 4 stdlib tier, and 17
+2,470 cases: 2,390 selected in `test/portable/cases.tsv` and 80 known
+failures. The selected cases are 2,079 language tier, 282 stdlib tier, and 29
+CLI tier; the known failures are 67 language tier, 4 stdlib tier, and 9
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
-| CLI-NEW | 9 | no `hd new` command |
 | CLI-DOC | 8 | no `hd doc` command |
 | MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
 | F-250 | 6 | GADT variant results give generic diagnostics |
@@ -31,7 +30,7 @@ CLI tier.
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |
-| CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
+| CLI-57 | 3 | the test runner binds no `Process`, so the test that `hd new --app` writes fails, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
@@ -122,8 +121,8 @@ Compiler structure:
 | P2 | Member lookup skips members not visible from the calling module. The prototype links a package into one namespace, so every member is visible. |
 | M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package. |
 | TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The requirement-key dynamic-safety rule is implemented; the prototype does not check these remaining gaps. |
-| CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `-p`, `--filter`, `--deny-skipped`, stdin as a program, workspaces and the workspace search from a member, tasks, the `hd new --app` and `--lib` templates, or the task and test-root layout errors. It parses `--` program arguments, but no host capability reads them. Most have no fixture format. |
-| CLI-57 | Batch 57 CLI rules: the prototype has none of `hd check --all`, the unlisted-member error, `exclude`, `-p` inside a member, a failing `--filter` on a FILE, the package REPL without `src/lib.hd`, `--format json` with its named fields on any command, or the `.gitignore` of `hd new`. `hd_run!` is plain hd over `Process` in `lib/std/testing.hd`, but `hd test` binds no `Process` for an integration test, and no check rejects `hd_run!` outside one. |
+| CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `-p`, `--filter`, `--deny-skipped`, stdin as a program, workspaces and the workspace search from a member, tasks, or the task and test-root layout errors. It parses `--` program arguments, but no host capability reads them. Most have no fixture format. |
+| CLI-57 | Batch 57 CLI rules: the prototype has none of `hd check --all`, the unlisted-member error, `exclude`, `-p` inside a member, a failing `--filter` on a FILE, the package REPL without `src/lib.hd`, or `--format json` with its named fields on any command. `hd_run!` is plain hd over `Process` in `lib/std/testing.hd`, but `hd test` binds no `Process` for an integration test, and no check rejects `hd_run!` outside one. |
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, with no host `Console.write_error_line` entry, so `eprintln` under the default profile fails with `host-contract`. `lib/std` declares the other items but `Backoff` and `retry_with!`. |

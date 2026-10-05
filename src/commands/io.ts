@@ -72,6 +72,35 @@ export interface CommandEnvironment {
   readonly pendingFirstPoll?: boolean;
   /** Conformance harness hooks, which the in-process adapter sets. */
   readonly runner?: RunnerOptions;
+  /**
+   * Standard input when it is a terminal, which a command may ask a question
+   * on; null when it is not one, as when it is closed or a pipe. Undefined
+   * stands for the process's own standard input.
+   */
+  readonly terminal?: Terminal | null;
+}
+
+/** A terminal on standard input and output: `hd new` asks which kind to create. */
+export interface Terminal {
+  /** Writes `question` and resolves to the line the user answers. */
+  readonly ask: (question: string) => Promise<string>;
+}
+
+/** The terminal of `environment`, or null when standard input is not one. */
+export function terminalOf(environment: CommandEnvironment): Terminal | null {
+  if (environment.terminal !== undefined) return environment.terminal;
+  if (!process.stdin.isTTY) return null;
+  return {
+    ask: async (question) => {
+      const { createInterface } = await import("node:readline/promises");
+      const lines = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        return await lines.question(question);
+      } finally {
+        lines.close();
+      }
+    },
+  };
 }
 
 /**

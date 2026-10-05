@@ -64,6 +64,7 @@ hd build [--wat] [--release] [FILE]
 hd run   [--release] [NAME] [-- ARGS]
 hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE]
 hd check [--tests] [FILE]
+hd new   [--app] [--lib] [--pages] [--vcs none] [PATH]
 hd explain CODE      hd doc NAME [FILE|PKG]      hd def NAME [FILE|PKG]
 hd repl              hd help [COMMAND]           hd debug parse|hir FILE
 ```
@@ -125,6 +126,15 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   or `tests/` link FILE with its package, so `pkg`, `self`, and `super`
   uses between modules resolve. Any other FILE compiles as a single-file
   program. The runner's package tree and test layout turn this off.
+- `hd new` (`commands/new.ts`, [Creating A Package](../spec/cli/command-line.md#creating-a-package))
+  writes `hd.toml`, `src/main.hd` or `src/lib.hd`, and `tests/NAME.hd` into
+  PATH or the working directory, naming the package after the directory.
+  With neither `--app` nor `--lib` it asks on a terminal
+  (`CommandEnvironment.terminal`), together with the Pages question, and
+  fails otherwise. It writes nothing when one of its files exists. Outside a
+  git repository it runs `git init` and writes a `.gitignore` of `/build/`;
+  `--pages` writes the docs workflow. It does not add the package to an
+  enclosing workspace's `members`, since the prototype has no workspaces.
 - `hd FILE` (a first word that ends in `.hd` and names no command) runs FILE
   as a single-file program, linked with no package ([`cli.file.run`](../spec/cli/command-line.md#r-cli.file.run)).
   A `pkg`, `dep`, `self`, or `super` use in a single-file program is

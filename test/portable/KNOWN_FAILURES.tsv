@@ -64,16 +64,11 @@ typing/invalid/alias-unknown-target.hd	the checker does not resolve an unused al
 typing/invalid/row-alias-unknown-key.hd	the checker does not resolve an unused row alias's keys, so `type AppRow = $ Ledger` with no `Ledger` is accepted instead of unknown-trait at the alias (types.alias.target-unknown.key)	ALIAS-MISSING
 typing/invalid/module-path-private-std-function.hd	a module path to a std function without pub, `text.hex_digit(48)` after `use std.text`, reports unknown-name for `text` instead of private-import (expr.name.qualified.private)	PRIVATE-STD
 typing/invalid/derive-unknown-trait.hd	`@derive(Sortable)` with no `Sortable` in scope reports underivable-trait instead of unknown-trait (annot.derive.unknown)	DERIVE-MISSING
-cli/new-app	no `hd new` command: `hd new --app --vcs none` exits 101 as an unknown command (cli.new.app)	CLI-NEW
-cli/new-lib	no `hd new` command: `hd new --lib --vcs none` exits 101 as an unknown command (cli.new.lib)	CLI-NEW
-cli/new-path	no `hd new` command: `hd new --app --vcs none hello` exits 101 as an unknown command (cli.new.app, cli.new.lib)	CLI-NEW
-cli/new-vcs	no `hd new` command: `hd new --app tracked` exits 101 as an unknown command (cli.new.vcs, cli.new.vcs-none)	CLI-NEW
+cli/new-app	step 3 `hd test` exits 101: the integration test that `hd new --app` writes calls `hd_run!`, and the test runner binds no `Process` (missing-requirement; cli.new.app.test, cli.test.process)	CLI-57
 parse/valid/module-documentation.hd	no module documentation: the lexer reports doc-comment-without-target for the second block, where lex.doc.module makes the first block the module's documentation	MODULE-DOC
 cli/doc-out	`hd doc` takes only a NAME: `hd doc --out site` exits 101 with 'unknown flag --out' (cli.doc.command, cli.doc.files, cli.doc.root-page: no `pkg.md`)	CLI-DOC
 cli/doc-name	`hd doc` takes only a NAME: `hd doc --out site text.slugify` exits 101 with 'unknown flag --out' (cli.doc.name, and `hd doc std.text.split` by cli.doc.name.std)	CLI-DOC
 cli/doc-private	`hd doc text.helper` exits 1, not 101, with `doc-comment-without-target` for the `##` block of src/text.hd (MODULE-DOC) and 'no symbol named text.helper'; cli.doc.private wants 101 for a private item	CLI-DOC
-cli/new-pages	no `hd new` command: `hd new --app --vcs none --pages` exits 101 as an unknown command (cli.new.pages)	CLI-NEW
-cli/new-no-pages	no `hd new` command: `hd new --app --vcs none` exits 101 as an unknown command, so hd.toml is missing (cli.new.pages.default)	CLI-NEW
 typing/invalid/bound-inference-several-impls.hd	the checker reports cannot-infer-type for a bound-only parameter that several instantiations fit, not ambiguous-type (types.generic.infer.bound.no-default.ambiguous)	BOUND-AMBIGUOUS
 typing/invalid/bound-inference-mixed-several-impls.hd	the checker reports cannot-infer-type for `joined(label, both)`, where one bound allows several instantiations, not ambiguous-type (types.generic.infer.bound.no-default.ambiguous)	BOUND-AMBIGUOUS
 cli/doc-main-page	`hd doc --out site` exits 101 with 'unknown flag --out', so the pages and `main.md` under `--private` are never written (cli.doc.main)	CLI-DOC
@@ -82,8 +77,5 @@ cli/doc-index-module	no `hd doc` flags: `hd doc --out site` exits 101 with 'unkn
 runtime/valid/doc-test-passes.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
 runtime/valid/doc-test-compile-fail.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
 runtime/valid/doc-test-private-item.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
-cli/new-existing	no `hd new` command: the first step, `hd new --lib --vcs none other`, exits 101 as an unknown command, so the case never reaches cli.new.existing	CLI-NEW
-cli/new-no-kind	no `hd new` command: the first step, `hd new --app --vcs none ok`, exits 101 as an unknown command, so the case never reaches cli.new.kind.no-terminal	CLI-NEW
-cli/new-pages-existing	no `hd new` command: the first step, `hd new --lib --vcs none other`, exits 101 as an unknown command, so the case never reaches cli.new.existing	CLI-NEW
 cli/doc-outside-package	`hd doc` takes a NAME: `hd doc --format json` exits 101 with 'missing NAME' and no JSON on stdout, where cli.doc.package wants an error diagnostic and a summary	CLI-DOC
 cli/doc-check-error	no `hd doc` flags: `hd doc --format json --out site` exits 101 with 'unknown flag --out' and no JSON on stdout, so `hd doc` never checks the package (cli.doc.check)	CLI-DOC

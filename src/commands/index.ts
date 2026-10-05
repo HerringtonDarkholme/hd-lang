@@ -12,6 +12,7 @@ export {
   type CommandIo,
   type CommandOutput,
   type RunnerOptions,
+  type Terminal,
 } from "./io.ts";
 export {
   buildCommand,
@@ -31,6 +32,7 @@ export {
   type TestArgs,
 } from "./execute.ts";
 export { helpCommand, replCommand, type HelpArgs } from "./help.ts";
+export { newCommand, type NewArgs, type PackageKind } from "./new.ts";
 export {
   defCommand,
   docCommand,

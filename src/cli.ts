@@ -15,6 +15,7 @@ import {
   fileCommand,
   helpCommand,
   hirCommand,
+  newCommand,
   parseCommand,
   processIo,
   replCommand,
@@ -84,6 +85,24 @@ export async function main(
   switch (parsed.command.name) {
     case "repl":
       return replCommand({ input: process.stdin, output: process.stdout });
+    case "new": {
+      const app = parsed.flags.has("--app");
+      const lib = parsed.flags.has("--lib");
+      if (app && lib) {
+        io.err("hd new: pass one of --app and --lib, not both");
+        return EXIT_HD_FAILURE;
+      }
+      return newCommand(
+        {
+          ...environment,
+          ...(app ? { kind: "app" as const } : lib ? { kind: "lib" as const } : {}),
+          pages: parsed.flags.has("--pages"),
+          vcs: parsed.flags.get("--vcs") !== "none",
+          ...(first === undefined ? {} : { path: first }),
+        },
+        io,
+      );
+    }
     case "explain":
       return explainCommand({ code: first!, format, ...environment }, io);
     case "doc":

@@ -109,6 +109,32 @@ const COMMANDS: readonly CommandSpec[] = [
     notes: [PACKAGE_NOTE, "Without FILE, it checks the library and the executables.", FILE_NOTE],
   },
   {
+    name: "new",
+    operands: "[PATH]",
+    minOperands: 0,
+    maxOperands: 1,
+    summary: "create a package in PATH, or in the current directory",
+    flags: [
+      { name: "--app", help: "create an application: src/main.hd and a test that runs it" },
+      { name: "--lib", help: "create a library: src/lib.hd and a test that uses it" },
+      {
+        name: "--pages",
+        help: "also write .github/workflows/docs.yml, which publishes hd doc to GitHub Pages",
+      },
+      {
+        name: "--vcs",
+        value: "VCS",
+        choices: ["none"],
+        help: "with none, run no git init and write no .gitignore",
+      },
+    ],
+    notes: [
+      "With neither --app nor --lib, hd new asks which kind on a terminal, and is",
+      "an error otherwise. The package is named after its directory. Unless the",
+      "directory is in a git repository already, hd new runs git init there.",
+    ],
+  },
+  {
     name: "explain",
     operands: "CODE",
     minOperands: 1,
@@ -290,8 +316,8 @@ export function commandHelp(topic: string): string | undefined {
   const own = command.flags;
   const lines = [usageLine(command), "", sentence(command.summary)];
   if (command.notes) lines.push("", ...command.notes);
-  // `hd repl` prints no diagnostics, so `--format` does nothing there.
-  const flags = command.name === "repl" ? own : [...own, FORMAT];
+  // `hd repl` and `hd new` print no diagnostics, so `--format` does nothing there.
+  const flags = ["repl", "new"].includes(command.name) ? own : [...own, FORMAT];
   if (flags.length > 0) lines.push("", "flags:", ...flagRows(flags));
   return lines.join("\n");
 }

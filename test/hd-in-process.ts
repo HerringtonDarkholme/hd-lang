@@ -92,7 +92,13 @@ export async function runHd(
   const io = bufferedIo();
   let status: number;
   try {
-    status = await main([...args], io, { ...environment, ...runnerEnvironment(runner) });
+    // Standard input is closed, as the conformance runner closes it
+    // (spec/conformance/README.md#running-a-case), unless the caller gives a terminal.
+    status = await main([...args], io, {
+      terminal: null,
+      ...environment,
+      ...runnerEnvironment(runner),
+    });
   } catch (error) {
     if (error instanceof UnsupportedRunnerOption) {
       io.err(`hd: ${error.message}`);
