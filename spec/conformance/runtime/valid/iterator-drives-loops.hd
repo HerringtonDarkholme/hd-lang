@@ -8,7 +8,7 @@ fn main() -> i32:
     _ := source.next()
     values := [for value in source => value * 10]
     let mut second = [+0, 1, 2].iter()
-    let total: i32 = 0
+    let total = +0
     for value in second:
         total = total + value
     if values.len() == 3 && values[0] == 30 && values[2] == 50 && total == 3:

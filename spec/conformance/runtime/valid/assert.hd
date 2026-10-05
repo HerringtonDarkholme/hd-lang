@@ -1,6 +1,6 @@
 use std.testing.assert
 
-let order: i32 = 0
+let order = +0
 
 fn ordered_condition() -> bool:
     order = order + 1

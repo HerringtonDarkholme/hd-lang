@@ -41,7 +41,7 @@ declares a variable that can be reassigned; its type annotation is optional.
 ```hd
 name := "Ada"
 age := 36
-let attempts: i32 = 0
+let attempts = +0
 attempts = attempts + 1
 ```
 
@@ -142,7 +142,7 @@ else if score >= 70:
 else:
     "needs work"
 
-let total: i32 = 0
+let total = +0
 for value in values:
     if value < 0:
         continue

@@ -272,7 +272,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
     # type has no finite value (r-std-testing.arbitrary.derive.no-finite,
     # .no-finite.data).
     fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], NoFiniteValue]:
-        let simplest: i32 = -1
+        let simplest = -1
         for v in choices:
             if simplest < 0:
                 match v.info.self_ref:

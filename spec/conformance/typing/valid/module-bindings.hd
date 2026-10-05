@@ -1,4 +1,4 @@
-let count: i32 = 0
+let count = +0
 label := "requests"
 
 fn increment() -> void:

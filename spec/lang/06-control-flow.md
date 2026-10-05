@@ -122,7 +122,7 @@ data Point:
     y: i32
 
 fn total(points: List[Point], scores: Map[string, i32]) -> i32:
-    let sum: i32 = 0
+    let sum = +0
     for Point { x, y } in points:
         sum = sum + x + y
     for (_, score) in scores:
@@ -201,13 +201,13 @@ fn countdown(start: i32) -> mut Iterator[i32]:
 
 ```text
 fn drain(source: mut Iterator[i32]) -> i32:
-    let total: i32 = 0
+    let total = +0
     for value in source:
         total = total + value
     total
 
 fn twice(values: List[i32]) -> i32:
-    let total: i32 = 0
+    let total = +0
     for value in values.iter():
         total = total + value
     for value in values.iter():
@@ -231,7 +231,7 @@ fn peek(source: Iterator[i32]) -> fn() -> i32?:
     source.step  # error: private-member
 
 fn count[I < Iterable[i32]](source: I) -> i32:
-    let total: i32 = 0
+    let total = +0
     for item in source:
         total = total + item
     total

@@ -6,7 +6,7 @@ data Box:
     value: i32
 
 fn run() -> i32:
-    let x: i32 = 10
+    let x = +10
     x += 5
     x -= 3
     x *= 4

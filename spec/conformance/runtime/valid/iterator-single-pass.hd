@@ -6,15 +6,15 @@ use std.testing.assert_equal
 fn main() -> i32:
     values := [+1, 2, 3, 4]
     let mut source = values.iter()
-    let first: i32 = 0
+    let first = +0
     for value in source:
         first = first + value
         if value == 2:
             break
-    let rest: i32 = 0
+    let rest = +0
     for value in source:
         rest = rest + value
-    let again: i32 = 0
+    let again = +0
     for value in values.iter():
         again = again + value
     if first == 3 && rest == 7 && again == 10:

@@ -2,7 +2,7 @@
 # test: suspending calls as arguments run left to right when each host call is pending first
 use std.testing.assert_equal
 
-let order: i32 = 0
+let order = +0
 
 fn mark!(id: i32) -> i32 $ Console:
     let mut console = $.use(Console)

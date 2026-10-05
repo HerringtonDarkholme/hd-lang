@@ -8,8 +8,8 @@ fn step!(value: i32) -> i32 $ Console:
     value
 
 pub fn main!() -> void $ Console:
-    let index: i32 = 0
-    let total: i32 = 0
+    let index = +0
+    let total = +0
     value := while index < 5:
         defer:
             total = total + 10

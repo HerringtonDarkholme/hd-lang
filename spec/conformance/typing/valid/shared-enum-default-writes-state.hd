@@ -1,4 +1,4 @@
-let sequence: i32 = 0
+let sequence = +0
 
 fn next() -> i32:
     sequence = sequence + 1

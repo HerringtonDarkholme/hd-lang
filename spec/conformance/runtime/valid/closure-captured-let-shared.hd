@@ -5,20 +5,20 @@
 use std.testing.assert_equal
 
 fn counter() -> fn() -> i32:
-    let count: i32 = 0
+    let count = +0
     fn() -> i32:
         count = count + 1
         count
 
 tests:
     it("a closure reads a later assignment to a captured let"):
-        let value: i32 = 1
+        let value = +1
         read := fn() -> i32: value
         value = 2
         assert_equal(read(), 2, reason="the closure reads the shared binding, not a copy")
 
     it("two closures share one captured let"):
-        let total: i32 = 0
+        let total = +0
         let add: fn(i32) -> void = fn(amount: i32) -> void:
             total = total + amount
         read := fn() -> i32: total

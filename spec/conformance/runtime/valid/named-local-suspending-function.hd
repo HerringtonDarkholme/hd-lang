@@ -12,7 +12,7 @@ impl Increment for FixedIncrement:
         value + 1
 
 fn drive_local!() -> i32:
-    let base: i32 = 39
+    let base = +39
     fn count!(remaining: i32) -> i32 $ Increment:
         provider := $.use(Increment)
         if remaining == 0:

@@ -3,14 +3,14 @@
 use std.testing.assert_equal
 
 fn main() -> i32:
-    let value: i32 = 0
+    let value = +0
     if true:
         defer:
             value = value * 10 + 1
         defer:
             value = value * 10 + 2
         pass
-    let iterations: i32 = 0
+    let iterations = +0
     while iterations < 2:
         defer:
             value = value + 100

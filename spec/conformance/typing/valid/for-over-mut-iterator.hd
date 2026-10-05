@@ -2,7 +2,7 @@
 # Spec 06 Iteration Protocols: flow.for.accepts, flow.for.iterator-direct, flow.for.comprehension (batch 24 IT2).
 
 fn drain(source: mut Iterator[i32]) -> i32:
-    let total: i32 = 0
+    let total = +0
     for value in source:
         total = total + value
     total

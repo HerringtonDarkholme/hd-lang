@@ -747,7 +747,7 @@ A closure that mutates captured state is an ordinary closure with an ordinary
 function type:
 
 ```text
-let count: i32 = 0
+let count = +0
 
 let next: fn() -> i32 = fn() -> i32:
     count = count + 1

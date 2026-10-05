@@ -2,7 +2,7 @@
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait
 
-let order: i32 = 0
+let order = +0
 
 fn wait!() -> void: pass
 

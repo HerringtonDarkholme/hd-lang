@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 fn main() -> i32:
-    let value: i32 = 0
+    let value = +0
     while value < 10:
         value = value + 1
         if value == 3:

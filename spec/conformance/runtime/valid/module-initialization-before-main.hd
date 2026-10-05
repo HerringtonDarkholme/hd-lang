@@ -1,6 +1,6 @@
 use std.testing.assert_equal
 
-let initialized: i32 = 0
+let initialized = +0
 initialized = initialized + 1
 
 pub fn main() -> void:

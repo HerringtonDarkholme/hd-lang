@@ -1,5 +1,5 @@
 # test: a closure that mutates captured state has an ordinary function type
-let count: i32 = 0
+let count = +0
 
 let next: fn() -> i32 = fn() -> i32:
     count = count + 1
@@ -10,7 +10,7 @@ fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
         items.push(value)
 
 fn counter() -> fn() -> i32:
-    let total: i32 = 0
+    let total = +0
     let step: fn() -> i32 = fn() -> i32:
         total = total + 1
         total

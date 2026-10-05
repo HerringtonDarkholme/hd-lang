@@ -8,7 +8,7 @@ fn labels(entries: Map[string, i32]) -> List[string]:
     [for (key, count) in entries => "$key=$count"]
 
 fn total(values: List[i32]) -> i32:
-    let sum: i32 = 0
+    let sum = +0
     for value in values:
         sum = sum + value
     sum

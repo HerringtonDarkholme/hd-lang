@@ -25,7 +25,7 @@ tests:
         let iterator: mut Iterator[i32] = values.iter()
         let first: i32? = 20
         assert(iterator.next() == first, reason="the explicit call consumes the first value")
-        let total: i32 = 0
+        let total = +0
         for value in iterator:
             total = total + value
         assert(total == 43, reason="for uses the same cursor without resetting it")

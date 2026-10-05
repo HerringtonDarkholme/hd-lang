@@ -10,7 +10,7 @@ fn rename(user: mut User) -> void:
 
 tests:
     it("a closure updates captured let storage shared with its scope"):
-        let count: i32 = 0
+        let count = +0
         let next: fn() -> i32 = fn() -> i32:
             count = count + 1
             count

@@ -2,7 +2,7 @@
 # test: suspending calls in branches and short-circuits resume after a pending host call
 use std.testing.assert_equal
 
-let calls: i32 = 0
+let calls = +0
 
 fn value!(input: i32) -> i32 $ Console:
     let mut console = $.use(Console)

@@ -2,7 +2,7 @@
 # Spec 06 Iteration Protocols: flow.for.iterator-not-iterable, flow.for.iterator-no-bound (batch 24 IT2).
 
 fn count[I < Iterable[i32]](source: I) -> i32:
-    let total: i32 = 0
+    let total = +0
     for item in source:
         total = total + item
     total

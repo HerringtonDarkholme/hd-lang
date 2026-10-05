@@ -7,13 +7,13 @@ data Point:
     y: i32
 
 fn total(points: List[Point]) -> i32:
-    let sum: i32 = 0
+    let sum = +0
     for Point { x, y } in points:
         sum = sum + x * y
     sum
 
 fn weights(scores: Map[string, i32]) -> i32:
-    let sum: i32 = 0
+    let sum = +0
     for (_, score) in scores:
         sum = sum + score
     for entry in scores:
@@ -21,7 +21,7 @@ fn weights(scores: Map[string, i32]) -> i32:
     sum
 
 fn nested(pairs: List[(Point, i32)]) -> i32:
-    let sum: i32 = 0
+    let sum = +0
     for (Point { x, y: _ }, weight) in pairs.iter():
         sum = sum + x * weight
     sum

@@ -95,7 +95,7 @@ Use `let` for a local variable that may be reassigned. Type annotation is option
 let display_name: string = "Ada"
 let nickname: string? = .None
 let inferred = 1
-let attempts: i32 = 0
+let attempts = +0
 let counter = 1
 
 attempts = attempts + 1
@@ -162,7 +162,7 @@ Primitive types include booleans, width-explicit numbers, strings, and chars:
 ```text
 let ok: bool = true
 let small: i8 = 1
-let count: i32 = 42
+let count = +42
 let large: i64 = 9000
 let octet: u8 = 255
 let size: u64 = 1024
@@ -626,7 +626,7 @@ fn sign(n: i8) -> i32:
 Loops can be used for control flow. `break` exits a loop, and `continue` skips to the next iteration:
 
 ```text
-let total: i32 = 0
+let total = +0
 
 for value in values:
     if value < 0:
@@ -1396,7 +1396,7 @@ Use varargs when a function accepts zero or more positional arguments. Write `..
 
 ```text
 fn sum(values...: List[i32]) -> i32:
-    let total: i32 = 0
+    let total = +0
     for value in values:
         total = total + value
     total
@@ -1579,7 +1579,7 @@ label := label_user("123")
 Closures may also assign captured locals and mutate captured mutable values. Such a closure has an ordinary function type, and calling it needs no mutable access:
 
 ```text
-let count: i32 = 0
+let count = +0
 
 let next: fn() -> i32 = fn() -> i32:
     count = count + 1
@@ -1592,7 +1592,7 @@ A higher-order function therefore takes a plain `fn(...) -> T`, whether or not t
 
 ```text
 fn repeat(times: i32, f: fn() -> void) -> void:
-    let i: i32 = 0
+    let i = +0
     while i < times:
         f()
         i = i + 1

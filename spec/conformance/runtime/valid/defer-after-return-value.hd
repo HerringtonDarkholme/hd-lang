@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 fn main() -> i32:
-    let value: i32 = 1
+    let value = +1
     defer:
         value = value + 10
     return value

@@ -39,7 +39,7 @@ fn resize(width: i32, height: i32 = 480) -> (i32, i32):
 inc := fn(x: i32) -> i32: x + 1
 
 fn sum(values...: List[i32]) -> i32:
-    let total: i32 = 0
+    let total = +0
     for value in values:
         total = total + value
     total

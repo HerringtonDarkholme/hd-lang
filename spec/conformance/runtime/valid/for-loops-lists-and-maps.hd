@@ -11,7 +11,7 @@ fn first_or(values: List[i32]) -> i32:
         1
 
 fn main!() -> i32:
-    let total: i32 = 0
+    let total = +0
     for value in load!():
         if value == 2:
             continue
@@ -22,7 +22,7 @@ fn main!() -> i32:
             total = total + score
     for entry in {"c": +7}:
         total = total + entry._1
-    let cleanup: i32 = 0
+    let cleanup = +0
     for value in [+1, 2]:
         defer:
             cleanup = cleanup + 10

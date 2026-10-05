@@ -1,2 +1,2 @@
-let divisor: i32 = 0
+let divisor = +0
 result := 10 / divisor  # panic: integer-division-by-zero

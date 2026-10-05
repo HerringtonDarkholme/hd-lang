@@ -145,7 +145,7 @@ name := normalize(name)  # the right-hand name, if valid, resolves outward
 fn read_count() -> i32:
     count  # error: binding-not-yet-visible
 
-let count: i32 = 0
+let count = +0
 ```
 
 ### Initialization Order
@@ -305,7 +305,7 @@ name := "Ada"
 ```
 
 ```text
-let count: i32 = 0
+let count = +0
 count = count + 1
 ```
 

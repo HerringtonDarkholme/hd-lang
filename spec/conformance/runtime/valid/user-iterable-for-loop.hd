@@ -10,7 +10,7 @@ impl Iterable[i32] for Bag:
         self.items.iter()
 
 fn sum(bag: Bag) -> i32:
-    let total: i32 = 0
+    let total = +0
     for value in bag:
         total = total + value
     total

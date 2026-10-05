@@ -4,7 +4,7 @@
 # The non-suspending main calls println twice; each write is pending once.
 use std.testing.assert_equal
 
-let written: i32 = 0
+let written = +0
 
 pub fn main() -> void $ Console:
     println("first")

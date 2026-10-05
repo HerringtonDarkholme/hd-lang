@@ -14,7 +14,7 @@ impl Score for Point:
 
 impl[Item < Score] Score for List[Item]:
     fn score(self) -> i32:
-        let total: i32 = 0
+        let total = +0
         for item in self:
             total = total + item.score()
         total

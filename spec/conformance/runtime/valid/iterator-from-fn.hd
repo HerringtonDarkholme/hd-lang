@@ -11,7 +11,7 @@ fn countdown(start: i32) -> mut Iterator[i32]:
     )
 
 fn gappy() -> mut Iterator[i32]:
-    let calls: i32 = 0
+    let calls = +0
     Iterator::from_fn(fn() -> i32?:
         calls = calls + 1
         if calls == 2: .None else: calls
