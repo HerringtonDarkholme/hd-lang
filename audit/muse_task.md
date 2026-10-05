@@ -61,30 +61,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AQ. Supertrait Bounds Imply Their Supertraits
-
-Job AL (d2fa2a71) now rejects code it used to accept. `Ord < PartialOrd <
-Eq` in `lib/std/cmp.hd`, yet:
-
-```
-data Box[T < Eq]:
-    value: T
-
-data Good[T < Ord]:
-    b: Box[T]      # unsatisfied-trait-bound: 'T' does not implement Eq
-
-fn f[T < Ord](b: Box[T]) -> bool:   # same error
-    b.value == b.value
-```
-
-`trait.bound.supertraits` (spec/lang/09-traits.md) says a bound implies its
-supertraits. Fix the root, not the written-type path alone: one lookup
-"does enclosing bound set B imply trait X" that walks supertraits, used by
-declarations (`enclosingBoundImplies`), signatures (`signatureBoundScope`)
-and the call checker. That should also clear the KNOWN_FAILURES row
-`typing/valid/bound-implies-supertrait.hd` (TYPE-GAPS); move it. Add
-tests for the two cases above plus a call site.
-
 ### AR. A User Type Named `T` Or `E` Breaks Every Program
 
 ```

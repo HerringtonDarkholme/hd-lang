@@ -1306,6 +1306,11 @@ export function typeName(
   options: {
     readonly validateRequirementKeys?: boolean;
     readonly validateDynamicSafety?: boolean;
+    /**
+     * Data and enum fields skip written-bound validation here: their bounds
+     * check in `validateDeclaredTypes`, after every supertrait edge exists.
+     */
+    readonly validateWrittenBounds?: boolean;
   } = {},
   /** Generic bounds as written on the enclosing declaration, for checking arguments. */
   enclosingBounds: readonly GenericBound[] = [],
@@ -1352,7 +1357,10 @@ export function typeName(
     return undefined;
   }
   // Written applications meet their declarations' bounds (trait.bound.no-implied).
+  // Data and enum fields check in `validateDeclaredTypes`, after every
+  // supertrait edge exists (trait.bound.supertraits).
   if (
+    options.validateWrittenBounds !== false &&
     !type.implementationTarget &&
     pushWrittenBoundProblem(diagnostics, type.span, resolved, {
       dataTypes,
@@ -1360,7 +1368,7 @@ export function typeName(
       traitTypes,
       hashableParameters,
       parameterImplied: (parameter, traitName) =>
-        enclosingBoundImplies(enclosingBounds, parameter, traitName),
+        enclosingBoundImplies(enclosingBounds, traitTypes, parameter, traitName),
     })
   )
     return undefined;

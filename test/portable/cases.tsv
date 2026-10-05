@@ -31,6 +31,7 @@ parse/invalid/two-trailing-blocks.hd	parse
 typing/valid/data-patterns.hd	type
 typing/valid/data-types.hd	type
 typing/valid/bindings.hd	type
+typing/valid/bound-implies-supertrait.hd	type
 typing/valid/fresh-mutable-values.hd	type
 typing/valid/copy-update-permissions.hd	type
 typing/valid/generic-field-permission.hd	type

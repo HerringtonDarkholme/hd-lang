@@ -7,7 +7,7 @@ import {
 } from "../ast.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
-import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
+import type { HirAssociatedBinding, HirData, HirDataField, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts, rowArgumentType, displayType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
@@ -26,7 +26,11 @@ import {
   rowParameterName,
   typeName,
 } from "./shared.ts";
-import { dynamicTraitProblemInType } from "./written-type-validation.ts";
+import {
+  dynamicTraitProblemInType,
+  enclosingBoundImplies,
+  pushWrittenBoundProblem,
+} from "./written-type-validation.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
 import { traitImpliesValueCategory } from "./value-categories.ts";
@@ -231,7 +235,11 @@ export function defineProgramData(context: ProgramCheckContext): void {
         new Set(declaration.genericParameters.filter((name) => !rowParameters.has(name))),
         rowParameters,
         hashable,
-        { validateRequirementKeys: false, validateDynamicSafety: false },
+        {
+          validateRequirementKeys: false,
+          validateDynamicSafety: false,
+          validateWrittenBounds: false,
+        },
         declaration.genericBounds ?? [],
       );
       const type = resolved ?? "void";
@@ -336,7 +344,11 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
         new Set(declaration.genericParameters),
         new Set(),
         new Set(),
-        { validateRequirementKeys: false, validateDynamicSafety: false },
+        {
+          validateRequirementKeys: false,
+          validateDynamicSafety: false,
+          validateWrittenBounds: false,
+        },
         declaration.genericBounds ?? [],
       );
       const type = resolved ?? "void";
@@ -391,7 +403,11 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           new Set(declaration.genericParameters),
           new Set(),
           new Set(),
-          { validateRequirementKeys: false, validateDynamicSafety: false },
+          {
+            validateRequirementKeys: false,
+            validateDynamicSafety: false,
+            validateWrittenBounds: false,
+          },
           declaration.genericBounds ?? [],
         );
         const type = resolved ?? "void";
@@ -812,6 +828,43 @@ function validateDeclaredTypes(context: ProgramCheckContext): void {
     const dynamicProblem = dynamicTraitProblemInType(rowArgumentType(requirements), traitTypes);
     if (dynamicProblem) diagnostics.push({ ...dynamicProblem, span: declaration.span });
   };
+  // Written applications in fields meet their declarations' bounds
+  // (trait.bound.no-implied), with supertraits implied
+  // (trait.bound.supertraits). Fields check here, not while building the
+  // declarations, because supertrait edges only exist after that phase.
+  const validateWrittenFields = (
+    bounds: readonly GenericBound[] | undefined,
+    fields: readonly HirDataField[],
+  ): void => {
+    const hashable = new Set(
+      (bounds ?? []).flatMap((bound) =>
+        ["Eq", "Hash"].every((trait) =>
+          (bounds ?? []).some(
+            (other) => other.parameter === bound.parameter && other.traits.includes(trait),
+          ),
+        )
+          ? [bound.parameter]
+          : [],
+      ),
+    );
+    for (const field of fields)
+      pushWrittenBoundProblem(diagnostics, field.span, field.type, {
+        dataTypes,
+        enumTypes,
+        traitTypes,
+        hashableParameters: hashable,
+        parameterImplied: (parameter, traitName) =>
+          enclosingBoundImplies(bounds ?? [], traitTypes, parameter, traitName),
+      });
+  };
+  for (const data of program.data)
+    validateWrittenFields(data.genericBounds, dataTypes.get(data.name)?.fields ?? []);
+  for (const declaration of program.enums) {
+    const enumType = enumTypes.get(declaration.name);
+    validateWrittenFields(declaration.genericBounds, enumType?.sharedFields ?? []);
+    for (const variant of enumType?.variants ?? [])
+      validateWrittenFields(declaration.genericBounds, variant.fields);
+  }
   for (const data of dataTypes.values()) {
     data.fields.forEach((field) => validateType(field.type, field.span));
     for (const type of data.genericDefaults?.values() ?? []) validateType(type, data.span);

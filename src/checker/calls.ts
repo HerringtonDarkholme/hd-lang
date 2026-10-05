@@ -8,6 +8,7 @@ import type {
   ValueType,
 } from "../hir.ts";
 import { forwardingPlan } from "./assignability.ts";
+import { enclosingBoundProof } from "./trait-paths.ts";
 import { inferTypesThroughBounds } from "./bound-inference.ts";
 import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
 import { standardSubmoduleFunctionIdentity } from "./standard-library.ts";
@@ -1346,14 +1347,14 @@ export abstract class CallChecker extends StatementChecker {
           : bound.traitName;
       const forwarded = genericTypeName(actual);
       if (forwarded) {
-        const boundIndex = this.signature.genericBounds.findIndex(
-          (candidate) =>
-            candidate.parameter === forwarded &&
-            candidate.traitIndex === bound.traitIndex &&
-            candidate.traitArguments.length === traitArguments.length &&
-            candidate.traitArguments.every((argument, index) => argument === traitArguments[index]),
+        const proof = enclosingBoundProof(
+          this.signature.genericBounds,
+          this.traitTypes,
+          forwarded,
+          bound.traitIndex,
+          traitArguments,
         );
-        if (boundIndex < 0) {
+        if (!proof) {
           this.fail(
             boundCode,
             `generic parameter '${displayType(forwarded)}' does not implement ${displayType(bound.traitName)}, required by the bound on '${displayType(bound.parameter)}' of '${displayType(signature.name)}'`,
@@ -1363,7 +1364,8 @@ export abstract class CallChecker extends StatementChecker {
         return {
           kind: "trait-bound-dictionary",
           traitIndex: bound.traitIndex,
-          boundIndex,
+          boundIndex: proof.boundIndex,
+          ...(proof.supertrait ? { supertrait: proof.supertrait } : {}),
           type: `trait:${traitKey}`,
           span,
         };

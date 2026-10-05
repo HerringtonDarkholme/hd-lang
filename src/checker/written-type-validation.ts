@@ -25,6 +25,7 @@ import {
   tupleParts,
   displayType,
 } from "../types.ts";
+import { enclosingBoundProof } from "./trait-paths.ts";
 import {
   ambiguousProjection,
   traitValueBindings,
@@ -298,20 +299,52 @@ export function writtenBoundProblem(
 
 /**
  * Whether an enclosing bound written as `parameter < ...` requires the
- * trait, comparing names the way the declaration wrote them.
+ * trait: the name the declaration wrote, or a trait it extends, as
+ * `T < Child` requires `Parent` (09-traits.md#r-trait.bound.supertraits).
  */
 export function enclosingBoundImplies(
   bounds: readonly GenericBound[],
+  traitTypes: ReadonlyMap<string, HirTrait>,
   parameter: string,
   traitName: string,
 ): boolean {
-  return bounds.some(
-    (bound) =>
-      bound.parameter === parameter &&
-      bound.traits.some((source) => {
-        const key = mutableInner(source) ?? source;
-        return (nominalGenericParts(key)?.name ?? key) === traitName;
-      }),
+  if (
+    bounds.some(
+      (bound) =>
+        bound.parameter === parameter &&
+        bound.traits.some((source) => {
+          const key = mutableInner(source) ?? source;
+          return (nominalGenericParts(key)?.name ?? key) === traitName;
+        }),
+    )
+  )
+    return true;
+  const required = traitTypes.get(traitName);
+  if (required === undefined) return false;
+  return (
+    enclosingBoundProof(
+      bounds.flatMap((bound) =>
+        bound.parameter === parameter
+          ? bound.traits.map((source) => {
+              const key = mutableInner(source) ?? source;
+              const nominal = nominalGenericParts(key);
+              const name = nominal?.name ?? key;
+              const trait = traitTypes.get(name);
+              return {
+                parameter,
+                traitName: name,
+                traitIndex: trait?.index ?? -1,
+                traitArguments: nominal?.arguments ?? [],
+                mutable: false,
+              };
+            })
+          : [],
+      ),
+      traitTypes,
+      parameter,
+      required.index,
+      [],
+    ) !== undefined
   );
 }
 

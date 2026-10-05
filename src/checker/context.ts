@@ -58,7 +58,12 @@ import {
   writtenBoundProblem,
   writtenTypeProblem,
 } from "./written-type-validation.ts";
-import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
+import {
+  enclosingBoundProof,
+  type BoundProof,
+  findSupertraitPath,
+  resolveTraitPath,
+} from "./trait-paths.ts";
 import {
   mutableInner,
   mutableType,
@@ -909,24 +914,14 @@ export abstract class CheckerContext {
     parameter: string,
     traitIndex: number,
     traitArguments: readonly ValueType[],
-  ): { boundIndex: number; supertrait?: { sourceTraitIndex: number; path: number[] } } | undefined {
-    const bounds = this.signature.genericBounds;
-    const boundIndex = bounds.findIndex(
-      (bound) =>
-        bound.parameter === parameter &&
-        bound.traitIndex === traitIndex &&
-        bound.traitArguments.length === traitArguments.length &&
-        bound.traitArguments.every((argument, index) => argument === traitArguments[index]),
+  ): BoundProof | undefined {
+    return enclosingBoundProof(
+      this.signature.genericBounds,
+      this.traitTypes,
+      parameter,
+      traitIndex,
+      traitArguments,
     );
-    if (boundIndex >= 0) return { boundIndex };
-    for (const [boundIndex, bound] of bounds.entries()) {
-      const trait = bound.parameter === parameter && this.traitTypes.get(bound.traitName);
-      const path =
-        trait && this.findSupertraitPath(trait, bound.traitArguments, traitIndex, traitArguments);
-      if (trait && path)
-        return { boundIndex, supertrait: { sourceTraitIndex: trait.index, path: [...path] } };
-    }
-    return undefined;
   }
 
   /** The standard `Inspectable`, declared by a `std.inspect` or `std.error` import. */
