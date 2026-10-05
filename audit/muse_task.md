@@ -51,6 +51,53 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### AJ. Trial Rollback For `readLocals`
+
+Review of AG (3f647f8a): the comment on `readLocals` (`src/checker/context.ts`)
+says speculative trials roll it back, but `checker-trial-state.ts` never
+snapshots it. A local read only inside a rejected candidate then counts as
+read, and its unused-local warning is lost. Add `readLocals` to the trial
+snapshot and restore. Add a test: a local used only in a rejected
+overload candidate still warns.
+
+### AK. Perf F5 And F6
+
+From `audit/compiler/perf-audit.md`:
+
+- **F5:** `withStandardSource` rebuilds every std object per compile.
+- **F6:** the implementation clash scan is quadratic in the number of
+  impls, per compile.
+
+Fix both without a checked-std cache (the owner deferred that). Report
+the tiny-program compile time (median of 5) and `pnpm run perf:check`
+before and after, and keep the WAT byte-identical. Delete F5 and F6 from
+`perf-audit.md` when fixed.
+
+### AL. Review Finding O-03: Bounds Of Written Types
+
+From `audit/compiler/opus.md` (O-03, with its repro): a written type
+application such as `Box[T]` skips its declaration's generic bounds,
+except a top-level `Map` key. Check every written type application's
+arguments against the declaration's bounds, at the place it's written
+(`trait.bound.no-implied`, `types.generic.*`). Remove the Map-key
+special case once the general check covers it. Report the
+KNOWN_FAILURES rows this moves. Fixtures likely exist; add a TS test
+only where none does. Delete O-03 from `opus.md` when done.
+
+### AM. Test Migration Batch 4
+
+The remaining 52 home-A rows of the TS-test triage (call-speculation 12,
+compiler-types 8, compiler 8, suspension 8, types 7, compiler-suspension
+6, captured-cells 2, cli 1). Batches 1 to 3 (d082975f, 1d74c88c,
+494f29aa) show the conventions; `test/MIGRATED.md` is the ledger.
+
+- For this job you may add fixtures under `spec/conformance` and rows
+  to its `cases.tsv`, but don't edit spec rule text or existing fixtures.
+- A TS test whose behavior no spec rule states isn't migrated: write
+  "not migrated: <reason>" in `MIGRATED.md`.
+- Delete each TS test once its fixture passes in
+  `test/portable/cases.tsv`.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
