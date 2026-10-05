@@ -196,6 +196,38 @@ type identity here; only what messages print.
    mismatched value is a length (or any value whose type does not come
    from the named literal). Add a test.
 
+### BA. Defer The Dead-Fact Warnings
+
+Owner decision, 2026-10-05: defer the `unused-derivation-fact` warnings
+that guess a fact's readers from the package that defines the fact type.
+Deciding whether a fact is dead needs non-local knowledge of every
+template the type derives. For this job you may edit
+`spec/lang/14-annotations.md` (Facts section), fixtures, and indexes.
+
+1. Remove the rules `annot.fact.unused-non-std`, `annot.fact.unused-std`,
+   `annot.fact.unused-self-line`, and
+   `annot.fact.unused-self-line.per-trait`, and the checker code behind
+   them. Keep `annot.fact.unused-block-decorator`, which is local.
+2. Fixtures that expect those warnings (for example
+   `typing/warnings/per-trait-self-line-unused-fact.hd`) become cases
+   with no warning, or are deleted if they test nothing else; update
+   `cases.tsv`, `test/portable/cases.tsv`, `examples.tsv` (realign the
+   chapter's rows if a block moves), and any KNOWN rows that name them.
+   Keep `unused-derivation-fact` in the Diagnostics table while the
+   block-decorator rule uses it.
+3. Add to `future-work/OPEN_ISSUES.md`: dead facts are worth a warning;
+   the accurate rule is read-set based (warn when no template the type
+   derives, or for a `Self` line the block's template, reads facts of
+   that type, using the fact types each template looks up with
+   `find::[F]`; a template that reads facts dynamically counts as reading
+   all). Revisit when the checker can see templates' read sets across
+   packages, such as from a dependency's checked interface. Note the
+   false positive that motivated deferring it: a shared vocabulary
+   package (one that only defines fact types, like a `Label` read by
+   both a `Form` and a `Grid` template) warned wrongly.
+4. Run `bash spec/check.sh` and the retired-ID check; no rule may still
+   cite a removed ID.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
