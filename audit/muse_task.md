@@ -206,6 +206,19 @@ with `use std.testing.arbitrary`" (for a package module, also mention that
 the parent can `pub use` it). Cover value and type positions, std and
 package modules. Add a test per case.
 
+### AW. Timestamp Serializes As RFC 3339 Text
+
+Owner decision, 2026-10-05. `Timestamp`'s `Serialize`/`Deserialize`
+(lib/std/time.hd, spec/std/time.md `std-time.serde.*`) write and read
+RFC 3339 text in UTC with milliseconds, the same text its `Display` gives
+(`"2026-10-05T15:50:48.076Z"`), instead of an integer of milliseconds.
+`Duration` and `Instant` stay integers of milliseconds. Decoding accepts
+what `std.time`'s RFC 3339 parser accepts and reports a bad string as a
+decode error naming `Timestamp`. Update the rules, the `time-serde-millis`
+fixture (rename it if its name no longer fits, and fix its rows), and add
+a JSON round-trip test. Spec examples: realign `examples.tsv` if a block
+moves.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
