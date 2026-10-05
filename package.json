@@ -1,7 +1,6 @@
 {
   "name": "hd-lang",
   "version": "0.0.0",
-  "private": true,
   "bin": {
     "hd": "./bin/hd.js"
   },
