@@ -17,6 +17,7 @@ import { validateHostCapabilities } from "./host-capabilities.ts";
 import {
   importedMarkerFunctions,
   standardImportAliases,
+  DEFAULT_PROFILE_TRAITS,
   defaultProfileNames,
   testRunnerNames,
   withReexportedUses,
@@ -45,6 +46,7 @@ import { withTypedDerivation, withTypedDerivationSupport } from "./typed-derivat
 import { withErrorDerivation } from "./error-derivation.ts";
 import { setHashableKeyTypes } from "./map-keys.ts";
 import { sourceSpanKey, type Diagnostic, type SourceSpan } from "../diagnostics.ts";
+import { testTierNames, withTestTierNotes } from "./test-tier-notes.ts";
 
 export interface CheckOptions {
   readonly hostCapabilities?: readonly string[];
@@ -55,11 +57,19 @@ export interface CheckOptions {
   readonly entryModule?: boolean;
   /**
    * The program is an integration test program (spec/lang/10-modules.md#r-module.test.integration.program):
-   * each test case's row takes `Process`, which `hd test` binds to the
-   * package's executables (spec/cli/command-line.md#r-cli.test.process), and
-   * only such a program may call `hd_run!`.
+   * each test case's row takes the default profile's traits
+   * (spec/cli/command-line.md#r-cli.test.env.integration) and `Process`,
+   * which `hd test` binds to the package's executables and tasks
+   * (spec/cli/command-line.md#r-cli.test.process), and only such a program
+   * may call `hd_run!`.
    */
   readonly integrationTest?: boolean;
+  /**
+   * A test build, as `hd test` and `hd check --tests` make: it runs no
+   * entry behavior, so a script with a `tests:` block initializes its top
+   * level requirement-free (spec/lang/10-modules.md#r-module.init.tests.requirement-free).
+   */
+  readonly testBuild?: boolean;
 }
 
 export function check(written: Program, options: CheckOptions = {}): CheckResult {
@@ -141,9 +151,15 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
     reported.add(key);
     return true;
   });
+  // A test tier's missing requirement names its fix (checker/test-tier-notes.ts).
+  const names = testTierNames(
+    prepared.defaultProfile,
+    DEFAULT_PROFILE_TRAITS.map(([, name]) => name),
+    prepared.testRunners.process,
+  );
   return {
     ...result,
-    diagnostics: [...derived.diagnostics, ...unique],
+    diagnostics: withTestTierNotes([...derived.diagnostics, ...unique], written, options, names),
   };
 }
 
@@ -238,7 +254,9 @@ function checkProgramRaw(
       ...(options.hostCapabilities ?? []),
     ]),
     testRunners,
+    defaultProfile,
     entryModule: options.entryModule === true,
+    testBuild: options.testBuild === true,
     integrationTest: options.integrationTest === true,
   };
   // Every function check of the program shares its trait map, so it finds

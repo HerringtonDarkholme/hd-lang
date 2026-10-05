@@ -8,7 +8,7 @@ import { analyze, instantiate } from "../compiler.ts";
 import { Report } from "../diagnostic-report.ts";
 import { DiagnosticError } from "../diagnostics.ts";
 import type { HirFunction } from "../hir.ts";
-import { SOURCE_ROOT, TEST_ROOT } from "../package.ts";
+import { SOURCE_ROOT, TASK_ROOT, TEST_ROOT } from "../package.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
 import { runSelected } from "../test-runner.ts";
@@ -22,6 +22,7 @@ import {
 } from "./io.ts";
 import { packageMode, type Executable, type LocalPackage } from "./package-mode.ts";
 import { executableProcesses, isProcessCall, type ProcessProvider } from "./processes.ts";
+import { integrationTestHost, TEST_TEMP_DIRS } from "./test-host.ts";
 import {
   exportedFunction,
   RUNTIME_PROFILES,
@@ -404,14 +405,23 @@ async function testPackage(
     }
   }
   const processes = executableProcesses(pkg, variablesOf(args));
+  // An entry module, an executable's or a task's, without a `tests:` block
+  // gets no test build (spec/cli/command-line.md#r-cli.test.tasks.no-tests).
+  const entries = new Set([...pkg.executables, ...pkg.tasks].map(({ path }) => path));
+  const untested = (path: string): boolean =>
+    entries.has(path) && !/^tests:/m.test(pkg.files[path] ?? "");
   const targets = Object.keys(pkg.files)
     .filter(
       (path) =>
         path.startsWith(SOURCE_ROOT) ||
+        // The `tests:` blocks of tasks and shared task modules
+        // (spec/cli/command-line.md#r-cli.test.tasks).
+        path.startsWith(TASK_ROOT) ||
         // Shared test modules are no programs of their own
         // (spec/lang/10-modules.md#r-module.test.integration.shared).
         (path.startsWith(TEST_ROOT) && !path.slice(TEST_ROOT.length).includes("/")),
     )
+    .filter((path) => !untested(path))
     .sort();
   let status = 0;
   for (const path of targets) {
@@ -461,10 +471,20 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
   const runtimeProfile = execution.profile ? RUNTIME_PROFILES[execution.profile] : undefined;
   // Standard input is read only once the program asks for a line.
   let readLine: (() => string | undefined | null) | undefined;
+  // An integration test case gets the default profile too, from the
+  // package directory, with no arguments and a closed standard input
+  // (spec/cli/command-line.md#r-cli.test.env.integration); a unit test case
+  // gets no host provider (spec/lang/10-modules.md#r-module.testing.unit-row.anywhere).
   const host: DefaultProfileHost | undefined =
     execution.kind === "run"
       ? { ...execution.host, readLine: () => (readLine ??= inputLines())() }
-      : undefined;
+      : loaded.compileOptions.integrationTest
+        ? integrationTestHost(
+            resolve(workingDirectory(execution), placement?.root ?? "."),
+            placement?.path ?? file,
+            variablesOf(execution),
+          )
+        : undefined;
   // A failing file gets its result line too, as a passing one does: the
   // cases that passed before the failure ended the run, and the failure.
   let running = false;
@@ -504,10 +524,12 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       hostCapabilities: loaded.compileOptions.hostCapabilities,
       parse: loaded.parseOptions,
       integrationTest: loaded.compileOptions.integrationTest,
+      testBuild: loaded.compileOptions.testBuild,
       // `hd test` always runs a checked build (spec/cli/command-line.md#r-cli.profile.test).
       release: command === "run" ? (execution.release ?? false) : false,
-      // An integration test's `Process` runs the package's executables
-      // (spec/cli/command-line.md#r-cli.test.process).
+      // An integration test's `Process` runs the package's executables and
+      // tasks (spec/cli/command-line.md#r-cli.test.process,
+      // spec/cli/command-line.md#r-cli.test.process.tasks).
       hostSuspensionInvoke: (call) =>
         isProcessCall(call) && loaded.compileOptions.integrationTest
           ? (test?.processes ?? executableProcesses(undefined))(call)
@@ -605,6 +627,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
         // failure does not stop the run.
         keepGoing: test.format === "json",
       },
+      test && TEST_TEMP_DIRS,
     );
     if (outcome.kind === "exit") return outcome.code;
     if (outcome.kind === "failed") {

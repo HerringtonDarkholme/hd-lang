@@ -186,6 +186,9 @@ export async function loadSource(
     entryModule: !("testModule" in parseOptions) && options.library !== true,
     release: options.release ?? false,
     ...(integrationTest ? { integrationTest } : {}),
+    // Linking the test code makes a test build, which runs no entry
+    // behavior (spec/lang/10-modules.md#r-module.init.tests.no-entry).
+    ...(options.linkTests ? { testBuild: true } : {}),
   };
   const specIndex = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
   // The JSON `file` is relative to the package root, and outside a package

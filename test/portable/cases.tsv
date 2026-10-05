@@ -2489,3 +2489,8 @@ typing/valid/std-reexported-child-item.hd	type
 runtime/valid/unit-test-manual-clock.hd	runtime
 typing/invalid/unit-test-real-clock.hd	type
 cli/test-unit-fakes	cli
+typing/valid/test-runner-capabilities.hd	type
+typing/valid/temp-dir-integration.hd	type
+typing/invalid/script-test-init-requirement.hd	type
+cli/test-integration-env	cli
+cli/test-tasks	cli

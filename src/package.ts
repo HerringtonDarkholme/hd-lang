@@ -1062,7 +1062,15 @@ export function linkPackage(
     packageScopes: { scopes, modules: namespaceModules },
     dependencySources,
     entryLine: segments.find(({ path }) => path === entry)?.firstLine,
-    ...(!options.tests && isScript(entryModule.program) ? { scriptEntry: true as const } : {}),
+    // A test build runs no entry behavior, so an entry module with a
+    // `tests:` block initializes its top level requirement-free; one
+    // without test code is still a script there
+    // (spec/lang/10-modules.md#r-module.init.tests.requirement-free).
+    ...(isScript(entryModule.program) &&
+    !isTestModulePath(entryModule.path) &&
+    !(options.tests && (entryModule.program?.tests.length ?? 0) > 0)
+      ? { scriptEntry: true as const }
+      : {}),
   };
 }
 

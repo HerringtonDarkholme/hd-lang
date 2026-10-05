@@ -37,12 +37,17 @@ export interface ProgramCheckContext {
   readonly hostCapabilities: ReadonlySet<string>;
   /** The program's names of the test runner's capabilities (checker/standard-library.ts). */
   readonly testRunners: TestRunnerNames;
+  /** The program's names of the default profile's traits (checker/standard-library.ts). */
+  readonly defaultProfile: readonly string[];
   /** The program is an entry module (spec/lang/10-modules.md#r-module.entry.private-main.warn). */
   readonly entryModule: boolean;
+  /** A test build (CheckOptions.testBuild). */
+  readonly testBuild: boolean;
   /**
    * The program is an integration test program: its test cases take the
-   * `Process` the runner binds, and it may call `hd_run!`
-   * (spec/cli/command-line.md#r-cli.test.process).
+   * default profile and the `Process` the runner binds
+   * (spec/cli/command-line.md#r-cli.test.env.integration,
+   * spec/cli/command-line.md#r-cli.test.process), and it may call `hd_run!`.
    */
   readonly integrationTest: boolean;
 }

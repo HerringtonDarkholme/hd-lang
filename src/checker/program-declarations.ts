@@ -499,11 +499,16 @@ export function createProgramDeclarations(
     }),
   );
   const enumVariantDeclarations = createEnumVariantDeclarations(program.enums, diagnostics);
-  // An integration test case takes `Process` from the runner (cli.test.process).
-  const hostRow =
-    context.integrationTest && context.traitTypes.has(context.testRunners.process)
-      ? [context.testRunners.process]
-      : [];
+  // An integration test case takes the default profile's traits and
+  // `Process` from the runner (spec/cli/command-line.md#r-cli.test.env.integration,
+  // spec/cli/command-line.md#r-cli.test.process); a unit test case takes none
+  // (spec/lang/10-modules.md#r-module.testing.unit-row.anywhere). A trait the
+  // program never declares is no key of the row.
+  const hostRow = context.integrationTest
+    ? [...context.defaultProfile, context.testRunners.process].filter((name) =>
+        context.traitTypes.has(name),
+      )
+    : [];
   const testDeclarations = createTestDeclarations(program, context.testRunners, hostRow);
   const declarations = [
     ...program.functions,
@@ -519,9 +524,13 @@ export function createProgramDeclarations(
     // A lone file with top-level statements and no `main` is a script: its
     // top level runs through an inferred entry requirement row
     // (spec/lang/10-modules.md#r-module.init.script-row), not an empty one.
+    // A test build of a script with a `tests:` block runs no entry behavior,
+    // so its top level is requirement-free initialization
+    // (spec/lang/10-modules.md#r-module.init.tests.requirement-free).
     const script = program.joinedModules
       ? program.scriptEntry === true
-      : !declarations.some((declaration) => declaration.name === "main");
+      : !declarations.some((declaration) => declaration.name === "main") &&
+        !(context.testBuild && program.tests.length > 0);
     declarations.push({
       kind: "function",
       name: "$module-initializer",

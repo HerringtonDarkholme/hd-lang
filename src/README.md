@@ -133,17 +133,31 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   has no file system capability, so a task's working directory, the package
   directory by `cli.run.cwd.task`, has no effect yet.
 - `hd test` without FILE checks the executables, then tests each module
-  under `src/` and each integration test program (a file directly under
-  `tests/`), one link each, in path order, running only that module's test
-  cases. An error in a module that several links join prints once. A run
-  with no test case passes.
+  under `src/` and `tasks/` and each integration test program (a file
+  directly under `tests/`), one link each, in path order, running only that
+  module's test cases. An executable's or a task's entry module without a
+  `tests:` block is skipped (`cli.test.tasks.no-tests`). An error in a
+  module that several links join prints once. A run with no test case
+  passes.
+- A test build (`CheckOptions.testBuild`, set when the test code is linked)
+  runs no entry behavior: a script with a `tests:` block initializes its top
+  level requirement-free, and the error's note says to move the work into
+  `main` (`module.init.tests.requirement-free`). A unit test case's row is
+  `TestRunner` alone; a `missing-requirement` in its body notes the std fake
+  for each missing host trait (`checker/test-tier-notes.ts`).
 - An integration test program (a file under `tests/`, or the runner's
   integration layout) is checked with `integrationTest`: its test cases'
-  rows take `std.process.Process`, and only it may call `hd_run!`, which is
-  `test-only-use` elsewhere. `hd test` binds that `Process` to the package's
-  executables (`commands/processes.ts`): each `run!` starts `hd run NAME --
-  ARGS` in the package directory, and a name that no executable has is
-  `.Err(.NotFound)` ([`cli.test.process`](../spec/cli/command-line.md#r-cli.test.process)).
+  rows take the default profile's traits and `std.process.Process`, and
+  only it may call `hd_run!`, which is `test-only-use` elsewhere. `hd test`
+  binds the default profile from the package directory, with no arguments
+  and a closed standard input (`commands/test-host.ts`,
+  [Test Environments](../spec/cli/command-line.md#test-environments)), and
+  `Process` to the package's executables and tasks
+  (`commands/processes.ts`): each `run!` starts `hd run NAME -- ARGS` in the
+  package directory, and a name that names neither is `.Err(.NotFound)`
+  ([`cli.test.process`](../spec/cli/command-line.md#r-cli.test.process)).
+  Each run of a test body gets its own `temp_dir()`, an `mkdtemp`
+  directory removed when the run ends.
 - `hd test` never runs `main`, so neither its output nor its outcome counts
   as a test case. `hd test FILE` exits 101 with `FILE: no test case
   registered` when FILE registers no test case, even if it has an entry point

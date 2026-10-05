@@ -18,6 +18,7 @@ pub use std.testing.arbitrary.{With, with}
 use std.process.Process
 use std.time.Duration
 use std.format.DebugWriter
+use std.path.Path
 
 # The test runner's side of a test case
 # (spec/std/testing.md#runner-capabilities). `hd test` binds both host
@@ -33,6 +34,9 @@ pub trait TestRunner:
     # file in an update run; "" when it matches or was recorded, else why
     # not (r-std-testing.runner.snapshot-check).
     fn snapshot_check(mut self, text: string) -> string
+    # The absolute path of the run's temporary directory, made on the run's
+    # first call (r-std-testing.runner.temp-dir).
+    fn temp_dir(mut self) -> string
 
 # What a property runner's `start` returns for one case
 # (r-std-testing.runner.case-type).
@@ -509,8 +513,13 @@ pub data RunOutput:
 pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
     match $.use(Process).run!(name, args, stdin):
         .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
-        .Err(.NotFound) => panic("hd_run!: the package has no executable named '${name}'")
+        .Err(.NotFound) => panic("hd_run!: the package has no executable or task named '${name}'")
         .Err(error) => panic("hd_run!: '${name}' did not start: ${error}")
+
+# The running test case's own temporary directory, which the runner
+# removes once the run ends (spec/std/testing.md#temporary-directories).
+pub fn temp_dir() -> Path $ TestRunner:
+    Path($.use(TestRunner).temp_dir())
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates

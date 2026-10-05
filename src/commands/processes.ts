@@ -1,6 +1,7 @@
 // The `Process` provider that `hd test` binds for an integration test
 // (spec/cli/command-line.md#r-cli.test.process): its programs are the
-// package's executables, each started by its name, as `hd run NAME` would.
+// package's executables and tasks (cli.test.process.tasks), each started by
+// its name, as `hd run NAME` would.
 
 import { spawnSync } from "node:child_process";
 import { constants } from "node:os";
@@ -22,8 +23,10 @@ export function isProcessCall(call: HostSuspensionCall): boolean {
 }
 
 /**
- * A provider whose programs are `pkg`'s executables. A name that names no
- * executable is `.Err(.NotFound)` (spec/cli/command-line.md#r-cli.test.process.missing).
+ * A provider whose programs are `pkg`'s executables and tasks; a name names
+ * at most one (spec/cli/command-line.md#r-cli.task.name-clash). A name that
+ * names neither is `.Err(.NotFound)`
+ * (spec/cli/command-line.md#r-cli.test.process.unknown).
  * Each executable runs in the package directory
  * (spec/cli/command-line.md#r-cli.test.process.cwd), in the test profile,
  * a checked build (spec/cli/command-line.md#r-cli.profile.test), and its
@@ -32,7 +35,7 @@ export function isProcessCall(call: HostSuspensionCall): boolean {
  * `.Ok` (spec/lang/10-modules.md#processes).
  */
 export function executableProcesses(
-  pkg: Pick<LocalPackage, "executables" | "root"> | undefined,
+  pkg: Pick<LocalPackage, "executables" | "tasks" | "root"> | undefined,
   variables: Readonly<Record<string, string | undefined>> = process.env,
 ): ProcessProvider {
   // A `Result[ProcessOutput, ProcessError]` as the host boundary takes it.
@@ -43,8 +46,10 @@ export function executableProcesses(
   return (call) => {
     if (call.methodName !== "run") throw new Error(`Process has no method ${call.methodName}`);
     const [name, args, stdin] = call.arguments as readonly [string, readonly string[], string];
-    const executable = pkg?.executables.find((candidate) => candidate.name === name);
-    if (!pkg || !executable) return ready("err", { tag: "NotFound" });
+    const program = [...(pkg?.executables ?? []), ...(pkg?.tasks ?? [])].find(
+      (candidate) => candidate.name === name,
+    );
+    if (!pkg || !program) return ready("err", { tag: "NotFound" });
     // `hd run` gets the command's own environment, so it reads the same
     // cache and git configuration (spec/cli/command-line.md#cache).
     const ran = spawnSync(process.execPath, ["--no-warnings", HD, "run", name, "--", ...args], {

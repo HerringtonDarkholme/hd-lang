@@ -282,6 +282,8 @@ interface InstantiateOptions {
   readonly release?: boolean;
   /** An integration test program (CompileOptions.integrationTest). */
   readonly integrationTest?: boolean;
+  /** A test build (CompileOptions.testBuild). */
+  readonly testBuild?: boolean;
   /** A compilation of `source` to instantiate again, as for a fresh test instance. */
   readonly compilation?: Compilation;
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -116,4 +117,92 @@ test("--deny-skipped passes when no test case is skipped", async () => {
     assert.equal(ran.status, 0, ran.stderr);
     assert.equal(ran.stdout, "tests/good.hd: 1 passed\n");
   });
+});
+
+// Each run of a test body gets its own temporary directory, which the
+// runner removes once the run ends, pass or fail
+// (spec/cli/command-line.md#r-cli.test.env.temp-dir,
+// spec/cli/command-line.md#r-cli.test.env.temp-dir.removed).
+const TEMP_DIRS = [
+  "use std.fs.write_text",
+  "use std.path.Path",
+  "use std.testing.{assert, temp_dir}",
+  "",
+  'it("writes a file"):',
+  "    dir := temp_dir()",
+  '    assert(temp_dir() == dir, reason="one directory per run")',
+  '    write_text!(Path("${dir}/out.txt"), "x").expect("the file")',
+  '    println("dir ${dir}")',
+  "",
+  'it("writes another file"):',
+  '    println("dir ${temp_dir()}")',
+  "",
+  'it("fails after writing"):',
+  "    dir := temp_dir()",
+  '    write_text!(Path("${dir}/out.txt"), "x").expect("the file")',
+  '    println("dir ${dir}")',
+  '    assert(false, reason="a failure")',
+  "",
+].join("\n");
+
+test("each run gets a fresh temporary directory, removed when it ends", async () => {
+  await withPackage(async (directory) => {
+    await writeFile(join(directory, "tests/dirs.hd"), TEMP_DIRS);
+    const ran = await runHd(["test", "--format", "json", "tests/dirs.hd"], { cwd: directory });
+    assert.equal(ran.status, 1, ran.stderr);
+    const dirs = [...ran.stdout.matchAll(/^dir (.+)$/gm)].map((match) => match[1]!);
+    assert.equal(dirs.length, 3, ran.stdout);
+    assert.equal(new Set(dirs).size, 3, "no two runs share a directory");
+    for (const dir of dirs) assert.equal(existsSync(dir), false, `${dir} is removed`);
+  });
+});
+
+// A unit test case's missing host trait names its std fake and the test
+// root (spec/std/testing.md#r-std-testing.unit.hint); a tested script's top
+// level is requirement-free (spec/lang/10-modules.md#r-module.init.tests.requirement-free).
+test("a unit test's missing host trait names its fake and tests/", async () => {
+  await withPackage(async (directory) => {
+    await writeFile(
+      join(directory, "src/late.hd"),
+      [
+        "use std.time.{Clock, now}",
+        "",
+        "fn stamp() -> i64 $ Clock:",
+        "    now().unix_milliseconds()",
+        "",
+        "tests:",
+        '    it("stamps"):',
+        "        _ := stamp()",
+        "",
+      ].join("\n"),
+    );
+    const ran = await runHd(["test", "src/late.hd"], { cwd: directory });
+    assert.equal(ran.status, 101);
+    assert.match(ran.stderr + ran.stdout, /missing-requirement: call to 'stamp' requires Clock/);
+    assert.match(
+      ran.stderr + ran.stdout,
+      /\$\.with\(Clock=ManualClock::new\(start\)\) from std\.time/,
+    );
+    assert.match(ran.stderr + ran.stdout, /move the test case to tests\//);
+  });
+});
+
+test("a tested script's top level must be requirement-free, with a hint to use main", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-test-command-"));
+  try {
+    const file = join(directory, "seed.hd");
+    await writeFile(file, 'println("seeded")\n\ntests:\n    it("runs"):\n        pass\n');
+    const ran = await runHd(["test", file], { cwd: directory });
+    assert.equal(ran.status, 101);
+    assert.match(
+      ran.stderr + ran.stdout,
+      /missing-requirement: call to 'println' requires Console/,
+    );
+    assert.match(ran.stderr + ran.stdout, /move the script's work into `main`/);
+    const run = await runHd([file], { cwd: directory });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, "seeded\n");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

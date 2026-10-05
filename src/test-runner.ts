@@ -52,6 +52,20 @@ interface CaseReport {
   rowCount: number;
   /** The `timeout` the test function reported, in milliseconds. */
   timeoutMs?: number;
+  /** The run's temporary directory, made on its first `temp_dir()` call. */
+  tempDir?: string;
+}
+
+/**
+ * Where the runner makes and removes each run's temporary directory
+ * (spec/std/testing.md#temporary-directories); the command supplies it, so
+ * this file stays free of the file system.
+ */
+export interface TempDirs {
+  /** Makes a fresh, empty directory that no other run shares, and returns its absolute path. */
+  readonly make: () => string;
+  /** Removes the directory and everything in it. */
+  readonly remove: (path: string) => void;
 }
 
 /**
@@ -64,6 +78,7 @@ function runnerProvider(
   report: CaseReport,
   properties: PropertyRun | undefined,
   snapshotCheck: ((text: string) => string) | undefined,
+  tempDirs: TempDirs | undefined,
 ): AnsweringProvider & { readonly requirement: string } {
   return {
     requirement: "test runner",
@@ -80,6 +95,13 @@ function runnerProvider(
       if (call.methodName === "snapshot_check") {
         if (!snapshotCheck) throw new Error("the test runner has no snapshot checker");
         return { pending: false, value: snapshotCheck(String(first)) };
+      }
+      // One directory per run of a body (std-testing.temp-dir.same,
+      // std-testing.temp-dir.per-run), removed when the run ends.
+      if (call.methodName === "temp_dir") {
+        if (!tempDirs) throw new Error("the test runner has no temporary directories");
+        report.tempDir ??= tempDirs.make();
+        return { pending: false, value: report.tempDir };
       }
       if (!properties) throw new Error(`the test runner has no method ${call.methodName}`);
       return {
@@ -100,13 +122,14 @@ function call(
   report: CaseReport,
   properties?: PropertyRun,
   snapshotCheck?: (text: string) => string,
+  tempDirs?: TempDirs,
 ): unknown {
   if (declaration.parameters.length > 0)
     throw new Error(`${declaration.name} must not declare ordinary parameters`);
   const entry = exports[exportName(declaration)];
   if (typeof entry !== "function") throw new Error(`${declaration.name} has no runnable export`);
   const provider = declaration.testOptions
-    ? runnerProvider(row, report, properties, snapshotCheck)
+    ? runnerProvider(row, report, properties, snapshotCheck, tempDirs)
     : undefined;
   // The runner answers TestRunner and PropertyRunner. Any other host trait
   // of a test case's row, as an integration test case's `Process`, goes to
@@ -166,14 +189,33 @@ function runCase(
   row: number | undefined,
   properties?: PropertyRun,
   snapshotCheck?: (text: string) => string,
+  tempDirs?: TempDirs,
+): { readonly outcome?: RunOutcome; readonly rowCount: number } {
+  const report: CaseReport = { rowCount: -1 };
+  try {
+    return judgeCase(exports, declaration, row, report, properties, snapshotCheck, tempDirs);
+  } finally {
+    // The run's directory goes once the run ends, pass or fail
+    // (spec/cli/command-line.md#r-cli.test.env.temp-dir.removed).
+    if (report.tempDir !== undefined) tempDirs?.remove(report.tempDir);
+  }
+}
+
+function judgeCase(
+  exports: Exports,
+  declaration: HirFunction,
+  row: number | undefined,
+  report: CaseReport,
+  properties: PropertyRun | undefined,
+  snapshotCheck: ((text: string) => string) | undefined,
+  tempDirs: TempDirs | undefined,
 ): { readonly outcome?: RunOutcome; readonly rowCount: number } {
   const expected = declaration.testOptions?.expectPanic;
   const subject = `test "${caseName(declaration, row)}"`;
-  const report: CaseReport = { rowCount: -1 };
   const started = performance.now();
   let result: unknown;
   try {
-    result = call(exports, declaration, row ?? 0, report, properties, snapshotCheck);
+    result = call(exports, declaration, row ?? 0, report, properties, snapshotCheck, tempDirs);
   } catch (error) {
     if (!(error instanceof RuntimePanicError)) throw error;
     // A table with no rows reports count 0, then indexes row 0.
@@ -208,6 +250,8 @@ export async function runSelected(
   // Compares the running case's next snapshot file.
   snapshotCheck?: (text: string) => string,
   reporting?: TestReporting,
+  // Each run's temporary directory (spec/std/testing.md#temporary-directories).
+  tempDirs?: TempDirs,
 ): Promise<RunOutcome> {
   const keepGoing = reporting?.keepGoing === true;
   const failure = (subject: string, outcome?: string): string =>
@@ -238,7 +282,14 @@ export async function runSelected(
         const exports = await fresh();
         begin?.(name, undefined);
         try {
-          const { outcome } = runCase(exports, declaration, undefined, properties, snapshotCheck);
+          const { outcome } = runCase(
+            exports,
+            declaration,
+            undefined,
+            properties,
+            snapshotCheck,
+            tempDirs,
+          );
           if (outcome?.kind !== "failed") return "pass";
           return { failure: outcome.outcome ?? outcome.subject };
         } catch (error) {
@@ -265,7 +316,14 @@ export async function runSelected(
       const name = caseName(declaration, table ? row : undefined);
       let result: ReturnType<typeof runCase>;
       try {
-        result = runCase(exports, declaration, table ? row : undefined, undefined, snapshotCheck);
+        result = runCase(
+          exports,
+          declaration,
+          table ? row : undefined,
+          undefined,
+          snapshotCheck,
+          tempDirs,
+        );
       } catch (error) {
         if (!keepGoing || !(error instanceof RuntimePanicError)) throw error;
         // A panic in a row leaves the table's row count unknown: it ends the table.
