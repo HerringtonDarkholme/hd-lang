@@ -145,6 +145,12 @@ Compiler structure:
   has no toolchain version, so it rejects no graph for a too-new minimum
   (`module.toolchain.graph-minimum`), does not fetch a pinned toolchain, and
   accepts `[toolchain]` in a dependency's manifest (`module.toolchain.pin`).
+- **Script entry and other modules**: when a package's entry module is a
+  script (top-level statements, no `main`; c7d9c4e3), the requirement row
+  is inferred from the whole joined top level, so a top-level `println` in
+  a non-entry module is accepted instead of rejected
+  (`module.init.requirement-free`). Fixing it needs each top-level
+  statement's module of origin.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.
