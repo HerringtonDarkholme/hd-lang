@@ -1,0 +1,10 @@
+# hd clean removes the build directory and nothing else.
+run: hd build
+file: build/debug/shop.wasm
+run: hd clean
+stdout: removed build
+no-file: build
+file: hd.toml
+file: src/main.hd
+run: hd clean
+stdout: nothing to clean

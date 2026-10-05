@@ -12,6 +12,7 @@ command finds a package and what each command runs:
 - `hd doc`, which writes a package's documentation;
 - `hd add`, `hd update`, `hd remove`, and `hd fetch`, which manage and fetch
   dependencies;
+- `hd clean`, which removes the build directory or the dependency cache;
 - `hd new`, and the REPL.
 
 The language tier defines what a program means: its
@@ -32,11 +33,13 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd check`, `hd test` | work on the [package](#building-and-checking), or on one FILE |
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
-| `hd add NAME PATH@VERSION`, `hd update [NAME]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
-| `hd help`, `hd --help` | prints the command list |
+| `hd add [--dev] NAME PATH@VERSION`, `hd update [NAME]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
+| `hd clean`, `hd clean --cache` | [removes the package's build directory, or the dependency cache](#cleaning) |
+| `hd help`, `hd --help`, `hd help COMMAND` | prints the command list, or one command's usage and flags |
 
-1. r[cli.command.help] `hd help` and `hd --help` print the command list.
-2. r[cli.command.positional] A positional word of a command is a NAME or a FILE. A directory is neither: `hd test libs/ui` is an error, and its message suggests [`-p`](#selecting-members).
+1. r[cli.command.help] `hd help` and `hd --help` print the command list. It names every command of the table above.
+2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes, so the help of `hd add` names `--dev` and the help of `hd clean` names `--cache`.
+3. r[cli.command.positional] A positional word of a command is a NAME or a FILE. A directory is neither: `hd test libs/ui` is an error, and its message suggests [`-p`](#selecting-members).
 
 ## Package Mode
 
@@ -768,6 +771,7 @@ hd check                                 # fetches each selected version that th
 hd update json                           # moves json to the newest 2.x release
 hd remove json                           # deletes json's requirement and tidies hd.sum
 hd fetch                                 # fetches everything selected, as CI does before going offline
+hd clean --cache                         # deletes every fetched version; the next command fetches again
 ```
 
 Source then uses the dependency through its key, as in
@@ -905,6 +909,7 @@ Selection reads the manifest of `json@2.0.0` but selects `2.1.0`.
 ```sh
 hd add json github.com/acme/json@2.1.0   # hd.toml gains json = "github.com/acme/json@2.1.0"
 hd add json github.com/acme/json@2.0.0   # prints: lowered json 2.1.0 -> 2.0.0
+hd add --dev fixtures github.com/acme/fixtures@1.0.0   # fixtures goes to [dev-dependencies]
 hd update json                           # with a tag v2.3.0, json becomes "github.com/acme/json@2.3.0"
 hd remove json                           # json's line and its hd.sum entry go
 ```
@@ -912,34 +917,44 @@ hd remove json                           # json's line and its hd.sum entry go
 | Command | Effect |
 | --- | --- |
 | `hd add NAME PATH@VERSION` | adds the requirement `NAME = "PATH@VERSION"`, or changes NAME's, raising or lowering it, then fetches and records hashes |
-| `hd update` | moves every requirement to the newest release on its compatibility line |
+| `hd add --dev NAME PATH@VERSION` | does the same in `[dev-dependencies]` |
+| `hd update` | moves every requirement, dev dependencies too, to the newest release on its compatibility line |
 | `hd update NAME` | moves only NAME's requirement |
-| `hd remove NAME` | deletes NAME's requirement |
+| `hd remove NAME` | deletes NAME's requirement, from either table |
 | `hd fetch` | fetches every selected version that the cache lacks, and records missing hashes |
 
 1. r[cli.dep.add] `hd add NAME PATH@VERSION` sets the requirement of the key NAME in `[dependencies]` to `PATH@VERSION`. It adds the key when the manifest has none.
 2. r[cli.dep.add.check] `hd add` checks NAME and `PATH@VERSION` by [`cli.dep.invalid`](#r-cli.dep.invalid) before it fetches anything.
 3. r[cli.dep.add.lower] `hd add` may set NAME's requirement to an earlier version of the same host path, as `go get` does. It then prints that it lowered the requirement, as `lowered json 2.1.0 -> 2.0.0`.
 4. r[cli.dep.add.lower.selection] A lowered requirement is still a minimum. Selection keeps a later version when another reached manifest, such as another member's, requires one, by [`module.select.largest`](../lang/10-modules.md#r-module.select.largest).
-5. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
-6. r[cli.dep.tidy] It then writes `hd.sum` with one tree line for each selected version, one manifest line for each version selection read, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
-7. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
-8. r[cli.dep.update.release] The newest release is the greatest tagged version without a pre-release suffix. A requirement already at or above it keeps its version.
-9. r[cli.dep.update.network] `hd update` lists the tags of each repository it moves, so it uses the network even when the cache holds every version.
-10. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
-11. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds each tree line and manifest line that [`cli.dep.tidy`](#r-cli.dep.tidy) would write and `hd.sum` lacks, and changes no other entry.
-12. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
-13. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
-14. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
-15. r[cli.dep.no-question] No dependency command asks a question.
-16. r[cli.dep.workspace-fetch] In [workspace mode](#workspace-mode), `hd fetch` works on the whole workspace. It fetches what the workspace's selection needs, and adds the missing lines to its `hd.sum`, by [`cli.dep.fetch`](#r-cli.dep.fetch).
-17. r[cli.dep.workspace-member-only] In workspace mode, `hd add`, `hd update`, and `hd remove` are errors whose message suggests running them in a member's directory.
+5. r[cli.dep.add.dev] `hd add --dev NAME PATH@VERSION` sets the requirement in `[dev-dependencies]` instead, as [`cli.dep.add`](#r-cli.dep.add) does for `[dependencies]`. The other rules of `hd add` hold for it.
+6. r[cli.dep.add.move] When the key NAME is in the other table, `hd add` deletes that line, so the key stays in one table, by [`module.dep.key-name.collision`](../lang/10-modules.md#r-module.dep.key-name.collision). It prints `moved NAME from [dependencies] to [dev-dependencies]`, or the reverse. A lowered requirement is compared with the line it replaces.
+7. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
+8. r[cli.dep.tidy] It then writes `hd.sum` with one tree line for each selected version, one manifest line for each version selection read, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
+9. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
+10. r[cli.dep.update.release] The newest release is the greatest tagged version without a pre-release suffix. A requirement already at or above it keeps its version.
+11. r[cli.dep.update.network] `hd update` lists the tags of each repository it moves, so it uses the network even when the cache holds every version.
+12. r[cli.dep.update.dev] `hd update` moves the requirements of `[dev-dependencies]` as it moves those of `[dependencies]`, and `hd update NAME` finds NAME in either table. A NAME that is no key of either table is an error.
+13. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
+14. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds each tree line and manifest line that [`cli.dep.tidy`](#r-cli.dep.tidy) would write and `hd.sum` lacks, and changes no other entry.
+15. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
+16. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
+17. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
+18. r[cli.dep.no-question] No dependency command asks a question.
+19. r[cli.dep.workspace-fetch] In [workspace mode](#workspace-mode), `hd fetch` works on the whole workspace. It fetches what the workspace's selection needs, and adds the missing lines to its `hd.sum`, by [`cli.dep.fetch`](#r-cli.dep.fetch).
+20. r[cli.dep.workspace-member-only] In workspace mode, `hd add`, `hd update`, and `hd remove` are errors whose message suggests running them in a member's directory.
+21. r[cli.dep.dev-selected] Selection reads the package's dev dependencies in every command, by [`module.select.dev-dependencies`](../lang/10-modules.md#r-module.select.dev-dependencies). So `hd build`, `hd check`, and `hd run` fetch them and need their `hd.sum` entries, although only test code and tasks may use them.
+22. r[cli.dep.dev-use] Code that is not test code and uses a dev dependency is an error, by [`module.test.non-test-use.dev-dependency`](../lang/10-modules.md#r-module.test.non-test-use.dev-dependency). Its message suggests `hd add NAME PATH@VERSION`, which moves the key to `[dependencies]`. Error: `test-only-use`.
 
 > **Why.** An agent adds a dependency with one command and gets a
 > manifest, a fetched tree, and a hash that agree. CI runs `hd fetch` once,
 > at the workspace root too, and every later command works offline. A
 > requirement lives in one member's manifest, so a command that edits one
 > runs in that member.
+
+> **Why.** The same key in both tables would be a collision, so `hd add`
+> moves it. Cargo's `cargo add --dev` keeps the line in `[dependencies]`
+> too, which hd does not allow.
 
 > **Why.** Lowering a minimum is safe under minimal version selection, so
 > `hd add` does it as Go's `go get x@older` does. It says so, since a
@@ -948,6 +963,44 @@ hd remove json                           # json's line and its hd.sum entry go
 See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 [Integrity](../lang/10-modules.md#integrity),
 [Machine Output](#machine-output), [Exit Status](#exit-status).
+
+### Cleaning
+
+`hd clean` removes what `hd` generated, and never source or a manifest:
+
+```sh
+hd clean           # removes build/ of the package, as cargo clean does
+hd clean --cache   # removes every cached dependency version, as go clean -modcache does
+```
+
+| Command | Removes |
+| --- | --- |
+| `hd clean` | the [build directory](#r-cli.build.directory) of the package, or of each member in workspace mode |
+| `hd clean --cache` | the fetched versions of the [cache](#cache) |
+
+1. r[cli.clean.build] `hd clean` without `--cache` removes the build directory of the package, and prints `removed build`. It removes nothing else: not `hd.toml`, `hd.sum`, source, or the cache.
+2. r[cli.clean.build.none] When the package has no build directory, `hd clean` prints `nothing to clean` and succeeds.
+3. r[cli.clean.build.workspace] In [workspace mode](#workspace-mode), `hd clean` removes the build directory of every member. It takes no `-p`.
+4. r[cli.clean.build.package-only] Outside any package, `hd clean` without `--cache` is an error whose message suggests `hd new` and `hd clean --cache`.
+5. r[cli.clean.cache] `hd clean --cache` removes the fetched versions from the cache directory of [`cli.cache.directory`](#r-cli.cache.directory), and touches no build directory. It works inside a package, in a workspace, and outside any package, and it reads no manifest.
+6. r[cli.clean.cache.writable] The entries are read-only, by [`cli.cache.read-only`](#r-cli.cache.read-only), so `hd clean --cache` makes each directory writable before it removes it.
+7. r[cli.clean.cache.scope] `hd clean --cache` removes only the entries `pkg`, `hash`, and `tmp` of the cache directory, and the cache directory itself stays. It never follows a symbolic link out of the cache directory.
+8. r[cli.clean.cache.layout] `hd clean --cache` removes nothing and is an error when the resolved cache directory is the file system root, the user's home directory, or not a directory. It is the same error when the directory holds any entry other than `pkg`, `hash`, and `tmp`, since that is no `hd` cache. A relative `HD_CACHE` resolves against the working directory.
+9. r[cli.clean.cache.output] `hd clean --cache` prints `removed HOST_PATH@VERSION` for each version it removes, then `removed N versions from DIR`. A missing or empty cache directory prints `the cache DIR is empty` and succeeds.
+10. r[cli.clean.cache.refetch] `hd clean --cache` changes no `hd.toml` or `hd.sum`. The next command that needs a removed version fetches it again, by [`cli.dep.implicit-fetch`](#r-cli.dep.implicit-fetch).
+11. r[cli.clean.exit] `hd clean` exits with status 0 when it succeeds, also when it removes nothing, and with status 101 when it reports an error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
+12. r[cli.clean.no-question] `hd clean` takes no operand and asks no question.
+
+```sh
+HD_CACHE=/ hd clean --cache            # error: the file system root is no hd cache
+HD_CACHE=~/Documents hd clean --cache  # error: it holds entries that are not hd's
+```
+
+> **Why.** A command that deletes a user-chosen directory must not be
+> able to delete the wrong one. The layout check keeps a mistyped
+> `HD_CACHE` from erasing a home directory or a project.
+
+See also: [Cache](#cache), [Build Profiles](#build-profiles).
 
 ## Package Tooling
 

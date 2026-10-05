@@ -1,0 +1,8 @@
+# Selection reads a dev dependency in every command, so check needs its
+# hd.sum entry. hd remove finds the key in [dev-dependencies].
+run: hd check
+exit: 101
+run: hd remove fixtures
+run: hd check
+run: hd remove fixtures
+exit: 101

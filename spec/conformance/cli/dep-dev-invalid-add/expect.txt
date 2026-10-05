@@ -1,0 +1,7 @@
+# hd add --dev checks the requirement before it fetches, and writes nothing.
+run: hd add --dev fixtures github.com/acme@1.0.0
+exit: 101
+no-file: hd.sum
+run: hd add --dev 9fixtures github.com/acme/fixtures@1.0.0
+exit: 101
+no-file: hd.sum

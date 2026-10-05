@@ -1,0 +1,7 @@
+# At a workspace root, hd clean removes the build directory of each member.
+run: hd build
+file: app/build
+run: hd clean
+no-file: app/build
+file: app/hd.toml
+file: hd.toml

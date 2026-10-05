@@ -1,0 +1,3 @@
+# Outside any package there is no build directory to remove.
+run: hd clean
+exit: 101

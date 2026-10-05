@@ -1,0 +1,5 @@
+[package]
+name = "app"
+
+[dev-dependencies]
+fixtures = "github.com/acme/fixtures@1.0.0"

@@ -57,3 +57,8 @@ test-snapshot-file	cli.exit.test-failure,cli.exit.success
 test-timeout	cli.exit.test-failure,cli.exit.success
 dbg-values	cli.dbg.run
 dbg-uses	cli.dbg.run
+clean-build	cli.clean.build,cli.clean.build.none,cli.clean.exit,cli.build.output
+clean-outside-package	cli.clean.build.package-only,cli.clean.exit
+clean-workspace	cli.clean.build.workspace
+dep-dev-invalid-add	cli.dep.add.dev,cli.dep.add.check,cli.dep.unchanged-on-error
+dep-dev-remove	cli.dep.remove,cli.dep.dev-selected
