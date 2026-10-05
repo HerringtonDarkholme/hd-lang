@@ -1,5 +1,9 @@
 # Muse Task Queue
 
+**Retired 2026-10-05 (owner: "muse is effectively dead").** The
+orchestrating session now runs these jobs itself as tasks #333 to #336;
+this file stays only as their job text, and is deleted once they land.
+
 This file is Muse's work queue. The orchestrating session adds jobs here.
 Muse does them top to bottom, one commit per job, and deletes a job's
 section in the same commit that finishes it. Git history keeps the record.
