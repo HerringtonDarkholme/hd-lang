@@ -89,6 +89,17 @@ each row to `test/portable/cases.tsv` and updating the tag's row in
 
 Root causes only; run each fixture before and after.
 
+### BF. A Missing-Requirement Error Hides An Unknown Name
+
+Found by #281. In one file, a call to an unknown name after `println`
+(here `eprintln` before it existed) reported `missing-requirement: call
+to 'println' requires Console` instead of `unknown-name` for the unknown
+call. The same file with only the unknown call reports `unknown-name`.
+Find why one error masks the other (likely the requirement row is
+inferred before names resolve, and resolution stops), report the
+unknown name, and add a test with both in one function. Row in
+`audit/hd-writing-log.md` (2026-10-05, #281).
+
 ### BD. Hints From Usability Probe 2
 
 Probe 2 (Haiku, rows dated 2026-10-05 "usability probe 2" in
