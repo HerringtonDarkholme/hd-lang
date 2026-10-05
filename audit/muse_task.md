@@ -54,22 +54,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AD. Read-Only: Re-Sweep After The Literal Change
-
-The literal typing model changed on 2026-10-04 (62a084a2, 288105cf): a
-bare literal defaults to `usize`, and a literal joins the typed side
-within one statement.
-
-- Rerun the Job 3 error-message sweep and the Job 4 known-failure sweep
-  at the current HEAD.
-- Commit one report, `audit/job11-resweep-after-literal-change.md`, with:
-  - leaks and over-long messages;
-  - known-failure rows whose reason no longer matches;
-  - new messages that are confusing, such as `u32` shown where the user
-    wrote nothing.
-- The old job 3 and job 4 reports were deleted in the 2026-10-04 cleanup;
-  the new report replaces them.
-
 ### AE. `hd doc`
 
 The spec is done: the "Documentation" section of
