@@ -1,0 +1,4 @@
+# test: mutable outer views of primitives, optionals, and tuples stay valid
+# Spec 04 Primitive Types: types.prim.no-mut.error (only the primitive itself rejects mut).
+fn valid(first: mut Option[i32], second: mut (i32?), third: mut Option[(i32,)]) -> void:
+    pass

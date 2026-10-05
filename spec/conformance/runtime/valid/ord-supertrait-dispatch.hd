@@ -1,0 +1,14 @@
+# test: comparison dispatches through supertrait dictionaries at run time
+# Spec 09 Traits: an Ord bound supplies cmp and a PartialOrd bound supplies <.
+fn rank(value: Ordering) -> i32:
+    match value:
+        .Less => 1
+        .Equal => 2
+        .Greater => 3
+
+fn order[T < Ord](left: T, right: T) -> i32: rank(left.cmp(right))
+
+fn less[T < PartialOrd](left: T, right: T) -> bool: left < right
+
+fn main() -> i32:
+    order(1, 2) * 100 + order(["b"], ["a"]) * 10 + (if less(1.5, 2.5): 1 else: 0)

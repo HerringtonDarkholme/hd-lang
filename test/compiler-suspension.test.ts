@@ -143,10 +143,6 @@ test("race! returns the first result and cancels the losers before it completes"
   );
 });
 
-test("a module may declare its own all! without importing std.task.all", () => {
-  assert.deepEqual(analyze(fixture("suspension/05-user-defined-all")).diagnostics, []);
-});
-
 test("race! with an empty list literal is argument-count", () => {
   const diagnostics = analyze(conformance("typing/invalid/race-empty-list-literal")).diagnostics;
   assert.equal(diagnostics.length, 1);

@@ -1,0 +1,8 @@
+# expect-stdout: P { x: 1 }
+# test: derived Debug renders data values through the builder
+# Spec 07 Data: @derive(Debug) implements Debug for the data type.
+@derive(Debug)
+data P:
+    x: i32
+
+pub fn main() -> void $ Console: println(debug(P { x: 1 }))

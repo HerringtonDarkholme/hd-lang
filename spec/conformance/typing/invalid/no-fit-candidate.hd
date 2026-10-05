@@ -1,0 +1,15 @@
+# test: no fitting candidate lists the available instantiations
+# Spec 09 Traits: trait.resolve.no-fit (the call is an error listing the instantiations).
+trait Build[T]:
+    fn build(value: T) -> Item
+
+data Item: pass
+
+impl Build[bool] for Item:
+    fn build(value: bool) -> Item: Item {}
+
+impl Build[i32] for Item:
+    fn build(value: i32) -> Item: Item {}
+
+fn probe() -> Item:
+    Item::build(value="wrong")  # diagnostic: type-mismatch

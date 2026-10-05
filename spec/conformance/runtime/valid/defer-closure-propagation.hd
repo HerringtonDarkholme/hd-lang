@@ -1,0 +1,16 @@
+# test: a closure declared in cleanup propagates within its own function
+# Spec 06 Control Flow: r-flow.defer.control (only propagation that would leave the suite is an error).
+use std.testing.assert_equal
+
+fn main() -> i32:
+    defer:
+        inner := fn() -> Result[i32, string]:
+            let answer: Result[i32, string] = .Err("failure")
+            _ := answer?
+            .Ok(0)
+        _ := inner()
+    42
+
+tests:
+    it("cleanup-local propagation completes the frame"):
+        assert_equal(main(), 42, reason="the closure propagates inside its own function")

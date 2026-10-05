@@ -1,0 +1,23 @@
+# test: a function result that is a function type keeps its requirement row
+# Spec 11 Requirements and Suspension: requirement rows travel with function values.
+trait Db:
+    fn name(self) -> string
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn pick(flag: bool) -> (fn() -> string $ Db):
+    orders
+
+fn run() -> string $ Db:
+    handler := pick(true)
+    handler()
+
+fn main() -> i32:
+    $.with(Db=MemoryDb {}):
+        if run() == "db": 1 else: 0

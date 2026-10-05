@@ -1,0 +1,4 @@
+# test: a mutable primitive generic optional payload is an error
+# Spec 04 Primitive Types: types.prim.no-mut.error (a primitive type written with mut is an error).
+fn invalid(value: Option[mut i32]) -> void:  # diagnostic: mut-on-primitive
+    pass

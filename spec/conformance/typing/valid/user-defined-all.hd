@@ -1,0 +1,4 @@
+# test: a module may declare its own all! without importing std.task.all
+# Spec 11 Requirements and Suspension: all! resolves like any other name.
+fn all!(left: i32, right: i32) -> i32: left + right
+fn main!() -> i32: all!(20, 22)

@@ -1,0 +1,7 @@
+# test: propagation with ? cannot leave a defer suite in a suspending function
+# Spec 06 Control Flow: r-flow.defer.control (propagation with ? that would leave the suite is an error).
+fn run!() -> Result[i32, string]:
+    defer:
+        let answer: Result[i32, string] = .Err("failure")
+        _ := answer?  # diagnostic: defer-control-flow
+    .Ok(42)

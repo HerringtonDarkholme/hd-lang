@@ -1,0 +1,9 @@
+# test: u8 addition is checked and stays inside the range
+# Spec 04 Type System: u8 arithmetic traps on overflow.
+use std.testing.assert_equal
+
+fn add(a: u8, b: u8) -> u8: a + b
+
+fn main() -> i32:
+    assert_equal(add(200, 55), 255, reason="u8 addition")
+    0

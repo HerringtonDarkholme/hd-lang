@@ -1,0 +1,20 @@
+# test: nested mutable captures share storage after an activation ends
+# Spec 07 Functions: fn.capture.locals (a closure captures local bindings from enclosing scopes).
+use std.testing.assert_equal
+
+fn child!(value: i32) -> i32: value
+
+fn make!() -> fn!() -> i32:
+    let count: i32 = 40
+    make_inner := fn() -> fn!() -> i32:
+        fn!() -> i32:
+            count = count + 1
+            child!(count)
+    next := make_inner()
+    count = count + 1
+    next
+
+pub fn main!() -> void:
+    next := make!()
+    assert_equal(next!(), 42, reason="the shared cell survives the ended activation")
+    assert_equal(next!(), 43, reason="later calls see earlier writes")

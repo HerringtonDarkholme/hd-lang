@@ -1,0 +1,22 @@
+# test: numeric candidates use the ordinary literal-default tie break
+# Spec 09 Traits: trait.resolve.literal-arg (the default type selects the candidate).
+use std.testing.assert_equal
+
+trait Build[T]:
+    fn build(value: T) -> Item
+
+data Item:
+    value: i32
+
+impl Build[i64] for Item:
+    fn build(value: i64) -> Item: Item { value: 0 }
+
+impl Build[i32] for Item:
+    fn build(value: i32) -> Item: Item { value: value }
+
+fn main() -> i32:
+    Item::build(value=+42).value
+
+tests:
+    it("the signed-literal candidate runs"):
+        assert_equal(main(), 42, reason="the +42 literal selects i32")

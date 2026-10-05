@@ -152,34 +152,6 @@ test("shared enum data uses per-variant factories and pure ordered defaults", as
   );
 });
 
-test("shared enum data is a per-variant constant computed once", async () => {
-  const source = [
-    "let calls: i32 = 0",
-    "",
-    "fn bump() -> i32:",
-    "    calls = calls + 1",
-    "    calls",
-    "",
-    "enum Box[T](count: i32, seen: i32 = bump(), items: List[i32] = [1]):",
-    "    Full(value: T) -> Box(1)",
-    "    Empty -> Box(0)",
-    "",
-    "fn main() -> i32:",
-    '    let first: Box[string] = Box.Full("a")',
-    '    let second: Box[string] = Box.Full("b")',
-    "    let empty: Box[string] = Box.Empty",
-    "    let again: Box[string] = Box.Empty",
-    "    canonical := if empty is again: +100 else: 0",
-    "    shared := if first.items is second.items: +10 else: 0",
-    "    canonical + shared + first.seen + second.seen + calls",
-    "",
-  ].join("\n");
-  const { instance, compilation } = await instantiate(source);
-  assert.deepEqual(compilation.diagnostics, []);
-  // `bump` runs once per variant: Full sees 1, and Empty's run makes calls 2.
-  assert.equal((instance.exports.main as CallableFunction)(), 100 + 10 + 1 + 1 + 2);
-});
-
 test("a use of the prelude's own declaration is allowed", () => {
   assert.deepEqual([...PRELUDE_ORIGINS.keys()].sort(), [...PRELUDE_NAMES].sort());
   assert.deepEqual(analyze(conformance("typing/valid/reimport-prelude-name")).diagnostics, []);
@@ -694,56 +666,4 @@ test("generic function values passed as arguments infer their type arguments", a
       ),
       ["cannot-infer-type"],
     );
-});
-
-test("a function result that is a function type with a row keeps that row", async () => {
-  const program = `trait Db:
-    fn name(self) -> string
-
-data MemoryDb: pass
-
-impl Db for MemoryDb:
-    fn name(self) -> string: "db"
-
-fn orders() -> string $ Db:
-    $.use(Db).name()
-
-fn pick(flag: bool) -> (fn() -> string $ Db):
-    orders
-
-fn run() -> string $ Db:
-    handler := pick(true)
-    handler()
-
-fn main() -> i32:
-    $.with(Db=MemoryDb {}):
-        if run() == "db": 1 else: 0
-`;
-  const { instance } = await instantiate(program);
-  assert.equal((instance.exports.main as CallableFunction)(), 1);
-});
-
-test("a trait default method instantiates the trait's type parameters", async () => {
-  const program = `trait Source[T]:
-    fn next(mut self) -> T?
-    fn second(mut self) -> T?:
-        let first: T? = self.next()
-        self.next()
-
-data Counter:
-    n: i32
-
-impl Source[i32] for Counter:
-    fn next(mut self) -> i32?:
-        self.n = self.n + 1
-        .Some(self.n)
-
-fn main() -> i32:
-    let counter: mut Counter = Counter { n: 0 }
-    match counter.second():
-        .Some(value) => value
-        .None => 0
-`;
-  const { instance } = await instantiate(program);
-  assert.equal((instance.exports.main as CallableFunction)(), 2);
 });

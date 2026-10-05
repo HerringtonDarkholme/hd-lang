@@ -1,0 +1,17 @@
+# test: a marker bound must be proven for the nested argument
+# Spec 09 Traits: an impl applies only when its bounds hold.
+trait Marker
+
+data Box[T]:
+    value: T
+
+impl Marker for i32
+
+impl[T < Marker] Marker for Box[T]
+
+fn need[T < Marker](value: T) -> void:
+    pass
+
+fn good(value: Box[i32]) -> void: need(value)
+
+fn bad(value: Box[string]) -> void: need(value)  # diagnostic: unsatisfied-trait-bound

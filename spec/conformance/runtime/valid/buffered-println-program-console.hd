@@ -1,0 +1,17 @@
+# expect-stdout: one 2
+# test: println writes through a program-defined Console provider
+# Spec 10 Modules: println calls write_line! on the Console covering the call.
+data Buffer:
+    lines: mut List[string]
+
+impl Console for Buffer:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.lines.push(text)
+        .Ok(())
+
+pub fn main() -> void $ Console:
+    let buffer: mut Buffer = Buffer { lines: [] }
+    $.with(Console=buffer):
+        println("one")
+        println(2)
+    println("${buffer.lines[0]} ${buffer.lines[1]}")

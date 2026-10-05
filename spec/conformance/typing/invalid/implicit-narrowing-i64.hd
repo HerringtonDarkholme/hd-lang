@@ -1,0 +1,3 @@
+# test: narrowing an i64 to i32 needs an explicit conversion
+# Spec 04 Type System: implicit narrowing is rejected.
+fn narrow(value: i64) -> i32: value  # diagnostic: implicit-narrowing

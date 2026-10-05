@@ -1,0 +1,6 @@
+# test: using Debug without deriving it is rejected
+# Spec 09 Traits: a missing trait implementation is an unsatisfied bound.
+data Q:
+    x: i32
+
+fn show(q: Q) -> string: debug(q)  # diagnostic: unsatisfied-trait-bound

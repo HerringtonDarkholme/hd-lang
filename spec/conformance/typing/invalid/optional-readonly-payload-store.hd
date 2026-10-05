@@ -1,0 +1,9 @@
+# test: a store through a readonly optional payload is an error
+# Spec 04 Paths and Stores: types.path.store.readonly-root (a store without mutable access is an error).
+data User:
+    name: i32
+
+fn mutate(found: mut (User?)) -> void:
+    match found:
+        .Some(value) => value.name = 42  # diagnostic: readonly-root
+        .None => pass

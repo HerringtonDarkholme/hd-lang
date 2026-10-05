@@ -1,0 +1,20 @@
+# test: shared enum defaults compute once per variant, not once per value
+# Spec 08 Data and Enums: shared enum constructor data is per-variant state.
+let calls: i32 = 0
+
+fn bump() -> i32:
+    calls = calls + 1
+    calls
+
+enum Box[T](count: i32, seen: i32 = bump(), items: List[i32] = [1]):
+    Full(value: T) -> Box(1)
+    Empty -> Box(0)
+
+fn main() -> i32:
+    let first: Box[string] = Box.Full("a")
+    let second: Box[string] = Box.Full("b")
+    let empty: Box[string] = Box.Empty
+    let again: Box[string] = Box.Empty
+    canonical := if empty is again: +100 else: 0
+    shared := if first.items is second.items: +10 else: 0
+    canonical + shared + first.seen + second.seen + calls

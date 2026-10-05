@@ -1,0 +1,23 @@
+# test: tuple spread arguments select the fitting associated candidate
+# Spec 09 Traits: trait.resolve.one-fit (exactly one fitting candidate is selected).
+use std.testing.assert_equal
+
+trait Build[T]:
+    fn build(first: T, second: T) -> Item
+
+data Item:
+    value: i32
+
+impl Build[bool] for Item:
+    fn build(first: bool, second: bool) -> Item: Item { value: 0 }
+
+impl Build[i32] for Item:
+    fn build(first: i32, second: i32) -> Item: Item { value: first + second }
+
+fn main() -> i32:
+    pair := (+40, +2)
+    Item::build(pair...).value
+
+tests:
+    it("the spread candidate runs"):
+        assert_equal(main(), 42, reason="the i32 candidate fits the spread pair")

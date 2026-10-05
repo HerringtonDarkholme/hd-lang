@@ -1,0 +1,11 @@
+# test: a generic inherent implementation dispatches for each instantiation
+# Spec 09 Traits: inherent methods resolve on the receiver type.
+data Box[T]:
+    value: T
+
+impl[T] Box[T]:
+    fn get(self) -> T: self.value
+
+fn through[T](box: Box[T]) -> T: box.get()
+
+fn main() -> i32: through(Box { value: 40 }) + Box { value: 3 }.get()

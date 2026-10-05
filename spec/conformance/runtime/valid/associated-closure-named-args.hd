@@ -1,0 +1,24 @@
+# test: associated calls check closures and named arguments per candidate
+# Spec 09 Traits: trait.resolve.one-fit (exactly one fitting candidate is selected).
+use std.testing.assert_equal
+
+trait Build[T]:
+    fn build(run: fn(T) -> T) -> Item
+
+data Item:
+    value: i32
+
+impl Build[bool] for Item:
+    fn build(run: fn(bool) -> bool) -> Item:
+        Item { value: if run(true): 1 else: 0 }
+
+impl Build[i32] for Item:
+    fn build(run: fn(i32) -> i32) -> Item:
+        Item { value: run(40) }
+
+fn main() -> i32:
+    Item::build(run=fn(value): value + 2).value
+
+tests:
+    it("the named-argument candidate runs"):
+        assert_equal(main(), 42, reason="the i32 candidate fits the closure")

@@ -1,0 +1,38 @@
+# test: provider scopes and captures from a failed trial do not leak
+# Spec 09 Traits: trait.resolve.one-fit (exactly one fitting candidate is selected).
+use std.testing.assert_equal
+
+trait Apply[T]:
+    fn apply(self, run: fn(T) -> T) -> i32
+
+data Item:
+    value: i32
+
+impl Apply[bool] for Item:
+    fn apply(self, run: fn(bool) -> bool) -> i32:
+        if run(true): 1 else: 0
+
+impl Apply[i32] for Item:
+    fn apply(self, run: fn(i32) -> i32) -> i32:
+        run(self.value)
+
+trait Clock:
+    fn now(self) -> i32
+
+data Fixed:
+    value: i32
+
+impl Clock for Fixed:
+    fn now(self) -> i32: self.value
+
+fn main() -> i32:
+    item := Item { value: 40 }
+    item.apply(fn(value):
+        $.with(Clock=Fixed { value: 2 }):
+            clock := $.use(Clock)
+            value + clock.now()
+    )
+
+tests:
+    it("the winning candidate sees only its own providers"):
+        assert_equal(main(), 42, reason="the i32 candidate fits and provides Clock")

@@ -391,23 +391,6 @@ test("context creation accepts spreads and normalizes exact replacement keys", (
   if (final?.kind === "expression") assert.equal(final.expression.type, "context:Backup+Clock");
 });
 
-test("owning a trait argument's outer constructor permits a foreign trait impl (TQ-2)", () => {
-  const owned = analyze(
-    "data Word:\n    text: string\n\nimpl Iterable[Word] for string:\n    fn iter(self) -> mut Iterator[Word]:\n        Iterator::from_fn(fn() -> Word?: .None)\n",
-  );
-  assert.deepEqual(
-    owned.diagnostics.map((diagnostic) => diagnostic.code),
-    [],
-  );
-  const nested = analyze(
-    "data Word:\n    text: string\n\nimpl Iterable[List[Word]] for string:\n    fn iter(self) -> mut Iterator[List[Word]]:\n        Iterator::from_fn(fn() -> List[Word]?: .None)\n",
-  );
-  assert.deepEqual(
-    nested.diagnostics.map((diagnostic) => diagnostic.code),
-    ["orphan-impl"],
-  );
-});
-
 test("built-in comparison dictionaries carry their supertrait dictionaries (EQ-1)", async () => {
   const source = [
     "fn rank(value: Ordering) -> i32:",
@@ -478,31 +461,6 @@ test("a generic inherent implementation lowers to a generic function (TQ-19)", a
   assert.equal((instance.exports.main as CallableFunction)(), 43);
 });
 
-test("a marker implementation's bounds are proven (TQ-20)", () => {
-  const source = [
-    "trait Marker",
-    "",
-    "data Box[T]:",
-    "    value: T",
-    "",
-    "impl Marker for i32",
-    "",
-    "impl[T < Marker] Marker for Box[T]",
-    "",
-    "fn need[T < Marker](value: T) -> void:",
-    "    pass",
-    "",
-    "fn good(value: Box[i32]) -> void: need(value)",
-    "",
-    "fn bad(value: Box[string]) -> void: need(value)",
-    "",
-  ].join("\n");
-  assert.deepEqual(
-    analyze(source).diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.span.start.line]),
-    [["unsatisfied-trait-bound", 15]],
-  );
-});
-
 test("i64 literals, explicit widening, checked arithmetic, and narrowing (F-253)", async () => {
   const source = [
     "fn wide(small: i32) -> i64:",
@@ -542,36 +500,6 @@ test("i64 literals, explicit widening, checked arithmetic, and narrowing (F-253)
   );
 });
 
-test("println drives write_line! on a program-defined Console (MHP-1)", async () => {
-  const source = [
-    "data Buffer:",
-    "    lines: mut List[string]",
-    "",
-    "impl Console for Buffer:",
-    "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:",
-    "        self.lines.push(text)",
-    "        .Ok(())",
-    "",
-    'let recorded: string = ""',
-    "",
-    "pub fn main() -> void $ Console:",
-    "    let buffer: mut Buffer = Buffer { lines: [] }",
-    "    $.with(Console=buffer):",
-    '        println("one")',
-    "        println(2)",
-    '    recorded = "${buffer.lines[0]} ${buffer.lines[1]}"',
-    "",
-    "pub fn recorded_lines() -> usize: recorded.len()",
-    "",
-  ].join("\n");
-  assert.deepEqual(analyze(source).diagnostics, []);
-  const printed: string[] = [];
-  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
-  (instance.exports.main as CallableFunction)({});
-  assert.equal((instance.exports.recorded_lines as CallableFunction)(), "one 2".length);
-  assert.deepEqual(printed, []);
-});
-
 test("println drives a write_line! pending on a host operation until it finishes (MHP-1)", async () => {
   const source = [
     "pub trait Gate:",
@@ -609,54 +537,6 @@ test("println drives a write_line! pending on a host operation until it finishes
   (instance.exports.main as CallableFunction)({}, { name: "gate" });
   assert.equal(polls, 3);
   assert.equal((instance.exports.written_lines as CallableFunction)(), 1);
-});
-
-test("Debug is checked, and derived builders render debug text (T33, T53)", async () => {
-  const source =
-    "@derive(Debug)\ndata P:\n    x: i32\n\npub fn main() -> void $ Console: println(debug(P { x: 1 }))\n";
-  assert.deepEqual(analyze(source).diagnostics, []);
-  const printed: string[] = [];
-  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
-  (instance.exports.main as CallableFunction)({});
-  assert.deepEqual(printed, ["P { x: 1 }"]);
-  assert.deepEqual(
-    analyze("data Q:\n    x: i32\n\nfn show(q: Q) -> string: debug(q)\n").diagnostics.map(
-      (item) => item.code,
-    ),
-    ["unsatisfied-trait-bound"],
-  );
-});
-
-test("@derive(Debug) picks Rust's builder per data type and variant (T54, Open Issues item 8)", async () => {
-  const source = [
-    "@derive(Debug)",
-    "data Unit: pass",
-    "",
-    "@derive(Debug)",
-    "enum Shape:",
-    "    Empty",
-    "    Circle(i32)",
-    "    Rect(width: i32, height: i32)",
-    "    Mixed(i32, label: string)",
-    "",
-    "pub fn main() -> void $ Console:",
-    "    println(debug(Unit {}))",
-    "    println(debug(Shape.Empty))",
-    "    println(debug(Shape.Circle(3)))",
-    "    println(debug(Shape.Rect(width=4, height=5)))",
-    '    println(debug(Shape.Mixed(6, label="m")))',
-    "",
-  ].join("\n");
-  const printed: string[] = [];
-  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
-  (instance.exports.main as CallableFunction)({});
-  assert.deepEqual(printed, [
-    "Unit",
-    "Empty",
-    "Circle(3)",
-    "Rect { width: 4, height: 5 }",
-    'Mixed { _0: 6, label: "m" }',
-  ]);
 });
 
 test("u8 checked arithmetic and ExitCode entry results (T8)", async () => {

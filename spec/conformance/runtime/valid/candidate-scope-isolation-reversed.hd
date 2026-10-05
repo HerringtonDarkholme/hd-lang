@@ -1,0 +1,28 @@
+# test: binding and branch scopes stay isolated whatever the declaration order
+# Spec 09 Traits: trait.resolve.one-fit (exactly one fitting candidate is selected).
+use std.testing.assert_equal
+
+trait Apply[T]:
+    fn apply(self, run: fn(T) -> T) -> i32
+
+data Item:
+    value: i32
+
+impl Apply[bool] for Item:
+    fn apply(self, run: fn(bool) -> bool) -> i32:
+        if run(true): 1 else: 0
+
+impl Apply[i32] for Item:
+    fn apply(self, run: fn(i32) -> i32) -> i32:
+        run(self.value)
+
+fn main() -> i32:
+    item := Item { value: 40 }
+    item.apply(fn(value):
+        local := value + 2
+        if local == 42: local else: 0
+    )
+
+tests:
+    it("the branch-scoped candidate runs"):
+        assert_equal(main(), 42, reason="the i32 candidate fits the closure")

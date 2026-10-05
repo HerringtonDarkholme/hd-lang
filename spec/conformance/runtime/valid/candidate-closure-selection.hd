@@ -1,0 +1,26 @@
+# test: a contextually typed closure selects the fitting candidate whatever the declaration order
+# Spec 09 Traits: trait.resolve.one-fit (exactly one fitting candidate is selected).
+use std.testing.assert_equal
+
+trait Apply[T]:
+    fn apply(self, run: fn(T) -> T) -> i32
+
+data Item:
+    value: i32
+
+impl Apply[i32] for Item:
+    fn apply(self, run: fn(i32) -> i32) -> i32:
+        run(self.value)
+
+impl Apply[bool] for Item:
+    fn apply(self, run: fn(bool) -> bool) -> i32:
+        if run(true): 1 else: 0
+
+fn main() -> i32:
+    item := Item { value: 40 }
+    offset := +2
+    item.apply(fn(value): value + offset)
+
+tests:
+    it("the closure candidate runs and captures once"):
+        assert_equal(main(), 42, reason="the i32 candidate fits the closure")

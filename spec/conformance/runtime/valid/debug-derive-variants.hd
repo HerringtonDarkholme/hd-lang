@@ -1,0 +1,23 @@
+# expect-stdout: Unit
+# expect-stdout: Empty
+# expect-stdout: Circle(3)
+# expect-stdout: Rect { width: 4, height: 5 }
+# expect-stdout: Mixed { _0: 6, label: "m" }
+# test: derived Debug picks a builder per data shape and variant
+# Spec 07 Data: @derive(Debug) implements Debug for each shape.
+@derive(Debug)
+data Unit: pass
+
+@derive(Debug)
+enum Shape:
+    Empty
+    Circle(i32)
+    Rect(width: i32, height: i32)
+    Mixed(i32, label: string)
+
+pub fn main() -> void $ Console:
+    println(debug(Unit {}))
+    println(debug(Shape.Empty))
+    println(debug(Shape.Circle(3)))
+    println(debug(Shape.Rect(width=4, height=5)))
+    println(debug(Shape.Mixed(6, label="m")))

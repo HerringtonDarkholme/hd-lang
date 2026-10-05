@@ -1,0 +1,21 @@
+# test: a trait default method instantiates the trait's type parameters
+# Spec 09 Traits: default methods run with the impl's substitutions.
+trait Source[T]:
+    fn next(mut self) -> T?
+    fn second(mut self) -> T?:
+        let first: T? = self.next()
+        self.next()
+
+data Counter:
+    n: i32
+
+impl Source[i32] for Counter:
+    fn next(mut self) -> i32?:
+        self.n = self.n + 1
+        .Some(self.n)
+
+fn main() -> i32:
+    let counter: mut Counter = Counter { n: 0 }
+    match counter.second():
+        .Some(value) => value
+        .None => 0

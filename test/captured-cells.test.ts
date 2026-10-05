@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { instantiate } from "../src/compiler.ts";
 import type { HirFunction, HirLocal } from "../src/hir.ts";
 import { shareCapturedLocals } from "../src/checker/captured-cells.ts";
 import { ZERO_SPAN } from "../src/checker/generated-source.ts";
@@ -155,56 +154,4 @@ test("typed rewriting reaches dictionary bounds and match tests while leaving me
       dictionaryStatement.expression.kind === "trait-dictionary",
   );
   assert.equal(dictionaryStatement.expression.dictionary.bounds[0]!.kind, "cell-get");
-});
-
-test("nested mutable captures share storage after an activation ends and across suspension", async () => {
-  const source = `fn child!(value: i32) -> i32: value
-
-fn make!() -> fn!() -> i32:
-    let count: i32 = 40
-    make_inner := fn() -> fn!() -> i32:
-        fn!() -> i32:
-            count = count + 1
-            child!(count)
-    next := make_inner()
-    count = count + 1
-    next
-
-fn main!() -> i32:
-    next := make!()
-    first := next!()
-    next!()
-`;
-  for (const pending of [undefined, (_index: number, poll: number) => poll === 1]) {
-    const { instance } = await instantiate(source, { pending });
-    assert.equal((instance.exports.main as CallableFunction)(), 43);
-  }
-});
-
-test("loop activations retain independent mutable cells while sibling closures share each cell", async () => {
-  const source = `fn child!(value: i32) -> i32: value
-
-fn main!() -> i32:
-    let readers: mut List[fn() -> i32] = []
-    let writers: mut List[fn!() -> i32] = []
-    for seed in [+10, 20]:
-        let count: i32 = seed
-        readers.push(fn() -> i32: count)
-        writers.push(fn!() -> i32:
-            count = count + 1
-            child!(count)
-        )
-    left := writers[0]
-    right := writers[1]
-    _ := left!()
-    _ := right!()
-    _ := left!()
-    read_left := readers[0]
-    read_right := readers[1]
-    read_left() + read_right()
-`;
-  for (const pending of [undefined, (_index: number, poll: number) => poll === 1]) {
-    const { instance } = await instantiate(source, { pending });
-    assert.equal((instance.exports.main as CallableFunction)(), 33);
-  }
 });

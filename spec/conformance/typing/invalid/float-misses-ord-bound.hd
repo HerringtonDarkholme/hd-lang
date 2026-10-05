@@ -1,0 +1,5 @@
+# test: a float argument does not satisfy an Ord bound
+# Spec 09 Traits: a candidate whose argument misses the bound is rejected.
+fn smallest[T < Ord](value: T) -> T: value
+
+fn main() -> f64: smallest(1.5)  # diagnostic: unsatisfied-trait-bound

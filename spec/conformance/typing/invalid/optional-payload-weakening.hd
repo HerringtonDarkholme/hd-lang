@@ -1,0 +1,7 @@
+# test: weakening an optional payload is a type mismatch
+# Spec 04 Optional Types: types.option.invariant (an optional is invariant in its contained type).
+data User:
+    name: i32
+
+fn view(value: (mut User)?) -> User?:
+    value  # diagnostic: type-mismatch

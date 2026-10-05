@@ -1,0 +1,23 @@
+# test: lazy result inference feeds candidate selection
+# Spec 09 Traits: trait.resolve.fits.expected (a candidate fits only if its result is assignable).
+use std.testing.assert_equal
+
+trait Pick[T]:
+    fn pick(self, value: T) -> i32
+
+data Item: pass
+
+impl Pick[bool] for Item:
+    fn pick(self, value: bool) -> i32: 0
+
+impl Pick[i32] for Item:
+    fn pick(self, value: i32) -> i32: value
+
+fn inferred(): +42
+
+fn main() -> i32:
+    Item {}.pick(inferred())
+
+tests:
+    it("the inferred call selects the i32 candidate"):
+        assert_equal(main(), 42, reason="inference resolves before selection")

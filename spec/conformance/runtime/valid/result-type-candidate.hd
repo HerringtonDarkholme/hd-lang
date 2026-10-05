@@ -1,0 +1,21 @@
+# test: candidate selection uses the expected result type
+# Spec 09 Traits: trait.resolve.fits.expected (a candidate fits only if its result is assignable).
+use std.testing.assert_equal
+
+trait Make[T]:
+    fn make() -> T
+
+data Item: pass
+
+impl Make[bool] for Item:
+    fn make() -> bool: false
+
+impl Make[i32] for Item:
+    fn make() -> i32: 42
+
+fn main() -> i32:
+    Item::make()
+
+tests:
+    it("the result-typed candidate runs"):
+        assert_equal(main(), 42, reason="only the i32 result fits")

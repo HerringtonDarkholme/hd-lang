@@ -1,0 +1,4 @@
+# test: a mutable generic tuple optional payload is an error
+# Spec 04 Tuples: types.tuple.no-mut (a tuple type has no mut form).
+fn invalid(value: Option[mut (i32,)]) -> void:  # diagnostic: mut-on-tuple
+    pass

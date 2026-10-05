@@ -1,0 +1,17 @@
+# test: a local unused by the winning candidate still warns
+# Spec 06 Control Flow: flow.unused.warning (an unread ordinary binding warns).
+trait Parse[T]:
+    fn parse(raw: T) -> i32
+
+data Item: pass
+
+impl Parse[i32] for Item:
+    fn parse(raw: i32) -> i32: raw
+
+impl Parse[string] for Item:
+    fn parse(raw: string) -> i32: 0
+
+pub fn main() -> void:
+    text := "7"
+    extra := +99  # warning: unused-local-binding
+    _ := Item::parse(text)

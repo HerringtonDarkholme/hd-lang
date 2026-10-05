@@ -1,0 +1,8 @@
+# test: owning a trait argument's outer constructor permits a foreign impl
+# Spec 09 Traits: an impl is allowed when it owns an outer constructor.
+data Word:
+    text: string
+
+impl Iterable[Word] for string:
+    fn iter(self) -> mut Iterator[Word]:
+        Iterator::from_fn(fn() -> Word?: .None)

@@ -1,0 +1,21 @@
+# test: two distinct traits do not become overloads through argument shapes
+# Spec 03 Names and Scopes: names.method-lookup.ambiguous (trait candidates of two or more traits are an error).
+trait Apply[T]:
+    fn apply(self, run: fn(T) -> T) -> i32
+
+data Item:
+    value: i32
+
+impl Apply[i32] for Item:
+    fn apply(self, run: fn(i32) -> i32) -> i32:
+        run(self.value)
+
+trait Other:
+    fn apply(self, run: fn(bool) -> bool) -> i32
+
+impl Other for Item:
+    fn apply(self, run: fn(bool) -> bool) -> i32: 0
+
+fn probe() -> i32:
+    item := Item { value: 40 }
+    item.apply(fn(value): value + 2)  # diagnostic: ambiguous-method

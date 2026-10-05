@@ -51,23 +51,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AM. Test Migration Batch 4
-
-Build the inventory yourself; the old triage is gone and its counts are
-stale. In `test/call-speculation`, `compiler-types`, `compiler`,
-`suspension`, `types`, `compiler-suspension`, `captured-cells` and `cli`
-(`.test.ts`), pick about 50 tests whose behavior a spec rule states and
-a portable fixture can express (a source program plus its expected
-diagnostics or output). Migrate those; leave the rest in place. Batches 1 to 3 (d082975f, 1d74c88c,
-494f29aa) show the conventions; `test/MIGRATED.md` is the ledger.
-
-- For this job you may add fixtures under `spec/conformance` and rows
-  to its `cases.tsv`, but don't edit spec rule text or existing fixtures.
-- A TS test whose behavior no spec rule states isn't migrated: write
-  "not migrated: <reason>" in `MIGRATED.md`.
-- Delete each TS test once its fixture passes in
-  `test/portable/cases.tsv`.
-
 ### AN. Owner Decisions 2026-10-05: `usize` Display, Ambiguous Import, Std Child Paths
 
 Spec and code. For this job you may edit `spec/` rule text, fixtures, and

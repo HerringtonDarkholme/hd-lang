@@ -387,6 +387,92 @@ later task deletes them.
 - test/inherent-implementation-bounds.test.ts :: a bounded standard inherent Map implementation keeps its key bounds -> not migrated: it marks a user implementation as `standard`, which user code cannot do (a user `impl Map[K, V]` is `orphan-impl`)
 - test/inherent-implementation-bounds.test.ts :: an unbounded standard inherent Map implementation still fails its key bound -> not migrated: same reason
 
+## Batch 4 rows (test/suspension.test.ts, test/captured-cells.test.ts)
+
+- test/suspension.test.ts :: cleanup cannot propagate out of an ordinary or suspending function -> typing/invalid/defer-propagate-query.hd, typing/invalid/defer-propagate-query-suspending.hd [deleted]
+- test/suspension.test.ts :: a closure declared in cleanup can propagate within its own function -> runtime/valid/defer-closure-propagation.hd [deleted]
+- test/captured-cells.test.ts :: nested mutable captures share storage after an activation ends and across suspension -> runtime/valid/nested-mutable-captures.hd (the custom pending-poll half stays; a fixture cannot name that schedule) [deleted]
+- test/captured-cells.test.ts :: loop activations retain independent mutable cells while sibling closures share each cell -> runtime/valid/loop-iteration-cells.hd (same; complements runtime/valid/loop-iteration-binding-capture.hd) [deleted]
+- test/captured-cells.test.ts :: shared capture lookup uses explicit closure index rather than array position -> not migrated: asserts unit-only HIR cell rewriting
+- test/captured-cells.test.ts :: cell conversion is idempotent and keeps distinct activations' local identities separate -> not migrated: asserts unit-only HIR cell rewriting
+- test/captured-cells.test.ts :: typed rewriting reaches dictionary bounds and match tests while leaving metadata intact -> not migrated: asserts unit-only HIR cell rewriting
+
+## Batch 4 rows (test/call-speculation.test.ts)
+
+- test/call-speculation.test.ts :: contextually typed closure selects one candidate and commits once (both orders) -> runtime/valid/candidate-closure-selection.hd, runtime/valid/candidate-closure-selection-reversed.hd [deleted]
+- test/call-speculation.test.ts :: nested binding and branch scopes stay isolated while selecting a candidate (both orders) -> runtime/valid/candidate-scope-isolation.hd, runtime/valid/candidate-scope-isolation-reversed.hd [deleted]
+- test/call-speculation.test.ts :: complex argument shapes do not turn two distinct traits into overloads -> typing/invalid/distinct-traits-not-overloads.hd [deleted]
+- test/call-speculation.test.ts :: associated calls check closures and named arguments per candidate -> runtime/valid/associated-closure-named-args.hd [deleted]
+- test/call-speculation.test.ts :: a suspending argument is checked per candidate without ambiguity -> runtime/valid/suspending-argument-candidate.hd (direct-drive half; the custom pending schedule stays) [deleted]
+- test/call-speculation.test.ts :: provider scopes and captures from a failed trial do not leak -> runtime/valid/failed-trial-no-leak.hd [deleted]
+- test/call-speculation.test.ts :: generic method substitutions stay local to the winning candidate -> runtime/valid/generic-method-candidate-local.hd [deleted]
+- test/call-speculation.test.ts :: explicit method type arguments select the candidate per trial (both forms) -> runtime/valid/explicit-type-args-method.hd, runtime/valid/explicit-type-args-associated.hd [deleted]
+- test/call-speculation.test.ts :: associated tuple spread arguments select the fitting candidate -> runtime/valid/tuple-spread-candidate.hd [deleted]
+- test/call-speculation.test.ts :: candidate selection includes the result type -> runtime/valid/result-type-candidate.hd [deleted]
+- test/call-speculation.test.ts :: numeric candidates use the ordinary literal-default tie break, and a bare literal fits none -> runtime/valid/numeric-candidate-tie-break.hd, typing/invalid/numeric-candidate-no-fit.hd [deleted]
+- test/call-speculation.test.ts :: failed fits report every available instantiation -> typing/invalid/no-fit-candidate.hd (codes only; the message text is not portable) [deleted]
+- test/call-speculation.test.ts :: an unused local still warns after rejected trials rewind -> typing/warnings/unused-after-rejected-trials.hd [deleted]
+- test/call-speculation.test.ts :: lazy result inference feeds candidate selection -> runtime/valid/lazy-result-candidate.hd [deleted]
+- test/call-speculation.test.ts :: the remaining eight tests (registry traversal, journal unwind, aliases, savepoints, Map order, graph reachability, nested trials, cyclic graphs) -> not migrated: assert checker-internal speculation journals and snapshots
+
+## Batch 4 rows (test/cli.test.ts)
+
+- test/cli.test.ts :: all 16 tests (argv/exit status, CLI commands end to end, unknown commands, hd test verdicts, Termination judging, Console routing, assert_equal rendering, snapshots, timeouts, shrinking, properties) -> not migrated: drive the hd executable and its hosted test runner; the portable suite has no CLI tier (cli: 0 of 0 selected)
+
+## Batch 4 rows (test/compiler-suspension.test.ts)
+
+- test/compiler-suspension.test.ts :: a module may declare its own all! without importing std.task.all -> typing/valid/user-defined-all.hd [deleted]
+- test/compiler-suspension.test.ts :: all!/race! poll order, cancellation, and trace sequences -> not migrated: assert trace event orders and manual __hd_poll/__hd_cancel driving
+- test/compiler-suspension.test.ts :: race! with an empty list literal / over a list empty at run time -> not migrated: the fixtures are KNOWN_FAILURES rows (tag RACE-EMPTY); the TS tests pin the current behavior
+- test/compiler-suspension.test.ts :: host record/replay, encoding, validation, console routing -> not migrated: assert the host bridge, not language behavior
+- test/compiler-suspension.test.ts :: the CONF-behavior tests (frames, dictionaries, child pending, cancellation unwinding, CFG lowering, block_on, module bindings) -> behavior already covered by their conformance fixtures; the frame/trace assertions stay [kept]
+
+## Batch 4 rows (test/compiler.test.ts)
+
+- test/compiler.test.ts :: shared enum data is a per-variant constant computed once -> runtime/valid/shared-enum-data-computed-once.hd [deleted]
+- test/compiler.test.ts :: a function result that is a function type with a row keeps that row -> runtime/valid/closure-result-keeps-requirement-row.hd [deleted]
+- test/compiler.test.ts :: a trait default method instantiates the trait's type parameters -> runtime/valid/trait-default-method-instantiates-params.hd [deleted]
+- test/compiler.test.ts :: cannot-infer-type message text -> not migrated: asserts exact diagnostic messages; the codes are already covered by typing/invalid/cannot-infer-type.hd and its siblings
+- test/compiler.test.ts :: optional and Result context errors have stable diagnostics -> not migrated: asserts codes on existing fixtures; the TS test stays as the message/code pin
+- test/compiler.test.ts :: the CONF-behavior tests (power, varargs, defaults, named args, enums, strings, defer, panic, patterns, closures, function types) -> behavior already covered by their conformance fixtures; the WAT/HIR/trace assertions stay [kept]
+- test/compiler.test.ts :: checker HIR shape, Wasm GC smoke, panic-tag consistency, panic-detail import flag -> not migrated: assert compiler internals
+
+## Batch 4 rows (test/compiler-types.test.ts)
+
+- test/compiler-types.test.ts :: owning a trait argument's outer constructor permits a foreign trait impl (TQ-2) -> typing/valid/outer-constructor-permits-impl.hd plus the existing typing/invalid/orphan-impl-nested-trait-argument.hd [deleted]
+- test/compiler-types.test.ts :: built-in comparison dictionaries carry their supertrait dictionaries (EQ-1) -> runtime/valid/ord-supertrait-dispatch.hd and typing/invalid/float-misses-ord-bound.hd; the HIR supertrait assertions stay [kept]
+- test/compiler-types.test.ts :: a type parameter calls an associated function through its bound (TQ-9) -> not migrated: asserts HIR trait-call/dictionary shape; behavior already covered by runtime/valid/associated-function-calls.hd
+- test/compiler-types.test.ts :: a generic inherent implementation lowers to a generic function (TQ-19) -> runtime/valid/generic-inherent-box.hd; the HIR genericParameters assertion stays [kept]
+- test/compiler-types.test.ts :: a marker implementation's bounds are proven (TQ-20) -> typing/invalid/marker-bound-unproven.hd [deleted]
+- test/compiler-types.test.ts :: i64 literals, explicit widening, checked arithmetic, and narrowing (F-253) -> runtime/valid/i64-widening-checked.hd and typing/invalid/implicit-narrowing-i64.hd; the fix-it edit assertions stay [kept]
+- test/compiler-types.test.ts :: println drives write_line! on a program-defined Console (MHP-1) -> runtime/valid/buffered-println-program-console.hd [deleted]
+- test/compiler-types.test.ts :: println drives a write_line! pending on a host operation until it finishes (MHP-1) -> not migrated: needs a custom hostSuspensionPending schedule
+- test/compiler-types.test.ts :: Debug is checked, and derived builders render debug text (T33, T53) -> runtime/valid/debug-derive-data.hd and typing/invalid/debug-missing-derive.hd [deleted]
+- test/compiler-types.test.ts :: @derive(Debug) picks Rust's builder per data type and variant (T54) -> runtime/valid/debug-derive-variants.hd [deleted]
+- test/compiler-types.test.ts :: u8 checked arithmetic and ExitCode entry results (T8) -> runtime/valid/u8-checked-add.hd and runtime/panic/u8-add-overflow.hd; the ExitCode entry halves stay [kept]
+- test/compiler-types.test.ts :: the other 37 tests (reify, erasure, provider packs, row forwarding, dictionaries, GC layouts, HIR permissions) -> not migrated: assert Wasm/HIR lowering shapes
+
+## Batch 4 rows (test/types.test.ts)
+
+- test/types.test.ts :: optional invariance rejects weakening the payload but accepts weakening the outer view -> typing/invalid/optional-payload-weakening.hd, typing/invalid/optional-generic-payload-weakening.hd, typing/invalid/optional-payload-mutable-outer.hd, typing/valid/optional-outer-weakening.hd [deleted]
+- test/types.test.ts :: mutation through generic aliases, nested optionals, propagation and matches survives Wasm erasure -> runtime/valid/optional-alias-mutation.hd [deleted]
+- test/types.test.ts :: optional functions and tuples retain mutable optional arguments in emitted closure signatures -> runtime/valid/optional-closure-arguments.hd [deleted]
+- test/types.test.ts :: mut User? supplies mutable payload access through inferred let mut and matching -> runtime/valid/optional-mutable-match.hd [deleted]
+- test/types.test.ts :: mutable optional payload annotations grant only their declared payload access -> typing/warnings/let-mut-optional-payload.hd, typing/invalid/optional-readonly-payload-store.hd [deleted]
+- test/types.test.ts :: mutable primitive and tuple payloads reject while mutable optional constructors remain valid -> typing/invalid/mut-on-primitive-optional.hd, typing/invalid/mut-on-primitive-generic-optional.hd, typing/invalid/mut-on-tuple-optional.hd, typing/invalid/mut-on-tuple-generic-optional.hd, typing/valid/mut-outer-views-valid.hd [deleted]
+- test/types.test.ts :: inference advice preserves optional permission boundaries in source annotations -> not migrated: asserts internal canonical type strings through unit-only helpers
+- test/types.test.ts :: optional payload permission and optional outer permission have distinct canonical types -> not migrated: asserts internal canonical type strings
+- test/types.test.ts :: nesting preserves the scope of each mut prefix and optional constructor -> not migrated: asserts internal canonical type strings
+- test/types.test.ts :: function optionality remains distinct from result optionality -> not migrated: asserts internal canonical type strings
+- test/types.test.ts :: type substitution and generic matching preserve permission constructor boundaries -> not migrated: asserts unit-only substitution helpers
+- test/types.test.ts :: deep permission erasure rebuilds canonical option and function types -> not migrated: asserts a unit-only erasure helper
+- test/types.test.ts :: display rendering hides compiler-internal names but keeps user spellings -> not migrated: asserts the unit-only display renderer
+- test/types.test.ts :: source type rendering round-trips mutable constructors rather than changing prefix scope -> not migrated: asserts internal canonical type strings
+- test/types.test.ts :: optional type identity includes payload mut and not outer mut -> not migrated: asserts the unit-only inspect key splitter
+- test/types.test.ts :: the REPL renders invariant optional mutable payloads without erasing their generic permissions -> not migrated: REPL session behavior, no portable fixture form
+- test/types.test.ts :: the REPL preserves mutable outer optionals nested inside another optional -> not migrated: REPL session behavior, no portable fixture form
+- test/types.test.ts :: typed build uses the shared optional constructor for declared mutable members -> not migrated: asserts another fixture file passes, not language behavior
+
 ## Owner Questions
 
 Q1 to Q8 are answered (owner, 2026-10-04); each answer is in the spec,

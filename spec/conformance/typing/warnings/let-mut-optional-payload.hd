@@ -1,0 +1,12 @@
+# test: let mut with a mutable optional payload annotation warns as redundant
+# Spec 04 Binding Forms: types.bind.let-mut-annotated.warning (a redundant mut gets a warning).
+data User:
+    name: i32
+
+fn find() -> mut User?: .Some(User { name: 40 })
+
+fn mutate() -> void:
+    let mut found: mut User? = find()  # warning: redundant-let-mut
+    match found:
+        .Some(value) => value.name = 42
+        .None => pass

@@ -1,0 +1,7 @@
+# test: weakening only the outer optional view is accepted
+# Spec 04 Optional Types: types.option.invariant (invariance is in the contained type, not the outer view).
+data User:
+    name: i32
+
+fn view(value: mut Option[User]) -> User?:
+    value

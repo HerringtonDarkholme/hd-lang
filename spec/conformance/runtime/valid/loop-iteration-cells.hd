@@ -1,0 +1,24 @@
+# test: loop iterations keep independent cells while sibling closures share each cell
+# Spec 03 Names and Scopes: names.loop.per-iteration (an escaping closure captures its own iteration's binding).
+use std.testing.assert_equal
+
+fn child!(value: i32) -> i32: value
+
+pub fn main!() -> void:
+    let readers: mut List[fn() -> i32] = []
+    let writers: mut List[fn!() -> i32] = []
+    for seed in [+10, 20]:
+        let count: i32 = seed
+        readers.push(fn() -> i32: count)
+        writers.push(fn!() -> i32:
+            count = count + 1
+            child!(count)
+        )
+    left := writers[0]
+    right := writers[1]
+    assert_equal(left!(), 11, reason="the first cell starts at its own seed")
+    assert_equal(right!(), 21, reason="the second cell starts at its own seed")
+    assert_equal(left!(), 12, reason="writes stay in their own cell")
+    read_left := readers[0]
+    read_right := readers[1]
+    assert_equal(read_left() + read_right(), 33, reason="sibling readers share each cell")
