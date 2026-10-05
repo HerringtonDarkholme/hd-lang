@@ -754,6 +754,7 @@ export abstract class CallChecker extends StatementChecker {
             }
           : { kind: "local", local, type: local.type, span },
       );
+      this.readLocals.add(local);
       return placeholder;
     });
     const restSpread = actualTuple!.rest !== undefined;

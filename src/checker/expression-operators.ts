@@ -211,6 +211,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               `binding '${local.name}' may not have been initialized on this path`,
               expression.span,
             );
+          this.readLocals.add(local);
           return { kind: "local", local, type: local.type, span: expression.span };
         }
         const source = this.availableCaptures.get(expression.name);

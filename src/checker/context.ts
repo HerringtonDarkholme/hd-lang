@@ -87,22 +87,6 @@ export type {
 
 export class CheckFailure extends Error {}
 
-/** Adds each local that the HIR `value` reads to `into`. */
-function collectReadLocals(value: unknown, into: Set<HirLocal>): void {
-  if (Array.isArray(value)) {
-    for (const item of value) collectReadLocals(item, into);
-    return;
-  }
-  if (!value || typeof value !== "object") return;
-  const node = value as Record<string, unknown>;
-  if (node.kind === "local" && node.local !== null && typeof node.local === "object") {
-    into.add(node.local as HirLocal);
-  }
-  for (const [key, child] of Object.entries(node)) {
-    if (key !== "span" && key !== "local" && key !== "bindings") collectReadLocals(child, into);
-  }
-}
-
 export { PRELUDE_NAMES };
 
 export { isPermissionWeakening, weakenBoundedGenericActual };
@@ -178,6 +162,13 @@ export abstract class CheckerContext {
   protected readonly diagnostics: Diagnostic[] = [];
   protected readonly scopes: Map<string, HirLocal>[] = [new Map()];
   protected readonly locals: HirLocal[] = [];
+  /**
+   * Every local a checked `kind: "local"` node reads, collected while
+   * checking instead of walked afterward. Each construction site of an
+   * inserted local node records its local here; speculative trials roll
+   * the set back with the rest of the checker state.
+   */
+  protected readonly readLocals = new Set<HirLocal>();
   protected readonly loopResults: Array<ValueType | undefined> = [];
   protected readonly unavailableBindingLocals = new Set<number>();
   protected readonly allowedConditionalBindingLocals = new Set<number>();
@@ -353,10 +344,8 @@ export abstract class CheckerContext {
         );
         if (failure) this.fail("unsatisfied-trait-bound", failure.message, failure.span);
       }
-      const readLocals = new Set<HirLocal>();
-      collectReadLocals(body, readLocals);
       for (const local of this.locals) {
-        if (local.parameter || local.name.startsWith("$") || readLocals.has(local)) continue;
+        if (local.parameter || local.name.startsWith("$") || this.readLocals.has(local)) continue;
         this.diagnostics.push({
           code: "unused-local-binding",
           message: `local binding '${local.name}' is never read`,
@@ -1324,6 +1313,7 @@ export abstract class CheckerContext {
   }
 
   protected referenceLocal(local: HirLocal, span: SourceSpan): HirExpression {
+    this.readLocals.add(local);
     if (this.locals.includes(local)) return { kind: "local", local, type: local.type, span };
     if (this.insideClosure && isCaptureSource(this.availableCaptures, local))
       return this.captureReference(local.name, local, span);
@@ -1354,8 +1344,10 @@ export abstract class CheckerContext {
   }
 
   protected captureValue(source: HirLocal, span: SourceSpan): HirExpression {
-    if (this.locals.includes(source))
+    if (this.locals.includes(source)) {
+      this.readLocals.add(source);
       return { kind: "local", local: source, type: source.type, span };
+    }
     if (this.insideClosure && this.availableCaptures.get(source.name) === source) {
       let capture = this.captures.get(source.name);
       if (!capture) {

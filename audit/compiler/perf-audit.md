@@ -92,22 +92,6 @@ the impl-overlap fixtures and the portable typing suite. Note: fully caching
 prepared implementations would overlap the deferred std cache (section 4)
 and is not proposed here.
 
-### F7. `collectReadLocals` walks each function body after checking
-
-File and line: `src/checker/context.ts:89-102` (generic
-`Object.entries(node)` recursion), called once per checked function body at
-`:349` for the `unused-local-binding` warning.
-Workload: tiny profile, two nodes self 8.8 + 7.5 ms over 498 HIR functions
-(one walk per body, so the count per compile equals the HIR function count:
-498 for tiny, 883 for calc).
-Growth: linear in total HIR size (dominated by the ~495 std functions on
-small programs).
-Proposed fix: record read locals during checking (mark on bind) instead of
-re-walking each finished body. The warning output is unchanged.
-Expected gain: ~1% on small compiles, growing linearly with program size.
-Correctness risk: low; warning-only. Covered by `unused-local-binding`
-fixtures.
-
 ### F10. WAT is parsed twice after being generated
 
 File and line: `src/emitter/emitter.ts:877` (`emitWat` ends with

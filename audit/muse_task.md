@@ -51,18 +51,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AG. Perf F7 And F10
-
-From `audit/compiler/perf-audit.md`:
-
-- **F7:** `collectReadLocals` walks each function body after checking.
-  Collect the read locals while checking instead.
-- **F10:** the WAT is parsed twice after it is generated. Parse it once.
-
-Report the tiny-program compile time before and after (median of 5) and
-`pnpm run perf:check`. Delete F7 and F10 from `perf-audit.md` when they
-are fixed.
-
 ### AI. Read-Only: What The CLI Promises But Doesn't Do
 
 The owner found `hd doc` and `hd new --pages` unusable (2026-10-05). Find
