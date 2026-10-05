@@ -245,17 +245,8 @@ export type HirBuiltinTraitImplementation =
       readonly outerMut?: true;
     };
 
-export interface HirPatternPathStep {
-  readonly dataIndex: number;
-  readonly fieldIndex: number;
-}
-
 export interface HirMatchTest {
-  readonly path?: readonly HirPatternPathStep[];
-  readonly enumFieldIndex?: number;
-  readonly erasedFieldType?: ValueType;
-  readonly valueType?: ValueType;
-  readonly accessPath?: readonly HirPatternAccessStep[];
+  readonly accessPath: readonly HirPatternAccessStep[];
   readonly tag?: number;
   readonly tagEnumIndex?: number;
   readonly literal?: HirExpression;
@@ -266,10 +257,7 @@ export interface HirMatchBinding {
   readonly fieldIndex: number;
   readonly type: ValueType;
   readonly erasedFieldType?: ValueType;
-  readonly path?: readonly HirPatternPathStep[];
-  readonly enumFieldIndex?: number;
-  readonly enumFieldType?: ValueType;
-  readonly enumErasedFieldType?: ValueType;
+  /** The value a nested pattern binds, read from the subject step by step. */
   readonly accessPath?: readonly HirPatternAccessStep[];
 }
 

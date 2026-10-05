@@ -1,0 +1,17 @@
+# expect-stdout: two 1
+# expect-stdout: 2.5 true
+# test: a let data pattern in a generic function binds fields typed by its type parameters
+# Spec 06 Control Flow: a generic field declared `field: P` binds as substituted `P`.
+data Pair[A, B]:
+    first: A
+    second: B
+
+fn swap[A, B](pair: Pair[A, B]) -> Pair[B, A]:
+    let Pair { first, second } = pair
+    Pair { first: second, second: first }
+
+pub fn main() -> void $ Console:
+    swapped := swap(Pair { first: +1, second: "two" })
+    println("${swapped.first} ${swapped.second}")
+    let Pair { first: number, second: flag } = swap(Pair { first: true, second: 2.5 })
+    println("${number} ${flag}")

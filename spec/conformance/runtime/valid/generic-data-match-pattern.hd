@@ -1,0 +1,16 @@
+# expect-stdout: origin
+# expect-stdout: x=3 y=4.5
+# test: match arms with data patterns test and bind generic fields
+# Spec 06 Control Flow: a generic field declared `field: P` binds as substituted `P`.
+data Pair[A, B]:
+    first: A
+    second: B
+
+fn describe(point: Pair[i64, f64]) -> string:
+    match point:
+        Pair { first: 0, second: _ } => "origin"
+        Pair { first: x, second: y } => "x=${x} y=${y}"
+
+pub fn main() -> void $ Console:
+    println(describe(Pair { first: 0, second: 1.0 }))
+    println(describe(Pair { first: 3, second: 4.5 }))

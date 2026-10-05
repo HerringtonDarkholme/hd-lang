@@ -117,7 +117,7 @@ test("typed rewriting reaches dictionary bounds and match tests while leaving me
             {
               span: ZERO_SPAN,
               bindings: [],
-              tests: [{ literal: read }],
+              tests: [{ accessPath: [], literal: read }],
               body: [
                 {
                   kind: "expression",

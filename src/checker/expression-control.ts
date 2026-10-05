@@ -29,7 +29,7 @@ import { PRELUDE_NAMES } from "./context.ts";
 import {
   type BindingExpressionFlow,
   bindingExpressionFlow,
-  containsGenericType,
+  erasedFieldType,
   iterableInfo,
   orderedTypeSubstitutions,
   substituteGenericType,
@@ -87,7 +87,7 @@ function enumPatternAccess(
     kind: "enum",
     typeIndex: declaration.index,
     fieldIndex: field.index,
-    erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+    erasedFieldType: erasedFieldType(field.type),
     erasedTypeSubstitutions: orderedTypeSubstitutions(declaration.genericParameters, substitutions),
     valueType,
   };
@@ -452,7 +452,11 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const declaration = this.enumTypes.get(subjectNominal?.name ?? subject.type);
     // A `mut` data subject matches as its data type; its fields keep their
     // own access (06-control-flow.md#r-flow.match.data.readonly-mut).
-    const dataDeclaration = this.dataTypes.get(readonlyType(subject.type));
+    // A generic instantiation matches as its declaration, as enums do above.
+    const readonlySubject = readonlyType(subject.type);
+    const dataDeclaration = this.dataTypes.get(
+      nominalGenericParts(readonlySubject)?.name ?? readonlySubject,
+    );
     const optional = optionalInner(subject.type);
     const result = resultParts(subject.type);
     const tuple = tupleElements(subject.type) !== undefined;
@@ -685,6 +689,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         const irrefutable = this.checkDataPattern(
           arm.pattern,
           context.dataDeclaration,
+          context.subject.type,
           [],
           bindings,
           tests,

@@ -1,0 +1,21 @@
+# expect-stdout: 7 start
+# expect-stdout: 3 ids
+# test: a data pattern reads a generic field whose type is itself generic data or a list
+# Spec 06 Control Flow: a generic field declared `field: P` binds as substituted `P`.
+data Pair[A, B]:
+    first: A
+    second: B
+
+data Line[T]:
+    start: Pair[T, string]
+
+data Batch[T]:
+    items: T
+    label: string
+
+pub fn main() -> void $ Console:
+    let Line { start: Pair { first: at, second: name } } = Line { start: Pair { first: +7, second: "start" } }
+    println("${at} ${name}")
+    let ids: List[usize] = [4, 5, 6]
+    let Batch { items, label } = Batch { items: ids, label: "ids" }
+    println("${items.len()} ${label}")

@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,581 cases: 2,552 selected in `test/portable/cases.tsv` and 29 known
-failures. The selected cases are 2,200 language tier, 301 stdlib tier, and 51
-CLI tier; the known failures are 18 language tier, 1 stdlib tier, and 10
+2,585 cases: 2,557 selected in `test/portable/cases.tsv` and 28 known
+failures. The selected cases are 2,205 language tier, 301 stdlib tier, and 51
+CLI tier; the known failures are 17 language tier, 1 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -23,7 +23,6 @@ CLI tier.
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
-| MVP-PATTERN | 1 | a `let` data pattern on a generic data value is `unsupported-match-subject` |
 
 ## Findings
 

@@ -692,32 +692,21 @@ class FunctionEmitter extends FunctionBodyEmitter {
     return bindings.map((binding) => {
       const value = binding.accessPath
         ? this.emitPatternAccess(source, binding.accessPath)
-        : binding.enumFieldIndex !== undefined
-          ? this.emitEnumPayloadAccess(
-              source,
-              enumIndex,
-              binding.enumFieldIndex,
-              binding.enumErasedFieldType,
-              binding.enumFieldType!,
-              binding.path ?? [],
-            )
-          : binding.path
-            ? this.emitDataPatternAccess(source, binding.path)
-            : binding.fieldIndex === -1
-              ? `(local.get ${source})`
-              : representation === "enum"
-                ? binding.erasedFieldType && isGenericValueType(binding.erasedFieldType)
-                  ? this.unboxValue(
-                      `(struct.get $e${enumIndex} $e${enumIndex}f${binding.fieldIndex} (local.get ${source}))`,
-                      binding.type,
-                    )
-                  : `(struct.get $e${enumIndex} $e${enumIndex}f${binding.fieldIndex} (local.get ${source}))`
-                : representation === "erased-variant"
-                  ? this.unboxValue(
-                      `(struct.get $hd.variant $hd.variant-payload (local.get ${source}))`,
-                      binding.type,
-                    )
-                  : `(local.get ${source})`;
+        : binding.fieldIndex === -1
+          ? `(local.get ${source})`
+          : representation === "enum"
+            ? binding.erasedFieldType && isGenericValueType(binding.erasedFieldType)
+              ? this.unboxValue(
+                  `(struct.get $e${enumIndex} $e${enumIndex}f${binding.fieldIndex} (local.get ${source}))`,
+                  binding.type,
+                )
+              : `(struct.get $e${enumIndex} $e${enumIndex}f${binding.fieldIndex} (local.get ${source}))`
+            : representation === "erased-variant"
+              ? this.unboxValue(
+                  `(struct.get $hd.variant $hd.variant-payload (local.get ${source}))`,
+                  binding.type,
+                )
+              : `(local.get ${source})`;
       return `(local.set ${localName(binding.local.index)} ${value})`;
     });
   }
@@ -744,7 +733,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       condition = `(i32.eq ${actual} (i32.const ${arm.tag}))`;
     }
     for (const test of arm.tests ?? []) {
-      const actual = this.emitMatchTestAccess(source, enumIndex, test);
+      const actual = this.emitMatchTestAccess(source, test);
       const expected =
         test.tag !== undefined ? `(i32.const ${test.tag})` : this.emitExpression(test.literal!);
       const next =

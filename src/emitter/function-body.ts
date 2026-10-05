@@ -6,7 +6,6 @@ import type {
   HirFunction,
   HirLocal,
   HirMatchArm,
-  HirPatternPathStep,
   HirProviderContextEntry,
   HirStatement,
   HirTraitDictionaryPlan,
@@ -1322,32 +1321,21 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
     const bindings = arm.bindings.map((binding) => {
       const value = binding.accessPath
         ? this.emitPatternAccess(subject, binding.accessPath)
-        : binding.enumFieldIndex !== undefined
-          ? this.emitEnumPayloadAccess(
-              subject,
-              enumIndex,
-              binding.enumFieldIndex,
-              binding.enumErasedFieldType,
-              binding.enumFieldType!,
-              binding.path ?? [],
-            )
-          : binding.path
-            ? this.emitDataPatternAccess(subject, binding.path)
-            : binding.fieldIndex === -1
-              ? `(local.get ${subject})`
-              : representation === "enum"
-                ? binding.erasedFieldType && isGenericValueType(binding.erasedFieldType)
-                  ? this.unboxValue(
-                      `(struct.get $e${enumIndex} $e${enumIndex}f${binding.fieldIndex} (local.get ${subject}))`,
-                      binding.type,
-                    )
-                  : `(struct.get $e${enumIndex} $e${enumIndex}f${binding.fieldIndex} (local.get ${subject}))`
-                : representation === "erased-variant"
-                  ? this.unboxValue(
-                      `(struct.get $hd.variant $hd.variant-payload (local.get ${subject}))`,
-                      binding.type,
-                    )
-                  : `(local.get ${subject})`;
+        : binding.fieldIndex === -1
+          ? `(local.get ${subject})`
+          : representation === "enum"
+            ? binding.erasedFieldType && isGenericValueType(binding.erasedFieldType)
+              ? this.unboxValue(
+                  `(struct.get $e${enumIndex} $e${enumIndex}f${binding.fieldIndex} (local.get ${subject}))`,
+                  binding.type,
+                )
+              : `(struct.get $e${enumIndex} $e${enumIndex}f${binding.fieldIndex} (local.get ${subject}))`
+            : representation === "erased-variant"
+              ? this.unboxValue(
+                  `(struct.get $hd.variant $hd.variant-payload (local.get ${subject}))`,
+                  binding.type,
+                )
+              : `(local.get ${subject})`;
       return `(local.set ${localName(binding.local.index)} ${value})`;
     });
     const body = this.emitBlock(arm.body, resultType);
@@ -1386,7 +1374,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       condition = `(i32.eq ${actual} (i32.const ${arm.tag}))`;
     }
     for (const test of arm.tests ?? []) {
-      const actual = this.emitMatchTestAccess(subject, enumIndex, test);
+      const actual = this.emitMatchTestAccess(subject, test);
       const expected =
         test.tag !== undefined ? `(i32.const ${test.tag})` : this.emitExpression(test.literal!);
       const testCondition =
@@ -1414,55 +1402,13 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
     ].join("\n");
   }
 
+  /** The value a match test compares: a tag read for a variant test, else the field itself. */
   protected emitMatchTestAccess(
     subject: string,
-    enumIndex: number | undefined,
     test: NonNullable<HirMatchArm["tests"]>[number],
   ): string {
-    if (test.accessPath) {
-      const value = this.emitPatternAccess(subject, test.accessPath);
-      return test.tag === undefined ? value : matchTestTag(test.tagEnumIndex!, value);
-    }
-    if (test.enumFieldIndex !== undefined) {
-      return this.emitEnumPayloadAccess(
-        subject,
-        enumIndex,
-        test.enumFieldIndex,
-        test.erasedFieldType,
-        test.valueType!,
-        test.path ?? [],
-      );
-    }
-    return this.emitDataPatternAccess(subject, test.path!);
-  }
-
-  protected emitEnumPayloadAccess(
-    subject: string,
-    enumIndex: number | undefined,
-    fieldIndex: number,
-    erasedFieldType: ValueType | undefined,
-    valueType: ValueType,
-    path: readonly HirPatternPathStep[],
-  ): string {
-    if (enumIndex === undefined) throw new Error("enum payload access has no enum type");
-    const raw = `(struct.get $e${enumIndex} $e${enumIndex}f${fieldIndex} (local.get ${subject}))`;
-    const root =
-      erasedFieldType && isGenericValueType(erasedFieldType)
-        ? this.unboxValue(raw, valueType)
-        : raw;
-    return path.reduce(
-      (value, step) =>
-        `(struct.get $d${step.dataIndex} $d${step.dataIndex}f${step.fieldIndex} ${value})`,
-      root,
-    );
-  }
-
-  protected emitDataPatternAccess(subject: string, path: readonly HirPatternPathStep[]): string {
-    return path.reduce(
-      (value, step) =>
-        `(struct.get $d${step.dataIndex} $d${step.dataIndex}f${step.fieldIndex} ${value})`,
-      `(local.get ${subject})`,
-    );
+    const value = this.emitPatternAccess(subject, test.accessPath);
+    return test.tag === undefined ? value : matchTestTag(test.tagEnumIndex!, value);
   }
 
   protected emitFrameCleanups(frame: CleanupFrame): string[] {

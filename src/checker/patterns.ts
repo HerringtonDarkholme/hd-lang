@@ -9,7 +9,6 @@ import type {
   HirMatchBinding,
   HirMatchTest,
   HirPatternAccessStep,
-  HirPatternPathStep,
   ValueType,
 } from "../hir.ts";
 import {
@@ -33,6 +32,7 @@ import { PRELUDE_NAMES, TEST_CASE_FUNCTIONS } from "./context.ts";
 import { standardSubmoduleFunctionIdentity } from "./standard-library.ts";
 import {
   containsGenericType,
+  erasedFieldType,
   genericTypeName,
   inferGenericType,
   orderedTypeSubstitutions,
@@ -567,7 +567,7 @@ export abstract class PatternChecker extends CallChecker {
             kind: "data",
             typeIndex: declaration.index,
             fieldIndex: field.index,
-            erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+            erasedFieldType: erasedFieldType(field.type),
             erasedTypeSubstitutions: orderedTypeSubstitutions(
               declaration.genericParameters,
               substitutions,
@@ -677,7 +677,7 @@ export abstract class PatternChecker extends CallChecker {
             kind: "enum",
             typeIndex: declaration.index,
             fieldIndex: field.index,
-            erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+            erasedFieldType: erasedFieldType(field.type),
             erasedTypeSubstitutions: orderedTypeSubstitutions(
               declaration.genericParameters,
               substitutions,
@@ -737,10 +737,17 @@ export abstract class PatternChecker extends CallChecker {
     return irrefutable;
   }
 
+  /**
+   * A data pattern on a value of `type`: a data declaration, or a generic
+   * instantiation of one whose type arguments substitute into the field
+   * types. Each field step keeps the field's declared type, so a generic
+   * field is read through the same conversion as a member access.
+   */
   protected checkDataPattern(
     pattern: Extract<Pattern, { kind: "data" }>,
     declaration: HirData,
-    path: readonly HirPatternPathStep[],
+    type: ValueType,
+    accessPath: readonly HirPatternAccessStep[],
     bindings: HirMatchBinding[],
     tests: HirMatchTest[],
   ): boolean {
@@ -751,6 +758,12 @@ export abstract class PatternChecker extends CallChecker {
         pattern.span,
       );
     }
+    const typeArguments = nominalGenericParts(readonlyType(type))?.arguments ?? [];
+    const substitutions = new Map<string, ValueType>();
+    declaration.genericParameters.forEach((parameter, index) => {
+      const argument = typeArguments[index];
+      if (argument !== undefined) substitutions.set(parameter, argument);
+    });
     const seen = new Set<string>();
     let irrefutable = true;
     for (const entry of pattern.fields) {
@@ -768,34 +781,51 @@ export abstract class PatternChecker extends CallChecker {
           `type '${declaration.name}' has no field '${entry.name}'`,
           entry.span,
         );
-      const fieldPath = [...path, { dataIndex: declaration.index, fieldIndex: field.index }];
+      const fieldType = substituteGenericType(field.type, substitutions);
+      const fieldPath: HirPatternAccessStep[] = [
+        ...accessPath,
+        {
+          kind: "data",
+          typeIndex: declaration.index,
+          fieldIndex: field.index,
+          erasedFieldType: erasedFieldType(field.type),
+          erasedTypeSubstitutions: orderedTypeSubstitutions(
+            declaration.genericParameters,
+            substitutions,
+          ),
+          valueType: fieldType,
+        },
+      ];
       const nested = entry.pattern;
       if (nested.kind === "wildcard") continue;
       if (nested.kind === "binding") {
         // A direct `mut U` field of a readonly subject binds as `U`
         // (06-control-flow.md#r-flow.match.data.readonly-mut).
         const view =
-          this.matchSubjectReadonly && mutableInner(field.type) !== undefined
-            ? readonlyType(field.type)
-            : field.type;
+          this.matchSubjectReadonly && mutableInner(fieldType) !== undefined
+            ? readonlyType(fieldType)
+            : fieldType;
         bindings.push({
           local: this.addPatternLocal(nested.name, view, nested.span),
           fieldIndex: -1,
-          type: field.type,
-          path: fieldPath,
+          type: fieldType,
+          accessPath: fieldPath,
         });
         continue;
       }
       if (nested.kind === "data") {
-        const nestedDeclaration = this.dataTypes.get(field.type);
+        const readonlyField = readonlyType(fieldType);
+        const nestedDeclaration = this.dataTypes.get(
+          nominalGenericParts(readonlyField)?.name ?? readonlyField,
+        );
         if (!nestedDeclaration)
           this.fail(
             "pattern-type-mismatch",
-            `field '${entry.name}' has non-data type '${displayType(field.type)}'`,
+            `field '${entry.name}' has non-data type '${displayType(fieldType)}'`,
             nested.span,
           );
         irrefutable =
-          this.checkDataPattern(nested, nestedDeclaration, fieldPath, bindings, tests) &&
+          this.checkDataPattern(nested, nestedDeclaration, fieldType, fieldPath, bindings, tests) &&
           irrefutable;
         continue;
       }
@@ -805,10 +835,10 @@ export abstract class PatternChecker extends CallChecker {
             Expression,
             { kind: "boolean" | "integer" | "float" | "string" | "character" }
           >,
-          field.type,
+          fieldType,
         );
-        this.requireType(literal.type, field.type, nested.span);
-        tests.push({ path: fieldPath, literal });
+        this.requireType(literal.type, fieldType, nested.span);
+        tests.push({ accessPath: fieldPath, literal });
         irrefutable = false;
         continue;
       }

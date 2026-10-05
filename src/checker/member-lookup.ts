@@ -11,7 +11,7 @@ import {
 } from "../types.ts";
 import { numericType } from "../numeric.ts";
 import {
-  containsGenericType,
+  erasedFieldType,
   genericTypeName,
   matchGenericTypePattern,
   matchImplementationTarget,
@@ -320,8 +320,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       receiver,
       dataIndex: declaration.index,
       fieldIndex: field.index,
-      erasedFieldType:
-        containsGenericType(field.type) || field.type.includes("row:") ? field.type : undefined,
+      erasedFieldType: erasedFieldType(field.type),
       erasedTypeSubstitutions: orderedTypeSubstitutions(
         declaration.genericParameters,
         substitutions,

@@ -2519,3 +2519,7 @@ runtime/panic/iterator-sum-overflow.hd	runtime	panic:integer-overflow	std/iter.m
 runtime/panic/list-sum-overflow.hd	runtime	panic:integer-overflow	std/collections.md#r-std-collections.helper.sum.overflow
 typing/invalid/iterator-sum-non-numeric.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.sum.bound
 typing/invalid/list-sum-non-numeric.hd	type	reject:unsatisfied-trait-bound	std/collections.md#r-std-collections.helper.sum
+runtime/valid/generic-data-let-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic
+runtime/valid/generic-data-pattern-nested-generic.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic
+runtime/valid/generic-data-match-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic
+runtime/valid/generic-data-pattern-in-generic-function.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic

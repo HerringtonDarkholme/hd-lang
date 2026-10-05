@@ -586,6 +586,15 @@ export function mentionsUnsolved(
   return false;
 }
 
+/**
+ * The declared type of a data or enum field when a read must convert it from
+ * its stored (erased) form: it mentions a type parameter or a requirement row.
+ * Member access, field assignment, and pattern reads all use this one rule.
+ */
+export function erasedFieldType(declared: ValueType): ValueType | undefined {
+  return containsGenericType(declared) || declared.includes("row:") ? declared : undefined;
+}
+
 export function containsGenericType(type: ValueType): boolean {
   if (genericTypeName(type)) return true;
   const inputs = inputsInner(type) ?? restInner(type);

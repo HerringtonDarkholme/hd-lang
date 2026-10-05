@@ -1,0 +1,21 @@
+# expect-stdout: 1.5 pi
+# expect-stdout: 42
+# expect-stdout: nested
+# test: let data patterns bind the substituted field types of generic data
+# Spec 06 Control Flow: a generic field declared `field: P` binds as substituted `P`.
+data Pair[A, B]:
+    first: A
+    second: B
+
+data Box[T]:
+    item: T
+
+pub fn main() -> void $ Console:
+    let Pair { first: x, second: y } = Pair { first: 1.5, second: "pi" }
+    println("${x} ${y}")
+    let boxed: Box[i64] = Box { item: 40 }
+    let Box { item: count } = boxed
+    let total: i64 = count + 2
+    println(total)
+    let Box { item: Box { item: deep } } = Box { item: Box { item: "nested" } }
+    println(deep)

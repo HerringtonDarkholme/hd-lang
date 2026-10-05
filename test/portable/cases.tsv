@@ -2551,3 +2551,8 @@ typing/invalid/supertrait-impl-bounds.hd	type
 typing/valid/any-void-never.hd	type
 typing/valid/void-unit-alias.hd	type
 runtime/valid/fs-helpers.hd	runtime
+typing/valid/literal-var-data-pattern.hd	type
+runtime/valid/generic-data-let-pattern.hd	runtime
+runtime/valid/generic-data-pattern-nested-generic.hd	runtime
+runtime/valid/generic-data-match-pattern.hd	runtime
+runtime/valid/generic-data-pattern-in-generic-function.hd	runtime

@@ -16,6 +16,7 @@ import {
 } from "../types.ts";
 import {
   containsGenericType,
+  erasedFieldType,
   genericTypeName,
   inferGenericType,
   orderedTypeSubstitutions,
@@ -552,8 +553,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
       value,
       dataIndex: declaration.index,
       fieldIndex: field.index,
-      erasedFieldType:
-        containsGenericType(field.type) || field.type.includes("row:") ? field.type : undefined,
+      erasedFieldType: erasedFieldType(field.type),
       erasedTypeSubstitutions: orderedTypeSubstitutions(
         declaration.genericParameters,
         substitutions,
@@ -774,10 +774,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             receiver,
             enumIndex: enumDeclaration.index,
             fieldIndex: field.index,
-            erasedFieldType:
-              containsGenericType(field.type) || field.type.includes("row:")
-                ? field.type
-                : undefined,
+            erasedFieldType: erasedFieldType(field.type),
             erasedTypeSubstitutions: orderedTypeSubstitutions(
               enumDeclaration.genericParameters,
               substitutions,
