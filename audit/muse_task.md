@@ -39,8 +39,9 @@ When the queue is empty, report that and wait.
 - Literal typing: `src/checker/expression-literals.ts`,
   `literal-arguments.ts`, `literal-join.ts`, `literal-retry.ts`,
   `expression-operators.ts`, `calls.ts`, `statements.ts`.
-- Conformance harness and CLI flags (another agent is changing them):
-  `src/cli-args.ts`, `src/commands/`, `test/hd-adapter*.ts`,
+- Conformance harness, CLI and package mode (other agents are changing
+  them): `src/cli-args.ts`, `src/commands/`, `src/package.ts` and any
+  manifest or package-discovery code, `test/hd-adapter*.ts`,
   `test/hd-in-process.ts`, `test/run-portable.ts`, `spec/tools/`.
 
 ## Jobs
