@@ -258,20 +258,14 @@ These items remain required but do not currently require new core syntax:
 - the mandatory default algorithm, canonical field encoding, and evolution
   rules for `std.fingerprint`, whose digests always carry an algorithm/version
   identifier;
-- the final `hd.toml` schema and the concrete host binding for capabilities
-  such as `Console`. Executables and their selection are specified in
-  [Command Line](../spec/cli/command-line.md#executables), and the traits
-  the default profile binds in
-  [Host Capabilities](../spec/cli/command-line.md#host-capabilities);
-- dependencies through version control hosts, with no registry:
-  Dependencies decisions DEP1-DEP7
-  are applied in [Package Manifest](../spec/lang/10-modules.md#package-manifest)
-  (version tags, minimal version selection, `hd.sum`, workspaces,
-  pseudo-versions), with DEP8-DEP19 after them. Fetching, the cache,
-  `hd.sum`, and `hd add`, `hd update`, `hd remove`, and `hd fetch` are
-  specified in [Dependencies](../spec/cli/command-line.md#dependencies).
-  The other manifest diagnostics wait for the manifest schema (DEP14,
-  [`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema));
+- the final `hd.toml` schema. The default profile's host binding is
+  specified in [Host Capabilities](../spec/cli/command-line.md#host-capabilities)
+  and implemented;
+- the manifest diagnostics that wait for the manifest schema (DEP14,
+  [`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema)).
+  Dependencies themselves (fetching, the cache, `hd.sum`, selection,
+  workspaces, pseudo-versions, path requirements) are specified and
+  implemented ([Dependencies](../spec/cli/command-line.md#dependencies));
 - conformance fixtures for `missing-entry-point` and `unselected-main`,
   which need manifest input in the fixture format, so they wait for the
   manifest schema like the other manifest diagnostics;
@@ -300,9 +294,8 @@ These items remain required but do not currently require new core syntax:
 - the host extensions after the default profile, `Process` and an HTTP
   client, and the provider configuration format
   ([Host Capabilities](../spec/cli/command-line.md#host-capabilities));
-- what `hd build` produces, and where (CLI-21): one Wasm file per
-  executable, and anything for a library-only package, wait on package
-  tooling and the Wasm boundary;
+- what `hd build` produces for a library-only package (CLI-21); an
+  executable builds to one Wasm file under `build/`;
 - exporter configuration, sampling, storage, and operational privacy policy
   after the observability hook is designed; and
 - which generated artifacts—JSON Schema, OpenAPI, MCP, clients, or
