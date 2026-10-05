@@ -388,12 +388,23 @@ fn main() -> i32:
 5. r[names.definite.condition] A direct binding in an `if` or `while` condition is evaluated whenever that condition is evaluated.
 6. r[names.definite.skipped] A binding inside the conditionally evaluated operand of `&&` or `||`, an unselected branch or match arm, or a loop body is not thereby initialized on paths that skip it.
 7. r[names.definite.proof] Flow analysis may still prove it initialized inside a branch whose selection implies that the binding ran.
+8. r[names.definite.diverging] A branch that diverges, as [`flow.let.else.diverge.forms`](06-control-flow.md#r-flow.let.else.diverge.forms) defines, is not an incoming path at the merge after it.
 
 ```text
 fn invalid(flag: bool) -> string:
     if flag && (name := "Ada") != "":
         pass
     name  # error: possibly-uninitialized-binding
+```
+
+A guard whose branch returns, or enters an infinite loop, leaves only the
+paths that ran the binding:
+
+```text
+fn greeting(args: List[string]) -> string:
+    if args.len() < 2 || (name := args[1]) == "":
+        return "usage: greet NAME"
+    "hello $name"
 ```
 
 ## Function And Closure Scopes

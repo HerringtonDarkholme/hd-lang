@@ -167,8 +167,9 @@ fn show[T < Display](value: T) -> string:
 The whole list: `if` (with `else if` and `else`), `match`, `for`, `while`,
 `break`, `continue`, and `else` on a `for` or `while`. `return` leaves a
 function. There is no `loop`: an endless loop is `while true:`, left with
-`break`. `if`, `match`, and loops with `else` are expressions. A `match` must
-be exhaustive.
+`break` or `return`. Without a `break`, nothing after it runs, so a function
+may end with the loop and return from inside it. `if`, `match`, and loops
+with `else` are expressions. A `match` must be exhaustive.
 
 ```hd
 label := if score >= 90:

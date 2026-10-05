@@ -10,7 +10,6 @@ fn drain() -> i32:
         match values.pop():
             .Some(value) => total = total * 10 + value
             .None => return total
-    total
 
 tests:
     it("pop takes the last element first"):

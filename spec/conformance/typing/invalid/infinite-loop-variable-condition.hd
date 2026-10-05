@@ -1,0 +1,5 @@
+# Spec 06 Infinite Loops: flow.while.infinite.literal; only the literal true makes a loop infinite.
+fn spin() -> i32:
+    running := true
+    while running:  # diagnostic: missing-return-value
+        return 1

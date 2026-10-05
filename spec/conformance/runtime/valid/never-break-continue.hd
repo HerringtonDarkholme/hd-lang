@@ -1,5 +1,5 @@
 # test: break and continue have type never, so they fit any expected type in a value-producing branch
-# Spec 04 The never Type: types.never.expressions, types.never.fits (spec follow-ups, 2026-09-27).
+# Spec 04 The never Type: types.never.forms, types.never.fits (spec follow-ups, 2026-09-27).
 # expect: test
 use std.testing.assert_equal
 

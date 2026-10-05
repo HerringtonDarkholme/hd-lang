@@ -1,0 +1,30 @@
+# test: a branch that returns or enters an infinite loop is not an incoming path at the merge
+# Spec 03 Definite Initialization: names.definite.diverging.
+# expect: test
+use std.testing.assert_equal
+
+fn greeting(args: List[string]) -> string:
+    if args.len() < 2 || (name := args[1]) == "":
+        return "usage: greet NAME"
+    "hello $name"
+
+fn wait_forever() -> void:
+    pass
+
+fn port_or_wait(args: List[string]) -> string:
+    if args.len() > 1 && (port := args[1]) != "":
+        pass
+    else:
+        while true:
+            wait_forever()
+    "port $port"
+
+tests:
+    it("the guard returns when the name is missing"):
+        assert_equal(greeting(["greet"]), "usage: greet NAME", reason="the guard branch")
+
+    it("the name is bound after the guard"):
+        assert_equal(greeting(["greet", "Ada"]), "hello Ada", reason="only the binding path reaches the merge")
+
+    it("an else branch with an infinite loop does not reach the merge"):
+        assert_equal(port_or_wait(["serve", "8080"]), "port 8080", reason="the then path bound port")

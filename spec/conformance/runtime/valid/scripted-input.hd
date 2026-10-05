@@ -16,7 +16,6 @@ fn count_lines!() -> i32 $ ConsoleInput:
         match input.read_line!():
             .Ok(.Some(_)) => count = count + 1
             _ => return count
-    count
 
 tests:
     it("reads the scripted line"):

@@ -1,0 +1,7 @@
+# Spec 06 Infinite Loops: flow.while.infinite.exit; a break that targets the loop makes the code after it reachable.
+fn first_even(values: List[i32]) -> i32:
+    let index = 0
+    while true:  # diagnostic: missing-return-value
+        if values[index] % 2 == 0:
+            break
+        index = index + 1

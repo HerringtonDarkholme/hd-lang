@@ -457,6 +457,13 @@ runtime/valid/while-else-break-value.hd	runtime	accept	lang/06-control-flow.md#b
 typing/invalid/plain-break-in-value-loop.hd	type	reject:break-value-context	lang/06-control-flow.md#break-continue-and-loop-else
 typing/invalid/break-value-in-void-loop.hd	type	reject:break-value-context	lang/06-control-flow.md#break-continue-and-loop-else
 runtime/valid/while-else-exhaustion-value.hd	runtime	accept	lang/06-control-flow.md#break-continue-and-loop-else
+runtime/valid/infinite-loop-return.hd	runtime	accept	lang/06-control-flow.md#r-flow.while.infinite.never
+runtime/valid/infinite-loop-nested-break.hd	runtime	accept	lang/06-control-flow.md#r-flow.while.infinite.exit
+runtime/valid/infinite-loop-else.hd	runtime	accept	lang/06-control-flow.md#r-flow.while.infinite.else
+typing/invalid/infinite-loop-break-missing-return.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.exit
+typing/invalid/infinite-loop-variable-condition.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.literal
+typing/warnings/unreachable-after-infinite-loop.hd	type	warn:unreachable-code	lang/06-control-flow.md#r-flow.unreachable.infinite-loop
+runtime/valid/definite-init-diverging-branch.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.definite.diverging
 runtime/valid/for-loops-lists-and-maps.hd	runtime	accept	lang/06-control-flow.md#for-loops
 runtime/valid/data-fields-named-in-any-order.hd	runtime	accept	lang/08-data-and-enums.md#data-declarations
 runtime/valid/mutable-data-paths-share-identity.hd	runtime	accept	lang/04-type-system.md#mutable-paths
@@ -1574,7 +1581,7 @@ typing/invalid/index-set-string.hd	type	reject:unsatisfied-trait-bound	lang/05-e
 runtime/valid/index-traits-builtin-run.hd	runtime	accept	lang/05-expressions.md#r-expr.index.std.map
 runtime/panic/index-trait-map-missing.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.std.intrinsic
 typing/invalid/ambiguous-default-methods.hd	type	reject:ambiguous-method	lang/09-traits.md#r-trait.conflict.ambiguous-available
-runtime/valid/never-break-continue.hd	runtime	accept	lang/04-type-system.md#r-types.never.expressions
+runtime/valid/never-break-continue.hd	runtime	accept	lang/04-type-system.md#r-types.never.forms
 typing/invalid/fresh-element-not-weakened.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.fresh.element-no-weaken
 typing/invalid/foreign-inherent-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.inherent
 parse/invalid/tab-in-string-literal.hd	parse	reject:tab-whitespace	lang/01-lexical-structure.md#r-lex.tab.content

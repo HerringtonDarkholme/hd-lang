@@ -1,0 +1,28 @@
+# test: a function returns from inside an infinite loop with no value after it
+# Spec 06 Infinite Loops: flow.while.infinite, flow.while.infinite.never; Spec 07 fn.body.infinite-loop.
+# expect: test
+use std.testing.assert_equal
+
+fn try_connect(attempt: i32) -> bool:
+    attempt >= 3
+
+fn connect() -> i32:
+    let attempt = +1
+    while true:
+        if try_connect(attempt):
+            return attempt
+        attempt = attempt + 1
+
+fn parenthesized(limit: i32) -> i32:
+    let count = +0
+    while (true):
+        count = count + 1
+        if count == limit:
+            return count
+
+tests:
+    it("connect retries until an attempt succeeds"):
+        assert_equal(connect(), 3, reason="the third attempt connects")
+
+    it("a parenthesized true is still an infinite loop"):
+        assert_equal(parenthesized(4), 4, reason="returns from inside")

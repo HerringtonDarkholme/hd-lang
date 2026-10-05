@@ -43,7 +43,7 @@ See also: [Requirements and Suspension](11-requirements-and-suspension.md),
 2. r[types.never.assignable] `never` is assignable to every type, and no ordinary value is assignable to it.
 3. r[types.never.abrupt] An expression that completes abruptly has type `never` on that control-flow path.
 4. r[types.never.abrupt-forms] These expressions complete abruptly: an unconditional `return`, `break`, or `continue`, propagation that exits the current body, and a call to `panic`.
-5. r[types.never.expressions] `return`, `break`, `continue`, a call to `panic`, and any other call whose result type is `never` are expressions of type `never`. These five forms are the complete list.
+5. r[types.never.forms] Exactly six forms have type `never`: `return`, `break`, `continue`, a call to `panic`, any other call whose result type is `never`, and an [infinite loop](06-control-flow.md#r-flow.while.infinite) that no `break` targets.
 6. r[types.never.fits] Each of them therefore fits any expected type, as in a match arm `.None => continue` or a branch `else: break`.
 
 ```text

@@ -1,0 +1,30 @@
+# test: the else suite of an infinite loop never runs, but still joins the loop result type
+# Spec 06 Infinite Loops: flow.while.infinite.never, flow.while.infinite.else.
+# expect: test
+use std.testing.assert_equal
+
+fn find_slot(slots: List[bool]) -> usize:
+    let index = 0
+    while true:
+        if slots[index]:
+            return index
+        index = index + 1
+    else:
+        0
+
+fn first_free(slots: List[bool]) -> usize:
+    let index = 0
+    found := while true:
+        if slots[index]:
+            break index
+        index = index + 1
+    else:
+        0
+    found + 10
+
+tests:
+    it("an infinite loop with else and no break returns from inside"):
+        assert_equal(find_slot([false, false, true]), 2, reason="the else never runs")
+
+    it("break value supplies the loop value"):
+        assert_equal(first_free([false, true]), 11, reason="the break value, not the else value")

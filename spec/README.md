@@ -221,6 +221,7 @@ The stdlib chapters' terms are in the
 | **generic field** | A field whose declared type is a generic parameter; reading it yields the substituted type unchanged. See [`types.path.field.generic`](lang/04-type-system.md#r-types.path.field.generic). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](lang/14-annotations.md#handles). |
 | **hides** | A member hides every member with the same name at a greater depth, in the same namespace. See [`names.hide.depth`](lang/03-names-and-scopes.md#r-names.hide.depth). |
+| **infinite loop** | A `while` loop whose condition is the literal `true`. It completes normally only through a `break` that targets it. See [`flow.while.infinite`](lang/06-control-flow.md#r-flow.while.infinite). |
 | **inherent associated function** | A member of an inherent implementation without a `self` parameter, called through the type, as in `User::guest()`. See [Inherent Members](lang/09-traits.md#inherent-members). |
 | **inherent method** | A member of an inherent implementation whose first parameter is `self` or `mut self`, called with dot syntax. See [Inherent Members](lang/09-traits.md#inherent-members). |
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](lang/10-modules.md#r-module.init.group). |

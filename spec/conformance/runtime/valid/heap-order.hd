@@ -9,7 +9,6 @@ fn drained(heap: mut Heap[i32]) -> List[i32]:
         match heap.pop():
             .Some(value) => popped.push(value)
             .None => return popped
-    popped
 
 tests:
     it("largest first"):

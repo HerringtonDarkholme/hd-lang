@@ -334,6 +334,42 @@ while index < names.len():
 1. r[flow.while.condition] A `while` loop evaluates its `bool` condition before every iteration.
 2. r[flow.while.initially-false] If the condition is initially `false`, the body does not execute.
 
+### Infinite Loops
+
+A `while true` loop runs until its body leaves it, so a function may return
+from inside it with nothing after it:
+
+```text
+fn try_connect(attempt: i32) -> bool:
+    attempt >= 3
+
+fn connect() -> i32:
+    let attempt = +1
+    while true:
+        if try_connect(attempt):
+            return attempt
+        attempt = attempt + 1
+```
+
+1. r[flow.while.infinite] A `while` loop whose condition is the literal `true`, alone or in grouping parentheses, is an **infinite loop**.
+2. r[flow.while.infinite.literal] No other condition makes a loop infinite: not a named constant, not `!false`, and not a variable that holds `true`.
+3. r[flow.while.infinite.exit] An infinite loop completes normally only through a `break` that targets it.
+4. r[flow.while.infinite.never] An infinite loop that no `break` targets has type `never`, with or without `else`.
+5. r[flow.while.infinite.else] The `else` suite of an infinite loop is never evaluated. It is still type-checked, and it still joins the loop result type, as [`flow.loop.else.type`](#r-flow.loop.else.type) states.
+
+> **Why.** hd has no `loop` keyword; `while true` takes its place, with the
+> rule Java and Go use for reachability. Only the literal counts, so the loop
+> head alone shows that the loop is infinite. A constant would make
+> reachability depend on a value defined elsewhere.
+
+> **Note.** A `break` exits the nearest enclosing loop, by
+> [`flow.break`](#r-flow.break). So a `break` inside a nested loop targets
+> that nested loop, and leaves the outer infinite loop running.
+
+See also: [Unreachable Code](#unreachable-code),
+[Bodies And Control Paths](07-functions.md#bodies-and-control-paths),
+[The `never` Type](04-type-system.md#the-never-type).
+
 ## Break, Continue, And Loop Else
 
 `break` and `continue` leave the current loop body, and a loop with `else`
@@ -362,7 +398,7 @@ else:
     .None
 ```
 
-1. r[flow.loop.void] A loop without `else` has type `void`.
+1. r[flow.loop.void.type] A loop without `else` has type `void`, unless it is an infinite loop that no `break` targets, which has type `never` by [`flow.while.infinite.never`](#r-flow.while.infinite.never).
 2. r[flow.loop.void.break] A loop without `else` permits plain `break` but not `break value`. A `break value` there is an error. Error: `break-value-context`.
 3. r[flow.loop.else.value] A `for` or `while` loop with `else` is value-producing.
 4. r[flow.loop.else.break-value] `break value` terminates the loop and supplies its value.
@@ -878,9 +914,20 @@ See also: [Suspending Functions](11-requirements-and-suspension.md#suspending-fu
 This section defines unreachable statements.
 
 1. r[flow.unreachable.def] Statements following an unconditional `return`, `break`, or `continue` in the same suite are unreachable.
-2. r[flow.unreachable.warning] The compiler must emit an `unreachable-code` warning, but the warning does not reject the program by default.
-3. r[flow.unreachable.checked] Unreachable code is still parsed and type-checked.
-4. r[flow.unreachable.policy] Tooling may provide a package policy that promotes this warning to an error without changing language semantics.
+2. r[flow.unreachable.infinite-loop] Statements following an infinite loop that no `break` targets, in the same suite, are unreachable.
+3. r[flow.unreachable.warning] The compiler must emit an `unreachable-code` warning, but the warning does not reject the program by default.
+4. r[flow.unreachable.checked] Unreachable code is still parsed and type-checked.
+5. r[flow.unreachable.policy] Tooling may provide a package policy that promotes this warning to an error without changing language semantics.
+
+```text
+fn accept(port: i32) -> void:
+    pass
+
+fn serve(port: i32) -> void:
+    while true:
+        accept(port)
+    println("server stopped")  # warning: unreachable-code
+```
 
 ## Runtime Panics
 
