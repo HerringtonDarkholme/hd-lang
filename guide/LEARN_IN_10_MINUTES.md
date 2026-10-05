@@ -541,6 +541,24 @@ tests:
             assert_equal(stamp("go"), "1: go", reason="uses the provider")
 ```
 
+An integration test is a file directly under `tests/`. It sees the package
+as a dependent does, so it imports public names through `pkg`; its `it` calls
+are at the file's top level, not inside a `tests:` block. `hd test` starts in
+the package root, so a fixture path is relative to that root:
+
+```hd
+use pkg.{Item, total_value}
+use std.fs.{FsRead, read_text}
+use std.path.Path
+use std.testing.assert_equal
+
+it("totals the inventory fixture"):
+    expected := read_text!(Path("tests/fixtures/inventory-total.txt"))?
+    items := [Item { name: "pen", price: +250 }]
+    assert_equal(total_value(items).to_string(), expected.trim(), reason="fixture total")
+    .Ok(())
+```
+
 ### Using a Local Library
 
 Today a path dependency works between members of one workspace. Put both

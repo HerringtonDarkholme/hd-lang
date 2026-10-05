@@ -2781,8 +2781,29 @@ and get real providers from the test profile. Each file directly under
 `tests/` is its own program, so shared helpers go in a subdirectory such as
 `tests/common/`. There, `pkg.billing` names the library's public API, and
 `use self.common` reaches `tests/common/mod.hd`, as a task reaches
-`tasks/shared/`. See [Test Modules](../spec/lang/10-modules.md#test-modules)
-and the test runner notes.
+`tasks/shared/`. Test commands start in the package root, so fixture paths
+are relative to it. For example, `tests/inventory.hd` imports the public API
+through `pkg`, reads `tests/fixtures/inventory-total.txt`, and puts its test
+case directly at the top level rather than inside a `tests:` block:
+
+```text
+use pkg.{Item, total_value}
+use std.fs.{FsRead, read_text}
+use std.path.Path
+use std.testing.assert_equal
+
+it("totals the inventory fixture"):
+    expected := read_text!(Path("tests/fixtures/inventory-total.txt"))?
+    items := [
+        Item { name: "notebook", price: +1200 },
+        Item { name: "pen", price: +250 },
+    ]
+    assert_equal(total_value(items).to_string(), expected.trim(), reason="fixture total")
+    .Ok(())
+```
+
+See [Test Modules](../spec/lang/10-modules.md#test-modules) and the test
+runner notes.
 
 ## Requirements and Suspension
 

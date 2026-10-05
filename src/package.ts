@@ -333,6 +333,40 @@ function missingModule(dependency: DependencyPackage | undefined, identity: stri
     : `no package module '${identity}'`;
 }
 
+/** The missing-module diagnostic for one use, with integration-test guidance at its root. */
+function missingUseDiagnostic(
+  module: PackageModule,
+  declaration: UseDecl,
+  dependency: DependencyPackage | undefined,
+  identity: string,
+  span: SourceSpan,
+): PackageDiagnostic {
+  const integrationRoot =
+    dependency === undefined &&
+    isRootProgram(module.path) &&
+    declaration.module === "self" &&
+    identity === "tests";
+  if (!integrationRoot)
+    return {
+      path: module.path,
+      code: "unknown-module",
+      message: missingModule(dependency, identity),
+      span,
+    };
+  const names = declaration.names
+    .map(({ name, alias }) => (alias ? `${name} as ${alias}` : name))
+    .join(", ");
+  return {
+    path: module.path,
+    code: "unknown-module",
+    message: missingModule(undefined, module.path),
+    notes: [
+      `an integration test sees the package as a dependent does: write \`use pkg.{${names}}\``,
+    ],
+    span,
+  };
+}
+
 /** Where a package use leads: a package, and a module path in it. */
 interface UseTarget {
   /** The package; absent for the root package. */
@@ -824,7 +858,7 @@ export function linkPackage(
       const identity = path.join(".");
       const target = modules.get(moduleKey(targetPackage, identity));
       if (!target) {
-        report(module.path, "unknown-module", missingModule(targetPackage, identity), span);
+        diagnostics.push(missingUseDiagnostic(module, declaration, targetPackage, identity, span));
         continue;
       }
       const programUse =

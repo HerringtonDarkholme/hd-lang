@@ -485,6 +485,24 @@ test("optional and Result context errors have stable diagnostics", () => {
   assert.equal(nested.diagnostics[0]?.code, "unused-local-binding");
 });
 
+test("Result propagation into void names the compatible Console result", () => {
+  const analysis = analyze(
+    [
+      "fn main!() -> void $ Console:",
+      "    let mut console = $.use(Console)",
+      '    console.write_line!("ready")?',
+    ].join("\n"),
+  );
+  const diagnostic = analysis.diagnostics.find(({ code }) => code === "invalid-result-propagation");
+  assert.equal(
+    diagnostic?.message,
+    "Result propagation requires a function with a compatible Result error type",
+  );
+  assert.deepEqual(diagnostic?.notes, [
+    "change the result type to 'Result[void, ConsoleError]' (the error type of 'write_line!'); for Console output without error handling, use 'println'",
+  ]);
+});
+
 test("typed noncapturing closures lower to Wasm typed function references", async () => {
   const source = conformance("runtime/valid/closure-as-function-argument");
   const { instance, compilation } = await instantiate(source);

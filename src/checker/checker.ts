@@ -436,11 +436,20 @@ export class FunctionChecker extends ExpressionControlChecker {
         expression.span,
       );
     if (!target) {
-      this.fail(
-        "invalid-result-propagation",
-        "Result propagation requires a function with a compatible Result error type",
-        expression.span,
-      );
+      const error = displayType(parts.error);
+      const result = `Result[${displayType(this.signature.result)}, ${error}]`;
+      const note =
+        error === "ConsoleError"
+          ? `change the result type to '${result}' (the error type of 'write_line!'); for Console output without error handling, use 'println'`
+          : `change the result type to '${result}' to propagate the '${error}' error`;
+      const message = "Result propagation requires a function with a compatible Result error type";
+      this.diagnostics.push({
+        code: "invalid-result-propagation",
+        message,
+        notes: [note],
+        span: expression.span,
+      });
+      throw new CheckFailure(message);
     }
     if (parts.error !== target.error)
       return this.checkConvertingPropagation(

@@ -668,6 +668,23 @@ test("each file directly under tests/ is its own program", () => {
     "tests/checkout.hd",
     "tests/common/mod.hd",
   ]);
+  // Importing the package API through `self` names the integration test's
+  // real path and explains that the package is visible through `pkg`.
+  const mistakenPackageUse = linkPackage(
+    {
+      "src/lib.hd": "pub data Item: pass\n\npub fn total_value(item: Item) -> i32: 0\n",
+      "tests/integration.hd": "use self.{Item, total_value}\n",
+    },
+    "tests/integration.hd",
+    { tests: true },
+  );
+  assert.equal(
+    mistakenPackageUse.diagnostics[0]?.message,
+    "no package module 'tests/integration.hd'",
+  );
+  assert.deepEqual(mistakenPackageUse.diagnostics[0]?.notes, [
+    "an integration test sees the package as a dependent does: write `use pkg.{Item, total_value}`",
+  ]);
 });
 
 test("integration test sources join without re-indenting or stripping pub", () => {
