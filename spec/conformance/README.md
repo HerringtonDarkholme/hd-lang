@@ -416,13 +416,13 @@ its own `PollContext`.
      `suspension-reentrant-poll`.
 
 - `pending-first-poll`:
-  1. Run steps 1 and 2 of [Runtime Execution](#runtime-execution) under the
-     `console` profile, except that every `write_line!` call is pending on
+  1. Run steps 1 and 2 of [Runtime Execution](#runtime-execution), the entry
+     and then the test cases, in one run under the `console` profile, except that every `write_line!` call is pending on
      its first poll, as under `pending-write`. The call's second poll writes
      the line and completes with `.Ok(())`.
-  2. The case passes when that run exits 0, as the ordinary `test` run of
-     the same fixture does. The runner runs the ordinary `test FILE` first,
-     so the case passes only when both runs succeed.
+  2. The case passes when that run exits 0, as the ordinary `test FILE` run
+     of the same fixture does. The runner runs the ordinary `test FILE`
+     first, so the case passes only when both runs succeed.
 
 `pending-first-poll` is a fixture format, not a language rule: it shows that
 a program's observable result does not depend on whether a host call
