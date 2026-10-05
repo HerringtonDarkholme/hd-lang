@@ -502,6 +502,26 @@ fn main() -> Item:
   assert.match(diagnostics[0]!.message, /available: Build\[bool\], Build\[i32\]/);
 });
 
+test("a local unused by the winning candidate still warns after rejected trials", () => {
+  const source = `trait Parse[T]:
+    fn parse(raw: T) -> i32
+data Item: pass
+impl Parse[i32] for Item:
+    fn parse(raw: i32) -> i32: raw
+impl Parse[string] for Item:
+    fn parse(raw: string) -> i32: 0
+fn main() -> i32:
+    text := "7"
+    extra := +99
+    Item::parse(text)
+`;
+  const result = analyze(source);
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`),
+    ["unused-local-binding: local binding 'extra' is never read"],
+  );
+});
+
 test("lazy result inference state is restored with signature entries between trials", async () => {
   const source = `trait Pick[T]:
     fn pick(self, value: T) -> i32

@@ -19,6 +19,13 @@ const SHALLOW = new Set(["closures", "globals", "diagnostics", "rangePatternCond
 
 /** Capture runtime state and subclass caches, never the immutable program. */
 export function snapshotCheckerState(checker: object, snapshot: TrialSnapshot): undefined {
+  // Read marks are trial-local: a local read only inside a rejected
+  // candidate must not survive to suppress its unused-local warning
+  // (CheckerContext readLocals). Snapshot the set explicitly: the generic
+  // walk below would cover it, but silently, and the INPUTS list must never
+  // swallow it. A later visit through the walk is a no-op (seen map).
+  const reads = (checker as { readLocals?: unknown }).readLocals;
+  if (reads instanceof Set) snapshot(reads);
   const descriptors = Object.getOwnPropertyDescriptors(checker);
   for (const key of Reflect.ownKeys(descriptors)) {
     const descriptor = Reflect.get(descriptors, key) as PropertyDescriptor;

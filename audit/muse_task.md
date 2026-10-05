@@ -51,15 +51,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AJ. Trial Rollback For `readLocals`
-
-Review of AG (3f647f8a): the comment on `readLocals` (`src/checker/context.ts`)
-says speculative trials roll it back, but `checker-trial-state.ts` never
-snapshots it. A local read only inside a rejected candidate then counts as
-read, and its unused-local warning is lost. Add `readLocals` to the trial
-snapshot and restore. Add a test: a local used only in a rejected
-overload candidate still warns.
-
 ### AK. Perf F5 And F6
 
 From `audit/compiler/perf-audit.md`:
