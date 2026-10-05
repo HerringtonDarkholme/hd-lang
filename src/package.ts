@@ -148,6 +148,12 @@ interface LinkOptions {
   readonly programs?: readonly string[];
   /** The packages that `dep.NAME` uses reach; without it, the package has no dependencies. */
   readonly dependencies?: PackageDependencies;
+  /**
+   * A package key for the entry module alone, so that the checker sees it
+   * as code of another package: a doc test sees the package as a dependent
+   * does (spec/lang/10-modules.md#r-module.test.doc.view).
+   */
+  readonly entryPackage?: string;
 }
 
 /** Whether a package path is an integration test module (spec/lang/10-modules.md#r-module.test.integration). */
@@ -1043,7 +1049,18 @@ export function linkPackage(
       namespaces[use.namespace] = keyOf(use.target);
       namespaceModules[keyOf(use.target)] ??= namespaceMembers(use.target);
     }
-    return { firstLine, lastLine, names, namespaces, ...ownershipFields(module, imports) };
+    const owner =
+      module === entryModule && options.entryPackage !== undefined
+        ? { package: options.entryPackage }
+        : {};
+    return {
+      firstLine,
+      lastLine,
+      names,
+      namespaces,
+      ...ownershipFields(module, imports),
+      ...owner,
+    };
   };
   const multiBefore = new Map<PackageModule, boolean>();
   for (const group of groups) multiBefore.set(group[0]!, group.length > 1);

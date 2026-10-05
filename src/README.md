@@ -162,8 +162,23 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   as a test case. `hd test FILE` exits 101 with `FILE: no test case
   registered` when FILE registers no test case, even if it has an entry point
   ([`cli.test.file-empty`](../spec/cli/command-line.md#r-cli.test.file-empty)).
-  Doc tests are not extracted yet, so a file with only doc tests counts as
-  empty (`DOC-TESTS`).
+- **Doc tests** ([Doc Tests](../spec/lang/10-modules.md#doc-tests)):
+  `doc-tests.ts` finds each fenced `hd` block in a `##` comment of a module
+  under `src/`, names it `doc <module>.<item>[i]`, and writes its program:
+  the block's leading `use` lines, then one top-level `it` whose body is the
+  rest, with a map back to the `##` lines. `commands/doc-tests.ts` links
+  each program at a fresh path under `tests/`, so it builds as an
+  integration test program without the package's test code; the linker
+  gives its module scope a package key of its own (`entryPackage`), so
+  members without `pub` and traits it does not import are those of another
+  package. `self` and `super` uses are `unknown-module`, and `hd_run!` is
+  `test-only-use` (`CheckOptions.docTest`). `hd test` runs a module's doc
+  tests with its test cases, those above its `tests:` block first, and one
+  result line counts them all; `hd check --tests` checks all but the
+  compile-fail ones, which `hd test` judges by their `# error: CODE`
+  codes. A diagnostic or failure names the `##` line. An update run
+  rewrites a failing `snapshot`'s `expect` in the block, matched by the
+  failure's expected text, and runs the doc test again, at most 20 times.
 - `hd build`, `hd check`, and `hd test` on a FILE under a package's `src/`
   or `tests/` link FILE with its package, so `pkg`, `self`, and `super`
   uses between modules resolve. Any other FILE compiles as a single-file

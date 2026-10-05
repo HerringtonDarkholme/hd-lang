@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { SINGLE_FILE_USE } from "../checker/standard-uses.ts";
 import type { CompileOptions } from "../compiler.ts";
+import { filePosition, lineOffsets, type DocTest } from "../doc-tests.ts";
 import { DiagnosticReporter, type OutputFormat, type Report } from "../diagnostic-report.ts";
 import {
   DiagnosticError,
@@ -95,6 +96,10 @@ export interface LoadedSource {
   /** FILE's absolute path. */
   readonly path: string;
   readonly source: string;
+  /** The doc test this loaded instead of FILE (LoadOptions.docTest). */
+  readonly docTest?: DocTestLoad;
+  /** FILE's own text, before linking. */
+  readonly fileSource: string;
   readonly parseOptions: ParseOptions;
   readonly compileOptions: CompileOptions;
   readonly linked?: LinkedPackage;
@@ -124,6 +129,25 @@ interface LoadOptions {
    * package (spec/cli/command-line.md#r-cli.file.in-package).
    */
   readonly singleFileNote?: string;
+  /** A doc test of FILE's module, which this loads instead of FILE (DocTestLoad). */
+  readonly docTest?: DocTestLoad;
+}
+
+/**
+ * A doc test to load (commands/doc-tests.ts): `args.text` is its program,
+ * which the placement puts at a fresh path under the test root, so that it
+ * links as an integration test program does
+ * (spec/lang/10-modules.md#r-module.test.doc.view). Its diagnostics and
+ * failures name the module's `##` lines
+ * (spec/cli/command-line.md#r-cli.test.doc.location).
+ */
+export interface DocTestLoad {
+  readonly test: DocTest;
+  /** The documented module's package path and text. */
+  readonly modulePath: string;
+  readonly moduleSource: string;
+  /** Collects the diagnostics instead of reporting them, for a compile-fail doc test. */
+  readonly capture?: Diagnostic[];
 }
 
 /**
@@ -167,6 +191,8 @@ export async function loadSource(
           tests: options.linkTests,
           ...(placement.programs ? { programs: placement.programs } : {}),
           ...(placement.dependencies ? { dependencies: placement.dependencies } : {}),
+          // A doc test sees the package as a dependent does (module.test.doc.view).
+          ...(options.docTest ? { entryPackage: "<doc test>" } : {}),
         })
       : undefined;
   const source = linked?.source ?? fileSource;
@@ -191,6 +217,10 @@ export async function loadSource(
   const debugLocation = (span: SourceSpan): string => {
     if (!linked || !placement) return `${file}:${span.start.line}:${span.start.column}`;
     const located = linked.locate({ code: "", message: "", span });
+    if (options.docTest && located.path === placement.path) {
+      const at = options.docTest.test.locate(located.span.start.line, located.span.start.column);
+      return `${file}:${at.line}:${at.column}`;
+    }
     const shown =
       located.path === placement.path
         ? file
@@ -206,24 +236,36 @@ export async function loadSource(
     release: options.release ?? false,
     debugLocation,
     ...(integrationTest ? { integrationTest } : {}),
+    ...(options.docTest ? { docTest: true } : {}),
     // Linking the test code makes a test build, which runs no entry
     // behavior (spec/lang/10-modules.md#r-module.init.tests.no-entry).
     ...(options.linkTests ? { testBuild: true } : {}),
   };
   const specIndex = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
+  const docTest = options.docTest;
   // The JSON `file` is relative to the package root, and outside a package
   // the path as written (spec/cli/command-line.md#r-cli.json.diagnostic.file).
-  const reporter = new DiagnosticReporter(
-    options.report,
-    file,
-    fileSource,
-    specIndex,
-    placement?.path,
-  );
+  // A doc test's failures name its module's file, at its block
+  // (spec/cli/command-line.md#r-cli.test.doc.location).
+  const reporter = docTest
+    ? new DiagnosticReporter(
+        options.report,
+        file,
+        docTest.moduleSource,
+        specIndex,
+        docTest.modulePath,
+        docTest.test,
+      )
+    : new DiagnosticReporter(options.report, file, fileSource, specIndex, placement?.path);
   // A diagnostic in a package names the file it points into.
   const treeReporters = new Map<string, DiagnosticReporter>();
   const note = options.singleFileNote;
   const report = (diagnostic: Diagnostic | PackageDiagnostic): void => {
+    if (docTest && placement)
+      return reportDocTest(docTest, placement, linked, diagnostic, reporter, packageReport);
+    packageReport(diagnostic);
+  };
+  const packageReport = (diagnostic: Diagnostic | PackageDiagnostic): void => {
     if (
       note &&
       diagnostic.code === "unknown-module" &&
@@ -262,6 +304,22 @@ export async function loadSource(
     }
     treeReporter.diagnostic(located);
   };
+  // A doc test's use path that starts with `self` or `super` names no module
+  // (spec/lang/10-modules.md#r-module.test.doc.relative).
+  if (docTest && placement && docTest.test.relativeUses.length > 0) {
+    const lines = fileSource.split("\n");
+    for (const line of docTest.test.relativeUses) {
+      const start = { line, column: 1, offset: 0 };
+      report({
+        code: "unknown-module",
+        message:
+          "a doc test sees the package as a dependent does, so its uses start with 'pkg', 'std', or 'dep', not 'self' or 'super'",
+        span: { start, end: { ...start, column: (lines[line - 1]?.length ?? 0) + 1 } },
+        path: placement.path,
+      });
+    }
+    return EXIT_HD_FAILURE;
+  }
   if (linked) {
     for (const diagnostic of linked.diagnostics) report(diagnostic);
     if (!linked.source) return EXIT_HD_FAILURE;
@@ -270,6 +328,8 @@ export async function loadSource(
     file,
     path,
     source,
+    fileSource,
+    ...(docTest ? { docTest } : {}),
     parseOptions,
     compileOptions,
     linked,
@@ -278,6 +338,47 @@ export async function loadSource(
     output: options.report,
     report,
   };
+}
+
+/**
+ * Reports a doc test's diagnostic: one in its program moves to the `##`
+ * line it came from (spec/cli/command-line.md#r-cli.test.doc.location), and
+ * any other goes where `packageReport` sends it. A compile-fail doc test
+ * collects them all instead.
+ */
+function reportDocTest(
+  docTest: DocTestLoad,
+  placement: PackagePlacement,
+  linked: LinkedPackage | undefined,
+  diagnostic: Diagnostic | PackageDiagnostic,
+  reporter: DiagnosticReporter,
+  packageReport: (diagnostic: Diagnostic | PackageDiagnostic) => void,
+): void {
+  if (docTest.capture) {
+    docTest.capture.push(diagnostic);
+    return;
+  }
+  if (sourceDocument(diagnostic.span)) return packageReport(diagnostic);
+  const located =
+    "path" in diagnostic
+      ? diagnostic
+      : (linked?.locate(diagnostic) ?? { ...diagnostic, path: placement.path });
+  if (located.path !== placement.path) return packageReport(located);
+  const offsets = lineOffsets(docTest.moduleSource);
+  const span = {
+    start: filePosition(docTest.test, located.span.start, offsets),
+    end: filePosition(docTest.test, located.span.end, offsets),
+  };
+  const key = `${docTest.modulePath}:${span.start.line}:${span.start.column}: ${located.code}: ${located.message}`;
+  if (placement.reported?.has(key)) return;
+  placement.reported?.add(key);
+  reporter.diagnostic({
+    code: located.code,
+    message: located.message,
+    span,
+    ...(located.severity ? { severity: located.severity } : {}),
+    ...(located.notes ? { notes: located.notes } : {}),
+  });
 }
 
 /**

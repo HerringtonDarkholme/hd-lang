@@ -50,4 +50,6 @@ export interface ProgramCheckContext {
    * spec/cli/command-line.md#r-cli.test.process), and it may call `hd_run!`.
    */
   readonly integrationTest: boolean;
+  /** The program may call `hd_run!`: an integration test program that is no doc test. */
+  readonly runsExecutables: boolean;
 }

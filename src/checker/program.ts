@@ -73,6 +73,12 @@ export interface CheckOptions extends DebugPrintOptions {
    */
   readonly integrationTest?: boolean;
   /**
+   * The integration test program is a doc test
+   * (spec/lang/10-modules.md#doc-tests): it takes the rows of one, but it
+   * may not call `hd_run!` (spec/std/testing.md#r-std-testing.hd-run.integration-only).
+   */
+  readonly docTest?: boolean;
+  /**
    * A test build, as `hd test` and `hd check --tests` make: it runs no
    * entry behavior, so a script with a `tests:` block initializes its top
    * level requirement-free (spec/lang/10-modules.md#r-module.init.tests.requirement-free).
@@ -305,6 +311,7 @@ function checkProgramRaw(
     entryModule: options.entryModule === true,
     testBuild: options.testBuild === true,
     integrationTest: options.integrationTest === true,
+    runsExecutables: options.integrationTest === true && options.docTest !== true,
   };
   // Every function check of the program shares its trait map, so it finds
   // which package declares what through it (checker/package-ownership.ts).

@@ -10,6 +10,7 @@ import { Report } from "../diagnostic-report.ts";
 import { DiagnosticError } from "../diagnostics.ts";
 import { LIB_FILE, SOURCE_ROOT, TEST_ROOT } from "../package.ts";
 import { parse } from "../parser/index.ts";
+import { checkDocTests } from "./doc-tests.ts";
 import {
   EXIT_HD_FAILURE,
   workingDirectory,
@@ -112,6 +113,12 @@ async function check(
     });
     if (!result.hir) throw new DiagnosticError(result.diagnostics);
     for (const diagnostic of result.diagnostics) loaded.report(diagnostic);
+    // With `--tests`, FILE's doc tests too (spec/cli/command-line.md#r-cli.check.tests.doc).
+    if (placement && (args.tests || args.all === true)) {
+      const module = { ...args, report, placement };
+      const status = await checkDocTests(module, loaded.fileSource);
+      if (status !== 0) return status;
+    }
     if (args.format === "text") io.out(`${args.file}: ok`);
     return 0;
   } catch (error) {
@@ -214,6 +221,22 @@ async function compilePackage(
       status = Math.max(status, reportFailure(loaded, error));
     }
   }
+  // With the test code, the doc tests of each module under the source root
+  // (spec/cli/command-line.md#r-cli.check.tests.doc).
+  if (options.tests && !options.build)
+    for (const path of paths.filter((candidate) => candidate.startsWith(SOURCE_ROOT))) {
+      const file = shownPath(pkg, path, environment);
+      const placement = {
+        root: shownRoot(pkg, environment),
+        path,
+        files: pkg.files,
+        reported,
+        programs,
+        ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
+      };
+      const module = { ...environment, report, file, placement };
+      status = Math.max(status, await checkDocTests(module, pkg.files[path]!));
+    }
   if (status === 0 && environment.format === "text") {
     for (const output of written) io.out(output);
     if (!options.build) io.out(`${pkg.name}: ok`);

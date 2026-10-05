@@ -260,13 +260,32 @@ export class DiagnosticReporter {
    * JSON `file` field holds, which is relative to the package root in a
    * package (`cli.json.diagnostic.file`).
    */
-  constructor(report: Report, file: string, source: string, index?: SpecIndex, jsonFile = file) {
+  /**
+   * Where a runtime failure points when it has no location of its own: a doc
+   * test's block (spec/cli/command-line.md#r-cli.test.doc.location).
+   */
+  private readonly at: { readonly line: number; readonly column: number } | undefined;
+
+  /**
+   * `file` is the path text diagnostics name; `jsonFile` is the path the
+   * JSON `file` field holds, which is relative to the package root in a
+   * package (`cli.json.diagnostic.file`).
+   */
+  constructor(
+    report: Report,
+    file: string,
+    source: string,
+    index?: SpecIndex,
+    jsonFile = file,
+    at?: { readonly line: number; readonly column: number },
+  ) {
     this.format = report.format;
     this.report = report;
     this.file = file;
     this.source = source;
     this.index = index;
     this.jsonFile = jsonFile;
+    this.at = at;
   }
 
   diagnostic(diagnostic: Diagnostic): void {
@@ -279,13 +298,18 @@ export class DiagnosticReporter {
     );
   }
 
+  /** `file:` before a runtime failure's text, with the line and column of `at`. */
+  private place(): string {
+    return this.at ? `${this.file}:${this.at.line}:${this.at.column}: ` : `${this.file}: `;
+  }
+
   runtimePanic(code: string, detail = "runtime panic"): void {
-    this.located(`${code}: ${detail}`, code, detail);
+    this.located(`${this.at ? this.place() : ""}${code}: ${detail}`, code, detail);
   }
 
   /** A checked program that stopped at a feature the prototype does not run. */
   unsupported(code: string, message: string): void {
-    this.located(`${this.file}: ${code}: ${message}`, code, message, false);
+    this.located(`${this.place()}${code}: ${message}`, code, message, false);
   }
 
   /**
@@ -293,7 +317,7 @@ export class DiagnosticReporter {
    * (`outcome`); the program ran, so no code applies.
    */
   entryError(subject = "main", outcome = "returned Err"): void {
-    this.located(`${this.file}: ${subject} ${outcome}`, null, `${subject} ${outcome}`);
+    this.located(`${this.place()}${subject} ${outcome}`, null, `${subject} ${outcome}`);
   }
 
   /**
@@ -344,8 +368,8 @@ export class DiagnosticReporter {
       severity: "error",
       message,
       file: this.jsonFile,
-      line: position?.line ?? null,
-      column: position?.column ?? null,
+      line: (position ?? this.at)?.line ?? null,
+      column: (position ?? this.at)?.column ?? null,
       notes: [],
       related: [],
       fix: fixes.length === 1 ? jsonFix(fixes[0]!) : null,

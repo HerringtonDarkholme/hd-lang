@@ -1,11 +1,12 @@
 // `hd FILE`, `hd run`, and `hd test`: the commands that compile a program
 // and run it.
 
-import { stat } from "node:fs/promises";
+import { stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 
 import { analyze, instantiate } from "../compiler.ts";
-import { Report } from "../diagnostic-report.ts";
+import { Report, type TestOutcome } from "../diagnostic-report.ts";
+import type { DocTest } from "../doc-tests.ts";
 import { DiagnosticError } from "../diagnostics.ts";
 import type { HirFunction } from "../hir.ts";
 import { SOURCE_ROOT, TASK_ROOT, TEST_ROOT } from "../package.ts";
@@ -13,6 +14,16 @@ import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
 import { runSelected } from "../test-runner.ts";
 import { defaultProfileAnswer, inputLines, type DefaultProfileHost } from "./default-profile.ts";
+import {
+  combinedStatus,
+  judgeCompileFail,
+  loadDocTest,
+  moduleDocTests,
+  snapshotRewrite,
+  testsBlockLine,
+  type DocTestModule,
+  type TestTally,
+} from "./doc-tests.ts";
 import {
   EXIT_HD_FAILURE,
   variablesOf,
@@ -358,7 +369,102 @@ async function testFile(
     placement,
   );
   if (typeof loaded === "number") return loaded;
-  return execute(loaded, io, { kind: "test", ...args, ...options });
+  const docs = moduleDocTests(placement, loaded.fileSource);
+  if (docs.length === 0) return execute(loaded, io, { kind: "test", ...args, ...options });
+  return testWithDocTests(args, loaded, docs, io, report, placement!, options);
+}
+
+/** How many times an update run reruns one doc test after rewriting a snapshot of it. */
+const SNAPSHOT_REWRITES = 20;
+
+/**
+ * Runs a module's test cases and its doc tests, which `hd test` runs with
+ * them (spec/cli/command-line.md#r-cli.test.doc.default): each doc test is a
+ * program of its own (spec/lang/10-modules.md#r-module.test.doc.program).
+ * Doc tests above the module's `tests:` block run before its test cases,
+ * the others after them (spec/cli/command-line.md#r-cli.json.test.order).
+ * The module's result line counts them all.
+ */
+async function testWithDocTests(
+  args: TestArgs,
+  loaded: LoadedSource,
+  docs: readonly DocTest[],
+  io: CommandIo,
+  report: Report,
+  placement: PackagePlacement,
+  options: { readonly quietWhenEmpty: boolean; readonly processes?: ProcessProvider },
+): Promise<number> {
+  const tally: TestTally = { passed: 0, failed: 0, selected: 0, registered: docs.length };
+  const module: DocTestModule = { ...args, report, file: loaded.file, placement };
+  // `--filter` matches a doc test by its name (cli.test.doc.filter).
+  const filter = args.filter;
+  const selected = docs.filter(({ name }) => filter === undefined || name.includes(filter));
+  tally.selected += selected.length;
+  let moduleSource = loaded.fileSource;
+  const runDoc = async (first: DocTest): Promise<number> => {
+    if (first.errors.length > 0) return judgeCompileFail(module, first, moduleSource, tally);
+    let test = first;
+    for (let attempt = 0; ; attempt += 1) {
+      const doc = await loadDocTest(module, test, moduleSource);
+      if (typeof doc === "number") return doc;
+      // An update run rewrites a failing snapshot in place, then runs the
+      // doc test again (spec/cli/command-line.md#r-cli.test.doc.update).
+      let rewritten: string | undefined;
+      const intercept = (_name: string, outcome: TestOutcome, message: string): boolean => {
+        if (outcome === "failed") rewritten = snapshotRewrite(test, message, moduleSource);
+        return rewritten !== undefined;
+      };
+      const counts: TestTally = { passed: 0, failed: 0, selected: 0, registered: 0 };
+      const status = await execute(doc, io, {
+        kind: "test",
+        ...args,
+        ...options,
+        quietWhenEmpty: true,
+        tally: counts,
+        ...(args.update && attempt < SNAPSHOT_REWRITES ? { keepGoing: true, intercept } : {}),
+      });
+      if (rewritten === undefined) {
+        tally.passed += counts.passed;
+        tally.failed += counts.failed;
+        return status;
+      }
+      moduleSource = rewritten;
+      await writeFile(loaded.path, moduleSource);
+      const next = moduleDocTests(placement, moduleSource).find(({ name }) => name === test.name);
+      if (!next) return status;
+      test = next;
+    }
+  };
+  const testsLine = loaded.file.endsWith("_test.hd") ? 0 : testsBlockLine(loaded.fileSource);
+  const runModule = (): Promise<number> =>
+    execute(loaded, io, { kind: "test", ...args, ...options, quietWhenEmpty: true, tally });
+  const steps = [
+    ...selected.filter(({ line }) => line < testsLine).map((test) => () => runDoc(test)),
+    runModule,
+    ...selected.filter(({ line }) => line >= testsLine).map((test) => () => runDoc(test)),
+  ];
+  // A text run ends a module's run at its first failed test case, as it does
+  // for the module's own test cases; a module that does not compile ends it
+  // too. A doc test that does not compile is a program of its own.
+  const stopAtFailure = args.format === "text" && !args.update;
+  let status = 0;
+  for (const step of steps) {
+    const result = await step();
+    status = combinedStatus(status, result);
+    if (step === runModule && result === EXIT_HD_FAILURE) return status;
+    if (result === 1 && stopAtFailure) break;
+  }
+  // `hd test FILE` is an error when FILE registers no test case, or none
+  // that `--filter` selects (cli.test.file-empty, cli.test.filter.none).
+  if (!options.quietWhenEmpty && tally.selected === 0 && status === 0) {
+    loaded.reporter.noTestCases(tally.registered > 0 ? filter : undefined);
+    return EXIT_HD_FAILURE;
+  }
+  if (args.format === "text" && tally.passed + tally.failed > 0)
+    io.out(
+      `${loaded.file}: ${tally.passed} passed${tally.failed > 0 ? `, ${tally.failed} failed` : ""}`,
+    );
+  return tally.failed > 0 ? combinedStatus(status, 1) : status;
 }
 
 /**
@@ -459,9 +565,26 @@ type Execution =
       readonly quietWhenEmpty: boolean;
       /** The `Process` of an integration test: the package's executables. */
       readonly processes?: ProcessProvider;
+      /**
+       * Counts the program's test cases instead of printing its result line,
+       * for a module run with its doc tests (commands/doc-tests.ts).
+       */
+      readonly tally?: TestTally;
+      /** Runs every test case after a failure; the default is with `--format json`. */
+      readonly keepGoing?: boolean;
+      /**
+       * Sees each test case's result first, and keeps it out of the report
+       * when it returns true, as an update run that rewrites a doc test's
+       * snapshot does.
+       */
+      readonly intercept?: (name: string, outcome: TestOutcome, message: string) => boolean;
     } & TestArgs);
 
-async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution): Promise<number> {
+export async function execute(
+  loaded: LoadedSource,
+  io: CommandIo,
+  execution: Execution,
+): Promise<number> {
   const { file, path, source, linked, placement, reporter } = loaded;
   const command = execution.kind;
   const entryName = (command === "run" ? execution.entry : undefined) ?? "main";
@@ -481,7 +604,8 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       : loaded.compileOptions.integrationTest
         ? integrationTestHost(
             resolve(workingDirectory(execution), placement?.root ?? "."),
-            placement?.path ?? file,
+            // A doc test's program is its module's file (cli.test.env.args.program).
+            loaded.docTest?.modulePath ?? placement?.path ?? file,
             variablesOf(execution),
           )
         : undefined;
@@ -490,7 +614,10 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
   let running = false;
   let passedCases = 0;
   const failedLine = (): void => {
-    if (test?.format === "text") io.out(`${file}: ${passedCases} passed, 1 failed`);
+    if (test?.tally) {
+      test.tally.passed += passedCases;
+      test.tally.failed += 1;
+    } else if (test?.format === "text") io.out(`${file}: ${passedCases} passed, 1 failed`);
   };
   // `hd test` keeps a test case's `dbg` lines and shows them only when it
   // fails; `hd run` writes them to standard error (spec/cli/command-line.md#debug-output).
@@ -533,6 +660,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       hostCapabilities: loaded.compileOptions.hostCapabilities,
       parse: loaded.parseOptions,
       integrationTest: loaded.compileOptions.integrationTest,
+      docTest: loaded.compileOptions.docTest,
       testBuild: loaded.compileOptions.testBuild,
       // `hd test` always runs a checked build (spec/cli/command-line.md#r-cli.profile.test).
       release: command === "run" ? (execution.release ?? false) : false,
@@ -609,6 +737,10 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     // none passes (cli.test.package-empty).
     // A filter that matches no test case of a named FILE is an error too
     // (spec/cli/command-line.md#r-cli.test.filter.none).
+    if (test?.tally) {
+      test.tally.registered += registered.length;
+      test.tally.selected += selected.length;
+    }
     if (test && !test.quietWhenEmpty && selected.length === 0) {
       reporter.noTestCases(registered.length > 0 ? filter : undefined);
       return EXIT_HD_FAILURE;
@@ -632,13 +764,19 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       snapshots.check,
       test && {
         record: (name, outcome, message) => {
+          if (test.intercept?.(name, outcome, message)) return;
           if (outcome === "passed") passedCases += 1;
-          if (outcome === "failed") showDebugLines();
+          if (outcome === "failed") {
+            showDebugLines();
+            if (test.tally) test.tally.failed += 1;
+            // Text output names a failure that does not end the run.
+            if (test.format === "text") reporter.entryError(`test "${name}"`, message);
+          }
           loaded.output.test(name, outcome, message);
         },
         // With `--format json` every test case reports (cli.json.test), so a
         // failure does not stop the run.
-        keepGoing: test.format === "json",
+        keepGoing: test.keepGoing ?? test.format === "json",
       },
       test && TEST_TEMP_DIRS,
     );
@@ -650,7 +788,8 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       return 1;
     }
     if (test) {
-      if (test.format === "text" && (outcome.count > 0 || !test.quietWhenEmpty))
+      if (test.tally) test.tally.passed += outcome.count;
+      else if (test.format === "text" && (outcome.count > 0 || !test.quietWhenEmpty))
         io.out(`${file}: ${outcome.count} passed`);
       // With --deny-skipped, a skipped test case is a failure (cli.test.deny-skipped).
       if (test.denySkipped && loaded.output.counts.skipped > 0) return 1;
