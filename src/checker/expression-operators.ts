@@ -10,7 +10,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   readonlyType,
-  typeSourceText,
+  displayType,
   tupleParts,
 } from "../types.ts";
 import { isIntegerType, numericType, widensTo, widerNumeric } from "../numeric.ts";
@@ -353,7 +353,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         )
           this.fail(
             "type-mismatch",
-            `an integer exponent must have an unsigned integer type, found '${typeSourceText(right.type)}'`,
+            `an integer exponent must have an unsigned integer type, found '${displayType(right.type)}'`,
             expression.right.span,
           );
         const integerPower =
@@ -394,7 +394,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           ) {
             this.fail(
               "missing-eq",
-              `type '${typeSourceText(left.type)}' does not implement Eq`,
+              `type '${displayType(left.type)}' does not implement Eq`,
               expression.span,
             );
           }
@@ -420,7 +420,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           )
             this.fail(
               "missing-partial-ord",
-              `type '${typeSourceText(left.type)}' does not implement PartialOrd`,
+              `type '${displayType(left.type)}' does not implement PartialOrd`,
               expression.span,
             );
         }
@@ -454,7 +454,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         ) {
           this.fail(
             "type-mismatch",
-            `operator '${expression.operator}' does not accept ${typeSourceText(left.type)}`,
+            `operator '${expression.operator}' does not accept ${displayType(left.type)}`,
             expression.span,
           );
         }
@@ -533,7 +533,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if ((operator !== "<<" && operator !== ">>") || !isIntegerType(left.type)) return false;
     if (numericType(right.type) && readonlyType(right.type) !== "u32")
       this.failWithConversion(
-        `a shift count must have type u32, found '${typeSourceText(right.type)}'; write u32(...)`,
+        `a shift count must have type u32, found '${displayType(right.type)}'; write u32(...)`,
         "u32",
         right.span,
       );
@@ -554,7 +554,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (functionOperand)
       this.fail(
         "unsupported-function-identity",
-        `identity of function value of type '${typeSourceText(functionOperand.type)}' is unspecified`,
+        `identity of function value of type '${displayType(functionOperand.type)}' is unspecified`,
         expression.span,
       );
     const operands = this.identityOperands(left, right);
@@ -564,7 +564,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           this.isIdentityType(withoutPermissions(right.type))
           ? "incompatible-identity-operands"
           : "type-mismatch",
-        `identity operands have types ${typeSourceText(left.type)} and ${typeSourceText(right.type)}`,
+        `identity operands have types ${displayType(left.type)} and ${displayType(right.type)}`,
         expression.span,
       );
     }
@@ -580,7 +580,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (!this.isIdentityType(identityType)) {
       this.fail(
         "identity-requires-references",
-        `identity comparison does not accept '${typeSourceText(left.type)}'`,
+        `identity comparison does not accept '${displayType(left.type)}'`,
         expression.span,
       );
     }
@@ -648,7 +648,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         this.withLiteralHint([[operand, "i32"]], () =>
           this.fail(
             "unsigned-negation",
-            `unary '-' does not accept the unsigned type '${typeSourceText(operand.type)}'`,
+            `unary '-' does not accept the unsigned type '${displayType(operand.type)}'`,
             expression.span,
           ),
         );
@@ -686,7 +686,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     )
       this.fail(
         "mixed-signedness",
-        `signed and unsigned operands do not mix: ${typeSourceText(left.type)} and ${typeSourceText(right.type)}; cast one explicitly`,
+        `signed and unsigned operands do not mix: ${displayType(left.type)} and ${displayType(right.type)}; cast one explicitly`,
         expression.span,
       );
     if (
@@ -705,8 +705,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     this.fail(
       "type-mismatch",
       trait && !isPrimitiveOperand(right.type)
-        ? `operator '${expression.operator}' needs an implementation of std.ops.${trait[0]}[${typeSourceText(readonlyType(right.type))}] for '${typeSourceText(left.type)}'`
-        : `operator operands have types ${typeSourceText(left.type)} and ${typeSourceText(right.type)}`,
+        ? `operator '${expression.operator}' needs an implementation of std.ops.${trait[0]}[${displayType(readonlyType(right.type))}] for '${displayType(left.type)}'`
+        : `operator operands have types ${displayType(left.type)} and ${displayType(right.type)}`,
       expression.span,
     );
   }
@@ -724,7 +724,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         : undefined;
     if (narrower)
       this.failWithConversion(
-        `${what} have types ${typeSourceText(left.type)} and ${typeSourceText(right.type)}, and numbers never widen implicitly; write ${narrower.to}(...)`,
+        `${what} have types ${displayType(left.type)} and ${displayType(right.type)}, and numbers never widen implicitly; write ${narrower.to}(...)`,
         narrower.to,
         narrower.value.span,
       );
@@ -914,7 +914,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       )
         this.fail(
           "mixed-signedness",
-          `signed and unsigned range bounds do not mix: ${typeSourceText(leftType)} and ${typeSourceText(rightType)}; cast one explicitly`,
+          `signed and unsigned range bounds do not mix: ${displayType(leftType)} and ${displayType(rightType)}; cast one explicitly`,
           span,
         );
       bounds = [left, right];
@@ -923,14 +923,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       if (!isIntegerType(readonlyType(bound.type)))
         this.fail(
           "type-mismatch",
-          `a range bound must have an integer type, found '${typeSourceText(bound.type)}'`,
+          `a range bound must have an integer type, found '${displayType(bound.type)}'`,
           bound.span,
         );
     if (bounds.length === 2 && readonlyType(bounds[0]!.type) !== readonlyType(bounds[1]!.type)) {
       this.rejectMixedWidths(bounds[0]!, bounds[1]!, "range bounds");
       this.fail(
         "type-mismatch",
-        `range bounds have types ${typeSourceText(bounds[0]!.type)} and ${typeSourceText(bounds[1]!.type)}`,
+        `range bounds have types ${displayType(bounds[0]!.type)} and ${displayType(bounds[1]!.type)}`,
         span,
       );
     }
@@ -989,7 +989,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (numericType(readonlyType(element ?? ""))?.family !== "unsigned")
       this.fail(
         "type-mismatch",
-        `slice bounds must have an unsigned integer type, found '${typeSourceText(element ?? index.type)}'`,
+        `slice bounds must have an unsigned integer type, found '${displayType(element ?? index.type)}'`,
         expression.span,
       );
     return index;
@@ -1050,7 +1050,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (expression.bindings.length > 1 && elementTypes?.length !== expression.bindings.length)
       this.fail(
         "type-mismatch",
-        `binding has ${expression.bindings.length} names but '${typeSourceText(value.type)}' has ${elementTypes?.length ?? 1} element${elementTypes?.length === 1 ? "" : "s"}`,
+        `binding has ${expression.bindings.length} names but '${displayType(value.type)}' has ${elementTypes?.length ?? 1} element${elementTypes?.length === 1 ? "" : "s"}`,
         expression.span,
       );
     const seen = new Set<string>();

@@ -28,7 +28,7 @@ import {
   optionalType,
   PRIMITIVE_TYPES,
   splitTypeBindings,
-  typeSourceText,
+  displayType,
   tupleParts,
 } from "../types.ts";
 import { LetParser } from "./let.ts";
@@ -287,7 +287,7 @@ class Parser extends LetParser {
     const nameVararg = this.matchText("...");
     this.expectText(":");
     const type = this.parseType();
-    const invalidVararg = `a vararg's type must be List[T], a tuple type, or a type parameter bounded by Tuple, not '${typeSourceText(type.name)}'`;
+    const invalidVararg = `a vararg's type must be List[T], a tuple type, or a type parameter bounded by Tuple, not '${displayType(type.name)}'`;
     if (nameVararg) {
       if (
         !/^List\[.*\]$/.test(type.name) &&

@@ -110,6 +110,23 @@ impl G[mut Box]:
   );
 });
 
+test("no-common-type diagnostics render trait values without the trait prefix", () => {
+  const diagnostic = onlyDiagnostic(`trait Named:
+    fn name(self) -> string
+
+trait Shown < Named:
+    fn show(self) -> string
+
+trait Tagged < Named:
+    fn tag(self) -> string
+
+fn mix(shown: Shown, tagged: Tagged) -> void:
+    items := [shown, tagged]
+`);
+  assert.equal(diagnostic.code, "no-common-type");
+  assert.equal(diagnostic.message, "list elements have no common type: Shown, Tagged");
+});
+
 test("provider diagnostics render mutable key arguments as source text", () => {
   const diagnostic = onlyDiagnostic(`trait K[T]:
     fn marker(self) -> void

@@ -71,23 +71,6 @@ From the orchestrator's review of 0c11f7bf, bb5937bd, 32856a65:
 
 No behavior change except 2. Keep the size guards identical.
 
-### AF. Last Internal Names In Diagnostics
-
-From `audit/job11-resweep-after-literal-change.md`: one fixture still leaks
-`trait:Shown` (`typing/invalid/least-common-type-supertrait-widening.hd`),
-because `src/checker/expression-literals.ts` (~line 96) calls
-`typeSourceText`, not `displayType`. Literal typing has landed, so those
-files are open again.
-
-- Move every diagnostic site that still formats a type with
-  `typeSourceText` to `displayType`: `expression-literals.ts`,
-  `expression-operators.ts`, `derive-intrinsics.ts`, `trait-calls.ts`,
-  `parser.ts`, and any others a grep finds.
-- Done when a rerun of the job 3 sweep finds 0 leaks. Delete
-  `audit/job11-resweep-after-literal-change.md` in the same commit once
-  its points are handled (the `usize`/`u32` display point is the owner's
-  call; leave it out).
-
 ### AG. Perf F7 And F10
 
 From `audit/compiler/perf-audit.md`:

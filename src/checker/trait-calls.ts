@@ -6,7 +6,7 @@ import type {
   HirTraitMethodFunction,
   ValueType,
 } from "../hir.ts";
-import { nominalGenericType, typeSourceText } from "../types.ts";
+import { nominalGenericType, displayType } from "../types.ts";
 import {
   containsGenericType,
   matchImplementationTarget,
@@ -161,7 +161,7 @@ export abstract class TraitCallChecker extends InspectChecker {
     if (providers.some((provider) => !provider))
       this.fail(
         "missing-requirement",
-        `associated function '${name}' requires ${selected.method.requirements.map(typeSourceText).join(", ")}`,
+        `associated function '${name}' requires ${selected.method.requirements.map(displayType).join(", ")}`,
         expression.span,
       );
     // The bound dictionary stands in for the receiver, which an associated
