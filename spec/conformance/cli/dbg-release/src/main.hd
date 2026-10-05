@@ -4,3 +4,5 @@ pub fn main() -> void $ Console:
     total := cents(12) + 50
     dbg(total)
     println(total)
+    let show: fn((i32,)) -> void = dbg
+    show((+1,))

@@ -126,6 +126,14 @@ export abstract class DebugPrintChecker extends InspectChecker {
   ): HirExpression | undefined {
     const state = registeredDebugPrint(this.traitTypes);
     if (!state || state.fetchedPackage(expression.span) !== undefined) return undefined;
+    if (state.release && !state.plans)
+      // spec/lang/10-modules.md#r-module.dbg.release: any reference to `dbg`
+      // is rejected. The value's user must change, so there is no fix-it.
+      this.diagnostics.push({
+        code: "dbg-in-release",
+        message: "a release build cannot refer to dbg; change the code that uses the value",
+        span: expression.span,
+      });
     const plan = state.plans?.get(sourceSpanKey(expression.span));
     if (plan?.site)
       return this.checkExpression({ kind: "name", name: plan.site, span: expression.span });

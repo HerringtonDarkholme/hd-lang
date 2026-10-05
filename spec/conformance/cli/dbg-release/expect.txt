@@ -2,8 +2,8 @@
 run: hd run
 stdout: 1250
 # A path dependency is the user's own code, so its dbg call is an error in a
-# release build too: one error in money, one in shop.
+# release build too: one error in money, and two in shop: the call and the function value.
 run: hd build --release --format json
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"dbg-in-release"},{"kind":"diagnostic","code":"dbg-in-release"},{"kind":"summary","errors":2,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-release"},{"kind":"diagnostic","code":"dbg-in-release"},{"kind":"diagnostic","code":"dbg-in-release"},{"kind":"summary","errors":3,"status":101}]
 no-file: build/release/shop.wasm

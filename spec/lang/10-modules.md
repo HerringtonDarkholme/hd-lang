@@ -860,9 +860,9 @@ fn audit(account: Account) -> Account:
 hd build --release   # error: dbg-in-release; the fix-it deletes the dbg statement
 ```
 
-1. r[module.dbg.release] A `dbg` call in the user's own code is an error in a release build, one of the [build profiles](04-type-system.md#integer-arithmetic). Error: `dbg-in-release`.
-2. r[module.dbg.release.delete] Its fix-it deletes the whole `dbg(...)` statement.
-3. r[module.dbg.release.debug-build] A debug or test build accepts a `dbg` call with no warning.
+1. r[module.dbg.release] A reference to `dbg` in the user's own code, a call or a function value, is an error in a release build, one of the [build profiles](04-type-system.md#integer-arithmetic). Error: `dbg-in-release`.
+2. r[module.dbg.release.delete] The fix-it of a call deletes the whole `dbg(...)` statement. A reference that is not a call has no fix-it, because the code that uses the value must change.
+3. r[module.dbg.release.debug-build] A debug or test build accepts a reference to `dbg` with no warning.
 4. r[module.dbg.own-code] The user's own code is the root package, every member of its [workspace](#workspaces), and every package that a [path requirement](#path-requirements) reaches.
 5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments, as [`module.dbg.body.print`](#r-module.dbg.body.print) says.
 6. r[module.dbg.dependency.warning] A build that compiles such a call warns once per fetched package, naming the package. Warning: `dbg-in-dependency`.
