@@ -108,7 +108,9 @@ This distinction matters for a successor: package identity, source identity, and
 
 The parser is handwritten recursive descent with precedence-based expression parsing. Its inheritance chain shares cursor state and diagnostic helpers across grammar files.
 
-Parsing already performs lowering. Test registrations become synthetic test declarations and std runner calls; pipes and some other constructs acquire desugared forms.
+Parsing already performs lowering. Test registrations become synthetic test declarations and std runner calls; literal suffixes and string prefixes become calls.
+
+Pipe expressions remain explicit AST nodes. The body checker lowers them to one-arm HIR matches, preserving single evaluation of the piped value.
 
 The AST therefore represents parsed and partly prepared source, rather than a lossless syntax tree. Comments, trivia, and module structure are not a general persistent editing representation.
 
