@@ -2,14 +2,16 @@
   "name": "hd-lang",
   "version": "0.0.1",
   "bin": {
-    "hd": "./bin/hd.js"
+    "hd": "./dist/bin/hd.js"
   },
   "type": "module",
   "scripts": {
+    "build:npm": "node scripts/build-npm.js",
+    "prepack": "pnpm run build:npm",
     "check": "pnpm run check:types && pnpm run lint && pnpm run format:check && pnpm test && bash spec/check.sh",
     "check:types": "tsc --noEmit && tsc --noEmit -p website/playground",
-    "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
-    "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
+    "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'scripts/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
+    "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'scripts/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "lint": "oxlint .",
     "test": "pnpm run test:portable && node --test --experimental-strip-types 'test/*.test.ts' 'spec/tools/*.test.ts'",
     "test:all": "pnpm test && pnpm run test:ui",

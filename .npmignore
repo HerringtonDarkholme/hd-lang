@@ -1,18 +1,7 @@
-# The npm package ships only what the `hd` binary needs at run time:
-# the CLI entry, the compiler sources (run with --experimental-strip-types),
-# the standard library, and the spec chapters `hd explain` reads
-# (src/spec-index.ts: spec/README.md, spec/lang/*.md, spec/std/*.md).
+# The npm package ships only dist/, built by `pnpm run build:npm` (run by
+# prepack): compiled JavaScript for bin/ and src/, the standard library, the
+# runtime .wat files, and the spec chapters `hd explain` reads.
 # npm always adds package.json and README.md.
 *
-!bin/
-!bin/**
-!src/
-!src/**
-!lib/
-!lib/**
-!spec/
-!spec/README.md
-!spec/lang/
-!spec/lang/*.md
-!spec/std/
-!spec/std/*.md
+!dist/
+!dist/**
