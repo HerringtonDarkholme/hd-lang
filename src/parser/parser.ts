@@ -1164,20 +1164,25 @@ class Parser extends LetParser {
       : this.expectKind("identifier", "expected a type name");
     let rendered = name.text;
     let end = name.span.end;
+    // A named type is a `qualified_name`, so a module namespace may
+    // qualify it, as in `cmp.Ordering` (02-grammar.md#types). Name
+    // resolution, not the parser, decides what each segment names.
+    while (name.text !== "Self" && this.atText(".") && this.peek(1).kind === "identifier") {
+      this.advance();
+      const segment = this.advance();
+      rendered = `${rendered}.${segment.text}`;
+      end = segment.span.end;
+    }
     if (this.matchText("[")) {
       const arguments_ = this.parseNamedTypeArguments();
       const close = this.expectText("]");
       if (arguments_.length === 0)
-        this.fail(
-          "generic-arity",
-          `generic type '${name.text}' requires type arguments`,
-          name.span,
-        );
+        this.fail("generic-arity", `generic type '${rendered}' requires type arguments`, name.span);
       // `Option[T]` is exactly `T?`; both spellings render to one type.
       rendered =
-        name.text === "Option" && arguments_.length === 1
+        rendered === "Option" && arguments_.length === 1
           ? optionalType(arguments_[0]!)
-          : `${name.text}[${arguments_.join(",")}]`;
+          : `${rendered}[${arguments_.join(",")}]`;
       end = close.span.end;
     }
     if (this.matchText("::")) {
