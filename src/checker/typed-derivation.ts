@@ -48,8 +48,11 @@ import {
   STRUCTURE,
   TUPLE_REST,
   transform,
+  traversalGenerics,
   visit,
+  withBound,
   type CompiledTemplate,
+  type TraversalGenerics,
 } from "./template-instances.ts";
 import { withTypedFacts } from "./typed-facts.ts";
 import { foreignSelfLines } from "./package-ownership.ts";
@@ -209,7 +212,10 @@ function needsStructureDeclarations(program: Program): boolean {
   );
   const standardTuples =
     tupleShapesInJoinedProgram(program).length > 0 && standardTupleTraits(program).length > 0;
+  // `std.serde` names `Facts`, `VariantInfo`, and `Member` (14-annotations.md#serialization).
+  const serde = program.traits.some((item) => item.standardName?.startsWith("std.serde."));
   return (
+    serde ||
     writtenStructureImports(program).size > 0 ||
     derives ||
     blocks ||
@@ -1200,10 +1206,7 @@ function generateDerivation(
   // A tuple's rest item type takes the bound its rest member needs.
   const boundOf = (parameter: string): readonly string[] =>
     tuple && parameter === TUPLE_REST ? tuple.restBound : traits;
-  const generics =
-    parameters.length > 0
-      ? `[${parameters.map((parameter) => (bounded.includes(parameter) && boundOf(parameter).length > 0 ? `${parameter} < ${boundOf(parameter).join(" & ")}` : parameter)).join(", ")}]`
-      : "";
+  const targetBounds = parameters.map((p) => withBound(p, bounded.includes(p) ? boundOf(p) : []));
   // Helpers take the target's parameters unbounded, and every use names them.
   const plain = parameters.length > 0 ? `[${parameters.join(", ")}]` : "";
   const typeArgs = parameters.length > 0 ? `::[${parameters.join(", ")}]` : "";
@@ -1312,6 +1315,7 @@ function generateDerivation(
     name: string,
     visitor: string,
     errorType: string,
+    { generics, typeArgs: siteArgs }: TraversalGenerics,
   ): void => {
     const V = out.type(visitor);
     const E = out.type(errorType);
@@ -1363,7 +1367,7 @@ function generateDerivation(
     );
     for (const variant of variants) {
       out.add(`    if chosen.info.index == ${variant.index}:`);
-      out.add(`        return ${name}_v${variant.index}${typeArgs}(s)`);
+      out.add(`        return ${name}_v${variant.index}${siteArgs}(s)`);
     }
     out.add(`    ${STRUCTURE_MISMATCH}()`);
     for (const variant of variants) {
@@ -1436,6 +1440,7 @@ function generateDerivation(
       `${prefix}_${site.traversal}_${position}`,
       renameWords(site.visitor, targetRenames),
       renameWords(site.errorType, targetRenames),
+      traversalGenerics(targetBounds, parameters, site),
     ),
   );
 

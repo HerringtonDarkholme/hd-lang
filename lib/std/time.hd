@@ -13,6 +13,7 @@
 use std.format.DebugWriter
 use std.error.Error
 use std.ops.{Add, Neg, Sub, num_suffix}
+use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
 
 pub data Duration:
     millis: i64
@@ -498,3 +499,30 @@ impl Clock for ManualClock:
         if step < 0:
             panic("sleep! with a negative duration: ${duration}")
         self.current = Timestamp::from_unix_milliseconds(self.current.millis + step)
+
+# `Duration`, `Timestamp`, and `Instant` consent to every format, and so to
+# the host boundary, as their whole milliseconds (r-std-time.serde.consent,
+# r-std-time.serde.form).
+impl Serialize for Duration:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.int(self.millis)
+
+impl Deserialize for Duration:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Duration, R::Error]:
+        .Ok(Duration { millis: input.int("Duration")? })
+
+impl Serialize for Timestamp:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.int(self.millis)
+
+impl Deserialize for Timestamp:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Timestamp, R::Error]:
+        .Ok(Timestamp { millis: input.int("Timestamp")? })
+
+impl Serialize for Instant:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.int(self.millis)
+
+impl Deserialize for Instant:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Instant, R::Error]:
+        .Ok(Instant { millis: input.int("Instant")? })

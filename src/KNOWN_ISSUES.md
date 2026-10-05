@@ -129,11 +129,10 @@ Compiler structure:
   specification allows (`module.boundary.allowed`,
   `module.profile.host-result.shape`): a `Map`, a generic enum, or an
   enum with shared fields reports `unsupported-host-provider-signature`,
-  as an argument or a result. A program's data with private fields is
-  correctly rejected (`module.boundary.pub`), pinned by the
-  `host structural results expose only public data fields` test. A std
-  type crosses with its private fields, as `Timestamp` must for the
-  default profile's `Clock`; no rule states that exception yet.
+  as an argument or a result. The prototype has no registered boundary
+  functions, so it checks the consent of
+  [`module.boundary.consent.out`](../spec/lang/10-modules.md#r-module.boundary.consent.out)
+  only for host capability methods, the default profile's included.
 - **Toolchain keys**: `[package] hd` and `[toolchain] pin`
   (`cli.manifest.toolchain-keys`) are checked for shape only. The prototype
   has no toolchain version, so it rejects no graph for a too-new minimum

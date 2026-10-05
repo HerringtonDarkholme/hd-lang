@@ -5,6 +5,7 @@
 import type { HostSuspensionCall, HostSuspensionOutcome } from "../compiler.ts";
 
 export const RUNTIME_PROFILE_NAMES = [
+  "consent-vault",
   "misbehaving-host",
   "pending-gate",
   "pending-write",
@@ -74,6 +75,14 @@ function invokeSpecialFloatHost(call: HostSuspensionCall): HostSuspensionOutcome
   return { pending: false, value: count === 0 ? Number.NaN : count === 1 ? Infinity : -0 };
 }
 
+// Returns the argument's boundary tree unchanged, so a value crosses out of
+// hd and back in (spec/conformance/README.md, `consent-vault`).
+function invokeConsentVault(call: HostSuspensionCall): HostSuspensionOutcome {
+  if (call.providerKey !== "Vault" || call.methodName !== "keep")
+    throw new Error(`consent-vault cannot invoke ${call.providerKey}.${call.methodName}`);
+  return { pending: false, value: call.arguments[0]! };
+}
+
 function invokeCounter(call: HostSuspensionCall): HostSuspensionOutcome {
   if (call.providerKey !== "Counter" || call.methodName !== "add")
     throw new Error(`ready-counter cannot invoke ${call.providerKey}.${call.methodName}`);
@@ -93,6 +102,7 @@ function invokeText(call: HostSuspensionCall): HostSuspensionOutcome {
 }
 
 export const RUNTIME_PROFILES: Readonly<Record<RuntimeProfileName, RuntimeProfile>> = {
+  "consent-vault": { hostCapabilities: ["Vault"], invoke: invokeConsentVault },
   "misbehaving-host": { hostCapabilities: ["Gauge"], invoke: invokeMisbehavingHost },
   "pending-gate": { hostCapabilities: ["Gate"], pending: pendingGate },
   "pending-write": { hostCapabilities: [], pending: pendingWrite },

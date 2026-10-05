@@ -116,14 +116,64 @@ export function scalarResult(
 }
 
 /**
- * Whether the fields of `data` may cross a host capability call. A program's
- * own data type crosses only with public fields (module.boundary.pub); a
- * `lib/std` type, such as `Timestamp` or the newtype `Path`, crosses with
- * its private fields too, since the profile's boundary adapter belongs to
- * the same implementation as std (module.profile.definition).
+ * The direction a value crosses a boundary in: `out` of hd, as a host call's
+ * argument, or `in` to hd, as its result (module.boundary.consent.direction).
  */
-export function boundaryFieldsVisible(data: HirData): boolean {
-  return data.standard === true || data.fields.every((field) => field.public || field.embedded);
+export type BoundaryDirection = "out" | "in";
+
+/** The `std.serde` trait whose implementation is consent for a direction. */
+export const CONSENT_TRAITS: Readonly<Record<BoundaryDirection, string>> = {
+  out: "std.serde.Serialize",
+  in: "std.serde.Deserialize",
+};
+
+/** An implementation, by its trait's std name and its target. */
+export interface ConsentImplementation {
+  readonly traitStandardName?: string;
+  readonly targetType: string;
+}
+
+/** The head names of the types that implement the std trait `trait`. */
+export function consentingTypes(
+  implementations: readonly ConsentImplementation[],
+  trait: string,
+): ReadonlySet<string> {
+  return new Set(
+    implementations
+      .filter((implementation) => implementation.traitStandardName === trait)
+      .map(
+        (implementation) =>
+          nominalGenericParts(implementation.targetType)?.name ?? implementation.targetType,
+      ),
+  );
+}
+
+/** A checked program's implementations, by their traits' std names. */
+export function programImplementations(
+  program: Pick<HirProgram, "implementations" | "traits">,
+): ConsentImplementation[] {
+  return program.implementations.map((implementation) => {
+    const trait = program.traits.find((item) => item.index === implementation.traitIndex);
+    return {
+      ...(trait?.standardName ? { traitStandardName: trait.standardName } : {}),
+      targetType: implementation.targetType,
+    };
+  });
+}
+
+/**
+ * Whether the fields of `data` may cross a boundary. A data type whose
+ * fields are all public crosses; one with a private field crosses only when
+ * it consents for the direction, by implementing `std.serde.Serialize` to go
+ * out or `std.serde.Deserialize` to come in (module.boundary.consent.out, .in). A
+ * newtype crosses as its base value.
+ */
+export function boundaryFieldsVisible(data: HirData, consenting: ReadonlySet<string>): boolean {
+  return (
+    data.newtype === true ||
+    data.fields.every((field) => field.public || field.embedded) ||
+    consenting.has(data.name)
+  );
 }
 
 /**

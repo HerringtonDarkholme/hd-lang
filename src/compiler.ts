@@ -13,9 +13,12 @@ import {
 import {
   boundaryFieldsVisible,
   boundaryShape,
+  CONSENT_TRAITS,
+  consentingTypes,
   isBoundaryScalar,
   isStringListArgument,
   payloadlessSingletonEnum,
+  programImplementations,
   programLookups,
   resultSides,
   structuralHostArgument,
@@ -310,6 +313,19 @@ function withBoundaryObject<T>(
   }
 }
 
+// The types that consent to come in from a host, by program
+// (module.boundary.consent.in).
+const incomingConsent = new WeakMap<HirProgram, ReadonlySet<string>>();
+
+function consentsToComeIn(program: HirProgram): ReadonlySet<string> {
+  let found = incomingConsent.get(program);
+  if (!found) {
+    found = consentingTypes(programImplementations(program), CONSENT_TRAITS.in);
+    incomingConsent.set(program, found);
+  }
+  return found;
+}
+
 function checkedHostBoundaryNode(
   program: HirProgram,
   type: ValueType,
@@ -360,7 +376,7 @@ function checkedHostBoundaryNode(
   if (shape.kind === "data") {
     const data = shape.declaration;
     const dataName = data.name;
-    if (!boundaryFieldsVisible(data))
+    if (!boundaryFieldsVisible(data, consentsToComeIn(program)))
       throw new Error(`host '${dataName}' cannot set a private field`);
     // A newtype, as `Path`, crosses as its base value.
     if (data.newtype)

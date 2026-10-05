@@ -526,14 +526,16 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           undefined,
           `method '${method.name}'`,
         );
-        const unresolved = method.genericParameters.filter(
-          (parameter) => !checkedSignature.substitutions.has(parameter),
+        const resolved = this.resolveAssociatedTypeSubstitutions(
+          methodSignature,
+          checkedSignature.substitutions,
+          expression.span,
         );
+        const unresolved = method.genericParameters.filter((parameter) => !resolved.has(parameter));
         if (unresolved.length > 0)
           this.failUnresolvedCall(unresolved, `.${method.name}`, expression.span);
-        methodResult = substituteGenericType(methodResult, checkedSignature.substitutions);
-        for (const [parameter, type] of checkedSignature.substitutions)
-          erasedSubstitutions.set(parameter, type);
+        methodResult = substituteGenericType(methodResult, resolved);
+        for (const [parameter, type] of resolved) erasedSubstitutions.set(parameter, type);
         bounds = this.resolveBoundDictionaries(
           methodSignature,
           checkedSignature.substitutions,

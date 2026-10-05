@@ -37,6 +37,7 @@ export const STANDARD_MODULES = [
   "regex",
   "resource",
   "result",
+  "serde",
   "task",
   "testing",
   "testing.arbitrary",

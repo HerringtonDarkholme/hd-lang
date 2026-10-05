@@ -1,10 +1,11 @@
-# std.json: the untyped JSON value, its parser, and its writers, and the
-# typed traits `ToJson` and `FromJson` with `encode` and `decode`
-# (spec/std/json.md).
+# std.json: the untyped JSON value, its parser, and its writers, and
+# typed JSON over the `std.serde` consent: `to_json`, `from_json`,
+# `encode`, and `decode` (spec/std/json.md).
 use std.format.DebugWriter
 use std.error.Error
 use std.num.parse_f64
-use std.structure.{Structure, Walker, Source, Variant, Field, Members, Key}
+use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
+use std.structure.{VariantInfo, Member, Facts}
 
 # One JSON value (r-std-json.value.decl). An object keeps its keys in
 # insertion order, as every `Map` does.
@@ -601,359 +602,390 @@ impl Debug for JsonError:
             .UnknownVariant(path, name) => out.debug_struct("UnknownVariant").field("path", path).field("name", name).finish()
 
 # ---------------------------------------------------------------------------
-# Typed JSON (spec/std/json.md#typed-json): `ToJson`, `FromJson`, their
-# standard implementations and templates, `encode`, and `decode`.
+# Typed JSON (spec/std/json.md#typed-json): JSON as a format that reads the
+# `std.serde` consent. `to_json` writes a value through `JsonWriter`, and
+# `from_json` reads one through `JsonReader`.
 
-# A value's `Json` (r-std-json.to-json.trait).
-pub trait ToJson:
-    fn to_json(self) -> Json
+# The `Json` of a value (r-std-json.to-json).
+pub fn to_json[T < Serialize](value: T) -> Json:
+    let writer: mut JsonWriter = JsonWriter { result: Json.Null, pending: "", keys: [], values: [], frames: [] }
+    match value.serialize(writer):
+        .Ok(_) => writer.result
+        .Err(_) => panic("std.json: the JSON writer never fails")
 
-# A value read from a `Json`, or the first error at its path
-# (r-std-json.from-json.trait).
-pub trait FromJson:
-    fn from_json(value: Json) -> Result[Self, JsonError]
+# The value that a `Json` describes, or the first decode error
+# (r-std-json.from-json).
+pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
+    let reader: mut JsonReader = JsonReader { value: value, present: true, path: "\$", frames: [], at: [] }
+    T::deserialize(reader)
 
 # The compact text of a value's `Json` (r-std-json.encode).
-pub fn encode[T < ToJson](value: T) -> string:
-    "${value.to_json()}"
+pub fn encode[T < Serialize](value: T) -> string:
+    "${to_json(value)}"
 
 # `parse`, then `from_json` (r-std-json.decode).
-pub fn decode[T < FromJson](text: string) -> Result[T, JsonError]:
+pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
     value := parse(text)?
-    T::from_json(value)
+    from_json::[T](value)
 
-# A decode error at the root, `$`.
-fn wrong_type(expected: string) -> JsonError:
-    JsonError.WrongType("\$", expected)
-
-# The path `$` followed by `segment` and then the rest of `path`, which
-# starts with `$` (r-std-json.error.path).
-fn rebase(path: string, segment: string) -> string:
-    rest := path.slice(1, path.len())
-    "\$$segment$rest"
-
-# A child's decode error, moved under `segment`, such as `.name` or `[2]`.
-fn nested(error: JsonError, segment: string) -> JsonError:
-    match error:
-        .WrongType(path, expected) => JsonError.WrongType(rebase(path, segment), expected)
-        .MissingField(path) => JsonError.MissingField(rebase(path, segment))
-        .UnknownVariant(path, name) => JsonError.UnknownVariant(rebase(path, segment), name)
-        _ => error
-
-impl ToJson for Json:
-    fn to_json(self) -> Json:
-        self
-
-impl FromJson for Json:
-    fn from_json(value: Json) -> Result[Json, JsonError]:
-        .Ok(value)
-
-impl ToJson for bool:
-    fn to_json(self) -> Json:
-        Json.Bool(self)
-
-impl FromJson for bool:
-    fn from_json(value: Json) -> Result[bool, JsonError]:
-        match value:
-            .Bool(flag) => .Ok(flag)
-            _ => .Err(wrong_type("bool"))
-
-impl ToJson for string:
-    fn to_json(self) -> Json:
-        Json.Text(self)
-
-impl FromJson for string:
-    fn from_json(value: Json) -> Result[string, JsonError]:
-        match value:
-            .Text(text) => .Ok(text)
-            _ => .Err(wrong_type("string"))
-
-# A `char` is a string of one character (r-std-json.std.char).
-impl ToJson for char:
-    fn to_json(self) -> Json:
-        Json.Text("$self")
-
-impl FromJson for char:
-    fn from_json(value: Json) -> Result[char, JsonError]:
-        match value:
-            .Text(text) =>
-                let found: mut List[char] = []
-                for item in text.chars():
-                    found.push(item)
-                if found.len() == 1:
-                    return .Ok(found[0])
-                .Err(wrong_type("char"))
-            _ => .Err(wrong_type("char"))
-
-# The integer of a `Number` from `low` to `high`, or `.None` for a float,
-# an integer out of range, or another kind.
-fn signed_in(value: Json, low: i64, high: i64) -> i64?:
-    match value:
-        .Number(number) =>
-            match number.as_i64():
-                .Some(found) =>
-                    if found >= low && found <= high:
-                        .Some(found)
-                    else:
-                        .None
-                .None => .None
-        _ => .None
-
-fn unsigned_in(value: Json, high: u64) -> u64?:
-    match value:
-        .Number(number) =>
-            match number.as_u64():
-                .Some(found) =>
-                    if found <= high:
-                        .Some(found)
-                    else:
-                        .None
-                .None => .None
-        _ => .None
-
-impl ToJson for i8:
-    fn to_json(self) -> Json:
-        Json.Number(Number::from_i64(i64(self)))
-
-impl FromJson for i8:
-    fn from_json(value: Json) -> Result[i8, JsonError]:
-        match signed_in(value, -128, 127):
-            .Some(found) => .Ok(i8(found))
-            .None => .Err(wrong_type("i8"))
-
-impl ToJson for i16:
-    fn to_json(self) -> Json:
-        Json.Number(Number::from_i64(i64(self)))
-
-impl FromJson for i16:
-    fn from_json(value: Json) -> Result[i16, JsonError]:
-        match signed_in(value, -32768, 32767):
-            .Some(found) => .Ok(i16(found))
-            .None => .Err(wrong_type("i16"))
-
-impl ToJson for i32:
-    fn to_json(self) -> Json:
-        Json.Number(Number::from_i64(i64(self)))
-
-impl FromJson for i32:
-    fn from_json(value: Json) -> Result[i32, JsonError]:
-        match signed_in(value, -2147483648, 2147483647):
-            .Some(found) => .Ok(i32(found))
-            .None => .Err(wrong_type("i32"))
-
-impl ToJson for i64:
-    fn to_json(self) -> Json:
-        Json.Number(Number::from_i64(self))
-
-impl FromJson for i64:
-    fn from_json(value: Json) -> Result[i64, JsonError]:
-        match value:
-            .Number(number) =>
-                match number.as_i64():
-                    .Some(found) => .Ok(found)
-                    .None => .Err(wrong_type("i64"))
-            _ => .Err(wrong_type("i64"))
-
-impl ToJson for u8:
-    fn to_json(self) -> Json:
-        Json.Number(Number::from_u64(u64(self)))
-
-impl FromJson for u8:
-    fn from_json(value: Json) -> Result[u8, JsonError]:
-        match unsigned_in(value, 255):
-            .Some(found) => .Ok(u8(found))
-            .None => .Err(wrong_type("u8"))
-
-impl ToJson for u16:
-    fn to_json(self) -> Json:
-        Json.Number(Number::from_u64(u64(self)))
-
-impl FromJson for u16:
-    fn from_json(value: Json) -> Result[u16, JsonError]:
-        match unsigned_in(value, 65535):
-            .Some(found) => .Ok(u16(found))
-            .None => .Err(wrong_type("u16"))
-
-impl ToJson for u32:
-    fn to_json(self) -> Json:
-        Json.Number(Number::from_u64(u64(self)))
-
-impl FromJson for u32:
-    fn from_json(value: Json) -> Result[u32, JsonError]:
-        match unsigned_in(value, 4294967295):
-            .Some(found) => .Ok(u32(found))
-            .None => .Err(wrong_type("u32"))
-
-impl ToJson for u64:
-    fn to_json(self) -> Json:
-        Json.Number(Number::from_u64(self))
-
-impl FromJson for u64:
-    fn from_json(value: Json) -> Result[u64, JsonError]:
-        match unsigned_in(value, u64_max()):
-            .Some(found) => .Ok(found)
-            .None => .Err(wrong_type("u64"))
-
-# A NaN or an infinity has no JSON number, so it writes `null`, as in
-# serde_json (r-std-json.std.float-special).
-impl ToJson for f64:
-    fn to_json(self) -> Json:
-        match Number::from_f64(self):
-            .Some(number) => Json.Number(number)
-            .None => Json.Null
-
-impl FromJson for f64:
-    fn from_json(value: Json) -> Result[f64, JsonError]:
-        match value:
-            .Number(number) =>
-                match number.as_f64():
-                    .Some(found) => .Ok(found)
-                    .None => .Err(wrong_type("f64"))
-            _ => .Err(wrong_type("f64"))
-
-impl ToJson for f32:
-    fn to_json(self) -> Json:
-        f64(self).to_json()
-
-# A number past the finite `f32` range is out of range
-# (r-std-json.std.float-read).
-impl FromJson for f32:
-    fn from_json(value: Json) -> Result[f32, JsonError]:
-        limit := 340282346638528859811704183484516925440.0
-        match value:
-            .Number(number) =>
-                match number.as_f64():
-                    .Some(found) =>
-                        if found >= -limit && found <= limit:
-                            return .Ok(f32(found))
-                        .Err(wrong_type("f32"))
-                    .None => .Err(wrong_type("f32"))
-            _ => .Err(wrong_type("f32"))
-
-# `.None` is `null` (r-std-json.std.optional).
-impl[T < ToJson] ToJson for T?:
-    fn to_json(self) -> Json:
+# `Json` writes and reads itself (r-std-json.std.json).
+impl Serialize for Json:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
         match self:
-            .Some(found) => found.to_json()
-            .None => Json.Null
-
-impl[T < FromJson] FromJson for T?:
-    fn from_json(value: Json) -> Result[T?, JsonError]:
-        match value:
-            .Null => .Ok(.None)
-            _ =>
-                match T::from_json(value):
-                    .Ok(found) => .Ok(.Some(found))
-                    .Err(error) => .Err(error)
-
-impl[T < ToJson] ToJson for List[T]:
-    fn to_json(self) -> Json:
-        let items: mut List[Json] = []
-        for item in self:
-            items.push(item.to_json())
-        Json.Array(items)
-
-impl[T < FromJson] FromJson for List[T]:
-    fn from_json(value: Json) -> Result[List[T], JsonError]:
-        match value:
+            .Null => out.null()
+            .Bool(flag) => out.bool(flag)
+            .Number(number) =>
+                match number.repr:
+                    .Negative(found) => out.int(found)
+                    .NonNegative(found) => out.uint(found)
+                    .Float(found) => out.float(found)
+            .Text(text) => out.text(text)
             .Array(items) =>
-                let found: mut List[T] = []
-                let index: usize = 0
+                out.begin_list(items.len())?
                 for item in items:
-                    match T::from_json(item):
-                        .Ok(decoded) => found.push(decoded)
-                        .Err(error) => return .Err(nested(error, "[$index]"))
-                    index = index + 1
-                .Ok(found)
-            _ => .Err(wrong_type("array"))
-
-# Only `string` keys, since a JSON key is a string
-# (r-std-json.std.map-keys).
-impl[V < ToJson] ToJson for Map[string, V]:
-    fn to_json(self) -> Json:
-        let fields: mut Map[string, Json] = {}
-        for entry in self:
-            fields[entry._0] = entry._1.to_json()
-        Json.Object(fields)
-
-impl[V < FromJson] FromJson for Map[string, V]:
-    fn from_json(value: Json) -> Result[Map[string, V], JsonError]:
-        match value:
+                    item.serialize(out)?
+                out.end_list()
             .Object(fields) =>
-                let found: mut Map[string, V] = {}
+                out.begin_map(fields.len())?
                 for entry in fields:
-                    match V::from_json(entry._1):
-                        .Ok(decoded) => found[entry._0] = decoded
-                        .Err(error) => return .Err(nested(error, ".${entry._0}"))
-                .Ok(found)
-            _ => .Err(wrong_type("object"))
+                    out.key(entry._0)?
+                    entry._1.serialize(out)?
+                out.end_map()
 
-# Derived `ToJson` (r-std-json.derive.to-json.template): a data type is an
-# object with one key per member, in declaration order. An enum variant is
-# `{"Variant": {...}}`, or the string `"Variant"` when it has no member.
-impl[T] ToJson for T by Structure:
-    fn to_json(self) -> Json:
-        let w: mut JsonWalker[T] = JsonWalker::[T] { name: "", of_data: true, fields: {} }
-        _ := Structure::walk(self, w)
-        if w.of_data:
-            return Json.Object(w.fields)
-        if w.fields.len() == 0:
-            return Json.Text(w.name)
-        let outer: mut Map[string, Json] = {}
-        outer[w.name] = Json.Object(w.fields)
-        Json.Object(outer)
+impl Deserialize for Json:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Json, R::Error]:
+        match input.peek()?:
+            .Null =>
+                _ := input.is_null()?
+                .Ok(Json.Null)
+            .Bool => .Ok(Json.Bool(input.bool("bool")?))
+            .Int => .Ok(Json.Number(Number::from_i64(input.int("i64")?)))
+            .Uint => .Ok(Json.Number(Number::from_u64(input.uint("u64")?)))
+            .Float =>
+                found := input.float("f64")?
+                match Number::from_f64(found):
+                    .Some(number) => .Ok(Json.Number(number))
+                    .None => .Ok(Json.Null)
+            .Text => .Ok(Json.Text(input.text("string")?))
+            .List =>
+                input.begin_list()?
+                let items: mut List[Json] = []
+                while input.next_item()?:
+                    items.push(Json::deserialize(input)?)
+                .Ok(Json.Array(items))
+            .Map =>
+                input.begin_map()?
+                let fields: mut Map[string, Json] = {}
+                while true:
+                    match input.next_key()?:
+                        .Some(key) => fields[key] = Json::deserialize(input)?
+                        .None => break
+                .Ok(Json.Object(fields))
 
-# The fields are public because the prototype checks the instantiated
-# walker in the deriving module.
-data JsonWalker[S]:
+# One open list, map, or variant of the writer: its kind, where its items
+# start in `values`, the key it goes under in its own container, and a
+# variant's name and form.
+data OpenFrame:
+    pub kind: i32
+    pub start: usize
+    pub key: string
     pub name: string
     pub of_data: bool
-    pub fields: mut Map[string, Json]
 
-impl[S] Walker[S] for JsonWalker[S]:
+# Builds the `Json` of one value. The items of every open container sit on
+# one stack, `values`, each beside its key in `keys`; closing a container
+# replaces its items with its value (r-std-json.derive.to-json.data).
+data JsonWriter:
+    pub result: Json
+    pub pending: string
+    pub keys: mut List[string]
+    pub values: mut List[Json]
+    pub frames: mut List[OpenFrame]
+
+impl JsonWriter:
+    fn put(mut self, value: Json) -> Result[void, never]:
+        if self.frames.len() == 0:
+            self.result = value
+        else:
+            self.keys.push(self.pending)
+            self.values.push(value)
+        .Ok(())
+
+    fn open(mut self, kind: i32, name: string, of_data: bool) -> Result[void, never]:
+        self.frames.push(OpenFrame { kind: kind, start: self.values.len(), key: self.pending, name: name, of_data: of_data })
+        .Ok(())
+
+    # The innermost frame, its items, and its keys, popped.
+    fn close(mut self) -> (OpenFrame, List[string], List[Json]):
+        frame := match self.frames.pop():
+            .Some(found) => found
+            .None => panic("std.json: a close without an open container")
+        let keys: mut List[string] = []
+        let values: mut List[Json] = []
+        let index = frame.start
+        while index < self.values.len():
+            keys.push(self.keys[index])
+            values.push(self.values[index])
+            index = index + 1
+        while self.values.len() > frame.start:
+            _ := self.values.pop()
+            _ := self.keys.pop()
+        self.pending = frame.key
+        (frame, keys, values)
+
+impl Serializer for JsonWriter:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        self.name = v.info.name
-        self.of_data = v.info.of_data
+    fn null(mut self) -> Result[void, never]:
+        self.put(Json.Null)
+
+    fn bool(mut self, value: bool) -> Result[void, never]:
+        self.put(Json.Bool(value))
+
+    fn int(mut self, value: i64) -> Result[void, never]:
+        self.put(Json.Number(Number::from_i64(value)))
+
+    fn uint(mut self, value: u64) -> Result[void, never]:
+        self.put(Json.Number(Number::from_u64(value)))
+
+    # A NaN or an infinity has no JSON number, so it writes `null`, as in
+    # serde_json (r-std-json.std.float-special).
+    fn float(mut self, value: f64) -> Result[void, never]:
+        match Number::from_f64(value):
+            .Some(number) => self.put(Json.Number(number))
+            .None => self.put(Json.Null)
+
+    fn text(mut self, value: string) -> Result[void, never]:
+        self.put(Json.Text(value))
+
+    fn begin_list(mut self, len: usize) -> Result[void, never]:
+        self.open(0, "", false)
+
+    fn end_list(mut self) -> Result[void, never]:
+        closed := self.close()
+        self.put(Json.Array(closed._2))
+
+    fn begin_map(mut self, len: usize) -> Result[void, never]:
+        self.open(1, "", false)
+
+    fn key(mut self, key: string) -> Result[void, never]:
+        self.pending = key
         .Ok(())
 
-    fn member[F < ToJson](mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        self.fields[h.info.name] = value.to_json()
+    fn end_map(mut self) -> Result[void, never]:
+        closed := self.close()
+        self.put(Json.Object(object_of(closed._1, closed._2)))
+
+    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+        self.open(2, v.name, v.of_data)
+
+    fn member(mut self, m: Member) -> Result[void, never]:
+        self.pending = m.name
         .Ok(())
 
-# Derived `FromJson` (r-std-json.derive.from-json.template): the inverse of
-# derived `ToJson`. Unknown keys are ignored, and a missing key reads as
-# `null`, so only a member whose type accepts `null` may be missing.
-impl[T] FromJson for T by Structure:
-    fn from_json(value: Json) -> Result[T, JsonError]:
-        let s: mut JsonSource[T] = JsonSource::[T] { value: value, base: "", fields: {}, at: 0 }
-        match T::build(s):
-            .Ok(built) => .Ok(built)
-            .Err(error) => .Err(error)
+    # A data type is an object; a variant with no member is its name, and
+    # any other variant `{"Variant": {...}}` (r-std-json.derive.to-json.enum).
+    fn end_variant(mut self) -> Result[void, never]:
+        closed := self.close()
+        frame := closed._0
+        fields := object_of(closed._1, closed._2)
+        if frame.of_data:
+            return self.put(Json.Object(fields))
+        if fields.len() == 0:
+            return self.put(Json.Text(frame.name))
+        let outer: mut Map[string, Json] = {}
+        outer[frame.name] = Json.Object(fields)
+        self.put(Json.Object(outer))
 
-# Reads one object: `base` is the path segment of the object that holds
-# the members, `""` for a data type and `.Variant` for an enum. The fields
-# are public because the prototype checks the instantiated source in the
-# program that uses it.
-data JsonSource[S]:
-    pub value: Json
+fn object_of(keys: List[string], values: List[Json]) -> Map[string, Json]:
+    let fields: mut Map[string, Json] = {}
+    let index: usize = 0
+    while index < keys.len():
+        fields[keys[index]] = values[index]
+        index = index + 1
+    fields
+
+# One open list, map, or variant of the reader: the path of its items'
+# container, the path to restore when it closes, a list's items or a map's
+# values with a map's keys, and a variant's members.
+data ReadFrame:
     pub base: string
+    pub home: string
+    pub items: List[Json]
+    pub keys: List[string]
     pub fields: Map[string, Json]
-    pub at: usize
 
-impl[S] Source[S] for JsonSource[S]:
+# Reads one `Json` for `from_json`. `value` is the value at the cursor,
+# `present` is false for a member whose key is missing, and `path` is the
+# cursor's path (r-std-json.error.path). `at` holds each open frame's next
+# index.
+data JsonReader:
+    pub value: Json
+    pub present: bool
+    pub path: string
+    pub frames: mut List[ReadFrame]
+    pub at: mut List[usize]
+
+impl JsonReader:
+    # A missing key is a `MissingField`; any other value that does not fit
+    # is a `WrongType` (r-std-json.derive.from-json.missing).
+    fn fail(self, expected: string) -> JsonError:
+        if !self.present:
+            return JsonError.MissingField(self.path)
+        JsonError.WrongType(self.path, expected)
+
+    fn push(mut self, frame: ReadFrame) -> void:
+        self.frames.push(frame)
+        self.at.push(0)
+
+    fn top(self) -> ReadFrame:
+        match self.frames.last():
+            .Some(frame) => frame
+            .None => panic("std.json: no open container")
+
+    fn pop(mut self) -> void:
+        frame := self.top()
+        _ := self.frames.pop()
+        _ := self.at.pop()
+        self.path = frame.home
+
+impl Deserializer for JsonReader:
     type Error = JsonError
 
-    # A data type reads an object. An enum reads `"Variant"` as
-    # `{"Variant": {}}`, or an object with exactly one key.
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], JsonError]:
-        if choices.len() == 1 && choices[0].info.of_data:
+    fn peek(mut self) -> Result[ValueKind, JsonError]:
+        if !self.present:
+            return .Ok(ValueKind.Null)
+        match self.value:
+            .Null => .Ok(ValueKind.Null)
+            .Bool(_) => .Ok(ValueKind.Bool)
+            .Number(number) =>
+                match number.repr:
+                    .Negative(_) => .Ok(ValueKind.Int)
+                    .NonNegative(found) =>
+                        if found < sign_limit():
+                            .Ok(ValueKind.Int)
+                        else:
+                            .Ok(ValueKind.Uint)
+                    .Float(_) => .Ok(ValueKind.Float)
+            .Text(_) => .Ok(ValueKind.Text)
+            .Array(_) => .Ok(ValueKind.List)
+            .Object(_) => .Ok(ValueKind.Map)
+
+    # A missing key reads as `null` (r-std-json.derive.from-json.missing).
+    fn is_null(mut self) -> Result[bool, JsonError]:
+        .Ok(!self.present || self.value.is_null())
+
+    fn bool(mut self, expected: string) -> Result[bool, JsonError]:
+        if self.present:
+            match self.value:
+                .Bool(flag) => return .Ok(flag)
+                _ => pass
+        .Err(self.fail(expected))
+
+    # A float is never an integer (r-std-json.std.integer.read).
+    fn int(mut self, expected: string) -> Result[i64, JsonError]:
+        if self.present:
+            match self.value:
+                .Number(number) =>
+                    match number.as_i64():
+                        .Some(found) => return .Ok(found)
+                        .None => pass
+                _ => pass
+        .Err(self.fail(expected))
+
+    fn uint(mut self, expected: string) -> Result[u64, JsonError]:
+        if self.present:
+            match self.value:
+                .Number(number) =>
+                    match number.as_u64():
+                        .Some(found) => return .Ok(found)
+                        .None => pass
+                _ => pass
+        .Err(self.fail(expected))
+
+    fn float(mut self, expected: string) -> Result[f64, JsonError]:
+        if self.present:
+            match self.value:
+                .Number(number) =>
+                    match number.as_f64():
+                        .Some(found) => return .Ok(found)
+                        .None => pass
+                _ => pass
+        .Err(self.fail(expected))
+
+    fn text(mut self, expected: string) -> Result[string, JsonError]:
+        if self.present:
+            match self.value:
+                .Text(found) => return .Ok(found)
+                _ => pass
+        .Err(self.fail(expected))
+
+    fn begin_list(mut self) -> Result[void, JsonError]:
+        if self.present:
+            match self.value:
+                .Array(items) =>
+                    self.push(ReadFrame { base: self.path, home: self.path, items: items, keys: [], fields: {} })
+                    return .Ok(())
+                _ => pass
+        .Err(self.fail("array"))
+
+    # An item's path adds `[index]` (r-std-json.std.item-path).
+    fn next_item(mut self) -> Result[bool, JsonError]:
+        frame := self.top()
+        last := self.at.len() - 1
+        index := self.at[last]
+        if index >= frame.items.len():
+            self.pop()
+            return .Ok(false)
+        self.at[last] = index + 1
+        self.value = frame.items[index]
+        self.present = true
+        self.path = "${frame.base}[$index]"
+        .Ok(true)
+
+    fn begin_map(mut self) -> Result[void, JsonError]:
+        if self.present:
             match self.value:
                 .Object(fields) =>
-                    self.fields = fields
-                    return .Ok(choices[0])
-                _ => return .Err(wrong_type("object"))
+                    let keys: mut List[string] = []
+                    let items: mut List[Json] = []
+                    for entry in fields:
+                        keys.push(entry._0)
+                        items.push(entry._1)
+                    self.push(ReadFrame { base: self.path, home: self.path, items: items, keys: keys, fields: {} })
+                    return .Ok(())
+                _ => pass
+        .Err(self.fail("object"))
+
+    # A map value's path adds `.key` (r-std-json.std.item-path).
+    fn next_key(mut self) -> Result[string?, JsonError]:
+        frame := self.top()
+        last := self.at.len() - 1
+        index := self.at[last]
+        if index >= frame.items.len():
+            self.pop()
+            return .Ok(.None)
+        self.at[last] = index + 1
+        key := frame.keys[index]
+        self.value = frame.items[index]
+        self.present = true
+        self.path = "${frame.base}.$key"
+        .Ok(.Some(key))
+
+    # A data type reads an object. An enum reads `"Variant"` as
+    # `{"Variant": {}}`, or an object with exactly one key
+    # (r-std-json.derive.from-json.enum).
+    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
+        if choices.len() == 1 && choices[0].of_data:
+            if self.present:
+                match self.value:
+                    .Object(fields) =>
+                        self.push(ReadFrame { base: self.path, home: self.path, items: [], keys: [], fields: fields })
+                        return .Ok(0)
+                    _ => pass
+            return .Err(self.fail("object"))
+        if !self.present:
+            return .Err(self.fail("variant"))
         let name = ""
         let payload = Json.Null
         match self.value:
@@ -962,40 +994,40 @@ impl[S] Source[S] for JsonSource[S]:
                 payload = Json.Object({})
             .Object(fields) =>
                 if fields.len() != 1:
-                    return .Err(wrong_type("variant"))
+                    return .Err(self.fail("variant"))
                 for entry in fields:
                     name = entry._0
                     payload = entry._1
-            _ => return .Err(wrong_type("variant"))
-        for choice in choices:
-            if choice.info.name == name:
+            _ => return .Err(self.fail("variant"))
+        let index: usize = 0
+        while index < choices.len():
+            if choices[index].name == name:
+                base := "${self.path}.$name"
                 match payload:
                     .Object(fields) =>
-                        self.fields = fields
-                        self.base = ".$name"
-                        return .Ok(choice)
-                    _ => return .Err(JsonError.WrongType("\$.$name", "object"))
-        .Err(JsonError.UnknownVariant("\$", name))
+                        self.push(ReadFrame { base: base, home: self.path, items: [], keys: [], fields: fields })
+                        return .Ok(index)
+                    _ => return .Err(JsonError.WrongType(base, "object"))
+            index = index + 1
+        .Err(JsonError.UnknownVariant(self.path, name))
 
-    # Every member, in declaration order.
-    fn next(mut self, members: Members[S]) -> Result[Key[S], JsonError]:
-        if self.at >= members.infos.len():
-            return .Ok(members.end())
-        info := members.infos[self.at]
-        self.at = self.at + 1
-        .Ok(members.at(info.position))
-
-    fn member[F < FromJson](mut self, h: Field[S, F], previous: F?) -> Result[F, JsonError]:
-        segment := "${self.base}.${h.info.name}"
-        match self.fields.get(h.info.name):
+    # A member reads the value of its key; a missing key is absent
+    # (r-std-json.derive.from-json.member).
+    fn member(mut self, m: Member) -> Result[void, JsonError]:
+        frame := self.top()
+        self.path = "${frame.base}.${m.name}"
+        match frame.fields.get(m.name):
             .Some(found) =>
-                match F::from_json(found):
-                    .Ok(decoded) => .Ok(decoded)
-                    .Err(error) => .Err(nested(error, segment))
+                self.value = found
+                self.present = true
             .None =>
-                match F::from_json(Json.Null):
-                    .Ok(decoded) => .Ok(decoded)
-                    .Err(_) => .Err(JsonError.MissingField("\$$segment"))
+                self.value = Json.Null
+                self.present = false
+        .Ok(())
 
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, JsonError]:
-        panic("the JSON source names every member")
+    fn end_variant(mut self) -> Result[void, JsonError]:
+        self.pop()
+        .Ok(())
+
+    fn invalid(mut self, expected: string) -> JsonError:
+        self.fail(expected)

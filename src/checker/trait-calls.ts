@@ -14,6 +14,7 @@ import {
   substituteGenericType,
 } from "./shared.ts";
 
+import type { Signature } from "./context.ts";
 import { InspectChecker } from "./expression-inspect.ts";
 
 export interface QualifiedCallExpression extends Extract<Expression, { kind: "call" }> {
@@ -123,10 +124,10 @@ export abstract class TraitCallChecker extends InspectChecker {
         expression.callee.span,
       );
     const { bound, boundIndex, selected } = candidate;
-    if (selected.method.genericParameters.length > 0 || selected.method.suspending)
+    if (selected.method.suspending)
       this.fail(
         "unsupported-bound-associated-call",
-        `the prototype calls only non-generic, non-suspending associated functions through a bound`,
+        `the prototype calls only non-suspending associated functions through a bound`,
         expression.callee.span,
       );
     const boundTrait =
@@ -147,14 +148,70 @@ export abstract class TraitCallChecker extends InspectChecker {
     const parameters = selected.method.parameters.map((parameter) =>
       substituteGenericType(parameter, substitutions),
     );
-    const result = substituteGenericType(selected.method.result, substitutions);
-    const checkedArguments = this.checkConcreteArguments(
-      expression,
-      parameters,
-      selected.method.parameterNames,
-      selected.method.variadic,
-      `associated function '${name}'`,
-    );
+    let result = substituteGenericType(selected.method.result, substitutions);
+    let checkedArguments: {
+      readonly arguments: readonly HirExpression[];
+      readonly parameterIndices?: readonly number[];
+    };
+    let bounds: HirExpression[] | undefined;
+    const method = selected.method;
+    if (method.genericParameters.length > 0) {
+      // Method-level generics are inferred per call, and their bounds
+      // travel as dictionary arguments, as for a method call on a receiver.
+      const methodSignature: Signature = {
+        name,
+        index: -1,
+        suspending: false,
+        genericParameters: method.genericParameters,
+        genericBounds: (method.genericBounds ?? []).map((item) => ({
+          ...item,
+          traitArguments: item.traitArguments.map((argument) =>
+            substituteGenericType(argument, substitutions),
+          ),
+        })),
+        referenceParameters: method.referenceParameters,
+        valueParameters: method.valueParameters,
+        rowParameters: [],
+        parameters,
+        parameterNames: method.parameterNames,
+        defaultFunctionNames: method.parameters.map(() => undefined),
+        variadic: method.variadic,
+        result,
+        requirements: method.requirements.map((requirement) =>
+          substituteGenericType(requirement, substitutions),
+        ),
+        span: method.span,
+      };
+      const checkedSignature = this.checkSignatureArguments(
+        expression,
+        methodSignature,
+        undefined,
+        `associated function '${name}'`,
+      );
+      const resolved = this.resolveAssociatedTypeSubstitutions(
+        methodSignature,
+        checkedSignature.substitutions,
+        expression.span,
+      );
+      const unresolved = method.genericParameters.filter((parameter) => !resolved.has(parameter));
+      if (unresolved.length > 0)
+        this.failUnresolvedCall(unresolved, `${owner}::${name}`, expression.span);
+      result = substituteGenericType(result, resolved);
+      for (const [parameter, type] of resolved) substitutions.set(parameter, type);
+      bounds = this.resolveBoundDictionaries(
+        methodSignature,
+        checkedSignature.substitutions,
+        expression.span,
+      );
+      checkedArguments = checkedSignature;
+    } else
+      checkedArguments = this.checkConcreteArguments(
+        expression,
+        parameters,
+        selected.method.parameterNames,
+        selected.method.variadic,
+        `associated function '${name}'`,
+      );
     const providers = selected.method.requirements.map((requirement) =>
       this.resolveProvider(substituteGenericType(requirement, substitutions), expression.span),
     );
@@ -180,6 +237,7 @@ export abstract class TraitCallChecker extends InspectChecker {
       supertraitPath: selected.path.length > 0 ? selected.path : undefined,
       arguments: checkedArguments.arguments,
       argumentParameterIndices: checkedArguments.parameterIndices,
+      ...(bounds ? { bounds } : {}),
       providers: providers as HirExpression[],
       erasedParameterTypes: selected.method.parameters.some(containsGenericType)
         ? selected.method.parameters

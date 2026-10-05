@@ -89,7 +89,9 @@ test("structural host results reject malformed nested values", async () => {
   }
 });
 
-test("host structural results expose only public data fields", () => {
+// spec/lang/10-modules.md#private-fields-at-a-boundary: a private field
+// crosses only with the consent its direction needs.
+test("host structural results expose private data fields only with consent", () => {
   const source = `pub data Hidden:
     value: i32
 
@@ -98,8 +100,39 @@ pub trait Source:
 `;
   assert.equal(
     analyze(source, { hostCapabilities: ["Source"] }).diagnostics.at(-1)?.code,
-    "unsupported-host-provider-signature",
+    "boundary-private-field",
   );
+  const consented = `use std.serde.Deserialize
+
+@derive(Deserialize)
+pub data Hidden:
+    value: i32
+
+pub trait Source:
+    fn read(self) -> Hidden
+`;
+  assert.deepEqual(
+    analyze(consented, { hostCapabilities: ["Source"] }).diagnostics.map(({ code }) => code),
+    [],
+  );
+});
+
+test("a host argument with a private field needs Serialize, not Deserialize", () => {
+  const source = `use std.serde.Deserialize
+
+@derive(Deserialize)
+pub data Hidden:
+    value: i32
+
+pub trait Sink:
+    fn write(self, value: Hidden) -> void
+`;
+  const diagnostics = analyze(source, { hostCapabilities: ["Sink"] }).diagnostics;
+  assert.deepEqual(
+    diagnostics.map(({ code }) => code),
+    ["boundary-private-field"],
+  );
+  assert.match(diagnostics[0]!.message, /std\.serde\.Serialize/);
 });
 
 // `Process.run!` takes a `List[string]` and returns

@@ -28,9 +28,13 @@ type Renames = ReadonlyMap<string, string>;
 const QUALIFIED_NAME =
   /[\p{ID_Start}_][\p{ID_Continue}]*(?:\.[\p{ID_Start}_][\p{ID_Continue}]*)*/gu;
 
+// A word after `::` names a member of the type before it, as `Error` in
+// `W::Error`, so it is never a std module's top-level name.
 function renameWords(text: string, names: Renames): string {
   if (names.size === 0) return text;
-  return text.replace(/[\p{ID_Start}_][\p{ID_Continue}]*/gu, (word) => names.get(word) ?? word);
+  return text.replace(/[\p{ID_Start}_][\p{ID_Continue}]*/gu, (word, offset: number) =>
+    text.slice(Math.max(0, offset - 2), offset) === "::" ? word : (names.get(word) ?? word),
+  );
 }
 
 function without(names: Renames, hidden: readonly string[]): Renames {

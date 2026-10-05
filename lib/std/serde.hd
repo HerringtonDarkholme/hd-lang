@@ -1,0 +1,318 @@
+# std.serde: the format-neutral consent to serialize
+# (spec/lang/14-annotations.md#serialization). A type opts in once with
+# `Serialize` and `Deserialize`, derived or written by hand, and every
+# format reads the consent through `Serializer` and `Deserializer`: JSON
+# (spec/std/json.md#typed-json) and the host boundary
+# (spec/lang/10-modules.md#r-module.boundary.consent.out). The standard
+# implementations and the templates are spec/std/serde.md.
+use std.structure.{Structure, Walker, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts}
+
+# A value that consents to be written by every format
+# (r-annot.serde.definition).
+pub trait Serialize:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]
+
+# A value that consents to be built by every format
+# (r-annot.serde.definition).
+pub trait Deserialize:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Self, R::Error]
+
+# A format's writer: one call per value of the data model
+# (r-std-serde.model.one-value).
+pub trait Serializer:
+    type Error
+    fn null(mut self) -> Result[void, Self::Error]
+    fn bool(mut self, value: bool) -> Result[void, Self::Error]
+    fn int(mut self, value: i64) -> Result[void, Self::Error]
+    fn uint(mut self, value: u64) -> Result[void, Self::Error]
+    fn float(mut self, value: f64) -> Result[void, Self::Error]
+    fn text(mut self, value: string) -> Result[void, Self::Error]
+    fn begin_list(mut self, len: usize) -> Result[void, Self::Error]
+    fn end_list(mut self) -> Result[void, Self::Error]
+    fn begin_map(mut self, len: usize) -> Result[void, Self::Error]
+    fn key(mut self, key: string) -> Result[void, Self::Error]
+    fn end_map(mut self) -> Result[void, Self::Error]
+    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, Self::Error]
+    fn member(mut self, m: Member) -> Result[void, Self::Error]
+    fn end_variant(mut self) -> Result[void, Self::Error]
+
+# What a self-describing format holds next (r-std-serde.read.peek).
+pub enum ValueKind:
+    Null
+    Bool
+    Int
+    Uint
+    Float
+    Text
+    List
+    Map
+
+# A format's reader: it pulls one value of the data model at a time
+# (r-std-serde.read.one-value).
+pub trait Deserializer:
+    type Error
+    fn peek(mut self) -> Result[ValueKind, Self::Error]
+    fn is_null(mut self) -> Result[bool, Self::Error]
+    fn bool(mut self, expected: string) -> Result[bool, Self::Error]
+    fn int(mut self, expected: string) -> Result[i64, Self::Error]
+    fn uint(mut self, expected: string) -> Result[u64, Self::Error]
+    fn float(mut self, expected: string) -> Result[f64, Self::Error]
+    fn text(mut self, expected: string) -> Result[string, Self::Error]
+    fn begin_list(mut self) -> Result[void, Self::Error]
+    fn next_item(mut self) -> Result[bool, Self::Error]
+    fn begin_map(mut self) -> Result[void, Self::Error]
+    fn next_key(mut self) -> Result[string?, Self::Error]
+    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, Self::Error]
+    fn member(mut self, m: Member) -> Result[void, Self::Error]
+    fn end_variant(mut self) -> Result[void, Self::Error]
+    fn invalid(mut self, expected: string) -> Self::Error
+
+# ---------------------------------------------------------------------------
+# The templates (spec/std/serde.md#derived-consent).
+
+# Derived `Serialize`: `begin_variant`, then `member` and the member's own
+# `serialize` for each walked member, then `end_variant`
+# (r-std-serde.derive.serialize.order).
+impl[T] Serialize for T by Structure:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        let walker: mut SerializeWalker[T, W] = SerializeWalker::[T, W] { out: out, facts: T::facts() }
+        Structure::walk(self, walker)?
+        out.end_variant()
+
+# The fields are public because the prototype checks the instantiated
+# walker in the deriving module.
+data SerializeWalker[S, W]:
+    pub out: mut W
+    pub facts: Facts
+
+impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
+    type Error = W::Error
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, W::Error]:
+        self.out.begin_variant(self.facts, v.info)
+
+    fn member[F < Serialize](mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+        self.out.member(h.info)?
+        value.serialize(self.out)
+
+# Derived `Deserialize`: `begin_variant` picks the variant, then each member
+# in declaration order is positioned with `member` and read with its own
+# `deserialize`, then `end_variant` (r-std-serde.derive.deserialize.order).
+impl[T] Deserialize for T by Structure:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[T, R::Error]:
+        let source: mut DeserializeSource[T, R] = DeserializeSource::[T, R] { input: input, facts: T::facts(), at: 0 }
+        built := T::build(source)?
+        input.end_variant()?
+        .Ok(built)
+
+# The fields are public because the prototype checks the instantiated
+# source in the deriving module.
+data DeserializeSource[S, R]:
+    pub input: mut R
+    pub facts: Facts
+    pub at: usize
+
+impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
+    type Error = R::Error
+
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
+        let infos: mut List[VariantInfo] = []
+        for choice in choices:
+            infos.push(choice.info)
+        index := self.input.begin_variant(self.facts, infos)?
+        .Ok(choices[index])
+
+    # Every member, in declaration order.
+    fn next(mut self, members: Members[S]) -> Result[Key[S], R::Error]:
+        if self.at >= members.infos.len():
+            return .Ok(members.end())
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Deserialize](mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
+        self.input.member(h.info)?
+        F::deserialize(self.input)
+
+    fn missing[F](mut self, h: Field[S, F]) -> Result[F, R::Error]:
+        panic("std.serde: the source names every member")
+
+# ---------------------------------------------------------------------------
+# The standard implementations (spec/std/serde.md#standard-implementations).
+
+impl Serialize for bool:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.bool(self)
+
+impl Deserialize for bool:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[bool, R::Error]:
+        input.bool("bool")
+
+impl Serialize for string:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.text(self)
+
+impl Deserialize for string:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[string, R::Error]:
+        input.text("string")
+
+# A `char` is a text of one character (r-std-serde.std.char).
+impl Serialize for char:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.text("$self")
+
+impl Deserialize for char:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[char, R::Error]:
+        text := input.text("char")?
+        let found: mut List[char] = []
+        for item in text.chars():
+            found.push(item)
+        if found.len() == 1:
+            return .Ok(found[0])
+        .Err(input.invalid("char"))
+
+# A signed integer in `low` to `high`, or the reader's error for `expected`
+# (r-std-serde.std.range).
+fn signed_in[R < Deserializer](input: mut R, low: i64, high: i64, expected: string) -> Result[i64, R::Error]:
+    found := input.int(expected)?
+    if found >= low && found <= high:
+        return .Ok(found)
+    .Err(input.invalid(expected))
+
+fn unsigned_in[R < Deserializer](input: mut R, high: u64, expected: string) -> Result[u64, R::Error]:
+    found := input.uint(expected)?
+    if found <= high:
+        return .Ok(found)
+    .Err(input.invalid(expected))
+
+impl Serialize for i8:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.int(i64(self))
+
+impl Deserialize for i8:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[i8, R::Error]:
+        .Ok(i8(signed_in(input, -128, 127, "i8")?))
+
+impl Serialize for i16:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.int(i64(self))
+
+impl Deserialize for i16:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[i16, R::Error]:
+        .Ok(i16(signed_in(input, -32768, 32767, "i16")?))
+
+impl Serialize for i32:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.int(i64(self))
+
+impl Deserialize for i32:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[i32, R::Error]:
+        .Ok(i32(signed_in(input, -2147483648, 2147483647, "i32")?))
+
+impl Serialize for i64:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.int(self)
+
+impl Deserialize for i64:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[i64, R::Error]:
+        input.int("i64")
+
+impl Serialize for u8:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.uint(u64(self))
+
+impl Deserialize for u8:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[u8, R::Error]:
+        .Ok(u8(unsigned_in(input, 255, "u8")?))
+
+impl Serialize for u16:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.uint(u64(self))
+
+impl Deserialize for u16:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[u16, R::Error]:
+        .Ok(u16(unsigned_in(input, 65535, "u16")?))
+
+impl Serialize for u32:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.uint(u64(self))
+
+impl Deserialize for u32:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[u32, R::Error]:
+        .Ok(u32(unsigned_in(input, 4294967295, "u32")?))
+
+impl Serialize for u64:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.uint(self)
+
+impl Deserialize for u64:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[u64, R::Error]:
+        input.uint("u64")
+
+impl Serialize for f64:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.float(self)
+
+impl Deserialize for f64:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[f64, R::Error]:
+        input.float("f64")
+
+impl Serialize for f32:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.float(f64(self))
+
+# A number past the finite `f32` range does not fit (r-std-serde.std.float-read).
+impl Deserialize for f32:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[f32, R::Error]:
+        limit := 340282346638528859811704183484516925440.0
+        found := input.float("f32")?
+        if found >= -limit && found <= limit:
+            return .Ok(f32(found))
+        .Err(input.invalid("f32"))
+
+# `.None` is `null` (r-std-serde.std.optional).
+impl[T < Serialize] Serialize for T?:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        match self:
+            .Some(found) => found.serialize(out)
+            .None => out.null()
+
+impl[T < Deserialize] Deserialize for T?:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[T?, R::Error]:
+        if input.is_null()?:
+            return .Ok(.None)
+        .Ok(.Some(T::deserialize(input)?))
+
+impl[T < Serialize] Serialize for List[T]:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.begin_list(self.len())?
+        for item in self:
+            item.serialize(out)?
+        out.end_list()
+
+impl[T < Deserialize] Deserialize for List[T]:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[List[T], R::Error]:
+        input.begin_list()?
+        let found: mut List[T] = []
+        while input.next_item()?:
+            found.push(T::deserialize(input)?)
+        .Ok(found)
+
+# Only `string` keys (r-std-serde.std.map-keys).
+impl[V < Serialize] Serialize for Map[string, V]:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.begin_map(self.len())?
+        for entry in self:
+            out.key(entry._0)?
+            entry._1.serialize(out)?
+        out.end_map()
+
+impl[V < Deserialize] Deserialize for Map[string, V]:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Map[string, V], R::Error]:
+        input.begin_map()?
+        let found: mut Map[string, V] = {}
+        while true:
+            match input.next_key()?:
+                .Some(key) => found[key] = V::deserialize(input)?
+                .None => break
+        .Ok(found)

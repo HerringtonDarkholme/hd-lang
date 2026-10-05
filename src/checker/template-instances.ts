@@ -1,6 +1,7 @@
 import type {
   Expression,
   FunctionDecl,
+  GenericBound,
   ImplDecl,
   MethodDecl,
   Statement,
@@ -157,11 +158,55 @@ function protocolError(
 // A template checked once.
 
 /** One call of `walk`, `describe`, or `build` in a template. */
-interface TemplateSite {
+export interface TemplateSite {
   readonly traversal: "walk" | "describe" | "build";
   /** The walker, describer, or source type, written with the template's parameter. */
   readonly visitor: string;
   readonly errorType: string;
+  /**
+   * The template method's own type parameters that the visitor or its error
+   * type mentions, as `W` in `SerializeWalker[T, W]`, with their bounds. The
+   * traversal is generic over them.
+   */
+  readonly methodParameters: readonly string[];
+  readonly methodBounds: readonly GenericBound[];
+}
+
+/** A traversal's generic parameter list and the type arguments that name them. */
+export interface TraversalGenerics {
+  readonly generics: string;
+  readonly typeArgs: string;
+}
+
+/** `T < A & B`, or a bare `T` when `traits` is empty. */
+export function withBound(parameter: string, traits: readonly string[]): string {
+  return traits.length > 0 ? `${parameter} < ${traits.join(" & ")}` : parameter;
+}
+
+/**
+ * The generics of one site's traversal: the target's parameters, each as
+ * `targetBounds` writes it, then the template method's parameters that the
+ * site's visitor mentions, as `W < Serializer`.
+ */
+export function traversalGenerics(
+  targetBounds: readonly string[],
+  targetParameters: readonly string[],
+  site: TemplateSite,
+): TraversalGenerics {
+  const own = site.methodParameters.map((parameter) =>
+    withBound(
+      parameter,
+      site.methodBounds
+        .filter((bound) => bound.parameter === parameter)
+        .flatMap((bound) => bound.traits),
+    ),
+  );
+  const all = [...targetBounds, ...own];
+  const names = [...targetParameters, ...site.methodParameters];
+  return {
+    generics: all.length > 0 ? `[${all.join(", ")}]` : "",
+    typeArgs: names.length > 0 ? `::[${names.join(", ")}]` : "",
+  };
 }
 
 /**
@@ -255,11 +300,19 @@ export function compileTemplate(
       const protocol =
         traversal === "walk" ? "Walker" : traversal === "describe" ? "Describer" : "Source";
       const site = `hd_${traversal}_${sites.length}`;
+      const errorType =
+        protocolError(implementations, renames.get(protocol) ?? protocol, local) ?? "never";
+      const mentioned = templateMethod.genericParameters.filter((item) =>
+        new RegExp(`\\b${item}\\b`).test(`${local} ${errorType}`),
+      );
       sites.push({
         traversal,
         visitor: local,
-        errorType:
-          protocolError(implementations, renames.get(protocol) ?? protocol, local) ?? "never",
+        errorType,
+        methodParameters: mentioned,
+        methodBounds: templateMethod.genericBounds.filter((bound) =>
+          mentioned.includes(bound.parameter),
+        ),
       });
       if (traversal === "walk")
         return {
@@ -316,11 +369,12 @@ export function compileTemplate(
     name: string,
     parameters: readonly [string, string][],
     result: string,
+    site?: TemplateSite,
   ): MethodDecl => ({
     name,
     suspending: false,
-    genericParameters: [],
-    genericBounds: [],
+    genericParameters: site?.methodParameters ?? [],
+    genericBounds: site?.methodBounds ?? [],
     parameters: parameters.map(([item, type]) => ({
       name: item,
       type: { name: type, span: at },
@@ -352,10 +406,16 @@ export function compileTemplate(
               ["w", visitor],
             ],
             `Result[void,${errorType}]`,
+            site,
           );
         if (site.traversal === "describe")
-          return signature(name, [["d", visitor]], `Result[void,${errorType}]`);
-        return signature(name, [["s", visitor]], `Result[${tuple ? "" : "mut:"}Self,${errorType}]`);
+          return signature(name, [["d", visitor]], `Result[void,${errorType}]`, site);
+        return signature(
+          name,
+          [["s", visitor]],
+          `Result[${tuple ? "" : "mut:"}Self,${errorType}]`,
+          site,
+        );
       }),
     ],
     span: at,
@@ -433,11 +493,12 @@ export function instanceImplementations(input: InstanceInput): {
     methodParameters: readonly [string, string][],
     result: string,
     body: Expression,
+    site?: TemplateSite,
   ): MethodDecl => ({
     name: methodName,
     suspending: false,
-    genericParameters: [],
-    genericBounds: [],
+    genericParameters: site?.methodParameters ?? [],
+    genericBounds: site?.methodBounds ?? [],
     parameters: methodParameters.map(([parameter, type]) => ({
       name: parameter,
       type: { name: type, span: at },
@@ -467,6 +528,10 @@ export function instanceImplementations(input: InstanceInput): {
         const errorType = renameWords(site.errorType, targetRenames);
         const traversal = `${prefix}_${site.traversal}_${position}`;
         const siteName = `hd_${site.traversal}_${position}`;
+        const siteArguments = [
+          ...typeArguments,
+          ...site.methodParameters.map((parameter) => ({ name: parameter, span: at })),
+        ];
         if (site.traversal === "walk")
           return method(
             siteName,
@@ -475,7 +540,8 @@ export function instanceImplementations(input: InstanceInput): {
               ["w", visitor],
             ],
             `Result[void,${errorType}]`,
-            call(traversal, [name("self"), name("w")], typeArguments),
+            call(traversal, [name("self"), name("w")], siteArguments),
+            site,
           );
         const argument = site.traversal === "describe" ? "d" : "s";
         return method(
@@ -484,7 +550,8 @@ export function instanceImplementations(input: InstanceInput): {
           site.traversal === "describe"
             ? `Result[void,${errorType}]`
             : `Result[${compiled.tuple ? "" : "mut:"}${targetType},${errorType}]`,
-          call(traversal, [name(argument)], typeArguments),
+          call(traversal, [name(argument)], siteArguments),
+          site,
         );
       }),
     ],
