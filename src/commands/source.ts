@@ -8,7 +8,7 @@ import { SINGLE_FILE_USE } from "../checker/standard-uses.ts";
 import type { CompileOptions } from "../compiler.ts";
 import { DiagnosticReporter, type OutputFormat, type Report } from "../diagnostic-report.ts";
 import { DiagnosticError, physicalSpan, sourceDocument, type Diagnostic } from "../diagnostics.ts";
-import { linkPackage, SOURCE_ROOT, TEST_ROOT, type LinkedPackage } from "../package.ts";
+import { linkPackage, SOURCE_ROOT, TASK_ROOT, TEST_ROOT, type LinkedPackage } from "../package.ts";
 import type { PackageDiagnostic } from "../package.ts";
 import type { ParseOptions } from "../parser/index.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "../runtime-panic.ts";
@@ -344,7 +344,9 @@ async function enclosingPlacement(
   if (mode.kind !== "package") return undefined;
   const pkg = mode.package;
   const packagePath = relative(pkg.root, path).split(sep).join("/");
-  if (!packagePath.startsWith(SOURCE_ROOT) && !packagePath.startsWith(TEST_ROOT)) return undefined;
+  // The roots are the source root, the test root, and `tasks` (cli.package.no-root).
+  if (![SOURCE_ROOT, TEST_ROOT, TASK_ROOT].some((root) => packagePath.startsWith(root)))
+    return undefined;
   // Diagnostics name the package's other files the way FILE was named.
   const shown = isAbsolute(file) ? pkg.root : relative(cwd, pkg.root) || ".";
   return {

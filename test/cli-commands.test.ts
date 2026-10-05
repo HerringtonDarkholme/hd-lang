@@ -86,8 +86,8 @@ test("hd help COMMAND lists only that command's flags", async () => {
   assert.deepEqual(flagsOf(tested), ["--update", "--seed", "--cases", "--shrink", "--format"]);
 
   const check = (await hd(["help", "check"])).stdout;
-  assert.match(check, /^usage: hd check \[--tests\] \[FILE\]$/m);
-  assert.deepEqual(flagsOf(check), ["--tests", "--format"]);
+  assert.match(check, /^usage: hd check \[--tests\] \[--all\] \[FILE\]$/m);
+  assert.deepEqual(flagsOf(check), ["--tests", "--all", "--format"]);
 
   assert.deepEqual(flagsOf((await hd(["help", "explain"])).stdout), ["--format"]);
   assert.deepEqual(flagsOf((await hd(["help", "repl"])).stdout), []);
@@ -308,7 +308,7 @@ test("hd run runs the package's executable, and check and build link a package f
     assert.equal((await hd(["run"], directory)).stdout, "hi\n");
     // The default executable is named after the package (cli.exe.default-name).
     assert.equal((await hd(["run", "shop"], join(directory, "src"))).stdout, "hi\n");
-    assert.match(await failure(["run", "other"], directory), /no executable named 'other'/);
+    assert.match(await failure(["run", "other"], directory), /no executable or task named 'other'/);
     // `hd run FILE` is an error that suggests hd run NAME (cli.run.file).
     assert.match(await failure(["run", "src/main.hd"], directory), /hd run NAME/);
     assert.equal((await hd(["check", main])).stdout, `${main}: ok\n`);

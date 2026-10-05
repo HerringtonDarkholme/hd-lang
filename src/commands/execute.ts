@@ -113,6 +113,9 @@ async function singleFileNote(args: FileArgs): Promise<string | undefined> {
   const executable = pkg.executables.find((candidate) => candidate.path === packagePath);
   if (executable)
     return `${args.file} is the entry module of the executable '${executable.name}' of package '${pkg.name}'; run it with: hd run ${executable.name}`;
+  const task = pkg.tasks.find((candidate) => candidate.path === packagePath);
+  if (task)
+    return `${args.file} is the task '${task.name}' of package '${pkg.name}'; run it with: hd run ${task.name}`;
   return `hd FILE runs ${args.file} on its own, outside package '${pkg.name}'; to use the package's modules, make it a task, tasks/NAME.hd, and run it with: hd run NAME`;
 }
 
@@ -183,12 +186,18 @@ function chosenExecutable(
   report: Report,
 ): Executable | undefined {
   const names = pkg.executables.map((executable) => executable.name);
-  const listed = names.length === 0 ? "it has none" : `its executables are ${names.join(", ")}`;
   if (name !== undefined) {
-    const named = pkg.executables.find((executable) => executable.name === name);
+    // NAME names an executable or a task (cli.run.name); no name names both
+    // (cli.task.name-clash).
+    const programs = [...pkg.executables, ...pkg.tasks];
+    const named = programs.find((program) => program.name === name);
+    const listed =
+      programs.length === 0
+        ? "it has none"
+        : `it has ${programs.map((program) => program.name).join(", ")}`;
     if (!named)
       report.commandError(
-        `hd run: package '${pkg.name}' has no executable named '${name}'; ${listed}`,
+        `hd run: package '${pkg.name}' has no executable or task named '${name}'; ${listed}`,
       );
     return named;
   }

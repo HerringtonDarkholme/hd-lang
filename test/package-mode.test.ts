@@ -7,6 +7,7 @@ import test from "node:test";
 import { packageMode, unselectedMains } from "../src/commands/package-mode.ts";
 import { readManifest } from "../src/manifest.ts";
 import { ReplSession } from "../src/repl.ts";
+import { runHd } from "./hd-in-process.ts";
 
 // hd.toml (src/manifest.ts) and package mode (src/commands/package-mode.ts):
 // spec/cli/command-line.md#package-mode and #executables.
@@ -129,6 +130,43 @@ test("package mode comes from the nearest hd.toml above the start directory", as
     // A workspace manifest that declares no package is workspace mode.
     await write("ws/hd.toml", '[workspace]\nmembers = ["libs/ui"]\n');
     assert.equal((await packageMode(join(directory, "ws"))).kind, "workspace");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("tasks run by name, check --all checks them, and a task may not share an executable's name", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-tasks-"));
+  try {
+    const write = async (path: string, text: string): Promise<void> => {
+      await mkdir(join(directory, path, ".."), { recursive: true });
+      await writeFile(join(directory, path), text);
+    };
+    await write("hd.toml", '[package]\nname = "shop"\n');
+    await write("src/main.hd", 'pub fn main() -> void $ Console:\n    println("app")\n');
+    await write("src/util.hd", 'pub fn word() -> string:\n    "seeded"\n');
+    await write("tasks/shared/wrap.hd", 'pub fn wrap(text: string) -> string:\n    "[${text}]"\n');
+    await write(
+      "tasks/seed.hd",
+      "use pkg.util.{word}\nuse self.shared.wrap.{wrap}\n\npub fn main() -> void $ Console:\n    println(wrap(word()))\n",
+    );
+    const mode = await packageMode(directory);
+    assert.ok(mode.kind === "package");
+    assert.deepEqual(mode.package.tasks, [{ name: "seed", path: "tasks/seed.hd" }]);
+    // hd run NAME runs a task (cli.run.name); hd run alone, the executable.
+    assert.equal((await runHd(["run", "seed"], { cwd: directory })).stdout, "[seeded]\n");
+    assert.equal((await runHd(["run"], { cwd: directory })).stdout, "app\n");
+    // Only hd check --all checks the tasks (cli.check.all).
+    await write("tasks/broken.hd", "pub fn main() -> i32:\n    true\n");
+    assert.equal((await runHd(["check"], { cwd: directory })).status, 0);
+    const all = await runHd(["check", "--all"], { cwd: directory });
+    assert.equal(all.status, 101);
+    assert.match(all.stderr, /^tasks\/broken\.hd:2:\d+: type-mismatch/m);
+    // A task named like an executable is an error (cli.task.name-clash).
+    await write("tasks/shop.hd", "pub fn main() -> void:\n    pass\n");
+    const clash = await runHd(["run", "seed"], { cwd: directory });
+    assert.equal(clash.status, 101);
+    assert.match(clash.stderr, /tasks\/shop\.hd and the executable 'shop'/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

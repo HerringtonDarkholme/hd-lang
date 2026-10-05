@@ -73,7 +73,7 @@ const COMMANDS: readonly CommandSpec[] = [
     operands: "[NAME]",
     minOperands: 0,
     maxOperands: 1,
-    summary: "run the package's executable, or the executable named NAME",
+    summary: "run the package's executable, or the executable or task named NAME",
     flags: [RELEASE],
     notes: [
       PACKAGE_NOTE,
@@ -105,7 +105,10 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 0,
     maxOperands: 1,
     summary: "type-check the package, or FILE, without running it",
-    flags: [{ name: "--tests", help: "also check the test code" }],
+    flags: [
+      { name: "--tests", help: "also check the test code" },
+      { name: "--all", help: "also check the test code and the tasks" },
+    ],
     notes: [PACKAGE_NOTE, "Without FILE, it checks the library and the executables.", FILE_NOTE],
   },
   {

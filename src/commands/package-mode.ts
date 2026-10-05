@@ -8,7 +8,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
 import { readManifest } from "../manifest.ts";
-import { LIB_FILE, MAIN_FILE, SOURCE_ROOT, TEST_ROOT } from "../package.ts";
+import { LIB_FILE, MAIN_FILE, SOURCE_ROOT, TASK_ROOT, TEST_ROOT } from "../package.ts";
 import { parse } from "../parser/index.ts";
 
 /** A package's manifest file name (spec/lang/10-modules.md#r-module.manifest.file). */
@@ -49,10 +49,12 @@ export interface LocalPackage {
   readonly root: string;
   /** The `[package]` name, or the directory's name when the manifest has none. */
   readonly name: string;
-  /** Every `.hd` file under `src/` and `tests/`, keyed by package path. */
+  /** Every `.hd` file under `src/`, `tests/`, and `tasks/`, keyed by package path. */
   readonly files: Readonly<Record<string, string>>;
   /** The executables, declared or default, whose entry modules exist. */
   readonly executables: readonly Executable[];
+  /** The tasks, each a file `tasks/NAME.hd` (spec/cli/command-line.md#r-cli.task.file). */
+  readonly tasks: readonly Executable[];
   /** Errors in the manifest and in the executables it declares. */
   readonly problems: readonly PackageProblem[];
 }
@@ -87,10 +89,10 @@ export async function hdFilesUnder(directory: string): Promise<Record<string, st
   return files;
 }
 
-/** A package's `.hd` files under `src/` and `tests/`, keyed by package path. */
+/** A package's `.hd` files under `src/`, `tests/`, and `tasks/`, keyed by package path. */
 export async function packageFiles(root: string): Promise<Record<string, string>> {
   const files: Record<string, string> = {};
-  for (const prefix of [SOURCE_ROOT, TEST_ROOT])
+  for (const prefix of [SOURCE_ROOT, TEST_ROOT, TASK_ROOT])
     for (const [path, text] of Object.entries(await hdFilesUnder(join(root, prefix))))
       files[`${prefix}${path}`] = text;
   return files;
@@ -121,7 +123,7 @@ export async function packageMode(start: string): Promise<PackageMode> {
     }));
     return {
       kind: "package",
-      package: { root, name: basename(root), files, executables: [], problems },
+      package: { root, name: basename(root), files, executables: [], tasks: [], problems },
     };
   }
   const { manifest } = read;
@@ -156,7 +158,22 @@ export async function packageMode(start: string): Promise<PackageMode> {
         `src/main.hd is no executable, since hd.toml declares [[executable]] tables and none names module "main"; add one:\n  [[executable]]\n  name = "${name}"\n  module = "main"`,
       );
   }
-  return { kind: "package", package: { root, name, files, executables, problems } };
+  // Each file directly under `tasks` is a task named after it
+  // (spec/cli/command-line.md#r-cli.task.file). A task and an executable
+  // with one name are an error (spec/cli/command-line.md#r-cli.task.name-clash).
+  const tasks: Executable[] = Object.keys(files)
+    .filter((path) => path.startsWith(TASK_ROOT) && !path.slice(TASK_ROOT.length).includes("/"))
+    .sort()
+    .map((path) => ({ name: path.slice(TASK_ROOT.length, -".hd".length), path }));
+  for (const task of tasks)
+    if (executables.some((executable) => executable.name === task.name))
+      problem(
+        manifest.executables.find((executable) => executable.name === task.name)?.line ??
+          manifest.packageLine,
+        null,
+        `the task ${task.path} and the executable '${task.name}' have one name; rename one, since hd run ${task.name} must name one program`,
+      );
+  return { kind: "package", package: { root, name, files, executables, tasks, problems } };
 }
 
 /**

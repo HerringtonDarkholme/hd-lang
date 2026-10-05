@@ -40,6 +40,37 @@ test("package paths map to module identities", () => {
   assert.equal(moduleIdentity("src/fn.hd"), undefined);
 });
 
+test("tasks resolve relative uses from tasks/ and are programs of their own", () => {
+  const files = {
+    "src/util.hd": "pub fn one() -> i32: 1\n",
+    "tasks/shared/zip.hd": "pub fn zip() -> i32: 2\n",
+    "tasks/seed.hd":
+      "use pkg.util.{one}\nuse self.shared.zip.{zip}\n\npub fn main() -> void: pass\n",
+  };
+  // A task's lookup starts at tasks/ (cli.task.root-file), and it uses the
+  // package through pkg (cli.task.uses).
+  assert.deepEqual(codes(files, "tasks/seed.hd"), []);
+  // super in a task, and a use of a task, are unknown-module (cli.task.super,
+  // cli.task.program-use); src cannot reach tasks/.
+  assert.deepEqual(codes({ ...files, "tasks/up.hd": "use super.util.{one}\n" }, "tasks/up.hd"), [
+    "tasks/up.hd:1:unknown-module",
+  ]);
+  assert.deepEqual(
+    codes({ ...files, "tasks/other.hd": "use self.seed.{main}\n" }, "tasks/other.hd"),
+    ["tasks/other.hd:1:unknown-module"],
+  );
+  // A file beside a directory of its name is no program (cli.task.beside-dir,
+  // module.test.integration.beside-dir).
+  for (const root of ["tasks", "tests"])
+    assert.deepEqual(
+      codes(
+        { [`${root}/shared.hd`]: "pass\n", [`${root}/shared/zip.hd`]: "pub fn zip() -> i32: 2\n" },
+        `${root}/shared/zip.hd`,
+      ),
+      [`${root}/shared.hd:1:invalid-module-path`],
+    );
+});
+
 test("the root files: lib.hd is pkg, main.hd and other entries are programs, pkg is reserved", () => {
   const library = {
     "src/lib.hd": 'pub fn greet() -> string: "hi"\n',

@@ -40,6 +40,8 @@ import { nominalGenericParts } from "./types.ts";
 export const SOURCE_ROOT = "src/";
 /** The default test root, which holds the integration test modules. */
 export const TEST_ROOT = "tests/";
+/** The directory of the package's tasks and shared task modules (spec/cli/command-line.md#tasks). */
+export const TASK_ROOT = "tasks/";
 /** The package root module, which `pkg` names (spec/lang/10-modules.md#r-module.path.lib-file). */
 export const LIB_FILE = "src/lib.hd";
 /**
@@ -94,13 +96,19 @@ function isIntegrationTestPath(path: string): boolean {
   return path.startsWith(TEST_ROOT);
 }
 
+/** Whether a package path is a task or a shared task module (spec/cli/command-line.md#tasks). */
+function isTaskPath(path: string): boolean {
+  return path.startsWith(TASK_ROOT);
+}
+
 /**
- * Whether a package path is an integration test program: a file directly
- * under the test root, such as `tests/checkout.hd`, which is its own program
- * (spec/lang/10-modules.md#r-module.test.integration.program).
+ * Whether a package path is a program root of its own: an integration test
+ * program, or a task, such as `tasks/seed.hd`
+ * (spec/cli/command-line.md#r-cli.task.file).
  */
-function isIntegrationTestProgram(path: string): boolean {
-  return path.startsWith(TEST_ROOT) && !path.slice(TEST_ROOT.length).includes("/");
+function isRootProgram(path: string): boolean {
+  const root = [TEST_ROOT, TASK_ROOT].find((prefix) => path.startsWith(prefix));
+  return root !== undefined && !path.slice(root.length).includes("/");
 }
 
 /**
@@ -146,7 +154,7 @@ const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}_]*$/u;
  */
 export function moduleIdentity(path: string): string | undefined {
   if (path === LIB_FILE) return "";
-  const root = [SOURCE_ROOT, TEST_ROOT].find((prefix) => path.startsWith(prefix));
+  const root = [SOURCE_ROOT, TEST_ROOT, TASK_ROOT].find((prefix) => path.startsWith(prefix));
   if (root === undefined || !path.endsWith(".hd")) return undefined;
   const parts = path.slice(root.length, -".hd".length).split("/");
   if (parts.at(-1) === "mod") parts.pop();
@@ -155,11 +163,18 @@ export function moduleIdentity(path: string): string | undefined {
     (part) => IDENTIFIER.test(part) && part.normalize("NFC") === part && !KEYWORDS.has(part),
   );
   if (!valid) return undefined;
-  return root === TEST_ROOT ? ["tests", ...parts].join(".") : parts.join(".");
+  if (root === TEST_ROOT) return ["tests", ...parts].join(".");
+  // The tasks root has no name in source (cli.task.root-file), so a task
+  // module's identity starts with a word that no use path can spell.
+  return root === TASK_ROOT ? [TASKS_IDENTITY, ...parts].join(".") : parts.join(".");
 }
 
-/** A module's name in a message: its identity, or `pkg` for the root module. */
+/** The first part of a task module's identity; no identifier spells it. */
+const TASKS_IDENTITY = "<tasks>";
+
+/** A module's name in a message: its identity, `pkg` for the root module, or its path for a task. */
 function shown(module: PackageModule): string {
+  if (isTaskPath(module.path)) return module.path;
   return module.identity === "" ? "pkg" : module.identity;
 }
 
@@ -175,7 +190,10 @@ function programUseMessage(
   target: PackageModule,
   identity: string,
 ): string | undefined {
-  if (!isIntegrationTestProgram(target.path) || module.path === target.path) return undefined;
+  if (!isRootProgram(target.path) || module.path === target.path) return undefined;
+  // A use of a task from another module is an error (cli.task.program-use).
+  if (isTaskPath(target.path))
+    return `'${target.path}' is a task, which is its own program and cannot be used from another module`;
   return `'${identity}' is an integration test program, which is its own program and cannot be used from another module`;
 }
 
@@ -246,9 +264,9 @@ function isPublic(program: Program, name: string): boolean {
 /** The source module a relative use starts from (10-modules.md#relative-uses). */
 function relativeBase(module: PackageModule): string[] {
   if (module.path === MAIN_FILE || module.path === LIB_FILE) return [];
-  // Each file directly under the test root is an independent program root.
-  if (isIntegrationTestPath(module.path) && !module.path.slice(TEST_ROOT.length).includes("/"))
-    return ["tests"];
+  // Each file directly under the test root or `tasks` is an independent
+  // program root, whose lookup starts at that root (cli.task.root-file).
+  if (isRootProgram(module.path)) return [isTaskPath(module.path) ? TASKS_IDENTITY : "tests"];
   return module.identity === "" ? [] : module.identity.split(".");
 }
 
@@ -265,13 +283,14 @@ function useModulePath(module: PackageModule, declaration: UseDecl): string[] | 
   const base = relativeBase(module);
   const path = [root, ...rest];
   if (path[0] === "self") path.shift();
-  // Relative uses in an integration test module stay under the test root.
-  const top = isIntegrationTestPath(module.path) ? 1 : 0;
+  // Relative uses in an integration test module stay under the test root,
+  // and in a task module under `tasks` (cli.task.super, cli.task.above-root).
+  const top = isIntegrationTestPath(module.path) || isTaskPath(module.path) ? 1 : 0;
   while (path[0] === "super") {
     if (base.length === top)
       return top === 0
         ? "'super' moves above the package root"
-        : "'super' moves above the test root";
+        : `'super' moves above the ${isTaskPath(module.path) ? "tasks" : "test"} root`;
     base.pop();
     path.shift();
   }
@@ -356,7 +375,23 @@ function parsePackageModules(
       report(
         path,
         "invalid-module-path",
-        `'${path}' is not a module path: files are 'src/<identifier>/.../<identifier>.hd', or under 'tests/' for integration tests`,
+        `'${path}' is not a module path: files are 'src/<identifier>/.../<identifier>.hd', or under 'tests/' for integration tests and 'tasks/' for tasks`,
+      );
+      continue;
+    }
+    // A program file directly under the test root or `tasks`, beside a
+    // directory of the same name, is invalid
+    // (spec/lang/10-modules.md#r-module.test.integration.beside-dir,
+    // spec/cli/command-line.md#r-cli.task.beside-dir).
+    const directory = path.slice(0, -".hd".length);
+    if (
+      isRootProgram(path) &&
+      Object.keys(files).some((other) => other.startsWith(`${directory}/`))
+    ) {
+      report(
+        path,
+        "invalid-module-path",
+        `'${path}' lies beside the directory '${directory}/', so it is no program; move it to '${directory}/mod.hd'`,
       );
       continue;
     }

@@ -52,6 +52,8 @@ export interface CheckArgs extends CommandEnvironment {
   readonly format: SourceArgs["format"];
   /** `--tests`: also check the test code (spec/cli/command-line.md#r-cli.check.tests). */
   readonly tests: boolean;
+  /** `--all`: also the test code and the tasks (spec/cli/command-line.md#r-cli.check.all). */
+  readonly all?: boolean;
   readonly profile?: RuntimeProfileName;
   readonly testLayout?: TestLayout;
   readonly packageTree?: PackageTree;
@@ -66,7 +68,12 @@ export async function checkCommand(args: CheckArgs, io: CommandIo): Promise<numb
   if (args.file === undefined) {
     const pkg = await commandPackage("check", report, args);
     if (typeof pkg === "number") return report.finish(pkg);
-    return report.finish(await compilePackage(pkg, args, io, report, { tests: args.tests }));
+    return report.finish(
+      await compilePackage(pkg, args, io, report, {
+        tests: args.tests || args.all === true,
+        tasks: args.all === true,
+      }),
+    );
   }
   return report.finish(await check({ ...args, file: args.file }, io, report));
 }
@@ -79,7 +86,12 @@ async function check(
   const placement = await placementOf(args.file, args.packageTree, args.testLayout, args);
   const loaded = await loadSource(
     args,
-    { report, profile: args.profile, testLayout: args.testLayout, linkTests: args.tests },
+    {
+      report,
+      profile: args.profile,
+      testLayout: args.testLayout,
+      linkTests: args.tests || args.all === true,
+    },
     placement,
   );
   if (typeof loaded === "number") return loaded;
@@ -87,7 +99,7 @@ async function check(
     // `hd check` checks test code only with `--tests` (Testing T42).
     const result = analyze(loaded.source, {
       ...loaded.compileOptions,
-      skipTestCode: !args.tests,
+      skipTestCode: !(args.tests || args.all === true),
     });
     if (!result.hir) throw new DiagnosticError(result.diagnostics);
     for (const diagnostic of result.diagnostics) loaded.report(diagnostic);
@@ -103,6 +115,8 @@ interface PackageCompilation {
   readonly tests: boolean;
   /** `hd build`: write each executable's Wasm in this profile's directory. */
   readonly build?: { readonly release: boolean };
+  /** Also the tasks (spec/cli/command-line.md#r-cli.check.all). */
+  readonly tasks?: boolean;
 }
 
 /**
@@ -142,7 +156,8 @@ async function compilePackage(
   const reported = new Set<string>();
   const written: string[] = [];
   let status = 0;
-  for (const path of [...programs, ...library, ...testCode]) {
+  const tasks = options.tasks ? pkg.tasks.map(({ path }) => path) : [];
+  for (const path of [...programs, ...library, ...testCode, ...tasks]) {
     if (linked.has(path)) continue;
     const executable = pkg.executables.find((candidate) => candidate.path === path);
     const loaded = await loadSource(

@@ -50,6 +50,7 @@ function flags(parsed: Command, runner: RunnerOptions = {}) {
     testLayout: runner.testLayout,
     packageTree: runner.packageTree,
     tests: parsed.flags.has("--tests"),
+    all: parsed.flags.has("--all"),
     wat: parsed.flags.has("--wat"),
     release: parsed.flags.has("--release"),
     entry: value("--entry"),

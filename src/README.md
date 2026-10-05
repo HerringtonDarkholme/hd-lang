@@ -63,7 +63,7 @@ hd FILE  [--entry NAME] [-- ARGS]
 hd build [--wat] [--release] [FILE]
 hd run   [--release] [NAME] [-- ARGS]
 hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE]
-hd check [--tests] [FILE]
+hd check [--tests] [--all] [FILE]
 hd new   [--app] [--lib] [--pages] [--vcs none] [PATH]
 hd explain CODE      hd doc NAME [FILE|PKG]      hd def NAME [FILE|PKG]
 hd repl              hd help [COMMAND]           hd debug parse|hir FILE
@@ -100,17 +100,27 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   no module is `missing-entry-point`; a `src/main.hd` that no table names is
   an error. A public `main` in a library module warns `unselected-main`.
   Every entry module is its own program, which no module may use.
+- **Tasks** ([Tasks](../spec/cli/command-line.md#tasks)): each
+  `tasks/NAME.hd` is a task, a program of its own whose relative lookup
+  starts at `tasks/`, with shared task modules in its subdirectories. The
+  linker gives task modules identities under `<tasks>`, which no use path
+  spells; a `super` above `tasks/`, or a use of a task, is `unknown-module`.
+  A task named like an executable is an error, and a `tasks/x.hd` or
+  `tests/x.hd` beside a directory `x/` is `invalid-module-path`.
 - `hd check` and `hd build` without FILE work on the whole package
   (`compilePackage` in `commands/compile.ts`): each executable, each library
-  module, and with `--tests` each test module and integration test program
-  is the entry of its own link, unless an earlier link already joined it.
+  module, with `--tests` each test module and integration test program, and
+  with `--all` also each task, is the entry of its own link, unless an
+  earlier link already joined it.
   `hd build` writes each executable to `build/debug/NAME.wasm`, or
   `build/release/` with `--release`; the spec does not name the build
   directory. `hd build FILE` writes `NAME.wasm` to the working directory, and
   `--wat` prints the WAT. Outside any package `hd build` and `hd run` are
   errors, and `hd check` and `hd test` need a FILE.
-- `hd run [NAME]` runs the executable NAME, or the package's one executable.
-  `hd run FILE` and a directory word are errors.
+- `hd run [NAME]` runs the executable or task NAME, or the package's one
+  executable. `hd run FILE` and a directory word are errors. The prototype
+  has no file system capability, so a task's working directory, the package
+  directory by `cli.run.cwd.task`, has no effect yet.
 - `hd test` without FILE checks the executables, then tests each module
   under `src/` and each integration test program (a file directly under
   `tests/`), one link each, in path order, running only that module's test
