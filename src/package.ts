@@ -68,10 +68,48 @@ export interface PackageDiagnostic extends Diagnostic {
 }
 
 interface PackageModule {
+  /**
+   * The module's file: a package path, such as `src/user.hd`, in the root
+   * package, and an absolute path in a dependency package.
+   */
   readonly path: string;
-  /** The dotted module identity, `""` for `src/lib.hd`. */
+  /** The dotted module identity in its package, `""` for `src/lib.hd`. */
   readonly identity: string;
   readonly program?: Program;
+  /** The dependency package the module belongs to; absent in the root package. */
+  readonly dependency?: DependencyPackage;
+}
+
+/**
+ * A package that the root package depends on, linked as its own package
+ * (spec/lang/10-modules.md#name-resolution-across-packages): its modules
+ * keep their own `pkg`, `self`, and `super`, and other packages reach only
+ * their `pub` declarations through `dep.NAME`.
+ */
+export interface DependencyPackage {
+  /** Unique among the linked packages, such as `github.com/acme/json@2.1.0`. */
+  readonly id: string;
+  /** How messages name the package, such as `dep.json`. */
+  readonly shown: string;
+  /** The package's source root, an absolute path with `/`, which holds `lib.hd`. */
+  readonly sourceRoot: string;
+  /** Its library's source files, by their paths under the source root, such as `lib.hd`. */
+  readonly files: Readonly<Record<string, string>>;
+  /** Its own dependencies: each `dep.NAME` name to a package id. */
+  readonly dependencies: Readonly<Record<string, string>>;
+}
+
+/** The packages a link may reach through `dep.NAME` (spec/lang/10-modules.md#use-roots). */
+export interface PackageDependencies {
+  /** The root package's dependencies: each `dep.NAME` name to a package id. */
+  readonly dependencies: Readonly<Record<string, string>>;
+  /**
+   * The root package's dev dependencies, which only its test code and tasks
+   * may use (spec/lang/10-modules.md#r-module.test.dev-dependency).
+   */
+  readonly devDependencies: Readonly<Record<string, string>>;
+  /** Every package the root package reaches, by id. */
+  readonly packages: Readonly<Record<string, DependencyPackage>>;
 }
 
 interface LinkSegment {
@@ -101,6 +139,8 @@ interface LinkOptions {
    * `src/main.hd` alone.
    */
   readonly programs?: readonly string[];
+  /** The packages that `dep.NAME` uses reach; without it, the package has no dependencies. */
+  readonly dependencies?: PackageDependencies;
 }
 
 /** Whether a package path is an integration test module (spec/lang/10-modules.md#r-module.test.integration). */
@@ -154,6 +194,11 @@ export interface LinkedPackage {
    * and its lines keep their numbers relative to this one.
    */
   readonly entryLine?: number;
+  /**
+   * The source of each linked dependency module, by its absolute path, so a
+   * diagnostic that points into a dependency can show its line.
+   */
+  readonly dependencySources: Readonly<Record<string, string>>;
   /** Maps a diagnostic on the linked source back to its package file. */
   locate(diagnostic: Diagnostic): PackageDiagnostic;
 }
@@ -189,10 +234,157 @@ export function moduleIdentity(path: string): string | undefined {
 /** The first part of a task module's identity; no identifier spells it. */
 const TASKS_IDENTITY = "<tasks>";
 
-/** A module's name in a message: its identity, `pkg` for the root module, or its path for a task. */
+/**
+ * A module's name in a message: its identity, `pkg` for the root module, or
+ * its path for a task. A dependency's module starts with the dependency's
+ * name, as `dep.json.text`.
+ */
 function shown(module: PackageModule): string {
+  if (module.dependency)
+    return [module.dependency.shown, module.identity].filter((part) => part !== "").join(".");
   if (isTaskPath(module.path)) return module.path;
   return module.identity === "" ? "pkg" : module.identity;
+}
+
+/**
+ * A module's key among every linked module: its identity in the root
+ * package, and the package id and identity in a dependency, which no
+ * identity spells.
+ */
+function moduleKey(dependency: DependencyPackage | undefined, identity: string): string {
+  return dependency ? `<dep ${dependency.id}>${identity}` : identity;
+}
+
+function keyOf(module: PackageModule): string {
+  return moduleKey(module.dependency, module.identity);
+}
+
+/** The text a module's hidden spellings start from: its identity, after its package's id. */
+function hiddenBase(module: PackageModule): string {
+  return module.dependency ? `dep_${module.dependency.id}_${module.identity}` : module.identity;
+}
+
+/**
+ * The package that `dep.NAME` names from `module`, or the message of the
+ * `unknown-module` error. A root module sees the root package's
+ * dependencies, and its dev dependencies only from test code or a task
+ * (spec/lang/10-modules.md#r-module.test.dev-dependency); a dependency's
+ * module sees that package's own dependencies.
+ */
+function dependencyNamed(
+  dependencies: PackageDependencies | undefined,
+  module: PackageModule,
+  name: string,
+): DependencyPackage | string {
+  const own = module.dependency;
+  const id = own
+    ? own.dependencies[name]
+    : (dependencies?.dependencies[name] ??
+      (isTestModulePath(module.path) || isTaskPath(module.path)
+        ? dependencies?.devDependencies[name]
+        : undefined));
+  const found = id === undefined ? undefined : dependencies?.packages[id];
+  if (found) return found;
+  if (!own && dependencies?.devDependencies[name] !== undefined)
+    return `'dep.${name}' is a dev dependency, which only test code and tasks may use; move it to [dependencies] in hd.toml to use it here`;
+  if (own) return `${own.shown} has no dependency named '${name}'`;
+  return dependencies === undefined ||
+    Object.keys(dependencies.dependencies).length +
+      Object.keys(dependencies.devDependencies).length ===
+      0
+    ? `the package has no dependencies; add '${name}' with hd add ${name} PATH@VERSION`
+    : `the package has no dependency named '${name}'; add it with hd add ${name} PATH@VERSION`;
+}
+
+/** The `unknown-module` message for a use of a module that `dependency`, or the root package, lacks. */
+function missingModule(dependency: DependencyPackage | undefined, identity: string): string {
+  if (dependency)
+    return identity === ""
+      ? `${dependency.shown} has no library: its src/lib.hd does not exist`
+      : `${dependency.shown} has no module '${identity}'`;
+  return identity === ""
+    ? `the package has no root module: 'pkg' names ${LIB_FILE}, which does not exist`
+    : `no package module '${identity}'`;
+}
+
+/** Where a package use leads: a package, and a module path in it. */
+interface UseTarget {
+  /** The package; absent for the root package. */
+  readonly dependency: DependencyPackage | undefined;
+  readonly path: string[];
+  /** `use dep.json`, which names the root module of `json` itself. */
+  readonly namespaceOnly: boolean;
+}
+
+/**
+ * The package and module path a package use names; a message when it names
+ * none; undefined for a `std` use. A use through `dep.NAME` names a module
+ * of that dependency, whose root module is its src/lib.hd
+ * (spec/lang/10-modules.md#use-roots).
+ */
+function useTarget(
+  module: PackageModule,
+  declaration: UseDecl,
+  dependencies: PackageDependencies | undefined,
+): UseTarget | string | undefined {
+  const [root, name, ...rest] = declaration.module.split(".");
+  if (root !== "dep") {
+    const path = useModulePath(module, declaration);
+    return Array.isArray(path)
+      ? { dependency: module.dependency, path, namespaceOnly: false }
+      : path;
+  }
+  const found = dependencyNamed(dependencies, module, name ?? declaration.names[0]!.name);
+  if (typeof found === "string") return found;
+  return { dependency: found, path: rest, namespaceOnly: name === undefined };
+}
+
+/**
+ * The library modules of every dependency package, added to `modules` with
+ * their absolute paths under each package's source root; the parse
+ * diagnostics name those paths too. Returns each module's source by path.
+ */
+function addDependencyModules(
+  dependencies: PackageDependencies | undefined,
+  modules: Map<string, PackageModule>,
+  diagnostics: PackageDiagnostic[],
+  report: (path: string, code: string, message: string, span?: SourceSpan) => void,
+): Record<string, string> {
+  const sources: Record<string, string> = {};
+  for (const dependency of Object.values(dependencies?.packages ?? {})) {
+    const own = parseDependencyModules(dependency, diagnostics, report);
+    // Implementation modules are checked per package (09-traits.md#r-trait.own.module).
+    reportNonlocalImplementations(own, report);
+    for (const module of own) {
+      modules.set(keyOf(module), module);
+      sources[module.path] = dependency.files[module.path.slice(dependency.sourceRoot.length + 1)]!;
+    }
+  }
+  return sources;
+}
+
+function parseDependencyModules(
+  dependency: DependencyPackage,
+  diagnostics: PackageDiagnostic[],
+  report: (path: string, code: string, message: string, span?: SourceSpan) => void,
+): PackageModule[] {
+  // The modules take package paths under `src/` for parsing.
+  const absolute = (path: string): string =>
+    `${dependency.sourceRoot}/${path.slice(SOURCE_ROOT.length)}`;
+  const files = Object.fromEntries(
+    Object.entries(dependency.files).map(([path, text]) => [`${SOURCE_ROOT}${path}`, text]),
+  );
+  const own: PackageDiagnostic[] = [];
+  const parsed = parsePackageModules(files, own, (path, ...rest) =>
+    report(absolute(path), ...rest),
+  );
+  for (const diagnostic of own)
+    diagnostics.push({ ...diagnostic, path: absolute(diagnostic.path) });
+  return [...parsed.values()].map((module) => ({
+    ...module,
+    path: absolute(module.path),
+    dependency,
+  }));
 }
 
 function fold(identity: string): string {
@@ -469,6 +661,14 @@ export function linkPackage(
   };
   const modules = parsePackageModules(files, diagnostics, report);
   reportNonlocalImplementations(modules.values(), report);
+  // Each module's source, by its path: a dependency's under its source root.
+  const dependencySources = addDependencyModules(
+    options.dependencies,
+    modules,
+    diagnostics,
+    report,
+  );
+  const sources: Record<string, string> = { ...files, ...dependencySources };
   const byPath = new Map([...modules.values()].map((module) => [module.path, module]));
   const entryModule = byPath.get(entry);
   if (!entryModule && !diagnostics.some((diagnostic) => diagnostic.path === entry))
@@ -504,31 +704,23 @@ export function linkPackage(
       const root = declaration.module.split(".")[0];
       if (root === "std") continue;
       const span = declaration.span;
-      if (root === "dep") {
-        report(module.path, "unknown-module", "the package has no dependencies", span);
-        continue;
-      }
-      const modulePath = useModulePath(module, declaration);
-      if (typeof modulePath === "string") report(module.path, "unknown-module", modulePath, span);
-      if (!Array.isArray(modulePath)) continue;
+      const [first] = declaration.names;
+      const used = useTarget(module, declaration, options.dependencies);
+      if (typeof used === "string") report(module.path, "unknown-module", used, span);
+      if (typeof used !== "object") continue;
+      const { dependency: targetPackage, path: modulePath, namespaceOnly } = used;
       // A single use whose last segment is a module names that module's
       // namespace, as `use pkg.words` (spec/lang/10-modules.md#r-module.use.single).
-      const grouped = files[module.path]!.slice(span.start.offset, span.end.offset).includes("{");
-      const [first] = declaration.names;
+      const grouped = sources[module.path]!.slice(span.start.offset, span.end.offset).includes("{");
       const namespacePath = [...modulePath, first!.name];
-      const namespace = !grouped && modules.has(namespacePath.join("."));
-      const path = namespace ? namespacePath : modulePath;
+      const namespace =
+        namespaceOnly ||
+        (!grouped && modules.has(moduleKey(targetPackage, namespacePath.join("."))));
+      const path = namespace && !namespaceOnly ? namespacePath : modulePath;
       const identity = path.join(".");
-      const target = modules.get(identity);
+      const target = modules.get(moduleKey(targetPackage, identity));
       if (!target) {
-        report(
-          module.path,
-          "unknown-module",
-          identity === ""
-            ? `the package has no root module: 'pkg' names ${LIB_FILE}, which does not exist`
-            : `no package module '${identity}'`,
-          span,
-        );
+        report(module.path, "unknown-module", missingModule(targetPackage, identity), span);
         continue;
       }
       const programUse =
@@ -578,7 +770,8 @@ export function linkPackage(
       const locals = use.namespace !== undefined ? [use.namespace] : use.names.map((n) => n.local);
       // Only test code may use a test module (spec/lang/10-modules.md#r-module.test.non-test-use).
       const testCode = isTestModulePath(module.path) || locals.every((name) => testNames.has(name));
-      if (!testCode) folderUses.push({ module, use });
+      if (!testCode && use.target.dependency === module.dependency)
+        folderUses.push({ module, use });
       if (isTestModulePath(use.target.path) && !testCode)
         report(
           module.path,
@@ -654,7 +847,7 @@ export function linkPackage(
     const at = fix ?? loop[0]!;
     const steps = loop.map(({ from, to, module, use }) => {
       const { line } = use.declaration.span.start;
-      const text = files[module.path]!.split("\n")[line - 1]!.trim();
+      const text = sources[module.path]!.split("\n")[line - 1]!.trim();
       return `  ${from}/ -> ${to}/: ${module.path}:${line}: ${text}`;
     });
     const help = fix
@@ -718,7 +911,7 @@ export function linkPackage(
     };
   };
   if (diagnostics.some(({ severity }) => severity !== "warning") || !entryModule)
-    return { modules: order, diagnostics, locate, initGroups: [] };
+    return { modules: order, diagnostics, locate, initGroups: [], dependencySources };
 
   // Join the modules. Package uses are dropped and a standard use keeps only
   // the names no earlier module imported; every other line stays in place.
@@ -761,8 +954,8 @@ export function linkPackage(
     }
     for (const use of resolvedUses.get(module) ?? []) {
       if (use.namespace === undefined) continue;
-      namespaces[use.namespace] = use.target.identity;
-      namespaceModules[use.target.identity] ??= namespaceMembers(use.target);
+      namespaces[use.namespace] = keyOf(use.target);
+      namespaceModules[keyOf(use.target)] ??= namespaceMembers(use.target);
     }
     return { firstLine, lastLine, names, namespaces };
   };
@@ -773,7 +966,7 @@ export function linkPackage(
     // The start line precedes the group's text, matching the old marker
     // line: the parser opens the group at the first statement after it.
     if (multi !== undefined) initGroups.push({ line: line - 1, multi });
-    let text = joinedText(module, files[module.path]!, importedStd);
+    let text = joinedText(module, sources[module.path]!, importedStd);
     if (!text.endsWith("\n")) text += "\n";
     const lineCount = text.split("\n").length - 1;
     // A unit test module joins as a `tests:` block; its top-level `pub` is
@@ -800,6 +993,7 @@ export function linkPackage(
     locate,
     initGroups,
     packageScopes: { scopes, modules: namespaceModules },
+    dependencySources,
     entryLine: segments.find(({ path }) => path === entry)?.firstLine,
   };
 }
@@ -1087,7 +1281,7 @@ function joinedNames(
     const key = `${module.path}\0${name}`;
     let hidden = hiddenNames.get(key);
     if (hidden === undefined) {
-      const base = hiddenPackageName(module.identity, name);
+      const base = hiddenPackageName(hiddenBase(module), name);
       hidden = base;
       for (let index = 2; spellings.has(hidden); index += 1) hidden = `${base}_${index}`;
       spellings.add(hidden);

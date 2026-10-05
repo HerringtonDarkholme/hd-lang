@@ -10,11 +10,15 @@ import { DiagnosticReporter, type OutputFormat, type Report } from "../diagnosti
 import { DiagnosticError, physicalSpan, sourceDocument, type Diagnostic } from "../diagnostics.ts";
 import {
   linkedParseOptions,
+  LIB_FILE,
   linkPackage,
+  MAIN_FILE,
   SOURCE_ROOT,
   TASK_ROOT,
   TEST_ROOT,
+  type DependencyPackage,
   type LinkedPackage,
+  type PackageDependencies,
 } from "../package.ts";
 import type { PackageDiagnostic } from "../package.ts";
 import type { ParseOptions } from "../parser/index.ts";
@@ -28,7 +32,13 @@ import {
   type PackageProblem,
 } from "./package-mode.ts";
 import { RUNTIME_PROFILES, type RUNTIME_PROFILE_NAMES } from "./profiles.ts";
-import { EXIT_HD_FAILURE, workingDirectory, type CommandEnvironment } from "./io.ts";
+import {
+  EXIT_HD_FAILURE,
+  workingDirectory,
+  type CommandEnvironment,
+  type PackageRole,
+  type RoleDependency,
+} from "./io.ts";
 
 export type RuntimeProfileName = (typeof RUNTIME_PROFILE_NAMES)[number];
 export type TestLayout = "test-module" | "integration";
@@ -66,6 +76,8 @@ export interface PackagePlacement {
   readonly programs?: readonly string[];
   /** The package, in package mode; absent for a conformance package tree. */
   readonly package?: LocalPackage;
+  /** The packages its `dep.NAME` uses reach (src/package.ts). */
+  readonly dependencies?: PackageDependencies;
 }
 
 /** A FILE ready to compile: its source, after linking, and where its diagnostics go. */
@@ -134,6 +146,7 @@ export async function loadSource(
       ? linkPackage(treeFiles, placement.path, {
           tests: options.linkTests,
           ...(placement.programs ? { programs: placement.programs } : {}),
+          ...(placement.dependencies ? { dependencies: placement.dependencies } : {}),
         })
       : undefined;
   const source = linked?.source ?? fileSource;
@@ -199,10 +212,12 @@ export async function loadSource(
     if (located.path === placement.path) return reporter.diagnostic(located);
     let treeReporter = treeReporters.get(located.path);
     if (!treeReporter) {
+      // A dependency's file has an absolute path, outside the package.
+      const dependencyFile = isAbsolute(located.path);
       treeReporter = new DiagnosticReporter(
         options.report,
-        join(placement.root, located.path),
-        treeFiles[located.path] ?? "",
+        dependencyFile ? located.path : join(placement.root, located.path),
+        (dependencyFile ? linked.dependencySources[located.path] : treeFiles[located.path]) ?? "",
         specIndex,
         located.path,
       );
@@ -366,6 +381,39 @@ async function enclosingPlacement(
 }
 
 /**
+ * FILE as the root module of a package in a conformance package role
+ * (spec/conformance/README.md#package-roles): `src/lib.hd` of a library, or
+ * `src/main.hd` of a root application. The package depends on each of
+ * `dependencies`, whose directory is a source root holding `lib.hd`.
+ */
+async function rolePlacement(
+  file: string,
+  role: PackageRole,
+  dependencies: readonly RoleDependency[],
+  cwd: string,
+): Promise<PackagePlacement> {
+  const packages: Record<string, DependencyPackage> = {};
+  const names: Record<string, string> = {};
+  for (const { name, directory } of dependencies) {
+    const sourceRoot = resolve(cwd, directory).split(sep).join("/");
+    packages[sourceRoot] = {
+      id: sourceRoot,
+      shown: `dep.${name}`,
+      sourceRoot,
+      files: await hdFilesUnder(sourceRoot),
+      dependencies: {},
+    };
+    names[name] = sourceRoot;
+  }
+  return {
+    root: dirname(resolve(cwd, file)),
+    path: role === "library" ? LIB_FILE : MAIN_FILE,
+    files: {},
+    dependencies: { dependencies: names, devDependencies: {}, packages },
+  };
+}
+
+/**
  * FILE's package for a command that links one: the tree the conformance
  * runner's package tree option names, else the package that holds FILE. A
  * test layout turns linking off. Relative paths resolve against
@@ -384,5 +432,7 @@ export async function placementOf(
       path: packageTree.path,
       files: await hdFilesUnder(resolve(cwd, packageTree.tree)),
     };
+  const role = environment.runner?.packageRole;
+  if (role) return rolePlacement(file, role, environment.runner?.packageDependencies ?? [], cwd);
   return testLayout === undefined ? enclosingPlacement(file, cwd) : undefined;
 }

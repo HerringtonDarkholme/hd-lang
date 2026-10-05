@@ -132,6 +132,19 @@ export interface RunnerOptions {
   readonly testLayout?: TestLayout;
   /** The other files of FILE's package, and the package path FILE takes. */
   readonly packageTree?: PackageTree;
+  /** Compile FILE as the root module of a package in this role. */
+  readonly packageRole?: PackageRole;
+  /** The dependencies of a package role's package, each a source root. */
+  readonly packageDependencies?: readonly RoleDependency[];
+}
+
+/** A conformance package role (spec/conformance/README.md#package-roles). */
+export type PackageRole = "library" | "root-application";
+
+/** One dependency of a package role's package: `dep.NAME`, whose source root is `directory`. */
+export interface RoleDependency {
+  readonly name: string;
+  readonly directory: string;
 }
 
 /** The directory `environment`'s relative paths resolve against. */

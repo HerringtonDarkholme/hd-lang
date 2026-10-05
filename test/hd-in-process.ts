@@ -51,10 +51,8 @@ function oneOf<T extends string>(what: string, names: readonly T[], value: strin
 
 /** The command-function options for the runner's `options`, and whether the first poll stays pending. */
 function runnerEnvironment(options: AdapterRunnerOptions): CommandEnvironment {
-  if (options.packageRole !== undefined || options.dependencies?.length)
-    throw new UnsupportedRunnerOption(
-      "the prototype does not support package roles or dependencies yet",
-    );
+  if (options.dependencies?.length && options.packageRole === undefined)
+    throw new UnsupportedRunnerOption("dependencies need a package role");
   const { scenario } = options;
   const pendingFirstPoll = scenario === "pending-first-poll";
   const runner: RunnerOptions = {
@@ -78,6 +76,16 @@ function runnerEnvironment(options: AdapterRunnerOptions): CommandEnvironment {
     ...(options.packageTree === undefined
       ? {}
       : { packageTree: { tree: options.packageTree.directory, path: options.packageTree.path } }),
+    ...(options.packageRole === undefined
+      ? {}
+      : {
+          packageRole: oneOf(
+            "package role",
+            ["library", "root-application"] as const,
+            options.packageRole,
+          ),
+          packageDependencies: options.dependencies ?? [],
+        }),
   };
   return { runner, ...(pendingFirstPoll ? { pendingFirstPoll } : {}) };
 }

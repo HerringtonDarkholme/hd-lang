@@ -2402,3 +2402,8 @@ typing/invalid/module-path-private-member.hd	type
 typing/invalid/module-path-missing-member.hd	type
 typing/invalid/module-path-private-std-function.hd	type
 cli/new-app	cli
+typing/invalid/available-trait-method-beside-promoted.hd	type
+runtime/valid/available-trait-method-across-packages.hd	runtime
+typing/invalid/private-promoted-method-nothing-visible.hd	type
+typing/invalid/private-embedded-field-nothing-visible.hd	type
+runtime/valid/pub-own-member-hides-promoted-other-module.hd	runtime

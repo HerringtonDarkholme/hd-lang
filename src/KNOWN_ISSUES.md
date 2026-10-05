@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,474 cases: 2,403 selected in `test/portable/cases.tsv` and 71 known
-failures. The selected cases are 2,089 language tier, 284 stdlib tier, and 30
-CLI tier; the known failures are 57 language tier, 2 stdlib tier, and 12
+2,474 cases: 2,408 selected in `test/portable/cases.tsv` and 66 known
+failures. The selected cases are 2,094 language tier, 284 stdlib tier, and 30
+CLI tier; the known failures are 52 language tier, 2 stdlib tier, and 12
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -23,10 +23,10 @@ CLI tier.
 | MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
 | F-250 | 6 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
-| TQ-2 | 1 | a package-role fixture cannot express ownership of a trait argument |
-| EMB-S | 4 | package trait visibility is not modeled by the linked checker namespace |
-| P2 | 5 | package member visibility is not modeled by the linked checker namespace |
-| M29 | 1 | the fixture needs a second package to distinguish derivation ownership |
+| TQ-2 | 1 | the linked checker does not know which package declares a type, so the orphan rule sees a dependency type as local |
+| EMB-S | 2 | trait imports are not tracked, so a dependency trait is available without a use |
+| P2 | 2 | member visibility is checked only for std types, so a private member of a dependency type is visible |
+| M29 | 1 | the linked checker does not know which package declares a fact type |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
@@ -112,10 +112,10 @@ Compiler structure:
 
 | Tag | Decision and gap |
 | --- | --- |
-| TQ-2 | The owner of a trait argument's outer constructor may write the impl. Implemented, but its fixture needs package roles. |
+| TQ-2 | The owner of a trait argument's outer constructor may write the impl. Implemented within one package; the linked checker does not know which package declares a dependency type. |
 | EMB-S | A trait method is a candidate only where its trait is available. The prototype checks one module without trait imports, so every trait is available. |
-| P2 | Member lookup skips members not visible from the calling module. The prototype links a package into one namespace, so every member is visible. |
-| M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package. |
+| P2 | Member lookup skips members not visible from the calling module. The prototype links packages into one namespace and checks member visibility only for std types. |
+| M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The linked checker does not know which package declares a fact type. |
 | TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The requirement-key dynamic-safety rule is implemented; the prototype does not check these remaining gaps. |
 | CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `-p`, `--filter`, `--deny-skipped`, or workspaces and the workspace search from a member. It parses `--` program arguments, but no host capability reads them. Most have no fixture format. |
 | CLI-57 | Batch 57 CLI rules: the prototype has none of the unlisted-member error, `exclude`, `-p` inside a member, a failing `--filter` on a FILE, or `--format json` with its named fields on any command. |
