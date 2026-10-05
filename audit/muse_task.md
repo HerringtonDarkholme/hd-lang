@@ -83,6 +83,27 @@ RFC 3339 text, `Duration` its `Display` form (such as `250ms`), and
 `test/cli-default-profile.test.ts` back to an RFC 3339 match and add a
 REPL test.
 
+### BB. Messages Never Show Hidden Names
+
+Found while reviewing AT. A message printed the linker's hidden name:
+
+```
+use std.testing.arbitrary
+
+fn f(x: arbitrary.With) -> usize:
+    0
+```
+
+gives `partial-generic-arguments: '__std_testing_arbitrary_With' needs a
+type argument for 'F'`. The user wrote `arbitrary.With`. Messages, hints,
+fix-its, the REPL, and `hd doc` must show the name as the user can write
+it (`arbitrary.With`, or the qualified `std.testing.arbitrary.With` when
+no import names it), never `__std_*` or `__pkg_*`. Fix it once, where
+types and names are displayed (`displayType` and the diagnostic message
+path), not per message. Then sweep: grep the conformance expectations and
+a run of `--phase type` output for `__std_` and `__pkg_`, fix what turns
+up, and add a test that fails if any diagnostic text contains them.
+
 ### AZ. `usize` Display Follow-Ups (F-611)
 
 Task #325 (8e03da04) made `u32` the one type again and moved the `usize`
