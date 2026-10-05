@@ -331,6 +331,7 @@ class Parser extends LetParser {
             this.current().span,
           );
         }
+        this.checkMutParameterName();
         const parameterName = this.expectKind("identifier", "expected a parameter name");
         const { type, variadic } = this.parseParameterType();
         const defaultValue = this.matchText("=") ? this.parseExpression() : undefined;

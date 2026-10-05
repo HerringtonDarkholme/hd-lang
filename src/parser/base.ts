@@ -582,6 +582,32 @@ export abstract class ParserBase {
     return this.advance();
   }
 
+  /**
+   * A `mut` before a parameter name goes on its type, as
+   * `todos: mut List[Todo]`: fail with the move as a fix-it.
+   */
+  protected checkMutParameterName(): void {
+    if (!this.atText("mut")) return;
+    if (this.peek(1).kind !== "identifier" || this.peek(2).text !== ":") return;
+    const mutToken = this.current();
+    const nameToken = this.peek(1);
+    this.advance();
+    this.advance();
+    const colon = this.expectText(":");
+    // A space already follows the colon, or one is added with `mut`.
+    const spacer = this.current().span.start.offset > colon.span.end.offset ? " mut" : "mut ";
+    this.fail("syntax-error", "`mut` goes on the parameter's type, not its name", mutToken.span, {
+      message: "move `mut` after the `:` onto the type",
+      edits: [
+        {
+          span: { start: mutToken.span.start, end: nameToken.span.start },
+          replacement: "",
+        },
+        { span: { start: colon.span.end, end: colon.span.end }, replacement: spacer },
+      ],
+    });
+  }
+
   protected matchText(text: string): boolean {
     if (!this.atText(text)) return false;
     this.advance();

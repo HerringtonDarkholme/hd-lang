@@ -39,6 +39,7 @@ import {
 import { implementationsFor } from "./implementation-index.ts";
 import type { QualifiedCallExpression } from "./trait-calls.ts";
 import { IterationChecker } from "./iteration.ts";
+import { loopNameHint } from "./cannot-infer.ts";
 import { supertraitPathBindings } from "./trait-paths.ts";
 import { keepLiteralDefaults, speculate } from "./call-speculation.ts";
 import { isDowncastValImport } from "./inspectable.ts";
@@ -1210,7 +1211,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (!signature)
       this.failUnknownName(
         expression.callee.name,
-        `unknown function '${expression.callee.name}'`,
+        `unknown function '${expression.callee.name}'${loopNameHint(expression.callee.name)}`,
         expression.callee.span,
       );
     const checkedArguments = this.checkSignatureArguments(

@@ -13,6 +13,7 @@ import {
 } from "../types.ts";
 import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC, HD_RUN, RACE_COMBINATOR } from "./standard-traits.ts";
 import { defaultCallFields, orderedTypeSubstitutions, substituteGenericType } from "./shared.ts";
+import { loopNameHint } from "./cannot-infer.ts";
 
 import { OperatorCallChecker } from "./operator-calls.ts";
 export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
@@ -165,7 +166,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
           if (!signature)
             this.failUnknownName(
               expression.callee.name,
-              `unknown function '${expression.callee.name}'`,
+              `unknown function '${expression.callee.name}'${loopNameHint(expression.callee.name)}`,
               expression.callee.span,
             );
           if (!signature.suspending)

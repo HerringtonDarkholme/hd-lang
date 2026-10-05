@@ -109,25 +109,6 @@ failed count (its summary line) equals the number of timeout verdicts;
 otherwise fail. Also delete the `hd-selected-*` temp directories the
 selection manifests create. Add a test for the crash case.
 
-
-### AP. Hints From The Usability Probe
-
-The Haiku probe (rows dated 2026-10-05 in `audit/hd-writing-log.md`) hit
-messages that were right but didn't say the fix. Add a hint (a note plus,
-where the edit is mechanical, a fix-it) to each:
-
-- `fn f(mut todos: List[Todo])` gives `syntax-error: expected a parameter
-  name`. Say "write `todos: mut List[Todo]`; `mut` goes on the type".
-- `loop:` gives `unknown-name: unknown function 'loop'` (two agents hit
-  it). Say "hd has no `loop`; write `while true:`".
-- `let todos = []` with no use that fixes it: the message already says to
-  annotate. Check that the suggested annotation uses the element type when
-  a later statement shows it, or a placeholder otherwise.
-- `unknown-method` on a std type: list up to three similarly named methods
-  that do exist (edit distance), as other "did you mean" hints do.
-
-Message text only; no language rule changes. Add a test per hint.
-
 ### AQ. Supertrait Bounds Imply Their Supertraits
 
 Job AL (d2fa2a71) now rejects code it used to accept. `Ord < PartialOrd <

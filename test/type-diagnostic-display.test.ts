@@ -141,3 +141,85 @@ pub fn main() -> void:
   assert.equal(diagnostic.code, "missing-requirement");
   assert.equal(diagnostic.message, "provider 'K[mut Box]' is not available in the current context");
 });
+
+test("mut before a parameter name says mut goes on the type", () => {
+  const source = `fn f(mut todos: List[string]) -> void:
+    pass
+`;
+  const diagnostics = analyze(source).diagnostics.filter(
+    (diagnostic) => diagnostic.code === "syntax-error",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0]!.message, "`mut` goes on the parameter's type, not its name");
+  const fix = diagnostics[0]!.fix;
+  assert.equal(fix?.message, "move `mut` after the `:` onto the type");
+  assert.deepEqual(
+    fix?.edits.map((edit) => edit.replacement),
+    ["", " mut"],
+  );
+  // The fix moves `mut` from the name to the type.
+  const moved = [...(fix?.edits ?? [])]
+    .sort((left, right) => right.span.start.offset - left.span.start.offset)
+    .reduce(
+      (text, edit) =>
+        text.slice(0, edit.span.start.offset) + edit.replacement + text.slice(edit.span.end.offset),
+      source,
+    );
+  assert.ok(moved.includes("fn f(todos: mut List[string])"));
+  // Without a space after the colon, the fix adds one with `mut`.
+  const tight = analyze(`fn f(mut todos:List[string]) -> void:
+    pass
+`).diagnostics.filter((diagnostic) => diagnostic.code === "syntax-error");
+  assert.equal(tight.length, 1);
+  assert.deepEqual(
+    tight[0]!.fix?.edits.map((edit) => edit.replacement),
+    ["", "mut "],
+  );
+});
+
+test("calling loop says hd has no loop", () => {
+  const diagnostics = analyze(`pub fn main() -> void:
+    loop:
+        pass
+`).diagnostics.filter((diagnostic) => diagnostic.code === "unknown-name");
+  assert.equal(diagnostics.length, 1);
+  assert.equal(
+    diagnostics[0]!.message,
+    "unknown function 'loop'; hd has no `loop`; write `while true:`",
+  );
+});
+
+test("an empty list pushed later suggests the pushed element type", () => {
+  const diagnostics = analyze(`pub fn main() -> void:
+    let todos = []
+    todos.push("x")
+`).diagnostics.filter((diagnostic) => diagnostic.code === "cannot-infer-type");
+  assert.equal(diagnostics.length, 1);
+  assert.equal(
+    diagnostics[0]!.message,
+    "cannot infer `T` in `List[string]`; annotate the binding: `let todos: List[string] = ...`",
+  );
+});
+
+test("an empty list with no later use keeps the placeholder", () => {
+  const diagnostics = analyze(`pub fn main() -> void:
+    let todos = []
+`).diagnostics.filter((diagnostic) => diagnostic.code === "cannot-infer-type");
+  assert.equal(diagnostics.length, 1);
+  assert.equal(
+    diagnostics[0]!.message,
+    "cannot infer `T` in `List[T]`; annotate the binding: `let todos: List[T] = ...`",
+  );
+});
+
+test("unknown-method suggests similarly named methods", () => {
+  const diagnostics = analyze(`pub fn main() -> void:
+    let lines: mut List[string] = ["a"]
+    lines.psuh("b")
+`).diagnostics.filter((diagnostic) => diagnostic.code === "unknown-method");
+  assert.equal(diagnostics.length, 1);
+  assert.equal(
+    diagnostics[0]!.message,
+    "type 'mut List[string]' has no supported method 'psuh'; did you mean 'push'?",
+  );
+});

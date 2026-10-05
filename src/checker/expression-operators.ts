@@ -18,6 +18,7 @@ import { isIntegerType, numericType, widensTo, widerNumeric } from "../numeric.t
 import { isKnownType, PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
 import { ALL_COMBINATOR } from "./standard-traits.ts";
+import { loopNameHint } from "./cannot-infer.ts";
 import { FACTS_OF_INTRINSIC } from "./function-facts.ts";
 import {
   containsGenericType,
@@ -293,7 +294,11 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             "all is not a function value: it must be the callee of a direct all!(...) call",
             expression.span,
           );
-        this.failUnknownName(expression.name, `unknown name '${expression.name}'`, expression.span);
+        this.failUnknownName(
+          expression.name,
+          `unknown name '${expression.name}'${loopNameHint(expression.name)}`,
+          expression.span,
+        );
       }
       case "unary":
         return this.checkUnaryExpression(expression, _expected);

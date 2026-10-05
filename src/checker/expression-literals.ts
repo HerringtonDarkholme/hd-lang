@@ -17,6 +17,7 @@ import {
   tupleType,
 } from "../types.ts";
 import { leastCommonType, rowUnionType } from "./least-common-type.ts";
+import { laterPushedElementType } from "./cannot-infer.ts";
 import { FORCED_LITERALS } from "./literal-retry.ts";
 import {
   isDefaultedLiteral,
@@ -366,7 +367,27 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             ? expectedNominal.arguments[0]
             : undefined;
         if (expression.elements.length === 0 && !contextualElement) {
-          this.failUnresolvedType(["T"], "List[T]", expression.span);
+          // A later `name.push(literal)` shows the element type the
+          // annotation needs; anything else keeps the `T` placeholder. Only
+          // the binding's whole initializer reads its later siblings.
+          const binding = this.inferredBinding;
+          const wholeInitializer =
+            binding !== undefined &&
+            binding.value.span.start.offset === expression.span.start.offset &&
+            binding.value.span.end.offset === expression.span.end.offset;
+          const element =
+            binding !== undefined && wholeInitializer
+              ? laterPushedElementType(
+                  this.declaration.body,
+                  binding.value.span.end.offset,
+                  binding.name,
+                )
+              : undefined;
+          this.failUnresolvedType(
+            ["T"],
+            element === undefined ? "List[T]" : `List[${element}]`,
+            expression.span,
+          );
         }
         const partTypes: ValueType[] = [];
         const checkedSoFar: HirExpression[] = [];

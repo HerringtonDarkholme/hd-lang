@@ -61,6 +61,59 @@ type PromotedSelection = Extract<MemberSelection, { readonly kind: "field" | "in
 const MAX_EMBEDDING_DEPTH = 64;
 
 /**
+ * The Damerau-Levenshtein distance between two method names: a transposition
+ * counts as one edit, so `psuh` is one edit from `push`.
+ */
+function nameDistance(left: string, right: string): number {
+  const leftChars = [...left];
+  const rightChars = [...right];
+  const rows = leftChars.length + 1;
+  const columns = rightChars.length + 1;
+  const distance: number[][] = Array.from({ length: rows }, (_, row) =>
+    Array.from({ length: columns }, (_, column) => (row === 0 ? column : column === 0 ? row : 0)),
+  );
+  for (let row = 1; row < rows; row += 1)
+    for (let column = 1; column < columns; column += 1) {
+      const cost = leftChars[row - 1] === rightChars[column - 1] ? 0 : 1;
+      distance[row]![column] = Math.min(
+        distance[row - 1]![column]! + 1,
+        distance[row]![column - 1]! + 1,
+        distance[row - 1]![column - 1]! + cost,
+      );
+      if (
+        row > 1 &&
+        column > 1 &&
+        leftChars[row - 1] === rightChars[column - 2] &&
+        leftChars[row - 2] === rightChars[column - 1]
+      )
+        distance[row]![column] = Math.min(
+          distance[row]![column]!,
+          distance[row - 2]![column - 2]! + 1,
+        );
+    }
+  return distance[leftChars.length]![rightChars.length]!;
+}
+
+/**
+ * Checker-intrinsic methods by receiver head, from the normative built-in
+ * methods table (10-modules.md#built-in-methods). Intrinsics bypass member
+ * lookup (expression-calls.ts), so the tables never name them.
+ */
+const INTRINSIC_METHODS: ReadonlyMap<string, readonly string[]> = new Map([
+  ["List", ["len", "iter", "push"]],
+  ["Map", ["len", "iter", "get", "remove"]],
+]);
+
+/** Whether an inherent `method` applies to a receiver of `type`. */
+function inherentTargetMatches(method: InherentMethod, type: ValueType): boolean {
+  return (
+    expandedAliasType(method.targetType) === expandedAliasType(type) ||
+    (method.targetGenericParameters !== undefined &&
+      matchGenericTypePattern(method.targetType, type, new Map()))
+  );
+}
+
+/**
  * Trait default bodies instantiated for an implementation. The prototype checks
  * them with a concrete `Self`; inside them a trait method named like a field of
  * `Self` is taken as the trait method (the body was written against the trait).
@@ -290,12 +343,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
 
   private findInherentMethod(type: ValueType, name: string): InherentMethod | undefined {
     return this.inherentMethods.find(
-      (method) =>
-        !method.associated &&
-        method.name === name &&
-        (expandedAliasType(method.targetType) === expandedAliasType(type) ||
-          (method.targetGenericParameters !== undefined &&
-            matchGenericTypePattern(method.targetType, type, new Map()))),
+      (method) => !method.associated && method.name === name && inherentTargetMatches(method, type),
     );
   }
 
@@ -568,6 +616,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     unavailable: ReadonlySet<string>,
   ): never {
     const traitPath = this.embeddedTraitMethodPath(receiverType, name);
+    const similar = this.similarMethodNames(receiverType, name);
     const hints = [
       this.hasFieldNamed(receiverType, name)
         ? `; to call the function stored in the field, write (value.${name})(...)`
@@ -578,12 +627,59 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       unavailable.size > 0
         ? `; the trait ${[...unavailable].map((trait) => `'${displayType(trait)}'`).join(", ")} supplies it, but this module does not import it: add a use declaration for it`
         : "",
+      similar.length > 0
+        ? `; did you mean ${similar.map((method) => `'${method}'`).join(", ")}?`
+        : "",
     ];
     return this.fail(
       "unknown-method",
       `type '${displayType(receiverType)}' has no supported method '${name}'${hints.join("")}`,
       span,
     );
+  }
+
+  /**
+   * Up to three supported method names of `receiverType` closest to `name`
+   * by edit distance: inherent methods of its target and methods of the
+   * available traits implemented for it, supertraits included.
+   */
+  private similarMethodNames(receiverType: ValueType, name: string): string[] {
+    // Method lookup matches the readonly view, as selectMember does.
+    const type = readonlyType(receiverType);
+    const candidates = new Set<string>();
+    for (const method of this.inherentMethods)
+      if (!method.associated && inherentTargetMatches(method, type)) candidates.add(method.name);
+    const head = nominalGenericParts(type)?.name;
+    for (const intrinsic of (head && INTRINSIC_METHODS.get(head)) ?? []) candidates.add(intrinsic);
+    const index = traitLookupIndex(this.traitTypes);
+    for (const implementation of implementationsFor(this.implementations, type)) {
+      if (!matchImplementationTarget(implementation, type, new Map())) continue;
+      const trait = index.byIndex.get(implementation.traitIndex);
+      if (trait && this.traitAvailable(trait.name))
+        this.collectTraitMethods(trait, candidates, new Set());
+    }
+    candidates.delete(name);
+    const allowed = Math.max(1, Math.floor(Math.max(name.length, 1) / 3));
+    const scored = [...candidates]
+      .map((candidate) => ({ candidate, distance: nameDistance(name, candidate) }))
+      .filter(({ distance }) => distance <= allowed);
+    scored.sort(
+      (left, right) =>
+        left.distance - right.distance || (left.candidate < right.candidate ? -1 : 1),
+    );
+    return scored.slice(0, 3).map(({ candidate }) => candidate);
+  }
+
+  /** The non-associated methods `trait` and its transitive supertraits declare. */
+  private collectTraitMethods(trait: HirTrait, names: Set<string>, seen: Set<number>): void {
+    if (seen.has(trait.index)) return;
+    seen.add(trait.index);
+    for (const method of trait.methods) if (!method.associated) names.add(method.name);
+    const index = traitLookupIndex(this.traitTypes);
+    for (const parent of trait.supertraits) {
+      const declaration = index.byIndex.get(parent.traitIndex);
+      if (declaration) this.collectTraitMethods(declaration, names, seen);
+    }
   }
 
   protected embeddedTraitMethodPath(receiverType: ValueType, name: string): string | undefined {
