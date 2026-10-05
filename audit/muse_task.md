@@ -83,13 +83,10 @@ incomplete, not skippable.
    `--deny-skipped` flag, and the skipped count and outcome from the
    summary and JSON rules, unless another rule still produces a skip
    (check). Retire the IDs properly.
-2. **Park the design.** Add to `future-work/OPEN_ISSUES.md`: when hd has
-   a second profile (a `--profile` flag, tests in the browser
-   playground, an HTTP profile), revisit skipping. Only a host trait the
-   selected profile lacks would skip; a user trait still errors;
-   `--deny-skipped` comes back for CI that must run everything. Quote
-   the removed rules verbatim with their IDs and name the removing
-   commit.
+2. **No parked design.** Add a Why line to the testing rules instead:
+   "There is no skip: a host that runs tests binds every capability its
+   tests need, with its own implementation if it has no real one."
+   Don't add an OPEN_ISSUES entry for skipping (owner, 2026-10-05).
 3. **Code.** Remove `profileSkip` (`src/commands/test-host.ts`) and the
    skip path #274 added, and `--deny-skipped` from `src/cli-args.ts` and
    help text. The checker reports the missing requirement for the test.
