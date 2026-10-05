@@ -109,27 +109,6 @@ problems had unhelpful messages. Message and docs only; no rule changes.
 
 Add a test per message.
 
-### BB. Messages Never Show Hidden Names
-
-Found while reviewing AT. A message printed the linker's hidden name:
-
-```
-use std.testing.arbitrary
-
-fn f(x: arbitrary.With) -> usize:
-    0
-```
-
-gives `partial-generic-arguments: '__std_testing_arbitrary_With' needs a
-type argument for 'F'`. The user wrote `arbitrary.With`. Messages, hints,
-fix-its, the REPL, and `hd doc` must show the name as the user can write
-it (`arbitrary.With`, or the qualified `std.testing.arbitrary.With` when
-no import names it), never `__std_*` or `__pkg_*`. Fix it once, where
-types and names are displayed (`displayType` and the diagnostic message
-path), not per message. Then sweep: grep the conformance expectations and
-a run of `--phase type` output for `__std_` and `__pkg_`, fix what turns
-up, and add a test that fails if any diagnostic text contains them.
-
 ### BC. A Leading `_` Must Silence The Unused Warning
 
 `flow.unused.underscore` (spec/lang/06-control-flow.md) says names

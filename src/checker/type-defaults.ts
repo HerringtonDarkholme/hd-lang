@@ -36,6 +36,7 @@ import {
   resolveGenericType,
   resolveTraitType,
 } from "./shared.ts";
+import { displayName } from "./display-names.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import { substitute, words } from "./type-declarations.ts";
 import { ImportBindingMap } from "./import-bindings.ts";
@@ -155,8 +156,8 @@ class DefaultFiller {
           code: "partial-generic-arguments",
           message:
             fallback === undefined
-              ? `'${name}' needs a type argument for '${displayType(parameter)}', which has no default`
-              : `'${name}' omits '${displayType(parameter)}', whose default names Self, and no Self is known here`,
+              ? `'${displayName(name)}' needs a type argument for '${displayType(parameter)}', which has no default`
+              : `'${displayName(name)}' omits '${displayType(parameter)}', whose default names Self, and no Self is known here`,
           span,
         });
         return type;

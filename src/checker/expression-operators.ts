@@ -28,6 +28,7 @@ import {
   substituteGenericType,
   traitTypeName,
 } from "./shared.ts";
+import { displayName } from "./display-names.ts";
 
 import { defaultedLocalHint, pureLiteralKind } from "./literal-join.ts";
 import { spelledType } from "./spelling.ts";
@@ -309,7 +310,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           );
         this.failUnknownName(
           expression.name,
-          `unknown name '${expression.name}'${loopNameHint(expression.name)}`,
+          `unknown name '${displayName(expression.name, this.imports)}'${loopNameHint(expression.name)}`,
           expression.span,
         );
       }
