@@ -1,5 +1,0 @@
-id	priority	classification	status	evidence	validation_needed
-A01	high	package-scope-and-initialization	open	REPORT.md; src/package.ts	Module privacy and independent names; package import aliases; integration-test isolation; statement-level initialization
-A02	high	semantic-types-and-coercion	review-needed	REPORT.md	Semantic representation; equivalent coercions at each typing site; nested containers and binder shadowing
-A06	high	entry-waker-conformance-gap	deferred	REPORT.md; future-work/HOST_ENTRY_DRIVER.md	Public pending/wake behavior and host-facing entry API
-A07	medium	host-abi-and-replay-contracts	review-needed	REPORT.md; src/KNOWN_ISSUES.md	Boundary type agreement; malformed host values; semantic replay identity

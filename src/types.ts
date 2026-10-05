@@ -316,7 +316,7 @@ export function typeSourceText(type: ValueType): string {
 
 /**
  * Renders a type, trait, or related compiler name the way the user wrote it,
- * for diagnostics (audit/job3-error-message-quality.md). The canonical
+ * for diagnostics (the 2026-10-04 error-message sweep). The canonical
  * `typeSourceText` keeps hidden and synthetic spellings (`__std_` renames,
  * `generic:`/`trait:`/`row:` markers, `$impl`/`$inherent` qualifiers,
  * `hd_E` tuple-element parameters, spacing-free arrows) because type strings

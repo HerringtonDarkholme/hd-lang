@@ -6,7 +6,7 @@ import test from "node:test";
 import { hd } from "./hd-in-process.ts";
 
 // The dogfood programs in examples/dogfood/ are small useful programs written
-// against the current compiler (audit/dogfood-199.md). Each must keep passing
+// against the current compiler (dogfood task #199). Each must keep passing
 // `hd check`, and `hd test` when it has tests.
 
 const root = resolve(import.meta.dirname, "..");

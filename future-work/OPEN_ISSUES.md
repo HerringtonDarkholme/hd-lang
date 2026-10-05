@@ -13,6 +13,9 @@ git history holds its decision table.
 
 These readings name a diagnostic code that no decision chose. Each waits
 for the error-code revamp, task #101, which may merge codes.
+A 2026-10-04 sweep found 70 codes the prototype emits that the spec never
+names (most are parse and `unsupported-*` codes) and two respellings, since
+fixed; regenerate the list for #101 (`git show a3f8e3b3:audit/job2-error-codes-spec-vs-compiler.md`).
 
 | # | From | Question | Applied reading |
 | --- | --- | --- | --- |

@@ -80,10 +80,8 @@ within one statement.
   - known-failure rows whose reason no longer matches;
   - new messages that are confusing, such as `u32` shown where the user
     wrote nothing.
-- Delete `audit/job3-error-message-quality.md`,
-  `audit/job4-known-failure-reasons.md` and
-  `audit/job9-known-failure-resweep.md` in the same commit, if the new
-  report replaces them.
+- The old job 3 and job 4 reports were deleted in the 2026-10-04 cleanup;
+  the new report replaces them.
 
 ### AE. `hd doc`
 

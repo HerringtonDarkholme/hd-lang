@@ -1,10 +1,10 @@
 # Compiler Review: Bugs And Hacks (Task #230)
 
-Status: findings of a bounded, read-only review of `src/` at `5ba7393e`. Nothing here is accepted behavior or an owner decision. It adds to [REPORT.md](REPORT.md), [TODO.md](TODO.md), [dogfood F1–F13](../dogfood-199.md) and [known issues](../../src/KNOWN_ISSUES.md), and repeats none of them.
+Status: open findings of a bounded, read-only review of `src/` at `5ba7393e`. Nothing here is accepted behavior or an owner decision.
 
 ## Summary
 
-The remaining review has 7 findings: 1 high, 2 medium and 4 low. Four are bugs with a reproduction, one is a resource problem with timings, and two are hacks cited by line. The highest remaining root is O-03: written type applications skip their declarations' generic bounds. Integration-test source rewriting causes O-05 and O-12. Four more items are suspected but not reproduced.
+Open findings: O-03 (high: written type applications skip their declarations' generic bounds; task #280) and O-06 (whole-state speculation copies; perf F1). The others were fixed and deleted: O-05 and O-12 by 524f6816, O-08, O-09 and O-11 by bb5937bd.
 
 Each repro ran with `timeout 60 node bin/hd.js check|run|test FILE` from a scratch folder `scratch-230/` in the worktree, so output paths keep that prefix.
 
@@ -40,43 +40,6 @@ pub fn main() -> void $ Console:
 - Expected: `unsatisfied-trait-bound` at `Box[P]` and at `Map[P, i32]` (`trait.bound.unsatisfied`, `types.map-key.declared-bound`).
 - Fix: check every type application's arguments against its declaration's bounds in the shared written-type validator; then `Map` needs no special case.
 
-### O-05: integration test modules corrupt multiline strings
-
-- Severity: medium. Kind: bug (from a hack).
-- Where: `src/package.ts:507`.
-- The linker wraps a `tests/` module in a `tests:` block by adding four spaces to every source line with a regex. Lines inside a `"""` string get the four spaces too. The `pub` deletion at line 502 also edits a string line that starts with `pub fn`.
-
-Repro: a package `pkg/` with two files.
-
-```text
-# pkg/src/text.hd
-pub fn banner() -> string:
-    """line one
-line two"""
-```
-
-```text
-# pkg/tests/banner.hd
-use std.testing.assert_equal
-use pkg.text.banner
-
-it("banner text"):
-    expected := """line one
-line two"""
-    assert_equal(banner(), expected, reason="same text")
-```
-
-`node bin/hd.js test pkg` fails:
-
-```
-assertion-failed: same text: actual "line one
-line two", expected "line one
-    line two"
-```
-
-- Expected: the test passes; a multiline string keeps its source text (`lex.multiline.verbatim`).
-- Fix: compile each integration test module as its own program with its own AST (`module.test.integration.program`), as A01 plans. Never re-indent source text.
-
 ### O-06: overloaded trait calls copy the whole checker state per candidate
 
 - Severity: medium. Kind: resource.
@@ -95,13 +58,6 @@ Doubling N quadruples the time with two impls.
 
 - Expected: checking time near linear in program size. No rule states a bound; this is a cost problem.
 - Fix: make the trial a pure check that returns its HIR and diagnostics, or journal only the state a trial changes. Do not deep-snapshot the checker.
-
-### O-12: the integration-test linker deletes `pub` with a line regex
-
-- Severity: low. Kind: hack.
-- Where: `src/package.ts:502`.
-- `/^pub\s+(?=(?:fn|data|enum|trait|type|use)\b)/` runs on every source line of a `tests/` module, including lines inside a multiline string. A string line that begins with `pub fn` loses its `pub `.
-- Fix: the same as O-05; compile the test module from its own AST.
 
 ## Suspected, not reproduced
 
