@@ -55,10 +55,6 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
-- Test runner work (another agent is changing them): `lib/std/testing.hd`,
-  `src/commands/test*`, `src/test-runner*`, and in `spec/`: the Testing
-  sections of `lang/10-modules.md`, `std/testing.md`, and `hd test` in
-  `cli/command-line.md`.
 - `usize` identity and checker speed (another agent is fixing AN's
   `usize` regression and the speed-gate failures): `src/types.ts`,
   `src/checker/shared.ts`, `src/checker/literal-join.ts`,
