@@ -19,7 +19,7 @@ import { jsonSpan, type JsonSpan } from "./diagnostic-report.ts";
 //
 // A name is a module path and an item path. In a package, `pkg.user.User`
 // is `User` in `src/user.hd` (module `user`), `pkg.User` is `User` in
-// `src/mod.hd`, and the `pkg.` root may be left out. In a single file the
+// `src/lib.hd`, and the `pkg.` root may be left out. In a single file the
 // item path is the whole name. An item path is `Item`, `Item.member`, or
 // `Enum.Variant.field`; `Type::function` is accepted for `Type.function`.
 // Without a module path, every module is searched.

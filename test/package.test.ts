@@ -31,12 +31,59 @@ test("package paths map to module identities", () => {
   assert.equal(moduleIdentity("src/main.hd"), "main");
   assert.equal(moduleIdentity("src/models/user.hd"), "models.user");
   assert.equal(moduleIdentity("src/models/mod.hd"), "models");
-  assert.equal(moduleIdentity("src/mod.hd"), "");
+  assert.equal(moduleIdentity("src/mod.hd"), undefined);
+  assert.equal(moduleIdentity("src/lib.hd"), "");
   assert.equal(moduleIdentity("tests/common.hd"), "tests.common");
   assert.equal(moduleIdentity("tests/api/mod.hd"), "tests.api");
   assert.equal(moduleIdentity("lib/main.hd"), undefined);
   assert.equal(moduleIdentity("src/my-models/user.hd"), undefined);
   assert.equal(moduleIdentity("src/fn.hd"), undefined);
+});
+
+test("the root files: lib.hd is pkg, main.hd and other entries are programs, pkg is reserved", () => {
+  const library = {
+    "src/lib.hd": 'pub fn greet() -> string: "hi"\n',
+    "src/user.hd": "use pkg.{greet}\n\npub fn welcome() -> string: greet()\n",
+  };
+  assert.deepEqual(codes(library, "src/user.hd"), []);
+  // src/main.hd is its own program (module.path.main-no-use).
+  assert.deepEqual(
+    codes(
+      {
+        ...library,
+        "src/main.hd": "pub fn main() -> void: pass\n",
+        "src/a.hd": "use pkg.main.{main}\n",
+      },
+      "src/a.hd",
+    ),
+    ["src/a.hd:1:unknown-module"],
+  );
+  // So is any executable's entry module (cli.exe.entry-no-use).
+  const tools = {
+    "src/tools/migrate.hd": "pub fn run() -> void: pass\n",
+    "src/a.hd": "use pkg.tools.migrate.{run}\n",
+  };
+  assert.deepEqual(codes(tools, "src/a.hd"), []);
+  assert.deepEqual(
+    linkPackage(tools, "src/a.hd", { programs: ["src/tools/migrate.hd"] }).diagnostics.map(
+      ({ code }) => code,
+    ),
+    ["unknown-module"],
+  );
+  // `pkg` names the root module (module.path.reserved-pkg), and src/mod.hd
+  // is no module (module.path.no-root-mod).
+  assert.deepEqual(codes({ "src/pkg.hd": "\npub fn helper() -> i32: 1\n" }, "src/pkg.hd"), [
+    "src/pkg.hd:2:reserved-module-name",
+  ]);
+  assert.deepEqual(codes({ "src/pkg/mod.hd": "pass\n" }, "src/pkg/mod.hd"), [
+    "src/pkg/mod.hd:1:reserved-module-name",
+  ]);
+  const root = linkPackage({ "src/mod.hd": "pass\n", "src/a.hd": "pass\n" }, "src/a.hd");
+  assert.deepEqual(
+    root.diagnostics.map(({ path, code }) => `${path}:${code}`),
+    ["src/mod.hd:invalid-module-path"],
+  );
+  assert.match(root.diagnostics[0]!.message, /rename it 'src\/lib\.hd'/);
 });
 
 test("a use of another module's public declarations links and runs", async () => {
@@ -253,23 +300,23 @@ test("a trait implementation outside the trait's and target's modules is nonloca
 
 test("folders that depend on each other in a loop are rejected", () => {
   const files = {
-    "src/mod.hd": "pub use pkg.shop.{Cart}\n",
+    "src/lib.hd": "pub use pkg.shop.{Cart}\n",
     "src/error.hd": "pub enum Error:\n    Empty\n",
     "src/shop/mod.hd": "use pkg.error.{Error}\n\npub data Cart:\n    count: i32\n",
   };
-  const linked = linkPackage(files, "src/mod.hd");
+  const linked = linkPackage(files, "src/lib.hd");
   assert.deepEqual(
     linked.diagnostics.map(({ path, code, span }) => `${path}:${span.start.line}:${code}`),
     ["src/shop/mod.hd:1:folder-cycle"],
   );
   const message = linked.diagnostics[0]!.message;
   assert.match(message, /tangle has 2 folders/);
-  assert.match(message, /src\/ -> src\/shop\/: src\/mod\.hd:1: pub use pkg\.shop\.\{Cart\}/);
+  assert.match(message, /src\/ -> src\/shop\/: src\/lib\.hd:1: pub use pkg\.shop\.\{Cart\}/);
   assert.match(message, /src\/shop\/ -> src\/: src\/shop\/mod\.hd:1: use pkg\.error\.\{Error\}/);
   assert.match(message, /move src\/error\.hd to src\/error\/mod\.hd/);
   // The fix-it: a leaf folder keeps the module name and every use line.
   const { "src/error.hd": error, ...rest } = files;
-  assert.deepEqual(codes({ ...rest, "src/error/mod.hd": error }, "src/mod.hd"), []);
+  assert.deepEqual(codes({ ...rest, "src/error/mod.hd": error }, "src/lib.hd"), []);
   // A parent and child folder get no exemption; nested folders are separate.
   assert.deepEqual(
     codes(
@@ -391,7 +438,7 @@ test("single-declaration uses and the package root module resolve", async () => 
       '    println(shout("hi") + suffix())',
     ].join("\n"),
     "src/names.hd": 'pub fn shout(text: string) -> string: text + "!"\n',
-    "src/mod.hd": 'pub fn suffix() -> string: "?"\n',
+    "src/lib.hd": 'pub fn suffix() -> string: "?"\n',
   });
   assert.deepEqual(lines, ["hi!?"]);
 });

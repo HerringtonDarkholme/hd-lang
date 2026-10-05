@@ -2371,3 +2371,7 @@ typing/invalid/derived-default-several-variants.hd	type
 runtime/valid/derived-default-declared-no-bound.hd	runtime
 typing/valid/std-derivation-types-debug.hd	type
 runtime/valid/string-pad-default-fill.hd	runtime
+typing/invalid/single-file-self-use.hd	type
+typing/valid/lib-root-pkg.hd	type
+typing/invalid/main-not-importable.hd	type
+typing/invalid/module-named-pkg.hd	type

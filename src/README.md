@@ -279,7 +279,7 @@ package directory with a `src/` tree, as in
 defaults to the current directory.
 
 - In a package, `pkg.user.User` names `User` in `src/user.hd` or
-  `src/user/mod.hd`, and `pkg.User` names an item of `src/mod.hd`, including
+  `src/user/mod.hd`, and `pkg.User` names an item of `src/lib.hd`, including
   one it re-exports with `pub use`. The `pkg.` root may be left out; a name
   with no module path is searched in every module. In a single file the name
   is just the item path.

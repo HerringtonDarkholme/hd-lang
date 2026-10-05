@@ -40,6 +40,13 @@ import { nominalGenericParts } from "./types.ts";
 export const SOURCE_ROOT = "src/";
 /** The default test root, which holds the integration test modules. */
 export const TEST_ROOT = "tests/";
+/** The package root module, which `pkg` names (spec/lang/10-modules.md#r-module.path.lib-file). */
+export const LIB_FILE = "src/lib.hd";
+/**
+ * The default executable's entry module, its own program and never part of
+ * the library (spec/lang/10-modules.md#r-module.path.main-file).
+ */
+export const MAIN_FILE = "src/main.hd";
 
 export interface PackageDiagnostic extends Diagnostic {
   /** The package file the diagnostic points into. */
@@ -48,7 +55,7 @@ export interface PackageDiagnostic extends Diagnostic {
 
 interface PackageModule {
   readonly path: string;
-  /** The dotted module identity, `""` for `src/mod.hd`. */
+  /** The dotted module identity, `""` for `src/lib.hd`. */
   readonly identity: string;
   readonly program?: Program;
 }
@@ -73,6 +80,13 @@ interface LinkOptions {
    * is linked, not only those the entry module reaches.
    */
   readonly tests?: boolean;
+  /**
+   * The package paths of the executables' entry modules. Each is its own
+   * program, which no other module may use
+   * (spec/cli/command-line.md#r-cli.exe.entry-no-use). The default is
+   * `src/main.hd` alone.
+   */
+  readonly programs?: readonly string[];
 }
 
 /** Whether a package path is an integration test module (spec/lang/10-modules.md#r-module.test.integration). */
@@ -125,18 +139,28 @@ const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}_]*$/u;
  * The module identity of a package path, or undefined when it names none. A
  * file under `tests/` is the integration test module `tests.<path>`
  * (spec/lang/10-modules.md#r-module.test.integration.tests-root); `tests` is a
- * reserved word, so no library module identity starts with it.
+ * reserved word, so no library module identity starts with it. `src/lib.hd`
+ * is the package root module, whose identity is `""`
+ * (spec/lang/10-modules.md#r-module.path.lib-file); `src/mod.hd` names no
+ * module (spec/lang/10-modules.md#r-module.path.no-root-mod).
  */
 export function moduleIdentity(path: string): string | undefined {
+  if (path === LIB_FILE) return "";
   const root = [SOURCE_ROOT, TEST_ROOT].find((prefix) => path.startsWith(prefix));
   if (root === undefined || !path.endsWith(".hd")) return undefined;
   const parts = path.slice(root.length, -".hd".length).split("/");
   if (parts.at(-1) === "mod") parts.pop();
+  if (parts.length === 0) return undefined;
   const valid = parts.every(
     (part) => IDENTIFIER.test(part) && part.normalize("NFC") === part && !KEYWORDS.has(part),
   );
   if (!valid) return undefined;
   return root === TEST_ROOT ? ["tests", ...parts].join(".") : parts.join(".");
+}
+
+/** A module's name in a message: its identity, or `pkg` for the root module. */
+function shown(module: PackageModule): string {
+  return module.identity === "" ? "pkg" : module.identity;
 }
 
 function fold(identity: string): string {
@@ -153,6 +177,19 @@ function programUseMessage(
 ): string | undefined {
   if (!isIntegrationTestProgram(target.path) || module.path === target.path) return undefined;
   return `'${identity}' is an integration test program, which is its own program and cannot be used from another module`;
+}
+
+// The unknown-module message for a use of an executable's entry module, its
+// own program, or undefined when the use is allowed
+// (spec/lang/10-modules.md#r-module.path.main-no-use,
+// spec/cli/command-line.md#r-cli.exe.entry-no-use).
+function entryUseMessage(
+  module: PackageModule,
+  target: PackageModule,
+  programs: readonly string[],
+): string | undefined {
+  if (!programs.includes(target.path) || module.path === target.path) return undefined;
+  return `'${target.path}' is an executable's entry module, which is its own program and no module can use`;
 }
 
 // Wraps a unit test module's text as a `tests:` block by re-indenting its
@@ -189,6 +226,13 @@ function topLevelNames(program: Program): Map<string, SourceSpan> {
   return names;
 }
 
+/** The span of a program's first top-level declaration, if it has one. */
+function firstDeclarationSpan(program: Program): SourceSpan | undefined {
+  return [...topLevelNames(program).values()].sort(
+    (left, right) => left.start.offset - right.start.offset,
+  )[0];
+}
+
 function isPublic(program: Program, name: string): boolean {
   return [
     ...program.functions,
@@ -201,7 +245,7 @@ function isPublic(program: Program, name: string): boolean {
 
 /** The source module a relative use starts from (10-modules.md#relative-uses). */
 function relativeBase(module: PackageModule): string[] {
-  if (module.path === "src/main.hd" || module.path === "src/lib.hd") return [];
+  if (module.path === MAIN_FILE || module.path === LIB_FILE) return [];
   // Each file directly under the test root is an independent program root.
   if (isIntegrationTestPath(module.path) && !module.path.slice(TEST_ROOT.length).includes("/"))
     return ["tests"];
@@ -300,6 +344,14 @@ function parsePackageModules(
   const folded = new Map<string, string>();
   for (const path of Object.keys(files).sort()) {
     const identity = moduleIdentity(path);
+    if (path === `${SOURCE_ROOT}mod.hd`) {
+      report(
+        path,
+        "invalid-module-path",
+        "'src/mod.hd' is not a module, since the source root is no directory module; rename it 'src/lib.hd', the package root module",
+      );
+      continue;
+    }
     if (identity === undefined) {
       report(
         path,
@@ -319,6 +371,17 @@ function parsePackageModules(
       integrationTest: isIntegrationTestPath(path),
     });
     for (const diagnostic of parsed.diagnostics) diagnostics.push({ ...diagnostic, path });
+    // `pkg` names the root module, so no module directly under the source
+    // root takes its name (spec/lang/10-modules.md#r-module.path.reserved-pkg).
+    if (identity === "pkg" && path.startsWith(SOURCE_ROOT)) {
+      report(
+        path,
+        "reserved-module-name",
+        `'${path}' cannot be a module: 'pkg' names the package root module, src/lib.hd; rename the file`,
+        parsed.program && firstDeclarationSpan(parsed.program),
+      );
+      continue;
+    }
     modules.set(identity, {
       path,
       identity,
@@ -392,10 +455,19 @@ export function linkPackage(
         continue;
       }
       if (!target) {
-        report(module.path, "unknown-module", `no package module '${identity}'`, span);
+        report(
+          module.path,
+          "unknown-module",
+          identity === ""
+            ? `the package has no root module: 'pkg' names ${LIB_FILE}, which does not exist`
+            : `no package module '${identity}'`,
+          span,
+        );
         continue;
       }
-      const programUse = programUseMessage(module, target, identity);
+      const programUse =
+        programUseMessage(module, target, identity) ??
+        entryUseMessage(module, target, options.programs ?? [MAIN_FILE]);
       if (programUse !== undefined) {
         report(module.path, "unknown-module", programUse, span);
         continue;
@@ -447,7 +519,7 @@ export function linkPackage(
         report(
           module.path,
           "test-only-use",
-          `only test code may use the test module '${use.target.identity}'`,
+          `only test code may use the test module '${shown(use.target)}'`,
           use.declaration.span,
         );
       for (const name of use.names) {
@@ -459,22 +531,22 @@ export function linkPackage(
             module.path,
             "re-export-loop",
             use.declaration.public
-              ? `'pub use' of '${name}' leads back to itself through module '${use.target.identity}'; a pub use chain must end at a declaration`
-              : `'use' of '${name}' leads into a pub use loop through module '${use.target.identity}'; a pub use chain must end at a declaration`,
+              ? `'pub use' of '${name}' leads back to itself through module '${shown(use.target)}'; a pub use chain must end at a declaration`
+              : `'use' of '${name}' leads into a pub use loop through module '${shown(use.target)}'; a pub use chain must end at a declaration`,
             use.declaration.span,
           );
         else if (found === undefined)
           report(
             module.path,
             "unknown-import",
-            `module '${use.target.identity}' declares no '${name}'`,
+            `module '${shown(use.target)}' declares no '${name}'`,
             use.declaration.span,
           );
         else if (found === "private")
           report(
             module.path,
             "private-import",
-            `'${name}' is private to module '${use.target.identity}'; mark it 'pub'`,
+            `'${name}' is private to module '${shown(use.target)}'; mark it 'pub'`,
             use.declaration.span,
           );
         else if (found !== use.target) targets.add(found);
@@ -493,7 +565,9 @@ export function linkPackage(
   // The folder graph must be acyclic (spec/lang/10-modules.md#r-module.cycle.acyclic).
   // Files of one folder may use each other in a loop.
   for (const loop of folderLoops(folderUses)) {
-    const fix = loop.find(({ use }) => !use.target.path.endsWith("/mod.hd"));
+    const fix = loop.find(
+      ({ use }) => !use.target.path.endsWith("/mod.hd") && use.target.path !== LIB_FILE,
+    );
     const at = fix ?? loop[0]!;
     const steps = loop.map(({ from, to, module, use }) => {
       const { line } = use.declaration.span.start;
@@ -502,7 +576,7 @@ export function linkPackage(
     });
     const help = fix
       ? `move ${fix.use.target.path} to ${fix.use.target.path.replace(/\.hd$/, "/mod.hd")}; ` +
-        `its module name '${fix.use.target.identity}' and every use line stay the same`
+        `its module name '${shown(fix.use.target)}' and every use line stay the same`
       : "move the shared declarations into a leaf folder that uses none of these folders";
     report(
       at.module.path,
@@ -544,7 +618,7 @@ export function linkPackage(
         report(
           module.path,
           "package-name-collision",
-          `'${name}' is also declared in module '${owner.module.identity}'; linked modules share one namespace, so top-level names must differ`,
+          `'${name}' is also declared in module '${shown(owner.module)}'; linked modules share one namespace, so top-level names must differ`,
           span,
         );
       else namespace.set(name, { module });
@@ -567,7 +641,7 @@ export function linkPackage(
           report(
             module.path,
             "package-name-collision",
-            `'${local}' names a different declaration in module '${owner.module.identity}'`,
+            `'${local}' names a different declaration in module '${shown(owner.module)}'`,
             declaration.span,
           );
         else if (!owner) namespace.set(local, { module, std });

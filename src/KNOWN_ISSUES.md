@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,470 cases: 2,372 selected in `test/portable/cases.tsv` and 98 known
-failures. The selected cases are 2,075 language tier, 282 stdlib tier, and 15
-CLI tier; the known failures are 71 language tier, 4 stdlib tier, and 23
+2,470 cases: 2,376 selected in `test/portable/cases.tsv` and 94 known
+failures. The selected cases are 2,079 language tier, 282 stdlib tier, and 15
+CLI tier; the known failures are 67 language tier, 4 stdlib tier, and 23
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -21,16 +21,14 @@ CLI tier.
 | CLI-NEW | 9 | no `hd new` command |
 | CLI-DOC | 8 | no `hd doc` command |
 | MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
-| CLI-PKG-CMD | 5 | `hd check`, `hd build`, and `hd run` take a FILE and have no whole-package form and no `[[executable]]` tables; outside a package `hd test` exits 0 |
+| CLI-PKG-CMD | 6 | `hd check`, `hd build`, and `hd run` take a FILE and have no whole-package form and no `[[executable]]` tables; outside a package `hd test` exits 0 |
 | F-250 | 6 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | TQ-2 | 1 | a package-role fixture cannot express ownership of a trait argument |
 | EMB-S | 4 | package trait visibility is not modeled by the linked checker namespace |
 | P2 | 5 | package member visibility is not modeled by the linked checker namespace |
 | M29 | 1 | the fixture needs a second package to distinguish derivation ownership |
-| NONPKG | 1 | a `use self` in a single-file program is not reported |
 | SELF-CURRENT | 2 | relative lookup is fixed; these fixtures still need package import aliases |
-| ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |
@@ -49,7 +47,6 @@ CLI tier.
 | PRIVATE-STD | 1 | a module path to a private std function reports `unknown-name` |
 | DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
 | BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
-| RESERVE-PKG | 1 | a module named `pkg` is accepted, not `reserved-module-name` |
 
 ## Findings
 
@@ -140,8 +137,6 @@ Compiler structure:
 | PRIVATE-STD | Owner, 2026-10-04: a module path to a `std` declaration without `pub` is `private-import` (`expr.name.qualified.private`). The prototype reports `unknown-name` for the module. |
 | DERIVE-MISSING | Owner, 2026-10-04: `@derive` of a name that resolves to nothing is `unknown-trait` (`annot.derive.unknown`). The prototype reports `underivable-trait`. |
 | BOUND-AMBIGUOUS | Owner, 2026-10-04: a bound-only parameter with no default that several instantiations fit is `ambiguous-type` (`types.generic.infer.bound.no-default.ambiguous`). The prototype reports `cannot-infer-type`. |
-| RESERVE-PKG | Owner, 2026-10-04: a module named `pkg` is the error `reserved-module-name` (`module.path.reserved-pkg`). The prototype accepts `src/pkg.hd`. |
-| DOC-ROOT-NAME | Owner, 2026-10-04: the `<module>` of `src/lib.hd` is `pkg` in a doc test's name and a snapshot file's path (`cli.test.doc.name.root`, `std-testing.snapshot-file.module.root`). The prototype's snapshot files for `src/lib.hd` go to `__snapshots__/lib/`. No fixture reaches it. |
 
 ## Gaps No Fixture Reaches
 

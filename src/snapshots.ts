@@ -31,7 +31,10 @@ export function snapshotModule(file: string): { readonly root: string; readonly 
   const path = relative(directory, file).replace(/\.hd$/, "").split(sep);
   const parts = path[0] === "src" ? path.slice(1) : path;
   if (parts.at(-1) === "mod") parts.pop();
-  return { root: directory, module: parts.join(".") };
+  // `src/lib.hd` is the root module `pkg`
+  // (spec/std/testing.md#r-std-testing.snapshot-file.module.root).
+  const isRoot = path[0] === "src" && parts.length === 1 && parts[0] === "lib";
+  return { root: directory, module: isRoot ? "pkg" : parts.join(".") };
 }
 
 export function snapshotRun(file: string, update: boolean): SnapshotRun {

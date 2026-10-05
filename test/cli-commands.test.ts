@@ -322,8 +322,8 @@ test("hd run on a lone file outside any package compiles it on its own", async (
       "one.hd": 'pub fn shout() -> string: "lone"\n',
       "two.hd": "use self.one.{shout}\npub fn main() -> void $ Console: println(shout())\n",
     });
-    // No package links two.hd with one.hd, so `shout` is unknown.
-    assert.match(await failure(["run", "two.hd"], directory), /two\.hd:2:\d+: unknown-name/);
+    // A single-file program may use only std (module.single-file.roots).
+    assert.match(await failure(["run", "two.hd"], directory), /two\.hd:1:\d+: unknown-module/);
     await writeFile(
       join(directory, "two.hd"),
       'pub fn main() -> void $ Console: println("lone")\n',

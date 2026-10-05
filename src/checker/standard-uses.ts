@@ -60,11 +60,33 @@ function declares(module: string, name: string): "public" | "private" | undefine
   return (standardDeclarationNames(file) ?? []).includes(name) ? "private" : undefined;
 }
 
-/** Diagnostics for `std` uses that name no std module, or no public declaration of one. */
+/**
+ * The roots a single-file program may not use
+ * (spec/lang/10-modules.md#r-module.single-file.roots). The package linker
+ * removes every package use before the checker sees a package's program, so
+ * a use with one of these roots reaches the checker only in a single file.
+ */
+const PACKAGE_ROOTS: ReadonlySet<string> = new Set(["pkg", "dep", "self", "super"]);
+
+/** The message of a package use in a single-file program. */
+export const SINGLE_FILE_USE = "the file is a single-file program, in no package";
+
+/**
+ * Diagnostics for `std` uses that name no std module, or no public declaration
+ * of one, and for package uses in a single-file program.
+ */
 export function standardUseDiagnostics(program: Program): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const use of program.uses) {
     const [root, ...path] = use.module.split(".");
+    if (PACKAGE_ROOTS.has(root!)) {
+      diagnostics.push({
+        code: "unknown-module",
+        message: `'${root}' names no module: ${SINGLE_FILE_USE}, so it may use only std`,
+        span: use.span,
+      });
+      continue;
+    }
     if (root !== "std") continue;
     const module = path.join(".");
     // `use std.text` names the module itself.

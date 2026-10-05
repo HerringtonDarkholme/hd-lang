@@ -512,7 +512,7 @@ async function writePackage(directory: string): Promise<string> {
   const project = join(directory, "project");
   await mkdir(join(project, "src/user"), { recursive: true });
   await writeFile(
-    join(project, "src/mod.hd"),
+    join(project, "src/lib.hd"),
     'pub use self.user.{User}\n\n## Entry point.\npub fn main() -> void $ Console:\n    println("hi")\n',
   );
   await writeFile(join(project, "src/user/mod.hd"), USER_MODULE);
@@ -601,7 +601,7 @@ test("hd def and hd doc resolve package symbols by qualified name", async () => 
     assert.equal(traitMethod?.trait, "Show");
 
     const main = (await lookup("doc", "pkg.main", project)).symbols[0];
-    assert.equal(main?.file, join(project, "src/mod.hd"));
+    assert.equal(main?.file, join(project, "src/lib.hd"));
     assert.deepEqual(main?.requirements, ["Console"]);
     assert.equal(main?.result, "void");
 
