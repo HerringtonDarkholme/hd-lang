@@ -85,28 +85,6 @@ against e8b78ed1 in a detached worktree), and keep the
 PRIMITIVE-LEFT-TRAIT fixture passing.
 
 
-### BG. Fix The Examples' MIN Overflow, Don't Skip It
-
-Merge 8d227750 made property tests try i32 MIN early, which found a real
-bug in three examples: `print` computes `0 - cents` (and calc.hd's
-`strip` computes `0 - v`), which overflows at MIN. The merge skipped MIN
-in each property (`if m.cents > -2147483648:`, `has_min`). Undo the
-skips and fix the code instead:
-
-- `website/playground/examples/derive.hd`, `website/tour/18-derive.md`:
-  make `print`/`parse` correct for every `i32`, for example by working
-  in `i64` for the absolute value, and keep the property unguarded. Then
-  update the example's story comment: the property now also catches the
-  MIN case, which hand-picked examples would never try. That makes the
-  example stronger.
-- `examples/dogfood/calc.hd`: make `show` and `parse` round-trip MIN
-  (for example print MIN as `(0 - 2147483647 - 1)`, or parse a negative
-  literal directly), and fix `strip`'s overflow; drop `has_min`.
-- Revert the `website/src/features.ts` highlight-range bump if the guard
-  line goes away.
-
-Run the three properties with several seeds and the website e2e.
-
 ### BF. A Missing-Requirement Error Hides An Unknown Name
 
 Found by #281. In one file, a call to an unknown name after `println`

@@ -191,32 +191,31 @@ fn describe(error: CalcError) -> string:
         .DivByZero(pos) => "division by zero at ${pos}"
 
 # Fully parenthesized form; parsing it back yields the same tree.
+# i32 MIN has no positive literal, so it prints as an expression.
 fn show(e: Expr) -> string:
     match e:
-        .Lit(v) => v.to_string()
+        .Lit(v) =>
+            if v == -2147483648:
+                "(0 - 2147483647 - 1)"
+            else:
+                v.to_string()
         .Neg(inner) => "(-${show(inner)})"
         .Bin(op, l, r, _) => "(${show(l)} ${op.symbol()} ${show(r)})"
 
 # Positions depend on the text, and a negative literal parses back as a
 # negation, so compare trees with positions cleared and literals made
-# non-negative.
+# non-negative. i32 MIN normalizes to its printed expression form.
 fn strip(e: Expr) -> Expr:
     match e:
         .Lit(v) =>
-            if v < 0:
+            if v == -2147483648:
+                .Bin(.Sub, .Bin(.Sub, .Lit(0), .Lit(2147483647), 0), .Lit(1), 0)
+            else if v < 0:
                 .Neg(.Lit(0 - v))
             else:
                 .Lit(v)
         .Neg(inner) => .Neg(strip(inner))
         .Bin(op, l, r, _) => .Bin(op, strip(l), strip(r), 0)
-
-# i32 MIN has no positive literal ("2147483648" fails to tokenize), so the
-# round-trip property skips trees that contain it.
-fn has_min(e: Expr) -> bool:
-    match e:
-        .Lit(v) => v == -2147483648
-        .Neg(inner) => has_min(inner)
-        .Bin(_, l, r, _) => has_min(l) || has_min(r)
 
 pub fn main() -> void $ Console:
     for src in ["1 + 2 * 3", "(1 + 2) * 3", "-4 * (2 - 5)", "10 / (5 - 5)", "2 +", "3 $ 4", "7 / 2"]:
@@ -243,8 +242,7 @@ tests:
             .Ok(back) => assert_equal(strip(back), e, reason="round trip")
             .Err(_) => assert(false, reason="reparse failed")
     it_prop("show then parse is the identity on trees", prop=fn!(e: Expr):
-        if !has_min(e):
-            match parse(show(e)):
-                .Ok(back) => assert_equal(strip(back), strip(e), reason="round trip")
-                .Err(_) => assert(false, reason="reparse failed")
+        match parse(show(e)):
+            .Ok(back) => assert_equal(strip(back), strip(e), reason="round trip")
+            .Err(_) => assert(false, reason="reparse failed")
     )

@@ -20,13 +20,14 @@ data Price:
 
 tests:
     it_prop("parsing a printed price gives it back", prop=fn!(price: Price):
-        if price.cents > -2147483648:  # 0 - MIN overflows
-            assert_equal(parse(print(price)), .Some(price), reason="round trip")
+        assert_equal(parse(print(price)), .Some(price), reason="round trip")
     )
 
 # Press Test. Then drop the padding: change `pad(abs % 100)` to
 # `abs % 100`, so $10.00 prints as "10.0", and press Test again:
 #     property test "parsing a printed price gives it back" (seed …) failed
+# The property also catches i32 MIN, which hand-picked examples would never
+# try: `0 - cents` overflows there, so `print` works in `i64`.
 
 # ── plumbing ──
 use std.num.parse_i32
@@ -34,10 +35,11 @@ use std.testing.{Arbitrary, assert_equal, it_prop}
 
 fn print(price: Price) -> string:
     sign := if price.cents < 0: "-" else: ""
-    abs := if price.cents < 0: 0 - price.cents else: price.cents
+    wide := i64(price.cents)
+    abs := if wide < 0: 0 - wide else: wide
     "$sign${abs / 100}.${pad(abs % 100)}"
 
-fn pad(n: i32) -> string:
+fn pad(n: i64) -> string:
     if n < 10: "0$n" else: n.to_string()
 
 fn parse(text: string) -> Price?:
@@ -46,8 +48,12 @@ fn parse(text: string) -> Price?:
     let .Some((whole, fraction)) = body.split_once(".") else: return .None
     if fraction.len() != 2:
         return .None
-    cents := parse_i32(whole).ok()? * 100 + parse_i32(fraction).ok()?
-    .Some(Price { cents: if negative: 0 - cents else: cents })
+    wide := i64(parse_i32(whole).ok()?) * 100 + i64(parse_i32(fraction).ok()?)
+    cents := if negative: 0 - wide else: wide
+    if cents < -2147483648 || cents > 2147483647:
+        .None
+    else:
+        .Some(Price { cents: i32(cents) })
 ```
 
 ```edit

@@ -5,20 +5,21 @@ data Money:
 
 tests:
     it_prop("parse undoes print", prop=fn!(m: Money):
-        if m.cents > -2147483648:  # 0 - MIN overflows
-            assert_equal(parse(print(m)), .Some(m), reason="round trip")
+        assert_equal(parse(print(m)), .Some(m), reason="round trip")
     )
 
 # The first `print` wrote 5 cents as "0.5", which `parse` rejects.
 # Two hand-picked examples (150 and 1200) passed. `hd test` then reported:
 #   property test "parse undoes print" shrunk input Money { cents: -1000 };
 #   assertion-failed: round trip: actual Option.None, expected Option.Some(Money { cents: -1000 })
+# The property also catches i32 MIN, which hand-picked examples would never
+# try: `0 - cents` overflows there, so `print` works in `i64`.
 
 # ── plumbing ──────────
 use std.num.parse_i32
 use std.testing.{Arbitrary, assert_equal, it_prop}
 
-fn pad(n: i32) -> string:
+fn pad(n: i64) -> string:
     if n < 10:
         "0$n"
     else:
@@ -26,7 +27,8 @@ fn pad(n: i32) -> string:
 
 fn print(m: Money) -> string:
     sign := if m.cents < 0: "-" else: ""
-    abs := if m.cents < 0: 0 - m.cents else: m.cents
+    wide := i64(m.cents)
+    abs := if wide < 0: 0 - wide else: wide
     "$sign${abs / 100}.${pad(abs % 100)}"
 
 fn parse(text: string) -> Money?:
@@ -43,8 +45,12 @@ fn parse(text: string) -> Money?:
                     match parse_i32(frac):
                         .Err(_) => .None
                         .Ok(f) =>
-                            cents := w * 100 + f
-                            .Some(Money { cents: if negative: 0 - cents else: cents })
+                            wide := i64(w) * 100 + i64(f)
+                            cents := if negative: 0 - wide else: wide
+                            if cents < -2147483648 || cents > 2147483647:
+                                .None
+                            else:
+                                .Some(Money { cents: i32(cents) })
 
 pub fn main() -> void $ Console:
     for cents in [5, 150, -1000]:
