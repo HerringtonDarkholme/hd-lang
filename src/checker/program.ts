@@ -36,7 +36,7 @@ import { withModulePaths } from "./module-paths.ts";
 import { registerPackageOwnership } from "./package-ownership.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
-import { withDistinctMethodBinders, displayMethodBinderNames } from "./generic-method-scope.ts";
+import { typeParameterRedeclarations } from "./type-parameter-names.ts";
 import { inherentVarianceDiagnostics, varianceDiagnostics } from "./variance.ts";
 import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
@@ -247,26 +247,12 @@ function checkProgram(
   prepared: Omit<PreparedProgram, "program">,
   debugPrint: DebugPrintState,
 ): CheckResult {
-  const spellings = new Map<string, string>();
-  const result = checkProgramRaw(source, options, spellings, prepared, debugPrint);
-  return {
-    ...result,
-    diagnostics: result.diagnostics.map((diagnostic) => ({
-      ...diagnostic,
-      message: displayMethodBinderNames(diagnostic.message, spellings),
-    })),
-  };
-}
-
-function checkProgramRaw(
-  source: Program,
-  options: CheckOptions,
-  spellings: Map<string, string>,
-  prepared: Omit<PreparedProgram, "program">,
-  debugPrint: DebugPrintState,
-): CheckResult {
   const { standardAliases, testRunners, runnerCapabilities, defaultProfile } = prepared;
-  const hoisted = hoistLocalDeclarations(withDistinctMethodBinders(source, spellings));
+  // A reused type parameter name is reported before local declarations
+  // hoist (03-names-and-scopes.md#r-names.type-param.no-redeclare).
+  const redeclared = typeParameterRedeclarations(source);
+  if (redeclared.length > 0) return { diagnostics: [...redeclared] };
+  const hoisted = hoistLocalDeclarations(source);
   // Target kinds are checked before newtypes are lowered to data types
   // (spec/lang/14-annotations.md#target-kinds).
   const targetDiagnostics = checkDecoratorTargets(hoisted.program);

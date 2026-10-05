@@ -113,11 +113,8 @@ function typeDeclarationDiagnostics(program: Program, diagnostics: Diagnostic[])
   }
   for (const declaration of program.traits) {
     if (declaration.standard || declaration.genericParameters.length === 0) continue;
+    const parameters = new Set(declaration.genericParameters);
     for (const method of declaration.methods) {
-      // A method's own generic parameter of the same name shadows the trait's.
-      const parameters = new Set(
-        declaration.genericParameters.filter((name) => !method.genericParameters.includes(name)),
-      );
       if (
         method.requirements.some((key) => parameters.has(key)) ||
         method.parameters.some((parameter) => mentionsParameter(parameter.type.name, parameters)) ||

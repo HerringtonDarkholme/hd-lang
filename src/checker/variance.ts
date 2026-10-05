@@ -207,14 +207,11 @@ export function inherentVarianceDiagnostics(
         ...method.genericParameters,
         "Self",
       ]);
-      const substitutions = new Map<string, ValueType>(
-        method.genericParameters.map((name) => [name, `generic:%method.${name}`] as const),
-      );
-      substitutions.set("Self", target);
+      // A method's own type parameters never reuse the implementation's
+      // (03-names-and-scopes.md#r-names.type-param.no-redeclare.method).
+      const substitutions = new Map<string, ValueType>([["Self", target]]);
       const normalize = (type: ValueType): ValueType =>
         resolveTraitType(
-          // Rename method binders before replacing Self: an inner T must
-          // not capture the implementation's T inside the receiver type.
           substituteGenericType(resolveGenericType(type, parameters), substitutions),
           declarations.traits,
         );

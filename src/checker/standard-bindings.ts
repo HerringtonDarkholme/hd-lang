@@ -44,7 +44,7 @@ function without(names: Renames, hidden: readonly string[]): Renames {
   return result;
 }
 
-function patternBindings(pattern: Pattern): string[] {
+export function patternBindings(pattern: Pattern): string[] {
   switch (pattern.kind) {
     case "binding":
       return [pattern.name];
