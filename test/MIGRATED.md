@@ -225,9 +225,22 @@ Each fixture runs under `# fixture-runtime-scenario: pending-first-poll`. Its su
 
 Paths `cli/NAME` are CLI cases under `spec/conformance/cli/`, indexed by `cli-cases.tsv`.
 
-- test/cli.test.ts :: the hd executable passes its arguments and sets the exit status -> cli/exit-program-status (the ExitCode(3) status), cli/exit-usage-error (a rejected command line); the unknown-command text and the escaped internal error are not migrated
+- test/cli.test.ts :: the hd executable reports an unknown command with its usage text; an internal error that escapes main ends the process with status 1 -> cli/exit-program-status (the ExitCode(3) status), cli/exit-usage-error (unknown commands), cli/json-run (the FILE --format json passthrough); the usage text and the adapter entry error are not migrated
+- test/cli.test.ts :: removed CLI commands name themselves as unknown commands -> cli/exit-usage-error (the 101 status of each removed command); the usage text is not migrated
 - test/cli.test.ts :: hd test fails a test whose result is .Err -> cli/exit-test-failure; the message text is not migrated
 - test/cli.test.ts :: hd run and hd test judge suspending results by Termination -> cli/exit-program-status (statuses 0, 3, and 1), cli/exit-test-failure; the message text is not migrated
+- test/cli.test.ts :: hd test compares snapshot_file text with its snapshot file -> cli/test-snapshot-file (the missing-file 1, the --update 0 and snapshot file); the recorded content, the pass count, and the tamper verdict stay
+- test/cli.test.ts :: hd test fails a test case that runs longer than its timeout -> cli/test-timeout (the pass 0 and the overrun 1); the pass count and the timeout text stay
+- test/cli.test.ts :: documented CLI commands work end to end -> not migrated: hd parse and hd debug hir have no cli.* rules, and the check/test/run/build wordings are message text
+- test/cli.test.ts :: hd run on a module without main exits 0 and prints nothing -> not migrated: no cli.* rule states the no-entry behavior (owner decision, batch 42; F-265)
+- test/cli.test.ts :: hd run on a script that needs Console prints and exits 0 -> not migrated: the run-path provider binding is language-tier (entry requirement rows)
+- test/cli.test.ts :: hd run runs Console.write_line! on host and program providers -> not migrated: Console routing is language-tier (10-modules console, MHP-1), and the assertions are message output
+- test/cli.test.ts :: a failed assert_equal shows the reason and both values -> not migrated: message wording under r-module.testing.assert-equal-debug (language tier)
+- test/cli.test.ts :: hd test runs a _test.hd test module -> not migrated: test-module placement and the misplaced-tests-block wording are language-tier
+- test/cli.test.ts :: hd test runs each it_each row in a fresh instance -> not migrated: row isolation is std/lang-tier (table-test-rows, r-module.testing.instance); the assertions are verdict text
+- test/cli.test.ts :: hd test shrinks a failing property case -> not migrated: shrink accounting, seeds, and regression files are runner internals under std-testing.prop rules
+- test/cli.test.ts :: hd test runs property examples first -> not migrated: example ordering is std-tier (r-std-testing.prop.examples); the assertion is verdict text
+- test/cli.test.ts :: hd test fails a property that discards too many cases -> not migrated: discard accounting is std-tier (r-std-testing.prop.discard-limit); the assertion is verdict text
 - test/cli-commands.test.ts :: hd test on a package tests each module, and with no path the current package -> cli/exit-test-failure, cli/exit-package-file; the printed counts and the loose-directory case are not migrated
 - test/cli-commands.test.ts :: hd run, check, and build on a package file link the package -> cli/exit-package-file for the check; the run and build forms are not migrated (cli.run.file makes `hd run FILE` an error)
 - test/cli-commands.test.ts :: hd run resolves super uses, and reports a package error in its own file -> cli/json-file-location for the file of the error; the run part is not migrated
@@ -417,7 +430,8 @@ later task deletes them.
 
 ## Batch 4 rows (test/cli.test.ts)
 
-- test/cli.test.ts :: all 16 tests (argv/exit status, CLI commands end to end, unknown commands, hd test verdicts, Termination judging, Console routing, assert_equal rendering, snapshots, timeouts, shrinking, properties) -> not migrated: drive the hd executable and its hosted test runner; the portable suite has no CLI tier (cli: 0 of 0 selected)
+Superseded by job AS: each test now has a per-test row in the
+"test/cli.test.ts and test/cli-commands.test.ts (CLI cases)" section above.
 
 ## Batch 4 rows (test/compiler-suspension.test.ts)
 

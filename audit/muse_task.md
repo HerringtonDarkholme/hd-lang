@@ -58,18 +58,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AS. Migrate `test/cli.test.ts` To The CLI Tier
-
-Job AM marked all 16 `test/cli.test.ts` tests "not migrated: the portable
-suite has no CLI tier". It has one: `spec/conformance/cli/` with
-`spec/conformance/cli-cases.tsv` (36 cases, run by
-`node --experimental-strip-types test/run-portable.ts --tier cli`; see
-`spec/conformance/README.md` for the case format). Move each test whose
-behavior a `cli.*` rule states (exit status, unknown command, `hd test`
-verdicts and output, snapshots, timeouts) into a CLI case, delete it from
-the TS file, and update its `test/MIGRATED.md` row. Tests that check
-runner internals stay, with the reason.
-
 ### AT. Child-Path Error Names The Real Problem
 
 Review of AN (ee489e28). Non-blocking.

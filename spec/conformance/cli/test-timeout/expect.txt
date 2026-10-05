@@ -1,0 +1,4 @@
+# A test case that finishes in time passes; one that runs longer than its timeout fails.
+run: hd test pass.hd
+run: hd test over.hd
+exit: 1

@@ -1,0 +1,15 @@
+use std.time.{Duration, h, ms}
+
+fn budget() -> Duration: 1h
+
+fn spin(rounds: i32) -> i32:
+    let total: i32 = 0
+    let index: i32 = 0
+    while index < rounds:
+        total = (total + index) % 7
+        index = index + 1
+    total
+
+tests:
+    it("finishes in time", timeout=budget()):
+        spin(10)

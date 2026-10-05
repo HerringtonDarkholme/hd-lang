@@ -1,0 +1,6 @@
+# snapshot_file fails without its file, records it under --update, then passes.
+run: hd test src/greet.hd
+exit: 1
+run: hd test --update src/greet.hd
+file: __snapshots__/greet/greets-ada-1.snap
+run: hd test src/greet.hd

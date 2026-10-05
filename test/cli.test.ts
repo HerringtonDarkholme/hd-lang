@@ -34,10 +34,10 @@ function hd(
   return hdInProcess(args, { cwd }, runner);
 }
 
-// The other tests run `hd` in this process; this one starts bin/hd.js to
-// check the executable itself: its arguments, the process's current
-// directory, and the exit status it sets.
-test("the hd executable passes its arguments and sets the exit status", async () => {
+// The other tests run `hd` in this process; these start bin/hd.js to check
+// the executable itself. Statuses 101 and 3 are cli/exit-usage-error and
+// cli/exit-program-status; the file run's JSON passthrough is cli/json-run.
+test("the hd executable reports an unknown command with its usage text", async () => {
   const spawned = (args: readonly string[], cwd = root) =>
     execute(process.execPath, [entrypoint, ...args], { cwd, encoding: "utf8" });
   const failed = async (args: readonly string[], cwd = root) => {
@@ -48,24 +48,18 @@ test("the hd executable passes its arguments and sets the exit status", async ()
     });
     return caught!;
   };
-  assert.equal((await spawned(["--format", "json", "examples/core.hd"])).stdout, "7\n");
-
   const unknown = await failed(["bogus"]);
-  assert.equal(unknown.code, 101);
   assert.equal(
     unknown.stderr,
     "hd: unknown command 'bogus'\nRun 'hd help' for the command list.\n",
   );
+});
 
+// An internal error that escapes `main` ends the process with status 1;
+// only an adapter can name an entry function, so this runs in process.
+test("an internal error that escapes main ends the process with status 1", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
-    await writeFile(
-      join(directory, "code.hd"),
-      "use std.process.ExitCode\n\npub fn main!() -> Result[ExitCode, string]:\n    .Ok(ExitCode(3))\n",
-    );
-    assert.equal((await failed(["code.hd"], directory)).code, 3);
-    // An internal error that escapes `main` ends the process with status 1;
-    // only an adapter can name an entry function, so this runs in process.
     await writeFile(join(directory, "library.hd"), "fn helper() -> i32:\n    1\n");
     const escaped = await runHd([join(directory, "library.hd")], {}, { entry: "main" });
     assert.equal(escaped.status, 1);
@@ -122,14 +116,12 @@ test("documented CLI commands work end to end", async () => {
 });
 
 // trace, record, replay, and explain-requirements were removed from the CLI,
-// and dump-hir moved to `hd debug hir`; each is now an unknown command,
-// which exits 101.
-test("removed CLI commands fail as unknown commands", async () => {
+// and dump-hir moved to `hd debug hir`; each is now an unknown command.
+// The 101 status is cli/exit-usage-error; here the usage text stays.
+test("removed CLI commands name themselves as unknown commands", async () => {
   const suspension = resolve(root, "examples/suspension.hd");
   for (const command of ["trace", "record", "replay", "explain-requirements", "dump-hir"]) {
-    await assert.rejects(hd([command, suspension]), (error: CommandResult & { code?: number }) => {
-      assert.equal(error.code, 101);
-      assert.equal(error.stdout, "");
+    await assert.rejects(hd([command, suspension]), (error: CommandResult) => {
       assert.equal(
         error.stderr,
         `hd: unknown command '${command}'\nRun 'hd help' for the command list.\n`,
@@ -159,8 +151,8 @@ test("hd test fails a test whose result is .Err", async () => {
         "",
       ].join("\n"),
     );
-    await assert.rejects(hd(["test", source]), (error: CommandResult & { code?: number }) => {
-      assert.equal(error.code, 1);
+    // The 1 status is cli/exit-test-failure; here the failure text stays.
+    await assert.rejects(hd(["test", source]), (error: CommandResult) => {
       assert.match(error.stdout + error.stderr, /test "propagates an error" returned Err/);
       return true;
     });
@@ -171,7 +163,8 @@ test("hd test fails a test whose result is .Err", async () => {
 
 // A suspending `main!` exits with the code `report()` gives for its result,
 // and a test case fails on any nonzero code (spec/lang/10-modules.md#exit-status,
-// #r-module.testing.fail).
+// #r-module.testing.fail). The verdict statuses are cli/exit-program-status
+// and cli/exit-test-failure; here the verdict texts stay.
 test("hd run and hd test judge suspending results by Termination", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   const program = async (name: string, lines: readonly string[]): Promise<string> => {
@@ -197,7 +190,6 @@ test("hd run and hd test judge suspending results by Termination", async () => {
       '    .Err("boom")',
     ]);
     const erred = await failure([err]);
-    assert.equal(erred.code, 1);
     assert.match(erred.stdout + erred.stderr, /main returned Err/);
 
     const code = await program("code.hd", [
@@ -205,7 +197,6 @@ test("hd run and hd test judge suspending results by Termination", async () => {
       "    .Ok(ExitCode(3))",
     ]);
     const exited = await failure([code]);
-    assert.equal(exited.code, 3);
     assert.equal(exited.stdout, "");
 
     const reported = await program("reported.hd", [
@@ -215,7 +206,6 @@ test("hd run and hd test judge suspending results by Termination", async () => {
       "    )",
     ]);
     const failed = await failure(["test", reported]);
-    assert.equal(failed.code, 1);
     assert.match(failed.stdout + failed.stderr, /test "reports a code" reported exit code 2/);
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -361,7 +351,8 @@ test("hd test compares snapshot_file text with its snapshot file", async () => {
         "",
       ].join("\n"),
     );
-    await assert.rejects(hd(["test", source]));
+    // The missing-file verdict is cli/test-snapshot-file; here the recorded
+    // content and the pass count stay.
     await hd(["test", "--update", source]);
     const snapshot = join(directory, "__snapshots__", "greet", "greets-ada-1.snap");
     assert.equal(await readFile(snapshot, "utf8"), "hello, Ada");

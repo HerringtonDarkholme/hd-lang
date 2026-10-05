@@ -1,2 +1,14 @@
 run: hd check --no-such-flag
 exit: 101
+run: hd bogus
+exit: 101
+run: hd trace src/util.hd
+exit: 101
+run: hd record src/util.hd
+exit: 101
+run: hd replay src/util.hd
+exit: 101
+run: hd explain-requirements src/util.hd
+exit: 101
+run: hd dump-hir src/util.hd
+exit: 101

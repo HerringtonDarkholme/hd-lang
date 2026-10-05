@@ -1,0 +1,13 @@
+use std.time.ms
+
+fn spin(rounds: i32) -> i32:
+    let total: i32 = 0
+    let index: i32 = 0
+    while index < rounds:
+        total = (total + index) % 7
+        index = index + 1
+    total
+
+tests:
+    it("overruns", timeout=0ms):
+        spin(100_000)
