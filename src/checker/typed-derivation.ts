@@ -19,7 +19,7 @@ import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
 import { carriedLibraryUses, renameStandardBindings } from "./standard-bindings.ts";
-import { expandTypeAlias, nullaryTypeAliases } from "./derive-aliases.ts";
+import { deriveMissing, expandTypeAlias, nullaryTypeAliases } from "./derive-aliases.ts";
 import { standardTemplate, standardTupleTraits } from "./standard-library.ts";
 import { withStandardSource } from "./standard-provenance.ts";
 import { standardDocument } from "./standard-sources.ts";
@@ -457,13 +457,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       const name = trait.name;
       loadStandard(name);
       if (!templates.has(name)) {
-        error(
-          "underivable-trait",
-          name === "Error"
-            ? "Error has no template and is not intrinsic; an error type uses @error"
-            : `trait '${name}' has no derivation template`,
-          trait.span,
-        );
+        error(...deriveMissing(localTraits, name), trait.span);
         continue;
       }
       if (!target) {

@@ -36,7 +36,6 @@ typing/invalid/method-type-parameter-reuses-impl-parameter.hd	the checker accept
 typing/invalid/local-data-reuses-type-parameter.hd	the checker accepts a local `data T` inside `fn work[T]`, letting it shadow the type parameter instead of reporting duplicate-binding (names.type-param.no-redeclare.body)	SHADOW-TPARAM
 typing/invalid/local-value-reuses-type-parameter.hd	the checker accepts a local value `T := value` inside `fn work[T]` and only warns unused-local-binding instead of reporting duplicate-binding (names.type-param.no-redeclare.body)	SHADOW-TPARAM
 typing/invalid/covariant-mut-self-method-parameter.hd	the variance check skips `mut self` inherent methods, so `pub fn set(mut self, value: U)` on `Box[+T]` is accepted instead of invalid-variance (types.variance.surface.mut-self)	VARIANCE-MUT-SELF
-typing/invalid/derive-unknown-trait.hd	`@derive(Sortable)` with no `Sortable` in scope reports underivable-trait instead of unknown-trait (annot.derive.unknown)	DERIVE-MISSING
 parse/valid/module-documentation.hd	no module documentation: the lexer reports doc-comment-without-target for the second block, where lex.doc.module makes the first block the module's documentation	MODULE-DOC
 cli/doc-out	`hd doc` takes only a NAME: `hd doc --out site` exits 101 with 'unknown flag --out' (cli.doc.command, cli.doc.files, cli.doc.root-page: no `pkg.md`)	CLI-DOC
 cli/doc-name	`hd doc` takes only a NAME: `hd doc --out site text.slugify` exits 101 with 'unknown flag --out' (cli.doc.name, and `hd doc std.text.split` by cli.doc.name.std)	CLI-DOC

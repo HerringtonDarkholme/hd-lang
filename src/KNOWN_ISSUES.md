@@ -33,7 +33,6 @@ CLI tier.
 | AMBIGUOUS-TYPE | 1 | an ambiguous requirement-key solution reports `cannot-infer-type`, not `ambiguous-type` |
 | SHADOW-TPARAM | 3 | a method type parameter, local declaration, or local value may reuse an enclosing type parameter's name |
 | VARIANCE-MUT-SELF | 1 | `mut self` inherent methods are skipped by the variance check |
-| DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
 | BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
 
 ## Findings
@@ -122,7 +121,6 @@ Compiler structure:
 | AMBIGUOUS-TYPE | Owner, 2026-10-04: inference with several valid solutions is `ambiguous-type` (`types.infer.ambiguous.code`). The prototype reports `cannot-infer-type` for a callback row that fits two generic keys in either order. |
 | SHADOW-TPARAM | Owner, 2026-10-04: no declaration within a type parameter's scope may reuse its name (`names.type-param.no-redeclare`). The prototype renames a method's shadowing binder, and accepts a local `data T` or value `T` inside `fn work[T]`. |
 | VARIANCE-MUT-SELF | Owner, 2026-10-04: a `mut self` inherent method counts toward declared variance (`types.variance.surface.mut-self`). The prototype skips those methods. |
-| DERIVE-MISSING | Owner, 2026-10-04: `@derive` of a name that resolves to nothing is `unknown-trait` (`annot.derive.unknown`). The prototype reports `underivable-trait`. |
 | BOUND-AMBIGUOUS | Owner, 2026-10-04: a bound-only parameter with no default that several instantiations fit is `ambiguous-type` (`types.generic.infer.bound.no-default.ambiguous`). The prototype reports `cannot-infer-type`. |
 
 ## Gaps No Fixture Reaches

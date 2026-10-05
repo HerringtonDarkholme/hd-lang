@@ -23,3 +23,17 @@ export function expandTypeAlias(type: string, aliases: ReadonlyMap<string, strin
     current = target;
   }
 }
+
+/** A `@derive` name with no template is unknown when no trait declares it. */
+export function deriveMissing(
+  traits: ReadonlyMap<string, unknown>,
+  name: string,
+): readonly [string, string] {
+  if (!traits.has(name)) return ["unknown-trait", `unknown trait '${name}'`];
+  return [
+    "underivable-trait",
+    name === "Error"
+      ? "Error has no template and is not intrinsic; an error type uses @error"
+      : `trait '${name}' has no derivation template`,
+  ];
+}

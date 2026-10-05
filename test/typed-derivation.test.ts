@@ -105,7 +105,7 @@ test("typed derivation reports its diagnostics at the opt-in", () => {
   const codes = (program: string): string[] =>
     analyze(`${LIBRARY}\n${program}`).diagnostics.map((diagnostic) => diagnostic.code);
   assert.deepEqual(codes("@derive(Show)\ndata Flag:\n    on: bool\n"), ["member-not-derivable"]);
-  assert.deepEqual(codes("@derive(Missing)\ndata Flag:\n    on: i32\n"), ["underivable-trait"]);
+  assert.deepEqual(codes("@derive(Missing)\ndata Flag:\n    on: i32\n"), ["unknown-trait"]);
   assert.deepEqual(
     codes("data Flag:\n    on: i32\n\nimpl Show for Flag by Structure:\n    off = []\n"),
     ["unknown-annotation-member"],
