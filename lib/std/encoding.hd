@@ -101,7 +101,7 @@ pub fn base64_decode(text: string) -> Result[List[u8], DecodeError]:
         padding = if codes[size - 2] == 61: 2 else: 1
     end := size - padding
     let bytes: mut List[u8] = []
-    let buffer = +0
+    let buffer: i32 = 0
     let bits: u32 = 0
     let index: usize = 0
     while index < end:

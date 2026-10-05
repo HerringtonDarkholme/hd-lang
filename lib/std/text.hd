@@ -213,7 +213,7 @@ impl string:
             lead := i32(bytes[index])
             let width: usize = 1
             let point = lead
-            let lowest = +0
+            let lowest: i32 = 0
             if lead >= 240 && lead <= 244:
                 width = 4
                 point = lead - 240
@@ -547,7 +547,7 @@ fn scalar_at(text: string, start: usize) -> i32:
     lead := i32(bytes_at(text, start))
     if lead < 128:
         return lead
-    let point = +0
+    let point: i32 = 0
     let width: usize = 4
     if lead < 224:
         point = lead - 192

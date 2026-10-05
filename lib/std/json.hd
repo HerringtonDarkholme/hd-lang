@@ -449,7 +449,7 @@ fn parse_string(bytes: List[u8], open: usize) -> Result[ParsedText, JsonError]:
 # The value of the four hex digits at `at`, -1 when one is not a hex digit,
 # or -2 when the text ends first.
 fn read_hex4(bytes: List[u8], at: usize) -> i32:
-    let value = +0
+    let value: i32 = 0
     let offset: usize = 0
     while offset < 4:
         if at + offset >= bytes.len():

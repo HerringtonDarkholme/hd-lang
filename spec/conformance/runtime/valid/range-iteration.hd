@@ -27,7 +27,7 @@ fn count(r: Range[i32]) -> i32:
 
 fn top_bytes() -> i32:
     let top: u8 = 255
-    let seen = +0
+    let seen: i32 = 0
     for _ in 250..=top:
         seen = seen + 1
     seen

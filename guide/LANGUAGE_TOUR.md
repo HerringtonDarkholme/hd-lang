@@ -162,7 +162,7 @@ Primitive types include booleans, width-explicit numbers, strings, and chars:
 ```text
 let ok: bool = true
 let small: i8 = 1
-let count = +42
+let count: i32 = 42
 let large: i64 = 9000
 let octet: u8 = 255
 let size: u64 = 1024
