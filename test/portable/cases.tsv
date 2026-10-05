@@ -2518,3 +2518,5 @@ runtime/panic/iterator-sum-overflow.hd	runtime
 runtime/panic/list-sum-overflow.hd	runtime
 typing/invalid/iterator-sum-non-numeric.hd	type
 typing/invalid/list-sum-non-numeric.hd	type
+typing/invalid/alias-unknown-target.hd	type
+typing/invalid/row-alias-unknown-key.hd	type

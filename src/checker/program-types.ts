@@ -8,7 +8,22 @@ import {
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirAssociatedBinding, HirData, HirDataField, HirTrait } from "../hir.ts";
-import { mutableInner, nominalGenericParts, rowArgumentType, displayType } from "../types.ts";
+import {
+  bindingParts,
+  contextKeys,
+  functionParts,
+  inputsInner,
+  mutableInner,
+  nominalGenericParts,
+  optionalInner,
+  restInner,
+  resultParts,
+  rowArgumentKeys,
+  rowArgumentType,
+  splitTypeBindings,
+  tupleParts,
+  displayType,
+} from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   requirementKeyDiagnostics,
@@ -890,6 +905,7 @@ function validateDeclaredTypes(context: ProgramCheckContext): void {
     for (const defaultType of Object.values(declaration.genericDefaults ?? {}))
       validateType(resolveGenericType(defaultType.name, types, rows), defaultType.span);
   }
+  validateAliasTargets(context);
   for (const trait of traitTypes.values()) {
     for (const supertrait of trait.supertraits) {
       supertrait.traitArguments.forEach((type) => validateType(type, trait.span));
@@ -950,6 +966,204 @@ function validateDeclaredTypes(context: ProgramCheckContext): void {
       );
       validateBounds(method.genericBounds, kinds.types, kinds.rows);
       validateRequirements(method, kinds.types, kinds.rows);
+    }
+  }
+}
+
+function validateAliasTargets(context: ProgramCheckContext): void {
+  const { typeDeclarations, dataTypes, enumTypes, traitTypes, diagnostics } = context;
+
+  const aliasNames = new Set(typeDeclarations.filter((d) => d.alias ?? d.row).map((d) => d.name));
+  const primitiveKnown = new Set([
+    "i8",
+    "i16",
+    "i32",
+    "i64",
+    "u8",
+    "u16",
+    "u32",
+    "u64",
+    "f32",
+    "f64",
+    "bool",
+    "char",
+    "string",
+    "void",
+    "never",
+    "usize",
+    "List",
+    "Map",
+    "Suspend",
+    "$Cursor",
+  ]);
+  const isTypeBaseKnown = (name: string, generics: ReadonlySet<string>): boolean =>
+    generics.has(name) ||
+    aliasNames.has(name) ||
+    primitiveKnown.has(name) ||
+    name.startsWith("generic:") ||
+    name.startsWith("row:") ||
+    name.startsWith("trait:") ||
+    name.startsWith("provider:") ||
+    dataTypes.has(name) ||
+    enumTypes.has(name) ||
+    traitTypes.has(name);
+  function visitAliasType(
+    type: string,
+    generics: ReadonlySet<string>,
+    onUnknownType: () => void,
+    onUnknownTrait: () => void,
+    found: { current: boolean },
+  ): void {
+    if (found.current) return;
+    if (generics.has(type) || aliasNames.has(type)) return;
+    if (type.includes("::")) {
+      const prefix = type.split("::")[0]!;
+      const base = prefix.includes("[") ? (nominalGenericParts(prefix)?.name ?? prefix) : prefix;
+      if (!isTypeBaseKnown(base, generics)) {
+        onUnknownType();
+        found.current = true;
+      }
+      return;
+    }
+    const binding = bindingParts(type);
+    if (binding) {
+      visitAliasType(binding.type, generics, onUnknownType, onUnknownTrait, found);
+      return;
+    }
+    const inner = mutableInner(type) ?? optionalInner(type) ?? restInner(type) ?? inputsInner(type);
+    if (inner !== undefined) {
+      visitAliasType(inner, generics, onUnknownType, onUnknownTrait, found);
+      return;
+    }
+    const tuple = tupleParts(type);
+    if (tuple !== undefined) {
+      for (const element of tuple) {
+        visitAliasType(element, generics, onUnknownType, onUnknownTrait, found);
+        if (found.current) return;
+      }
+      return;
+    }
+    const result = resultParts(type);
+    if (result) {
+      visitAliasType(result.ok, generics, onUnknownType, onUnknownTrait, found);
+      if (found.current) return;
+      visitAliasType(result.error, generics, onUnknownType, onUnknownTrait, found);
+      return;
+    }
+    const callable = functionParts(type);
+    if (callable) {
+      for (const parameter of callable.parameters) {
+        visitAliasType(parameter, generics, onUnknownType, onUnknownTrait, found);
+        if (found.current) return;
+      }
+      visitAliasType(callable.result, generics, onUnknownType, onUnknownTrait, found);
+      if (found.current) return;
+      for (const requirement of callable.requirements)
+        visitAliasRequirement(requirement, generics, onUnknownType, onUnknownTrait, found);
+      return;
+    }
+    const rowArgs = rowArgumentKeys(type);
+    if (rowArgs) {
+      for (const requirement of rowArgs)
+        visitAliasRequirement(requirement, generics, onUnknownType, onUnknownTrait, found);
+      return;
+    }
+    const context = contextKeys(type);
+    if (context) {
+      for (const requirement of context)
+        visitAliasRequirement(requirement, generics, onUnknownType, onUnknownTrait, found);
+      return;
+    }
+    const nominal = nominalGenericParts(type);
+    if (nominal) {
+      if (!isTypeBaseKnown(nominal.name, generics)) {
+        onUnknownType();
+        found.current = true;
+        return;
+      }
+      const { positional, bindings } = splitTypeBindings(nominal.arguments);
+      for (const arg of [...positional, ...bindings.map((b) => b.type)]) {
+        visitAliasType(arg, generics, onUnknownType, onUnknownTrait, found);
+        if (found.current) return;
+      }
+      return;
+    }
+    if (!isTypeBaseKnown(type, generics)) {
+      onUnknownType();
+      found.current = true;
+    }
+  }
+  function visitAliasRequirement(
+    key: string,
+    generics: ReadonlySet<string>,
+    onUnknownType: () => void,
+    onUnknownTrait: () => void,
+    found: { current: boolean },
+  ): void {
+    if (found.current) return;
+    const nominal = nominalGenericParts(key);
+    const base = nominal?.name ?? key;
+    if (generics.has(base) || aliasNames.has(base)) {
+      if (!nominal) return;
+      const { positional, bindings } = splitTypeBindings(nominal.arguments);
+      for (const arg of [...positional, ...bindings.map((b) => b.type)]) {
+        visitAliasType(arg, generics, onUnknownType, onUnknownTrait, found);
+        if (found.current) return;
+      }
+      return;
+    }
+    if (!traitTypes.has(base)) {
+      onUnknownTrait();
+      found.current = true;
+      return;
+    }
+    if (nominal) {
+      const { positional, bindings } = splitTypeBindings(nominal.arguments);
+      for (const arg of [...positional, ...bindings.map((b) => b.type)]) {
+        visitAliasType(arg, generics, onUnknownType, onUnknownTrait, found);
+        if (found.current) return;
+      }
+    }
+  }
+  for (const declaration of typeDeclarations) {
+    const generics = new Set(declaration.genericParameters);
+    if (declaration.alias) {
+      const found = { current: false };
+      let reported = false;
+      const onUnknownType = (): void => {
+        if (reported) return;
+        reported = true;
+        diagnostics.push({
+          code: "unknown-type",
+          message: `unknown type '${displayType(declaration.alias!.name)}' in alias '${declaration.name}'`,
+          span: declaration.alias!.span,
+        });
+      };
+      const onUnknownTrait = (): void => {
+        if (reported) return;
+        reported = true;
+        diagnostics.push({
+          code: "unknown-trait",
+          message: `unknown trait in alias '${declaration.name}'`,
+          span: declaration.alias!.span,
+        });
+      };
+      visitAliasType(declaration.alias.name, generics, onUnknownType, onUnknownTrait, found);
+    }
+    if (declaration.row) {
+      for (const key of declaration.row) {
+        const nominal = nominalGenericParts(key);
+        const base = nominal?.name ?? key;
+        if (generics.has(base) || aliasNames.has(base)) continue;
+        if (!traitTypes.has(base)) {
+          diagnostics.push({
+            code: "unknown-trait",
+            message: `unknown trait '${displayType(base)}' in row alias '${declaration.name}'`,
+            span: declaration.span,
+          });
+          break;
+        }
+      }
     }
   }
 }

@@ -11,6 +11,6 @@ test("aliases are expanded before requirement keys are validated", () => {
   assert.deepEqual(
     codes(`type MissingAlias = Missing
 fn run() -> void $ MissingAlias: pass`),
-    ["unknown-trait"],
+    ["unknown-type", "unknown-trait"],
   );
 });
