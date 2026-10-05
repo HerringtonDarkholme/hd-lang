@@ -427,7 +427,7 @@ test("hd test runs each it_each row in a fresh instance", async () => {
       "",
     ];
     await writeFile(source, lines.slice(0, 13).join("\n"));
-    assert.match((await hd(["test", source])).stdout, /: 4 passed/);
+    assert.match((await hd(["test", source])).stdout, /: 3 passed/);
     await writeFile(source, lines.join("\n"));
     await assert.rejects(hd(["test", source]), (error: CommandResult & { code?: number }) => {
       assert.match(error.stdout + error.stderr, /test "fails on two\[1\]" returned Err/);

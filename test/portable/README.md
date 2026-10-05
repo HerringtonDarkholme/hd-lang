@@ -29,7 +29,8 @@ node --experimental-strip-types test/run-portable.ts --compiler "node --experime
 
 The commands use exit status for success, rejection, and runtime panic.
 Diagnostics must include their stable code followed by `:`. The `test` command
-runs `main` and every test case of a fixture's `tests:` block.
+runs every test case of a fixture's `tests:` block. The prototype's `hd test`
+never runs `main`; the runner runs an entry as `IMPL FILE`.
 
 Select one tier of the specification with `--tier language`, `--tier std`,
 or `--tier cli` ([Tiers](../../spec/conformance/README.md#tiers)). A case

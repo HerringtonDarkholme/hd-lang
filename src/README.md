@@ -113,10 +113,11 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
 - `hd test` without FILE checks the executables, then tests each module
   under `src/` and each integration test program (a file directly under
   `tests/`), one link each, in path order, running only that module's test
-  cases and never an executable's `main`. An error in a module that several
-  links join prints once. A run with no test case passes.
-- `hd test FILE` exits 101 with `FILE: no test case registered` when FILE
-  registers no test case, even if it has an entry point
+  cases. An error in a module that several links join prints once. A run
+  with no test case passes.
+- `hd test` never runs `main`, so neither its output nor its outcome counts
+  as a test case. `hd test FILE` exits 101 with `FILE: no test case
+  registered` when FILE registers no test case, even if it has an entry point
   ([`cli.test.file-empty`](../spec/cli/command-line.md#r-cli.test.file-empty)).
   Doc tests are not extracted yet, so a file with only doc tests counts as
   empty (`DOC-TESTS`).

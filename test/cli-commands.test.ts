@@ -555,6 +555,13 @@ test("hd test FILE is an error for a file with no test case, and hd FILE runs it
     );
     assert.equal(result?.code, 101);
     assert.match(result!.stderr, /entry\.hd: no test case registered/);
+    // `hd test` runs the test cases, never main: main's output is not
+    // printed, and main is not counted as a test case.
+    await writeFile(
+      file,
+      'pub fn main() -> void $ Console:\n    println("hi")\n\ntests:\n    it("works"):\n        pass\n',
+    );
+    assert.equal((await hdInProcess(["test", file])).stdout, `${file}: 1 passed\n`);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

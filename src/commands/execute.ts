@@ -249,10 +249,7 @@ async function testFile(
     placement,
   );
   if (typeof loaded === "number") return loaded;
-  // In package mode, `hd test` runs test cases only, never an executable's
-  // entry point (spec/cli/command-line.md#r-cli.package.file).
-  const inPackage = placement?.programs !== undefined;
-  return execute(loaded, io, { kind: "test", ...args, ...options, testsOnly: inPackage });
+  return execute(loaded, io, { kind: "test", ...args, ...options });
 }
 
 /**
@@ -329,8 +326,6 @@ type Execution =
       readonly kind: "test";
       /** A whole-package run, where a module without test cases is no error. */
       readonly quietWhenEmpty: boolean;
-      /** Run the test cases only, not the entry point. */
-      readonly testsOnly: boolean;
     } & TestArgs);
 
 async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution): Promise<number> {
@@ -402,18 +397,16 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       !linked ||
       !placement ||
       linked.locate({ code: "", message: "", span: declaration.span }).path === placement.path;
-    // Only the entry point and test cases execute
-    // (spec/conformance/README.md#runtime-execution); `--entry` names any
-    // exported function for `run`.
+    // `hd test` runs the test cases, and never the entry point, so neither
+    // its output nor its outcome counts as a test (cli.test.*); `hd run` and
+    // `hd FILE` run the entry point, and `--entry` names any exported
+    // function for `hd FILE`.
     // A test case with the `ignore` option is selected too: the runner
     // reports it as ignored without running it
     // (spec/lang/10-modules.md#r-module.testing.option.ignore).
     const selected = compilation.hir.functions.filter((declaration) => {
       if (command === "test")
-        return (
-          (declaration.entry === true && test?.testsOnly !== true) ||
-          (/^\$test\.\d+$/.test(declaration.name) && inFileModule(declaration))
-        );
+        return /^\$test\.\d+$/.test(declaration.name) && inFileModule(declaration);
       if (explicitEntry) return declaration.name === entryName;
       // A non-`pub` `main` is not an entry point; implementation tests may
       // still run it by naming it explicitly.
@@ -421,9 +414,9 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     });
     // `hd test FILE` is an error when FILE registers no test case, even if it
     // has an entry point (spec/cli/command-line.md#r-cli.test.file-empty). The
-    // modules of `hd test DIR` stay quiet: a whole-package run that registers
+    // modules of a whole-package `hd test` stay quiet: a run that registers
     // none passes (cli.test.package-empty).
-    if (test && !test.quietWhenEmpty && !selected.some(({ entry }) => entry !== true)) {
+    if (test && !test.quietWhenEmpty && selected.length === 0) {
       reporter.noTestCases();
       return EXIT_HD_FAILURE;
     }
