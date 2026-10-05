@@ -27,6 +27,7 @@ import {
 } from "../types.ts";
 import {
   containsGenericType,
+  defaultCallFields,
   genericTypeName,
   matchImplementationTarget,
   matchTraitImplementation,
@@ -764,22 +765,20 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const implementationArgumentParameterIndices = checkedArguments.parameterIndices
         ? [0, ...checkedArguments.parameterIndices.map((parameterIndex) => parameterIndex + 1)]
         : undefined;
-      // A defaulted method parameter fills from its helper with the earlier
-      // call values, receiver included, so its index counts the receiver.
-      const defaultArguments = (checkedArguments.defaultParameterIndices ?? []).map(
-        (parameterIndex) => ({
-          parameterIndex: parameterIndex + 1,
-          functionIndex: this.signatures.get(callSignature.defaultFunctionNames[parameterIndex]!)!
-            .index,
-        }),
+      // The receiver fills parameter 0, so a defaulted parameter's index counts it.
+      const defaultFields = defaultCallFields(
+        this.signatures,
+        callSignature.defaultFunctionNames,
+        checkedArguments.defaultParameterIndices,
+        signature.parameters,
+        1,
       );
       const callBase = {
         functionIndex: signature.index,
         functionName: signature.name,
         arguments: [methodReceiver, ...checkedArguments.arguments],
         argumentParameterIndices: implementationArgumentParameterIndices,
-        defaultArguments: defaultArguments.length > 0 ? defaultArguments : undefined,
-        parameterTypes: defaultArguments.length > 0 ? signature.parameters : undefined,
+        ...defaultFields,
         bounds,
         providers,
         erasedParameterTypes:
@@ -1253,10 +1252,13 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     }
     const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);
     const bounds = this.resolveBoundDictionaries(signature, substitutions, expression.span);
-    const defaultArguments = checkedArguments.defaultParameterIndices.map((parameterIndex) => ({
-      parameterIndex,
-      functionIndex: this.signatures.get(signature.defaultFunctionNames[parameterIndex]!)!.index,
-    }));
+    const defaultFields = defaultCallFields(
+      this.signatures,
+      signature.defaultFunctionNames,
+      checkedArguments.defaultParameterIndices,
+      signature.parameters,
+      0,
+    );
     return signature.suspending
       ? {
           kind: "suspend-construct",
@@ -1264,8 +1266,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           functionName: signature.name,
           arguments: checkedArguments.arguments,
           argumentParameterIndices: checkedArguments.parameterIndices,
-          defaultArguments: defaultArguments.length > 0 ? defaultArguments : undefined,
-          parameterTypes: defaultArguments.length > 0 ? signature.parameters : undefined,
+          ...defaultFields,
           bounds,
           providers,
           erasedParameterTypes:
@@ -1286,8 +1287,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           functionName: signature.name,
           arguments: checkedArguments.arguments,
           argumentParameterIndices: checkedArguments.parameterIndices,
-          defaultArguments: defaultArguments.length > 0 ? defaultArguments : undefined,
-          parameterTypes: defaultArguments.length > 0 ? signature.parameters : undefined,
+          ...defaultFields,
           bounds,
           providers,
           erasedParameterTypes:

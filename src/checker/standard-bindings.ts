@@ -665,26 +665,30 @@ function unreachable(value: never): never {
 }
 
 /**
- * Carry `lib/std/structure.hd`'s own uses into a program that declares
- * structure early (checker/typed-derivation.ts). Each used name resolves
- * against the declaration the library join already gave its standard name,
- * as the inspect loader resolves its own uses
- * (checker/standard-traits.ts). A synthesized `use` stays out: the join
- * renamed the declaration to its hidden name before the use could exist,
- * so a late local import desynchronizes the template names. The caller's
- * own renames win over the carried ones.
+ * Carry an early-declared std module's own uses into a program that declares
+ * the module early (checker/typed-derivation.ts, checker/standard-traits.ts).
+ * Each used name resolves against the declaration the library join already
+ * gave its standard name. A synthesized `use` stays out: the join renamed
+ * the declaration to its hidden name before the use could exist, so a late
+ * local import desynchronizes the template names. `skippedModules` are uses
+ * the caller binds itself (the derivation binds `std.inspect` explicitly).
+ * The caller's own renames win over the carried ones.
  */
-export function carriedStructureUses(source: Program, structure: Program): Map<string, string> {
+export function carriedLibraryUses(
+  joined: Program,
+  library: Program,
+  skippedModules: readonly string[] = [],
+): Map<string, string> {
   const declarations = [
-    ...source.data,
-    ...source.enums,
-    ...source.traits,
-    ...(source.types ?? []),
-    ...source.functions,
+    ...joined.data,
+    ...joined.enums,
+    ...joined.traits,
+    ...(joined.types ?? []),
+    ...joined.functions,
   ];
   const renames = new Map<string, string>();
-  for (const use of structure.uses) {
-    if (use.module === "std.inspect") continue;
+  for (const use of library.uses) {
+    if (skippedModules.includes(use.module)) continue;
     for (const imported of use.names) {
       const local = imported.alias ?? imported.name;
       const declaration = declarations.find(

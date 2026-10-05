@@ -1,4 +1,4 @@
-import type { Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
+import type { Expression, FunctionDecl, Parameter, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import { nominalGenericType } from "../types.ts";
 
@@ -73,6 +73,42 @@ function createTestDeclarations(
       span: test.span,
     };
   });
+}
+
+// A defaulted parameter's helper: it takes the earlier parameters, so the
+// default sees the same names as at the call site. Shared by plain functions
+// and methods, whose receivers stay the first helper parameter.
+function parameterDefaultDeclaration(
+  declaration: FunctionDecl,
+  parameter: Parameter,
+  parameterIndex: number,
+): FunctionDecl | undefined {
+  if (!parameter.default) return undefined;
+  const expression = parameter.default;
+  return {
+    kind: "function",
+    name: `$parameter-default.${declaration.name}.${parameter.name}`,
+    ...(declaration.standard ? { standard: true as const } : {}),
+    suspending: false,
+    genericParameters: declaration.genericParameters,
+    genericBounds: declaration.genericBounds,
+    parameters: declaration.parameters.slice(0, parameterIndex).map((earlier) => ({
+      name: earlier.name,
+      type: earlier.type,
+      span: earlier.span,
+    })),
+    result: parameter.type,
+    requirements: [],
+    body: [
+      {
+        kind: "expression",
+        expression,
+        span: expression.span,
+      },
+    ],
+    span: expression.span,
+    defaultContext: laterNamesContext(declaration.parameters, parameterIndex),
+  };
 }
 
 // Parameters (or named shared enum fields) after `index` are not yet visible
@@ -405,36 +441,10 @@ export function createProgramDeclarations(
     ),
   );
   const parameterDefaultDeclarations: FunctionDecl[] = program.functions.flatMap((declaration) =>
-    declaration.parameters.flatMap((parameter, parameterIndex) =>
-      parameter.default
-        ? [
-            {
-              kind: "function" as const,
-              name: `$parameter-default.${declaration.name}.${parameter.name}`,
-              ...(declaration.standard ? { standard: true } : {}),
-              suspending: false,
-              genericParameters: declaration.genericParameters,
-              genericBounds: declaration.genericBounds,
-              parameters: declaration.parameters.slice(0, parameterIndex).map((earlier) => ({
-                name: earlier.name,
-                type: earlier.type,
-                span: earlier.span,
-              })),
-              result: parameter.type,
-              requirements: [],
-              body: [
-                {
-                  kind: "expression" as const,
-                  expression: parameter.default,
-                  span: parameter.default.span,
-                },
-              ],
-              span: parameter.default.span,
-              defaultContext: laterNamesContext(declaration.parameters, parameterIndex),
-            },
-          ]
-        : [],
-    ),
+    declaration.parameters.flatMap((parameter, parameterIndex) => {
+      const helper = parameterDefaultDeclaration(declaration, parameter, parameterIndex);
+      return helper ? [helper] : [];
+    }),
   );
   const enumDefaultDeclarations: FunctionDecl[] = program.enums.flatMap((declaration) =>
     declaration.sharedFields.flatMap((field, fieldIndex) =>
@@ -483,36 +493,10 @@ export function createProgramDeclarations(
     ),
     ...inherentDeclarations,
   ].flatMap((declaration) =>
-    declaration.parameters.flatMap((parameter, parameterIndex) =>
-      parameter.default
-        ? [
-            {
-              kind: "function" as const,
-              name: `$parameter-default.${declaration.name}.${parameter.name}`,
-              ...(declaration.standard ? { standard: true } : {}),
-              suspending: false,
-              genericParameters: declaration.genericParameters,
-              genericBounds: declaration.genericBounds,
-              parameters: declaration.parameters.slice(0, parameterIndex).map((earlier) => ({
-                name: earlier.name,
-                type: earlier.type,
-                span: earlier.span,
-              })),
-              result: parameter.type,
-              requirements: [],
-              body: [
-                {
-                  kind: "expression" as const,
-                  expression: parameter.default,
-                  span: parameter.default.span,
-                },
-              ],
-              span: parameter.default.span,
-              defaultContext: laterNamesContext(declaration.parameters, parameterIndex),
-            },
-          ]
-        : [],
-    ),
+    declaration.parameters.flatMap((parameter, parameterIndex) => {
+      const helper = parameterDefaultDeclaration(declaration, parameter, parameterIndex);
+      return helper ? [helper] : [];
+    }),
   );
   const enumVariantDeclarations = createEnumVariantDeclarations(program.enums, diagnostics);
   // An integration test case takes `Process` from the runner (cli.test.process).

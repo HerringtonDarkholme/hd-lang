@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { DataField } from "../src/ast.ts";
-import { analyze } from "../src/compiler.ts";
+import { analyze, instantiate } from "../src/compiler.ts";
 import type { SourceSpan } from "../src/diagnostics.ts";
 import {
   derivedFieldDiagnostic,
@@ -37,6 +37,18 @@ test("O-08: a spread list accepts if and closure function elements", () => {
     result.diagnostics.filter((diagnostic) => diagnostic.severity !== "warning"),
     [],
   );
+});
+
+test("O-08: the rechecked spread list runs and prints each length once", async () => {
+  const lines: string[] = [];
+  const { instance, compilation } = await instantiate(ROWS, {
+    console: (text) => lines.push(text),
+  });
+  const main = compilation.hir.functions.find(({ entry }) => entry)!;
+  (instance.exports[main.name] as CallableFunction)(
+    ...main.requirements.map((requirement) => ({ requirement })),
+  );
+  assert.deepEqual(lines, ["2", "2", "2"]);
 });
 
 const ARBITRARY = `use std.testing.Arbitrary

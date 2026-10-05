@@ -12,7 +12,7 @@ import {
   displayType,
 } from "../types.ts";
 import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC, HD_RUN, RACE_COMBINATOR } from "./standard-traits.ts";
-import { orderedTypeSubstitutions, substituteGenericType } from "./shared.ts";
+import { defaultCallFields, orderedTypeSubstitutions, substituteGenericType } from "./shared.ts";
 
 import { OperatorCallChecker } from "./operator-calls.ts";
 export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
@@ -236,12 +236,12 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
             rowSubstitutions,
           );
           const bounds = this.resolveBoundDictionaries(signature, substitutions, expression.span);
-          const defaultArguments = checkedArguments.defaultParameterIndices.map(
-            (parameterIndex) => ({
-              parameterIndex,
-              functionIndex: this.signatures.get(signature.defaultFunctionNames[parameterIndex]!)!
-                .index,
-            }),
+          const defaultFields = defaultCallFields(
+            this.signatures,
+            signature.defaultFunctionNames,
+            checkedArguments.defaultParameterIndices,
+            signature.parameters,
+            0,
           );
           const suspension: HirExpression = {
             kind: "suspend-construct",
@@ -249,8 +249,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
             functionName: signature.name,
             arguments: checkedArguments.arguments,
             argumentParameterIndices: checkedArguments.parameterIndices,
-            defaultArguments: defaultArguments.length > 0 ? defaultArguments : undefined,
-            parameterTypes: defaultArguments.length > 0 ? signature.parameters : undefined,
+            ...defaultFields,
             bounds,
             providers,
             erasedParameterTypes:

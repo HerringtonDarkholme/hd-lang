@@ -7,6 +7,7 @@ import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { numericType, widensTo } from "../numeric.ts";
 import type {
   HirData,
+  HirDefaultArgument,
   HirEnum,
   HirExpression,
   HirGenericBound,
@@ -15,6 +16,7 @@ import type {
   NumericFamily,
   ValueType,
 } from "../hir.ts";
+import type { Signature } from "./context-types.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
 import { matchGenericTypePattern } from "./generic-patterns.ts";
 import { pureLiteralKind } from "./literal-join.ts";
@@ -1455,6 +1457,32 @@ export function numericWidening(
       : { ...value, type: target };
   if (value.kind === "float") return { ...value, type: target };
   return { kind: "unary", operator: "widen", operand: value, type: target, span };
+}
+
+/**
+ * The `defaultArguments` and `parameterTypes` fields of a call node: each
+ * defaulted parameter fills from its helper with the earlier call values.
+ * `receiverOffset` is 1 for a method call, whose receiver fills parameter 0,
+ * and 0 for a plain function call.
+ */
+export function defaultCallFields(
+  signatures: ReadonlyMap<string, Signature>,
+  defaultFunctionNames: readonly (string | undefined)[],
+  defaultParameterIndices: readonly number[] | undefined,
+  parameters: readonly ValueType[],
+  receiverOffset: number,
+): {
+  readonly defaultArguments?: readonly HirDefaultArgument[];
+  readonly parameterTypes?: readonly ValueType[];
+} {
+  const filled = (defaultParameterIndices ?? []).map((parameterIndex) => ({
+    parameterIndex: parameterIndex + receiverOffset,
+    functionIndex: signatures.get(defaultFunctionNames[parameterIndex]!)!.index,
+  }));
+  return {
+    defaultArguments: filled.length > 0 ? filled : undefined,
+    parameterTypes: filled.length > 0 ? parameters : undefined,
+  };
 }
 
 function isNumericLiteralValue(value: HirExpression): boolean {

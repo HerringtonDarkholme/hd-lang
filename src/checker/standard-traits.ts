@@ -1,7 +1,7 @@
 import type { Program } from "../ast.ts";
 import { DiagnosticError } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
-import { renameStandardBindings } from "./standard-bindings.ts";
+import { carriedLibraryUses, renameStandardBindings } from "./standard-bindings.ts";
 import { standardPreludeBinding } from "./standard-library.ts";
 import { withStandardSource } from "./standard-provenance.ts";
 import { standardDocument } from "./standard-sources.ts";
@@ -78,15 +78,7 @@ export function withStandardTraits(program: Program): Program {
       ),
     );
   const parsed = result.program;
-  const declarations = [...program.data, ...program.enums, ...program.traits];
-  const renames = new Map<string, string>();
-  for (const use of parsed.uses) {
-    for (const imported of use.names) {
-      const standardName = `${use.module}.${imported.name}`;
-      const declaration = declarations.find((item) => item.standardName === standardName);
-      if (declaration) renames.set(imported.alias ?? imported.name, declaration.name);
-    }
-  }
+  const renames = carriedLibraryUses(program, parsed);
   for (const implementation of parsed.implementations) {
     const name = implementation.traitName?.split("[")[0];
     if (!name || renames.has(name)) continue;

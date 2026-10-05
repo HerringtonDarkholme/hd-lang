@@ -52,6 +52,7 @@ import {
   rowParameterName,
   substituteGenericType,
   argumentOwnType,
+  defaultCallFields,
   traitKeyName,
   traitTypeName,
 } from "./shared.ts";
@@ -421,14 +422,13 @@ export abstract class CallChecker extends StatementChecker {
       targetSubstitutions,
     );
     const { rowSubstitutions } = checkedArguments;
-    // A defaulted method parameter fills from its helper with the earlier
-    // call values, receiver included, so its index counts the receiver.
-    const defaultArguments = (checkedArguments.defaultParameterIndices ?? []).map(
-      (parameterIndex) => ({
-        parameterIndex: parameterIndex + 1,
-        functionIndex: this.signatures.get(callSignature.defaultFunctionNames[parameterIndex]!)!
-          .index,
-      }),
+    // The receiver fills parameter 0, so a defaulted parameter's index counts it.
+    const defaultFields = defaultCallFields(
+      this.signatures,
+      callSignature.defaultFunctionNames,
+      checkedArguments.defaultParameterIndices,
+      signature.parameters,
+      1,
     );
     const substitutions = this.resolveAssociatedTypeSubstitutions(
       signature,
@@ -471,8 +471,7 @@ export abstract class CallChecker extends StatementChecker {
       functionName: signature.name,
       arguments: [methodReceiver, ...checkedArguments.arguments],
       argumentParameterIndices,
-      defaultArguments: defaultArguments.length > 0 ? defaultArguments : undefined,
-      parameterTypes: defaultArguments.length > 0 ? signature.parameters : undefined,
+      ...defaultFields,
       bounds,
       providers,
       erasedParameterTypes:

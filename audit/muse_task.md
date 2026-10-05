@@ -51,26 +51,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AH. Review Follow-Ups For AA, AB, AC
-
-From the orchestrator's review of 0c11f7bf, bb5937bd, 32856a65:
-
-1. The `defaultArguments` + `callBase` block is copied verbatim in
-   `src/checker/calls.ts` and `expression-calls.ts`. Extract one helper.
-   The method-default helper declarations in `program-declarations.ts`
-   copy the function-default ones; share one builder.
-2. `carriedStructureUses` (`standard-bindings.ts`) special-cases
-   `lib/std/structure.hd`, copying the inspect loader. Carry every
-   early-declared std module's own uses generically, then delete both
-   special cases.
-3. The O-08 test (`test/derive-review-findings.test.ts`) only asserts no
-   diagnostics. Also run the program and assert its output, so a closure
-   registered twice by the recheck would fail.
-4. Move the `CaptureView` doc comment from above `collectReadLocals` in
-   `context.ts` to `capture-view.ts`.
-
-No behavior change except 2. Keep the size guards identical.
-
 ### AG. Perf F7 And F10
 
 From `audit/compiler/perf-audit.md`:

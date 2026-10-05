@@ -18,7 +18,7 @@ import { DiagnosticError, type Diagnostic, type SourceSpan } from "../diagnostic
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
-import { carriedStructureUses, renameStandardBindings } from "./standard-bindings.ts";
+import { carriedLibraryUses, renameStandardBindings } from "./standard-bindings.ts";
 import { expandTypeAlias, nullaryTypeAliases } from "./derive-aliases.ts";
 import { standardTemplate, standardTupleTraits } from "./standard-library.ts";
 import { withStandardSource } from "./standard-provenance.ts";
@@ -238,7 +238,7 @@ export function withTypedDerivationSupport(source: Program): Program {
       ),
     );
   const original = parsed.program;
-  const carried = carriedStructureUses(source, original);
+  const carried = carriedLibraryUses(source, original, ["std.inspect"]);
   const structure = renameStandardBindings(
     withStandardSource(original, document, source.span),
     new Map([...carried, ...renames, ["downcast_val", DOWNCAST]]),
