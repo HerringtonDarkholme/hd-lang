@@ -4,6 +4,7 @@
 # Each `List` method but `view` returns a new list and leaves its receiver
 # unchanged. `Deque` and `Heap` are generic, so a program that names
 # neither compiles none of their code.
+use std.num.Num
 use std.ops.Index
 use std.format.{DebugList, DebugWriter}
 
@@ -252,6 +253,14 @@ impl[T < Eq] List[T]:
                 return .Some(index)
             index = index + 1
         .None
+
+# The total of the elements, in order (r-std-collections.helper.sum).
+impl[T < Num] List[T]:
+    pub fn sum(self) -> T:
+        let total = T::zero()
+        for item in self:
+            total = total + item
+        total
 
 impl[T < Ord] List[T]:
     # A stable sort in ascending order.

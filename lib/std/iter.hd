@@ -17,6 +17,8 @@
 # invalidation checks, and a `for` loop over a list or map uses that cursor
 # directly.
 
+use std.num.Num
+
 pub data Iterator[T]:
     step: fn() -> T?
 
@@ -186,6 +188,17 @@ impl[T] Iterator[T]:
     # (spec/std/iter.md#collect-targets).
     pub fn collect[C < FromIterator[T] = List[T]](mut self) -> C:
         C::from_iter(self)
+
+# The total of a numeric iterator (r-std-iter.adapter.sum.order). It starts at zero and
+# adds with `+`, so an integer total that overflows panics like any sum.
+impl[T < Num] Iterator[T]:
+    pub fn sum(mut self) -> T:
+        let total = T::zero()
+        while true:
+            match self.next():
+                .Some(item) => total = total + item
+                .None => break
+        total
 
 # A collection built from the items of an iterator. It is not a prelude name.
 pub trait FromIterator[T]:

@@ -198,6 +198,28 @@ impl[N < Integer] N:
             bit = bit << 1
         zeros
 
+# Rotation moves the bits of the fixed-width form around the ends
+# (r-std-num.rotate.left). The count is taken modulo the bit width, and the
+# bits that leave one end are the low or high bits of the logical shift of
+# the other, so a signed `>>` copying the sign bit is masked off.
+impl[N < Integer] N:
+    pub fn rotate_left(self, count: u32) -> N:
+        zero := N::zero()
+        width := zero.leading_zeros()
+        shift := count % width
+        if shift == 0:
+            return self
+        # The low `shift` bits, set; they receive the bits shifted out on the left.
+        low_mask := ~((~zero) << shift)
+        (self << shift) | ((self >> (width - shift)) & low_mask)
+
+    pub fn rotate_right(self, count: u32) -> N:
+        width := N::zero().leading_zeros()
+        shift := count % width
+        if shift == 0:
+            return self
+        self.rotate_left(width - shift)
+
 # `abs_diff` returns the unsigned type of the same width, a mapping that
 # `Integer` cannot name, so each width declares it. A narrow signed
 # difference is exact in `i64`, and the cast keeps the distance.
@@ -291,6 +313,40 @@ fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberEr
             if value > (high - digit) / 10:
                 return .Err(ParseNumberError.OutOfRange)
             value = value * 10 + digit
+        index = index + 1
+    .Ok(value)
+
+# Unsigned parsing (r-std-num.parse.unsigned): the signed grammar without
+# `-`, which is an invalid digit at position 0. A `u64` holds every result,
+# so one reader serves all three widths.
+pub fn parse_u32(text: string) -> Result[u32, ParseNumberError]:
+    match parse_unsigned(text, 4294967295):
+        .Ok(value) => .Ok(u32(value))
+        .Err(error) => .Err(error)
+
+pub fn parse_u64(text: string) -> Result[u64, ParseNumberError]:
+    parse_unsigned(text, 18446744073709551615)
+
+# `usize` is `u32` (r-types.alias.usize), so this is `parse_u32` by name.
+pub fn parse_usize(text: string) -> Result[usize, ParseNumberError]:
+    parse_u32(text)
+
+fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
+    scalars := text.split("")
+    if scalars.len() == 0:
+        return .Err(ParseNumberError.Empty)
+    let index: usize = if scalars[0] == "+": 1 else: 0
+    if index == scalars.len():
+        return .Err(ParseNumberError.InvalidDigit(index))
+    let value: u64 = 0
+    while index < scalars.len():
+        digit := match digit_value(scalars[index]):
+            .Some(found) => u64(found)
+            .None => return .Err(ParseNumberError.InvalidDigit(index))
+        # Division truncates, so the bound is exact and the product cannot overflow.
+        if value > (high - digit) / 10:
+            return .Err(ParseNumberError.OutOfRange)
+        value = value * 10 + digit
         index = index + 1
     .Ok(value)
 

@@ -107,6 +107,28 @@ test("hd FILE binds each trait of the default profile that main's row names", as
   }
 });
 
+test("eprintln under the default profile writes to stderr, and println to stdout", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-default-profile-"));
+  try {
+    await writeFile(
+      join(directory, "streams.hd"),
+      [
+        "use std.console.eprintln",
+        "",
+        "pub fn main() -> void $ Console:",
+        '    println("to stdout")',
+        '    eprintln("to stderr")',
+        "",
+      ].join("\n"),
+    );
+    const { stdout, stderr } = await hd(["streams.hd"], { cwd: directory });
+    assert.equal(stdout, "to stdout\n");
+    assert.equal(stderr, "to stderr\n");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("hd run passes the arguments after --, and a task runs in its package directory", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-default-profile-"));
   try {

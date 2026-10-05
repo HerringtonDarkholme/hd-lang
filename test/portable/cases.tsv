@@ -1827,6 +1827,7 @@ runtime/valid/scripted-input.hd	runtime
 runtime/valid/list-access-building.hd	runtime
 runtime/valid/choices-choose.hd	runtime
 runtime/valid/string-more-methods.hd	runtime
+runtime/valid/text-join-builder.hd	runtime
 runtime/valid/text-prefix-helpers.hd	runtime
 runtime/valid/primitive-bool-eq-method-direct.hd	runtime
 runtime/valid/primitive-char-cmp-method-direct.hd	runtime
@@ -2509,3 +2510,11 @@ cli/dbg-release	cli
 cli/dbg-values	cli
 runtime/valid/debug-source-text.hd	runtime
 cli/dbg-uses	cli
+runtime/valid/num-parse-unsigned.hd	runtime
+runtime/valid/num-rotate.hd	runtime
+runtime/valid/path-operations.hd	runtime
+runtime/valid/iterator-list-sum.hd	runtime
+runtime/panic/iterator-sum-overflow.hd	runtime
+runtime/panic/list-sum-overflow.hd	runtime
+typing/invalid/iterator-sum-non-numeric.hd	type
+typing/invalid/list-sum-non-numeric.hd	type

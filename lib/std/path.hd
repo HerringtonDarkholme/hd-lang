@@ -15,6 +15,56 @@ impl Display for Path:
     fn to_string(self) -> string:
         string(self)
 
+# Path operations on the text, with `/` as the only separator
+# (r-std-path.ops.methods). The components are the pieces between separators,
+# without empty pieces and without `.` pieces, except a leading `.` of a
+# relative path; this is Rust's `Path::components` on Unix.
+impl Path:
+    # `part` replaces the path when it starts with `/`; otherwise it follows
+    # the path, after a `/` unless the path is empty or ends in one
+    # (r-std-path.join).
+    pub fn join(self, part: string) -> Path:
+        text := string(self)
+        if part.starts_with("/") || text == "" || text.ends_with("/"):
+            return Path(if part.starts_with("/"): part else: text + part)
+        Path(text + "/" + part)
+
+    # Everything before the last component, `.Some("")` for a lone relative
+    # component, and `.None` for `""` and `/` (r-std-path.parent).
+    pub fn parent(self) -> Path?:
+        parts := components(string(self))
+        if parts.len() == 0:
+            return .None
+        init := parts.take(parts.len() - 1).join("/")
+        .Some(Path(if string(self).starts_with("/"): "/" + init else: init))
+
+    # The last component, unless the path has none or it is `.` or `..`
+    # (r-std-path.file-name).
+    pub fn file_name(self) -> string?:
+        match components(string(self)).last():
+            .Some(name) =>
+                if name == "." || name == "..": .None else: .Some(name)
+            .None => .None
+
+    # The text after the last `.` of the file name, none when the name has no
+    # `.` or only a leading one (r-std-path.extension).
+    pub fn extension(self) -> string?:
+        match self.file_name():
+            .Some(name) =>
+                pieces := name.split(".")
+                if pieces.len() < 2 || (pieces.len() == 2 && pieces[0] == ""):
+                    return .None
+                pieces.last()
+            .None => .None
+
+fn components(text: string) -> List[string]:
+    let found: mut List[string] = []
+    for piece in text.split("/"):
+        if piece == "" || (piece == "." && (found.len() > 0 || text.starts_with("/"))):
+            continue
+        found.push(piece)
+    found
+
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates
 # (r-std-format.debug.derive-builders.source): the prototype runs the

@@ -70,13 +70,17 @@ pub trait PropertyRunner:
 # `PropertyRunner` before it is used (r-std-testing.runner.record-every), so
 # the runner can replay and shrink the case. Once a case's draws have spent
 # the draw budget, every member returns its simplest value without drawing
-# (spec/std/testing.md#draw-budget).
+# (spec/std/testing.md#draw-budget). The fresh draws of the first generated
+# cases take edge values (spec/std/testing.md#edge-values).
 pub data Choices:
     runner: mut PropertyRunner
     random: mut Random
     size: i32
     replay: List[i64]
     draws: usize
+    # The edge the case's fresh draws take: 0 low, 1 high, 2 zero, 3 none
+    # (r-std-testing.edge.plan).
+    edge: i64
 
 impl Choices:
     # Whether the draw budget of 256 draws is spent. No public member reads
@@ -88,6 +92,12 @@ impl Choices:
     # position, limited to `bound`, else a fresh one. A shrunk draw moves
     # toward 0.
     fn next(mut self, bound: i64) -> i64:
+        self.next_edge(bound, 0, self.reach_cap(bound), -1)
+
+    # `next` with the draws that an edge case takes: `low`, `high`, and
+    # `zero` are the values of a low, a high, and a zero edge, or -1 for a
+    # draw that has none (r-std-testing.edge.plan).
+    fn next_edge(mut self, bound: i64, low: i64, high: i64, zero: i64) -> i64:
         index := self.draws
         self.draws = self.draws + 1
         let value: i64 = 0
@@ -98,20 +108,21 @@ impl Choices:
             if value < 0:
                 value = 0
         else:
-            value = self.fresh(bound)
+            value = self.fresh(bound, low, high, zero)
         self.runner.record(value)
         value
 
     # A random draw from 0 to `bound`, at most 2^(3 + size), so draws grow
     # from case to case: 0 one time in ten, the top one time in twenty, and
     # else uniform.
-    fn fresh(mut self, bound: i64) -> i64:
-        let cap: i64 = bound
-        let reach: i64 = 4611686018427387904
-        if self.size < 59:
-            reach = i64(1) << u32(3 + self.size)
-        if reach < cap:
-            cap = reach
+    fn fresh(mut self, bound: i64, low: i64, high: i64, zero: i64) -> i64:
+        if self.edge == 0 && low >= 0:
+            return low
+        if self.edge == 1 && high >= 0:
+            return high
+        if self.edge == 2 && zero >= 0:
+            return zero
+        cap := self.reach_cap(bound)
         if cap <= 0:
             return 0
         pick := self.random.next_u64() % 20
@@ -121,6 +132,13 @@ impl Choices:
             return cap
         i64((self.random.next_u64() >> 1) % u64(cap + 1))
 
+    # `bound`, limited to the reach that `size` allows.
+    fn reach_cap(self, bound: i64) -> i64:
+        let reach: i64 = 4611686018427387904
+        if self.size < 59:
+            reach = i64(1) << u32(3 + self.size)
+        if reach < bound: reach else: bound
+
     # A recorded draw from `lo` to `hi`. A range wider than `i64` picks a
     # half first.
     # Callers pass `lo <= hi`, so `hi - lo` overflows only when `lo` is
@@ -128,7 +146,9 @@ impl Choices:
     fn between(mut self, lo: i64, hi: i64) -> i64:
         let largest: i64 = 9223372036854775807
         if lo >= 0 || hi <= largest + lo:
-            return lo + self.next(hi - lo)
+            # The edge draws are `lo`, `hi`, and 0 when it lies between them.
+            zero := if lo <= 0 && hi >= 0 && lo > -largest: -lo else: -1
+            return lo + self.next_edge(hi - lo, 0, hi - lo, zero)
         if self.next(1) == 0: self.between(lo, -1) else: self.between(0, hi)
 
     # An integer from `lo` to `hi`; the simplest is 0, or the bound nearest 0.
@@ -202,6 +222,14 @@ impl Choices:
             text = text + self.choose(letters)
             index = index + 1
         text
+
+    # Picks the value a default 32- or 64-bit integer takes: 8 is the type's
+    # smallest, 9 its largest, and anything else a small one. A spent budget
+    # picks a small one, the simplest (r-std-testing.edge.int-type).
+    fn extreme(mut self) -> i64:
+        if self.spent():
+            return 0
+        self.next_edge(9, 8, 9, 0)
 
     # A false `ok` discards the case with the discard panic, which the
     # runner reads as a discard before `show`
@@ -318,7 +346,9 @@ impl[S] Source[S] for ArbitrarySource[S]:
 
 # `std` implements `Arbitrary` for the primitives, `string`, `List`, `Map`,
 # `T?`, `Result`, and pairs and triples (r-std-testing.arbitrary.std).
-# The 32- and 64-bit integers draw from -1000 to 1000, or 0 to 1000.
+# The 32- and 64-bit integers draw from -1000 to 1000, or 0 to 1000, and
+# now and then the smallest or the largest value of the type
+# (r-std-testing.edge.int-type).
 impl Arbitrary for i8:
     fn arbitrary(c: mut Choices) -> i8: c.int(-128, 127)
 
@@ -326,10 +356,18 @@ impl Arbitrary for i16:
     fn arbitrary(c: mut Choices) -> i16: c.int(-32768, 32767)
 
 impl Arbitrary for i32:
-    fn arbitrary(c: mut Choices) -> i32: c.int(-1000, 1000)
+    fn arbitrary(c: mut Choices) -> i32:
+        match c.extreme():
+            8 => -2147483648
+            9 => 2147483647
+            _ => c.int(-1000, 1000)
 
 impl Arbitrary for i64:
-    fn arbitrary(c: mut Choices) -> i64: c.int(-1000, 1000)
+    fn arbitrary(c: mut Choices) -> i64:
+        match c.extreme():
+            8 => -9223372036854775807 - 1
+            9 => 9223372036854775807
+            _ => c.int(-1000, 1000)
 
 impl Arbitrary for u8:
     fn arbitrary(c: mut Choices) -> u8: c.int(0, 255)
@@ -338,10 +376,18 @@ impl Arbitrary for u16:
     fn arbitrary(c: mut Choices) -> u16: c.int(0, 65535)
 
 impl Arbitrary for u32:
-    fn arbitrary(c: mut Choices) -> u32: c.int(0, 1000)
+    fn arbitrary(c: mut Choices) -> u32:
+        match c.extreme():
+            8 => 0
+            9 => 4294967295
+            _ => c.int(0, 1000)
 
 impl Arbitrary for u64:
-    fn arbitrary(c: mut Choices) -> u64: c.int(0, 1000)
+    fn arbitrary(c: mut Choices) -> u64:
+        match c.extreme():
+            8 => 0
+            9 => 18446744073709551615
+            _ => c.int(0, 1000)
 
 # Any `f64`, NaN, both infinities, -0.0, and subnormals included
 # (r-std-testing.arbitrary.float). The simplest is 0.0.
@@ -449,7 +495,16 @@ fn prop_with_case![T < Debug, R, $Q](cases: usize, shrink: usize, gen: fn(mut Ch
 # records its draws through it with no requirement row
 # (r-std-testing.runner.choices).
 fn choices(runner: mut PropertyRunner, current: PropertyCase) -> mut Choices:
-    Choices { runner: runner, random: SeededRandom::new(u64(current.seed)), size: current.size, replay: current.replay, draws: 0 }
+    Choices { runner: runner, random: SeededRandom::new(u64(current.seed)), size: current.size, replay: current.replay, draws: 0, edge: edge_plan(current.seed, current.size) }
+
+# The edge of a generated case (r-std-testing.edge.plan): the first four
+# cases, those of `size` 0 to 3, take the edge that their seed picks, so
+# four consecutive seeds take all three edges and one ordinary case. A
+# later case takes none.
+fn edge_plan(seed: i64, size: i32) -> i64:
+    if size >= 4:
+        return 3
+    (seed % 4 + 4) % 4
 
 # The body of a timed `it` test case, after `case_timeout`: the written
 # body as a closure, so the runner's `TestRunner` covers only the test

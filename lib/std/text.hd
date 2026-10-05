@@ -469,6 +469,12 @@ pub fn join(parts: List[string], separator: string) -> string:
         index = index + 1
     joined
 
+impl List[string]:
+    # The parts in order with `separator` between each two
+    # (r-std-text.join.method).
+    pub fn join(self, separator: string) -> string:
+        join(self, separator)
+
 pub data StringBuilder:
     parts: mut List[string]
 
