@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createAdapter, type Adapter } from "./hd-adapter.ts";
@@ -237,6 +237,29 @@ function timeoutPaths(output: string): string[] {
     .map(({ path }) => path);
 }
 
+/**
+ * The run's own failed count from its summary line, or undefined when the
+ * run never summarized (a runner exception prints no summary).
+ */
+export function summaryFailedCount(output: string): number | undefined {
+  const match = /^conformance: \d+ passed, (\d+) failed, \d+ selected/m.exec(output);
+  return match ? Number(match[1]) : undefined;
+}
+
+/**
+ * The timeout paths a failed first pass may retry, or undefined when it
+ * must fail instead. Every failure the run reports must be a timeout: a
+ * crash (no summary line) or any other failure never retries, so a runner
+ * exception beside timeouts still fails instead of passing on the retry.
+ */
+export function retryTimeouts(output: string): string[] | undefined {
+  const timeouts = timeoutPaths(output);
+  if (timeouts.length === 0) return undefined;
+  const failed = summaryFailedCount(output);
+  if (failed === undefined || failed !== timeouts.length) return undefined;
+  return timeouts;
+}
+
 /** A selection manifest naming exactly `paths`, judged by the case index. */
 async function selectionManifest(paths: readonly string[]): Promise<string> {
   const path = join(await mkdtemp(join(tmpdir(), "hd-selected-")), "cases.tsv");
@@ -284,27 +307,41 @@ async function runConformanceOnce(
 
 // Runs the selected conformance cases. Cases that fail only by the time
 // limit rerun once, serially; a case that times out again still fails, and a
-// real failure never reruns.
+// real failure never reruns. Selection manifests live in `hd-selected-*`
+// temporary directories, removed once the run no longer needs them.
 async function runConformance(options: Options): Promise<boolean> {
-  const manifest =
-    options.only.length > 0
-      ? await selectionManifest(options.only)
-      : options.changed
-        ? await changedManifest(options.changed)
-        : undefined;
-  if (options.changed && !manifest) {
-    console.log(`conformance: no selected fixture differs from ${options.changed}`);
-    return true;
+  const selected: string[] = [];
+  const select = async (paths: readonly string[]): Promise<string> => {
+    const manifest = await selectionManifest(paths);
+    selected.push(manifest);
+    return manifest;
+  };
+  try {
+    const manifest =
+      options.only.length > 0
+        ? await select(options.only)
+        : options.changed
+          ? await changedManifest(options.changed)
+          : undefined;
+    if (options.changed && !manifest) {
+      console.log(`conformance: no selected fixture differs from ${options.changed}`);
+      return true;
+    }
+    const first = await runConformanceOnce(options, manifest ?? portableManifest, options.jobs);
+    if (first.code === 0) return true;
+    const retryPaths = retryTimeouts(first.output);
+    if (retryPaths === undefined) return false;
+    const retry = await runConformanceOnce(options, await select(retryPaths), 1);
+    const passed = passPaths(retry.output);
+    console.log(
+      `${retryPaths.filter((path) => passed.has(path)).length} passed after a serial retry`,
+    );
+    return retry.code === 0;
+  } finally {
+    await Promise.all(
+      selected.map((manifest) => rm(dirname(manifest), { recursive: true, force: true })),
+    );
   }
-  const first = await runConformanceOnce(options, manifest ?? portableManifest, options.jobs);
-  if (first.code === 0) return true;
-  const timeouts = timeoutPaths(first.output);
-  const realFailures = failVerdicts(first.output).length - timeouts.length;
-  if (timeouts.length === 0) return false;
-  const retry = await runConformanceOnce(options, await selectionManifest(timeouts), 1);
-  const passed = passPaths(retry.output);
-  console.log(`${timeouts.filter((path) => passed.has(path)).length} passed after a serial retry`);
-  return realFailures === 0 && retry.code === 0;
 }
 
 // The rows of the portable manifest whose fixture, under spec/conformance,

@@ -61,18 +61,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AV. Runner: A Crash Beside A Timeout Must Not Pass
-
-Review of AO (3ce7c345). Non-blocking.
-
-If the first conformance run exits non-zero for a reason that prints no
-`FAIL  path: reason` line (a runner exception), and some cases timed out,
-`runConformance` counts zero real failures, retries the timeouts, and
-returns success, hiding the crash. Fix: retry only when the run's own
-failed count (its summary line) equals the number of timeout verdicts;
-otherwise fail. Also delete the `hd-selected-*` temp directories the
-selection manifests create. Add a test for the crash case.
-
 ### AQ. Supertrait Bounds Imply Their Supertraits
 
 Job AL (d2fa2a71) now rejects code it used to accept. `Ord < PartialOrd <

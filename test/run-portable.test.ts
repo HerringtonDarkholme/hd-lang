@@ -9,8 +9,10 @@ import {
   failVerdicts,
   parseOptions,
   passPaths,
+  retryTimeouts,
   runConformanceOnce,
   selectionManifest,
+  summaryFailedCount,
   timeoutPaths,
 } from "./run-portable.ts";
 
@@ -66,6 +68,46 @@ test("a bare timeout and each step label count as a timeout", () => {
 
 test("passPaths collects passes", () => {
   assert.deepEqual([...passPaths(sample)], ["typing/valid/foo.hd"]);
+});
+
+test("summaryFailedCount reads the run's own failed count", () => {
+  assert.equal(summaryFailedCount(sample), 4);
+  assert.equal(summaryFailedCount("FAIL  a.hd: boom\n"), undefined);
+});
+
+const allTimeouts = [
+  "pass  typing/valid/foo.hd",
+  "FAIL  typing/invalid/slow.hd: check: ran longer than 10 s",
+  "FAIL  cli/slow.hd: step 1 (hd check): ran longer than 10 s",
+  "conformance: 1 passed, 2 failed, 3 selected (language: 1 of 3; stdlib: 0 of 0; cli: 0 of 0)",
+].join("\n");
+
+const crashBesideTimeouts = [
+  "pass  typing/valid/foo.hd",
+  "FAIL  typing/invalid/slow.hd: check: ran longer than 10 s",
+  "FAIL  cli/slow.hd: step 1 (hd check): ran longer than 10 s",
+  "Error: worker exited with code null and signal SIGKILL",
+  "    at ChildProcess.<anonymous> (node:internal/child_process:112)",
+].join("\n");
+
+test("a first pass whose every failure is a timeout retries the timeouts", () => {
+  assert.deepEqual(retryTimeouts(allTimeouts), ["typing/invalid/slow.hd", "cli/slow.hd"]);
+});
+
+test("a first pass with a real failure beside timeouts never retries", () => {
+  assert.equal(retryTimeouts(sample), undefined);
+});
+
+test("a crash beside timeouts never retries, even with no other failure line", () => {
+  assert.equal(retryTimeouts(crashBesideTimeouts), undefined);
+});
+
+test("a first pass with no timeout retries nothing", () => {
+  assert.equal(
+    retryTimeouts("pass  a.hd\nconformance: 1 passed, 0 failed, 1 selected\n"),
+    undefined,
+  );
+  assert.equal(retryTimeouts(""), undefined);
 });
 
 test("--only runs one case through the real harness", async () => {
