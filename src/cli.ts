@@ -112,7 +112,6 @@ export async function main(
         {
           ...environment,
           ...(app ? { kind: "app" as const } : lib ? { kind: "lib" as const } : {}),
-          pages: parsed.flags.has("--pages"),
           vcs: parsed.flags.get("--vcs") !== "none",
           ...(first === undefined ? {} : { path: first }),
         },

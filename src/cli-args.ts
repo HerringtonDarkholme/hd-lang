@@ -125,10 +125,6 @@ const COMMANDS: readonly CommandSpec[] = [
       { name: "--app", help: "create an application: src/main.hd and a test that runs it" },
       { name: "--lib", help: "create a library: src/lib.hd and a test that uses it" },
       {
-        name: "--pages",
-        help: "also write .github/workflows/docs.yml, which publishes hd doc to GitHub Pages",
-      },
-      {
         name: "--vcs",
         value: "VCS",
         choices: ["none"],

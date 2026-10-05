@@ -78,17 +78,17 @@ test("hd new asks for the kind on a terminal, and fails without one", async () =
     assert.match(closed.stderr, /--app.*--lib/);
     assert.ok(!existsSync(join(directory, "a")));
 
-    const terminal = scripted(["lib", "y"]);
+    const terminal = scripted(["lib"]);
     const asked = await runHd(["new", "--vcs", "none", "b"], { cwd: directory, terminal });
     assert.equal(asked.status, 0, asked.stderr);
-    assert.equal(terminal.questions.length, 2);
-    assert.match(terminal.questions[1]!, /GitHub Pages/);
+    // Only the kind is asked: the Pages question is hidden until hd doc can
+    // build the site (CLI-PAGES-HIDDEN).
+    assert.equal(terminal.questions.length, 1);
     assert.ok(existsSync(join(directory, "b/src/lib.hd")));
-    // A yes is --pages (cli.new.pages.ask).
-    assert.match(
-      await readFile(join(directory, "b/.github/workflows/docs.yml"), "utf8"),
-      /hd doc --out _site/,
-    );
+    assert.ok(!existsSync(join(directory, "b/.github")));
+    const pages = await runHd(["new", "--lib", "--pages", "c"], { cwd: directory });
+    assert.equal(pages.status, 101);
+    assert.match(pages.stderr, /unknown flag --pages/);
   });
 });
 

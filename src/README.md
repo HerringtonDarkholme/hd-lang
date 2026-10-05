@@ -64,7 +64,7 @@ hd build [--wat] [--release] [FILE]
 hd run   [--release] [NAME] [-- ARGS]
 hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE]
 hd check [--tests] [--all] [FILE]
-hd new   [--app] [--lib] [--pages] [--vcs none] [PATH]
+hd new   [--app] [--lib] [--vcs none] [PATH]
 hd add NAME PATH@VERSION    hd update [NAME]    hd remove NAME    hd fetch
 hd explain CODE      hd doc NAME [FILE|PKG]      hd def NAME [FILE|PKG]
 hd repl              hd help [COMMAND]           hd debug parse|hir FILE
@@ -151,10 +151,9 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   writes `hd.toml`, `src/main.hd` or `src/lib.hd`, and `tests/NAME.hd` into
   PATH or the working directory, naming the package after the directory.
   With neither `--app` nor `--lib` it asks on a terminal
-  (`CommandEnvironment.terminal`), together with the Pages question, and
-  fails otherwise. It writes nothing when one of its files exists. Outside a
-  git repository it runs `git init` and writes a `.gitignore` of `/build/`;
-  `--pages` writes the docs workflow. It does not add the package to an
+  (`CommandEnvironment.terminal`), and fails otherwise. It writes nothing when one of its files exists. Outside a
+  git repository it runs `git init` and writes a `.gitignore` of `/build/`.
+  `--pages` is hidden until `hd doc` exists (CLI-PAGES-HIDDEN). It does not add the package to an
   enclosing workspace's `members`, since the prototype has no workspaces.
 - **Dependencies** ([Dependencies](../spec/cli/command-line.md#dependencies)):
   `manifest.ts` reads `[dependencies]` and `[dev-dependencies]`, and

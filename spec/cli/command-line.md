@@ -554,7 +554,6 @@ hd new --app hello   # hello/hd.toml, src/main.hd, and tests/hello.hd, in a new 
 hd new --lib util    # util/hd.toml, src/lib.hd, and tests/util.hd
 hd new --app         # an application in the working directory
 hd new hello         # asks which kind, or fails without a terminal
-hd new --lib util --pages    # also writes .github/workflows/docs.yml
 cd hello
 hd run               # runs src/main.hd
 hd test              # runs tests/hello.hd, which runs the executable
@@ -575,13 +574,26 @@ hd test              # runs tests/hello.hd, which runs the executable
 13. r[cli.new.vcs] Unless the new package's directory is already inside a git repository, `hd new` runs `git init` there and writes a `.gitignore`, as Cargo does.
 14. r[cli.new.vcs.ignore] That `.gitignore` lists only the [build directory](#r-cli.build.directory), as `/build/`. `hd.sum` is not listed, so it is committed.
 15. r[cli.new.vcs-none] `hd new --vcs none` runs no `git init` and writes no `.gitignore`.
-16. r[cli.new.pages] `hd new --pages` also writes `.github/workflows/docs.yml` in the new package's directory, for an application and for a library.
-17. r[cli.new.pages.workflow] That workflow runs [`hd doc`](#documentation) and deploys the output directory to GitHub Pages.
-18. r[cli.new.pages.ask] When `hd new` asks which kind to create, by [`cli.new.kind.ask`](#r-cli.new.kind.ask), it also asks whether to publish the documentation to GitHub Pages. A yes is `--pages`.
-19. r[cli.new.pages.default] Without `--pages`, and without that question, `hd new` writes no workflow file.
 
 > **Note.** [Running Executables](../std/testing.md#running-executables)
 > shows the test that `hd new --app` writes.
+
+> **Why.** A new package starts with a passing test in `tests/`. Where
+> tests go, and how they reach the package, is then visible from the first
+> run.
+> A package left out of `members` would be skipped by every root command
+> without a word.
+
+### Planned: GitHub Pages Workflow
+
+> **Note.** This section is not available yet. `hd new` has no `--pages`
+> flag and asks no Pages question. It waits for the redesign of
+> [`hd doc`](#documentation), which has no output directory flag today.
+
+1. r[cli.new.pages] `hd new --pages` also writes `.github/workflows/docs.yml` in the new package's directory, for an application and for a library.
+2. r[cli.new.pages.workflow] That workflow runs [`hd doc`](#documentation) and deploys the output directory to GitHub Pages.
+3. r[cli.new.pages.ask] When `hd new` asks which kind to create, by [`cli.new.kind.ask`](#r-cli.new.kind.ask), it also asks whether to publish the documentation to GitHub Pages. A yes is `--pages`.
+4. r[cli.new.pages.default] Without `--pages`, and without that question, `hd new` writes no workflow file.
 
 The workflow file that `--pages` writes looks like this. Its exact text is
 not specified:
@@ -624,12 +636,6 @@ jobs:
 
 > **Note.** [`cli.new.existing`](#r-cli.new.existing) covers the workflow
 > file too: when it exists already, `hd new` writes nothing.
-
-> **Why.** A new package starts with a passing test in `tests/`. Where
-> tests go, and how they reach the package, is then visible from the first
-> run.
-> A package left out of `members` would be skipped by every root command
-> without a word.
 
 ## REPL
 
