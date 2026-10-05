@@ -45,7 +45,7 @@ import {
 } from "./shared.ts";
 import { CallableAdapterEmitter } from "./callable-adapters.ts";
 import { scalarWasm } from "./scalars.ts";
-import { integerConstant, shiftCount } from "./sized-numeric.ts";
+import { integerConstant, powerFunction, shiftCount } from "./sized-numeric.ts";
 import { numericType } from "../numeric.ts";
 
 export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
@@ -333,12 +333,15 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           return expression.type === "i64"
             ? `(i64.xor ${operand} (i64.const -1))`
             : `(i32.xor ${operand} (i32.const -1))`;
-        if (expression.type === "i64") return `(call $hd.neg_i64 ${operand})`;
-        return expression.type === "f64" ? `(f64.neg ${operand})` : `(call $hd.neg_i32 ${operand})`;
+        if (expression.type === "f64") return `(f64.neg ${operand})`;
+        const width = expression.type === "i64" ? "i64" : "i32";
+        // A release build wraps: `-MIN` is `MIN`.
+        if (this.release) return `(${width}.sub (${width}.const 0) ${operand})`;
+        return `(call $hd.neg_${width} ${operand})`;
       }
       case "binary": {
         const left = this.emitExpression(expression.left);
-        const right = shiftCount(expression, this.emitExpression(expression.right));
+        const right = shiftCount(expression, this.emitExpression(expression.right), this.release);
         if (expression.operator === "is") {
           if (expression.left.type.startsWith("trait:")) {
             const trait = this.traitsByName.get(traitTypeBase(expression.left.type))!;
@@ -355,8 +358,9 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
             this.floatPower = true;
             return `(call $hd.pow_f64 ${left} ${right})`;
           }
-          if (expression.type === "i64") return `(call $hd.pow_i64 ${left} ${right})`;
-          return `(call $hd.pow_i32 ${left} ${right})`;
+          if (expression.type === "i64")
+            return `(call ${powerFunction("i64", this.release)} ${left} ${right})`;
+          return `(call ${powerFunction("i32", this.release)} ${left} ${right})`;
         }
         if (expression.operator === "==" || expression.operator === "!=") {
           const equality = this.emitValueEquality(left, right, expression.left.type);
@@ -378,6 +382,13 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           return `(if (result i32) ${left} (then ${right}) (else (i32.const 0)))`;
         if (expression.operator === "or")
           return `(if (result i32) ${left} (then (i32.const 1)) (else ${right}))`;
+        const releaseOperations: Readonly<Record<string, string>> = {
+          "+": "add",
+          "-": "sub",
+          "*": "mul",
+          "<<": "shl",
+          ">>": "shr_s",
+        };
         const checked: Readonly<Record<string, string>> = {
           "+": "$hd.add_i32",
           "-": "$hd.sub_i32",
@@ -386,6 +397,9 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           ">>": "$hd.shr_i32",
         };
         if (expression.left.type === "i32" && checked[expression.operator]) {
+          // A release build wraps `+`, `-`, `*`, and Wasm masks a shift count.
+          if (this.release)
+            return `(i32.${releaseOperations[expression.operator]} ${left} ${right})`;
           return `(call ${checked[expression.operator]} ${left} ${right})`;
         }
         const checkedWide: Readonly<Record<string, string>> = {
@@ -394,6 +408,8 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           "*": "$hd.mul_i64",
         };
         if (expression.left.type === "i64" && checkedWide[expression.operator]) {
+          if (this.release)
+            return `(i64.${releaseOperations[expression.operator]} ${left} ${right})`;
           return `(call ${checkedWide[expression.operator]} ${left} ${right})`;
         }
         const prefix =
@@ -416,7 +432,9 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         };
         const operation = `(${prefix}.${suffixes[expression.operator]} ${left} ${right})`;
         // `u8` is an i32 at run time; `+`, `-`, and `*` check its range.
-        return expression.left.type === "u8" && ["+", "-", "*"].includes(expression.operator)
+        return !this.release &&
+          expression.left.type === "u8" &&
+          ["+", "-", "*"].includes(expression.operator)
           ? `(call $hd.check_u8 ${operation})`
           : operation;
       }

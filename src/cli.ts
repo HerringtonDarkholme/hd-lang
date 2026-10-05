@@ -50,6 +50,7 @@ function flags(parsed: Command) {
     packageTree,
     tests: parsed.flags.has("--tests"),
     wat: parsed.flags.has("--wat"),
+    release: parsed.flags.has("--release"),
     entry: value("--entry"),
     update: parsed.flags.has("--update"),
     seed: count("--seed"),

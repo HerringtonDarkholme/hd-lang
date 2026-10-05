@@ -58,6 +58,11 @@ const FORMAT: FlagSpec = {
   help: "print diagnostics as text (the default) or as JSON lines",
 };
 
+const RELEASE: FlagSpec = {
+  name: "--release",
+  help: "build for release: integer overflow wraps instead of panicking",
+};
+
 const PROFILE: FlagSpec = {
   name: "--profile",
   value: "NAME",
@@ -100,6 +105,7 @@ const COMMANDS: readonly CommandSpec[] = [
     summary: "compile FILE to NAME.wasm in the current directory",
     flags: [
       { name: "--wat", help: "print the WebAssembly text instead of writing a file" },
+      RELEASE,
       PROFILE,
     ],
     notes: [PACKAGE_NOTE],
@@ -116,6 +122,7 @@ const COMMANDS: readonly CommandSpec[] = [
         value: "NAME",
         help: "run the exported function NAME instead, and print its result",
       },
+      RELEASE,
       PROFILE,
     ],
     notes: [PACKAGE_NOTE],

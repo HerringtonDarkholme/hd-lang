@@ -15,6 +15,7 @@ import {
   emitCast,
   emitSizedBinary,
   emitSizedUnary,
+  powerFunction,
   emitWiden,
   isSizedNumeric,
   type SizedNumericContext,
@@ -73,6 +74,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       emitRuntimePanic: (name) => this.emitRuntimePanic(name),
       emitCheckedDivision: (width, operator, left, right) =>
         this.emitCheckedDivision(width, operator, left, right),
+      release: this.release,
       useFloatPower: () => {
         this.floatPower = true;
       },
@@ -92,7 +94,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     if (expression.operator === "cast")
       return emitCast(operand, readonlyType(expression.operand.type), expression.type);
     return isSizedNumeric(expression.type) && expression.operator !== "+"
-      ? emitSizedUnary(expression.operator, operand, expression.type)
+      ? emitSizedUnary(expression.operator, operand, expression.type, this.release)
       : undefined;
   }
 
@@ -119,9 +121,9 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       return `(call $hd.rem_f64 ${left} ${right})`;
     }
     if (expression.left.type === "i64" && (operator === "<<" || operator === ">>"))
-      return `(i64.${operator === "<<" ? "shl" : "shr_s"} ${left} (call $hd.check_shift_i64 ${right}))`;
+      return `(i64.${operator === "<<" ? "shl" : "shr_s"} ${left} ${this.release ? right : `(call $hd.check_shift_i64 ${right})`})`;
     if (operator === "**" && scalarWasm(expression.right.type) === "i64")
-      return `(call $hd.pow_${expression.type} ${left} (i32.wrap_i64 ${right}))`;
+      return `(call ${powerFunction(expression.type as "i32" | "i64", this.release)} ${left} (i32.wrap_i64 ${right}))`;
     return undefined;
   }
 

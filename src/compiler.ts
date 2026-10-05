@@ -48,6 +48,11 @@ export interface CompileOptions extends CheckOptions {
   readonly skipTestCode?: boolean;
   /** How to parse `source`: as a test module, or as a linked package's joined modules. */
   readonly parse?: ParseOptions;
+  /**
+   * A release build: integer overflow wraps and shift counts are masked. The default is a
+   * debug build, which panics (spec/lang/04-type-system.md#r-types.arith.checked).
+   */
+  readonly release?: boolean;
 }
 
 type SuspensionTraceEvent = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -242,6 +247,8 @@ interface InstantiateOptions {
   /** Host functions that override or add to `HOST_FUNCTIONS`. */
   readonly hostFunctions?: Readonly<Record<string, HostFunction>>;
   readonly parse?: ParseOptions;
+  /** A release build (CompileOptions.release). */
+  readonly release?: boolean;
   /** A compilation of `source` to instantiate again, as for a fresh test instance. */
   readonly compilation?: Compilation;
 }
@@ -875,7 +882,11 @@ export function analyze(source: string, options: CompileOptions = {}): Analysis 
 export function compileToWat(source: string, options: CompileOptions = {}): WatCompilation {
   const analysis = analyze(source, options);
   if (!analysis.hir) throw new DiagnosticError(analysis.diagnostics);
-  return { wat: emitWat(analysis.hir), hir: analysis.hir, diagnostics: analysis.diagnostics };
+  return {
+    wat: emitWat(analysis.hir, { release: options.release }),
+    hir: analysis.hir,
+    diagnostics: analysis.diagnostics,
+  };
 }
 
 /**

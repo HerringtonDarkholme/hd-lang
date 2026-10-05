@@ -196,6 +196,35 @@
         (br $next)))
     (local.get $result))
 
+  ;; `**` in a release build: the product wraps. A negative exponent still traps.
+  (func $hd.pow_wrapping_i32 (param $base i32) (param $exponent i32) (result i32)
+    (local $result i32)
+    (if (i32.lt_s (local.get $exponent) (i32.const 0)) (then unreachable))
+    (local.set $result (i32.const 1))
+    (block $done
+      (loop $next
+        (br_if $done (i32.eqz (local.get $exponent)))
+        (if (i32.and (local.get $exponent) (i32.const 1))
+          (then (local.set $result (i32.mul (local.get $result) (local.get $base)))))
+        (local.set $exponent (i32.shr_u (local.get $exponent) (i32.const 1)))
+        (local.set $base (i32.mul (local.get $base) (local.get $base)))
+        (br $next)))
+    (local.get $result))
+
+  (func $hd.pow_wrapping_i64 (param $base i64) (param $exponent i32) (result i64)
+    (local $result i64)
+    (if (i32.lt_s (local.get $exponent) (i32.const 0)) (then unreachable))
+    (local.set $result (i64.const 1))
+    (block $done
+      (loop $next
+        (br_if $done (i32.eqz (local.get $exponent)))
+        (if (i32.and (local.get $exponent) (i32.const 1))
+          (then (local.set $result (i64.mul (local.get $result) (local.get $base)))))
+        (local.set $exponent (i32.shr_u (local.get $exponent) (i32.const 1)))
+        (local.set $base (i64.mul (local.get $base) (local.get $base)))
+        (br $next)))
+    (local.get $result))
+
   (func $hd.neg_i32 (param $value i32) (result i32)
     (if (i32.eq (local.get $value) (i32.const -2147483648))
       (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))

@@ -69,6 +69,8 @@ interface LoadOptions {
   readonly report: Report;
   readonly profile?: RuntimeProfileName;
   readonly testLayout?: TestLayout;
+  /** `--release`: integer overflow wraps (spec/cli/command-line.md#r-cli.profile.release). */
+  readonly release?: boolean;
   /** Link the test modules of FILE's package too. */
   readonly linkTests: boolean;
 }
@@ -109,6 +111,7 @@ export async function loadSource(
     hostCapabilities: profile?.hostCapabilities,
     parse: parseOptions,
     entryModule: !("testModule" in parseOptions),
+    release: options.release ?? false,
   };
   const specIndex = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
   // The JSON `file` is relative to the package root, and outside a package

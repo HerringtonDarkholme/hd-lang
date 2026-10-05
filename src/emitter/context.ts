@@ -105,6 +105,11 @@ export class EmitterContext {
   protected readonly loops: LoopContext[] = [];
   protected readonly cleanupFrames: CleanupFrame[] = [];
   protected readonly temporaryTypes: ValueType[] = [];
+  /**
+   * A release build: overflow of `+`, `-`, `*`, `**`, and unary `-` wraps, and a shift
+   * count is masked (spec/lang/04-type-system.md#r-types.arith.checked).
+   */
+  release = false;
   protected floatPower = false;
   protected floatRemainder = false;
   protected currentRequirements: readonly string[] = [];

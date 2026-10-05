@@ -58,8 +58,8 @@ in-process conformance adapter calls the same `main` with a buffering sink
 ([`../test/portable/README.md`](../test/portable/README.md)).
 
 ```text
-hd build [--wat] FILE
-hd run   [--entry NAME] FILE
+hd build [--wat] [--release] FILE
+hd run   [--entry NAME] [--release] FILE
 hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE|DIR]
 hd check [--tests] FILE
 hd explain CODE      hd doc NAME [FILE|PKG]      hd def NAME [FILE|PKG]

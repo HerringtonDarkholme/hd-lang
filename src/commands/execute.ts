@@ -36,6 +36,8 @@ import {
 export interface RunArgs extends SourceArgs {
   /** `--entry NAME`: run this exported function instead, and print its result. */
   readonly entry?: string;
+  /** `--release`: integer overflow wraps instead of panicking. */
+  readonly release?: boolean;
   readonly profile?: RuntimeProfileName;
 }
 
@@ -47,12 +49,17 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
   const placement = await placementOf(args.file, undefined, undefined, args);
   const loaded = await loadSource(
     args,
-    { report, profile: args.profile, linkTests: false },
+    { report, profile: args.profile, release: args.release, linkTests: false },
     placement,
   );
   if (typeof loaded === "number") return report.finish(loaded);
   return report.finish(
-    await execute(loaded, io, { kind: "run", entry: args.entry, profile: args.profile }),
+    await execute(loaded, io, {
+      kind: "run",
+      entry: args.entry,
+      release: args.release,
+      profile: args.profile,
+    }),
   );
 }
 
@@ -156,7 +163,12 @@ async function testDirectory(
 
 /** What `execute` runs: the entry point (`run`), or the test cases (`test`). */
 type Execution =
-  | { readonly kind: "run"; readonly entry?: string; readonly profile?: RuntimeProfileName }
+  | {
+      readonly kind: "run";
+      readonly entry?: string;
+      readonly release?: boolean;
+      readonly profile?: RuntimeProfileName;
+    }
   | ({ readonly kind: "test"; readonly quietWhenEmpty: boolean } & TestArgs);
 
 async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution): Promise<number> {
@@ -198,6 +210,8 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
               : undefined,
       hostCapabilities: runtimeProfile?.hostCapabilities,
       parse: loaded.parseOptions,
+      // `hd test` always runs a checked build (spec/cli/command-line.md#r-cli.profile.test).
+      release: command === "run" ? (execution.release ?? false) : false,
       hostSuspensionInvoke: runtimeProfile?.invoke,
       hostSuspensionPending: test?.pendingFirstPoll ? pendingFirstPoll : runtimeProfile?.pending,
     };

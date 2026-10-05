@@ -17,6 +17,8 @@ export interface SizedNumericContext {
     left: string,
     right: string,
   ): string;
+  /** A release build: integer overflow wraps and a shift count is masked. */
+  readonly release: boolean;
   /** Records that the module imports `pow_f64`. */
   useFloatPower(): void;
   /** Records that the module imports `rem_f64`, the truncated floating remainder. */
@@ -52,6 +54,25 @@ export function integerConstant(type: ValueType, value: number, wide: string | u
 function checkNarrow(value: string, type: ValueType): string {
   const { minimum, maximum } = info(type);
   return `(call $hd.check_range_i32 ${value} ${i32Constant(minimum!)} ${i32Constant(maximum!)})`;
+}
+
+/** A narrow value reduced to its type's width, two's complement: the release build's overflow. */
+function wrapNarrow(value: string, type: ValueType): string {
+  const { bits, family, maximum } = info(type);
+  if (family === "unsigned") return `(i32.and ${value} ${i32Constant(maximum!)})`;
+  const shift = `(i32.const ${32 - bits})`;
+  return `(i32.shr_s (i32.shl ${value} ${shift}) ${shift})`;
+}
+
+/** An overflowing narrow result: checked in a debug build, wrapped in a release build. */
+function overflowNarrow(value: string, type: ValueType, release: boolean): string {
+  return release ? wrapNarrow(value, type) : checkNarrow(value, type);
+}
+
+/** The `**` runtime function: its wrapping form in a release build. */
+export function powerFunction(type: "i32" | "i64" | "u64", release: boolean): string {
+  if (release) return `$hd.pow_wrapping_${type === "i32" ? "i32" : "i64"}`;
+  return `$hd.pow_${type}`;
 }
 
 /** An integer value as an `i64` holding its mathematical value (`u64` stays bit-exact). */
@@ -102,7 +123,12 @@ export function emitCast(value: string, from: ValueType, to: ValueType): string 
 }
 
 /** Unary `-` (signed and float types) and `~`. */
-export function emitSizedUnary(operator: string, value: string, type: ValueType): string {
+export function emitSizedUnary(
+  operator: string,
+  value: string,
+  type: ValueType,
+  release = false,
+): string {
   const numeric = info(type);
   if (operator === "~") {
     if (numeric.family === "unsigned" && numeric.wasm === "i32" && numeric.bits < 32)
@@ -110,7 +136,7 @@ export function emitSizedUnary(operator: string, value: string, type: ValueType)
     return `(${numeric.wasm}.xor ${value} (${numeric.wasm}.const -1))`;
   }
   if (numeric.family === "float") return `(${numeric.wasm}.neg ${value})`;
-  return checkNarrow(`(i32.sub (i32.const 0) ${value})`, type);
+  return overflowNarrow(`(i32.sub (i32.const 0) ${value})`, type, release);
 }
 
 /** A binary operator whose left operand has a sized numeric type. */
@@ -161,15 +187,24 @@ export function emitSizedBinary(
   }
   if (operator === "**") {
     const exponent = numericType(rightType)?.wasm === "i64" ? `(i32.wrap_i64 ${right})` : right;
-    if (type === "u64") return `(call $hd.pow_u64 ${left} ${exponent})`;
-    const power = `(call $hd.pow_i64 ${asWide(left, type)} ${exponent})`;
+    if (type === "u64")
+      return `(call ${powerFunction("u64", context.release)} ${left} ${exponent})`;
+    const power = `(call ${powerFunction("i64", context.release)} ${asWide(left, type)} ${exponent})`;
+    if (context.release)
+      return numeric.bits === 32
+        ? `(i32.wrap_i64 ${power})`
+        : wrapNarrow(`(i32.wrap_i64 ${power})`, type);
     if (type === "u32") return `(call $hd.check_u32 ${power})`;
     const { minimum, maximum } = numeric;
     return `(i32.wrap_i64 (call $hd.check_range_i64 ${power} ${i64Constant(minimum!)} ${i64Constant(maximum!)}))`;
   }
   if (operator === "<<" || operator === ">>") {
-    const count =
-      wasm === "i64"
+    // A release build masks the count to the width, as Wasm shifts do for 32 and 64 bits.
+    const count = context.release
+      ? numeric.bits < 32
+        ? `(i32.and ${right} (i32.const ${numeric.bits - 1}))`
+        : right
+      : wasm === "i64"
         ? `(call $hd.check_shift_i64 ${right})`
         : `(call $hd.check_shift ${right} (i32.const ${numeric.bits}))`;
     if (operator === ">>") return `(${wasm}.shr_${unsigned ? "u" : "s"} ${left} ${count})`;
@@ -198,6 +233,10 @@ export function emitSizedBinary(
   const arithmetic: Readonly<Record<string, string>> = { "+": "add", "-": "sub", "*": "mul" };
   const name = arithmetic[operator];
   if (!name) throw new Error(`unsupported operator '${operator}' on ${type}`);
+  if (context.release) {
+    if (numeric.bits >= 32) return `(${wasm}.${name} ${left} ${right})`;
+    return wrapNarrow(`(i32.${name} ${left} ${right})`, type);
+  }
   if (type === "u64") return `(call $hd.${name}_u64 ${left} ${right})`;
   if (type === "u32")
     return `(call $hd.check_u32 (i64.${name} (i64.extend_i32_u ${left}) (i64.extend_i32_u ${right})))`;
@@ -213,6 +252,7 @@ export function emitSizedBinary(
 export function shiftCount(
   expression: Extract<HirExpression, { kind: "binary" }>,
   count: string,
+  release = false,
 ): string {
   if (expression.operator !== "<<" && expression.operator !== ">>") return count;
   const value = numericType(expression.left.type)?.wasm;
@@ -220,5 +260,5 @@ export function shiftCount(
   if (!value || !counted || counted.wasm === value) return count;
   if (value === "i64")
     return `(i64.extend_i32_${counted.family === "unsigned" ? "u" : "s"} ${count})`;
-  return `(i32.wrap_i64 (call $hd.check_shift_i64 ${count}))`;
+  return release ? `(i32.wrap_i64 ${count})` : `(i32.wrap_i64 (call $hd.check_shift_i64 ${count}))`;
 }

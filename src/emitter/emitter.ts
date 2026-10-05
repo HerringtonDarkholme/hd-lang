@@ -903,9 +903,16 @@ function emittedFunctions(program: HirProgram): readonly HirFunction[] {
   return program.functions.filter((declaration) => !declaration.intrinsicMethod);
 }
 
-export function emitWat(program: HirProgram): string {
+export interface EmitOptions {
+  /** A release build wraps integer overflow instead of panicking. Default: a debug build. */
+  readonly release?: boolean;
+}
+
+export function emitWat(program: HirProgram, options: EmitOptions = {}): string {
   const reachable = emissionReachability(program);
-  return linkWat(emitReachableWat(reachable.program, reachable.traitMethods));
+  return linkWat(
+    emitReachableWat(reachable.program, reachable.traitMethods, options.release ?? false),
+  );
 }
 
 function emitProgramStoredSuspensionAdapters(
@@ -982,7 +989,11 @@ function emitTraitSuspensionTypes(
     .join("\n");
 }
 
-function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>): string {
+function emitReachableWat(
+  program: HirProgram,
+  traitMethods: ReadonlySet<string>,
+  release: boolean,
+): string {
   const methodIsLive = (traitIndex: number, methodIndex: number): boolean =>
     traitMethods.has(traitMethodKey(traitIndex, methodIndex));
   const { signatureNames, contextNames } = collectModuleTypes(program, methodIsLive);
@@ -1001,6 +1012,7 @@ function emitReachableWat(program: HirProgram, traitMethods: ReadonlySet<string>
     program.functions,
     traitMethods,
   );
+  emitter.release = release;
   const hostProviders = emitHostProviders(program, traitMethods, emitter);
   const signatureTypes = [...signatureNames]
     .map(([type, index]) => {

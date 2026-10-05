@@ -56,12 +56,12 @@ test("hd help COMMAND lists only that command's flags", async () => {
   const flagsOf = (text: string): string[] =>
     [...text.matchAll(/^ {2}(--[a-z-]+)/gm)].map((match) => match[1]!);
   const build = (await hd(["help", "build"])).stdout;
-  assert.match(build, /^usage: hd build \[--wat\] FILE$/m);
-  assert.deepEqual(flagsOf(build), ["--wat", "--format", "--profile"]);
+  assert.match(build, /^usage: hd build \[--wat\] \[--release\] FILE$/m);
+  assert.deepEqual(flagsOf(build), ["--wat", "--release", "--format", "--profile"]);
 
   const run = (await hd(["help", "run"])).stdout;
-  assert.match(run, /^usage: hd run \[--entry NAME\] FILE$/m);
-  assert.deepEqual(flagsOf(run), ["--entry", "--format", "--profile"]);
+  assert.match(run, /^usage: hd run \[--entry NAME\] \[--release\] FILE$/m);
+  assert.deepEqual(flagsOf(run), ["--entry", "--release", "--format", "--profile"]);
 
   const tested = (await hd(["help", "test"])).stdout;
   assert.match(
@@ -454,6 +454,45 @@ test("hd test --format json reports every test case", async () => {
     await rm(join(directory, "tests"), { recursive: true });
     await rm(join(directory, "src/bad.hd"));
     assert.equal((await hd(["test"], directory)).stdout, "");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("hd run --release wraps overflow, plain hd run and hd test panic", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-release-"));
+  try {
+    await writeFile(
+      join(directory, "wrap.hd"),
+      [
+        "use std.testing.assert_equal",
+        "",
+        "pub fn main() -> void $ Console:",
+        "    let big: i32 = 2147483647",
+        "    println(big + 1)",
+        "",
+        "tests:",
+        '    it("adds one"):',
+        "        let big: i32 = 2147483647",
+        '        assert_equal(big + 1, -2147483648, reason="wraps")',
+        "",
+      ].join("\n"),
+    );
+    const release = await hd(["run", "--release", "wrap.hd"], directory);
+    assert.equal(release.stdout.trim(), "-2147483648");
+    await assert.rejects(hd(["run", "wrap.hd"], directory), (error: CommandResult) => {
+      assert.match(error.stderr, /integer-overflow/);
+      return true;
+    });
+    // `hd test` has no release profile: the overflow panics and the case fails.
+    await assert.rejects(hd(["test", "wrap.hd"], directory), (error: CommandResult) => {
+      assert.equal(error.code, 1);
+      return true;
+    });
+    const wat = await hd(["build", "--wat", "--release", "wrap.hd"], directory);
+    assert.doesNotMatch(wat.stdout, /\$hd\.add_i32/);
+    await usageError(["test", "--release", "wrap.hd"]);
+    await usageError(["check", "--release", "wrap.hd"]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

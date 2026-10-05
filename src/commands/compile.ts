@@ -93,6 +93,8 @@ export async function hirCommand(args: HirArgs, io: CommandIo): Promise<number> 
 export interface BuildArgs extends SourceArgs {
   /** `--wat`: print the WebAssembly text instead of writing `NAME.wasm`. */
   readonly wat: boolean;
+  /** `--release`: integer overflow wraps instead of panicking. */
+  readonly release?: boolean;
   readonly profile?: RuntimeProfileName;
 }
 
@@ -110,7 +112,7 @@ async function build(args: BuildArgs, io: CommandIo, report: Report): Promise<nu
   const placement = await placementOf(args.file, undefined, undefined, args);
   const loaded = await loadSource(
     args,
-    { report, profile: args.profile, linkTests: false },
+    { report, profile: args.profile, release: args.release, linkTests: false },
     placement,
   );
   if (typeof loaded === "number") return loaded;
