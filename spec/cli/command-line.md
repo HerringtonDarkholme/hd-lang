@@ -279,7 +279,7 @@ hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 6. r[cli.test.deny-skipped] With `--deny-skipped`, a skipped test case is a failure.
 7. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
 8. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider whose programs are the package's executables, each started by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
-9. r[cli.test.process.missing] That provider returns `.None` for a program name that names no executable of the package.
+9. r[cli.test.process.missing] That provider returns `.Err(ProcessError.NotFound)` for a program name that names no executable of the package.
 10. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
 11. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
 12. r[cli.test.runner] When it runs a test case, `hd test` binds the host traits [`TestRunner` and `PropertyRunner`](../std/testing.md#runner-capabilities) for the `std.testing` code around the body, by [`std-testing.runner.binding`](../std/testing.md#r-std-testing.runner.binding).
