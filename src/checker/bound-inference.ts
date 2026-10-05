@@ -1,5 +1,6 @@
 import type { HirGenericBound, HirTrait, HirTraitImplementation, ValueType } from "../hir.ts";
 import { readonlyType } from "../types.ts";
+import { markAmbiguous } from "./ambiguous-solutions.ts";
 import { implementationsFor } from "./implementation-index.ts";
 import type { Signature } from "./context.ts";
 import {
@@ -212,8 +213,12 @@ export function inferTypesThroughBounds(
     const bounds = boundsMentioning.get(parameter) ?? [];
     if (bounds.length === 0 || bounds.some((bound) => !substitutions.has(bound.parameter)))
       continue;
-    const missing = bounds.find((bound) => instantiationsFor(bound).length === 0);
-    if (missing) return missing;
+    const counts = bounds.map((bound) => instantiationsFor(bound).length);
+    const missing = counts.indexOf(0);
+    if (missing >= 0) return bounds[missing];
+    // Left without a default, it is ambiguous-type
+    // (types.generic.infer.bound.no-default.ambiguous).
+    if (counts.some((count) => count > 1)) markAmbiguous(substitutions, [parameter]);
   }
   return undefined;
 }

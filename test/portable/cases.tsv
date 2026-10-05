@@ -2542,3 +2542,5 @@ typing/invalid/local-data-reuses-type-parameter.hd	type
 typing/invalid/local-value-reuses-type-parameter.hd	type
 typing/invalid/covariant-mut-self-method-parameter.hd	type
 typing/invalid/ambiguous-requirement-key-solution.hd	type
+typing/invalid/bound-inference-several-impls.hd	type
+typing/invalid/bound-inference-mixed-several-impls.hd	type

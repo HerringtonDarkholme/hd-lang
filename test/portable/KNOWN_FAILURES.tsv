@@ -28,8 +28,6 @@ typing/valid/literal-var-data-pattern.hd	a let data pattern on a generic data va
 cli/doc-out	`hd doc` takes only a NAME: `hd doc --out site` exits 101 with 'unknown flag --out' (cli.doc.command, cli.doc.files, cli.doc.root-page: no `pkg.md`)	CLI-DOC
 cli/doc-name	`hd doc` takes only a NAME: `hd doc --out site text.slugify` exits 101 with 'unknown flag --out' (cli.doc.name, and `hd doc std.text.split` by cli.doc.name.std)	CLI-DOC
 cli/doc-private	`hd doc text.helper` exits 0 and prints the private function's signature; cli.doc.private wants 101 for a private item	CLI-DOC
-typing/invalid/bound-inference-several-impls.hd	the checker reports cannot-infer-type for a bound-only parameter that several instantiations fit, not ambiguous-type (types.generic.infer.bound.no-default.ambiguous)	BOUND-AMBIGUOUS
-typing/invalid/bound-inference-mixed-several-impls.hd	the checker reports cannot-infer-type for `joined(label, both)`, where one bound allows several instantiations, not ambiguous-type (types.generic.infer.bound.no-default.ambiguous)	BOUND-AMBIGUOUS
 cli/doc-main-page	`hd doc --out site` exits 101 with 'unknown flag --out', so the pages and `main.md` under `--private` are never written (cli.doc.main)	CLI-DOC
 cli/doc-broken-link	no `hd doc` flags: `hd doc --out site` exits 101 with 'unknown flag --out', so no page is written (cli.doc.link.broken: the warning is a warning and the pages are still written)	CLI-DOC
 cli/doc-index-module	no `hd doc` flags: `hd doc --out site` exits 101 with 'unknown flag --out', so no page is written under index/ (cli.doc.index-module)	CLI-DOC
