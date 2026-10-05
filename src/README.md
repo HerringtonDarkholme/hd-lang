@@ -185,10 +185,13 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   under its own module keys, so `dep.NAME` sees only `pub` declarations.
   A path requirement needs both packages in one workspace's `members`, and
   `hd.sum` then lives beside the workspace manifest. `hd test` passes the command's environment to the
-  `hd run` that `hd_run!` starts, so it reads the same cache. Not yet:
-  `hd doc` and the REPL on a package with
-  dependencies, and package ownership in the checker (orphan rule, member
-  visibility, and trait availability across packages).
+  `hd run` that `hd_run!` starts, so it reads the same cache. Each linked module's scope names its
+  package and the declarations its uses import, so the checker
+  (`checker/package-ownership.ts`) applies the orphan rule across packages,
+  hides a member without `pub` from another package, makes a trait of
+  another package available only where a use imports it, and warns on a
+  per-trait `Self` line whose fact's package does not supply the trait.
+  Not yet: `hd doc` and the REPL on a package with dependencies.
 - `hd FILE` (a first word that ends in `.hd` and names no command) runs FILE
   as a single-file program, linked with no package ([`cli.file.run`](../spec/cli/command-line.md#r-cli.file.run)).
   A `pkg`, `dep`, `self`, or `super` use in a single-file program is
@@ -1015,7 +1018,8 @@ else`, `break`, `break value`, and `continue`;
   `lib/std/format.hd`, whose writer is always compact. `assert_equal`
   checks `Debug` through the implementations and their bounds, as a
   call's bound is checked. The drift and unused-fact warnings treat
-  the module as one package, and the unused-fact warning skips a literal
+  the module as one package, except the per-trait `Self` line warning,
+  which reads the fact type's package, and the unused-fact warning skips a literal
   fact such as `@"note"` and a fact built by a name imported from `std`,
   such as `@annotate(.Field)` (M25). `@derive` before a function, trait,
   implementation, or method is `decorator-not-annotator`. Trait-less
@@ -1284,7 +1288,8 @@ else`, `break`, `break value`, and `continue`;
   calls its `next`. The loader declares `Iterator` when a program names it
   or `Iterable`, or selects `iter`, `take`, `enumerate`, `fold`, or
   `collect`. A private field of a std type is hidden from code outside std,
-  which is the only field visibility the one-module prototype checks;
+  and a private member of another package's type from code outside that
+  package, which are the only member visibility the prototype checks;
 - `collect[C < FromIterator[T] = List[T]]` over the `std.iter` trait
   `FromIterator`, which is not a prelude name. `C` comes from an explicit
   type argument or the expected type, which reaches the operand of `x?` as

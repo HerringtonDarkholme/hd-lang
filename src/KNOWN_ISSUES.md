@@ -11,21 +11,17 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,478 cases: 2,416 selected in `test/portable/cases.tsv` and 62 known
-failures. The selected cases are 2,094 language tier, 284 stdlib tier, and 38
-CLI tier; the known failures are 52 language tier, 2 stdlib tier, and 8
+2,478 cases: 2,423 selected in `test/portable/cases.tsv` and 55 known
+failures. The selected cases are 2,101 language tier, 284 stdlib tier, and 38
+CLI tier; the known failures are 45 language tier, 2 stdlib tier, and 8
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
 | CLI-DOC | 8 | no `hd doc` command |
 | MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
-| F-250 | 6 | GADT variant results give generic diagnostics |
+| F-250 | 5 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
-| TQ-2 | 1 | the linked checker does not know which package declares a type, so the orphan rule sees a dependency type as local |
-| EMB-S | 2 | trait imports are not tracked, so a dependency trait is available without a use |
-| P2 | 2 | member visibility is checked only for std types, so a private member of a dependency type is visible |
-| M29 | 1 | the linked checker does not know which package declares a fact type |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
@@ -52,7 +48,7 @@ Correctness and diagnostics:
 - **F-250**: a GADT variant result gets `syntax-error`,
   `expected-expression`, or `unsupported-gadt-result`, and a pack function
   gets `unsupported-generic-parameter`, not one stable code per deferred
-  feature. Fixtures: the six rows tagged F-250.
+  feature. Fixtures: the five rows tagged F-250.
 - **F-259**: the adapter rejects the `disposed-file` runtime profile, so
   `runtime/valid/resource-disposed-result.hd` cannot run.
 - **F-265**: code-generation failures and an adapter `entry` option with no runnable
@@ -111,10 +107,8 @@ Compiler structure:
 
 | Tag | Decision and gap |
 | --- | --- |
-| TQ-2 | The owner of a trait argument's outer constructor may write the impl. Implemented within one package; the linked checker does not know which package declares a dependency type. |
-| EMB-S | A trait method is a candidate only where its trait is available. The prototype checks one module without trait imports, so every trait is available. |
-| P2 | Member lookup skips members not visible from the calling module. The prototype links packages into one namespace and checks member visibility only for std types. |
-| M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The linked checker does not know which package declares a fact type. |
+| EMB-S | A trait method is a candidate only where its trait is available. The prototype tracks trait imports only for a trait of another package (`checker/package-ownership.ts`); every trait of the calling module's own package, and every std trait, stays available. No fixture shows the gap. |
+| P2 | Member lookup skips members not visible from the calling module. The prototype hides a member without `pub` from another package and a std type's from code outside std; another module of the same package still sees it. No fixture shows the gap. |
 | TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The requirement-key dynamic-safety rule is implemented; the prototype does not check these remaining gaps. |
 | CLI-53 | Batch 53 CLI rules: workspace mode and `-p` exist; `--filter` and `--deny-skipped` exist, but nothing is ever skipped. Most have no fixture format. |
 | CLI-57 | Batch 57 CLI rules: the prototype has neither the unlisted-member error with its two fix-its nor `--format json` with its named fields on any command. `exclude` and `-p` inside a member exist. |

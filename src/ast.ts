@@ -553,6 +553,10 @@ export interface ModuleScope {
   readonly names: Readonly<Record<string, string>>;
   /** Module namespace uses, such as `use pkg.words`: local name to module identity. */
   readonly namespaces: Readonly<Record<string, string>>;
+  /** The dependency package the module belongs to, by its id; absent in the root package. */
+  readonly package?: string;
+  /** The joined spelling of each package declaration a use of the module imports. */
+  readonly imports?: readonly string[];
 }
 
 /** A package module that a namespace use names, with what a module path may select. */

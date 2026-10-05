@@ -21,6 +21,7 @@ import {
 import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 import { standardCoreTypeAlias } from "./standard-core.ts";
+import { registeredPackageOwnership } from "./package-ownership.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
 
@@ -318,33 +319,52 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   }
 
   /**
-   * Spec 09 Method Resolution: a trait is available when it is declared in or
-   * imported into the calling module, or supplied by the prelude. The
-   * prototype compiles a single module without trait imports, so every trait
-   * it knows is declared there or in the prelude.
+   * Spec 09 Trait Availability: a trait is available when it is declared in
+   * or imported into the calling module, or supplied by the prelude
+   * (09-traits.md#r-trait.avail.module). A trait of another package is
+   * available only where a use imports it (checker/package-ownership.ts).
+   * The prototype still treats every trait of the calling module's own
+   * package, and every std trait, as available.
    */
-  private traitAvailable(_trait: string): boolean {
-    return true;
+  protected traitAvailable(name: string): boolean {
+    const ownership = registeredPackageOwnership(this.traitTypes);
+    if (!ownership || this.declaration.standard === true) return true;
+    const trait = this.traitTypes.get(name);
+    if (!trait || trait.standardName !== undefined) return true;
+    const here = this.declaration.span;
+    return (
+      ownership.packageOf(trait.span) === ownership.packageOf(here) ||
+      ownership.imports(here, trait.name)
+    );
   }
 
   /**
    * Spec 03 Member Resolution: an own field or inherent method is visible when
-   * it is declared in the calling module or marked `pub`. Promoted members are
-   * always `pub`. The prototype compiles a single module, so every own member
-   * is declared in the calling module.
-   */
-  /**
-   * The prototype checks one module, so every member of the program's own
-   * types is visible. Only a `lib/std` type's private field is hidden, from
-   * code outside std (08-data-and-enums.md#field-visibility).
+   * it is declared in the calling module or marked `pub`
+   * (10-modules.md#r-module.vis.members). A `lib/std` type's private member
+   * is hidden from code outside std (08-data-and-enums.md#field-visibility),
+   * and another package's from code outside that package
+   * (checker/package-ownership.ts). The prototype still shows every member
+   * of the calling module's own package.
    */
   private memberVisible(member: HirDataField | InherentMethod, owner?: HirData): boolean {
-    return (
-      member.public === true ||
-      owner?.standard !== true ||
-      this.declaration.standard === true ||
-      this.compilerPrivateMember
-    );
+    if (member.public === true || this.declaration.standard === true || this.compilerPrivateMember)
+      return true;
+    if (owner?.standard === true) return false;
+    const ownership = registeredPackageOwnership(this.traitTypes);
+    if (!ownership) return true;
+    let declared = owner?.span;
+    if (!owner) {
+      // An inherent method lives in its target's package (09-traits.md#r-trait.own.inherent).
+      const target = nominalGenericParts(readonlyType((member as InherentMethod).targetType));
+      const name = target?.name ?? readonlyType((member as InherentMethod).targetType);
+      const data = this.dataTypes.get(name);
+      const enumType = this.enumTypes.get(name);
+      if (data?.standard === true || (!data && enumType?.standardName !== undefined)) return true;
+      if (!data && !enumType) return true;
+      declared = (member as InherentMethod).span;
+    }
+    return ownership.packageOf(declared!) === ownership.packageOf(this.declaration.span);
   }
 
   /**
@@ -533,6 +553,37 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * The embedded-field path of the shallowest part whose type has a trait
    * method `name`, for the `x.Part.name(args)` hint of `unknown-method`.
    */
+  /**
+   * `unknown-method` for `name` on `receiverType`, with hints: a field of
+   * that name, a trait method of an embedded type, and each trait in
+   * `unavailable` that supplies the method but is not available at the
+   * call, which needs a use (names.method-lookup.hint.use).
+   */
+  protected failUnknownMethod(
+    receiverType: ValueType,
+    name: string,
+    span: SourceSpan,
+    unavailable: ReadonlySet<string>,
+  ): never {
+    const traitPath = this.embeddedTraitMethodPath(receiverType, name);
+    const hints = [
+      this.hasFieldNamed(receiverType, name)
+        ? `; to call the function stored in the field, write (value.${name})(...)`
+        : "",
+      traitPath
+        ? `; trait methods of embedded types are not promoted, so call it as value.${traitPath}.${name}(...)`
+        : "",
+      unavailable.size > 0
+        ? `; the trait ${[...unavailable].map((trait) => `'${displayType(trait)}'`).join(", ")} supplies it, but this module does not import it: add a use declaration for it`
+        : "",
+    ];
+    return this.fail(
+      "unknown-method",
+      `type '${displayType(receiverType)}' has no supported method '${name}'${hints.join("")}`,
+      span,
+    );
+  }
+
   protected embeddedTraitMethodPath(receiverType: ValueType, name: string): string | undefined {
     const type = readonlyType(receiverType);
     const declaration = this.dataTypes.get(nominalGenericParts(type)?.name ?? type);

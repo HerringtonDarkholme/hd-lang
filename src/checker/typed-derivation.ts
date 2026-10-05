@@ -52,6 +52,7 @@ import {
   type CompiledTemplate,
 } from "./template-instances.ts";
 import { withTypedFacts } from "./typed-facts.ts";
+import { foreignSelfLines } from "./package-ownership.ts";
 import { factsOfBuilders, importsFactsOf, STRUCTURE_FACT } from "./function-facts.ts";
 import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
 import {
@@ -1027,8 +1028,12 @@ function lintDerivations(
   }
   // A per-trait block's `Self` line warns only when the fact's package does
   // not supply the block's trait (annot.fact.unused-self-line.per-trait).
-  // The prototype compiles one package, whose templates are local, so such a
-  // fact never occurs here.
+  for (const span of foreignSelfLines(program, lineFacts, nonLiteral))
+    warn(
+      "unused-derivation-fact",
+      "this fact's package does not supply the block's trait, so no template of it reads the fact",
+      span,
+    );
 }
 
 /**

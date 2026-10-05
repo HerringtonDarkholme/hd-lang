@@ -623,6 +623,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       }
     }
     const searched = implementationsFor(this.implementations, receiverImplementationType);
+    const unavailable = new Set<string>(); // traits that supply the method, unavailable here
     const candidates = searched.flatMap((implementation) => {
       // An operator call names no trait arguments: any instance may apply (r-expr.op.left-dispatch).
       const anyInstantiation =
@@ -652,6 +653,16 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const mapping =
         method &&
         implementation.methodFunctions.find((candidate) => candidate.methodIndex === method.index);
+      // A dot call sees only available traits (09-traits.md#r-trait.avail.not-candidate).
+      if (
+        trait &&
+        method &&
+        qualifiedTraitIndex === undefined &&
+        !this.traitAvailable(trait.name)
+      ) {
+        unavailable.add(trait.name);
+        return [];
+      }
       return trait && method && mapping
         ? [{ trait, method, mapping, substitutions, implementation }]
         : [];
@@ -855,19 +866,11 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       }
       return callCandidate(fitting[0]!.candidate);
     }
-    const traitPath = this.embeddedTraitMethodPath(receiver.type, expression.callee.name);
-    this.fail(
-      "unknown-method",
-      `type '${displayType(receiver.type)}' has no supported method '${expression.callee.name}'${
-        this.hasFieldNamed(receiver.type, expression.callee.name)
-          ? `; to call the function stored in the field, write (value.${expression.callee.name})(...)`
-          : ""
-      }${
-        traitPath
-          ? `; trait methods of embedded types are not promoted, so call it as value.${traitPath}.${expression.callee.name}(...)`
-          : ""
-      }`,
+    this.failUnknownMethod(
+      receiver.type,
+      expression.callee.name,
       expression.callee.span,
+      unavailable,
     );
   }
 

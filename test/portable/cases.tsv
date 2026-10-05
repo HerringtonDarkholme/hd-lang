@@ -709,6 +709,7 @@ typing/invalid/overlapping-option-impl.hd	type
 parse/invalid/optional-question-pattern.hd	parse
 typing/invalid/trait-value-impl-target.hd	type
 typing/valid/trait-value-as-target-argument.hd	type
+typing/invalid/private-field-nothing-visible.hd	type
 typing/invalid/promoted-mut-method-on-readonly-receiver.hd	type
 typing/invalid/promoted-field-assignment-readonly.hd	type
 typing/invalid/embedded-part-readonly-alias.hd	type
@@ -761,6 +762,8 @@ runtime/valid/embedded-field-satisfies-trait.hd	runtime
 runtime/valid/direct-member-hides-promoted.hd	runtime
 runtime/valid/qualified-calls-beside-promoted-method.hd	runtime
 runtime/valid/outer-field-beside-embedded-method.hd	runtime
+runtime/valid/unavailable-trait-method-invisible.hd	runtime
+typing/invalid/unavailable-trait-method-not-found.hd	type
 runtime/valid/depth-two-promotion.hd	runtime
 runtime/valid/shorter-promotion-path-wins.hd	runtime
 runtime/valid/function-typed-field-call.hd	runtime
@@ -873,6 +876,7 @@ typing/invalid/embedded-collection-type.hd	type
 typing/invalid/embedded-type-parameter.hd	type
 runtime/valid/user-iterable-for-loop.hd	runtime
 typing/invalid/orphan-impl-nested-trait-argument.hd	type
+typing/invalid/orphan-impl-foreign-trait-argument.hd	type
 typing/invalid/variance-position.hd	type
 typing/invalid/variance-representation-change.hd	type
 typing/valid/variance-permission-weakening.hd	type
@@ -1063,6 +1067,7 @@ typing/invalid/trait-less-block-second.hd	type
 typing/warnings/trait-less-self-line-unused-fact.hd	type
 typing/valid/trait-less-block-generic-rename.hd	type
 typing/invalid/member-line-not-list.hd	type
+typing/warnings/per-trait-self-line-unused-fact.hd	type
 typing/invalid/println-in-defer.hd	type
 typing/invalid/println-in-default.hd	type
 typing/invalid/test-module-tests-block.hd	type
@@ -2356,6 +2361,7 @@ runtime/valid/block-on-inside-driver.hd	runtime
 runtime/valid/nested-block-on.hd	runtime
 runtime/valid/println-console-stdout.hd	runtime
 runtime/valid/println-provider-suspending-body.hd	runtime
+typing/invalid/root-orphan-impl.hd	type
 runtime/valid/println-recording-provider.hd	runtime
 runtime/valid/println-under-main-driver.hd	runtime
 runtime/valid/provider-scope-dynamic-callback.hd	runtime
@@ -2403,6 +2409,7 @@ cli/new-app	cli
 typing/invalid/available-trait-method-beside-promoted.hd	type
 runtime/valid/available-trait-method-across-packages.hd	runtime
 typing/invalid/private-promoted-method-nothing-visible.hd	type
+typing/invalid/private-own-method-nothing-visible.hd	type
 typing/invalid/private-embedded-field-nothing-visible.hd	type
 runtime/valid/pub-own-member-hides-promoted-other-module.hd	runtime
 cli/dep-missing-sum	cli

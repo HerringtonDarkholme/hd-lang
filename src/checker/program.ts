@@ -31,6 +31,7 @@ import {
 import { withStandardTraits } from "./standard-traits.ts";
 import { standardUseDiagnostics } from "./standard-uses.ts";
 import { withModulePaths } from "./module-paths.ts";
+import { registerPackageOwnership } from "./package-ownership.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { withDistinctMethodBinders, displayMethodBinderNames } from "./generic-method-scope.ts";
@@ -236,6 +237,9 @@ function checkProgramRaw(
     entryModule: options.entryModule === true,
     integrationTest: options.integrationTest === true,
   };
+  // Every function check of the program shares its trait map, so it finds
+  // which package declares what through it (checker/package-ownership.ts).
+  registerPackageOwnership(context.traitTypes, program);
   validateProgram(context);
   // A missing required result type leaves no signature to check against.
   if (context.diagnostics.some((diagnostic) => diagnostic.code === "missing-result-type"))

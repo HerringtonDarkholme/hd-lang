@@ -1,6 +1,7 @@
 import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE, INSPECTABLE_MEMBERS, TUPLE_TRAIT } from "./standard-traits.ts";
-import type { Diagnostic } from "../diagnostics.ts";
+import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
+import { registeredPackageOwnership } from "./package-ownership.ts";
 import {
   listVararg,
   type Expression,
@@ -742,18 +743,27 @@ function checkImplementationOwnership(
   context: ProgramCheckContext,
 ): boolean {
   const { program, dataTypes, enumTypes } = context;
+  // A declaration of another package is foreign too (checker/package-ownership.ts).
+  const ownership = registeredPackageOwnership(context.traitTypes);
+  const samePackage = (span: SourceSpan): boolean =>
+    !ownership || ownership.packageOf(span) === ownership.packageOf(implementation.span);
   const constructorOf = (type: string): string =>
     nominalGenericParts(readonlyType(type))?.name ?? readonlyType(type);
   const isLocalConstructor = (type: string): boolean => {
     const constructor = constructorOf(type);
     const data = dataTypes.get(constructor);
-    if (data) return data.standardName === undefined;
+    if (data) return data.standardName === undefined && samePackage(data.span);
     const enumType = enumTypes.get(constructor);
-    return enumType !== undefined && enumType.standardName === undefined;
+    return (
+      enumType !== undefined && enumType.standardName === undefined && samePackage(enumType.span)
+    );
   };
   // A std trait joined into the program, such as `Iterator`, stays foreign.
   const traitIsLocal = program.traits.some(
-    (declaration) => declaration.name === trait.name && declaration.standardName === undefined,
+    (declaration) =>
+      declaration.name === trait.name &&
+      declaration.standardName === undefined &&
+      samePackage(declaration.span),
   );
   const argumentIsLocal =
     genericTypeName(readonlyType(targetType)) === undefined &&

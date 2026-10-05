@@ -129,3 +129,18 @@ test("a diagnostic in a dependency names the dependency's file", () => {
     ),
   );
 });
+
+test("each linked module's scope names its package and its imports", () => {
+  // The checker reads them to tell packages apart (src/checker/package-ownership.ts).
+  const linked = linkPackage(
+    { "src/main.hd": "use dep.json.{render}\n\npub fn main() -> void:\n    _ := render\n" },
+    "src/main.hd",
+    { dependencies: graph },
+  );
+  const scopes = linked.packageScopes!.scopes;
+  assert.deepEqual(
+    scopes.map(({ package: owner }) => owner ?? "root"),
+    [json.id, json.id, "root"],
+  );
+  assert.deepEqual(scopes.at(-1)!.imports, ["render"]);
+});

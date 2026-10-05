@@ -949,13 +949,14 @@ export function linkPackage(
   };
   const moduleScope = (module: PackageModule, firstLine: number, lastLine: number): ModuleScope => {
     const names: Record<string, string> = {};
-    const namespaces: Record<string, string> = {};
+    const [namespaces, imports]: [Record<string, string>, string[]] = [{}, []];
     for (const name of module.program ? topLevelNames(module.program).keys() : []) {
       const joined = joinedName({ module, name });
       if (joined !== name) names[name] = joined;
     }
     for (const [local, declared] of importedNames.get(module) ?? []) {
       const joined = joinedName(declared);
+      imports.push(joined); // every joined name the module imports
       if (joined !== local) names[local] = joined;
     }
     for (const use of resolvedUses.get(module) ?? []) {
@@ -963,7 +964,7 @@ export function linkPackage(
       namespaces[use.namespace] = keyOf(use.target);
       namespaceModules[keyOf(use.target)] ??= namespaceMembers(use.target);
     }
-    return { firstLine, lastLine, names, namespaces };
+    return { firstLine, lastLine, names, namespaces, ...ownershipFields(module, imports) };
   };
   const multiBefore = new Map<PackageModule, boolean>();
   for (const group of groups) multiBefore.set(group[0]!, group.length > 1);
@@ -1012,6 +1013,21 @@ function isScript(program: Program | undefined): boolean {
     program.statements.length > 0 &&
     !program.functions.some(({ name }) => name === "main")
   );
+}
+
+/**
+ * What a module's scope says about packages: the dependency package it
+ * belongs to and the declarations its uses import, which the checker reads
+ * (checker/package-ownership.ts).
+ */
+function ownershipFields(
+  module: PackageModule,
+  imports: readonly string[],
+): Pick<ModuleScope, "package" | "imports"> {
+  return {
+    ...(module.dependency ? { package: module.dependency.id } : {}),
+    ...(imports.length > 0 ? { imports } : {}),
+  };
 }
 
 /**
