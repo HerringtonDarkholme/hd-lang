@@ -75,12 +75,14 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `hd parse FILE` stays as a hidden spelling of `hd debug parse`, because
   the conformance command contract names it
   ([Command Contract](../spec/conformance/README.md#command-contract)).
-- Help lists the conformance fixture flags apart from the others:
-  `--profile NAME` (on `build`, `run`, `test`, `check`, and `debug hir`),
-  `--scenario NAME` and `--pending-function NAME` (on `test`), and
-  `--test-layout`, `--package-tree`, and `--package-path` (on `test` and
-  `check`). The last three are temporary: a package's layout should come
-  from its `hd.toml`, which the prototype does not read yet.
+- `hd` has no flag for the conformance runner's options (runtime profile,
+  scenario, pending function, test layout, package tree, package role).
+  The runner passes them through the in-process adapter
+  (`test/hd-adapter.ts`, `test/hd-in-process.ts`), which sets
+  `CommandEnvironment.runner` for the command functions. No help text,
+  usage error, or doc names them. The test layout and package tree stand in
+  for a package's layout, which should come from its `hd.toml`; the
+  prototype does not read that yet.
 - `hd test DIR` tests a package (a directory with `hd.toml` or `src/`) one
   module at a time: each file under `src/` and `tests/` is linked with the
   rest of the package and runs only its own test cases. Any other directory
@@ -92,8 +94,8 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   The package is the one that holds FILE: the nearest directory with
   `hd.toml`, else the parent of the nearest `src/`, or of a `tests/` beside
   a `src/`. A FILE outside the package's `src/` and `tests/`, or outside any
-  package, compiles on its own. `--package-tree` and `--test-layout` turn
-  this off.
+  package, compiles on its own. The runner's package tree and test layout
+  turn this off.
 
 `hd run` runs the public `main` or `main!`; a module without one runs its
 initialization and exits 0, while `--entry NAME` must name a function.
@@ -1084,11 +1086,12 @@ else`, `break`, `break value`, and `continue`;
   the spec text: any use of the enclosing declaration counts, whatever its
   type arguments; another enum needs the enclosing type when all its
   variants do; an omitted member counts;
-- `--test-layout test-module|integration` compiles a file as a test module
-  (the conformance Test Layouts); both layouts are test modules, since
-  the prototype has no separate integration view;
-- `--package-tree DIR --package-path PATH` (the conformance Package Trees)
-  links FILE, as the package path PATH, with every `.hd` file under DIR,
+- the runner's test layout option (`test-module` or `integration`)
+  compiles a file as a test module (the conformance Test Layouts); both
+  layouts are test modules, since the prototype has no separate integration
+  view;
+- the runner's package tree option (the conformance Package Trees)
+  links FILE, as the package path it names, with every `.hd` file under the tree,
   entered at FILE's module, and reports each diagnostic in the file it
   points into. Package dependencies (`package-cycle`) are not modeled;
 - one suspension CFG lowering for every function containing child drives,

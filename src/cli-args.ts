@@ -13,11 +13,6 @@ interface FlagSpec {
   readonly choices?: readonly string[];
   /** The value is a non-negative integer. */
   readonly count?: boolean;
-  /**
-   * A flag the conformance runner passes (spec/conformance/README.md#command-contract).
-   * Help lists it apart from the flags people use.
-   */
-  readonly conformance?: boolean;
 }
 
 interface CommandSpec {
@@ -35,22 +30,6 @@ interface CommandSpec {
   readonly hidden?: boolean;
 }
 
-export const RUNTIME_PROFILE_NAMES = [
-  "misbehaving-host",
-  "pending-gate",
-  "pending-write",
-  "ready-counter",
-  "ready-float",
-  "ready-gate",
-  "ready-text",
-  "special-float-host",
-] as const;
-export const RUNTIME_SCENARIO_NAMES = [
-  "cancellation-cleanup",
-  "competing-drivers",
-  "reentrant-poll",
-] as const;
-
 const FORMAT: FlagSpec = {
   name: "--format",
   value: "FORMAT",
@@ -61,33 +40,6 @@ const FORMAT: FlagSpec = {
 const RELEASE: FlagSpec = {
   name: "--release",
   help: "build for release: integer overflow wraps instead of panicking",
-};
-
-const PROFILE: FlagSpec = {
-  name: "--profile",
-  value: "NAME",
-  choices: RUNTIME_PROFILE_NAMES,
-  help: "runtime profile: the host capabilities a fixture's entry point may require",
-  conformance: true,
-};
-const TEST_LAYOUT: FlagSpec = {
-  name: "--test-layout",
-  value: "LAYOUT",
-  choices: ["test-module", "integration"],
-  help: "compile FILE as a test module of this layout",
-  conformance: true,
-};
-const PACKAGE_TREE: FlagSpec = {
-  name: "--package-tree",
-  value: "DIR",
-  help: "the other files of FILE's package; needs --package-path",
-  conformance: true,
-};
-const PACKAGE_PATH: FlagSpec = {
-  name: "--package-path",
-  value: "PATH",
-  help: "the package path FILE takes in --package-tree, such as src/shop/mod.hd",
-  conformance: true,
 };
 
 /** How a command finds FILE's package (src/README.md, Commands). */
@@ -106,7 +58,6 @@ const COMMANDS: readonly CommandSpec[] = [
     flags: [
       { name: "--wat", help: "print the WebAssembly text instead of writing a file" },
       RELEASE,
-      PROFILE,
     ],
     notes: [PACKAGE_NOTE],
   },
@@ -123,7 +74,6 @@ const COMMANDS: readonly CommandSpec[] = [
         help: "run the exported function NAME instead, and print its result",
       },
       RELEASE,
-      PROFILE,
     ],
     notes: [PACKAGE_NOTE],
   },
@@ -138,23 +88,6 @@ const COMMANDS: readonly CommandSpec[] = [
       { name: "--seed", value: "N", count: true, help: "property-test seed; a failure prints it" },
       { name: "--cases", value: "N", count: true, help: "cases per property test" },
       { name: "--shrink", value: "N", count: true, help: "most shrink steps for a failing case" },
-      PROFILE,
-      {
-        name: "--scenario",
-        value: "NAME",
-        choices: RUNTIME_SCENARIO_NAMES,
-        help: "drive the program through a runtime scenario instead of running tests",
-        conformance: true,
-      },
-      {
-        name: "--pending-function",
-        value: "NAME",
-        help: "the suspending function that stays pending; needs --scenario cancellation-cleanup",
-        conformance: true,
-      },
-      TEST_LAYOUT,
-      PACKAGE_TREE,
-      PACKAGE_PATH,
     ],
     notes: [
       "With DIR, a package (a directory with hd.toml or src/) runs each module",
@@ -170,13 +103,7 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 1,
     maxOperands: 1,
     summary: "type-check FILE without running it",
-    flags: [
-      { name: "--tests", help: "also check the tests: block and test-only code" },
-      PROFILE,
-      TEST_LAYOUT,
-      PACKAGE_TREE,
-      PACKAGE_PATH,
-    ],
+    flags: [{ name: "--tests", help: "also check the tests: block and test-only code" }],
     notes: [PACKAGE_NOTE],
   },
   {
@@ -227,7 +154,7 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 1,
     maxOperands: 1,
     summary: "print FILE's checked HIR as JSON",
-    flags: [PROFILE],
+    flags: [],
   },
   {
     name: "parse",
@@ -261,8 +188,7 @@ function commandNamed(name: string): CommandSpec | undefined {
 }
 
 function usageLine(command: CommandSpec): string {
-  const own = command.flags.filter((flag) => !flag.conformance);
-  const flags = own.map((flag) => `[${flag.name}${flag.value ? ` ${flag.value}` : ""}]`);
+  const flags = command.flags.map((flag) => `[${flag.name}${flag.value ? ` ${flag.value}` : ""}]`);
   return ["usage: hd", command.name, ...flags, command.operands].filter(Boolean).join(" ");
 }
 
@@ -335,26 +261,12 @@ export function commandHelp(topic: string): string | undefined {
   }
   const command = commandNamed(topic);
   if (!command) return undefined;
-  const own = command.flags.filter((flag) => !flag.conformance);
-  const conformance = command.flags.filter((flag) => flag.conformance);
+  const own = command.flags;
   const lines = [usageLine(command), "", sentence(command.summary)];
   if (command.notes) lines.push("", ...command.notes);
   // `hd repl` prints no diagnostics, so `--format` does nothing there.
   const flags = command.name === "repl" ? own : [...own, FORMAT];
   if (flags.length > 0) lines.push("", "flags:", ...flagRows(flags));
-  if (conformance.length > 0) {
-    lines.push(
-      "",
-      "flags for conformance fixtures (spec/conformance/README.md#command-contract):",
-      ...flagRows(conformance),
-    );
-    if (conformance.includes(PACKAGE_TREE))
-      lines.push(
-        "",
-        "--test-layout, --package-tree, and --package-path are temporary. A package's",
-        "layout should come from its hd.toml, which the prototype does not read yet.",
-      );
-  }
   return lines.join("\n");
 }
 

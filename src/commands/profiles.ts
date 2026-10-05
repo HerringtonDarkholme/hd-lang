@@ -1,9 +1,24 @@
 // The conformance runtime profiles and scenarios (spec/conformance/README.md,
 // Fixture Environments): the host capabilities a fixture may require, and
-// the drivers `hd test --scenario` runs instead of the test cases.
+// the drivers a scenario runs instead of the test cases.
 
-import type { RUNTIME_PROFILE_NAMES, RUNTIME_SCENARIO_NAMES } from "../cli-args.ts";
 import type { HostSuspensionCall, HostSuspensionOutcome } from "../compiler.ts";
+
+export const RUNTIME_PROFILE_NAMES = [
+  "misbehaving-host",
+  "pending-gate",
+  "pending-write",
+  "ready-counter",
+  "ready-float",
+  "ready-gate",
+  "ready-text",
+  "special-float-host",
+] as const;
+export const RUNTIME_SCENARIO_NAMES = [
+  "cancellation-cleanup",
+  "competing-drivers",
+  "reentrant-poll",
+] as const;
 
 export type RuntimeScenario = (typeof RUNTIME_SCENARIO_NAMES)[number];
 type RuntimeProfileName = (typeof RUNTIME_PROFILE_NAMES)[number];

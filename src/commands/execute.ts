@@ -75,7 +75,7 @@ export interface TestArgs extends CommandEnvironment {
   readonly shrink?: number;
   readonly profile?: RuntimeProfileName;
   readonly scenario?: RuntimeScenario;
-  /** `--pending-function NAME`, with the cancellation-cleanup scenario. */
+  /** The suspending function that stays pending, with the cancellation-cleanup scenario. */
   readonly pendingFunction?: string;
   readonly testLayout?: TestLayout;
   readonly packageTree?: PackageTree;

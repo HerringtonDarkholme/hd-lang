@@ -1,5 +1,8 @@
 import { formatWithOptions } from "node:util";
 
+import type { RuntimeScenario } from "./profiles.ts";
+import type { PackageTree, RuntimeProfileName, TestLayout } from "./source.ts";
+
 /**
  * Where a command writes. Each call is one line, as `console.log` and
  * `console.error` write it: the line, then a newline.
@@ -18,9 +21,8 @@ export const processIo: CommandIo = {
 };
 
 /**
- * The status of a command line that `hd` rejects (`cli.exit.hd-failure`). A
- * program the checker rejects still exits 1, because the conformance Command
- * Contract reads exit 1 as rejection and fails any other status.
+ * The status of a command line that `hd` rejects, or of a program it
+ * rejects (`cli.exit.hd-failure`).
  */
 export const EXIT_HD_FAILURE = 101;
 
@@ -64,9 +66,31 @@ export interface CommandEnvironment {
    * Conformance harness hook, not an `hd` option: `hd test` holds the first
    * poll of every suspending host call pending (spec/conformance/README.md,
    * Runtime Scenarios, `pending-first-poll`). The in-process adapter
-   * (test/hd-in-process.ts) sets it from `--scenario pending-first-poll`.
+   * (test/hd-in-process.ts) sets it from the runner's `pending-first-poll`
+   * scenario.
    */
   readonly pendingFirstPoll?: boolean;
+  /** Conformance harness hooks, which the in-process adapter sets. */
+  readonly runner?: RunnerOptions;
+}
+
+/**
+ * What the conformance runner selects for a command, besides its arguments
+ * (spec/conformance/README.md, Command Contract). They are not `hd` options:
+ * a user's `hd` never sees them, and the adapter hands them to the command
+ * functions here.
+ */
+export interface RunnerOptions {
+  /** The runtime profile: the host capabilities a fixture's entry point may require. */
+  readonly profile?: RuntimeProfileName;
+  /** A runtime scenario that drives the program instead of running its test cases. */
+  readonly scenario?: RuntimeScenario;
+  /** The suspending function that stays pending, with `cancellation-cleanup`. */
+  readonly pendingFunction?: string;
+  /** Compile FILE as a test module of this layout. */
+  readonly testLayout?: TestLayout;
+  /** The other files of FILE's package, and the package path FILE takes. */
+  readonly packageTree?: PackageTree;
 }
 
 /** The directory `environment`'s relative paths resolve against. */

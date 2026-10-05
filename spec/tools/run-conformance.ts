@@ -103,11 +103,32 @@ interface CommandResult {
 }
 
 /**
+ * What a fixture's directives select for a command (README, Fixture
+ * Environments). The runner hands them to the implementation's adapter, never
+ * as command-line options, so an implementation need not give them a spelling.
+ */
+interface RunnerOptions {
+  readonly profile?: string;
+  readonly scenario?: string;
+  readonly pendingFunction?: string;
+  readonly packageRole?: string;
+  /** One entry per directory under `packages/`, in ascending name order. */
+  readonly dependencies?: readonly { readonly name: string; readonly directory: string }[];
+  readonly testLayout?: string;
+  readonly packageTree?: { readonly directory: string; readonly path: string };
+}
+
+/**
  * How the runner runs `IMPL ARGS...`: a spawned command, or an adapter
  * module's in-process implementation (spec/tools/README.md, Adapters).
  */
 interface Implementation {
-  run(args: readonly string[], timeoutMs: number, cwd?: string): Promise<CommandResult>;
+  run(
+    args: readonly string[],
+    timeoutMs: number,
+    cwd?: string,
+    options?: RunnerOptions,
+  ): Promise<CommandResult>;
   close(): Promise<void>;
 }
 
@@ -379,8 +400,18 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
 /** Spawns `COMMAND ARGS...` for each run. */
 function spawnImplementation(command: readonly string[]): Implementation {
   return {
-    run(args, limitMs, cwd) {
+    run(args, limitMs, cwd, options) {
       return new Promise((complete) => {
+        // A spawned command has no adapter to take runner options, and the
+        // contract has no command-line spelling for them.
+        if (options && Object.keys(options).length > 0)
+          return complete({
+            error: "the case selects runner options, which only an --adapter can receive",
+            status: null,
+            stderr: "",
+            stdout: "",
+            timedOut: false,
+          });
         // A language case sets no cwd: its working directory is not part of
         // the contract. A CLI case runs in its own directory.
         const child = spawn(command[0]!, [...command.slice(1), ...args], {
@@ -422,16 +453,23 @@ async function adapterImplementation(module: string, jobs: number): Promise<Impl
   return createAdapter({ jobs });
 }
 
-/** Runs `IMPL ACTION [OPTION VALUE]... FILE`, or `IMPL FILE` when `action` is undefined. */
+/**
+ * Runs `IMPL ACTION [OPTION]... FILE`, or `IMPL FILE` when `action` is
+ * undefined. `runner` goes to the adapter, not to the command line; `flags`
+ * are the command's own options.
+ */
 function invoke(
   implementation: Implementation,
   action: string | undefined,
-  options: readonly string[],
+  flags: readonly string[],
   file: string,
+  runner: RunnerOptions = {},
 ): Promise<CommandResult> {
   return implementation.run(
-    [...(action === undefined ? [] : [action]), ...options, file],
+    [...(action === undefined ? [] : [action]), ...flags, file],
     timeoutMs,
+    undefined,
+    runner,
   );
 }
 
@@ -556,20 +594,22 @@ function snippet(results: readonly CommandResult[]): string {
 }
 
 // The package-role options (README, Package Roles): the role, then one
-// --dependency NAME=DIR per directory under packages/, in ascending name order.
-async function packageOptions(options: Options, role: string | undefined): Promise<string[]> {
-  if (role === undefined) return [];
+// dependency per directory under packages/, in ascending name order.
+async function packageOptions(
+  options: Options,
+  role: string | undefined,
+): Promise<Pick<RunnerOptions, "dependencies" | "packageRole">> {
+  if (role === undefined) return {};
   const directory = resolve(options.root, "packages");
   const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
   const names = entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
-  return [
-    "--package-role",
-    role,
-    ...names.flatMap((name) => ["--dependency", `${name}=${resolve(directory, name)}`]),
-  ];
+  return {
+    packageRole: role,
+    dependencies: names.map((name) => ({ name, directory: resolve(directory, name) })),
+  };
 }
 
 async function runCase(
@@ -592,12 +632,12 @@ async function runCase(
     return { path: row.path, reason: `package tree ${tree} does not exist` };
   if (tree && (await realPathOf(resolve(tree, fixture.packageTree!.path))) !== undefined)
     return { path: row.path, reason: `package tree already holds ${fixture.packageTree!.path}` };
-  const profile = [
-    ...(fixture.profile ? ["--profile", fixture.profile] : []),
+  const runner: RunnerOptions = {
+    ...(fixture.profile ? { profile: fixture.profile } : {}),
     ...(await packageOptions(options, fixture.packageRole)),
-    ...(fixture.testLayout ? ["--test-layout", fixture.testLayout] : []),
-    ...(tree ? ["--package-tree", tree, "--package-path", fixture.packageTree!.path] : []),
-  ];
+    ...(fixture.testLayout ? { testLayout: fixture.testLayout } : {}),
+    ...(tree ? { packageTree: { directory: tree, path: fixture.packageTree!.path } } : {}),
+  };
   const fail = (reason: string, results: readonly CommandResult[]): Verdict => ({
     output: snippet(results),
     path: row.path,
@@ -609,8 +649,9 @@ async function runCase(
     const result = await invoke(
       implementation,
       action,
-      action === "check" ? ["--tests", ...profile] : [],
+      action === "check" ? ["--tests"] : [],
       file,
+      runner,
     );
     const violation = await contractViolation(result, file, panics, tree);
     if (violation) return fail(`${action}: ${violation}`, [result]);
@@ -626,24 +667,24 @@ async function runCase(
 
   if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:"))
     return { path: row.path, reason: `runtime case cannot expect ${row.expectation}` };
-  const checked = await invoke(implementation, "check", ["--tests", ...profile], file);
+  const checked = await invoke(implementation, "check", ["--tests"], file, runner);
   const checkViolation = await contractViolation(checked, file, panics, tree);
   if (checkViolation) return fail(`check: ${checkViolation}`, [checked]);
   if (checked.status !== 0) return fail("check: runtime case did not type-check", [checked]);
   // The pending-first-poll scenario must give the ordinary run's result, so
   // the ordinary run comes first (README, Runtime Scenarios).
   if (fixture.scenario === "pending-first-poll") {
-    const ordinary = await invoke(implementation, "test", profile, file);
+    const ordinary = await invoke(implementation, "test", [], file, runner);
     const ordinaryViolation = await contractViolation(ordinary, file, panics, tree);
     if (ordinaryViolation) return fail(`test: ${ordinaryViolation}`, [checked, ordinary]);
     if (ordinary.status !== 0) return fail("test: expected exit 0, got exit 1", [ordinary]);
   }
-  const testOptions = [
-    ...profile,
-    ...(fixture.scenario ? ["--scenario", fixture.scenario] : []),
-    ...(fixture.pendingFunction ? ["--pending-function", fixture.pendingFunction] : []),
-  ];
-  const tested = await invoke(implementation, "test", testOptions, file);
+  const testRunner: RunnerOptions = {
+    ...runner,
+    ...(fixture.scenario ? { scenario: fixture.scenario } : {}),
+    ...(fixture.pendingFunction ? { pendingFunction: fixture.pendingFunction } : {}),
+  };
+  const tested = await invoke(implementation, "test", [], file, testRunner);
   const testViolation = await contractViolation(tested, file, panics, tree);
   if (testViolation) return fail(`test: ${testViolation}`, [checked, tested]);
   if (row.expectation === "accept") {

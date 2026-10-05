@@ -227,8 +227,9 @@ judged only by the rules below.
 
 ## Judging a Case
 
-`check` and `test` receive the options the fixture's directives select, and
-`check` always receives `--tests` (see [Command Contract](#command-contract)).
+`check` and `test` receive the [runner options](#runner-options) the
+fixture's directives select, and `check` always receives `--tests` (see
+[Command Contract](#command-contract)).
 
 | Phase     | Expectation   | Steps                          | Passes when |
 | --------- | ------------- | ------------------------------ | ----------- |
@@ -240,7 +241,7 @@ judged only by the rules below.
 | `runtime` | `accept`      | `check FILE`, then `test FILE` | both exit 0 |
 | `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the stdout of the last equals the expected text |
 | `runtime` | `accept` with `# expect-empty-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the last writes no standard output |
-| `runtime` | `accept` with the `pending-first-poll` scenario | `check FILE`, `test FILE`, then `test --scenario pending-first-poll FILE` | all exit 0 |
+| `runtime` | `accept` with the `pending-first-poll` scenario | `check FILE`, `test FILE`, then `test FILE` with the `pending-first-poll` scenario | all exit 0 |
 | `runtime` | `panic:CODE`  | `check FILE`, then `test FILE` | `check` exits 0; `test` exits 1 and reports panic category `CODE` |
 
 Rules that apply to every case:
@@ -305,7 +306,7 @@ one provider value per trait. Each provider has the access its trait gives
 mutable when the trait has a `mut self` method, readonly otherwise.
 
 - `console` is the profile a fixture gets when it names no profile. The
-  runner passes no `--profile` option for it. It implements the prelude
+  runner selects no runtime profile for it. It implements the prelude
   `Console` ([Prelude](../lang/10-modules.md#prelude)): each
   `write_line!(text)` completes on its first poll, writes the UTF-8 encoding
   of `text` followed by one U+000A to standard output, and returns `.Ok(())`.
@@ -444,9 +445,10 @@ of a package in the named role. That package depends on every package under
 Package files are not cases. They have no row in `cases.tsv`, carry no
 directives, and are never judged on their own.
 
-The runner passes `--package-role ROLE` to `check` and `test`. It also
-passes `--dependency NAME=DIR` once for each package directory, in ascending
-order of `NAME`, where `DIR` is the absolute path of `packages/NAME`.
+The runner gives `check` and `test` the package role as a
+[runner option](#runner-options). It also gives one dependency for each
+package directory, in ascending order of `NAME`, where `DIR` is the absolute
+path of `packages/NAME`.
 
 ### Test Layouts
 
@@ -461,7 +463,8 @@ package, as Package Roles does for the multi-package environment
 
 - `NAME` is the fixture's file name without `.hd`. The package holds no
   other source file.
-- The runner passes `--test-layout LAYOUT` to `check` and `test`.
+- The runner gives `check` and `test` the layout as a
+  [runner option](#runner-options).
 - A fixture with this header names no package role.
 
 ### Package Trees
@@ -482,8 +485,9 @@ multi-package environment:
   directives, and are never judged on their own.
 - A fixture with this header names no package role and no test layout.
 
-The runner passes `--package-tree DIR` and `--package-path PATH` to `check`
-and `test`, where `DIR` is the absolute path of `trees/TREE`.
+The runner gives `check` and `test` the package tree as a
+[runner option](#runner-options): `DIR`, the absolute path of `trees/TREE`,
+and `PATH`.
 
 A tree case differs from the Judging a Case table in two points:
 
@@ -537,7 +541,7 @@ error is not judged.
 The runner invokes the implementation as:
 
 ```text
-IMPL ACTION [OPTION VALUE]... FILE
+IMPL ACTION [OPTION]... FILE
 IMPL FILE
 ```
 
@@ -554,17 +558,39 @@ IMPL FILE
   ([Adapters](../tools/README.md#adapters)). The adapter reports the exit
   status and output that the spawned command would.
 
-| Action  | Options the runner may pass                                     | Used for |
-| ------- | --------------------------------------------------------------- | -------- |
-| `parse` | none                                                            | `parse` phase |
-| `check` | `--tests` (always), `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT`, `--package-tree DIR`, `--package-path PATH` | `type` phase, and the first step of `runtime` |
-| `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT`, `--package-tree DIR`, `--package-path PATH` | `runtime` phase |
-| none    | none                                                            | `runtime` cases with `# expect-stdout:` or `# expect-empty-stdout:` |
+| Action  | Command-line options | Used for |
+| ------- | -------------------- | -------- |
+| `parse` | none                 | `parse` phase |
+| `check` | `--tests` (always)   | `type` phase, and the first step of `runtime` |
+| `test`  | none                 | `runtime` phase |
+| none    | none                 | `runtime` cases with `# expect-stdout:` or `# expect-empty-stdout:` |
 
 `IMPL FILE` executes only the entry point, in a fresh program instance under
 the `console` profile, as in step 1 of
 [Runtime Execution](#runtime-execution). Its standard output is exactly the
 program's console output.
+
+### Runner Options
+
+A fixture's directives select options for `check` and `test` that no `hd`
+command line has: the runtime profile, the runtime scenario, the pending
+function, the package role with its dependencies, the test layout, and the
+package tree. The runner passes them to the implementation through its
+[adapter](../tools/README.md#adapters), together with the command line,
+and never as command-line options. An implementation takes them as its
+adapter chooses, and its `hd` command does not accept or mention them.
+
+| Option | Given to | From |
+| ------ | -------- | ---- |
+| profile `NAME` | `check`, `test` | `# fixture-runtime-profile:` |
+| scenario `NAME` | `test` | `# fixture-runtime-scenario:` |
+| pending function `NAME` | `test` | `# fixture-runtime-pending-function:` |
+| package role `ROLE`, and dependencies `NAME` with `DIR` | `check`, `test` | `# fixture-package-role:`, and the directories of [`packages/`](packages) |
+| test layout `LAYOUT` | `check`, `test` | `# fixture-test-layout:` |
+| package tree `DIR` with package path `PATH` | `check`, `test` | `# fixture-package-tree:` |
+
+A runner that spawns the implementation without an adapter has no way to give
+these options, so it cannot run a case that selects one.
 
 Exit statuses and limits:
 

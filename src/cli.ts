@@ -21,16 +21,16 @@ import {
   testCommand,
   type CommandEnvironment,
   type CommandIo,
-  type PackageTree,
-  type RuntimeProfileName,
-  type RuntimeScenario,
-  type TestLayout,
+  type RunnerOptions,
 } from "./commands/index.ts";
 
 type Command = ParsedCommand & { kind: "command" };
 
-/** A command's typed flags, read from the parsed command line. */
-function flags(parsed: Command) {
+/**
+ * A command's typed arguments: its flags, read from the parsed command line,
+ * and the conformance runner's options, which only an adapter supplies.
+ */
+function flags(parsed: Command, runner: RunnerOptions = {}) {
   const value = (name: string): string | undefined => {
     const flag = parsed.flags.get(name);
     return typeof flag === "string" ? flag : undefined;
@@ -39,15 +39,12 @@ function flags(parsed: Command) {
     const flag = value(name);
     return flag === undefined ? undefined : Number(flag);
   };
-  const tree = value("--package-tree");
-  const packageTree: PackageTree | undefined =
-    tree === undefined ? undefined : { tree, path: String(value("--package-path")) };
   return {
     format: parsed.format,
     file: parsed.operands[0]!,
-    profile: value("--profile") as RuntimeProfileName | undefined,
-    testLayout: value("--test-layout") as TestLayout | undefined,
-    packageTree,
+    profile: runner.profile,
+    testLayout: runner.testLayout,
+    packageTree: runner.packageTree,
     tests: parsed.flags.has("--tests"),
     wat: parsed.flags.has("--wat"),
     release: parsed.flags.has("--release"),
@@ -56,26 +53,9 @@ function flags(parsed: Command) {
     seed: count("--seed"),
     cases: count("--cases"),
     shrink: count("--shrink"),
-    scenario: value("--scenario") as RuntimeScenario | undefined,
-    pendingFunction: value("--pending-function"),
+    scenario: runner.scenario,
+    pendingFunction: runner.pendingFunction,
   };
-}
-
-/** The flag combinations that `parseCommandLine` alone cannot reject. */
-function checkFlags(parsed: Command): void {
-  const where = `hd ${parsed.command.name}`;
-  const has = (name: string): boolean => parsed.flags.has(name);
-  if (
-    parsed.flags.get("--pending-function") &&
-    parsed.flags.get("--scenario") !== "cancellation-cleanup"
-  )
-    throw new UsageError(`${where}: --pending-function needs --scenario cancellation-cleanup`);
-  if (has("--package-tree") !== has("--package-path"))
-    throw new UsageError(`${where}: --package-tree and --package-path go together`);
-  if (has("--package-tree") && has("--test-layout"))
-    throw new UsageError(`${where}: --package-tree and --test-layout exclude each other`);
-  if (has("--package-tree") && parsed.operands.length === 0)
-    throw new UsageError(`${where}: --package-tree needs a FILE`);
 }
 
 /**
@@ -91,7 +71,6 @@ export async function main(
   let parsed: ParsedCommand;
   try {
     parsed = parseCommandLine(args);
-    if (parsed.kind === "command") checkFlags(parsed);
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     io.err(error.message);
@@ -100,7 +79,7 @@ export async function main(
   if (parsed.kind === "help") return helpCommand({ topic: parsed.topic }, io);
   const [first, second] = parsed.operands;
   const { format } = parsed;
-  const options = { ...flags(parsed), ...environment };
+  const options = { ...flags(parsed, environment.runner), ...environment };
   switch (parsed.command.name) {
     case "repl":
       return replCommand({ input: process.stdin, output: process.stdout });

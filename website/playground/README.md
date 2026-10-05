@@ -219,8 +219,7 @@ The playground runs what the prototype compiler supports; see
 [`../../src/README.md`](../../src/README.md). Beyond that:
 
 - Only the default runtime profile is provided, which binds `Console`. The
-  CLI's test profiles (`--profile`) and scenarios (`--scenario`) are not
-  exposed. A program that needs another host capability, such as
+  conformance runner's runtime profiles and scenarios are not exposed. A program that needs another host capability, such as
   `std.host.Args`, is `nonhost-entry-requirement`.
 - `println` and a direct `console.write_line!(...)` call run on the host
   console and on a program-defined provider such as

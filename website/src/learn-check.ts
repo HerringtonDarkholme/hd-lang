@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
+import { runHd } from "../../test/hd-in-process.ts";
 import { createMarkdown, fencedBlocks } from "./markdown.ts";
 import { editedCode, TOUR_MAIN, type TourPage } from "./tour-pages.ts";
 
@@ -22,24 +23,46 @@ function compilerCommand(): string[] {
   return [...text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!);
 }
 
+/** The located diagnostic lines of a failed command, without the file name. */
+function errorLines(
+  output: { readonly stdout: string; readonly stderr: string },
+  file: string,
+  tree: string | undefined,
+  fallback: string,
+): string[] {
+  const lines = `${output.stdout}\n${output.stderr}`.split("\n").flatMap((line) => {
+    if (line.startsWith(`${file}:`)) return [line.slice(file.length + 1)];
+    if (tree && line.startsWith(`${tree}/`)) return [line.slice(tree.length + 1)];
+    return [];
+  });
+  const crash = output.stderr.trim().split("\n")[0] || fallback;
+  return lines.length ? lines : [crash];
+}
+
 /**
  * Runs `IMPL ACTION [OPTION]... FILE`; resolves to the located diagnostic
  * lines without the file name, or none on exit 0. With `tree`, a directory
- * passed as `--package-tree`, a diagnostic in a tree file keeps its path in
- * the tree, such as `src/pricing.hd:3:5: ...`.
+ * that holds the other files of FILE's package at the package path
+ * `TOUR_MAIN`, FILE runs in this repository's compiler through the
+ * adapter's package tree option (an `hd` command line has none), and a
+ * diagnostic in a tree file keeps its path in the tree, such as
+ * `src/pricing.hd:3:5: ...`.
  */
 function compilerErrors(action: readonly string[], file: string, tree?: string): Promise<string[]> {
+  if (tree) {
+    return runHd(
+      [...action, file],
+      { cwd: REPO_DIR },
+      { packageTree: { directory: tree, path: TOUR_MAIN } },
+    ).then((result) =>
+      result.status === 0 ? [] : errorLines(result, file, tree, `exit status ${result.status}`),
+    );
+  }
   const [program, ...args] = compilerCommand();
   return new Promise((complete) => {
     execFile(program!, [...args, ...action, file], { cwd: REPO_DIR }, (error, stdout, stderr) => {
       if (!error) return complete([]);
-      const lines = `${stdout}\n${stderr}`.split("\n").flatMap((line) => {
-        if (line.startsWith(`${file}:`)) return [line.slice(file.length + 1)];
-        if (tree && line.startsWith(`${tree}/`)) return [line.slice(tree.length + 1)];
-        return [];
-      });
-      const crash = `${stderr}`.trim().split("\n")[0] || error.message.split("\n")[0]!;
-      complete(lines.length ? lines : [crash]);
+      complete(errorLines({ stdout, stderr }, file, tree, error.message.split("\n")[0]!));
     });
   });
 }
@@ -106,8 +129,7 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
       await mkdir(dirname(join(tree, path)), { recursive: true });
       await writeFile(join(tree, path), page.files[path]!);
     }
-    const options = ["--package-tree", tree, "--package-path", TOUR_MAIN];
-    return compilerErrors(["check", "--tests", ...options], file, tree);
+    return compilerErrors(["check", "--tests"], file, tree);
   };
   const snippet = (page: TourPage) => async (): Promise<string[]> =>
     (await check(page, page.code, "snippet")).map((error) => `${page.source}: snippet: ${error}`);

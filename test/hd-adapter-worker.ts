@@ -5,12 +5,20 @@
 import { enableCompileCache } from "node:module";
 import { parentPort } from "node:worker_threads";
 
+import type { AdapterRunnerOptions } from "./hd-in-process.ts";
+
 enableCompileCache?.();
 const { runHd } = await import("./hd-in-process.ts");
 
 const port = parentPort!;
 
-port.on("message", async ({ args, cwd }: { args: readonly string[]; cwd?: string }) => {
-  port.postMessage(await runHd(args, cwd === undefined ? {} : { cwd }));
+interface Request {
+  readonly args: readonly string[];
+  readonly cwd?: string;
+  readonly options?: AdapterRunnerOptions;
+}
+
+port.on("message", async ({ args, cwd, options }: Request) => {
+  port.postMessage(await runHd(args, cwd === undefined ? {} : { cwd }, options));
 });
 port.postMessage("ready");

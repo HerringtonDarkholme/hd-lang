@@ -10,6 +10,8 @@ import { availableParallelism } from "node:os";
 import { inspect } from "node:util";
 import { Worker } from "node:worker_threads";
 
+import type { AdapterRunnerOptions } from "./hd-in-process.ts";
+
 /** What one command line did, as a spawned `hd` process would report it. */
 export interface AdapterResult {
   /** The exit status; null when the command did not finish. */
@@ -22,9 +24,15 @@ export interface AdapterResult {
 export interface Adapter {
   /**
    * Runs `hd ARGS...` as if started in `cwd` (the process's own directory when
-   * unset); a run longer than `timeoutMs` stops with `timedOut`.
+   * unset), with the runner's `options` (never passed as `hd` flags); a run
+   * longer than `timeoutMs` stops with `timedOut`.
    */
-  run(args: readonly string[], timeoutMs: number, cwd?: string): Promise<AdapterResult>;
+  run(
+    args: readonly string[],
+    timeoutMs: number,
+    cwd?: string,
+    options?: AdapterRunnerOptions,
+  ): Promise<AdapterResult>;
   /** Terminates the workers. */
   close(): Promise<void>;
 }
@@ -90,7 +98,7 @@ export function createAdapter(options: { readonly jobs?: number } = {}): Adapter
   };
 
   return {
-    async run(args, timeoutMs, cwd) {
+    async run(args, timeoutMs, cwd, options) {
       const worker = await acquire();
       return new Promise((resolve) => {
         const finish = (result: AdapterResult, keep: boolean): void => {
@@ -115,7 +123,7 @@ export function createAdapter(options: { readonly jobs?: number } = {}): Adapter
         worker.on("message", onMessage);
         worker.on("error", onError);
         worker.on("exit", onExit);
-        worker.postMessage({ args, cwd });
+        worker.postMessage({ args, cwd, options });
       });
     },
     async close() {

@@ -70,7 +70,7 @@ Correctness and diagnostics:
   `expected-expression`, or `unsupported-gadt-result`, and a pack function
   gets `unsupported-generic-parameter`, not one stable code per deferred
   feature. Fixtures: the six rows tagged F-250.
-- **F-259**: `--profile disposed-file` is a usage error, so
+- **F-259**: the adapter rejects the `disposed-file` runtime profile, so
   `runtime/valid/resource-disposed-result.hd` cannot run.
 - **F-265**: code-generation failures and an `--entry` with no runnable
   export exit through a JavaScript stack trace, not a stable code.

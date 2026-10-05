@@ -46,7 +46,7 @@ test("hd, hd --help, and hd help print the same short command list", async () =>
   assert.match(overview!.stdout, /^ {2}debug +\S/m);
   assert.match(overview!.stdout, /^ {2}--format FORMAT/m);
   // The overview lists commands, not each command's flags.
-  for (const flag of ["--wat", "--entry", "--seed", "--tests", "--profile"])
+  for (const flag of ["--wat", "--entry", "--seed", "--tests", "--release"])
     assert.doesNotMatch(overview!.stdout, new RegExp(flag));
   // `parse` is the conformance runner's spelling of `hd debug parse`.
   assert.doesNotMatch(overview!.stdout, /^ {2}parse/m);
@@ -57,48 +57,28 @@ test("hd help COMMAND lists only that command's flags", async () => {
     [...text.matchAll(/^ {2}(--[a-z-]+)/gm)].map((match) => match[1]!);
   const build = (await hd(["help", "build"])).stdout;
   assert.match(build, /^usage: hd build \[--wat\] \[--release\] FILE$/m);
-  assert.deepEqual(flagsOf(build), ["--wat", "--release", "--format", "--profile"]);
+  assert.deepEqual(flagsOf(build), ["--wat", "--release", "--format"]);
 
   const run = (await hd(["help", "run"])).stdout;
   assert.match(run, /^usage: hd run \[--entry NAME\] \[--release\] FILE$/m);
-  assert.deepEqual(flagsOf(run), ["--entry", "--release", "--format", "--profile"]);
+  assert.deepEqual(flagsOf(run), ["--entry", "--release", "--format"]);
 
   const tested = (await hd(["help", "test"])).stdout;
   assert.match(
     tested,
     /^usage: hd test \[--update\] \[--seed N\] \[--cases N\] \[--shrink N\] \[FILE\|DIR\]$/m,
   );
-  assert.deepEqual(flagsOf(tested), [
-    "--update",
-    "--seed",
-    "--cases",
-    "--shrink",
-    "--format",
-    "--profile",
-    "--scenario",
-    "--pending-function",
-    "--test-layout",
-    "--package-tree",
-    "--package-path",
-  ]);
-  assert.match(tested, /--package-path are temporary/);
+  assert.deepEqual(flagsOf(tested), ["--update", "--seed", "--cases", "--shrink", "--format"]);
 
   const check = (await hd(["help", "check"])).stdout;
   assert.match(check, /^usage: hd check \[--tests\] FILE$/m);
-  assert.deepEqual(flagsOf(check), [
-    "--tests",
-    "--format",
-    "--profile",
-    "--test-layout",
-    "--package-tree",
-    "--package-path",
-  ]);
+  assert.deepEqual(flagsOf(check), ["--tests", "--format"]);
 
   assert.deepEqual(flagsOf((await hd(["help", "explain"])).stdout), ["--format"]);
   assert.deepEqual(flagsOf((await hd(["help", "repl"])).stdout), []);
   assert.equal((await hd(["run", "--help"])).stdout, run);
   assert.match((await hd(["help", "debug"])).stdout, /^ {2}hir FILE +print FILE's checked HIR/m);
-  assert.deepEqual(flagsOf((await hd(["help", "debug", "hir"])).stdout), ["--format", "--profile"]);
+  assert.deepEqual(flagsOf((await hd(["help", "debug", "hir"])).stdout), ["--format"]);
 
   const unknown = await usageError(["help", "nope"]);
   assert.match(unknown.stderr, /^hd help: no command 'nope'$/m);
@@ -116,10 +96,6 @@ test("a flag given to the wrong command names the commands that accept it", asyn
       "hd check: --seed is not a flag of hd check; hd test accepts it",
     ],
     [["test", "--tests", core], "hd test: --tests is not a flag of hd test; hd check accepts it"],
-    [
-      ["explain", "--profile", "ready-gate", "x"],
-      "hd explain: --profile is not a flag of hd explain; hd build, hd run, hd test, hd check, and hd debug hir accept it",
-    ],
     [["run", "--bogus", core], "hd run: unknown flag --bogus"],
   ];
   for (const [args, message] of cases) {
@@ -138,10 +114,46 @@ test("a flag given to the wrong command names the commands that accept it", asyn
   );
   assert.match((await usageError(["build"])).stderr, /^hd build: missing FILE$/m);
   assert.match((await usageError(["build", core, core])).stderr, /^hd build: unexpected argument/m);
-  assert.match(
-    (await usageError(["test", "--pending-function", "f", core])).stderr,
-    /--pending-function needs --scenario cancellation-cleanup/,
-  );
+});
+
+// The conformance runner's options reach the compiler through its adapter,
+// so a user's `hd` never mentions them (owner direction, 2026-10-04).
+const RUNNER_FLAGS = [
+  "--profile",
+  "--scenario",
+  "--pending-function",
+  "--package-tree",
+  "--package-role",
+  "--dependency",
+  "--test-layout",
+  "--package-path",
+];
+
+test("the conformance runner's options are not hd flags", async () => {
+  for (const flag of RUNNER_FLAGS) {
+    for (const command of ["build", "run", "test", "check"]) {
+      const { stderr } = await usageError([command, flag, "x", core]);
+      assert.equal(stderr.split("\n")[0], `hd ${command}: unknown flag ${flag}`);
+    }
+  }
+  const helpTopics = [
+    "",
+    "build",
+    "run",
+    "test",
+    "check",
+    "explain",
+    "doc",
+    "def",
+    "debug",
+    "debug hir",
+  ];
+  for (const topic of helpTopics) {
+    const { stdout } = await hd(["help", ...topic.split(" ").filter(Boolean)]);
+    for (const flag of RUNNER_FLAGS)
+      assert.ok(!stdout.includes(flag), `hd help ${topic} names ${flag}`);
+    assert.doesNotMatch(stdout, /conformance fixtures/);
+  }
 });
 
 test("flags may follow FILE, and --format is global", async () => {
@@ -372,12 +384,17 @@ test("hd test links integration test modules under tests/", async () => {
 test("pending-first-poll is a harness hook of the adapter, not an hd option", async () => {
   const fixture = resolve(root, "spec/conformance/runtime/valid/pending-first-poll-loops.hd");
   const plain = await hd(["test", fixture]);
-  const pending = await hd(["test", "--scenario", "pending-first-poll", fixture]);
+  const pending = await hdInProcess(
+    ["test", fixture],
+    { cwd: root },
+    { scenario: "pending-first-poll" },
+  );
   assert.equal(pending.stdout, plain.stdout);
   assert.match(pending.stdout, /: 1 passed$/m);
+  // The command line itself rejects the spelling.
   const io = bufferedIo();
   assert.equal(await main(["test", "--scenario", "pending-first-poll", fixture], io), 101);
-  assert.match(io.output().stderr, /--scenario must be one of/);
+  assert.match(io.output().stderr, /unknown flag --scenario/);
 });
 
 test("hd test --format json reports every test case", async () => {

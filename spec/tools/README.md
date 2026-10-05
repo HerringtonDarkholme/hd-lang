@@ -31,8 +31,17 @@ has two methods:
 
 | Method | Does |
 | --- | --- |
-| `run(args, timeoutMs, cwd?)` | runs `IMPL ARGS...` as if started in `cwd`, the runner's own directory when unset, and resolves to `{ status, stdout, stderr, timedOut }`, as a spawned command would report them. A [CLI case](../conformance/README.md#cli-cases) sets `cwd` |
+| `run(args, timeoutMs, cwd?, options?)` | runs `IMPL ARGS...` as if started in `cwd`, the runner's own directory when unset, with the fixture's [runner options](../conformance/README.md#runner-options), and resolves to `{ status, stdout, stderr, timedOut }`, as a spawned command would report them. A [CLI case](../conformance/README.md#cli-cases) sets `cwd` |
 | `close()` | releases the adapter's workers |
+
+`options` is an object whose optional fields are `profile`, `scenario`,
+`pendingFunction`, `packageRole`, `dependencies` (a list of `{ name,
+directory }`), `testLayout`, and `packageTree` (`{ directory, path }`). The
+runner passes the options a fixture selects, and no others. They are not `hd`
+command-line flags: the implementation takes them through its adapter, and its
+`hd` command line, help text, and usage errors never mention them. Without
+`--adapter`, the runner spawns `--compiler` with the command line alone, and a
+case that selects a runner option fails.
 
 `run` must stop a command that passes `timeoutMs` and resolve with
 `timedOut: true`, and must keep serving later commands. `status` is the

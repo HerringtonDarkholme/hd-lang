@@ -11,6 +11,7 @@ export {
   type CommandEnvironment,
   type CommandIo,
   type CommandOutput,
+  type RunnerOptions,
 } from "./io.ts";
 export {
   buildCommand,
@@ -30,5 +31,5 @@ export {
   type ExplainArgs,
   type LookupArgs,
 } from "./queries.ts";
-export type { RuntimeScenario } from "./profiles.ts";
+export { RUNTIME_PROFILE_NAMES, RUNTIME_SCENARIO_NAMES, type RuntimeScenario } from "./profiles.ts";
 export type { PackageTree, RuntimeProfileName, SourceArgs, TestLayout } from "./source.ts";

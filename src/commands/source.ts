@@ -5,7 +5,6 @@ import { existsSync, statSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import type { RUNTIME_PROFILE_NAMES } from "../cli-args.ts";
 import type { CompileOptions } from "../compiler.ts";
 import { DiagnosticReporter, type OutputFormat, type Report } from "../diagnostic-report.ts";
 import { DiagnosticError, physicalSpan, sourceDocument, type Diagnostic } from "../diagnostics.ts";
@@ -14,13 +13,13 @@ import type { PackageDiagnostic } from "../package.ts";
 import type { ParseOptions } from "../parser/index.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "../runtime-panic.ts";
 import { loadSpecIndex } from "../spec-index.ts";
-import { RUNTIME_PROFILES } from "./profiles.ts";
+import { RUNTIME_PROFILES, type RUNTIME_PROFILE_NAMES } from "./profiles.ts";
 import { workingDirectory, type CommandEnvironment } from "./io.ts";
 
 export type RuntimeProfileName = (typeof RUNTIME_PROFILE_NAMES)[number];
 export type TestLayout = "test-module" | "integration";
 
-/** `--package-tree DIR --package-path PATH`: FILE takes PATH in the package tree DIR. */
+/** FILE takes the package path `path` in the package tree `tree` (conformance Package Trees). */
 export interface PackageTree {
   readonly tree: string;
   readonly path: string;
@@ -98,8 +97,8 @@ export async function loadSource(
   const source = linked?.source ?? fileSource;
   const profile = options.profile ? RUNTIME_PROFILES[options.profile] : undefined;
   // A `*_test.hd` file is a test module (spec/lang/10-modules.md#test-modules), as
-  // is a file that `--test-layout` places as one (spec/conformance, Test
-  // Layouts); the prototype has no separate integration test view.
+  // is a file that the runner's test layout places as one (spec/conformance,
+  // Test Layouts); the prototype has no separate integration test view.
   const parseOptions = linked
     ? { joinedModules: true as const, initGroupStarts: linked.initGroups }
     : path.endsWith("_test.hd") || options.testLayout !== undefined
@@ -272,8 +271,8 @@ async function enclosingPlacement(
 }
 
 /**
- * FILE's package for a command that links one: the tree `--package-tree`
- * names, else the package that holds FILE. `--test-layout` turns linking off.
+ * FILE's package for a command that links one: the tree the conformance
+ * runner's package tree option names, else the package that holds FILE. A test layout turns linking off.
  * Relative paths resolve against `environment`'s directory.
  */
 export async function placementOf(
