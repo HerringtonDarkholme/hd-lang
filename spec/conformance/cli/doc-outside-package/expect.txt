@@ -1,2 +1,3 @@
-run: hd doc
+run: hd doc --format json
 exit: 101
+stdout-json: [{"kind":"diagnostic","code":null,"severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]

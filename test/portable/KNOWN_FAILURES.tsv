@@ -73,33 +73,33 @@ typing/invalid/alias-unknown-target.hd	the checker does not resolve an unused al
 typing/invalid/row-alias-unknown-key.hd	the checker does not resolve an unused row alias's keys, so `type AppRow = $ Ledger` with no `Ledger` is accepted instead of unknown-trait at the alias (types.alias.target-unknown.key)	ALIAS-MISSING
 typing/invalid/module-path-private-std-function.hd	a module path to a std function without pub, `text.hex_digit(48)` after `use std.text`, reports unknown-name for `text` instead of private-import (expr.name.qualified.private)	PRIVATE-STD
 typing/invalid/derive-unknown-trait.hd	`@derive(Sortable)` with no `Sortable` in scope reports underivable-trait instead of unknown-trait (annot.derive.unknown)	DERIVE-MISSING
-cli/exit-package-check	`hd check` takes a FILE and has no whole-package form: `hd check` exits 2 with 'missing FILE' (cli.package.whole)	CLI-PKG-CMD
-cli/exit-outside-package	outside a package `hd run`, `hd build`, and `hd check` take a FILE and exit 2 with 'missing FILE', and `hd test` exits 0 with 'no .hd files to test'; cli.run.package-only and cli.file.check-test.no-file want status 101	CLI-PKG-CMD
-cli/json-run	`hd run` takes a FILE and has no default executable form: `hd run --format json` exits 2 with 'missing FILE' (cli.run.default.one); `hd run --format json FILE` also writes no summary object to stderr (cli.json.run)	CLI-PKG-CMD
-cli/new-app	no `hd new` command: `hd new --app --vcs none` exits 2 as an unknown command (cli.new.app)	CLI-NEW
-cli/new-lib	no `hd new` command: `hd new --lib --vcs none` exits 2 as an unknown command (cli.new.lib)	CLI-NEW
-cli/new-path	no `hd new` command: `hd new --app --vcs none hello` exits 2 as an unknown command (cli.new.app, cli.new.lib)	CLI-NEW
-cli/new-vcs	no `hd new` command: `hd new --app tracked` exits 2 as an unknown command (cli.new.vcs, cli.new.vcs-none)	CLI-NEW
-cli/new-existing	no `hd new` command: `hd new --app --vcs none` exits 2 as an unknown command, where cli.new.existing wants 101	CLI-NEW
-cli/new-no-kind	no `hd new` command: `hd new --vcs none hello` exits 2 as an unknown command, where cli.new.kind.no-terminal wants 101	CLI-NEW
+cli/exit-package-check	`hd check` takes a FILE and has no whole-package form: `hd check` exits 101 with 'missing FILE' (cli.package.whole)	CLI-PKG-CMD
+cli/exit-outside-package	outside a package `hd run`, `hd build`, and `hd check` take a FILE and exit 101 with 'missing FILE', and `hd test` exits 0 with 'no .hd files to test'; cli.run.package-only and cli.file.check-test.no-file want status 101	CLI-PKG-CMD
+cli/json-run	`hd run` takes a FILE and has no default executable form: `hd run --format json` exits 101 with 'missing FILE' (cli.run.default.one); `hd run --format json FILE` also writes no summary object to stderr (cli.json.run)	CLI-PKG-CMD
+cli/new-app	no `hd new` command: `hd new --app --vcs none` exits 101 as an unknown command (cli.new.app)	CLI-NEW
+cli/new-lib	no `hd new` command: `hd new --lib --vcs none` exits 101 as an unknown command (cli.new.lib)	CLI-NEW
+cli/new-path	no `hd new` command: `hd new --app --vcs none hello` exits 101 as an unknown command (cli.new.app, cli.new.lib)	CLI-NEW
+cli/new-vcs	no `hd new` command: `hd new --app tracked` exits 101 as an unknown command (cli.new.vcs, cli.new.vcs-none)	CLI-NEW
 parse/valid/module-documentation.hd	no module documentation: the lexer reports doc-comment-without-target for the second block, where lex.doc.module makes the first block the module's documentation	MODULE-DOC
-cli/doc-out	no `hd doc` command: `hd doc --out site` exits 2 as an unknown command (cli.doc.command, cli.doc.files, cli.doc.root-page: no `pkg.md`)	CLI-DOC
-cli/doc-outside-package	no `hd doc` command: `hd doc` exits 2 as an unknown command, where cli.doc.package wants 101	CLI-DOC
-cli/doc-check-error	no `hd doc` command: `hd doc --out site` exits 2 as an unknown command, where cli.doc.check wants 101	CLI-DOC
-cli/doc-name	no `hd doc` command: `hd doc --out site text.slugify` exits 2 as an unknown command (cli.doc.name, and `hd doc std.text.split` by cli.doc.name.std)	CLI-DOC
-cli/doc-private	no `hd doc` command: `hd doc text.helper` exits 2 as an unknown command, where cli.doc.private wants 101	CLI-DOC
-cli/new-pages	no `hd new` command: `hd new --app --vcs none --pages` exits 2 as an unknown command (cli.new.pages)	CLI-NEW
-cli/new-no-pages	no `hd new` command: `hd new --app --vcs none` exits 2 as an unknown command, so hd.toml is missing (cli.new.pages.default)	CLI-NEW
-cli/new-pages-existing	no `hd new` command: `hd new --lib --vcs none --pages` exits 2 as an unknown command, where cli.new.existing wants 101	CLI-NEW
+cli/doc-out	`hd doc` takes only a NAME: `hd doc --out site` exits 101 with 'unknown flag --out' (cli.doc.command, cli.doc.files, cli.doc.root-page: no `pkg.md`)	CLI-DOC
+cli/doc-name	`hd doc` takes only a NAME: `hd doc --out site text.slugify` exits 101 with 'unknown flag --out' (cli.doc.name, and `hd doc std.text.split` by cli.doc.name.std)	CLI-DOC
+cli/doc-private	`hd doc text.helper` exits 1, not 101, with `doc-comment-without-target` for the `##` block of src/text.hd (MODULE-DOC) and 'no symbol named text.helper'; cli.doc.private wants 101 for a private item	CLI-DOC
+cli/new-pages	no `hd new` command: `hd new --app --vcs none --pages` exits 101 as an unknown command (cli.new.pages)	CLI-NEW
+cli/new-no-pages	no `hd new` command: `hd new --app --vcs none` exits 101 as an unknown command, so hd.toml is missing (cli.new.pages.default)	CLI-NEW
 typing/invalid/bound-inference-several-impls.hd	the checker reports cannot-infer-type for a bound-only parameter that several instantiations fit, not ambiguous-type (types.generic.infer.bound.no-default.ambiguous)	BOUND-AMBIGUOUS
 typing/invalid/bound-inference-mixed-several-impls.hd	the checker reports cannot-infer-type for `joined(label, both)`, where one bound allows several instantiations, not ambiguous-type (types.generic.infer.bound.no-default.ambiguous)	BOUND-AMBIGUOUS
 typing/invalid/module-named-pkg.hd	the checker accepts `src/pkg.hd` as a module named pkg: check exits 0, where module.path.reserved-pkg wants reserved-module-name (a new code the prototype does not know)	RESERVE-PKG
-cli/doc-main-page	`hd doc --out site` exits 2 with 'unknown flag --out', so the pages and `main.md` under `--private` are never written (cli.doc.main)	CLI-DOC
-cli/exe-missing-module	`hd check` takes a FILE and has no whole-package form, and hd.toml has no [[executable]] tables: `hd check --format json` exits 2 with 'missing FILE', where cli.exe.missing-module wants missing-entry-point and status 101	CLI-PKG-CMD
-cli/exe-unselected-main	`hd check` takes a FILE and has no whole-package form, and hd.toml has no [[executable]] tables: `hd check --format json` exits 2 with 'missing FILE', where cli.exe.unselected-main wants the unselected-main warning	CLI-PKG-CMD
-cli/doc-broken-link	no `hd doc` flags: `hd doc --out site` exits 2 with 'unknown flag --out', so no page is written (cli.doc.link.broken: the warning is a warning and the pages are still written)	CLI-DOC
-cli/doc-index-module	no `hd doc` flags: `hd doc --out site` exits 2 with 'unknown flag --out', so no page is written under index/ (cli.doc.index-module)	CLI-DOC
-cli/release-wraps	`hd run` takes a FILE and has no default executable form: `hd run --release` exits 2 with missing FILE (cli.profile.release); `hd test` of the package matches (cli.profile.test)	CLI-PKG-CMD
+cli/doc-main-page	`hd doc --out site` exits 101 with 'unknown flag --out', so the pages and `main.md` under `--private` are never written (cli.doc.main)	CLI-DOC
+cli/exe-missing-module	`hd check` takes a FILE and has no whole-package form, and hd.toml has no [[executable]] tables: `hd check --format json` exits 101 with 'missing FILE', where cli.exe.missing-module wants missing-entry-point and status 101	CLI-PKG-CMD
+cli/exe-unselected-main	`hd check` takes a FILE and has no whole-package form, and hd.toml has no [[executable]] tables: `hd check --format json` exits 101 with 'missing FILE', where cli.exe.unselected-main wants the unselected-main warning	CLI-PKG-CMD
+cli/doc-broken-link	no `hd doc` flags: `hd doc --out site` exits 101 with 'unknown flag --out', so no page is written (cli.doc.link.broken: the warning is a warning and the pages are still written)	CLI-DOC
+cli/doc-index-module	no `hd doc` flags: `hd doc --out site` exits 101 with 'unknown flag --out', so no page is written under index/ (cli.doc.index-module)	CLI-DOC
+cli/release-wraps	`hd run` takes a FILE and has no default executable form: `hd run --release` exits 101 with missing FILE (cli.profile.release); `hd test` of the package matches (cli.profile.test)	CLI-PKG-CMD
 runtime/valid/doc-test-passes.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
 runtime/valid/doc-test-compile-fail.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
 runtime/valid/doc-test-private-item.hd	`hd test FILE` exits 101 with 'no test case registered': doc tests (module.test.doc.block) are not implemented, so the file registers none (cli.test.file-empty)	DOC-TESTS
+cli/new-existing	no `hd new` command: the first step, `hd new --lib --vcs none other`, exits 101 as an unknown command, so the case never reaches cli.new.existing	CLI-NEW
+cli/new-no-kind	no `hd new` command: the first step, `hd new --app --vcs none ok`, exits 101 as an unknown command, so the case never reaches cli.new.kind.no-terminal	CLI-NEW
+cli/new-pages-existing	no `hd new` command: the first step, `hd new --lib --vcs none other`, exits 101 as an unknown command, so the case never reaches cli.new.existing	CLI-NEW
+cli/doc-outside-package	`hd doc` takes a NAME: `hd doc --format json` exits 101 with 'missing NAME' and no JSON on stdout, where cli.doc.package wants an error diagnostic and a summary	CLI-DOC
+cli/doc-check-error	no `hd doc` flags: `hd doc --format json --out site` exits 101 with 'unknown flag --out' and no JSON on stdout, so `hd doc` never checks the package (cli.doc.check)	CLI-DOC

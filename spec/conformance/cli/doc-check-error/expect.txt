@@ -1,5 +1,6 @@
-run: hd doc --out site
+run: hd doc --format json --out site
 exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":null,"file":"src/lib.hd","line":5},{"kind":"summary","errors":1,"status":101}]
 no-file: site/index.md
 no-file: site/index.html
 no-file: site/llms.txt

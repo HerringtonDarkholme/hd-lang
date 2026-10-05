@@ -1,3 +1,6 @@
+run: hd new --app --vcs none ok
+file: ok/hd.toml
+file: ok/src/main.hd
 run: hd new --vcs none hello
 exit: 101
 no-file: hello

@@ -1,3 +1,6 @@
+run: hd new --lib --vcs none other
+file: other/hd.toml
+file: other/src/lib.hd
 run: hd new --app --vcs none
 exit: 101
 no-file: hd.toml
