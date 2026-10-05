@@ -55,9 +55,6 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
-- `dbg` work (another agent is adding it): `src/repl.ts`, REPL and
-  playground value printing (`website/playground/`), the prelude, and
-  `lib/std/format.hd`.
 
 ## Jobs
 
@@ -105,6 +102,16 @@ decode error naming `Timestamp`. Update the rules, the `time-serde-millis`
 fixture (rename it if its name no longer fits, and fix its rows), and add
 a JSON round-trip test. Spec examples: realign `examples.tsv` if a block
 moves.
+
+Also, in the same job: since `dbg` landed (16df2295), the REPL prints
+values the way `dbg` does, through `Debug` or else the structure, so a
+`Timestamp` now shows as `Timestamp { millis: 1791225123833 }`. Give the
+three time types hand-written `Debug` implementations (std calls are
+ours; log them in `future-work/STDLIB_CALLS.md`): `Timestamp` writes its
+RFC 3339 text, `Duration` its `Display` form (such as `250ms`), and
+`Instant` its milliseconds as `Instant(…ms)`. Update
+`test/cli-default-profile.test.ts` back to an RFC 3339 match and add a
+REPL test.
 
 ### AX. `it_each` At The Top Level Of An Integration Test
 
