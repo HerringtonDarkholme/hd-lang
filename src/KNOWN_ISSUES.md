@@ -28,7 +28,6 @@ CLI tier.
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
 | MVP-PATTERN | 1 | a `let` data pattern on a generic data value is `unsupported-match-subject` |
-| PRIMITIVE-LEFT-TRAIT | 1 | a primitive left operand never searches operator traits, so `3 * price` with only `impl Mul[Money] for i64` is rejected |
 | DOC-TESTS | 4 | `hd` blocks in `##` comments are not extracted or run as doc tests, so a doc-test file registers no test case and `hd test FILE` exits 101 |
 | AMBIGUOUS-TYPE | 1 | an ambiguous requirement-key solution reports `cannot-infer-type`, not `ambiguous-type` |
 | SHADOW-TPARAM | 3 | a method type parameter, local declaration, or local value may reuse an enclosing type parameter's name |

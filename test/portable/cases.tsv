@@ -2521,3 +2521,4 @@ typing/invalid/list-sum-non-numeric.hd	type
 typing/invalid/alias-unknown-target.hd	type
 typing/invalid/row-alias-unknown-key.hd	type
 typing/invalid/derive-unknown-trait.hd	type
+typing/valid/literal-one-fit-left-operand.hd	type

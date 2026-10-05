@@ -14,7 +14,7 @@ import {
   tupleParts,
 } from "../types.ts";
 import { isIntegerType, numericType, widensTo, widerNumeric } from "../numeric.ts";
-import { isKnownType, PRELUDE_NAMES } from "./context.ts";
+import { CheckFailure, isKnownType, PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
 import { ALL_COMBINATOR } from "./standard-traits.ts";
 import { loopNameHint } from "./cannot-infer.ts";
@@ -319,6 +319,9 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       case "binary": {
         // A non-primitive left operand calls its operator trait; an untyped
         // literal on the left keeps its default type (r-expr.op.left-literal).
+        // A primitive left operand with a non-primitive right operand still
+        // selects through its trait (r-expr.op.left-dispatch), as in
+        // `i64(3) * price` with `impl Mul[Money] for i64`.
         const operatorTrait = BINARY_OPERATOR_TRAITS[expression.operator];
         const leftSource = expression.left;
         let checkedLeft: HirExpression | undefined;
@@ -337,6 +340,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               expression.span,
               _expected,
             );
+          const leftTrait = this.primitiveLeftTrait(
+            expression,
+            operatorTrait,
+            leftSource,
+            checkedLeft,
+            _expected,
+          );
+          if (leftTrait) return leftTrait;
         }
         let { left, right } = this.checkNumericOperands(expression, _expected, checkedLeft);
         if (expression.operator === "is")
@@ -763,6 +774,41 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         narrower.to,
         narrower.value.span,
       );
+  }
+
+  /**
+   * A primitive left operand with a non-primitive right operand still
+   * selects through its trait (r-expr.op.left-dispatch), as in
+   * `i64(3) * price` with `impl Mul[Money] for i64`. Peeks at the right
+   * without keeping diagnostics: literals keep the numeric path, and a
+   * peek that needs more context falls through to report once below.
+   */
+  private primitiveLeftTrait(
+    expression: Extract<Expression, { kind: "binary" }>,
+    operatorTrait: readonly [string, string],
+    leftSource: Expression,
+    checkedLeft: HirExpression,
+    expected: ValueType | undefined,
+  ): HirExpression | undefined {
+    if (pureLiteralKind(expression.right) !== undefined) return undefined;
+    const diagnosticCount = this.diagnostics.length;
+    try {
+      const checkedRight = this.checkExpression(expression.right, undefined);
+      if (isPrimitiveOperand(checkedRight.type)) return undefined;
+      return this.operatorTraitCall(
+        operatorTrait,
+        expression.operator,
+        leftSource,
+        checkedLeft,
+        expression.right,
+        expression.span,
+        expected,
+      );
+    } catch (error) {
+      if (!(error instanceof CheckFailure)) throw error;
+      this.diagnostics.length = diagnosticCount;
+      return undefined;
+    }
   }
 
   /**
