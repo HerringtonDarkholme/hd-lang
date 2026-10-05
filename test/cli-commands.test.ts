@@ -81,9 +81,17 @@ test("hd help COMMAND lists only that command's flags", async () => {
   const tested = (await hd(["help", "test"])).stdout;
   assert.match(
     tested,
-    /^usage: hd test \[--update\] \[--seed N\] \[--cases N\] \[--shrink N\] \[FILE\]$/m,
+    /^usage: hd test \[--update\] \[--filter PATTERN\] \[--deny-skipped\] \[--seed N\] \[--cases N\] \[--shrink N\] \[FILE\]$/m,
   );
-  assert.deepEqual(flagsOf(tested), ["--update", "--seed", "--cases", "--shrink", "--format"]);
+  assert.deepEqual(flagsOf(tested), [
+    "--update",
+    "--filter",
+    "--deny-skipped",
+    "--seed",
+    "--cases",
+    "--shrink",
+    "--format",
+  ]);
 
   const check = (await hd(["help", "check"])).stdout;
   assert.match(check, /^usage: hd check \[--tests\] \[--all\] \[FILE\]$/m);

@@ -59,6 +59,8 @@ function flags(parsed: Command, runner: RunnerOptions = {}) {
     release: parsed.flags.has("--release"),
     entry: runner.entry,
     update: parsed.flags.has("--update"),
+    filter: value("--filter"),
+    denySkipped: parsed.flags.has("--deny-skipped"),
     seed: count("--seed"),
     cases: count("--cases"),
     shrink: count("--shrink"),

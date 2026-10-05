@@ -289,9 +289,16 @@ export class DiagnosticReporter {
     this.located(`${this.file}: ${subject} ${outcome}`, null, `${subject} ${outcome}`);
   }
 
-  /** `hd test FILE` for a FILE that registers no test case (`cli.test.file-empty`). */
-  noTestCases(): void {
-    this.located(`${this.file}: no test case registered`, null, "no test case registered");
+  /**
+   * `hd test FILE` for a FILE that registers no test case (`cli.test.file-empty`),
+   * or none whose name contains the `--filter` pattern (`cli.test.filter.none`).
+   */
+  noTestCases(filter?: string): void {
+    const message =
+      filter === undefined
+        ? "no test case registered"
+        : `no test case has a name containing '${filter}'`;
+    this.located(`${this.file}: ${message}`, null, message);
   }
 
   /**

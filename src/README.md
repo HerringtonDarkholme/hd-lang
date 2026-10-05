@@ -62,7 +62,7 @@ in-process conformance adapter calls the same `main` with a buffering sink
 hd FILE  [-- ARGS]
 hd build [--wat] [--release] [FILE]
 hd run   [--release] [NAME] [-- ARGS]
-hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE]
+hd test  [--update] [--filter PATTERN] [--deny-skipped] [--seed N] [--cases N] [--shrink N] [FILE]
 hd check [--tests] [--all] [FILE]
 hd new   [--app] [--lib] [--vcs none] [PATH]
 hd add NAME PATH@VERSION    hd update [NAME]    hd remove NAME    hd fetch

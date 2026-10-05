@@ -93,6 +93,12 @@ const COMMANDS: readonly CommandSpec[] = [
     summary: "run the test cases of the package, or of FILE",
     flags: [
       { name: "--update", help: "record snapshot files instead of failing on a difference" },
+      {
+        name: "--filter",
+        value: "PATTERN",
+        help: "run only the test cases whose name contains PATTERN",
+      },
+      { name: "--deny-skipped", help: "fail the run when a test case is skipped" },
       { name: "--seed", value: "N", count: true, help: "property-test seed; a failure prints it" },
       { name: "--cases", value: "N", count: true, help: "cases per property test" },
       { name: "--shrink", value: "N", count: true, help: "most shrink steps for a failing case" },

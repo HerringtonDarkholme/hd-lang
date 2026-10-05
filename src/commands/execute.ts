@@ -242,6 +242,10 @@ export interface TestArgs extends CommandEnvironment {
   readonly format: SourceArgs["format"];
   /** `--update`: record snapshot files instead of failing on a difference. */
   readonly update: boolean;
+  /** `--filter PATTERN`: run only the test cases whose name contains PATTERN (cli.test.filter). */
+  readonly filter?: string;
+  /** `--deny-skipped`: a skipped test case is a failure (cli.test.deny-skipped). */
+  readonly denySkipped?: boolean;
   /** `--seed N`, `--cases N`, and `--shrink N` (Testing T36, T38, T51). */
   readonly seed?: number;
   readonly cases?: number;
@@ -396,6 +400,13 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     execution.kind === "run"
       ? { ...execution.host, readLine: () => (readLine ??= inputLines())() }
       : undefined;
+  // A failing file gets its result line too, as a passing one does: the
+  // cases that passed before the failure ended the run, and the failure.
+  let running = false;
+  let passedCases = 0;
+  const failedLine = (): void => {
+    if (test?.format === "text") io.out(`${file}: ${passedCases} passed, 1 failed`);
+  };
   try {
     let scenarioInstance: WebAssembly.Instance | undefined;
     let pendingFunctionIndex: number | undefined;
@@ -479,9 +490,18 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     // A test case with the `ignore` option is selected too: the runner
     // reports it as ignored without running it
     // (spec/lang/10-modules.md#r-module.testing.option.ignore).
+    const registered = compilation.hir.functions.filter(
+      (declaration) =>
+        command === "test" && /^\$test\.\d+$/.test(declaration.name) && inFileModule(declaration),
+    );
+    const filter = test?.filter;
     const selected = compilation.hir.functions.filter((declaration) => {
       if (command === "test")
-        return /^\$test\.\d+$/.test(declaration.name) && inFileModule(declaration);
+        return (
+          registered.includes(declaration) &&
+          (filter === undefined ||
+            (declaration.testOptions?.name ?? declaration.name).includes(filter))
+        );
       if (explicitEntry) return declaration.name === entryName;
       // A non-`pub` `main` is not an entry point; implementation tests may
       // still run it by naming it explicitly.
@@ -491,8 +511,10 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     // has an entry point (spec/cli/command-line.md#r-cli.test.file-empty). The
     // modules of a whole-package `hd test` stay quiet: a run that registers
     // none passes (cli.test.package-empty).
+    // A filter that matches no test case of a named FILE is an error too
+    // (spec/cli/command-line.md#r-cli.test.filter.none).
     if (test && !test.quietWhenEmpty && selected.length === 0) {
-      reporter.noTestCases();
+      reporter.noTestCases(registered.length > 0 ? filter : undefined);
       return EXIT_HD_FAILURE;
     }
     if (selected.length === 0 && test) return 0;
@@ -500,6 +522,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     // (owner decision, batch 42); `--entry` must name a function.
     if (selected.length === 0 && !explicitEntry) return 0;
     if (selected.length === 0) throw new Error(`program has no exported ${entryName} function`);
+    running = true;
     const outcome = await runSelected(
       selected,
       instance.exports,
@@ -509,7 +532,10 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       properties,
       snapshots.check,
       test && {
-        record: (name, outcome, message) => loaded.output.test(name, outcome, message),
+        record: (name, outcome, message) => {
+          if (outcome === "passed") passedCases += 1;
+          loaded.output.test(name, outcome, message);
+        },
         // With `--format json` every test case reports (cli.json.test), so a
         // failure does not stop the run.
         keepGoing: test.format === "json",
@@ -518,16 +544,21 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     if (outcome.kind === "exit") return outcome.code;
     if (outcome.kind === "failed") {
       reporter.entryError(outcome.subject, outcome.outcome);
+      failedLine();
       return 1;
     }
     if (test) {
       if (test.format === "text" && (outcome.count > 0 || !test.quietWhenEmpty))
         io.out(`${file}: ${outcome.count} passed`);
+      // With --deny-skipped, a skipped test case is a failure (cli.test.deny-skipped).
+      if (test.denySkipped && loaded.output.counts.skipped > 0) return 1;
       return loaded.output.counts.failed > 0 ? 1 : 0;
     }
     if (outcome.result !== undefined) io.out(outcome.result);
     return 0;
   } catch (error) {
-    return reportFailure(loaded, error);
+    const status = reportFailure(loaded, error);
+    if (running) failedLine();
+    return status;
   }
 }
