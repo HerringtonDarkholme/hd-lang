@@ -109,7 +109,7 @@ fn powered() -> u64:
   assert.deepEqual([shifted.left.type, shifted.right.type, shifted.type], ["u64", "u32", "u64"]);
   const powered = resultExpression(program, "powered");
   assert.equal(powered.kind, "binary");
-  assert.deepEqual([powered.left.type, powered.right.type, powered.type], ["u64", "i32", "u64"]);
+  assert.deepEqual([powered.left.type, powered.right.type, powered.type], ["u64", "u32", "u64"]);
 });
 
 test("an immediate left literal still adopts a primitive right operand type", () => {

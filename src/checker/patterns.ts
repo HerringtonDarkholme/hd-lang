@@ -779,6 +779,7 @@ export abstract class PatternChecker extends CallChecker {
             Expression,
             { kind: "boolean" | "integer" | "float" | "string" | "character" }
           >,
+          field.type,
         );
         this.requireType(literal.type, field.type, nested.span);
         tests.push({ path: fieldPath, literal });

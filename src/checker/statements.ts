@@ -1,4 +1,11 @@
 import { cellType } from "./captured-cells.ts";
+import {
+  isDefaultedLiteral,
+  literalText,
+  recordDefaultedLocal,
+  withDefaultedLocalHint,
+  firstBareLiteral,
+} from "./literal-join.ts";
 import type { Expression, Statement } from "../ast.ts";
 import type { HirExpression, HirGlobal, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
@@ -21,7 +28,7 @@ import {
 } from "../types.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { numericType } from "../numeric.ts";
-import { CheckerContext, PRELUDE_NAMES } from "./context.ts";
+import { CheckerContext, CheckFailure, PRELUDE_NAMES } from "./context.ts";
 import { statementsReferenceName } from "./shared.ts";
 
 export abstract class StatementChecker extends CheckerContext {
@@ -285,7 +292,8 @@ export abstract class StatementChecker extends CheckerContext {
             statement.value,
             this.inferResult ? undefined : this.signature.result,
           );
-        if (this.inferResult) this.recordInferredReturn(value?.type ?? "void", statement.span);
+        if (this.inferResult)
+          this.recordInferredReturn(value?.type ?? "void", statement.span, value);
         else if (value) value = this.requireCoercion(value, this.signature.result, statement.span);
         else this.requireAssignable("void", this.signature.result, statement.span);
         return { kind: "return", value, span: statement.span };
@@ -310,8 +318,14 @@ export abstract class StatementChecker extends CheckerContext {
             statement.span,
           );
         }
-        const value = statement.value && this.checkExpression(statement.value, loopResult);
-        if (value && loopResult)
+        // A loop whose `else` value is a defaulted literal joins it with the
+        // `break` values (the join model, literal-join.ts).
+        const joining = this.loopJoins.at(-1);
+        const value =
+          statement.value &&
+          this.checkExpression(statement.value, joining ? undefined : loopResult);
+        if (value && joining) joining.push(value);
+        else if (value && loopResult)
           this.requireAssignable(value.type, loopResult, statement.value!.span);
         return { kind: "break", value, span: statement.span };
       case "continue":
@@ -636,6 +650,35 @@ export abstract class StatementChecker extends CheckerContext {
       : undefined;
   }
 
+  /** Per loop, the `break` values that join its defaulted `else` literal. */
+  protected readonly loopJoins: (HirExpression[] | undefined)[] = [];
+
+  /** A coercion whose failure gains the join model's literal fix hint (literal-join.ts). */
+  protected override requireCoercion(
+    expression: HirExpression,
+    expected: ValueType,
+    span: SourceSpan,
+  ): HirExpression {
+    return this.withLiteralHint([[expression, expected]], () =>
+      super.requireCoercion(expression, expected, span),
+    );
+  }
+
+  /** `check`, whose failure gains the join model's literal fix hint (literal-join.ts). */
+  protected withLiteralHint<T>(
+    pairs: readonly (readonly [HirExpression, ValueType])[],
+    check: () => T,
+  ): T {
+    const before = this.diagnostics.length;
+    try {
+      return check();
+    } catch (error) {
+      if (error instanceof CheckFailure && this.diagnostics.length === before + 1)
+        this.diagnostics[before] = withDefaultedLocalHint(this.diagnostics[before]!, pairs);
+      throw error;
+    }
+  }
+
   private checkBindingStatement(statement: Extract<Statement, { kind: "binding" }>): HirStatement {
     if (PRELUDE_NAMES.has(statement.name)) {
       this.fail(
@@ -740,6 +783,18 @@ export abstract class StatementChecker extends CheckerContext {
       this.pendingRecursiveClosure = previousRecursiveClosure;
       this.inferredBinding = previousInferredBinding;
     }
+    // A bare literal that defaulted to `usize` is remembered for the fix
+    // hint of a later conflict (the join model, literal-join.ts).
+    const defaultedLiteral = annotation
+      ? undefined
+      : statement.value.kind === "integer"
+        ? isDefaultedLiteral(value)
+          ? statement.value
+          : undefined
+        : ["list", "map", "tuple", "data", "range"].includes(statement.value.kind) &&
+            /\bu32\b/.test(value.type)
+          ? firstBareLiteral(statement.value)
+          : undefined;
     // `:=` and a plain `let` infer the readonly view, even of a fresh value;
     // `let mut` infers `mut T` and never upgrades a readonly value
     // (04-type-system.md#binding-forms).
@@ -788,6 +843,16 @@ export abstract class StatementChecker extends CheckerContext {
       this.locals.push(local);
       this.currentScope().set(statement.name, local);
     }
+    if (defaultedLiteral)
+      recordDefaultedLocal(local, {
+        name: statement.name,
+        literal: literalText(defaultedLiteral),
+        span: defaultedLiteral.span,
+        ...(defaultedLiteral !== statement.value ? { kind: "structure" as const } : {}),
+        statement: statement.span,
+        initializer: statement.value.span,
+        letMut: statement.mutableAccess === true,
+      });
     return { kind: "binding", local, value, span: statement.span };
   }
 }

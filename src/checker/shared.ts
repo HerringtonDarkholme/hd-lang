@@ -17,6 +17,7 @@ import type {
 } from "../hir.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
 import { matchGenericTypePattern } from "./generic-patterns.ts";
+import { pureLiteralKind } from "./literal-join.ts";
 import { normalizedRequirements, rowParameterName, sameRequirements } from "./requirement-rows.ts";
 
 export { matchGenericTypePattern } from "./generic-patterns.ts";
@@ -451,12 +452,10 @@ export function genericTypeName(type: ValueType): string | undefined {
 /**
  * An unsuffixed numeric literal argument, possibly negated: its type comes
  * from the parameter it fills, so it never solves a type parameter that
- * another argument solves (types.literal.open.decide.generic).
+ * another argument solves (types.literal.local.form.argument).
  */
 export function isNumericLiteralArgument(source: Expression): boolean {
-  let literal = source;
-  while (literal.kind === "unary" && literal.operator === "-") literal = literal.operand;
-  return literal.kind === "integer" || literal.kind === "float";
+  return pureLiteralKind(source) !== undefined;
 }
 
 export function argumentOwnType(source: Expression, checked: HirExpression): ValueType | undefined {

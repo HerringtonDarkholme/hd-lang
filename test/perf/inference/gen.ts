@@ -295,6 +295,43 @@ export const CASES: readonly PerfCase[] = [
       ].join("\n");
     },
   },
+  {
+    name: "retry-receivers",
+    describe:
+      "100/1k/10k literal receivers, each retried at the width its closure parameter asks for",
+    expect: "accept",
+    generate: (scale) => {
+      const count = 100 * scale;
+      return [
+        "fn run() -> bool:",
+        "    let all = true",
+        indent(lines(count, () => "all = all && [1, 2].iter().all(fn(n: i32) -> bool: n > 0)")),
+        "    all",
+        "",
+      ].join("\n");
+    },
+  },
+  {
+    name: "retry-nested",
+    describe:
+      "10/100/1k statements, each a literal receiver nested in 10 generic calls and retried once",
+    expect: "accept",
+    generate: (scale) => {
+      const count = 10 * scale;
+      const receiver = "[1, 2].iter().all(fn(n: i32) -> bool: n > 0)";
+      const nested = `${"wrap(".repeat(10)}${receiver}${")".repeat(10)}`;
+      return [
+        "fn wrap[T](value: T) -> T:",
+        "    value",
+        "",
+        "fn run() -> bool:",
+        "    let all = true",
+        indent(lines(count, () => `all = all && ${nested}`)),
+        "    all",
+        "",
+      ].join("\n");
+    },
+  },
 ];
 
 // The gate's yardstick (gate.ts): fully annotated, linear code with no open

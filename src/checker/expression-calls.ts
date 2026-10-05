@@ -39,7 +39,7 @@ import { implementationsFor } from "./implementation-index.ts";
 import type { QualifiedCallExpression } from "./trait-calls.ts";
 import { IterationChecker } from "./iteration.ts";
 import { supertraitPathBindings } from "./trait-paths.ts";
-import { literalArgumentsUseDefaults, speculate } from "./call-speculation.ts";
+import { keepLiteralDefaults, speculate } from "./call-speculation.ts";
 import { isDowncastValImport } from "./inspectable.ts";
 import { checkLiteralSuffixCall, checkStringPrefixCall } from "./literal-suffixes.ts";
 import { TYPE_ID } from "./standard-traits.ts";
@@ -831,15 +831,15 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       };
       const trials = candidates.map((candidate) => ({ candidate, call: trial(candidate) }));
       let fitting = trials.filter((entry) => entry.call !== undefined);
-      if (fitting.length > 1) {
-        // TQ-4 follow-up: when several instantiations fit only because a
-        // numeric literal accepts several types, prefer the literal's
-        // default type (`i32`, `f64`).
-        const preferred = fitting.filter((entry) =>
-          literalArgumentsUseDefaults(expression.arguments, entry.call!),
-        );
-        if (preferred.length === 1) fitting = preferred;
-      }
+      const kept = keepLiteralDefaults(
+        fitting,
+        expression,
+        1,
+        ({ candidate }) =>
+          `${trait.name}[${candidate.implementation.traitArguments.map(displayType).join(", ")}]`,
+      );
+      if (typeof kept === "string") this.fail("type-mismatch", kept, expression.span);
+      fitting = kept;
       if (fitting.length > 1)
         this.fail(
           "ambiguous-method",
@@ -1035,7 +1035,9 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const reasonIndex = sourceIndex(2);
       // `T` is the readonly view of `actual`'s type, so a `mut` actual
       // compares with a readonly expected value.
-      const checkedActual = this.checkExpression(expression.arguments[actualIndex]!);
+      const actualSource = expression.arguments[actualIndex]!;
+      const hint = this.literalJoinExpected(actualSource, expression.arguments[expectedIndex]!);
+      const checkedActual = this.checkExpression(actualSource, hint);
       const actual = { ...checkedActual, type: readonlyType(checkedActual.type) };
       const shownActual = displayType(actual.type);
       if (!this.equalityStrategy(actual.type))
@@ -1452,12 +1454,15 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         }
       });
       let fitting = trials.filter((entry) => entry.call !== undefined);
-      if (fitting.length > 1) {
-        const preferred = fitting.filter((entry) =>
-          literalArgumentsUseDefaults(expression.arguments, entry.call!, 0),
-        );
-        if (preferred.length === 1) fitting = preferred;
-      }
+      const kept = keepLiteralDefaults(
+        fitting,
+        expression,
+        0,
+        ({ candidate }) =>
+          `${candidate.candidateTrait.name}[${candidate.traitArguments.map((argument) => displayType(substituteGenericType(argument, candidate.substitutions))).join(", ")}]`,
+      );
+      if (typeof kept === "string") this.fail("type-mismatch", kept, expression.span);
+      fitting = kept;
       if (fitting.length === 0)
         this.fail(
           "type-mismatch",

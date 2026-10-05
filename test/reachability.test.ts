@@ -233,8 +233,8 @@ pub fn recover() -> i32 $ Device:
 
 test("for-loop iterator methods are declaration references, not ordinary calls", async () => {
   const source = `fn main() -> i32:
-    let total = 0
-    for value in 0..7:
+    let total = +0
+    for value in +0..7:
         total = total + value
     total * 2
 `;

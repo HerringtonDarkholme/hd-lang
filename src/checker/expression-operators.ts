@@ -27,6 +27,8 @@ import {
   traitTypeName,
 } from "./shared.ts";
 
+import { pureLiteralKind } from "./literal-join.ts";
+import { defaultGroupWidth, forcedGroupWidth } from "./literal-retry.ts";
 import {
   ExpressionLiteralChecker,
   floatLiteralTarget,
@@ -292,7 +294,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         const operatorTrait = BINARY_OPERATOR_TRAITS[expression.operator];
         const leftSource = expression.left;
         let checkedLeft: HirExpression | undefined;
-        if (operatorTrait && !isIntegerLiteral(leftSource) && !isFloatLiteral(leftSource)) {
+        if (operatorTrait && pureLiteralKind(leftSource) === undefined) {
           checkedLeft = this.checkExpression(
             leftSource,
             numericLeftExpected(expression, _expected),
@@ -350,42 +352,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         const integerPower =
           expression.operator === "**" && isIntegerType(left.type) && unsignedExponent;
         const integerShift = this.checkShiftCount(expression.operator, left, right);
-        // 04 Binary Numeric Operators: signed and unsigned integers do not mix.
-        if (
-          left.type !== right.type &&
-          !integerPower &&
-          !integerShift &&
-          isIntegerType(left.type) &&
-          isIntegerType(right.type) &&
-          numericType(left.type)!.family !== numericType(right.type)!.family
-        )
-          this.fail(
-            "mixed-signedness",
-            `signed and unsigned operands do not mix: ${typeSourceText(left.type)} and ${typeSourceText(right.type)}; cast one explicitly`,
-            expression.span,
+        if (left.type !== right.type && !integerPower && !integerShift)
+          this.withLiteralHint(
+            [
+              [left, right.type],
+              [right, left.type],
+            ],
+            () => this.rejectOperandTypes(expression, left, right),
           );
-        if (left.type !== right.type && !integerPower && !integerShift) {
-          if (
-            expression.operator === "**" &&
-            numericType(left.type) &&
-            numericType(right.type) &&
-            isIntegerType(left.type) !== isIntegerType(right.type)
-          )
-            this.fail(
-              "mixed-numeric-types",
-              "integer and floating-point power operands cannot be mixed",
-              expression.span,
-            );
-          this.rejectMixedWidths(left, right, "operator operands");
-          const trait = BINARY_OPERATOR_TRAITS[expression.operator];
-          this.fail(
-            "type-mismatch",
-            trait && !isPrimitiveOperand(right.type)
-              ? `operator '${expression.operator}' needs an implementation of std.ops.${trait[0]}[${typeSourceText(readonlyType(right.type))}] for '${typeSourceText(left.type)}'`
-              : `operator operands have types ${typeSourceText(left.type)} and ${typeSourceText(right.type)}`,
-            expression.span,
-          );
-        }
         if (comparison && functionParts(left.type)) {
           this.fail(
             "unsupported-equality",
@@ -581,14 +555,21 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     _expected: ValueType | undefined,
   ): HirExpression {
     const literalTarget = integerLiteralTarget(_expected);
-    // A negated literal is range-checked as a unit (04 Negated Integer Literals).
+    // A signed literal, `-1` or `+5`, is one literal: range-checked as a unit
+    // (04 Negated Integer Literals), and `i32` with no expected type. Under an
+    // unsigned expected type, `-` stays the operator, which rejects it, and
+    // `+` passes the type through.
     if (
-      expression.operator === "-" &&
+      (expression.operator === "-" || expression.operator === "+") &&
       expression.operand.kind === "integer" &&
-      (numericType(literalTarget)?.family === "signed" ||
-        expression.operand.value === 2_147_483_648n)
+      (literalTarget === undefined || numericType(literalTarget)?.family === "signed")
     )
-      return this.integerLiteral(-expression.operand.value, _expected, expression.span);
+      return this.integerLiteral(
+        expression.operator === "-" ? -expression.operand.value : expression.operand.value,
+        _expected,
+        expression.span,
+        true,
+      );
     const operand = this.checkExpression(
       expression.operand,
       expression.operator === "-" || expression.operator === "+" || expression.operator === "~"
@@ -619,10 +600,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     } else {
       // 05 Arithmetic: unary `-` does not accept an unsigned integer.
       if (expression.operator === "-" && numericType(operand.type)?.family === "unsigned")
-        this.fail(
-          "unsigned-negation",
-          `unary '-' does not accept the unsigned type '${typeSourceText(operand.type)}'`,
-          expression.span,
+        this.withLiteralHint([[operand, "i32"]], () =>
+          this.fail(
+            "unsigned-negation",
+            `unary '-' does not accept the unsigned type '${typeSourceText(operand.type)}'`,
+            expression.span,
+          ),
         );
       if (!numericType(operand.type)) {
         const code =
@@ -642,6 +625,45 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       type,
       span: expression.span,
     };
+  }
+
+  /** Operand types that differ: a signedness, width, or type mismatch. */
+  private rejectOperandTypes(
+    expression: Extract<Expression, { kind: "binary" }>,
+    left: HirExpression,
+    right: HirExpression,
+  ): never {
+    // 04 Binary Numeric Operators: signed and unsigned integers do not mix.
+    if (
+      isIntegerType(left.type) &&
+      isIntegerType(right.type) &&
+      numericType(left.type)!.family !== numericType(right.type)!.family
+    )
+      this.fail(
+        "mixed-signedness",
+        `signed and unsigned operands do not mix: ${typeSourceText(left.type)} and ${typeSourceText(right.type)}; cast one explicitly`,
+        expression.span,
+      );
+    if (
+      expression.operator === "**" &&
+      numericType(left.type) &&
+      numericType(right.type) &&
+      isIntegerType(left.type) !== isIntegerType(right.type)
+    )
+      this.fail(
+        "mixed-numeric-types",
+        "integer and floating-point power operands cannot be mixed",
+        expression.span,
+      );
+    this.rejectMixedWidths(left, right, "operator operands");
+    const trait = BINARY_OPERATOR_TRAITS[expression.operator];
+    this.fail(
+      "type-mismatch",
+      trait && !isPrimitiveOperand(right.type)
+        ? `operator '${expression.operator}' needs an implementation of std.ops.${trait[0]}[${typeSourceText(readonlyType(right.type))}] for '${typeSourceText(left.type)}'`
+        : `operator operands have types ${typeSourceText(left.type)} and ${typeSourceText(right.type)}`,
+      expression.span,
+    );
   }
 
   /**
@@ -680,11 +702,51 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const resultTyped = NUMERIC_RESULT_OPERATORS.has(expression.operator);
     const outer = resultTyped ? integerLiteralTarget(expected) : undefined;
     const outerFloat = resultTyped ? floatLiteralTarget(expected) : undefined;
-    const leftLiteral = isIntegerLiteral(expression.left);
-    const leftFloat = isFloatLiteral(expression.left);
     const leftContext = resultTyped
       ? contextualNumericExpected(expression.left, expected)
       : undefined;
+    const shift = expression.operator === "<<" || expression.operator === ">>";
+    const countOrExponent = shift || expression.operator === "**";
+    // The join model (literal-join.ts): two operands built only of literals
+    // form one group, `i32` when any is signed and `usize` otherwise; a
+    // literal operand beside a typed one takes that one's type, so the typed
+    // side is checked first, in either order.
+    const leftPure = checkedLeft === undefined ? pureLiteralKind(expression.left) : undefined;
+    const rightPure = pureLiteralKind(expression.right);
+    const groupTarget =
+      leftPure !== undefined && rightPure !== undefined
+        ? ((leftPure === "integer" ? outer : outerFloat) ??
+          forcedGroupWidth([expression.left, expression.right]) ??
+          defaultGroupWidth(
+            countOrExponent ? [expression.left] : [expression.left, expression.right],
+          ))
+        : undefined;
+    const variantOperand =
+      isContextualVariant(expression.left) || isContextualVariant(expression.right);
+    if (
+      numeric &&
+      !countOrExponent &&
+      leftPure !== undefined &&
+      rightPure === undefined &&
+      !variantOperand
+    ) {
+      const contextualRightKind = contextualNumericKind(expression.right);
+      const right = this.checkExpression(
+        expression.right,
+        contextualRightKind === "integer"
+          ? outer
+          : contextualRightKind === "float"
+            ? outerFloat
+            : undefined,
+      );
+      const family = numericType(readonlyType(right.type))?.family;
+      const typed =
+        family !== undefined && (family === "float") === (leftPure === "float")
+          ? readonlyType(right.type)
+          : leftContext;
+      const left = this.checkExpression(expression.left, typed);
+      return { left, right };
+    }
     // In `==` and `!=`, a contextual variant operand takes the other
     // operand's type as its expected type, on either side
     // (05-expressions.md#r-expr.eq.contextual-operand). Two contextual
@@ -700,12 +762,11 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       checkedLeft ??
       this.checkExpression(
         expression.left,
-        leftFirstRight ? readonlyType(leftFirstRight.type) : leftContext,
+        leftFirstRight ? readonlyType(leftFirstRight.type) : (groupTarget ?? leftContext),
       );
     // A floating-point literal exponent takes the base's type
     // (r-expr.power.float.same-type), and a shift count is a `u32`
     // (r-expr.shift.count-literal).
-    const shift = expression.operator === "<<" || expression.operator === ">>";
     const contextualRight = contextualNumericKind(expression.right);
     const rightTarget = shift
       ? "u32"
@@ -713,13 +774,19 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         ? contextualRight === "float" && left.type === "f32"
           ? "f32"
           : undefined
-        : contextualRight === "integer"
-          ? (integerTarget(left.type) ?? outer)
-          : contextualRight === "float"
-            ? left.type === "f32"
-              ? "f32"
-              : outerFloat
-            : undefined;
+        : groupTarget !== undefined
+          ? groupTarget
+          : contextualRight === "integer"
+            ? (integerTarget(left.type) ?? outer)
+            : contextualRight === "float"
+              ? left.type === "f32"
+                ? "f32"
+                : outerFloat
+              : // The join model: a typed left operand is the expected type
+                // of any right operand, as of a generic call `identity(0)`.
+                numeric && numericType(readonlyType(left.type))
+                ? readonlyType(left.type)
+                : undefined;
     let right =
       leftFirstRight ??
       this.checkExpression(
@@ -727,10 +794,6 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         equalityOperator && rightVariant && !leftVariant ? readonlyType(left.type) : rightTarget,
       );
     if (!numeric || expression.operator === "**") return { left, right };
-    if (leftLiteral && left.type === "i32" && integerTarget(right.type))
-      left = this.checkExpression(expression.left, right.type);
-    if (leftFloat && left.type === "f64" && right.type === "f32")
-      left = this.checkExpression(expression.left, "f32");
     // A literal operand typed before the other operand takes its type
     // (04-type-system.md#r-types.num.binary.literal); no other operand widens.
     const wider = widerNumeric(left.type, right.type);
@@ -987,25 +1050,6 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
 const LITERAL_EXPONENT_OPERATORS = new Set(["+", "*", "**"]);
 
 /** True for an exponent whose leaves are integer literals, which take type u32. */
-/** An unsuffixed integer literal, possibly negated. */
-function isFloatLiteral(expression: Expression): boolean {
-  if (expression.kind === "float") return true;
-  return (
-    expression.kind === "unary" &&
-    expression.operator === "-" &&
-    expression.operand.kind === "float"
-  );
-}
-
-function isIntegerLiteral(expression: Expression): boolean {
-  if (expression.kind === "integer") return true;
-  return (
-    expression.kind === "unary" &&
-    expression.operator === "-" &&
-    expression.operand.kind === "integer"
-  );
-}
-
 type ContextualNumericKind = "integer" | "float";
 const CONTEXTUAL_NUMERIC_KINDS = new WeakMap<Expression, ContextualNumericKind | null>();
 

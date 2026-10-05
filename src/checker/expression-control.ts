@@ -39,6 +39,14 @@ import {
   patternsExhaustive,
   type IntegerInterval,
 } from "./exhaustiveness.ts";
+import {
+  firstBareLiteral,
+  isDefaultedLiteral,
+  joinedLeastCommonType,
+  literalText,
+  recordDefaultedLocal,
+} from "./literal-join.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionComprehensionChecker, FOR_PATTERN_ITEM } from "./expression-comprehensions.ts";
 type MatchExpression = Extract<Expression, { kind: "match" }>;
 type MatchSourceArm = MatchExpression["arms"][number];
@@ -109,7 +117,8 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         }
         const thenType = this.blockType(thenBody);
         const elseType = this.blockType(elseBody);
-        const type = this.inferLeastCommonType(
+        const type = this.joinMemberType(
+          [finalValue(thenBody), finalValue(elseBody)],
           [thenType, elseType],
           "if branches",
           expression.span,
@@ -182,7 +191,9 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             ? this.checkStatements(expression.elseBody, true, expected)
             : [];
         const result = elseBody.length > 0 ? this.blockType(elseBody) : undefined;
+        const breaks = isDefaultedLiteral(finalValue(elseBody)) ? [] : undefined;
         this.loopResults.push(result);
+        this.loopJoins.push(breaks);
         this.scopes.push(new Map());
         let bindings: HirLocal[];
         let body: readonly HirStatement[];
@@ -214,10 +225,21 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             this.currentScope().set(binding.name, local);
             return local;
           });
+          // A loop over bare literals gives its bindings the literals' fix hint.
+          const looped = firstBareLiteral(expression.iterable);
+          for (const local of looped ? bindings : [])
+            if (local.type === "u32")
+              recordDefaultedLocal(local, {
+                name: local.name,
+                literal: literalText(looped!),
+                span: looped!.span,
+                kind: "loop",
+              });
           body = this.checkStatements(sourceBody, false);
         } finally {
           this.scopes.pop();
           this.loopResults.pop();
+          this.loopJoins.pop();
         }
         return {
           kind: "for",
@@ -228,7 +250,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           bindings,
           body,
           elseBody,
-          type: result ?? "void",
+          type: this.loopValueType(elseBody, result, breaks, expression.span) ?? "void",
           span: expression.span,
         };
       }
@@ -241,25 +263,46 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             ? this.checkConditionalSuite(expression.elseBody, bindingFlow.whenFalse, expected)
             : [];
         const result = elseBody.length > 0 ? this.blockType(elseBody) : undefined;
+        const breaks = isDefaultedLiteral(finalValue(elseBody)) ? [] : undefined;
         this.loopResults.push(result);
+        this.loopJoins.push(breaks);
         let body: readonly HirStatement[];
         try {
           body = this.checkConditionalSuite(expression.body, bindingFlow.whenTrue);
         } finally {
           this.loopResults.pop();
+          this.loopJoins.pop();
         }
         return {
           kind: "while",
           condition,
           body,
           elseBody,
-          type: result ?? "void",
+          type: this.loopValueType(elseBody, result, breaks, expression.span) ?? "void",
           span: expression.span,
         };
       }
       default:
         return undefined;
     }
+  }
+
+  /** A loop's value type: its `else` value joined with its `break` values. */
+  private loopValueType(
+    elseBody: readonly HirStatement[],
+    result: ValueType | undefined,
+    breaks: readonly HirExpression[] | undefined,
+    span: SourceSpan,
+  ): ValueType | undefined {
+    if (!breaks || result === undefined) return result;
+    const members = [
+      { type: result, value: finalValue(elseBody) },
+      ...breaks.map((value) => ({ type: value.type, value })),
+    ];
+    const joined = joinedLeastCommonType(members, { data: this.dataTypes, enums: this.enumTypes });
+    if ("type" in joined) return joined.type;
+    const listed = [...new Set(members.map((member) => displayType(member.type)))].join(", ");
+    this.fail(joined.code, `loop values have no common type: ${listed}`, span);
   }
 
   private applyConditionBindingFlow(expression: Expression): BindingExpressionFlow {
@@ -455,7 +498,12 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const resultType =
       context.resultTypes.length === 0
         ? "void"
-        : this.inferLeastCommonType(context.resultTypes, "match arms", expression.span);
+        : this.joinMemberType(
+            context.arms.map((arm) => finalValue(arm.body)),
+            context.resultTypes,
+            "match arms",
+            expression.span,
+          );
     return {
       kind: "match",
       subject: context.subject,
@@ -962,4 +1010,10 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       { ...last, expression: this.requireCoercion(last.expression, type, last.span) },
     ];
   }
+}
+
+/** The value a block ends with, a member of the join of its `if` or `match`. */
+function finalValue(body: readonly HirStatement[]): HirExpression | undefined {
+  const last = body.at(-1);
+  return last?.kind === "expression" ? last.expression : undefined;
 }

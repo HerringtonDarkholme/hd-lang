@@ -33,5 +33,5 @@ tests:
         assert_equal(escaped("é\\q"), "?2", reason="the offset counts bytes")
 
     it("a prefix can process escapes in its pieces"):
-        n := 7
+        n := +7
         assert_equal(cooked"n=$n\n", "n=7\n", reason="the escape after the value is processed")

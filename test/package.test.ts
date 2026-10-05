@@ -112,7 +112,7 @@ test("an initialization group runs statements in dependency order", async () => 
     "src/shop/prices.hd": [
       "use super.catalog.{base_price}",
       "",
-      "let markup = 5",
+      "let markup = +5",
       "",
       "pub fn price_of(sku: string) -> i32:",
       "    base_price(sku) + markup",

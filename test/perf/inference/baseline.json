@@ -5,7 +5,7 @@
     "node": "v24.19.0",
     "platform": "darwin-arm64"
   },
-  "referenceMs": 170.9,
+  "referenceMs": 184.8,
   "cases": {
     "list-nest": {
       "scales": [
@@ -13,12 +13,12 @@
         1000
       ],
       "scores": [
-        0.298,
-        3.2402
+        0.2686,
+        3.2371
       ],
-      "ratio": 10.87,
+      "ratio": 12.05,
       "codes": [
-        "type-mismatch"
+        "implicit-narrowing"
       ]
     },
     "open-lets-reverse": {
@@ -27,10 +27,10 @@
         50
       ],
       "scores": [
-        0.214,
-        2.4987
+        0.2216,
+        3.2705
       ],
-      "ratio": 11.68,
+      "ratio": 14.76,
       "codes": [
         "type-mismatch"
       ]
@@ -41,13 +41,11 @@
         300
       ],
       "scores": [
-        0.2109,
-        2.3087
+        0.8382,
+        9.3063
       ],
-      "ratio": 10.95,
-      "codes": [
-        "mixed-signedness"
-      ]
+      "ratio": 11.1,
+      "codes": []
     },
     "add-many-types": {
       "scales": [
@@ -55,10 +53,10 @@
         30
       ],
       "scores": [
-        0.6972,
-        4.8688
+        0.6257,
+        4.5238
       ],
-      "ratio": 6.98,
+      "ratio": 7.23,
       "codes": [
         "type-mismatch"
       ]
@@ -69,10 +67,10 @@
         100
       ],
       "scores": [
-        0.4223,
-        4.0878
+        0.4346,
+        4.2643
       ],
-      "ratio": 9.68,
+      "ratio": 9.81,
       "codes": []
     },
     "big-body": {
@@ -81,13 +79,11 @@
         100
       ],
       "scores": [
-        0.3803,
-        3.9766
+        0.7417,
+        8.3229
       ],
-      "ratio": 10.46,
-      "codes": [
-        "mixed-signedness"
-      ]
+      "ratio": 11.22,
+      "codes": []
     },
     "mutual-bounds": {
       "scales": [
@@ -95,10 +91,10 @@
         30
       ],
       "scores": [
-        0.2386,
-        5.1969
+        0.0646,
+        0.2917
       ],
-      "ratio": 21.78,
+      "ratio": 2.92,
       "codes": []
     },
     "closures-shared-var": {
@@ -107,13 +103,11 @@
         300
       ],
       "scores": [
-        0.5464,
-        3.5689
+        0.6082,
+        3.6728
       ],
-      "ratio": 6.53,
-      "codes": [
-        "type-mismatch"
-      ]
+      "ratio": 6.04,
+      "codes": []
     },
     "polymorphic-recursion": {
       "scales": [
@@ -121,10 +115,10 @@
         300
       ],
       "scores": [
-        0.3073,
-        2.2776
+        0.3655,
+        2.568
       ],
-      "ratio": 7.41,
+      "ratio": 7.03,
       "codes": []
     },
     "late-conflict": {
@@ -133,12 +127,12 @@
         100
       ],
       "scores": [
-        0.1928,
-        2.3735
+        0.1803,
+        2.248
       ],
-      "ratio": 12.31,
+      "ratio": 12.47,
       "codes": [
-        "type-mismatch"
+        "implicit-narrowing"
       ]
     },
     "occurs-check": {
@@ -147,13 +141,37 @@
         400
       ],
       "scores": [
-        0.2746,
-        2.7522
+        0.2611,
+        2.864
       ],
-      "ratio": 10.02,
+      "ratio": 10.97,
       "codes": [
         "type-mismatch"
       ]
+    },
+    "retry-receivers": {
+      "scales": [
+        3,
+        30
+      ],
+      "scores": [
+        0.5038,
+        5.5043
+      ],
+      "ratio": 10.92,
+      "codes": []
+    },
+    "retry-nested": {
+      "scales": [
+        10,
+        100
+      ],
+      "scores": [
+        0.3641,
+        3.4753
+      ],
+      "ratio": 9.55,
+      "codes": []
     }
   }
 }

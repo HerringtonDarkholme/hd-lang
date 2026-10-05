@@ -173,7 +173,7 @@ test("test cases run when there is no entry point", async () => {
 test("without main, Run evaluates top-level inputs with REPL semantics", async () => {
   const source = [
     "# no main: each top-level input runs in order",
-    "x := 21",
+    "x := +21",
     "",
     "fn double(n: i32) -> i32: n * 2",
     'println("hi")',

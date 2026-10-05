@@ -1,4 +1,10 @@
-import type { Expression, FunctionDecl, Parameter } from "../ast.ts";
+import type {
+  AssignmentStatement,
+  Expression,
+  FunctionDecl,
+  Parameter,
+  Statement,
+} from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, HirFunction, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
@@ -13,12 +19,24 @@ import {
   resultType,
   displayType,
 } from "../types.ts";
-import { CheckFailure, type Signature } from "./context.ts";
+import { CheckFailure, type FunctionCheckResult, type Signature } from "./context.ts";
 import { functionTypeMatchesRowPattern, matchTraitImplementation } from "./shared.ts";
 import { STANDARD_FROM } from "./standard-traits.ts";
 import { mismatchMessage } from "./row-rules.ts";
 
 import { ExpressionControlChecker } from "./expression-control.ts";
+import { fallbackLiteralHint } from "./literal-join.ts";
+import {
+  chosenWidth,
+  forceLiterals,
+  type LiteralWidths,
+  markState,
+  namedWidths,
+  restoreState,
+  statementLiterals,
+} from "./literal-retry.ts";
+const USIZE = /\bu32\b/;
+
 export class FunctionChecker extends ExpressionControlChecker {
   private contextualHintDepth = 0;
 
@@ -44,6 +62,129 @@ export class FunctionChecker extends ExpressionControlChecker {
   protected checkExpressionRaw(expression: Expression, expected?: ValueType): HirExpression {
     const prechecked = this.prechecked.get(expression);
     if (prechecked) return prechecked;
+    return this.checkExpressionKind(expression, expected);
+  }
+
+  private literalTrialDepth = 0;
+
+  /** The check, with the join model's literal hint added where no site gave one. */
+  override check(): FunctionCheckResult {
+    const result = super.check();
+    if (result.function || result.diagnostics.length === 0) return result;
+    const scope = [...this.locals, ...this.availableCaptures.values()];
+    const last = result.diagnostics.at(-1)!;
+    const hinted = fallbackLiteralHint(last, this.declaration.body, scope);
+    if (hinted === last) return result;
+    return { ...result, diagnostics: [...result.diagnostics.slice(0, -1), hinted] };
+  }
+
+  /**
+   * The join model's one retry per statement (types.literal.local.join): a
+   * statement that fails with its literals at their default types is
+   * checked again with them at each width the failure names, and the one
+   * width that makes it check is taken. Nested statements never retry
+   * inside a trial, so the work stays linear in the statement's size.
+   */
+  protected override checkStatement(
+    statement: Statement,
+    expected?: ValueType,
+    valueContext?: boolean,
+  ): HirStatement {
+    return this.retryStatement(statement, () => {
+      const checked = super.checkStatement(statement, expected, valueContext);
+      // A final value whose literal default its expected type rejects is a
+      // failure of this statement, so the retry sees it.
+      const value = checked.kind === "expression" ? checked.expression : undefined;
+      if (
+        value &&
+        expected &&
+        expected !== "void" &&
+        USIZE.test(value.type) &&
+        !USIZE.test(expected)
+      )
+        this.requireCoercion(value, expected, checked.span);
+      return checked;
+    });
+  }
+
+  protected override checkDestructuring(
+    statement: Extract<Statement, { kind: "tuple-binding" | "pattern-binding" }>,
+  ): HirStatement[] {
+    return this.retryStatement(statement, () => super.checkDestructuring(statement));
+  }
+
+  protected override checkCompoundAssignment(statement: AssignmentStatement): HirStatement[] {
+    return this.retryStatement(statement, () => super.checkCompoundAssignment(statement));
+  }
+
+  /**
+   * The join model's one retry per statement (types.literal.local.join): a
+   * statement that fails with its literals at their default types is
+   * checked again with them at each width the failure names, and the one
+   * width that makes it check is taken. Nested statements never retry
+   * inside a trial, so the work stays linear in the statement's size.
+   */
+  /** The literal hint for a failed statement, from any binding it names. */
+  private hintStatement(statement: Statement, from: number): void {
+    const last = this.diagnostics.length - 1;
+    if (last < from) return;
+    const scope = [...this.locals, ...this.availableCaptures.values()];
+    this.diagnostics[last] = fallbackLiteralHint(this.diagnostics[last]!, statement, scope, true);
+  }
+
+  private retryStatement<T>(statement: Statement, check: () => T): T {
+    if (this.literalTrialDepth > 0) return check();
+    const mark = markState(
+      [
+        this.diagnostics,
+        this.locals,
+        this.closures,
+        this.inferredRequirements,
+        this.inferredReturns,
+        this.inferredPropagations,
+      ],
+      [...this.scopes, this.captures, this.prechecked, this.globals],
+    );
+    try {
+      return check();
+    } catch (error) {
+      if (!(error instanceof CheckFailure)) throw error;
+      this.hintStatement(statement, mark.lengths[0]![1]);
+      const failed = this.diagnostics.slice(mark.lengths[0]![1]);
+      const found = statementLiterals(statement);
+      const widths = namedWidths(found, failed);
+      if (widths.length === 0) throw error;
+      restoreState(mark);
+      const fits: LiteralWidths[] = [];
+      for (const width of widths) {
+        const undo = forceLiterals(found, width);
+        this.literalTrialDepth += 1;
+        try {
+          check();
+          fits.push(width);
+        } catch (trial) {
+          if (!(trial instanceof CheckFailure)) throw trial;
+        } finally {
+          this.literalTrialDepth -= 1;
+          undo();
+          restoreState(mark);
+        }
+      }
+      const chosen = chosenWidth(found, fits);
+      if (chosen === undefined) {
+        this.diagnostics.push(...failed);
+        throw error;
+      }
+      const undo = forceLiterals(found, chosen);
+      try {
+        return check();
+      } finally {
+        undo();
+      }
+    }
+  }
+
+  private checkExpressionKind(expression: Expression, expected?: ValueType): HirExpression {
     const checked =
       this.checkLiteralExpression(expression, expected) ??
       this.checkOperatorExpression(expression, expected) ??

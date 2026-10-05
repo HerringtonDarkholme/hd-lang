@@ -47,6 +47,8 @@ export const GATE: readonly GateCase[] = [
   { name: "polymorphic-recursion", scales: [30, 300] },
   { name: "late-conflict", scales: [10, 100], known: "10x to 14x per 10x" },
   { name: "occurs-check", scales: [40, 400], known: "11x to 13x per 10x" },
+  { name: "retry-receivers", scales: [3, 30] },
+  { name: "retry-nested", scales: [10, 100] },
 ];
 
 const MAX_RATIO_PER_10X = 12;

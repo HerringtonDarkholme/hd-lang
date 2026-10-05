@@ -44,7 +44,7 @@ tests:
         assert_equal(doubled(["a", "b"])["b"], "bb", reason="generic comprehension")
 
     it("collect builds a map, the later value wins in the first position"):
-        let m: Map[string, i32] = [("a", 1), ("b", 2), ("a", 3)].iter().collect()
+        let m: Map[string, i32] = [("a", +1), ("b", +2), ("a", +3)].iter().collect()
         assert_equal(m.len(), 2, reason="two keys")
         assert_equal(m["a"], 3, reason="the later value")
         let keys: mut List[string] = []

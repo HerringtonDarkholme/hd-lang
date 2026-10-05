@@ -187,7 +187,7 @@ test("loop activations retain independent mutable cells while sibling closures s
 fn main!() -> i32:
     let readers: mut List[fn() -> i32] = []
     let writers: mut List[fn!() -> i32] = []
-    for seed in [10, 20]:
+    for seed in [+10, 20]:
         let count: i32 = seed
         readers.push(fn() -> i32: count)
         writers.push(fn!() -> i32:

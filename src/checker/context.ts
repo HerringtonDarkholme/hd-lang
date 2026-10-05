@@ -33,7 +33,6 @@ import {
   type InspectEnvironment,
 } from "./inspectable.ts";
 import { isPermissionWeakening, weakenBoundedGenericActual } from "./assignability.ts";
-import { leastCommonType } from "./least-common-type.ts";
 import { isRowSubsumption, mismatchMessage, rowDiagnostic } from "./row-rules.ts";
 import { requirementKeyDiagnosticsInType } from "./requirement-keys.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
@@ -50,7 +49,6 @@ import {
   substituteGenericType,
   traitTypeName,
   MAX_BOUND_DEPTH,
-  numericWidening,
 } from "./shared.ts";
 import { dynamicTraitProblemInType, writtenTypeProblem } from "./written-type-validation.ts";
 import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
@@ -67,6 +65,8 @@ import {
   displayType,
 } from "../types.ts";
 import { narrowsTo, numericType, widensTo } from "../numeric.ts";
+import { captureOf, coerceLiteral, finalValueOf, type InferredReturn } from "./literal-join.ts";
+import { joinedLeastCommonType } from "./literal-join.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
 import type {
   FunctionCheckResult,
@@ -166,8 +166,7 @@ export abstract class CheckerContext {
   /** The `name := value` binding whose initializer is being checked without an annotation. */
   protected inferredBinding?: InferredBinding;
   protected readonly inferredRequirements: string[] = [];
-  protected readonly inferredReturns: { readonly type: ValueType; readonly span: SourceSpan }[] =
-    [];
+  protected readonly inferredReturns: InferredReturn[] = [];
   protected readonly inferredPropagations: termination.InferredPropagation[] = [];
   protected readonly closureIndex: number;
   protected readonly captures = new Map<string, HirCapture>();
@@ -316,11 +315,11 @@ export abstract class CheckerContext {
       if (this.inferResult) {
         const last = body.at(-1);
         if (last?.kind !== "return")
-          this.recordInferredReturn(this.blockType(body), last?.span ?? this.declaration.span);
-        const inferred = leastCommonType(
-          this.inferredReturns.map(({ type }) => type),
-          { data: this.dataTypes, enums: this.enumTypes },
-        );
+          this.recordInferredReturn(this.blockType(body), last?.span, finalValueOf(body));
+        const inferred = joinedLeastCommonType(this.inferredReturns, {
+          data: this.dataTypes,
+          enums: this.enumTypes,
+        });
         if (!("type" in inferred)) {
           const listed = [...new Set(this.inferredReturns.map(({ type }) => type))]
             .map(displayType)
@@ -460,7 +459,7 @@ export abstract class CheckerContext {
     wrapOptional = true,
   ): HirExpression {
     if (!expected || value.type === expected || value.type === "never") return value;
-    const widened = numericWidening(value, readonlyType(expected), span);
+    const widened = coerceLiteral(value, readonlyType(expected), span, this.fail.bind(this));
     if (widened) return widened;
     // Row subsumption adapts a function value like a weakening (r-req.row.subsume).
     if (isPermissionWeakening(value.type, expected) || isRowSubsumption(value.type, expected)) {
@@ -1220,8 +1219,8 @@ export abstract class CheckerContext {
     return last?.kind === "expression" ? last.expression.type : "void";
   }
 
-  protected recordInferredReturn(type: ValueType, span: SourceSpan): void {
-    this.inferredReturns.push({ type, span });
+  protected recordInferredReturn(type: ValueType, span?: SourceSpan, value?: HirExpression): void {
+    this.inferredReturns.push({ type, span: span ?? this.declaration.span, value });
   }
 
   protected checkFallthrough(body: readonly HirStatement[]): void {
@@ -1336,13 +1335,13 @@ export abstract class CheckerContext {
   // has in its enclosing scope (07-functions.md#r-fn.capture.access).
   protected captureReference(name: string, source: HirLocal, span: SourceSpan): HirExpression {
     const fieldIndex = this.captureField(name, source);
-    return {
+    return captureOf(source, {
       kind: "capture",
       closureIndex: this.closureIndex,
       fieldIndex,
       type: source.type,
       span,
-    };
+    });
   }
 
   /** The environment field of a captured binding, registering it on first use. */
@@ -1364,13 +1363,13 @@ export abstract class CheckerContext {
         capture = { source, fieldIndex: this.captures.size };
         this.captures.set(source.name, capture);
       }
-      return {
+      return captureOf(source, {
         kind: "capture",
         closureIndex: this.closureIndex,
         fieldIndex: capture.fieldIndex,
         type: source.type,
         span,
-      };
+      });
     }
     throw new Error(`cannot materialize closure capture '${source.name}'`);
   }

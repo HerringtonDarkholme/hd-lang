@@ -1,5 +1,6 @@
 import type { Expression } from "../ast.ts";
 import type { HirExpression } from "../hir.ts";
+import { literalGroupDefault, literalNoFitMessage, pureLiteralKind } from "./literal-join.ts";
 
 // Trial checking of call arguments against several candidate
 // instantiations of one generic trait (09-traits.md#method-resolution).
@@ -79,6 +80,29 @@ export function speculate<T>(checker: object, check: () => T): T {
   }
 }
 
+/**
+ * The join model's choice among the instantiations that fit a call: when
+ * several fit and a numeric literal argument could take several types, the
+ * literal keeps its own type (`usize`, `i32` signed, `f64`), so only those
+ * instantiations stay; when none does, the message asks for the type.
+ */
+export function keepLiteralDefaults<T extends { readonly call?: HirExpression }>(
+  fitting: readonly T[],
+  expression: { readonly arguments: readonly Expression[]; readonly callee: Expression },
+  receiverOffset: number,
+  describe: (entry: T) => string,
+): T[] | string {
+  const sources = expression.arguments;
+  if (fitting.length < 2 || !sources.some((source) => pureLiteralKind(source) !== undefined))
+    return [...fitting];
+  const kept = fitting.filter((entry) =>
+    literalArgumentsUseDefaults(sources, entry.call!, receiverOffset),
+  );
+  const callee = expression.callee as { readonly name?: unknown };
+  const name = typeof callee.name === "string" ? callee.name : "call";
+  return kept.length > 0 ? kept : literalNoFitMessage(name, sources, fitting.map(describe));
+}
+
 /** True when every numeric-literal argument was checked at its default type. */
 export function literalArgumentsUseDefaults(
   sources: readonly Expression[],
@@ -87,10 +111,10 @@ export function literalArgumentsUseDefaults(
 ): boolean {
   const checked = "arguments" in call ? (call.arguments as readonly HirExpression[]) : [];
   return sources.every((source, index) => {
-    const literal = source.kind === "unary" && source.operator === "-" ? source.operand : source;
-    if (literal.kind !== "integer" && literal.kind !== "float") return true;
-    const type = checked[index + receiverOffset]?.type;
-    return type === (literal.kind === "integer" ? "i32" : "f64");
+    // The literal's own default: `usize` bare, `i32` signed, `f64` for a float.
+    const own = literalGroupDefault([source]);
+    if (own === undefined) return true;
+    return checked[index + receiverOffset]?.type === own;
   });
 }
 

@@ -1,7 +1,8 @@
 import type { Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
-import { speculationSafeArguments } from "./call-speculation.ts";
+import { speculate, speculationSafeArguments } from "./call-speculation.ts";
+import { CheckFailure } from "./context.ts";
 import { isIntegerType, numericType, type NumericType, widerIntegerName } from "../numeric.ts";
 import {
   mutableInner,
@@ -12,10 +13,20 @@ import {
   readonlyType,
   tupleParts,
   tupleRest,
+  displayType,
   typeSourceText,
   tupleType,
 } from "../types.ts";
 import { leastCommonType, rowUnionType } from "./least-common-type.ts";
+import { FORCED_LITERALS } from "./literal-retry.ts";
+import {
+  isDefaultedLiteral,
+  isLiteralStructure,
+  literalGroupDefault,
+  markDefaultedLiteral,
+  pureLiteralKind,
+  retypeDefaultedLiteral,
+} from "./literal-join.ts";
 
 import { PatternChecker } from "./patterns.ts";
 
@@ -188,20 +199,99 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     value: bigint,
     expected: ValueType | undefined,
     span: SourceSpan,
+    signed = false,
   ): HirExpression {
-    const target = integerLiteralTarget(expected) ?? "i32";
+    // The join model: an expected type fixes the literal's type; otherwise
+    // its own form does, `usize` bare and `i32` signed, and a join of its
+    // own expression may still retype it (literal-join.ts).
+    const fixed =
+      integerLiteralTarget(expected) ??
+      (expected === undefined || numericType(readonlyType(expected)) === undefined
+        ? FORCED_LITERALS.get(span)
+        : undefined);
+    const target = fixed ?? (signed ? "i32" : "u32");
     const { minimum, maximum, bits } = numericType(target)! as Required<NumericType>;
     const wider = widerIntegerName(target);
     if (value < minimum || value > maximum)
       this.fail(
         "integer-literal-range",
-        `integer literal is outside the ${target} range ${minimum}..${maximum}` +
-          (wider ? `; declare it ${wider} for a wider range` : ""),
+        value < 0n && minimum === 0n
+          ? `a negative literal cannot have the unsigned type '${displayType(target)}'; for a signed value, write the literal that gives it its type with a sign, as in '+3', or declare a signed type`
+          : `integer literal is outside the ${target} range ${minimum}..${maximum}` +
+              (wider ? `; declare it ${wider} for a wider range` : ""),
         span,
       );
-    return bits === 64
-      ? { kind: "integer", value: Number(value), wide: value.toString(), type: target, span }
-      : { kind: "integer", value: Number(value), type: target, span };
+    const literal: HirExpression =
+      bits === 64
+        ? { kind: "integer", value: Number(value), wide: value.toString(), type: target, span }
+        : { kind: "integer", value: Number(value), type: target, span };
+    return fixed === undefined ? markDefaultedLiteral(literal) : literal;
+  }
+
+  /**
+   * The expected type of a literal member of a two-member join whose other
+   * member `typed` decides it, as `assert_equal(3 + 4, expected, ...)`: the
+   * literals-only group default, or the other member's type, found by a
+   * trial check that leaves no trace.
+   */
+  protected literalJoinExpected(literal: Expression, typed: Expression): ValueType | undefined {
+    if (pureLiteralKind(literal) === undefined && !isLiteralStructure(literal)) return undefined;
+    if (pureLiteralKind(typed) !== undefined) return literalGroupDefault([literal, typed]);
+    if (isLiteralStructure(typed)) return undefined;
+    try {
+      return readonlyType(speculate(this, () => this.checkExpression(typed)).type);
+    } catch (error) {
+      if (error instanceof CheckFailure) return undefined;
+      throw error;
+    }
+  }
+
+  /**
+   * The type that the members of one join take (list elements, map keys or
+   * values, `if` branches, `match` arms): a member that is a defaulted
+   * literal takes the type the typed members join to, and a group of
+   * defaulted literals only is `i32` when any is signed, else `usize`.
+   */
+  protected joinMemberType(
+    members: readonly (HirExpression | undefined)[],
+    types: readonly ValueType[],
+    what: string,
+    span: SourceSpan,
+    spreadParts = false,
+  ): ValueType {
+    const flexible = members.map((member) => isDefaultedLiteral(member));
+    if (!flexible.some(Boolean)) return this.inferLeastCommonType(types, what, span, spreadParts);
+    const others = types.filter((type, index) => !flexible[index] && type !== "never");
+    const literals = types.filter((_, index) => flexible[index]);
+    if (others.length === 0) {
+      if (literals.every((type) => isIntegerType(type)))
+        return literals.includes("i32") ? "i32" : "u32";
+      return this.inferLeastCommonType(types, what, span, spreadParts);
+    }
+    const joined = this.inferLeastCommonType(others, what, span, spreadParts);
+    const kind = numericType(readonlyType(joined))?.family;
+    const literalKind = literals.every((type) => isIntegerType(type)) ? "integer" : "float";
+    if (kind === undefined || (kind === "float") !== (literalKind === "float"))
+      return this.inferLeastCommonType(types, what, span, spreadParts);
+    // A literal that does not fit the typed members' type names them.
+    const typed = members.find((member, index) => !flexible[index] && member !== undefined);
+    const typedName =
+      typed?.kind === "local" ? `'${typed.local.name}'` : `the other ${what.split(" ").at(-1)}`;
+    members.forEach((member, index) => {
+      if (!flexible[index]) return;
+      const retyped = retypeDefaultedLiteral(member!, readonlyType(joined));
+      if (retyped && "problem" in retyped) {
+        const literal = member as { readonly wide?: string; readonly value?: unknown };
+        const text = literal.wide ?? String(literal.value);
+        const shown = displayType(joined);
+        this.fail(
+          "integer-literal-range",
+          `integer literal ${text} does not fit '${shown}', the type of ${typedName} in the same ${what.split(" ")[0]}; ${text.startsWith("-") ? `give ${typedName} a signed type, or convert it, as in 'i32(...)'` : `give ${typedName} a wider type`}`,
+          member!.span,
+        );
+      }
+    });
+    return joined;
   }
 
   protected checkLiteralExpression(
@@ -213,7 +303,11 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         return this.integerLiteral(expression.value, expected, expression.span);
       case "float": {
         // An expected `f32` converts the literal directly (04 Floating-Point Literals).
-        const single = floatLiteralTarget(expected) === "f32";
+        const forced =
+          expected === undefined || numericType(readonlyType(expected)) === undefined
+            ? FORCED_LITERALS.get(expression.span)
+            : undefined;
+        const single = (floatLiteralTarget(expected) ?? forced) === "f32";
         const value = single ? Math.fround(expression.value) : expression.value;
         if (!Number.isFinite(value))
           this.fail(
@@ -221,7 +315,12 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             `floating-point literal is not finite as ${single ? "f32" : "f64"}`,
             expression.span,
           );
-        return { ...expression, value, type: single ? "f32" : "f64" };
+        const float: HirExpression = { ...expression, value, type: single ? "f32" : "f64" };
+        const fixedFloat =
+          single ||
+          forced !== undefined ||
+          (expected !== undefined && readonlyType(expected) === "f64");
+        return fixedFloat ? float : markDefaultedLiteral(float);
       }
       case "string":
         return {
@@ -259,7 +358,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           return this.checkExpression(listSpreadComprehension(expression), expected);
         const spreadOperands = (expression as { readonly spreadOperands?: readonly boolean[] })
           .spreadOperands;
-        const expectedDataType = expected ? readonlyType(expected) : undefined;
+        const expectedDataType = expected ? literalShape(expected) : undefined;
         const expectedNominal = expectedDataType
           ? nominalGenericParts(expectedDataType)
           : undefined;
@@ -271,6 +370,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           this.failUnresolvedType(["T"], "List[T]", expression.span);
         }
         const partTypes: ValueType[] = [];
+        const checkedSoFar: HirExpression[] = [];
         const checkedElements = expression.elements.map((element, index) => {
           const checked = this.checkExpression(element, contextualElement);
           if (
@@ -286,7 +386,9 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           partTypes.push(spreadOperands ? readonlyType(checked.type) : checked.type);
           if (contextualElement)
             return this.requireCoercion(checked, contextualElement, element.span);
-          this.inferLeastCommonType(
+          checkedSoFar.push(checked);
+          this.joinMemberType(
+            checkedSoFar,
             partTypes,
             "list elements",
             element.span,
@@ -296,7 +398,8 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         });
         const elementType =
           contextualElement ??
-          this.inferLeastCommonType(
+          this.joinMemberType(
+            checkedElements,
             partTypes,
             "list elements",
             expression.span,
@@ -321,10 +424,10 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         return { kind: "list", elements, elementType, type, span: expression.span };
       }
       case "tuple": {
-        const expectedTuple = expected ? tupleRest(readonlyType(expected)) : undefined;
+        const expectedTuple = expected ? tupleRest(literalShape(expected)) : undefined;
         if (expression.spread || expectedTuple?.rest !== undefined)
           return this.checkRestTuple(expression, expectedTuple);
-        const contextual = expected ? tupleParts(expected) : undefined;
+        const contextual = expected ? tupleParts(literalShape(expected)) : undefined;
         if (contextual && contextual.length !== expression.elements.length) {
           this.fail(
             "type-mismatch",
@@ -349,7 +452,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         };
       }
       case "map": {
-        const expectedNominal = expected ? nominalGenericParts(readonlyType(expected)) : undefined;
+        const expectedNominal = expected ? nominalGenericParts(literalShape(expected)) : undefined;
         const contextualKey =
           expectedNominal?.name === "Map" && expectedNominal.arguments.length === 2
             ? expectedNominal.arguments[0]
@@ -363,24 +466,28 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         }
         const keyTypes: ValueType[] = [];
         const valueTypes: ValueType[] = [];
+        const keys: HirExpression[] = [];
+        const values: HirExpression[] = [];
         const checkedEntries = expression.entries.map((entry) => {
           let key = this.checkExpression(entry.key, contextualKey);
           keyTypes.push(key.type);
+          keys.push(key);
           if (contextualKey) key = this.requireCoercion(key, contextualKey, entry.key.span);
-          else this.inferLeastCommonType(keyTypes, "map keys", entry.key.span);
+          else this.joinMemberType(keys, keyTypes, "map keys", entry.key.span);
           let value = this.checkExpression(entry.value, contextualValue);
           valueTypes.push(value.type);
+          values.push(value);
           if (contextualValue)
             value = this.requireCoercion(value, contextualValue, entry.value.span);
-          else this.inferLeastCommonType(valueTypes, "map values", entry.value.span);
+          else this.joinMemberType(values, valueTypes, "map values", entry.value.span);
           return { key, value };
         });
         // An inferred key type is readonly, as a `mut` key type is invalid.
         const keyType =
           contextualKey ??
-          readonlyType(this.inferLeastCommonType(keyTypes, "map keys", expression.span));
+          readonlyType(this.joinMemberType(keys, keyTypes, "map keys", expression.span));
         const valueType =
-          contextualValue ?? this.inferLeastCommonType(valueTypes, "map values", expression.span);
+          contextualValue ?? this.joinMemberType(values, valueTypes, "map values", expression.span);
         const entries = checkedEntries.map((entry, index) => ({
           key: this.requireCoercion(entry.key, keyType, expression.entries[index]!.key.span),
           value: this.requireCoercion(
@@ -413,6 +520,17 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
   }
 }
 
+/**
+ * The type whose shape a collection or tuple literal takes from `expected`:
+ * an optional's inner type, so `let pair: (string, i32)? = ("a", 1)` types
+ * the `1` as `i32` (the join model's rule 1).
+ */
+function literalShape(expected: ValueType): ValueType {
+  const type = readonlyType(expected);
+  const inner = optionalInner(type);
+  return inner !== undefined ? readonlyType(inner) : type;
+}
+
 /** The integer type an expected type asks an unsuffixed integer literal to take. */
 export function integerLiteralTarget(expected: ValueType | undefined): ValueType | undefined {
   if (!expected) return undefined;
@@ -420,9 +538,9 @@ export function integerLiteralTarget(expected: ValueType | undefined): ValueType
   return integerTarget(type) ?? integerTarget(optionalInner(type));
 }
 
-/** An integer type other than the default `i32`. */
+/** An integer type, which an unsuffixed integer literal takes when expected. */
 export function integerTarget(type: ValueType | undefined): ValueType | undefined {
-  return type !== "i32" && isIntegerType(type) ? type : undefined;
+  return isIntegerType(type) ? type : undefined;
 }
 
 /** The float type an expected type asks a floating-point literal to take. */

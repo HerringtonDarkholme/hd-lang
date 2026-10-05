@@ -95,7 +95,7 @@ fn unicode_escape(text: string, start: usize) -> EscapedScalar?:
     size := bytes_len(text)
     if start >= size || bytes_at(text, start) != 123:
         return .None
-    let point = 0
+    let point = +0
     let digits = 0
     let index = start + 1
     while index < size && bytes_at(text, index) != 125:
@@ -213,7 +213,7 @@ impl string:
             lead := i32(bytes[index])
             let width: usize = 1
             let point = lead
-            let lowest = 0
+            let lowest = +0
             if lead >= 240 && lead <= 244:
                 width = 4
                 point = lead - 240
@@ -453,7 +453,7 @@ impl char:
         if radix < 2 || radix > 36:
             panic("to_digit: the radix must be 2 to 36")
         point := i32(char_scalar(self))
-        let value = 36
+        let value = +36
         if point >= 48 && point <= 57:
             value = point - 48
         else if point >= 97 && point <= 122:
@@ -547,7 +547,7 @@ fn scalar_at(text: string, start: usize) -> i32:
     lead := i32(bytes_at(text, start))
     if lead < 128:
         return lead
-    let point = 0
+    let point = +0
     let width: usize = 4
     if lead < 224:
         point = lead - 192
@@ -596,7 +596,7 @@ fn in_ranges(table: string, point: i32) -> bool:
 
 # The five hex digits at byte `start`.
 fn range_field(table: string, start: usize) -> i32:
-    let value = 0
+    let value = +0
     let index = start
     while index < start + 5:
         value = value * 16 + hex_digit(i32(bytes_at(table, index)))

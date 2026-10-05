@@ -27,7 +27,7 @@ test("annotated lets warn exactly like unannotated ones", () => {
 test("unused-local detection covers a many-local body", () => {
   const lines = ["fn run() -> i32:", "    let total: i32 = 0"];
   for (let index = 0; index < 500; index += 1) {
-    lines.push(`    let used${index} = ${index}`);
+    lines.push(`    let used${index} = +${index}`);
     lines.push(`    let unread${index} = ${index}`);
     lines.push(`    total = total + used${index}`);
   }

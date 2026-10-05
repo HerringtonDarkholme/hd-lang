@@ -9,7 +9,7 @@ fn set(items: mut List[i32], at: u64, value: i32) -> void:
     items[at] = value
 
 fn main() -> i32:
-    let mut items = [7]
+    let mut items = [+7]
     set(items, u64(0), 9)
     get(items, u64(0))
 `;

@@ -169,8 +169,8 @@ test("shared enum data is a per-variant constant computed once", async () => {
     '    let second: Box[string] = Box.Full("b")',
     "    let empty: Box[string] = Box.Empty",
     "    let again: Box[string] = Box.Empty",
-    "    canonical := if empty is again: 100 else: 0",
-    "    shared := if first.items is second.items: 10 else: 0",
+    "    canonical := if empty is again: +100 else: 0",
+    "    shared := if first.items is second.items: +10 else: 0",
     "    canonical + shared + first.seen + second.seen + calls",
     "",
   ].join("\n");
@@ -473,7 +473,7 @@ test("cannot-infer-type names the uninferred parameter and the annotation that s
     analyze(source).diagnostics.find(({ code }) => code === "cannot-infer-type")?.message;
   assert.equal(
     message("fn main() -> void:\n    a := Result.Ok(123)\n"),
-    "cannot infer `E` in `Result[i32, E]`; annotate the binding: `let a: Result[i32, E] = ...`",
+    "cannot infer `E` in `Result[u32, E]`; annotate the binding: `let a: Result[u32, E] = ...`",
   );
   assert.equal(
     message('fn main() -> void:\n    failed := Result.Err("x")\n'),
@@ -487,7 +487,7 @@ test("cannot-infer-type names the uninferred parameter and the annotation that s
   );
   assert.equal(
     message("fn main() -> void:\n    items := [Result.Ok(1)]\n"),
-    "cannot infer `E` in `Result[i32, E]`; annotate a binding for it: `let value: Result[i32, E] = ...`",
+    "cannot infer `E` in `Result[u32, E]`; annotate a binding for it: `let value: Result[u32, E] = ...`",
   );
   assert.equal(
     message('fn make[T]() -> T:\n    panic("no")\n\nfn main() -> void:\n    made := make()\n'),

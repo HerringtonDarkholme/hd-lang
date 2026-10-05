@@ -272,7 +272,7 @@ for (const reverse of [false, true]) {
     const source = `${declarations}${implementations}
 fn main() -> i32:
     item := Item { value: 40 }
-    offset := 2
+    offset := +2
     item.apply(fn(value): value + offset)
 `;
     const result = analyze(source);
@@ -434,7 +434,7 @@ impl Build[bool] for Item:
 impl Build[i32] for Item:
     fn build(first: i32, second: i32) -> Item: Item { value: first + second }
 fn main() -> i32:
-    pair := (40, 2)
+    pair := (+40, +2)
     Item::build(pair...).value
 `;
   const result = analyze(source);
@@ -471,9 +471,16 @@ impl Build[i64] for Item:
 impl Build[i32] for Item:
     fn build(value: i32) -> Item: Item { value: value }
 fn main() -> i32:
-    Item::build(value=42).value
+    Item::build(value=+42).value
 `;
   assert.deepEqual(analyze(source).diagnostics, []);
+  // A bare literal keeps its usize default, which neither instantiation takes
+  // (types.literal.local.instantiation).
+  const bare = analyze(source.replace("value=+42", "value=42")).diagnostics;
+  assert.deepEqual(
+    bare.map(({ code }) => code),
+    ["type-mismatch"],
+  );
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
@@ -505,7 +512,7 @@ impl Pick[i32] for Item:
     fn pick(self, value: i32) -> i32: value
 fn main() -> i32:
     Item {}.pick(inferred())
-fn inferred(): 42
+fn inferred(): +42
 `;
   const result = analyze(source);
   assert.deepEqual(result.diagnostics, []);
