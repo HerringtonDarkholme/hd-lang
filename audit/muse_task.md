@@ -48,6 +48,10 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
+- Dependencies, packages and the REPL (another agent is changing them): `src/dependencies/`,
+  `src/package.ts`, `src/manifest.ts`, `src/commands/dependencies.ts`,
+  `src/commands/package-mode.ts`, `src/commands/new.ts`, `src/repl*`,
+  `spec/cli/`.
 
 ## Jobs
 
