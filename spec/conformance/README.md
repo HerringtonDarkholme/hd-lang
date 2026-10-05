@@ -268,13 +268,14 @@ Rules that apply to every case:
 
 ## Runtime Execution
 
-`test FILE` executes the fixture as follows:
+`test FILE` runs steps 2 and 3, the fixture's test cases, and never step 1.
+Step 1 is `IMPL FILE`:
 
 1. If the module declares an entry point `main` or `main!`
-   ([Executable Entry Point](../lang/10-modules.md#executable-entry-point)), it
-   runs in a fresh program instance, after module initialization, with its
-   requirement row supplied by the selected runtime profile. Its return value
-   is not judged.
+   ([Executable Entry Point](../lang/10-modules.md#executable-entry-point)),
+   `IMPL FILE` runs it in a fresh program instance, after module
+   initialization, with its requirement row supplied by the selected runtime
+   profile. Its return value is not judged.
 2. Each test case of its `tests:` block runs in its own fresh program
    instance, after module initialization, as
    [Test Outcomes](../lang/10-modules.md#test-outcomes) describes. `main` does not
