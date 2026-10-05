@@ -35,7 +35,6 @@ impl[T] Iterator[T]:
                         if keep(item):
                             return .Some(item)
                     .None => return .None
-            .None
         )
 
     pub fn take(mut self, count: usize) -> mut Iterator[T]:

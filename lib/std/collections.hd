@@ -614,7 +614,6 @@ impl[T < Ord] Heap[T]:
                 return top
             self.swap(parent, larger)
             parent = larger
-        top
 
     pub fn peek(self) -> T?:
         if self.count == 0:

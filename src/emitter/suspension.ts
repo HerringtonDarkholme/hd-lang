@@ -978,11 +978,15 @@ class SuspensionPlanBuilder {
     continuation: ValueContinuation,
     context: LoweringContext,
   ): number {
+    // An infinite loop that no `break` targets never reaches its continuation.
+    const never = expression.type === "never";
     const result =
-      expression.type === "void"
+      expression.type === "void" || never
         ? undefined
         : this.temporary(expression.type, expression.span, "while");
-    const after = continuation(result ? this.local(result, expression.span) : undefined);
+    const after = never
+      ? this.block([], { kind: "unreachable" })
+      : continuation(result ? this.local(result, expression.span) : undefined);
     const head = this.reserveBlock();
     const finishElse = (value: HirExpression | undefined): number =>
       this.block(result && value ? [{ kind: "assign", local: result, value }] : [], {

@@ -329,6 +329,13 @@ runtime/valid/while-else-break-value.hd	runtime
 typing/invalid/plain-break-in-value-loop.hd	type
 typing/invalid/break-value-in-void-loop.hd	type
 runtime/valid/while-else-exhaustion-value.hd	runtime
+runtime/valid/infinite-loop-return.hd	runtime
+runtime/valid/infinite-loop-nested-break.hd	runtime
+runtime/valid/infinite-loop-else.hd	runtime
+typing/invalid/infinite-loop-break-missing-return.hd	type
+typing/invalid/infinite-loop-variable-condition.hd	type
+typing/warnings/unreachable-after-infinite-loop.hd	type
+runtime/valid/definite-init-diverging-branch.hd	runtime
 runtime/valid/data-fields-named-in-any-order.hd	runtime
 runtime/valid/mutable-data-paths-share-identity.hd	runtime
 runtime/valid/indexed-replacement-list-and-map.hd	runtime

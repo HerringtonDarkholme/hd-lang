@@ -366,7 +366,6 @@ fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, Jso
             return .Ok(Parsed { value: Json.Array(items), end: index + 1 })
         else:
             return .Err(unexpected(bytes, index))
-    .Err(unexpected(bytes, index))
 
 fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, JsonError]:
     if depth >= 128:
@@ -391,7 +390,6 @@ fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, Js
             return .Ok(Parsed { value: Json.Object(fields), end: index + 1 })
         else:
             return .Err(unexpected(bytes, index))
-    .Err(unexpected(bytes, index))
 
 # The string that starts at the quote at `open`.
 fn parse_string(bytes: List[u8], open: usize) -> Result[ParsedText, JsonError]:
@@ -445,7 +443,6 @@ fn parse_string(bytes: List[u8], open: usize) -> Result[ParsedText, JsonError]:
             push_scalar(buffer, point)
         else:
             return .Err(JsonError.InvalidEscape(backslash))
-    .Err(unexpected(bytes, index))
 
 # The value of the four hex digits at `at`, -1 when one is not a hex digit,
 # or -2 when the text ends first.

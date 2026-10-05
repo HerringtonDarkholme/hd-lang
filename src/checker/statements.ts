@@ -304,6 +304,8 @@ export abstract class StatementChecker extends CheckerContext {
           this.fail("defer-control-flow", "a defer suite cannot break", statement.span);
         if (this.loopResults.length === 0)
           this.fail("break-outside-loop", "break is only valid inside a loop", statement.span);
+        // The nearest loop can now complete normally (06-control-flow.md#r-flow.while.infinite.exit).
+        this.loopBroken[this.loopBroken.length - 1] = true;
         const loopResult = this.loopResults.at(-1);
         if (loopResult === undefined && statement.value) {
           this.fail(
@@ -671,6 +673,9 @@ export abstract class StatementChecker extends CheckerContext {
 
   /** Per loop, the `break` values that join its defaulted `else` literal. */
   protected readonly loopJoins: (HirExpression[] | undefined)[] = [];
+
+  /** Per loop, whether a `break` targets it, so an infinite loop can complete. */
+  protected readonly loopBroken: boolean[] = [];
 
   /** A coercion whose failure gains the join model's literal fix hint (literal-join.ts). */
   protected override requireCoercion(

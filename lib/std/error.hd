@@ -58,7 +58,6 @@ pub fn chain(error: Error) -> List[Error]:
                 next = cause.cause()
             .None =>
                 return errors
-    errors
 
 # The `Display` text of the error and of each cause that `chain` yields
 # after it (r-std-error.report.of).

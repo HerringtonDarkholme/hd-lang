@@ -1050,39 +1050,50 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         this.loops.push(labels);
         const body = this.emitBlock(expression.body, "void", true);
         this.loops.pop();
+        // An infinite loop that no `break` targets never completes, so the
+        // code after it is unreachable to the validator too.
+        const never = expression.type === "never" ? "\n(unreachable)" : "";
         if (expression.elseBody.length > 0) {
           const result =
             expression.type === "void" || expression.type === "never"
               ? ""
               : ` (result ${this.watType(expression.type)})`;
-          const elseBody = this.emitBlock(expression.elseBody, expression.type);
-          return [
-            `(block ${labels.breakLabel}${result}`,
-            `  (loop ${labels.continueLabel}`,
-            `    (if ${this.emitExpression(expression.condition)}`,
-            `      (then`,
-            indent(body, 8),
-            `        (br ${labels.continueLabel})`,
-            `      )`,
-            `      (else`,
-            indent(elseBody, 8),
-            `        (br ${labels.breakLabel})`,
-            `      )`,
-            `    )`,
-            `  )`,
-            `  unreachable`,
-            `)`,
-          ].join("\n");
+          // An infinite loop's `else` never runs; its value is dropped.
+          const elseBody = this.emitBlock(
+            expression.elseBody,
+            expression.type === "never" ? "void" : expression.type,
+          );
+          return (
+            [
+              `(block ${labels.breakLabel}${result}`,
+              `  (loop ${labels.continueLabel}`,
+              `    (if ${this.emitExpression(expression.condition)}`,
+              `      (then`,
+              indent(body, 8),
+              `        (br ${labels.continueLabel})`,
+              `      )`,
+              `      (else`,
+              indent(elseBody, 8),
+              `        (br ${labels.breakLabel})`,
+              `      )`,
+              `    )`,
+              `  )`,
+              `  unreachable`,
+              `)`,
+            ].join("\n") + never
+          );
         }
-        return [
-          `(block ${labels.breakLabel}`,
-          `  (loop ${labels.continueLabel}`,
-          `    (br_if ${labels.breakLabel} (i32.eqz ${this.emitExpression(expression.condition)}))`,
-          indent(body, 4),
-          `    (br ${labels.continueLabel})`,
-          `  )`,
-          `)`,
-        ].join("\n");
+        return (
+          [
+            `(block ${labels.breakLabel}`,
+            `  (loop ${labels.continueLabel}`,
+            `    (br_if ${labels.breakLabel} (i32.eqz ${this.emitExpression(expression.condition)}))`,
+            indent(body, 4),
+            `    (br ${labels.continueLabel})`,
+            `  )`,
+            `)`,
+          ].join("\n") + never
+        );
       }
       case "match": {
         const subject = this.allocateTemporary(expression.subject.type);

@@ -113,6 +113,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         const elseBody = valued
           ? this.checkConditionalSuite(expression.elseBody, bindingFlow.whenFalse, expected, true)
           : [];
+        this.joinPastDivergingBranch(thenBody, elseBody, bindingFlow);
         if (elseBody.length === 0) {
           return { kind: "if", condition, thenBody, elseBody, type: "void", span: expression.span };
         }
@@ -195,6 +196,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         const breaks = isDefaultedLiteral(finalValue(elseBody)) ? [] : undefined;
         this.loopResults.push(result);
         this.loopJoins.push(breaks);
+        this.loopBroken.push(false);
         this.scopes.push(new Map());
         let bindings: HirLocal[];
         let body: readonly HirStatement[];
@@ -243,6 +245,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           this.scopes.pop();
           this.loopResults.pop();
           this.loopJoins.pop();
+          this.loopBroken.pop();
         }
         return {
           kind: "for",
@@ -269,19 +272,27 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         const breaks = isDefaultedLiteral(finalValue(elseBody)) ? [] : undefined;
         this.loopResults.push(result);
         this.loopJoins.push(breaks);
+        this.loopBroken.push(false);
         let body: readonly HirStatement[];
+        let broken: boolean;
         try {
           body = this.checkConditionalSuite(expression.body, bindingFlow.whenTrue);
         } finally {
           this.loopResults.pop();
           this.loopJoins.pop();
+          broken = this.loopBroken.pop()!;
         }
+        // Only the literal `true` makes an infinite loop, which completes
+        // only through a `break` that targets it (06-control-flow.md#r-flow.while.infinite).
+        const infinite =
+          expression.condition.kind === "boolean" && expression.condition.value && !broken;
+        const type = this.loopValueType(elseBody, result, breaks, expression.span) ?? "void";
         return {
           kind: "while",
           condition,
           body,
           elseBody,
-          type: this.loopValueType(elseBody, result, breaks, expression.span) ?? "void",
+          type: infinite ? "never" : type,
           span: expression.span,
         };
       }
@@ -306,6 +317,25 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     if ("type" in joined) return joined.type;
     const listed = [...new Set(members.map((member) => displayType(member.type)))].join(", ");
     this.fail(joined.code, `loop values have no common type: ${listed}`, span);
+  }
+
+  /**
+   * A branch that diverges is not an incoming path at the merge after the
+   * `if` (03-names-and-scopes.md#r-names.definite.diverging), so the names
+   * the other branch's condition outcome bound are initialized after it.
+   */
+  private joinPastDivergingBranch(
+    thenBody: readonly HirStatement[],
+    elseBody: readonly HirStatement[],
+    flow: BindingExpressionFlow,
+  ): void {
+    const thenDiverges = this.blockType(thenBody) === "never";
+    const elseDiverges = elseBody.length > 0 && this.blockType(elseBody) === "never";
+    if (thenDiverges === elseDiverges) return;
+    for (const name of thenDiverges ? flow.whenFalse : flow.whenTrue) {
+      const local = this.currentScope().get(name);
+      if (local) this.unavailableBindingLocals.delete(local.index);
+    }
   }
 
   private applyConditionBindingFlow(expression: Expression): BindingExpressionFlow {
