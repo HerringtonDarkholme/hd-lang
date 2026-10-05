@@ -2,6 +2,8 @@ import {
   boundaryShape,
   isBoundaryScalar,
   payloadlessSingletonEnum,
+  programLookups,
+  isStringListArgument,
   resultSides,
   structuralHostResult,
 } from "../host-boundary.ts";
@@ -34,9 +36,20 @@ interface HostValueEmitter {
   watType(type: ValueType): string;
 }
 
-/** Whether `type`'s value crosses as UTF-8 bytes, alone or as a result side. */
-function crossesAsString(type: ValueType): boolean {
-  return type === "string" || (resultSides(type)?.includes("string") ?? false);
+/**
+ * The `[T, E]` of a `Result` that crosses as a tag and a scalar payload;
+ * undefined for any other type, a `Result` that crosses as a node tree among them.
+ */
+function scalarSides(
+  program: HirProgram,
+  type: ValueType,
+): readonly [ValueType, ValueType] | undefined {
+  return structuralHostResult(program, type) ? undefined : resultSides(type);
+}
+
+/** Whether `type`'s value crosses as UTF-8 bytes, alone or as a scalar result side. */
+function crossesAsString(program: HirProgram, type: ValueType): boolean {
+  return type === "string" || (scalarSides(program, type)?.includes("string") ?? false);
 }
 
 function boundaryWatType(type: ValueType): string {
@@ -68,6 +81,8 @@ function importName(
   method: HirTraitMethod,
   operation:
     | "argument_byte"
+    | "argument_element"
+    | "argument_element_byte"
     | "begin"
     | "cancel"
     | "poll"
@@ -109,7 +124,7 @@ function emitPoll({ program, trait, method }: HostMethod): string {
           `        ${
             method.result === "string"
               ? `(call ${stringResultName(trait, method)} ${callField(trait, method)})`
-              : resultSides(method.result)
+              : scalarSides(program, method.result)
                 ? `(call ${variantResultName(trait, method)} ${callField(trait, method)})`
                 : structuralHostResult(program, method.result)
                   ? `(call ${structuralResultName(trait, method)} (call $hd.${importName(trait, method, "result_node")} ${callField(trait, method)}))`
@@ -142,8 +157,8 @@ function emitPoll({ program, trait, method }: HostMethod): string {
 
 // A `Result[T, E]` boundary result: the host reports the tag, then the
 // active side's payload, boxed as the erased variant payload.
-function emitVariantResult({ enums, trait, method }: HostMethod): string {
-  const sides = resultSides(method.result);
+function emitVariantResult({ enums, program, trait, method }: HostMethod): string {
+  const sides = scalarSides(program, method.result);
   if (!sides) return "";
   const payload = (type: ValueType, side: "result_ok" | "result_err"): string => {
     const value = `(call $hd.${importName(trait, method, side)} (local.get $call))`;
@@ -165,8 +180,8 @@ function emitVariantResult({ enums, trait, method }: HostMethod): string {
   ].join("\n");
 }
 
-function emitStringResult({ trait, method }: HostMethod): string {
-  if (!crossesAsString(method.result)) return "";
+function emitStringResult({ program, trait, method }: HostMethod): string {
+  if (!crossesAsString(program, method.result)) return "";
   const lengthImport = importName(trait, method, "result_length");
   const byteImport = importName(trait, method, "result_byte");
   return [
@@ -203,9 +218,62 @@ function emitStructuralResult(host: HostMethod): string {
     // Register before descending so a recursive data shape calls back into
     // the decoder currently being emitted instead of expanding forever.
     decoderByType.set(type, functionName);
-    const shape = boundaryShape(type, (item) =>
-      program.data.find((declaration) => declaration.name === item),
-    );
+    const shape = boundaryShape(type, ...programLookups(program));
+    if (shape.kind === "result") {
+      // Tag 0 is `.Ok`, tag 1 `.Err`; the payload is the active side's value,
+      // stored erased, as every `Result` payload is.
+      const payload = (side: ValueType, sidePath: string): string =>
+        side === "void"
+          ? "(ref.null any)"
+          : emitter.boxErasedValue(
+              `(call ${decode(side, `${path}_${sidePath}`)} ${child("(local.get $node)", 0)})`,
+              side,
+            );
+      functions.push(
+        [
+          `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})`,
+          `  (local $tag i32)`,
+          `  (local.set $tag (call $hd.host_boundary_tag (local.get $node)))`,
+          `  (struct.new $hd.variant (local.get $tag)`,
+          `    (if (result anyref) (local.get $tag)`,
+          `      (then ${payload(shape.err, "err")})`,
+          `      (else ${payload(shape.ok, "ok")})))`,
+          `)`,
+        ].join("\n"),
+      );
+      return functionName;
+    }
+    if (shape.kind === "enum") {
+      // Each variant builds the enum's struct: its tag, its own fields from
+      // the node's children, and a default in every other variant's fields.
+      const enumeration = shape.declaration;
+      const variantValue = (variant: (typeof enumeration.variants)[number]): string => {
+        if (variant.fields.length === 0)
+          return `(global.get $e${enumeration.index}v${variant.tag})`;
+        const values = enumeration.fields.map((field) => {
+          const position = variant.fields.findIndex(({ index }) => index === field.index);
+          if (position === -1) return emitter.defaultValue(field.type);
+          const decoder = decode(field.type, `${path}_${variant.tag}_${position}`);
+          return `(call ${decoder} ${child("(local.get $node)", position)})`;
+        });
+        return `(struct.new $e${enumeration.index} (i32.const ${variant.tag}) ${values.join(" ")})`;
+      };
+      const branches = enumeration.variants.reduceRight(
+        (otherwise, variant) =>
+          `(if (result ${emitter.watType(type)}) (i32.eq (local.get $tag) (i32.const ${variant.tag}))\n    (then ${variantValue(variant)})\n    (else ${otherwise}))`,
+        "(unreachable)",
+      );
+      functions.push(
+        [
+          `(func ${functionName} (param $node externref) (result ${emitter.watType(type)})`,
+          `  (local $tag i32)`,
+          `  (local.set $tag (call $hd.host_boundary_tag (local.get $node)))`,
+          `  ${branches}`,
+          `)`,
+        ].join("\n"),
+      );
+      return functionName;
+    }
     if (shape.kind === "string") {
       functions.push(
         [
@@ -371,8 +439,41 @@ function emitMethod({ emitter, program, trait, method }: HostMethod): string {
   const beginArguments = method.parameters.map((parameter, index) =>
     parameter === "string"
       ? `(struct.get $hd.string $hd.string-length (ref.as_non_null (local.get $argument${index})))`
-      : `(local.get $argument${index})`,
+      : isStringListArgument(parameter)
+        ? `(struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get $argument${index})))`
+        : `(local.get $argument${index})`,
   );
+  // A `List[string]` argument crosses as its length, then each element's
+  // length and bytes (src/compiler.ts).
+  const lists = method.parameters
+    .map((parameter, index) => ({ index, parameter }))
+    .filter(({ parameter }) => isStringListArgument(parameter));
+  const element = (index: number): string =>
+    `(ref.cast (ref $hd.string) (array.get $hd.list (struct.get $hd.vector $hd.vector-values (ref.as_non_null (local.get $argument${index}))) (local.get $element-index)))`;
+  const streamLists = lists.flatMap(({ index }) => [
+    `  (local.set $element-index (i32.const 0))`,
+    `  (block $argument${index}-elements-done`,
+    `    (loop $argument${index}-elements`,
+    `      (br_if $argument${index}-elements-done`,
+    `        (i32.ge_u (local.get $element-index)`,
+    `          (struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get $argument${index})))))`,
+    `      (local.set $element ${element(index)})`,
+    `      (call $hd.${importName(trait, method, "argument_element")}`,
+    `        (local.get $call) (i32.const ${index}) (local.get $element-index)`,
+    `        (struct.get $hd.string $hd.string-length (local.get $element)))`,
+    `      (local.set $byte-index (i32.const 0))`,
+    `      (block $argument${index}-bytes-done`,
+    `        (loop $argument${index}-bytes`,
+    `          (br_if $argument${index}-bytes-done`,
+    `            (i32.ge_u (local.get $byte-index) (struct.get $hd.string $hd.string-length (local.get $element))))`,
+    `          (call $hd.${importName(trait, method, "argument_element_byte")}`,
+    `            (local.get $call) (i32.const ${index}) (local.get $element-index) (local.get $byte-index)`,
+    `            (call $hd.string_get (ref.as_non_null (local.get $element)) (local.get $byte-index)))`,
+    `          (local.set $byte-index (i32.add (local.get $byte-index) (i32.const 1)))`,
+    `          (br $argument${index}-bytes)))`,
+    `      (local.set $element-index (i32.add (local.get $element-index) (i32.const 1)))`,
+    `      (br $argument${index}-elements)))`,
+  ]);
   const strings = method.parameters
     .map((parameter, index) => ({ index, parameter }))
     .filter(({ parameter }) => parameter === "string");
@@ -396,10 +497,14 @@ function emitMethod({ emitter, program, trait, method }: HostMethod): string {
     `      (struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) (local.get $receiver)))`,
     `      (global.get $hd.host-call-function) (global.get $hd.host-call-site)${beginArguments.length ? " " + beginArguments.join(" ") : ""}))`,
     ...streamArguments,
+    ...streamLists,
   ];
   const locals = [
     `  (local $call externref)`,
-    ...(strings.length > 0 ? [`  (local $byte-index i32)`] : []),
+    ...(strings.length > 0 || lists.length > 0 ? [`  (local $byte-index i32)`] : []),
+    ...(lists.length > 0
+      ? [`  (local $element-index i32)`, `  (local $element (ref null $hd.string))`]
+      : []),
   ];
   const header = `(func ${methodName(trait, method)} (type $tsig${trait.index}_${method.index}) (param $receiver anyref) (param $dictionary anyref)${parameters.length ? " " + parameters.join(" ") : ""}`;
   // A plain method is answered at once: the host never leaves it pending
@@ -413,7 +518,7 @@ function emitMethod({ emitter, program, trait, method }: HostMethod): string {
             `  ${
               method.result === "string"
                 ? `(call ${stringResultName(trait, method)} (local.get $call))`
-                : resultSides(method.result)
+                : scalarSides(program, method.result)
                   ? `(call ${variantResultName(trait, method)} (local.get $call))`
                   : structuralHostResult(program, method.result)
                     ? `(call ${structuralResultName(trait, method)} (call $hd.${importName(trait, method, "result_node")} (local.get $call)))`
@@ -474,15 +579,21 @@ function emitImports({ program, trait, method }: HostMethod): readonly string[] 
         `  (import "hd" "${importName(trait, method, "argument_byte")}" (func $hd.${importName(trait, method, "argument_byte")} (param externref i32 i32 i32)))`,
       ]
     : [];
+  const listImports = method.parameters.some(isStringListArgument)
+    ? [
+        `  (import "hd" "${importName(trait, method, "argument_element")}" (func $hd.${importName(trait, method, "argument_element")} (param externref i32 i32 i32)))`,
+        `  (import "hd" "${importName(trait, method, "argument_element_byte")}" (func $hd.${importName(trait, method, "argument_element_byte")} (param externref i32 i32 i32 i32)))`,
+      ]
+    : [];
   const scalarImport = (
     operation: "result" | "result_err" | "result_ok" | "result_tag",
     type: ValueType,
   ): string =>
     `  (import "hd" "${importName(trait, method, operation)}" (func $hd.${importName(trait, method, operation)} (param externref) (result ${boundaryWatType(type)})))`;
-  const sides = resultSides(method.result);
+  const sides = scalarSides(program, method.result);
   const structural = structuralHostResult(program, method.result);
   const resultImport = [
-    ...(crossesAsString(method.result)
+    ...(crossesAsString(program, method.result)
       ? [
           `  (import "hd" "${importName(trait, method, "result_length")}" (func $hd.${importName(trait, method, "result_length")} (param externref) (result i32)))`,
           `  (import "hd" "${importName(trait, method, "result_byte")}" (func $hd.${importName(trait, method, "result_byte")} (param externref i32) (result i32)))`,
@@ -507,6 +618,7 @@ function emitImports({ program, trait, method }: HostMethod): readonly string[] 
     `  (import "hd" "${importName(trait, method, "poll")}" (func $hd.${importName(trait, method, "poll")} (param externref) (result i32)))`,
     `  (import "hd" "${importName(trait, method, "cancel")}" (func $hd.${importName(trait, method, "cancel")} (param externref)))`,
     ...argumentByteImport,
+    ...listImports,
     ...resultImport,
   ];
 }

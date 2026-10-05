@@ -1,6 +1,7 @@
 import type { AnsweringProvider } from "./compiler.ts";
 import type { HirFunction } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
+import { displayType } from "./types.ts";
 import {
   type CaseResult,
   PropertyDiscard,
@@ -8,6 +9,9 @@ import {
   type PropertyRun,
   runProperty,
 } from "./property-tests.ts";
+
+/** The host traits the test runner itself answers (spec/std/testing.md#runner-capabilities). */
+const RUNNER_TRAITS: ReadonlySet<string> = new Set(["TestRunner", "PropertyRunner"]);
 
 // Runs the entry point and the test cases that `hd run` or `hd test`
 // selected (spec/lang/10-modules.md#test-outcomes). A test function whose
@@ -80,7 +84,10 @@ function runnerProvider(
       if (!properties) throw new Error(`the test runner has no method ${call.methodName}`);
       return {
         pending: false,
-        ...properties.answer(call.methodName, call.arguments),
+        ...properties.answer(
+          call.methodName,
+          call.arguments as readonly (number | bigint | string)[],
+        ),
       };
     },
   };
@@ -101,7 +108,14 @@ function call(
   const provider = declaration.testOptions
     ? runnerProvider(row, report, properties, snapshotCheck)
     : undefined;
-  return entry(...declaration.requirements.map((requirement) => provider ?? { requirement }));
+  // The runner answers TestRunner and PropertyRunner. Any other host trait
+  // of a test case's row, as an integration test case's `Process`, goes to
+  // the host.
+  return entry(
+    ...declaration.requirements.map((requirement) =>
+      provider && RUNNER_TRAITS.has(displayType(requirement)) ? provider : { requirement },
+    ),
+  );
 }
 
 function caseName(declaration: HirFunction, row: number | undefined): string {

@@ -1063,7 +1063,7 @@ test("host provider string arguments and results use durable UTF-8 replay encodi
   const recorded = await instantiate(source, {
     hostCapabilities: ["TextBridge"],
     hostSuspensionInvoke: (call) => {
-      calls.push(call.arguments);
+      calls.push(call.arguments as readonly (string | number | bigint)[]);
       return { pending: false, value: `${call.arguments[0]}${call.arguments[1]}` };
     },
     providerConfigurationId: "text-a",
@@ -1248,7 +1248,7 @@ test("a leading U+FEFF host string is text on the live and replayed boundary", a
   const recorded = await instantiate(source, {
     hostCapabilities: ["TextBridge"],
     hostSuspensionInvoke: (call) => {
-      calls.push(call.arguments);
+      calls.push(call.arguments as readonly (string | number | bigint)[]);
       return { pending: false, value: `${call.arguments[0]}${call.arguments[1]}` };
     },
     providerConfigurationId: "text-a",

@@ -2,7 +2,9 @@
 # (spec/lang/10-modules.md#processes), and the std side in spec/std/process.md.
 # WASI has no subprocess interface, so no
 # prototype runtime profile binds a host `Process`; `ScriptedProcess` is the
-# deterministic provider, and `hd test` binds none yet (src/KNOWN_ISSUES.md).
+# deterministic provider. `hd test` binds a host `Process` for an
+# integration test, whose programs are the package's executables
+# (spec/cli/command-line.md#r-cli.test.process).
 use std.format.DebugWriter
 use std.error.Error
 

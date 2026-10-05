@@ -19,6 +19,7 @@ import {
   type CommandIo,
 } from "./io.ts";
 import { packageMode, type Executable, type LocalPackage } from "./package-mode.ts";
+import { executableProcesses, isProcessCall, type ProcessProvider } from "./processes.ts";
 import {
   exportedFunction,
   RUNTIME_PROFILES,
@@ -232,7 +233,10 @@ async function test(args: TestArgs, io: CommandIo, report: Report): Promise<numb
   }
   if (await directoryWord("test", args.path, report, args)) return EXIT_HD_FAILURE;
   const placement = await placementOf(args.path, args.packageTree, args.testLayout, args);
-  return testFile(args, args.path, io, report, placement, { quietWhenEmpty: false });
+  return testFile(args, args.path, io, report, placement, {
+    quietWhenEmpty: false,
+    processes: executableProcesses(placement?.package),
+  });
 }
 
 async function testFile(
@@ -241,7 +245,7 @@ async function testFile(
   io: CommandIo,
   report: Report,
   placement: PackagePlacement | undefined,
-  options: { readonly quietWhenEmpty: boolean },
+  options: { readonly quietWhenEmpty: boolean; readonly processes?: ProcessProvider },
 ): Promise<number> {
   const loaded = await loadSource(
     { file, format: args.format, cwd: args.cwd, specDir: args.specDir },
@@ -294,6 +298,7 @@ async function testPackage(
       return reportFailure(loaded, error);
     }
   }
+  const processes = executableProcesses(pkg);
   const targets = Object.keys(pkg.files)
     .filter(
       (path) =>
@@ -307,6 +312,7 @@ async function testPackage(
   for (const path of targets) {
     const code = await testFile(args, shownPath(pkg, path, args), io, report, placement(path), {
       quietWhenEmpty: true,
+      processes,
     });
     status = Math.max(status, code);
   }
@@ -326,6 +332,8 @@ type Execution =
       readonly kind: "test";
       /** A whole-package run, where a module without test cases is no error. */
       readonly quietWhenEmpty: boolean;
+      /** The `Process` of an integration test: the package's executables. */
+      readonly processes?: ProcessProvider;
     } & TestArgs);
 
 async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution): Promise<number> {
@@ -365,11 +373,17 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
                   return false;
                 }
               : undefined,
-      hostCapabilities: runtimeProfile?.hostCapabilities,
+      hostCapabilities: loaded.compileOptions.hostCapabilities,
       parse: loaded.parseOptions,
+      integrationTest: loaded.compileOptions.integrationTest,
       // `hd test` always runs a checked build (spec/cli/command-line.md#r-cli.profile.test).
       release: command === "run" ? (execution.release ?? false) : false,
-      hostSuspensionInvoke: runtimeProfile?.invoke,
+      // An integration test's `Process` runs the package's executables
+      // (spec/cli/command-line.md#r-cli.test.process).
+      hostSuspensionInvoke: (call) =>
+        isProcessCall(call) && loaded.compileOptions.integrationTest
+          ? (test?.processes ?? executableProcesses(undefined))(call)
+          : (runtimeProfile?.invoke?.(call) ?? { pending: false }),
       hostSuspensionPending: execution.pendingFirstPoll
         ? pendingFirstPoll
         : runtimeProfile?.pending,

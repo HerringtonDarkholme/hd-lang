@@ -87,13 +87,7 @@ export type {
 
 export class CheckFailure extends Error {}
 
-/**
- * The names a closure body may capture, as a live view over the enclosing
- * checker's scopes. Precedence matches the snapshot this replaces:
- * provider bindings by local name, then scopes innermost first, then the
- * enclosing captures. Iteration yields each name once, in first-seen
- * order with the winning value, exactly as an overwriting merge would.
- */
+/** Adds each local that the HIR `value` reads to `into`. */
 function collectReadLocals(value: unknown, into: Set<HirLocal>): void {
   if (Array.isArray(value)) {
     for (const item of value) collectReadLocals(item, into);
@@ -169,6 +163,8 @@ export abstract class CheckerContext {
   protected readonly inferResult: boolean;
   protected readonly selfClosureLocal?: HirLocal;
   protected readonly imports: ReadonlyMap<string, string>;
+  /** The program is an integration test program, which may call `hd_run!` (spec/std/testing.md#r-std-testing.hd-run.integration-only). */
+  protected readonly integrationTest: boolean;
   protected readonly globals: Map<string, HirGlobal>;
   protected pendingRecursiveClosure?: HirLocal;
   /** The `name := value` binding whose initializer is being checked without an annotation. */
@@ -228,6 +224,7 @@ export abstract class CheckerContext {
     imports: ReadonlyMap<string, string> = new Map(),
     globals: Map<string, HirGlobal> = new Map(),
     localImplementations: ReadonlySet<number> = new Set(),
+    integrationTest = false,
   ) {
     this.declaration = declaration;
     this.signature = signature;
@@ -257,6 +254,7 @@ export abstract class CheckerContext {
     this.globals = globals;
     this.closureIndex = closureIndex;
     this.providerScopes[0] = new Map(availableProviders);
+    this.integrationTest = integrationTest;
   }
 
   /** The local implementations visible at the current lexical point. */

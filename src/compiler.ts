@@ -13,10 +13,18 @@ import {
 import {
   boundaryShape,
   isBoundaryScalar,
+  isStringListArgument,
   payloadlessSingletonEnum,
+  programLookups,
   resultSides,
   structuralHostResult,
 } from "./host-boundary.ts";
+import {
+  argumentBuffers,
+  decodeStreamedArguments,
+  streamedArgumentImports,
+  type ArgumentBuffers,
+} from "./host-arguments.ts";
 import { numericType } from "./numeric.ts";
 import { substituteTypeParameters } from "./types.ts";
 import type { HirEnum, HirProgram, HirTraitMethod, ValueType } from "./hir.ts";
@@ -128,14 +136,26 @@ type EncodedHostScalar =
   | EncodedHostString
   | EncodedHostWide;
 
+/** An enum value: its enum, its variant, and that variant's fields by name. */
+interface EncodedHostEnum {
+  readonly kind: "enum";
+  readonly name: string;
+  readonly variant: string;
+  readonly fields: readonly { readonly name: string; readonly value: EncodedHostValue }[];
+}
+
 type EncodedHostValue =
   | EncodedHostData
+  | EncodedHostEnum
   | EncodedHostOptional
   | EncodedHostResult
   | EncodedHostScalar
   | EncodedHostSequence;
 
 type HostSuspensionValue = number | bigint | string;
+
+/** A host call's argument: a scalar or a string, or the strings of a `List[string]`. */
+export type HostArgumentValue = HostSuspensionValue | readonly string[];
 
 export type HostBoundaryValue =
   | HostSuspensionValue
@@ -171,7 +191,7 @@ interface ReplaySession {
 }
 
 export interface HostSuspensionCall {
-  readonly arguments: readonly HostSuspensionValue[];
+  readonly arguments: readonly HostArgumentValue[];
   readonly functionCodeId: string;
   readonly functionIndex: number;
   readonly functionName: string;
@@ -207,11 +227,10 @@ function answeringProvider(provider: unknown): AnsweringProvider | undefined {
 }
 
 interface MutableHostSuspensionCall extends HostSuspensionCall {
-  arguments: HostSuspensionValue[];
+  arguments: HostArgumentValue[];
 }
 
-interface HostCallState {
-  readonly argumentBytes: ReadonlyMap<number, Uint8Array>;
+interface HostCallState extends ArgumentBuffers {
   readonly call: MutableHostSuspensionCall;
   outcome?: HostSuspensionOutcome;
   resultNode?: HostBoundaryNode;
@@ -249,6 +268,8 @@ interface InstantiateOptions {
   readonly parse?: ParseOptions;
   /** A release build (CompileOptions.release). */
   readonly release?: boolean;
+  /** An integration test program (CompileOptions.integrationTest). */
+  readonly integrationTest?: boolean;
   /** A compilation of `source` to instantiate again, as for a fresh test instance. */
   readonly compilation?: Compilation;
 }
@@ -379,9 +400,7 @@ function checkedHostBoundaryNode(
   value: HostBoundaryValue,
   ancestors: Set<object> = new Set(),
 ): HostBoundaryNode {
-  const shape = boundaryShape(type, (name) =>
-    program.data.find((declaration) => declaration.name === name),
-  );
+  const shape = boundaryShape(type, ...programLookups(program));
   if (shape.kind === "scalar" || shape.kind === "string") {
     if (typeof value === "object") throw new Error(`expected a ${type} scalar`);
     return { kind: "scalar", type, value: checkedHostValue(type, value) };
@@ -448,6 +467,51 @@ function checkedHostBoundaryNode(
             object[field.name]!,
             ancestors,
           );
+        }),
+      };
+    });
+  }
+  if (shape.kind === "result")
+    return withBoundaryObject(value, ancestors, () => {
+      // `{ tag: "ok" | "err", value? }`, as a scalar-side result crosses.
+      const tagged = hostObject(value);
+      if (tagged.tag !== "ok" && tagged.tag !== "err")
+        throw new Error(`expected '${type}' as { tag: "ok" | "err", value? }`);
+      const side = tagged.tag === "ok" ? shape.ok : shape.err;
+      const tag = tagged.tag === "ok" ? 0 : 1;
+      if (side === "void") {
+        if (Object.keys(tagged).length !== 1)
+          throw new Error(`'${type}' '${tagged.tag}' has no payload`);
+        return { kind: "variant", tag, children: [] };
+      }
+      if (!("value" in tagged) || Object.keys(tagged).length !== 2)
+        throw new Error(`expected '${type}' '${tagged.tag}' with a value`);
+      return {
+        kind: "variant",
+        tag,
+        children: [checkedHostBoundaryNode(program, side, tagged.value!, ancestors)],
+      };
+    });
+  if (shape.kind === "enum") {
+    const enumeration = shape.declaration;
+    return withBoundaryObject(value, ancestors, () => {
+      // `{ tag: "Variant", field: value, ... }`, with the variant's fields by name.
+      const object = hostObject(value);
+      const variant = enumeration.variants.find(({ name }) => name === object.tag);
+      if (!variant)
+        throw new Error(
+          `expected '${type}' as { tag: one of ${enumeration.variants.map(({ name }) => `"${name}"`).join(", ")} }`,
+        );
+      const expected = new Set(["tag", ...variant.fields.map((field) => field.name)]);
+      const extra = Object.keys(object).find((name) => !expected.has(name));
+      if (extra) throw new Error(`host '${type}.${variant.name}' has an unknown field '${extra}'`);
+      return {
+        kind: "variant",
+        tag: variant.tag,
+        children: variant.fields.map((field) => {
+          if (!(field.name in object))
+            throw new Error(`host '${type}.${variant.name}' is missing field '${field.name}'`);
+          return checkedHostBoundaryNode(program, field.type, object[field.name]!, ancestors);
         }),
       };
     });
@@ -559,9 +623,7 @@ function encodeHostBoundaryNode(
   type: ValueType,
   node: HostBoundaryNode,
 ): EncodedHostValue {
-  const shape = boundaryShape(type, (name) =>
-    program.data.find((declaration) => declaration.name === name),
-  );
+  const shape = boundaryShape(type, ...programLookups(program));
   if (shape.kind === "scalar" || shape.kind === "string") {
     if (node.kind !== "scalar") throw new Error(`host boundary node does not match '${type}'`);
     return encodeHostValue(type, node.value);
@@ -615,6 +677,32 @@ function encodeHostBoundaryNode(
       })),
     };
   }
+  if (shape.kind === "result") {
+    if (node.kind !== "variant" || (node.tag !== 0 && node.tag !== 1))
+      throw new Error(`host boundary node does not match '${type}'`);
+    const side = node.tag === 0 ? shape.ok : shape.err;
+    const kind = node.tag === 0 ? "ok" : "err";
+    return side === "void"
+      ? { kind }
+      : { kind, value: encodeHostBoundaryNode(program, side, node.children[0]!) };
+  }
+  if (shape.kind === "enum") {
+    const enumeration = shape.declaration;
+    const variant = enumeration.variants.find(
+      ({ tag }) => node.kind === "variant" && tag === node.tag,
+    );
+    if (node.kind !== "variant" || !variant || node.children.length !== variant.fields.length)
+      throw new Error(`host boundary node does not match '${type}'`);
+    return {
+      kind: "enum",
+      name: enumeration.standardName ?? enumeration.name,
+      variant: variant.name,
+      fields: variant.fields.map((field, index) => ({
+        name: field.name,
+        value: encodeHostBoundaryNode(program, field.type, node.children[index]!),
+      })),
+    };
+  }
   throw new Error(`host boundary node does not match '${type}'`);
 }
 
@@ -623,9 +711,7 @@ function decodeHostBoundaryNode(
   type: ValueType,
   encoded: EncodedHostValue,
 ): HostBoundaryNode {
-  const shape = boundaryShape(type, (name) =>
-    program.data.find((declaration) => declaration.name === name),
-  );
+  const shape = boundaryShape(type, ...programLookups(program));
   if (shape.kind === "scalar" || shape.kind === "string")
     return { kind: "scalar", type, value: decodeHostValue(type, encoded) };
   if (shape.kind === "optional") {
@@ -695,6 +781,41 @@ function decodeHostBoundaryNode(
       ),
     };
   }
+  if (shape.kind === "result") {
+    if (encoded.kind !== "ok" && encoded.kind !== "err")
+      throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
+    const side = encoded.kind === "ok" ? shape.ok : shape.err;
+    const tag = encoded.kind === "ok" ? 0 : 1;
+    if (side === "void") return { kind: "variant", tag, children: [] };
+    if (encoded.value === undefined)
+      throw new Error(`replay boundary type '${encoded.kind}' has no payload for '${type}'`);
+    return {
+      kind: "variant",
+      tag,
+      children: [decodeHostBoundaryNode(program, side, encoded.value)],
+    };
+  }
+  if (shape.kind === "enum") {
+    const enumeration = shape.declaration;
+    const variant =
+      encoded.kind === "enum" && encoded.name === (enumeration.standardName ?? enumeration.name)
+        ? enumeration.variants.find(({ name }) => name === encoded.variant)
+        : undefined;
+    if (
+      encoded.kind !== "enum" ||
+      !variant ||
+      encoded.fields.length !== variant.fields.length ||
+      encoded.fields.some((field, index) => field.name !== variant.fields[index]!.name)
+    )
+      throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
+    return {
+      kind: "variant",
+      tag: variant.tag,
+      children: variant.fields.map((field, index) =>
+        decodeHostBoundaryNode(program, field.type, encoded.fields[index]!.value),
+      ),
+    };
+  }
   throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
 }
 
@@ -710,6 +831,15 @@ function bytesFromHex(value: string): Uint8Array {
       Number.parseInt(value.slice(index * 2, index * 2 + 2), 16),
     ),
   );
+}
+
+/** A host call's argument as a replay event records it; a `List[string]` is a list of strings. */
+function encodeHostArgument(type: ValueType, value: HostArgumentValue): EncodedHostValue {
+  if (isStringListArgument(type)) {
+    if (!Array.isArray(value)) throw new Error(`expected '${type}' as an array`);
+    return { kind: "list", values: value.map((element) => encodeHostValue("string", element)) };
+  }
+  return encodeHostValue(type, value as HostSuspensionValue);
 }
 
 function encodeHostValue(type: ValueType, value: HostSuspensionValue): EncodedHostValue {
@@ -833,7 +963,7 @@ function hostPollEvent(
     providerKey: call.providerKey,
     operation: "provider-poll",
     encodedArguments: call.arguments.map((argument, index) =>
-      encodeHostValue(method.parameters[index]!, argument),
+      encodeHostArgument(method.parameters[index]!, argument),
     ),
     encodedResult: outcome.pending ? "pending" : "ready",
     ...(outcome.value === undefined
@@ -1008,7 +1138,7 @@ function makeHostCall(
   suspending: boolean,
   functionIndex: number,
   siteOffset: number,
-  arguments_: HostSuspensionValue[],
+  arguments_: HostArgumentValue[],
 ): MutableHostSuspensionCall {
   const identity = functionIdentity(functionIndex);
   if (!identity) throw new Error(`host provider call has unknown function index ${functionIndex}`);
@@ -1138,13 +1268,7 @@ export async function instantiate(
       const prefix = `host_${trait.index}_${method.index}`;
       const builtIn = HOST_PROVIDERS[`${trait.name}.${method.name}`];
       hostImports[`${prefix}_begin`] = (provider, functionIndex, siteOffset, ...arguments_) => ({
-        argumentBytes: new Map(
-          method.parameters.flatMap((parameter, index) =>
-            parameter === "string"
-              ? [[index, new Uint8Array(Number(arguments_[index]))] as const]
-              : [],
-          ),
-        ),
+        ...argumentBuffers(method.parameters, arguments_),
         call: makeHostCall(
           functionIdentity,
           provider,
@@ -1157,27 +1281,25 @@ export async function instantiate(
           method.parameters.map((parameter, index) =>
             parameter === "string"
               ? ""
-              : hostArgumentValue(
-                  parameter,
-                  numericType(parameter)?.wasm === "i64"
-                    ? (arguments_[index] as bigint)
-                    : Number(arguments_[index]),
-                ),
+              : isStringListArgument(parameter)
+                ? []
+                : hostArgumentValue(
+                    parameter,
+                    numericType(parameter)?.wasm === "i64"
+                      ? (arguments_[index] as bigint)
+                      : Number(arguments_[index]),
+                  ),
           ),
         ),
       });
-      if (method.parameters.includes("string"))
-        hostImports[`${prefix}_argument_byte`] = (value, argumentIndex, byteIndex, byte) => {
-          const bytes = (value as HostCallState).argumentBytes.get(Number(argumentIndex));
-          if (!bytes || Number(byteIndex) >= bytes.length)
-            throw new Error(`host provider ${trait.name}.${method.name} received an invalid byte`);
-          bytes[Number(byteIndex)] = Number(byte);
-        };
+      Object.assign(
+        hostImports,
+        streamedArgumentImports(prefix, `${trait.name}.${method.name}`, method.parameters),
+      );
       hostImports[`${prefix}_poll`] = (value) => {
         const state = value as HostCallState;
         const { call } = state;
-        for (const [index, bytes] of state.argumentBytes)
-          call.arguments[index] = textDecoder.decode(bytes);
+        decodeStreamedArguments(state, call.arguments, textDecoder);
         const expected = recorded ? options.replay?.[replayIndex] : undefined;
         if (options.replay && recorded) {
           if (!expected) throw new Error(`replay exhausted before provider site ${call.siteId}`);
@@ -1192,7 +1314,7 @@ export async function instantiate(
               (argument, index) =>
                 !sameEncodedHostValue(
                   argument,
-                  encodeHostValue(method.parameters[index]!, call.arguments[index]!),
+                  encodeHostArgument(method.parameters[index]!, call.arguments[index]!),
                 ),
             )
           ) {

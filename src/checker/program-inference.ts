@@ -241,6 +241,7 @@ export class SignatureInference {
       imports,
       this.globals,
       new Set(declaration.localImplementations ?? []),
+      this.context.integrationTest,
     ).check();
   }
 

@@ -603,12 +603,18 @@ function standardLocalNames(program: Program): Map<string, string> {
  */
 export function testRunnerNames(program: Program): TestRunnerNames {
   const nameOf = standardNameOf(program);
-  return { test: nameOf("testing", "TestRunner"), property: nameOf("testing", "PropertyRunner") };
+  return {
+    test: nameOf("testing", "TestRunner"),
+    property: nameOf("testing", "PropertyRunner"),
+    process: nameOf("process", "Process"),
+  };
 }
 
 export interface TestRunnerNames {
   readonly test: string;
   readonly property: string;
+  /** `std.process.Process`, which `hd test` binds for an integration test (spec/cli/command-line.md#r-cli.test.process). */
+  readonly process: string;
 }
 
 /** The program's name for each `std` declaration: its local name, or else its hidden name. */

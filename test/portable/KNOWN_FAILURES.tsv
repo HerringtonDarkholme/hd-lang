@@ -33,8 +33,6 @@ typing/invalid/unconstrained-impl-parameter.hd	an impl parameter that appears on
 runtime/valid/gadt-existential-evidence.hd	GADT variant results (13-gadts.md) are not implemented: a variant with its own generic parameters is a syntax error	F-250
 typing/invalid/supertrait-impl-bounds.hd	a generic impl whose bounds do not prove its supertrait is accepted (trait.super.impl-bounds)	TYPE-GAPS
 typing/valid/bound-implies-supertrait.hd	a T < Child is not accepted where T < Parent is required (trait.bound.supertraits)	TYPE-GAPS
-typing/valid/hd-run-integration.hd	check reports missing-requirement for Process at hd_run!: the prototype's test runner binds no Process for an integration test body (std Testing, Running Executables; cli.test.process)	CLI-57
-typing/invalid/hd-run-outside-integration.hd	check reports missing-requirement for Process, not test-only-use: the prototype has no integration-only check for hd_run! (std Testing, Running Executables)	CLI-57
 typing/valid/any-void-never.hd	a void value is not assignable to Any, though void is the tuple () (types.any.all)	TYPE-GAPS
 typing/valid/void-unit-alias.hd	the prototype keeps void apart from the empty tuple (), so a () value or (void, i32) is rejected where void is written (types.void)	VOID-UNIT
 typing/valid/typed-fact-pattern-mut-field.hd	check exits 1: the prototype accepts only a trivial pattern, one of the fact type's own type parameters, so it reports type-mismatch at the `@annotate` decorator (Member-Typed Facts, annot.typed-fact.infer.weaken)	FACT-PATTERN
@@ -64,7 +62,6 @@ typing/invalid/alias-unknown-target.hd	the checker does not resolve an unused al
 typing/invalid/row-alias-unknown-key.hd	the checker does not resolve an unused row alias's keys, so `type AppRow = $ Ledger` with no `Ledger` is accepted instead of unknown-trait at the alias (types.alias.target-unknown.key)	ALIAS-MISSING
 typing/invalid/module-path-private-std-function.hd	a module path to a std function without pub, `text.hex_digit(48)` after `use std.text`, reports unknown-name for `text` instead of private-import (expr.name.qualified.private)	PRIVATE-STD
 typing/invalid/derive-unknown-trait.hd	`@derive(Sortable)` with no `Sortable` in scope reports underivable-trait instead of unknown-trait (annot.derive.unknown)	DERIVE-MISSING
-cli/new-app	step 3 `hd test` exits 101: the integration test that `hd new --app` writes calls `hd_run!`, and the test runner binds no `Process` (missing-requirement; cli.new.app.test, cli.test.process)	CLI-57
 parse/valid/module-documentation.hd	no module documentation: the lexer reports doc-comment-without-target for the second block, where lex.doc.module makes the first block the module's documentation	MODULE-DOC
 cli/doc-out	`hd doc` takes only a NAME: `hd doc --out site` exits 101 with 'unknown flag --out' (cli.doc.command, cli.doc.files, cli.doc.root-page: no `pkg.md`)	CLI-DOC
 cli/doc-name	`hd doc` takes only a NAME: `hd doc --out site text.slugify` exits 101 with 'unknown flag --out' (cli.doc.name, and `hd doc std.text.split` by cli.doc.name.std)	CLI-DOC

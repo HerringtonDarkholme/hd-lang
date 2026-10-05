@@ -2389,3 +2389,6 @@ cli/new-no-kind	cli
 cli/new-pages	cli
 cli/new-no-pages	cli
 cli/new-pages-existing	cli
+typing/valid/hd-run-integration.hd	type
+typing/invalid/hd-run-outside-integration.hd	type
+cli/new-app	cli

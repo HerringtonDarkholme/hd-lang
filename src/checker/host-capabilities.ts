@@ -1,21 +1,45 @@
-import { boundaryShape, isBoundaryScalar, resultSides } from "../host-boundary.ts";
+import {
+  boundaryShape,
+  isBoundaryScalar,
+  isStringListArgument,
+  scalarResult,
+} from "../host-boundary.ts";
 import { substituteTypeParameters, displayType } from "../types.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 
-// A boundary result is `void`, a boundary value, or `Result[T, E]` whose `T`
-// is either of those. `E` may be any type: a boundary `E` crosses as the
-// error payload. A payload-free singleton enum needs no separate payload; any
-// other `E` can be named but is refused if a host reports `.Err` at run time.
+// A boundary result is `void`, a boundary value, or `Result[T, E]`. A
+// `Result` whose `T` is `void`, a scalar, or a `string` crosses as a tag and
+// a scalar payload: a boundary `E` crosses as the error payload, a
+// payload-free singleton enum needs none, and any other `E` is refused if a
+// host reports `.Err` at run time. Any other `Result` crosses as a node tree,
+// so both its sides must be boundary values; a non-generic enum is one.
 function structuralBoundaryResult(
   context: ProgramCheckContext,
   type: string,
   visiting: Set<string> = new Set(),
 ): boolean {
-  const shape = boundaryShape(type, (name) => context.dataTypes.get(name));
+  const shape = boundaryShape(
+    type,
+    (name) => context.dataTypes.get(name),
+    (name) => context.enumTypes.get(name),
+  );
   switch (shape.kind) {
     case "scalar":
     case "string":
       return true;
+    case "result":
+      return [shape.ok, shape.err].every(
+        (side) => side === "void" || structuralBoundaryResult(context, side, visiting),
+      );
+    case "enum": {
+      const enumeration = shape.declaration;
+      if (enumeration.local) return false;
+      if (visiting.has(enumeration.name)) return true;
+      const next = new Set(visiting).add(enumeration.name);
+      return enumeration.variants.every((variant) =>
+        variant.fields.every((field) => structuralBoundaryResult(context, field.type, next)),
+      );
+    }
     case "optional":
       return structuralBoundaryResult(context, shape.inner, visiting);
     case "tuple":
@@ -49,12 +73,15 @@ function structuralBoundaryResult(
 
 function boundaryResult(context: ProgramCheckContext, type: string): boolean {
   if (type === "void" || isBoundaryScalar(type) || type === "string") return true;
-  const sides = resultSides(type);
-  if (sides) {
-    const ok = sides[0]!;
-    return ok === "void" || isBoundaryScalar(ok) || ok === "string";
-  }
+  // A Result with a scalar side crosses as a tag and a scalar; any other
+  // Result crosses as a node tree, so both sides must be boundary values.
+  if (scalarResult(type)) return true;
   return structuralBoundaryResult(context, type);
+}
+
+/** A boundary argument: a scalar, a `string`, or a `List[string]`. */
+function boundaryArgument(type: string): boolean {
+  return isBoundaryScalar(type) || type === "string" || isStringListArgument(type);
 }
 
 export function validateHostCapabilities(context: ProgramCheckContext): void {
@@ -65,9 +92,7 @@ export function validateHostCapabilities(context: ProgramCheckContext): void {
       trait.genericParameters.length === 0 &&
       trait.methods.every(
         (method) =>
-          method.parameters.every(
-            (parameter) => isBoundaryScalar(parameter) || parameter === "string",
-          ) &&
+          method.parameters.every(boundaryArgument) &&
           boundaryResult(context, method.result) &&
           method.requirements.length === 0,
       );
@@ -76,7 +101,7 @@ export function validateHostCapabilities(context: ProgramCheckContext): void {
       code: "unsupported-host-provider-signature",
       message:
         `host capability '${displayType(trait.name)}' currently requires non-generic methods ` +
-        "whose arguments are scalar boundary values and whose results are boundary-safe values",
+        "whose arguments are scalars, strings, or List[string] and whose results are boundary-safe values",
       span: trait.span,
     });
   }

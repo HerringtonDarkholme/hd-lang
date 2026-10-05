@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 
 import type { Terminal } from "../src/commands/index.ts";
@@ -53,6 +53,20 @@ test("hd new --app writes an application that hd run runs", async () => {
     assert.doesNotMatch(await readFile(join(directory, "hd.toml"), "utf8"), /executable/);
     const ran = await runHd(["run"], { cwd: directory });
     assert.equal(ran.stdout, "hello, world\n");
+    // Its test runs the executable with hd_run!, which hd test binds to the
+    // package's executables (cli.new.app.test, cli.test.process).
+    const name = basename(directory).replaceAll("-", "_");
+    const tested = await runHd(["test"], { cwd: directory });
+    assert.equal(tested.status, 0, tested.stdout + tested.stderr);
+    assert.equal(tested.stdout, `tests/${name}.hd: 1 passed\n`);
+    // A name that no executable has is .Err(.NotFound), so hd_run! panics.
+    await writeFile(
+      join(directory, `tests/${name}.hd`),
+      'use std.testing.hd_run\n\nit("runs nothing"):\n    _ := hd_run!("nothing")\n',
+    );
+    const missing = await runHd(["test"], { cwd: directory });
+    assert.equal(missing.status, 1);
+    assert.match(missing.stdout + missing.stderr, /no executable named 'nothing'/);
     assert.match(await readFile(join(directory, "src/main.hd"), "utf8"), /hello, world/);
   });
 });

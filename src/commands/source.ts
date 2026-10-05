@@ -141,11 +141,17 @@ export async function loadSource(
       : {};
   // FILE is an entry module unless it is a test module
   // (spec/lang/10-modules.md#r-module.init.entry-module.selected).
+  // An integration test program, a file under the test root or one the
+  // runner's integration layout places, takes `Process` in its test cases'
+  // rows and may call `hd_run!` (spec/cli/command-line.md#r-cli.test.process).
+  const integrationTest =
+    options.testLayout === "integration" || (placement?.path.startsWith(TEST_ROOT) ?? false);
   const compileOptions: CompileOptions = {
     hostCapabilities: profile?.hostCapabilities,
     parse: parseOptions,
     entryModule: !("testModule" in parseOptions) && options.library !== true,
     release: options.release ?? false,
+    ...(integrationTest ? { integrationTest } : {}),
   };
   const specIndex = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
   // The JSON `file` is relative to the package root, and outside a package

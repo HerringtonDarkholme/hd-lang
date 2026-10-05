@@ -11,7 +11,7 @@ import {
   tupleType,
   displayType,
 } from "../types.ts";
-import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC, RACE_COMBINATOR } from "./standard-traits.ts";
+import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC, HD_RUN, RACE_COMBINATOR } from "./standard-traits.ts";
 import { orderedTypeSubstitutions, substituteGenericType } from "./shared.ts";
 
 import { OperatorCallChecker } from "./operator-calls.ts";
@@ -207,6 +207,15 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
             this.fail(
               "cannot-infer-type",
               `could not infer requirement-row parameter${unresolvedRows.length === 1 ? "" : "s"} ${unresolvedRows.join(", ")}`,
+              expression.span,
+            );
+          // `hd_run!` runs an executable of the package, so only an
+          // integration test module may call it
+          // (spec/std/testing.md#r-std-testing.hd-run.integration-only).
+          if (this.imports.get(expression.callee.name) === HD_RUN && !this.integrationTest)
+            this.fail(
+              "test-only-use",
+              "hd_run! runs an executable of the package, so only an integration test module, a file under tests/, may call it",
               expression.span,
             );
           const { providers, missing } = this.resolveCallProviders(

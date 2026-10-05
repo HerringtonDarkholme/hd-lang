@@ -581,6 +581,7 @@ export class FunctionChecker extends ExpressionControlChecker {
             this.imports,
             this.globals,
             this.visibleLocalImplementations(),
+            this.integrationTest,
           ).check();
           this.closures.length = closureIndex;
           if (!discovery.function) {
@@ -637,6 +638,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           this.imports,
           this.globals,
           this.visibleLocalImplementations(),
+          this.integrationTest,
         ).check();
         if (!checked.function) {
           this.diagnostics.push(...checked.diagnostics);

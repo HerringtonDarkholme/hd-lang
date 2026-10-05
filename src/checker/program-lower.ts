@@ -190,6 +190,7 @@ export function lowerCheckedProgram(
       imports,
       globals,
       new Set(declaration.localImplementations ?? []),
+      context.integrationTest,
     ).check();
     diagnostics.push(...checked.diagnostics);
     if (checked.hasPanicDetail) hasPanicDetail = true;

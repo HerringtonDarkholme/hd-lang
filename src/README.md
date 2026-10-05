@@ -116,6 +116,13 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `tests/`), one link each, in path order, running only that module's test
   cases. An error in a module that several links join prints once. A run
   with no test case passes.
+- An integration test program (a file under `tests/`, or the runner's
+  integration layout) is checked with `integrationTest`: its test cases'
+  rows take `std.process.Process`, and only it may call `hd_run!`, which is
+  `test-only-use` elsewhere. `hd test` binds that `Process` to the package's
+  executables (`commands/processes.ts`): each `run!` starts `hd run NAME --
+  ARGS` in the package directory, and a name that no executable has is
+  `.Err(.NotFound)` ([`cli.test.process`](../spec/cli/command-line.md#r-cli.test.process)).
 - `hd test` never runs `main`, so neither its output nor its outcome counts
   as a test case. `hd test FILE` exits 101 with `FILE: no test case
   registered` when FILE registers no test case, even if it has an entry point
@@ -1250,9 +1257,11 @@ failures. Portable panic fixtures verify the declared code rather than
 accepting an arbitrary Wasm trap.
 
 The host boundary covers scalars, strings, and structural results
-(optionals, tuples, lists, and data with public fields). Enums, maps, and
-results with a structural success type remain narrower than the language
-specification (`module.boundary.allowed`), tracked in KNOWN_ISSUES.
+(optionals, tuples, lists, data with public fields, non-generic enums
+without shared fields, and results with a structural success type), and
+scalar, string, and `List[string]` arguments. Maps and generic enums remain
+narrower than the language specification (`module.boundary.allowed`),
+tracked in KNOWN_ISSUES.
 `all!` calls are typed by their rule (each child a
 `mut Suspend[X_i]`, the result `(X_1, ..., X_n)`), and `race!` calls by the
 plain signature in `lib/std/task.hd`. Both drive one polling frame, a stored
@@ -1468,9 +1477,14 @@ RUNTIME_AND_LIBRARY.md).
    own calls instead (`AnsweringProvider`), as the test runner's does. A
    plain method's call begins, polls once, and reads its result at once,
    so the host may never leave it pending. An `i64` crosses as a BigInt. A method may also return `Result[T, E]` with a
-   boundary or `void` `T`: the tag crosses first, then the active side's
-   payload. An `E` that is not a boundary type, such as `ConsoleError`,
+   scalar, `string`, or `void` `T`: the tag crosses first, then the active
+   side's payload. An `E` that is not a boundary type, such as `ConsoleError`,
    can be named but not built, so the host may not report `.Err` for it.
+   A `Result` with any other `T` crosses as a node tree, as
+   `Process.run!`'s `Result[ProcessOutput, ProcessError]` does: the host
+   answers `{ tag: "ok" | "err", value }`, and an enum value as
+   `{ tag: "Variant", field: value }`. A `List[string]` argument crosses as
+   its length, then each element's length and bytes (`src/host-arguments.ts`).
    The host console is a built-in entry, `Console.write_line`, in
    `HOST_PROVIDERS` (`src/host-functions.ts`); `UNRECORDED_PROVIDERS`
    keeps its calls out of record and replay, as before.

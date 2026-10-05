@@ -49,6 +49,13 @@ export interface CheckOptions {
    * (spec/lang/10-modules.md#r-module.entry.private-main.warn).
    */
   readonly entryModule?: boolean;
+  /**
+   * The program is an integration test program (spec/lang/10-modules.md#r-module.test.integration.program):
+   * each test case's row takes `Process`, which `hd test` binds to the
+   * package's executables (spec/cli/command-line.md#r-cli.test.process), and
+   * only such a program may call `hd_run!`.
+   */
+  readonly integrationTest?: boolean;
 }
 
 export function check(written: Program, options: CheckOptions = {}): CheckResult {
@@ -210,10 +217,13 @@ function checkProgramRaw(
     hostCapabilities: new Set([
       "Console",
       ...runnerCapabilities,
+      // `hd test` binds `Process` for an integration test (spec/cli/command-line.md#r-cli.test.process).
+      ...(options.integrationTest ? [testRunners.process] : []),
       ...(options.hostCapabilities ?? []),
     ]),
     testRunners,
     entryModule: options.entryModule === true,
+    integrationTest: options.integrationTest === true,
   };
   validateProgram(context);
   // A missing required result type leaves no signature to check against.

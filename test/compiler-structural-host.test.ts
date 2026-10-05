@@ -101,3 +101,58 @@ pub trait Source:
     "unsupported-host-provider-signature",
   );
 });
+
+// `Process.run!` takes a `List[string]` and returns
+// `Result[ProcessOutput, ProcessError]`, a data success and an enum error
+// (spec/lang/10-modules.md#processes, module.boundary.allowed).
+test("a List[string] argument, a data success, and an enum error cross the boundary", async () => {
+  const source = [
+    "use std.process.{Process, ProcessError}",
+    "",
+    "pub fn main!() -> void $ Process + Console:",
+    '    for name in ["ok", "missing", "other"]:',
+    '        match $.use(Process).run!(name, ["a", "b c", ""], "in"):',
+    '            .Ok(out) => println("ok ${out.stdout} ${out.status}")',
+    '            .Err(.NotFound) => println("not found")',
+    '            .Err(.Other(message)) => println("other ${message}")',
+    '            .Err(_) => println("refused")',
+    "",
+  ].join("\n");
+  const answers: Record<string, HostBoundaryValue> = {
+    ok: { tag: "ok", value: { stdout: "out", stderr: "", status: 3 } },
+    missing: { tag: "err", value: { tag: "NotFound" } },
+    other: { tag: "err", value: { tag: "Other", message: "boom" } },
+  };
+  const run = async (options: Parameters<typeof instantiate>[1]): Promise<string[]> => {
+    const lines: string[] = [];
+    const { instance, compilation } = await instantiate(source, {
+      ...options,
+      hostCapabilities: ["Process"],
+      console: (text) => lines.push(text),
+    });
+    const main = compilation.hir.functions.find(({ entry }) => entry)!;
+    (instance.exports[main.name] as CallableFunction)(
+      ...main.requirements.map((requirement) => ({ requirement })),
+    );
+    return lines;
+  };
+  const events: ReplayEvent[] = [];
+  const calls: unknown[] = [];
+  const live = await run({
+    hostSuspensionInvoke: (call) => {
+      calls.push(call.arguments);
+      return { pending: false, value: answers[call.arguments[0] as string]! };
+    },
+    record: (event) => events.push(event),
+  });
+  const expected = ["ok out 3", "not found", "other boom"];
+  assert.deepEqual(live, expected);
+  assert.deepEqual(calls[0], ["ok", ["a", "b c", ""], "in"]);
+  const replayed = await run({
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    replay: JSON.parse(JSON.stringify(events)) as ReplayEvent[],
+  });
+  assert.deepEqual(replayed, expected);
+});

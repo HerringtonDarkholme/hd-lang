@@ -46,6 +46,7 @@ function bindTestBodyRequirements(
 function createTestDeclarations(
   program: ProgramCheckContext["program"],
   runners: ProgramCheckContext["testRunners"],
+  hostRow: readonly string[],
 ): FunctionDecl[] {
   return program.tests.map((test, index) => {
     const inferred = test.explicit === true && test.result === undefined;
@@ -65,7 +66,7 @@ function createTestDeclarations(
       parameters: [],
       result: test.result ?? { name: "void", span: test.span },
       ...(inferred ? { resultOmitted: true } : {}),
-      requirements: [runners.test, ...(test.property ? [runners.property] : [])],
+      requirements: [runners.test, ...(test.property ? [runners.property] : []), ...hostRow],
       body: bindTestBodyRequirements(test.body, runners.test),
       testOnly: true,
       testOptions: options,
@@ -514,7 +515,12 @@ export function createProgramDeclarations(
     ),
   );
   const enumVariantDeclarations = createEnumVariantDeclarations(program.enums, diagnostics);
-  const testDeclarations = createTestDeclarations(program, context.testRunners);
+  // An integration test case takes `Process` from the runner (cli.test.process).
+  const hostRow =
+    context.integrationTest && context.traitTypes.has(context.testRunners.process)
+      ? [context.testRunners.process]
+      : [];
+  const testDeclarations = createTestDeclarations(program, context.testRunners, hostRow);
   const declarations = [
     ...program.functions,
     ...testDeclarations,

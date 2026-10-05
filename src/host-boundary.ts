@@ -56,11 +56,16 @@ type BoundaryShape =
       readonly declaration: HirData;
       readonly arguments: readonly ValueType[];
     }
+  /** `Result[T, E]`: tag 0 with a `T` payload, or tag 1 with an `E` payload; a `void` side has none. */
+  | { readonly kind: "result"; readonly ok: ValueType; readonly err: ValueType }
+  /** A non-generic enum without shared fields: its variant's tag and that variant's fields. */
+  | { readonly kind: "enum"; readonly declaration: HirEnum }
   | { readonly kind: "other"; readonly type: ValueType };
 
 export function boundaryShape(
   type: ValueType,
   lookupData: (name: string) => HirData | undefined,
+  lookupEnum: (name: string) => HirEnum | undefined = () => undefined,
 ): BoundaryShape {
   if (isBoundaryScalar(type)) return { kind: "scalar", type };
   if (type === "string") return { kind: "string" };
@@ -71,9 +76,53 @@ export function boundaryShape(
   const nominal = nominalGenericParts(type);
   if (nominal?.name === "List" && nominal.arguments.length === 1)
     return { kind: "list", element: nominal.arguments[0]! };
+  const sides = resultSides(type);
+  if (sides) return { kind: "result", ok: sides[0], err: sides[1] };
   const declaration = lookupData(nominal?.name ?? type);
   if (declaration) return { kind: "data", declaration, arguments: nominal?.arguments ?? [] };
+  const enumeration = nominal ? undefined : lookupEnum(type);
+  if (
+    enumeration &&
+    enumeration.genericParameters.length === 0 &&
+    enumeration.sharedFields.length === 0
+  )
+    return { kind: "enum", declaration: enumeration };
   return { kind: "other", type };
+}
+
+/**
+ * Whether `Result[T, E]` crosses the scalar way, as a tag and a scalar or
+ * string payload (src/compiler.ts): its `T` is `void`, a scalar, or a
+ * `string`. Any other `Result` crosses as a boundary node tree.
+ */
+export function scalarResult(type: ValueType): boolean {
+  const sides = resultSides(type);
+  if (!sides) return false;
+  const ok = sides[0];
+  return ok === "void" || ok === "string" || isBoundaryScalar(ok);
+}
+
+/** The program's lookups of a boundary data or enum type by name. */
+export function programLookups(program: {
+  readonly data: readonly HirData[];
+  readonly enums: readonly HirEnum[];
+}): readonly [(name: string) => HirData | undefined, (name: string) => HirEnum | undefined] {
+  return [
+    (name) => program.data.find((item) => item.name === name),
+    (name) => program.enums.find((item) => item.name === name),
+  ];
+}
+
+/**
+ * Whether `type` crosses as a list of strings: the one structured argument
+ * type a host capability method takes, as `Process.run!`'s `args`
+ * (spec/lang/10-modules.md#processes).
+ */
+export function isStringListArgument(type: ValueType): boolean {
+  const nominal = nominalGenericParts(type);
+  return (
+    nominal?.name === "List" && nominal.arguments.length === 1 && nominal.arguments[0] === "string"
+  );
 }
 
 /** The `[T, E]` of a `Result[T, E]` boundary result. */
@@ -86,11 +135,13 @@ export function resultSides(type: ValueType): readonly [ValueType, ValueType] | 
 
 /** Whether a host result of `type` crosses as a boundary node tree. */
 export function structuralHostResult(program: HirProgram, type: ValueType): boolean {
-  const shape = boundaryShape(type, (name) => program.data.find((item) => item.name === name));
+  const shape = boundaryShape(type, ...programLookups(program));
   return (
     shape.kind === "optional" ||
     shape.kind === "tuple" ||
     shape.kind === "list" ||
-    shape.kind === "data"
+    shape.kind === "data" ||
+    shape.kind === "enum" ||
+    (shape.kind === "result" && !scalarResult(type))
   );
 }

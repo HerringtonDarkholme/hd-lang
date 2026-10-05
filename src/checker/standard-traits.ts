@@ -20,6 +20,8 @@ export const ALL_COMBINATOR = "std.task.all";
 
 /** `race!`, declared in `lib/std/task.hd`; a call needs a task argument. */
 export const RACE_COMBINATOR = "std.task.race";
+/** `hd_run!`, which only an integration test module may call (spec/std/testing.md#r-std-testing.hd-run.integration-only). */
+export const HD_RUN = "std.testing.hd_run";
 
 /**
  * The `@intrinsic` name of `all_frame` in `lib/std/task.hd`, the polling
