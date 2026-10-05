@@ -102,9 +102,11 @@ fn fraction_digits(fraction: i64) -> string:
 # (r-std-format.debug.derive-builders.mapping): the prototype runs the
 # derivation pass before it joins std (src/checker/program.ts), so a
 # `@derive` on a std declaration has no effect.
+# A `Duration` debugs as its `Display` text, as `250ms`
+# (r-std-format.debug.std-types.time).
 impl Debug for Duration:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("Duration").field("millis", self.millis).finish()
+        out.write(self.to_string())
 
 # Durations compare by their milliseconds (r-std-time.duration.eq-ord).
 impl Eq for Duration:
@@ -212,9 +214,11 @@ impl Display for Timestamp:
     fn to_string(self) -> string:
         self.to_rfc3339()
 
+# A `Timestamp` debugs as its RFC 3339 text
+# (r-std-format.debug.std-types.time).
 impl Debug for Timestamp:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("Timestamp").field("millis", self.millis).finish()
+        out.write(self.to_rfc3339())
 
 impl Eq for Timestamp:
     fn eq(self, other: Timestamp) -> bool:
@@ -449,9 +453,11 @@ impl Instant:
     pub fn since(self, earlier: Instant) -> Duration:
         Duration::milliseconds(self.millis - earlier.millis)
 
+# An `Instant` debugs as its milliseconds, as `Instant(5ms)`
+# (r-std-format.debug.std-types.time).
 impl Debug for Instant:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("Instant").field("millis", self.millis).finish()
+        out.write("Instant(${self.millis}ms)")
 
 impl Eq for Instant:
     fn eq(self, other: Instant) -> bool:
@@ -500,9 +506,10 @@ impl Clock for ManualClock:
             panic("sleep! with a negative duration: ${duration}")
         self.current = Timestamp::from_unix_milliseconds(self.current.millis + step)
 
-# `Duration`, `Timestamp`, and `Instant` consent to every format, and so to
-# the host boundary, as their whole milliseconds (r-std-time.serde.consent,
-# r-std-time.serde.form).
+# `Duration` and `Instant` consent to every format, and so to the host
+# boundary, as their whole milliseconds; a `Timestamp` consents as its
+# RFC 3339 text (r-std-time.serde.consent, r-std-time.serde.int-form,
+# r-std-time.serde.text-form).
 impl Serialize for Duration:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
         out.int(self.millis)
@@ -513,11 +520,14 @@ impl Deserialize for Duration:
 
 impl Serialize for Timestamp:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
-        out.int(self.millis)
+        out.text(self.to_rfc3339())
 
 impl Deserialize for Timestamp:
     fn deserialize[R < Deserializer](input: mut R) -> Result[Timestamp, R::Error]:
-        .Ok(Timestamp { millis: input.int("Timestamp")? })
+        text := input.text("Timestamp")?
+        match Timestamp::parse_rfc3339(text):
+            .Ok(stamp) => .Ok(stamp)
+            .Err(_) => .Err(input.invalid("Timestamp"))
 
 impl Serialize for Instant:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:

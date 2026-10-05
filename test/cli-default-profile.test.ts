@@ -188,8 +188,9 @@ test("a REPL session binds the default profile, and each host call runs once", a
     assert.equal(await done, 0);
     const lines = text.trimEnd().split("\n");
     const [first, second] = lines.filter((line) => line.endsWith(" : Timestamp"));
-    // The clock is read once; the second display replays that reading.
-    assert.match(first!, /^Timestamp \{ millis: \d+ \}/);
+    // The clock is read once; the second display replays that reading. The
+    // reading shows as RFC 3339 text, with milliseconds when nonzero.
+    assert.match(first!, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z : Timestamp$/);
     assert.equal(second, first);
     assert.ok(lines.includes('Ok("remember the milk") : Result[string, FsError]'), text);
     assert.ok(lines.includes("[] : List[string]"), text);

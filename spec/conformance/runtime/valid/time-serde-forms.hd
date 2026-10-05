@@ -1,0 +1,48 @@
+# test: Duration and Instant write and read whole milliseconds; Timestamp writes and reads RFC 3339 text
+# Spec std/time Serialization: std-time.serde.consent, std-time.serde.int-form, std-time.serde.text-form, std-time.serde.int-read, std-time.serde.text-read.
+use std.json.{encode, decode, JsonError}
+use std.serde.{Serialize, Deserialize}
+use std.time.{Duration, Timestamp, Instant}
+use std.testing.assert_equal
+
+@derive(Serialize, Deserialize)
+data Lease:
+    holder: string
+    granted_at: Timestamp
+    term: Duration
+    checked: Instant
+
+fn lease() -> Lease:
+    Lease { holder: "ada", granted_at: Timestamp::from_unix_milliseconds(1700000000000), term: Duration::seconds(30), checked: Instant::from_milliseconds(5) }
+
+fn stamp() -> Timestamp:
+    Timestamp::from_unix_milliseconds(1700000000000)
+
+tests:
+    it("durations and instants write milliseconds, timestamps RFC 3339 text"):
+        assert_equal(encode(lease()), "{\"holder\":\"ada\",\"granted_at\":\"2023-11-14T22:13:20Z\",\"term\":30000,\"checked\":5}", reason="forms")
+        assert_equal(encode(Duration::milliseconds(-1500)), "-1500", reason="a negative duration")
+
+    it("each time type reads its form back"):
+        match decode::[Lease](encode(lease())):
+            .Ok(back) =>
+                assert_equal(back.granted_at, lease().granted_at, reason="timestamp")
+                assert_equal(back.term, lease().term, reason="duration")
+                assert_equal(back.checked, lease().checked, reason="instant")
+            .Err(error) => panic("decode failed: $error")
+
+    it("a timestamp round-trips as RFC 3339 text"):
+        assert_equal(encode(stamp()), "\"2023-11-14T22:13:20Z\"", reason="text form")
+        match decode::[Timestamp](encode(stamp())):
+            .Ok(back) => assert_equal(back, stamp(), reason="round trip")
+            .Err(error) => panic("decode failed: $error")
+        match decode::[Timestamp]("\"2023-11-14T22:13:20+02:00\""):
+            .Ok(back) => assert_equal(back, Timestamp::from_unix_milliseconds(1699992800000), reason="offset accepted")
+            .Err(error) => panic("decode failed: $error")
+
+    it("a value that is not the form names the time type"):
+        assert_equal(decode::[Duration]("\"30s\""), .Err(JsonError.WrongType("$", "Duration")), reason="text")
+        assert_equal(decode::[Timestamp]("1.5"), .Err(JsonError.WrongType("$", "Timestamp")), reason="number")
+
+    it("a bad timestamp string is a decode error naming Timestamp"):
+        assert_equal(decode::[Timestamp]("\"30s\""), .Err(JsonError.WrongType("$", "Timestamp")), reason="bad text")

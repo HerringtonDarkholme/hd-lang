@@ -60,29 +60,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AW. Timestamp Serializes As RFC 3339 Text
-
-Owner decision, 2026-10-05. `Timestamp`'s `Serialize`/`Deserialize`
-(lib/std/time.hd, spec/std/time.md `std-time.serde.*`) write and read
-RFC 3339 text in UTC with milliseconds, the same text its `Display` gives
-(`"2026-10-05T15:50:48.076Z"`), instead of an integer of milliseconds.
-`Duration` and `Instant` stay integers of milliseconds. Decoding accepts
-what `std.time`'s RFC 3339 parser accepts and reports a bad string as a
-decode error naming `Timestamp`. Update the rules, the `time-serde-millis`
-fixture (rename it if its name no longer fits, and fix its rows), and add
-a JSON round-trip test. Spec examples: realign `examples.tsv` if a block
-moves.
-
-Also, in the same job: since `dbg` landed (16df2295), the REPL prints
-values the way `dbg` does, through `Debug` or else the structure, so a
-`Timestamp` now shows as `Timestamp { millis: 1791225123833 }`. Give the
-three time types hand-written `Debug` implementations (std calls are
-ours; log them in `future-work/STDLIB_CALLS.md`): `Timestamp` writes its
-RFC 3339 text, `Duration` its `Display` form (such as `250ms`), and
-`Instant` its milliseconds as `Instant(…ms)`. Update
-`test/cli-default-profile.test.ts` back to an RFC 3339 match and add a
-REPL test.
-
 ### BB. Messages Never Show Hidden Names
 
 Found while reviewing AT. A message printed the linker's hidden name:

@@ -100,6 +100,7 @@ fn shown(timeout: Duration) -> string:
 5. r[std-format.debug.std-types.set] `Set` is one more exception: it writes one `debug_list` entry per element, in iteration order.
 6. r[std-format.debug.std-types.exempt-members] A type with a member that holds a function value, or a trait value whose trait does not extend `Debug`, does not implement `Debug`. Examples are `Iterator[T]` and `Choices`.
 7. r[std-format.debug.std-types.context-error] `ContextError` is the exception to [`std-format.debug.std-types.exempt-members`](#r-std-format.debug.std-types.exempt-members): it implements `Debug` by [`std-error.context.debug`](error.md#r-std-error.context.debug), though it holds an erased `Error`.
+8. r[std-format.debug.std-types.time] `Duration`, `Timestamp`, and `Instant` are exceptions to [`std-format.debug.std-types.calls`](#r-std-format.debug.std-types.calls): each writes text with `write`, so `debug` shows a `Duration` as its `Display` text (`250ms`), a `Timestamp` as its RFC 3339 text, and an `Instant` as `Instant(5ms)`.
 
 > **Note.** The derived calls name a type's private fields too. Like all
 > `debug` text, that text is not portable, and fixtures do not depend on it.

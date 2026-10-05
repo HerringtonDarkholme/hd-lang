@@ -2059,7 +2059,7 @@ typing/invalid/serde-derive-member-not-serialize.hd	type	reject:member-not-deriv
 typing/invalid/serde-map-key-not-string.hd	type	reject:unsatisfied-trait-bound	std/serde.md#r-std-serde.std.map-keys
 runtime/valid/json-serde-private-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.private
 runtime/valid/serde-derive-call-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.serialize.order
-runtime/valid/time-serde-millis.hd	runtime	accept	std/time.md#r-std-time.serde.form
+runtime/valid/time-serde-forms.hd	runtime	accept	std/time.md#r-std-time.serde.text-form
 runtime/valid/boundary-consent-crossing.hd	runtime	accept	lang/10-modules.md#r-module.boundary.consent.in
 typing/invalid/boundary-private-field-no-consent.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.consent.error
 runtime/valid/time-date-utc.hd	runtime	accept	std/time.md#r-std-time.date.of-timestamp

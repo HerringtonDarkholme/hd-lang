@@ -447,6 +447,23 @@ test("syntax coloring treats raw identifiers and contextual words by position", 
   assert.equal(classifyInput("use std.io"), "declaration");
 });
 
+test("REPL values show time types through their Debug text", async () => {
+  const session = new ReplSession();
+  await respond(session, "use std.time.{Duration, Timestamp, Instant}");
+  assert.deepEqual(await respond(session, "Timestamp::from_unix_milliseconds(1700000000000)"), {
+    entries: [{ kind: "value", text: "2023-11-14T22:13:20Z", type: "Timestamp" }],
+    kept: true,
+  });
+  assert.deepEqual(await respond(session, "Duration::milliseconds(250)"), {
+    entries: [{ kind: "value", text: "250ms", type: "Duration" }],
+    kept: true,
+  });
+  assert.deepEqual(await respond(session, "Instant::from_milliseconds(5)"), {
+    entries: [{ kind: "value", text: "Instant(5ms)", type: "Instant" }],
+    kept: true,
+  });
+});
+
 test("colored REPL output highlights values and errors", async () => {
   const input = new PassThrough();
   const output = new PassThrough();

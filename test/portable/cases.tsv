@@ -1955,7 +1955,7 @@ typing/invalid/serde-derive-member-not-serialize.hd	type
 typing/invalid/serde-map-key-not-string.hd	type
 runtime/valid/json-serde-private-round-trip.hd	runtime
 runtime/valid/serde-derive-call-order.hd	runtime
-runtime/valid/time-serde-millis.hd	runtime
+runtime/valid/time-serde-forms.hd	runtime
 runtime/valid/boundary-consent-crossing.hd	runtime
 typing/invalid/boundary-private-field-no-consent.hd	type
 runtime/valid/string-split-once.hd	runtime

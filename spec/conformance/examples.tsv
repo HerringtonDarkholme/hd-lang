@@ -716,7 +716,7 @@ std/time.md	9	type-fragment	-
 std/time.md	10	accept	runtime/valid/time-rfc3339-text.hd
 std/time.md	11	accept	runtime/valid/time-rfc3339-parse.hd
 std/time.md	12	type-fragment	-
-std/time.md	13	accept	runtime/valid/time-serde-millis.hd
+std/time.md	13	accept	runtime/valid/time-serde-forms.hd
 std/error.md	1	accept	runtime/valid/error-chain.hd
 std/error.md	2	accept	runtime/valid/error-root-cause.hd|runtime/valid/error-find-erased.hd
 std/error.md	3	mixed	typing/invalid/error-find-non-error.hd

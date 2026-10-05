@@ -412,9 +412,9 @@ See also: [Decode Errors](encoding.md#decode-errors),
 
 ## Serialization
 
-`Duration`, `Timestamp`, and `Instant` give their
+`Duration` and `Instant` give their
 [serialization consent](../lang/14-annotations.md#serialization) as their
-whole milliseconds:
+whole milliseconds, and `Timestamp` as its RFC 3339 text:
 
 ```text
 use std.json.encode
@@ -428,16 +428,19 @@ data Lease:
     term: Duration
 
 fn record(lease: Lease) -> string:
-    encode(lease)  # {"holder":"ada","granted_at":1700000000000,"term":30000}
+    encode(lease)  # {"holder":"ada","granted_at":"2023-11-14T22:13:20Z","term":30000}
 ```
 
 1. r[std-time.serde.consent] `Duration`, `Timestamp`, and `Instant` each implement `std.serde.Serialize` and `std.serde.Deserialize`.
-2. r[std-time.serde.form] Each writes one `int`: `as_milliseconds()` for a `Duration` or an `Instant`, and `unix_milliseconds()` for a `Timestamp`.
-3. r[std-time.serde.read] Each reads one `int` with the type's name as `expected`, as in `"Duration"`, and holds that many milliseconds.
+2. r[std-time.serde.int-form] A `Duration` and an `Instant` each write one `int` holding their milliseconds, as `as_milliseconds()` gives.
+3. r[std-time.serde.text-form] A `Timestamp` writes one text: its RFC 3339 text in UTC with milliseconds, the same text its `Display` gives.
+4. r[std-time.serde.int-read] A `Duration` and an `Instant` each read one `int` with the type's name as `expected`, as in `"Duration"`, and hold that many milliseconds.
+5. r[std-time.serde.text-read] A `Timestamp` reads one text with `"Timestamp"` as `expected`, and holds what [`Timestamp::parse_rfc3339`](#parsing-rfc-3339) accepts. A text the parser rejects is a decode error naming `Timestamp`.
 
-> **Why.** The milliseconds are the value: an `i64` round trips exactly
-> through every format, and the private field stays private to code. A
-> text form, such as RFC 3339, is the program's choice of format.
+> **Why.** A timestamp reads the way it displays, so JSON carries the same
+> text a log line does. Durations and instants stay integers of
+> milliseconds, which round trip exactly, and the private fields stay
+> private to code.
 
 > **Note.** The consent lets a `Clock` provider's `Timestamp` and
 > `Instant` cross the host boundary into hd, and `sleep!`'s `Duration`

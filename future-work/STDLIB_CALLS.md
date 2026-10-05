@@ -84,6 +84,8 @@ when the owner reviews it.
 | 72 (#223) | Go-style `Duration` text writes every smaller unit down to `s` once a larger unit appears (`1h0min0s`), uses `0s` for zero, and never overflows on the most negative value. | Go's `Duration.String`. | own (the style is owner-approved) |
 | 74 (#225) | `Date` holds `year`, `month` and `day` as `i32` in the proleptic Gregorian calendar, where year 0 is 1 BC. It implements `Eq` and `Debug`, but not `Display` or `Ord`. | Hinnant's algorithm. | confirmed |
 | 74 (#225) | RFC 3339 output is `YYYY-MM-DDThh:mm:ssZ` with `.fff` only when the milliseconds are nonzero. Years outside 0 to 9999 print as Go's `Format` does. Parsing accepts `t`, `z`, `±hh:mm` offsets and any number of fraction digits (truncated), and rejects second 60. | Go's `time` package. | confirmed |
+| AW (Muse queue) | `Timestamp` serializes as its RFC 3339 `Display` text and deserializes through `parse_rfc3339`, reporting a bad string with `invalid("Timestamp")`. | Owner decision in job AW; the text is what `to_rfc3339` already gives. | own |
+| AW (Muse queue) | `Debug` for `Duration` writes `to_string()`, for `Timestamp` writes `to_rfc3339()`, and for `Instant` writes `Instant(…ms)` via `out.write`. | Owner decision in job AW; `write` is the custom-text builder other std types use. | own |
 
 ## Errors
 
