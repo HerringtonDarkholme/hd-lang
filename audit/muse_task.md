@@ -83,10 +83,8 @@ incomplete, not skippable.
    `--deny-skipped` flag, and the skipped count and outcome from the
    summary and JSON rules, unless another rule still produces a skip
    (check). Retire the IDs properly.
-2. **No parked design.** Add a Why line to the testing rules instead:
-   "There is no skip: a host that runs tests binds every capability its
-   tests need, with its own implementation if it has no real one."
-   Don't add an OPEN_ISSUES entry for skipping (owner, 2026-10-05).
+2. **No parking, no Why line about hosts.** Don't add an OPEN_ISSUES
+   entry for skipping (owner, 2026-10-05).
 3. **Code.** Remove `profileSkip` (`src/commands/test-host.ts`) and the
    skip path #274 added, and `--deny-skipped` from `src/cli-args.ts` and
    help text. The checker reports the missing requirement for the test.
