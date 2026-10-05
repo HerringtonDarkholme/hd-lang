@@ -122,6 +122,9 @@ are in `spec/conformance/cli/doc-*` (known failures, tag CLI-DOC), and
   `llms.txt` and `llms-full.txt`, check `` [`Name`] `` links (warning
   `broken-doc-link`), and print one item for `hd doc NAME`, including
   `std.` names.
+- `hd doc --format json` reports diagnostics like `hd check` does
+  (`cli.json.commands`, added in 5788a62b). The CLI cases `doc-outside-package`
+  and `doc-check-error` check it.
 - Module docs: a file's first `##` block followed by a blank line
   documents the module (lexer and parser change, `lex.doc.module`).
 - Wire the `hd doc` command last. `src/cli-args.ts` is in the don't-touch
