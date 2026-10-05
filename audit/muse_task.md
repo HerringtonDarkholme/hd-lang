@@ -55,8 +55,6 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
-- Value printing (another agent is changing it): `src/checker/debug-print*.ts`,
-  `lib/std/format.hd`, `src/repl*.ts`, `website/playground/`.
 
 ## Jobs
 
