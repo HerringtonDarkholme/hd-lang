@@ -2519,6 +2519,11 @@ cli/dbg-release	cli
 cli/dbg-values	cli
 runtime/valid/debug-source-text.hd	runtime
 cli/dbg-uses	cli
+cli/clean-build	cli
+cli/clean-outside-package	cli
+cli/clean-workspace	cli
+cli/dep-dev-invalid-add	cli
+cli/dep-dev-remove	cli
 runtime/valid/num-parse-unsigned.hd	runtime
 runtime/valid/num-rotate.hd	runtime
 runtime/valid/path-operations.hd	runtime
