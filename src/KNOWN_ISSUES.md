@@ -59,7 +59,7 @@ Correctness and diagnostics:
   feature. Fixtures: the six rows tagged F-250.
 - **F-259**: the adapter rejects the `disposed-file` runtime profile, so
   `runtime/valid/resource-disposed-result.hd` cannot run.
-- **F-265**: code-generation failures and an `--entry` with no runnable
+- **F-265**: code-generation failures and an adapter `entry` option with no runnable
   export exit through a JavaScript stack trace, not a stable code.
 - **F-401**: replay code identity hashes each function's source text, not
   the module's semantic content, so a changed callee replays and a

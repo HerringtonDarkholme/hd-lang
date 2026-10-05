@@ -194,13 +194,7 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 1,
     maxOperands: 1,
     summary: "run FILE as a single-file program",
-    flags: [
-      {
-        name: "--entry",
-        value: "NAME",
-        help: "run the exported function NAME instead, and print its result",
-      },
-    ],
+    flags: [],
     hidden: true,
   },
   {

@@ -53,7 +53,7 @@ function flags(parsed: Command, runner: RunnerOptions = {}) {
     all: parsed.flags.has("--all"),
     wat: parsed.flags.has("--wat"),
     release: parsed.flags.has("--release"),
-    entry: value("--entry"),
+    entry: runner.entry,
     update: parsed.flags.has("--update"),
     seed: count("--seed"),
     cases: count("--cases"),

@@ -66,7 +66,7 @@ async function directoryWord(
 }
 
 export interface FileArgs extends SourceArgs {
-  /** `--entry NAME`: run this exported function instead, and print its result. */
+  /** The runner's `entry` option: run this exported function instead, and print its result. */
   readonly entry?: string;
   readonly profile?: RuntimeProfileName;
   /** The program's arguments, after `--` (spec/cli/command-line.md#r-cli.args.pass). */

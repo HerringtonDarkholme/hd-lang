@@ -122,6 +122,8 @@ export function terminalOf(environment: CommandEnvironment): Terminal | null {
 export interface RunnerOptions {
   /** The runtime profile: the host capabilities a fixture's entry point may require. */
   readonly profile?: RuntimeProfileName;
+  /** Run this exported function instead of `main`, and print its result. */
+  readonly entry?: string;
   /** A runtime scenario that drives the program instead of running its test cases. */
   readonly scenario?: RuntimeScenario;
   /** The suspending function that stays pending, with `cancellation-cleanup`. */

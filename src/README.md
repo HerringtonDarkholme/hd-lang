@@ -59,7 +59,7 @@ in-process conformance adapter calls the same `main` with a buffering sink
 ([`../test/portable/README.md`](../test/portable/README.md)).
 
 ```text
-hd FILE  [--entry NAME] [-- ARGS]
+hd FILE  [-- ARGS]
 hd build [--wat] [--release] [FILE]
 hd run   [--release] [NAME] [-- ARGS]
 hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE]
@@ -160,8 +160,8 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   suggests a task ([`cli.file.in-package`](../spec/cli/command-line.md#r-cli.file.in-package)).
 
 `hd FILE` and `hd run` run the public `main` or `main!`; a module without one
-runs its initialization and exits 0, while `hd FILE --entry NAME` runs the
-exported function NAME and prints its result.
+runs its initialization and exits 0, while the adapter's `entry` runner option runs the
+exported function it names and prints its result.
 `hd check` skips the test cases and test-only functions of a `tests:` block
 unless `--tests` is given (Testing T42); `hd test` always compiles them.
 `hd test` (`test-runner.ts`) runs each test case in a fresh instance of one

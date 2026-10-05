@@ -343,7 +343,7 @@ export interface HirFunction {
   /**
    * A non-`pub` `main`: an ordinary function under the specification. The
    * prototype still exports it for implementation tests, which run it only
-   * through an explicit `--entry main`.
+   * through the adapter's `entry` option.
    */
   readonly developmentEntry?: boolean;
   /**

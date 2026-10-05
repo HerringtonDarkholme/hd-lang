@@ -31,6 +31,8 @@ export interface HdResult {
 export interface AdapterRunnerOptions {
   readonly profile?: string;
   readonly scenario?: string;
+  /** Run this exported function instead of `main`, and print its result. */
+  readonly entry?: string;
   readonly pendingFunction?: string;
   readonly packageRole?: string;
   readonly dependencies?: readonly { readonly name: string; readonly directory: string }[];
@@ -62,6 +64,7 @@ function runnerEnvironment(options: AdapterRunnerOptions): CommandEnvironment {
     ...(scenario === undefined || pendingFirstPoll
       ? {}
       : { scenario: oneOf("scenario", RUNTIME_SCENARIO_NAMES, scenario) }),
+    ...(options.entry === undefined ? {} : { entry: options.entry }),
     ...(options.pendingFunction === undefined ? {} : { pendingFunction: options.pendingFunction }),
     ...(options.testLayout === undefined
       ? {}

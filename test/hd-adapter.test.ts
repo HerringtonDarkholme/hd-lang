@@ -54,7 +54,6 @@ test("the in-process adapter reports what the spawned CLI reports", async () => 
       ["check", "--tests", rejected],
       [panicking],
       ["test", panicking],
-      [printing, "--entry", "main"],
       ["check", "--format", "json", rejected],
       ["bogus"],
       ["help", "test"],

@@ -107,29 +107,24 @@ async function invoke(
   action: string,
   path: string,
   options: readonly string[] = [],
-  profile?: string,
+  runner: { readonly profile?: string; readonly entry?: string } = {},
 ): Promise<CommandResult> {
   // With no action, `IMPL FILE OPTION...` runs FILE as a single file
   // (spec/cli/command-line.md#r-cli.file.run).
   const args = action === "" ? [path, ...options] : [action, ...options, path];
   if (!Array.isArray(implementation)) {
-    // The profile goes to the adapter, not to the command line.
-    const result = await (implementation as Adapter).run(
-      args,
-      timeoutMs,
-      undefined,
-      profile === undefined ? undefined : { profile },
-    );
+    // Runner options go to the adapter, not to the command line.
+    const result = await (implementation as Adapter).run(args, timeoutMs, undefined, runner);
     if (result.timedOut)
       return { code: 1, stderr: `ran longer than ${timeoutMs / 1000} s`, stdout: "" };
     return { code: result.status ?? 1, stderr: result.stderr, stdout: result.stdout };
   }
   const command = implementation as readonly string[];
-  if (profile !== undefined)
+  if (runner.profile !== undefined || runner.entry !== undefined)
     return {
       code: 1,
       stderr:
-        "the fixture selects a runtime profile, which only the in-process adapter can receive",
+        "the fixture selects a runner option (runtime profile or entry), which only the in-process adapter can receive",
       stdout: "",
     };
   return new Promise((complete, reject) => {
@@ -295,7 +290,10 @@ async function runFixtureCase(
       if (separator < 1) return `${testCase.name}: expected '# expect-result: ENTRY = VALUE'`;
       const entry = directive.value.slice(0, separator);
       const expected = directive.value.slice(separator + 3);
-      const result = await invoke(command, "", testCase.path, ["--entry", entry], testCase.profile);
+      const result = await invoke(command, "", testCase.path, [], {
+        profile: testCase.profile,
+        entry,
+      });
       if (result.code !== 0) return failure(testCase.name, `${entry} failed`, result);
       if (result.stdout.trim() !== expected)
         return failure(
@@ -326,11 +324,13 @@ async function runFixtureCase(
       action,
       testCase.path,
       action === "check" ? ["--tests"] : [],
-      testCase.profile,
+      { profile: testCase.profile },
     );
     return result.code === 0 ? undefined : failure(testCase.name, "expected acceptance", result);
   }
-  const checked = await invoke(command, "check", testCase.path, ["--tests"], testCase.profile);
+  const checked = await invoke(command, "check", testCase.path, ["--tests"], {
+    profile: testCase.profile,
+  });
   let result = checked;
   if (kind === "diagnostic" && checked.code === 0)
     return failure(testCase.name, "expected rejection", checked);
@@ -338,7 +338,7 @@ async function runFixtureCase(
     return failure(testCase.name, "expected warning, but compilation failed", checked);
   if (kind === "panic") {
     if (checked.code !== 0) return failure(testCase.name, "panic fixture did not compile", checked);
-    result = await invoke(command, "", testCase.path, [], testCase.profile);
+    result = await invoke(command, "", testCase.path, [], { profile: testCase.profile });
     if (result.code === 0) return failure(testCase.name, "expected a runtime panic", result);
   }
   const missing = testCase.directives.filter((directive) => {

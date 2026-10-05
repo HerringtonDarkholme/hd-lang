@@ -152,6 +152,7 @@ const RUNNER_FLAGS = [
   "--dependency",
   "--test-layout",
   "--package-path",
+  "--entry",
 ];
 
 test("the conformance runner's options are not hd flags", async () => {
@@ -183,7 +184,7 @@ test("the conformance runner's options are not hd flags", async () => {
 
 test("flags may follow FILE, and --format is global", async () => {
   assert.equal((await hd(["--format", "json", core])).stdout.trim(), "7");
-  assert.equal((await hd([core, "--format", "json", "--entry", "main"])).stdout.trim(), "7");
+  assert.equal((await hd([core, "--format", "json"])).stdout.trim(), "7");
   assert.match(
     (await hd(["check", core, "--format", "json"])).stdout,
     /^\{"kind":"summary",.*"status":0\}\n$/,

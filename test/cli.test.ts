@@ -6,7 +6,7 @@ import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 
-import { hd as hdInProcess } from "./hd-in-process.ts";
+import { type AdapterRunnerOptions, hd as hdInProcess, runHd } from "./hd-in-process.ts";
 
 interface CommandResult {
   readonly stdout: string;
@@ -26,8 +26,12 @@ const root = resolve(import.meta.dirname, "..");
 const entrypoint = resolve(root, "bin/hd.js");
 
 /** Runs `hd ARGS...` in this process, as if started in `cwd`. */
-function hd(args: readonly string[], cwd = root): Promise<CommandResult> {
-  return hdInProcess(args, { cwd });
+function hd(
+  args: readonly string[],
+  cwd = root,
+  runner: AdapterRunnerOptions = {},
+): Promise<CommandResult> {
+  return hdInProcess(args, { cwd }, runner);
 }
 
 // The other tests run `hd` in this process; this one starts bin/hd.js to
@@ -60,10 +64,11 @@ test("the hd executable passes its arguments and sets the exit status", async ()
       "use std.process.ExitCode\n\npub fn main!() -> Result[ExitCode, string]:\n    .Ok(ExitCode(3))\n",
     );
     assert.equal((await failed(["code.hd"], directory)).code, 3);
-    // An internal error that escapes `main` ends the process with status 1.
+    // An internal error that escapes `main` ends the process with status 1;
+    // only an adapter can name an entry function, so this runs in process.
     await writeFile(join(directory, "library.hd"), "fn helper() -> i32:\n    1\n");
-    const escaped = await failed(["library.hd", "--entry", "main"], directory);
-    assert.equal(escaped.code, 1);
+    const escaped = await runHd([join(directory, "library.hd")], {}, { entry: "main" });
+    assert.equal(escaped.status, 1);
     assert.match(escaped.stderr, /no exported main function/);
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -219,7 +224,7 @@ test("hd run and hd test judge suspending results by Termination", async () => {
 
 // A module without an entry point and without top-level statements has
 // nothing to run, so `hd run` does nothing and exits 0 (owner decision,
-// batch 42; F-265 in src/KNOWN_ISSUES.md). `--entry` still names a function.
+// batch 42; F-265 in src/KNOWN_ISSUES.md). The runner's `entry` option still names a function.
 test("hd run on a module without main exits 0 and prints nothing", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -228,7 +233,7 @@ test("hd run on a module without main exits 0 and prints nothing", async () => {
     const ran = await hd([path]);
     assert.equal(ran.stdout, "");
     assert.equal(ran.stderr, "");
-    await assert.rejects(hd([path, "--entry", "main"]), /no exported main function/);
+    await assert.rejects(hd([path], root, { entry: "main" }), /no exported main function/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
