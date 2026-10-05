@@ -51,24 +51,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AI. Read-Only: What The CLI Promises But Doesn't Do
-
-The owner found `hd doc` and `hd new --pages` unusable (2026-10-05). Find
-every other user-facing promise that doesn't work. Act as a user, with a
-fresh package from `hd new --app` and `hd new --lib`:
-
-- run every command and flag listed in `hd help` and `hd help COMMAND`;
-- read every generated file (`hd.toml`, `src/`, `tests/`, `.gitignore`,
-  the `--pages` workflow);
-- follow every hint and suggestion a diagnostic prints;
-- compare each with `spec/cli/command-line.md`.
-
-Report each broken, missing or misleading item: what you ran, what
-happened, what the spec says, and a suggested fix (fix it, or hide it until
-implemented). Commit the report as `audit/cli-promises-2026-10-05.md`.
-Don't fix anything in this job. `hd doc` itself is already being
-redesigned (orchestrator task #309); list it in one line.
-
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
