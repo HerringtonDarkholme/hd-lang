@@ -17,6 +17,7 @@ import { validateHostCapabilities } from "./host-capabilities.ts";
 import {
   importedMarkerFunctions,
   standardImportAliases,
+  defaultProfileNames,
   testRunnerNames,
   withStandardLibrary,
 } from "./standard-library.ts";
@@ -146,6 +147,8 @@ interface PreparedProgram {
   readonly standardAliases: ReadonlyMap<string, string>;
   readonly testRunners: ReturnType<typeof testRunnerNames>;
   readonly runnerCapabilities: readonly string[];
+  /** The program's names of the default profile's traits (standard-library.ts). */
+  readonly defaultProfile: readonly string[];
 }
 
 function prepareForDerivation(source: Program): PreparedProgram {
@@ -162,7 +165,8 @@ function prepareForDerivation(source: Program): PreparedProgram {
   const inspected = withStandardTraits(joined);
   const supported = withStandardTraits(withTypedDerivationSupport(inspected));
   const program = withBareMarkerCalls(supported, markerFunctions(supported.functions));
-  return { program, standardAliases, testRunners, runnerCapabilities };
+  const defaultProfile = defaultProfileNames(source);
+  return { program, standardAliases, testRunners, runnerCapabilities, defaultProfile };
 }
 
 function checkProgram(
@@ -187,7 +191,7 @@ function checkProgramRaw(
   spellings: Map<string, string>,
   prepared: Omit<PreparedProgram, "program">,
 ): CheckResult {
-  const { standardAliases, testRunners, runnerCapabilities } = prepared;
+  const { standardAliases, testRunners, runnerCapabilities, defaultProfile } = prepared;
   const hoisted = hoistLocalDeclarations(withDistinctMethodBinders(source, spellings));
   // Target kinds are checked before newtypes are lowered to data types
   // (spec/lang/14-annotations.md#target-kinds).
@@ -220,7 +224,9 @@ function checkProgramRaw(
     inherentMethods: [],
     inherentDeclarations: [],
     hostCapabilities: new Set([
-      "Console",
+      // The default profile (spec/cli/command-line.md#r-cli.host.default-profile);
+      // the entry row selects which of its traits a run binds (cli.host.entry-row).
+      ...defaultProfile,
       ...runnerCapabilities,
       // `hd test` binds `Process` for an integration test (spec/cli/command-line.md#r-cli.test.process).
       ...(options.integrationTest ? [testRunners.process] : []),

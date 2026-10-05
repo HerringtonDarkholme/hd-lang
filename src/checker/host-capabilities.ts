@@ -1,4 +1,5 @@
 import {
+  boundaryFieldsVisible,
   boundaryShape,
   isBoundaryScalar,
   isStringListArgument,
@@ -8,11 +9,11 @@ import { substituteTypeParameters, displayType } from "../types.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 
 // A boundary result is `void`, a boundary value, or `Result[T, E]`. A
-// `Result` whose `T` is `void`, a scalar, or a `string` crosses as a tag and
-// a scalar payload: a boundary `E` crosses as the error payload, a
-// payload-free singleton enum needs none, and any other `E` is refused if a
-// host reports `.Err` at run time. Any other `Result` crosses as a node tree,
-// so both its sides must be boundary values; a non-generic enum is one.
+// `Result` whose `T` and `E` are each `void`, a scalar, or a `string`, or
+// whose `E` is a payload-free singleton enum, crosses as a tag and a scalar
+// payload. Any other `Result` crosses as a node tree, so both its sides must
+// be boundary values; a non-generic enum is one. An argument crosses the
+// same way, as a scalar, a `string`, a `List[string]`, or a node tree.
 function structuralBoundaryResult(
   context: ProgramCheckContext,
   type: string,
@@ -50,7 +51,7 @@ function structuralBoundaryResult(
       return structuralBoundaryResult(context, shape.element, visiting);
     case "data": {
       const data = shape.declaration;
-      if (data.local || data.fields.some((field) => !field.public && !field.embedded)) return false;
+      if (data.local || !boundaryFieldsVisible(data)) return false;
       if (visiting.has(data.name)) return true;
       const next = new Set(visiting).add(data.name);
       const substitutions = new Map(
@@ -75,13 +76,18 @@ function boundaryResult(context: ProgramCheckContext, type: string): boolean {
   if (type === "void" || isBoundaryScalar(type) || type === "string") return true;
   // A Result with a scalar side crosses as a tag and a scalar; any other
   // Result crosses as a node tree, so both sides must be boundary values.
-  if (scalarResult(type)) return true;
+  if (scalarResult(type, (name) => context.enumTypes.get(name))) return true;
   return structuralBoundaryResult(context, type);
 }
 
-/** A boundary argument: a scalar, a `string`, or a `List[string]`. */
-function boundaryArgument(type: string): boolean {
-  return isBoundaryScalar(type) || type === "string" || isStringListArgument(type);
+/** A boundary argument: a scalar, a `string`, a `List[string]`, or a boundary value tree. */
+function boundaryArgument(context: ProgramCheckContext, type: string): boolean {
+  return (
+    isBoundaryScalar(type) ||
+    type === "string" ||
+    isStringListArgument(type) ||
+    structuralBoundaryResult(context, type)
+  );
 }
 
 export function validateHostCapabilities(context: ProgramCheckContext): void {
@@ -92,7 +98,7 @@ export function validateHostCapabilities(context: ProgramCheckContext): void {
       trait.genericParameters.length === 0 &&
       trait.methods.every(
         (method) =>
-          method.parameters.every(boundaryArgument) &&
+          method.parameters.every((parameter) => boundaryArgument(context, parameter)) &&
           boundaryResult(context, method.result) &&
           method.requirements.length === 0,
       );
@@ -101,7 +107,7 @@ export function validateHostCapabilities(context: ProgramCheckContext): void {
       code: "unsupported-host-provider-signature",
       message:
         `host capability '${displayType(trait.name)}' currently requires non-generic methods ` +
-        "whose arguments are scalars, strings, or List[string] and whose results are boundary-safe values",
+        "whose arguments and results are boundary-safe values",
       span: trait.span,
     });
   }

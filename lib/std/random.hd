@@ -1,7 +1,7 @@
 # std.random: the host capability trait `Random`, its deterministic
-# provider `SeededRandom`, and the `Rng` helpers (spec/std/random.md). No prototype runtime
-# profile binds a host `Random` yet (src/KNOWN_ISSUES.md); `std.testing`
-# draws a property test's cases from a `SeededRandom`.
+# provider `SeededRandom`, and the `Rng` helpers (spec/std/random.md). The
+# default profile binds a host `Random` (src/commands/default-profile.ts);
+# `std.testing` draws a property test's cases from a `SeededRandom`.
 use std.format.DebugWriter
 use std.ops.Range
 

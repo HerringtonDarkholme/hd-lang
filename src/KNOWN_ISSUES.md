@@ -116,11 +116,11 @@ Compiler structure:
 | P2 | Member lookup skips members not visible from the calling module. The prototype links packages into one namespace and checks member visibility only for std types. |
 | M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The linked checker does not know which package declares a fact type. |
 | TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The requirement-key dynamic-safety rule is implemented; the prototype does not check these remaining gaps. |
-| CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `-p`, `--filter`, `--deny-skipped`, or workspaces and the workspace search from a member. It parses `--` program arguments, but no host capability reads them. Most have no fixture format. |
+| CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `-p`, `--filter`, `--deny-skipped`, or workspaces and the workspace search from a member. Most have no fixture format. |
 | CLI-57 | Batch 57 CLI rules: the prototype has none of the unlisted-member error, `exclude`, `-p` inside a member, a failing `--filter` on a FILE, or `--format json` with its named fields on any command. |
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
-| HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, with no host `Console.write_error_line` entry, so `eprintln` under the default profile fails with `host-contract`. `lib/std` declares the other items but `Backoff` and `retry_with!`. |
+| HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds the whole profile (src/commands/default-profile.ts). `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 | DOC-TESTS | Owner design, 2026-10-04: each fenced `hd` block in a `##` comment under `src/` is a doc test, compiled as its own program with the public view and run by `hd test` (`module.test.doc.*`, `cli.test.doc.*`). The prototype ignores the blocks, so `hd test` runs none, and `hd check --tests` checks none. |
 | AMBIGUOUS-TYPE | Owner, 2026-10-04: inference with several valid solutions is `ambiguous-type` (`types.infer.ambiguous.code`). The prototype reports `cannot-infer-type` for a callback row that fits two generic keys in either order. |
 | SHADOW-TPARAM | Owner, 2026-10-04: no declaration within a type parameter's scope may reuse its name (`names.type-param.no-redeclare`). The prototype renames a method's shadowing binder, and accepts a local `data T` or value `T` inside `fn work[T]`. |
@@ -135,10 +135,11 @@ Compiler structure:
   specification allows (`module.boundary.allowed`,
   `module.profile.host-result.shape`): a `Map`, a generic enum, or an
   enum with shared fields reports `unsupported-host-provider-signature`,
-  and so does an argument that is not a scalar, a `string`, or a
-  `List[string]`. Data with private fields is
+  as an argument or a result. A program's data with private fields is
   correctly rejected (`module.boundary.pub`), pinned by the
-  `host structural results expose only public data fields` test.
+  `host structural results expose only public data fields` test. A std
+  type crosses with its private fields, as `Timestamp` must for the
+  default profile's `Clock`; no rule states that exception yet.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.

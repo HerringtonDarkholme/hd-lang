@@ -610,6 +610,27 @@ export function testRunnerNames(program: Program): TestRunnerNames {
   };
 }
 
+/**
+ * The host capability traits of the default profile, which `hd FILE`,
+ * `hd run`, and a task bind (spec/cli/command-line.md#r-cli.host.default-profile).
+ */
+export const DEFAULT_PROFILE_TRAITS: readonly (readonly [StandardModule, string])[] = [
+  ["console", "Console"],
+  ["console", "ConsoleInput"],
+  ["host", "Args"],
+  ["host", "Env"],
+  ["time", "Clock"],
+  ["random", "Random"],
+  ["fs", "FsRead"],
+  ["fs", "FsWrite"],
+];
+
+/** The program's names of the default profile's traits. */
+export function defaultProfileNames(program: Program): readonly string[] {
+  const nameOf = standardNameOf(program);
+  return DEFAULT_PROFILE_TRAITS.map(([module, name]) => nameOf(module, name));
+}
+
 export interface TestRunnerNames {
   readonly test: string;
   readonly property: string;

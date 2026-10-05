@@ -1,8 +1,7 @@
 # std.fs: the host capability traits `FsRead` and `FsWrite`, `FsError`,
 # `Entry`, and the deterministic provider `MemoryFs` (spec/std/fs.md). The
-# prototype's std loader does not list this module yet
-# (src/checker/standard-sources.ts), and no runtime profile binds a host
-# file system.
+# default profile binds the host's file system
+# (src/commands/default-profile.ts).
 use std.path.Path
 use std.format.DebugWriter
 use std.error.Error

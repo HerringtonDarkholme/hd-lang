@@ -5,6 +5,7 @@ import {
   programLookups,
   isStringListArgument,
   resultSides,
+  structuralHostArgument,
   structuralHostResult,
 } from "../host-boundary.ts";
 import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
@@ -24,6 +25,8 @@ interface HostProviderEmission {
 
 interface HostMethod {
   readonly emitter: HostValueEmitter;
+  /** The encoder function of each structural argument type (emitArgumentEncoders). */
+  readonly encoders: ReadonlyMap<ValueType, string>;
   readonly enums: readonly HirEnum[];
   readonly method: HirTraitMethod;
   readonly program: HirProgram;
@@ -32,6 +35,7 @@ interface HostMethod {
 
 interface HostValueEmitter {
   boxErasedValue(value: string, type: ValueType): string;
+  unboxErasedValue(payload: string, type: ValueType): string;
   defaultValue(type: ValueType): string;
   watType(type: ValueType): string;
 }
@@ -432,16 +436,25 @@ function emitResult({ emitter, trait, method }: HostMethod): string {
     .join("\n");
 }
 
-function emitMethod({ emitter, program, trait, method }: HostMethod): string {
+function emitMethod({ emitter, encoders, program, trait, method }: HostMethod): string {
   const parameters = method.parameters.map(
     (parameter, index) => `(param $argument${index} ${emitter.watType(parameter)})`,
   );
+  // A structural argument crosses after `begin`, as the token stream its
+  // encoder writes (emitArgumentEncoders); `begin` receives a placeholder.
   const beginArguments = method.parameters.map((parameter, index) =>
     parameter === "string"
       ? `(struct.get $hd.string $hd.string-length (ref.as_non_null (local.get $argument${index})))`
       : isStringListArgument(parameter)
         ? `(struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get $argument${index})))`
-        : `(local.get $argument${index})`,
+        : structuralHostArgument(parameter)
+          ? `(i32.const 0)`
+          : `(local.get $argument${index})`,
+  );
+  const encodeArguments = method.parameters.flatMap((parameter, index) =>
+    structuralHostArgument(parameter)
+      ? [`  (call ${encoders.get(parameter)!} (local.get $call) (local.get $argument${index}))`]
+      : [],
   );
   // A `List[string]` argument crosses as its length, then each element's
   // length and bytes (src/compiler.ts).
@@ -498,6 +511,7 @@ function emitMethod({ emitter, program, trait, method }: HostMethod): string {
     `      (global.get $hd.host-call-function) (global.get $hd.host-call-site)${beginArguments.length ? " " + beginArguments.join(" ") : ""}))`,
     ...streamArguments,
     ...streamLists,
+    ...encodeArguments,
   ];
   const locals = [
     `  (local $call externref)`,
@@ -549,6 +563,153 @@ function emitMethod({ emitter, program, trait, method }: HostMethod): string {
     `    (ref.null $hd.suspension-result-adapt-sig))`,
     `)`,
   ].join("\n");
+}
+
+const ARGUMENT_TOKENS = ["i32", "i64", "f32", "f64"] as const;
+
+/**
+ * The encoders of the structural arguments of `methods`: one function per
+ * argument type, which writes the value as a stream of scalar tokens in
+ * preorder. A tag precedes an optional's, a `Result`'s, or an enum's
+ * payload, a length precedes a list's elements and a string's bytes, and a
+ * data value or a tuple writes its fields in order. The host rebuilds the
+ * value from the stream and the declared type (src/host-arguments.ts).
+ */
+function emitArgumentEncoders(
+  program: HirProgram,
+  methods: readonly { readonly method: HirTraitMethod }[],
+  emitter: HostValueEmitter,
+): { readonly functions: readonly string[]; readonly names: ReadonlyMap<ValueType, string> } {
+  const functions: string[] = [];
+  const names = new Map<ValueType, string>();
+  const token = (wasm: string, value: string): string =>
+    `(call $hd.host_argument_${wasm} (local.get $call) ${value})`;
+  const encode = (type: ValueType): string => {
+    const existing = names.get(type);
+    if (existing) return existing;
+    const name = `$hd.host_encode${names.size}`;
+    // Register before descending, so a recursive shape calls back into the
+    // encoder being emitted.
+    names.set(type, name);
+    const call = (inner: ValueType, value: string): string =>
+      `(call ${encode(inner)} (local.get $call) ${value})`;
+    const shape = boundaryShape(type, ...programLookups(program));
+    const tagged = (sides: readonly ValueType[]): string[] => {
+      const payload = `(struct.get $hd.variant $hd.variant-payload (local.get $value))`;
+      return [
+        `  (local $tag i32)`,
+        `  (local.set $tag (struct.get $hd.variant $hd.variant-tag (local.get $value)))`,
+        `  ${token("i32", "(local.get $tag)")}`,
+        ...sides.flatMap((side, tag) =>
+          side === "void"
+            ? []
+            : [
+                `  (if (i32.eq (local.get $tag) (i32.const ${tag}))`,
+                `    (then ${call(side, emitter.unboxErasedValue(payload, side))}))`,
+              ],
+        ),
+      ];
+    };
+    const counted = (length: string, element: string): string[] => [
+      `  (local $index i32)`,
+      `  (local $length i32)`,
+      `  (local.set $length ${length})`,
+      `  ${token("i32", "(local.get $length)")}`,
+      `  (block $done`,
+      `    (loop $copy`,
+      `      (br_if $done (i32.ge_u (local.get $index) (local.get $length)))`,
+      `      ${element}`,
+      `      (local.set $index (i32.add (local.get $index) (i32.const 1)))`,
+      `      (br $copy)))`,
+    ];
+    let body: string[];
+    switch (shape.kind) {
+      case "scalar":
+        body = [`  ${token(scalarWasm(type), "(local.get $value)")}`];
+        break;
+      case "string":
+        body = counted(
+          `(struct.get $hd.string $hd.string-length (ref.as_non_null (local.get $value)))`,
+          token(
+            "i32",
+            "(call $hd.string_get (ref.as_non_null (local.get $value)) (local.get $index))",
+          ),
+        );
+        break;
+      case "optional":
+        body = tagged(["void", shape.inner]);
+        break;
+      case "result":
+        body = tagged([shape.ok, shape.err]);
+        break;
+      case "tuple":
+        body = shape.elements.map((element, index) => {
+          const value = `(array.get $hd.list (local.get $value) (i32.const ${index}))`;
+          return `  ${call(element, emitter.unboxErasedValue(value, element))}`;
+        });
+        break;
+      case "list": {
+        const element = `(array.get $hd.list (struct.get $hd.vector $hd.vector-values (local.get $value)) (local.get $index))`;
+        body = counted(
+          `(struct.get $hd.vector $hd.vector-size (local.get $value))`,
+          call(shape.element, emitter.unboxErasedValue(element, shape.element)),
+        );
+        break;
+      }
+      case "data": {
+        const data = shape.declaration;
+        const substitutions = new Map(
+          data.genericParameters.map(
+            (parameter, index) => [parameter, shape.arguments[index]!] as const,
+          ),
+        );
+        body = data.fields.map((field, index) => {
+          const fieldType = substituteTypeParameters(field.type, substitutions);
+          const value = `(struct.get $d${data.index} $d${data.index}f${index} (local.get $value))`;
+          const typed = isGenericValueType(field.type)
+            ? emitter.unboxErasedValue(value, fieldType)
+            : value;
+          return `  ${call(fieldType, typed)}`;
+        });
+        break;
+      }
+      case "enum": {
+        const enumeration = shape.declaration;
+        const field = (index: number): string =>
+          `(struct.get $e${enumeration.index} $e${enumeration.index}f${index} (local.get $value))`;
+        body = [
+          `  (local $tag i32)`,
+          `  (local.set $tag (struct.get $e${enumeration.index} $e${enumeration.index}tag (local.get $value)))`,
+          `  ${token("i32", "(local.get $tag)")}`,
+          ...enumeration.variants
+            .filter((variant) => variant.fields.length > 0)
+            .flatMap((variant) => [
+              `  (if (i32.eq (local.get $tag) (i32.const ${variant.tag}))`,
+              `    (then`,
+              ...variant.fields.map(
+                (payload) => `      ${call(payload.type, field(payload.index))}`,
+              ),
+              `    ))`,
+            ]),
+        ];
+        break;
+      }
+      case "other":
+        throw new Error(`cannot emit a host argument encoder for '${type}'`);
+    }
+    functions.push(
+      [
+        `(func ${name} (param $call externref) (param $value ${emitter.watType(type)})`,
+        ...body,
+        `)`,
+      ].join("\n"),
+    );
+    return name;
+  };
+  for (const { method } of methods)
+    for (const parameter of method.parameters)
+      if (structuralHostArgument(parameter)) encode(parameter);
+  return { functions, names };
 }
 
 /**
@@ -647,13 +808,22 @@ export function emitHostProviders(
 ): HostProviderEmission {
   const capabilities = new Set(program.hostCapabilities);
   const traits = program.traits.filter((trait) => capabilities.has(trait.name));
-  const methods = traits.flatMap((trait) =>
-    trait.methods.map((method) => ({ emitter, enums: program.enums, program, trait, method })),
+  if (traits.every((trait) => trait.methods.length === 0))
+    return { functions: "", imports: "", references: [], types: "" };
+  const live = traits.flatMap((trait) =>
+    trait.methods
+      .filter((method) => called.has(traitMethodKey(trait.index, method.index)))
+      .map((method) => ({ trait, method })),
   );
-  if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
-  const liveMethods = methods.filter(({ trait, method }) =>
-    called.has(traitMethodKey(trait.index, method.index)),
-  );
+  const encoders = emitArgumentEncoders(program, live, emitter);
+  const liveMethods = live.map(({ trait, method }) => ({
+    emitter,
+    encoders: encoders.names,
+    enums: program.enums,
+    program,
+    trait,
+    method,
+  }));
   const structural = liveMethods.some(({ method }) => structuralHostResult(program, method.result));
   const boundaryImports = structural
     ? [
@@ -668,11 +838,23 @@ export function emitHostProviders(
         `  (import "hd" "host_boundary_string_byte" (func $hd.host_boundary_string_byte (param externref i32) (result i32)))`,
       ]
     : [];
-  const imports = [...boundaryImports, ...liveMethods.flatMap(emitImports)].join("\n");
+  const argumentImports =
+    encoders.names.size > 0
+      ? ARGUMENT_TOKENS.map(
+          (wasm) =>
+            `  (import "hd" "host_argument_${wasm}" (func $hd.host_argument_${wasm} (param externref ${wasm})))`,
+        )
+      : [];
+  const imports = [
+    ...boundaryImports,
+    ...argumentImports,
+    ...liveMethods.flatMap(emitImports),
+  ].join("\n");
   // A suspending method returns a frame that the caller polls; a plain one
   // needs only the method itself and its result decoders.
   const suspending = liveMethods.filter(({ method }) => method.suspending);
   const functions = [
+    ...encoders.functions,
     ...liveMethods.flatMap((hostMethod) => [
       ...(hostMethod.method.suspending
         ? [emitPoll(hostMethod), emitCancel(hostMethod), emitResult(hostMethod)]

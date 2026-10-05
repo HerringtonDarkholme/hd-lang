@@ -647,6 +647,11 @@ export class EmitterContext {
     return this.boxWatValue(value, type);
   }
 
+  /** The typed value of an erased `anyref`, the inverse of `boxErasedValue`. */
+  unboxErasedValue(payload: string, type: ValueType): string {
+    return this.unboxValue(payload, type);
+  }
+
   private callableStorageAdapter(type: ValueType): CallableStorageAdapter {
     let adapter = this.callableStorageAdapters.get(type);
     if (!adapter) {

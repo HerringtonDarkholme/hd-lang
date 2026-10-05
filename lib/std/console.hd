@@ -2,8 +2,8 @@
 # `BufferConsole`.
 # `Console`, `ConsoleError`, and `println`
 # are prelude names (spec/lang/10-modules.md#console), all declared here.
-# The checker still also knows `ConsoleError` by name. No prototype runtime
-# profile binds a host `ConsoleInput`. `println` drives the covering
+# The checker still also knows `ConsoleError` by name. The default profile
+# binds a host `ConsoleInput` to standard input. `println` drives the covering
 # provider's `write_line!` with `block_on` (MHP-1), so a `BufferConsole`
 # records `println` lines too.
 use std.task.block_on

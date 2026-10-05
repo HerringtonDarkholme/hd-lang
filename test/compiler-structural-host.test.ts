@@ -156,3 +156,90 @@ test("a List[string] argument, a data success, and an enum error cross the bound
   });
   assert.deepEqual(replayed, expected);
 });
+
+// Any boundary-safe argument crosses as a value tree (module.boundary.allowed);
+// a std type, as `Path` or `Duration`, crosses with its private fields, and a
+// newtype as its base value.
+test("structural host arguments cross the live and replay boundaries", async () => {
+  const source = [
+    "use std.path.Path",
+    "use std.time.{Duration, ms}",
+    "",
+    "pub enum Shape:",
+    "    Dot",
+    "    Box(w: i32, h: i32)",
+    "",
+    "pub data Order:",
+    "    pub id: u64",
+    "    pub tags: List[string]",
+    "    pub note: string?",
+    "    pub shape: Shape",
+    "    pub pair: (i32, f64)",
+    "",
+    "pub enum Failure:",
+    "    Missing(path: Path)",
+    "    Other(message: string)",
+    "",
+    "pub trait Sink:",
+    "    fn take(self, order: Order, path: Path, wait: Duration, bytes: List[u8]) -> Result[string, Failure]",
+    "",
+    "pub fn main() -> void $ Sink + Console:",
+    '    order := Order { id: 7, tags: ["a", "bé"], note: .Some("n"), shape: Shape.Box(+2, -3), pair: (+4, 1.5) }',
+    '    for name in ["ok", "missing"]:',
+    "        match $.use(Sink).take(order, Path(name), 250ms, [9, 255]):",
+    '            .Ok(text) => println("ok ${text}")',
+    '            .Err(.Missing(path)) => println("missing ${path}")',
+    '            .Err(.Other(message)) => println("other ${message}")',
+    "",
+  ].join("\n");
+  const run = async (options: Parameters<typeof instantiate>[1]): Promise<string[]> => {
+    const lines: string[] = [];
+    const { instance, compilation } = await instantiate(source, {
+      ...options,
+      hostCapabilities: ["Sink"],
+      console: (text) => lines.push(text),
+    });
+    const main = compilation.hir.functions.find(({ entry }) => entry)!;
+    (instance.exports[main.name] as CallableFunction)(
+      ...main.requirements.map((requirement) => ({ requirement })),
+    );
+    return lines;
+  };
+  const events: ReplayEvent[] = [];
+  const calls: unknown[] = [];
+  const live = await run({
+    hostSuspensionInvoke: (call) => {
+      calls.push(call.arguments);
+      const path = call.arguments[1] as string;
+      return {
+        pending: false,
+        value:
+          path === "ok"
+            ? { tag: "ok", value: "done" }
+            : { tag: "err", value: { tag: "Missing", path } },
+      };
+    },
+    record: (event) => events.push(event),
+  });
+  const expected = ["ok done", "missing missing"];
+  assert.deepEqual(live, expected);
+  assert.deepEqual(calls[0], [
+    {
+      id: 7n,
+      tags: ["a", "bé"],
+      note: { tag: "some", value: "n" },
+      shape: { tag: "Box", w: 2, h: -3 },
+      pair: [4, 1.5],
+    },
+    "ok",
+    { millis: 250n },
+    [9, 255],
+  ]);
+  const replayed = await run({
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    replay: JSON.parse(JSON.stringify(events)) as ReplayEvent[],
+  });
+  assert.deepEqual(replayed, expected);
+});

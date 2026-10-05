@@ -93,13 +93,46 @@ export function boundaryShape(
 /**
  * Whether `Result[T, E]` crosses the scalar way, as a tag and a scalar or
  * string payload (src/compiler.ts): its `T` is `void`, a scalar, or a
- * `string`. Any other `Result` crosses as a boundary node tree.
+ * `string`, and its `E` is one of those or a payload-free singleton enum.
+ * Any other `Result`, such as `Result[string, FsError]`, crosses as a
+ * boundary node tree, so an error with a payload reaches hd code.
  */
-export function scalarResult(type: ValueType): boolean {
+export function scalarResult(
+  type: ValueType,
+  lookupEnum: (name: string) => HirEnum | undefined = () => undefined,
+): boolean {
   const sides = resultSides(type);
   if (!sides) return false;
-  const ok = sides[0];
-  return ok === "void" || ok === "string" || isBoundaryScalar(ok);
+  const [ok, err] = sides;
+  const simple = (side: ValueType): boolean =>
+    side === "void" || side === "string" || isBoundaryScalar(side);
+  const enumeration = lookupEnum(err);
+  const singleton =
+    enumeration !== undefined &&
+    enumeration.variants.length === 1 &&
+    enumeration.sharedFields.length === 0 &&
+    enumeration.variants[0]!.fields.length === 0;
+  return simple(ok) && (simple(err) || singleton);
+}
+
+/**
+ * Whether the fields of `data` may cross a host capability call. A program's
+ * own data type crosses only with public fields (module.boundary.pub); a
+ * `lib/std` type, such as `Timestamp` or the newtype `Path`, crosses with
+ * its private fields too, since the profile's boundary adapter belongs to
+ * the same implementation as std (module.profile.definition).
+ */
+export function boundaryFieldsVisible(data: HirData): boolean {
+  return data.standard === true || data.fields.every((field) => field.public || field.embedded);
+}
+
+/**
+ * Whether a host capability argument of `type` crosses as a boundary value
+ * tree (emitter/host-providers.ts, host-arguments.ts): any type but a
+ * scalar, a `string`, or a `List[string]`, which keep their own encodings.
+ */
+export function structuralHostArgument(type: ValueType): boolean {
+  return !isBoundaryScalar(type) && type !== "string" && !isStringListArgument(type);
 }
 
 /** The program's lookups of a boundary data or enum type by name. */
@@ -135,13 +168,14 @@ export function resultSides(type: ValueType): readonly [ValueType, ValueType] | 
 
 /** Whether a host result of `type` crosses as a boundary node tree. */
 export function structuralHostResult(program: HirProgram, type: ValueType): boolean {
-  const shape = boundaryShape(type, ...programLookups(program));
+  const lookups = programLookups(program);
+  const shape = boundaryShape(type, ...lookups);
   return (
     shape.kind === "optional" ||
     shape.kind === "tuple" ||
     shape.kind === "list" ||
     shape.kind === "data" ||
     shape.kind === "enum" ||
-    (shape.kind === "result" && !scalarResult(type))
+    (shape.kind === "result" && !scalarResult(type, lookups[1]))
   );
 }

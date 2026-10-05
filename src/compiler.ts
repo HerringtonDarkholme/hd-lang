@@ -11,23 +11,27 @@ import {
   type HostFunction,
 } from "./host-functions.ts";
 import {
+  boundaryFieldsVisible,
   boundaryShape,
   isBoundaryScalar,
   isStringListArgument,
   payloadlessSingletonEnum,
   programLookups,
   resultSides,
+  structuralHostArgument,
   structuralHostResult,
 } from "./host-boundary.ts";
 import {
   argumentBuffers,
+  argumentTokenImports,
   decodeStreamedArguments,
   streamedArgumentImports,
   type ArgumentBuffers,
 } from "./host-arguments.ts";
+import { checkedHostValue, hostArgumentValue } from "./host-values.ts";
 import { numericType } from "./numeric.ts";
 import { substituteTypeParameters } from "./types.ts";
-import type { HirEnum, HirProgram, HirTraitMethod, ValueType } from "./hir.ts";
+import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
@@ -154,8 +158,11 @@ type EncodedHostValue =
 
 type HostSuspensionValue = number | bigint | string;
 
-/** A host call's argument: a scalar or a string, or the strings of a `List[string]`. */
-export type HostArgumentValue = HostSuspensionValue | readonly string[];
+/**
+ * A host call's argument: a scalar or a string, the strings of a
+ * `List[string]`, or a structural value in the view a host result takes.
+ */
+export type HostArgumentValue = HostBoundaryValue;
 
 export type HostBoundaryValue =
   | HostSuspensionValue
@@ -198,6 +205,8 @@ export interface HostSuspensionCall {
   readonly methodName: string;
   readonly provider: unknown;
   readonly providerKey: string;
+  /** The qualified name of a std trait, such as `std.host.Args`, whatever the program calls it. */
+  readonly standardName?: string;
   readonly resultType: ValueType;
   readonly siteId: string;
   /** The method is a suspending (`!`) method, so its call may stay pending. */
@@ -280,99 +289,6 @@ interface Instantiation {
   readonly replay: ReplaySession;
 }
 
-/** The `[T, E]` of a `Result[T, E]` boundary result. */
-/** Whether a JavaScript string contains only complete Unicode scalar values. */
-function isWellFormedText(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index);
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      const next = value.charCodeAt(index + 1);
-      if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff) return false;
-      index += 1;
-    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
-  }
-  return true;
-}
-
-/**
- * Decode a value that Wasm passed to the host. Narrow integers arrive as an
- * i32 bit pattern, so unsigned arguments need normalization before the host
- * sees them. This is deliberately separate from checking values returned by
- * the host: results must never be rounded, truncated, or wrapped to fit.
- */
-function hostArgumentValue(type: ValueType, value: HostSuspensionValue): HostSuspensionValue {
-  if (type === "string") {
-    if (typeof value !== "string") throw new Error("host string boundary value must be a string");
-    return value;
-  }
-  const numeric = numericType(type);
-  if (numeric?.wasm === "i64") {
-    if (typeof value !== "bigint") throw new Error(`host ${type} boundary value must be a BigInt`);
-    return numeric.family === "unsigned" ? BigInt.asUintN(64, value) : BigInt.asIntN(64, value);
-  }
-  if (numeric?.family === "float") {
-    if (typeof value !== "number") throw new Error(`host ${type} boundary value must be a number`);
-    return value;
-  }
-  if (typeof value !== "number") throw new Error(`host ${type} boundary value must be a number`);
-  if (type === "bool") return value === 0 ? 0 : 1;
-  if (numeric?.family === "unsigned") return value >>> 0;
-  return value | 0;
-}
-
-/** Validate one scalar supplied by the host without changing it. */
-function checkedHostValue(type: ValueType, value: HostSuspensionValue): HostSuspensionValue {
-  if (type === "string") {
-    if (typeof value !== "string") throw new Error("expected a string");
-    if (!isWellFormedText(value)) throw new Error("expected valid Unicode text");
-    return value;
-  }
-  if (type === "bool") {
-    if (typeof value !== "number" || (value !== 0 && value !== 1))
-      throw new Error("expected bool as 0 or 1");
-    return value;
-  }
-  if (type === "char") {
-    if (
-      typeof value !== "number" ||
-      !Number.isInteger(value) ||
-      value < 0 ||
-      value > 0x10ffff ||
-      (value >= 0xd800 && value <= 0xdfff)
-    )
-      throw new Error("expected a Unicode scalar value");
-    return value;
-  }
-  const numeric = numericType(type);
-  if (numeric?.family === "float") {
-    if (typeof value !== "number") throw new Error(`expected a ${type} number`);
-    if (type === "f32" && !Object.is(Math.fround(value), value))
-      throw new Error(`expected a value already representable as f32, received ${value}`);
-    // All values of the declared width are valid, including NaN, infinities,
-    // and -0.0. In particular, validation never uses finiteness as a proxy.
-    return value;
-  }
-  if (numeric?.wasm === "i64") {
-    if (typeof value !== "bigint") throw new Error(`expected ${type} as a BigInt`);
-    if (value < numeric.minimum! || value > numeric.maximum!)
-      throw new Error(
-        `expected ${type} in ${numeric.minimum}..${numeric.maximum}, received ${value}`,
-      );
-    return value;
-  }
-  if (numeric) {
-    if (typeof value !== "number" || !Number.isInteger(value))
-      throw new Error(`expected an integer ${type}`);
-    const integer = BigInt(value);
-    if (integer < numeric.minimum! || integer > numeric.maximum!)
-      throw new Error(
-        `expected ${type} in ${numeric.minimum}..${numeric.maximum}, received ${value}`,
-      );
-    return value;
-  }
-  throw new Error(`the host cannot build a '${type}' boundary value`);
-}
-
 function hostObject(value: HostBoundaryValue): Record<string, HostBoundaryValue> {
   if (value === null || typeof value !== "object" || Array.isArray(value))
     throw new Error("expected an object");
@@ -444,6 +360,14 @@ function checkedHostBoundaryNode(
   if (shape.kind === "data") {
     const data = shape.declaration;
     const dataName = data.name;
+    if (!boundaryFieldsVisible(data))
+      throw new Error(`host '${dataName}' cannot set a private field`);
+    // A newtype, as `Path`, crosses as its base value.
+    if (data.newtype)
+      return {
+        kind: "record",
+        children: [checkedHostBoundaryNode(program, data.fields[0]!.type, value, ancestors)],
+      };
     return withBoundaryObject(value, ancestors, () => {
       const object = hostObject(value);
       const expected = new Set(data.fields.map((field) => field.name));
@@ -457,8 +381,6 @@ function checkedHostBoundaryNode(
       return {
         kind: "record",
         children: data.fields.map((field) => {
-          if (!field.public && !field.embedded)
-            throw new Error(`host '${dataName}' cannot set private field '${field.name}'`);
           if (!(field.name in object))
             throw new Error(`host '${dataName}' is missing field '${field.name}'`);
           return checkedHostBoundaryNode(
@@ -833,8 +755,18 @@ function bytesFromHex(value: string): Uint8Array {
   );
 }
 
-/** A host call's argument as a replay event records it; a `List[string]` is a list of strings. */
-function encodeHostArgument(type: ValueType, value: HostArgumentValue): EncodedHostValue {
+/**
+ * A host call's argument as a replay event records it; a `List[string]` is a
+ * list of strings, and a structural argument is encoded as a structural
+ * host result is.
+ */
+function encodeHostArgument(
+  program: HirProgram,
+  type: ValueType,
+  value: HostArgumentValue,
+): EncodedHostValue {
+  if (structuralHostArgument(type))
+    return encodeHostBoundaryNode(program, type, checkedHostBoundaryNode(program, type, value));
   if (isStringListArgument(type)) {
     if (!Array.isArray(value)) throw new Error(`expected '${type}' as an array`);
     return { kind: "list", values: value.map((element) => encodeHostValue("string", element)) };
@@ -963,7 +895,7 @@ function hostPollEvent(
     providerKey: call.providerKey,
     operation: "provider-poll",
     encodedArguments: call.arguments.map((argument, index) =>
-      encodeHostArgument(method.parameters[index]!, argument),
+      encodeHostArgument(program, method.parameters[index]!, argument),
     ),
     encodedResult: outcome.pending ? "pending" : "ready",
     ...(outcome.value === undefined
@@ -1132,7 +1064,7 @@ function structuralBoundaryImports(textEncoder: TextEncoder): Record<string, Hos
 function makeHostCall(
   functionIdentity: (index: number) => FunctionIdentity | undefined,
   provider: unknown,
-  providerKey: string,
+  trait: Pick<HirTrait, "name" | "standardName">,
   methodName: string,
   resultType: ValueType,
   suspending: boolean,
@@ -1142,7 +1074,9 @@ function makeHostCall(
 ): MutableHostSuspensionCall {
   const identity = functionIdentity(functionIndex);
   if (!identity) throw new Error(`host provider call has unknown function index ${functionIndex}`);
+  const providerKey = trait.name;
   return {
+    ...(trait.standardName ? { standardName: trait.standardName } : {}),
     arguments: arguments_,
     functionCodeId: identity.codeId,
     functionIndex: identity.index,
@@ -1254,7 +1188,7 @@ export async function instantiate(
     const bytes = (message as HostString).bytes;
     throw new RuntimePanicError(runtimePanicName(Number(code)), textDecoder.decode(bytes));
   };
-  Object.assign(hostImports, structuralBoundaryImports(textEncoder));
+  Object.assign(hostImports, structuralBoundaryImports(textEncoder), argumentTokenImports());
   const hostCapabilities = new Set(compilation.hir.hostCapabilities);
   const calledHostMethods = emissionReachability(compilation.hir).traitMethods;
   for (const trait of compilation.hir.traits) {
@@ -1272,7 +1206,7 @@ export async function instantiate(
         call: makeHostCall(
           functionIdentity,
           provider,
-          trait.name,
+          trait,
           method.name,
           method.result,
           method.suspending,
@@ -1281,7 +1215,7 @@ export async function instantiate(
           method.parameters.map((parameter, index) =>
             parameter === "string"
               ? ""
-              : isStringListArgument(parameter)
+              : structuralHostArgument(parameter)
                 ? []
                 : hostArgumentValue(
                     parameter,
@@ -1299,7 +1233,13 @@ export async function instantiate(
       hostImports[`${prefix}_poll`] = (value) => {
         const state = value as HostCallState;
         const { call } = state;
-        decodeStreamedArguments(state, call.arguments, textDecoder);
+        decodeStreamedArguments(
+          compilation.hir,
+          method.parameters,
+          state,
+          call.arguments,
+          textDecoder,
+        );
         const expected = recorded ? options.replay?.[replayIndex] : undefined;
         if (options.replay && recorded) {
           if (!expected) throw new Error(`replay exhausted before provider site ${call.siteId}`);
@@ -1314,7 +1254,11 @@ export async function instantiate(
               (argument, index) =>
                 !sameEncodedHostValue(
                   argument,
-                  encodeHostArgument(method.parameters[index]!, call.arguments[index]!),
+                  encodeHostArgument(
+                    compilation.hir,
+                    method.parameters[index]!,
+                    call.arguments[index]!,
+                  ),
                 ),
             )
           ) {

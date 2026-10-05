@@ -365,7 +365,7 @@ export function createProgramSignatures(
         if (nonhost) {
           diagnostics.push({
             code: "nonhost-entry-requirement",
-            message: `entry point requirement '${displayType(nonhost)}' is not supplied by the MVP host profile`,
+            message: `entry point requirement '${displayType(nonhost)}' is not supplied by the default host profile`,
             span: declaration.span,
           });
         }

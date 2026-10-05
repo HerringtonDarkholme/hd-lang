@@ -12,8 +12,10 @@ import { SOURCE_ROOT, TEST_ROOT } from "../package.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
 import { runSelected } from "../test-runner.ts";
+import { defaultProfileAnswer, inputLines, type DefaultProfileHost } from "./default-profile.ts";
 import {
   EXIT_HD_FAILURE,
+  variablesOf,
   workingDirectory,
   type CommandEnvironment,
   type CommandIo,
@@ -94,8 +96,27 @@ export async function fileCommand(args: FileArgs, io: CommandIo): Promise<number
       entry: args.entry,
       pendingFirstPoll: args.pendingFirstPoll,
       profile: args.profile,
+      host: defaultHost(args, args.file, workingDirectory(args)),
     }),
   );
+}
+
+/**
+ * What the default profile reads for a run of `program` in `directory`
+ * (spec/cli/command-line.md#host-capabilities).
+ */
+function defaultHost(
+  environment: CommandEnvironment & { readonly programArguments?: readonly string[] },
+  program: string,
+  directory: string,
+): RunHost {
+  return {
+    program,
+    arguments: environment.programArguments ?? [],
+    variables: variablesOf(environment),
+    workingDirectory: directory,
+    ...(environment.readInput ? { readInput: environment.readInput } : {}),
+  };
 }
 
 /**
@@ -166,12 +187,16 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
     },
   );
   if (typeof loaded === "number") return report.finish(loaded);
+  // A task runs in its package directory, and an executable where `hd run`
+  // ran (spec/cli/command-line.md#working-directory).
+  const task = pkg.tasks.includes(executable);
   return report.finish(
     await execute(loaded, io, {
       kind: "run",
       pendingFirstPoll: args.pendingFirstPoll,
       release: args.release,
       profile: args.profile,
+      host: defaultHost(args, executable.name, task ? pkg.root : workingDirectory(args)),
     }),
   );
 }
@@ -330,6 +355,14 @@ async function testPackage(
   return status;
 }
 
+/**
+ * The default profile's view of a run, apart from standard input, which a
+ * caller may supply as text (CommandEnvironment.readInput).
+ */
+type RunHost = Omit<DefaultProfileHost, "readLine"> & {
+  readonly readInput?: () => Promise<string>;
+};
+
 /** What `execute` runs: the entry point (`run`), or the test cases (`test`). */
 type Execution =
   | {
@@ -338,6 +371,8 @@ type Execution =
       readonly pendingFirstPoll?: boolean;
       readonly release?: boolean;
       readonly profile?: RuntimeProfileName;
+      /** The default profile's providers (cli.host.default-profile). */
+      readonly host: RunHost;
     }
   | ({
       readonly kind: "test";
@@ -355,6 +390,12 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
   const test = command === "test" ? execution : undefined;
   const scenario = test?.scenario;
   const runtimeProfile = execution.profile ? RUNTIME_PROFILES[execution.profile] : undefined;
+  // Standard input is read only once the program asks for a line.
+  let readLine: (() => string | undefined | null) | undefined;
+  const host: DefaultProfileHost | undefined =
+    execution.kind === "run"
+      ? { ...execution.host, readLine: () => (readLine ??= inputLines())() }
+      : undefined;
   try {
     let scenarioInstance: WebAssembly.Instance | undefined;
     let pendingFunctionIndex: number | undefined;
@@ -394,13 +435,22 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       hostSuspensionInvoke: (call) =>
         isProcessCall(call) && loaded.compileOptions.integrationTest
           ? (test?.processes ?? executableProcesses(undefined))(call)
-          : (runtimeProfile?.invoke?.(call) ?? { pending: false }),
+          : ((host && defaultProfileAnswer(call, host)) ??
+            runtimeProfile?.invoke?.(call) ?? { pending: false }),
       hostSuspensionPending: execution.pendingFirstPoll
         ? pendingFirstPoll
         : runtimeProfile?.pending,
     };
     const { instance, compilation } = await instantiate(source, instantiateOptions);
     scenarioInstance = instance;
+    // Supplied standard input arrives as a whole, before a program that
+    // reads lines runs.
+    if (
+      execution.kind === "run" &&
+      execution.host.readInput &&
+      compilation.hir.traits.some(({ standardName }) => standardName === "std.console.ConsoleInput")
+    )
+      readLine = inputLines(await execution.host.readInput());
     if (test?.pendingFunction) {
       pendingFunctionIndex = compilation.hir.functions.find(
         ({ name, suspending }) => name === test.pendingFunction && suspending,

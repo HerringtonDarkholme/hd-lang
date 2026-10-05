@@ -1,8 +1,7 @@
 # std.host: the host capability traits `Args` and `Env`, their helpers, and
 # the deterministic providers `MapArgs` and `MapEnv` (spec/std/host.md).
-# The prototype's std loader does not list this module yet
-# (src/checker/standard-sources.ts), and no runtime profile binds a host
-# `Args` or `Env`.
+# The default profile binds a host `Args` and `Env`
+# (src/commands/default-profile.ts).
 use std.format.DebugWriter
 
 pub trait Args:
