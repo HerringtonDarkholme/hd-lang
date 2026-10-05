@@ -12,10 +12,12 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same branch or pull request supersedes the running one.
+# A newer push to a pull request supersedes its running check. On main the
+# running check always finishes, so frequent pushes can't leave main
+# unchecked; only the queued run is replaced by a newer push.
 concurrency:
   group: test-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
