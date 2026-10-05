@@ -63,34 +63,6 @@ Report the tiny-program compile time before and after (median of 5) and
 `pnpm run perf:check`. Delete F7 and F10 from `perf-audit.md` when they
 are fixed.
 
-### AE. `hd doc`
-
-The spec is done: the "Documentation" section of
-`spec/cli/command-line.md` (`cli.doc.*`), module docs in
-`spec/lang/01-lexical-structure.md` (`lex.doc.module*`), and the doc
-pages rules from commits 4856cb9e, aaa26b22 and 35465bdc. The CLI cases
-are in `spec/conformance/cli/doc-*` (known failures, tag CLI-DOC), and
-`parse/valid/module-documentation.hd` (tag MODULE-DOC).
-
-- Put the generator in its own module (for example `src/doc/`): build the
-  documentation from the checked package, render Markdown and HTML pages,
-  `llms.txt` and `llms-full.txt`, check `` [`Name`] `` links (warning
-  `broken-doc-link`), and print one item for `hd doc NAME`, including
-  `std.` names.
-- `hd doc --format json` reports diagnostics like `hd check` does
-  (`cli.json.commands`, added in 5788a62b). The CLI cases `doc-outside-package`
-  and `doc-check-error` check it.
-- Module docs: a file's first `##` block followed by a blank line
-  documents the module (lexer and parser change, `lex.doc.module`).
-- Wire the `hd doc` command last. `src/cli-args.ts` is in the don't-touch
-  list until the harness work lands. If it's still listed when you get
-  here, do everything else and leave the wiring as the last step.
-- Split this into several pushed commits: module docs, Markdown, HTML,
-  links, `hd doc NAME`, then the command. Each one must leave
-  `pnpm run check` green.
-- Move each CLI-DOC and MODULE-DOC row to `test/portable/cases.tsv` once
-  it passes.
-
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
