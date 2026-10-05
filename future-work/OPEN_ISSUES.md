@@ -330,7 +330,16 @@ These items remain required but do not currently require new core syntax:
   one-shot `Suspend[T]` semantics;
 - the host extensions after the default profile, `Process` and an HTTP
   client, and the provider configuration format
-  ([Host Capabilities](../spec/cli/command-line.md#host-capabilities));
+  ([Host Capabilities](../spec/cli/command-line.md#host-capabilities)).
+  Starting sketch (2026-10-05, not approved): one table configures which
+  host resources `hd run` and `hd test` may touch, after Deno's
+  permission flags and WASI's preopened directories, for example
+  `[run.host] fs-read = ["data/"]`, `fs-write = ["out/"]`,
+  `env = ["APP_ENV"]`. A program's own capability traits are not
+  configured here: `main` binds them with `$.with`, one entry point per
+  setup (`src/main.hd` for production, `src/dev.hd` for development).
+  Today there is one hard-coded default profile and no way to configure
+  it;
 - what `hd build` produces for a library-only package (CLI-21); an
   executable builds to one Wasm file under `build/`;
 - exporter configuration, sampling, storage, and operational privacy policy
