@@ -35,7 +35,12 @@ export type WorkerRequest =
 
 export type WorkerMessage =
   | { readonly kind: "ready" }
-  | { readonly kind: "stdout"; readonly id: number; readonly line: string }
+  | {
+      readonly kind: "stdout";
+      readonly id: number;
+      readonly line: string;
+      readonly debug?: boolean;
+    }
   | { readonly kind: "result"; readonly id: number; readonly result: RunResult }
   | { readonly kind: "wat"; readonly id: number; readonly result: WatResult }
   | { readonly kind: "repl"; readonly id: number; readonly reply: ReplReply }
@@ -64,7 +69,7 @@ scope.onmessage = async ({ data: request }) => {
     const result = await runProject(
       project,
       mode,
-      (line) => scope.postMessage({ kind: "stdout", id, line }),
+      (line, debug) => scope.postMessage({ kind: "stdout", id, line, ...(debug ? { debug } : {}) }),
       (compiled) => (module = compiled),
     );
     const wat = mode === "check" ? undefined : watFromRun(result, module);

@@ -124,6 +124,8 @@ export async function runRepl(
   const show = (entry: ReplEntry): string => {
     if (entry.kind === "warning") return paint(YELLOW, entry.text);
     if (entry.kind === "error") return paint(RED, entry.text);
+    // A `dbg` line is diagnostic output (spec/cli/command-line.md#r-cli.dbg.repl).
+    if (entry.kind === "debug") return paint(DIM, entry.text);
     if (entry.kind === "code") return color ? highlightLines(entry.text) : entry.text;
     if (entry.kind === "value")
       return color

@@ -297,7 +297,7 @@ async function execute(mode: RunMode): Promise<void> {
   setStatus(busy);
   if (mode !== "check") void refreshWat();
   try {
-    const outcome = await compiler.run(mode, snapshot, (line) => output.line(line));
+    const outcome = await compiler.run(mode, snapshot, (line, debug) => output.line(line, debug));
     output.finish(outcome, mode);
     showDiagnostics(typeof outcome === "string" ? [] : outcome.diagnostics);
     setStatus(typeof outcome === "string" ? "Stopped" : done);

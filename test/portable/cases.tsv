@@ -2495,3 +2495,9 @@ typing/valid/temp-dir-integration.hd	type
 typing/invalid/script-test-init-requirement.hd	type
 cli/test-integration-env	cli
 cli/test-tasks	cli
+runtime/valid/dbg-returns-value.hd	runtime
+runtime/valid/dbg-without-requirement.hd	runtime
+typing/invalid/dbg-as-value.hd	type
+typing/invalid/dbg-type-arguments.hd	type
+typing/warnings/unused-debug-text.hd	type
+cli/dbg-release	cli

@@ -45,7 +45,6 @@ import { keepLiteralDefaults, speculate } from "./call-speculation.ts";
 import { isDowncastValImport } from "./inspectable.ts";
 import { checkLiteralSuffixCall, checkStringPrefixCall } from "./literal-suffixes.ts";
 import { TYPE_ID } from "./standard-traits.ts";
-import { FACTS_OF_INTRINSIC } from "./function-facts.ts";
 import { STRUCTURE_AS_DECLARED, STRUCTURE_MISMATCH } from "./typed-derivation.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
 export interface MemberCallExpression extends CallExpression {
@@ -927,8 +926,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     expression: NamedCallExpression,
     expected?: ValueType,
   ): HirExpression | undefined {
-    if (this.visibleSignature(expression.callee.name)?.intrinsic === FACTS_OF_INTRINSIC)
-      return this.checkExpression(this.factsOfCall(expression), expected);
+    const intrinsic = this.checkIntrinsicFunctionCall(expression, expected);
+    if (intrinsic) return intrinsic;
     if (isDowncastValImport(this.imports, expression.callee.name)) {
       const inspection = this.checkInspectFunctionCall(expression, "downcast_val", expected);
       if (inspection) return inspection;

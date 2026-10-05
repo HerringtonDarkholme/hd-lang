@@ -401,7 +401,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * of the calling module's own package.
    */
   private memberVisible(member: HirDataField | InherentMethod, owner?: HirData): boolean {
-    if (member.public === true || this.declaration.standard === true || this.compilerPrivateMember)
+    if (
+      member.public === true ||
+      this.declaration.standard === true ||
+      this.declaration.privateAccess === true ||
+      this.compilerPrivateMember
+    )
       return true;
     if (owner?.standard === true) return false;
     const ownership = registeredPackageOwnership(this.traitTypes);

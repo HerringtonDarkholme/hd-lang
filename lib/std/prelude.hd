@@ -13,7 +13,7 @@
 # The prelude names (spec/lang/10-modules.md#prelude). `std.core`'s names
 # and `std.task`'s names are compiler-provided.
 pub use std.core.{never, bool, i8, i16, i32, i64, u8, u16, u32, u64, usize, f32, f64, char, string, void, List, Map, Any, AnyVal, AnyRef, Option, Result, panic}
-pub use std.format.{Display, Debug, debug}
+pub use std.format.{Display, Debug, debug, dbg}
 pub use std.cmp.{Eq, PartialOrd, Ord, Ordering}
 pub use std.hash.{Hash, Hasher}
 pub use std.iter.{Iterator, Iterable}

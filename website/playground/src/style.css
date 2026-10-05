@@ -297,6 +297,11 @@ button.quiet {
   font: inherit;
 }
 
+/* A `dbg` line: diagnostic output, apart from the program's console. */
+.stdout .debug {
+  color: var(--muted);
+}
+
 .empty {
   color: var(--muted);
   font-style: italic;

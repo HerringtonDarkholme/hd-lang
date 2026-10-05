@@ -355,6 +355,24 @@ export abstract class StatementChecker extends CheckerContext {
             statement.span,
           );
         }
+        // A `debug(x)` statement drops the text it returns
+        // (spec/lang/10-modules.md#r-module.dbg.debug-hint).
+        if (
+          !valueContext &&
+          (expected === undefined || expected === "void") &&
+          this.declaration.standard !== true &&
+          statement.expression.kind === "call" &&
+          statement.expression.callee.kind === "name" &&
+          // `debug` is a prelude name, which no declaration may shadow.
+          statement.expression.callee.name === "debug" &&
+          readonlyType(expression.type) === "string"
+        )
+          this.diagnostics.push({
+            code: "unused-debug-text",
+            severity: "warning",
+            message: "`debug` returns the text; to print it, use `dbg(x)`",
+            span: statement.span,
+          });
         return { kind: "expression", expression, span: statement.span };
       }
       case "pass":

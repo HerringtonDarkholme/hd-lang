@@ -271,9 +271,11 @@ record, so a file is written and the clock is read once
 ([`cli.repl.host.once`](../spec/cli/command-line.md#r-cli.repl.host.once)).
 `read_line!` reads a line from the terminal, with raw mode off for the read.
 The browser session binds no host, so its entry point stays
-`pub fn main() -> void $ Console`. A value of a std type that the session has
-not imported shows through a renderer-local `use` alias; a newtype shows as
-`Name(base)`, and a std data type with private fields by its `Display` text.
+`pub fn main() -> void $ Console`. An expression's value shows as `dbg`
+prints it ([`cli.repl.value`](../spec/cli/command-line.md#r-cli.repl.value)):
+the session prints `std.format`'s hidden `dbg_text` of it, which the checker
+lowers as it lowers a `dbg` call (see Debug Printing below). The `dbg` lines
+of an input print before its value, as `debug` entries.
 `:type EXPR`,
 `:reset`, `:help`, and `:quit` are the commands. A pasted block, or a
 website snippet, is one entry of several inputs. When a binding input in it
@@ -1660,6 +1662,40 @@ What remains:
 
 1. `ConsoleError` stays a TypeScript type name until its variants and
    constructor are settled with the other std error types.
+
+### Debug Printing
+
+`dbg` ([Debug Printing](../spec/lang/10-modules.md#debug-printing)) is a
+compiler intrinsic: `lib/std/format.hd` declares it with `@intrinsic("dbg")`
+only to give it a binding, and `checker/debug-print.ts` lowers each call.
+Its printing depends on each argument's static type, so a program that
+calls it checks in two passes (`checkWithDebugPrinters` in
+`checker/program.ts`):
+
+1. The first pass checks a call as its arguments alone, `x`, `(a, b)`, or
+   nothing, and records each argument's static type. A type with `Debug`
+   in scope prints through it; a type parameter without it prints `<T>`; a
+   function, a suspension, or a trait value prints as text; any other type
+   prints structurally, and the pass records which of its parts implement
+   `Debug`.
+2. Between the passes, `debugPrinters` writes one hd printer function per
+   structural type, `hd__dbg_show_N(value, out)`, over the private layout
+   methods of `std.format`'s `DebugWriter`. They are marked
+   `privateAccess`, so they read private fields. The second pass checks
+   each call as `dbg_one(head, x, hd__dbg_show_N)`, `dbg_shown(head, x)`,
+   or `dbg_opaque(head, x, text)`, which print through the host function
+   `dbg_write` and return `x`; `head` is the call's location and the
+   argument's source text.
+
+A program without a `dbg` call checks once and links no printer. The
+writer's limits (100 entries, 10 levels, 1000 characters, `<cycle>`) and
+its pretty layout apply only to `dbg`'s writer, never to `debug`. A release
+build reports `dbg-in-release` with a fix-it in the first pass. A call in a
+module whose scope the linker marks `fetched` (a dependency fetched for a
+version requirement) stays its arguments alone, and `dbg-in-dependency`
+warns once per package. `dbg_write` reaches `InstantiateOptions.debugOutput`:
+standard error for `hd run`, the test case's kept lines for `hd test`, the
+REPL's `debug` entries, and the playground's marked output lines.
 
 ## Layout
 

@@ -5,7 +5,7 @@ import {
   type HostSuspensionCall,
   type HostSuspensionOutcome,
 } from "./compiler.ts";
-import type { Diagnostic, SourcePosition } from "./diagnostics.ts";
+import type { Diagnostic, SourcePosition, SourceSpan } from "./diagnostics.ts";
 import { physicalSpan, SOURCE_ORIGIN, sourceDocument } from "./diagnostics.ts";
 import {
   LIB_FILE,
@@ -14,11 +14,11 @@ import {
   type PackageDependencies,
   type PackageDiagnostic,
 } from "./package.ts";
-import type { HirData, HirEnum, HirExpression, HirProgram } from "./hir.ts";
+import type { HirExpression, HirProgram } from "./hir.ts";
 import { spelledBindingType, spelledType } from "./checker/spelling.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
-import { optionalInner, readonlyType, displayType } from "./types.ts";
+import { displayType } from "./types.ts";
 
 export {
   backspaceWidth,
@@ -39,24 +39,17 @@ export {
 // deterministic, so console output already shown is skipped on reruns.
 
 const VALUE = "__repl_value";
-const SHOW = "__repl_show";
-const DISPLAY_PRIMITIVES = new Set([
-  "i8",
-  "i16",
-  "i32",
-  "i64",
-  "u8",
-  "u16",
-  "u32",
-  "u64",
-  "f32",
-  "f64",
-  "bool",
-]);
+/**
+ * `std.format`'s hidden `dbg_text`, the REPL's value display: a value's text
+ * as `dbg` prints it (spec/cli/command-line.md#r-cli.repl.value).
+ */
+const DBG_TEXT = "__std_format_dbg_text";
 
 interface ReplOutcome {
-  /** Console output produced by this input only. */
+  /** Console output and `dbg` lines produced by this input only, in order. */
   readonly output: readonly string[];
+  /** The indices of `output` that are `dbg` lines (spec/cli/command-line.md#r-cli.dbg.repl). */
+  readonly debug?: readonly number[];
   /** The rendered value of an expression input, if any. */
   readonly value?: string;
   /** The static type of an expression input, if any. */
@@ -82,8 +75,14 @@ interface EvaluateOptions {
   readonly run?: boolean;
 }
 
+/** A line a run wrote: console output, or a `dbg` line. */
+interface RunLine {
+  readonly text: string;
+  readonly debug?: true;
+}
+
 interface RunResult {
-  readonly lines: readonly string[];
+  readonly lines: readonly RunLine[];
   readonly error?: string;
   /** The host answers of the run: the accepted inputs' replayed, then this input's. */
   readonly hostAnswers: readonly HostAnswer[];
@@ -313,13 +312,13 @@ export class ReplSession {
       this.statements = statements;
       return { output: [], errors: [], warnings, accepted: true };
     }
-    const run = await this.run(attempt.source);
+    const run = await this.run(attempt);
     if (run.error) return rejected([run.error], run.lines.slice(this.shownLines));
     const output = run.lines.slice(this.shownLines);
     this.statements = statements;
     this.shownLines = run.lines.length;
     this.hostAnswers = run.hostAnswers;
-    return { output, errors: [], warnings, accepted: true };
+    return { ...outputOf(output), errors: [], warnings, accepted: true };
   }
 
   private async evaluateExpression(text: string, execute: boolean): Promise<ReplOutcome> {
@@ -341,7 +340,6 @@ export class ReplSession {
         : statement;
     }
     const found = valueType(analysis.hir);
-    const type = found?.type ?? "void";
     const shownType = displayType(found?.shown ?? "void");
     if (!execute) {
       this.statements = [...this.statements, `_ := ${text}`];
@@ -353,22 +351,29 @@ export class ReplSession {
         accepted: true,
       };
     }
-    const helpers = renderers(type, analysis.hir);
-    const shown = this.program(
-      [...this.declarations, ...helpers.declarations],
-      [...this.statements, `${VALUE} := ${text}`, `println(${helpers.call(VALUE)})`],
-    );
+    // The value shows as `dbg` prints it, with ` : TYPE` after it on its
+    // last line (spec/cli/command-line.md#r-cli.repl.value).
+    const width = ` : ${shownType}`.length;
+    const shown: Attempt = {
+      ...this.program(this.declarations, [
+        ...this.statements,
+        `${VALUE} := ${text}`,
+        `println(${DBG_TEXT}(${VALUE}, ${width}))`,
+      ]),
+      inputLine: probe.inputLine,
+      prefix: `${VALUE} := `.length,
+    };
     const shownAnalysis = this.analyze(shown.source);
     if (!shownAnalysis.hir) return rejected(this.format(shownAnalysis.diagnostics, shown));
-    const run = await this.run(shown.source);
+    const run = await this.run(shown);
     if (run.error) return rejected([run.error], run.lines.slice(this.shownLines));
     const output = run.lines.slice(this.shownLines, -1);
     this.statements = [...this.statements, `_ := ${text}`];
     this.shownLines = run.lines.length - 1;
     this.hostAnswers = run.hostAnswers;
     return {
-      output,
-      value: run.lines.at(-1),
+      ...outputOf(output),
+      value: run.lines.at(-1)?.text,
       type: shownType,
       errors: [],
       warnings: this.warnings(analysis.diagnostics, probe),
@@ -425,8 +430,9 @@ export class ReplSession {
       .map((diagnostic) => formatReplDiagnostic(diagnostic, attempt));
   }
 
-  private async run(source: string): Promise<RunResult> {
-    const lines: string[] = [];
+  private async run(attempt: Attempt): Promise<RunResult> {
+    const { source } = attempt;
+    const lines: RunLine[] = [];
     // An accepted input's host calls are answered from the record on a
     // rerun, so their effects happen once (cli.repl.host.once).
     const replayed = this.hostAnswers;
@@ -449,8 +455,13 @@ export class ReplSession {
     try {
       const { instance, compilation } = await instantiate(prepared.source, {
         ...prepared.options,
-        console: (text) => lines.push(text),
-        consoleError: (text) => lines.push(text),
+        console: (text) => lines.push({ text }),
+        consoleError: (text) => lines.push({ text }),
+        // A `dbg` line prints before the input's value, and names its call as
+        // a diagnostic would (spec/cli/command-line.md#r-cli.dbg.repl).
+        debugOutput: (text) => lines.push({ text, debug: true }),
+        debugLocation: (span: SourceSpan) =>
+          replLocation(prepared.located({ code: "", message: "", span }), attempt),
         ...(host ? { hostSuspensionInvoke } : {}),
       });
       this.lastModule = compilation.wat;
@@ -471,8 +482,14 @@ export class ReplSession {
   }
 }
 
-function rejected(errors: readonly string[], output: readonly string[] = []): ReplOutcome {
-  return { output, errors, warnings: [], accepted: false };
+function rejected(errors: readonly string[], output: readonly RunLine[] = []): ReplOutcome {
+  return { ...outputOf(output), errors, warnings: [], accepted: false };
+}
+
+/** An outcome's output: each line's text, and which of them are `dbg` lines. */
+function outputOf(lines: readonly RunLine[]): Pick<ReplOutcome, "output" | "debug"> {
+  const debug = lines.flatMap((line, index) => (line.debug ? [index] : []));
+  return { output: lines.map(({ text }) => text), ...(debug.length > 0 ? { debug } : {}) };
 }
 
 function isSyntaxCode(code: string): boolean {
@@ -534,19 +551,24 @@ export function parseReplMessage(text: string): ReplMessage {
 }
 
 function formatReplDiagnostic(diagnostic: Diagnostic, attempt: Attempt): string {
+  const severity = diagnostic.severity === "warning" ? "warning: " : "";
+  return `${replLocation(diagnostic, attempt)}: ${severity}${diagnostic.code}: ${diagnostic.message}`;
+}
+
+/**
+ * Where a diagnostic points: `LINE:COLUMN` in the input, `session:LINE:COLUMN`
+ * in an earlier part of the session, or `FILE:LINE:COLUMN` in another file.
+ */
+function replLocation(diagnostic: Diagnostic, attempt: Attempt): string {
   const document = sourceDocument(diagnostic.span);
   if (document) {
     const { line, column } = physicalSpan(diagnostic.span).start;
-    const severity = diagnostic.severity === "warning" ? "warning: " : "";
-    return `${document.file}:${line}:${column}: ${severity}${diagnostic.code}: ${diagnostic.message}`;
+    return `${document.file}:${line}:${column}`;
   }
   const { line, column } = diagnostic.span.start;
   const relative = line - attempt.inputLine;
   const shift = attempt.indent + (relative === 1 ? (attempt.prefix ?? 0) : 0);
-  const where =
-    relative >= 1 ? `${relative}:${Math.max(1, column - shift)}` : `session:${line}:${column}`;
-  const severity = diagnostic.severity === "warning" ? "warning: " : "";
-  return `${where}: ${severity}${diagnostic.code}: ${diagnostic.message}`;
+  return relative >= 1 ? `${relative}:${Math.max(1, column - shift)}` : `session:${line}:${column}`;
 }
 
 /**
@@ -595,214 +617,6 @@ function findValueBinding(node: unknown): BindingNode | undefined {
   return found;
 }
 
-interface Renderers {
-  readonly declarations: string[];
-  call(argument: string): string;
-}
-
-/** Generates hd functions that render a value of `type` as source-like text. */
-function renderers(type: string, hir: HirProgram): Renderers {
-  const names = new Map<string, string>();
-  const declarations: string[] = [];
-  // A std type that the session has not imported, such as the `FsError` of
-  // `read_text!`, gets a name of the renderer's own through a `use`.
-  const aliases = new Map<string, string>();
-  const spell = (valueType: string): string =>
-    displayType(
-      valueType.replace(/(?<![A-Za-z0-9_])__std_[a-z0-9_]+_[A-Z][A-Za-z0-9_]*/g, (word) => {
-        const standard = standardTypeName(hir, word);
-        if (standard === undefined) return word;
-        let alias = aliases.get(word);
-        if (alias === undefined) {
-          alias = `${SHOW}_type_${aliases.size}`;
-          aliases.set(word, alias);
-          const dot = standard.lastIndexOf(".");
-          declarations.push(
-            `use ${standard.slice(0, dot)}.{${standard.slice(dot + 1)} as ${alias}}`,
-          );
-        }
-        return alias;
-      }),
-    );
-  const nameFor = (valueType: string): string => {
-    // Only weaken the renderer argument's outer view. Erasing nested
-    // permissions would convert invariant Option/Result generic arguments.
-    const key = readonlyType(valueType);
-    const existing = names.get(key);
-    if (existing) return existing;
-    const name = `${SHOW}_${names.size}`;
-    names.set(key, name);
-    const body = rendererBody(key, hir, nameFor, spell);
-    declarations.push(
-      [`fn ${name}(value: ${spell(key)}) -> string:`, ...body.map((line) => `    ${line}`)].join(
-        "\n",
-      ),
-    );
-    return name;
-  };
-  const top = nameFor(type);
-  return { declarations, call: (argument) => `${top}(${argument})` };
-}
-
-/** The qualified name of the std data type or enum whose internal name is `name`. */
-function standardTypeName(hir: HirProgram, name: string): string | undefined {
-  return [...hir.data, ...hir.enums].find((declaration) => declaration.name === name)?.standardName;
-}
-
-function rendererBody(
-  type: string,
-  hir: HirProgram,
-  nameFor: (type: string) => string,
-  spell: (type: string) => string,
-): string[] {
-  if (DISPLAY_PRIMITIVES.has(type)) return ['"$value"'];
-  if (type === "string") return ['"\\"" + value + "\\""'];
-  if (type === "char") return ["\"'$value'\""];
-  const optional = optionalInner(type);
-  if (optional !== undefined) {
-    const inner = nameFor(optional);
-    return [
-      "match value:",
-      `    .Some(present) => ".Some(" + ${inner}(present) + ")"`,
-      '    .None => ".None"',
-    ];
-  }
-  const generic = splitGeneric(type);
-  if (generic?.name === "List" && generic.arguments.length === 1) {
-    const element = nameFor(generic.arguments[0]!);
-    return [
-      'let text: string = "["',
-      "let first: bool = true",
-      "for item in value:",
-      "    if !first:",
-      '        text = text + ", "',
-      "    first = false",
-      `    text = text + ${element}(item)`,
-      'text + "]"',
-    ];
-  }
-  if (generic?.name === "Map" && generic.arguments.length === 2) {
-    const key = nameFor(generic.arguments[0]!);
-    const entry = nameFor(generic.arguments[1]!);
-    return [
-      'let text: string = "{"',
-      "let first: bool = true",
-      "for (key, entry) in value:",
-      "    if !first:",
-      '        text = text + ", "',
-      "    first = false",
-      `    text = text + ${key}(key) + ": " + ${entry}(entry)`,
-      'text + "}"',
-    ];
-  }
-  if (generic?.name === "Result" && generic.arguments.length === 2) {
-    const error = nameFor(generic.arguments[1]!);
-    // A void success, as of `write_text!`, has no value to show.
-    const success =
-      generic.arguments[0] === "void"
-        ? '    .Ok(_) => ".Ok(())"'
-        : `    .Ok(success) => ".Ok(" + ${nameFor(generic.arguments[0]!)}(success) + ")"`;
-    return ["match value:", success, `    .Err(failure) => ".Err(" + ${error}(failure) + ")"`];
-  }
-  if (type.startsWith("(") && type.endsWith(")")) {
-    const elements = splitTopLevel(type.slice(1, -1));
-    // The unit value `()` has no elements to join.
-    if (elements.length === 0) return ['"()"'];
-    const parts = elements.map((element, index) => `${nameFor(element)}(value._${index})`);
-    return [`"(" + ${parts.join(' + ", " + ')} + ")"`];
-  }
-  const data = hir.data.find(({ name }) => name === (generic?.name ?? type));
-  // A newtype shows its constructor around its base value, which the base
-  // type's constructor unwraps (types.newtype.construct).
-  if (data?.newtype && data.fields.length === 1 && data.genericParameters.length === 0) {
-    const base = data.fields[0]!.type;
-    return [`"${displayType(data.name)}(" + ${nameFor(base)}(${spell(base)}(value)) + ")"`];
-  }
-  // A std data type's private fields are its own; it shows as its Display
-  // text, as `Timestamp` does, or else by name only.
-  if (data?.standard && data.fields.some((field) => !field.public)) {
-    const shown = hir.implementations.some(
-      ({ traitName, targetType }) =>
-        /(^|\.)Display$/.test(traitName) &&
-        (targetType === data.name || targetType === data.standardName),
-    );
-    return [shown ? '"$value"' : `"<${displayType(data.name)}>"`];
-  }
-  if (data) return dataBody(data, type, generic?.arguments ?? [], nameFor);
-  const enumeration = hir.enums.find(({ name }) => name === (generic?.name ?? type));
-  if (enumeration) return enumBody(enumeration, generic?.arguments ?? [], nameFor);
-  return [`"<${displayType(type).replaceAll('"', "'")}>"`];
-}
-
-function dataBody(
-  data: HirData,
-  type: string,
-  typeArguments: readonly string[],
-  nameFor: (type: string) => string,
-): string[] {
-  const substitute = substitution(data.genericParameters, typeArguments);
-  if (data.fields.length === 0) return [`"${type}"`];
-  const fields = data.fields.map(
-    (field) => `"${field.name}: " + ${nameFor(substitute(field.type))}(value.${field.name})`,
-  );
-  return [`"${displayType(data.name)} { " + ${fields.join(' + ", " + ')} + " }"`];
-}
-
-function enumBody(
-  enumeration: HirEnum,
-  typeArguments: readonly string[],
-  nameFor: (type: string) => string,
-): string[] {
-  const substitute = substitution(enumeration.genericParameters, typeArguments);
-  const arms = enumeration.variants.map((variant) => {
-    const label = `${displayType(enumeration.name)}.${variant.name}`;
-    if (variant.fields.length === 0) return `    .${variant.name} => "${label}"`;
-    const names = variant.fields.map((field) => field.name);
-    const parts = variant.fields.map(
-      (field) => `"${field.name}: " + ${nameFor(substitute(field.type))}(${field.name})`,
-    );
-    return `    .${variant.name}(${names.join(", ")}) => "${label}(" + ${parts.join(' + ", " + ')} + ")"`;
-  });
-  return ["match value:", ...arms];
-}
-
-function substitution(
-  parameters: readonly string[],
-  typeArguments: readonly string[],
-): (type: string) => string {
-  return (type) => {
-    let result = type;
-    parameters.forEach((parameter, index) => {
-      const argument = typeArguments[index];
-      if (argument !== undefined)
-        result = result.replace(new RegExp(`\\b${parameter}\\b`, "g"), argument);
-    });
-    return result;
-  };
-}
-
-function splitGeneric(type: string): { name: string; arguments: string[] } | undefined {
-  const match = /^([A-Za-z_][A-Za-z0-9_.]*)\[(.*)\]$/.exec(type);
-  if (!match) return undefined;
-  return { name: match[1]!, arguments: splitTopLevel(match[2]!) };
-}
-
-function splitTopLevel(text: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let current = "";
-  for (const character of text) {
-    if ("([{".includes(character)) depth += 1;
-    else if (")]}".includes(character)) depth -= 1;
-    if (character === "," && depth === 0) {
-      parts.push(current.trim());
-      current = "";
-    } else current += character;
-  }
-  if (current.trim() !== "") parts.push(current.trim());
-  return parts;
-}
-
 const HELP = `Enter hd declarations, statements, or expressions.
 A line ending in ':' starts a block; finish it with an empty line.
 Expressions print their value and type. Declarations cannot see REPL bindings.
@@ -816,10 +630,11 @@ Expressions print their value and type. Declarations cannot see REPL bindings.
 /** One line of a REPL reply, by what it shows. */
 export interface ReplEntry {
   /**
-   * `output`: console output; `value`: an expression's rendered value, with
-   * `type`; `code`: hd source or a type to highlight; `info`: plain text.
+   * `output`: console output; `debug`: a `dbg` line; `value`: an
+   * expression's rendered value, with `type`; `code`: hd source or a type to
+   * highlight; `info`: plain text.
    */
-  readonly kind: "output" | "value" | "code" | "info" | "warning" | "error";
+  readonly kind: "output" | "debug" | "value" | "code" | "info" | "warning" | "error";
   readonly text: string;
   readonly type?: string;
 }
@@ -872,7 +687,10 @@ export async function respond(session: ReplSession, input: string): Promise<Repl
 /** The reply lines for an evaluated input, in the order the REPL shows them. */
 function outcomeEntries(outcome: ReplOutcome): ReplEntry[] {
   const entries: ReplEntry[] = [
-    ...outcome.output.map((text): ReplEntry => ({ kind: "output", text })),
+    ...outcome.output.map((text, index): ReplEntry => ({
+      kind: outcome.debug?.includes(index) ? "debug" : "output",
+      text,
+    })),
     ...outcome.warnings.map((text): ReplEntry => ({ kind: "warning", text })),
     ...outcome.errors.map((text): ReplEntry => ({ kind: "error", text })),
   ];

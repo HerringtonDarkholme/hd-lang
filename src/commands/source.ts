@@ -7,7 +7,13 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { SINGLE_FILE_USE } from "../checker/standard-uses.ts";
 import type { CompileOptions } from "../compiler.ts";
 import { DiagnosticReporter, type OutputFormat, type Report } from "../diagnostic-report.ts";
-import { DiagnosticError, physicalSpan, sourceDocument, type Diagnostic } from "../diagnostics.ts";
+import {
+  DiagnosticError,
+  physicalSpan,
+  sourceDocument,
+  type Diagnostic,
+  type SourceSpan,
+} from "../diagnostics.ts";
 import {
   linkedParseOptions,
   LIB_FILE,
@@ -180,11 +186,25 @@ export async function loadSource(
   // rows and may call `hd_run!` (spec/cli/command-line.md#r-cli.test.process).
   const integrationTest =
     options.testLayout === "integration" || (placement?.path.startsWith(TEST_ROOT) ?? false);
+  // A `dbg` line names its call's file as diagnostics name it
+  // (spec/lang/10-modules.md#r-module.dbg.location).
+  const debugLocation = (span: SourceSpan): string => {
+    if (!linked || !placement) return `${file}:${span.start.line}:${span.start.column}`;
+    const located = linked.locate({ code: "", message: "", span });
+    const shown =
+      located.path === placement.path
+        ? file
+        : isAbsolute(located.path)
+          ? located.path
+          : join(placement.root, located.path);
+    return `${shown}:${located.span.start.line}:${located.span.start.column}`;
+  };
   const compileOptions: CompileOptions = {
     hostCapabilities: profile?.hostCapabilities,
     parse: parseOptions,
     entryModule: !("testModule" in parseOptions) && options.library !== true,
     release: options.release ?? false,
+    debugLocation,
     ...(integrationTest ? { integrationTest } : {}),
     // Linking the test code makes a test build, which runs no entry
     // behavior (spec/lang/10-modules.md#r-module.init.tests.no-entry).

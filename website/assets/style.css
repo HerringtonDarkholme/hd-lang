@@ -2079,7 +2079,8 @@ body.repl-open .repl-toggle {
 .repl-echo-prompt,
 .repl-prompt,
 .repl-type,
-.repl-info {
+.repl-info,
+.repl-debug {
   color: var(--text-soft);
 }
 

@@ -19,6 +19,7 @@ import type { Signature } from "./context.ts";
 import { ALL_COMBINATOR } from "./standard-traits.ts";
 import { loopNameHint } from "./cannot-infer.ts";
 import { FACTS_OF_INTRINSIC } from "./function-facts.ts";
+import { DBG_INTRINSIC, DBG_TEXT_INTRINSIC } from "./debug-print.ts";
 import {
   containsGenericType,
   genericTypeName,
@@ -249,6 +250,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         if (signature?.intrinsic === FACTS_OF_INTRINSIC)
           this.fail(
             "invalid-facts-of-target",
+            `'${expression.name}' is a compiler intrinsic and must be called directly`,
+            expression.span,
+          );
+        // `dbg` is only a callee (spec/lang/10-modules.md#r-module.dbg.call).
+        if (signature?.intrinsic === DBG_INTRINSIC || signature?.intrinsic === DBG_TEXT_INTRINSIC)
+          this.fail(
+            "invalid-dbg-call",
             `'${expression.name}' is a compiler intrinsic and must be called directly`,
             expression.span,
           );

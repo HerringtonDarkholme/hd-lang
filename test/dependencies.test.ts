@@ -387,6 +387,46 @@ describe("dependencies", needsGit, () => {
       selectedLines("github.com/acme/text@1.0.0", TEXT_V1),
     );
   });
+
+  test("a fetched package's dbg prints nothing and warns once; a path package's prints", async () => {
+    await remote("noisy", [
+      [
+        "v1.0.0",
+        {
+          "hd.toml": '[package]\nname = "noisy"\n',
+          "src/lib.hd":
+            "pub fn twice(n: i32) -> i32:\n    dbg(n) * 2\n\npub fn thrice(n: i32) -> i32:\n    dbg(n) * 3\n",
+        },
+      ],
+    ]);
+    const directory = await app(
+      "debugger",
+      "use dep.noisy.{twice, thrice}\nuse dep.local.{inc}\n\npub fn main() -> void $ Console:\n    println(dbg(twice(thrice(inc(1)))))\n",
+      '\n[dependencies]\nnoisy = "github.com/acme/noisy@1.0.0"\nlocal = { path = "local" }\n',
+    );
+    await writeTree(join(directory, "local"), {
+      "hd.toml": '[package]\nname = "local"\n',
+      "src/lib.hd": "pub fn inc(n: i32) -> i32:\n    dbg(n + 1)\n",
+    });
+    const fetched = await hd(directory, ["fetch"]);
+    assert.equal(fetched.status, 0, fetched.stderr);
+    const ran = await hd(directory, ["run"]);
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(ran.stdout, "12\n");
+    // The package and its path dependency print (module.dbg.own-code); the
+    // fetched package prints nothing and warns once (module.dbg.dependency).
+    assert.match(ran.stderr, /local\/src\/lib\.hd:2:5: n \+ 1 = 2$/m);
+    assert.match(ran.stderr, /src\/main\.hd:5:13: twice\(thrice\(inc\(1\)\)\) = 12$/m);
+    assert.doesNotMatch(ran.stderr, /: n = /);
+    const checked = await hd(directory, ["check"]);
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.equal(checked.stderr.match(/dbg-in-dependency/g)?.length, 1, checked.stderr);
+    assert.match(checked.stderr, /dependency github\.com\/acme\/noisy@1\.0\.0 calls dbg/);
+    // A release build rejects the package's and the path dependency's calls only.
+    const release = await hd(directory, ["build", "--release"]);
+    assert.equal(release.status, 101, release.stderr);
+    assert.equal(release.stderr.match(/dbg-in-release/g)?.length, 2, release.stderr);
+  });
 });
 
 describe("pseudo-versions and workspaces", needsGit, () => {

@@ -9,7 +9,7 @@
 // to, for the playground's WAT view.
 
 import { analyze, compileToWasm, instantiate } from "../../../src/compiler.ts";
-import type { Diagnostic } from "../../../src/diagnostics.ts";
+import type { Diagnostic, SourceSpan } from "../../../src/diagnostics.ts";
 import { emitWat } from "../../../src/emitter/index.ts";
 import { linkPackage, type LinkedPackage, type PackageDiagnostic } from "../../../src/package.ts";
 import { parse } from "../../../src/parser/index.ts";
@@ -117,15 +117,17 @@ type Finish = (
 export async function runProject(
   project: Project,
   mode: RunMode,
-  onStdout: (line: string) => void = () => undefined,
+  onStdout: (line: string, debug?: boolean) => void = () => undefined,
   onModule: (module: CompiledModule) => void = () => undefined,
 ): Promise<RunResult> {
   const started = performance.now();
   const stdout: string[] = [];
-  const emit = (text: string): void => {
+  // A `dbg` line goes to the output panel too, marked as debug output
+  // (spec/cli/command-line.md#debug-output).
+  const emit = (text: string, debug = false): void => {
     for (const line of text.split("\n")) {
       stdout.push(line);
-      onStdout(line);
+      onStdout(line, debug);
     }
   };
   const finish: Finish = (status, diagnostics, summary) => ({
@@ -160,7 +162,12 @@ export async function runProject(
   let current = "module initialization";
   try {
     const options = {
-      console: emit,
+      console: (text: string) => emit(text),
+      debugOutput: (text: string) => emit(text, true),
+      debugLocation: (span: SourceSpan) => {
+        const { path, span: located } = linked.locate({ code: "", message: "", span });
+        return `${path}:${located.start.line}:${located.start.column}`;
+      },
       providerConfigurationId: "playground",
       parse: joinedParse(linked),
     };
@@ -301,7 +308,7 @@ async function evaluateTopLevel(
   path: string,
   inputs: readonly SourceInput[],
   execute: boolean,
-  emit: (text: string) => void,
+  emit: (text: string, debug?: boolean) => void,
   finishRun: Finish,
   onModule: (module: CompiledModule) => void,
 ): Promise<RunResult> {
@@ -348,7 +355,7 @@ async function evaluateTopLevel(
 
   for (const input of inputs) {
     const outcome = await session.evaluate(input.text, { run: execute });
-    for (const text of outcome.output) emit(text);
+    outcome.output.forEach((text, index) => emit(text, outcome.debug?.includes(index)));
     if (outcome.value !== undefined) emit(`${outcome.value} : ${outcome.type}`);
     diagnostics.push(...outcome.warnings.map((text) => inEntry(parseReplMessage(text), input)));
     if (outcome.accepted) continue;

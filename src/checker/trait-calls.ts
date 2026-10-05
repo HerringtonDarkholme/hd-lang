@@ -15,7 +15,7 @@ import {
 } from "./shared.ts";
 
 import type { Signature } from "./context.ts";
-import { InspectChecker } from "./expression-inspect.ts";
+import { DebugPrintChecker } from "./debug-print-calls.ts";
 
 export interface QualifiedCallExpression extends Extract<Expression, { kind: "call" }> {
   readonly callee: Extract<Expression, { kind: "qualified-name" }>;
@@ -28,7 +28,7 @@ interface ResolvedTraitMethod {
 }
 
 /** Trait method lookup through supertraits, and associated calls through a bound. */
-export abstract class TraitCallChecker extends InspectChecker {
+export abstract class TraitCallChecker extends DebugPrintChecker {
   /**
    * The implementations whose trait supplies the associated function `name`
    * for `ownerType`, with the implementation's parameters that the target

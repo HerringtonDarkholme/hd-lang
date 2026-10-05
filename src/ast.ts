@@ -126,6 +126,12 @@ export interface FunctionDecl {
   readonly standardName?: string;
   /** Compiler-generated helper: not a host-callable root. */
   readonly compilerGenerated?: boolean;
+  /**
+   * A printer that the checker generated for `dbg` (checker/debug-print.ts):
+   * it reads private members, as `dbg` shows them
+   * (spec/lang/10-modules.md#r-module.dbg.value.data).
+   */
+  readonly privateAccess?: boolean;
   /** Carries a `std.ops.NumSuffix` value: a suffix function (05-expressions.md#r-expr.literal-fn.marker). */
   readonly numSuffix?: boolean;
   /** Carries a `std.ops.StrPrefix` value: a prefix function (05-expressions.md#r-expr.literal-fn.marker). */
@@ -561,6 +567,12 @@ export interface ModuleScope {
   readonly namespaces: Readonly<Record<string, string>>;
   /** The dependency package the module belongs to, by its id; absent in the root package. */
   readonly package?: string;
+  /**
+   * The fetched package the module belongs to, as messages name it: a
+   * dependency fetched for a version requirement, whose `dbg` calls print
+   * nothing (spec/lang/10-modules.md#r-module.dbg.dependency).
+   */
+  readonly fetched?: string;
   /** The joined spelling of each package declaration a use of the module imports. */
   readonly imports?: readonly string[];
 }

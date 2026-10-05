@@ -492,6 +492,13 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
   const failedLine = (): void => {
     if (test?.format === "text") io.out(`${file}: ${passedCases} passed, 1 failed`);
   };
+  // `hd test` keeps a test case's `dbg` lines and shows them only when it
+  // fails; `hd run` writes them to standard error (spec/cli/command-line.md#debug-output).
+  let debugLines: string[] = [];
+  const showDebugLines = (): void => {
+    for (const line of debugLines) io.err(line);
+    debugLines = [];
+  };
   try {
     let scenarioInstance: WebAssembly.Instance | undefined;
     let pendingFunctionIndex: number | undefined;
@@ -509,6 +516,8 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     const instantiateOptions: Parameters<typeof instantiate>[1] = {
       console: (text) => io.out(text),
       consoleError: (text) => io.err(text),
+      debugOutput: test ? (line) => debugLines.push(line) : (line) => io.err(line),
+      debugLocation: loaded.compileOptions.debugLocation,
       pending:
         scenario === "cancellation-cleanup"
           ? (functionIndex) => functionIndex === pendingFunctionIndex
@@ -615,12 +624,16 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       instance.exports,
       async () =>
         (await instantiate(source, { ...instantiateOptions, compilation })).instance.exports,
-      snapshots.begin,
+      (name, row) => {
+        debugLines = [];
+        snapshots.begin(name, row);
+      },
       properties,
       snapshots.check,
       test && {
         record: (name, outcome, message) => {
           if (outcome === "passed") passedCases += 1;
+          if (outcome === "failed") showDebugLines();
           loaded.output.test(name, outcome, message);
         },
         // With `--format json` every test case reports (cli.json.test), so a
@@ -631,6 +644,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     );
     if (outcome.kind === "exit") return outcome.code;
     if (outcome.kind === "failed") {
+      showDebugLines();
       reporter.entryError(outcome.subject, outcome.outcome);
       failedLine();
       return 1;
@@ -645,6 +659,7 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
     if (outcome.result !== undefined) io.out(outcome.result);
     return 0;
   } catch (error) {
+    showDebugLines();
     const status = reportFailure(loaded, error);
     if (running) failedLine();
     return status;

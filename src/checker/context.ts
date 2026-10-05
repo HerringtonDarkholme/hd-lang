@@ -1150,7 +1150,7 @@ export abstract class CheckerContext {
     return dispatch ? { kind: "dispatch", dispatch } : undefined;
   }
 
-  private traitMethodDispatch(
+  protected traitMethodDispatch(
     type: ValueType,
     traitName: string,
     span?: SourceSpan,

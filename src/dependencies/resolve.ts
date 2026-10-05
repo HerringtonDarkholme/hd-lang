@@ -674,6 +674,7 @@ async function linkGraph(
       sourceRoot: posix(join(node.directory, "src")),
       files: await libraryFiles(node),
       dependencies,
+      ...(node.fetched ? { fetched: shownNode(node) } : {}),
     };
   }
   const dependencies: Record<string, string> = {};

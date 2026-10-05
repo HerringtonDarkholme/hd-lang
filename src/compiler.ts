@@ -286,6 +286,13 @@ interface InstantiateOptions {
   readonly testBuild?: boolean;
   /** A compilation of `source` to instantiate again, as for a fresh test instance. */
   readonly compilation?: Compilation;
+  /** Where a `dbg` line names its call (CompileOptions.debugLocation). */
+  readonly debugLocation?: CompileOptions["debugLocation"];
+  /**
+   * Receives each `dbg` line, the program's debug output
+   * (spec/lang/10-modules.md#r-module.dbg.stream); `consoleError` without it.
+   */
+  readonly debugOutput?: (line: string) => void;
 }
 
 interface Instantiation {
@@ -943,7 +950,8 @@ export function analyze(source: string, options: CompileOptions = {}): Analysis 
           functions: parsed.program.functions.filter((declaration) => !declaration.testOnly),
         }
       : parsed.program;
-    const checked = check(program, options);
+    // `dbg` lines and fix-its quote the checked source (checker/debug-print.ts).
+    const checked = check(program, { ...options, sourceText: options.sourceText ?? source });
     // Lexical warnings travel with the program; parser diagnostics are empty
     // whenever a program exists, so concatenation only adds those warnings.
     return { hir: checked.program, diagnostics: [...parsed.diagnostics, ...checked.diagnostics] };
@@ -1135,6 +1143,47 @@ function runtimeFunctionIdentities(source: string, program: HirProgram): Functio
 function initializerEntryRequirements(hir: HirProgram): readonly string[] {
   const initializer = hir.functions.find((declaration) => declaration.index === hir.initializer);
   return initializer !== undefined && !initializer.suspending ? initializer.requirements : [];
+}
+
+/**
+ * The `host:NAME` import of each `lib/std` function whose `@intrinsic` names a
+ * host function (host-functions.ts). `dbg_write` writes to the program's
+ * debug output, apart from its console (spec/lang/10-modules.md#r-module.dbg.stream).
+ */
+function hostFunctionImports(
+  program: HirProgram,
+  options: InstantiateOptions,
+  textDecoder: TextDecoder,
+): Record<string, HostImport> {
+  const textEncoder = new TextEncoder();
+  const debugOutput =
+    options.debugOutput ?? ((line: string) => options.consoleError?.(line, undefined));
+  const hostFunctions: Readonly<Record<string, HostFunction>> = {
+    ...HOST_FUNCTIONS,
+    dbg_write: (line) => debugOutput(String(line)),
+    ...options.hostFunctions,
+  };
+  const imports: Record<string, HostImport> = {};
+  for (const declaration of program.functions) {
+    const name = declaration.intrinsic;
+    if (!name || isRuntimePrimitive(name)) continue;
+    imports[`host:${name}`] = (...arguments_) => {
+      const implementation = hostFunctions[name];
+      if (!implementation) throw new Error(`the host has no function '${name}'`);
+      const result = implementation(
+        ...declaration.parameters.map((parameter, index) =>
+          parameter.type === "string"
+            ? textDecoder.decode((arguments_[index] as HostString).bytes)
+            : (arguments_[index] as number | bigint),
+        ),
+      );
+      if (declaration.result === "string")
+        return { bytes: textEncoder.encode(String(result)) } satisfies HostString;
+      if (declaration.result === "bool") return result ? 1 : 0;
+      return result;
+    };
+  }
+  return imports;
 }
 
 export async function instantiate(
@@ -1405,25 +1454,7 @@ export async function instantiate(
   };
   hostImports.host_string_length = (handle) => (handle as HostString).bytes.length;
   hostImports.host_string_get = (handle, index) => (handle as HostString).bytes[Number(index)];
-  for (const declaration of compilation.hir.functions) {
-    const name = declaration.intrinsic;
-    if (!name || isRuntimePrimitive(name)) continue;
-    hostImports[`host:${name}`] = (...arguments_) => {
-      const implementation = options.hostFunctions?.[name] ?? HOST_FUNCTIONS[name];
-      if (!implementation) throw new Error(`the host has no function '${name}'`);
-      const result = implementation(
-        ...declaration.parameters.map((parameter, index) =>
-          parameter.type === "string"
-            ? textDecoder.decode((arguments_[index] as HostString).bytes)
-            : (arguments_[index] as number | bigint),
-        ),
-      );
-      if (declaration.result === "string")
-        return { bytes: textEncoder.encode(String(result)) } satisfies HostString;
-      if (declaration.result === "bool") return result ? 1 : 0;
-      return result;
-    };
-  }
+  Object.assign(hostImports, hostFunctionImports(compilation.hir, options, textDecoder));
   const { instance } = await WebAssembly.instantiate(compilation.bytes, {
     hd: {
       ...hostImports,

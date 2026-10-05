@@ -17,7 +17,7 @@ type Answer = Extract<WorkerMessage, { kind: "result" | "wat" | "repl" | "restor
 
 interface Pending {
   readonly id: number;
-  readonly onStdout: (line: string) => void;
+  readonly onStdout: (line: string, debug?: boolean) => void;
   readonly resolve: (answer: Answer | Interrupted) => void;
   readonly timer: ReturnType<typeof setTimeout>;
 }
@@ -76,7 +76,7 @@ export class CompilerClient {
           resolve();
           this.options.onReady?.();
         } else if (data.id === this.pending?.id) {
-          if (data.kind === "stdout") this.pending.onStdout(data.line);
+          if (data.kind === "stdout") this.pending.onStdout(data.line, data.debug);
           else this.settle(data);
         }
       });
@@ -93,7 +93,7 @@ export class CompilerClient {
 
   private async send(
     request: WorkerRequest,
-    onStdout: (line: string) => void = () => undefined,
+    onStdout: (line: string, debug?: boolean) => void = () => undefined,
   ): Promise<Answer | Interrupted> {
     this.start();
     await this.ready;
@@ -108,7 +108,7 @@ export class CompilerClient {
   async run(
     mode: RunMode,
     project: Project,
-    onStdout: (line: string) => void,
+    onStdout: (line: string, debug?: boolean) => void,
   ): Promise<RunResult | Interrupted> {
     this.runs += 1;
     try {

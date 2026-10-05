@@ -47,8 +47,16 @@ import { withErrorDerivation } from "./error-derivation.ts";
 import { setHashableKeyTypes } from "./map-keys.ts";
 import { sourceSpanKey, type Diagnostic, type SourceSpan } from "../diagnostics.ts";
 import { testTierNames, withTestTierNotes } from "./test-tier-notes.ts";
+import {
+  debugPrinters,
+  debugPrintState,
+  needsDebugPrinters,
+  registerDebugPrint,
+  type DebugPrintOptions,
+  type DebugPrintState,
+} from "./debug-print.ts";
 
-export interface CheckOptions {
+export interface CheckOptions extends DebugPrintOptions {
   readonly hostCapabilities?: readonly string[];
   /**
    * The program is an entry module, so a `main` that is not pub warns
@@ -107,7 +115,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
     return { diagnostics: [...derived.diagnostics] };
   // Literal marker facts are checked on the declarations that survive
   // derivation, matching the original phase order.
-  const result = checkProgram(withSuffixMarkers(derived.program), options, prepared);
+  const result = checkWithDebugPrinters(withSuffixMarkers(derived.program), options, prepared);
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/lang/14-annotations.md#r-annot.walker.obligation.error).
   const sameSpan = (span: SourceSpan, diagnostic: Diagnostic): boolean =>
@@ -190,13 +198,51 @@ function prepareForDerivation(source: Program): PreparedProgram {
   return { program, standardAliases, testRunners, runnerCapabilities, defaultProfile };
 }
 
-function checkProgram(
+/**
+ * Checks `source`, in two passes when it calls `dbg` (checker/debug-print.ts):
+ * the first finds each call's argument types, and the second checks the
+ * calls as calls of the printers generated for those types.
+ */
+function checkWithDebugPrinters(
   source: Program,
   options: CheckOptions,
   prepared: Omit<PreparedProgram, "program">,
 ): CheckResult {
+  const first = debugPrintState(source, options);
+  const result = checkProgram(source, options, prepared, first);
+  const failed = result.diagnostics.some((diagnostic) => diagnostic.severity !== "warning");
+  // A fetched package's calls print nothing, and it warns once
+  // (spec/lang/10-modules.md#r-module.dbg.dependency.warning).
+  const quiet: Diagnostic[] = [...first.quiet].map(([name, span]) => ({
+    code: "dbg-in-dependency",
+    severity: "warning",
+    message: `dependency ${name} calls dbg; its calls print nothing`,
+    span,
+  }));
+  if (failed || !result.program || !needsDebugPrinters(first))
+    return { ...result, diagnostics: [...result.diagnostics, ...quiet] };
+  const { functions, plans } = debugPrinters(first, result.program, source.span);
+  const second = checkProgram(
+    { ...source, functions: [...source.functions, ...functions] },
+    options,
+    prepared,
+    debugPrintState(source, options, plans),
+  );
+  // The second pass checks the same written code, so its warnings are the
+  // first's; an error there is the generated code's.
+  if (!second.program || second.diagnostics.some(({ severity }) => severity !== "warning"))
+    return second;
+  return { ...second, diagnostics: [...result.diagnostics, ...quiet] };
+}
+
+function checkProgram(
+  source: Program,
+  options: CheckOptions,
+  prepared: Omit<PreparedProgram, "program">,
+  debugPrint: DebugPrintState,
+): CheckResult {
   const spellings = new Map<string, string>();
-  const result = checkProgramRaw(source, options, spellings, prepared);
+  const result = checkProgramRaw(source, options, spellings, prepared, debugPrint);
   return {
     ...result,
     diagnostics: result.diagnostics.map((diagnostic) => ({
@@ -211,6 +257,7 @@ function checkProgramRaw(
   options: CheckOptions,
   spellings: Map<string, string>,
   prepared: Omit<PreparedProgram, "program">,
+  debugPrint: DebugPrintState,
 ): CheckResult {
   const { standardAliases, testRunners, runnerCapabilities, defaultProfile } = prepared;
   const hoisted = hoistLocalDeclarations(withDistinctMethodBinders(source, spellings));
@@ -262,6 +309,7 @@ function checkProgramRaw(
   // Every function check of the program shares its trait map, so it finds
   // which package declares what through it (checker/package-ownership.ts).
   registerPackageOwnership(context.traitTypes, program);
+  registerDebugPrint(context.traitTypes, debugPrint);
   validateProgram(context);
   // A missing required result type leaves no signature to check against.
   if (context.diagnostics.some((diagnostic) => diagnostic.code === "missing-result-type"))

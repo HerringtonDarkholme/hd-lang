@@ -97,6 +97,13 @@ export interface DependencyPackage {
   readonly files: Readonly<Record<string, string>>;
   /** Its own dependencies: each `dep.NAME` name to a package id. */
   readonly dependencies: Readonly<Record<string, string>>;
+  /**
+   * Set for a version fetched for a version requirement, as its host path
+   * and version, such as `github.com/acme/json@2.1.0`. A workspace member or
+   * a path requirement's package is the user's own code and leaves it unset
+   * (spec/lang/10-modules.md#r-module.dbg.own-code).
+   */
+  readonly fetched?: string;
 }
 
 /** The packages a link may reach through `dep.NAME` (spec/lang/10-modules.md#use-roots). */
@@ -1091,9 +1098,12 @@ function isScript(program: Program | undefined): boolean {
 function ownershipFields(
   module: PackageModule,
   imports: readonly string[],
-): Pick<ModuleScope, "package" | "imports"> {
+): Pick<ModuleScope, "package" | "imports" | "fetched"> {
   return {
     ...(module.dependency ? { package: module.dependency.id } : {}),
+    // A fetched package's `dbg` calls print nothing
+    // (spec/lang/10-modules.md#r-module.dbg.dependency).
+    ...(module.dependency?.fetched ? { fetched: module.dependency.fetched } : {}),
     ...(imports.length > 0 ? { imports } : {}),
   };
 }

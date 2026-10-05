@@ -36,12 +36,14 @@ export class OutputPanel {
     this.root.append(element("div", "outcome running", label));
   }
 
-  line(text: string): void {
+  /** Appends a console line, or a `dbg` line marked as debug output. */
+  line(text: string, debug = false): void {
     if (!this.stdout) {
       this.stdout = element("pre", "stdout");
       this.root.append(this.stdout);
     }
-    this.stdout.append(`${text}\n`);
+    if (debug) this.stdout.append(element("span", "debug", `${text}\n`));
+    else this.stdout.append(`${text}\n`);
   }
 
   message(text: string, kind: "info" | "error" = "info"): void {
