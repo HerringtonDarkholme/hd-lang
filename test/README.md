@@ -70,8 +70,8 @@ tune that gate independently.
 
 `pnpm run test:ui` runs the REPL, website, and playground tests
 (`test/ui`, `website/test`, `website/playground/test`). It is not part of
-`pnpm run check`; CI runs it after the check, and the merge subagent runs it
-once per merge. `pnpm run test:all` runs both `pnpm test` and
+`pnpm run check`; the Pages workflow runs it before it builds and deploys
+the site, and the merge subagent runs it once per merge. `pnpm run test:all` runs both `pnpm test` and
 `pnpm run test:ui`.
 
 `pnpm run perf:check` is the type checker's performance gate. It is not part
