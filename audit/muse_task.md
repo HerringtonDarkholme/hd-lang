@@ -59,43 +59,13 @@ When the queue is empty, report that and wait.
   `src/commands/test*`, `src/test-runner*`, and in `spec/`: the Testing
   sections of `lang/10-modules.md`, `std/testing.md`, and `hd test` in
   `cli/command-line.md`.
+- `usize` identity and checker speed (another agent is fixing AN's
+  `usize` regression and the speed-gate failures): `src/types.ts`,
+  `src/checker/shared.ts`, `src/checker/literal-join.ts`,
+  `src/checker/numeric-family.ts`, `src/checker/assignability.ts`,
+  `src/checker/standard-library.ts`, `test/perf/`.
 
 ## Jobs
-
-### AU. Blocker, Do First: `usize` Stopped Being The Same Type As `u32`
-
-Review of AN (ee489e28). Blocker. Code that worked before AN fails now:
-
-```
-fn pick[T](a: T, b: T) -> T:
-    a
-
-pub fn main() -> void $ Console:
-    xs := [1, 2]
-    let a: u32 = 7
-    println("${pick(a, xs.len())}")   # type-mismatch: 'u32' and 'usize' both solve 'T'
-    mixed := [a, xs.len()]             # no-common-type: u32, usize
-```
-
-Both ran before AN (`7`; a two-element list). `usize` is a transparent
-alias (`types.alias.usize`), so nothing may treat it as a different type.
-
-Fix the cause, not these two sites. AN keeps the spelling `usize` inside
-the type value and expands it at some comparison sites, but the checker and
-emitter compare types with `===`, `includes`, and map keys in hundreds of
-places, so every missed site is a bug. Instead: keep type identity
-canonical (`u32`) everywhere, and carry the display spelling as metadata
-that only messages and the REPL read (for example, the binding's written
-or defaulted spelling, as the literal-default hint already tracks
-`DEFAULTED_LOCALS`). Then revert `sameExpandedType` and the other
-per-site expansions. If you find the canonical approach cannot keep a
-message AN fixed, say which one in Questions instead of patching sites.
-
-Tests, each with a u32 value and a `len()` result: generic inference,
-list and map literals, `if`/`match` branch joins, tuples, `==` and `<`,
-arithmetic, a `Map[u32, V]` keyed by a `usize`, a trait implemented for
-`u32` called on a `usize`, `List[usize]` passed as `List[u32]`, and the
-messages and REPL still showing `usize`.
 
 ### AV. Runner: A Crash Beside A Timeout Must Not Pass
 
