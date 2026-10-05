@@ -980,7 +980,7 @@ hd clean --cache   # removes every cached dependency version, as go clean -modca
 
 1. r[cli.clean.build] `hd clean` without `--cache` removes the build directory of the package, and prints `removed build`. It removes nothing else: not `hd.toml`, `hd.sum`, source, or the cache.
 2. r[cli.clean.build.none] When the package has no build directory, `hd clean` prints `nothing to clean` and succeeds.
-3. r[cli.clean.build.workspace] In [workspace mode](#workspace-mode), `hd clean` removes the build directory of every member. It takes no `-p`.
+3. r[cli.clean.build.workspace] In [workspace mode](#workspace-mode), `hd clean` removes the build directory of every member, and prints `removed DIR/build` for each, with DIR relative to the workspace root. It takes no `-p`.
 4. r[cli.clean.build.package-only] Outside any package, `hd clean` without `--cache` is an error whose message suggests `hd new` and `hd clean --cache`.
 5. r[cli.clean.cache] `hd clean --cache` removes the fetched versions from the cache directory of [`cli.cache.directory`](#r-cli.cache.directory), and touches no build directory. It works inside a package, in a workspace, and outside any package, and it reads no manifest.
 6. r[cli.clean.cache.writable] The entries are read-only, by [`cli.cache.read-only`](#r-cli.cache.read-only), so `hd clean --cache` makes each directory writable before it removes it.
