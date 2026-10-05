@@ -1,3 +1,4 @@
+import { captureSources, isCaptureSource } from "./capture-view.ts";
 import { intrinsicDictionaryPlan } from "./intrinsic-dictionaries.ts";
 import { TRIAL_STATE, type TrialSnapshot } from "./call-speculation.ts";
 import { snapshotCheckerState } from "./checker-trial-state.ts";
@@ -86,6 +87,13 @@ export type {
 
 export class CheckFailure extends Error {}
 
+/**
+ * The names a closure body may capture, as a live view over the enclosing
+ * checker's scopes. Precedence matches the snapshot this replaces:
+ * provider bindings by local name, then scopes innermost first, then the
+ * enclosing captures. Iteration yields each name once, in first-seen
+ * order with the winning value, exactly as an overwriting merge would.
+ */
 function collectReadLocals(value: unknown, into: Set<HirLocal>): void {
   if (Array.isArray(value)) {
     for (const item of value) collectReadLocals(item, into);
@@ -1306,14 +1314,7 @@ export abstract class CheckerContext {
   }
 
   protected visibleCaptureSources(): ReadonlyMap<string, HirLocal> {
-    const visible = new Map(this.availableCaptures);
-    for (const scope of this.scopes) {
-      for (const [name, local] of scope) visible.set(name, local);
-    }
-    for (const scope of this.providerScopes) {
-      for (const local of scope.values()) visible.set(local.name, local);
-    }
-    return visible;
+    return captureSources(this.availableCaptures, this.scopes, this.providerScopes);
   }
 
   protected visibleProviders(): ReadonlyMap<string, HirLocal> {
@@ -1326,7 +1327,7 @@ export abstract class CheckerContext {
 
   protected referenceLocal(local: HirLocal, span: SourceSpan): HirExpression {
     if (this.locals.includes(local)) return { kind: "local", local, type: local.type, span };
-    if (this.insideClosure && [...this.availableCaptures.values()].includes(local))
+    if (this.insideClosure && isCaptureSource(this.availableCaptures, local))
       return this.captureReference(local.name, local, span);
     return { kind: "local", local, type: local.type, span };
   }

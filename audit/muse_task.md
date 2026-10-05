@@ -54,19 +54,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AC. Closure Capture Index
-
-If this is already committed locally, rebase and push it.
-
-`audit/job1-slow-compile-profiles.md`, case `closures-shared-var`: 71% of
-the time is in `visibleCaptureSources` (`src/checker/context.ts`), because
-every closure re-scans for the variables it captures.
-
-- Build an index once per function body and look closures up in it.
-- Report `closures-shared-var` at 6,000, 12,000 and 24,000 closures, before
-  and after. Growth should be linear.
-- Report `pnpm run perf:check`.
-
 ### AD. Read-Only: Re-Sweep After The Literal Change
 
 The literal typing model changed on 2026-10-04 (62a084a2, 288105cf): a
