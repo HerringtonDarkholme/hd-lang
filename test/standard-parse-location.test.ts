@@ -26,7 +26,7 @@ test("parser diagnostics inside std name their physical source", async (t) => {
 
   try {
     const output = bufferedIo();
-    assert.equal(await main(["check", file], output), 1);
+    assert.equal(await main(["check", file], output), 101);
     assert.match(output.output().stderr, /^lib\/std\/fs\.hd:1:\d+: /);
   } finally {
     mocked.mock.restore();

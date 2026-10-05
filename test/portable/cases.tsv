@@ -2351,3 +2351,7 @@ typing/invalid/literal-receiver-params-differ.hd	type
 typing/invalid/generic-trait-literal-without-default.hd	type
 runtime/valid/literal-var-flow.hd	runtime
 typing/invalid/literal-var-structure-conflict.hd	type
+cli/exit-hd-failure	cli
+cli/json-check-error	cli
+cli/json-file-location	cli
+cli/json-file-single	cli

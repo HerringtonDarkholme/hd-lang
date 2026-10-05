@@ -227,14 +227,14 @@ test("check --format json writes one JSON line per diagnostic, then a summary, t
     await writeFile(file, source);
 
     const text = await hd(["check", file]);
-    assert.equal(text.code, 1);
+    assert.equal(text.code, 101);
     assert.equal(
       text.stderr.trim(),
       `${file}:1:1: old-struct-declaration: 'struct' was replaced by 'data'`,
     );
 
     const json = await hd(["check", "--format", "json", file], spec);
-    assert.equal(json.code, 1);
+    assert.equal(json.code, 101);
     assert.equal(json.stderr, "");
     const [diagnostic, summary, ...rest] = jsonLines(json.stdout);
     assert.equal(rest.length, 0);
@@ -246,7 +246,7 @@ test("check --format json writes one JSON line per diagnostic, then a summary, t
       failed: 0,
       skipped: 0,
       ignored: 0,
-      status: 1,
+      status: 101,
     });
     assert.deepEqual(diagnostic, {
       kind: "diagnostic",

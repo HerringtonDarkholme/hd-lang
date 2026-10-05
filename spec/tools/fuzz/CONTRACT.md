@@ -30,11 +30,11 @@ contract.
 
 | Command      | Success                  | Rejection                                                                        |
 | ------------ | ------------------------ | -------------------------------------------------------------------------------- |
-| `parse FILE` | exit 0                   | exit 1, at least one located diagnostic                                          |
-| `check FILE` | exit 0, warnings allowed | exit 1, at least one located diagnostic with a code from the spec inventory       |
-| `FILE` (`run`) | exit 0                 | exit 1, a located diagnostic with an inventoried code, or a chapter-06 panic code |
+| `parse FILE` | exit 0                   | exit 101, at least one located diagnostic                                        |
+| `check FILE` | exit 0, warnings allowed | exit 101, at least one located diagnostic with a code from the spec inventory     |
+| `FILE` (`run`) | exit 0                 | exit 101, a located diagnostic with an inventoried code; or exit 1, a chapter-06 panic code |
 | `test FILE`  | exit 0                   | same as `run`                                                                    |
-| `build FILE` | exit 0, module emitted   | exit 1, located diagnostic (Wasm adapter only)                                   |
+| `build FILE` | exit 0, module emitted   | exit 101, located diagnostic (Wasm adapter only)                                 |
 
 The **spec inventory** is the Error, Error (general), Warning, and
 Boundary-failure rows of the normative table in
@@ -46,8 +46,9 @@ one.
 
 ## Violation kinds
 
-- `bad-exit`: an exit status other than 0 or 1.
-- `no-located-code`: exit 1 with no located code, or with only an
+- `bad-exit`: an exit status other than 0, 1, or 101, or exit 1 from `parse`,
+  `check`, or `build`, which exit 101 to reject.
+- `no-located-code`: exit 101 with no located code, or exit 1 with only an
   unrecognized panic line.
 - `uninventoried-code`: on `check`, `run`, or `test`, a located code outside
   the spec inventory. All such codes share one signature per command, and

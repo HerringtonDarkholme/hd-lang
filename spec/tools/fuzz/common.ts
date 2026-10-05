@@ -251,7 +251,10 @@ export function classify(
   if (result.signal) return { code: "signal", detail: result.signal, kind: "violation", ms };
   if (result.code === 0) return { code: "", detail: "", kind: "accept", ms };
   const label = messageLabel(output, path);
-  if (result.code !== 1)
+  // 101 rejects a program (cli.exit.hd-failure); 1 is a failed test case, so
+  // only run and test may exit 1 (CONTRACT.md).
+  const failedTest = result.code === 1 && (action === "run" || action === "test");
+  if (result.code !== 101 && !failedTest)
     return { code: "bad-exit", detail: `exit ${result.code}: ${label}`, kind: "violation", ms };
   const base = path.split("/").at(-1)!;
   const located = new RegExp(

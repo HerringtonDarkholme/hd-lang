@@ -473,6 +473,11 @@ function invoke(
   );
 }
 
+/** The exit status of a rejection: `hd` reports an error (cli.exit.hd-failure). */
+const REJECTED = 101;
+/** The exit status of `test` when a test case fails (cli.exit.test-failure). */
+const TEST_FAILED = 1;
+
 const realpathCache = new Map<string, Promise<string | undefined>>();
 
 function realPathOf(path: string): Promise<string | undefined> {
@@ -530,7 +535,8 @@ function panicReports(result: CommandResult, panics: Set<string>): string[] {
 }
 
 // Applies the Command Contract's exit rules. Returns a failure reason or
-// undefined when the result is a well-formed 0 or 1.
+// undefined when the result is a well-formed 0, 101 (rejection), or 1 (a
+// failed test case).
 async function contractViolation(
   result: CommandResult,
   file: string,
@@ -540,12 +546,14 @@ async function contractViolation(
   if (result.error) return `could not start the implementation: ${result.error}`;
   if (result.timedOut) return `ran longer than ${timeoutMs / 1000} s`;
   if (result.signal) return `terminated by signal ${result.signal}`;
-  if (result.status !== 0 && result.status !== 1) return `exit status ${result.status}`;
-  if (result.status === 1) {
+  if (result.status !== 0 && result.status !== REJECTED && result.status !== TEST_FAILED)
+    return `exit status ${result.status}`;
+  if (result.status === REJECTED) {
     const located = (await locatedDiagnostics(result, file, tree)).some((entry) => entry.sameFile);
-    if (!located && panicReports(result, panics).length === 0)
-      return "exit 1 without a located diagnostic or panic report";
+    if (!located) return `exit ${REJECTED} without a located diagnostic`;
   }
+  if (result.status === TEST_FAILED && panicReports(result, panics).length === 0)
+    return `exit ${TEST_FAILED} without a panic report`;
   return undefined;
 }
 
@@ -567,13 +575,15 @@ async function judgeRejectOrWarn(
   // A package tree case judges the code, not the line (README, Package Trees).
   const onLine = (entry: Located): boolean => tree !== undefined || entry.line === line;
   if (kind === "warn") {
-    if (result.status !== 0) return `expected exit 0 with warning ${code}, got exit 1`;
+    if (result.status !== 0)
+      return `expected exit 0 with warning ${code}, got exit ${result.status}`;
     const found = located.some(
       (entry) => entry.warning && entry.sameFile && entry.code === code && onLine(entry),
     );
     return found ? undefined : `no located warning ${code} on line ${line}`;
   }
-  if (result.status !== 1) return `expected rejection ${code}, got exit 0`;
+  if (result.status !== REJECTED)
+    return `expected rejection ${code} (exit ${REJECTED}), got exit ${result.status}`;
   const errors = located.filter((entry) => !entry.warning);
   const marked = (entry: Located): boolean =>
     entry.sameFile && entry.code === code && onLine(entry);
@@ -658,7 +668,7 @@ async function runCase(
     if (row.expectation === "accept")
       return result.status === 0
         ? { path: row.path }
-        : fail(`${action}: expected exit 0, got exit 1`, [result]);
+        : fail(`${action}: expected exit 0, got exit ${result.status}`, [result]);
     if (row.expectation.startsWith("panic:"))
       return { path: row.path, reason: `${row.phase}-phase case cannot expect a panic` };
     const problem = await judgeRejectOrWarn(result, file, row, fixture.markerLine!, tree);
@@ -677,7 +687,8 @@ async function runCase(
     const ordinary = await invoke(implementation, "test", [], file, runner);
     const ordinaryViolation = await contractViolation(ordinary, file, panics, tree);
     if (ordinaryViolation) return fail(`test: ${ordinaryViolation}`, [checked, ordinary]);
-    if (ordinary.status !== 0) return fail("test: expected exit 0, got exit 1", [ordinary]);
+    if (ordinary.status !== 0)
+      return fail(`test: expected exit 0, got exit ${ordinary.status}`, [ordinary]);
   }
   const testRunner: RunnerOptions = {
     ...runner,
@@ -688,13 +699,14 @@ async function runCase(
   const testViolation = await contractViolation(tested, file, panics, tree);
   if (testViolation) return fail(`test: ${testViolation}`, [checked, tested]);
   if (row.expectation === "accept") {
-    if (tested.status !== 0) return fail("test: expected exit 0, got exit 1", [tested]);
+    if (tested.status !== 0)
+      return fail(`test: expected exit 0, got exit ${tested.status}`, [tested]);
     if (fixture.expectedStdout === undefined) return { path: row.path };
     // `IMPL FILE`: run the fixture as a single file (Command Contract).
     const ran = await invoke(implementation, undefined, [], file);
     const runViolation = await contractViolation(ran, file, panics);
     if (runViolation) return fail(`run: ${runViolation}`, [ran]);
-    if (ran.status !== 0) return fail("run: expected exit 0, got exit 1", [ran]);
+    if (ran.status !== 0) return fail(`run: expected exit 0, got exit ${ran.status}`, [ran]);
     if (ran.stdout !== fixture.expectedStdout)
       return fail(
         `run: stdout ${JSON.stringify(ran.stdout)} differs from expected ${JSON.stringify(fixture.expectedStdout)}`,
@@ -703,7 +715,10 @@ async function runCase(
     return { path: row.path };
   }
   const code = row.expectation.slice("panic:".length);
-  if (tested.status !== 1) return fail(`test: expected panic ${code}, got exit 0`, [tested]);
+  if (tested.status !== TEST_FAILED)
+    return fail(`test: expected panic ${code} (exit ${TEST_FAILED}), got exit ${tested.status}`, [
+      tested,
+    ]);
   const reports = panicReports(tested, panics);
   if (reports.length === 0) return fail(`test: no panic report (expected ${code})`, [tested]);
   const wrong = [...new Set(reports.filter((reported) => reported !== code))];

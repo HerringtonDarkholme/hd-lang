@@ -234,9 +234,9 @@ fixture's directives select, and `check` always receives `--tests` (see
 | Phase     | Expectation   | Steps                          | Passes when |
 | --------- | ------------- | ------------------------------ | ----------- |
 | `parse`   | `accept`      | `parse FILE`                   | exit 0 |
-| `parse`   | `reject:CODE` | `parse FILE`                   | exit 1, a located `CODE` on the marker line, and no other located error |
+| `parse`   | `reject:CODE` | `parse FILE`                   | exit 101, a located `CODE` on the marker line, and no other located error |
 | `type`    | `accept`      | `check FILE`                   | exit 0 (warnings allowed) |
-| `type`    | `reject:CODE` | `check FILE`                   | exit 1, a located error `CODE` on the marker line, and no other located error |
+| `type`    | `reject:CODE` | `check FILE`                   | exit 101, a located error `CODE` on the marker line, and no other located error |
 | `type`    | `warn:CODE`   | `check FILE`                   | exit 0, and a located warning `CODE` on the marker line |
 | `runtime` | `accept`      | `check FILE`, then `test FILE` | both exit 0 |
 | `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the stdout of the last equals the expected text |
@@ -594,9 +594,13 @@ these options, so it cannot run a case that selects one.
 
 Exit statuses and limits:
 
-- Exit status 0 means success, and 1 means rejection or runtime failure.
-- Exit status 1 always comes with at least one located diagnostic or panic
-  report.
+- Exit status 0 means success.
+- Exit status 101 means rejection: `hd` reports an error
+  ([`cli.exit.hd-failure`](../cli/command-line.md#r-cli.exit.hd-failure)). It
+  always comes with at least one located diagnostic.
+- Exit status 1 means that `test` ran and a test case failed
+  ([`cli.exit.test-failure`](../cli/command-line.md#r-cli.exit.test-failure)).
+  It always comes with at least one panic report.
 - Any other status, a signal, or running longer than 10 seconds fails the
   case.
 

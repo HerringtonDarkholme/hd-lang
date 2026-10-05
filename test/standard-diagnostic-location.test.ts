@@ -35,14 +35,14 @@ pub fn main() -> void: pass
 
   try {
     const text = bufferedIo();
-    assert.equal(await main(["check", file], text), 1);
+    assert.equal(await main(["check", file], text), 101);
     assert.equal(
       text.output().stderr,
       "lib/std/digest.hd:2:5: type-mismatch: expected i32, found string\n",
     );
 
     const json = bufferedIo();
-    assert.equal(await main(["check", "--format", "json", file], json), 1);
+    assert.equal(await main(["check", "--format", "json", file], json), 101);
     const [first] = json.output().stdout.split("\n");
     const diagnostic = JSON.parse(first!) as {
       readonly file: string;

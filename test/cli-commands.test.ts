@@ -240,7 +240,7 @@ test("hd test on a package prints an error in a shared module once", async () =>
       failure = error;
       return true;
     });
-    assert.equal(failure!.code, 1);
+    assert.equal(failure!.code, 101);
     const located = (failure!.stdout + failure!.stderr)
       .split("\n")
       .filter((line) => /base\.hd:2:\d+: /.test(line));
@@ -261,14 +261,14 @@ async function writeTree(
   }
 }
 
-/** Runs `hd` expecting exit status 1, and returns its stdout and stderr together. */
+/** Runs `hd` expecting a rejection (exit status 101) or a failed test (1), and returns its stdout and stderr together. */
 async function failure(args: readonly string[], cwd = root): Promise<string> {
   let result: CommandResult | undefined;
   await assert.rejects(hd(args, cwd), (error: CommandResult) => {
     result = error;
     return true;
   });
-  assert.equal(result!.code, 1, `hd ${args.join(" ")} exits 1`);
+  assert.ok([1, 101].includes(result!.code!), `hd ${args.join(" ")} exits ${result!.code}`);
   return result!.stdout + result!.stderr;
 }
 

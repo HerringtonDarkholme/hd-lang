@@ -14,7 +14,7 @@ import type { ParseOptions } from "../parser/index.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "../runtime-panic.ts";
 import { loadSpecIndex } from "../spec-index.ts";
 import { RUNTIME_PROFILES, type RUNTIME_PROFILE_NAMES } from "./profiles.ts";
-import { workingDirectory, type CommandEnvironment } from "./io.ts";
+import { EXIT_HD_FAILURE, workingDirectory, type CommandEnvironment } from "./io.ts";
 
 export type RuntimeProfileName = (typeof RUNTIME_PROFILE_NAMES)[number];
 export type TestLayout = "test-module" | "integration";
@@ -157,7 +157,7 @@ export async function loadSource(
   };
   if (linked) {
     for (const diagnostic of linked.diagnostics) report(diagnostic);
-    if (!linked.source) return 1;
+    if (!linked.source) return EXIT_HD_FAILURE;
   }
   return {
     file,
@@ -174,13 +174,16 @@ export async function loadSource(
 }
 
 /**
- * Reports a compile error, a runtime panic, or an unsupported feature and
- * returns exit status 1. Any other error is an internal error and is thrown.
+ * Reports a compile error, a runtime panic, or an unsupported feature. A
+ * compile error and an unsupported feature are `hd` failures and return exit
+ * status 101 (`cli.exit.hd-failure`); a panic returns 1, as a failed test
+ * case does (`cli.exit.test-failure`). Any other error is an internal error
+ * and is thrown.
  */
 export function reportFailure(loaded: LoadedSource, error: unknown): number {
   if (error instanceof DiagnosticError) {
     for (const diagnostic of error.diagnostics) loaded.report(diagnostic);
-    return 1;
+    return EXIT_HD_FAILURE;
   }
   if (error instanceof RuntimePanicError) {
     loaded.reporter.runtimePanic(error.code, error.detail);
@@ -188,7 +191,7 @@ export function reportFailure(loaded: LoadedSource, error: unknown): number {
   }
   if (error instanceof UnsupportedAtRunTimeError) {
     loaded.reporter.unsupported(error.code, error.message);
-    return 1;
+    return EXIT_HD_FAILURE;
   }
   throw error;
 }
