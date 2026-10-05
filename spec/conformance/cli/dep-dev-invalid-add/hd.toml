@@ -1,2 +1,5 @@
 [package]
 name = "app"
+
+[dependencies]
+text = "github.com/acme/text@1.0.0"

@@ -283,7 +283,7 @@ function hiddenBase(module: PackageModule): string {
   return module.dependency ? `dep_${module.dependency.id}_${module.identity}` : module.identity;
 }
 
-/** The `test-only-use` error of a dev dependency used from non-test code (cli.dep.dev-use). */
+/** The `test-only-use` error of a dev dependency used from non-test code (cli.dep.dev-use.remove-first). */
 interface TestOnlyUse {
   readonly testOnly: string;
 }
@@ -311,7 +311,7 @@ function dependencyNamed(
   if (found) return found;
   if (!own && dependencies?.devDependencies[name] !== undefined)
     return {
-      testOnly: `'dep.${name}' is a dev dependency, which only test code and tasks may use; to use it here, move it to [dependencies] with hd add ${name} PATH@VERSION`,
+      testOnly: `'dep.${name}' is a dev dependency, which only test code and tasks may use; to use it here, run hd remove ${name} first, then hd add ${name} PATH@VERSION`,
     };
   if (own) return `${own.shown} has no dependency named '${name}'`;
   return dependencies === undefined ||

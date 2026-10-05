@@ -455,40 +455,34 @@ describe("dev dependencies and hd clean", needsGit, () => {
     const tested = await hd(directory, ["test"]);
     assert.equal(tested.status, 0, tested.stderr);
     assert.match(tested.stdout, /1 passed/);
-    // Non-test code is test-only-use, and the message names hd add
-    // (cli.dep.dev-use).
+    // Non-test code is test-only-use, and the message gives the explicit
+    // remove-then-add sequence (cli.dep.dev-use.remove-first).
     await writeTree(directory, { "src/main.hd": SHOUT_MAIN });
     const misused = await hd(directory, ["check", "--format", "json"]);
     assert.equal(misused.status, 101);
     assert.match(misused.stdout, /"code":"test-only-use"/);
-    assert.match(misused.stdout, /hd add text PATH@VERSION/);
+    assert.match(misused.stdout, /hd remove text first, then hd add text PATH@VERSION/);
   });
 
-  test("hd add moves a key between the tables, and hd remove and hd update find either", async () => {
+  test("hd add rejects a key in the other table, and remove drops empty headers", async () => {
     const directory = join(root, "apps", "devs");
     await writeTree(directory, {
       "src/main.hd": 'pub fn main() -> void $ Console:\n    println("x")\n',
     });
-    // Without --dev the key moves to [dependencies] (cli.dep.add.move).
-    const moved = await hd(directory, ["add", "text", TEXT]);
-    assert.equal(moved.status, 0, moved.stderr);
-    assert.match(moved.stdout, /moved text from \[dev-dependencies\] to \[dependencies\]/);
-    const manifest = await readFile(join(directory, "hd.toml"), "utf8");
-    assert.match(manifest, /\[dependencies\]\ntext = /);
-    assert.doesNotMatch(manifest, /text = .*\n[^]*text = /);
-    // And back, lowering nothing; the other table's line is gone.
-    const back = await hd(directory, ["add", "--dev", "text", "github.com/acme/text@1.1.0"]);
-    assert.equal(back.status, 0, back.stderr);
-    assert.match(back.stdout, /moved text from \[dependencies\] to \[dev-dependencies\]/);
+    const manifestPath = join(directory, "hd.toml");
+    const sumPath = join(directory, "hd.sum");
+    const beforeManifest = await readFile(manifestPath, "utf8");
+    const beforeSum = await readFile(sumPath, "utf8");
+    // Without --dev the key is in the other table, so hd add reports the
+    // required command and writes nothing (cli.dep.add.other-table).
+    const rejected = await hd(directory, ["add", "text", TEXT]);
+    assert.equal(rejected.status, 101);
     assert.equal(
-      await readFile(join(directory, "hd.toml"), "utf8"),
-      '[package]\nname = "devs"\n\n[dev-dependencies]\ntext = "github.com/acme/text@1.1.0"\n\n[dependencies]\n',
+      rejected.stderr,
+      "hd add: text is in [dev-dependencies]; run `hd remove text` first\n",
     );
-    // A lowering is compared with the line it replaces.
-    const lowered = await hd(directory, ["add", "text", TEXT]);
-    assert.match(lowered.stdout, /lowered text 1\.1\.0 -> 1\.0\.0/);
-    assert.match(lowered.stdout, /moved text from \[dev-dependencies\] to \[dependencies\]/);
-    await hd(directory, ["add", "--dev", "text", TEXT]);
+    assert.equal(await readFile(manifestPath, "utf8"), beforeManifest);
+    assert.equal(await readFile(sumPath, "utf8"), beforeSum);
     // hd update finds the dev requirement (cli.dep.update.dev).
     const updated = await hd(directory, ["update", "text"]);
     assert.equal(updated.status, 0, updated.stderr);
@@ -500,9 +494,26 @@ describe("dev dependencies and hd clean", needsGit, () => {
     // hd remove deletes it from [dev-dependencies] and tidies hd.sum.
     const removed = await hd(directory, ["remove", "text"]);
     assert.equal(removed.status, 0, removed.stderr);
-    assert.doesNotMatch(await readFile(join(directory, "hd.toml"), "utf8"), /text/);
-    assert.equal(await readFile(join(directory, "hd.sum"), "utf8"), "");
+    assert.equal(await readFile(manifestPath, "utf8"), '[package]\nname = "devs"\n\n');
+    assert.equal(await readFile(sumPath, "utf8"), "");
     assert.equal((await hd(directory, ["remove", "text"])).status, 101);
+
+    // The reverse direction is the same error and also leaves the files
+    // unchanged. Removing the last normal dependency drops that header too.
+    const added = await hd(directory, ["add", "text", TEXT]);
+    assert.equal(added.status, 0, added.stderr);
+    const normalManifest = await readFile(manifestPath, "utf8");
+    const normalSum = await readFile(sumPath, "utf8");
+    const rejectedDev = await hd(directory, ["add", "--dev", "text", TEXT]);
+    assert.equal(rejectedDev.status, 101);
+    assert.equal(
+      rejectedDev.stderr,
+      "hd add: text is in [dependencies]; run `hd remove text` first\n",
+    );
+    assert.equal(await readFile(manifestPath, "utf8"), normalManifest);
+    assert.equal(await readFile(sumPath, "utf8"), normalSum);
+    assert.equal((await hd(directory, ["remove", "text"])).status, 0);
+    assert.equal(await readFile(manifestPath, "utf8"), '[package]\nname = "devs"\n\n');
   });
 
   test("hd add --dev checks the requirement before it writes anything", async () => {
@@ -1003,7 +1014,14 @@ test("dependency commands edit hd.toml line by line", () => {
   );
   assert.equal(
     removeDependency(text, "json"),
-    text.replace('json = "github.com/x/json@1.0.0"  # pinned\n', ""),
+    '[package]\nname = "a"  # the app\n\n\n[[executable]]\nname = "a"\nmodule = "main"\n',
+  );
+  assert.equal(
+    removeDependency(
+      '[package]\nname = "a"\n\n[dev-dependencies]\n# test helpers\nfixtures = "github.com/x/fixtures@1.0.0"\n',
+      "fixtures",
+    ),
+    '[package]\nname = "a"\n\n# test helpers\n',
   );
   assert.equal(removeDependency(text, "yaml"), undefined);
   // hd new adds a member to the array as it is written (cli.new.workspace-member).

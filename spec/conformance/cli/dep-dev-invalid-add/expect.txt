@@ -1,4 +1,12 @@
-# hd add --dev checks the requirement before it fetches, and writes nothing.
+# A key in the other table is an error, not a move, and writes nothing.
+run: hd add --dev text github.com/acme/text@1.0.0
+exit: 101
+stderr: hd add: text is in [dependencies]; run `hd remove text` first
+no-file: hd.sum
+# Removing the last key also removes the dependency table header.
+run: hd remove text
+no-file: hd.sum
+# hd add --dev still checks the requirement before it fetches, and writes nothing.
 run: hd add --dev fixtures github.com/acme@1.0.0
 exit: 101
 no-file: hd.sum

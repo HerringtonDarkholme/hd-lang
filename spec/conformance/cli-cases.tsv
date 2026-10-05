@@ -60,5 +60,5 @@ dbg-uses	cli.dbg.run
 clean-build	cli.clean.build,cli.clean.build.none,cli.clean.exit,cli.build.output
 clean-outside-package	cli.clean.build.package-only,cli.clean.exit
 clean-workspace	cli.clean.build.workspace
-dep-dev-invalid-add	cli.dep.add.dev,cli.dep.add.check,cli.dep.unchanged-on-error
+dep-dev-invalid-add	cli.dep.add.dev,cli.dep.add.check,cli.dep.add.other-table,cli.dep.remove,cli.dep.edit.empty-table,cli.dep.unchanged-on-error
 dep-dev-remove	cli.dep.remove,cli.dep.dev-selected

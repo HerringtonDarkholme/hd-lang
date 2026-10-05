@@ -224,9 +224,10 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   root selects for every member (`resolveWorkspaceDependencies`); `hd add`,
   `hd update`, and `hd remove` run in a member. `hd add` that lowers a
   requirement prints `lowered NAME OLD -> NEW`. `hd add --dev` writes
-  `[dev-dependencies]`, and `hd add` moves a key that sits in the other
-  table (`moved NAME from [A] to [B]`). A dev dependency used from non-test
-  code is `test-only-use`, whose message names `hd add`. `hd clean`
+  `[dev-dependencies]`; when a key sits in the other table, `hd add` asks
+  the user to run `hd remove NAME` first. Removing a table's last key also
+  removes its header. A dev dependency used from non-test code is
+  `test-only-use`, whose message names the remove-then-add sequence. `hd clean`
   (`commands/clean.ts`) removes `build/` of the package or of each member;
   `hd clean --cache` (`clearCache` in `dependencies/cache.ts`) removes
   `pkg`, `hash`, and `tmp` of the cache directory, makes read-only entries

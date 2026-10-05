@@ -68,19 +68,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### BJ. `hd add` Across Tables Is An Error; Remove An Emptied Table Header
-
-Owner decision, 2026-10-05, on #322 (0342aee0):
-
-1. `hd add [--dev] NAME PATH@VERSION` when NAME is already in the other
-   table (`[dependencies]` vs `[dev-dependencies]`) is an error, not a
-   move: "text is in [dependencies]; run `hd remove text` first". Exit
-   101, nothing written. Retire `cli.dep.add.move` and spec the error;
-   update the CLI case `dep-dev-invalid-add` (or add one) and the tests in
-   test/dependencies.test.ts.
-2. When `hd remove` (or any edit) leaves a dependency table empty,
-   remove its header line too, so hd.toml keeps no empty `[dev-dependencies]`.
-
 ### BD. Hints From Usability Probe 2
 
 Probe 2 (Haiku, rows dated 2026-10-05 "usability probe 2" in

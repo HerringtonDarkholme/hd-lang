@@ -924,7 +924,7 @@ hd remove json                           # json's line and its hd.sum entry go
 3. r[cli.dep.add.lower] `hd add` may set NAME's requirement to an earlier version of the same host path, as `go get` does. It then prints that it lowered the requirement, as `lowered json 2.1.0 -> 2.0.0`.
 4. r[cli.dep.add.lower.selection] A lowered requirement is still a minimum. Selection keeps a later version when another reached manifest, such as another member's, requires one, by [`module.select.largest`](../lang/10-modules.md#r-module.select.largest).
 5. r[cli.dep.add.dev] `hd add --dev NAME PATH@VERSION` sets the requirement in `[dev-dependencies]` instead, as [`cli.dep.add`](#r-cli.dep.add) does for `[dependencies]`. The other rules of `hd add` hold for it.
-6. r[cli.dep.add.move] When the key NAME is in the other table, `hd add` deletes that line, so the key stays in one table, by [`module.dep.key-name.collision`](../lang/10-modules.md#r-module.dep.key-name.collision). It prints `moved NAME from [dependencies] to [dev-dependencies]`, or the reverse. A lowered requirement is compared with the line it replaces.
+6. r[cli.dep.add.other-table] When the key NAME is in the other table, `hd add` is an error. It reports `` NAME is in [dependencies]; run `hd remove NAME` first ``, or names `[dev-dependencies]` in the reverse case. It does not fetch or write, by [`cli.dep.unchanged-on-error`](#r-cli.dep.unchanged-on-error).
 7. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
 8. r[cli.dep.tidy] It then writes `hd.sum` with one tree line for each selected version, one manifest line for each version selection read, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
 9. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
@@ -933,14 +933,15 @@ hd remove json                           # json's line and its hd.sum entry go
 12. r[cli.dep.update.dev] `hd update` moves the requirements of `[dev-dependencies]` as it moves those of `[dependencies]`, and `hd update NAME` finds NAME in either table. A NAME that is no key of either table is an error.
 13. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
 14. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds each tree line and manifest line that [`cli.dep.tidy`](#r-cli.dep.tidy) would write and `hd.sum` lacks, and changes no other entry.
-15. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
-16. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
-17. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
-18. r[cli.dep.no-question] No dependency command asks a question.
-19. r[cli.dep.workspace-fetch] In [workspace mode](#workspace-mode), `hd fetch` works on the whole workspace. It fetches what the workspace's selection needs, and adds the missing lines to its `hd.sum`, by [`cli.dep.fetch`](#r-cli.dep.fetch).
-20. r[cli.dep.workspace-member-only] In workspace mode, `hd add`, `hd update`, and `hd remove` are errors whose message suggests running them in a member's directory.
-21. r[cli.dep.dev-selected] Selection reads the package's dev dependencies in every command, by [`module.select.dev-dependencies`](../lang/10-modules.md#r-module.select.dev-dependencies). So `hd build`, `hd check`, and `hd run` fetch them and need their `hd.sum` entries, although only test code and tasks may use them.
-22. r[cli.dep.dev-use] Code that is not test code and uses a dev dependency is an error, by [`module.test.non-test-use.dev-dependency`](../lang/10-modules.md#r-module.test.non-test-use.dev-dependency). Its message suggests `hd add NAME PATH@VERSION`, which moves the key to `[dependencies]`. Error: `test-only-use`.
+15. r[cli.dep.edit.empty-table] When an edit deletes a dependency table's last key, it deletes that `[dependencies]` or `[dev-dependencies]` header line too.
+16. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
+17. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
+18. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
+19. r[cli.dep.no-question] No dependency command asks a question.
+20. r[cli.dep.workspace-fetch] In [workspace mode](#workspace-mode), `hd fetch` works on the whole workspace. It fetches what the workspace's selection needs, and adds the missing lines to its `hd.sum`, by [`cli.dep.fetch`](#r-cli.dep.fetch).
+21. r[cli.dep.workspace-member-only] In workspace mode, `hd add`, `hd update`, and `hd remove` are errors whose message suggests running them in a member's directory.
+22. r[cli.dep.dev-selected] Selection reads the package's dev dependencies in every command, by [`module.select.dev-dependencies`](../lang/10-modules.md#r-module.select.dev-dependencies). So `hd build`, `hd check`, and `hd run` fetch them and need their `hd.sum` entries, although only test code and tasks may use them.
+23. r[cli.dep.dev-use.remove-first] Code that is not test code and uses a dev dependency is an error, by [`module.test.non-test-use.dev-dependency`](../lang/10-modules.md#r-module.test.non-test-use.dev-dependency). Its message says to run `hd remove NAME` first, then `hd add NAME PATH@VERSION`, to put the key in `[dependencies]`. Error: `test-only-use`.
 
 > **Why.** An agent adds a dependency with one command and gets a
 > manifest, a fetched tree, and a hash that agree. CI runs `hd fetch` once,
@@ -948,9 +949,9 @@ hd remove json                           # json's line and its hd.sum entry go
 > requirement lives in one member's manifest, so a command that edits one
 > runs in that member.
 
-> **Why.** The same key in both tables would be a collision, so `hd add`
-> moves it. Cargo's `cargo add --dev` keeps the line in `[dependencies]`
-> too, which hd does not allow.
+> **Why.** The same key in both tables would be a collision. `hd add`
+> refuses to choose whether changing tables was intentional; the explicit
+> `hd remove` first makes that choice visible.
 
 > **Why.** Lowering a minimum is safe under minimal version selection, so
 > `hd add` does it as Go's `go get x@older` does. It says so, since a

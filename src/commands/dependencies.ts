@@ -300,24 +300,22 @@ export function addCommand(args: AddArgs, io: CommandIo): Promise<number> {
       const requirement = parseHostRequirement(args.requirement);
       if (typeof requirement === "string")
         return { error: requirement, code: "invalid-requirement" };
-      // The key lives in one table (cli.dep.add.move): a line in the other
-      // table is deleted. An earlier version of the same host path lowers
-      // the requirement, and hd add says so
+      // The key lives in one table. An add to the other table is rejected
+      // until the user removes it explicitly (cli.dep.add.other-table).
+      // An earlier version of the same host path lowers the requirement,
+      // and hd add says so
       // (spec/cli/command-line.md#r-cli.dep.add.lower).
       const wanted = !!args.dev;
-      const entry =
-        manifest.dependencies.find(({ key, dev }) => key === args.name && dev === wanted) ??
-        manifest.dependencies.find(({ key }) => key === args.name);
-      const moved = entry !== undefined && entry.dev !== wanted;
-      let base = text;
-      if (moved) {
-        const removed = removeDependency(text, args.name, [other]);
-        if (removed === undefined)
-          return {
-            error: `${args.name} is a [${other}.${args.name}] table, which hd add cannot move; delete it from hd.toml by hand`,
-          };
-        base = removed;
-      }
+      const entry = manifest.dependencies.find(
+        ({ key, dev }) => key === args.name && dev === wanted,
+      );
+      if (
+        entry === undefined &&
+        manifest.dependencies.some(({ key, dev }) => key === args.name && dev !== wanted)
+      )
+        return {
+          error: `${args.name} is in [${other}]; run \`hd remove ${args.name}\` first`,
+        };
       const current = entry && parseRequirement(entry.value);
       const lowered =
         typeof current === "object" &&
@@ -327,12 +325,11 @@ export function addCommand(args: AddArgs, io: CommandIo): Promise<number> {
           ? current.version
           : undefined;
       return {
-        text: setDependency(base, args.name, args.requirement, table),
+        text: setDependency(text, args.name, args.requirement, table),
         done: [
           lowered
             ? `lowered ${args.name} ${lowered.text} -> ${requirement.version.text}`
             : `${args.name} = "${args.requirement}"`,
-          ...(moved ? [`moved ${args.name} from [${other}] to [${table}]`] : []),
         ],
       };
     },

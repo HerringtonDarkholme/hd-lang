@@ -80,6 +80,12 @@ export function removeDependency(
     for (let index = range[0] + 1; index < range[1]; index += 1) {
       if (!pattern.exec(lines[index]!)) continue;
       lines.splice(index, 1);
+      // Do not leave an empty dependency table behind
+      // (cli.dep.edit.empty-table). Comments and blank lines are not table
+      // entries, and stay where the user wrote them when the header goes.
+      const end = range[1] - 1;
+      if (!lines.slice(range[0] + 1, end).some((line) => /^\s*[^\s#]/.test(line)))
+        lines.splice(range[0], 1);
       return lines.join("\n");
     }
   }
