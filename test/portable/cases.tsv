@@ -2540,3 +2540,4 @@ typing/valid/literal-one-fit-left-operand.hd	type
 typing/invalid/method-type-parameter-reuses-impl-parameter.hd	type
 typing/invalid/local-data-reuses-type-parameter.hd	type
 typing/invalid/local-value-reuses-type-parameter.hd	type
+typing/invalid/covariant-mut-self-method-parameter.hd	type

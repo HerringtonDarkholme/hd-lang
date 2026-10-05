@@ -31,16 +31,24 @@ impl[T] Box[T]:
   );
 });
 
-test("associated construction and mutable receiver signatures are not readonly instance views", () => {
+test("an associated function is off the variance surface and a mut self method is on it", () => {
   assert.deepEqual(
     diagnostics(`${producer}
 impl[U] Box[U]:
     pub fn new(value: U) -> Self:
         Box::[U] { value: value }
+    pub fn get(mut self) -> U:
+        self.value
+`),
+    [],
+  );
+  assert.deepEqual(
+    diagnostics(`${producer}
+impl[U] Box[U]:
     pub fn set(mut self, value: U) -> void:
         self.value = value
 `),
-    [],
+    ["invalid-variance"],
   );
 });
 

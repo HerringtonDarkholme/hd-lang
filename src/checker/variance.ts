@@ -193,9 +193,10 @@ export function inherentVarianceDiagnostics(
 
     for (const method of implementation.methods) {
       const receiver = method.parameters[0];
-      // Associated constructors have no receiver view. Mutable receivers
-      // are unavailable through the readonly surface being verified.
-      if (receiver?.name !== "self" || receiver.type.name !== "Self") continue;
+      // Associated functions have no receiver view
+      // (types.variance.surface.no-receiver); a `mut self` method counts as
+      // a `self` method does (types.variance.surface.mut-self).
+      if (receiver?.name !== "self") continue;
       // The late phase checks only inferred results, once signature inference
       // is complete. Written positions were already checked before lowering.
       if (inferredResult && !method.resultOmitted) continue;
