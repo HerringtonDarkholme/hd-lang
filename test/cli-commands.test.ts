@@ -383,14 +383,10 @@ test("hd test links integration test modules under tests/", async () => {
 
 test("pending-first-poll is a harness hook of the adapter, not an hd option", async () => {
   const fixture = resolve(root, "spec/conformance/runtime/valid/pending-first-poll-loops.hd");
-  const plain = await hd(["test", fixture]);
-  const pending = await hdInProcess(
-    ["test", fixture],
-    { cwd: root },
-    { scenario: "pending-first-poll" },
-  );
+  const plain = await hd([fixture]);
+  const pending = await hdInProcess([fixture], { cwd: root }, { scenario: "pending-first-poll" });
   assert.equal(pending.stdout, plain.stdout);
-  assert.match(pending.stdout, /: 1 passed$/m);
+  assert.match(pending.stdout, /^step /m);
   // The command line itself rejects the spelling.
   const io = bufferedIo();
   assert.equal(await main(["test", "--scenario", "pending-first-poll", fixture], io), 101);
@@ -510,6 +506,23 @@ test("hd run --release wraps overflow, plain hd run and hd test panic", async ()
     assert.doesNotMatch(wat.stdout, /\$hd\.add_i32/);
     await usageError(["test", "--release", "wrap.hd"]);
     await usageError(["check", "--release", "wrap.hd"]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("hd test FILE is an error for a file with no test case, and hd FILE runs it", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-empty-"));
+  try {
+    const file = join(directory, "entry.hd");
+    await writeFile(file, 'pub fn main() -> void $ Console:\n    println("hi")\n');
+    assert.equal((await hd([file])).stdout, "hi\n");
+    const result = await hdInProcess(["test", file]).then(
+      () => undefined,
+      (error: CommandResult) => error,
+    );
+    assert.equal(result?.code, 101);
+    assert.match(result!.stderr, /entry\.hd: no test case registered/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -83,6 +83,15 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   usage error, or doc names them. The test layout and package tree stand in
   for a package's layout, which should come from its `hd.toml`; the
   prototype does not read that yet.
+- `hd FILE` (a first word that ends in `.hd` and names no command) runs FILE
+  as a single-file program, linked with no package ([`cli.file.run`](../spec/cli/command-line.md#r-cli.file.run)).
+  It is `hd run FILE` without package linking; the `pkg`, `self`, and `super`
+  hints of `cli.file.in-package` are not written yet.
+- `hd test FILE` exits 101 with `FILE: no test case registered` when FILE
+  registers no test case, even if it has an entry point
+  ([`cli.test.file-empty`](../spec/cli/command-line.md#r-cli.test.file-empty)).
+  A whole-package `hd test` passes with none. Doc tests are not extracted
+  yet, so a file with only doc tests counts as empty (`DOC-TESTS`).
 - `hd test DIR` tests a package (a directory with `hd.toml` or `src/`) one
   module at a time: each file under `src/` and `tests/` is linked with the
   rest of the package and runs only its own test cases. Any other directory

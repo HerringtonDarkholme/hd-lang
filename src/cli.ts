@@ -100,6 +100,8 @@ export async function main(
       return buildCommand(options, io);
     case "run":
       return runCommand(options, io);
+    case "file":
+      return runCommand({ ...options, single: true }, io);
     case "test":
       return testCommand({ ...options, path: first }, io);
     default:

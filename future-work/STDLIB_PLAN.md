@@ -107,8 +107,7 @@ every feature belongs in `std`.
 | `std.regex` | `Regex` with `new`, `as_str`, `is_match`, `find`, `find_all`, `captures`, `captures_all`, `replace`, `replace_all`, and `split`; `Match`; `Captures`; `RegexError`, `RegexErrorKind` | [regex.md](../spec/std/regex.md) | no flags |
 | absent | log, http | none | the gap this plan covers |
 
-The prototype also lacks two things scripts need: `hd FILE` itself
-(known failure `CLI-ENTRY`), and the inferred row of a script's top level
+The prototype also lacks the inferred row of a script's top level
 (`MHP-1` in [src/KNOWN_ISSUES.md](../src/KNOWN_ISSUES.md)).
 
 ## Earlier Owner Decisions
@@ -242,7 +241,6 @@ delete the row.
 | BOUND-AMBIGUOUS | 2026-10-04, task #288 | a bound-only parameter that several instantiations fit, and that has no default, reports `ambiguous-type`; bounds that allow different single instantiations stay `cannot-infer-type` ([`types.generic.infer.bound.no-default.ambiguous`](../spec/lang/04-type-system.md#r-types.generic.infer.bound.no-default.ambiguous)) | Where call inference leaves a bound-only parameter unsolved, report `ambiguous-type` when any bound allows several instantiations, else `cannot-infer-type`; both fixtures report `cannot-infer-type` today | `BOUND-AMBIGUOUS` 2 |
 | VARIANCE-ASSOC-FN | 2026-10-04, task #288 | an inherent associated function with no `self` receiver does not count toward declared variance, so `pub fn new(value: U) -> Box[U]` on `Box[+T]` is accepted ([`types.variance.surface.no-receiver`](../spec/lang/04-type-system.md#r-types.variance.surface.no-receiver)) | none: the prototype's variance pass already skips receiverless functions; keep that when VARIANCE-MUT-SELF adds the `mut self` check | none |
 | HD-DOC-2 | 2026-10-04, task #288 | the root module's pages are `pkg.md` and `pkg.html`, and `index.md` and `index.html` are an entry page ([`cli.doc.files`](../spec/cli/command-line.md#r-cli.doc.files)); `hd doc std.MODULE.ITEM` prints a std item with a link to its reference ([`cli.doc.name.std`](../spec/cli/command-line.md#r-cli.doc.name.std)); `src/main.hd` has a page only with `--private` ([`cli.doc.main`](../spec/cli/command-line.md#r-cli.doc.main)); a top-level module `index` has its pages under `index/` ([`cli.doc.index-module`](../spec/cli/command-line.md#r-cli.doc.index-module)) | Fold into the HD-DOC command: name the root pages `pkg`, write the entry page, resolve `std.` names against `spec/std`, document `src/main.hd` as module `main` under `--private`, and put a module `index` under `index/` | `CLI-DOC` 8 |
-| CLI-TEST-EMPTY | 2026-10-04, task #287 | `hd test FILE` is an error when FILE registers no test case ([`cli.test.file-empty`](../spec/cli/command-line.md#r-cli.test.file-empty)); a whole-package `hd test` with none passes | Not implemented: the six runtime fixtures `no-entry-point-no-tests`, `index-then-call-element`, `result-ok-unit` (a non-`pub` `main`), `doc-test-passes`, `doc-test-compile-fail`, and `doc-test-private-item` run `test FILE` on a file with no test case and must exit 0 ([Runtime Execution](../spec/conformance/README.md#runtime-execution), step 3). Once the owner rules which wins (for example, an error only inside a package), report `registers no test case` and exit with `EXIT_HD_FAILURE` where `execute.ts` prints `0 passed` | `CLI-TEST-EMPTY` 1 |
 
 LITERAL-FIRST-USE implementation guidance for the compiler session (not
 spec text):

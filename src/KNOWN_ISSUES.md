@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,470 cases: 2,356 selected in `test/portable/cases.tsv` and 114 known
-failures. The selected cases are 2,067 language tier, 276 stdlib tier, and 13
-CLI tier; the known failures are 79 language tier, 10 stdlib tier, and 25
+2,470 cases: 2,366 selected in `test/portable/cases.tsv` and 104 known
+failures. The selected cases are 2,075 language tier, 276 stdlib tier, and 15
+CLI tier; the known failures are 71 language tier, 10 stdlib tier, and 23
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -21,7 +21,6 @@ CLI tier.
 | CLI-NEW | 9 | no `hd new` command |
 | CLI-DOC | 8 | no `hd doc` command |
 | MODULE-DOC | 1 | the lexer reports `doc-comment-without-target` for the first `##` block of a file, which documents the module |
-| CLI-TEST-EMPTY | 1 | `hd test FILE` for a file with no test case exits 0, not 101 ([`cli.test.file-empty`](../spec/cli/command-line.md#r-cli.test.file-empty)), because six runtime fixtures run `test FILE` on such a file and must exit 0; the two rules need the owner's ruling |
 | CLI-PKG-CMD | 5 | `hd check`, `hd build`, and `hd run` take a FILE and have no whole-package form and no `[[executable]]` tables; outside a package `hd test` exits 0 |
 | F-250 | 6 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
@@ -29,7 +28,6 @@ CLI tier.
 | EMB-S | 4 | package trait visibility is not modeled by the linked checker namespace |
 | P2 | 5 | package member visibility is not modeled by the linked checker namespace |
 | M29 | 1 | the fixture needs a second package to distinguish derivation ownership |
-| CLI-ENTRY | 12 | no `hd FILE` command for the runner's last step |
 | NONPKG | 1 | a `use self` in a single-file program is not reported |
 | SELF-CURRENT | 2 | relative lookup is fixed; these fixtures still need package import aliases |
 | ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
@@ -47,7 +45,7 @@ CLI tier.
 | MVP-PATTERN | 1 | a `let` data pattern on a generic data value is `unsupported-match-subject` |
 | PRIMITIVE-LEFT-TRAIT | 1 | a primitive left operand never searches operator traits, so `3 * price` with only `impl Mul[Money] for i64` is rejected |
 | QUALIFIED-PATH | 6 | a used module name works before a function, but not before a type, a variant, a variant pattern, or an associated call; a whole-module use of a package module is `unsupported-package-use` |
-| DOC-TESTS | 1 | `hd` blocks in `##` comments are not extracted or run as doc tests |
+| DOC-TESTS | 4 | `hd` blocks in `##` comments are not extracted or run as doc tests, so a doc-test file registers no test case and `hd test FILE` exits 101 |
 | AMBIGUOUS-TYPE | 1 | an ambiguous requirement-key solution reports `cannot-infer-type`, not `ambiguous-type` |
 | SHADOW-TPARAM | 3 | a method type parameter, local declaration, or local value may reuse an enclosing type parameter's name |
 | VARIANCE-MUT-SELF | 1 | `mut self` inherent methods are skipped by the variance check |

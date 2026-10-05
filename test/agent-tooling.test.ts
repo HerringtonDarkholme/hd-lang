@@ -372,21 +372,21 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
     const plain = await hd(["run", panics]);
     assert.equal(plain.stderr.trim(), "integer-division-by-zero: runtime panic");
 
+    // `main` is not a test case, so `hd test FILE` finds none (cli.test.file-empty).
     const tested = await hd(["test", "--format", "json", warned]);
-    assert.equal(tested.code, 0);
-    // `main` is not a test case, so only the summary is written.
-    assert.deepEqual(jsonLines(tested.stdout), [
-      {
-        kind: "summary",
-        errors: 0,
-        warnings: 0,
-        passed: 0,
-        failed: 0,
-        skipped: 0,
-        ignored: 0,
-        status: 0,
-      },
-    ]);
+    assert.equal(tested.code, 101);
+    const records = jsonLines(tested.stdout) as { kind: string; message?: string }[];
+    assert.equal(records[0]!.message, "no test case registered");
+    assert.deepEqual(records.at(-1), {
+      kind: "summary",
+      errors: 1,
+      warnings: 0,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
+      ignored: 0,
+      status: 101,
+    });
 
     const bad = await hd(["check", "--format", "yaml", warned]);
     assert.equal(bad.code, 101);

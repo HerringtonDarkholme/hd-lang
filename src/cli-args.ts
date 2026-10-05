@@ -157,6 +157,16 @@ const COMMANDS: readonly CommandSpec[] = [
     flags: [],
   },
   {
+    // `hd FILE` (cli.file.run): the first word is a path, not a command name.
+    name: "file",
+    operands: "FILE",
+    minOperands: 1,
+    maxOperands: 1,
+    summary: "run FILE as a single-file program",
+    flags: [RELEASE],
+    hidden: true,
+  },
+  {
     name: "parse",
     operands: "FILE",
     minOperands: 1,
@@ -337,7 +347,15 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
         `hd debug: no subcommand '${sub}'; use parse or hir\nRun 'hd help debug' for its subcommands.`,
       );
   }
-  const command = commandNamed(name);
+  // `hd FILE` runs FILE as a single-file program (cli.file.run).
+  const isFile =
+    commandNamed(name) === undefined && !first.startsWith("-") && first.endsWith(".hd");
+  if (isFile) {
+    rest.unshift(first);
+    name = "file";
+  }
+  // The word `file` is no command; it names the `hd FILE` form only.
+  const command = name === "file" && !isFile ? undefined : commandNamed(name);
   if (!command) {
     const known = first.startsWith("-")
       ? `unknown flag ${first} before the command`

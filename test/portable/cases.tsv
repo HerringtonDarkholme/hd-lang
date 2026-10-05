@@ -2118,9 +2118,6 @@ runtime/valid/memory-fs.hd	runtime
 runtime/valid/map-get-or.hd	runtime
 runtime/valid/buffer-console-error-lines.hd	runtime
 runtime/valid/map-is-empty.hd	runtime
-runtime/valid/doc-test-passes.hd	runtime
-runtime/valid/doc-test-compile-fail.hd	runtime
-runtime/valid/doc-test-private-item.hd	runtime
 runtime/valid/doc-test-text-fence.hd	runtime
 typing/invalid/requirement-key-unknown-generic-trait.hd	type
 typing/invalid/requirement-key-supertrait-not-dynamically-safe.hd	type
@@ -2355,3 +2352,16 @@ cli/exit-hd-failure	cli
 cli/json-check-error	cli
 cli/json-file-location	cli
 cli/json-file-single	cli
+runtime/valid/block-on-inside-driver.hd	runtime
+runtime/valid/nested-block-on.hd	runtime
+runtime/valid/println-console-stdout.hd	runtime
+runtime/valid/println-provider-suspending-body.hd	runtime
+runtime/valid/println-recording-provider.hd	runtime
+runtime/valid/println-under-main-driver.hd	runtime
+runtime/valid/provider-scope-dynamic-callback.hd	runtime
+runtime/valid/provider-scope-lexical-capture.hd	runtime
+runtime/valid/write-line-around-suspending-provider-scope.hd	runtime
+runtime/valid/write-line-suspending-call-argument.hd	runtime
+runtime/valid/script-empty-run.hd	runtime
+cli/exit-program-status	cli
+cli/exit-test-empty	cli

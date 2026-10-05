@@ -542,18 +542,29 @@ async function contractViolation(
   file: string,
   panics: Set<string>,
   tree?: string,
+  entryRun = false,
 ): Promise<string | undefined> {
   if (result.error) return `could not start the implementation: ${result.error}`;
   if (result.timedOut) return `ran longer than ${timeoutMs / 1000} s`;
   if (result.signal) return `terminated by signal ${result.signal}`;
-  if (result.status !== 0 && result.status !== REJECTED && result.status !== TEST_FAILED)
+  // An entry run (`IMPL FILE`) exits with the program's own status.
+  if (
+    result.status !== 0 &&
+    result.status !== REJECTED &&
+    result.status !== TEST_FAILED &&
+    !entryRun
+  )
     return `exit status ${result.status}`;
   if (result.status === REJECTED) {
     const located = (await locatedDiagnostics(result, file, tree)).some((entry) => entry.sameFile);
     if (!located) return `exit ${REJECTED} without a located diagnostic`;
   }
-  if (result.status === TEST_FAILED && panicReports(result, panics).length === 0)
-    return `exit ${TEST_FAILED} without a panic report`;
+  if (
+    result.status !== 0 &&
+    result.status !== REJECTED &&
+    panicReports(result, panics).length === 0
+  )
+    return `exit ${result.status} without a panic report`;
   return undefined;
 }
 
@@ -594,6 +605,18 @@ async function judgeRejectOrWarn(
   const others = errors.filter((entry) => !marked(entry));
   if (others.length) return `other located errors reported: ${describe(others)}`;
   return undefined;
+}
+
+/**
+ * Whether the fixture registers a test case, as the runner can tell without
+ * running it (README, Runtime Execution): a `tests:` block, a doc test, or a
+ * file that a test layout or a package tree places as a test module.
+ */
+function registersTestCase(source: string, fixture: Fixture): boolean {
+  if (/^tests:/m.test(source) || /^##\s*```hd\b/m.test(source)) return true;
+  if (fixture.testLayout !== undefined) return true;
+  const path = fixture.packageTree?.path;
+  return path !== undefined && (path.startsWith("tests/") || path.endsWith("_test.hd"));
 }
 
 function snippet(results: readonly CommandResult[]): string {
@@ -681,49 +704,69 @@ async function runCase(
   const checkViolation = await contractViolation(checked, file, panics, tree);
   if (checkViolation) return fail(`check: ${checkViolation}`, [checked]);
   if (checked.status !== 0) return fail("check: runtime case did not type-check", [checked]);
+  // `test FILE` is an error for a file that registers no test case, so such a
+  // fixture runs only its entry, as `IMPL FILE` (README, Runtime Execution).
+  const tests = registersTestCase(source, fixture);
+  const ordinary = (options: RunnerOptions): Promise<CommandResult> =>
+    tests
+      ? invoke(implementation, "test", [], file, options)
+      : invoke(implementation, undefined, [], file, options);
+  const step = tests ? "test" : "run";
   // The pending-first-poll scenario must give the ordinary run's result, so
   // the ordinary run comes first (README, Runtime Scenarios).
   if (fixture.scenario === "pending-first-poll") {
-    const ordinary = await invoke(implementation, "test", [], file, runner);
-    const ordinaryViolation = await contractViolation(ordinary, file, panics, tree);
-    if (ordinaryViolation) return fail(`test: ${ordinaryViolation}`, [checked, ordinary]);
-    if (ordinary.status !== 0)
-      return fail(`test: expected exit 0, got exit ${ordinary.status}`, [ordinary]);
+    const first = await ordinary(runner);
+    const firstViolation = await contractViolation(first, file, panics, tree, !tests);
+    if (firstViolation) return fail(`${step}: ${firstViolation}`, [checked, first]);
+    if (first.status !== 0)
+      return fail(`${step}: expected exit 0, got exit ${first.status}`, [first]);
   }
   const testRunner: RunnerOptions = {
     ...runner,
     ...(fixture.scenario ? { scenario: fixture.scenario } : {}),
     ...(fixture.pendingFunction ? { pendingFunction: fixture.pendingFunction } : {}),
   };
-  const tested = await invoke(implementation, "test", [], file, testRunner);
-  const testViolation = await contractViolation(tested, file, panics, tree);
-  if (testViolation) return fail(`test: ${testViolation}`, [checked, tested]);
+  // A scenario other than pending-first-poll replaces the execution steps,
+  // so it runs as `test` whatever the fixture registers.
+  const scenarioRun = fixture.scenario !== undefined && fixture.scenario !== "pending-first-poll";
+  const tested = scenarioRun
+    ? await invoke(implementation, "test", [], file, testRunner)
+    : await ordinary(testRunner);
+  const entryOnly = !tests && !scenarioRun;
+  const testViolation = await contractViolation(tested, file, panics, tree, entryOnly);
+  const ran = scenarioRun ? "test" : step;
+  if (testViolation) return fail(`${ran}: ${testViolation}`, [checked, tested]);
   if (row.expectation === "accept") {
     if (tested.status !== 0)
-      return fail(`test: expected exit 0, got exit ${tested.status}`, [tested]);
+      return fail(`${ran}: expected exit 0, got exit ${tested.status}`, [tested]);
     if (fixture.expectedStdout === undefined) return { path: row.path };
-    // `IMPL FILE`: run the fixture as a single file (Command Contract).
-    const ran = await invoke(implementation, undefined, [], file);
-    const runViolation = await contractViolation(ran, file, panics);
-    if (runViolation) return fail(`run: ${runViolation}`, [ran]);
-    if (ran.status !== 0) return fail(`run: expected exit 0, got exit ${ran.status}`, [ran]);
-    if (ran.stdout !== fixture.expectedStdout)
+    // `IMPL FILE`: run the fixture as a single file (Command Contract). An
+    // entry-only fixture's run is that run.
+    const single = entryOnly ? tested : await invoke(implementation, undefined, [], file);
+    const runViolation = await contractViolation(single, file, panics);
+    if (runViolation) return fail(`run: ${runViolation}`, [single]);
+    if (single.status !== 0)
+      return fail(`run: expected exit 0, got exit ${single.status}`, [single]);
+    if (single.stdout !== fixture.expectedStdout)
       return fail(
-        `run: stdout ${JSON.stringify(ran.stdout)} differs from expected ${JSON.stringify(fixture.expectedStdout)}`,
-        [ran],
+        `run: stdout ${JSON.stringify(single.stdout)} differs from expected ${JSON.stringify(fixture.expectedStdout)}`,
+        [single],
       );
     return { path: row.path };
   }
   const code = row.expectation.slice("panic:".length);
-  if (tested.status !== TEST_FAILED)
-    return fail(`test: expected panic ${code} (exit ${TEST_FAILED}), got exit ${tested.status}`, [
-      tested,
-    ]);
+  // `test` reports a failed test case with exit 1; an entry run's panic exit
+  // status is the runtime profile's (module.entry.panic), so any nonzero
+  // status but 101 counts.
+  const panicked = entryOnly
+    ? tested.status !== 0 && tested.status !== REJECTED
+    : tested.status === TEST_FAILED;
+  if (!panicked) return fail(`${ran}: expected panic ${code}, got exit ${tested.status}`, [tested]);
   const reports = panicReports(tested, panics);
-  if (reports.length === 0) return fail(`test: no panic report (expected ${code})`, [tested]);
+  if (reports.length === 0) return fail(`${ran}: no panic report (expected ${code})`, [tested]);
   const wrong = [...new Set(reports.filter((reported) => reported !== code))];
   if (wrong.length)
-    return fail(`test: reported panic category ${wrong.join(", ")}, expected ${code}`, [tested]);
+    return fail(`${ran}: reported panic category ${wrong.join(", ")}, expected ${code}`, [tested]);
   return { path: row.path };
 }
 

@@ -9,7 +9,12 @@ import type { HirFunction } from "../hir.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
 import { runSelected } from "../test-runner.ts";
-import { workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
+import {
+  EXIT_HD_FAILURE,
+  workingDirectory,
+  type CommandEnvironment,
+  type CommandIo,
+} from "./io.ts";
 import {
   exportedFunction,
   RUNTIME_PROFILES,
@@ -39,6 +44,8 @@ export interface RunArgs extends SourceArgs {
   /** `--release`: integer overflow wraps instead of panicking. */
   readonly release?: boolean;
   readonly profile?: RuntimeProfileName;
+  /** `hd FILE`: run FILE as a single-file program, whether or not it lies in a package. */
+  readonly single?: boolean;
 }
 
 /** `hd run FILE`: runs FILE's entry point, the public `main` or `main!`. */
@@ -46,7 +53,9 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
   // The program's standard output passes through, so a JSON run writes its
   // records to standard error (spec/cli/command-line.md#r-cli.json.run).
   const report = new Report(args.format, io, { stream: "stderr", summary: true });
-  const placement = await placementOf(args.file, undefined, undefined, args);
+  const placement = args.single
+    ? undefined
+    : await placementOf(args.file, undefined, undefined, args);
   const loaded = await loadSource(
     args,
     { report, profile: args.profile, release: args.release, linkTests: false },
@@ -57,6 +66,7 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
     await execute(loaded, io, {
       kind: "run",
       entry: args.entry,
+      pendingFirstPoll: args.pendingFirstPoll,
       release: args.release,
       profile: args.profile,
     }),
@@ -166,6 +176,7 @@ type Execution =
   | {
       readonly kind: "run";
       readonly entry?: string;
+      readonly pendingFirstPoll?: boolean;
       readonly release?: boolean;
       readonly profile?: RuntimeProfileName;
     }
@@ -213,7 +224,9 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       // `hd test` always runs a checked build (spec/cli/command-line.md#r-cli.profile.test).
       release: command === "run" ? (execution.release ?? false) : false,
       hostSuspensionInvoke: runtimeProfile?.invoke,
-      hostSuspensionPending: test?.pendingFirstPoll ? pendingFirstPoll : runtimeProfile?.pending,
+      hostSuspensionPending: execution.pendingFirstPoll
+        ? pendingFirstPoll
+        : runtimeProfile?.pending,
     };
     const { instance, compilation } = await instantiate(source, instantiateOptions);
     scenarioInstance = instance;
@@ -255,10 +268,15 @@ async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution
       // still run it by naming it explicitly.
       return declaration.entry === true;
     });
-    if (selected.length === 0 && test) {
-      if (!test.quietWhenEmpty && test.format === "text") io.out(`${file}: 0 passed`);
-      return 0;
+    // `hd test FILE` is an error when FILE registers no test case, even if it
+    // has an entry point (spec/cli/command-line.md#r-cli.test.file-empty). The
+    // modules of `hd test DIR` stay quiet: a whole-package run that registers
+    // none passes (cli.test.package-empty).
+    if (test && !test.quietWhenEmpty && !selected.some(({ entry }) => entry !== true)) {
+      reporter.noTestCases();
+      return EXIT_HD_FAILURE;
     }
+    if (selected.length === 0 && test) return 0;
     // A module without an entry point runs its initialization and exits 0
     // (owner decision, batch 42); `--entry` must name a function.
     if (selected.length === 0 && !explicitEntry) return 0;

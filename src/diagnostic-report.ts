@@ -264,6 +264,11 @@ export class DiagnosticReporter {
     this.located(`${this.file}: ${subject} ${outcome}`, null, `${subject} ${outcome}`);
   }
 
+  /** `hd test FILE` for a FILE that registers no test case (`cli.test.file-empty`). */
+  noTestCases(): void {
+    this.located(`${this.file}: no test case registered`, null, "no test case registered");
+  }
+
   /** A failure with no source location. */
   private located(text: string, code: string | null, message: string, applyRules = true): void {
     this.report.count("error");

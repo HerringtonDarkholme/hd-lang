@@ -238,11 +238,11 @@ fixture's directives select, and `check` always receives `--tests` (see
 | `type`    | `accept`      | `check FILE`                   | exit 0 (warnings allowed) |
 | `type`    | `reject:CODE` | `check FILE`                   | exit 101, a located error `CODE` on the marker line, and no other located error |
 | `type`    | `warn:CODE`   | `check FILE`                   | exit 0, and a located warning `CODE` on the marker line |
-| `runtime` | `accept`      | `check FILE`, then `test FILE` | both exit 0 |
+| `runtime` | `accept`      | `check FILE`, then `test FILE` or the entry run | both exit 0 |
 | `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the stdout of the last equals the expected text |
 | `runtime` | `accept` with `# expect-empty-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the last writes no standard output |
 | `runtime` | `accept` with the `pending-first-poll` scenario | `check FILE`, `test FILE`, then `test FILE` with the `pending-first-poll` scenario | all exit 0 |
-| `runtime` | `panic:CODE`  | `check FILE`, then `test FILE` | `check` exits 0; `test` exits 1 and reports panic category `CODE` |
+| `runtime` | `panic:CODE`  | `check FILE`, then `test FILE` or the entry run | `check` exits 0; `test` exits 1, or the entry run exits nonzero but not 101, and it reports panic category `CODE` |
 
 Rules that apply to every case:
 
@@ -284,12 +284,29 @@ Rules that apply to every case:
    result reported `ExitCode(0)`. A failed `std.testing` assertion is a
    panic.
 
+`test FILE` is an error when FILE registers no test case
+([`cli.test.file-empty`](../cli/command-line.md#r-cli.test.file-empty)), so the
+runner runs `test FILE` only when the fixture registers one. A fixture
+registers a test case when its source has a line that starts with `tests:`
+or with `## ` and a fenced `hd` block (a [doc test](../lang/10-modules.md#doc-tests)),
+or when a [test layout](#test-layouts) or a [package tree](#package-trees)
+whose package path starts with `tests/` or ends in `_test.hd` places it as a
+test module. Otherwise the runner runs only the entry, as `IMPL FILE` with the
+fixture's [runner options](#runner-options): step 1 above, with no step 2. The
+case passes when that run exits 0. For `panic:CODE`, the entry run must exit
+nonzero but not 101, because [`module.entry.panic`](../lang/10-modules.md#r-module.entry.panic)
+leaves the status to the runtime profile, and it must report panic category
+`CODE`.
+
 Only entry points and test cases execute. A fixture that needs to observe a
 function's result calls it from a test case and checks the result with
 `assert_equal`.
 
-A fixture with a `# fixture-runtime-scenario:` directive replaces steps 1
-and 2 with that scenario's procedure.
+A fixture with a `# fixture-runtime-scenario:` directive other than
+`pending-first-poll` replaces steps 1 and 2 with that scenario's procedure,
+and the runner runs it as `test` whether or not the fixture registers a test
+case. The `pending-first-poll` scenario runs steps 1 and 2 with its hook, so it
+follows the rule above.
 
 ## Fixture Environments
 

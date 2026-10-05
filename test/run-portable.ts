@@ -311,8 +311,17 @@ async function runFixtureCase(
   }
   if (kind === "expect") {
     const directive = testCase.directives[0]!;
+    // `hd test FILE` is an error for a file with no `tests:` block, so such a
+    // fixture runs its entry point instead.
+    const hasTests = /^tests:/m.test(await readFile(testCase.path, "utf8"));
     const action =
-      directive.value === "parse" ? "parse" : directive.value === "test" ? "test" : "check";
+      directive.value === "parse"
+        ? "parse"
+        : directive.value === "test"
+          ? hasTests
+            ? "test"
+            : "run"
+          : "check";
     if (!["accept", "parse", "test"].includes(directive.value))
       return `${testCase.name}: expected '# expect: accept', '# expect: parse', or '# expect: test'`;
     const result = await invoke(
