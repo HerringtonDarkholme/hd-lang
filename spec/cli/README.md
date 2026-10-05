@@ -9,4 +9,4 @@ chapters in [`lang/`](../README.md#contents) are the language tier, and
 
 | File | Rule ID prefix | Scope |
 | --- | --- | --- |
-| [`command-line.md`](command-line.md) | `cli` | package mode, workspace mode, and single files; `hd`, `hd FILE`, `hd run`, `hd build`, `hd check`, and `hd test`; executables and package tasks; program arguments, host capabilities, machine output, and exit status; `hd new`, and the REPL |
+| [`command-line.md`](command-line.md) | `cli` | package mode, workspace mode, and single files; `hd`, `hd FILE`, `hd run`, `hd build`, `hd check`, and `hd test`; build profiles; executables and package tasks; program arguments, host capabilities, machine output, and exit status; `hd new`, and the REPL |

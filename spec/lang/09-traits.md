@@ -1672,7 +1672,7 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 3. r[trait.num.not-newtypes] A newtype over a number, such as `type Meters(i64)`, and a library number type, such as a `BigInt`, are not `Num`. They implement the operator traits they need by hand.
 4. r[trait.num.members.std] `Num` declares `zero`, `one`, and `from_i64`. The other numeric methods, such as `checked_add` and `is_nan`, are stdlib-tier inherent methods of the number types.
 5. r[trait.num.zero-one] `T::zero()` and `T::one()` are the values 0 and 1 of `T`. A numeric literal never has a type parameter's type, so generic code builds constants from these functions.
-6. r[trait.num.from-i64-checked] `T::from_i64(n)` is checked. For an integer type `T`, it returns `n` as a `T` when `T` can hold it, and otherwise panics with `integer-overflow`. A floating-point type takes the nearest value.
+6. r[trait.num.from-i64-checked] `T::from_i64(n)` is checked in every build. For an integer type `T`, it returns `n` as a `T` when `T` can hold it, and otherwise panics with `integer-overflow`. A floating-point type takes the nearest value.
 7. r[trait.num.from-i64-cast] A [numeric cast](04-type-system.md#numeric-casts) `T(n)` stays the way to wrap.
 8. r[trait.num.division] `/` and `%` keep each type's own meaning under `Num`. Integer division truncates and panics on a zero divisor, and floating-point division follows IEEE 754.
 9. r[trait.num.std-operators] The standard library's operator implementations behave as the built-in operators do.

@@ -1,0 +1,4 @@
+use pkg.util.{next}
+
+pub fn main() -> void $ Console:
+    println(next(2147483647))

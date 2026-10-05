@@ -288,7 +288,7 @@ a list, `items[1..3]` is a new `mut List`, not a view, so
 `let mut part = items[1..3]` can grow it; `items.view(1, 3)` is a
 read-only window that panics once the list grows or shrinks. A map has no
 slicing. An index or bound is unsigned, so `items[-1]` is a compile error,
-and `items.len() - 1` on an empty list panics with `integer-overflow`. See
+and `items.len() - 1` on an empty list panics with `integer-overflow` in a debug or test build. See
 [Slicing](../spec/lang/05-expressions.md#slicing) and
 [Collections](../spec/std/collections.md).
 
@@ -314,7 +314,7 @@ For floating operands, `**` is IEEE 754-2019 `pow` (clause 9.2), including its
 special cases, correctly rounded to the destination format. Integer and
 floating operands do not mix in `**` without an explicit cast.
 
-Integer `/` truncates toward zero. Integer overflow is always checked unless code uses explicit wrapping APIs. A shift count is a `u32`, and a literal count needs no suffix; it must be smaller than the shifted type's bit width at runtime unless the compiler can prove that statically.
+Integer `/` truncates toward zero. Integer overflow panics in a debug or test build and wraps in a release build, as in Rust; code that must not wrap uses the explicit `checked_*` APIs. A shift count is a `u32`, and a literal count needs no suffix; in a debug or test build it must be smaller than the shifted type's bit width at runtime unless the compiler can prove that statically, and a release build masks it.
 
 Integer values also support bitwise operators:
 

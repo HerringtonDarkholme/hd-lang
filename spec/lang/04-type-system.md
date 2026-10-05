@@ -308,7 +308,7 @@ fn charge(price: Money) -> Money:
 
 > **Note.** With no annotation, `let balance = 100` followed by
 > `balance = balance - 150` is a `usize` subtraction below zero, which
-> panics with `integer-overflow`. Write `+100` for a value that may go
+> panics with `integer-overflow` in a debug or test build. Write `+100` for a value that may go
 > negative. The panic report says that the type is a literal's default
 > type, by [`flow.panic.report.fallback`](06-control-flow.md#r-flow.panic.report.fallback).
 
@@ -540,7 +540,7 @@ type AppRow = $ Ledger  # error: unknown-trait
 
 ```text
 fn last(items: List[string]) -> string:
-    items[items.len() - 1]  # panics with integer-overflow when items is empty
+    items[items.len() - 1]  # in a debug or test build, panics with integer-overflow when items is empty
 
 fn middle(items: List[i32]) -> usize:
     items.len() / 2
@@ -555,9 +555,9 @@ fn middle(items: List[i32]) -> usize:
 > `usize` keeps working if a later target makes it wider.
 
 > **Note.** A size is never negative, so `len() - 1` on an empty
-> collection is below the range of `usize`. It panics with
-> `integer-overflow` by [`types.arith.checked`](#r-types.arith.checked),
-> as in Rust.
+> collection is below the range of `usize`. In a debug or test build it
+> panics with `integer-overflow` by [`types.arith.checked`](#r-types.arith.checked),
+> as in Rust. A release build wraps by [`types.arith.release`](#r-types.arith.release).
 
 > **Why.** A size cannot be negative, so an unsigned type rejects a
 > negative index when the program is checked rather than when it runs.
@@ -836,14 +836,33 @@ The core numeric cast rules are:
 
 ### Integer Arithmetic
 
-1. r[types.arith.checked] Integer arithmetic is checked.
-2. r[types.arith.failure] Overflow, invalid shifts, and division errors cause checked runtime failure unless an explicit wrapping or fallible library operation is used.
-3. r[types.arith.division] Integer division truncates toward zero.
-4. r[types.arith.remainder] Integer remainder has the sign of the dividend.
-5. r[types.arith.shift-count] A shift count must be non-negative and smaller than the bit width of the shifted value.
-6. r[types.arith.shift-right] Right shift of a signed integer is arithmetic and sign-extending.
-7. r[types.arith.min-division] For every signed width, `MIN / -1` panics with `integer-overflow`.
-8. r[types.arith.min-remainder] For every signed width, `MIN % -1` produces zero.
+A program is built under one of three **build profiles**: debug, release, or test. The [`hd` command](../cli/command-line.md#build-profiles) selects the profile.
+
+1. r[types.arith.checked] In a debug or test build, an integer overflow or underflow of `+`, `-`, `*`, `**`, or unary `-` panics. Panic: `integer-overflow`.
+2. r[types.arith.release] In a release build, those operations wrap to the type's width as two's complement, as in Rust.
+3. r[types.arith.failure] In a debug or test build, an invalid shift panics, and an explicit wrapping or fallible library operation is the way to ask for other behavior.
+4. r[types.arith.always] Division and remainder by zero, `MIN / -1`, an out-of-bounds index, the rules of an explicit conversion, and the `checked_*`, `wrapping_*`, and `saturating_*` library operations behave the same in every build.
+5. r[types.arith.division] Integer division truncates toward zero.
+6. r[types.arith.remainder] Integer remainder has the sign of the dividend.
+7. r[types.arith.shift-count] A shift count is invalid when it is negative or not smaller than the bit width of the shifted value.
+8. r[types.arith.shift-count.debug] In a debug or test build, an invalid shift count panics. Panic: `invalid-shift`.
+9. r[types.arith.shift-count.release] In a release build, an invalid shift count is masked to the bit width of the shifted value, so `x << n` shifts by `n % bits`, as in Rust.
+10. r[types.arith.shift-right] Right shift of a signed integer is arithmetic and sign-extending.
+11. r[types.arith.min-division] For every signed width, `MIN / -1` panics with `integer-overflow` in every build.
+12. r[types.arith.min-remainder] For every signed width, `MIN % -1` produces zero.
+
+```text
+let result: i32 = 2147483647 + 1  # panics in a debug or test build, gives -2147483648 in a release build
+
+fn overflow() -> i32:
+    let minimum: i32 = -2147483648
+    minimum / -1                  # panics in every build
+```
+
+> **Why.** This is Rust's model: overflow checks help while a program is
+> written and tested, and cost speed once it ships. `hd test` always uses a
+> checked build, so a property test finds an overflow even when the
+> program ships as a release build.
 
 See also: [Runtime Panics](06-control-flow.md#runtime-panics).
 

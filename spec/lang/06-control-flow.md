@@ -292,7 +292,7 @@ fn first_square_over(limit: i32) -> i32:
 2. r[flow.for.range.half-open] Iterating `a..b` yields `a`, `a + 1`, and so on, up to but not including `b`. It yields nothing when `a >= b`.
 3. r[flow.for.range.inclusive] Iterating `a..=b` yields `a` through `b`, and yields `b` even when it is the type's largest value. It yields nothing when `a > b`.
 4. r[flow.for.range.from] Iterating `a..` yields `a`, `a + 1`, and so on, with no end, so `for i in 0..:` runs until the loop exits another way.
-5. r[flow.for.range.from-overflow] Asking an iterator over `a..` for the item after the type's largest value is a checked runtime panic. Panic: `integer-overflow`.
+5. r[flow.for.range.from-overflow] Asking an iterator over `a..` for the item after the type's largest value is, as `a + 1` is, a checked runtime panic in a debug or test build and wraps in a release build. Panic: `integer-overflow`.
 6. r[flow.for.range.fresh] Each `iter()` call on a range starts from its start bound, and iterating never changes the range value.
 7. r[flow.for.range.to] `RangeTo[T]` does not implement `Iterable`, since it has no start, so a loop over `..b` is an error. Error: `unsatisfied-trait-bound`.
 8. r[flow.for.range.to-through] `..=b` is a `RangeTo[T]` too, so a loop over it is an error. Error: `unsatisfied-trait-bound`.
@@ -888,7 +888,7 @@ This section defines runtime panics.
 
 1. r[flow.panic.def] A runtime panic is an abrupt, unrecoverable failure of the current program instance.
 2. r[flow.panic.not-result] It is distinct from a recoverable `Result` error and is not catchable by core hd-lang source code.
-3. r[flow.panic.sources] Integer overflow, division errors, invalid shifts, out-of-bounds indexing, and invalidated built-in iterators panic when their owning chapters require a checked runtime failure.
+3. r[flow.panic.sources] Integer overflow, division errors, invalid shifts, out-of-bounds indexing, and invalidated built-in iterators panic when their owning chapters require a checked runtime failure. Integer overflow and invalid shifts panic in a debug or test build only.
 
 ### Panic Behavior
 

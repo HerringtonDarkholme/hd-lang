@@ -137,12 +137,12 @@ and the compiler specializes it for each type.
 
 | Intrinsic method | Implemented for | Why it is a primitive |
 | --- | --- | --- |
-| `Add.add` | every number type | machine addition, with the checked integer overflow panic |
-| `Sub.sub` | every number type | machine subtraction, with the checked integer overflow panic |
-| `Mul.mul` | every number type | machine multiplication, with the checked integer overflow panic |
+| `Add.add` | every number type | machine addition, with the integer overflow panic of a debug or test build |
+| `Sub.sub` | every number type | machine subtraction, with the integer overflow panic of a debug or test build |
+| `Mul.mul` | every number type | machine multiplication, with the integer overflow panic of a debug or test build |
 | `Div.div` | every number type | truncating integer division with its panics, or IEEE 754 division |
 | `Rem.rem` | every number type | the truncated remainder, with its panic, or the floating remainder |
-| `Neg.neg` | the signed integer and floating-point types | machine negation; negating the minimum integer panics |
+| `Neg.neg` | the signed integer and floating-point types | machine negation; negating the minimum integer panics in a debug or test build |
 | `BitAnd.bit_and` | every integer type | one machine instruction on the bits |
 | `BitOr.bit_or` | every integer type | one machine instruction on the bits |
 | `BitXor.bit_xor` | every integer type | one machine instruction on the bits |

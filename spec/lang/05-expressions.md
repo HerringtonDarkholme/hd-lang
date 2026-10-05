@@ -698,7 +698,7 @@ See also: [Method References](07-functions.md#method-references).
 
 ```text
 fn previous(items: List[i32], i: usize) -> i32:
-    items[i - 1]  # panics with integer-overflow when i is 0
+    items[i - 1]  # in a debug or test build, panics with integer-overflow when i is 0
 
 fn invalid(items: List[i32], i: i32) -> void:
     a := items[-1]  # error: unsigned-negation
@@ -1403,7 +1403,7 @@ This section defines operator precedence and the meaning of each operator.
 3. r[expr.arith.string-primitive] `string + string` is the only arithmetic form on non-numeric primitives.
 4. r[expr.arith.defined] Mixed-width result types, overflow, division, and shifts are defined in [Type System](04-type-system.md).
 5. r[expr.arith.cast] Signed/unsigned and integer/floating mixing requires an explicit cast.
-6. r[expr.arith.int.checked] For compatible integer operands, `+`, `-`, and `*` produce the common integer type and use checked arithmetic.
+6. r[expr.arith.int.checked] For compatible integer operands, `+`, `-`, and `*` produce the common integer type. They are checked in a debug or test build and wrap in a release build, by [`types.arith.checked`](04-type-system.md#r-types.arith.checked).
 7. r[expr.arith.int.divide] `/` truncates toward zero, `%` produces the corresponding remainder, and a zero divisor panics.
 8. r[expr.arith.unary-plus] Unary `+` accepts all numeric types, preserves its operand's type and value, and evaluates the operand once.
 9. r[expr.arith.unary-minus] Unary `-` accepts signed integers and floating-point values, but not unsigned integers. Negating an unsigned operand is an error. Error: `unsigned-negation`.
@@ -1438,7 +1438,7 @@ fn mask(x: i64, n: u32) -> i64:
 3. r[expr.shift.count-u32] The right operand, the shift count, must have type `u32`.
 4. r[expr.shift.count-literal] An unsuffixed integer literal count has type `u32`, so `x << 3` needs no suffix.
 5. r[expr.shift.count-other] A count of any other type is an error, and its fix-it converts the count, as in `u32(n)`. Error: `type-mismatch`.
-6. r[expr.shift.count] A negative count or a count at least as large as the left operand's bit width panics.
+6. r[expr.shift.count] A negative count or a count at least as large as the left operand's bit width is an invalid shift, by [`types.arith.shift-count`](04-type-system.md#r-types.arith.shift-count).
 7. r[expr.shift.fixed-width] The shift itself is a fixed-width bit operation; left-shifted high bits are discarded rather than reported as arithmetic overflow.
 
 ```text

@@ -1,0 +1,7 @@
+# A release build wraps: 2147483647 + 1 is -2147483648, and the program exits 0.
+run: hd run --release
+stdout: -2147483648
+# `hd test` always checks overflow, so the same addition panics and fails the test case.
+# Plain `hd run` panics too, but a panic's exit status is the runtime profile's, so no line states it.
+run: hd test
+exit: 1

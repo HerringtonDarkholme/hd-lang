@@ -1,0 +1,5 @@
+use pkg.util.{next}
+use std.testing.assert_equal
+
+it("adds one"):
+    assert_equal(next(2147483647), -2147483648, reason="wraps")

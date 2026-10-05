@@ -25,8 +25,9 @@ says which program a command starts. Its diagnostic codes are in the
 | --- | --- |
 | `hd` | opens the [REPL](#repl), or runs [standard input](#r-cli.stdin.program) when it is not a terminal |
 | `hd FILE` | runs FILE as a [single file](#single-files) |
-| `hd run`, `hd run NAME` | runs an [executable or a task](#running-a-package) of the package |
-| `hd build`, `hd check`, `hd test` | work on the [package](#building-and-checking), or on one FILE |
+| `hd run [--release]`, `hd run [--release] NAME` | runs an [executable or a task](#running-a-package) of the package, in the [build profile](#build-profiles) its flag selects |
+| `hd build [--release]` | builds the [package](#building-and-checking), or one FILE, in that profile |
+| `hd check`, `hd test` | work on the [package](#building-and-checking), or on one FILE |
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd help`, `hd --help` | prints the command list |
@@ -307,6 +308,26 @@ The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 > new package may have none yet. A filter that matches nothing in a named
 > FILE is most often a typo, so it does not pass silently. A changed profile can skip a whole
 > suite, so CI can opt in to treating that as a failure.
+
+## Build Profiles
+
+A **build profile** decides whether integer overflow panics or wraps:
+
+```sh
+hd run                # debug: overflow panics
+hd run --release      # release: overflow wraps
+hd test               # always a checked build
+```
+
+1. r[cli.profile.default] `hd FILE`, `hd run`, `hd build`, `hd test`, and the REPL use the debug profile, which panics on integer overflow by [`types.arith.checked`](../lang/04-type-system.md#r-types.arith.checked).
+2. r[cli.profile.release] `--release` on `hd build` and `hd run` selects the release profile, which wraps on integer overflow by [`types.arith.release`](../lang/04-type-system.md#r-types.arith.release).
+3. r[cli.profile.test] `hd test` always uses a checked build, the test profile, including for the executables it builds by [`cli.test.builds-executables`](#r-cli.test.builds-executables).
+4. r[cli.profile.flag-only] No other command takes `--release`.
+
+> **Why.** Cargo has the same two profiles, and checks overflow in one
+> only. Release builds stay fast, since a check costs speed on every
+> arithmetic operation. Tests are always checked, so a property test
+> finds an overflow that a release build would hide.
 
 ## Documentation
 

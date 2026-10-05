@@ -36,3 +36,4 @@ exe-unselected-main	cli.exe.unselected-main
 doc-broken-link	cli.doc.link.broken
 doc-index-module	cli.doc.index-module,cli.doc.files,cli.doc.llms.modules
 json-file-single	cli.json.diagnostic.file,cli.file.check-test
+release-wraps	cli.profile.release,cli.profile.test,cli.exit.test-failure

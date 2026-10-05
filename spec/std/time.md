@@ -59,9 +59,9 @@ fn later(start: Timestamp) -> Timestamp:
 
 1. r[std-time.duration.add] `Duration` implements `std.ops.Add` with `Out = Duration`. `a + b` holds the sum of the milliseconds of `a` and `b`.
 2. r[std-time.duration.sub] `Duration` implements `std.ops.Sub` with `Out = Duration`. `a - b` holds the milliseconds of `a` minus those of `b`.
-3. r[std-time.duration.overflow] A sum or difference that does not fit in `i64` milliseconds panics at run time, as checked `i64` arithmetic does. Panic: `integer-overflow`.
+3. r[std-time.duration.overflow] A sum or difference that does not fit in `i64` milliseconds panics at run time in a debug or test build, as checked `i64` arithmetic does, and wraps in a release build. Panic: `integer-overflow`.
 4. r[std-time.timestamp.add] `Timestamp` implements `std.ops.Add[Duration]` with `Out = Timestamp`. `t + d` is the timestamp whose milliseconds are those of `t` plus those of `d`.
-5. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time. Panic: `integer-overflow`.
+5. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time in a debug or test build, and wraps in a release build. Panic: `integer-overflow`.
 
 > **Note.** A negative `d` gives an earlier timestamp. `Timestamp` has no
 > `Sub`: `t.since(earlier)` is the duration between two timestamps, by
@@ -124,7 +124,7 @@ The standard library declares these suffixes in `std.time`:
 1. r[std-time.suffix.std.fn] Each is a suffix function that takes one `i64` and returns the standard `std.time.Duration`, as in `@num_suffix pub fn ms(count: i64) -> Duration`.
 2. r[std-time.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
 3. r[std-time.suffix.std.import] None is a prelude name; code imports them, as in `use std.time.{ms, s}`.
-4. r[std-time.suffix.std.overflow] A standard suffix call whose result does not fit in `i64` milliseconds, as in `10_000_000_000_000_000h`, panics at run time, as checked `i64` arithmetic does. Panic: `integer-overflow`.
+4. r[std-time.suffix.std.overflow] A standard suffix call whose result does not fit in `i64` milliseconds, as in `10_000_000_000_000_000h`, panics at run time in a debug or test build, and wraps in a release build, as `i64` arithmetic does. Panic: `integer-overflow`.
 
 ```text
 use std.time.{Duration, ms, s}
