@@ -1528,7 +1528,7 @@ fn neither() -> bool:
 #### Unsigned Comparisons With Zero
 
 A comparison of an unsigned value with zero in one of four forms has a
-result fixed by the type, so it is rejected:
+result fixed by the type, so it gets a warning:
 
 | Rule | Form | Result for an unsigned `t` |
 | --- | --- | --- |
@@ -1537,24 +1537,24 @@ result fixed by the type, so it is rejected:
 | r[expr.ord.unsigned-zero.below] Below zero | `t < 0` | always false |
 | r[expr.ord.unsigned-zero.above] Zero above | `0 > t` | always false |
 
-1. r[expr.ord.unsigned-zero] A comparison in one of the forms in the table, where `t` has an unsigned integer type, is an error. Error: `unsigned-comparison-always`.
+1. r[expr.ord.unsigned-zero] A comparison in one of the forms in the table, where `t` has an unsigned integer type, gets a warning, and the program still compiles. Warning: `unsigned-comparison-always`.
 2. r[expr.ord.unsigned-zero.literal] The `0` of a form is any unsuffixed integer literal whose value is zero, in any radix, such as `0` or `0x0`.
 3. r[expr.ord.unsigned-zero.binding-type] The type of `t` is its type at the comparison: a declared unsigned type, or the [`usize` default](04-type-system.md#r-types.literal.local.default) of the literal its binding was initialized with.
-5. r[expr.ord.unsigned-zero.message] The diagnostic must name the operand and say whether the comparison is always true or always false, as in "`t` is unsigned, so `t >= 0` is always true".
+5. r[expr.ord.unsigned-zero.message] The warning must name the operand and say whether the comparison is always true or always false, as in "`t` is unsigned, so `t >= 0` is always true". When `t` has the `usize` default, it should also suggest a signed literal such as `+10` or another condition.
 
 ```text
 fn countdown() -> void:
     let t = 10
-    while t >= 0:  # error: unsigned-comparison-always
+    while t >= 0:  # warning: unsigned-comparison-always
         t = t - 1
 
 fn below(value: u32) -> bool:
-    value < 0  # error: unsigned-comparison-always
+    value < 0  # warning: unsigned-comparison-always
 ```
 
 > **Why.** With the `usize` default, `while t >= 0` never ends normally:
 > `t - 1` panics at zero instead. A countdown that means to reach `-1`
-> writes `let t = +10` or `let t: i32 = 10`.
+> writes `let t = +10`.
 
 ### Identity
 

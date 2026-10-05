@@ -1,5 +1,0 @@
-# test: a declared unsigned value below zero is always false
-# Spec 05 Unsigned Comparisons With Zero: expr.ord.unsigned-zero (SAFETY NET 1, batch 83).
-
-fn below(value: u32) -> bool:
-    value < 0  # diagnostic: unsigned-comparison-always

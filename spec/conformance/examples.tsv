@@ -256,7 +256,7 @@ lang/05-expressions.md	57	mixed	typing/invalid/shift-count-not-u32.hd
 lang/05-expressions.md	58	mixed	typing/invalid/signed-integer-exponent.hd|typing/invalid/negative-literal-exponent.hd|typing/invalid/power-mixed-numeric-types.hd
 lang/05-expressions.md	59	mixed	typing/invalid/function-equality.hd
 lang/05-expressions.md	60	mixed	typing/valid/eq-contextual-right-operand.hd|typing/valid/eq-contextual-left-operand.hd|typing/invalid/eq-contextual-both-operands.hd
-lang/05-expressions.md	61	mixed	typing/invalid/unsigned-comparison-countdown.hd|typing/invalid/unsigned-comparison-explicit.hd
+lang/05-expressions.md	61	mixed	typing/warnings/unsigned-comparison-countdown.hd|typing/warnings/unsigned-comparison-explicit.hd
 lang/05-expressions.md	62	mixed	typing/invalid/incompatible-identity-operands.hd|typing/invalid/tuple-identity.hd
 lang/05-expressions.md	63	mixed	typing/invalid/closure-identity.hd
 lang/05-expressions.md	64	accept	typing/valid/operator-traits.hd|runtime/valid/operator-traits-run.hd

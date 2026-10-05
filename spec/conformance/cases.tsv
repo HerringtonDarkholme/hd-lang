@@ -2220,8 +2220,8 @@ typing/invalid/literal-dependent-no-backward.hd	type	reject:implicit-narrowing	l
 typing/invalid/literal-dependent-no-backward-annotation.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.local.statement
 typing/invalid/literal-erased-any-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.local.erased
 runtime/valid/literal-erased-fallback.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.erased
-typing/invalid/unsigned-comparison-countdown.hd	type	reject:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
-typing/invalid/unsigned-comparison-explicit.hd	type	reject:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero
+typing/warnings/unsigned-comparison-countdown.hd	type	warn:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
+typing/warnings/unsigned-comparison-explicit.hd	type	warn:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero
 typing/valid/unsigned-comparison-signed-countdown.hd	type	accept	lang/05-expressions.md#unsigned-comparisons-with-zero
 runtime/panic/sign-fallback-balance-underflow.hd	runtime	panic:integer-overflow	lang/06-control-flow.md#r-flow.panic.report.fallback
 runtime/valid/module-qualified-function-call.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified

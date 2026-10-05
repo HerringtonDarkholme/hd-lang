@@ -27,7 +27,7 @@ import {
   traitTypeName,
 } from "./shared.ts";
 
-import { pureLiteralKind } from "./literal-join.ts";
+import { defaultedLocalHint, pureLiteralKind } from "./literal-join.ts";
 import { defaultGroupWidth, forcedGroupWidth } from "./literal-retry.ts";
 import {
   ExpressionLiteralChecker,
@@ -73,6 +73,13 @@ const NUMERIC_RESULT_OPERATORS = new Set([
 ]);
 
 /** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive.types). */
+/** The source form of a comparison operand for a diagnostic: a name or a field path. */
+function operandText(expression: Expression): string {
+  if (expression.kind === "name") return expression.name;
+  if (expression.kind === "member") return `${operandText(expression.receiver)}.${expression.name}`;
+  return "the operand";
+}
+
 function isPrimitiveOperand(type: ValueType): boolean {
   const readonly = readonlyType(type);
   return (
@@ -392,6 +399,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             );
           }
         }
+        if (comparison && !equality) this.warnUnsignedZeroComparison(expression, left, right);
         if (comparison && !equality) {
           const strategy = this.orderingStrategy(left.type, expression.span);
           if (strategy)
@@ -462,6 +470,43 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       default:
         return undefined;
     }
+  }
+
+  /**
+   * `t >= 0`, `0 <= t`, `t < 0`, `0 > t` on an unsigned `t` is fixed by the
+   * type, so it warns (05-expressions.md#r-expr.ord.unsigned-zero).
+   */
+  private warnUnsignedZeroComparison(
+    expression: Extract<Expression, { kind: "binary" }>,
+    left: HirExpression,
+    right: HirExpression,
+  ): void {
+    const isZero = (value: Expression) => value.kind === "integer" && value.value === 0n;
+    const operator = expression.operator;
+    const zeroRight = isZero(expression.right) && (operator === ">=" || operator === "<");
+    const zeroLeft = isZero(expression.left) && (operator === "<=" || operator === ">");
+    if (zeroRight === zeroLeft) return;
+    const operand = zeroRight ? expression.left : expression.right;
+    const checked = zeroRight ? left : right;
+    if (pureLiteralKind(operand) !== undefined) return;
+    if (numericType(checked.type)?.family !== "unsigned") return;
+    const text = operandText(operand);
+    const always = operator === ">=" || operator === "<=" ? "true" : "false";
+    const written = zeroRight ? `${text} ${operator} 0` : `0 ${operator} ${text}`;
+    const hint = defaultedLocalHint(checked, "i32");
+    this.diagnostics.push({
+      code: "unsigned-comparison-always",
+      message: `'${text}' is unsigned, so '${written}' is always ${always}`,
+      span: expression.span,
+      severity: "warning",
+      ...(hint
+        ? {
+            notes: [hint.note],
+            related: [{ message: hint.note, span: hint.span }],
+            ...(hint.fix ? { fix: hint.fix } : {}),
+          }
+        : {}),
+    });
   }
 
   /** Normalize only a comparison's outer access permission; nested permissions remain types. */

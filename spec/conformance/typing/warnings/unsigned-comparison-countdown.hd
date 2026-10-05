@@ -1,7 +1,7 @@
-# test: a countdown counter that falls back to usize makes t >= 0 always true
+# test: a countdown counter that defaults to usize makes t >= 0 always true, which warns
 # Spec 05 Unsigned Comparisons With Zero: expr.ord.unsigned-zero, expr.ord.unsigned-zero.binding-type (SAFETY NET 1, batch 83).
 
 fn countdown() -> void:
     let t = 10
-    while t >= 0:  # diagnostic: unsigned-comparison-always
+    while t >= 0:  # warning: unsigned-comparison-always
         t = t - 1

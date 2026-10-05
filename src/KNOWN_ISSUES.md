@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,470 cases: 2,312 selected in `test/portable/cases.tsv` and 158 known
-failures. The selected cases are 2,027 language tier, 276 stdlib tier, and 9
-CLI tier; the known failures are 120 language tier, 10 stdlib tier, and 28
+2,470 cases: 2,352 selected in `test/portable/cases.tsv` and 118 known
+failures. The selected cases are 2,067 language tier, 276 stdlib tier, and 9
+CLI tier; the known failures are 79 language tier, 10 stdlib tier, and 29
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -47,7 +47,6 @@ CLI tier.
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
 | MVP-PATTERN | 1 | a `let` data pattern on a generic data value is `unsupported-match-subject` |
 | PRIMITIVE-LEFT-TRAIT | 1 | a primitive left operand never searches operator traits, so `3 * price` with only `impl Mul[Money] for i64` is rejected |
-| UNSIGNED-ZERO | 2 | `unsigned-comparison-always` is not checked |
 | QUALIFIED-PATH | 6 | a used module name works before a function, but not before a type, a variant, a variant pattern, or an associated call; a whole-module use of a package module is `unsupported-package-use` |
 | DOC-TESTS | 1 | `hd` blocks in `##` comments are not extracted or run as doc tests |
 | AMBIGUOUS-TYPE | 1 | an ambiguous requirement-key solution reports `cannot-infer-type`, not `ambiguous-type` |
