@@ -107,7 +107,7 @@ module = "tools.migrate"
 3. r[cli.exe.missing-module] An executable whose `module` names no module of the package is an error. Error: `missing-entry-point`.
 4. r[cli.exe.unselected-main] A public `main` or `main!` in a module under the source root that no executable names is an ordinary function, and `hd` warns about it. Warning: `unselected-main`.
 5. r[cli.exe.default-main] With no `[[executable]]` table in `hd.toml`, `src/main.hd` is the package's **default executable**, as Cargo's `src/main.rs` is.
-6. r[cli.exe.main-unlisted] When `hd.toml` has an `[[executable]]` table, a `src/main.hd` that no table names is an error. Its fix-it adds a table for it, with the package's name and `module = "main"`.
+6. r[cli.exe.main-unlisted] When `hd.toml` has an `[[executable]]` table, a `src/main.hd` that no table names is an error. Its fix-it adds a table for it, with the package's name and `module = "main"`. Error: `unlisted-entry`.
 7. r[cli.exe.other-module] An executable's entry module other than `src/main.hd`, such as `src/tools/migrate.hd`, resolves relative uses as an ordinary module does: `self` is its own module.
 8. r[cli.exe.entry-program] Every executable's entry module is its own program and never part of the package's library, as `src/main.hd` is by [`module.path.main-file`](../lang/10-modules.md#r-module.path.main-file).
 9. r[cli.exe.entry-no-use] A use of an executable's entry module from another module is an error. Error: `unknown-module`.
@@ -167,7 +167,7 @@ modules that tasks share:
 13. r[cli.task.dev-dependencies] A task may use the package's dependencies and its [dev dependencies](../lang/10-modules.md#r-module.test.dev-dependency).
 14. r[cli.task.cyclic-dev-dependency] A task may use a dev dependency that itself depends on the package, as an integration test module may.
 15. r[cli.task.not-shipped] A task is never part of the package's library or executables, and a dependent package never builds it.
-16. r[cli.task.name-clash] A task and an executable with the same name are an error when `hd` reads the manifest.
+16. r[cli.task.name-clash] A task and an executable with the same name are an error when `hd` reads the manifest. Error: `duplicate-executable-name`.
 
 > **Why.** Tasks follow the test root's layout
 > ([Test Modules](../lang/10-modules.md#test-modules)): a top-level file is
@@ -264,6 +264,8 @@ hd test src/billing.hd    # the tests of module billing
 5. r[cli.check.tests] `hd check --tests` also checks the package's test code: its `tests:` blocks, test modules, and integration test modules.
 6. r[cli.check.tests.doc] `hd check --tests` also checks the package's [doc tests](../lang/10-modules.md#doc-tests), except compile-fail ones, which only `hd test` judges.
 7. r[cli.check.all] `hd check --all` checks the library, the executables, the test code, and the package's [tasks](#tasks).
+8. r[cli.build.directory] The **build directory** is the directory `build` in the package directory, where `hd` writes its build and cache output.
+9. r[cli.build.output] A whole-package `hd build` writes each executable NAME to `build/debug/NAME.wasm`, or to `build/release/NAME.wasm` with `--release`.
 
 ### Test Runs
 
@@ -394,7 +396,7 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 
 ### Output
 
-1. r[cli.doc.dir] `hd doc` writes into the directory `doc` of the build directory, which is where `hd` writes its build and cache output. `--out DIR` writes into DIR instead.
+1. r[cli.doc.dir] `hd doc` writes into the directory `doc` of the [build directory](#r-cli.build.directory), as `build/doc`. `--out DIR` writes into DIR instead.
 2. r[cli.doc.open] `--open` opens the entry page `index.html` of the output with the platform's default program, after the files are written.
 3. r[cli.doc.files] The output holds the files of the table below. A module's HTML and Markdown pages sit side by side.
 4. r[cli.doc.root-page] The root module's pages are named `pkg`, as [`module.path.reserved-pkg`](../lang/10-modules.md#r-module.path.reserved-pkg) reserves the name, so no user module's page takes their file names.
@@ -571,7 +573,7 @@ hd test              # runs tests/hello.hd, which runs the executable
 11. r[cli.new.no-executable-table] The `hd.toml` that `hd new` writes has no `[[executable]]` table. With `--app`, `src/main.hd` is then the default executable, and `hd run` runs it right after `hd new`.
 12. r[cli.new.workspace-member] When the new package's directory lies under a workspace root, `hd new` also adds that directory to the workspace manifest's `members`, as Cargo does.
 13. r[cli.new.vcs] Unless the new package's directory is already inside a git repository, `hd new` runs `git init` there and writes a `.gitignore`, as Cargo does.
-14. r[cli.new.vcs.ignore] That `.gitignore` lists only the directory where `hd` writes its build and cache output. `hd.sum` is not listed, so it is committed.
+14. r[cli.new.vcs.ignore] That `.gitignore` lists only the [build directory](#r-cli.build.directory), as `/build/`. `hd.sum` is not listed, so it is committed.
 15. r[cli.new.vcs-none] `hd new --vcs none` runs no `git init` and writes no `.gitignore`.
 16. r[cli.new.pages] `hd new --pages` also writes `.github/workflows/docs.yml` in the new package's directory, for an application and for a library.
 17. r[cli.new.pages.workflow] That workflow runs [`hd doc`](#documentation) and deploys the output directory to GitHub Pages.
@@ -802,8 +804,27 @@ See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 
 ## Package Tooling
 
-1. r[cli.tooling.package-schema] The complete `hd.toml` schema belongs to package tooling. [Dependencies](#dependencies) defines the `hd.sum` format and the commands that fetch, add, and upgrade dependencies.
-2. r[cli.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
+A manifest key that no rule gives a meaning is a warning, as Cargo's
+"unused manifest key" is:
+
+```toml
+[package]
+name = "shop"
+version = "1.0.0"   # warning: unknown-manifest-key, since a tag is the version
+```
+
+| Table | Keys with a meaning |
+| --- | --- |
+| `[package]` | `name` |
+| `[source]` | `root` |
+| `[[executable]]` | `name`, `module` |
+| `[dependencies]`, `[dev-dependencies]` | every key, each a [dependency requirement](../lang/10-modules.md#dependency-requirements) |
+| `[workspace]` | `members`, `exclude` |
+
+1. r[cli.manifest.unknown-key] A table or key of `hd.toml` that the table above does not list is a warning at its line. Warning: `unknown-manifest-key`.
+2. r[cli.manifest.known-key] A listed key whose value breaks the rule that gives it a meaning stays an error.
+3. r[cli.tooling.package-schema] The complete `hd.toml` schema belongs to package tooling. [Dependencies](#dependencies) defines the `hd.sum` format and the commands that fetch, add, and upgrade dependencies.
+4. r[cli.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
 
 See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 [Workspaces](../lang/10-modules.md#workspaces),

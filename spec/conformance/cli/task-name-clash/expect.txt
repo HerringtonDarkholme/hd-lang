@@ -1,0 +1,4 @@
+# The task tasks/shop.hd and the default executable shop share one name.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"duplicate-executable-name","severity":"error","message":null,"file":"hd.toml"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

@@ -1,0 +1,5 @@
+run: hd build
+file: build/debug/shop.wasm
+no-file: build/release
+run: hd build --release
+file: build/release/shop.wasm

@@ -41,3 +41,7 @@ dep-missing-sum	cli.dep.missing-sum,cli.dep.no-sum-write,cli.dep.remove,cli.json
 dep-invalid-add	cli.dep.add.check,cli.dep.invalid,cli.dep.unchanged-on-error,cli.json.commands
 dep-invalid-manifest	cli.dep.invalid,cli.json.diagnostic.file
 dep-outside-package	cli.dep.package-only
+exe-main-unlisted	cli.exe.main-unlisted,cli.json.diagnostic.fields
+task-name-clash	cli.task.name-clash,cli.exe.default-name.clash
+manifest-unknown-key	cli.manifest.unknown-key,cli.exit.success
+build-output	cli.build.directory,cli.build.output,cli.profile.release

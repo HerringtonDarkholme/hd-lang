@@ -2411,3 +2411,4 @@ cli/dep-missing-sum	cli
 cli/dep-invalid-add	cli
 cli/dep-invalid-manifest	cli
 cli/dep-outside-package	cli
+cli/build-output	cli
