@@ -240,6 +240,8 @@ The stdlib chapters' terms are in the
 | **literal group** | The unsuffixed literals of one expression that have no expected type; they take one width. See [`types.literal.local.group`](lang/04-type-system.md#r-types.literal.local.group). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](lang/01-lexical-structure.md#literal-suffixes). |
 | **local type names** | The name category of data types, enums, traits, aliases, and newtypes declared inside an executable suite. See [`names.category.local-type`](lang/03-names-and-scopes.md#r-names.category.local-type). |
+| **manifest hash** | The tree hash of a tree that holds only a dependency version's `hd.toml`. See [`cli.sum.manifest-hash`](cli/command-line.md#r-cli.sum.manifest-hash). |
+| **manifest line** | An `hd.sum` line that records the manifest hash of a version that selection reads. See [`cli.sum.manifest-line`](cli/command-line.md#r-cli.sum.manifest-line). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](lang/14-annotations.md#member-lines). |
 | **member metadata** | The ordered list of values attached to a data field, an enum variant, or a parameter. See [Terminology](lang/14-annotations.md#terminology). |
 | **member names** | The name category of data fields, embedded fields, methods, enum variants, and tuple fields, within the namespace of their owning type. See [`names.category.member`](lang/03-names-and-scopes.md#r-names.category.member). |
@@ -307,6 +309,7 @@ The stdlib chapters' terms are in the
 | **trait methods** | The methods of every trait that a known implementation implements for a type. See [`names.member.trait-methods`](lang/03-names-and-scopes.md#r-names.member.trait-methods). |
 | **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation. See [Trait-Less Derivation Blocks](lang/14-annotations.md#trait-less-derivation-blocks). |
 | **tree hash** | The `h1:` hash of a dependency version's files, which `hd.sum` records. See [`cli.sum.hash`](cli/command-line.md#r-cli.sum.hash). |
+| **tree line** | An `hd.sum` line that records the tree hash of a selected version. See [`cli.sum.line`](cli/command-line.md#r-cli.sum.line). |
 | **type forms** | The kinds of type that hd-lang has, such as primitive types, tuples, optional types, and function types. See [Type Forms](lang/04-type-system.md#type-forms). |
 | **type-argument default** | A type written with `=` after a generic parameter's bound, used when a use site leaves the parameter unsolved or a written type omits it. See [Type-Argument Defaults](lang/04-type-system.md#type-argument-defaults). |
 | **type-argument marker** | The `::` before an explicit type-argument list in an expression, as in `first::[string](names)`. See [`grammar.expr.type-arguments.marker`](lang/02-grammar.md#r-grammar.expr.type-arguments.marker). |

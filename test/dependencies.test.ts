@@ -73,6 +73,16 @@ function expectedHash(files: Record<string, string>): string {
   return `h1:${createHash("sha256").update(summary).digest("base64")}`;
 }
 
+/** A version's manifest line (cli.sum.manifest-line): the hash of a tree of its hd.toml alone. */
+function manifestLine(version: string, files: Record<string, string>): string {
+  return `${version}/hd.toml ${expectedHash({ "hd.toml": files["hd.toml"]! })}\n`;
+}
+
+/** A selected version's two lines: its tree line, then its manifest line (cli.sum.order). */
+function selectedLines(version: string, files: Record<string, string>): string {
+  return `${version} ${expectedHash(files)}\n${manifestLine(version, files)}`;
+}
+
 async function hd(
   cwd: string,
   args: string[],
@@ -157,7 +167,7 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     );
     assert.equal(
       await readFile(join(directory, "hd.sum"), "utf8"),
-      `github.com/acme/text@1.0.0 ${expectedHash(TEXT_V1)}\n`,
+      selectedLines("github.com/acme/text@1.0.0", TEXT_V1),
     );
     // The entry is read-only once written (cli.cache.read-only).
     const entry = join(root, "cache", "pkg", "github.com", "acme", "text@1.0.0");
@@ -199,7 +209,8 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     const directory = join(root, "apps", "greeter");
     const sum = join(directory, "hd.sum");
     const good = await readFile(sum, "utf8");
-    const forged = `github.com/acme/text@1.0.0 h1:${Buffer.alloc(32, 7).toString("base64")}\n`;
+    const fake = `h1:${Buffer.alloc(32, 7).toString("base64")}`;
+    const forged = `github.com/acme/text@1.0.0 ${fake}\n${manifestLine("github.com/acme/text@1.0.0", TEXT_V1)}`;
     await writeFile(sum, forged);
     const mismatched = await hd(directory, ["check", "--format", "json"]);
     assert.equal(mismatched.status, 101);
@@ -208,6 +219,19 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     // hd fetch never replaces an entry (cli.sum.keep).
     assert.equal((await hd(directory, ["fetch"])).status, 101);
     assert.equal(await readFile(sum, "utf8"), forged);
+    // A manifest line is checked too, before selection reads the manifest
+    // (cli.dep.verify.manifest).
+    await writeFile(sum, `github.com/acme/text@1.0.0 ${expectedHash(TEXT_V1)}\n`);
+    const unread = await hd(directory, ["check", "--format", "json"], { PATH: "" });
+    assert.match(unread.stdout, /"code":"missing-sum-entry"/);
+    assert.match(unread.stdout, /text@1\.0\.0\/hd\.toml/);
+    await writeFile(
+      sum,
+      `github.com/acme/text@1.0.0 ${expectedHash(TEXT_V1)}\ngithub.com/acme/text@1.0.0/hd.toml ${fake}\n`,
+    );
+    const forgedManifest = await hd(directory, ["check", "--format", "json"]);
+    assert.match(forgedManifest.stdout, /"code":"sum-mismatch"/);
+    assert.match(forgedManifest.stdout, /fetched manifest's hash/);
     await writeFile(sum, good);
     // The tag moves to other code; a fresh cache fetches it and the hash differs.
     const moved = await remote("moving", [["v1.0.0", TEXT_V1]]);
@@ -239,7 +263,7 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     assert.equal(fetched.status, 0, fetched.stderr);
     assert.equal(
       await readFile(join(directory, "hd.sum"), "utf8"),
-      `github.com/acme/text@1.0.0 ${expectedHash(TEXT_V1)}\n`,
+      selectedLines("github.com/acme/text@1.0.0", TEXT_V1),
     );
     assert.equal((await hd(directory, ["check"])).status, 0);
   });
@@ -256,7 +280,7 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     );
     assert.equal(
       await readFile(join(directory, "hd.sum"), "utf8"),
-      `github.com/acme/text@1.1.0 ${expectedHash(TEXT_V1_1)}\n`,
+      selectedLines("github.com/acme/text@1.1.0", TEXT_V1_1),
     );
     const again = await hd(directory, ["update"]);
     assert.equal(again.status, 0, again.stderr);
@@ -313,24 +337,32 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     assert.equal((await hd(directory, ["fetch"])).status, 0);
     const added = await hd(directory, ["add", "lint", "github.com/acme/tools/lint@0.3.0"]);
     assert.equal(added.status, 0, added.stderr);
-    // lint requires text 1.1.0, so 1.1.0 is selected and 1.0.0's entry goes.
+    // lint requires text 1.1.0, so 1.1.0 is selected and 1.0.0's tree line
+    // goes. Selection still reads 1.0.0's manifest, so its manifest line stays.
+    const lint = {
+      "hd.toml":
+        '[package]\nname = "lint"\n\n[dependencies]\ntext = "github.com/acme/text@1.1.0"\n',
+      "src/lib.hd":
+        "use dep.text.{whisper}\n\npub fn hint(word: string) -> string:\n    whisper(word)\n",
+    };
     const sum = await readFile(join(directory, "hd.sum"), "utf8");
     assert.equal(
       sum,
+      manifestLine("github.com/acme/text@1.0.0", TEXT_V1) +
+        selectedLines("github.com/acme/text@1.1.0", TEXT_V1_1) +
+        selectedLines("github.com/acme/tools/lint@0.3.0", lint),
+    );
+    assert.equal(
       formatSum(
-        new Map([
-          ["github.com/acme/text@1.1.0", expectedHash(TEXT_V1_1)],
-          [
-            "github.com/acme/tools/lint@0.3.0",
-            expectedHash({
-              "hd.toml":
-                '[package]\nname = "lint"\n\n[dependencies]\ntext = "github.com/acme/text@1.1.0"\n',
-              "src/lib.hd":
-                "use dep.text.{whisper}\n\npub fn hint(word: string) -> string:\n    whisper(word)\n",
-            }),
-          ],
-        ]),
+        new Map(
+          sum
+            .trim()
+            .split("\n")
+            .reverse()
+            .map((line) => line.split(" ") as [string, string]),
+        ),
       ),
+      sum,
     );
     const ran = await hd(directory, ["run"]);
     assert.equal(ran.status, 0, ran.stderr);
@@ -340,7 +372,7 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     assert.doesNotMatch(await readFile(join(directory, "hd.toml"), "utf8"), /^lint =/m);
     assert.equal(
       await readFile(join(directory, "hd.sum"), "utf8"),
-      `github.com/acme/text@1.0.0 ${expectedHash(TEXT_V1)}\n`,
+      selectedLines("github.com/acme/text@1.0.0", TEXT_V1),
     );
   });
 

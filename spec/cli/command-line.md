@@ -696,10 +696,15 @@ hd check    # works offline from now on
 7. r[cli.dep.path] A path requirement names the package in its directory, by [`module.workspace.path-requirement`](../lang/10-modules.md#r-module.workspace.path-requirement). It is never fetched, and it has no `hd.sum` entry.
 8. r[cli.dep.invalid] A dependency key or requirement that breaks a rule of [Dependency Requirements](../lang/10-modules.md#dependency-requirements), [Host Paths](../lang/10-modules.md#host-paths), or [Versions](../lang/10-modules.md#versions) is an error at its line of `hd.toml`. Error: `invalid-requirement`.
 9. r[cli.dep.no-library] A requirement whose package has no `src/lib.hd` is an error, by [`module.path.no-lib-dependency`](../lang/10-modules.md#r-module.path.no-lib-dependency). Error: `invalid-requirement`.
+10. r[cli.dep.missing-sum.manifest] In those commands, a version that a requirement reaches and that has no [manifest line](#r-cli.sum.manifest-line) is an error at its requirement. Selection does not read its manifest. Error: `missing-sum-entry`.
+11. r[cli.dep.verify.manifest] A reached version whose manifest hash differs from its manifest line is an error, and selection does not read that manifest. Error: `sum-mismatch`.
 
 > **Why.** `hd.sum` is committed, so the first fetch of a version is the
 > one moment its hash is trusted. Only the commands that change
 > requirements record a hash; a build only checks one.
+> A version that is not selected still decides the selection through its
+> manifest, so its manifest is checked too, as Go checks its `/go.mod`
+> lines.
 
 ### Repositories
 
@@ -752,20 +757,30 @@ HD_CACHE=/srv/hd hd fetch    # into /srv/hd/pkg/github.com/acme/json@2.1.0
 
 ### hd.sum
 
-`hd.sum` holds one line per selected version, which no one edits by hand:
+`hd.sum` holds a tree line per selected version, and a manifest line per
+version whose manifest selection reads. No one edits it by hand:
 
 ```
+github.com/acme/json@2.0.0/hd.toml h1:x8m2c7S1yR3a4nQpZ0v9LkT6eW5uJbHdFgN1oPq2r3s=
 github.com/acme/json@2.1.0 h1:Wk5nB1xKpXz2q8pCw2e1mzXqLhZqS5pDq3K0V2m3s1c=
+github.com/acme/json@2.1.0/hd.toml h1:Q3vR8nT2bW7kX1mZ5pL9cJ4sH6dF0gY2aE8uN1oI3qw=
 github.com/acme/tools/lint@2.3.0 h1:1y7R7oDpvPj3c9sQm3r3N6cMfJ8pF0Q2b4Lw8d8N3hY=
+github.com/acme/tools/lint@2.3.0/hd.toml h1:Zk4mP8sQ1wE6rT3yU9iO2pA5dF7gH0jK1lX4cV6bN8m=
 ```
 
-1. r[cli.sum.line] Each line of `hd.sum` is a host path, `@`, a version, one space, and the tree hash of that version.
-2. r[cli.sum.order] The lines are sorted by host path, then by [version order](../lang/10-modules.md#r-module.version.order). Each line, the last included, ends with a newline.
+Here `lint@2.3.0` requires `json@2.0.0`, and the root requires `json@2.1.0`.
+Selection reads the manifest of `json@2.0.0` but selects `2.1.0`.
+
+1. r[cli.sum.line] Each **tree line** of `hd.sum` is a host path, `@`, a version, one space, and the tree hash of that version.
+2. r[cli.sum.order] The lines are sorted by host path, then by [version order](../lang/10-modules.md#r-module.version.order). A version's tree line comes before its manifest line. Each line, the last included, ends with a newline.
 3. r[cli.sum.tree] A version's tree is every regular file in its package directory at its tag, by [`cli.dep.tag`](#r-cli.dep.tag), or in a pseudo-version's commit, by [`cli.dep.pseudo`](#r-cli.dep.pseudo). A subdirectory that holds its own `hd.toml` is another package, and its files are not part of the tree.
 4. r[cli.sum.summary] The tree's summary has one line per file, sorted by path. A line is the file's SHA-256 in lowercase hexadecimal, two spaces, the file's path, and a newline.
 5. r[cli.sum.summary.path] That path is relative to the package directory, with `/` between its segments.
 6. r[cli.sum.hash] The **tree hash** is `h1:` followed by the Base64 encoding, with padding, of the SHA-256 of the summary.
 7. r[cli.sum.keep] No command replaces an entry with a different hash. A tree whose hash differs from its entry is always the error of [`cli.dep.verify`](#r-cli.dep.verify).
+8. r[cli.sum.manifest-line] A **manifest line** is a host path, `@`, a version, `/hd.toml`, one space, and the manifest hash of that version. `hd.sum` holds one for each version that selection reads, by [`module.select.reach`](../lang/10-modules.md#r-module.select.reach).
+9. r[cli.sum.manifest-hash] A version's **manifest hash** is the tree hash, by [`cli.sum.hash`](#r-cli.sum.hash), of a tree that holds only the version's `hd.toml`.
+10. r[cli.sum.entry] Both kinds of line are entries of `hd.sum`. [`cli.sum.keep`](#r-cli.sum.keep) holds for a manifest line too, whose mismatch is the error of [`cli.dep.verify.manifest`](#r-cli.dep.verify.manifest).
 
 > **Note.** The tree hash has the form of Go's `h1:` hash, whose paths
 > start with the module path. In a tree hash they start at the package
@@ -791,12 +806,12 @@ hd remove json                           # json's line and its hd.sum entry go
 1. r[cli.dep.add] `hd add NAME PATH@VERSION` sets the requirement of the key NAME in `[dependencies]` to `PATH@VERSION`. It adds the key when the manifest has none.
 2. r[cli.dep.add.check] `hd add` checks NAME and `PATH@VERSION` by [`cli.dep.invalid`](#r-cli.dep.invalid) before it fetches anything.
 3. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
-4. r[cli.dep.tidy] It then writes `hd.sum` with one entry for each selected version, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
+4. r[cli.dep.tidy] It then writes `hd.sum` with one tree line for each selected version, one manifest line for each version selection read, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
 5. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
 6. r[cli.dep.update.release] The newest release is the greatest tagged version without a pre-release suffix. A requirement already at or above it keeps its version.
 7. r[cli.dep.update.network] `hd update` lists the tags of each repository it moves, so it uses the network even when the cache holds every version.
 8. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
-9. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds an `hd.sum` entry for each selected version that has none, and changes no other entry.
+9. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds each tree line and manifest line that [`cli.dep.tidy`](#r-cli.dep.tidy) would write and `hd.sum` lacks, and changes no other entry.
 10. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
 11. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
 12. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.

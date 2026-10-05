@@ -1,15 +1,18 @@
 // Selecting and fetching a package's dependencies
 // (spec/cli/command-line.md#dependencies). Selection is minimal version
 // selection (spec/lang/10-modules.md#version-selection): it starts at the
-// package and the local packages its path requirements name, reads the
-// manifest of every version a requirement reaches, and selects the largest
-// minimum of each host path and compatibility line. A version the cache
-// lacks is fetched with git. The result is the package graph the linker
-// joins (src/package.ts), and each selected version's tree hash for `hd.sum`.
+// package, or at every member of its workspace
+// (spec/lang/10-modules.md#r-module.workspace.selection), reads the manifest
+// of every version a requirement reaches, and selects the largest minimum of
+// each host path and compatibility line. A version the cache lacks is
+// fetched with git. Each manifest read is checked against its `hd.sum`
+// manifest line, and each selected tree against its tree line
+// (spec/cli/command-line.md#hdsum). The result is the package graph the
+// linker joins (src/package.ts), and the `hd.sum` lines of the selection.
 
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 
 import { readManifest, type DependencyEntry, type Manifest } from "../manifest.ts";
 import type { DependencyPackage, PackageDependencies } from "../package.ts";
@@ -27,9 +30,8 @@ import {
   compareVersions,
   compatibilityLine,
   invalidKey,
-  pseudoCommit,
   parseRequirement,
-  parseVersion,
+  pseudoCommit,
   repositoryUrl,
   sourceName,
   tagName,
@@ -38,11 +40,17 @@ import {
   type Requirement,
   type Version,
 } from "./requirement.ts";
-import { sumKey, type SumEntries } from "./sum.ts";
+import { manifestHash, manifestKey, sumKey, type SumEntries } from "./sum.ts";
 
-/** A dependency problem, at a line of the package's `hd.toml`. */
-export interface DependencyProblem {
+/** A line of a local package's `hd.toml`: the root's, or another member's. */
+export interface Place {
+  /** The directory of the package whose `hd.toml` holds the line. */
+  readonly directory: string;
   readonly line: number;
+}
+
+/** A dependency problem, at a line of a local package's `hd.toml`. */
+export interface DependencyProblem extends Place {
   /** The stable code; null for a limit of the prototype that no rule names. */
   readonly code: string | null;
   readonly message: string;
@@ -52,9 +60,10 @@ export interface ResolveOptions {
   /** The command's environment variables: `HD_CACHE`, `HOME`, and what git reads. */
   readonly variables: Variables;
   /**
-   * `verify`: every selected version needs its `hd.sum` entry, as in `hd
-   * check` (cli.dep.missing-sum). `record`: a selected version without one
-   * gets its tree hash, as in `hd add` and `hd fetch`.
+   * `verify`: every version selection reads needs its `hd.sum` manifest
+   * line, and every selected version its tree line, as in `hd check`
+   * (cli.dep.missing-sum). `record`: a missing line gets its hash, as in
+   * `hd add` and `hd fetch`.
    */
   readonly sums: "verify" | "record";
   /** Called before each fetch, with the version it fetches. */
@@ -63,13 +72,14 @@ export interface ResolveOptions {
 
 /** The selected package graph, and what `hd.sum` holds for it. */
 export interface Resolution {
+  /** The graph of the package the command works on. */
   readonly graph: PackageDependencies;
-  /** Each selected version's `hd.sum` entry: its existing one, or its new tree hash. */
+  /** The `hd.sum` lines of the whole selection: existing ones, or new hashes. */
   readonly sums: ReadonlyMap<string, string>;
   readonly problems: readonly DependencyProblem[];
 }
 
-/** A package of the graph: the root, a local package, or a fetched version. */
+/** A package of the graph: a local package (a member), or a fetched version. */
 interface PackageNode {
   readonly id: string;
   readonly directory: string;
@@ -78,44 +88,56 @@ interface PackageNode {
   readonly fetched?: { readonly host: HostPath; readonly version: Version; readonly hash: string };
 }
 
-/** One checked requirement of a package, with the root line it is reported at. */
+/** One checked requirement of a package, with the local line it is reported at. */
 interface Edge {
   readonly entry: DependencyEntry;
   readonly requirement: Requirement;
-  /** The line of the root manifest that reached it. */
-  readonly line: number;
+  /** The line of a local manifest that reached it. */
+  readonly at: Place;
 }
 
 /** A host-path requirement on its way through selection. */
 interface HostEdge {
   readonly host: HostPath;
   readonly version: Version;
-  readonly line: number;
+  readonly at: Place;
 }
+
+type Problem = (at: Place, code: string | null, message: string) => void;
 
 const lineKey = (host: string, version: Version): string =>
   `${host}\0${compatibilityLine(version)}`;
 
 const posix = (path: string): string => path.split(sep).join("/");
 
-/**
- * The nearest workspace manifest's directory above `directory` that lists
- * it as a member (spec/cli/command-line.md#r-cli.mode.member), or undefined.
- */
-export async function workspaceRoot(directory: string): Promise<string | undefined> {
+/** A workspace manifest's directory and the member directories it lists. */
+interface Workspace {
+  readonly root: string;
+  readonly members: readonly string[];
+}
+
+async function enclosingWorkspace(directory: string): Promise<Workspace | undefined> {
   for (let above = dirname(directory); ; above = dirname(above)) {
     const path = join(above, "hd.toml");
     if (existsSync(path)) {
       const read = readManifest(await readFile(path, "utf8"));
       if ("manifest" in read && read.manifest.workspace) {
-        const member = posix(relative(above, directory));
-        return read.manifest.members.some((listed) => posix(join(listed)) === member)
-          ? above
+        const members = read.manifest.members.map((member) => resolve(above, member));
+        return members.some((member) => posix(member) === posix(directory))
+          ? { root: above, members }
           : undefined;
       }
     }
     if (dirname(above) === above) return undefined;
   }
+}
+
+/**
+ * The nearest workspace manifest's directory above `directory` that lists
+ * it as a member (spec/cli/command-line.md#r-cli.mode.member), or undefined.
+ */
+export async function workspaceRoot(directory: string): Promise<string | undefined> {
+  return (await enclosingWorkspace(directory))?.root;
 }
 
 async function readPackageManifest(directory: string): Promise<Manifest | string> {
@@ -129,7 +151,9 @@ async function readPackageManifest(directory: string): Promise<Manifest | string
 
 /**
  * Selects and fetches the dependencies of the package in `root`, whose
- * manifest is `manifest`, against the `hd.sum` entries `sums`.
+ * manifest is `manifest`, against the `hd.sum` entries `sums`. In a
+ * workspace, selection starts at every member, and `manifest` stands for the
+ * root's own `hd.toml`, which a dependency command may not have written yet.
  */
 export async function resolveDependencies(
   root: string,
@@ -138,23 +162,39 @@ export async function resolveDependencies(
   options: ResolveOptions,
 ): Promise<Resolution> {
   const problems: DependencyProblem[] = [];
-  const problem = (line: number, code: string | null, message: string): void => {
-    problems.push({ line, code, message });
+  const problem: Problem = (at, code, message) => {
+    problems.push({ ...at, code, message });
   };
+  const failed = (): Resolution => ({ graph: emptyGraph(), sums: new Map(), problems });
+
+  // The members: the root, and the other members of its workspace.
   const rootNode: PackageNode = { id: posix(root), directory: root, manifest };
-  // The requirements of each package, checked; the root's dev dependencies
-  // are read, and no other package's (module.select.dev-dependencies).
+  const members = new Map<string, PackageNode>([[rootNode.id, rootNode]]);
+  const workspace = await enclosingWorkspace(root);
+  for (const directory of workspace?.members ?? []) {
+    if (members.has(posix(directory))) continue;
+    const read = await readPackageManifest(directory);
+    if (typeof read === "string") {
+      problem({ directory: workspace!.root, line: 1 }, "invalid-requirement", read);
+      continue;
+    }
+    members.set(posix(directory), { id: posix(directory), directory, manifest: read });
+  }
+  const isMember = (node: PackageNode): boolean => members.get(node.id) === node;
+
+  // The requirements of each package, checked. The members' dev
+  // dependencies are read, and no other package's (module.select.dev-dependencies).
   const edges = new Map<PackageNode, Edge[]>();
-  const check = (node: PackageNode, at: (entry: DependencyEntry) => number): Edge[] => {
-    const owner = node === rootNode ? "" : ` in ${shownNode(node)}`;
+  const check = (node: PackageNode, at: (entry: DependencyEntry) => Place): Edge[] => {
+    const owner = isMember(node) ? "" : ` in ${shownNode(node)}`;
     const checked: Edge[] = [];
     const names = new Map<string, string>();
     const lines = new Map<string, string>();
     for (const entry of node.manifest.dependencies) {
-      if (entry.dev && node !== rootNode) continue;
-      const line = at(entry);
+      if (entry.dev && !isMember(node)) continue;
+      const place = at(entry);
       const fail = (message: string): void =>
-        problem(line, "invalid-requirement", `${message}${owner}`);
+        problem(place, "invalid-requirement", `${message}${owner}`);
       const badKey = invalidKey(entry.key);
       if (badKey !== undefined) {
         fail(badKey);
@@ -186,66 +226,50 @@ export async function resolveDependencies(
         }
         lines.set(key, entry.key);
       }
-      checked.push({ entry, requirement, line });
+      checked.push({ entry, requirement, at: place });
     }
     return checked;
   };
 
-  // The root and the local packages its path requirements reach
+  // A member's path requirement names another member of its workspace
   // (spec/lang/10-modules.md#r-module.workspace.path-requirement).
-  const locals = new Map<string, PackageNode>([[rootNode.id, rootNode]]);
-  const pending = [rootNode];
-  const rootLine = new Map<PackageNode, number>();
-  while (pending.length > 0) {
-    const node = pending.shift()!;
-    const reportAt = rootLine.get(node);
-    const nodeEdges = check(node, (entry) => reportAt ?? entry.line);
+  for (const node of members.values()) {
+    const nodeEdges = check(node, (entry) => ({ directory: node.directory, line: entry.line }));
     edges.set(node, nodeEdges);
     for (const edge of nodeEdges) {
       if (edge.requirement.kind !== "path") continue;
-      const directory = resolve(node.directory, edge.requirement.path);
-      const id = posix(directory);
-      if (locals.has(id)) continue;
-      const [own, other] = [await workspaceRoot(node.directory), await workspaceRoot(directory)];
-      if (own === undefined || own !== other) {
+      if (!members.has(posix(resolve(node.directory, edge.requirement.path))))
         problem(
-          edge.line,
+          edge.at,
           "invalid-requirement",
           `${edge.entry.key}: a path requirement names another member of the package's workspace, and ${edge.requirement.path} is not one; list both directories in the members of a workspace hd.toml`,
         );
-        continue;
-      }
-      const read = await readPackageManifest(directory);
-      if (typeof read === "string") {
-        problem(edge.line, "invalid-requirement", `${edge.entry.key}: ${read}`);
-        continue;
-      }
-      const local: PackageNode = { id, directory, manifest: read };
-      locals.set(id, local);
-      rootLine.set(local, edge.line);
-      pending.push(local);
     }
   }
-  if (problems.length > 0) return { graph: emptyGraph(), sums: new Map(), problems };
+  if (problems.length > 0) return failed();
 
   const hostEdges = (node: PackageNode): HostEdge[] =>
-    (edges.get(node) ?? []).flatMap(({ requirement, line }) =>
+    (edges.get(node) ?? []).flatMap(({ requirement, at }) =>
       requirement.kind === "host"
-        ? [{ host: requirement.host, version: requirement.version, line }]
+        ? [{ host: requirement.host, version: requirement.version, at }]
         : [],
     );
-  const start = [...locals.values()].flatMap(hostEdges);
-  // Without an hd.sum entry on a requirement's line, whatever selection
-  // picks has none, so `hd check` fails before it fetches (cli.dep.missing-sum).
+  const start = [...members.values()].flatMap(hostEdges);
+  // Selection reads the manifest of every version a member requires, so
+  // without its manifest line `hd check` fails before it fetches
+  // (cli.dep.missing-sum, cli.sum.manifest-line).
   if (options.sums === "verify") {
     for (const edge of start)
-      if (!hasEntryOnLine(sums, edge)) problem(edge.line, "missing-sum-entry", missingSum(edge));
-    if (problems.length > 0) return { graph: emptyGraph(), sums: new Map(), problems };
+      if (!sums.has(manifestKey(edge.host.path, edge.version.text)))
+        problem(edge.at, "missing-sum-entry", missingManifest(edge));
+    if (problems.length > 0) return failed();
   }
 
   // Minimal version selection over every reached version
-  // (spec/lang/10-modules.md#r-module.select.reach).
+  // (spec/lang/10-modules.md#r-module.select.reach,
+  // spec/lang/10-modules.md#r-module.select.largest).
   const fetcher = new Fetcher(options);
+  const recorded = new Map<string, string>();
   const reached = new Map<string, PackageNode>();
   const selected = new Map<string, HostEdge>();
   const queue = [...start];
@@ -256,17 +280,31 @@ export async function resolveDependencies(
     if (!best || compareVersions(edge.version, best.version) > 0) selected.set(line, edge);
     const key = sumKey(edge.host.path, edge.version.text);
     if (reached.has(key)) continue;
+    // Each manifest selection reads is checked before it is read
+    // (spec/cli/command-line.md#r-cli.dep.verify.manifest).
+    const lineOfManifest = manifestKey(edge.host.path, edge.version.text);
+    const expected = sums.get(lineOfManifest);
+    if (expected === undefined && options.sums === "verify") {
+      problem(edge.at, "missing-sum-entry", missingManifest(edge));
+      continue;
+    }
     const node = await fetcher.node(edge, problem);
     if (!node) continue;
     reached.set(key, node);
-    const nodeEdges = check(node, () => edge.line).flatMap((checked): Edge[] => {
+    const hash = await manifestHash(node.directory);
+    if (expected !== undefined && expected !== hash) {
+      problem(edge.at, "sum-mismatch", mismatch(lineOfManifest, "manifest", hash, expected));
+      continue;
+    }
+    recorded.set(lineOfManifest, hash);
+    const nodeEdges = check(node, () => edge.at).flatMap((checked): Edge[] => {
       if (checked.requirement.kind === "host") return [checked];
       // A fetched version's path requirement is a dependency requirement on
       // its version, by the host path it was fetched from
       // (module.workspace.path-version.fetched-version).
       const requirement = fetchedPathRequirement(node, checked);
       if (typeof requirement === "string") {
-        problem(edge.line, "invalid-requirement", requirement);
+        problem(edge.at, "invalid-requirement", requirement);
         return [];
       }
       return [{ ...checked, requirement }];
@@ -274,11 +312,10 @@ export async function resolveDependencies(
     edges.set(node, nodeEdges);
     queue.push(...hostEdges(node));
   }
-  if (problems.length > 0) return { graph: emptyGraph(), sums: new Map(), problems };
+  if (problems.length > 0) return failed();
 
-  // Each selected version's entry: kept, recorded, or a mismatch
+  // Each selected version's tree line: kept, recorded, or a mismatch
   // (spec/cli/command-line.md#r-cli.dep.verify, cli.sum.keep).
-  const recorded = new Map<string, string>();
   const chosen = new Map<string, PackageNode>();
   for (const [line, edge] of selected) {
     const key = sumKey(edge.host.path, edge.version.text);
@@ -287,26 +324,37 @@ export async function resolveDependencies(
     const hash = node.fetched!.hash;
     const entry = sums.get(key);
     if (entry === undefined) {
-      if (options.sums === "verify") problem(edge.line, "missing-sum-entry", missingSum(edge));
+      if (options.sums === "verify") problem(edge.at, "missing-sum-entry", missingSum(edge));
       else recorded.set(key, hash);
-    } else if (entry !== hash)
-      problem(
-        edge.line,
-        "sum-mismatch",
-        `${key}: the fetched tree's hash ${hash} differs from its hd.sum entry ${entry}; hd never replaces an entry, so find out why the tree changed, as a moved tag, before you delete the entry and run hd fetch`,
-      );
+    } else if (entry !== hash) problem(edge.at, "sum-mismatch", mismatch(key, "tree", hash, entry));
     else recorded.set(key, entry);
   }
-  for (const node of [...locals.values(), ...chosen.values()])
-    if (node !== rootNode && !existsSync(join(node.directory, "src", "lib.hd")))
-      problem(
-        lineOf(node, rootLine, selected),
-        "invalid-requirement",
-        `${shownNode(node)} has no library, src/lib.hd, so no package can depend on it`,
-      );
-  if (problems.length > 0) return { graph: emptyGraph(), sums: new Map(), problems };
+  if (problems.length > 0) return failed();
+
+  // A package that something depends on needs a library
+  // (spec/lang/10-modules.md#r-module.path.no-lib-dependency).
+  const target = (from: PackageNode, edge: Edge): PackageNode | undefined => {
+    const { requirement } = edge;
+    if (requirement.kind === "host")
+      return chosen.get(lineKey(requirement.host.path, requirement.version));
+    return members.get(posix(resolve(from.directory, requirement.path)));
+  };
+  const checkedLibrary = new Set<PackageNode>();
+  for (const node of [...members.values(), ...chosen.values()])
+    for (const edge of edges.get(node) ?? []) {
+      const found = target(node, edge);
+      if (!found || checkedLibrary.has(found)) continue;
+      checkedLibrary.add(found);
+      if (!existsSync(join(found.directory, "src", "lib.hd")))
+        problem(
+          edge.at,
+          "invalid-requirement",
+          `${shownNode(found)} has no library, src/lib.hd, so no package can depend on it`,
+        );
+    }
+  if (problems.length > 0) return failed();
   return {
-    graph: await linkGraph(rootNode, locals, chosen, edges),
+    graph: await linkGraph(rootNode, edges, target),
     sums: recorded,
     problems,
   };
@@ -322,32 +370,16 @@ function shownNode(node: PackageNode): string {
     : (node.manifest.name ?? node.directory);
 }
 
-function lineOf(
-  node: PackageNode,
-  rootLine: ReadonlyMap<PackageNode, number>,
-  selected: ReadonlyMap<string, HostEdge>,
-): number {
-  if (!node.fetched) return rootLine.get(node) ?? 1;
-  return selected.get(lineKey(node.fetched.host.path, node.fetched.version))?.line ?? 1;
-}
-
-function hasEntryOnLine(sums: SumEntries, edge: HostEdge): boolean {
-  for (const key of sums.keys()) {
-    const at = key.lastIndexOf("@");
-    if (key.slice(0, at) !== edge.host.path) continue;
-    const version = parseVersion(key.slice(at + 1));
-    if (
-      version &&
-      compatibilityLine(version) === compatibilityLine(edge.version) &&
-      compareVersions(version, edge.version) >= 0
-    )
-      return true;
-  }
-  return false;
-}
-
 function missingSum(edge: HostEdge): string {
   return `${sumKey(edge.host.path, edge.version.text)} has no hd.sum entry, so its tree cannot be checked; run hd fetch to fetch it and record its hash, or hd add to change the requirement`;
+}
+
+function missingManifest(edge: HostEdge): string {
+  return `${sumKey(edge.host.path, edge.version.text)} has no hd.sum line for its manifest, ${manifestKey(edge.host.path, edge.version.text)}, so selection cannot read it; run hd fetch to fetch it and record its hash, or hd add to change the requirement`;
+}
+
+function mismatch(key: string, what: string, hash: string, entry: string): string {
+  return `${key}: the fetched ${what}'s hash ${hash} differs from its hd.sum entry ${entry}; hd never replaces an entry, so find out why the ${what} changed, as a moved tag, before you delete the entry and run hd fetch`;
 }
 
 /**
@@ -395,11 +427,8 @@ class Fetcher {
     return this.cacheRoot;
   }
 
-  async node(
-    edge: HostEdge,
-    problem: (line: number, code: string | null, message: string) => void,
-  ): Promise<PackageNode | undefined> {
-    const { host, version, line } = edge;
+  async node(edge: HostEdge, problem: Problem): Promise<PackageNode | undefined> {
+    const { host, version, at } = edge;
     const key = sumKey(host.path, version.text);
     const cache = this.cache();
     const entry =
@@ -408,7 +437,7 @@ class Fetcher {
     if (!entry) return undefined;
     const manifest = await readPackageManifest(entry.directory);
     if (typeof manifest === "string") {
-      problem(line, "invalid-requirement", `${key} is no package: ${manifest}`);
+      problem(at, "invalid-requirement", `${key} is no package: ${manifest}`);
       return undefined;
     }
     return {
@@ -422,9 +451,9 @@ class Fetcher {
   private async fetch(
     edge: HostEdge,
     cache: string,
-    problem: (line: number, code: string | null, message: string) => void,
+    problem: Problem,
   ): Promise<{ directory: string; hash: string } | undefined> {
-    const { host, version, line } = edge;
+    const { host, version, at } = edge;
     const key = sumKey(host.path, version.text);
     const url = repositoryUrl(host);
     const pseudo = pseudoCommit(version);
@@ -440,7 +469,7 @@ class Fetcher {
         const found = await checkOutCommit(url, pseudo.hash, into, this.options.variables);
         if (found === "missing" || found.time !== pseudo.time) {
           problem(
-            line,
+            at,
             "unknown-version",
             found === "missing"
               ? `${host.path} has no commit ${pseudo.hash} on a branch or tag, so the pseudo-version ${version.text} does not exist`
@@ -466,7 +495,7 @@ class Fetcher {
           .sort(compareVersions)
           .map(({ text }) => text);
         problem(
-          line,
+          at,
           "unknown-version",
           `${host.path} has no tag ${tag}, so version ${version.text} does not exist; ${near.length > 0 ? `its versions on line ${compatibilityLine(version)} are ${near.join(", ")}` : `it has no tag on line ${compatibilityLine(version)}`}`,
         );
@@ -484,7 +513,7 @@ class Fetcher {
     } catch (error) {
       if (!(error instanceof GitError)) throw error;
       problem(
-        line,
+        at,
         "fetch-failed",
         `cannot fetch ${key} from ${url}: ${error.message}; hd fetches with git and git's own credentials, so check that 'git ls-remote ${url}' works`,
       );
@@ -499,15 +528,14 @@ class Fetcher {
     edge: HostEdge,
     cache: string,
     directory: string,
-    problem: (line: number, code: string | null, message: string) => void,
+    problem: Problem,
   ): Promise<{ directory: string; hash: string } | undefined> {
-    const { host, version, line } = edge;
+    const { host, version, at } = edge;
     if (!existsSync(join(directory, "hd.toml"))) {
-      const where = pseudoCommit(version)
-        ? `the commit ${pseudoCommit(version)!.hash}`
-        : `the tag ${tagName(host, version)}`;
+      const pseudo = pseudoCommit(version);
+      const where = pseudo ? `the commit ${pseudo.hash}` : `the tag ${tagName(host, version)}`;
       problem(
-        line,
+        at,
         "invalid-requirement",
         `${sumKey(host.path, version.text)} is no package: ${where} has no ${host.subdirectory === "" ? "" : `${host.subdirectory}/`}hd.toml`,
       );
@@ -530,31 +558,36 @@ async function libraryFiles(node: PackageNode): Promise<Record<string, string>> 
   );
 }
 
-/** The linker's view of the selected graph (src/package.ts). */
+/**
+ * The linker's view of the root's part of the selected graph
+ * (src/package.ts): the packages its requirements reach, the root's dev
+ * dependencies included and no other package's.
+ */
 async function linkGraph(
   rootNode: PackageNode,
-  locals: ReadonlyMap<string, PackageNode>,
-  chosen: ReadonlyMap<string, PackageNode>,
   edges: ReadonlyMap<PackageNode, readonly Edge[]>,
+  target: (from: PackageNode, edge: Edge) => PackageNode | undefined,
 ): Promise<PackageDependencies> {
-  const target = (from: PackageNode, edge: Edge): PackageNode | undefined => {
-    const { requirement } = edge;
-    if (requirement.kind === "host")
-      return chosen.get(lineKey(requirement.host.path, requirement.version));
-    return locals.get(posix(resolve(from.directory, requirement.path)));
-  };
+  const linked = (node: PackageNode): readonly Edge[] =>
+    (edges.get(node) ?? []).filter((edge) => node === rootNode || !edge.entry.dev);
   const shown = new Map<PackageNode, string>();
-  for (const edge of edges.get(rootNode) ?? []) {
+  for (const edge of linked(rootNode)) {
     const node = target(rootNode, edge);
     if (node) shown.set(node, `dep.${sourceName(edge.entry.key)}`);
   }
   const packages: Record<string, DependencyPackage> = {};
-  for (const node of [...locals.values(), ...chosen.values()]) {
-    if (node === rootNode) continue;
+  const pending = linked(rootNode).flatMap((edge) => target(rootNode, edge) ?? []);
+  const seen = new Set<PackageNode>([rootNode]);
+  while (pending.length > 0) {
+    const node = pending.shift()!;
+    if (seen.has(node)) continue;
+    seen.add(node);
     const dependencies: Record<string, string> = {};
-    for (const edge of edges.get(node) ?? []) {
+    for (const edge of linked(node)) {
       const found = target(node, edge);
-      if (found) dependencies[sourceName(edge.entry.key)] = found.id;
+      if (!found) continue;
+      dependencies[sourceName(edge.entry.key)] = found.id;
+      pending.push(found);
     }
     packages[node.id] = {
       id: node.id,
@@ -566,7 +599,7 @@ async function linkGraph(
   }
   const dependencies: Record<string, string> = {};
   const devDependencies: Record<string, string> = {};
-  for (const edge of edges.get(rootNode) ?? []) {
+  for (const edge of linked(rootNode)) {
     const node = target(rootNode, edge);
     if (node)
       (edge.entry.dev ? devDependencies : dependencies)[sourceName(edge.entry.key)] = node.id;

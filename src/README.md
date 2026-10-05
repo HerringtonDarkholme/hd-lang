@@ -159,7 +159,10 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `manifest.ts` reads `[dependencies]` and `[dev-dependencies]`, and
   `dependencies/` does the rest. `requirement.ts` checks keys, host paths,
   and versions (`invalid-requirement`). `resolve.ts` runs minimal version
-  selection over every reached version, fetching what the cache lacks.
+  selection over every reached version, from the package or from every
+  member of its workspace, fetching what the cache lacks. It checks each
+  manifest it reads against its `hd.sum` manifest line and each selected
+  tree against its tree line, and links only what the package reaches.
   `git.ts` runs the system `git` (`ls-remote`, then a shallow fetch of the
   tag) with prompts off and credentials masked. A pseudo-version fetches
   every branch and tag, then checks out the commit its hash names, after

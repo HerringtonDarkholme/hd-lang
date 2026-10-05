@@ -4,7 +4,7 @@
 
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 import { Report, type OutputFormat } from "../diagnostic-report.ts";
 import { removeDependency, setDependency } from "../dependencies/manifest-edit.ts";
@@ -57,9 +57,13 @@ async function readSumFile(pkg: LocalPackage, path: string): Promise<SumEntries 
   };
 }
 
-function manifestProblems(resolution: Resolution): PackageProblem[] {
-  return resolution.problems.map(({ line, code, message }) => ({
-    path: MANIFEST_FILE,
+/**
+ * The resolution's problems, each at a line of the package's `hd.toml`, or
+ * of another workspace member's, by its path from the package directory.
+ */
+function manifestProblems(pkg: LocalPackage, resolution: Resolution): PackageProblem[] {
+  return resolution.problems.map(({ directory, line, code, message }) => ({
+    path: relative(pkg.root, join(directory, MANIFEST_FILE)).split(sep).join("/"),
     line,
     column: 1,
     code,
@@ -97,7 +101,7 @@ export async function withDependencies(
   });
   return {
     ...pkg,
-    problems: [...pkg.problems, ...manifestProblems(resolution)],
+    problems: [...pkg.problems, ...manifestProblems(pkg, resolution)],
     dependencies: resolution.graph,
   };
 }
@@ -175,7 +179,7 @@ async function dependencyCommand(
   });
   // The problems point into the changed manifest, so they show its lines.
   if (resolution.problems.length > 0)
-    return fail(manifestProblems(resolution).map((problem) => ({ ...problem })));
+    return fail(manifestProblems(pkg, resolution).map((problem) => ({ ...problem })));
   // `hd fetch` only adds entries (cli.dep.fetch); the others tidy (cli.dep.tidy).
   const entries = new Map(sumsOnly === "add" ? sums : []);
   for (const [key, hash] of resolution.sums) entries.set(key, hash);
