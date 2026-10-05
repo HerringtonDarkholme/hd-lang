@@ -3,6 +3,7 @@ import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, HirExpression, HirTrait, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
 import {
+  expandedAliasType,
   mutableInner,
   mutableType,
   nominalGenericParts,
@@ -20,7 +21,7 @@ import {
 } from "./shared.ts";
 import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
-import { standardCoreTypeAlias } from "./standard-core.ts";
+import { STANDARD_CORE_TYPE_ALIASES, standardCoreTypeAlias } from "./standard-core.ts";
 import { registeredPackageOwnership } from "./package-ownership.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
@@ -142,7 +143,8 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
           kind: "unary",
           operator: "cast",
           operand: value,
-          type: numericName,
+          // A compiler-owned alias spelling keeps its name (`usize(x)` is `usize`).
+          type: STANDARD_CORE_TYPE_ALIASES.has(name) ? name : numericName,
           span: expression.span,
         };
       if (!unwraps)
@@ -291,7 +293,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       (method) =>
         !method.associated &&
         method.name === name &&
-        (method.targetType === type ||
+        (expandedAliasType(method.targetType) === expandedAliasType(type) ||
           (method.targetGenericParameters !== undefined &&
             matchGenericTypePattern(method.targetType, type, new Map()))),
     );

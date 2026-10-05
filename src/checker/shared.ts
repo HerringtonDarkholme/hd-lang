@@ -24,6 +24,7 @@ import type { Signature } from "./context-types.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
 import { matchGenericTypePattern } from "./generic-patterns.ts";
 import { pureLiteralKind } from "./literal-join.ts";
+import { familyHolds } from "./numeric-family.ts";
 import { normalizedRequirements, rowParameterName, sameRequirements } from "./requirement-rows.ts";
 
 export { matchGenericTypePattern } from "./generic-patterns.ts";
@@ -31,6 +32,7 @@ export { normalizedRequirements, rowParameterName, sameRequirements } from "./re
 import {
   contextKeys,
   contextType,
+  sameExpandedType,
   functionParts,
   functionType,
   mutableInner,
@@ -226,6 +228,7 @@ const TYPE_NAMES = new Set<ValueType>([
   "i16",
   "u16",
   "u32",
+  "usize",
   "u64",
   "f32",
   "i32",
@@ -775,6 +778,7 @@ export function inferGenericType(
     const existing = substitutions.get(generic);
     // A `mut T` argument weakens to a parameter already inferred as `T`.
     if (existing && mutableInner(actual) === existing) return undefined;
+    if (existing && sameExpandedType(existing, actual)) return undefined;
     if (existing && existing !== actual)
       return `generic parameter '${generic}' was inferred as both ${displayType(existing)} and ${displayType(actual)}`;
     substitutions.set(generic, actual);
@@ -915,24 +919,6 @@ interface TraitImplementationPattern {
   readonly trait?: { readonly index: number };
   readonly traitIndex?: number;
   readonly family?: NumericFamily;
-}
-
-/**
- * Whether the parameters of a numeric-family implementation that
- * `substitutions` solves take types their sealed bounds list, as `N < Integer`
- * holds for `i64` (09-traits.md#r-trait.target.numeric-family.each). With
- * `complete`, every parameter must be solved.
- */
-function familyHolds(
-  family: NumericFamily | undefined,
-  substitutions: ReadonlyMap<string, ValueType>,
-  complete: boolean,
-): boolean {
-  if (!family) return true;
-  return Object.entries(family).every(([parameter, types]) => {
-    const actual = substitutions.get(parameter);
-    return actual === undefined ? !complete : types.includes(readonlyType(actual));
-  });
 }
 
 /**

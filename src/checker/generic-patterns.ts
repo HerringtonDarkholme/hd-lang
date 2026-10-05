@@ -1,6 +1,7 @@
 import type { ValueType } from "../hir.ts";
 import {
   bindingParts,
+  expandedAliasType,
   functionInputsTuple,
   functionParts,
   inputsInner,
@@ -30,7 +31,11 @@ export function matchGenericTypePattern(
   const patternHead = NOMINAL_HEAD.exec(pattern)?.[1];
   if (patternHead !== undefined) {
     const actualHead = NOMINAL_HEAD.exec(actual)?.[1];
-    if (actualHead !== undefined && actualHead !== patternHead) return false;
+    if (
+      actualHead !== undefined &&
+      expandedAliasType(actualHead) !== expandedAliasType(patternHead)
+    )
+      return false;
   }
   const patternBinding = bindingParts(pattern);
   const actualBinding = bindingParts(actual);
@@ -52,11 +57,15 @@ export function matchGenericTypePattern(
   const generic = genericTypeName(pattern);
   if (generic) {
     const existing = substitutions.get(generic);
-    if (existing) return existing === actual;
+    if (existing) return expandedAliasType(existing) === expandedAliasType(actual);
     substitutions.set(generic, actual);
     return true;
   }
-  if (pattern === actual && !pattern.includes("generic:")) return true;
+  if (
+    (pattern === actual || expandedAliasType(pattern) === expandedAliasType(actual)) &&
+    !pattern.includes("generic:")
+  )
+    return true;
   const patternMutable = mutableInner(pattern);
   const actualMutable = mutableInner(actual);
   if (patternMutable !== undefined || actualMutable !== undefined)

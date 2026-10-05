@@ -550,6 +550,15 @@ fn middle(items: List[i32]) -> usize:
 2. r[types.alias.usize.prelude] `usize` is a [prelude](10-modules.md#prelude) name, so every module may write it without a `use`.
 3. r[types.alias.usize.sizes] Every length, index, count, and byte offset that the language defines has type `usize`.
 4. r[types.alias.usize.cast] `usize(x)` is the numeric cast `u32(x)`, by [Numeric Casts](#numeric-casts).
+5. r[types.alias.usize.display] Diagnostics and the REPL render a type that came from a bare-literal default, or was written `usize`, as `usize`, not `u32`.
+
+```text
+fn take_i32(x: i32) -> i32: x
+
+pub fn main() -> i32:
+    total := 0
+    take_i32(total)  # type-mismatch: expected i32, found usize
+```
 
 > **Note.** `usize` is `u32` on every target today. Code that names
 > `usize` keeps working if a later target makes it wider.

@@ -1,0 +1,8 @@
+# test: a defaulted literal's type prints as usize, not u32
+# Spec 04 Type System: r-types.alias.usize.display renders a bare-literal
+# default as `usize`.
+fn take_i32(x: i32) -> i32: x
+
+pub fn main() -> i32:
+    total := 0
+    take_i32(total)  # diagnostic: type-mismatch

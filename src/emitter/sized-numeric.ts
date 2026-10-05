@@ -27,7 +27,7 @@ export interface SizedNumericContext {
 
 /** The types these helpers handle; `i32`, `i64`, and `f64` keep their own paths. */
 export function isSizedNumeric(type: ValueType): boolean {
-  return ["i8", "i16", "u8", "u16", "u32", "u64", "f32"].includes(type);
+  return ["i8", "i16", "u8", "u16", "u32", "usize", "u64", "f32"].includes(type);
 }
 
 function info(type: ValueType): NumericType {
@@ -194,7 +194,7 @@ export function emitSizedBinary(
       return numeric.bits === 32
         ? `(i32.wrap_i64 ${power})`
         : wrapNarrow(`(i32.wrap_i64 ${power})`, type);
-    if (type === "u32") return `(call $hd.check_u32 ${power})`;
+    if (type === "u32" || type === "usize") return `(call $hd.check_u32 ${power})`;
     const { minimum, maximum } = numeric;
     return `(i32.wrap_i64 (call $hd.check_range_i64 ${power} ${i64Constant(minimum!)} ${i64Constant(maximum!)}))`;
   }
@@ -238,7 +238,7 @@ export function emitSizedBinary(
     return wrapNarrow(`(i32.${name} ${left} ${right})`, type);
   }
   if (type === "u64") return `(call $hd.${name}_u64 ${left} ${right})`;
-  if (type === "u32")
+  if (type === "u32" || type === "usize")
     return `(call $hd.check_u32 (i64.${name} (i64.extend_i32_u ${left}) (i64.extend_i32_u ${right})))`;
   return checkNarrow(`(i32.${name} ${left} ${right})`, type);
 }

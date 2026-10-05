@@ -445,7 +445,7 @@ test("cannot-infer-type names the uninferred parameter and the annotation that s
     analyze(source).diagnostics.find(({ code }) => code === "cannot-infer-type")?.message;
   assert.equal(
     message("fn main() -> void:\n    a := Result.Ok(123)\n"),
-    "cannot infer `E` in `Result[u32, E]`; annotate the binding: `let a: Result[u32, E] = ...`",
+    "cannot infer `E` in `Result[usize, E]`; annotate the binding: `let a: Result[usize, E] = ...`",
   );
   assert.equal(
     message('fn main() -> void:\n    failed := Result.Err("x")\n'),
@@ -459,7 +459,7 @@ test("cannot-infer-type names the uninferred parameter and the annotation that s
   );
   assert.equal(
     message("fn main() -> void:\n    items := [Result.Ok(1)]\n"),
-    "cannot infer `E` in `Result[u32, E]`; annotate a binding for it: `let value: Result[u32, E] = ...`",
+    "cannot infer `E` in `Result[usize, E]`; annotate a binding for it: `let value: Result[usize, E] = ...`",
   );
   assert.equal(
     message('fn make[T]() -> T:\n    panic("no")\n\nfn main() -> void:\n    made := make()\n'),

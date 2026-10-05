@@ -196,6 +196,7 @@ lang/04-type-system.md	74	mixed	typing/valid/lct-drops-never.hd|runtime/valid/lc
 lang/04-type-system.md	75	mixed	typing/invalid/none-beside-values-needs-expected-type.hd|typing/invalid/none-branch-needs-expected-type.hd
 lang/04-type-system.md	76	mixed	typing/invalid/least-type-weakening-variance.hd|typing/invalid/least-common-type-supertrait-widening.hd
 lang/04-type-system.md	77	mixed	typing/invalid/ambiguous-requirement-key-solution.hd|typing/valid/ambiguous-requirement-key-annotated.hd
+lang/04-type-system.md	78	mixed	typing/invalid/expected-i32-found-usize.hd
 lang/05-expressions.md	1	mixed	typing/invalid/tuple-element-assignment.hd
 lang/05-expressions.md	2	accept	typing/valid/compound-assignment.hd|runtime/valid/compound-assignment-alias.hd
 lang/05-expressions.md	3	mixed	typing/invalid/compound-assign-readonly.hd|typing/invalid/compound-assign-data-no-operator.hd|typing/invalid/compound-assign-not-place.hd
@@ -535,6 +536,8 @@ lang/10-modules.md	49	mixed	typing/invalid/nondisplay-entry-error.hd
 lang/10-modules.md	50	type-fragment	-
 lang/10-modules.md	51	accept	typing/valid/entry-exit-code.hd
 lang/10-modules.md	52	type-fragment	-
+lang/10-modules.md	53	mixed	typing/invalid/std-child-path-through-parent.hd
+lang/10-modules.md	54	illustrative-pseudocode	-
 lang/11-requirements-and-suspension.md	1	accept	typing/valid/requirements-and-suspension.hd
 lang/11-requirements-and-suspension.md	2	mixed	parse/invalid/old-row-separator-header.hd
 lang/11-requirements-and-suspension.md	3	mixed	typing/invalid/method-without-requirement-clause.hd

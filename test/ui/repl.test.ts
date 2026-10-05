@@ -100,10 +100,10 @@ test("hd repl in a terminal indents continuation lines but not pasted ones", asy
   // so `else` stays in column 1. A plain paste, then a bracketed paste.
   await type("if true:\r    3\r");
   await type("else:\r    0\r\r");
-  await shown("3 : u32");
+  await shown("3 : usize");
   await type("\u001b[200~if false:\r    0\r");
   await type("else:\r    4\r\u001b[201~\r");
-  await shown("4 : u32");
+  await shown("4 : usize");
   input.end();
   await done;
 });
@@ -197,7 +197,7 @@ test("respond answers inputs and commands for every front end", async () => {
   const session = new ReplSession();
   assert.deepEqual(await respond(session, "x := 21"), { entries: [], kept: true });
   assert.deepEqual(await respond(session, "x * 2"), {
-    entries: [{ kind: "value", text: "42", type: "u32" }],
+    entries: [{ kind: "value", text: "42", type: "usize" }],
     kept: true,
   });
   assert.deepEqual(await respond(session, "missing"), {
@@ -205,7 +205,7 @@ test("respond answers inputs and commands for every front end", async () => {
     kept: false,
   });
   assert.deepEqual(await respond(session, ":type [x]"), {
-    entries: [{ kind: "code", text: "List[u32]" }],
+    entries: [{ kind: "code", text: "List[usize]" }],
     kept: false,
   });
   assert.match((await respond(session, ":help")).entries[0]!.text, /:type EXPR/);
@@ -255,7 +255,7 @@ test("REPL inputs can be checked without running them", async () => {
     accepted: true,
   });
   const checked = await session.evaluate("1 / 0", { run: false });
-  assert.deepEqual([checked.accepted, checked.value, checked.type], [true, undefined, "u32"]);
+  assert.deepEqual([checked.accepted, checked.value, checked.type], [true, undefined, "usize"]);
   assert.equal((await session.evaluate("y := nope", { run: false })).accepted, false);
   // `declare` takes declarations whatever their first line is.
   const fresh = new ReplSession();
@@ -268,7 +268,7 @@ test("REPL sessions keep declarations and bindings across inputs", async () => {
   assert.deepEqual(await session.evaluate("1 + 2"), {
     output: [],
     value: "3",
-    type: "u32",
+    type: "usize",
     errors: [],
     warnings: [],
     accepted: true,
@@ -289,9 +289,9 @@ test("REPL values render structurally with their types", async () => {
   await session.evaluate("enum Shape:\n    Circle(radius: f64)\n    Dot");
   const cases: readonly (readonly [string, string, string])[] = [
     ['User { name: "Ada", age: 36 }', 'User { name: "Ada", age: 36 }', "User"],
-    ["[1, 2]", "[1, 2]", "List[u32]"],
-    ['(1, "two")', '(1, "two")', "(u32, string)"],
-    ['{"k": 1}', '{"k": 1}', "Map[string, u32]"],
+    ["[1, 2]", "[1, 2]", "List[usize]"],
+    ['(1, "two")', '(1, "two")', "(usize, string)"],
+    ['{"k": 1}', '{"k": 1}', "Map[string, usize]"],
     ["Shape.Circle(radius=2.0)", "Shape.Circle(radius: 2.0)", "Shape"],
     ["Shape.Dot", "Shape.Dot", "Shape"],
     ["1.5", "1.5", "f64"],
@@ -355,12 +355,12 @@ test("REPL value types keep mut access", async () => {
   assert.deepEqual(session.typeOf("b"), { type: "mut List[i32]", errors: [] });
   await session.evaluate("c := b");
   assert.equal((await session.evaluate("c")).type, "List[i32]");
-  assert.equal((await session.evaluate("[1]")).type, "List[u32]");
+  assert.equal((await session.evaluate("[1]")).type, "List[usize]");
 });
 
 test("REPL type queries do not run or keep the expression", () => {
   const session = new ReplSession();
-  assert.deepEqual(session.typeOf("[1, 2]"), { type: "List[u32]", errors: [] });
+  assert.deepEqual(session.typeOf("[1, 2]"), { type: "List[usize]", errors: [] });
   assert.equal(session.source().includes("[1, 2]"), false);
 });
 
@@ -374,7 +374,7 @@ test("hd repl reads a session from standard input", async () => {
     );
     child.stdin?.end('x := 2\nif x > 1:\n    println("big")\n\nx * 10\n:type x\n:quit\n');
   });
-  assert.equal(output, "big\n20 : u32\nu32\n");
+  assert.equal(output, "big\n20 : usize\nusize\n");
 });
 
 test("syntax coloring classifies hd tokens and keeps the text", () => {

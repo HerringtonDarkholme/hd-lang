@@ -228,7 +228,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           // A loop over bare literals gives its bindings the literals' fix hint.
           const looped = firstBareLiteral(expression.iterable);
           for (const local of looped ? bindings : [])
-            if (local.type === "u32")
+            if (local.type === "u32" || local.type === "usize")
               recordDefaultedLocal(local, {
                 name: local.name,
                 literal: literalText(looped!),

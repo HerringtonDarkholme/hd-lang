@@ -1,0 +1,7 @@
+# test: a std child module path through its parent is an error
+# Spec 10 Modules: r-module.path.no-std-child-import gives std the same
+# no-child-import rule as packages.
+use std.testing
+
+fn make(x: testing.arbitrary.With) -> i32:  # diagnostic: unknown-type
+    0

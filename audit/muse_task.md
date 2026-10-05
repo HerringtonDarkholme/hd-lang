@@ -56,34 +56,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AN. Owner Decisions 2026-10-05: `usize` Display, Ambiguous Import, Std Child Paths
-
-Spec and code. For this job you may edit `spec/` rule text, fixtures, and
-`lib/std`.
-
-1. **`usize` display.** Messages and the REPL print a type that came from a
-   bare-literal default, or was written `usize`, as `usize`, not `u32`.
-   Today a message says "found u32" while its own hint says "'total' is
-   usize". Keep the alias name through checking where it was written or
-   defaulted. `usize` stays a transparent alias of `u32` for type identity.
-2. **Ambiguous import.** A `use pkg.words` that names both a module
-   `words` and a declaration `words` is an error (code `ambiguous-import`),
-   and the message asks the user to rename one. Today the module wins.
-   Add a rule in `spec/lang/10-modules.md`, a fixture, and the code in
-   `spec/README.md`'s Diagnostics table.
-3. **Std child paths.** Std follows the same rule as packages
-   (`module.path.no-child-import`). After `use std.testing`, the path
-   `testing.arbitrary.x` is an error. A std module that wants to expose
-   a child module's items uses `pub use`. In the owner's words: "in
-   testing, it must use `pub use x` to expose it, otherwise error".
-   - Add the `pub use` lines to `lib/std/testing.hd` (and any other std
-     module whose users reach a child module today).
-   - Fix every use site in `lib/std`, fixtures, examples and the website
-     tour.
-
-Move the KNOWN_FAILURES rows this clears. Run the website build as well
-(the tour may change).
-
 ### AO. Portable Runner: Select Cases, Retry Timeouts Alone
 
 Merges keep failing on "ran longer than 10 s" when another agent's full

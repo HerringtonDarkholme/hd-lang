@@ -48,6 +48,7 @@ const PRIMITIVES = new Set([
   "u8",
   "u16",
   "u32",
+  "usize",
   "u64",
   "f32",
   "f64",

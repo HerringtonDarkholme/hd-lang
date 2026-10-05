@@ -33,7 +33,7 @@ import {
   usesStandardInspect,
   type InspectEnvironment,
 } from "./inspectable.ts";
-import { isPermissionWeakening, weakenBoundedGenericActual } from "./assignability.ts";
+import { isPermissionWeakening, uncoerced, weakenBoundedGenericActual } from "./assignability.ts";
 import { isRowSubsumption, mismatchMessage, rowDiagnostic } from "./row-rules.ts";
 import { requirementKeyDiagnosticsInType } from "./requirement-keys.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
@@ -65,6 +65,7 @@ import {
   nominalGenericType,
   optionalInner,
   readonlyType,
+  sameExpandedType,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
@@ -458,7 +459,7 @@ export abstract class CheckerContext {
     span: SourceSpan,
     wrapOptional = true,
   ): HirExpression {
-    if (!expected || value.type === expected || value.type === "never") return value;
+    if (!expected || value.type === "never" || sameExpandedType(value.type, expected)) return value;
     const widened = coerceLiteral(value, readonlyType(expected), span, this.fail.bind(this));
     if (widened) return widened;
     // Row subsumption adapts a function value like a weakening (r-req.row.subsume).
@@ -1374,9 +1375,8 @@ export abstract class CheckerContext {
   }
 
   protected requireAssignable(actual: ValueType, expected: ValueType, span: SourceSpan): void {
-    if (actual === "never" || actual === expected || isPermissionWeakening(actual, expected))
-      return;
-    if (mutableInner(expected) === actual)
+    if (uncoerced(actual, expected)) return;
+    if (sameExpandedType(mutableInner(expected), actual))
       this.fail(
         "mutable-upgrade",
         `readonly type '${displayType(actual)}' cannot be upgraded to '${displayType(expected)}'`,

@@ -26,7 +26,7 @@ function expressions(value: unknown): HirExpression[] {
   return found;
 }
 
-test("the std.core usize alias is canonical u32 throughout HIR", () => {
+test("a written usize keeps its spelling throughout HIR", () => {
   const program = checked(`data Sizes:
     first: usize
     rest: List[usize]
@@ -38,25 +38,53 @@ fn cast(value: i32) -> usize: usize(value)
   const sizes = program.data.find((declaration) => declaration.name === "Sizes")!;
   assert.deepEqual(
     sizes.fields.map((field) => field.type),
-    ["u32", "List[u32]"],
+    ["usize", "List[usize]"],
   );
   const same = program.functions.find((declaration) => declaration.name === "same")!;
-  assert.deepEqual([same.parameters[0]?.type, same.result], ["u32", "u32"]);
+  assert.deepEqual([same.parameters[0]?.type, same.result], ["usize", "u32"]);
   const nested = program.functions.find((declaration) => declaration.name === "nested")!;
-  assert.deepEqual([nested.parameters[0]?.type, nested.result], ["List[u32]", "(u32,List[u32])"]);
+  assert.deepEqual(
+    [nested.parameters[0]?.type, nested.result],
+    ["List[usize]", "(usize,List[usize])"],
+  );
   const cast = program.functions.find((declaration) => declaration.name === "cast")!;
-  assert.equal(cast.result, "u32");
+  assert.equal(cast.result, "usize");
   assert.ok(
     expressions(program).some(
       (expression) =>
-        expression.kind === "unary" && expression.operator === "cast" && expression.type === "u32",
+        expression.kind === "unary" &&
+        expression.operator === "cast" &&
+        expression.type === "usize",
     ),
   );
 
   const withoutSpans = JSON.stringify(program, (key, value) =>
     key === "span" ? undefined : value,
   );
-  assert.doesNotMatch(withoutSpans, /\busize\b/);
+  assert.match(withoutSpans, /\busize\b/);
+});
+
+test("messages print a defaulted or written usize, not u32", () => {
+  const mismatch = (source: string): string | undefined =>
+    analyze(source).diagnostics.find(({ code }) => code === "type-mismatch")?.message;
+  assert.equal(
+    mismatch(
+      "fn take_i32(x: i32) -> i32: x\n\npub fn main() -> i32:\n    total := 0\n    take_i32(total)\n",
+    ),
+    "expected i32, found usize",
+  );
+  assert.equal(
+    mismatch(
+      "fn take_i32(x: i32) -> i32: x\n\npub fn main() -> i32:\n    let total: usize = 0\n    take_i32(total)\n",
+    ),
+    "expected i32, found usize",
+  );
+  assert.equal(
+    mismatch(
+      "fn take_i32(x: i32) -> i32: x\n\npub fn main() -> i32:\n    let total: u32 = 0\n    take_i32(total)\n",
+    ),
+    "expected i32, found u32",
+  );
 });
 
 test("a renamed explicit std.core usize import keeps alias identity", () => {
@@ -115,13 +143,13 @@ fn associated[C < Source[usize, Item = usize]](value: C) -> void: pass
 `);
   const bound = (name: string) =>
     program.functions.find((declaration) => declaration.name === name)!.genericBounds[0]!;
-  assert.deepEqual(bound("direct").traitArguments, ["u32"]);
-  assert.match(bound("nested").traitArguments[0]!, /Range\[u32\]$/);
-  assert.deepEqual(bound("associated").traitArguments, ["u32"]);
-  assert.deepEqual(bound("associated").associatedBindings, [{ name: "Item", type: "u32" }]);
+  assert.deepEqual(bound("direct").traitArguments, ["usize"]);
+  assert.match(bound("nested").traitArguments[0]!, /Range\[usize\]$/);
+  assert.deepEqual(bound("associated").traitArguments, ["usize"]);
+  assert.deepEqual(bound("associated").associatedBindings, [{ name: "Item", type: "usize" }]);
 });
 
-test("List.len and Map.len have canonical u32 HIR types", () => {
+test("List.len and Map.len have usize HIR types", () => {
   const program =
     checked(`fn lengths(items: List[i32], entries: Map[string, i32]) -> (usize, usize):
     (items.len(), entries.len())
@@ -133,8 +161,8 @@ test("List.len and Map.len have canonical u32 HIR types", () => {
   assert.deepEqual(
     lengths.map((expression) => [expression.kind, expression.type]),
     [
-      ["list-length", "u32"],
-      ["map-length", "u32"],
+      ["list-length", "usize"],
+      ["map-length", "usize"],
     ],
   );
 });

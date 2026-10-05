@@ -3,6 +3,7 @@ import type { Expression } from "../ast.ts";
 import type { HirData, HirEnum, HirExpression, HirLocal, ValueType } from "../hir.ts";
 import {
   eraseTypePermissions,
+  expandedAliasType,
   functionType,
   functionParts,
   mutableInner,
@@ -360,7 +361,11 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         const integerPower =
           expression.operator === "**" && isIntegerType(left.type) && unsignedExponent;
         const integerShift = this.checkShiftCount(expression.operator, left, right);
-        if (left.type !== right.type && !integerPower && !integerShift)
+        if (
+          expandedAliasType(left.type) !== expandedAliasType(right.type) &&
+          !integerPower &&
+          !integerShift
+        )
           this.withLiteralHint(
             [
               [left, right.type],
@@ -542,7 +547,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
    */
   private checkShiftCount(operator: string, left: HirExpression, right: HirExpression): boolean {
     if ((operator !== "<<" && operator !== ">>") || !isIntegerType(left.type)) return false;
-    if (numericType(right.type) && readonlyType(right.type) !== "u32")
+    if (numericType(right.type) && expandedAliasType(readonlyType(right.type)) !== "u32")
       this.failWithConversion(
         `a shift count must have type u32, found '${displayType(right.type)}'; write u32(...)`,
         "u32",
@@ -937,7 +942,11 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           `a range bound must have an integer type, found '${displayType(bound.type)}'`,
           bound.span,
         );
-    if (bounds.length === 2 && readonlyType(bounds[0]!.type) !== readonlyType(bounds[1]!.type)) {
+    if (
+      bounds.length === 2 &&
+      expandedAliasType(readonlyType(bounds[0]!.type)) !==
+        expandedAliasType(readonlyType(bounds[1]!.type))
+    ) {
       this.rejectMixedWidths(bounds[0]!, bounds[1]!, "range bounds");
       this.fail(
         "type-mismatch",

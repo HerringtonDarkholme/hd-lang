@@ -109,7 +109,7 @@ fn powered() -> u64:
   assert.deepEqual([shifted.left.type, shifted.right.type, shifted.type], ["u64", "u32", "u64"]);
   const powered = resultExpression(program, "powered");
   assert.equal(powered.kind, "binary");
-  assert.deepEqual([powered.left.type, powered.right.type, powered.type], ["u64", "u32", "u64"]);
+  assert.deepEqual([powered.left.type, powered.right.type, powered.type], ["u64", "usize", "u64"]);
 });
 
 test("an immediate left literal still adopts a primitive right operand type", () => {
@@ -147,8 +147,8 @@ fn counted(sizes: List[usize]) -> i32:
     integerLeaves(program.functions.find((candidate) => candidate.name === name)!.body).map(
       ({ type }) => type,
     );
-  assert.deepEqual(literalTypes("widest"), ["u32"]);
-  assert.deepEqual(literalTypes("total"), ["u32"]);
+  assert.deepEqual(literalTypes("widest"), ["usize"]);
+  assert.deepEqual(literalTypes("total"), ["usize"]);
   assert.deepEqual(literalTypes("stepped"), ["i64"]);
   // A closure with an unannotated parameter reads the literal's own width.
   assert.deepEqual(literalTypes("counted"), ["i32"]);

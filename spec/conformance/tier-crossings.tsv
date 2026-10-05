@@ -17,3 +17,5 @@ runtime/valid/module-qualified-prelude-function.hd	std.format	debug is language 
 runtime/valid/module-qualified-beside-direct-use.hd	std.cmp, std.cmp.max, std.cmp.min	the task asks for cmp.max and cmp.min beside direct and aliased uses of the same std functions, which are stdlib tier
 runtime/valid/local-shadows-module-namespace.hd	std.cmp	the task asks for a local value that shadows a real std module name, which needs the whole-module import use std.cmp
 typing/invalid/module-path-private-std-function.hd	std.text	the owner decision (PRIVATE-STD, 2026-10-04) names the module path text.hex_digit through a real std module, which needs the whole-module import use std.text
+typing/invalid/std-child-path-through-parent.hd	std.testing	the rule under test forbids a std child path through its parent, which needs a real std parent module import use std.testing
+typing/valid/std-reexported-child-item.hd	std.testing.Arbitrary, std.testing.Choices	proving the pub use re-export exposes the child items needs the re-exported Arbitrary and Choices names from std.testing

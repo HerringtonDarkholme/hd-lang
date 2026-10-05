@@ -87,7 +87,7 @@ fn run(numbers: mut List[i32]) -> void:
 `);
   const call = expressionOf(hir.functions.find((candidate) => candidate.name === "run")!);
   assert.equal(call.kind, "call");
-  assert.equal(call.arguments[1]?.type, "u32");
+  assert.equal(call.arguments[1]?.type, "usize");
 
   const rejected = analyze(`${declarations}
 fn invalid(numbers: mut List[i32]) -> void:

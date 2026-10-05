@@ -1,0 +1,4 @@
+use pkg.words
+
+pub fn main() -> void $ Console:
+    println(words())

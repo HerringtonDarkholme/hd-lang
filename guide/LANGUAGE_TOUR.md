@@ -2730,7 +2730,7 @@ fn value(c: mut Choices) -> Value:
 
 `it_prop` uses the input type's default generator, its `Arbitrary`.
 `@derive(Arbitrary)` derives one, and one member fact,
-`arbitrary.with(gen)`, draws a member with a generator of your own. The
+`with(gen)`, draws a member with a generator of your own. The
 compiler does not check that generator against the member's type, so a
 wrong one panics on the first case and names the member and both types.
 Every member, tuned or not, must implement `Arbitrary` and be
@@ -2740,8 +2740,7 @@ inspectable; a type with a function-typed member writes its own
 `c.float(lo, hi)` stays finite:
 
 ```text
-use std.testing.{Arbitrary, Choices, assert, it_prop}
-use std.testing.arbitrary
+use std.testing.{Arbitrary, Choices, assert, it_prop, with}
 
 fn cents(c: mut Choices) -> i32:
     c.int(0, 10_000)
@@ -2749,7 +2748,7 @@ fn cents(c: mut Choices) -> i32:
 @derive(Arbitrary, Debug)
 data Item:
     name: string
-    @arbitrary.with(cents)
+    @with(cents)
     price: i32
 
 tests:

@@ -1,7 +1,7 @@
 import type { Program } from "../ast.ts";
 import type { ValueType } from "../hir.ts";
 import { isNarrowInteger } from "../numeric.ts";
-import { nominalGenericParts } from "../types.ts";
+import { expandedAliasType, nominalGenericParts } from "../types.ts";
 
 import {
   genericTypeName,
@@ -40,7 +40,8 @@ export function implementsTrait(
   if (generic) return hashableParameters.has(generic) && (trait === "Eq" || trait === "Hash");
   if (depth > MAX_BOUND_DEPTH) return false;
   return (implementedTraits.get(trait) ?? []).some((implementation) => {
-    if (implementation.parameters.size === 0) return implementation.target === type;
+    if (implementation.parameters.size === 0)
+      return expandedAliasType(implementation.target) === expandedAliasType(type);
     const substitutions = new Map<string, ValueType>();
     if (!matchGenericTypePattern(implementation.pattern, type, substitutions)) return false;
     return implementation.bounds.every(({ parameter, traits }) => {

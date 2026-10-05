@@ -237,6 +237,33 @@ test("package use errors point at the use declaration of their file", () => {
   assert.deepEqual(codes(main("use pkg.models.{}")), ["src/main.hd:2:syntax-error"]);
 });
 
+test("a single use naming both a module and a declaration is ambiguous-import", () => {
+  const files = (lib: string): Record<string, string> => ({
+    "src/main.hd": "use pkg.words\n\npub fn main() -> void: pass\n",
+    "src/words.hd": "pub fn squash(word: string) -> string: word\n",
+    "src/lib.hd": lib,
+  });
+  // Both readings exist: the module words and the root declaration words.
+  assert.deepEqual(codes(files('pub fn words() -> string: "decl"\n')), [
+    "src/main.hd:1:ambiguous-import",
+  ]);
+  const message = linkPackage(files('pub fn words() -> string: "decl"\n'), "src/main.hd")
+    .diagnostics[0]?.message;
+  assert.equal(
+    message,
+    "'words' names both the module 'words' and a declaration of module 'pkg'; rename one",
+  );
+  // Either reading alone links.
+  assert.deepEqual(codes(files("")), []);
+  assert.deepEqual(
+    codes({
+      "src/main.hd": "use pkg.words\n\npub fn main() -> void: pass\n",
+      "src/lib.hd": 'pub fn words() -> string: "decl"\n',
+    }),
+    [],
+  );
+});
+
 test("linked source reports each initialization group single or multi as data", () => {
   const linked = linkPackage(
     {

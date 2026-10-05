@@ -516,12 +516,9 @@ export function withTypeDeclarations(
   readonly diagnostics: readonly Diagnostic[];
 } {
   const importDiagnostics: Diagnostic[] = [];
-  const importedAliases = new Map<string, Alias>(
-    [...STANDARD_CORE_TYPE_ALIASES].map(([name, target]) => [
-      name,
-      { parameters: [], rows: new Set<string>(), target },
-    ]),
-  );
+  // Compiler-owned aliases (`usize`) keep their spelling through checking for
+  // display (04-type-system.md#the-usize-alias); only user imports expand here.
+  const importedAliases = new Map<string, Alias>();
   const importedRows = new Map<string, RowAlias>();
   const nominalDeclarations = [
     ...source.data,

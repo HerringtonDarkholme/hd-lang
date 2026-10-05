@@ -19,6 +19,7 @@ import {
   standardImportAliases,
   defaultProfileNames,
   testRunnerNames,
+  withReexportedUses,
   withStandardLibrary,
 } from "./standard-library.ts";
 import { ImportBindingMap } from "./import-bindings.ts";
@@ -62,13 +63,16 @@ export interface CheckOptions {
 }
 
 export function check(written: Program, options: CheckOptions = {}): CheckResult {
+  // A `pub use` re-export names its origin module before validation
+  // (spec/lang/10-modules.md#r-module.path.no-std-child-import).
+  const sourced = withReexportedUses(written);
   // A `std` use must name a std module and its declarations
   // (spec/lang/10-modules.md#use-forms); nothing else is checked without them.
-  const uses = standardUseDiagnostics(written);
+  const uses = standardUseDiagnostics(sourced);
   if (uses.length > 0) return { diagnostics: uses };
   // Module paths and each package module's scope resolve to joined
   // spellings before any name is looked up (checker/module-paths.ts).
-  const paths = withModulePaths(written);
+  const paths = withModulePaths(sourced);
   if (paths.diagnostics.length > 0) return { diagnostics: [...paths.diagnostics] };
   // `@error` is an intrinsic, lowered before any decorator is resolved
   // (spec/lang/14-annotations.md#error-derivation).

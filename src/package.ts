@@ -716,6 +716,31 @@ function segmentLocator(
   };
 }
 
+/**
+ * Follows `pub use` re-exports to the declaration that `name` names in
+ * `target`; "loop" when the chain returns to a module it passed
+ * (spec/lang/10-modules.md#r-module.pub-use.chain.loop).
+ */
+function exporterOf(
+  resolvedUses: ReadonlyMap<PackageModule, readonly ResolvedUse[]>,
+  target: PackageModule,
+  name: string,
+  seen: Set<PackageModule>,
+): Declared | "private" | "loop" | undefined {
+  const program = target.program!;
+  if (topLevelNames(program).has(name))
+    return isPublic(program, name) ? { module: target, name } : "private";
+  if (seen.has(target)) return "loop";
+  seen.add(target);
+  for (const use of resolvedUses.get(target) ?? []) {
+    const exported = use.declaration.public
+      ? use.names.find(({ local }) => local === name)
+      : undefined;
+    if (exported) return exporterOf(resolvedUses, use.target, exported.name, seen);
+  }
+  return undefined;
+}
+
 /** Links the package `files` (path to source) whose entry module is `entry`. */
 export function linkPackage(
   files: Readonly<Record<string, string>>,
@@ -742,27 +767,6 @@ export function linkPackage(
     report(entry, "unknown-module", `entry module '${entry}' is not a package source file`);
 
   const resolvedUses = new Map<PackageModule, ResolvedUse[]>();
-  // Follows `pub use` re-exports to the declaration that `name` names in
-  // `target`; "loop" when the chain returns to a module it passed
-  // (spec/lang/10-modules.md#r-module.pub-use.chain.loop).
-  const exporter = (
-    target: PackageModule,
-    name: string,
-    seen: Set<PackageModule>,
-  ): Declared | "private" | "loop" | undefined => {
-    const program = target.program!;
-    if (topLevelNames(program).has(name))
-      return isPublic(program, name) ? { module: target, name } : "private";
-    if (seen.has(target)) return "loop";
-    seen.add(target);
-    for (const use of resolvedUses.get(target) ?? []) {
-      const exported = use.declaration.public
-        ? use.names.find(({ local }) => local === name)
-        : undefined;
-      if (exported) return exporter(use.target, exported.name, seen);
-    }
-    return undefined;
-  };
 
   for (const module of modules.values()) {
     const uses: ResolvedUse[] = [];
@@ -809,6 +813,25 @@ export function linkPackage(
         continue;
       }
       if (!target.program) continue;
+      // A single use that names both a module and a declaration of its
+      // parent, as `use pkg.words`, is ambiguous
+      // (spec/lang/10-modules.md#r-module.use.ambiguous).
+      if (!grouped && namespace && !namespaceOnly) {
+        const parent = modules.get(moduleKey(targetPackage, modulePath.join(".")));
+        const clash =
+          parent?.program === undefined
+            ? undefined
+            : exporterOf(resolvedUses, parent, first!.name, new Set());
+        if (clash !== undefined && clash !== "loop") {
+          report(
+            module.path,
+            "ambiguous-import",
+            `'${first!.name}' names both the module '${identity}' and a declaration of module '${shown(parent!)}'; rename one`,
+            span,
+          );
+          continue;
+        }
+      }
       if (namespace) {
         uses.push({ declaration, target, names: [], namespace: first!.alias ?? first!.name });
         continue;
@@ -857,7 +880,7 @@ export function linkPackage(
         imported.add(use.namespace);
       }
       for (const { name, local: localName } of use.names) {
-        const found = exporter(use.target, name, new Set());
+        const found = exporterOf(resolvedUses, use.target, name, new Set());
         // A plain use into a pub use loop has the loop's code
         // (spec/lang/10-modules.md#r-module.pub-use.chain.loop-use).
         if (found === "loop")
@@ -979,7 +1002,7 @@ export function linkPackage(
     for (const use of resolvedUses.get(target) ?? [])
       if (use.declaration.public)
         for (const { local } of use.names) {
-          const found = exporter(target, local, new Set());
+          const found = exporterOf(resolvedUses, target, local, new Set());
           if (typeof found === "object") members[local] = joinedName(found);
         }
     return { shown: shown(target), members };

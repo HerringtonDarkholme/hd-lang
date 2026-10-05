@@ -2477,3 +2477,7 @@ typing/valid/user-defined-all.hd	type
 cli/dep-path-local	cli
 cli/dep-workspace-fetch	cli
 cli/member-unlisted	cli
+typing/invalid/expected-i32-found-usize.hd	type
+cli/ambiguous-import	cli
+typing/invalid/std-child-path-through-parent.hd	type
+typing/valid/std-reexported-child-item.hd	type

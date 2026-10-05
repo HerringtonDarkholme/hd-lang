@@ -30,7 +30,7 @@ import {
 } from "./host-arguments.ts";
 import { checkedHostValue, hostArgumentValue } from "./host-values.ts";
 import { numericType } from "./numeric.ts";
-import { substituteTypeParameters } from "./types.ts";
+import { expandedAliasType, substituteTypeParameters } from "./types.ts";
 import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
@@ -779,10 +779,13 @@ function encodeHostValue(type: ValueType, value: HostSuspensionValue): EncodedHo
   if (type === "string")
     return { kind: "string", utf8: hexBytes(new TextEncoder().encode(canonical as string)) };
   const numeric = numericType(type);
+  // Transparent alias spellings record under their target (`usize` as `u32`),
+  // so recordings stay stable across spellings.
+  const recorded = expandedAliasType(type);
   if (numeric?.wasm === "i64")
-    return { kind: type as EncodedHostWide["kind"], value: String(canonical) };
+    return { kind: recorded as EncodedHostWide["kind"], value: String(canonical) };
   if (numeric?.family !== "float")
-    return { kind: type as EncodedHostInteger["kind"], value: Number(canonical) };
+    return { kind: recorded as EncodedHostInteger["kind"], value: Number(canonical) };
   if (Number.isNaN(canonical))
     return {
       bits: type === "f32" ? "7fc00000" : "7ff8000000000000",
@@ -802,7 +805,11 @@ function encodeHostValue(type: ValueType, value: HostSuspensionValue): EncodedHo
 }
 
 function decodeHostValue(type: ValueType, value: EncodedHostValue): HostSuspensionValue {
-  if (value.kind !== type || value.kind === "ok" || value.kind === "err")
+  if (
+    expandedAliasType(value.kind) !== expandedAliasType(type) ||
+    value.kind === "ok" ||
+    value.kind === "err"
+  )
     throw new Error(`replay boundary type '${value.kind}' does not match '${type}'`);
   const encoded = value as EncodedHostScalar;
   if (encoded.kind === "string") {

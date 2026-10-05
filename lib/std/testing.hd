@@ -10,7 +10,11 @@ use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
 use std.random.{Random, SeededRandom}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
-use std.testing.arbitrary.With
+# `std.testing.arbitrary` stays a child module: after `use std.testing` the
+# path `testing.arbitrary.x` is an error
+# (spec/lang/10-modules.md#r-module.path.no-std-child-import). These re-exports
+# are the way to its items.
+pub use std.testing.arbitrary.{With, with}
 use std.process.Process
 use std.time.Duration
 use std.format.DebugWriter

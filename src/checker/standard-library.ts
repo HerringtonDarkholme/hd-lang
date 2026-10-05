@@ -64,7 +64,12 @@ interface ParsedModule {
   /** `use std.<module>.<Name>` lines of the module that name a `lib/std` declaration. */
   readonly uses: readonly { readonly module: StandardModule; readonly name: string }[];
   /** The `pub use` ones among `uses`, as the prelude's names. */
-  readonly exports: readonly { readonly module: StandardModule; readonly name: string }[];
+  readonly exports: readonly {
+    readonly module: StandardModule;
+    readonly name: string;
+    /** The spelling the exporting module exposes: the `pub use` alias, if any. */
+    readonly local: string;
+  }[];
   /**
    * `use` lines of a std name that the compiler provides rather than
    * `lib/std`, such as `use std.task.block_on`. The joined program imports
@@ -306,7 +311,7 @@ function standardModule(name: StandardModule): ParsedModule {
   const { program, names } = declaredModule(name);
   const modules = new Set<StandardModule>();
   const uses: { module: StandardModule; name: string }[] = [];
-  const exports: { module: StandardModule; name: string }[] = [];
+  const exports: { module: StandardModule; name: string; local: string }[] = [];
   const compilerUses: { module: string; name: string; span: SourceSpan }[] = [];
   for (const declaration of program.uses) {
     if (declaration.module !== "std" && !declaration.module.startsWith("std."))
@@ -319,7 +324,8 @@ function standardModule(name: StandardModule): ParsedModule {
       // `std.task.block_on`, is a compiler use: its module does not declare it.
       if (isStandardModule(module) && declaredModule(module).names.includes(imported.name)) {
         uses.push({ module, name: imported.name });
-        if (declaration.public === true) exports.push({ module, name: imported.name });
+        if (declaration.public === true)
+          exports.push({ module, name: imported.name, local: imported.alias ?? imported.name });
       } else if (declaration.public !== true)
         compilerUses.push({ module, name: imported.name, span: declaration.span });
     }
@@ -839,6 +845,59 @@ export function standardModulesOf(program: Program): StandardModule[] {
  * std module a `use` of the program reaches, and every std module a `use`
  * of a joined module reaches.
  */
+/**
+ * A program with each `use std.<module>.{<Name>}` that names a `pub use`
+ * re-export rewritten to its origin module, as `use std.testing.{With}` to
+ * `use std.testing.arbitrary.{With}`
+ * (spec/lang/10-modules.md#r-module.path.no-std-child-import). A name the
+ * module declares itself keeps its module; module paths still name only
+ * declared names, so only uses rewrite.
+ */
+export function withReexportedUses(source: Program): Program {
+  const uses: UseDecl[] = [];
+  let changed = false;
+  for (const declaration of source.uses) {
+    if (!declaration.module.startsWith("std.")) {
+      uses.push(declaration);
+      continue;
+    }
+    const module = declaration.module.replace(/^std\./, "");
+    if (!isStandardModule(module) || declaration.names.length === 0) {
+      uses.push(declaration);
+      continue;
+    }
+    // Each name reaches its origin module; names that stay keep the use.
+    const groups = new Map<string, { name: string; alias?: string }[]>();
+    for (const imported of declaration.names) {
+      let at = { module, name: imported.name };
+      const seen = new Set([`std.${module}`]);
+      for (;;) {
+        if (declaredModule(at.module).names.includes(at.name)) break;
+        const exported = standardModule(at.module).exports.find((item) => item.local === at.name);
+        if (!exported || seen.has(`std.${exported.module}`)) break;
+        seen.add(`std.${exported.module}`);
+        at = { module: exported.module, name: exported.name };
+      }
+      const key = at.module === module ? "" : at.module;
+      const group = groups.get(key) ?? [];
+      group.push(at.module === module ? imported : { ...imported, name: at.name });
+      groups.set(key, group);
+    }
+    if (groups.size === 1 && groups.has("")) {
+      uses.push(declaration);
+      continue;
+    }
+    changed = true;
+    for (const [origin, names] of groups)
+      uses.push({
+        ...declaration,
+        module: origin === "" ? declaration.module : `std.${origin}`,
+        names,
+      });
+  }
+  return changed ? { ...source, uses } : source;
+}
+
 export function withStandardLibrary(source: Program): Program {
   const program = withTemplateName(source);
   const spans = useGraph(program);

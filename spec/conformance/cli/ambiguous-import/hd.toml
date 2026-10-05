@@ -1,0 +1,6 @@
+[package]
+name = "shop"
+
+[[executable]]
+name = "main"
+module = "main"

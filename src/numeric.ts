@@ -1,4 +1,5 @@
 import type { ValueType } from "./hir.ts";
+import { expandedAliasType } from "./types.ts";
 
 // The sized numeric types (spec/lang/04-type-system.md#primitive-types) and how
 // the prototype represents them: every integer of at most 32 bits is a Wasm
@@ -30,6 +31,7 @@ export const NUMERIC_TYPES: ReadonlyMap<ValueType, NumericType> = new Map([
   ["u8", integer("unsigned", 8)],
   ["u16", integer("unsigned", 16)],
   ["u32", integer("unsigned", 32)],
+  ["usize", integer("unsigned", 32)],
   ["u64", integer("unsigned", 64)],
   ["f32", { family: "float", bits: 32, wasm: "f32" }],
   ["f64", { family: "float", bits: 64, wasm: "f64" }],
@@ -68,6 +70,7 @@ export function narrowsTo(from: ValueType, to: ValueType): boolean {
 /** The wider of two numeric types of one family, or undefined. */
 export function widerNumeric(left: ValueType, right: ValueType): ValueType | undefined {
   if (left === right) return left;
+  if (expandedAliasType(left) === expandedAliasType(right)) return left;
   if (widensTo(left, right)) return right;
   if (widensTo(right, left)) return left;
   return undefined;

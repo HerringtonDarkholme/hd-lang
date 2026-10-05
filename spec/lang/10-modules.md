@@ -257,6 +257,14 @@ src/user/types.hd    # user.types
 2. r[module.path.mod-file] `mod.hd` is the directory module's source file and public index.
 3. r[module.path.no-child-import] Child modules are not brought automatically into the parent.
 4. r[module.path.no-parent-scope] Parent declarations are not implicitly visible in children.
+5. r[module.path.no-std-child-import] `std` follows the same rule: after `use std.testing`, the path `testing.arbitrary.x` is an error. A std module that wants to expose a child module's items re-exports them with `pub use`.
+
+```text
+use std.testing
+
+fn make(x: testing.arbitrary.With) -> i32:  # unknown-type: no child import
+    0
+```
 
 ### Root Files
 
@@ -549,6 +557,12 @@ use dep.billing.types.{UserId as BillingUserId}
 9. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix. A `pub` single use is an error. Error: `syntax-error`.
 10. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
 11. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
+12. r[module.use.ambiguous] A single use that names both a module and a declaration of its parent module, as `use pkg.words`, is an error. Error: `ambiguous-import`.
+
+```text
+# in package pkg: src/words.hd beside a root declaration words
+use pkg.words  # ambiguous-import: rename the module or the declaration
+```
 
 ```text
 use std.testing.*                 # error: syntax-error

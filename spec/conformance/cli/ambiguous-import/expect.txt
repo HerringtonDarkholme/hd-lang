@@ -1,0 +1,4 @@
+# `use pkg.words` names the module `words` and the root declaration `words`.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"ambiguous-import","severity":"error","message":"'words' names both the module 'words' and a declaration of module 'pkg'; rename one","file":"src/main.hd","line":1,"column":1,"notes":[],"related":[],"fix":null,"rule":"module.use.ambiguous","rules":[{"id":"module.use.ambiguous","anchor":"spec/lang/10-modules.md#r-module.use.ambiguous"}]},{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":101}]
