@@ -758,12 +758,14 @@ impl[T] Default for T by Structure:
             .Ok(value) => value
             .Err(_) => panic("a derived default never fails")
 
-# The `@default` variant marker's fact type (r-std-ops.default.derive.marker).
-# The marker function `pub fn default() -> DefaultVariant` is not declared
-# yet: in the prototype, a module function named `default` beside the trait
-# breaks every `T::default()` call (src/KNOWN_ISSUES.md, DERIVE-DEFAULT).
+# The `@default` variant marker's fact type and marker function
+# (r-std-ops.default.derive.marker): `@default` on a variant attaches
+# `default()`.
 @annotate(.Variant)
 pub data DefaultVariant: pass
+
+pub fn default() -> DefaultVariant:
+    DefaultVariant {}
 
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).

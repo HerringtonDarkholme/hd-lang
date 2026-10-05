@@ -29,7 +29,7 @@ test("compiler-injected structure diagnostics retain their physical source", (t)
     const start = physicalSpan(diagnostic.span).start;
     assert.deepEqual(
       { offset: start.offset, line: start.line, column: start.column },
-      { offset: 2810, line: 80, column: 5 },
+      { offset: 3459, line: 94, column: 5 },
     );
   } finally {
     mocked.mock.restore();

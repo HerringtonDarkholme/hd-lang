@@ -29,7 +29,7 @@ test("compiler-injected inspect diagnostics retain their physical source", (t) =
     const start = physicalSpan(diagnostic.span).start;
     assert.deepEqual(
       { offset: start.offset, line: start.line, column: start.column },
-      { offset: 729, line: 18, column: 41 },
+      { offset: 757, line: 20, column: 41 },
     );
   } finally {
     mocked.mock.restore();

@@ -2365,3 +2365,9 @@ runtime/valid/write-line-suspending-call-argument.hd	runtime
 runtime/valid/script-empty-run.hd	runtime
 cli/exit-program-status	cli
 cli/exit-test-empty	cli
+runtime/valid/derived-default-enum.hd	runtime
+typing/invalid/derived-default-no-variant.hd	type
+typing/invalid/derived-default-several-variants.hd	type
+runtime/valid/derived-default-declared-no-bound.hd	runtime
+typing/valid/std-derivation-types-debug.hd	type
+runtime/valid/string-pad-default-fill.hd	runtime

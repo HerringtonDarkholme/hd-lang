@@ -46,21 +46,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AA. Derivation And Defaults
-
-If this is already committed locally, rebase and push it.
-
-- Clear the KNOWN_FAILURES rows tagged DERIVE-DEFAULT (3), DEFAULT-FIELD,
-  STD-DEBUG, and METHOD-DEFAULT. Each row's reason, and its Compiler
-  Handoff row in `future-work/STDLIB_PLAN.md`, says what is missing.
-- You may edit `lib/std` for this job only: the `default` marker in
-  `lib/std/ops.hd`, and `Debug` for `std.inspect`'s `TypeId` and
-  `std.structure`'s `SelfRef`.
-- Root-cause fixes in the checker's derivation code and in the parser
-  (parameter defaults on methods).
-- Move the passing rows to `test/portable/cases.tsv` and fix the counts in
-  `src/KNOWN_ISSUES.md`.
-
 ### AB. Review Findings O-08, O-09, O-11
 
 If this is already committed locally, rebase and push it.

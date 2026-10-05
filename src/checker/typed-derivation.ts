@@ -18,7 +18,7 @@ import { DiagnosticError, type Diagnostic, type SourceSpan } from "../diagnostic
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
-import { renameStandardBindings } from "./standard-bindings.ts";
+import { carriedStructureUses, renameStandardBindings } from "./standard-bindings.ts";
 import { standardTemplate, standardTupleTraits } from "./standard-library.ts";
 import { withStandardSource } from "./standard-provenance.ts";
 import { standardDocument } from "./standard-sources.ts";
@@ -29,7 +29,7 @@ import {
   tupleInstances,
   type TupleInstance,
 } from "./tuple-templates.ts";
-import { optionalType, readonlyType } from "../types.ts";
+import { displayType, optionalType, readonlyType } from "../types.ts";
 import { selfRefScope, type SelfRefScope } from "./self-ref.ts";
 import {
   effectiveFacts,
@@ -108,7 +108,8 @@ const DOWNCAST = "hd__downcast_val";
 /**
  * `lib/std/structure.hd` in the program's names. Its `use` lines become the
  * pass's own use of `std.inspect`, which imports `downcast_val` under a
- * hidden name.
+ * hidden name. Other uses resolve against the joined declarations by
+ * standard name (checker/standard-bindings.ts).
  */
 interface DerivationResult {
   readonly program: Program;
@@ -236,9 +237,10 @@ export function withTypedDerivationSupport(source: Program): Program {
       ),
     );
   const original = parsed.program;
+  const carried = carriedStructureUses(source, original);
   const structure = renameStandardBindings(
     withStandardSource(original, document, source.span),
-    new Map([...renames, ["downcast_val", DOWNCAST]]),
+    new Map([...carried, ...renames, ["downcast_val", DOWNCAST]]),
   );
   const alreadyImports = (name: string, local = name): boolean =>
     source.uses.some(
@@ -276,9 +278,10 @@ export function withTypedDerivationSupport(source: Program): Program {
     standardName: `std.structure.${original.traits[index]!.name}`,
     strengthenableMembers: ["member", "rest"],
   }));
+  const carriedUses = [...(inspectUse.names.length > 0 ? [inspectUse] : [])];
   return {
     ...source,
-    uses: inspectUse.names.length > 0 ? [...source.uses, inspectUse] : source.uses,
+    uses: carriedUses.length > 0 ? [...source.uses, ...carriedUses] : source.uses,
     ...(structure.types ? { types: [...(source.types ?? []), ...standard(structure.types)] } : {}),
     data: [...source.data, ...data],
     enums: [...source.enums, ...enums],
@@ -295,6 +298,32 @@ function isGadt(declaration: EnumDecl): boolean {
 }
 
 /** The concrete type a fact expression evaluates to, when it is evident from syntax. */
+/**
+ * A variant's `@default` marker, if its metadata holds one: a bare `default`
+ * name that resolves to the `DefaultVariant` marker function, or a fact
+ * call whose type is `DefaultVariant`
+ * (std-ops.default.derive.marker).
+ */
+function defaultVariantMark(
+  metadata: readonly Expression[],
+  functions: ReadonlyMap<string, FunctionDecl>,
+): Expression | undefined {
+  // A fact type names the hidden `__std_ops_DefaultVariant` rename, so the
+  // comparison goes through the display form, as diagnostics do.
+  const isDefaultVariant = (type: string): boolean => displayType(type) === "DefaultVariant";
+  return metadata.find((fact) => {
+    if (fact.kind === "name") {
+      const declaration = functions.get(fact.name);
+      return (
+        declaration !== undefined &&
+        !declaration.resultOmitted &&
+        isDefaultVariant(readonlyType(declaration.result.name))
+      );
+    }
+    return isDefaultVariant(factType(fact, functions));
+  });
+}
+
 export function factType(
   expression: Expression,
   functions: ReadonlyMap<string, FunctionDecl>,
@@ -444,6 +473,30 @@ export function withTypedDerivation(source: Program): DerivationResult {
           trait.span,
         );
         continue;
+      }
+      if (name === "Default" && target.kind === "enum") {
+        // A derived enum's default is its variant marked `@default`
+        // (std-ops.default.derive.one-variant): exactly one marker.
+        const marked = target.declaration.variants.flatMap((variant) => {
+          const mark = defaultVariantMark(variant.metadata ?? [], functions);
+          return mark ? [{ variant, mark }] : [];
+        });
+        if (marked.length === 0) {
+          error(
+            "invalid-default-variant",
+            `enum '${target.declaration.name}' derives Default with no variant marked @default; mark exactly one variant`,
+            trait.span,
+          );
+          continue;
+        }
+        if (marked.length > 1) {
+          error(
+            "invalid-default-variant",
+            `enum '${target.declaration.name}' marks more than one variant @default; keep exactly one`,
+            marked[1]!.mark.span,
+          );
+          continue;
+        }
       }
       derivedPairs.set(`${name} ${declaration.name}`, trait.span);
       derivations.push({ trait: name, target, lines: [], span: trait.span });
@@ -1313,9 +1366,16 @@ function generateDerivation(
         out.add(
           `        ${position === 0 ? "if" : "else if"} key.info.position == ${member.position}:`,
         );
-        out.add(
-          `            ${binding(member)} = .Some(s.member(${handle(variant, member, "d")}, ${binding(member)})?)`,
-        );
+        // A declared default reads the handle's default, not the bounded
+        // `member` (member-bound.declared); the missing arm is unreachable.
+        if (member.default === undefined)
+          out.add(
+            `            ${binding(member)} = .Some(s.member(${handle(variant, member, "d")}, ${binding(member)})?)`,
+          );
+        else
+          out.add(
+            `            ${binding(member)} = ${handle(variant, member, "d")}.default().expect("a declared default is missing")`,
+          );
       });
       if (offered.length > 0) {
         out.add(`        else:`);

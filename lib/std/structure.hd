@@ -7,11 +7,14 @@
 #
 # The typed-derivation pass declares this module in a program that derives
 # or calls `facts_of`, before the rest of std is joined
-# (checker/typed-derivation.ts), so it may use no other std module.
+# (checker/typed-derivation.ts). The pass carries its `use` lines itself,
+# so it may use `std.inspect` and `std.format` names the pass knows.
+# Anything else stays unresolvable in the early copy.
 # The handle declarations name their parameters `HdS` and `HdF`: the
 # prototype cannot infer an inherent method's parameters from a receiver
 # whose type arguments are the caller's parameters of the same names.
 use std.inspect.{Inspectable, downcast_val}
+use std.format.DebugWriter
 
 # A member's or variant's facts. The prototype holds `Inspectable` values
 # rather than `Any`.
@@ -49,6 +52,17 @@ pub enum SelfRef:
     Absent
     Optional
     Required
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): a `@derive` on a std
+# declaration has no effect in the prototype.
+impl Debug for SelfRef:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Absent => out.write("Absent")
+            .Optional => out.write("Optional")
+            .Required => out.write("Required")
 
 # A member's handle. `hd_witness` names the member's type, so that `fact`
 # needs no `Inspectable` bound on `HdF` (annot.handle.fact.key).

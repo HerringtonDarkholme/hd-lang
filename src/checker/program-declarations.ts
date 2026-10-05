@@ -472,12 +472,54 @@ export function createProgramDeclarations(
         : [],
     ),
   );
+  // A method's defaulted parameters get the same helpers as a function's,
+  // named after the method's function declaration. The receiver stays the
+  // first helper parameter, since the emitter fills a default with the
+  // earlier call values, receiver included.
+  const methodDefaultDeclarations: FunctionDecl[] = [
+    ...implementationPreparations.flatMap((implementation) =>
+      implementation.methods.map(({ declaration }) => declaration),
+    ),
+    ...inherentDeclarations,
+  ].flatMap((declaration) =>
+    declaration.parameters.flatMap((parameter, parameterIndex) =>
+      parameter.default
+        ? [
+            {
+              kind: "function" as const,
+              name: `$parameter-default.${declaration.name}.${parameter.name}`,
+              ...(declaration.standard ? { standard: true } : {}),
+              suspending: false,
+              genericParameters: declaration.genericParameters,
+              genericBounds: declaration.genericBounds,
+              parameters: declaration.parameters.slice(0, parameterIndex).map((earlier) => ({
+                name: earlier.name,
+                type: earlier.type,
+                span: earlier.span,
+              })),
+              result: parameter.type,
+              requirements: [],
+              body: [
+                {
+                  kind: "expression" as const,
+                  expression: parameter.default,
+                  span: parameter.default.span,
+                },
+              ],
+              span: parameter.default.span,
+              defaultContext: laterNamesContext(declaration.parameters, parameterIndex),
+            },
+          ]
+        : [],
+    ),
+  );
   const enumVariantDeclarations = createEnumVariantDeclarations(program.enums, diagnostics);
   const testDeclarations = createTestDeclarations(program, context.testRunners);
   const declarations = [
     ...program.functions,
     ...testDeclarations,
     ...parameterDefaultDeclarations,
+    ...methodDefaultDeclarations,
     ...defaultDeclarations,
     ...enumDefaultDeclarations,
     ...enumVariantDeclarations,

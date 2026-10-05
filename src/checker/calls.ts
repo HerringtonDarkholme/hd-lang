@@ -421,6 +421,15 @@ export abstract class CallChecker extends StatementChecker {
       targetSubstitutions,
     );
     const { rowSubstitutions } = checkedArguments;
+    // A defaulted method parameter fills from its helper with the earlier
+    // call values, receiver included, so its index counts the receiver.
+    const defaultArguments = (checkedArguments.defaultParameterIndices ?? []).map(
+      (parameterIndex) => ({
+        parameterIndex: parameterIndex + 1,
+        functionIndex: this.signatures.get(callSignature.defaultFunctionNames[parameterIndex]!)!
+          .index,
+      }),
+    );
     const substitutions = this.resolveAssociatedTypeSubstitutions(
       signature,
       checkedArguments.substitutions,
@@ -457,47 +466,30 @@ export abstract class CallChecker extends StatementChecker {
     const argumentParameterIndices = checkedArguments.parameterIndices
       ? [0, ...checkedArguments.parameterIndices.map((parameterIndex) => parameterIndex + 1)]
       : undefined;
+    const callBase = {
+      functionIndex: signature.index,
+      functionName: signature.name,
+      arguments: [methodReceiver, ...checkedArguments.arguments],
+      argumentParameterIndices,
+      defaultArguments: defaultArguments.length > 0 ? defaultArguments : undefined,
+      parameterTypes: defaultArguments.length > 0 ? signature.parameters : undefined,
+      bounds,
+      providers,
+      erasedParameterTypes:
+        signature.genericParameters.length > 0 || signature.rowParameters.length > 0
+          ? signature.parameters
+          : undefined,
+      erasedTypeSubstitutions: orderedTypeSubstitutions(signature.genericParameters, substitutions),
+      erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
+    };
     return method.suspending
       ? {
           kind: "suspend-construct",
-          functionIndex: signature.index,
-          functionName: signature.name,
-          arguments: [methodReceiver, ...checkedArguments.arguments],
-          argumentParameterIndices,
-          bounds,
-          providers,
-          erasedParameterTypes:
-            signature.genericParameters.length > 0 || signature.rowParameters.length > 0
-              ? signature.parameters
-              : undefined,
-          erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
-          erasedTypeSubstitutions: orderedTypeSubstitutions(
-            signature.genericParameters,
-            substitutions,
-          ),
+          ...callBase,
           type: suspensionType(signature.index, resultType),
           span: expression.span,
         }
-      : {
-          kind: "call",
-          functionIndex: signature.index,
-          functionName: signature.name,
-          arguments: [methodReceiver, ...checkedArguments.arguments],
-          argumentParameterIndices,
-          bounds,
-          providers,
-          erasedParameterTypes:
-            signature.genericParameters.length > 0 || signature.rowParameters.length > 0
-              ? signature.parameters
-              : undefined,
-          erasedTypeSubstitutions: orderedTypeSubstitutions(
-            signature.genericParameters,
-            substitutions,
-          ),
-          erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
-          type: resultType,
-          span: expression.span,
-        };
+      : { kind: "call", ...callBase, type: resultType, span: expression.span };
   }
 
   protected checkConcreteArguments(

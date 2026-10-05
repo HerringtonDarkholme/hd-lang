@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-04 the suite has
-2,470 cases: 2,366 selected in `test/portable/cases.tsv` and 104 known
-failures. The selected cases are 2,075 language tier, 276 stdlib tier, and 15
-CLI tier; the known failures are 71 language tier, 10 stdlib tier, and 23
+2,470 cases: 2,372 selected in `test/portable/cases.tsv` and 98 known
+failures. The selected cases are 2,075 language tier, 282 stdlib tier, and 15
+CLI tier; the known failures are 71 language tier, 4 stdlib tier, and 23
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -34,12 +34,8 @@ CLI tier.
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |
-| DERIVE-DEFAULT | 3 | no `@default` marker or count check for derived `Default` |
-| DEFAULT-FIELD | 1 | derived `Default` requires `Default` of a member that declares a default |
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
-| STD-DEBUG | 1 | std derivation ordering leaves TypeId and SelfRef without Debug |
-| METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
 | MVP-PATTERN | 1 | a `let` data pattern on a generic data value is `unsupported-match-subject` |
@@ -130,12 +126,10 @@ Compiler structure:
 | P2 | Member lookup skips members not visible from the calling module. The prototype links a package into one namespace, so every member is visible. |
 | M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package. |
 | TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The requirement-key dynamic-safety rule is implemented; the prototype does not check these remaining gaps. |
-| DERIVE-DEFAULT | Batch 51: `@derive(Default)` through the `std.ops` template, with `@default` on one enum variant. The template in `lib/std/ops.hd` works for data types, but the marker function `std.ops.default` is missing: declaring a module function named `default` beside the trait breaks every `T::default()` call in the prototype. No check counts the marked variants. |
 | CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `--` program arguments, exit status 101, JSON lines with a summary record, `-p`, `--filter`, `--deny-skipped`, stdin as a program, the workspace search from a member, the `hd new --app` and `--lib` templates, or the executable, task, and test-root layout errors. Most have no fixture format. |
 | CLI-57 | Batch 57 CLI rules: the prototype has none of `hd check --all`, the unlisted-member error, `exclude`, `-p` inside a member, a failing `--filter` on a FILE, the package REPL without `src/lib.hd`, `--format json` with its named fields on any command, or the `.gitignore` of `hd new`. `hd_run!` is plain hd over `Process` in `lib/std/testing.hd`, but `hd test` binds no `Process` for an integration test, and no check rejects `hd_run!` outside one. |
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
-| DEFAULT-FIELD | Batch 59: a member that declares a default needs no `Default` on its type. The `std.ops` template's `member[F < Default]` bound still covers it, so the prototype reports `member-not-derivable`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, with no host `Console.write_error_line` entry, so `eprintln` under the default profile fails with `host-contract`. `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 | QUALIFIED-PATH | Task #260: a used module name qualifies a function, a type, a variant, a variant pattern, and an associated call. Task #262: a module path to a private or missing declaration reports `private-import` or `unknown-import`, and an absolute path outside a use is `unknown-name`. The prototype rejects `use pkg.words` as `unsupported-package-use`. |
 | DOC-TESTS | Owner design, 2026-10-04: each fenced `hd` block in a `##` comment under `src/` is a doc test, compiled as its own program with the public view and run by `hd test` (`module.test.doc.*`, `cli.test.doc.*`). The prototype ignores the blocks, so `hd test` runs none, and `hd check --tests` checks none. |

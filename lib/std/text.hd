@@ -396,14 +396,11 @@ impl string:
         pieces
 
     # The spec gives `fill` the default ' ' (r-std-text.pad.fill-default).
-    # The prototype parser rejects a method parameter default, so this
-    # declaration has none yet (test/portable/KNOWN_FAILURES.tsv,
-    # METHOD-DEFAULT).
-    pub fn pad_start(self, width: usize, fill: char) -> string:
+    pub fn pad_start(self, width: usize, fill: char = ' ') -> string:
         size := scalar_count(self)
         if width <= size: self else: "$fill".repeat(width - size) + self
 
-    pub fn pad_end(self, width: usize, fill: char) -> string:
+    pub fn pad_end(self, width: usize, fill: char = ' ') -> string:
         size := scalar_count(self)
         if width <= size: self else: self + "$fill".repeat(width - size)
 

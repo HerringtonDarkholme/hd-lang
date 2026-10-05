@@ -663,3 +663,35 @@ class BindingScope {
 function unreachable(value: never): never {
   throw new Error(`unknown source node: ${String(value)}`);
 }
+
+/**
+ * Carry `lib/std/structure.hd`'s own uses into a program that declares
+ * structure early (checker/typed-derivation.ts). Each used name resolves
+ * against the declaration the library join already gave its standard name,
+ * as the inspect loader resolves its own uses
+ * (checker/standard-traits.ts). A synthesized `use` stays out: the join
+ * renamed the declaration to its hidden name before the use could exist,
+ * so a late local import desynchronizes the template names. The caller's
+ * own renames win over the carried ones.
+ */
+export function carriedStructureUses(source: Program, structure: Program): Map<string, string> {
+  const declarations = [
+    ...source.data,
+    ...source.enums,
+    ...source.traits,
+    ...(source.types ?? []),
+    ...source.functions,
+  ];
+  const renames = new Map<string, string>();
+  for (const use of structure.uses) {
+    if (use.module === "std.inspect") continue;
+    for (const imported of use.names) {
+      const local = imported.alias ?? imported.name;
+      const declaration = declarations.find(
+        (item) => item.standardName === `${use.module}.${imported.name}`,
+      );
+      if (declaration) renames.set(local, declaration.name);
+    }
+  }
+  return renames;
+}

@@ -656,13 +656,24 @@ class Parser extends LetParser {
           });
         } else {
           const { type, variadic } = this.parseParameterType();
+          const defaultValue = this.matchText("=") ? this.parseExpression() : undefined;
+          if (variadic && defaultValue)
+            this.fail(
+              "syntax-error",
+              "a variadic parameter cannot declare a default",
+              defaultValue.span,
+            );
           parameters.push({
             name: parameterName.text,
             type,
             variadic: variadic || undefined,
+            default: defaultValue,
             doc: parameterDoc,
             ...(parameterMetadata.length > 0 ? { metadata: parameterMetadata } : {}),
-            span: { start: parameterName.span.start, end: this.peek(-1).span.end },
+            span: {
+              start: parameterName.span.start,
+              end: defaultValue?.span.end ?? this.peek(-1).span.end,
+            },
           });
         }
       } while (this.matchText(",") && !this.atText(")"));

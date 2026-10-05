@@ -6,6 +6,8 @@
 # `downcast` methods, `downcast_val`, and `TypeId::of`, so the trait's
 # dictionary holds `runtime_type` alone.
 
+use std.format.DebugWriter
+
 pub trait Inspectable:
     fn runtime_type(self) -> TypeId
 
@@ -19,3 +21,11 @@ impl Eq for TypeId:
 
 impl Display for TypeId:
     fn to_string(self) -> string: self.key
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): a `@derive` on a std
+# declaration has no effect in the prototype.
+impl Debug for TypeId:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("TypeId").field("key", self.key).finish()
