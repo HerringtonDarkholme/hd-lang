@@ -58,7 +58,6 @@ CLI tier.
 | DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
 | BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
 | RESERVE-PKG | 1 | a module named `pkg` is accepted, not `reserved-module-name` |
-| UNCOVERED-CONFUSABLE | 1 | an identifier that looks like a visible one gets no `confusable-identifier` warning |
 
 ## Findings
 

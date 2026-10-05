@@ -410,10 +410,9 @@ See also: [Bang And Dot Tokens](02-grammar.md#bang-and-dot-tokens).
 
 ### Identifier Security
 
-1. r[lex.ident.confusable.warning] The compiler must warn about an identifier that is visually confusable with another identifier visible in the same scope. Warning: `confusable-identifier`.
-2. r[lex.ident.mixed-script.warning] The compiler must warn about an identifier that suspiciously mixes scripts. Warning: `mixed-script-identifier`.
-3. r[lex.ident.identity] These security diagnostics do not change name identity: two different NFC identifier strings remain different names.
-4. r[lex.ident.ascii] Standard-library APIs, language keywords, and compiler-generated source names use ASCII.
+1. r[lex.ident.mixed-script.warning] The compiler must warn about an identifier that suspiciously mixes scripts. Warning: `mixed-script-identifier`.
+2. r[lex.ident.identity] This security diagnostic does not change name identity: two different NFC identifier strings remain different names.
+3. r[lex.ident.ascii] Standard-library APIs, language keywords, and compiler-generated source names use ASCII.
 
 ### Reserved Words And Built-In Names
 
