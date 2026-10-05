@@ -25,6 +25,7 @@ CLI tier.
 | TYPE-GAPS | 5 | remaining batch 51 inference codes and batch 51b type rules are not checked |
 | VOID-UNIT | 2 | `void` is kept apart from the empty tuple `()`, so a void success has no `Eq` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
+| MVP-PATTERN | 1 | a `let` data pattern on a generic data value is `unsupported-match-subject` |
 | AMBIGUOUS-TYPE | 1 | an ambiguous requirement-key solution reports `cannot-infer-type`, not `ambiguous-type` |
 | SHADOW-TPARAM | 3 | a method type parameter, local declaration, or local value may reuse an enclosing type parameter's name |
 | VARIANCE-MUT-SELF | 1 | `mut self` inherent methods are skipped by the variance check |

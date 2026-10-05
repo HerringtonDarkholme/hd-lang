@@ -444,11 +444,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const declaration = this.enumTypes.get(subjectNominal?.name ?? subject.type);
     // A `mut` data subject matches as its data type; its fields keep their
     // own access (06-control-flow.md#r-flow.match.data.readonly-mut).
-    // A generic instantiation matches as its declaration, as enums do above.
-    const readonlySubject = readonlyType(subject.type);
-    const dataDeclaration = this.dataTypes.get(
-      nominalGenericParts(readonlySubject)?.name ?? readonlySubject,
-    );
+    const dataDeclaration = this.dataTypes.get(readonlyType(subject.type));
     const optional = optionalInner(subject.type);
     const result = resultParts(subject.type);
     const tuple = tupleParts(subject.type) !== undefined;
@@ -678,17 +674,9 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     try {
       this.rejectBareCallPattern(arm.pattern);
       if (context.dataDeclaration && arm.pattern.kind === "data") {
-        const readonlySubject = readonlyType(context.subject.type);
-        const subjectArgs = nominalGenericParts(readonlySubject)?.arguments ?? [];
-        const substitutions = new Map<string, ValueType>();
-        context.dataDeclaration.genericParameters.forEach((parameter, index) => {
-          const argument = subjectArgs[index];
-          if (argument !== undefined) substitutions.set(parameter, argument);
-        });
         const irrefutable = this.checkDataPattern(
           arm.pattern,
           context.dataDeclaration,
-          substitutions,
           [],
           bindings,
           tests,
