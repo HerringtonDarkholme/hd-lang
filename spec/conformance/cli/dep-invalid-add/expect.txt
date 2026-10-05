@@ -1,0 +1,12 @@
+# Each requirement breaks a manifest rule, so hd add rejects it before it fetches.
+run: hd add --format json json github.com/acme/json@v2.1.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add json github.com/acme@2.1.0
+exit: 101
+run: hd add json example.com/shop/json@1.0.0
+exit: 101
+run: hd add 9json github.com/acme/json@2.1.0
+exit: 101
+no-file: hd.sum
+run: hd check

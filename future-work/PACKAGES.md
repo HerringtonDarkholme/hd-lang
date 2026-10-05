@@ -10,10 +10,10 @@ integrity. They are applied in
 authoritative. So the registry names, caret ranges, solver, lockfile,
 and distribution that this draft first proposed are superseded, and
 their text is in git history. What stays open here is the final
-`hd.toml` schema ([`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema)),
-the checked compatibility rule behind `hd api diff`, and the agent-first
-CLI; the tooling plan is in
-Package Tooling. Executables, tasks, package mode, and `hd new` are
+`hd.toml` schema ([`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema))
+and the checked compatibility rule behind `hd api diff`. The dependency
+commands are specified in
+[Dependencies](../spec/cli/command-line.md#dependencies). Executables, tasks, package mode, and `hd new` are
 specified in [Command Line](../spec/cli/command-line.md).
 
 Inputs:
@@ -461,8 +461,8 @@ Owner decision 1 chose this rule.
 
 Superseded by DEP1 and DEP4: there is no lockfile, and `hd.sum` is the only
 integrity source ([Package Manifest](../spec/lang/10-modules.md#package-manifest)).
-Its line format is tooling work in
-Package Tooling.
+Its line format is specified in
+[hd.sum](../spec/cli/command-line.md#hdsum).
 
 ## 6. Standard Library
 
@@ -485,46 +485,33 @@ version is the tagged tree.
 
 ## 8. Agent-First CLI
 
-Every package operation is a non-interactive command. No command prompts.
-`hd new`, `hd run`, `hd build`, `hd check`, and `hd test` are specified in
-[Command Line](../spec/cli/command-line.md).
-Anything that would need confirmation fails with a diagnostic that names the
-flag to pass.
+Decided 2026-10-05 (Fetching Dependencies) and specified in
+[Dependencies](../spec/cli/command-line.md#dependencies), which is
+authoritative. It replaces the registry-era command list, whose
+`hd.lock`, `hd publish`, and `hd resolve` DEP1 removed.
 
 | Command | Effect |
 | --- | --- |
-| `hd add NAME ID@VERSION [--test]` | Add or raise a dependency, re-resolve, and update `hd.lock`. Without a version, use the newest non-yanked release. |
-| `hd remove NAME` | Remove a dependency. |
-| `hd update [NAME]` | Re-resolve to the newest versions the ranges allow and rewrite `hd.lock`, reporting any coherence conflict before writing. `--line` also moves the manifest requirement to a new line. |
-| `hd resolve [--explain ID]` | Resolve and check coherence. `--explain` lists each requirer of the package and its range, and on failure the solver's derivation. |
-| `hd lock --check` | Fail if `hd.lock` is stale. |
-| `hd api diff [OLD] [NEW]` | Compare interface files and report the required bump. Defaults: last published version and the working tree. |
-| `hd publish [--dry-run]` | Run every registry check locally, then upload. |
-| `hd metadata` | Print the resolved package graph, executables, and interface hashes. |
+| `hd check`, `hd build`, `hd run`, `hd test` | Fetch each selected version that the cache lacks, as Go does, and verify it against `hd.sum`. A selected version with no `hd.sum` entry is `missing-sum-entry`. No network when the cache holds everything. |
+| `hd add NAME PATH@VERSION` | Add or change a requirement, fetch, and update `hd.sum`. |
+| `hd update [NAME]` | Move requirements to the newest release on their compatibility line, select again, and rewrite `hd.sum`. |
+| `hd remove NAME` | Delete a requirement and tidy `hd.sum`. |
+| `hd fetch` | Fetch everything selected, for CI and offline work, and add missing `hd.sum` entries. |
 
-Output rules:
+The cache is one read-only directory per user, shared by every project,
+as Go's module cache is: `<platform cache dir>/hd/pkg/<host path>@<version>`,
+or under `HD_CACHE` when it is set
+([Cache](../spec/cli/command-line.md#cache)).
 
-- `--format json` writes JSON lines, as
-  [Machine Output](../spec/cli/command-line.md#machine-output) specifies
-  for `hd build`, `hd check`, and `hd test`: one object per diagnostic or
-  result, then a summary record, even on success. The tooling commands
-  below follow the same form. Human text is the default.
-- Diagnostics use stable codes, such as `missing-entry-point`,
-  `coherence-conflict`, and `version-bump-required`. Each JSON diagnostic
-  carries the manifest or source span and, when one exists, a suggested edit
-  as a replacement span.
-- Exit codes follow [Exit Status](../spec/cli/command-line.md#exit-status):
-  0 success, and 101 for any failure of `hd` itself, a network failure
-  included.
-- `--plan` on any command that writes files prints the manifest and lockfile
-  edits as JSON and changes nothing.
-- `hd add`, `hd remove`, and `hd update` rewrite `hd.toml` in canonical form.
-  Comments are kept.
-- Package metadata is exposed to the program database, which is
-  [on hold](ROADMAP.md#on-hold): packages, versions,
-  lines, dependency edges, implementation heads, and annotation slots per
-  package. Then "which package provides the `(Validation, User)` slot" is a
-  query.
+Every command is non-interactive, takes `--format json`
+([Machine Output](../spec/cli/command-line.md#machine-output)), and exits
+with 0 or 101 ([Exit Status](../spec/cli/command-line.md#exit-status)), a
+network failure included.
+
+Still open, for later chunks: pseudo-versions in `hd add`, workspace mode
+for the dependency commands, `hd api diff` (DEP7), and a `--plan` dry run.
+Package metadata for the program database stays
+[on hold](ROADMAP.md#on-hold).
 
 ## Owner Decisions
 

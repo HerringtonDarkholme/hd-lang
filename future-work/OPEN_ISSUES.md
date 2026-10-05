@@ -267,11 +267,11 @@ These items remain required but do not currently require new core syntax:
   Dependencies decisions DEP1-DEP7
   are applied in [Package Manifest](../spec/lang/10-modules.md#package-manifest)
   (version tags, minimal version selection, `hd.sum`, workspaces,
-  pseudo-versions), with DEP8-DEP19 after them. The manifest diagnostics
-  wait for the manifest schema (DEP14,
-  [`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema)),
-  and the tooling work is in
-  Package Tooling;
+  pseudo-versions), with DEP8-DEP19 after them. Fetching, the cache,
+  `hd.sum`, and `hd add`, `hd update`, `hd remove`, and `hd fetch` are
+  specified in [Dependencies](../spec/cli/command-line.md#dependencies).
+  The other manifest diagnostics wait for the manifest schema (DEP14,
+  [`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema));
 - conformance fixtures for `missing-entry-point` and `unselected-main`,
   which need manifest input in the fixture format, so they wait for the
   manifest schema like the other manifest diagnostics;

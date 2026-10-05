@@ -1,0 +1,5 @@
+[package]
+name = "app"
+
+[dependencies]
+json = "github.com/acme/json@2.1.0"

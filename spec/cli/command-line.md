@@ -10,6 +10,8 @@ command finds a package and what each command runs:
 - the executables a manifest declares, and package tasks;
 - program arguments, host capabilities, machine output, and exit status;
 - `hd doc`, which writes a package's documentation;
+- `hd add`, `hd update`, `hd remove`, and `hd fetch`, which manage and fetch
+  dependencies;
 - `hd new`, and the REPL.
 
 The language tier defines what a program means: its
@@ -30,6 +32,7 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd check`, `hd test` | work on the [package](#building-and-checking), or on one FILE |
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
+| `hd add NAME PATH@VERSION`, `hd update [NAME]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
 | `hd help`, `hd --help` | prints the command list |
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list.
@@ -461,8 +464,8 @@ hd check --format json
 # {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":101}
 ```
 
-1. r[cli.json.commands] `hd build`, `hd check`, `hd test`, `hd run`, `hd doc`, and `hd FILE` take `--format json`.
-2. r[cli.json.lines.build] With it, `hd build`, `hd check`, and `hd test` write JSON lines to stdout: one JSON object per line, and no other text.
+1. r[cli.json.commands] `hd build`, `hd check`, `hd test`, `hd run`, `hd doc`, `hd FILE`, and the [dependency commands](#dependency-commands) take `--format json`.
+2. r[cli.json.lines.build] With it, `hd build`, `hd check`, `hd test`, and the dependency commands write JSON lines to stdout: one JSON object per line, and no other text.
 3. r[cli.json.run] With it, `hd run` and `hd FILE` write only `hd`'s own diagnostics and summary as JSON lines, and write them to stderr.
 4. r[cli.json.run.program] The program's standard output passes through to stdout untouched.
 5. r[cli.json.kind] Each object's `kind` field is `"diagnostic"`, `"test"`, or `"summary"`.
@@ -652,9 +655,154 @@ echo 'println(1 + 2)' | hd    # prints 3
 > **Why.** An agent that pipes code into `hd` gets a run, not a prompt
 > that waits for a terminal.
 
+## Dependencies
+
+`hd` fetches the packages that a manifest requires from their repositories,
+as Go's `go` command does:
+
+```sh
+hd add json github.com/acme/json@2.1.0   # requires json, fetches it, and records its hash
+hd check                                 # fetches each selected version that the cache lacks
+hd update json                           # moves json to the newest 2.x release
+hd remove json                           # deletes json's requirement and tidies hd.sum
+hd fetch                                 # fetches everything selected, as CI does before going offline
+```
+
+Source then uses the dependency through its key, as in
+`use dep.json.{parse}`.
+
+### Fetching
+
+```sh
+hd check    # error: missing-sum-entry, when json has no hd.sum entry
+hd fetch    # fetches json and adds its entry
+hd check    # works offline from now on
+```
+
+1. r[cli.dep.implicit-fetch] Before they compile, `hd check`, `hd build`, `hd run`, and `hd test` select the package's dependency versions by [Version Selection](../lang/10-modules.md#version-selection). They fetch each version they need that the [cache](#cache) lacks.
+2. r[cli.dep.reached] A command needs every version that a requirement reaches, since selection reads its manifest, by [`module.select.reach`](../lang/10-modules.md#r-module.select.reach).
+3. r[cli.dep.offline] A command that finds every version it needs in the cache uses no network.
+4. r[cli.dep.missing-sum] In those commands, a selected version that has no `hd.sum` entry is an error at its requirement in `hd.toml`. The message names `hd add` and `hd fetch`. Error: `missing-sum-entry`.
+5. r[cli.dep.no-sum-write] `hd check`, `hd build`, `hd run`, and `hd test` never write `hd.sum` or `hd.toml`.
+6. r[cli.dep.verify] A selected version whose tree hash differs from its `hd.sum` entry is an error, by [`module.sum.mismatch`](../lang/10-modules.md#r-module.sum.mismatch). Error: `sum-mismatch`.
+7. r[cli.dep.path] A path requirement names the package in its directory, by [`module.workspace.path-requirement`](../lang/10-modules.md#r-module.workspace.path-requirement). It is never fetched, and it has no `hd.sum` entry.
+8. r[cli.dep.invalid] A dependency key or requirement that breaks a rule of [Dependency Requirements](../lang/10-modules.md#dependency-requirements), [Host Paths](../lang/10-modules.md#host-paths), or [Versions](../lang/10-modules.md#versions) is an error at its line of `hd.toml`. Error: `invalid-requirement`.
+9. r[cli.dep.no-library] A requirement whose package has no `src/lib.hd` is an error, by [`module.path.no-lib-dependency`](../lang/10-modules.md#r-module.path.no-lib-dependency). Error: `invalid-requirement`.
+
+> **Why.** `hd.sum` is committed, so the first fetch of a version is the
+> one moment its hash is trusted. Only the commands that change
+> requirements record a hash; a build only checks one.
+
+### Repositories
+
+1. r[cli.dep.repo-url] `hd` fetches a host path's repository from the URL `https://` followed by its [repository part](../lang/10-modules.md#host-paths). So `github.com/acme/tools/lint` is fetched from `https://github.com/acme/tools`.
+2. r[cli.dep.git] `hd` fetches with the system's `git` command, so git's own configuration applies, such as credential helpers, SSH keys, and `url.<base>.insteadOf` rewrites.
+3. r[cli.dep.tag] A version's tree is the package's directory in the commit of its tag, by [`module.version.tag`](../lang/10-modules.md#r-module.version.tag) and [`module.version.tag-prefix`](../lang/10-modules.md#r-module.version.tag-prefix).
+4. r[cli.dep.no-prompt] Fetching never asks a question. A repository that git cannot reach or read, as a private one without credentials, is an error that names the host path. Error: `fetch-failed`.
+5. r[cli.dep.unknown-version] A requirement whose package has no tag for its version is an error, by [`module.version.tag-missing`](../lang/10-modules.md#r-module.version.tag-missing). Error: `unknown-version`.
+6. r[cli.dep.no-secret] A message never shows a credential. A user name or password in a URL that git reports is replaced by `***`.
+
+```toml
+[dependencies]
+lint = "github.com/acme/tools/lint@2.4.1"  # error: unknown-version, with no tag lint/v2.4.1
+```
+
+> **Why.** git already knows how to reach a private repository, so `hd`
+> stores no credentials, by
+> [`module.repo.no-stored-credentials`](../lang/10-modules.md#r-module.repo.no-stored-credentials).
+> An `insteadOf` rewrite moves a host to SSH or a mirror without a manifest
+> edit.
+
+### Cache
+
+Fetched versions live in one **cache directory** per user:
+
+```sh
+hd fetch                     # into ~/.cache/hd/pkg/github.com/acme/json@2.1.0 on Linux
+HD_CACHE=/srv/hd hd fetch    # into /srv/hd/pkg/github.com/acme/json@2.1.0
+```
+
+| Platform | Cache directory |
+| --- | --- |
+| Linux and other Unix systems | `$XDG_CACHE_HOME/hd`, or `~/.cache/hd` when `XDG_CACHE_HOME` is unset |
+| macOS | `~/Library/Caches/hd` |
+| Windows | `%LocalAppData%\hd` |
+
+1. r[cli.cache.directory] The cache directory is the platform's user cache directory followed by `hd`, as the table gives it. When the environment variable `HD_CACHE` is set, it names the cache directory instead.
+2. r[cli.cache.entry] A fetched version is stored once, in the directory `pkg/HOST_PATH@VERSION` of the cache directory, such as `~/.cache/hd/pkg/github.com/acme/json@2.1.0`.
+3. r[cli.cache.entry.tree] That directory holds the version's tree: its manifest, its source, and its other files.
+4. r[cli.cache.shared] Every package of the user shares the cache, so a version is fetched once per machine.
+5. r[cli.cache.read-only] `hd` makes an entry read-only once it is written, and never changes it afterwards.
+6. r[cli.cache.complete] An entry appears only once it is complete, so an interrupted fetch leaves no partial entry.
+7. r[cli.cache.hash] `hd` records an entry's tree hash when it writes the entry. A command that uses a cached entry compares that record with the `hd.sum` entry, by [`cli.dep.verify`](#r-cli.dep.verify).
+
+> **Why.** Go's module cache works the same way. A read-only entry keeps
+> an editor's jump to a dependency from changing it in place, and one
+> entry per version serves every project.
+
+### hd.sum
+
+`hd.sum` holds one line per selected version, which no one edits by hand:
+
+```
+github.com/acme/json@2.1.0 h1:Wk5nB1xKpXz2q8pCw2e1mzXqLhZqS5pDq3K0V2m3s1c=
+github.com/acme/tools/lint@2.3.0 h1:1y7R7oDpvPj3c9sQm3r3N6cMfJ8pF0Q2b4Lw8d8N3hY=
+```
+
+1. r[cli.sum.line] Each line of `hd.sum` is a host path, `@`, a version, one space, and the tree hash of that version.
+2. r[cli.sum.order] The lines are sorted by host path, then by [version order](../lang/10-modules.md#r-module.version.order). Each line, the last included, ends with a newline.
+3. r[cli.sum.tree] A version's tree is every regular file in its package directory at its tag, by [`cli.dep.tag`](#r-cli.dep.tag). A subdirectory that holds its own `hd.toml` is another package, and its files are not part of the tree.
+4. r[cli.sum.summary] The tree's summary has one line per file, sorted by path. A line is the file's SHA-256 in lowercase hexadecimal, two spaces, the file's path, and a newline.
+5. r[cli.sum.summary.path] That path is relative to the package directory, with `/` between its segments.
+6. r[cli.sum.hash] The **tree hash** is `h1:` followed by the Base64 encoding, with padding, of the SHA-256 of the summary.
+7. r[cli.sum.keep] No command replaces an entry with a different hash. A tree whose hash differs from its entry is always the error of [`cli.dep.verify`](#r-cli.dep.verify).
+
+> **Note.** The tree hash has the form of Go's `h1:` hash, whose paths
+> start with the module path. In a tree hash they start at the package
+> directory, so a package's hash does not depend on the host path it was
+> fetched by.
+
+### Dependency Commands
+
+```sh
+hd add json github.com/acme/json@2.1.0   # hd.toml gains json = "github.com/acme/json@2.1.0"
+hd update json                           # with a tag v2.3.0, json becomes "github.com/acme/json@2.3.0"
+hd remove json                           # json's line and its hd.sum entry go
+```
+
+| Command | Effect |
+| --- | --- |
+| `hd add NAME PATH@VERSION` | adds the requirement `NAME = "PATH@VERSION"`, or changes NAME's, then fetches and records hashes |
+| `hd update` | moves every requirement to the newest release on its compatibility line |
+| `hd update NAME` | moves only NAME's requirement |
+| `hd remove NAME` | deletes NAME's requirement |
+| `hd fetch` | fetches every selected version that the cache lacks, and records missing hashes |
+
+1. r[cli.dep.add] `hd add NAME PATH@VERSION` sets the requirement of the key NAME in `[dependencies]` to `PATH@VERSION`. It adds the key when the manifest has none.
+2. r[cli.dep.add.check] `hd add` checks NAME and `PATH@VERSION` by [`cli.dep.invalid`](#r-cli.dep.invalid) before it fetches anything.
+3. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
+4. r[cli.dep.tidy] It then writes `hd.sum` with one entry for each selected version, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
+5. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
+6. r[cli.dep.update.release] The newest release is the greatest tagged version without a pre-release suffix. A requirement already at or above it keeps its version.
+7. r[cli.dep.update.network] `hd update` lists the tags of each repository it moves, so it uses the network even when the cache holds every version.
+8. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
+9. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds an `hd.sum` entry for each selected version that has none, and changes no other entry.
+10. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
+11. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
+12. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
+13. r[cli.dep.no-question] No dependency command asks a question.
+
+> **Why.** An agent adds a dependency with one command and gets a
+> manifest, a fetched tree, and a hash that agree. CI runs `hd fetch` once,
+> and every later command works offline.
+
+See also: [Package Manifest](../lang/10-modules.md#package-manifest),
+[Integrity](../lang/10-modules.md#integrity),
+[Machine Output](#machine-output), [Exit Status](#exit-status).
+
 ## Package Tooling
 
-1. r[cli.tooling.package-schema] The complete `hd.toml` schema, the `hd.sum` format, and the commands that fetch, add, and upgrade dependencies belong to package tooling.
+1. r[cli.tooling.package-schema] The complete `hd.toml` schema belongs to package tooling. [Dependencies](#dependencies) defines the `hd.sum` format and the commands that fetch, add, and upgrade dependencies.
 2. r[cli.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
 
 See also: [Package Manifest](../lang/10-modules.md#package-manifest),

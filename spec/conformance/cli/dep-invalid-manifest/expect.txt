@@ -1,0 +1,6 @@
+# A github.com host path names an owner and a repository.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null,"file":"hd.toml","line":5,"column":null},{"kind":"summary","errors":1,"status":101}]
+run: hd fetch
+exit: 101

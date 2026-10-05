@@ -1,0 +1,8 @@
+run: hd fetch
+exit: 101
+run: hd add json github.com/acme/json@2.1.0
+exit: 101
+run: hd update
+exit: 101
+run: hd remove json
+exit: 101

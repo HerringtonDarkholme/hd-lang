@@ -121,9 +121,8 @@ Pseudo-versions take Go's three forms:
 > **Why.** A requirement names one exact release, so a typo or a deleted
 > tag fails the build rather than silently choosing other code. Go reports
 > the same case as `unknown revision`, and rejects a pseudo-version that
-> does not match its commit. The error's code is named with the
-> other manifest diagnostics, once the manifest schema is written
-> ([`cli.tooling.package-schema`](../cli/command-line.md#r-cli.tooling.package-schema)).
+> does not match its commit. The error is `unknown-version`, by
+> [`cli.dep.unknown-version`](../cli/command-line.md#r-cli.dep.unknown-version).
 
 ### Version Selection
 
