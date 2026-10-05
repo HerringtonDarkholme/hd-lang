@@ -1,14 +1,15 @@
 # test: a nested data type with lists, maps, and optionals encodes to an object per value, in declaration order, and decodes back
-# Spec std/json Typed JSON, Derived ToJson, Derived FromJson: std-json.derive.to-json.data, std-json.derive.from-json.inverse, std-json.encode, std-json.decode (task #241).
-use std.json.{ToJson, FromJson, encode, decode, JsonError}
+# Spec std/json Typed JSON, Derived Serialize, Derived Deserialize: std-json.derive.to-json.data, std-json.derive.from-json.inverse, std-json.to-json, std-json.encode, std-json.decode (task #241).
+use std.json.{encode, decode, to_json, JsonError}
+use std.serde.{Serialize, Deserialize}
 use std.testing.assert_equal
 
-@derive(ToJson, FromJson)
+@derive(Serialize, Deserialize)
 data Address:
     city: string
     zip: string?
 
-@derive(ToJson, FromJson)
+@derive(Serialize, Deserialize)
 data User:
     name: string
     age: u8
@@ -17,7 +18,7 @@ data User:
     scores: Map[string, i64]
     address: Address
 
-@derive(ToJson, FromJson)
+@derive(Serialize, Deserialize)
 data Team:
     title: string
     members: List[User]
@@ -32,7 +33,7 @@ fn save(address: Address) -> string:
 fn load(text: string) -> Result[Address, JsonError]:
     decode::[Address](text)
 
-fn read[T < FromJson](text: string) -> T:
+fn read[T < Deserialize](text: string) -> T:
     match decode::[T](text):
         .Ok(value) => value
         .Err(error) => panic("decode failed: $error")
@@ -55,7 +56,7 @@ tests:
         assert_equal(load("{\"city\":\"London\",\"zip\":null}").map(fn(found): found.city), .Ok("London"), reason="load")
 
     it("to_json gives the Json that encode prints"):
-        assert_equal("${ada().address.to_json()}", "{\"city\":\"London\",\"zip\":null}", reason="to_json")
+        assert_equal("${to_json(ada().address)}", "{\"city\":\"London\",\"zip\":null}", reason="to_json")
 
     it("decoding reads keys in any order and ignores unknown keys"):
         address := read::[Address]("{\"extra\":[1,2],\"zip\":\"N1\",\"city\":\"London\"}")

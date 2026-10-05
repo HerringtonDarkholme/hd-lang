@@ -1,5 +1,5 @@
-# test: a map whose key type is not string has no ToJson
-# Spec std/json Standard Implementations: std-json.std.map-keys (task #241).
+# test: a map whose key type is not string has no Serialize, so encode rejects it
+# Spec std/serde Standard Implementations: std-serde.std.map-keys (task #241, #320).
 use std.json.encode
 
 fn show(counts: Map[i32, i32]) -> string:

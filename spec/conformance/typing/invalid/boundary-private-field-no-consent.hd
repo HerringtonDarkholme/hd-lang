@@ -1,0 +1,15 @@
+# test: a type with a private field and no consent cannot cross a host call, even when it consents in the other direction
+# Spec Modules, Private Fields At A Boundary: module.boundary.consent.out, module.boundary.consent.error (task #320).
+# fixture-runtime-profile: consent-vault
+use std.serde.Deserialize
+
+@derive(Deserialize)
+pub data Token:
+    pub owner: string
+    secret: i64
+
+pub trait Vault:
+    fn keep(self, token: Token) -> Token  # diagnostic: boundary-private-field
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(Token { owner: "ada", secret: 42 })

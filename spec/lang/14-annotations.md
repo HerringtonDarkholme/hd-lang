@@ -1563,6 +1563,124 @@ An implementation must not guess them:
 | Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
 | Function targets | Deriving for functions, as tool adapters need ([parked tool adapters](../../future-work/OPEN_ISSUES.md#parked-tool-adapters)). A decorator before a function attaches a value, as [Prefix Decorators](#prefix-decorators) defines. |
 
+## Serialization
+
+**Serialization consent** is a type's one permission, for every format, to
+write its values or to build them, private members included. A type gives
+it once, by deriving or implementing two traits of `std.serde`:
+
+```text
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+data Session:
+    pub user: string
+    token: string
+    expires_at: i64
+```
+
+1. r[annot.serde.definition] A type **consents to serialization** when it implements `std.serde.Serialize`, and **consents to deserialization** when it implements `std.serde.Deserialize`.
+2. r[annot.serde.private] A consent covers private members. A derived `serialize` writes every member that its derivation walks, and a derived `deserialize` builds every member, as [`annot.structure.private`](#r-annot.structure.private) allows.
+3. r[annot.serde.derivable] `std.serde` declares the [template](#templates) of each trait. So `@derive(Serialize)`, `@derive(Deserialize)`, and a derivation block for either trait are valid.
+4. r[annot.serde.members] Every member that a derived `Serialize` walks must implement `Serialize`, and every member that a derived `Deserialize` builds must implement `Deserialize`.
+5. r[annot.serde.members.error] A member that does not is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
+6. r[annot.serde.by-hand] A type may implement either trait by hand instead. A written implementation is consent too.
+
+```text
+use std.serde.Serialize
+
+data Secret:
+    value: i32
+
+@derive(Serialize)  # error: member-not-derivable
+data Account:
+    id: i32
+    secret: Secret
+```
+
+> **Why.** Rust's serde and Swift's `Codable` work this way: a type
+> consents once, and each format is a writer or reader that the consent
+> drives. Adding a format then needs no change to any type.
+
+> **Note.** A format declares no trait of its own for types to implement,
+> so a type has exactly one serialized form for all formats. A derivation
+> block's member lines, such as `cache = pass`, configure that one form.
+> Per-format overriding is open, in
+> [Serialization Formats](../../future-work/OPEN_ISSUES.md#serialization-formats).
+
+See also: [Boundary Encoding](10-modules.md#boundary-encoding),
+[Serde](../std/serde.md), [Typed JSON](../std/json.md#typed-json).
+
+### The `std.serde` Module
+
+The module `std.serde` declares the two consent traits and the format
+protocol they drive:
+
+```text
+pub trait Serialize:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]
+
+pub trait Deserialize:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Self, R::Error]
+
+pub trait Serializer:
+    type Error
+    fn null(mut self) -> Result[void, Self::Error]
+    fn bool(mut self, value: bool) -> Result[void, Self::Error]
+    fn int(mut self, value: i64) -> Result[void, Self::Error]
+    fn uint(mut self, value: u64) -> Result[void, Self::Error]
+    fn float(mut self, value: f64) -> Result[void, Self::Error]
+    fn text(mut self, value: string) -> Result[void, Self::Error]
+    fn begin_list(mut self, len: usize) -> Result[void, Self::Error]
+    fn end_list(mut self) -> Result[void, Self::Error]
+    fn begin_map(mut self, len: usize) -> Result[void, Self::Error]
+    fn key(mut self, key: string) -> Result[void, Self::Error]
+    fn end_map(mut self) -> Result[void, Self::Error]
+    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, Self::Error]
+    fn member(mut self, m: Member) -> Result[void, Self::Error]
+    fn end_variant(mut self) -> Result[void, Self::Error]
+
+pub enum ValueKind:
+    Null
+    Bool
+    Int
+    Uint
+    Float
+    Text
+    List
+    Map
+
+pub trait Deserializer:
+    type Error
+    fn peek(mut self) -> Result[ValueKind, Self::Error]
+    fn is_null(mut self) -> Result[bool, Self::Error]
+    fn bool(mut self, expected: string) -> Result[bool, Self::Error]
+    fn int(mut self, expected: string) -> Result[i64, Self::Error]
+    fn uint(mut self, expected: string) -> Result[u64, Self::Error]
+    fn float(mut self, expected: string) -> Result[f64, Self::Error]
+    fn text(mut self, expected: string) -> Result[string, Self::Error]
+    fn begin_list(mut self) -> Result[void, Self::Error]
+    fn next_item(mut self) -> Result[bool, Self::Error]
+    fn begin_map(mut self) -> Result[void, Self::Error]
+    fn next_key(mut self) -> Result[string?, Self::Error]
+    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, Self::Error]
+    fn member(mut self, m: Member) -> Result[void, Self::Error]
+    fn end_variant(mut self) -> Result[void, Self::Error]
+    fn invalid(mut self, expected: string) -> Self::Error
+```
+
+1. r[annot.serde.module] The standard module `std.serde` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.structure`](#the-stdstructure-module).
+2. r[annot.serde.known] The compiler knows `Serialize` and `Deserialize` by name, for the boundary rule [`module.boundary.consent.out`](10-modules.md#r-module.boundary.consent.out). It knows no other part of `std.serde`.
+3. r[annot.serde.not-sealed] None of the five items is sealed. Any package may implement the four traits.
+
+> **Why.** `Structure` may be named only inside a template, so a format
+> cannot walk a type itself. The consent's templates walk it once, for
+> every format, and pass each member to the format's writer or reader.
+
+> **Note.** The meaning of each `Serializer` and `Deserializer` call, the
+> templates, and the standard implementations are library behavior, in
+> [Serde](../std/serde.md).
+
 ## Error Derivation
 
 **Error derivation** implements `Display`, `std.error.Error`, and `From`

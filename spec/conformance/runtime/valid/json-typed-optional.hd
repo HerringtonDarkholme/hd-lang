@@ -1,9 +1,10 @@
 # test: .None encodes as null, and a missing key decodes as null, so an optional member may be missing
-# Spec std/json Standard Implementations, Derived FromJson: std-json.std.optional, std-json.derive.from-json.missing, std-json.std.json (task #241).
-use std.json.{ToJson, FromJson, encode, decode, Json}
+# Spec std/json Standard Implementations, Derived Deserialize: std-json.std.optional, std-json.derive.from-json.missing, std-json.std.json (task #241).
+use std.json.{encode, decode, Json}
+use std.serde.{Serialize, Deserialize}
 use std.testing.{assert, assert_equal}
 
-@derive(ToJson, FromJson)
+@derive(Serialize, Deserialize)
 data Profile:
     name: string
     nickname: string?

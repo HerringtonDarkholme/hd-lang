@@ -1,0 +1,9 @@
+# test: a map whose key type is not string has no Serialize, so a Serialize bound rejects it
+# Spec std/serde Standard Implementations: std-serde.std.map-keys (task #320).
+use std.serde.Serialize
+
+fn send[T < Serialize](value: T) -> void:
+    pass
+
+fn send_counts(counts: Map[i32, i32]) -> void:
+    send(counts)  # diagnostic: unsatisfied-trait-bound

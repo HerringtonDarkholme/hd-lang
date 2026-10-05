@@ -1,0 +1,11 @@
+# test: deriving Serialize for a type with a member that has no Serialize is an error at the opt-in
+# Spec Annotations, Serialization: annot.serde.members, annot.serde.members.error (task #320).
+use std.serde.Serialize
+
+data Secret:
+    value: i32
+
+@derive(Serialize)  # diagnostic: member-not-derivable
+data Account:
+    id: i32
+    secret: Secret

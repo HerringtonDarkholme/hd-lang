@@ -1,0 +1,96 @@
+# test: a derived Serialize calls begin_variant, then member and the value for each walked member, then end_variant; a list is begin_list, items, end_list
+# Spec std/serde Data Model, Derived Consent: std-serde.derive.serialize.order, std-serde.model.variant, std-serde.model.list, std-serde.derive.omitted (task #320).
+use std.serde.{Serialize, Serializer}
+use std.structure.{Structure, Facts, VariantInfo, Member}
+use std.testing.assert_equal
+
+# Records each call as a word, so the test reads the call order.
+data Calls:
+    pub log: string
+
+impl Calls:
+    fn add(mut self, word: string) -> Result[void, never]:
+        if self.log == "":
+            self.log = word
+        else:
+            self.log = self.log + " " + word
+        .Ok(())
+
+impl Serializer for Calls:
+    type Error = never
+
+    fn null(mut self) -> Result[void, never]:
+        self.add("null")
+
+    fn bool(mut self, value: bool) -> Result[void, never]:
+        self.add("bool:$value")
+
+    fn int(mut self, value: i64) -> Result[void, never]:
+        self.add("int:$value")
+
+    fn uint(mut self, value: u64) -> Result[void, never]:
+        self.add("uint:$value")
+
+    fn float(mut self, value: f64) -> Result[void, never]:
+        self.add("float:$value")
+
+    fn text(mut self, value: string) -> Result[void, never]:
+        self.add("text:$value")
+
+    fn begin_list(mut self, len: usize) -> Result[void, never]:
+        self.add("list:$len")
+
+    fn end_list(mut self) -> Result[void, never]:
+        self.add("end-list")
+
+    fn begin_map(mut self, len: usize) -> Result[void, never]:
+        self.add("map:$len")
+
+    fn key(mut self, key: string) -> Result[void, never]:
+        self.add("key:$key")
+
+    fn end_map(mut self) -> Result[void, never]:
+        self.add("end-map")
+
+    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+        self.add("variant:${v.name}")
+
+    fn member(mut self, m: Member) -> Result[void, never]:
+        self.add("member:${m.name}")
+
+    fn end_variant(mut self) -> Result[void, never]:
+        self.add("end-variant")
+
+data Cache:
+    hits: i64
+
+data Order:
+    id: u32
+    lines: List[i8]
+    note: string?
+    cache: Cache = Cache { hits: 0 }
+
+impl Serialize for Order by Structure:
+    cache = pass
+
+@derive(Serialize)
+enum Step:
+    Start
+    Move(by: i32)
+
+fn calls[T < Serialize](value: T) -> string:
+    let out: mut Calls = Calls { log: "" }
+    _ := value.serialize(out)
+    out.log
+
+tests:
+    it("a data value is one variant of its members, in declaration order"):
+        order := Order { id: 7, lines: [1, -2], note: .None }
+        assert_equal(calls(order), "variant:Order member:id uint:7 member:lines list:2 int:1 int:-2 end-list member:note null end-variant", reason="omitted cache is not written")
+
+    it("an enum value is its variant with that variant's members"):
+        assert_equal(calls(Step.Start), "variant:Start end-variant", reason="no members")
+        assert_equal(calls(Step.Move(3)), "variant:Move member:by int:3 end-variant", reason="one member")
+
+    it("a map writes a key before each value"):
+        assert_equal(calls({ "a": true }), "map:1 key:a bool:true end-map", reason="map")

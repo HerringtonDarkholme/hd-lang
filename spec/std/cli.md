@@ -42,7 +42,7 @@ fn tool() -> Cli:
 
 > **Why.** A builder needs no fact types and no derivation, and it reads
 > like Go's `flag` and Node's `util.parseArgs` tables. A typed form, which
-> derives a parser from a data type as `FromJson` does, can follow over the
+> derives a parser from a data type as `Deserialize` does, can follow over the
 > same parser.
 
 ## Parsing

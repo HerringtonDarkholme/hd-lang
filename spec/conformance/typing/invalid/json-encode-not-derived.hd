@@ -1,5 +1,5 @@
-# test: encoding a type that neither derives nor implements ToJson is an error
-# Spec std/json Encode And Decode: std-json.encode.bound (task #241).
+# test: encoding a type that has no Serialize consent is an error
+# Spec std/json Encode And Decode: std-json.encode.consent (task #241, #320).
 use std.json.encode
 
 data Plain:

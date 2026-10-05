@@ -36,6 +36,7 @@ fixed; regenerate the list for #101 (`git show a3f8e3b3:audit/job2-error-codes-s
 | TY-29 | type audit | `trait-method-visibility`, `local-impl-nonlocal-pair`, `missing-partial-eq`, `missing-partial-ord`, `duplicate-annotation-impl`, and `overlapping-annotation-impl` appear in no chapter. | Settle each in the error-code revamp, task #101: give it a rule or merge it. |
 | DEFAULT-CODE | batch 51 | The decision names no code for zero or several `@default` variants. | A new code, `invalid-default-variant` ([`std-ops.default.derive.one-variant`](../spec/std/ops.md#r-std-ops.default.derive.one-variant)), reported on the `@derive` line or the second `@default`. |
 | RACE-PANIC | batch 51 | The decision leaves the panic code of a `race!` over a list that is empty at run time to the agent. | `explicit-panic` ([`req.combinator.race-empty-run`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-empty-run)), as for `chunks` with a size of 0 ([`std-collections.list.chunks.size`](../spec/std/collections.md#r-std-collections.list.chunks.size)). |
+| SERDE-code | task #320 | The serde decision names no code for a private-field type that crosses a boundary without its consent. | A new code, `boundary-private-field` ([`module.boundary.consent.error`](../spec/lang/10-modules.md#r-module.boundary.consent.error)), reported at the boundary signature. The prototype reported `unsupported-host-provider-signature`, which names no field. |
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
@@ -78,6 +79,41 @@ capability traits may take `Secret[T]` parameters so the host receives the
 real value without an `expose()` in hd code; whether exported functions may
 take `Secret[T]` inputs; and that a secret never encodes or appears in
 outputs.
+
+### Serialization Formats
+
+Owner decision, 2026-10-05: one format-neutral consent per type, many
+formats, as in Rust's serde and Swift's `Codable`
+([Serialization](../spec/lang/14-annotations.md#serialization)). These
+parts wait:
+
+| Question | State |
+| --- | --- |
+| Per-format overriding | Deferred by the owner. The plan below needs no new mechanism. |
+| Boundary encoding through the consent | A consented value crosses a host boundary as its field tree ([`module.boundary.consent.tree`](../spec/lang/10-modules.md#r-module.boundary.consent.tree)). So a hand-written consent, as `Duration`'s one `int`, changes JSON but not the boundary. Whether the boundary should encode through `serialize` and `deserialize` is open. |
+| Schemas | Which consent carries a `describe` for schemas, and the data model a schema describer reads. |
+| More standard consents | Tuples, `Result`, `Set`, and maps whose keys are not `string` have no standard implementation yet. |
+
+**Per-format overriding, planned through facts.** Facts are sufficient; no
+per-format trait and no specialization is needed. The owner considered a
+blanket implementation with a per-type override and ruled it out of scope.
+
+- Format-neutral facts cover the common customizations:
+  `@serde(rename="mail")`, `@serde(skip)`, and `@serde(default)` on a
+  member, read through the `Member` facts that every format receives.
+- A format-scoped fact covers one format: `@json(repr="string")` writes an
+  `i64` member as a string, for large integer IDs, since JSON in
+  JavaScript has no `i64`. `@json(repr="display")` round trips a value
+  through its `Display` text and a parse, which covers custom date or money
+  text without a function-valued fact.
+- The format's writer or reader reads the fact, as `std.json`'s does for
+  `@json(...)`. Derivation blocks scope facts per derivation, so a
+  `Serialize` block and a `Deserialize` block may differ.
+- Facts are values, not code, so a fact never runs user code inside a
+  format.
+- Known limitation, as in serde: a program cannot restyle a type it does
+  not own. It can only put a fact on its own field of that type, as
+  `@json(repr="display")` on a `Timestamp` member.
 
 ### Serializable Closures And Incremental Computation
 

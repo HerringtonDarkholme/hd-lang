@@ -70,9 +70,9 @@ every feature belongs in `std`.
   decisions of 2026-09-26 and 2026-09-29 that were "applied in this record
   only". The record was archived and then deleted, so those decisions now
   live only in git history. See [Earlier Owner Decisions](#earlier-owner-decisions).
-- **Typed JSON is specified.** `ToJson` and `FromJson` derive through
-  `Walker` and `Source`, as `Hash` and `Arbitrary` do:
-  [Typed JSON](../spec/std/json.md#typed-json).
+- **Typed JSON is specified.** JSON reads the format-neutral `std.serde`
+  consent, `Serialize` and `Deserialize`, which derive through `Walker` and
+  `Source` (task #320): [Typed JSON](../spec/std/json.md#typed-json).
 - **Most gaps are pure library work.** Collections, text, JSON, and
   argument parsing need no host. Host areas need one decision, the first host catalog, plus small
   prototype hooks.
@@ -103,7 +103,7 @@ every feature belongs in `std`.
 | `std.cli` | `Cli` with `flag`, `option`, `positional`, `parse`, `parse_args`, and `usage`; `Parsed`, `CliError` | [cli.md](../spec/std/cli.md) | no typed `FromArgs` derivation |
 | `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | no profile binds `FsRead` or `FsWrite` |
 | `std.encoding`, `std.digest` | `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, `DecodeError`; `sha256`, `sha256_hex` | [encoding.md](../spec/std/encoding.md), [digest.md](../spec/std/digest.md) | no URL-safe base64, no streaming hasher |
-| `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, the `pretty` method, and the `Json` accessors; `ToJson` and `FromJson` with their templates and standard implementations, `encode`, and `decode` | [json.md](../spec/std/json.md) | `parse` reads a number with a fraction or an exponent through `parse_f64`; no field renames, conditional skips, or defaults per field |
+| `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, the `pretty` method, and the `Json` accessors; `to_json`, `from_json`, `encode`, and `decode` over the `std.serde` consent | [json.md](../spec/std/json.md) | `parse` reads a number with a fraction or an exponent through `parse_f64`; no field renames, conditional skips, or defaults per field |
 | `std.regex` | `Regex` with `new`, `as_str`, `is_match`, `find`, `find_all`, `captures`, `captures_all`, `replace`, `replace_all`, and `split`; `Match`; `Captures`; `RegexError`, `RegexErrorKind` | [regex.md](../spec/std/regex.md) | no flags |
 | absent | log, http | none | the gap this plan covers |
 
@@ -186,7 +186,7 @@ only for `src/` or `lib/std`, is in [Compiler Handoff](#compiler-handoff).
 | 5 | 2026-09-26 | a library `std.bytes.Bytes`, readonly and compact, convertible to and from `List[u8]` | waits for design: a use that `List[u8]` serves badly |
 | 9 | 2026-09-26 | `decimal` is the only number type past the primitives; `BigInt` is a package | waits for design: a `decimal` design |
 | 11 | 2026-09-26 | tasks are structured scopes only: `scope!`, `start`, `join!`; no detached spawn | waits for design: a new polling intrinsic, a language-tier item |
-| JSON-FIELD-FACTS | 2026-10-03 | `ToJson` and `FromJson` get renames, conditional skips, and defaults per field through typed member facts, not in the first version ([Typed JSON](../spec/std/json.md#typed-json)) | waits for design: a `std.json` fact design: fact types, such as a rename, that the two templates read through `h.fact::[D]()`; an omit line `f = pass` already leaves a member out of one derivation |
+| JSON-FIELD-FACTS | 2026-10-03 | Renames, conditional skips, and defaults per field come through facts, not in the first version ([Typed JSON](../spec/std/json.md#typed-json)) | waits for design: per-format overriding through facts, in [Serialization Formats](OPEN_ISSUES.md#serialization-formats); an omit line `f = pass` already leaves a member out of one derivation |
 
 ## Audit Gaps Left
 
@@ -550,8 +550,9 @@ Standouts:
   that scripts need it built in.
 
 Both parts of `std.json` are specified: [Json](../spec/std/json.md).
-The typed part, `ToJson`, `FromJson`, `encode`, and `decode`, uses the
-derivation protocol that `Hash` and `Arbitrary` use. Renames, conditional
+The typed part, `to_json`, `from_json`, `encode`, and `decode`, reads the
+`std.serde` consent, which uses the derivation protocol that `Hash` and
+`Arbitrary` use. Renames, conditional
 skips, and defaults per field come later through typed member facts; see
 [Decided, Not Yet Applied](#decided-not-yet-applied).
 
@@ -662,7 +663,7 @@ Standouts:
   function, an options table in, values and positionals out.
 - **Go `flag`** prints usage text from the same table.
 - **Rust `clap` derive** builds a typed struct; in hd that is a later
-  `Source` template, like `FromJson`.
+  `Source` template, like `Deserialize`.
 
 Spec pass 85 applied a builder, [Cli](../spec/std/cli.md): flags,
 options, positionals, `--`, `CliError`, and a generated `usage` text.
@@ -862,7 +863,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 4 | `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing |
 | 5 | text helpers: [specified](../spec/std/text.md#splitting-and-padding); `to_fixed`: [specified](../spec/std/num.md#fixed-point-text); `parse_f64`: [specified](../spec/std/num.md#float-parsing) | the prototype's `format_f64_fixed` and `parse_f64` hooks | formatting |
 | 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors: [specified](../spec/std/json.md), with float text through `parse_f64` | the prototype's `parse_f64` hook | reading and writing JSON |
-| 7 | `ToJson` and `FromJson` templates; `encode`, `decode`: [specified](../spec/std/json.md#typed-json) | tier 6 | typed JSON |
+| 7 | `Serialize` and `Deserialize` templates; `to_json`, `from_json`, `encode`, `decode`: [specified](../spec/std/json.md#typed-json) | tier 6 | typed JSON |
 | 8 | `timeout!`, `map_limited!`; `Backoff`, `retry_with!`, and `all_list!`: [specified](../spec/std/task.md) | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
 | 9 | `std.random` `Rng` and `rng`: [specified](../spec/std/random.md#rng); `std.cli` `Cli`, `parse_args`, and `usage`: [specified](../spec/std/cli.md) | tier 1's `Args`; the prototype's std loader listing `cli` | real command-line tools |
 | 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd: done. The syntax, `is_match`, `find`, `find_all`, `captures`, `replace`, and `split`: [specified](../spec/std/regex.md); no flags | the prototype's std loader listing `regex` | filtering lines by pattern |

@@ -103,11 +103,11 @@ when the owner reviews it.
 | 84 (#241) | Enums are externally tagged: `{"Variant":{...members}}`, and a variant with no member is the string `"Variant"`. Positional members are keyed `_0`, `_1`. A bare `"Variant"` decodes as `{"Variant":{}}`. | serde's default form; no tag key can clash with a member. One payload shape, an object, keeps the rules few. | own |
 | 84 (#241) | Decoding ignores unknown keys. | serde's default; a reader accepts a newer writer's output. | own |
 | 84 (#241) | A missing key decodes as `null`, so only a `T?` (giving `.None`) or a `Json` member may be missing; anything else is `MissingField`. A declared member default is not used. `.None` encodes as `null`, with its key kept. | serde's `Option` handling, with no extra trait method. Defaults per field wait for typed member facts. | own |
-| 84 (#241) | Only `Map[string, V]` implements `ToJson` and `FromJson`. A map with other keys does not, so the program converts its keys. | A JSON key is a string; the program chooses the text. | own |
+| 84 (#241) | Only `Map[string, V]` implements `ToJson` and `FromJson` (now `Serialize` and `Deserialize`, #320). A map with other keys does not, so the program converts its keys. | A JSON key is a string; the program chooses the text. | own |
 | 84 (#241) | `JsonError` gains `WrongType(path, expected)`, `MissingField(path)`, and `UnknownVariant(path, name)`. The path is a string such as `$.users[2].name`, with keys unescaped. `expected` is the scalar's type name, `"array"`, `"object"`, or `"variant"`. `std-json.error.enum.usize` is retired for `std-json.error.variants`. | One error type for `decode`; `serde_path_to_error`'s path form. A string path is cheap to compare and print. | own |
 | 84 (#241) | Integers encode exactly and decode only from an integer in range; `1.0` is not an integer. Floats decode from any number; `f32` takes the nearest value, and past its range is `WrongType`. A NaN or an infinity encodes as `null`. | serde_json. | own |
 | 84 (#241) | A `char` is a one-character string. An embedded member is one nested key, not flattened. Shared constructor data is not written. | serde's `char`; flattening is opt-in in serde. | own |
-| 84 (#241) | No tuple template for `ToJson` or `FromJson` yet. | Not asked for; it can follow as a tuple template. | own |
+| 84 (#241) | No tuple template for `ToJson` or `FromJson` yet (now `Serialize` and `Deserialize`, #320). | Not asked for; it can follow as a tuple template. | own |
 
 ## Testing
 

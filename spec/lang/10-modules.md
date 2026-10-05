@@ -1712,13 +1712,12 @@ See also: [Error Trait](09-traits.md#error-trait).
 1. r[module.boundary.tree] Boundary values have tree semantics.
 2. r[module.boundary.cycle] Encoding a cycle is a boundary error. Boundary failure: `boundary-cycle`.
 3. r[module.boundary.sharing] When an acyclic graph shares a node, each incoming path encodes a duplicate tree value, and decoding does not restore sharing.
-4. r[module.boundary.pub] Every field and enum payload that crosses a boundary must be `pub`.
-5. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
-6. r[module.boundary.decoder-panic] If either panics, the adapter reports a boundary failure and does not enter the registered function. Boundary failure: `boundary-decoder-panic`.
-7. r[module.boundary.decoder-poison] The adapter treats that event as an ordinary poisoning panic: the program instance must be discarded.
-8. r[module.boundary.float-bits] A boundary value or host-call result serialized as text, as in a replay record, writes an `f64` as its IEEE 754 bit pattern. That is 16 lowercase hex digits, most significant first.
-9. r[module.boundary.float-bits.f32] An `f32` is written the same way, as 8 lowercase hex digits.
-10. r[module.boundary.float-bits.nan] A NaN is first replaced with the canonical NaN of [`types.display.nan-canonical`](04-type-system.md#r-types.display.nan-canonical).
+4. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
+5. r[module.boundary.decoder-panic] If either panics, the adapter reports a boundary failure and does not enter the registered function. Boundary failure: `boundary-decoder-panic`.
+6. r[module.boundary.decoder-poison] The adapter treats that event as an ordinary poisoning panic: the program instance must be discarded.
+7. r[module.boundary.float-bits] A boundary value or host-call result serialized as text, as in a replay record, writes an `f64` as its IEEE 754 bit pattern. That is 16 lowercase hex digits, most significant first.
+8. r[module.boundary.float-bits.f32] An `f32` is written the same way, as 8 lowercase hex digits.
+9. r[module.boundary.float-bits.nan] A NaN is first replaced with the canonical NaN of [`types.display.nan-canonical`](04-type-system.md#r-types.display.nan-canonical).
 
 | Value | `f64` text |
 | --- | --- |
@@ -1726,12 +1725,50 @@ See also: [Error Trait](09-traits.md#error-trait).
 | `-0.0` | `8000000000000000` |
 | positive infinity | `7ff0000000000000` |
 
-> **Why.** Every crossing field and payload is `pub`, so a host cannot
-> construct private state. A float's bits make its text exact, while a NaN,
-> an infinity, or `-0.0` has no JSON number.
+> **Why.** A float's bits make its text exact, while a NaN, an infinity,
+> or `-0.0` has no JSON number.
 
 > **Note.** The reference prototype's replay encoder writes host-call
 > results this way.
+
+#### Private Fields At A Boundary
+
+A data type with a private field crosses a boundary only with its
+author's [serialization consent](14-annotations.md#serialization):
+
+```text
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+pub data Token:
+    pub owner: string
+    secret: i64
+
+pub data Badge:
+    pub owner: string
+    code: i64
+
+pub trait Vault:  # a host capability of the selected runtime profile
+    fn keep(self, token: Token) -> Token
+    fn badge(self) -> Badge  # error: boundary-private-field
+```
+
+1. r[module.boundary.consent.out] A value of a data type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.serde.Serialize`.
+2. r[module.boundary.consent.in] Such a value crosses a boundary into hd only when the type implements `std.serde.Deserialize`.
+3. r[module.boundary.consent.public] A data type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need no consent.
+4. r[module.boundary.consent.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.
+5. r[module.boundary.consent.error] A boundary signature whose type, or a type inside it, would cross without the consent its direction needs is an error, reported at that signature. Error: `boundary-private-field`.
+6. r[module.boundary.consent.tree] A consented value crosses as the same tree of fields as any other data value. The consent permits the crossing and changes no encoding.
+
+> **Why.** A host is one more format. A type that lets JSON read its
+> private fields lets the host read them too. Without its author's
+> consent, its private state stays away from both.
+
+> **Note.** The standard library's `Duration`, `Timestamp`, and `Instant`
+> consent both ways, so a `Clock` provider's results cross into hd
+> ([Time](../std/time.md#serialization)). Whether a boundary should encode
+> a value through its consent's methods is open, in
+> [Serialization Formats](../../future-work/OPEN_ISSUES.md#serialization-formats).
 
 ### Instances And Threads
 

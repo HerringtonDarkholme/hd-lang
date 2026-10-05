@@ -1,0 +1,40 @@
+# test: a type with private fields round trips through JSON by its derived consent, private fields included
+# Spec std/json Typed JSON, Derived Serialize: std-json.derive.to-json.private, std-json.to-json, std-json.from-json (task #320).
+use std.json.{encode, decode, to_json, from_json, Json, JsonError}
+use std.serde.{Serialize, Deserialize}
+use std.testing.assert_equal
+
+@derive(Serialize, Deserialize)
+data Session:
+    pub user: string
+    token: string
+    expires_at: i64
+
+fn open(user: string) -> Session:
+    Session { user: user, token: "t-81f2", expires_at: 1700000000 }
+
+fn token_of(session: Session) -> string:
+    session.token
+
+fn save(session: Session) -> string:
+    encode(session)
+
+fn load(text: string) -> Result[Session, JsonError]:
+    decode::[Session](text)
+
+tests:
+    it("private members are written like public ones"):
+        assert_equal(save(open("ada")), "{\"user\":\"ada\",\"token\":\"t-81f2\",\"expires_at\":1700000000}", reason="every member")
+
+    it("the text decodes back to the same session"):
+        match load(save(open("ada"))):
+            .Ok(back) =>
+                assert_equal(token_of(back), "t-81f2", reason="private token")
+                assert_equal(back.expires_at, 1700000000, reason="private expiry")
+            .Err(error) => panic("decode failed: $error")
+
+    it("to_json and from_json are the same round trip without text"):
+        let value: Json = to_json(open("bo"))
+        match from_json::[Session](value):
+            .Ok(back) => assert_equal(back.user, "bo", reason="public user")
+            .Err(error) => panic("from_json failed: $error")

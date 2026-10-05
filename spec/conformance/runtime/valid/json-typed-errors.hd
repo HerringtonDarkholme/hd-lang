@@ -1,24 +1,25 @@
 # test: each decode error, with the path of the value that failed
 # Spec std/json Decode Errors: std-json.error.kind.type, std-json.error.kind.missing, std-json.error.kind.variant, std-json.error.path, std-json.decode.parse-error (task #241).
-use std.json.{ToJson, FromJson, decode, JsonError}
+use std.json.{decode, JsonError}
+use std.serde.{Serialize, Deserialize}
 use std.testing.{assert, assert_equal}
 
-@derive(ToJson, FromJson)
+@derive(Serialize, Deserialize)
 data User:
     name: string
     age: u8
 
-@derive(ToJson, FromJson)
+@derive(Serialize, Deserialize)
 enum Role:
     Guest
     Member(since: i32)
 
-@derive(ToJson, FromJson)
+@derive(Serialize, Deserialize)
 data Roster:
     users: List[User]
     roles: Map[string, Role]
 
-fn failure[T < FromJson](text: string) -> JsonError:
+fn failure[T < Deserialize](text: string) -> JsonError:
     match decode::[T](text):
         .Ok(_) => panic("expected an error for $text")
         .Err(error) => error

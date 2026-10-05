@@ -328,6 +328,11 @@ mutable when the trait has a `mut self` method, readonly otherwise.
   `Console` ([Prelude](../lang/10-modules.md#prelude)): each
   `write_line!(text)` completes on its first poll, writes the UTF-8 encoding
   of `text` followed by one U+000A to standard output, and returns `.Ok(())`.
+- `consent-vault` implements the fixture's
+  `trait Vault: fn keep(self, token: Token) -> Token`, where `Token` is the
+  fixture's own data type. `keep` returns its argument's boundary value
+  unchanged, so a `Token` crosses out of hd and back in
+  ([Private Fields At A Boundary](../lang/10-modules.md#private-fields-at-a-boundary)).
 - `disposed-file` implements the fixture's `Files` and `FileHandle` traits.
   The fixture declares exactly these three methods, where `E` is the
   fixture's own error type:

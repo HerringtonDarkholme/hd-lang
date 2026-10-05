@@ -1,10 +1,11 @@
 # test: the standard implementations for integers, floats, bool, char, and string, with their ranges
 # Spec std/json Standard Implementations: std-json.std.integer, std-json.std.integer.read, std-json.std.float, std-json.std.float-special, std-json.std.float-read, std-json.std.char, std-json.std.text (task #241).
-use std.json.{ToJson, FromJson, encode, decode, Json, JsonError, Number}
+use std.json.{encode, decode, from_json, Json, JsonError, Number}
+use std.serde.Deserialize
 use std.testing.assert_equal
 
-fn read[T < FromJson](value: Json) -> Result[T, JsonError]:
-    T::from_json(value)
+fn read[T < Deserialize](value: Json) -> Result[T, JsonError]:
+    from_json::[T](value)
 
 fn number(value: f64) -> Json:
     match Number::from_f64(value):

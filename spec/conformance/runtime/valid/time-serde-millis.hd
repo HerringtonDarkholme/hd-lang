@@ -1,0 +1,33 @@
+# test: Duration, Timestamp, and Instant write and read their whole milliseconds
+# Spec std/time Serialization: std-time.serde.consent, std-time.serde.form, std-time.serde.read (task #320).
+use std.json.{encode, decode, JsonError}
+use std.serde.{Serialize, Deserialize}
+use std.time.{Duration, Timestamp, Instant}
+use std.testing.assert_equal
+
+@derive(Serialize, Deserialize)
+data Lease:
+    holder: string
+    granted_at: Timestamp
+    term: Duration
+    checked: Instant
+
+fn lease() -> Lease:
+    Lease { holder: "ada", granted_at: Timestamp::from_unix_milliseconds(1700000000000), term: Duration::seconds(30), checked: Instant::from_milliseconds(5) }
+
+tests:
+    it("each time type writes its milliseconds"):
+        assert_equal(encode(lease()), "{\"holder\":\"ada\",\"granted_at\":1700000000000,\"term\":30000,\"checked\":5}", reason="milliseconds")
+        assert_equal(encode(Duration::milliseconds(-1500)), "-1500", reason="a negative duration")
+
+    it("each time type reads its milliseconds back"):
+        match decode::[Lease](encode(lease())):
+            .Ok(back) =>
+                assert_equal(back.granted_at, lease().granted_at, reason="timestamp")
+                assert_equal(back.term, lease().term, reason="duration")
+                assert_equal(back.checked, lease().checked, reason="instant")
+            .Err(error) => panic("decode failed: $error")
+
+    it("a value that is not an integer names the time type"):
+        assert_equal(decode::[Duration]("\"30s\""), .Err(JsonError.WrongType("$", "Duration")), reason="text")
+        assert_equal(decode::[Timestamp]("1.5"), .Err(JsonError.WrongType("$", "Timestamp")), reason="float")

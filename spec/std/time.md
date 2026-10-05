@@ -11,7 +11,8 @@ ordinary hd over the language tier:
 - the host capability trait `Clock`, the `Timestamp` and `Instant` types
   it returns, and the helpers `now` and `sleep!`;
 - `ManualClock`, the deterministic `Clock` provider;
-- the UTC `Date` of a `Timestamp`, RFC 3339 text, and `TimeParseError`.
+- the UTC `Date` of a `Timestamp`, RFC 3339 text, and `TimeParseError`;
+- the serialization consent of `Duration`, `Timestamp`, and `Instant`.
 
 The language tier keeps the suffix mechanism
 ([Literal Suffixes](../lang/05-expressions.md#literal-suffixes)):
@@ -408,3 +409,37 @@ pub enum TimeParseError:
 
 See also: [Decode Errors](encoding.md#decode-errors),
 [Integer Parsing](num.md#integer-parsing).
+
+## Serialization
+
+`Duration`, `Timestamp`, and `Instant` give their
+[serialization consent](../lang/14-annotations.md#serialization) as their
+whole milliseconds:
+
+```text
+use std.json.encode
+use std.serde.{Serialize, Deserialize}
+use std.time.{Duration, Timestamp}
+
+@derive(Serialize, Deserialize)
+data Lease:
+    holder: string
+    granted_at: Timestamp
+    term: Duration
+
+fn record(lease: Lease) -> string:
+    encode(lease)  # {"holder":"ada","granted_at":1700000000000,"term":30000}
+```
+
+1. r[std-time.serde.consent] `Duration`, `Timestamp`, and `Instant` each implement `std.serde.Serialize` and `std.serde.Deserialize`.
+2. r[std-time.serde.form] Each writes one `int`: `as_milliseconds()` for a `Duration` or an `Instant`, and `unix_milliseconds()` for a `Timestamp`.
+3. r[std-time.serde.read] Each reads one `int` with the type's name as `expected`, as in `"Duration"`, and holds that many milliseconds.
+
+> **Why.** The milliseconds are the value: an `i64` round trips exactly
+> through every format, and the private field stays private to code. A
+> text form, such as RFC 3339, is the program's choice of format.
+
+> **Note.** The consent lets a `Clock` provider's `Timestamp` and
+> `Instant` cross the host boundary into hd, and `sleep!`'s `Duration`
+> cross out, by
+> [`module.boundary.consent.in`](../lang/10-modules.md#r-module.boundary.consent.in).
