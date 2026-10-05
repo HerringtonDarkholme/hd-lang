@@ -21,6 +21,14 @@ When the queue is empty, report that and wait.
   `pnpm run check`, and push again. Never force-push.
 - A job is done only when its commit is on `origin/main`. A local commit
   is not done: push it.
+- After the push lands, clean up: confirm `git merge-base --is-ancestor
+  HEAD origin/main`, then from the shared folder run `git worktree remove
+  <your worktree>` and `git branch -d <your branch>`. If the worktree has
+  a `node_modules` symlink, delete the symlink first (`rm
+  <worktree>/node_modules`, never with `-r`), so nothing follows it into
+  the shared `node_modules`. Never use `--force` on a worktree with
+  uncommitted work: commit it or ask in Questions. Keep at most one
+  worktree of your own at a time.
 - While working, run only scoped checks: `node --experimental-strip-types
   test/run-portable.ts --changed` (or `--phase parse|type|runtime`) and
   `node --test --experimental-strip-types <the test files you touch>`. Run
