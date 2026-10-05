@@ -26,6 +26,7 @@ pnpm run lint
 pnpm run format:check
 pnpm run test:portable
 pnpm test
+pnpm run test:ui
 pnpm run hd help
 pnpm run hd help test
 pnpm run hd check examples/core.hd
