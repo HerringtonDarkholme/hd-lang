@@ -138,6 +138,26 @@ verdicts and output, snapshots, timeouts) into a CLI case, delete it from
 the TS file, and update its `test/MIGRATED.md` row. Tests that check
 runner internals stay, with the reason.
 
+### AT. Child-Path Error Names The Real Problem
+
+Review of AN (ee489e28). Non-blocking.
+
+```
+use std.testing
+
+pub fn main() -> void $ Console:
+    x := testing.arbitrary.With   # unknown-name: unknown name 'testing'
+```
+
+The user did import `testing` (`testing.assert(...)` works), so "unknown
+name 'testing'" sends them the wrong way. In a type position the fixture
+gets `unknown-type`, with the same problem. Keep the codes, and make the
+message say what happened: "'arbitrary' is a child module of
+'std.testing', which a path can't reach through its parent; import it
+with `use std.testing.arbitrary`" (for a package module, also mention that
+the parent can `pub use` it). Cover value and type positions, std and
+package modules. Add a test per case.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
