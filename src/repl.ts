@@ -340,6 +340,9 @@ export class ReplSession {
         : statement;
     }
     const found = valueType(analysis.hir);
+    // `void` is the empty tuple, so a void call binds; only the `()` literal
+    // has a value to show, any other void input runs as a statement.
+    if (found?.type === "void" && !found.unitLiteral) return this.evaluateStatement(text, execute);
     const shownType = displayType(found?.shown ?? "void");
     if (!execute) {
       this.statements = [...this.statements, `_ := ${text}`];
@@ -575,7 +578,9 @@ function replLocation(diagnostic: Diagnostic, attempt: Attempt): string {
  * The type of the input's value, and how it prints: `usize` for a size or a
  * bare literal's default (04-type-system.md#r-types.alias.usize.display).
  */
-function valueType(hir: HirProgram): { readonly type: string; readonly shown: string } | undefined {
+function valueType(
+  hir: HirProgram,
+): { readonly type: string; readonly shown: string; readonly unitLiteral?: boolean } | undefined {
   const main = hir.functions.find(({ name }) => name === "main");
   if (!main) return undefined;
   // `:=` always binds a readonly view, so the binding's own type loses `mut`.
@@ -584,7 +589,7 @@ function valueType(hir: HirProgram): { readonly type: string; readonly shown: st
   if (binding) {
     const value =
       binding.value.kind === "permission-weaken" ? binding.value.operand : binding.value;
-    return { type: value.type, shown: spelledType(value) };
+    return { type: value.type, shown: spelledType(value), unitLiteral: value.kind === "tuple" };
   }
   const local = main.locals.findLast(({ name }) => name === VALUE);
   return local && { type: local.type, shown: spelledBindingType(local) };

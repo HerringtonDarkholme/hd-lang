@@ -300,7 +300,7 @@ test("REPL values render as dbg prints them, with their types", async () => {
     ["Meters(1.5)", "Meters(1.5)", "mut Meters"],
     ["1.5", "1.5", "f64"],
     ["true", "true", "bool"],
-    ["()", "()", "()"],
+    ["()", "()", "void"],
   ];
   for (const [input, value, type] of cases) {
     const outcome = await session.evaluate(input);
