@@ -1,5 +1,5 @@
 import { ambiguousProjection, bindingNameProblem } from "./associated-bindings.ts";
-import { listVararg, tupleVararg, type FunctionDecl, type TypeRef } from "../ast.ts";
+import { listVararg, tupleVararg, type FunctionDecl, type Program, type TypeRef } from "../ast.ts";
 import type { HirAssociatedBinding, HirGenericBound, HirTrait, ValueType } from "../hir.ts";
 import { mutableInner, nominalGenericParts, displayType } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
@@ -139,6 +139,43 @@ function addImpliedValueCategories(
     if (traitImpliesValueCategory(trait, traitTypes, "AnyVal"))
       categories.AnyVal.add(bound.parameter);
   }
+}
+
+/**
+ * The private nominal type a public signature exposes, if any. The
+ * declaration's own generic parameters shadow outer type names, so they
+ * resolve before the lookup: a parameter written `T` is `generic:T`,
+ * never a same-named user type.
+ */
+function privateSignatureLeak(
+  declaration: FunctionDecl,
+  program: Program,
+  typeParameters: readonly string[],
+  rowParameters: readonly string[],
+  rowParameterSet: ReadonlySet<string>,
+): string | undefined {
+  const inScope = new Set(typeParameters);
+  const inScopeRows = new Set(rowParameters);
+  const privateType =
+    declaration.parameters
+      .map((parameter) =>
+        firstPrivateSignatureType(
+          resolveGenericType(parameter.type.name, inScope, inScopeRows),
+          program,
+        ),
+      )
+      .find((candidate) => candidate !== undefined) ??
+    firstPrivateSignatureType(
+      resolveGenericType(declaration.result.name, inScope, inScopeRows),
+      program,
+    );
+  return (
+    privateType ??
+    declaration.requirements
+      .flatMap((requirement) => resolveGenericRequirement(requirement, rowParameterSet))
+      .map((requirement) => firstPrivateSignatureType(requirement, program))
+      .find((candidate) => candidate !== undefined)
+  );
 }
 
 export function createProgramSignatures(
@@ -373,16 +410,14 @@ export function createProgramSignatures(
       ),
     );
     if (declaration.public) {
-      const privateType =
-        declaration.parameters
-          .map((parameter) => firstPrivateSignatureType(parameter.type.name, program))
-          .find((candidate) => candidate !== undefined) ??
-        firstPrivateSignatureType(declaration.result.name, program);
-      const privateRequirement = declaration.requirements
-        .map((requirement) => firstPrivateSignatureType(requirement, program))
-        .find((candidate) => candidate !== undefined);
-      if (privateType || privateRequirement) {
-        const leaked = privateType ?? privateRequirement!;
+      const leaked = privateSignatureLeak(
+        declaration,
+        program,
+        typeParameters,
+        rowParameters,
+        rowParameterSet,
+      );
+      if (leaked) {
         diagnostics.push({
           code: "private-type-leak",
           message: `public function '${declaration.name}' exposes private type or trait '${leaked}'`,

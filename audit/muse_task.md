@@ -61,28 +61,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AR. A User Type Named `T` Or `E` Breaks Every Program
-
-```
-data T:
-    x: usize
-
-pub fn main() -> void $ Console:
-    println("done")
-```
-
-fails with `lib/std/cmp.hd:42:5: private-type-leak: public function
-'__std_cmp_min' exposes private type or trait 'T'` (also `max`, `clamp`,
-`debug`, `hash_of`). `enum E` breaks `lib/std/task.hd` `retry` the same
-way. Std's generic parameters resolve against the user's top-level types.
-Generic parameters must shadow outer type names in every scope (std or
-user), so find where the private-type-leak check (or the signature
-resolver feeding it, `src/checker/program-signatures.ts`,
-`program-types.ts`) looks a parameter name up as a type, and fix it
-there. Add a test: user types named `T`, `E`, `K`, `V` each compile and
-run. Check user code too: `data T` plus `fn id[T](x: T) -> T` must use
-the parameter.
-
 ### AS. Migrate `test/cli.test.ts` To The CLI Tier
 
 Job AM marked all 16 `test/cli.test.ts` tests "not migrated: the portable
