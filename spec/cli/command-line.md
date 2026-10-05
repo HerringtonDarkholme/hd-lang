@@ -461,7 +461,7 @@ hd check --format json
 # {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":101}
 ```
 
-1. r[cli.json.commands] `hd build`, `hd check`, `hd test`, `hd run`, and `hd FILE` take `--format json`.
+1. r[cli.json.commands] `hd build`, `hd check`, `hd test`, `hd run`, `hd doc`, and `hd FILE` take `--format json`.
 2. r[cli.json.lines.build] With it, `hd build`, `hd check`, and `hd test` write JSON lines to stdout: one JSON object per line, and no other text.
 3. r[cli.json.run] With it, `hd run` and `hd FILE` write only `hd`'s own diagnostics and summary as JSON lines, and write them to stderr.
 4. r[cli.json.run.program] The program's standard output passes through to stdout untouched.
