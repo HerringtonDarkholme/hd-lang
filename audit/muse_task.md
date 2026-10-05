@@ -215,7 +215,13 @@ template the type derives. For this job you may edit
    chapter's rows if a block moves), and any KNOWN rows that name them.
    Keep `unused-derivation-fact` in the Diagnostics table while the
    block-decorator rule uses it.
-3. Add to `future-work/OPEN_ISSUES.md`: dead facts are worth a warning;
+3. **Park the removed rules; the owner wants to revisit them.** In
+   `future-work/OPEN_ISSUES.md`, add a section "Parked: Dead-Fact
+   Warnings" that quotes the four removed rules verbatim with their IDs,
+   names the commit that removed them and the fixtures it deleted or
+   changed (so `git show` can restore them), and then explains the
+   deferral below.
+   Also add to that section: dead facts are worth a warning;
    the accurate rule is read-set based (warn when no template the type
    derives, or for a `Self` line the block's template, reads facts of
    that type, using the fact types each template looks up with
