@@ -132,6 +132,28 @@ problems had unhelpful messages. Message and docs only; no rule changes.
 
 Add a test per message.
 
+### BK. Guide: Wiring Providers In `main` (Dev And Prod)
+
+Docs only (guide/LANGUAGE_TOUR.md, the providers section; add to
+guide/USE_SCENARIOS.md if it fits). A user's own capability traits
+(`Repo`, `Mailer`) are never in a host profile: `main` is the
+composition root that binds them with `$.with` before calling the app,
+and its own signature lists only host capabilities. Show, with a
+realistic small app:
+
+- **Two entry points** (recommended): `src/main.hd` wires production
+  adapters (`SmtpMailer`, `FileRepo`), `src/dev.hd` wires dev ones
+  (`OutboxMailer`, `MemoryRepo`); both listed under `[[executable]]`,
+  run as `hd run app` / `hd run dev`; the app module declares
+  `$ Mailer + Repo` and never knows which it got.
+- **One entry point choosing at startup** from `env("APP_ENV")`, one
+  `$.with` per branch (so the providers needn't share a type), and its
+  cost: the signature lists everything both branches need.
+- An integration test wiring its own `$.with`.
+
+Every example must compile and run with the prototype: put the code in a
+scratch package and run it before committing. Keep it short.
+
 ### BC. A Leading `_` Must Silence The Unused Warning
 
 `flow.unused.underscore` (spec/lang/06-control-flow.md) says names
