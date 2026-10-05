@@ -1,0 +1,9 @@
+# test: an integer iterator sum that leaves the range of its type panics with integer-overflow
+# Spec std/iter More Adapters: std-iter.adapter.sum.overflow.
+
+fn total(bytes: List[i8]) -> i8:
+    bytes.iter().sum()  # panic: integer-overflow
+
+tests:
+    it("overflows"):
+        _ := total([100, 27, 1])

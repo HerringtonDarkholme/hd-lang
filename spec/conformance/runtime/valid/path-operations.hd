@@ -1,0 +1,81 @@
+# test: Path join, parent, file_name, and extension split the text at slashes as Rust's Path does on Unix
+# Spec std/path Path Operations: std-path.join, std-path.parent, std-path.file-name, std-path.extension, and their rules.
+use std.path.Path
+use std.testing.assert_equal
+
+fn config_file(home: Path) -> Path:
+    home.join(".config").join("hd.toml")
+
+fn sibling(file: Path, name: string) -> Path:
+    match file.parent():
+        .Some(dir) => dir.join(name)
+        .None => Path(name)
+
+fn is_markdown(file: Path) -> bool:
+    match file.extension():
+        .Some(text) => text == "md"
+        .None => false
+
+fn text(path: Path?) -> string:
+    match path:
+        .Some(found) => "some ${found}"
+        .None => "none"
+
+fn name(value: string?) -> string:
+    match value:
+        .Some(found) => "some ${found}"
+        .None => "none"
+
+tests:
+    it("the documented examples"):
+        assert_equal(config_file(Path("/home/ada")), Path("/home/ada/.config/hd.toml"), reason="join twice")
+        assert_equal(sibling(Path("/srv/a.txt"), "b.txt"), Path("/srv/b.txt"), reason="a sibling")
+        assert_equal(sibling(Path("/"), "b.txt"), Path("b.txt"), reason="no parent")
+        assert_equal(is_markdown(Path("notes/readme.md")), true, reason="md")
+        assert_equal(is_markdown(Path("notes/readme")), false, reason="no extension")
+
+    it("join"):
+        assert_equal(Path("a").join("b"), Path("a/b"), reason="a separator between")
+        assert_equal(Path("a/").join("b"), Path("a/b"), reason="no second separator")
+        assert_equal(Path("a").join("/b"), Path("/b"), reason="an absolute part replaces")
+        assert_equal(Path("").join("b"), Path("b"), reason="an empty path adds no separator")
+        assert_equal(Path("/").join("a"), Path("/a"), reason="the root")
+        assert_equal(Path("a").join(""), Path("a/"), reason="an empty part, as Rust")
+        assert_equal(Path("a/b").join("c/d"), Path("a/b/c/d"), reason="a part of several components")
+        assert_equal(Path("").join(""), Path(""), reason="both empty")
+
+    it("parent"):
+        assert_equal(text(Path("/a/b.txt").parent()), "some /a", reason="two components")
+        assert_equal(text(Path("a/b").parent()), "some a", reason="relative")
+        assert_equal(text(Path("a/b/").parent()), "some a", reason="a trailing slash")
+        assert_equal(text(Path("a//b").parent()), "some a", reason="a doubled slash")
+        assert_equal(text(Path("a").parent()), "some ", reason="one relative component")
+        assert_equal(text(Path("/a").parent()), "some /", reason="one rooted component")
+        assert_equal(text(Path("/").parent()), "none", reason="the root")
+        assert_equal(text(Path("").parent()), "none", reason="empty")
+        assert_equal(text(Path("./a").parent()), "some .", reason="a leading dot is a component")
+        assert_equal(text(Path("a/./b").parent()), "some a", reason="an inner dot is dropped")
+        assert_equal(text(Path(".").parent()), "some ", reason="a lone dot")
+        assert_equal(text(Path("..").parent()), "some ", reason="a lone dot-dot")
+
+    it("file_name"):
+        assert_equal(name(Path("/a/b.txt").file_name()), "some b.txt", reason="last component")
+        assert_equal(name(Path("a/b/").file_name()), "some b", reason="a trailing slash")
+        assert_equal(name(Path("a").file_name()), "some a", reason="one component")
+        assert_equal(name(Path("/").file_name()), "none", reason="the root")
+        assert_equal(name(Path("").file_name()), "none", reason="empty")
+        assert_equal(name(Path("a/..").file_name()), "none", reason="dot-dot")
+        assert_equal(name(Path(".").file_name()), "none", reason="dot")
+        assert_equal(name(Path("a/.").file_name()), "some a", reason="a trailing dot is dropped")
+        assert_equal(name(Path(".bashrc").file_name()), "some .bashrc", reason="a dotfile")
+
+    it("extension"):
+        assert_equal(name(Path("/a/b.txt").extension()), "some txt", reason="one dot")
+        assert_equal(name(Path("a.tar.gz").extension()), "some gz", reason="the last dot")
+        assert_equal(name(Path("a").extension()), "none", reason="no dot")
+        assert_equal(name(Path(".bashrc").extension()), "none", reason="only a leading dot")
+        assert_equal(name(Path(".a.b").extension()), "some b", reason="a dotfile with an extension")
+        assert_equal(name(Path("a.").extension()), "some ", reason="a trailing dot gives an empty extension")
+        assert_equal(name(Path("a/..").extension()), "none", reason="no file name")
+        assert_equal(name(Path("/").extension()), "none", reason="the root")
+        assert_equal(name(Path("dir.d/file").extension()), "none", reason="a dot in a directory name")

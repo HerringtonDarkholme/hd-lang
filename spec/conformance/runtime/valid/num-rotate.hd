@@ -1,0 +1,46 @@
+# test: rotate_left and rotate_right turn the two's-complement bits of every integer width, with the count modulo the width
+# Spec std/num Rotation: std-num.rotate.left, std-num.rotate.right, std-num.rotate.widths, std-num.rotate.count-modulo, std-num.rotate.signed, std-num.rotate.inverse.
+use std.testing.assert_equal
+
+fn next_state(state: u32) -> u32:
+    state.rotate_left(5) ^ state
+
+fn swap_nibbles(byte: u8) -> u8:
+    byte.rotate_left(4)
+
+tests:
+    it("unsigned values"):
+        let byte: u8 = 150
+        assert_equal(byte.rotate_left(1), 45, reason="10010110 turned left by one")
+        assert_equal(byte.rotate_right(3), 210, reason="10010110 turned right by three")
+        assert_equal(byte.rotate_left(0), 150, reason="a count of 0")
+        assert_equal(byte.rotate_left(8), 150, reason="a count of the width")
+        assert_equal(byte.rotate_left(9), 45, reason="the count is taken modulo the width")
+        assert_equal(byte.rotate_right(9), byte.rotate_right(1), reason="the same for a right turn")
+        assert_equal(swap_nibbles(0xab), 0xba, reason="a half turn")
+        let word: u32 = 0x12345678
+        assert_equal(word.rotate_left(8), 0x34567812, reason="u32 left")
+        assert_equal(word.rotate_right(8), 0x78123456, reason="u32 right")
+        assert_equal(next_state(1), 33, reason="rotate and combine")
+        let wide: u64 = 1
+        assert_equal(wide.rotate_right(1), 9223372036854775808, reason="the low bit reaches the top of a u64")
+        assert_equal(wide.rotate_left(65), 2, reason="u64 modulo the width")
+        let half: u16 = 0xabcd
+        assert_equal(half.rotate_left(4), 0xbcda, reason="u16")
+
+    it("signed values"):
+        let byte: i8 = -128
+        assert_equal(byte.rotate_left(1), 1, reason="the sign bit enters at the bottom")
+        assert_equal(byte.rotate_right(1), 64, reason="the sign bit is not copied")
+        let word: i32 = -2
+        assert_equal(word.rotate_left(1), -3, reason="1111...1110 turned left")
+        assert_equal(word.rotate_right(1), 2147483647, reason="the zero bit reaches the sign")
+        let lowest: i64 = -9223372036854775807 - 1
+        assert_equal(lowest.rotate_left(1), 1, reason="i64")
+        assert_equal(lowest.rotate_right(63), 1, reason="i64 right by the width minus one")
+
+    it("a right turn undoes a left turn"):
+        let word: u32 = 0xdeadbeef
+        assert_equal(word.rotate_left(13).rotate_right(13), word, reason="u32")
+        let signed: i16 = -12345
+        assert_equal(signed.rotate_right(5).rotate_left(5), signed, reason="i16")

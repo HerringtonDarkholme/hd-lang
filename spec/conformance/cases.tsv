@@ -2510,3 +2510,11 @@ runtime/valid/dbg-without-requirement.hd	runtime	accept	lang/10-modules.md#r-mod
 typing/invalid/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.dbg.signature
 typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-hint
 runtime/valid/debug-source-text.hd	runtime	accept	std/format.md#r-std-format.debug.source
+runtime/valid/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-num.parse.unsigned
+runtime/valid/num-rotate.hd	runtime	accept	std/num.md#rotation
+runtime/valid/path-operations.hd	runtime	accept	std/path.md#path-operations
+runtime/valid/iterator-list-sum.hd	runtime	accept	std/iter.md#r-std-iter.adapter.sum
+runtime/panic/iterator-sum-overflow.hd	runtime	panic:integer-overflow	std/iter.md#r-std-iter.adapter.sum.overflow
+runtime/panic/list-sum-overflow.hd	runtime	panic:integer-overflow	std/collections.md#r-std-collections.helper.sum.overflow
+typing/invalid/iterator-sum-non-numeric.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.sum.bound
+typing/invalid/list-sum-non-numeric.hd	type	reject:unsatisfied-trait-bound	std/collections.md#r-std-collections.helper.sum

@@ -119,6 +119,7 @@ fn has_blank(lines: List[string]) -> bool:
 | r[std-iter.adapter.all] `all` | `fn all(mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
 | r[std-iter.adapter.find] `find` | `fn find(mut self, test: fn(T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
 | r[std-iter.adapter.count-remaining] `count` | `fn count(mut self) -> usize` | the number of remaining items of `self` |
+| r[std-iter.adapter.sum] `sum` | `fn sum(mut self) -> T`, declared when `T < Num` | the total of the remaining items of `self`, added in order from 0 |
 
 1. r[std-iter.adapter.lazy.more] Calling `skip`, `take_while`, `zip`, `chain`, or `flat_map` advances no iterator. The returned iterator pulls only when its own `next` is called.
 2. r[std-iter.adapter.skip.first-next] The first `next` call of `skip`'s iterator reads and drops up to `count` items of `self` before it reads the item it returns.
@@ -131,6 +132,10 @@ fn has_blank(lines: List[string]) -> bool:
 9. r[std-iter.adapter.exhausted] On an exhausted iterator, `any` is `false`, `all` is `true`, `find` is `.None`, and `count` is 0.
 10. r[std-iter.adapter.count.drain] `count` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
 11. r[std-iter.adapter.callback-row.more] The callbacks of these methods have the empty row, as `filter`'s `keep` does. A function value whose row lists a requirement key does not fit. Error: `type-mismatch`.
+12. r[std-iter.adapter.sum.order] `sum` starts from 0 of type `T` and adds each remaining item with `+`, in order, so the total of an exhausted iterator is 0.
+13. r[std-iter.adapter.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
+14. r[std-iter.adapter.sum.drain] `sum` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
+15. r[std-iter.adapter.sum.bound] `sum` is a method of `Iterator[T]` only when `T < Num`, so the sum of an iterator of `string` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 fn joined(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
@@ -145,6 +150,10 @@ fn joined_eagerly(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
 > as `joined_eagerly` shows. An iterator that may never end goes in the
 > receiver position instead: `rest.zip(first)` pairs the same items in
 > swapped order.
+
+> **Note.** `[1, 2, 3].iter().sum()` is `6`, and `[0.5, 0.25].iter().sum()` is
+> `0.75`. A list has the same method:
+> [`std-collections.helper.sum`](collections.md#r-std-collections.helper.sum).
 
 > **Why.** The names and the pulling order are Rust's, so `zip` and
 > `take_while` drop the same items there and here. `zip` and `chain` take

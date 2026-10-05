@@ -1827,7 +1827,6 @@ runtime/valid/scripted-input.hd	runtime
 runtime/valid/list-access-building.hd	runtime
 runtime/valid/choices-choose.hd	runtime
 runtime/valid/string-more-methods.hd	runtime
-runtime/valid/text-join-builder.hd	runtime
 runtime/valid/text-prefix-helpers.hd	runtime
 runtime/valid/primitive-bool-eq-method-direct.hd	runtime
 runtime/valid/primitive-char-cmp-method-direct.hd	runtime

@@ -240,13 +240,17 @@ fn header(line: string) -> string?:
 
 ## Joining And Building
 
-`join` and `StringBuilder` join many pieces of text:
+`join`, as a method and as a function, and `StringBuilder` join many
+pieces of text:
 
 ```text
 use std.text.{StringBuilder, join}
 
 fn csv(cells: List[string]) -> string:
-    join(cells, ",")
+    cells.join(",")
+
+fn dotted(parts: List[string]) -> string:
+    join(parts, ".")
 
 fn report(names: List[string]) -> string:
     let mut out = StringBuilder::new()
@@ -261,10 +265,12 @@ fn report(names: List[string]) -> string:
 4. r[std-text.builder.new] `StringBuilder::new() -> mut StringBuilder` returns an empty builder.
 5. r[std-text.builder.push] `b.push(text: string) -> void` appends `text`; it takes `mut self`.
 6. r[std-text.builder.build] `b.build() -> string` returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
+7. r[std-text.join.method] `std.text` gives `List[string]` the method `join(self, separator: string) -> string`, which returns what `join(self, separator)` returns. Calling it needs no import.
 
-> **Why.** `join` stays a free function until an inherent impl on
-> `List[string]` alone is allowed; Python's `str.join` also puts the
-> separator first.
+> **Why.** The method is Rust's `[String].join(sep)`, and agents wrote it
+> in usability probes. The free function stays, since existing code imports it
+> and the method is one call to it. `trait.inherent.unique-unifying.disjoint`
+> already allows an inherent implementation for `List[string]` alone.
 
 ## Prefix Helpers
 

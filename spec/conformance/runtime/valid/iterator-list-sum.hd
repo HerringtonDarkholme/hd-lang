@@ -1,0 +1,34 @@
+# test: sum adds a numeric iterator or list in order from zero, and an empty one gives zero
+# Spec std/iter More Adapters: std-iter.adapter.sum, .sum.order, .sum.drain; std/collections List Helpers: std-collections.helper.sum, .sum.iterator.
+use std.testing.assert_equal
+
+fn total(readings: List[i32]) -> i32:
+    readings.sum()
+
+fn doubled_total(readings: List[usize]) -> usize:
+    readings.iter().map(fn(n: usize) -> usize: n * 2).sum()
+
+tests:
+    it("sums a list"):
+        assert_equal([1, 2, 3].sum(), 6, reason="a list of usize")
+        assert_equal(total([-5, 2, 4]), 1, reason="signed values")
+        let empty: List[i64] = []
+        assert_equal(empty.sum(), 0, reason="an empty list")
+        assert_equal([0.5, 0.25].sum(), 0.75, reason="floats")
+        let bytes: List[u8] = [100, 100, 55]
+        assert_equal(bytes.sum(), 255, reason="the total may reach the type's maximum")
+
+    it("sums an iterator"):
+        assert_equal([1, 2, 3].iter().sum(), 6, reason="list iterator")
+        assert_equal(doubled_total([1, 2, 3]), 12, reason="after map")
+        assert_equal((1..=10).iter().sum(), 55, reason="a range")
+        let mut items = [4, 5, 6].iter()
+        assert_equal(items.sum(), 15, reason="the whole iterator")
+        assert_equal(items.next().is_none(), true, reason="sum drains the iterator")
+        let mut rest = [1, 2, 3, 4].iter()
+        _ := rest.next()
+        assert_equal(rest.sum(), 9, reason="only the remaining items")
+
+    it("list and iterator agree"):
+        let values: List[i64] = [9, -3, 12]
+        assert_equal(values.sum(), values.iter().sum(), reason="same total")

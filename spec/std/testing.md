@@ -159,6 +159,33 @@ fn tree(c: mut Choices) -> Tree:
 Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
 `.Leaf`.
 
+## Edge Values
+
+The first generated cases of a property run draw edge values, so a
+property meets `0`, the bounds of a range, the smallest and largest value
+of an integer type, and an empty collection early. Each edge case takes
+one edge, which its seed picks:
+
+| Rule | Edge | `Choices.int(lo, hi)` returns | A default integer generator returns | `list`, `map`, and `string` return |
+| --- | --- | --- | --- | --- |
+| r[std-testing.edge.low] Seed modulo 4 is 0: low | `lo` | the smallest value of the type | an empty collection |
+| r[std-testing.edge.high] Seed modulo 4 is 1: high | `hi` | the largest value of the type | any collection |
+| r[std-testing.edge.zero] Seed modulo 4 is 2: zero | `0` when `lo <= 0 <= hi`, else any value | `0` | any collection |
+| r[std-testing.edge.none] Seed modulo 4 is 3: none | any value | any value | any collection |
+
+1. r[std-testing.edge.cases] A generated case is an edge case when its `size` is below 4. Every other case takes no edge.
+2. r[std-testing.edge.plan] An edge case takes the edge of its seed modulo 4 in the table above, for each fresh draw it makes.
+3. r[std-testing.edge.replay] An edge changes fresh draws only. A replayed draw returns its recorded value, by [`std-testing.runner.replay`](#r-std-testing.runner.replay).
+4. r[std-testing.edge.coverage] When a run discards no case, its first four generated cases take the low, high, zero, and no edge once each, since their seeds are consecutive.
+5. r[std-testing.edge.int-type] A default generator of an integer type returns every value from the type's smallest to its largest, so the low and high edges reach the type's own bounds. For `i32`, `i64`, `u32`, and `u64` they may reach them outside an edge case as well.
+6. r[std-testing.edge.budget] A spent draw budget still returns the simplest value, by [`std-testing.budget.simplest.int`](#r-std-testing.budget.simplest.int), whatever the edge.
+
+> **Why.** Hypothesis and QuickCheck bias draws toward `0`, the bounds,
+> and empty collections, since off-by-one and overflow bugs sit there. A
+> property that never sees the largest `i32` cannot find an overflow.
+> The seed picks the edge, and seeds are consecutive, so four cases cover
+> the edges without a counter, and a discarded case's retry still varies.
+
 ## Derived Arbitrary
 
 `@derive(Arbitrary)` gives a data type or enum its default generator
@@ -300,8 +327,8 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 > panics with the base type's name.
 
 > **Note.** These are runner behavior, not rules of this chapter: how often
-> a draw returns small and boundary values, any small-first order of cases,
-> and the size of the draw budget. So are which chars `string` draws and
+> a draw outside an [edge case](#edge-values) returns a small value, any
+> small-first order of cases, and the size of the draw budget. So are which chars `string` draws and
 > how the runner shrinks a failing case.
 
 ## Test Timeout
@@ -582,6 +609,8 @@ pub data PropertyCase:
 9. r[std-testing.runner.replay] The draw at position `i` of a case returns `replay[i]`, limited to the draw's bound, when `replay` holds a value at `i`. Every other draw is fresh.
 10. r[std-testing.runner.record-every] `Choices` calls `record` once for every draw, replayed or fresh, before it uses the value. So the runner holds the case's draws even when the case then panics.
 11. r[std-testing.runner.random] The fresh draws of a case come from a [`Random`](random.md#random-source) provider that `std.testing` seeds with the case's `seed`. So the same seed draws the same cases.
+12. r[std-testing.runner.case.size-count] The `size` of a run's first generated case is 0, and each later generated case has one more than the case before it, a discarded case not counting.
+13. r[std-testing.runner.case.seed-step] The `seed` of each case of a run, a discarded one included, is one more than the `seed` of the case before it.
 
 ```text
 use std.testing.{PropertyRunner, TestRunner}

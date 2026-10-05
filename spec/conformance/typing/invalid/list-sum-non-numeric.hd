@@ -1,0 +1,8 @@
+# test: List.sum is declared only for a numeric element type
+# Spec std/collections List Helpers: std-collections.helper.sum.
+
+fn total(values: List[i32]) -> i32:
+    values.sum()
+
+fn joined(words: List[string]) -> string:
+    words.sum()  # diagnostic: unsatisfied-trait-bound

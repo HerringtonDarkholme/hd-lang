@@ -9,8 +9,10 @@ ordinary hd over the language tier:
   overflow explicit;
 - `abs_diff`, the distance between two integers;
 - the bit counts `count_ones` and `leading_zeros`;
+- the rotations `rotate_left` and `rotate_right`;
 - `is_nan` and `is_finite` on `f64`;
-- integer parsing: `parse_i32`, `parse_i64`, and `ParseNumberError`;
+- integer parsing: `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`,
+  `parse_usize`, and `ParseNumberError`;
 - float parsing: `parse_f64`;
 - fixed-point float text: `to_fixed` on `f64`.
 
@@ -169,7 +171,8 @@ fn bounded(ratio: f64) -> bool:
 
 ## Integer Parsing
 
-`parse_i32` and `parse_i64` read a decimal integer from text:
+`parse_i32` and `parse_i64` read a decimal integer from text, and
+`parse_u32`, `parse_u64`, and `parse_usize` read an unsigned one:
 
 ```text
 use std.num.{parse_i32, ParseNumberError}
@@ -194,8 +197,11 @@ pub enum ParseNumberError:
 | --- | --- |
 | r[std-num.parse.i32] `parse_i32` | `pub fn parse_i32(text: string) -> Result[i32, ParseNumberError]` |
 | r[std-num.parse.i64] `parse_i64` | `pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]` |
+| r[std-num.parse.u32] `parse_u32` | `pub fn parse_u32(text: string) -> Result[u32, ParseNumberError]` |
+| r[std-num.parse.u64] `parse_u64` | `pub fn parse_u64(text: string) -> Result[u64, ParseNumberError]` |
+| r[std-num.parse.usize] `parse_usize` | `pub fn parse_usize(text: string) -> Result[usize, ParseNumberError]` |
 
-1. r[std-num.parse.import] `std.num` declares `ParseNumberError`, `parse_i32`, and `parse_i64`. None is a prelude name; code imports them, as in `use std.num.parse_i32`.
+1. r[std-num.parse.import] `std.num` declares `ParseNumberError`, `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`, and `parse_usize`. None is a prelude name; code imports them, as in `use std.num.parse_i32`.
 2. r[std-num.parse.grammar] The accepted text is an optional `+` or `-`, then one or more decimal digits `0` to `9`, and nothing else.
 3. r[std-num.parse.no-literal-syntax] So whitespace, `_` separators, radix prefixes such as `0x`, and type suffixes are not accepted.
 4. r[std-num.parse.value] Accepted text gives `.Ok` of its digits read in base ten, negated after a `-`.
@@ -205,6 +211,9 @@ pub enum ParseNumberError:
 8. r[std-num.parse.end-of-text-bytes] Text that ends where the grammar needs a digit gives `InvalidDigit` at the text's length in bytes, so a lone `-` or `+` gives `InvalidDigit(1)`.
 9. r[std-num.parse.out-of-range] A digit that takes the value read so far out of the result type's range gives `.Err(ParseNumberError.OutOfRange)`.
 10. r[std-num.parse.error-traits] `ParseNumberError` implements `Eq` and `Display`.
+11. r[std-num.parse.unsigned] The unsigned functions read the same grammar without the `-`: an optional `+`, then one or more digits. Every other rule above holds for them, with the result type's range.
+12. r[std-num.parse.unsigned.minus] A `-` at the start of the text is an invalid digit, so `"-1"`, `"-0"`, and `"-"` give `.Err(ParseNumberError.InvalidDigit(0))`.
+13. r[std-num.parse.usize-is-u32] `parse_usize` returns what `parse_u32` returns, since `usize` is `u32` by [`types.alias.usize`](../lang/04-type-system.md#r-types.alias.usize).
 
 | Text | `parse_i32` gives |
 | --- | --- |
@@ -216,11 +225,21 @@ pub enum ParseNumberError:
 | `"1_000"`, `"0x10"` | `.Err(InvalidDigit(1))` |
 | `"2147483648"`, `"99999999999x"` | `.Err(OutOfRange)` |
 
+| Text | `parse_u32` gives |
+| --- | --- |
+| `"42"`, `"+42"` | `.Ok(42)` |
+| `"4294967295"` | `.Ok` of the largest `u32` |
+| `"4294967296"` | `.Err(OutOfRange)` |
+| `"-1"`, `"-0"`, `"-"` | `.Err(InvalidDigit(0))` |
+| `"+"` | `.Err(InvalidDigit(1))` |
+| `""` | `.Err(Empty)` |
+
 > **Note.** Every character before `position` is ASCII, so `position` is
 > also the character's index.
 
 > **Why.** Parsing reads user input, which should not accept source
-> literal syntax. The grammar is Rust's `str::parse` for integers.
+> literal syntax. The grammar is Rust's `str::parse` for integers, and
+> Rust's unsigned types reject a leading `-` as an invalid digit too.
 
 ## Float Parsing
 
@@ -335,3 +354,40 @@ fn seconds(elapsed: f64) -> string:
 > arithmetic, so the host supplies it, as it supplies `format_f64`.
 
 See also: [Numeric Display](../lang/04-type-system.md#numeric-display), [Float Parsing](#float-parsing).
+
+## Rotation
+
+`rotate_left` and `rotate_right` turn the bits of an integer around its two
+ends, so no bit is lost:
+
+```text
+fn next_state(state: u32) -> u32:
+    state.rotate_left(5) ^ state
+
+fn swap_nibbles(byte: u8) -> u8:
+    byte.rotate_left(4)
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.rotate.left] `rotate_left` | `fn rotate_left(self, count: u32) -> N` | the bits of `self` moved `count` places toward the high end, with the bits that leave the top entering at the bottom |
+| r[std-num.rotate.right] `rotate_right` | `fn rotate_right(self, count: u32) -> N` | the bits of `self` moved `count` places toward the low end, with the bits that leave the bottom entering at the top |
+
+1. r[std-num.rotate.widths] Both methods exist on every integer type, `i8` to `i64` and `u8` to `u64`, and return the receiver's type.
+2. r[std-num.rotate.count-modulo] The count is taken modulo the bit width of the type, so a count of 0 or of the width returns `self`.
+3. r[std-num.rotate.signed] A signed value rotates its two's-complement bits, so the sign bit moves like any other bit.
+4. r[std-num.rotate.inverse] `x.rotate_right(n)` undoes `x.rotate_left(n)`.
+5. r[std-num.rotate.no-panic] A rotation never panics.
+
+| Call | Result |
+| --- | --- |
+| the `u8` value `150` (`10010110`), `rotate_left(1)` | `45` (`00101101`) |
+| the `u8` value `150`, `rotate_right(3)` | `210` (`11010010`) |
+| the `u8` value `150`, `rotate_left(9)` | `45`, since 9 is 1 modulo 8 |
+| the `i8` value `-128`, `rotate_left(1)` | `1` |
+| the `i32` value `-2`, `rotate_right(1)` | `2147483647` |
+| the `u32` value `0x12345678`, `rotate_left(8)` | `0x34567812` |
+
+> **Why.** The names and the `u32` count are Rust's `rotate_left` and
+> `rotate_right`. A `u32` count also matches a shift count
+> ([`expr.op.std.shift-u32`](../lang/05-expressions.md#r-expr.op.std.shift-u32)).

@@ -774,6 +774,7 @@ std/fs.md	3	type-fragment	-
 std/fs.md	4	accept	runtime/valid/fs-helpers.hd
 std/fs.md	5	accept	runtime/valid/memory-fs.hd
 std/path.md	1	accept	typing/valid/path-newtype.hd
+std/path.md	2	accept	runtime/valid/path-operations.hd
 std/process.md	1	accept	runtime/valid/process-error-display.hd
 std/process.md	2	accept	runtime/valid/process-exit-data-eq.hd
 std/process.md	3	accept	runtime/valid/scripted-process.hd
@@ -798,6 +799,7 @@ std/num.md	8	accept	runtime/valid/num-parse-integers.hd
 std/num.md	9	type-fragment	-
 std/num.md	10	accept	runtime/valid/num-parse-f64-errors.hd
 std/num.md	11	accept	runtime/valid/num-to-fixed.hd
+std/num.md	12	accept	runtime/valid/num-rotate.hd
 std/encoding.md	1	accept	runtime/valid/encoding-hex-vectors.hd
 std/encoding.md	2	accept	runtime/valid/encoding-base64-vectors.hd
 std/encoding.md	3	type-fragment	-

@@ -137,6 +137,7 @@ fn steps(readings: List[i32]) -> List[List[i32]]:
 | `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]`; `windows(self, size: usize) -> List[List[T]]` |
 | `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?` |
 | `List[T]`, when `T < Ord` | `sorted(self) -> List[T]`; `min(self) -> T?`; `max(self) -> T?` |
+| `List[T]`, when `T < Num` | `sum(self) -> T` |
 
 1. r[std-collections.helper.unchanged] Each helper leaves its receiver unchanged, and each one that returns a list returns a new list.
 2. r[std-collections.helper.callback-order] A helper calls its callback on the elements in list order, at most once each.
@@ -156,6 +157,9 @@ fn steps(readings: List[i32]) -> List[List[i32]]:
 16. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
 17. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
 18. r[std-collections.helper.min-max.first] `min` returns the first smallest element and `max` the first largest one by `Ord`, each in `.Some`. An empty list gives `.None`.
+19. r[std-collections.helper.sum] `sum` returns the total of the elements, added with `+` in list order from 0 of type `T`, so an empty list gives 0.
+20. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
+21. r[std-collections.helper.sum.iterator] `items.sum()` returns what `items.iter().sum()` returns.
 
 | Call | Result |
 | --- | --- |
@@ -165,6 +169,9 @@ fn steps(readings: List[i32]) -> List[List[i32]]:
 | `[1, 2].windows(3)` | `[]` |
 | `[5, 7, 5].index_of(5)` | `.Some(0)` |
 | `[2, 9, 4].max()` | `.Some(9)` |
+| `[1, 2, 3].sum()` | `6` |
+| `[0.5, 0.25].sum()` | `0.75` |
+| `[]` of `i64`, `.sum()` | `0` |
 
 ```text
 fn paged(items: List[i32]) -> List[List[i32]]:
@@ -176,7 +183,9 @@ fn paged(items: List[i32]) -> List[List[i32]]:
 > `groupBy`, and Python's `list.index`. A sort copies, as `sorted_by`
 > does, since hd has no consuming methods. `min` and `max` both pick the
 > first of equal elements, as Python's `min` and `max` do, so one rule
-> covers both.
+> covers both. `sum` is Python's `sum` and Rust's `Iterator::sum`; a list
+> has it as a method beside `min` and `max`, since a list is not an
+> iterator.
 
 ### Counts
 

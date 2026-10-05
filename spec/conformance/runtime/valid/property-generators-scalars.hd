@@ -15,7 +15,8 @@ fn byte(c: mut Choices) -> u8:
 
 tests:
     it_prop("addition commutes", prop=fn!(value: i64):
-        assert(value + 1 == 1 + value, reason="commutes")
+        let one: i64 = 1
+        assert(value.wrapping_add(one) == one.wrapping_add(value), reason="commutes, with wrapping at the largest value")
     )
 
     it_prop_with("draws stay in range", gen=small, cases=50, prop=fn!(n: i64):

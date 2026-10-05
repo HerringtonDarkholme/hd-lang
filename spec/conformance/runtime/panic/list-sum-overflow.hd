@@ -1,0 +1,9 @@
+# test: an integer list sum that leaves the range of its type panics with integer-overflow
+# Spec std/collections List Helpers: std-collections.helper.sum.overflow.
+
+fn total(bytes: List[u8]) -> u8:
+    bytes.sum()  # panic: integer-overflow
+
+tests:
+    it("overflows"):
+        _ := total([200, 100])

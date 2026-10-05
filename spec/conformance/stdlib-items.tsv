@@ -42,6 +42,9 @@ std.random.rng	std/random.md#rng
 std.testing.PropertyCase	std/testing.md#runner-capabilities
 std.num.parse_i32	std/num.md#integer-parsing
 std.num.parse_i64	std/num.md#integer-parsing
+std.num.parse_u32	std/num.md#integer-parsing
+std.num.parse_u64	std/num.md#integer-parsing
+std.num.parse_usize	std/num.md#integer-parsing
 std.num.ParseNumberError	std/num.md#integer-parsing
 std.error.chain	std/error.md#cause-chain
 std.error.ErrorReport	std/error.md#error-reports

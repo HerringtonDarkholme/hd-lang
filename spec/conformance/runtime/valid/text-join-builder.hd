@@ -1,10 +1,13 @@
-# test: join puts the separator between parts, and StringBuilder joins pushed text in order
-# Spec std/text Joining And Building: std-text.join.result, std-text.builder.new, .push, .build (spec pass 89, audit item 6).
+# test: join, as a function and a List[string] method, puts the separator between parts, and StringBuilder joins pushed text in order
+# Spec std/text Joining And Building: std-text.join.result, std-text.join.method, std-text.builder.new, .push, .build.
 use std.text.{StringBuilder, join}
 use std.testing.assert_equal
 
 fn csv(cells: List[string]) -> string:
-    join(cells, ",")
+    cells.join(",")
+
+fn dotted(parts: List[string]) -> string:
+    join(parts, ".")
 
 fn report(names: List[string]) -> string:
     let mut out = StringBuilder::new()
@@ -17,6 +20,10 @@ tests:
         assert_equal(csv(["a", "b", "c"]), "a,b,c", reason="between each two")
         assert_equal(csv(["a"]), "a", reason="one part")
         assert_equal(csv([]), "", reason="no part")
+        assert_equal(["a", "b"].join(", "), "a, b", reason="a literal receiver")
+        assert_equal(["a", "", "c"].join("-"), "a--c", reason="an empty part stays")
+        assert_equal(dotted(["x", "y"]), "x.y", reason="the free function")
+        assert_equal(csv(["p", "q"]), dotted(["p", "q"]).replace(".", ","), reason="both forms agree")
 
     it("builds"):
         assert_equal(report(["Ada", "Bo"]), "- Ada\n- Bo\n", reason="in push order")
