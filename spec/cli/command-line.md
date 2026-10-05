@@ -392,6 +392,26 @@ hd test               # always a checked build
 > arithmetic operation. Tests are always checked, so a property test
 > finds an overflow that a release build would hide.
 
+### Debug Output
+
+A [`dbg`](../lang/10-modules.md#debug-printing) call writes debug lines,
+which each command keeps apart from the program's output:
+
+```sh
+hd run                 # dbg lines go to standard error
+hd test                # a failing test case shows its dbg lines
+hd build --release     # error: dbg-in-release
+```
+
+1. r[cli.dbg.run] `hd FILE` and `hd run` write each `dbg` line to standard error, never to standard output.
+2. r[cli.dbg.test] `hd test` keeps the `dbg` lines of each test case with that test case's output. It shows them with the failure when the test case fails, and drops them when it passes.
+3. r[cli.dbg.repl] In the REPL, the `dbg` lines of an input print before the input's value line.
+4. r[cli.dbg.release] `hd build --release` and `hd run --release` reject a `dbg` call in the user's own code, by [`module.dbg.release`](../lang/10-modules.md#r-module.dbg.release), and `hd run --release` then runs nothing.
+5. r[cli.dbg.dependency] `hd check` and `hd build` warn once for each fetched dependency that calls `dbg`, by [`module.dbg.dependency.warning`](../lang/10-modules.md#r-module.dbg.dependency.warning).
+
+> **Note.** The browser playground shows `dbg` lines in its output panel,
+> marked as debug output.
+
 ## Documentation
 
 `hd doc` writes a package's documentation, built from its declarations and
@@ -716,6 +736,7 @@ echo 'println(1 + 2)' | hd    # prints 3
 11. r[cli.repl.host.cwd] A session's relative paths resolve from the working directory of the `hd` command.
 12. r[cli.repl.host.args] In a session, `Args` gives an empty program name and no program arguments.
 13. r[cli.repl.host.once] Each input's host calls happen once, when the input runs. A later input never repeats an earlier input's file writes, reads, clock readings, or random draws.
+14. r[cli.repl.value] The REPL shows an expression input's value as [`dbg`](../lang/10-modules.md#debug-values) prints it, then ` : ` and its type, as in `[3, 6] : List[usize]`. So a value of a type without `Display` or `Debug` shows too.
 
 ```sh
 hd> use std.time.{now}

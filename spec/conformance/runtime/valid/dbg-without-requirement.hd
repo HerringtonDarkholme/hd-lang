@@ -1,0 +1,29 @@
+# test: dbg needs no requirement, prints any value, and keeps an expected type
+# Spec 10 Debug Printing: module.dbg.no-requirement, module.dbg.one.expected,
+# module.dbg.value.no-bound. Account implements no Debug, and dbg shows its
+# private field; what dbg prints is not judged.
+use std.testing.assert_equal
+
+data Account:
+    owner: string
+    balance: i32
+
+fn total(prices: List[i32]) -> i32:
+    let sum = +0
+    for price in prices:
+        sum = dbg(sum + price)
+    sum
+
+fn audit(account: Account) -> Account:
+    dbg(account)
+
+fn first[T](items: List[T]) -> T:
+    dbg(items[0])
+
+tests:
+    it("dbg works in a pure function, generic code, and a unit test"):
+        assert_equal(total([1, 2, 3]), 6, reason="dbg returns each sum")
+        assert_equal(audit(Account { owner: "Ada", balance: 120 }).owner, "Ada", reason="dbg returns the account")
+        assert_equal(first(["a", "b"]), "a", reason="dbg returns a T")
+        let small: u8 = dbg(1)
+        assert_equal(small, u8(1), reason="the literal took the expected type u8")

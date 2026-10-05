@@ -52,3 +52,4 @@ ambiguous-import	cli.package.whole,cli.check.default,cli.json.lines.build,cli.js
 test-unit-fakes	cli.test.env.unit,cli.test.tasks.file,cli.exit.hd-failure
 test-integration-env	cli.test.env.integration,cli.test.env.cwd,cli.test.env.args,cli.test.env.args.program,cli.test.env.stdin,cli.test.env.temp-dir
 test-tasks	cli.test.tasks,cli.test.tasks.file,cli.test.tasks.no-tests,cli.test.tasks.run,cli.test.process.tasks
+dbg-release	cli.dbg.run,cli.dbg.release

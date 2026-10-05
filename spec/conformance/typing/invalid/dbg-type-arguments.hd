@@ -1,0 +1,4 @@
+# test: a dbg call takes no type arguments
+# Spec 10 Debug Printing: module.dbg.call.
+pub fn main() -> void:
+    _ := dbg::[i32](1)  # diagnostic: invalid-dbg-call

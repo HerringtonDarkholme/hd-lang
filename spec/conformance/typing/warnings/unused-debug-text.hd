@@ -1,0 +1,4 @@
+# test: a statement that calls debug discards its text, and the warning suggests dbg
+# Spec 10 Debug Printing: module.dbg.debug-hint.
+fn trace(prices: List[i32]) -> void:
+    debug(prices)  # warning: unused-debug-text

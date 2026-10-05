@@ -19,10 +19,12 @@ The language tier keeps what the compiler knows by name
 | `debug`'s signature | a prelude function ([`module.prelude.debug`](../lang/10-modules.md#r-module.prelude.debug)) |
 | `DebugWriter` | `Debug`'s one method names it in its signature |
 | `@derive(Debug)` | a derivation through a [template](../lang/14-annotations.md#templates) |
+| `dbg` | a compiler intrinsic in the prelude ([`module.prelude.dbg`](../lang/10-modules.md#r-module.prelude.dbg)), which prints through `Debug` where a type implements it |
 
 ## Debug Text
 
 1. r[std-format.debug.render] The prelude function `debug(value)` returns the text that `Debug` writes for `value`: stable, field by field, multi-line, and consistently indented.
+2. r[std-format.debug.render.whole] `debug(value)` applies none of the limits of [Large Values](../lang/10-modules.md#large-values), which only `dbg` applies, so it returns the whole text.
 
 ## Debug Builders
 

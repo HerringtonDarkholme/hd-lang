@@ -2498,3 +2498,8 @@ typing/invalid/script-test-init-requirement.hd	type	reject:missing-requirement	l
 typing/valid/temp-dir-integration.hd	type	accept	std/testing.md#r-std-testing.temp-dir.fresh
 runtime/valid/unit-test-manual-clock.hd	runtime	accept	std/testing.md#unit-test-providers
 typing/invalid/unit-test-real-clock.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.unit.hint
+runtime/valid/dbg-returns-value.hd	runtime	accept	lang/10-modules.md#r-module.dbg.many
+runtime/valid/dbg-without-requirement.hd	runtime	accept	lang/10-modules.md#r-module.dbg.no-requirement
+typing/invalid/dbg-as-value.hd	type	reject:invalid-dbg-call	lang/10-modules.md#r-module.dbg.call
+typing/invalid/dbg-type-arguments.hd	type	reject:invalid-dbg-call	lang/10-modules.md#r-module.dbg.call
+typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-hint

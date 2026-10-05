@@ -1,0 +1,15 @@
+# test: dbg returns its one argument, a tuple of several, or void, and writes nothing to standard output
+# Spec 10 Debug Printing: module.dbg.one, module.dbg.many, module.dbg.none, cli.dbg.run.
+# expect-stdout: 1300
+# expect-stdout: true
+fn line_total(price: i32, qty: i32) -> i32:
+    dbg(price * qty) + 50
+
+fn check_order(id: i32, count: i32) -> bool:
+    let (key, n) = dbg(id, count)
+    dbg()
+    key > 0 && n > 0
+
+pub fn main() -> void $ Console:
+    println(line_total(125, 10))
+    println(check_order(7, 2))

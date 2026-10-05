@@ -664,7 +664,7 @@ every module has:
 | Origin module | Implicit names |
 | --- | --- |
 | `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` |
-| `std.format` | `Display`, `Debug`, `debug` |
+| `std.format` | `Display`, `Debug`, `debug`, `dbg` |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash`, `Hasher` |
 | `std.iter` | `Iterator`, `Iterable` |
@@ -751,6 +751,128 @@ fn count() -> i32:
 2. r[module.prelude.println] The prelude function `println` has the signature `println[T < Display](value: T) -> void $ Console`.
 3. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
 4. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
+5. r[module.prelude.dbg] The prelude name `dbg` is the compiler intrinsic that [Debug Printing](#debug-printing) specifies.
+
+### Debug Printing
+
+`dbg` prints values while a bug is being chased, and returns them, so it
+can wrap any expression:
+
+```text
+# src/cart.hd
+fn line_total(price: i32, qty: i32) -> i32:
+    dbg(price * qty) + 50  # prints src/cart.hd:2:5: price * qty = 1250
+
+fn check_order(id: i32, count: i32) -> bool:
+    let (key, n) = dbg(id, count)  # two lines, one per argument
+    dbg()                          # prints src/cart.hd:6:5
+    key > 0 && n > 0
+```
+
+1. r[module.dbg.intrinsic] `std.format` declares `dbg` as a compiler intrinsic, and the prelude supplies it. This section defines its calls; no ordinary hd signature expresses them.
+2. r[module.dbg.call] A use of `dbg` must be a direct call whose arguments are positional and not spread. Any other use, such as `dbg` as a value or a call with type arguments, is an error. Error: `invalid-dbg-call`.
+3. r[module.dbg.one] `dbg(x)` evaluates `x`, prints its value, and returns it. The call has the type of `x`.
+4. r[module.dbg.one.expected] The expected type of a call `dbg(x)` is the expected type of `x`, so `let small: u8 = dbg(1)` makes `1` a `u8`.
+5. r[module.dbg.many] `dbg(a, b, c)` evaluates its arguments from left to right and prints each value when it is evaluated. It returns the tuple `(a, b, c)`.
+6. r[module.dbg.none] `dbg()` prints only the call's location. It has the type `void`.
+7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test case](#r-module.testing.unit-row.anywhere), and in generic code.
+8. r[module.dbg.not-behavior] What `dbg` prints is diagnostic output, not program behavior. It is not an effect, a replay does not record it, and tools that judge a program's output ignore it.
+
+```text
+fn total(prices: List[i32]) -> i32:
+    let sum = +0
+    for price in prices:
+        sum = dbg(sum + price)  # valid: no Console in the row
+    sum
+```
+
+```text
+pub fn main() -> void:
+    show := dbg          # error: invalid-dbg-call
+    _ := dbg::[i32](1)   # error: invalid-dbg-call
+```
+
+> **Why.** Rust's `dbg!` returns its argument and writes to standard
+> error. A print added while chasing a bug must not change a function's
+> signature, so `dbg` is the one way to print without `Console`. Its
+> output is for the person debugging, so the program's behavior never
+> depends on it.
+
+#### Debug Lines
+
+1. r[module.dbg.line] Each argument of a `dbg` call prints one line: the call's location, `: `, the argument's source text, ` = `, and its value.
+2. r[module.dbg.location] The location is `FILE:LINE:COLUMN`: the file as diagnostics name it, and the line and column where the call begins.
+3. r[module.dbg.stream] A `dbg` line goes to the program's debug output, which a program that `hd` runs writes to standard error. [Debug Output](../cli/command-line.md#debug-output) says where it goes in tests and the REPL.
+
+#### Debug Values
+
+1. r[module.dbg.value.debug] A value whose static type implements `Debug` prints as its `Debug` text, as [`debug`](#r-module.prelude.debug) returns it.
+2. r[module.dbg.value.structural] A value of any other static type prints its structure, as the table below says. Each part prints by these same rules, so a part whose type implements `Debug` prints through it.
+3. r[module.dbg.value.no-bound] Neither rule needs a trait bound, so every value prints.
+4. r[module.dbg.value.generic] Inside generic code, a value whose static type mentions a type parameter prints through `Debug` when that type implements `Debug` under the bounds in scope, as for `T < Debug`. Otherwise what it prints is implementation-defined.
+
+| Rule | Static type | Prints |
+| --- | --- | --- |
+| r[module.dbg.value.data] Data type | a `data` type | its name and each field with its name, private fields included, as `Point { x: 1, y: 2 }` |
+| r[module.dbg.value.enum] Enum | an `enum` | its variant's name, then its payload as `@derive(Debug)` writes it: `Dot`, `Some(1)`, or `Circle { radius: 2.0 }` |
+| r[module.dbg.value.newtype] Newtype | a [newtype](04-type-system.md#newtypes) | its name and its base value, as `Meters(1.5)` |
+| r[module.dbg.value.builtin] Built-in composite | a list, map, tuple, `T?`, or `Result` | as its standard `Debug` implementation writes it, as `[1, 2]` or `Some(1)` |
+| r[module.dbg.value.function] Function | a function or closure | `<fn name(i32) -> i32>` when the argument names a function, else `<fn(i32) -> i32>` |
+| r[module.dbg.value.handle] Handle | a live runtime handle, such as a suspension | `<handle>` |
+
+```text
+data Account:
+    owner: string
+    balance: i32  # private, and dbg shows it
+
+fn audit(account: Account) -> Account:
+    dbg(account)  # prints ...: account = Account { owner: "Ada", balance: 120 }
+```
+
+> **Why.** A type should not need `Debug` before it can be inspected, and
+> the person debugging needs every field. A type's own `Debug` still wins,
+> so a type that hides a secret can print it masked.
+
+#### Large Values
+
+1. r[module.dbg.layout] A value prints on its line when the whole line fits in about 80 columns. Otherwise it prints over several lines, each field or entry on its own line and indented by its depth.
+2. r[module.dbg.cycle] A value that is reached again while it is being printed, through a cycle of references, prints `<cycle>`.
+3. r[module.dbg.limit.entries] A list or map prints at most its first 100 entries, then `… N more` for the N entries it leaves out.
+4. r[module.dbg.limit.depth] A part nested more than 10 levels deep prints `…`.
+5. r[module.dbg.limit.string] A string longer than 1000 characters prints its first 1000 characters, then `…`.
+
+> **Note.** The limits keep one `dbg` call of a large or cyclic value
+> readable, and keep it from running without end.
+
+#### Release Builds And Dependencies
+
+```sh
+hd build --release   # error: dbg-in-release; the fix-it writes price * qty
+```
+
+1. r[module.dbg.release] A `dbg` call in the user's own code is an error in a release build, one of the [build profiles](04-type-system.md#integer-arithmetic). Error: `dbg-in-release`.
+2. r[module.dbg.release.fix] Its fix-it replaces `dbg(x)` with `x` and `dbg(a, b)` with `(a, b)`, and deletes `dbg()`.
+3. r[module.dbg.release.debug-build] A debug or test build accepts a `dbg` call with no warning.
+4. r[module.dbg.own-code] The user's own code is the root package, every member of its [workspace](#workspaces), and every package that a [path requirement](#path-requirements) reaches.
+5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments and returns them as [`module.dbg.one`](#r-module.dbg.one) and [`module.dbg.many`](#r-module.dbg.many) say.
+6. r[module.dbg.dependency.warning] A build that compiles such a call warns once per fetched package, naming the package. Warning: `dbg-in-dependency`.
+
+> **Why.** A `dbg` call is never meant to ship, so a release build stops
+> it and its fix-it removes it. A published package that forgot one must
+> not print into its users' programs or break their release builds.
+
+#### Debug Text Hint
+
+1. r[module.dbg.debug-hint] An expression statement that calls the prelude function `debug` discards the text that `debug` returns. It warns, and the message suggests `dbg`. Warning: `unused-debug-text`.
+
+```text
+fn trace(prices: List[i32]) -> void:
+    debug(prices)  # warning: unused-debug-text
+```
+
+See also: [Debug Trait](09-traits.md#debug-trait),
+[Debug Output](../cli/command-line.md#debug-output),
+[Build Profiles](../cli/command-line.md#build-profiles).
 
 ### Console
 
