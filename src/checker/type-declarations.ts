@@ -59,7 +59,7 @@ function isTypeRef(value: unknown): value is TypeRef {
   return (
     typeof (value as { name?: unknown }).name === "string" &&
     keys.includes("span") &&
-    keys.every((key) => key === "name" || key === "span")
+    keys.every((key) => key === "name" || key === "span" || key === "written")
   );
 }
 
@@ -358,6 +358,8 @@ class AliasExpander {
   }
 }
 
+const USIZE_WORD = /(?<![\w$:])usize(?![\w])/;
+
 function rewriteTypes<T>(
   node: T,
   expander: AliasExpander,
@@ -367,10 +369,17 @@ function rewriteTypes<T>(
   if (Array.isArray(node))
     return node.map((item) => rewriteTypes(item, expander, span, shadowable)) as T;
   if (!node || typeof node !== "object") return node;
-  if (isTypeRef(node))
-    return (
-      expander.mentions(node.name) ? { ...node, name: expander.type(node.name, node.span) } : node
-    ) as T;
+  if (isTypeRef(node)) {
+    if (!expander.mentions(node.name)) return node;
+    const name = expander.type(node.name, node.span);
+    // A written `usize` stays display metadata (04-type-system.md#r-types.alias.usize.display).
+    const written = node.written ?? (USIZE_WORD.test(node.name) ? node.name : undefined);
+    return {
+      ...node,
+      name,
+      ...(written !== undefined && written !== name ? { written } : {}),
+    } as T;
+  }
   const record = node as Record<string, unknown>;
   const own = (record.span as SourceSpan | undefined) ?? span;
   const parameters = Array.isArray(record.genericParameters)
@@ -516,9 +525,12 @@ export function withTypeDeclarations(
   readonly diagnostics: readonly Diagnostic[];
 } {
   const importDiagnostics: Diagnostic[] = [];
-  // Compiler-owned aliases (`usize`) keep their spelling through checking for
-  // display (04-type-system.md#the-usize-alias); only user imports expand here.
-  const importedAliases = new Map<string, Alias>();
+  const importedAliases = new Map<string, Alias>(
+    [...STANDARD_CORE_TYPE_ALIASES].map(([name, target]) => [
+      name,
+      { parameters: [], rows: new Set<string>(), target },
+    ]),
+  );
   const importedRows = new Map<string, RowAlias>();
   const nominalDeclarations = [
     ...source.data,

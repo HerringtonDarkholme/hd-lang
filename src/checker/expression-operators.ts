@@ -3,7 +3,6 @@ import type { Expression } from "../ast.ts";
 import type { HirData, HirEnum, HirExpression, HirLocal, ValueType } from "../hir.ts";
 import {
   eraseTypePermissions,
-  expandedAliasType,
   functionType,
   functionParts,
   mutableInner,
@@ -30,6 +29,7 @@ import {
 } from "./shared.ts";
 
 import { defaultedLocalHint, pureLiteralKind } from "./literal-join.ts";
+import { spelledType } from "./spelling.ts";
 import { defaultGroupWidth, forcedGroupWidth } from "./literal-retry.ts";
 import {
   ExpressionLiteralChecker,
@@ -366,11 +366,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         const integerPower =
           expression.operator === "**" && isIntegerType(left.type) && unsignedExponent;
         const integerShift = this.checkShiftCount(expression.operator, left, right);
-        if (
-          expandedAliasType(left.type) !== expandedAliasType(right.type) &&
-          !integerPower &&
-          !integerShift
-        )
+        if (left.type !== right.type && !integerPower && !integerShift)
           this.withLiteralHint(
             [
               [left, right.type],
@@ -552,7 +548,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
    */
   private checkShiftCount(operator: string, left: HirExpression, right: HirExpression): boolean {
     if ((operator !== "<<" && operator !== ">>") || !isIntegerType(left.type)) return false;
-    if (numericType(right.type) && expandedAliasType(readonlyType(right.type)) !== "u32")
+    if (numericType(right.type) && readonlyType(right.type) !== "u32")
       this.failWithConversion(
         `a shift count must have type u32, found '${displayType(right.type)}'; write u32(...)`,
         "u32",
@@ -699,6 +695,10 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     left: HirExpression,
     right: HirExpression,
   ): never {
+    const [shownLeft, shownRight] = [
+      displayType(spelledType(left)),
+      displayType(spelledType(right)),
+    ];
     // 04 Binary Numeric Operators: signed and unsigned integers do not mix.
     if (
       isIntegerType(left.type) &&
@@ -707,7 +707,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     )
       this.fail(
         "mixed-signedness",
-        `signed and unsigned operands do not mix: ${displayType(left.type)} and ${displayType(right.type)}; cast one explicitly`,
+        `signed and unsigned operands do not mix: ${shownLeft} and ${shownRight}; cast one explicitly`,
         expression.span,
       );
     if (
@@ -727,7 +727,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       "type-mismatch",
       trait && !isPrimitiveOperand(right.type)
         ? `operator '${expression.operator}' needs an implementation of std.ops.${trait[0]}[${displayType(readonlyType(right.type))}] for '${displayType(left.type)}'`
-        : `operator operands have types ${displayType(left.type)} and ${displayType(right.type)}`,
+        : `operator operands have types ${shownLeft} and ${shownRight}`,
       expression.span,
     );
   }
@@ -947,11 +947,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           `a range bound must have an integer type, found '${displayType(bound.type)}'`,
           bound.span,
         );
-    if (
-      bounds.length === 2 &&
-      expandedAliasType(readonlyType(bounds[0]!.type)) !==
-        expandedAliasType(readonlyType(bounds[1]!.type))
-    ) {
+    if (bounds.length === 2 && readonlyType(bounds[0]!.type) !== readonlyType(bounds[1]!.type)) {
       this.rejectMixedWidths(bounds[0]!, bounds[1]!, "range bounds");
       this.fail(
         "type-mismatch",

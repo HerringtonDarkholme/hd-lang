@@ -52,7 +52,7 @@ export function checkLiteralArgumentsLast(
       // One literal keeps its own type, so a bound checked with it can still decide.
       const forced = forcedGroupWidth(members);
       const type = forced ?? (members.length > 1 ? literalGroupDefault(members) : undefined);
-      if (type !== undefined && type !== "usize" && type !== "f64")
+      if (type !== undefined && type !== "u32" && type !== "f64")
         substitutions.set(parameter, type);
     }
     for (const index of indices) checked[index] = check(plan[index]!);

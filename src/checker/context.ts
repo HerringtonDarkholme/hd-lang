@@ -33,7 +33,7 @@ import {
   usesStandardInspect,
   type InspectEnvironment,
 } from "./inspectable.ts";
-import { isPermissionWeakening, uncoerced, weakenBoundedGenericActual } from "./assignability.ts";
+import { isPermissionWeakening, weakenBoundedGenericActual } from "./assignability.ts";
 import { isRowSubsumption, mismatchMessage, rowDiagnostic } from "./row-rules.ts";
 import { requirementKeyDiagnosticsInType } from "./requirement-keys.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
@@ -65,7 +65,6 @@ import {
   nominalGenericType,
   optionalInner,
   readonlyType,
-  sameExpandedType,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
@@ -74,6 +73,7 @@ import {
 import { narrowsTo, numericType, widensTo } from "../numeric.ts";
 import { captureOf, coerceLiteral, finalValueOf, type InferredReturn } from "./literal-join.ts";
 import { joinedLeastCommonType } from "./literal-join.ts";
+import { spellBinding, spelledCall, spelledType } from "./spelling.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
 import type {
   FunctionCheckResult,
@@ -98,6 +98,7 @@ export { PRELUDE_NAMES };
 export { isPermissionWeakening, weakenBoundedGenericActual };
 
 export { mapKeyKind };
+export { spelledCall };
 
 import { isKnownType } from "./known-types.ts";
 import { ZERO_SPAN } from "./generated-source.ts";
@@ -304,6 +305,7 @@ export abstract class CheckerContext {
           parameter: true,
           span: parameter.span,
         };
+        spellBinding(local, parameter.type.written);
         this.currentScope().set(parameter.name, local);
         this.locals.push(local);
         return local;
@@ -459,7 +461,7 @@ export abstract class CheckerContext {
     span: SourceSpan,
     wrapOptional = true,
   ): HirExpression {
-    if (!expected || value.type === "never" || sameExpandedType(value.type, expected)) return value;
+    if (!expected || value.type === expected || value.type === "never") return value;
     const widened = coerceLiteral(value, readonlyType(expected), span, this.fail.bind(this));
     if (widened) return widened;
     // Row subsumption adapts a function value like a weakening (r-req.row.subsume).
@@ -1374,27 +1376,24 @@ export abstract class CheckerContext {
     throw new Error(`cannot materialize closure capture '${source.name}'`);
   }
 
-  protected requireAssignable(actual: ValueType, expected: ValueType, span: SourceSpan): void {
-    if (uncoerced(actual, expected)) return;
-    if (sameExpandedType(mutableInner(expected), actual))
-      this.fail(
-        "mutable-upgrade",
-        `readonly type '${displayType(actual)}' cannot be upgraded to '${displayType(expected)}'`,
-        span,
-      );
-    if (narrowsTo(actual, expected))
-      this.fail(
-        "implicit-narrowing",
-        `'${displayType(actual)}' does not convert implicitly to '${displayType(expected)}'; write an explicit cast`,
-        span,
-      );
-    if (widensTo(actual, expected))
-      this.failWithConversion(
-        `'${displayType(actual)}' does not widen implicitly to '${displayType(expected)}'; write ${displayType(expected)}(...)`,
-        expected,
-        span,
-      );
-    this.fail("type-mismatch", mismatchMessage(actual, expected), span);
+  /** A `value` of type `actual` prints its spelling, such as `usize` (checker/spelling.ts). */
+  protected requireAssignable(
+    actual: ValueType,
+    expected: ValueType,
+    span: SourceSpan,
+    value?: HirExpression,
+  ): void {
+    if (actual === "never" || actual === expected || isPermissionWeakening(actual, expected))
+      return;
+    const shown = value ? spelledType(value) : actual;
+    const [found, wanted] = [displayType(shown), displayType(expected)];
+    const upgrade = `readonly type '${found}' cannot be upgraded to '${wanted}'`;
+    if (mutableInner(expected) === actual) this.fail("mutable-upgrade", upgrade, span);
+    const cast = `'${found}' does not convert implicitly to '${wanted}'; write an explicit cast`;
+    if (narrowsTo(actual, expected)) this.fail("implicit-narrowing", cast, span);
+    const widen = `'${found}' does not widen implicitly to '${wanted}'; write ${wanted}(...)`;
+    if (widensTo(actual, expected)) this.failWithConversion(widen, expected, span);
+    this.fail("type-mismatch", mismatchMessage(shown, expected), span);
   }
 
   /** `type-mismatch` for a narrower number, with a fix-it writing the conversion (04-type-system.md#r-types.num.no-implicit.fix). */
@@ -1425,7 +1424,7 @@ export abstract class CheckerContext {
     span: SourceSpan,
   ): HirExpression {
     const coerced = this.coerce(expression, expected, span);
-    this.requireAssignable(coerced.type, expected, span);
+    this.requireAssignable(coerced.type, expected, span, coerced);
     return coerced;
   }
 

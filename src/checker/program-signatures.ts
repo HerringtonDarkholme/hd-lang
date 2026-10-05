@@ -4,6 +4,7 @@ import type { HirAssociatedBinding, HirGenericBound, HirTrait, ValueType } from 
 import { mutableInner, nominalGenericParts, displayType } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
+import { respelled } from "./spelling.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
 import {
   collectRowParameterReferences,
@@ -439,6 +440,9 @@ export function createProgramSignatures(
       variadic: listVararg(declaration.parameters.at(-1)),
       ...(tupleVararg(declaration.parameters.at(-1)) ? { tupleVararg: true } : {}),
       result: normalizedResult,
+      ...(declaration.result.written
+        ? { spelledResult: respelled(normalizedResult, declaration.result.written) }
+        : {}),
       requirements,
       ...signatureMarkers(declaration),
       ...genericDefaultTypes(declaration, context, typeParameters),

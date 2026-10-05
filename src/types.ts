@@ -1,5 +1,4 @@
 import type { ValueType } from "./hir.ts";
-import { STANDARD_CORE_TYPE_ALIASES } from "./checker/standard-core.ts";
 
 /**
  * The built-in list and map cursor behind `list.iter()` and `map.iter()`,
@@ -47,32 +46,8 @@ export function mutableInner(type: ValueType): ValueType | undefined {
 
 /** The primitive types (04-type-system.md#primitive-types). */
 export const PRIMITIVE_TYPES: ReadonlySet<ValueType> = new Set(
-  "bool i8 i16 i32 i64 u8 u16 u32 u64 usize f32 f64 char string".split(" "),
+  "bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char string".split(" "),
 );
-
-/**
- * The type with every compiler-owned transparent alias spelling expanded to
- * its target (`usize` to `u32`), for type identity comparisons. Display keeps
- * the spelling the type was written or defaulted with
- * (04-type-system.md#the-usize-alias).
- */
-export function expandedAliasType(type: ValueType): ValueType {
-  let expanded = type;
-  for (const [spelling, target] of STANDARD_CORE_TYPE_ALIASES)
-    expanded = expanded.replace(
-      new RegExp(`(?<![A-Za-z0-9_])${spelling}(?![A-Za-z0-9_])`, "g"),
-      target,
-    );
-  return expanded;
-}
-
-/**
- * Whether two types name one type once transparent aliases are expanded
- * (`u32` and `usize`). An absent inner type never matches.
- */
-export function sameExpandedType(left: ValueType | undefined, right: ValueType): boolean {
-  return left !== undefined && expandedAliasType(left) === expandedAliasType(right);
-}
 
 /**
  * A value that satisfies a `mut self` receiver: one with mutable access, or

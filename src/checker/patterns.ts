@@ -37,6 +37,7 @@ import {
   orderedTypeSubstitutions,
   substituteGenericType,
 } from "./shared.ts";
+import { spelledApplication, spelledType } from "./spelling.ts";
 
 import { CallChecker } from "./calls.ts";
 export abstract class PatternChecker extends CallChecker {
@@ -188,7 +189,7 @@ export abstract class PatternChecker extends CallChecker {
     if (!parts) {
       // Name what the payload leaves unsolved: `E` for `.Ok`, `T` for `.Err`.
       const argument = expression.arguments.length === 1 ? expression.arguments[0]! : undefined;
-      const payload = argument && this.checkExpression(argument).type;
+      const payload = argument && spelledType(this.checkExpression(argument));
       const [success, error] = ok ? [payload ?? "T", "E"] : ["T", payload ?? "E"];
       this.failUnresolvedType(
         payload === undefined ? ["T", "E"] : [ok ? "E" : "T"],
@@ -291,11 +292,14 @@ export abstract class PatternChecker extends CallChecker {
     if (unresolved.length > 0)
       this.failUnresolvedType(
         unresolved,
-        nominalGenericType(
-          declaration.name,
-          declaration.genericParameters.map(
-            (parameter) => substitutions.get(parameter) ?? parameter,
+        spelledApplication(
+          nominalGenericType(
+            declaration.name,
+            declaration.genericParameters.map(
+              (parameter) => substitutions.get(parameter) ?? parameter,
+            ),
           ),
+          fields,
         ),
         span,
       );

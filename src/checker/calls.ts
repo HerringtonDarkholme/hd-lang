@@ -56,6 +56,7 @@ import {
   traitKeyName,
   traitTypeName,
 } from "./shared.ts";
+import { spelledCall } from "./spelling.ts";
 import { checkLiteralArgumentsLast } from "./literal-arguments.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
 import { StatementChecker } from "./statements.ts";
@@ -488,7 +489,12 @@ export abstract class CallChecker extends StatementChecker {
           type: suspensionType(signature.index, resultType),
           span: expression.span,
         }
-      : { kind: "call", ...callBase, type: resultType, span: expression.span };
+      : spelledCall(signature, {
+          kind: "call",
+          ...callBase,
+          type: resultType,
+          span: expression.span,
+        });
   }
 
   protected checkConcreteArguments(

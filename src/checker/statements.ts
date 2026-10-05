@@ -6,6 +6,7 @@ import {
   withDefaultedLocalHint,
   firstBareLiteral,
 } from "./literal-join.ts";
+import { spellBinding } from "./spelling.ts";
 import type { Expression, Statement } from "../ast.ts";
 import type { HirExpression, HirGlobal, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
@@ -828,6 +829,7 @@ export abstract class StatementChecker extends CheckerContext {
         span: statement.span,
       };
       if (!recursiveGlobal) this.globals.set(statement.name, global);
+      spellBinding(global, annotation ? statement.annotation?.written : value);
       return { kind: "global-binding", global, value, span: statement.span };
     }
     const local: HirLocal = recursiveLocal ?? {
@@ -843,6 +845,7 @@ export abstract class StatementChecker extends CheckerContext {
       this.locals.push(local);
       this.currentScope().set(statement.name, local);
     }
+    spellBinding(local, annotation ? statement.annotation?.written : value);
     if (defaultedLiteral)
       recordDefaultedLocal(local, {
         name: statement.name,

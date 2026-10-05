@@ -60,6 +60,10 @@ Correctness and diagnostics:
   test cases never run.
 - **F-605**: parsing stops at the first error, and checking reports one
   error per function; a signature error hides every body error.
+- **F-611**: some diagnostics print `u32` where `types.alias.usize.display`
+  asks for `usize`: an expected type written `usize`, a field read, and the
+  types that `no-common-type` and a generic-inference conflict list. The
+  found type of a mismatch, operator operands, and the REPL print `usize`.
 
 Runtime cost:
 

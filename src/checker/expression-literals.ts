@@ -209,7 +209,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
       (expected === undefined || numericType(readonlyType(expected)) === undefined
         ? FORCED_LITERALS.get(span)
         : undefined);
-    const target = fixed ?? (signed ? "i32" : "usize");
+    const target = fixed ?? (signed ? "i32" : "u32");
     const { minimum, maximum, bits } = numericType(target)! as Required<NumericType>;
     const wider = widerIntegerName(target);
     if (value < minimum || value > maximum)
@@ -265,7 +265,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     const literals = types.filter((_, index) => flexible[index]);
     if (others.length === 0) {
       if (literals.every((type) => isIntegerType(type)))
-        return literals.includes("i32") ? "i32" : "usize";
+        return literals.includes("i32") ? "i32" : "u32";
       return this.inferLeastCommonType(types, what, span, spreadParts);
     }
     const joined = this.inferLeastCommonType(others, what, span, spreadParts);

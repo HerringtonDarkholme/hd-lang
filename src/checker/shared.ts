@@ -32,7 +32,6 @@ export { normalizedRequirements, rowParameterName, sameRequirements } from "./re
 import {
   contextKeys,
   contextType,
-  sameExpandedType,
   functionParts,
   functionType,
   mutableInner,
@@ -228,7 +227,6 @@ const TYPE_NAMES = new Set<ValueType>([
   "i16",
   "u16",
   "u32",
-  "usize",
   "u64",
   "f32",
   "i32",
@@ -778,7 +776,6 @@ export function inferGenericType(
     const existing = substitutions.get(generic);
     // A `mut T` argument weakens to a parameter already inferred as `T`.
     if (existing && mutableInner(actual) === existing) return undefined;
-    if (existing && sameExpandedType(existing, actual)) return undefined;
     if (existing && existing !== actual)
       return `generic parameter '${generic}' was inferred as both ${displayType(existing)} and ${displayType(actual)}`;
     substitutions.set(generic, actual);

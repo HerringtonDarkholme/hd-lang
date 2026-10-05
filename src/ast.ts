@@ -17,6 +17,12 @@ export interface TypeRef {
    * written, so they are not reported again here.
    */
   readonly implementationTarget?: true;
+  /**
+   * The type as written, set when alias expansion changed a compiler-owned
+   * alias such as `usize` in it: display metadata for diagnostics and the
+   * REPL (04-type-system.md#r-types.alias.usize.display), never for typing.
+   */
+  readonly written?: string;
 }
 
 export interface GenericBound {

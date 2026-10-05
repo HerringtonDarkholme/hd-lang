@@ -30,6 +30,8 @@ export interface Signature {
   readonly tupleParameters?: readonly string[]; // bounded by `std.function.Tuple`
   readonly intrinsic?: string; // a `lib/std` declaration's `@intrinsic("name")`
   readonly result: ValueType;
+  /** `result` as written where it says `usize`: display only (checker/spelling.ts). */
+  readonly spelledResult?: ValueType;
   readonly requirements: readonly string[];
   /** Declared in a `tests:` block (spec/lang/03-names-and-scopes.md#tests-blocks). */
   readonly testOnly?: boolean;

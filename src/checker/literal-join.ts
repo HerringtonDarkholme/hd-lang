@@ -107,14 +107,14 @@ export function hasSignedLiteral(expression: Expression): boolean {
   return false;
 }
 
-/** The rule-2 type of a group of pure literal trees of one kind: `i32` when any is signed, else `usize`. */
+/** The rule-2 type of a group of pure literal trees of one kind: `i32` when any is signed. */
 export function literalGroupDefault(members: readonly Expression[]): ValueType | undefined {
   const kinds = new Set(members.map(pureLiteralKind));
   if (kinds.size !== 1) return undefined;
   const [kind] = kinds;
   if (kind === "float") return "f64";
   if (kind !== "integer") return undefined;
-  return members.some(hasSignedLiteral) ? "i32" : "usize";
+  return members.some(hasSignedLiteral) ? "i32" : "u32";
 }
 
 /** A local whose type came from a bare literal's rule-2 default, for the fix hint. */
@@ -221,8 +221,7 @@ export function defaultedLocalHint(
         : other
       : other;
   const numeric = numericType(width);
-  if (!width || !numeric || numeric.family === "float" || width === "u32" || width === "usize")
-    return undefined;
+  if (!width || !numeric || numeric.family === "float" || width === "u32") return undefined;
   const at = `line ${origin.span.start.line}`;
   const signed = `+${origin.literal}`;
   const whole =
@@ -416,7 +415,7 @@ export function joinDefaultedInPlace(
       : integers
         ? literals.includes("i32")
           ? "i32"
-          : "usize"
+          : "u32"
         : "f64";
   const family = target === undefined ? undefined : numericType(readonlyType(target))?.family;
   if (family === undefined || (family === "float") !== !integers) return types;
@@ -468,8 +467,8 @@ export function fallbackLiteralHint(
     for (const [key, child] of Object.entries(node)) if (key !== "span") walk(child);
   };
   walk(body);
-  const widths = (diagnostic.message.match(/\b(?:[iu](8|16|32|64)|usize)\b/g) ?? []).filter(
-    (width) => width !== "u32" && width !== "usize",
+  const widths = (diagnostic.message.match(/\b[iu](8|16|32|64)\b/g) ?? []).filter(
+    (width) => width !== "u32",
   );
   for (const local of [...locals].reverse()) {
     if (!names.has(local.name) || !DEFAULTED_LOCALS.has(local)) continue;

@@ -1,7 +1,7 @@
 import { traitValueBindings } from "./associated-bindings.ts";
 import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
-import { CheckFailure, type Signature } from "./context.ts";
+import { CheckFailure, spelledCall, type Signature } from "./context.ts";
 import { CHECK_EQUAL } from "./standard-library.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import {
@@ -232,7 +232,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (receiverNominal?.name === "List" && expression.callee.name === "len") {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "list.len expects no arguments", expression.span);
-      return { kind: "list-length", receiver, type: "usize", span: expression.span };
+      return { kind: "list-length", receiver, type: "u32", span: expression.span };
     }
     if (receiverNominal?.name === "List" && expression.callee.name === "iter") {
       if (expression.arguments.length !== 0)
@@ -289,7 +289,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (receiverNominal?.name === "Map" && expression.callee.name === "len") {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "map.len expects no arguments", expression.span);
-      return { kind: "map-length", receiver, type: "usize", span: expression.span };
+      return { kind: "map-length", receiver, type: "u32", span: expression.span };
     }
     if (receiverNominal?.name === "Map" && expression.callee.name === "iter") {
       if (expression.arguments.length !== 0)
@@ -1287,7 +1287,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           type: suspensionType(signature.index, resultType),
           span: expression.span,
         }
-      : {
+      : spelledCall(signature, {
           kind: "call",
           functionIndex: signature.index,
           functionName: signature.name,
@@ -1307,7 +1307,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
           type: resultType,
           span: expression.span,
-        };
+        });
   }
 
   private checkQualifiedCall(

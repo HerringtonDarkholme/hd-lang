@@ -1,7 +1,6 @@
 import type { HirTrait, HirTraitDictionaryPlan, ValueType } from "../hir.ts";
 import { genericTypeName } from "./shared.ts";
 import {
-  expandedAliasType,
   functionParts,
   functionType,
   mutableInner,
@@ -132,18 +131,6 @@ export function isPermissionWeakening(actual: ValueType, expected: ValueType): b
     );
   }
   return false;
-}
-
-/**
- * Whether `actual` flows into `expected` with no coercion: `never`, identical
- * once transparent aliases are expanded, or a permission weakening of the
- * expanded spellings. Diagnostics keep the written spelling.
- */
-export function uncoerced(actual: ValueType, expected: ValueType): boolean {
-  if (actual === "never") return true;
-  const actualId = expandedAliasType(actual);
-  const expectedId = expandedAliasType(expected);
-  return actualId === expectedId || isPermissionWeakening(actualId, expectedId);
 }
 
 /**

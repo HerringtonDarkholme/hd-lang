@@ -162,7 +162,7 @@ function isTypeRef(value: unknown): boolean {
   return (
     typeof record.name === "string" &&
     "span" in record &&
-    Object.keys(record).every((key) => key === "name" || key === "span")
+    Object.keys(record).every((key) => key === "name" || key === "span" || key === "written")
   );
 }
 

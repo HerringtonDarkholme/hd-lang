@@ -46,6 +46,7 @@ import {
   literalText,
   recordDefaultedLocal,
 } from "./literal-join.ts";
+import { spellBinding } from "./spelling.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionComprehensionChecker, FOR_PATTERN_ITEM } from "./expression-comprehensions.ts";
 type MatchExpression = Extract<Expression, { kind: "match" }>;
@@ -223,12 +224,14 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             };
             this.locals.push(local);
             this.currentScope().set(binding.name, local);
+            // One binding prints its element the way the iterable prints it.
+            if (sourceBindings.length === 1) spellBinding(local, value);
             return local;
           });
           // A loop over bare literals gives its bindings the literals' fix hint.
           const looped = firstBareLiteral(expression.iterable);
           for (const local of looped ? bindings : [])
-            if (local.type === "u32" || local.type === "usize")
+            if (local.type === "u32")
               recordDefaultedLocal(local, {
                 name: local.name,
                 literal: literalText(looped!),

@@ -1,5 +1,5 @@
 import type { HirTraitImplementation, ValueType } from "../hir.ts";
-import { expandedAliasType, readonlyType } from "../types.ts";
+import { readonlyType } from "../types.ts";
 
 // Implementation lookup tries the implementations whose target may match a
 // type. A program with many derivations has many implementations, so the
@@ -29,16 +29,13 @@ export function implementationsFor(
     index = { length: implementations.length, byHead: new Map() };
     IMPLEMENTATIONS_BY_HEAD.set(implementations, index);
   }
-  // Transparent alias spellings share candidates (`usize` sees `u32` targets).
-  const heads = new Set([head, expandedAliasType(head)]);
-  const key = [...heads].sort().join("\0");
-  let found = index.byHead.get(key);
+  let found = index.byHead.get(head);
   if (!found) {
     found = implementations.filter((implementation) => {
       const target = NOMINAL_HEAD.exec(implementation.targetType)?.[1];
-      return target === undefined || heads.has(target) || heads.has(expandedAliasType(target));
+      return target === undefined || target === head;
     });
-    index.byHead.set(key, found);
+    index.byHead.set(head, found);
   }
   return found;
 }

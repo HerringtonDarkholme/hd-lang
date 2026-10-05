@@ -35,7 +35,7 @@ function isTypeRef(value: unknown): value is { readonly name: string } {
   return (
     typeof (value as { name?: unknown }).name === "string" &&
     keys.includes("span") &&
-    keys.every((key) => key === "name" || key === "span")
+    keys.every((key) => key === "name" || key === "span" || key === "written")
   );
 }
 

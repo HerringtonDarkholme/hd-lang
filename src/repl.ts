@@ -14,7 +14,8 @@ import {
   type PackageDependencies,
   type PackageDiagnostic,
 } from "./package.ts";
-import type { HirData, HirEnum, HirProgram } from "./hir.ts";
+import type { HirData, HirEnum, HirExpression, HirProgram } from "./hir.ts";
+import { spelledBindingType, spelledType } from "./checker/spelling.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
 import { optionalInner, readonlyType, displayType } from "./types.ts";
@@ -47,7 +48,6 @@ const DISPLAY_PRIMITIVES = new Set([
   "u8",
   "u16",
   "u32",
-  "usize",
   "u64",
   "f32",
   "f64",
@@ -285,7 +285,7 @@ export class ReplSession {
     const found = valueType(analysis.hir);
     return found === undefined
       ? { errors: ["expression has no value"] }
-      : { type: displayType(found), errors: [] };
+      : { type: displayType(found.shown), errors: [] };
   }
 
   /** Adds `text` as top-level declarations, whatever its leading word. */
@@ -340,12 +340,14 @@ export class ReplSession {
         ? rejected(this.format(analysis.diagnostics, probe))
         : statement;
     }
-    const type = valueType(analysis.hir) ?? "void";
+    const found = valueType(analysis.hir);
+    const type = found?.type ?? "void";
+    const shownType = displayType(found?.shown ?? "void");
     if (!execute) {
       this.statements = [...this.statements, `_ := ${text}`];
       return {
         output: [],
-        type: displayType(type),
+        type: shownType,
         errors: [],
         warnings: this.warnings(analysis.diagnostics, probe),
         accepted: true,
@@ -367,7 +369,7 @@ export class ReplSession {
     return {
       output,
       value: run.lines.at(-1),
-      type: displayType(type),
+      type: shownType,
       errors: [],
       warnings: this.warnings(analysis.diagnostics, probe),
       accepted: true,
@@ -547,27 +549,29 @@ function formatReplDiagnostic(diagnostic: Diagnostic, attempt: Attempt): string 
   return `${where}: ${severity}${diagnostic.code}: ${diagnostic.message}`;
 }
 
-function valueType(hir: HirProgram): string | undefined {
+/**
+ * The type of the input's value, and how it prints: `usize` for a size or a
+ * bare literal's default (04-type-system.md#r-types.alias.usize.display).
+ */
+function valueType(hir: HirProgram): { readonly type: string; readonly shown: string } | undefined {
   const main = hir.functions.find(({ name }) => name === "main");
   if (!main) return undefined;
   // `:=` always binds a readonly view, so the binding's own type loses `mut`.
   // Report the type of the expression the user wrote instead.
   const binding = findValueBinding(main.body);
   if (binding) {
-    const value = binding.value;
-    return value.kind === "permission-weaken" && value.operand ? value.operand.type : value.type;
+    const value =
+      binding.value.kind === "permission-weaken" ? binding.value.operand : binding.value;
+    return { type: value.type, shown: spelledType(value) };
   }
-  return main.locals.findLast(({ name }) => name === VALUE)?.type;
+  const local = main.locals.findLast(({ name }) => name === VALUE);
+  return local && { type: local.type, shown: spelledBindingType(local) };
 }
 
 interface BindingNode {
   readonly kind: "binding";
   readonly local: { readonly name: string };
-  readonly value: {
-    readonly kind: string;
-    readonly type: string;
-    readonly operand?: { readonly type: string };
-  };
+  readonly value: HirExpression;
 }
 
 function findValueBinding(node: unknown): BindingNode | undefined {

@@ -9,7 +9,6 @@ import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, HirFunction, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
   contextType,
-  expandedAliasType,
   functionType,
   functionParts,
   nominalGenericParts,
@@ -36,7 +35,7 @@ import {
   restoreState,
   statementLiterals,
 } from "./literal-retry.ts";
-const USIZE = /\b(?:u32|usize)\b/;
+const USIZE = /\bu32\b/;
 
 export class FunctionChecker extends ExpressionControlChecker {
   private contextualHintDepth = 0;
@@ -655,7 +654,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         const expectedCallableType = expected && solved(readonlyType(expected));
         if (
           expectedCallableType &&
-          expandedAliasType(expectedCallableType) !== expandedAliasType(callableType) &&
+          expectedCallableType !== callableType &&
           !functionTypeMatchesRowPattern(expectedCallableType, callableType)
         ) {
           this.fail(

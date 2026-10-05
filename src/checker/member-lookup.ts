@@ -3,7 +3,6 @@ import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, HirExpression, HirTrait, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
 import {
-  expandedAliasType,
   mutableInner,
   mutableType,
   nominalGenericParts,
@@ -21,8 +20,9 @@ import {
 } from "./shared.ts";
 import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
-import { STANDARD_CORE_TYPE_ALIASES, standardCoreTypeAlias } from "./standard-core.ts";
+import { standardCoreTypeAlias } from "./standard-core.ts";
 import { registeredPackageOwnership } from "./package-ownership.ts";
+import { spellAs } from "./spelling.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
 
@@ -107,7 +107,7 @@ const INTRINSIC_METHODS: ReadonlyMap<string, readonly string[]> = new Map([
 /** Whether an inherent `method` applies to a receiver of `type`. */
 function inherentTargetMatches(method: InherentMethod, type: ValueType): boolean {
   return (
-    expandedAliasType(method.targetType) === expandedAliasType(type) ||
+    method.targetType === type ||
     (method.targetGenericParameters !== undefined &&
       matchGenericTypePattern(method.targetType, type, new Map()))
   );
@@ -192,14 +192,17 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         literal && numericType(numericName)?.family !== "float" ? numericName : undefined;
       const value = this.checkExpression(argument, target);
       if (numericType(readonlyType(value.type)))
-        return {
-          kind: "unary",
-          operator: "cast",
-          operand: value,
-          // A compiler-owned alias spelling keeps its name (`usize(x)` is `usize`).
-          type: STANDARD_CORE_TYPE_ALIASES.has(name) ? name : numericName,
-          span: expression.span,
-        };
+        // `usize(x)` prints as `usize` (04-type-system.md#r-types.alias.usize.display).
+        return spellAs<HirExpression>(
+          {
+            kind: "unary",
+            operator: "cast",
+            operand: value,
+            type: numericName,
+            span: expression.span,
+          },
+          name,
+        );
       if (!unwraps)
         this.fail(
           "type-mismatch",

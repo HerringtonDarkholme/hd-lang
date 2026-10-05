@@ -26,7 +26,7 @@ function expressions(value: unknown): HirExpression[] {
   return found;
 }
 
-test("a written usize keeps its spelling throughout HIR", () => {
+test("the std.core usize alias is canonical u32 throughout HIR", () => {
   const program = checked(`data Sizes:
     first: usize
     rest: List[usize]
@@ -38,53 +38,25 @@ fn cast(value: i32) -> usize: usize(value)
   const sizes = program.data.find((declaration) => declaration.name === "Sizes")!;
   assert.deepEqual(
     sizes.fields.map((field) => field.type),
-    ["usize", "List[usize]"],
+    ["u32", "List[u32]"],
   );
   const same = program.functions.find((declaration) => declaration.name === "same")!;
-  assert.deepEqual([same.parameters[0]?.type, same.result], ["usize", "u32"]);
+  assert.deepEqual([same.parameters[0]?.type, same.result], ["u32", "u32"]);
   const nested = program.functions.find((declaration) => declaration.name === "nested")!;
-  assert.deepEqual(
-    [nested.parameters[0]?.type, nested.result],
-    ["List[usize]", "(usize,List[usize])"],
-  );
+  assert.deepEqual([nested.parameters[0]?.type, nested.result], ["List[u32]", "(u32,List[u32])"]);
   const cast = program.functions.find((declaration) => declaration.name === "cast")!;
-  assert.equal(cast.result, "usize");
+  assert.equal(cast.result, "u32");
   assert.ok(
     expressions(program).some(
       (expression) =>
-        expression.kind === "unary" &&
-        expression.operator === "cast" &&
-        expression.type === "usize",
+        expression.kind === "unary" && expression.operator === "cast" && expression.type === "u32",
     ),
   );
 
   const withoutSpans = JSON.stringify(program, (key, value) =>
     key === "span" ? undefined : value,
   );
-  assert.match(withoutSpans, /\busize\b/);
-});
-
-test("messages print a defaulted or written usize, not u32", () => {
-  const mismatch = (source: string): string | undefined =>
-    analyze(source).diagnostics.find(({ code }) => code === "type-mismatch")?.message;
-  assert.equal(
-    mismatch(
-      "fn take_i32(x: i32) -> i32: x\n\npub fn main() -> i32:\n    total := 0\n    take_i32(total)\n",
-    ),
-    "expected i32, found usize",
-  );
-  assert.equal(
-    mismatch(
-      "fn take_i32(x: i32) -> i32: x\n\npub fn main() -> i32:\n    let total: usize = 0\n    take_i32(total)\n",
-    ),
-    "expected i32, found usize",
-  );
-  assert.equal(
-    mismatch(
-      "fn take_i32(x: i32) -> i32: x\n\npub fn main() -> i32:\n    let total: u32 = 0\n    take_i32(total)\n",
-    ),
-    "expected i32, found u32",
-  );
+  assert.doesNotMatch(withoutSpans, /\busize\b/);
 });
 
 test("a renamed explicit std.core usize import keeps alias identity", () => {
@@ -143,13 +115,13 @@ fn associated[C < Source[usize, Item = usize]](value: C) -> void: pass
 `);
   const bound = (name: string) =>
     program.functions.find((declaration) => declaration.name === name)!.genericBounds[0]!;
-  assert.deepEqual(bound("direct").traitArguments, ["usize"]);
-  assert.match(bound("nested").traitArguments[0]!, /Range\[usize\]$/);
-  assert.deepEqual(bound("associated").traitArguments, ["usize"]);
-  assert.deepEqual(bound("associated").associatedBindings, [{ name: "Item", type: "usize" }]);
+  assert.deepEqual(bound("direct").traitArguments, ["u32"]);
+  assert.match(bound("nested").traitArguments[0]!, /Range\[u32\]$/);
+  assert.deepEqual(bound("associated").traitArguments, ["u32"]);
+  assert.deepEqual(bound("associated").associatedBindings, [{ name: "Item", type: "u32" }]);
 });
 
-test("List.len and Map.len have usize HIR types", () => {
+test("List.len and Map.len have canonical u32 HIR types", () => {
   const program =
     checked(`fn lengths(items: List[i32], entries: Map[string, i32]) -> (usize, usize):
     (items.len(), entries.len())
@@ -161,8 +133,8 @@ test("List.len and Map.len have usize HIR types", () => {
   assert.deepEqual(
     lengths.map((expression) => [expression.kind, expression.type]),
     [
-      ["list-length", "usize"],
-      ["map-length", "usize"],
+      ["list-length", "u32"],
+      ["map-length", "u32"],
     ],
   );
 });
@@ -172,4 +144,84 @@ test("the highlighter classifies usize as a type", () => {
     classify("let size: usize = items.len()").find(({ text }) => text === "usize")?.kind,
     "type",
   );
+});
+
+// A `u32` value and a size are one type wherever the checker compares types;
+// the display spelling `usize` never splits them (r-types.alias.usize).
+const MIXED = `trait Describe:
+    fn describe(self) -> string
+
+impl Describe for u32:
+    fn describe(self) -> string:
+        "u32 \${self}"
+
+fn pick[T](a: T, b: T) -> T:
+    a
+
+fn total(values: List[u32]) -> u32:
+    let sum: u32 = 0
+    for value in values:
+        sum = sum + value
+    sum
+
+fn mixed() -> void:
+    xs := [1, 2]
+    let a: u32 = 7
+    n := xs.len()
+`;
+
+test("a u32 value and a size mix wherever one type is expected", () => {
+  const uses: readonly (readonly [string, string])[] = [
+    ["generic inference", "_ := pick(a, xs.len())"],
+    ["a list literal", "_ := [a, xs.len()]"],
+    ["a map literal", '_ := {a: "seven", n: "two"}'],
+    ["a map value literal", '_ := {"a": a, "n": n}'],
+    [
+      "a Map[u32, V] keyed by a size",
+      'let keyed: Map[u32, string] = {7: "seven"}\n    _ := keyed[n + 5]',
+    ],
+    [
+      "a Map[usize, V] keyed by a u32",
+      'let sized: mut Map[usize, string] = {}\n    sized[a] = "x"',
+    ],
+    ["if branches", "_ := if a > 3: a else: n"],
+    ["match arms", "_ := match a:\n        7 => n\n        _ => a"],
+    ["a tuple", "let pair: (u32, u32) = (a, n)\n    _ := pair"],
+    ["== and <", "_ := a == n\n    _ := a < n"],
+    ["arithmetic", "_ := a + n\n    _ := a * xs.len()\n    _ := n - a"],
+    ["a trait implemented for u32", "_ := n.describe()"],
+    ["List[usize] passed as List[u32]", "let sizes: List[usize] = [n, n]\n    _ := total(sizes)"],
+    ["a list of both passed as List[u32]", "_ := total([n, a])"],
+  ];
+  for (const [name, use] of uses) {
+    const { diagnostics } = analyze(`${MIXED}    ${use}\n`);
+    assert.deepEqual(
+      diagnostics.filter(({ severity }) => severity !== "warning"),
+      [],
+      name,
+    );
+  }
+});
+
+test("messages print a defaulted or written usize, not u32", () => {
+  const mismatch = (body: string): string | undefined =>
+    analyze(`fn take_i32(x: i32) -> i32: x\n\npub fn main() -> i32:\n${body}`).diagnostics.find(
+      ({ code }) => code === "type-mismatch",
+    )?.message;
+  assert.equal(mismatch("    total := 0\n    take_i32(total)\n"), "expected i32, found usize");
+  assert.equal(
+    mismatch("    let total: usize = 0\n    take_i32(total)\n"),
+    "expected i32, found usize",
+  );
+  assert.equal(
+    mismatch("    let total: u32 = 0\n    take_i32(total)\n"),
+    "expected i32, found u32",
+  );
+  assert.equal(mismatch("    xs := [1]\n    take_i32(xs.len())\n"), "expected i32, found usize");
+  assert.equal(mismatch('    take_i32("abc".len())\n'), "expected i32, found usize");
+  assert.equal(
+    mismatch("    let a: u32 = 1\n    take_i32(usize(a))\n"),
+    "expected i32, found usize",
+  );
+  assert.equal(mismatch("    let a: u32 = 1\n    take_i32(a + 1)\n"), "expected i32, found u32");
 });
