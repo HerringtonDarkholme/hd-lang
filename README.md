@@ -57,6 +57,75 @@ Run it with `hd test`. The playground has more
 examples that each show one feature at work: property tests, typed errors,
 exhaustive `match`, and `all!`.
 
+## Annotations and derivation
+
+Attach typed facts to declarations, and derive behavior from a type's
+structure. `@derive(Trait)` generates an ordinary implementation from the
+trait's template. A template is plain hd over the compiler's view of the
+type's members, and it reads the facts it understands. Serialization,
+equality, debug output, property-test generators, and error types all work
+this way. So can your own library traits. There are no macros and no
+codegen step: facts are typed values, and templates are checked like any
+other code.
+
+```hd
+@derive(Serialize, Deserialize, Table)
+data User:
+    @column("user_id")
+    id: i64
+    email: string
+
+pub fn main() -> void $ Console:
+    println("SELECT ${User::columns()} FROM users")  # SELECT user_id, email FROM users
+    text := encode(User { id: 7, email: "ada@example.com" })
+    println(text)                                    # {"id":7,"email":"ada@example.com"}
+```
+
+`Serialize` and `Deserialize` come from `std.serde`; JSON reads them, and so
+does the host boundary. `Table` is a library trait. Its template describes
+the members and reads the `column` fact, which only `Table` cares about:
+
+```hd
+use std.json.encode
+use std.serde.{Serialize, Deserialize}
+use std.structure.{Structure, Describer, Field, Variant}
+
+data Column:
+    name: string
+
+fn column(name: string) -> Column:
+    Column { name: name }
+
+trait Table:
+    fn columns() -> string
+
+impl[T] Table for T by Structure:
+    fn columns() -> string:
+        let list: mut ColumnList = ColumnList { names: "" }
+        _ := T::describe(list)
+        list.names
+
+data ColumnList:
+    names: string
+
+impl[S] Describer[S] for ColumnList:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        name := match h.info.facts.find::[Column]():
+            .Some(column) => column.name
+            .None => h.info.name
+        separator := if self.names == "": "" else: ", "
+        self.names = "${self.names}$separator$name"
+        .Ok(())
+```
+
+See [Annotations](spec/lang/14-annotations.md) for facts, derivation
+blocks, and `@error`.
+
 ## Why hd
 
 - **Serialization, schemas, property tests, and fake data from your types.**
