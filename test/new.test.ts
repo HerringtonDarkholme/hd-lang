@@ -66,7 +66,7 @@ test("hd new --app writes an application that hd run runs", async () => {
     );
     const missing = await runHd(["test"], { cwd: directory });
     assert.equal(missing.status, 1);
-    assert.match(missing.stdout + missing.stderr, /no executable named 'nothing'/);
+    assert.match(missing.stdout + missing.stderr, /no executable or task named 'nothing'/);
     assert.match(await readFile(join(directory, "src/main.hd"), "utf8"), /hello, world/);
   });
 });
