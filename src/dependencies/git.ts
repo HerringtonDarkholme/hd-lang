@@ -113,6 +113,55 @@ export async function checkOutTag(
   return into;
 }
 
+/** The commit time git reports, in seconds, as a pseudo-version's `yyyymmddhhmmss` in UTC. */
+function pseudoTime(seconds: number): string {
+  return new Date(seconds * 1000)
+    .toISOString()
+    .replace(/\.\d{3}Z$/, "")
+    .replace(/[-T:]/g, "");
+}
+
+/**
+ * Checks out the commit whose hash starts with `hash` from the repository
+ * at `url` into the new directory `into`, for a pseudo-version
+ * (spec/lang/10-modules.md#r-module.version.pseudo). A commit has no tag to
+ * fetch by, so every branch and tag is fetched, as Go does. Returns the
+ * commit's committer time in UTC as `yyyymmddhhmmss`, or `missing` when no
+ * fetched commit has that hash. A repository git cannot reach is a `GitError`.
+ */
+export async function checkOutCommit(
+  url: string,
+  hash: string,
+  into: string,
+  variables: Variables,
+): Promise<{ readonly time: string } | "missing"> {
+  const must = async (args: readonly string[]): Promise<GitResult> => {
+    const result = await runGit(args, variables);
+    if (result.status !== 0) throw new GitError(complaint(result));
+    return result;
+  };
+  await must(["init", "--quiet", into]);
+  await must([
+    "-C",
+    into,
+    "fetch",
+    "--quiet",
+    "--no-tags",
+    url,
+    "+refs/heads/*:refs/remotes/origin/*",
+    "+refs/tags/*:refs/tags/*",
+  ]);
+  const found = await runGit(
+    ["-C", into, "rev-parse", "--verify", "--quiet", `${hash}^{commit}`],
+    variables,
+  );
+  const commit = found.stdout.trim();
+  if (found.status !== 0 || !commit.startsWith(hash)) return "missing";
+  const time = await must(["-C", into, "log", "-1", "--format=%ct", commit]);
+  await must(["-C", into, "-c", "advice.detachedHead=false", "checkout", "--quiet", commit]);
+  return { time: pseudoTime(Number(time.stdout.trim())) };
+}
+
 /** The directory of a package inside a checked-out repository. */
 export function packageDirectory(checkout: string, subdirectory: string): string {
   return subdirectory === "" ? checkout : join(checkout, ...subdirectory.split("/"));

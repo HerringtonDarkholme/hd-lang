@@ -22,12 +22,12 @@ import {
   storeEntry,
   type Variables,
 } from "./cache.ts";
-import { checkOutTag, GitError, listTags, packageDirectory } from "./git.ts";
+import { checkOutCommit, checkOutTag, GitError, listTags, packageDirectory } from "./git.ts";
 import {
   compareVersions,
   compatibilityLine,
   invalidKey,
-  isPseudoVersion,
+  pseudoCommit,
   parseRequirement,
   parseVersion,
   repositoryUrl,
@@ -175,14 +175,6 @@ export async function resolveDependencies(
         continue;
       }
       if (requirement.kind === "host") {
-        if (isPseudoVersion(requirement.version)) {
-          problem(
-            line,
-            null,
-            `${entry.key}: the prototype does not fetch pseudo-versions yet; require a tagged version`,
-          );
-          continue;
-        }
         // One key per host path and line (module.dep.one-key-per-line).
         const key = lineKey(requirement.host.path, requirement.version);
         const twin = lines.get(key);
@@ -435,9 +427,29 @@ class Fetcher {
     const { host, version, line } = edge;
     const key = sumKey(host.path, version.text);
     const url = repositoryUrl(host);
+    const pseudo = pseudoCommit(version);
     const tag = tagName(host, version);
     let scratch: string | undefined;
     try {
+      if (pseudo) {
+        // A pseudo-version names one commit by its hash and time; nothing
+        // falls back to another commit (module.version.pseudo-missing).
+        this.options.fetching?.(key);
+        scratch = await scratchDirectory(cache);
+        const into = join(scratch, "checkout");
+        const found = await checkOutCommit(url, pseudo.hash, into, this.options.variables);
+        if (found === "missing" || found.time !== pseudo.time) {
+          problem(
+            line,
+            "unknown-version",
+            found === "missing"
+              ? `${host.path} has no commit ${pseudo.hash} on a branch or tag, so the pseudo-version ${version.text} does not exist`
+              : `the commit ${pseudo.hash} of ${host.path} has the time ${found.time}, not ${pseudo.time}, so the pseudo-version ${version.text} names no commit; did you mean ${version.text.replace(pseudo.time, found.time)}?`,
+          );
+          return undefined;
+        }
+        return await this.store(edge, cache, packageDirectory(into, host.subdirectory), problem);
+      }
       let tags = this.tags.get(url);
       if (!tags) {
         tags = listTags(url, this.options.variables);
@@ -468,16 +480,7 @@ class Fetcher {
         join(scratch, "checkout"),
         this.options.variables,
       );
-      const directory = packageDirectory(checkout, host.subdirectory);
-      if (!existsSync(join(directory, "hd.toml"))) {
-        problem(
-          line,
-          "invalid-requirement",
-          `${key} is no package: the tag ${tag} has no ${host.subdirectory === "" ? "" : `${host.subdirectory}/`}hd.toml`,
-        );
-        return undefined;
-      }
-      return await storeEntry(cache, host.path, version.text, directory);
+      return await this.store(edge, cache, packageDirectory(checkout, host.subdirectory), problem);
     } catch (error) {
       if (!(error instanceof GitError)) throw error;
       problem(
@@ -489,6 +492,28 @@ class Fetcher {
     } finally {
       if (scratch !== undefined) await removeTree(scratch);
     }
+  }
+
+  /** Stores a checked-out package directory as the version's cache entry. */
+  private async store(
+    edge: HostEdge,
+    cache: string,
+    directory: string,
+    problem: (line: number, code: string | null, message: string) => void,
+  ): Promise<{ directory: string; hash: string } | undefined> {
+    const { host, version, line } = edge;
+    if (!existsSync(join(directory, "hd.toml"))) {
+      const where = pseudoCommit(version)
+        ? `the commit ${pseudoCommit(version)!.hash}`
+        : `the tag ${tagName(host, version)}`;
+      problem(
+        line,
+        "invalid-requirement",
+        `${sumKey(host.path, version.text)} is no package: ${where} has no ${host.subdirectory === "" ? "" : `${host.subdirectory}/`}hd.toml`,
+      );
+      return undefined;
+    }
+    return storeEntry(cache, host.path, version.text, directory);
   }
 }
 

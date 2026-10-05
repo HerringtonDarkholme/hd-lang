@@ -161,7 +161,9 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   and versions (`invalid-requirement`). `resolve.ts` runs minimal version
   selection over every reached version, fetching what the cache lacks.
   `git.ts` runs the system `git` (`ls-remote`, then a shallow fetch of the
-  tag) with prompts off and credentials masked. `cache.ts` keeps each
+  tag) with prompts off and credentials masked. A pseudo-version fetches
+  every branch and tag, then checks out the commit its hash names, after
+  checking its committer time. `cache.ts` keeps each
   version read-only under `HD_CACHE` or the user cache directory, with the
   tree hash it recorded under `hash/`. `sum.ts` reads and writes `hd.sum`.
   `hd check`, `hd build`, `hd run`, and `hd test` fetch implicitly and
@@ -171,7 +173,7 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `hd.sum`. The linker (`package.ts`) joins each selected package's library
   under its own module keys, so `dep.NAME` sees only `pub` declarations.
   A path requirement needs both packages in one workspace's `members`, and
-  `hd.sum` then lives beside the workspace manifest. Not yet: pseudo-versions,
+  `hd.sum` then lives beside the workspace manifest. Not yet:
   workspace-mode commands, `hd doc` and the REPL on a package with
   dependencies, and package ownership in the checker (orphan rule, member
   visibility, and trait availability across packages).

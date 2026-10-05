@@ -22,6 +22,7 @@ import {
   parseHostPath,
   parseHostRequirement,
   parseVersion,
+  pseudoCommit,
 } from "../src/dependencies/requirement.ts";
 import { formatSum } from "../src/dependencies/sum.ts";
 import { runHd, type HdResult } from "./hd-in-process.ts";
@@ -343,6 +344,44 @@ describe("dependencies", { skip: !hasGit && "git is not installed" }, () => {
     );
   });
 
+  test("a pseudo-version fetches its commit, and a wrong hash or time is unknown-version", async () => {
+    const draft = await remote("draft", [["v0.4.0", TEXT_V1]]);
+    await writeFile(
+      join(draft, "src", "lib.hd"),
+      'pub fn shout(word: string) -> string:\n    word + "?"\n',
+    );
+    git(draft, "commit", "--quiet", "--all", "-m", "untagged");
+    const [hash, seconds] = git(draft, "log", "-1", "--format=%H %ct").trim().split(" ");
+    const time = new Date(Number(seconds) * 1000).toISOString().replace(/\.\d{3}Z$|[-T:]/g, "");
+    // An untagged commit after v0.4.0 is 0.4.1-0.TIME-HASH (module.version.pseudo).
+    const pseudo = `0.4.1-0.${time}-${hash!.slice(0, 12)}`;
+    const directory = await app("drafter", SHOUT_MAIN, "\n[dependencies]\n");
+    const added = await hd(directory, ["add", "text", `github.com/acme/draft@${pseudo}`]);
+    assert.equal(added.status, 0, added.stderr);
+    assert.match(
+      await readFile(join(directory, "hd.sum"), "utf8"),
+      new RegExp(`^github\\.com/acme/draft@${pseudo.replaceAll(".", "\\.")} h1:`),
+    );
+    const ran = await hd(directory, ["run"]);
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(ran.stdout, "hello?\n");
+    // A pseudo-version whose TIME is not its commit's time names no commit
+    // (module.version.pseudo-missing), and neither does an unknown HASH.
+    const wrongTime = pseudo.replace(time, "20000101000000");
+    const timed = await hd(directory, ["add", "text", `github.com/acme/draft@${wrongTime}`]);
+    assert.equal(timed.status, 101);
+    assert.match(timed.stderr, /unknown-version/);
+    assert.match(timed.stderr, new RegExp(`did you mean ${pseudo.replaceAll(".", "\\.")}`));
+    const unknown = await hd(directory, [
+      "add",
+      "text",
+      `github.com/acme/draft@0.4.1-0.${time}-000000000000`,
+    ]);
+    assert.equal(unknown.status, 101);
+    assert.match(unknown.stderr, /unknown-version: github\.com\/acme\/draft has no commit/);
+    assert.match(await readFile(join(directory, "hd.toml"), "utf8"), new RegExp(pseudo));
+  });
+
   test("a path requirement links another member of the workspace", async () => {
     const workspace = join(root, "ws");
     await writeTree(workspace, {
@@ -395,6 +434,28 @@ test("versions order by SemVer and fall into compatibility lines", () => {
   assert.equal(compatibilityLine(parseVersion("0.4.1")!), "0.4");
   assert.equal(compatibilityLine(parseVersion("2.3.0")!), "2");
   assert.equal(parseVersion("1.2"), undefined);
+});
+
+test("a pseudo-version takes one of Go's three forms", () => {
+  const commit = { time: "20260912081500", hash: "3f2c9e1a7b6d" };
+  for (const text of [
+    "0.0.0-20260912081500-3f2c9e1a7b6d",
+    "0.4.1-0.20260912081500-3f2c9e1a7b6d",
+    "1.0.0-rc.1.0.20260912081500-3f2c9e1a7b6d",
+  ])
+    assert.deepEqual(pseudoCommit(parseVersion(text)!), commit, text);
+  for (const text of [
+    "1.0.0-20260912081500-3f2c9e1a7b6d",
+    "0.4.1-1.20260912081500-3f2c9e1a7b6d",
+    "0.4.1-0.20260912081500-3F2C9E1A7B6D",
+    "0.4.1-rc.1",
+  ])
+    assert.equal(pseudoCommit(parseVersion(text)!), undefined, text);
+  // A pseudo-version is a pre-release, so it orders below the release it precedes.
+  assert.ok(
+    compareVersions(parseVersion("0.4.1-0.20260912081500-3f2c9e1a7b6d")!, parseVersion("0.4.1")!) <
+      0,
+  );
 });
 
 test("dependency commands edit hd.toml line by line", () => {

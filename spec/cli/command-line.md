@@ -709,6 +709,8 @@ hd check    # works offline from now on
 4. r[cli.dep.no-prompt] Fetching never asks a question. A repository that git cannot reach or read, as a private one without credentials, is an error that names the host path. Error: `fetch-failed`.
 5. r[cli.dep.unknown-version] A requirement whose package has no tag for its version is an error, by [`module.version.tag-missing`](../lang/10-modules.md#r-module.version.tag-missing). Error: `unknown-version`.
 6. r[cli.dep.no-secret] A message never shows a credential. A user name or password in a URL that git reports is replaced by `***`.
+7. r[cli.dep.pseudo] A [pseudo-version](../lang/10-modules.md#r-module.version.pseudo)'s tree is the package's directory in the commit that its `HASH` names. `hd` fetches the repository's branches and tags to find that commit.
+8. r[cli.dep.pseudo.unknown] A pseudo-version whose `HASH` names no fetched commit, or whose `TIME` is not that commit's committer time in UTC, is an error, by [`module.version.pseudo-missing`](../lang/10-modules.md#r-module.version.pseudo-missing). Error: `unknown-version`.
 
 ```toml
 [dependencies]
@@ -759,7 +761,7 @@ github.com/acme/tools/lint@2.3.0 h1:1y7R7oDpvPj3c9sQm3r3N6cMfJ8pF0Q2b4Lw8d8N3hY=
 
 1. r[cli.sum.line] Each line of `hd.sum` is a host path, `@`, a version, one space, and the tree hash of that version.
 2. r[cli.sum.order] The lines are sorted by host path, then by [version order](../lang/10-modules.md#r-module.version.order). Each line, the last included, ends with a newline.
-3. r[cli.sum.tree] A version's tree is every regular file in its package directory at its tag, by [`cli.dep.tag`](#r-cli.dep.tag). A subdirectory that holds its own `hd.toml` is another package, and its files are not part of the tree.
+3. r[cli.sum.tree] A version's tree is every regular file in its package directory at its tag, by [`cli.dep.tag`](#r-cli.dep.tag), or in a pseudo-version's commit, by [`cli.dep.pseudo`](#r-cli.dep.pseudo). A subdirectory that holds its own `hd.toml` is another package, and its files are not part of the tree.
 4. r[cli.sum.summary] The tree's summary has one line per file, sorted by path. A line is the file's SHA-256 in lowercase hexadecimal, two spaces, the file's path, and a newline.
 5. r[cli.sum.summary.path] That path is relative to the package directory, with `/` between its segments.
 6. r[cli.sum.hash] The **tree hash** is `h1:` followed by the Base64 encoding, with padding, of the SHA-256 of the summary.

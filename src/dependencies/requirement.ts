@@ -62,14 +62,32 @@ export function compatibilityLine(version: Version): string {
   return version.major >= 1 ? `${version.major}` : `0.${version.minor}`;
 }
 
+/** The commit a pseudo-version names: its UTC time and its hash's first 12 digits. */
+export interface PseudoCommit {
+  /** `yyyymmddhhmmss` (spec/lang/10-modules.md#r-module.version.pseudo.commit). */
+  readonly time: string;
+  /** The first 12 lowercase hexadecimal digits of the commit hash. */
+  readonly hash: string;
+}
+
 /**
- * Whether a version has a pseudo-version's form
- * (spec/lang/10-modules.md#r-module.version.pseudo): its last pre-release
- * identifiers are a 14-digit time and a 12-digit commit hash.
+ * The commit a pseudo-version names, or undefined when `version` has none
+ * of the three forms of spec/lang/10-modules.md#r-module.version.pseudo:
+ * `0.0.0-TIME-HASH`, `X.Y.Z-0.TIME-HASH`, and `X.Y.Z-PRE.0.TIME-HASH`.
  */
+export function pseudoCommit(version: Version): PseudoCommit | undefined {
+  const match = /^(\d{14})-([0-9a-f]{12})$/.exec(version.pre.at(-1) ?? "");
+  if (!match) return undefined;
+  const base = version.pre.slice(0, -1);
+  const noTag =
+    base.length === 0 && version.major === 0 && version.minor === 0 && version.patch === 0;
+  if (!noTag && base.at(-1) !== "0") return undefined;
+  return { time: match[1]!, hash: match[2]! };
+}
+
+/** Whether a version is a pseudo-version (spec/lang/10-modules.md#r-module.version.pseudo). */
 export function isPseudoVersion(version: Version): boolean {
-  const [time, hash] = version.pre.slice(-2);
-  return /^\d{14}$/.test(time ?? "") && /^[0-9a-f]{12}$/.test(hash ?? "");
+  return pseudoCommit(version) !== undefined;
 }
 
 /** A host path and the repository it names (spec/lang/10-modules.md#host-paths). */
