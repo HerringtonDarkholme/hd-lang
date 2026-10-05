@@ -9,6 +9,7 @@ import type {
 } from "../hir.ts";
 import { forwardingPlan } from "./assignability.ts";
 import { enclosingBoundProof } from "./trait-paths.ts";
+import { carryAmbiguous } from "./ambiguous-solutions.ts";
 import { inferTypesThroughBounds } from "./bound-inference.ts";
 import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
 import {
@@ -427,7 +428,7 @@ export abstract class CallChecker extends StatementChecker {
       (parameter) => !substitutions.has(parameter),
     );
     if (unresolved.length > 0)
-      this.failUnresolvedCall(unresolved, `.${method.name}`, expression.span);
+      this.failUnresolvedCall(unresolved, `.${method.name}`, expression.span, substitutions);
     const unresolvedRows = signature.rowParameters.filter(
       (parameter) => !rowSubstitutions.has(parameter),
     );
@@ -1403,6 +1404,7 @@ export abstract class CallChecker extends StatementChecker {
     span: SourceSpan = signature.span,
   ): Map<string, ValueType> {
     const substitutions = new Map(sourceSubstitutions);
+    carryAmbiguous(sourceSubstitutions, substitutions);
     for (const bound of signature.genericBounds) {
       const trait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === bound.traitIndex,

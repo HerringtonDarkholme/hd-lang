@@ -200,7 +200,12 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
             (parameter) => !substitutions.has(parameter),
           );
           if (unresolved.length > 0)
-            this.failUnresolvedCall(unresolved, expression.callee.name, expression.span);
+            this.failUnresolvedCall(
+              unresolved,
+              expression.callee.name,
+              expression.span,
+              substitutions,
+            );
           const unresolvedRows = signature.rowParameters.filter(
             (parameter) => !rowSubstitutions.has(parameter),
           );

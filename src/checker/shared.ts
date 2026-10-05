@@ -1,4 +1,5 @@
 import { writtenBindingProblem } from "./associated-bindings.ts";
+import { markAmbiguous } from "./ambiguous-solutions.ts";
 import {
   dynamicTraitProblemInType,
   enclosingBoundImplies,
@@ -746,6 +747,13 @@ function inferRequirementTypeArguments(
     });
     unique.set(key, solution);
   }
+  if (unique.size > 1)
+    markAmbiguous(
+      substitutions,
+      [...unique.values()].flatMap(({ types }) =>
+        [...types.keys()].filter((name) => !substitutions.has(name)),
+      ),
+    );
   if (unique.size !== 1) return undefined;
   const solution = unique.values().next().value!;
   for (const [name, type] of solution.types) substitutions.set(name, type);

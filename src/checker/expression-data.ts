@@ -280,6 +280,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
               initiallyChecked,
             ),
             expression.span,
+            substitutions,
           );
         const explicitFieldIndices = expression.fields.map(
           (entry) => declaration.fields.find((field) => field.name === entry.name)!.index,

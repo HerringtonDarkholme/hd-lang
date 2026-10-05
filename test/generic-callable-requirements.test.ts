@@ -31,6 +31,6 @@ fn ambiguous() -> void:
 `;
   assert.deepEqual(
     analyze(source).diagnostics.map((diagnostic) => diagnostic.code),
-    ["cannot-infer-type"],
+    ["ambiguous-type"],
   );
 });

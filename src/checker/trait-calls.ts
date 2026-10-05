@@ -195,7 +195,7 @@ export abstract class TraitCallChecker extends DebugPrintChecker {
       );
       const unresolved = method.genericParameters.filter((parameter) => !resolved.has(parameter));
       if (unresolved.length > 0)
-        this.failUnresolvedCall(unresolved, `${owner}::${name}`, expression.span);
+        this.failUnresolvedCall(unresolved, `${owner}::${name}`, expression.span, resolved);
       result = substituteGenericType(result, resolved);
       for (const [parameter, type] of resolved) substitutions.set(parameter, type);
       bounds = this.resolveBoundDictionaries(

@@ -6,6 +6,7 @@ import type { Expression, Statement } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { ValueType } from "../hir.ts";
 import { displayType } from "../types.ts";
+import { ambiguousAmong } from "./ambiguous-solutions.ts";
 
 /** A `name := value` binding whose initializer is checked without an annotation. */
 export interface InferredBinding {
@@ -96,6 +97,44 @@ export function loopNameHint(name: string): string {
 /** The message for a call of `callee` whose parameters `unresolved` nothing solved. */
 export function unresolvedCallMessage(unresolved: readonly string[], callee: string): string {
   return `cannot infer ${parameterList(unresolved)} in the call to \`${callee}\`; annotate the binding, or write the type arguments: \`${callee}::[...]\``;
+}
+
+/**
+ * The code and message for a use of `type` that leaves `unresolved`
+ * unsolved: `ambiguous-type` when `solved` recorded several solutions for
+ * one of them (types.infer.ambiguous.code), else `cannot-infer-type`.
+ */
+export function unresolvedTypeFailure(
+  unresolved: readonly string[],
+  type: ValueType,
+  span: SourceSpan,
+  binding: InferredBinding | undefined,
+  solved: ReadonlyMap<string, ValueType>,
+): readonly [string, string] {
+  const several = ambiguousAmong(unresolved, solved);
+  if (several.length === 0)
+    return ["cannot-infer-type", unresolvedTypeMessage(unresolved, type, span, binding)];
+  const advice = unresolvedTypeMessage(several, type, span, binding).split("; ").at(-1);
+  return [
+    "ambiguous-type",
+    `several types fit ${parameterList(several)} in \`${writtenType(type)}\`; ${advice}`,
+  ];
+}
+
+/** The code and message for a call of `callee`, as `unresolvedTypeFailure` gives them. */
+export function unresolvedCallFailure(
+  unresolved: readonly string[],
+  callee: string,
+  solved: ReadonlyMap<string, ValueType>,
+): readonly [string, string] {
+  const several = ambiguousAmong(unresolved, solved);
+  const advice = `annotate the binding, or write the type arguments: \`${callee}::[...]\``;
+  return several.length === 0
+    ? ["cannot-infer-type", unresolvedCallMessage(unresolved, callee)]
+    : [
+        "ambiguous-type",
+        `several types fit ${parameterList(several)} in the call to \`${callee}\`; ${advice}`,
+      ];
 }
 
 /** A type as its author wrote it: `mut User`, `Result[i32, E]`, never an internal name. */

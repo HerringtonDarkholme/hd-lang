@@ -98,19 +98,16 @@ export type {
 
 export class CheckFailure extends Error {}
 
-export { PRELUDE_NAMES };
+export { PRELUDE_NAMES, isPermissionWeakening, weakenBoundedGenericActual };
 
-export { isPermissionWeakening, weakenBoundedGenericActual };
-
-export { mapKeyKind };
-export { spelledCall };
+export { mapKeyKind, spelledCall };
 
 import { isKnownType } from "./known-types.ts";
 import { ZERO_SPAN } from "./generated-source.ts";
 import {
   type InferredBinding,
-  unresolvedCallMessage,
-  unresolvedTypeMessage,
+  unresolvedCallFailure,
+  unresolvedTypeFailure,
 } from "./cannot-infer.ts";
 
 export { isKnownType };
@@ -1431,23 +1428,25 @@ export abstract class CheckerContext {
     this.requireAssignable(actual, expected, span);
   }
 
-  /** Fails with `cannot-infer-type` for a use of `type` that leaves `unresolved` unsolved. */
+  /** Fails for a use of `type` that leaves `unresolved` unsolved (checker/cannot-infer.ts). */
   protected failUnresolvedType(
     unresolved: readonly string[],
     type: ValueType,
     span: SourceSpan,
+    solved: ReadonlyMap<string, ValueType> = new Map(),
   ): never {
-    const message = unresolvedTypeMessage(unresolved, type, span, this.inferredBinding);
-    this.fail("cannot-infer-type", message, span);
+    const binding = this.inferredBinding;
+    this.fail(...unresolvedTypeFailure(unresolved, type, span, binding, solved), span);
   }
 
-  /** Fails with `cannot-infer-type` for a call of `callee` that leaves `unresolved` unsolved. */
+  /** Fails for a call of `callee` that leaves `unresolved` unsolved (checker/cannot-infer.ts). */
   protected failUnresolvedCall(
     unresolved: readonly string[],
     callee: string,
     span: SourceSpan,
+    solved: ReadonlyMap<string, ValueType> = new Map(),
   ): never {
-    this.fail("cannot-infer-type", unresolvedCallMessage(unresolved, callee), span);
+    this.fail(...unresolvedCallFailure(unresolved, callee, solved), span);
   }
 
   /** Fails with `code`; a `fix` stays only while no rewrite changes the code. */

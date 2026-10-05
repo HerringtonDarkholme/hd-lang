@@ -25,7 +25,6 @@ typing/invalid/handle-fact-pattern-mismatch.hd	check reports type-mismatch on th
 runtime/valid/fs-helpers.hd	check reports missing-eq: type 'Result[void,FsError]' does not implement Eq; the prototype keeps void apart from the empty tuple (), so std.cmp's tuple Eq template does not cover a void success. lib/std's read_text! and write_text! are written	VOID-UNIT
 runtime/valid/retry-with-backoff.hd	held: implementing it makes std.task import std.time, which costs every program a std.time check (owner, batch 73)	RETRY-WITH
 typing/valid/literal-var-data-pattern.hd	a let data pattern on a generic data value is unsupported-match-subject in this prototype (src/checker), so the destructuring fails before the literal join is checked (types.literal.local.form.element)	MVP-PATTERN
-typing/invalid/ambiguous-requirement-key-solution.hd	the checker reports cannot-infer-type for a data literal whose callback row fits `Repo[A] + Repo[B]` in both orders, not the separate ambiguous-type code (types.infer.ambiguous.code)	AMBIGUOUS-TYPE
 cli/doc-out	`hd doc` takes only a NAME: `hd doc --out site` exits 101 with 'unknown flag --out' (cli.doc.command, cli.doc.files, cli.doc.root-page: no `pkg.md`)	CLI-DOC
 cli/doc-name	`hd doc` takes only a NAME: `hd doc --out site text.slugify` exits 101 with 'unknown flag --out' (cli.doc.name, and `hd doc std.text.split` by cli.doc.name.std)	CLI-DOC
 cli/doc-private	`hd doc text.helper` exits 0 and prints the private function's signature; cli.doc.private wants 101 for a private item	CLI-DOC

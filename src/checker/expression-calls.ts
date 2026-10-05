@@ -533,7 +533,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
         const unresolved = method.genericParameters.filter((parameter) => !resolved.has(parameter));
         if (unresolved.length > 0)
-          this.failUnresolvedCall(unresolved, `.${method.name}`, expression.span);
+          this.failUnresolvedCall(unresolved, `.${method.name}`, expression.span, resolved);
         methodResult = substituteGenericType(methodResult, resolved);
         for (const [parameter, type] of resolved) erasedSubstitutions.set(parameter, type);
         bounds = this.resolveBoundDictionaries(
@@ -708,7 +708,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         `method '${candidate.method.name}'`,
         targetSubstitutions,
       );
-      const { rowSubstitutions } = checkedArguments;
+      const { rowSubstitutions, substitutions: solved } = checkedArguments;
       const substitutions = this.resolveAssociatedTypeSubstitutions(
         signature,
         checkedArguments.substitutions,
@@ -718,7 +718,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         (parameter) => !substitutions.has(parameter),
       );
       if (unresolved.length > 0)
-        this.failUnresolvedCall(unresolved, `.${candidate.method.name}`, expression.span);
+        this.failUnresolvedCall(unresolved, `.${candidate.method.name}`, expression.span, solved);
       const traitArguments = candidate.implementation.traitArguments.map((argument) =>
         substituteGenericType(argument, substitutions),
       );
@@ -1232,7 +1232,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     const misfit = unresolved.length > 0 ? resultMisfit(signature.result, expected) : undefined;
     if (misfit) this.fail("type-mismatch", misfit, expression.span);
     if (unresolved.length > 0)
-      this.failUnresolvedCall(unresolved, expression.callee.name, expression.span);
+      this.failUnresolvedCall(unresolved, expression.callee.name, expression.span, substitutions);
     const unresolvedRows = signature.rowParameters.filter(
       (parameter) => !rowSubstitutions.has(parameter),
     );
