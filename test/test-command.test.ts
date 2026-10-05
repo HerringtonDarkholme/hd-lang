@@ -86,6 +86,16 @@ test("a workspace manifest says workspaces are not supported yet", async () => {
   });
 });
 
+test("a FILE that does not exist is an error, not a crash", async () => {
+  await withPackage(async (directory) => {
+    for (const command of ["check", "test", "build"]) {
+      const ran = await runHd([command, "nosuch.hd"], { cwd: directory });
+      assert.equal(ran.status, 101);
+      assert.match(ran.stderr, /^hd: cannot read nosuch\.hd: no such file$/m);
+    }
+  });
+});
+
 test("--deny-skipped passes when no test case is skipped", async () => {
   await withPackage(async (directory) => {
     const ran = await runHd(["test", "tests/good.hd", "--deny-skipped"], { cwd: directory });

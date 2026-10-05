@@ -247,7 +247,10 @@ test("hd test without FILE tests the package of the working directory", async ()
       "cart_test.hd: 2 passed\n",
     );
     // A directory is neither a NAME nor a FILE (cli.command.positional).
-    assert.match(await failure(["test", "src"], directory), /'src' is a directory.*-p NAME/);
+    assert.match(
+      await failure(["test", "src"], directory),
+      /'src' is a directory.*inside that directory/,
+    );
     // A src/ directory without hd.toml makes no package, so `hd test` outside
     // a package needs a FILE (cli.file.check-test.no-file).
     await rm(join(directory, "hd.toml"));

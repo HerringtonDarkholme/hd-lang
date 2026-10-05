@@ -130,7 +130,18 @@ export async function loadSource(
 ): Promise<LoadedSource | number> {
   const { file, format } = args;
   const path = resolve(workingDirectory(args), file);
-  const fileSource = args.text ?? (await readFile(path, "utf8"));
+  let fileSource: string;
+  try {
+    fileSource = args.text ?? (await readFile(path, "utf8"));
+  } catch (error) {
+    // A missing or unreadable FILE is a mistake of the command line, not a crash.
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "EACCES" && code !== "EISDIR") throw error;
+    options.report.commandError(
+      `hd: cannot read ${file}: ${code === "ENOENT" ? "no such file" : code === "EISDIR" ? "it is a directory" : "permission denied"}`,
+    );
+    return EXIT_HD_FAILURE;
+  }
   // `hd` rejects a package whose manifest is invalid
   // (spec/cli/command-line.md#r-cli.exit.hd-failure). A whole-package
   // command reports the manifest once itself, and leaves `package` unset.
