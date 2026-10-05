@@ -56,9 +56,12 @@ When the queue is empty, report that and wait.
 
 ### AM. Test Migration Batch 4
 
-The remaining 52 home-A rows of the TS-test triage (call-speculation 12,
-compiler-types 8, compiler 8, suspension 8, types 7, compiler-suspension
-6, captured-cells 2, cli 1). Batches 1 to 3 (d082975f, 1d74c88c,
+Build the inventory yourself; the old triage is gone and its counts are
+stale. In `test/call-speculation`, `compiler-types`, `compiler`,
+`suspension`, `types`, `compiler-suspension`, `captured-cells` and `cli`
+(`.test.ts`), pick about 50 tests whose behavior a spec rule states and
+a portable fixture can express (a source program plus its expected
+diagnostics or output). Migrate those; leave the rest in place. Batches 1 to 3 (d082975f, 1d74c88c,
 494f29aa) show the conventions; `test/MIGRATED.md` is the ledger.
 
 - For this job you may add fixtures under `spec/conformance` and rows
@@ -128,6 +131,52 @@ where the edit is mechanical, a fix-it) to each:
 
 Message text only; no language rule changes. Add a test per hint.
 
+### AQ. Supertrait Bounds Imply Their Supertraits
+
+Job AL (d2fa2a71) now rejects code it used to accept. `Ord < PartialOrd <
+Eq` in `lib/std/cmp.hd`, yet:
+
+```
+data Box[T < Eq]:
+    value: T
+
+data Good[T < Ord]:
+    b: Box[T]      # unsatisfied-trait-bound: 'T' does not implement Eq
+
+fn f[T < Ord](b: Box[T]) -> bool:   # same error
+    b.value == b.value
+```
+
+`trait.bound.supertraits` (spec/lang/09-traits.md) says a bound implies its
+supertraits. Fix the root, not the written-type path alone: one lookup
+"does enclosing bound set B imply trait X" that walks supertraits, used by
+declarations (`enclosingBoundImplies`), signatures (`signatureBoundScope`)
+and the call checker. That should also clear the KNOWN_FAILURES row
+`typing/valid/bound-implies-supertrait.hd` (TYPE-GAPS); move it. Add
+tests for the two cases above plus a call site.
+
+### AR. A User Type Named `T` Or `E` Breaks Every Program
+
+```
+data T:
+    x: usize
+
+pub fn main() -> void $ Console:
+    println("done")
+```
+
+fails with `lib/std/cmp.hd:42:5: private-type-leak: public function
+'__std_cmp_min' exposes private type or trait 'T'` (also `max`, `clamp`,
+`debug`, `hash_of`). `enum E` breaks `lib/std/task.hd` `retry` the same
+way. Std's generic parameters resolve against the user's top-level types.
+Generic parameters must shadow outer type names in every scope (std or
+user), so find where the private-type-leak check (or the signature
+resolver feeding it, `src/checker/program-signatures.ts`,
+`program-types.ts`) looks a parameter name up as a type, and fix it
+there. Add a test: user types named `T`, `E`, `K`, `V` each compile and
+run. Check user code too: `data T` plus `fn id[T](x: T) -> T` must use
+the parameter.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
@@ -143,12 +192,4 @@ Large recent ones to review:
 
 ## Questions
 
-- **AM (batch 4) scope.** The job names "the remaining 52 home-A rows
-  of the TS-test triage" with per-file counts (call-speculation 12,
-  compiler-types 8, compiler 8, suspension 8, types 7,
-  compiler-suspension 6, captured-cells 2, cli 1), but that triage is
-  not in the repo and the counts match no inventory I can build: the
-  files hold far more top-level tests (e.g. compiler-suspension 43,
-  suspension only 2), and `test/MIGRATED.md` has no pending rows for
-  these files. Where is the triage, or which exact tests are the 52?
-  I did not start migrating rather than guess the scope.
+(none)
