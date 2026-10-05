@@ -2400,10 +2400,10 @@ any other host, mark where the repository ends with `.git`, as in
 `git.example.com/shop/billing.git@0.4.2`. A manifest never states its own
 path: a package is known by the path it is fetched from.
 
-In a workspace, one member depends on another through its directory,
-`billing = { path = "../billing" }`. A tagged release cannot hold a bare
-path requirement, so a member that is released adds the version a fetched
-copy should use, as Cargo does:
+A package depends on another local package through its directory,
+`billing = { path = "../billing" }`, in a workspace or not. A tagged
+release cannot hold a bare path requirement, so a package that is released
+adds the version a fetched copy should use, as Cargo does:
 `billing = { path = "../billing", version = "0.4.2" }`.
 
 A workspace root declares no package, so it has no `tasks/`. Tasks for the
