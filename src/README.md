@@ -191,7 +191,8 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   hides a member without `pub` from another package, makes a trait of
   another package available only where a use imports it, and warns on a
   per-trait `Self` line whose fact's package does not supply the trait.
-  Not yet: `hd doc` and the REPL on a package with dependencies.
+  A REPL session links the dependencies and dev dependencies, and `hd def`
+  and `hd doc` take `dep.KEY.ITEM` for a dependency's `pub` item.
 - `hd FILE` (a first word that ends in `.hd` and names no command) runs FILE
   as a single-file program, linked with no package ([`cli.file.run`](../spec/cli/command-line.md#r-cli.file.run)).
   A `pkg`, `dep`, `self`, or `super` use in a single-file program is

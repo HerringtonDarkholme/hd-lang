@@ -1,7 +1,8 @@
 import { commandHelp, overviewHelp } from "../cli-args.ts";
 import { runRepl, type ReplIo } from "../repl-terminal.ts";
 import { workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
-import { packageMode } from "./package-mode.ts";
+import { MANIFEST_FILE, packageMode } from "./package-mode.ts";
+import { withDependencies } from "./dependencies.ts";
 
 export interface HelpArgs {
   /** A command, such as `test` or `debug hir`; absent for the command list. */
@@ -27,6 +28,23 @@ export async function replCommand(
 ): Promise<number> {
   const mode = await packageMode(workingDirectory(environment));
   if (mode.kind !== "package") return runRepl(io);
-  const pkg = mode.package;
-  return runRepl(io, {}, { files: pkg.files, programs: pkg.executables.map(({ path }) => path) });
+  // The session may use the package's dependencies, which are selected and
+  // fetched as for hd check (cli.repl.package.dependencies, cli.dep.implicit-fetch).
+  const pkg = await withDependencies(mode.package, environment, (version) =>
+    io.output.write(`hd: fetching ${version}\n`),
+  );
+  for (const problem of pkg.problems)
+    if (problem.severity === "error" && problem.path.endsWith(MANIFEST_FILE))
+      io.output.write(
+        `${problem.path}:${problem.line}: ${problem.code ?? "error"}: ${problem.message}\n`,
+      );
+  return runRepl(
+    io,
+    {},
+    {
+      files: pkg.files,
+      programs: pkg.executables.map(({ path }) => path),
+      ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
+    },
+  );
 }

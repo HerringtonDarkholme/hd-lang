@@ -493,6 +493,20 @@ describe("pseudo-versions and workspaces", needsGit, () => {
     assert.equal(runP.stdout, "(hello, world)\n");
   });
 
+  test("hd doc dep.KEY.ITEM finds a dependency's pub item only", async () => {
+    // spec/cli/command-line.md#r-cli.doc.name.dependency
+    const directory = await app("reader", SHOUT_MAIN, "\n[dependencies]\n");
+    assert.equal((await hd(directory, ["add", "text", "github.com/acme/text@1.1.0"])).status, 0);
+    const found = await hd(directory, ["doc", "dep.text.whisper"]);
+    assert.equal(found.status, 0, found.stderr);
+    assert.match(found.stdout, /pub fn whisper\(word: string\) -> string/);
+    const hidden = await hd(directory, ["doc", "dep.text.secret"]);
+    assert.equal(hidden.status, 1);
+    assert.match(hidden.stderr, /no symbol named dep\.text\.secret/);
+    const unknown = await hd(directory, ["doc", "dep.json.parse"]);
+    assert.match(unknown.stderr, /package 'reader' has no dependency named 'json'/);
+  });
+
   test("a path requirement links another member of the workspace", async () => {
     const workspace = join(root, "ws");
     await writeTree(workspace, {

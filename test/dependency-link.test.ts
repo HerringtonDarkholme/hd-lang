@@ -14,6 +14,7 @@ import {
   type DependencyPackage,
   type PackageDependencies,
 } from "../src/package.ts";
+import { ReplSession } from "../src/repl.ts";
 
 const json: DependencyPackage = {
   id: "github.com/acme/json@1.2.0",
@@ -143,4 +144,16 @@ test("each linked module's scope names its package and its imports", () => {
     [json.id, json.id, "root"],
   );
   assert.deepEqual(scopes.at(-1)!.imports, ["render"]);
+});
+
+test("a REPL session in a package uses its dependencies and dev dependencies", async () => {
+  // spec/cli/command-line.md#r-cli.repl.package.dependencies
+  const session = new ReplSession(
+    {},
+    { files: { "src/lib.hd": "" }, programs: [], dependencies: graph },
+  );
+  assert.deepEqual((await session.evaluate("use dep.json.{render}")).errors, []);
+  assert.equal((await session.evaluate('render("ada")')).value, '""ada""');
+  assert.deepEqual((await session.evaluate("use dep.fixtures.{sample}")).errors, []);
+  assert.match((await session.evaluate("use dep.json.{secret}")).errors[0]!, /private-import/);
 });

@@ -1,7 +1,13 @@
 import { analyze, instantiate, type CompileOptions } from "./compiler.ts";
 import type { Diagnostic, SourcePosition } from "./diagnostics.ts";
 import { physicalSpan, SOURCE_ORIGIN, sourceDocument } from "./diagnostics.ts";
-import { LIB_FILE, linkedParseOptions, linkPackage, type PackageDiagnostic } from "./package.ts";
+import {
+  LIB_FILE,
+  linkedParseOptions,
+  linkPackage,
+  type PackageDependencies,
+  type PackageDiagnostic,
+} from "./package.ts";
 import type { HirData, HirEnum, HirProgram } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
@@ -81,6 +87,11 @@ interface RunResult {
 export interface ReplPackage {
   readonly files: Readonly<Record<string, string>>;
   readonly programs: readonly string[];
+  /**
+   * The selected dependency packages. The session may use the dependencies
+   * and the dev dependencies (spec/cli/command-line.md#r-cli.repl.package.dependencies).
+   */
+  readonly dependencies?: PackageDependencies;
 }
 
 interface PreparedSource {
@@ -122,7 +133,20 @@ export class ReplSession {
       ...pkg.files,
       [LIB_FILE]: `${prefix}${source}`,
     };
-    const linked = linkPackage(files, LIB_FILE, { programs: pkg.programs });
+    // The session joins src/lib.hd, yet sees the dev dependencies too, so
+    // both tables link as dependencies (cli.repl.package.dependencies).
+    const graph = pkg.dependencies;
+    const linked = linkPackage(files, LIB_FILE, {
+      programs: pkg.programs,
+      ...(graph
+        ? {
+            dependencies: {
+              ...graph,
+              dependencies: { ...graph.devDependencies, ...graph.dependencies },
+            },
+          }
+        : {}),
+    });
     // A diagnostic in the session's own lines keeps its session line; one in
     // a package file names that file (cli.repl.package.lib).
     const located = (diagnostic: Diagnostic): Diagnostic => {

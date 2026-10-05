@@ -7,6 +7,8 @@ import { moduleIdentity, SOURCE_ROOT } from "../package.ts";
 import { parse } from "../parser/index.ts";
 import { explainCode, loadSpecIndex, type SpecMention } from "../spec-index.ts";
 import { workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
+import { withDependencies } from "./dependencies.ts";
+import { packageMode } from "./package-mode.ts";
 import {
   formatDefinition,
   formatDocumentation,
@@ -194,12 +196,62 @@ export function docCommand(args: LookupArgs, io: CommandIo): Promise<number> {
   return lookup("doc", args, io);
 }
 
+/**
+ * The public modules of the dependency that `key` names, for a NAME that
+ * starts with `dep.KEY` (spec/cli/command-line.md#r-cli.doc.name.dependency);
+ * or the message of why there is none. The dependencies are selected and
+ * fetched as for `hd check` (spec/cli/command-line.md#r-cli.dep.implicit-fetch).
+ */
+async function dependencyModules(
+  args: LookupArgs,
+  io: CommandIo,
+  key: string,
+): Promise<SourceModule[] | string> {
+  const mode = await packageMode(resolve(workingDirectory(args), args.target));
+  if (mode.kind !== "package") return `${args.target} is in no package, so it has no dependencies`;
+  const pkg = await withDependencies(mode.package, args, (version) =>
+    io.err(`hd: fetching ${version}`),
+  );
+  const problem = pkg.problems.find(
+    ({ severity, path }) => severity === "error" && path.endsWith("hd.toml"),
+  );
+  if (problem)
+    return `${problem.path}:${problem.line}: ${problem.code ?? "error"}: ${problem.message}`;
+  const graph = pkg.dependencies;
+  const id = graph?.dependencies[key] ?? graph?.devDependencies[key];
+  const dependency = id === undefined ? undefined : graph?.packages[id];
+  if (!dependency) return `package '${pkg.name}' has no dependency named '${key}'`;
+  const modules: SourceModule[] = [];
+  for (const [file, source] of Object.entries(dependency.files).sort()) {
+    const identity = moduleIdentity(`${SOURCE_ROOT}${file}`);
+    const program = parse(source).program;
+    if (identity !== undefined && program)
+      modules.push({ path: join(dependency.sourceRoot, file), identity, source, program });
+  }
+  return modules;
+}
+
 async function lookup(command: "def" | "doc", args: LookupArgs, io: CommandIo): Promise<number> {
-  const { name, format } = args;
-  const project = await loadProject(args, io);
+  const { format } = args;
+  let { name } = args;
+  let project: Project | undefined;
+  // `dep.KEY.ITEM` names an item of a dependency; only its pub items are found.
+  const dependency = /^dep\.([^.]+)\.(.+)$/.exec(name);
+  if (dependency) {
+    const modules = await dependencyModules(args, io, dependency[1]!);
+    if (typeof modules === "string") {
+      io.err(`hd ${command}: ${modules}`);
+      return 1;
+    }
+    project = { modules, packageMode: true, failed: false };
+    name = `pkg.${dependency[2]!}`;
+  } else project = await loadProject(args, io);
   if (!project) return 1;
   const index = new SymbolIndex(project.modules, project.packageMode, project.inferred);
-  const { symbols, suggestions } = index.lookup(name);
+  const found = index.lookup(name);
+  const symbols = dependency ? found.symbols.filter((symbol) => symbol.public) : found.symbols;
+  const suggestions = dependency ? [] : found.suggestions;
+  name = args.name;
   if (format === "json") {
     io.out(JSON.stringify({ query: name, symbols, suggestions }, null, 2));
     return symbols.length > 0 ? 0 : 1;
