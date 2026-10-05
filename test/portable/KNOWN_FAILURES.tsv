@@ -56,3 +56,6 @@ cli/doc-outside-package	`hd doc` takes a NAME: `hd doc --format json` exits 101 
 cli/doc-check-error	no `hd doc` flags: `hd doc --format json --out site` exits 101 with 'unknown flag --out' and no JSON on stdout, so `hd doc` never checks the package (cli.doc.check)	CLI-DOC
 cli/new-pages	`hd new --pages` is hidden until `hd doc` can build the site (task #309): the flag exits 101 with unknown flag --pages (cli.new.pages, cli.new.pages.workflow, planned)	CLI-PAGES-HIDDEN
 cli/new-pages-existing	`hd new --pages` is hidden until `hd doc` can build the site (task #309): the flag exits 101 with unknown flag --pages (cli.new.pages, planned)	CLI-PAGES-HIDDEN
+cli/dep-path-local	a path requirement must name another member of the package's workspace, so `hd run` exits 101 with invalid-requirement (module.path-dep.any-package)	DEP-CHUNK3
+cli/dep-workspace-fetch	`hd fetch` at a workspace root exits 101: it works on one package only (cli.dep.workspace-fetch)	DEP-CHUNK3
+cli/member-unlisted	a package under a workspace manifest that does not list it is checked as a package outside any workspace, so `hd check` exits 0 (cli.mode.member.unlisted)	DEP-CHUNK3

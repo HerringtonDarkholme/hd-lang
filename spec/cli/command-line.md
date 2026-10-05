@@ -55,7 +55,7 @@ A command works on a package when it finds that package's `hd.toml`:
 4. r[cli.mode.outside] Otherwise the command works outside any package.
 5. r[cli.mode.workspace-file] A command that names a FILE under a workspace root but in no member works outside any package, so FILE is a single-file program that may use only `std`.
 6. r[cli.mode.member] In package mode, the command also searches the directories above the package's directory for the nearest workspace manifest. When that manifest lists the package as a member, the package is still the one the command works on.
-7. r[cli.mode.member.workspace] Version selection, `hd.sum`, and path requirements then come from that workspace, by [Workspaces](../lang/10-modules.md#workspaces), as Cargo's do.
+7. r[cli.mode.member.shared] Version selection and `hd.sum` then come from that workspace, by [Workspaces](../lang/10-modules.md#workspaces), as Cargo's do.
 8. r[cli.mode.member.unlisted] When that workspace manifest neither lists the package in `members` nor in `exclude`, the command is an error that names the manifest, as Cargo's is.
 9. r[cli.mode.member.unlisted.fix] The error has two fix-its: one adds the package's directory to the manifest's `members`, and the other adds it to the manifest's `exclude`.
 10. r[cli.mode.member.excluded] A package whose directory the workspace manifest's `exclude` lists is not a member, and a command in it works on it as on a package outside any workspace.
@@ -216,8 +216,8 @@ hd notes.hd -- a b       # notes.hd gets the arguments a and b
 
 1. r[cli.host.entry-row] When `hd` runs an executable, a task, or a single file, it binds each host capability trait that its entry module's requirement row names. That row is the row of `main` or `main!`, or a [script's inferred row](../lang/10-modules.md#r-module.init.script-row).
 
-`hd FILE`, `hd run`, and a task use the **default profile**, which binds
-these traits:
+`hd FILE`, `hd run`, a task, and the [REPL](#repl) use the **default
+profile**, which binds these traits:
 
 | Trait | Module | What `hd` binds |
 | --- | --- | --- |
@@ -654,6 +654,17 @@ echo 'println(1 + 2)' | hd    # prints 3
 7. r[cli.repl.uses.other] Apart from the declarations of `src/lib.hd`, names reach the session only through its `use` declarations.
 8. r[cli.repl.outside] Outside any package, the session may use only `std`.
 9. r[cli.repl.input-types] Each input of a session is checked on its own, by [Open Literal Width](../lang/04-type-system.md#open-literal-width). A later input never changes the type of an earlier input's binding.
+10. r[cli.repl.host.default-profile] A session runs its inputs under the [default profile](#r-cli.host.default-profile), as `hd FILE` does, so an input may call each host capability trait that the profile binds.
+11. r[cli.repl.host.cwd] A session's relative paths resolve from the working directory of the `hd` command.
+12. r[cli.repl.host.args] In a session, `Args` gives an empty program name and no program arguments.
+13. r[cli.repl.host.once] Each input's host calls happen once, when the input runs. A later input never repeats an earlier input's file writes, reads, clock readings, or random draws.
+
+```sh
+hd> use std.time.{now}
+hd> started := now()          # reads the system clock once
+hd> use std.fs.{read_text}
+hd> read_text!("notes.txt")   # reads ./notes.txt
+```
 
 > **Note.** An input such as `x := 21` has no signed literal, so `x`
 > is a `usize`, and a session that shows types shows `x * 2` as a
@@ -662,6 +673,10 @@ echo 'println(1 + 2)' | hd    # prints 3
 
 > **Why.** An agent that pipes code into `hd` gets a run, not a prompt
 > that waits for a terminal.
+
+> **Why.** A session is where a call is tried before a program makes it,
+> so it binds what `hd FILE` binds. Python's REPL likewise reads files and
+> the clock, with an empty `sys.argv[0]`.
 
 ## Dependencies
 
@@ -693,7 +708,7 @@ hd check    # works offline from now on
 4. r[cli.dep.missing-sum] In those commands, a selected version that has no `hd.sum` entry is an error at its requirement in `hd.toml`. The message names `hd add` and `hd fetch`. Error: `missing-sum-entry`.
 5. r[cli.dep.no-sum-write] `hd check`, `hd build`, `hd run`, and `hd test` never write `hd.sum` or `hd.toml`.
 6. r[cli.dep.verify] A selected version whose tree hash differs from its `hd.sum` entry is an error, by [`module.sum.mismatch`](../lang/10-modules.md#r-module.sum.mismatch). Error: `sum-mismatch`.
-7. r[cli.dep.path] A path requirement names the package in its directory, by [`module.workspace.path-requirement`](../lang/10-modules.md#r-module.workspace.path-requirement). It is never fetched, and it has no `hd.sum` entry.
+7. r[cli.dep.path] A path requirement names the package in its directory, by [`module.path-dep.form`](../lang/10-modules.md#r-module.path-dep.form). It is never fetched, and it has no `hd.sum` entry.
 8. r[cli.dep.invalid] A dependency key or requirement that breaks a rule of [Dependency Requirements](../lang/10-modules.md#dependency-requirements), [Host Paths](../lang/10-modules.md#host-paths), or [Versions](../lang/10-modules.md#versions) is an error at its line of `hd.toml`. Error: `invalid-requirement`.
 9. r[cli.dep.no-library] A requirement whose package has no `src/lib.hd` is an error, by [`module.path.no-lib-dependency`](../lang/10-modules.md#r-module.path.no-lib-dependency). Error: `invalid-requirement`.
 10. r[cli.dep.missing-sum.manifest] In those commands, a version that a requirement reaches and that has no [manifest line](#r-cli.sum.manifest-line) is an error at its requirement. Selection does not read its manifest. Error: `missing-sum-entry`.
@@ -716,11 +731,30 @@ hd check    # works offline from now on
 6. r[cli.dep.no-secret] A message never shows a credential. A user name or password in a URL that git reports is replaced by `***`.
 7. r[cli.dep.pseudo] A [pseudo-version](../lang/10-modules.md#r-module.version.pseudo)'s tree is the package's directory in the commit that its `HASH` names. `hd` fetches the repository's branches and tags to find that commit.
 8. r[cli.dep.pseudo.unknown] A pseudo-version whose `HASH` names no fetched commit, or whose `TIME` is not that commit's committer time in UTC, is an error, by [`module.version.pseudo-missing`](../lang/10-modules.md#r-module.version.pseudo-missing). Error: `unknown-version`.
+9. r[cli.dep.pseudo.base] A pseudo-version's **base tag** is the tag its form names, by the [pseudo-version table](../lang/10-modules.md#r-module.version.pseudo), with the package's tag prefix. The table below lists it.
+10. r[cli.dep.pseudo.base.missing] A pseudo-version whose base tag does not exist is an error. Error: `unknown-version`.
+11. r[cli.dep.pseudo.base.ancestor] A pseudo-version whose commit does not descend from the commit of its base tag is an error. Error: `unknown-version`.
+12. r[cli.dep.pseudo.base.tagged] A pseudo-version whose commit is the base tag's own commit is an error, and its message names the tag's version. Error: `unknown-version`.
+
+| Pseudo-version | Base tag |
+| --- | --- |
+| `0.0.0-TIME-HASH` | none, so no check applies |
+| `X.Y.(Z+1)-0.TIME-HASH` | `vX.Y.Z` |
+| `X.Y.Z-PRE.0.TIME-HASH` | `vX.Y.Z-PRE` |
 
 ```toml
 [dependencies]
 lint = "github.com/acme/tools/lint@2.4.1"  # error: unknown-version, with no tag lint/v2.4.1
+pdf = "github.com/acme/pdf@0.5.1-0.20260912081500-3f2c9e1a7b6d"  # error: unknown-version, when that commit does not descend from v0.5.0
 ```
+
+> **Why.** A pseudo-version orders just above its base tag. Without the
+> check, a manifest could name a commit as `9.0.1-0.TIME-HASH` and win
+> every selection, as Go's
+> [pseudo-version check](https://go.dev/ref/mod#pseudo-versions) prevents.
+> Any earlier tag on the commit's history may be the base, not only the
+> closest, so a tag pushed later never breaks a manifest. `0.0.0-TIME-HASH`
+> orders below every release, so it needs no base.
 
 > **Why.** git already knows how to reach a private repository, so `hd`
 > stores no credentials, by
@@ -791,13 +825,14 @@ Selection reads the manifest of `json@2.0.0` but selects `2.1.0`.
 
 ```sh
 hd add json github.com/acme/json@2.1.0   # hd.toml gains json = "github.com/acme/json@2.1.0"
+hd add json github.com/acme/json@2.0.0   # prints: lowered json 2.1.0 -> 2.0.0
 hd update json                           # with a tag v2.3.0, json becomes "github.com/acme/json@2.3.0"
 hd remove json                           # json's line and its hd.sum entry go
 ```
 
 | Command | Effect |
 | --- | --- |
-| `hd add NAME PATH@VERSION` | adds the requirement `NAME = "PATH@VERSION"`, or changes NAME's, then fetches and records hashes |
+| `hd add NAME PATH@VERSION` | adds the requirement `NAME = "PATH@VERSION"`, or changes NAME's, raising or lowering it, then fetches and records hashes |
 | `hd update` | moves every requirement to the newest release on its compatibility line |
 | `hd update NAME` | moves only NAME's requirement |
 | `hd remove NAME` | deletes NAME's requirement |
@@ -805,21 +840,31 @@ hd remove json                           # json's line and its hd.sum entry go
 
 1. r[cli.dep.add] `hd add NAME PATH@VERSION` sets the requirement of the key NAME in `[dependencies]` to `PATH@VERSION`. It adds the key when the manifest has none.
 2. r[cli.dep.add.check] `hd add` checks NAME and `PATH@VERSION` by [`cli.dep.invalid`](#r-cli.dep.invalid) before it fetches anything.
-3. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
-4. r[cli.dep.tidy] It then writes `hd.sum` with one tree line for each selected version, one manifest line for each version selection read, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
-5. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
-6. r[cli.dep.update.release] The newest release is the greatest tagged version without a pre-release suffix. A requirement already at or above it keeps its version.
-7. r[cli.dep.update.network] `hd update` lists the tags of each repository it moves, so it uses the network even when the cache holds every version.
-8. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
-9. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds each tree line and manifest line that [`cli.dep.tidy`](#r-cli.dep.tidy) would write and `hd.sum` lacks, and changes no other entry.
-10. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
-11. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
-12. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
-13. r[cli.dep.no-question] No dependency command asks a question.
+3. r[cli.dep.add.lower] `hd add` may set NAME's requirement to an earlier version of the same host path, as `go get` does. It then prints that it lowered the requirement, as `lowered json 2.1.0 -> 2.0.0`.
+4. r[cli.dep.add.lower.selection] A lowered requirement is still a minimum. Selection keeps a later version when another reached manifest, such as another member's, requires one, by [`module.select.largest`](../lang/10-modules.md#r-module.select.largest).
+5. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
+6. r[cli.dep.tidy] It then writes `hd.sum` with one tree line for each selected version, one manifest line for each version selection read, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
+7. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
+8. r[cli.dep.update.release] The newest release is the greatest tagged version without a pre-release suffix. A requirement already at or above it keeps its version.
+9. r[cli.dep.update.network] `hd update` lists the tags of each repository it moves, so it uses the network even when the cache holds every version.
+10. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
+11. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds each tree line and manifest line that [`cli.dep.tidy`](#r-cli.dep.tidy) would write and `hd.sum` lacks, and changes no other entry.
+12. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
+13. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
+14. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
+15. r[cli.dep.no-question] No dependency command asks a question.
+16. r[cli.dep.workspace-fetch] In [workspace mode](#workspace-mode), `hd fetch` works on the whole workspace. It fetches what the workspace's selection needs, and adds the missing lines to its `hd.sum`, by [`cli.dep.fetch`](#r-cli.dep.fetch).
+17. r[cli.dep.workspace-member-only] In workspace mode, `hd add`, `hd update`, and `hd remove` are errors whose message suggests running them in a member's directory.
 
 > **Why.** An agent adds a dependency with one command and gets a
 > manifest, a fetched tree, and a hash that agree. CI runs `hd fetch` once,
-> and every later command works offline.
+> at the workspace root too, and every later command works offline. A
+> requirement lives in one member's manifest, so a command that edits one
+> runs in that member.
+
+> **Why.** Lowering a minimum is safe under minimal version selection, so
+> `hd add` does it as Go's `go get x@older` does. It says so, since a
+> lowered line is easy to miss in a diff.
 
 See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 [Integrity](../lang/10-modules.md#integrity),

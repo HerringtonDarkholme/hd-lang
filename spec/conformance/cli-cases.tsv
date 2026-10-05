@@ -45,3 +45,6 @@ exe-main-unlisted	cli.exe.main-unlisted,cli.json.diagnostic.fields
 task-name-clash	cli.task.name-clash,cli.exe.default-name.clash
 manifest-unknown-key	cli.manifest.unknown-key,cli.exit.success
 build-output	cli.build.directory,cli.build.output,cli.profile.release
+dep-path-local	cli.dep.path,cli.dep.fetch,cli.dep.offline,cli.json.lines.build
+dep-workspace-fetch	cli.dep.workspace-fetch,cli.dep.workspace-member-only,cli.exit.hd-failure
+member-unlisted	cli.mode.member.unlisted,cli.mode.member.excluded,cli.exit.hd-failure

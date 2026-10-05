@@ -53,7 +53,7 @@ pdf = "github.com/acme/pdf@0.4.1-0.20260912081500-3f2c9e1a7b6d"
 
 1. r[module.dep.key-name] Each key of `[dependencies]` and `[dev-dependencies]` names one dependency, which source writes as `dep.NAME`. `NAME` is the key with each `-` replaced by `_`, so the key `my-app` is `dep.my_app`.
 2. r[module.dep.key-name.collision] Two keys of one manifest whose `NAME`s are equal, such as `my-app` and `my_app`, are invalid.
-3. r[module.dep.requirement-value] Each value is a dependency requirement `PATH@VERSION`, or a [path requirement](#r-module.workspace.path-requirement) between workspace members. A dependency requirement is a host path, `@`, and a version or pseudo-version without a leading `v`.
+3. r[module.dep.requirement-form] Each value is a dependency requirement `PATH@VERSION`, or a [path requirement](#r-module.path-dep.form) on a local package. A dependency requirement is a host path, `@`, and a version or pseudo-version without a leading `v`.
 4. r[module.dep.path-manifest-only] A host path appears only in the manifest. Source names a dependency only through its key.
 5. r[module.dep.identity] A resolved package's identity is its host path and its [compatibility line](#r-module.version.line).
 6. r[module.dep.no-self-path] A manifest does not state its own host path. A fetched package's host path is the one that the dependency requirement which fetched it names.
@@ -141,6 +141,12 @@ a minimum, and the build uses the largest minimum stated for each package:
 4. r[module.select.largest] For each host path and compatibility line, the selected version is the largest minimum that any reached manifest states.
 5. r[module.select.one-per-line] A package graph therefore holds at most one version per compatibility line. Two lines of one host path may coexist as two packages.
 6. r[module.select.no-lock] The manifests alone determine the selection. There is no lockfile of versions.
+7. r[module.select.path] Selection also reads the manifest of each package that a [path requirement](#r-module.path-dep.form) reaches, from the root package, a member, or another such package. Its dependency requirements join the selection.
+
+> **Note.** A package that a path requirement reaches is a dependency, so
+> its dev dependencies are never read, by
+> [`module.select.dev-dependencies`](#r-module.select.dev-dependencies),
+> unless it is also a member of the workspace.
 
 > **Why.** Selection reads only the manifests of versions someone names,
 > which needs no registry index. A new tag reaches no build until some
@@ -154,6 +160,7 @@ A committed `hd.sum` file is what makes a fetched dependency trusted.
 2. r[module.sum.committed] `hd.sum` is kept under version control with the manifest.
 3. r[module.sum.mismatch] A fetched tree whose hash differs from its `hd.sum` entry is rejected. It is never only a warning.
 4. r[module.sum.only] `hd.sum` is the only integrity source. A build must not require a checksum log, a proxy, or any service besides the repository hosts.
+5. r[module.sum.path] `hd.sum` holds no line for a package that a path requirement reaches, neither for its tree nor for its manifest. Its files are local and are never fetched.
 
 > **Why.** hd runs no paid servers. A checksum log or a caching proxy may
 > be added later only if it needs no infrastructure, or reuses free public
@@ -167,14 +174,23 @@ A workspace builds several packages of one repository as one graph.
 2. r[module.workspace.committed] The workspace manifest may be kept under version control, so every checkout builds the same graph.
 3. r[module.workspace.selection] Selection runs once for the whole workspace, so all members use the same selected versions.
 4. r[module.workspace.sum] A workspace has one `hd.sum`, beside its workspace manifest.
-5. r[module.workspace.path-requirement] A member depends on another member of its workspace through a **path requirement**, `{ path = "DIR" }`, where `DIR` is the other member's directory relative to the requiring manifest.
-6. r[module.workspace.path-version] A path requirement may also carry a version, as in `{ path = "../ui", version = "0.4.2" }`.
-7. r[module.workspace.path-version.locally] When the requiring package is built from local files, in its workspace or in a checkout of its repository, such a requirement names the package at its path, and its version is not used.
-8. r[module.workspace.path-version.fetched-version] In a fetched version of the requiring package, `path` is ignored, and the requirement is a dependency requirement on `version`.
-9. r[module.workspace.path-version.fetched-host] Its host path comes from the host path by which the requiring package was fetched, as [`module.dep.no-self-path`](#r-module.dep.no-self-path) gives every fetched package its host path.
-10. r[module.workspace.no-host-path] A member does not require another member by host path.
-11. r[module.workspace.fetched-member] A fetched package may require a member's host path. Selection then treats that host path as any other and fetches the selected version, which is a package separate from the local member.
-12. r[module.workspace.fetched-member.two] The build then holds two packages, the local member and the fetched version. Neither stands in for the other.
+5. r[module.workspace.no-host-path] A member does not require another member by host path.
+6. r[module.workspace.fetched-member] A fetched package may require a member's host path. Selection then treats that host path as any other and fetches the selected version, which is a package separate from the local member.
+7. r[module.workspace.fetched-member.two] The build then holds two packages, the local member and the fetched version. Neither stands in for the other.
+
+> **Note.** A workspace is optional. It shares one selection and one
+> `hd.sum` among its members; a [path requirement](#path-requirements)
+> works with or without one.
+
+> **Why.** A member states no host path
+> ([`module.dep.no-self-path`](#r-module.dep.no-self-path)), so nothing
+> ties it to a fetched version of the same repository. Cargo likewise
+> treats a path source and a git source of one crate as two packages.
+
+### Path Requirements
+
+A path requirement names a local package by its directory, in a workspace
+or outside one:
 
 ```toml
 [dependencies]
@@ -183,18 +199,29 @@ ui = { path = "../ui", version = "0.4.2" }
 json = "github.com/acme/json@2.1.0"
 ```
 
-> **Note.** A member whose path requirements all carry a version is
+1. r[module.path-dep.form] A **path requirement**, `{ path = "DIR" }`, names the package in the directory `DIR`, relative to the requiring manifest's directory.
+2. r[module.path-dep.any-package] `DIR` may hold any local package. It need not be a member of the requiring package's workspace, and neither package needs a workspace.
+3. r[module.path-dep.no-package] A path requirement whose `DIR` holds no manifest that declares a package is invalid.
+4. r[module.path-dep.root-selection] The selection and `hd.sum` of the root package, or of its workspace, hold for every package that a path requirement reaches. That package's own `hd.sum` and workspace are not read.
+5. r[module.workspace.path-version] A path requirement may also carry a version, as in `{ path = "../ui", version = "0.4.2" }`.
+6. r[module.workspace.path-version.locally] When the requiring package is built from local files, in its workspace or in a checkout of its repository, such a requirement names the package at its path, and its version is not used.
+7. r[module.workspace.path-version.fetched-version] In a fetched version of the requiring package, `path` is ignored, and the requirement is a dependency requirement on `version`.
+8. r[module.workspace.path-version.fetched-host] Its host path comes from the host path by which the requiring package was fetched, as [`module.dep.no-self-path`](#r-module.dep.no-self-path) gives every fetched package its host path.
+9. r[module.path-dep.fetched-outside] In a fetched version, a path requirement whose `DIR` lies outside the repository is invalid, since no host path names that directory.
+
+> **Note.** A package whose path requirements all carry a version is
 > released without a manifest edit, by
 > [`module.version.no-bare-path-release`](#r-module.version.no-bare-path-release),
 > as Cargo's
 > [multiple locations](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#multiple-locations)
-> allow. A member with a bare path requirement must name the other member
+> allow. A package with a bare path requirement must name the other package
 > by dependency requirement in its release manifest.
 
-> **Why.** A member states no host path
-> ([`module.dep.no-self-path`](#r-module.dep.no-self-path)), so nothing
-> ties it to a fetched version of the same repository. Cargo likewise
-> treats a path source and a git source of one crate as two packages.
+> **Why.** A path requirement is for local development, as Cargo's
+> [path dependencies](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#specifying-path-dependencies)
+> are. Cargo records no checksum for a path dependency, and builds it with
+> the root's lockfile, never its own. A workspace only adds a shared
+> selection and `hd.sum`.
 
 ### Toolchain Version
 

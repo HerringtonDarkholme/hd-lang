@@ -257,7 +257,7 @@ The stdlib chapters' terms are in the
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](lang/05-expressions.md#operator-traits). |
 | **package mode** | How a command works when the nearest `hd.toml` at or above its start directory declares a package. See [`cli.mode.package.nearest`](cli/command-line.md#r-cli.mode.package.nearest). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](lang/08-data-and-enums.md#parts-and-copies). |
-| **path requirement** | A manifest value `{ path = "DIR" }` through which a workspace member depends on another member. See [`module.workspace.path-requirement`](lang/10-modules.md#r-module.workspace.path-requirement). |
+| **path requirement** | A manifest value `{ path = "DIR" }` through which a package depends on the local package in `DIR`. See [`module.path-dep.form`](lang/10-modules.md#r-module.path-dep.form). |
 | **pipe expression** | `value \|> step`, which passes a value to a step. See [Pipe Expressions](lang/05-expressions.md#pipe-expressions). |
 | **place expression** | An expression that identifies a storage location, which may be read or, when permissions allow, assigned. See [`expr.category.place`](lang/05-expressions.md#r-expr.category.place). |
 | **positional spread** | An argument `x...` that passes the value `x` in place of separate arguments: a tuple fills the callee's remaining inputs, and a vararg takes a value of its own type. See [Positional Spreads](lang/05-expressions.md#positional-spreads). |

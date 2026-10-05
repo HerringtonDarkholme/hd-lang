@@ -307,8 +307,8 @@ Each value is one of:
 | --- | --- |
 | `"owner/name@X.Y.Z"` | Registry package, caret range: at least `X.Y.Z`, within its compatibility line. |
 | `{ id = "owner/name", version = "X.Y.Z", registry = "URL" }` | Registry package from a non-default registry. |
-| `{ path = "DIR" }` | Workspace member. Not allowed in a tagged version (decision 9). |
-| `{ path = "DIR", version = "X.Y.Z" }` | Workspace member, which a fetched version requires at `X.Y.Z` ([`module.workspace.path-version`](../spec/lang/10-modules.md#r-module.workspace.path-version)). Allowed in a tagged version. |
+| `{ path = "DIR" }` | Any local package, in a workspace or not ([Path Requirements](../spec/lang/10-modules.md#path-requirements)). Not allowed in a tagged version (decision 9). |
+| `{ path = "DIR", version = "X.Y.Z" }` | A local package, which a fetched version requires at `X.Y.Z` ([`module.workspace.path-version`](../spec/lang/10-modules.md#r-module.workspace.path-version)). Allowed in a tagged version. |
 | `{ git = "URL", rev = "SHA" }` | Git package at one full commit hash. Branches and tags are rejected. Not allowed in a published package (decision 9). |
 
 A key may not name `std`, `pkg`, or `dep`. Two keys may name the same
@@ -508,8 +508,10 @@ Every command is non-interactive, takes `--format json`
 with 0 or 101 ([Exit Status](../spec/cli/command-line.md#exit-status)), a
 network failure included.
 
-Still open, for later chunks: pseudo-versions in `hd add`, workspace mode
-for the dependency commands, `hd api diff` (DEP7), and a `--plan` dry run.
+Decided 2026-10-05 and specified: `hd fetch` works at a workspace root,
+while `hd add`, `hd update`, and `hd remove` stay member-only; `hd add`
+may lower a requirement. Still open, for later chunks: `hd api diff`
+(DEP7) and a `--plan` dry run.
 Package metadata for the program database stays
 [on hold](ROADMAP.md#on-hold).
 

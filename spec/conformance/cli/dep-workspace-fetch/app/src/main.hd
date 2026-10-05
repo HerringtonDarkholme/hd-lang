@@ -1,0 +1,4 @@
+use dep.money.{cents}
+
+pub fn main() -> void $ Console:
+    println(cents(3))

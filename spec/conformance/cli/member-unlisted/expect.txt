@@ -1,0 +1,7 @@
+# A package under a workspace manifest that neither lists nor excludes it
+# is an error that names the manifest.
+run: hd check app/src/main.hd
+run: hd check --format json loose/src/main.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":null,"severity":"error","message":null,"file":null},{"kind":"summary","errors":1,"status":101}]
+run: hd check tools/src/main.hd

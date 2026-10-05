@@ -1,0 +1,6 @@
+[package]
+name = "money"
+
+# A dependency's dev dependencies are never read, so this needs no fetch.
+[dev-dependencies]
+fixtures = "github.com/acme/money-fixtures@1.0.0"

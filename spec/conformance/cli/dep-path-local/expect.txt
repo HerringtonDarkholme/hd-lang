@@ -1,0 +1,7 @@
+# A path requirement names a local package, with no workspace around either.
+run: hd run
+stdout: 1200
+run: hd fetch --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+no-file: hd.sum
+no-file: money/hd.sum

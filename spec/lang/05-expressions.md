@@ -1494,6 +1494,8 @@ fn main() -> f64: 2 ** 2.0                     # error: mixed-numeric-types
 9. r[expr.eq.contextual-operand] In `==` and `!=`, a contextual variant operand, such as `.None`, `.Ok(1)`, or `.Some(x)`, takes the other operand's type as its expected type. This holds on either side.
 10. r[expr.eq.contextual-both] When both operands are contextual variants, neither has an expected type, so `.None == .None` is an error. Error: `missing-contextual-enum-type`.
 11. r[expr.eq.readonly-view] `==` and `!=` with one `mut T` operand and one `T` operand compare at `T`, because the readonly view is enough. So `d == Date { year: 2026 }` with `d: Date` is valid, though the literal is a fresh `mut Date`.
+12. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `missing-eq`.
+13. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it that inserts `@derive(Eq)` on its own line before the enum's declaration.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
@@ -1510,6 +1512,10 @@ fn first(found: i32?) -> bool:
 fn neither() -> bool:
     .None == .None  # error: missing-contextual-enum-type
 ```
+
+> **Why.** Equality stays opt-in, by
+> [`expr.eq.no-implicit`](#r-expr.eq.no-implicit), so the error names the
+> one-line opt-in rather than leaving the reader to find it.
 
 ### Ordering
 

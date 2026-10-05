@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,478 cases: 2,423 selected in `test/portable/cases.tsv` and 55 known
+2,481 cases: 2,423 selected in `test/portable/cases.tsv` and 58 known
 failures. The selected cases are 2,101 language tier, 284 stdlib tier, and 38
-CLI tier; the known failures are 45 language tier, 2 stdlib tier, and 8
+CLI tier; the known failures are 45 language tier, 2 stdlib tier, and 11
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -36,6 +36,7 @@ CLI tier.
 | ALIAS-MISSING | 2 | an unused alias's right side is never resolved |
 | DERIVE-MISSING | 1 | `@derive` of a name that resolves to nothing reports `underivable-trait` |
 | BOUND-AMBIGUOUS | 2 | a bound-only parameter that several instantiations fit reports `cannot-infer-type`, not `ambiguous-type` |
+| DEP-CHUNK3 | 3 | path requirements outside a workspace, `hd fetch` at a workspace root, and the unlisted-member error are not implemented |
 
 ## Findings
 
