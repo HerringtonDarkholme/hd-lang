@@ -1,18 +1,24 @@
-# Muse Task Queue
+# Codex Task Queue
 
-**Retired 2026-10-05 (owner: "muse is effectively dead").** The
-orchestrating session now runs these jobs itself as tasks #333 to #336;
-this file stays only as their job text, and is deleted once they land.
-
-This file is Muse's work queue. The orchestrating session adds jobs here.
-Muse does them top to bottom, one commit per job, and deletes a job's
+This file is Codex's work queue. The orchestrating session adds jobs here.
+Codex does them top to bottom, one commit per job, and deletes a job's
 section in the same commit that finishes it. Git history keeps the record.
 When the queue is empty, report that and wait.
 
 ## How To Work
 
-- Work in your own git worktree, never in the shared folder
-  `/Users/hd/code/test/hd-lang`.
+- Work in **one** long-lived git worktree of your own, for example
+  `git worktree add /private/tmp/codex-work -b codex/work origin/main`
+  the first time, and reuse it for every job. Keep it; don't delete it.
+- **Never write in the shared main checkout**
+  `/Users/hd/code/test/hd-lang`: no edits, commits, or checkouts there.
+  Your commits reach `main` only by `git push origin HEAD:main` from your
+  worktree.
+- Start each job from current main: `git fetch origin && git reset --hard
+  origin/main` in your worktree, but only when it holds no unpushed work
+  (check `git status` and `git log origin/main..HEAD` first).
+- Install dependencies in your worktree with `pnpm install
+  --frozen-lockfile`; never symlink or modify the shared `node_modules`.
 - To finish each job:
 
   ```sh
@@ -25,14 +31,6 @@ When the queue is empty, report that and wait.
   `pnpm run check`, and push again. Never force-push.
 - A job is done only when its commit is on `origin/main`. A local commit
   is not done: push it.
-- After the push lands, clean up: confirm `git merge-base --is-ancestor
-  HEAD origin/main`, then from the shared folder run `git worktree remove
-  <your worktree>` and `git branch -d <your branch>`. If the worktree has
-  a `node_modules` symlink, delete the symlink first (`rm
-  <worktree>/node_modules`, never with `-r`), so nothing follows it into
-  the shared `node_modules`. Never use `--force` on a worktree with
-  uncommitted work: commit it or ask in Questions. Keep at most one
-  worktree of your own at a time.
 - While working, run only scoped checks: `node --experimental-strip-types
   test/run-portable.ts --changed` (or `--phase parse|type|runtime`) and
   `node --test --experimental-strip-types <the test files you touch>`. Run
@@ -59,7 +57,7 @@ When the queue is empty, report that and wait.
 
 - **Spec examples.** Adding, removing or moving a ```text block in a spec
   chapter renumbers every later block, so realign that chapter's rows in
-  `spec/conformance/examples.tsv`, not only the new row. Job AN missed
+  `spec/conformance/examples.tsv`, not only the new row. An earlier job missed
   this and broke `bash spec/check.sh` on main (fixed in c8c35a7e). After
   any rebase, rerun `bash spec/check.sh` before pushing; never push with
   it red.

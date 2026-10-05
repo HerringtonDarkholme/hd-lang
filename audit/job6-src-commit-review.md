@@ -1,6 +1,6 @@
 # Review Of New `src/` Commits
 
-Muse's ongoing review (job J in [muse_task.md](muse_task.md)). Only open
+Codex's ongoing review (job J in [codex_task.md](codex_task.md)). Only open
 findings stay here; a finding is deleted once it is fixed. Past passes are
 in git history.
 
