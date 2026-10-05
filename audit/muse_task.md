@@ -58,19 +58,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AK. Perf F5 And F6
-
-From `audit/compiler/perf-audit.md`:
-
-- **F5:** `withStandardSource` rebuilds every std object per compile.
-- **F6:** the implementation clash scan is quadratic in the number of
-  impls, per compile.
-
-Fix both without a checked-std cache (the owner deferred that). Report
-the tiny-program compile time (median of 5) and `pnpm run perf:check`
-before and after, and keep the WAT byte-identical. Delete F5 and F6 from
-`perf-audit.md` when fixed.
-
 ### AL. Review Finding O-03: Bounds Of Written Types
 
 From `audit/compiler/opus.md` (O-03, with its repro): a written type

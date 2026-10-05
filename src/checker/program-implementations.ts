@@ -249,18 +249,21 @@ function registerImplementationPair(
   traitArguments: readonly string[],
   targetType: string,
   family: NumericFamily | undefined,
-  targets: RegisteredImplementationTarget[],
+  targets: Map<number, RegisteredImplementationTarget[]>,
   diagnostics: Diagnostic[],
 ): boolean {
+  // Only same-trait targets can clash (the old linear scan's match
+  // condition starts with traitIndex equality), so each trait keeps its own
+  // registration-order list: the scan is linear in impl count, and the
+  // first conflict found is the same one the linear scan found.
   const heads = implementationHeads(traitArguments, targetType, family);
-  const conflict = targets.find(
-    (candidate) =>
-      candidate.traitIndex === trait.index &&
-      heads.some((head) =>
-        implementationHeads(candidate.traitArguments, candidate.targetType, candidate.family).some(
-          (other) => implementationHeadsMayUnify(head, other, candidate.genericParameters),
-        ),
+  const sameTrait = targets.get(trait.index) ?? [];
+  const conflict = sameTrait.find((candidate) =>
+    heads.some((head) =>
+      implementationHeads(candidate.traitArguments, candidate.targetType, candidate.family).some(
+        (other) => implementationHeadsMayUnify(head, other, candidate.genericParameters),
       ),
+    ),
   );
   if (conflict) {
     diagnostics.push({
@@ -270,13 +273,14 @@ function registerImplementationPair(
     });
     return false;
   }
-  targets.push({
+  sameTrait.push({
     genericParameters: implementation.genericParameters,
     traitArguments,
     traitIndex: trait.index,
     targetType,
     ...(family ? { family } : {}),
   });
+  targets.set(trait.index, sameTrait);
   return true;
 }
 
@@ -766,7 +770,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
   const { program, diagnostics, dataTypes, enumTypes, traitTypes, implementationPreparations } =
     context;
   const inherentMembers: RegisteredInherentMember[] = [];
-  const implementationTargets: RegisteredImplementationTarget[] = [];
+  const implementationTargets = new Map<number, RegisteredImplementationTarget[]>();
   const delegations: Delegation[] = [];
   const orderedImplementationEntries = [...program.implementations.entries()].sort(
     (left, right) =>

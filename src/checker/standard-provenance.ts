@@ -57,10 +57,14 @@ export function withStandardSource<T>(value: T, document: SourceDocument, anchor
       start: positionAt(value.start, anchor.start, document),
       end: positionAt(value.end, anchor.end, document),
     } as T;
-  if (Array.isArray(value))
-    return value.map((item) => withStandardSource(item, document, anchor)) as T;
+  if (Array.isArray(value)) {
+    const items: unknown[] = [];
+    for (const item of value) items.push(withStandardSource(item, document, anchor));
+    return items as T;
+  }
   if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value).map(([key, child]) => [key, withStandardSource(child, document, anchor)]),
-  ) as T;
+  const stamped: Record<string, unknown> = {};
+  for (const key of Object.keys(value))
+    stamped[key] = withStandardSource((value as Record<string, unknown>)[key], document, anchor);
+  return stamped as T;
 }

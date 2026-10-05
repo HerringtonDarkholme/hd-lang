@@ -55,8 +55,7 @@ typing fixtures and the gate.
 ### F5. `withStandardSource` rebuilds every std object per compile
 
 File and line: `src/checker/standard-provenance.ts:54`: maps the joined
-program object-by-object (`Object.fromEntries(Object.entries(value).map(...))`)
-to stamp physical/logical spans.
+program object-by-object to stamp physical/logical spans.
 Workload: tiny profile. Four `withStandardSource` nodes carry inclusive
 107.6 + 61.3 + 121.4 + 30.0 = 320 ms of the 1934 ms profile (16.5%), while
 the standalone join stage is only ~6 ms: the rebuild, not the join, is the
@@ -72,25 +71,15 @@ Correctness risk: medium; spans feed every diagnostic location. Covered by
 diagnostic snapshot tests, `check --format json` tests, and the portable
 suite (diagnostic assertions per fixture).
 
-### F6. Implementation clash scan is quadratic in impl count, per compile
-
-File and line: `src/checker/program-implementations.ts:764`
-(`prepareImplementations`, inclusive 203.9 ms of the tiny profile, 10.5%),
-with the pairwise overlap scan around `:256-260` (`targets.find` /
-`heads.some` over all implementations, 220 of them on every compile).
-Workload: tiny profile; calc shows the same node at 153.3 ms inclusive.
-Growth: constant per compile today (220 impls -> ~48k pair checks), linear in
-std impl count over time.
-Proposed fix: skip the pairwise clash check between two standard
-implementations (std does not change between compiles in one process; user
-impls are still checked against everything). No cache of checking results,
-only of the std-vs-std proof obligation.
-Expected gain: 3-8% on small compiles (the clash scan is part of the 10.5%
-node; preparation of declarations remains).
-Correctness risk: medium; a missed overlap is a soundness hole. Covered by
-the impl-overlap fixtures and the portable typing suite. Note: fully caching
-prepared implementations would overlap the deferred std cache (section 4)
-and is not proposed here.
+Re-profiled 2026-10-05 (job AK): the 1934 ms baseline is gone (tiny
+analyzes in ~76 ms). The whole `withStandardLibrary` join now costs
+~6 ms on tiny; the stamp walk itself was cut ~55% (manual loops instead
+of `fromEntries`/`map`), to ~2.7 ms. The stamp-once proposal above is
+unsound as stated: the logical anchor is the current program's use span,
+and scope lookups (`moduleScopeAt`) and visibility checks read logical
+coordinates, so a cached first-compile anchor would leak another
+compilation's coordinates. Any future caching must keep the anchor
+per-compile.
 
 ### F10. WAT is parsed twice after being generated
 
