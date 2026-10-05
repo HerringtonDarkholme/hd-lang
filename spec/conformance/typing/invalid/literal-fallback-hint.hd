@@ -1,5 +1,5 @@
-# test: two fitting instantiations decide nothing, so 5 falls back to usize and fits neither
-# Spec 04 One Fitting Candidate: types.literal.open.fallback-hint (ONE-FIT). The diagnostic
+# test: with two fitting instantiations a bare literal argument keeps its usize default, which fits neither
+# Spec 04 One Fitting Candidate: types.literal.local.hint (ONE-FIT). The diagnostic
 # should suggest `+5` or an annotation; the fixture checks only the code.
 use std.ops.Add
 

@@ -1,5 +1,5 @@
-# test: destructuring a generic data literal binds its fields to one open variable
-
+# test: a typed field value fixes the other literal fields of a generic data literal before it is destructured
+# Spec 04 Open Literal Width: types.literal.local.form.element.
 data Pair[T]:
     first: T
     second: T
@@ -8,7 +8,7 @@ fn take(value: u64) -> u64:
     value
 
 fn run() -> u64:
-    let Pair { first, second } = Pair { first: 1, second: 2 }
-    let wide: u64 = take(first)
+    let Pair { first, second } = Pair { first: take(1), second: 2 }
+    let wide: u64 = first
     let other: u64 = second
     wide + other

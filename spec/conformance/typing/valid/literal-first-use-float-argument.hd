@@ -1,9 +1,7 @@
-# test: an f32 parameter fixes an open float variable
-
+# test: an f32 parameter gives a float literal argument its type, and the other operand joins it
+# Spec 04 Open Literal Width: types.literal.local.form.argument.
 fn scale(value: f32) -> f32:
     value * 2.0
 
 fn run() -> f32:
-    let x = 0.5
-    let doubled = scale(x)
-    x + doubled
+    scale(0.5) * 2.0

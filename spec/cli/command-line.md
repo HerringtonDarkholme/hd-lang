@@ -621,12 +621,12 @@ echo 'println(1 + 2)' | hd    # prints 3
 6. r[cli.repl.package.no-lib.main] `src/main.hd` itself stays unusable from the session, as it is from every module by [`module.path.main-no-use`](../lang/10-modules.md#r-module.path.main-no-use).
 7. r[cli.repl.uses.other] Apart from the declarations of `src/lib.hd`, names reach the session only through its `use` declarations.
 8. r[cli.repl.outside] Outside any package, the session may use only `std`.
-9. r[cli.repl.input-body] Each input of a session is its own body for [Open Literal Width](../lang/04-type-system.md#open-literal-width): its open variables fall back at the end of that input. A later input never changes the type of an earlier input's binding.
+9. r[cli.repl.input-types] Each input of a session is checked on its own, by [Open Literal Width](../lang/04-type-system.md#open-literal-width). A later input never changes the type of an earlier input's binding.
 
 > **Note.** An input such as `x := 21` has no signed literal, so `x`
-> falls back to `usize`, and a session that shows types shows `x * 2` as a
+> is a `usize`, and a session that shows types shows `x * 2` as a
 > `usize`. `y := -21` is an `i32`, by
-> [`types.literal.open.int-fallback`](../lang/04-type-system.md#r-types.literal.open.int-fallback).
+> [`types.literal.local.default`](../lang/04-type-system.md#r-types.literal.local.default).
 
 > **Why.** An agent that pipes code into `hd` gets a run, not a prompt
 > that waits for a terminal.

@@ -32,7 +32,7 @@ tests:
         assert_equal(values.len(), 2, reason="two distinct keys")
 
     it("duplicate key keeps first position with the later value"):
-        values := {"a": 1, "b": 2, "a": 3}
+        values := {"a": +1, "b": 2, "a": 3}
         let three: i32? = 3
         assert_equal(keys(values), ["a", "b"], reason="first insertion position kept")
         assert_equal(values.get("a"), three, reason="later value wins")
@@ -40,6 +40,6 @@ tests:
 
     it("comprehension filter runs at its position"):
         let mut log = Log { text: "" }
-        kept := [for item in [1, 2, 3] if flag(log, "$item", item != 2) => note(log, "r", item)]
+        kept := [for item in [+1, 2, 3] if flag(log, "$item", item != 2) => note(log, "r", item)]
         assert_equal(kept, [1, 3], reason="filter drops the middle item")
         assert_equal(log.text, "1r23r", reason="filter then result, per item")

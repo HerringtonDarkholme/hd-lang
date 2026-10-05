@@ -11,6 +11,6 @@ fn grow(items: List[i32]) -> List[i32]:
 
 tests:
     it("a slice can be changed, and the source list stays the same"):
-        items := [1, 2, 3]
+        items := [+1, 2, 3]
         assert_equal(grow(items), [1, 2, 9], reason="the slice grows")
         assert_equal(items, [1, 2, 3], reason="the source is unchanged")

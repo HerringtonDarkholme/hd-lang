@@ -4,7 +4,7 @@ fn apply_all(prices: List[i32], rule: fn(i32) -> i32) -> List[i32]:
 
 tests:
     it("a closure reads and updates the locals around it"):
-        rate := 20
+        rate := +20
         let calls = 0
         sale := apply_all([1000, 400], fn(cents) -> i32:  # ← sees `rate`
             calls = calls + 1  # ← changes `calls`
@@ -17,6 +17,6 @@ tests:
 use std.testing.assert_equal
 
 pub fn main() -> void $ Console:
-    rate := 20
+    rate := +20
     sale := apply_all([1000, 2500, 400], fn(cents): cents - cents * rate / 100)
     println("sale: ${sale[0]} ${sale[1]} ${sale[2]}")

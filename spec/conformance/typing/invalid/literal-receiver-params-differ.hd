@@ -1,6 +1,5 @@
-# test: two integer types provide scale with different parameters, so the arguments pick neither for a literal receiver
-# Spec 04 One Fitting Candidate: types.literal.open.one-fit.receiver-width, types.literal.open.one-fit.params-differ (ONE-FIT).
-
+# test: a binding takes its literal's default type, so a method only i64 and i32 provide is missing on it
+# Spec 04 Open Literal Width: types.literal.local.statement, types.literal.local.join.
 trait ScaleBy:
     fn scale(self, by: i64) -> Self
 
@@ -15,6 +14,7 @@ impl Markup for i32:
     fn scale(self) -> i32:
         self * 2
 
-fn quote() -> void:
+fn quote() -> i64:
     let cents = 250
-    let total = cents.scale(4)  # diagnostic: ambiguous-method
+    let total = cents.scale(4)  # diagnostic: unknown-method
+    total

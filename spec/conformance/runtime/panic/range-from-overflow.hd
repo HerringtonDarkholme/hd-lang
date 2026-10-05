@@ -1,7 +1,7 @@
 # test: iterating a.. past its type's largest value panics
 # Spec 06 Range Iteration: flow.for.range.from-overflow (batch 48).
 fn count_up(start: i8) -> i32:
-    let seen = 0
+    let seen = +0
     for value in start..:  # panic: integer-overflow
         seen = seen + 1
     seen

@@ -1,5 +1,5 @@
-# test: a match payload binds the open variable of a generic enum value
-
+# test: a match subject's literal takes the width the arms need
+# Spec 04 Open Literal Width: types.literal.local.form.arm, types.literal.local.join.
 fn take(value: u8) -> u8:
     value
 

@@ -8,7 +8,7 @@ data Holder[T]:
 
 impl Arbitrary for Holder[fn() -> i32]:
     fn arbitrary(c: mut Choices) -> Holder[fn() -> i32]:
-        n := c.int(0, 9)
+        n := c.int(+0, 9)
         Holder { value: fn() -> i32: n }
 
 @derive(Arbitrary)

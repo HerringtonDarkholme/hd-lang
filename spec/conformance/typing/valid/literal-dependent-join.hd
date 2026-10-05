@@ -1,5 +1,5 @@
 # test: a literal joined with a method result of some widths takes the resolved result type, not a fallback
-# Spec 04 Neutral Uses: types.literal.open.method.dependent.join (ONE-FIT).
+# Spec 04 Neutral Uses: types.literal.local.statement (ONE-FIT).
 
 use std.ops.Neg
 

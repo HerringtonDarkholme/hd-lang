@@ -7,5 +7,5 @@ fn not_one(result: Result[i32, string]) -> bool:
     .Ok(1) != result
 
 fn is_two(found: i32?) -> bool:
-    value := 2
+    value := +2
     .Some(value) == found

@@ -13,5 +13,5 @@ impl Box[string]:
 
 tests:
     it("the member of the matching target is called"):
-        assert_equal(Box { value: 1 }.show(), "int box", reason="Box[i32] member")
+        assert_equal(Box { value: +1 }.show(), "int box", reason="Box[i32] member")
         assert_equal(Box { value: "a" }.show(), "string box", reason="Box[string] member")

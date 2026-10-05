@@ -69,9 +69,9 @@ fn plan(graph: Graph) -> Result[List[string], PlanError]:
 # its dependencies, so tasks in one wave are independent.
 fn waves(graph: Graph, order: List[string]) -> List[List[string]]:
     let level: mut Map[string, i32] = {}
-    let deepest = 0
+    let deepest = +0
     for name in order:
-        let at = 0
+        let at = +0
         for dep in graph.deps[name]:
             at = max(at, level[dep] + 1)
         level[name] = at

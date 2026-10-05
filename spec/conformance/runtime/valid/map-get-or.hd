@@ -7,6 +7,6 @@ fn stock_of(stock: Map[string, i32], item: string) -> i32:
 
 tests:
     it("returns the value or the fallback"):
-        stock := {"tea": 3}
+        stock := {"tea": +3}
         assert_equal(stock_of(stock, "tea"), 3, reason="present")
         assert_equal(stock_of(stock, "milk"), 0, reason="absent")

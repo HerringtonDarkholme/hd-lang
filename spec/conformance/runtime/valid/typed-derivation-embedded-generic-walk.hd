@@ -54,4 +54,4 @@ tests:
         assert_equal(post.show(), "Post(Timestamp=Timestamp(seconds=3;);title=Launch;)", reason="the embedded part is walked as one value")
 
     it("a generic target walks its members"):
-        assert_equal(Range { low: 1, high: 9 }.show(), "Range(low=1;high=9;)", reason="A is i32")
+        assert_equal(Range { low: +1, high: 9 }.show(), "Range(low=1;high=9;)", reason="A is i32")

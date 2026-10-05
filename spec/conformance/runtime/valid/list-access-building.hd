@@ -43,6 +43,6 @@ tests:
         assert_equal(items, [1, 2, 1, 2], reason="extend by itself doubles")
 
     it("sorts stably"):
-        pairs := [(1, "b"), (0, "x"), (1, "a")]
+        pairs := [(+1, "b"), (+0, "x"), (+1, "a")]
         sorted := pairs.sorted_by(fn(a: (i32, string), b: (i32, string)) -> Ordering: a._0.cmp(b._0))
         assert_equal(sorted, [(0, "x"), (1, "b"), (1, "a")], reason="equal keys keep their order")

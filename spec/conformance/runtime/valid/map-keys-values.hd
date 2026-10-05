@@ -10,7 +10,7 @@ fn summary(stock: Map[string, i32]) -> string:
 
 tests:
     it("contains_key finds an entry by key"):
-        stock := {"tea": 3, "milk": 1}
+        stock := {"tea": +3, "milk": 1}
         assert(stock.contains_key("tea"), reason="present key")
         assert(!stock.contains_key("sugar"), reason="absent key")
         assert_equal(summary(stock), "2 items", reason="through a helper")

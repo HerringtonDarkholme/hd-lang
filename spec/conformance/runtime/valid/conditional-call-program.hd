@@ -9,7 +9,7 @@ fn choose(flag: bool, left: i32, right: i32) -> i32:
         right * 2
 
 fn main() -> i32:
-    base := 20
+    base := +20
     choose(base < 30, base, 0) * 2
 
 tests:

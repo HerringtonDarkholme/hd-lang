@@ -4,7 +4,7 @@
 use std.testing.assert_equal
 
 fn main() -> i32:
-    values := [1, 2, 3, 4]
+    values := [+1, 2, 3, 4]
     let mut source = values.iter()
     let first: i32 = 0
     for value in source:

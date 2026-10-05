@@ -7,8 +7,8 @@ fn pair[T](left: T, right: i32) -> (T, i32): (left, right)
 
 fn main!() -> i32:
     let (loaded, text) = (load!(), "a")
-    nested := ((1, 2),)
-    single := (1,)
+    nested := ((+1, 2),)
+    single := (+1,)
     generic := pair("value", 1)
     let (first, second): (i32, i32) = (1, 2)
     first = 2

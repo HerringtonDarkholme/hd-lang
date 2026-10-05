@@ -1,8 +1,5 @@
-# test: a literal of an open variable is range-checked at the width a later use fixes
-
-fn put(value: u8) -> u8:
-    value
-
-fn run() -> u8:
-    let i = 300  # diagnostic: integer-literal-range
-    put(i)
+# test: a literal that the typed element of its list fixes is range-checked at that width
+# Spec 04 Open Literal Width: types.literal.local.form.element, types.literal.int-range.
+fn run(small: u8) -> u8:
+    let xs = [small, 300]  # diagnostic: integer-literal-range
+    xs[0]

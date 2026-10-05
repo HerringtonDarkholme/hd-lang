@@ -192,9 +192,8 @@ The stdlib chapters' terms are in the
 | **conflict** | Two or more members with one name at the smallest depth where that name occurs, including one member reached through two paths. See [`names.conflict.definition`](lang/03-names-and-scopes.md#r-names.conflict.definition). |
 | **copy-update literal** | A data literal with one leading spread, which builds a new value from an existing one. See [Copy-Update Literals](lang/08-data-and-enums.md#copy-update-literals). |
 | **data type** | A nominal product type with reference semantics. See [`data.kind.data`](lang/08-data-and-enums.md#r-data.kind.data). |
-| **deciding use** | A use that unifies an open variable with a specific numeric type. The first one in source order is the variable's first deciding use, which diagnostics name. See [`types.literal.open.first-decider`](lang/04-type-system.md#r-types.literal.open.first-decider). |
+| **default type** | The type a literal group takes when the expression type-checks with it: `i32` for integers when a member is a signed literal, `usize` otherwise, and `f64` for floating-point literals. See [`types.literal.local.default`](lang/04-type-system.md#r-types.literal.local.default). |
 | **dependency requirement** | A manifest entry `PATH@VERSION` that maps a dependency key to a host path and a minimum version. See [Dependency Requirements](lang/10-modules.md#dependency-requirements). |
-| **dependent variable** | The result type of a method that only some widths provide, called on an open variable, until the end of the body resolves the method. See [`types.literal.open.method.dependent`](lang/04-type-system.md#r-types.literal.open.method.dependent). |
 | **depth** | The number of embedded fields on a part's path. See [`names.part.depth`](lang/03-names-and-scopes.md#r-names.part.depth). |
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](lang/14-annotations.md#derivation-blocks). |
 | **derived variance** | The variance an inherent `impl` parameter has in the implementation's target type, by which its methods are checked. See [`types.variance.target.derived`](lang/04-type-system.md#r-types.variance.target.derived). |
@@ -212,11 +211,9 @@ The stdlib chapters' terms are in the
 | **exhausted** | An iterator whose `next` has returned `.None`. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](lang/14-annotations.md#facts). |
-| **fallback type** | The type an open variable takes when no use in its body fixes it: for an integer variable, `i32` when its literal group holds a signed literal and `usize` otherwise; `f64` for a float variable. See [`types.literal.open.int-fallback`](lang/04-type-system.md#r-types.literal.open.int-fallback). |
 | **field lookup** | The steps that resolve `x.name` to one field from a module. See [Field Lookup](lang/03-names-and-scopes.md#field-lookup). |
 | **fixed elements** | The elements of a tuple type other than its rest element. See [`types.tuple.rest.form`](lang/04-type-system.md#r-types.tuple.rest.form). |
 | **fits** | A candidate implementation fits a call when the call's arguments check against its method's parameter types. See [`trait.resolve.fits`](lang/09-traits.md#r-trait.resolve.fits). |
-| **float variable** | The open variable that an unsuffixed floating-point literal with no expected type has as its type. See [`types.literal.open.var`](lang/04-type-system.md#r-types.literal.open.var). |
 | **folder** | The directory that holds a source file, or for a file `x.hd` with child modules, the directory `x/` that holds them; nested directories are separate folders. See [`module.folder.holder`](lang/10-modules.md#r-module.folder.holder). |
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](lang/10-modules.md#r-module.cycle.folder-edge). |
 | **generic field** | A field whose declared type is a generic parameter; reading it yields the substituted type unchanged. See [`types.path.field.generic`](lang/04-type-system.md#r-types.path.field.generic). |
@@ -226,7 +223,6 @@ The stdlib chapters' terms are in the
 | **inherent method** | A member of an inherent implementation whose first parameter is `self` or `mut self`, called with dot syntax. See [Inherent Members](lang/09-traits.md#inherent-members). |
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](lang/10-modules.md#r-module.init.group). |
 | **inspectable types** | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. See [Inspectable Types](lang/09-traits.md#inspectable-types). |
-| **integer variable** | The open variable that an unsuffixed integer literal with no expected type has as its type. See [`types.literal.open.var`](lang/04-type-system.md#r-types.literal.open.var). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](lang/10-modules.md#r-module.test.integration). |
 | **integration test program** | A file directly under the test root, compiled as its own program. See [`module.test.integration.program`](lang/10-modules.md#r-module.test.integration.program). |
 | **intrinsic method** | An implementation method written after `@intrinsic`, with no body, whose body the compiler supplies. Only the standard library declares one, for a primitive operation such as integer addition. See [Intrinsic Methods](lang/09-traits.md#intrinsic-methods). |
@@ -239,7 +235,7 @@ The stdlib chapters' terms are in the
 | **let-else** | A `let` statement with a refutable pattern and an `else` block, which runs when the pattern does not match and must diverge. See [Let-Else Statements](lang/02-grammar.md#let-else-statements). |
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **literal function** | A function marked `@num_suffix` or `@str_prefix`, which a suffixed literal or prefixed string calls. See [Literal Suffixes](lang/05-expressions.md#literal-suffixes). |
-| **literal group** | The integer literals whose types unification joins into one integer variable. See [`types.literal.open.group`](lang/04-type-system.md#r-types.literal.open.group). |
+| **literal group** | The unsuffixed literals of one expression that have no expected type; they take one width. See [`types.literal.local.group`](lang/04-type-system.md#r-types.literal.local.group). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](lang/01-lexical-structure.md#literal-suffixes). |
 | **local type names** | The name category of data types, enums, traits, aliases, and newtypes declared inside an executable suite. See [`names.category.local-type`](lang/03-names-and-scopes.md#r-names.category.local-type). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](lang/14-annotations.md#member-lines). |
@@ -254,8 +250,6 @@ The stdlib chapters' terms are in the
 | **mutable edges** | What a data type has when it, or a type it embeds at any depth, declares a direct `field: mut U`. See [Mutable Edges](lang/08-data-and-enums.md#mutable-edges). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](lang/11-requirements-and-suspension.md#r-req.mut.trait). |
 | **non-reassignable** | A binding whose name cannot be rebound. See [`types.view.non-reassignable`](lang/04-type-system.md#r-types.view.non-reassignable). |
-| **obligation** | A check that depends on an open variable's width, such as a bound or a choice among instantiations. Exactly one fitting candidate decides the variable at once; otherwise, and always for a conversion to a trait value, the check is made at the end of the body, after the fallback. See [`types.literal.open.end-check`](lang/04-type-system.md#r-types.literal.open.end-check) and [`types.literal.open.one-fit`](lang/04-type-system.md#r-types.literal.open.one-fit). |
-| **open variable** | An integer or float variable: a type whose numeric kind is known and whose width the uses in its body fix by unification, or the fallback type. See [Open Literal Width](lang/04-type-system.md#open-literal-width). |
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](lang/05-expressions.md#operator-traits). |
 | **package mode** | How a command works when the nearest `hd.toml` at or above its start directory declares a package. See [`cli.mode.package.nearest`](cli/command-line.md#r-cli.mode.package.nearest). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](lang/08-data-and-enums.md#parts-and-copies). |
@@ -292,7 +286,7 @@ The stdlib chapters' terms are in the
 | **self reference** | A member's or variant's `self_ref`: whether its type needs the type being derived (`.Required`), only refers to it (`.Optional`), or neither (`.Absent`), computed from its type alone. See [Self References](lang/14-annotations.md#self-references). |
 | **shared test module** | A module in a subdirectory of the test root, which every integration test program may use. See [`module.test.integration.shared`](lang/10-modules.md#r-module.test.integration.shared). |
 | **shape** | In generic code, the machine representation a value occupies. See [Shapes and Generic Code](lang/04-type-system.md#shapes-and-generic-code). |
-| **signed literal** | An integer literal written directly after unary `-` or `+`, as in `-1` or `+5`. See [`types.literal.open.signed`](lang/04-type-system.md#r-types.literal.open.signed). |
+| **signed literal** | An integer literal written directly after unary `-` or `+`, as in `-1` or `+5`. See [`types.literal.local.signed`](lang/04-type-system.md#r-types.literal.local.signed). |
 | **single-file program** | One source file compiled with no package, which may use only `std`. See [Single-File Programs](lang/10-modules.md#single-file-programs). |
 | **spread pattern** | A last tuple-pattern element, a name or `_` followed by `...`, that matches a rest element's list, as in `let (a, xs...) = t`. See [Spread Patterns](lang/06-control-flow.md#spread-patterns). |
 | **substitution step** | A pipe step that contains `_`. See [`expr.pipe.step-kinds`](lang/05-expressions.md#r-expr.pipe.step-kinds). |

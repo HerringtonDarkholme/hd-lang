@@ -1,5 +1,5 @@
 # test: converting a literal to a trait value is no one-fit site, so 0 falls back to usize, which is no Gauge
-# Spec 04 One Fitting Candidate: types.literal.open.one-fit.not-conversion (ONE-FIT).
+# Spec 04 One Fitting Candidate: types.literal.local.erased (ONE-FIT).
 
 trait Gauge:
     fn level(self) -> f64

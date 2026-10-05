@@ -23,11 +23,11 @@ fn read[C < Apply](source: C) -> C::Out:
     source()
 
 fn parent(panel: mut Panel) -> string:
-    let mut count = live(0)
+    let mut count = live(+0)
     count() = 1
     count() += 1
     (panel.count)() += 1
-    view := live(5)
+    view := live(+5)
     total := view() + read(count)
     badge(count) + " ${total}"
 

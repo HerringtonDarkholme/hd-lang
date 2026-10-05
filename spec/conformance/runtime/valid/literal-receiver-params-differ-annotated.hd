@@ -1,5 +1,5 @@
 # test: annotating the literal receiver selects the one scale method its type provides
-# Spec 04 One Fitting Candidate: types.literal.open.one-fit.params-differ (ONE-FIT).
+# Spec 04 One Fitting Candidate: types.literal.local.form.receiver (ONE-FIT).
 use std.testing.assert_equal
 
 trait ScaleBy:

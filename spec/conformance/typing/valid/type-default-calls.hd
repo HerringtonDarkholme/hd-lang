@@ -55,14 +55,14 @@ fn expected() -> i64:
     ledger.total
 
 fn small() -> i32:
-    narrow := widen(3)
+    narrow := widen(+3)
     narrow
 
 fn short_list() -> i32:
-    value := pair::[string]("left", 1)
+    value := pair::[string]("left", +1)
     value._1
 
 fn method_short_list() -> i32:
     identity := Identity { name: "identity" }
-    value := identity.pair::[string]("left", 1)
+    value := identity.pair::[string]("left", +1)
     value._1

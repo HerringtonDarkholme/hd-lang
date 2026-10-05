@@ -1060,17 +1060,16 @@ each supply the method, as with `impl Add[i32] for Money` and
 3. r[trait.resolve.fits] A candidate **fits** when the call's arguments check against its method's parameter types, with that instantiation's trait arguments substituted.
 4. r[trait.resolve.fits.expected] When the call has an expected type, a candidate fits only if, in addition, the method's result type is assignable to it.
 5. r[trait.resolve.one-fit] Exactly one fitting candidate is selected, so `price.add(5)` calls the `Add[i32]` method.
-6. r[trait.resolve.open-wait] Suppose two or more candidates fit, and an argument's type is an [open variable](04-type-system.md#r-types.literal.open.var). The choice waits until the end of the body, as [`types.literal.open.end-check`](04-type-system.md#r-types.literal.open.end-check) states, and never fixes the variable.
-7. r[trait.resolve.open-fallback-type] There, the candidate that fits with each such variable at its fixed type is selected. A variable that no use fixed has its [fallback type](04-type-system.md#r-types.literal.open.int-fallback).
-8. r[trait.resolve.open-fallback-type.example] With `impl Add[i32] for Money` and `impl Add[i64] for Money`, `price.add(-5)` calls the `Add[i32]` method. After `let n = 5`, `price.add(n)` calls the `Add[i64]` method when a use such as `let wide: i64 = n` fixes `n`.
-9. r[trait.resolve.open-fallback-type.no-fit] With the same two implementations, `price.add(5)` is an error, because `5` falls back to `usize` and no candidate fits. Error: `type-mismatch`.
+6. r[trait.resolve.literal-arg] Suppose two or more candidates fit only because an unsuffixed literal argument could take several widths. The literal then has its [default type](04-type-system.md#r-types.literal.local.default), by [`types.literal.local.instantiation`](04-type-system.md#r-types.literal.local.instantiation), and the candidate for that type is selected.
+7. r[trait.resolve.literal-arg.example] With `impl Add[i32] for Money` and `impl Add[i64] for Money`, `price.add(-5)` calls the `Add[i32]` method.
+8. r[trait.resolve.literal-arg.no-fit] With the same two implementations, `price.add(5)` is an error, because no candidate takes `usize`; write `+5`. Error: `type-mismatch`.
 10. r[trait.resolve.many-fit] Otherwise two or more fitting candidates are an error, and a trait-qualified call such as `Add::[i64]::add(price, 5)` resolves it. Error: `ambiguous-method`.
 11. r[trait.resolve.no-fit] When no candidate fits, the call is an error whose message lists the available instantiations. Error: `type-mismatch`.
 12. r[trait.resolve.one-trait-only] This choice applies only among instantiations of one trait. Methods of two different traits stay ambiguous whatever the argument types. Error: `ambiguous-method`.
 
-> **Note.** When the receiver's type is an open variable, the receiver
-> alone chooses that type, before any argument is checked, by
-> [`types.literal.open.one-fit.receiver-width`](04-type-system.md#r-types.literal.open.one-fit.receiver-width).
+> **Note.** When the receiver is a literal, the call's arguments and
+> implementations decide its width, by
+> [`types.literal.local.form.receiver`](04-type-system.md#r-types.literal.local.form.receiver).
 > A candidate here is then an instantiation of that one type.
 
 ```text
@@ -1892,7 +1891,7 @@ fn read_box(value: Inspectable) -> i32:
 With `let one: i32 = 1`, `erase(one)` records `Box[i32]`, so `is_int_box`
 returns `true` for it and `read_box` returns `1`. `erase(1)` records
 `Box[usize]`, by the
-[fallback type](04-type-system.md#r-types.literal.open.int-fallback).
+[default type](04-type-system.md#r-types.literal.local.default).
 `erase("one")` records `Box[string]`, and both functions take their other
 branch.
 

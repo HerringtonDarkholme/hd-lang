@@ -21,7 +21,7 @@ fn position(text: string) -> usize?:
 tests:
     it("joins and processes"):
         assert_equal(interpolate(Template { raw_parts: ["a", "b", "c"], values: [1, 2] }), "a1b2c", reason="alternating")
-        n := 7
+        n := +7
         assert_equal(cooked"n=$n\n", "n=7\n", reason="through a prefix")
         assert_equal(process_escapes("a\\tb"), .Ok("a\tb"), reason="a tab")
 

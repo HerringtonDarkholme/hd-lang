@@ -4,10 +4,10 @@
 use std.testing.assert_equal
 
 fn main() -> i32:
-    let mut source = [2, 3, 4, 5].iter()
+    let mut source = [+2, 3, 4, 5].iter()
     _ := source.next()
     values := [for value in source => value * 10]
-    let mut second = [0, 1, 2].iter()
+    let mut second = [+0, 1, 2].iter()
     let total: i32 = 0
     for value in second:
         total = total + value

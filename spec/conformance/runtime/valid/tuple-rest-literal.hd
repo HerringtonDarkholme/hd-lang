@@ -13,7 +13,7 @@ tests:
         assert_equal(total((1, 2)), 3, reason="an empty rest")
 
     it("a tuple expression spreads a list into the rest"):
-        xs := [7, 8, 9]
+        xs := [+7, 8, 9]
         let t: (usize, usize, List[i32]...) = (1, 2, xs...)
         assert_equal(t._2, [7, 8, 9], reason="the spread list is the rest element")
         assert_equal(total(t), 6, reason="the spread gives (usize, usize, List[i32]...)")

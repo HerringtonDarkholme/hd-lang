@@ -1,6 +1,5 @@
-# test: a method that exactly one integer type provides decides its literal receiver
-# Spec 04 Deciding Uses: types.literal.open.decide.one-receiver, types.literal.open.one-fit (ONE-FIT).
-
+# test: an implementation alone never names a literal receiver's width, so an annotation gives it
+# Spec 04 Open Literal Width: types.literal.local.join, types.literal.local.form.receiver.
 trait Halve:
     fn halve(self) -> Self
 
@@ -9,5 +8,5 @@ impl Halve for i64:
         self / 2
 
 fn run() -> i64:
-    let n = 10
+    let n: i64 = 10
     n.halve()

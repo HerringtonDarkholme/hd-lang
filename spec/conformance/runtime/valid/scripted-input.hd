@@ -11,7 +11,7 @@ fn first_line!() -> string $ ConsoleInput:
 
 fn count_lines!() -> i32 $ ConsoleInput:
     let mut input = $.use(ConsoleInput)
-    let count = 0
+    let count = +0
     while true:
         match input.read_line!():
             .Ok(.Some(_)) => count = count + 1

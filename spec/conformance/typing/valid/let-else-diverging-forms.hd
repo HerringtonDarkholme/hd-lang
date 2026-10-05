@@ -5,7 +5,7 @@ enum Shape:
     Empty
 
 fn first_dots(shapes: List[Shape], strict: bool) -> i32:
-    let total = 0
+    let total = +0
     for item in shapes:
         let Shape.Dot(x) = item else: continue
         let 0 = x else:

@@ -15,7 +15,7 @@ fn suspended!(pair: (i32, i32)) -> i32:
 
 tests:
     it("a tuple fills fixed parameters"):
-        pair := (1, 2)
+        pair := (+1, +2)
         assert_equal(add(pair...), 3, reason="every parameter")
         assert_equal(add3(10, pair...), 13, reason="the remaining parameters")
         assert_equal(through(add, (4, 5)), 9, reason="a function value's inputs tuple")

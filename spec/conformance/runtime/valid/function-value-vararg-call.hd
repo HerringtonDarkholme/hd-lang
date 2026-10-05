@@ -10,7 +10,7 @@ fn apply(callback: fn(usize, usize, List[i32]...) -> usize) -> usize:
 tests:
     it("a function value is called with varargs"):
         f := g
-        xs := [5, 6, 7]
+        xs := [+5, 6, 7]
         assert_equal(f(1, 2, 3, 4), 5, reason="separate arguments are collected")
         assert_equal(f(1, 2), 3, reason="an empty vararg")
         assert_equal(f(1, 2, xs...), 6, reason="a list spread at the vararg")

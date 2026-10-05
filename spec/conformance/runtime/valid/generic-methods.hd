@@ -25,7 +25,7 @@ fn explicit_right() -> i32:
 
 fn inferred_right() -> i32:
     identity := Identity {}
-    pair := identity.pair("left", 7)
+    pair := identity.pair("left", +7)
     pair._1
 
 fn bounded_display() -> i32:

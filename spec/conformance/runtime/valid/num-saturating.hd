@@ -16,7 +16,7 @@ tests:
         let top: i32 = 2147483647
         assert_equal(top.saturating_add(5), 2147483647, reason="i32 above")
         assert_equal((-2147483647 - 1).saturating_sub(5), -2147483647 - 1, reason="i32 below")
-        assert_equal(2147483647.saturating_sub(-1), 2147483647, reason="subtracting a negative")
+        assert_equal((+2147483647).saturating_sub(-1), 2147483647, reason="subtracting a negative")
         assert_equal(40.saturating_add(2), 42, reason="the exact sum")
         let low: i8 = -100
         assert_equal(low.saturating_add(-100), -128, reason="i8 below")

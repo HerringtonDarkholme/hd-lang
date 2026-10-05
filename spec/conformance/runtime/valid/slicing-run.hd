@@ -14,7 +14,7 @@ tests:
         assert_equal("hello"[2..2], "", reason="an empty slice")
 
     it("slices a list into a new list"):
-        items := [1, 2, 3]
+        items := [+1, 2, 3]
         assert_equal(parts("hello", items)._2, [1, 2], reason="..b")
         assert_equal(parts("hello", items)._3, [2, 3], reason="a..=b")
         let mut copy = items[0..2]

@@ -1,11 +1,8 @@
-# test: each tuple slot keeps its own open variable, and an undecided slot falls back
-
-fn take(value: u8) -> u8:
-    value
-
+# test: each tuple slot has its own literal group, and a slot nothing decides has its default type
+# Spec 04 Open Literal Width: types.literal.local.default, types.literal.local.statement.
 fn second():
     let (a, b) = (1, 2.5)
-    let small: u8 = take(a)
+    let count: usize = a
     b
 
 fn run() -> f64:

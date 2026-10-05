@@ -13,9 +13,9 @@ fn label(parts...: (string, List[i32]...)) -> string: "${parts._0}${parts._1.len
 
 tests:
     it("separate arguments then a list spread fill a Tuple-bounded vararg"):
-        xs := [3, 4, 5]
+        xs := [+3, 4, 5]
         assert_equal(call(g, 1, 2, xs...), 6, reason="the spread list is the rest element")
 
     it("separate arguments then a list spread fill a tuple-typed vararg"):
-        xs := [7, 8]
+        xs := [+7, 8]
         assert_equal(label("a", xs...), "a2", reason="collected as the tuple expression of the arguments")

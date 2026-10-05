@@ -7,6 +7,6 @@ fn label(parts...: (i32, string)) -> string: "${parts._0}${parts._1}"
 tests:
     it("the arguments fill the tuple in order"):
         assert_equal(label(1, "a"), "1a", reason="separate arguments")
-        pair := (2, "b")
+        pair := (+2, "b")
         assert_equal(label(pair...), "2b", reason="a spread of the collected type")
         assert_equal(label(parts=(3, "c")), "3c", reason="by name")

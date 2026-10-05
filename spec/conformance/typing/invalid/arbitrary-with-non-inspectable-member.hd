@@ -5,7 +5,7 @@ use std.testing.{Arbitrary, Choices}
 use std.testing.arbitrary
 
 fn digit_task(c: mut Choices) -> fn() -> i32:
-    n := c.int(0, 9)
+    n := c.int(+0, 9)
     fn() -> i32: n
 
 @derive(Arbitrary)  # diagnostic: unsatisfied-trait-bound

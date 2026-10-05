@@ -11,6 +11,6 @@ fn describe(`in`: Token, `match`: bool) -> string:
 label := describe(Token { `type`: "word", text: "hi" }, `match` = true)
 
 fn keywords() -> i32:
-    `for` := 1
+    `for` := +1
     `return` := `for` + 1
     `return`

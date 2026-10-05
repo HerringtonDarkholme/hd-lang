@@ -24,7 +24,7 @@ fn head(text: string, end: usize) -> string:
     text.slice(0, end)
 
 fn count_letters(text: string) -> i32:
-    let count = 0
+    let count = +0
     for letter in text.chars():
         count = count + 1
     count

@@ -24,7 +24,7 @@ fn badge(count: Cell[i32]) -> string:
     "clicked ${count()}"
 
 fn parent() -> string:
-    let mut count = live(0)
+    let mut count = live(+0)
     count() = 1
     count() += 2
     badge(count)
@@ -37,5 +37,5 @@ tests:
     it("stores through the cell"):
         assert_equal(parent(), "clicked 3", reason="1 then += 2")
     it("reaches a cell in a field"):
-        let mut panel = Panel { count: live(5) }
+        let mut panel = Panel { count: live(+5) }
         assert_equal(bump(panel), 15, reason="5 then += 10")

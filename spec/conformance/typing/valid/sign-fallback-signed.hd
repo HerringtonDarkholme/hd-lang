@@ -1,5 +1,5 @@
-# test: a signed literal anywhere in an integer group makes the whole group fall back to i32
-# Spec 04 Open Literal Width: types.literal.open.signed, types.literal.open.group, types.literal.open.int-fallback (SIGN-FALLBACK, batch 83).
+# test: a signed literal anywhere in a literal group makes the whole group i32
+# Spec 04 Open Literal Width: types.literal.local.signed, types.literal.local.group, types.literal.local.default.
 
 fn negative():
     let x = -1
@@ -10,9 +10,11 @@ fn plus():
     d
 
 fn signed():
-    let a = 5
-    let b = -1
-    a + b
+    5 + -1
+
+fn listed():
+    let xs = [1, -2]
+    xs[0]
 
 fn run() -> i32:
-    negative() + plus() + signed()
+    negative() + plus() + signed() + listed()

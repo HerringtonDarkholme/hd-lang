@@ -1,5 +1,5 @@
 # test: a literal erased to Inspectable records its fallback type: usize, or i32 for a signed literal
-# Spec 04 Neutral Uses: types.literal.open.neutral.erased (ONE-FIT).
+# Spec 04 Neutral Uses: types.literal.local.erased (ONE-FIT).
 use std.inspect.{Inspectable, downcast_val}
 use std.testing.assert_equal
 

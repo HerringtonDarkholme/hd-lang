@@ -12,7 +12,7 @@ fn strict(scores: Map[string, i32], name: string) -> i32:
 
 tests:
     it("reads present and missing keys"):
-        scores := {"ada": 36}
+        scores := {"ada": +36}
         assert_equal(strict(scores, "ada"), 36, reason="m[k] reads V")
         assert_equal(score(scores, "ada"), 36, reason="get finds a present key")
         assert_equal(score(scores, "grace"), 0, reason="get reads .None for a missing key")

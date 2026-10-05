@@ -9,7 +9,7 @@ fn main() -> i32:
             cleanup = cleanup + 1
         break 41
     else:
-        0
+        +0
     value + cleanup
 
 tests:

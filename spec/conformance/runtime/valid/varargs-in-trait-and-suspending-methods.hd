@@ -18,7 +18,7 @@ fn use_dynamic_async!(value: Sum) -> i32: value.add_async!(4)
 
 fn main!() -> i32:
     value := Box { base: 30 }
-    items := [5, 6]
+    items := [+5, 6]
     value.add(items...) + use_dynamic(value) + use_dynamic_async!(value)
 
 tests:

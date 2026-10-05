@@ -12,12 +12,12 @@ fn unwrap(value: i32?) -> i32:
 
 tests:
     it("a later duplicate key replaces the value"):
-        scores := {"answer": 20, "other": 2, "answer": 40}
+        scores := {"answer": +20, "other": 2, "answer": 40}
         assert_equal(unwrap(lookup(scores, "answer")), 40, reason="the later value wins")
         assert_equal(scores.len(), 2, reason="the duplicate key adds no entry")
 
     it("scalar keys replace the same way"):
-        values := {1: 20, 2: 2, 1: 40}
+        values := {+1: +20, 2: 2, 1: 40}
         assert_equal(unwrap(values.get(1)), 40, reason="the later value wins")
         assert_equal(values.len(), 2, reason="the duplicate key adds no entry")
 

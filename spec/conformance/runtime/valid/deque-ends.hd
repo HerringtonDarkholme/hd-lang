@@ -43,7 +43,7 @@ tests:
 
     it("many pushes and pops at both ends"):
         let queue: mut Deque[i32] = Deque::new()
-        let index = 1
+        let index = +1
         while index <= 20:
             queue.push_back(index)
             queue.push_front(-index)

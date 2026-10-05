@@ -1,4 +1,5 @@
-# test: a choice among several instantiations waits for the end of the body
+# test: among several instantiations, a literal argument keeps its default type
+# Spec 04 Open Literal Width: types.literal.local.instantiation.
 use std.testing.assert_equal
 
 trait Combine[T]:
@@ -20,14 +21,15 @@ impl Combine[usize] for Money:
         "usize"
 
 tests:
-    it("a later use fixes the argument, and the choice follows it"):
+    it("a bare literal argument chooses the usize instantiation"):
         price := Money { cents: 10 }
-        let n = 5
-        let chosen = price.combine(n)
-        let wide: i64 = n
-        assert_equal(chosen, "i64", reason="n is an i64, so Combine[i64] is chosen")
+        assert_equal(price.combine(5), "usize", reason="5 has no sign, so it is a usize")
 
-    it("with no deciding use the fallback chooses"):
+    it("a signed literal argument chooses the i32 instantiation"):
         price := Money { cents: 10 }
-        let n = 5
-        assert_equal(price.combine(n), "usize", reason="n has no signed literal, so it falls back to usize")
+        assert_equal(price.combine(+5), "i32", reason="+5 is an i32")
+
+    it("an annotated binding chooses its own instantiation"):
+        price := Money { cents: 10 }
+        let n: i64 = 5
+        assert_equal(price.combine(n), "i64", reason="n is an i64")

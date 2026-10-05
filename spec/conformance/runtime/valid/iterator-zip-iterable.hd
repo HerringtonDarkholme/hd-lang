@@ -15,7 +15,7 @@ impl Iterable[i32] for Probe:
         Iterator::from_fn(self.pull)
 
 fn labeled(names: List[string]) -> List[(i32, string)]:
-    [1, 2, 3].iter().zip(names).collect()
+    [+1, 2, 3].iter().zip(names).collect()
 
 tests:
     it("zip stops at the shorter"):
@@ -28,7 +28,7 @@ tests:
         assert_equal([1, 2].iter().zip(seen).collect(), [(1, "x")], reason="a set")
     it("zip takes iter once, when called, and does not read other past the end of self"):
         let log: mut List[string] = []
-        let at = 0
+        let at = +0
         probe := Probe {
             start: fn() -> void: log.push("iter"),
             pull: fn() -> i32?:

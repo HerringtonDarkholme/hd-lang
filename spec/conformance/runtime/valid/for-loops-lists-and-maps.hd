@@ -16,14 +16,14 @@ fn main!() -> i32:
         if value == 2:
             continue
         total = total + value
-    scores := {"a": 10, "b": 20}
+    scores := {"a": +10, "b": 20}
     for (key, score) in scores:
         if key.len() == 1:
             total = total + score
-    for entry in {"c": 7}:
+    for entry in {"c": +7}:
         total = total + entry._1
     let cleanup: i32 = 0
-    for value in [1, 2]:
+    for value in [+1, 2]:
         defer:
             cleanup = cleanup + 10
         if value == 1:

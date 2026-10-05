@@ -1,5 +1,5 @@
 # test: a balance that falls back to usize panics when a subtraction goes below zero
-# Spec 04 Open Literal Width: types.literal.open.int-fallback; 06 Panic Behavior: flow.panic.report.fallback (SIGN-FALLBACK, batch 83).
+# Spec 04 Open Literal Width: types.literal.local.default; 06 Panic Behavior: flow.panic.report.fallback (SIGN-FALLBACK, batch 83).
 
 fn settle():
     let balance = 100

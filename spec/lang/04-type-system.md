@@ -178,9 +178,10 @@ See also: [String Indexing](05-expressions.md#string-indexing),
 
 ## Literal Types
 
-An integer literal with no expected type has an open integer type. It is
-`usize` unless a use fixes another width or a literal of its group has a
-sign, as [Open Literal Width](#open-literal-width) states:
+An unsuffixed numeric literal takes its type inside the expression that
+holds it: from an expected type, from the typed parts of that expression,
+or else from its own form, as [Open Literal Width](#open-literal-width)
+states:
 
 ```text
 x := 1   # usize
@@ -189,7 +190,7 @@ y := -1  # i32
 
 ### Integer Literals
 
-1. r[types.literal.int-open-var] An integer literal in any supported radix with no expected type has an [open integer variable](#r-types.literal.open.var) as its type. When no use fixes the variable, it takes its [fallback type](#r-types.literal.open.int-fallback) in every value range.
+1. r[types.literal.int-local] An integer literal in any supported radix with no expected type takes its width from its expression, by [`types.literal.local.join`](#r-types.literal.local.join), or else its [default type](#r-types.literal.local.default), in every value range.
 2. r[types.literal.int-no-widen] An integer literal does not automatically choose a wider type.
 3. r[types.literal.int-range] When an integer literal has an expected integer type, the compiler checks the literal against that type's range. A literal outside it is an error. Error: `integer-literal-range`.
 
@@ -212,318 +213,71 @@ let ratio: f64 = 1   # error: type-mismatch
 
 ### Floating-Point Literals
 
-1. r[types.literal.float-open] A floating-point literal with no expected type has an [open float variable](#r-types.literal.open.var) as its type. It is `f64` when no use fixes the variable, and it must be representable as a finite value of the type it takes.
+1. r[types.literal.float-local] A floating-point literal with no expected type takes its width from its expression, by [`types.literal.local.join`](#r-types.literal.local.join), or else `f64`. It must be representable as a finite value of the type it takes.
 2. r[types.literal.float-expected] When an expected `f32` or `f64` type is available, the literal is converted directly to that type.
 3. r[types.literal.float-finite] The converted literal must be representable as a finite value under that type's IEEE 754 rounding rules. Error: `float-literal-range`.
 
 ### Open Literal Width
 
-An unsuffixed numeric literal with no expected type starts as a type
-variable. The variable goes wherever the value goes, and the body's uses
-solve it together, by unification:
+A literal's width is settled within the one expression that holds it. An
+expected type decides it; otherwise the typed parts of the expression do;
+otherwise the literal's own form does:
 
 ```text
-fn total(items: List[i32]) -> i32:
-    let sum: i32 = 0
-    for i in 0..10:            # the range and i share one integer variable
-        sum = sum + items[i]   # the first deciding use: the range is a Range[usize]
-    sum
-```
-
-1. r[types.literal.open.var] An unsuffixed integer literal with no expected type has a fresh **integer variable** as its type. An unsuffixed floating-point literal with no expected type has a fresh **float variable**.
-2. r[types.literal.open.var.term] Integer and float variables are **open variables**. An open variable's kind, integer or floating-point, is known, and its width is not.
-3. r[types.literal.open.var.unary] Unary `-` or `+` applied to a value whose type is an open variable has that same variable as its type.
-4. r[types.literal.open.share-kind] An arithmetic operator whose operands have open variables of one kind joins them into one variable, which is also the type of its result. So `let n = 2 + 3` gives `n` and both literals one variable.
-5. r[types.literal.open.unify] Within one body, each use of an open variable is a constraint, and the constraints are solved together by unification. The solution does not depend on the order of the uses.
-6. r[types.literal.open.kind] An integer variable unifies only with an integer type, and a float variable only with a floating-point type. Any other type is an error. Error: `type-mismatch`.
-7. r[types.literal.open.first-decider] A use that unifies an open variable with a specific numeric type is a **deciding use**. The first one in source order is the variable's first deciding use, which diagnostics name as the source of its type.
-8. r[types.literal.open.signed] A **signed literal** is an integer literal written directly after unary `-` or `+`, as in `-1` or `+5`.
-9. r[types.literal.open.group] The integer literals whose types unification joins into one integer variable form its **literal group**. A use that joins two variables merges their groups.
-10. r[types.literal.open.int-fallback] At the end of the body, an integer variable that no use fixed takes its **fallback type**: `i32` when its literal group holds a signed literal, and `usize` otherwise.
-11. r[types.literal.open.float-fallback] At the end of the body, a float variable that no use fixed takes the fallback type `f64`.
-12. r[types.literal.open.fallback-separate] Variables that no use joins fall back separately, so a signed literal decides only its own group.
-13. r[types.literal.open.display] A diagnostic or a type display shows an open variable that nothing has fixed as `{integer}` or `{float}`.
-
-```text
-fn half(value: f64) -> f64:
-    value / 2.0
-
-fn run() -> f64:
-    let n = 1
-    let ratio = 1.0
-    let both = half(ratio)  # valid: the float variable is an f64
-    half(n)                 # error: type-mismatch
-```
-
-```text
-fn counter():
-    let i = 0
-    let n = i + 1    # no sign: i and n fall back to usize
-    n
-
-fn signed():
-    let a = 5
-    let b = -1
-    a + b            # one group with a signed literal: a and b are i32
-
-fn apart():
-    let a = 5
-    let d = +5
-    (a, d)           # two groups: a is a usize, and d is an i32
-```
-
-> **Note.** The comments in this section write an open variable as
-> `{integer}` or `{float}`, as diagnostics display it. Neither is hd
-> syntax.
-
-> **Note.** With no annotation, `let balance = 100` followed by
-> `balance = balance - 150` is a `usize` subtraction below zero, which
-> panics with `integer-overflow`. Write `+100` or
-> `let balance: i32 = 100` for a value that may go negative. The panic
-> report says that the type came from the fallback, by
-> [`flow.panic.report.fallback`](06-control-flow.md#r-flow.panic.report.fallback).
-
-> **Why.** An unannotated integer usually counts or indexes, so `usize`
-> lets `let i = 0` meet `len()` with no annotation. A written sign is the
-> program's own statement that the value may be negative.
-
-> **Note.** `let mut i = 0` is still an error, by
-> [`types.bind.let-mut-primitive`](#r-types.bind.let-mut-primitive): a
-> number is primitive at every width.
-
-#### Flow Through Types
-
-An open variable flows through types unchanged. A type built from a value
-whose type holds an open variable holds that same variable:
-
-```text
-data Pair[T]:
-    first: T
-    second: T
-
-fn identity[T](value: T) -> T:
-    value
-
-fn build() -> void:
-    let span = 0..10                         # Range[{integer}]
-    let xs = [1, 2]                          # List[{integer}]
-    let scores = {"Ada": 1.5}                # Map[string, {float}]
-    let found = Option.Some(3)               # {integer}?
-    let pair = Pair { first: 1, second: 2 }  # Pair[{integer}]
-    let both = (1, 2.5)                      # ({integer}, {float})
-    let same = identity(7)                   # {integer}
-```
-
-| Rule | Construct | Example | Type |
-| --- | --- | --- | --- |
-| r[types.literal.open.flow.range] Range | a range expression with open bounds | `0..10` | `Range[{integer}]`, with one variable for both bounds |
-| r[types.literal.open.flow.list] List literal | a list literal with open elements | `[1, 2]` | `List[{integer}]`, with one variable for every element |
-| r[types.literal.open.flow.map] Map literal | a map literal with open keys or values | `{"Ada": 1.5}` | `Map[string, {float}]`, with one variable for the keys and one for the values |
-| r[types.literal.open.flow.enum] Generic enum constructor | a qualified variant of a generic enum, given an open payload | `Option.Some(3)` | `{integer}?` |
-| r[types.literal.open.flow.data] Generic data literal | a literal of a generic data type, given open fields | `Pair { first: 1, second: 2 }` | `Pair[{integer}]` |
-| r[types.literal.open.flow.tuple] Tuple | a tuple expression with open elements | `(1, 2.5)` | `({integer}, {float})`, with one variable per slot |
-| r[types.literal.open.flow.call] Generic call | a call that solves a type parameter from an open argument | `identity(7)` | the parameter `T` is the argument's variable, and so is each `T` in the result |
-| r[types.literal.open.flow.closure] Closure capture | a closure that reads a binding of an open variable | `fn() -> bool: i == 0` | the closure uses the binding's own variable |
-
-1. r[types.literal.open.flow.join] Where several values join into one type, open variables of one kind among them join into one variable. Such joins are list elements, map keys, map values, and arguments that solve one type parameter.
-2. r[types.literal.open.flow.join.decide] An open variable that joins with a specific numeric type takes that type, as a deciding use. So `[1, small]` with an `i16` `small` is a `List[i16]`, as an operand literal adopts its width by [`types.num.binary.literal-operand`](#r-types.num.binary.literal-operand).
-3. r[types.literal.open.flow.join.typed] Two values of specific types still join only by [`types.lct.conversions`](#r-types.lct.conversions), so an `i16` and an `i64` element have no common type.
-
-```text
-fn widths(small: i16) -> List[i16]:
-    let xs = [1, small]   # List[i16]: the literal adopts the width
-    xs
-```
-
-#### Pattern Bindings
-
-A pattern binds each name to the type at its position, so a name at the
-position of an open variable has that variable:
-
-```text
-fn take(value: u8) -> u8:
-    value
-
-fn run() -> u8:
-    let (a, b) = (1, 2.5)   # a and b each have the variable of their slot
-    let small = take(a)     # a is a u8; b falls back to f64
-    small
-```
-
-1. r[types.literal.open.bind] A pattern binds a name to the type at the name's position in the matched type. Where that type is an open variable, the name has the same variable, not a copy of it.
-
-| Rule | Pattern | Example | The name's type |
-| --- | --- | --- | --- |
-| r[types.literal.open.bind.let] One name | a `let` or `:=` binding with no annotation | `let i = 0`, `i := 0` | the initializer's variable |
-| r[types.literal.open.bind.tuple] Tuple pattern | a `let` tuple pattern | `let (a, b) = (1, 2.5)` | the variable of the name's slot |
-| r[types.literal.open.bind.for] Loop variable | the pattern of a `for` loop or a comprehension `for` clause | `for i in 0..10`, `for x in [1, 2]` | the element variable of the `Range` or `List` |
-| r[types.literal.open.bind.payload] Payload | a payload pattern in a `match` arm or a let-else | `.Some(n)` against `Option.Some(3)` | the payload's variable |
-| r[types.literal.open.bind.data] Data pattern | a data pattern against a generic data value | `let Pair { first, second } = pair` with a `Pair[{integer}]` | the field's variable |
-
-2. r[types.literal.open.bind.for.iterable] Every integer width implements `Iterable` for `Range` and `RangeFrom`, so a loop over a range of an open variable needs no width. The loop's iteration is resolved at the end of the body.
-
-#### Deciding Uses
-
-A deciding use needs one specific numeric type:
-
-```text
-fn count(items: List[string]) -> usize:
-    let i = 0               # an integer variable
-    while i < items.len():  # the first deciding use: i is a usize
-        i = i + 1
-    i
-```
-
-| Rule | Use of a value whose type is an open variable | Fixes the variable to |
-| --- | --- | --- |
-| r[types.literal.open.decide.operand] Operand | an operand of an arithmetic or comparison operator whose other operand has a specific numeric type, as in `i < items.len()` | the other operand's type |
-| r[types.literal.open.decide.argument] Argument | an argument to a parameter of a specific type | the parameter's type |
-| r[types.literal.open.decide.assign] Assignment | a value stored into a place of a specific type, or a value of a specific type assigned to a binding of the variable | the place's or the value's type |
-| r[types.literal.open.decide.result] Result | a `return` operand, or the body's final value, under a declared result type | the result type |
-| r[types.literal.open.decide.index] Index | an index or slice bound of a list or string, by [Indexing](05-expressions.md#indexing) | `usize` |
-| r[types.literal.open.decide.element] Element | a value for a typed field, or for an element of a collection whose element type is known | that field's or element's type |
-| r[types.literal.open.decide.generic] Generic argument | an argument whose type parameter another argument solves, as in `biggest(i, items.len())`, or a generic call whose result is used in a typed place | the solved type |
-| r[types.literal.open.decide.type-argument] Type argument | a value of a specific type where checking needs the variable's position inside a type, as in `xs.push(n)` with a `u16` `n` and a `mut List[{integer}]` `xs` | that value's type |
-| r[types.literal.open.decide.one-instantiation] One instantiation | a method call or operator for which exactly one instantiation of a generic trait fits, by [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) | that instantiation's parameter type |
-| r[types.literal.open.decide.one-impl] One implementation | an argument to a generic parameter whose bounds exactly one type of the variable's kind satisfies, as `grow(5)` with `fn grow[T < Scale](x: T) -> T` and only `impl Scale for i64` | that type |
-| r[types.literal.open.decide.one-receiver] One receiver type | a receiver of a method call, or a left operand of an operator, whose method exactly one type of the variable's kind provides, as `n.halve()` with only `impl Halve for i64` | that type |
-
-1. r[types.literal.open.decide.other] Any other use that needs one specific numeric type is also a deciding use, such as a branch of a value-producing `if` beside a `u64` branch.
-2. r[types.literal.open.decide.through] A deciding use of a value fixes the variable for every place that holds it. So `items[i]`, with `i` from `for i in 0..10`, makes the range a `Range[usize]`.
-3. r[types.literal.open.decide.construct] A construct whose own rules join a specific type with an open variable decides at construction. So `0..n` with a `usize` `n` is a `Range[usize]`, by [`expr.range.bound.operands`](05-expressions.md#r-expr.range.bound.operands).
-
-#### Neutral Uses
-
-A neutral use accepts any width, so it fixes nothing:
-
-| Rule | Use of a value whose type is an open variable | Effect |
-| --- | --- | --- |
-| r[types.literal.open.neutral.open] Open operand | an operator whose other operand has an open variable of the same kind | both share one variable |
-| r[types.literal.open.neutral.assign] Open assignment | assigning a value of an open variable to a binding of another, as in `i = i + 1` or `i = 5` | the two share one variable |
-| r[types.literal.open.neutral.generic] Unconstrained generic argument | an argument to a generic parameter that nothing else at the call constrains, as in `show(i)` with `fn show[T < Display](value: T)` | the call's `T` is the argument's variable |
-| r[types.literal.open.neutral.method] Method of every width | a method call that every width of the kind provides, as in `i.to_string()` | the method is resolved once the variable is fixed |
-| r[types.literal.open.neutral.any-width] Any width | a numeric cast, as in `u8(i)`, or an interpolation, as in `"$i"` | none |
-| r[types.literal.open.neutral.instantiations] Several instantiations | a method call or operator for which several instantiations of one generic trait fit, as `price.add(n)` with `Add[i32]` and `Add[i64]`, or `k * price` with an open `k` and a data `price` | the choice waits for the end of the body |
-| r[types.literal.open.neutral.several-widths] Method of several widths | a method call that two or more widths of the kind provide, but not every width, as `i.neg()` | the method is resolved at the end of the body |
-| r[types.literal.open.neutral.erased] Erasure | a value converted to `Any`, or to a trait value type that every width of the kind implements, as in `let x: Any = 42` or `let p: Inspectable = 42` | none: with no other use, the variable takes its fallback type, so `x` holds a `usize` |
-| r[types.literal.open.neutral.erased-some] Partial erasure | a value converted to a trait value type that not every width of the kind implements, as in `let reading: Gauge = 0.0` with only `impl Gauge for f64` | none: the conversion is checked at the variable's fixed type, by [`types.literal.open.one-fit.not-conversion`](#r-types.literal.open.one-fit.not-conversion) |
-
-1. r[types.literal.open.method.dependent] Until a method of some widths is resolved, its call's result type is a **dependent variable**: the type the resolved method returns. No use fixes a dependent variable, and a use that needs a specific type for one is checked at the resolution.
-2. r[types.literal.open.method.missing] When the variable's type at the end of the body does not provide the method, the call is an error. Error: `unknown-method`.
-3. r[types.literal.open.method.dependent.join] An open variable joined with a dependent variable, as the `1` in `i.neg() + 1`, takes the type the resolved method returns instead of a fallback type.
-4. r[types.literal.open.method.no-backward] No use of a dependent variable decides the receiver's variable: inference never runs backward through a method result. So neither `take_i8(m)` after `let m = i.neg()`, nor `let m: i8 = i.neg()`, makes `i` an `i8`.
-
-```text
-use std.ops.Neg
-
-fn show[T < Display](value: T) -> string:
-    "$value"
-
 fn biggest[T < Ord](left: T, right: T) -> T:
     match left.cmp(right):
         .Less => right
         _ => left
 
-fn negate[T < Neg[Out = T]](value: T) -> T:
-    -value
-
-fn run(items: List[string]) -> usize:
-    let i = 0
-    let text = show(i)                 # neutral: T is the variable of i
-    let top = biggest(i, items.len())  # deciding: T and i are usize
-    let flipped = negate(i)            # error: unsatisfied-trait-bound
-    top
-
-fn flip() -> bool:
-    let i = +1
-    i.neg() == i                       # valid: the signed literal makes i an i32, which has neg
-
-fn wide() -> u32:
-    let i = 1
-    let flipped = i.neg()              # error: unknown-method
-    let count: u32 = i
-    count
-
-fn offset() -> i32:
-    let i = +1
-    i.neg() + 1                        # valid: the 1 takes the i32 that neg returns
-
-fn take_i8(value: i8) -> i8:
-    value
-
-fn narrow() -> i8:
-    let i = +1
-    let m = i.neg()                    # m does not make i an i8
-    take_i8(m)                         # error: implicit-narrowing
+fn total(price: i64, items: List[string]) -> i64:
+    let count = 0                       # usize: nothing else decides it
+    let delta = -1                      # i32: a signed literal
+    let mixed = [1, -2]                 # List[i32]: a signed member
+    let last = biggest(0, items.len())  # 0 is a usize, as items.len() is
+    price + 5                           # 5 is an i64, as price is
 ```
 
-#### Checks At The Fixed Width
-
-1. r[types.literal.open.end-check] A use whose check depends on an open variable's width records an **obligation**. At the end of the body, after the fallback, each obligation is checked at the variable's fixed type, and an error is reported at the use that recorded it.
-2. r[types.literal.open.end-check.uses] The obligations are a choice among several instantiations of one generic trait, a generic call's bounds, and a method of some widths. A conversion to a trait value type that not every width implements is one too. So are a literal's range and unary `-` on an unsigned type.
-3. r[types.literal.open.bound] A generic call whose bound the fixed width does not satisfy is an error at that call. Error: `unsatisfied-trait-bound`.
-4. r[types.literal.open.range] A literal of the open variable that the fixed width cannot hold is an error at the literal, by [`types.literal.int-range`](#r-types.literal.int-range) or [`types.literal.float-finite`](#r-types.literal.float-finite). Error: `integer-literal-range`.
-5. r[types.literal.open.conflict.blame] When the uses of one open variable need two different types, the error is reported at the later use of the first such pair in source order, and it names the earlier use. This is the sense in which the first deciding use fixes the variable.
-6. r[types.literal.open.conflict.error] So a later argument, assignment, or result that needs another width is an error. Error: `type-mismatch`.
-7. r[types.literal.open.names-decider] A diagnostic of this subsection must name the deciding use, as in "`i` became `usize` at line 4".
+1. r[types.literal.local.expected] An unsuffixed numeric literal with an expected type takes that type, by [Integer Literals](#integer-literals) and [Floating-Point Literals](#floating-point-literals).
+2. r[types.literal.local.signed] A **signed literal** is an integer literal written directly after unary `-` or `+`, as in `-1` or `+5`.
+3. r[types.literal.local.group] The unsuffixed literals of one expression that have no expected type form its **literal group**.
+4. r[types.literal.local.default] A literal group's **default type** is `i32` for integers when a member is a signed literal, and `usize` otherwise. For floating-point literals it is `f64`.
+5. r[types.literal.local.join] Within one statement, suppose the outermost expression fails to check with its literals at their default types. When exactly one width among the types those literals meet makes it check, the literals take that width.
+6. r[types.literal.local.join.signed] When two or more of those widths make it check and one of the literals is signed, the literals take `i32`.
+7. r[types.literal.local.join.none] Otherwise the statement is an error, and the error is the one the default types give.
+8. r[types.literal.local.statement] Nothing crosses a statement. A binding takes the type of its initializer, and no later statement changes it.
+9. r[types.literal.local.block] A block of two or more statements inside an expression is not part of it. A branch, arm, or closure body that is one expression is part of it.
 
 ```text
 fn take(n: i32) -> i32:
     n
 
-fn put(value: u8) -> u8:
-    value
-
-fn wide(value: u32) -> u32:
-    value
-
 fn run(items: List[string]) -> i32:
-    let i = 0
-    if i < items.len():   # the first deciding use: i is a usize
+    let i = 0               # a usize: a later use does not change it
+    if i < items.len():
         return 0
-    take(i)               # error: type-mismatch
-
-fn fixed() -> u8:
-    let i = 300           # error: integer-literal-range
-    put(i)
-
-fn mixed() -> u32:
-    let xs = [1, 2]
-    let low = put(xs[0])  # the first deciding use: the list is a List[u8]
-    wide(xs[1])           # error: type-mismatch
+    take(i)                 # error: type-mismatch
 ```
 
-#### One Fitting Candidate
+The expression forms in which literals meet typed parts:
 
-An obligation with exactly one fitting candidate decides its variable at
-once; with several, it waits for the end of the body:
+| Rule | Form | Example | The width comes from |
+| --- | --- | --- | --- |
+| r[types.literal.local.form.operand] Operands | an operand of an arithmetic or comparison operator, on either side | `5 + price`, `identity(0) + price` | the other operand |
+| r[types.literal.local.form.argument] Call arguments | the arguments of one call | `biggest(0, items.len())` | the parameter types, and the other arguments that solve a type parameter |
+| r[types.literal.local.form.receiver] Receivers | the receiver of a method call | `[1, 2].iter().all(fn(n: i32) -> bool: n > 0)` | the typed values the call meets, such as a closure parameter type |
+| r[types.literal.local.form.element] Collections | the elements of one list, map, tuple, or data literal | `[small, 1]` | the typed elements |
+| r[types.literal.local.form.arm] Arms | the branches of one `if` and the arms of one `match` | `if c: 1 else: count` | the typed branches |
+| r[types.literal.local.form.closure-return] Closure returns | the return paths of a closure with no written result type | `return value` and a final `0` | the typed return paths |
+| r[types.literal.local.form.loop-else] Loop values | the `else` value and the `break` values of one `while` or `for` | `break total` and `else: 0` | the typed values |
+| r[types.literal.local.form.pipe] Pipes | the value of a pipe and its step | `3 \|> twice` | the step's parameter type |
+| r[types.literal.local.form.fact] Typed facts | the arguments of a typed fact | `@range(0, 100, "percent")` on an `i32` field | the annotated field or parameter type |
+| r[types.literal.local.form.index] Indexes and ranges | an index, a slice bound, or a range bound | `xs[0]`, `0..items.len()` | `usize`, or the other bound |
+| r[types.literal.local.form.interpolation] Interpolations | an expression inside `${...}` | `"${price + 1}"` | the expression's own typed parts |
+| r[types.literal.local.form.expected] Expected types | a default argument, a returned value, an assigned value, or a typed field | `fn pay(amount: i64 = 5)` | the expected type |
 
-```text
-trait Scale:
-    fn scale(self) -> Self
-
-impl Scale for i64:
-    fn scale(self) -> i64:
-        self * 2
-
-fn grow[T < Scale](x: T) -> T:
-    x.scale()
-
-fn run() -> i64:
-    let n = grow(5)   # one fit: only i64 implements Scale, so 5 is an i64
-    n
-```
-
-1. r[types.literal.open.one-fit] When exactly one candidate fits an obligation, that candidate decides the variable, as a deciding use at the use that recorded the obligation.
-2. r[types.literal.open.one-fit.candidates] The only candidates are the kind's types that satisfy a call's bounds or provide a method or operator, and a generic trait's fitting instantiations. No other use has candidates.
-3. r[types.literal.open.one-fit.several] When two or more candidates fit, none decides, and the obligation waits for the end of the body and its fallback.
-4. r[types.literal.open.one-fit.not-conversion] A conversion to a trait value type has no candidates, even when only one type of the kind implements the trait. With no other deciding use, the variable takes its fallback type.
-5. r[types.literal.open.one-fit.not-conversion.error] So `let reading: Gauge = 0`, with only `impl Gauge for f64`, is an error: `0` falls back to `usize`, which does not implement `Gauge`. Write `0.0`, or annotate. Error: `type-mismatch`.
-6. r[types.literal.open.one-fit.receiver-width] For a method call whose receiver has an open variable, a type of the kind fits when it provides the method. The call's arguments are not checked to choose among those types.
-7. r[types.literal.open.one-fit.params-differ] Suppose two or more types fit a method call, and their methods have different parameter lists. Unless another use fixes the variable, the call is then an error, whatever the fallback type would provide. Error: `ambiguous-method`.
-8. r[types.literal.open.one-fit.params-differ.self] Parameter lists are compared as declared, with each type read as `Self`, so methods of one trait never differ.
-9. r[types.literal.open.one-fit.params-differ.fix] An annotation fixes the call, as in `let cents: i64 = 250` before `cents.scale(4)`.
-10. r[types.literal.open.fallback-hint] When an argument that took its fallback type fails a check, the diagnostic should suggest a signed literal, as `+5`, or an annotation.
+10. r[types.literal.local.form.closure-return.statements] The return paths of one closure, and the values of one loop, join although they are in different statements of its body. A value that leaves its own statement takes no part.
+11. r[types.literal.local.erased] A literal converted to `Any`, or to a trait value type, has the default type of its group, as in `let x: Any = 42`, which holds a `usize`.
+12. r[types.literal.local.instantiation] When two or more instantiations of one generic trait fit a call only because a literal argument could take several widths, the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
 
 ```text
 use std.ops.Add
@@ -542,118 +296,44 @@ impl Add[i64] for Money:
         Money { cents: self.cents + rhs }
 
 fn charge(price: Money) -> Money:
-    price.add(5)      # error: type-mismatch
+    let after = price.add(-5)    # valid: the signed literal is an i32
+    price.add(5)                 # error: type-mismatch
 ```
 
-Two instantiations fit `5`, so neither decides. The literal falls back to
-`usize`, which neither accepts, and the diagnostic suggests `+5` or an
-annotation.
+13. r[types.literal.local.hint] When a binding whose type is a literal's default type meets another type, the diagnostic should point at that literal and suggest the fix there.
 
-```text
-trait Gauge:
-    fn level(self) -> f64
+> **Note.** The suggested fix is a sign for `i32`, as `let total = +0`
+> or `{"tea": +3}`, and an annotation for another width, as
+> `let total: i64 = 0`.
 
-impl Gauge for f64:
-    fn level(self) -> f64:
-        self
+> **Note.** With no annotation, `let balance = 100` followed by
+> `balance = balance - 150` is a `usize` subtraction below zero, which
+> panics with `integer-overflow`. Write `+100` for a value that may go
+> negative. The panic report says that the type is a literal's default
+> type, by [`flow.panic.report.fallback`](06-control-flow.md#r-flow.panic.report.fallback).
 
-trait ScaleBy:
-    fn scale(self, by: i64) -> Self
+> **Why.** An unannotated integer usually counts or indexes, so `usize`
+> lets `let i = 0` meet `len()` with no annotation. A written sign is the
+> program's own statement that the value may be negative. Settling each
+> literal within its expression keeps every type visible where it is
+> written, and an error never blames a distant line.
 
-impl ScaleBy for i64:
-    fn scale(self, by: i64) -> i64:
-        self * by
+> **Note.** `let mut i = 0` is still an error, by
+> [`types.bind.let-mut-primitive`](#r-types.bind.let-mut-primitive): a
+> number is primitive at every width.
 
-trait Markup:
-    fn scale(self) -> Self
+> **Note.** A checker may meet [`types.literal.local.join`](#r-types.literal.local.join)
+> with at most one retry per statement: it checks the statement with the
+> default types, and only when that fails, once more for each width that
+> the failure names.
 
-impl Markup for i32:
-    fn scale(self) -> i32:
-        self * 2
-
-fn idle_sensor() -> f64:
-    let reading: Gauge = 0      # error: type-mismatch
-    let fixed: Gauge = 0.0      # valid: 0.0 falls back to f64
-    fixed.level()
-
-fn quote() -> i64:
-    let cents = 250
-    let total = cents.scale(4)  # error: ambiguous-method
-    let priced: i64 = 250
-    priced.scale(4)             # valid: the annotation selects ScaleBy
-```
-
-> **Why.** When only one type can make a call work, any other choice is an
-> error. The one candidate is the only reading that type-checks. Waiting
-> for the fallback would reject `grow(5)` for no gain. With two or more
-> candidates the compiler does not guess between them: the fallback applies,
-> and the error names the fix.
-
-#### Scope Of The Rule
-
-1. r[types.literal.open.body] The rule is local to one body: a function body, or the top-level statements of a module. A use in another body never decides a variable.
-2. r[types.literal.open.closure] A closure body is part of its enclosing body for this rule. A use inside it counts at its source position, whether or not the closure runs.
-3. r[types.literal.open.no-signature] The rule never infers a declaration: no parameter, field, or written result type comes from it.
-4. r[types.literal.open.inferred-result] A result type inferred from a body takes the width that the body fixes, or the fallback. A caller's use never changes it.
-5. r[types.literal.open.module-body] A module's top-level executable statements are one body. A top-level binding's open variable is open only within those statements.
-6. r[types.literal.open.module-read] A function or method body sees a top-level binding at the type the top-level statements fix, wherever among them the deciding use is. Its own uses decide nothing.
-7. r[types.literal.open.module-undecided] A function or method body that reads a top-level binding whose open variable no top-level use fixes is an error, and the diagnostic asks for an annotation, as in `let limit: usize = 100`. Error: `cannot-infer-type`.
-
-```text
-fn five():
-    let n = 2 + 3     # no deciding use and no sign: n is a usize
-    let doubled = n * 2
-    doubled
-
-fn pairs():
-    let xs = [1, 2]   # no deciding use and no sign: xs is a List[usize]
-    xs
-
-fn run(items: List[string]) -> bool:
-    let i = 0
-    at_end := fn() -> bool: i == items.len()  # i becomes usize here
-    i = i + 1
-    let index: usize = i
-    at_end()
-```
-
-```text
-let limit = 100
-
-fn report() -> usize:
-    limit             # error: cannot-infer-type
-```
-
-> **Why.** `let i = 0` followed by `i < items.len()` is the common loop,
-> and an `i32` fixed at the `let` rejects it. A range, a list, a tuple,
-> and a generic call are only other ways to hold the same literal, so
-> `for i in 0..10: items[i]` works as the `let` form does. Unification
-> makes the result independent of order, and the diagnostic still names
-> the first deciding use.
-
-> **Why.** A top-level binding read from a function would otherwise make
-> the function's types depend on the order of top-level statements. An
-> annotation keeps each function body checkable on its own.
-
-> **Note.** A checker meets this rule in one forward pass over the body,
-> with no second check of any statement. Each literal gets an integer or
-> float type variable, kept in a union-find over type terms, so a variable
-> can sit inside a type argument or a tuple slot. A deciding use binds it,
-> and a conflicting later use is reported at that point, naming the first.
-
-> **Note.** Each union-find root also keeps a signed bit, set by a signed
-> literal and ORed on union, which picks `i32` or `usize` at the fallback.
-
-> **Note.** Instantiation choices, bound checks, method resolutions, and
-> literal range checks that meet an unbound variable are recorded as
-> obligations. At the end of the body, the fallback is applied, the
-> obligations are discharged, and one substitution sweep replaces each
-> variable inside every type that holds it, before code generation. The
-> work is linear, with no fixed point.
+> **Note.** A type that only an implementation names is not one the
+> literals meet. So `10.halve()`, with only `impl Halve for i64`, is an
+> error: write `i64(10).halve()`, or give its binding an annotation.
 
 See also: [Binary Numeric Operators](#binary-numeric-operators),
-[Ordering](05-expressions.md#ordering), for comparisons that the fallback
-makes always true,
+[Ordering](05-expressions.md#ordering), for comparisons that a `usize`
+default makes always true,
 [Inference From Several Arguments](#inference-from-several-arguments),
 [Binding Forms](#binding-forms), [Range Expressions](05-expressions.md#range-expressions),
 [For Loops](06-control-flow.md#for-loops),
@@ -1096,7 +776,7 @@ f32, f64
 
 ### Binary Numeric Operators
 
-1. r[types.num.binary.literal-operand] In a binary arithmetic or comparison expression, an untyped literal operand first adopts the compatible type of the other operand, whether the literal is on the left or on the right.
+1. r[types.num.binary.literal-join] In a binary arithmetic or comparison expression, an operand built only of unsuffixed literals takes the other operand's type, on either side, by [`types.literal.local.form.operand`](#r-types.literal.local.form.operand).
 2. r[types.num.binary.literal-left] So an unsuffixed integer literal on the left takes the right operand's integer type: `0xFFFF_FFFF_FFFF_FFFF - count` with a `u64` `count` is valid, and `1 < count` compares two `u64` values.
 3. r[types.num.binary.same-type] Otherwise both operands must have one type, and the result has that type, so `f32 op f32` produces `f32`. Two types of one family are an error, as `small + large` with an `i16` and an `i64`, or an `f32` and an `f64` operand. Error: `type-mismatch`.
 4. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
@@ -1218,7 +898,7 @@ See also: [Inspectable Types](09-traits.md#inspectable-types).
 
 1. r[types.assign.no-subtyping] No inheritance or structural record subtyping exists.
 2. r[types.assign.binding-type] Assignment never changes the declared or inferred type of a binding.
-3. r[types.assign.let-open-var] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration. An [open variable](#r-types.literal.open.var) in that type is the one its first deciding use fixes.
+3. r[types.assign.let-declared] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration. A literal initializer's width is fixed there, by [`types.literal.local.statement`](#r-types.literal.local.statement).
 
 ## Composite Values And Access Permission
 

@@ -8,7 +8,7 @@ fn main() -> i32:
         index = index + 1
         continue
     else:
-        40
+        +40
     value + index
 
 tests:

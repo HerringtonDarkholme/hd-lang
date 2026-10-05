@@ -1,5 +1,5 @@
 # test: a float literal converted to a trait value takes its f64 fallback, which implements the trait
-# Spec 04 One Fitting Candidate: types.literal.open.one-fit.not-conversion; Neutral Uses: types.literal.open.neutral.erased-some (ONE-FIT).
+# Spec 04 One Fitting Candidate: types.literal.local.erased; Neutral Uses: types.literal.local.erased (ONE-FIT).
 use std.testing.assert_equal
 
 trait Gauge:

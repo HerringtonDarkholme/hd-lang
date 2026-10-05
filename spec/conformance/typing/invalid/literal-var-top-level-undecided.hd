@@ -1,6 +1,6 @@
-# test: a function that reads a top-level binding no top-level use fixes needs an annotation
-
+# test: a top-level binding takes its literal's default type, which a function reads as is
+# Spec 04 Open Literal Width: types.literal.local.statement.
 let limit = 100
 
-fn report() -> usize:
-    limit  # diagnostic: cannot-infer-type
+fn report() -> i32:
+    limit  # diagnostic: type-mismatch

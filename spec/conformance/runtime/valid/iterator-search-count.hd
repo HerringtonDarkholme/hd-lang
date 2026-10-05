@@ -11,13 +11,13 @@ tests:
         assert([1, 2].iter().all(fn(n: i32) -> bool: n > 0), reason="all")
         assert_equal([4, 5, 6].iter().find(fn(n: i32) -> bool: n > 4), .Some(5), reason="find")
     it("leaves the rest unread"):
-        let mut source = [1, 2, 3, 4].iter()
+        let mut source = [+1, 2, 3, 4].iter()
         assert_equal(source.find(fn(n: i32) -> bool: n == 2), .Some(2), reason="found")
         assert_equal(source.next(), .Some(3), reason="find stopped after 2")
         assert(!source.all(fn(n: i32) -> bool: n > 4), reason="4 fails")
         assert_equal(source.next(), .None, reason="all read 4")
     it("count drains"):
-        let mut source = [1, 2, 3].iter()
+        let mut source = [+1, 2, 3].iter()
         assert_equal(source.count(), 3, reason="three items")
         assert_equal(source.next(), .None, reason="drained")
     it("an exhausted iterator"):

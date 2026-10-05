@@ -5,7 +5,7 @@ use std.testing.assert_equal
 fn drain() -> i32:
     let values: mut List[i32] = [1, 2]
     values.push(3)
-    let total = 0
+    let total = +0
     while true:
         match values.pop():
             .Some(value) => total = total * 10 + value

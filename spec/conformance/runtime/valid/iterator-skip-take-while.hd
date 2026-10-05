@@ -11,12 +11,12 @@ tests:
         assert_equal([1, 2].iter().skip(5).collect(), [], reason="skip past the end")
         assert_equal([1, 2].iter().skip(0).collect(), [1, 2], reason="skip 0")
     it("take_while consumes the rejected item"):
-        let mut source = [1, 2, 9, 3].iter()
+        let mut source = [+1, 2, 9, 3].iter()
         taken := source.take_while(fn(n: i32) -> bool: n < 5).collect()
         assert_equal(taken, [1, 2], reason="before 9")
         assert_equal(source.next(), .Some(3), reason="9 was read and dropped")
     it("is lazy"):
-        let pulled = 0
+        let pulled = +0
         let mut source = Iterator::from_fn(fn() -> i32?:
             pulled = pulled + 1
             .Some(pulled)

@@ -1,7 +1,7 @@
-# test: pushing a u16 fixes a list literal's open element variable
-
+# test: a typed element fixes a list literal's other elements, so a push of that type fits
+# Spec 04 Open Literal Width: types.literal.local.form.element.
 fn run(n: u16) -> u16:
-    let mut xs = [1, 2]
+    let mut xs = [n, 1, 2]
     xs.push(n)
-    let first: u16 = xs[0]
+    let first: u16 = xs[1]
     first

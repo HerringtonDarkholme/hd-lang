@@ -19,12 +19,12 @@ tests:
         assert_equal([1].iter().chain(2..4).collect(), [1, 2, 3], reason="a range")
         let seen: mut Set[i32] = Set::new()
         _ := seen.insert(7)
-        assert_equal([1].iter().chain(seen).collect(), [1, 7], reason="a set")
+        assert_equal([+1].iter().chain(seen).collect(), [1, 7], reason="a set")
         let empty: List[i32] = []
         assert_equal(empty.iter().chain(empty).collect(), [], reason="both empty")
     it("chain takes iter once, when called, and reads other only after self"):
         let log: mut List[string] = []
-        let at = 0
+        let at = +0
         probe := Probe {
             start: fn() -> void: log.push("iter"),
             pull: fn() -> i32?:
@@ -32,7 +32,7 @@ tests:
                 at = at + 1
                 .Some(at * 10)
         }
-        let mut joined = [1].iter().chain(probe)
+        let mut joined = [+1].iter().chain(probe)
         assert_equal(log, ["iter"], reason="iter at the call, and no next")
         assert_equal(joined.next(), .Some(1), reason="self first")
         assert_equal(log, ["iter"], reason="other not read yet")

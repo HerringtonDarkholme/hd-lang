@@ -4,7 +4,7 @@
 use std.testing.assert_equal
 
 fn total(entries: List[i32?]) -> i32:
-    let sum = 0
+    let sum = +0
     for entry in entries:
         amount := match entry:
             .Some(value) => value
@@ -13,7 +13,7 @@ fn total(entries: List[i32?]) -> i32:
     sum
 
 fn first_negative(values: List[i32]) -> i32:
-    let found = 0
+    let found = +0
     for value in values:
         found = if value < 0: value else: continue
         break

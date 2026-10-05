@@ -12,7 +12,7 @@ data Pair[A, B]:
 fn keep[T](box: Box[T]) -> Box[T]: box
 
 fn main() -> Pair[Box[i32], string]:
-    box := Box { value: 40 }
+    box := Box { value: +40 }
     Pair { first: keep(box), second: "hd" }
 
 tests:

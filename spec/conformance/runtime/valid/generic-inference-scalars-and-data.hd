@@ -12,9 +12,9 @@ fn choose[T](left: T, right: T) -> T: left
 fn float_value() -> f64: identity(3.5)
 
 fn main() -> i32:
-    number := identity(40)
+    number := identity(+40)
     text := identity("hd")
-    box := identity(Box { value: 2 })
+    box := identity(Box { value: +2 })
     if text == "hd": choose(number + box.value, 42) else: 0
 
 tests:

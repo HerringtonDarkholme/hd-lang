@@ -1,5 +1,5 @@
 # test: a literal that fits several instantiations waits, falls back to usize, and then fits none
-# Spec: trait.resolve.open-fallback-type.no-fit
+# Spec: trait.resolve.literal-arg.no-fit
 trait Combine[T]:
     fn combine(self, other: T) -> string
 

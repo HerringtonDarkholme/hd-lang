@@ -12,7 +12,7 @@ fn normalize(values: mut List[string], entries: mut Map[string, i32]) -> i32:
     values.push(" Added ")
     clean := [for value in values => "[$value]"]
     removed := entries.remove("old")
-    extra := if clean.len() > 1: 1 else: 0
+    extra := if clean.len() > 1: +1 else: 0
     match removed:
         .Some(value) => value + extra
         .None => 0

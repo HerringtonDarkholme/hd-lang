@@ -1,12 +1,7 @@
 # test: a tuple slot that nothing decides is f64 for every caller, so an f32 result is narrowing
-# Spec 04: types.literal.open.float-fallback; the f64 into f32 error is types.num.narrowing.
-
-fn take(value: u8) -> u8:
-    value
-
+# Spec 04: types.literal.local.default; the f64 into f32 error is types.num.narrowing.
 fn second():
     let (a, b) = (1, 2.5)
-    let small: u8 = take(a)
     b
 
 fn run() -> f32:

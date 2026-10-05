@@ -1,5 +1,5 @@
 # test: an integer group with no signed literal and no deciding use falls back to usize
-# Spec 04 Open Literal Width: types.literal.open.int-fallback (SIGN-FALLBACK, batch 83).
+# Spec 04 Open Literal Width: types.literal.local.default (SIGN-FALLBACK, batch 83).
 
 fn counter():
     let i = 0

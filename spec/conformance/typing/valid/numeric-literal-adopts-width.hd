@@ -1,6 +1,6 @@
 # test: an untyped literal still takes the expected type or the other operand's type
 # Spec 04 Numeric Conversions: types.num.literal-kind; Binary Numeric Operators:
-# types.num.binary.literal-operand; Inference From Several Arguments: types.generic.infer.join.literal
+# types.num.binary.literal-join; Inference From Several Arguments: types.generic.infer.join.literal
 # (task #204, NO-WIDENING).
 use std.ops.Range
 

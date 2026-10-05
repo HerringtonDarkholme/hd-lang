@@ -7,7 +7,7 @@ use std.testing.assert_equal
 tests:
     it("smallest first"):
         let heap: mut Heap[Reverse[i32]] = Heap::new()
-        for value in [5, 1, 8, 3]:
+        for value in [+5, 1, 8, 3]:
             heap.push(Reverse { value: value })
         assert_equal(heap.peek(), .Some(Reverse { value: 1 }), reason="peek")
         let popped: mut List[i32] = []

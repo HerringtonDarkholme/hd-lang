@@ -1,5 +1,5 @@
 # test: with two integer types satisfying the bound, neither decides, and the usize fallback fails the bound
-# Spec 04 One Fitting Candidate: types.literal.open.one-fit.several, types.literal.open.bound (ONE-FIT).
+# Spec 04 One Fitting Candidate: types.literal.local.join.none, types.literal.local.join.none (ONE-FIT).
 
 trait Scale:
     fn scale(self) -> Self

@@ -1,5 +1,5 @@
 # test: a typed use of a method result does not decide the receiver; i stays i32 and m is narrowed implicitly
-# Spec 04 Neutral Uses: types.literal.open.method.no-backward (ONE-FIT).
+# Spec 04 Neutral Uses: types.literal.local.statement (ONE-FIT).
 
 use std.ops.Neg
 

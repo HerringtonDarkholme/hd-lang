@@ -1,5 +1,5 @@
 # test: the fix the fallback hint suggests: a signed literal or an annotation picks among several instantiations
-# Spec 04 One Fitting Candidate: types.literal.open.fallback-hint, types.literal.open.one-fit.several (ONE-FIT).
+# Spec 04 One Fitting Candidate: types.literal.local.hint, types.literal.local.join.none (ONE-FIT).
 use std.ops.Add
 use std.testing.assert_equal
 

@@ -5,7 +5,7 @@ use std.testing.assert_equal
 tests:
     it("each iteration's closure reads its own binding"):
         let makers: mut List[fn() -> i32] = []
-        for index in [1, 2]:
+        for index in [+1, 2]:
             makers.push(fn() -> i32: index)
         first := makers[0]
         second := makers[1]
