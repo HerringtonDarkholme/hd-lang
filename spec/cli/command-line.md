@@ -216,7 +216,7 @@ hd notes.hd -- a b       # notes.hd gets the arguments a and b
 
 1. r[cli.host.entry-row] When `hd` runs an executable, a task, or a single file, it binds each host capability trait that its entry module's requirement row names. That row is the row of `main` or `main!`, or a [script's inferred row](../lang/10-modules.md#r-module.init.script-row).
 
-`hd FILE`, `hd run`, a task, and the [REPL](#repl) use the **default
+`hd FILE`, `hd run`, a task, and the [REPL](../cli/command-line.md#repl) use the **default
 profile**, which binds these traits:
 
 | Trait | Module | What `hd` binds |
