@@ -317,39 +317,15 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       case "unary":
         return this.checkUnaryExpression(expression, _expected);
       case "binary": {
-        // A non-primitive left operand calls its operator trait; an untyped
-        // literal on the left keeps its default type (r-expr.op.left-literal).
-        // A primitive left operand with a non-primitive right operand still
-        // selects through its trait (r-expr.op.left-dispatch), as in
-        // `i64(3) * price` with `impl Mul[Money] for i64`.
-        const operatorTrait = BINARY_OPERATOR_TRAITS[expression.operator];
-        const leftSource = expression.left;
-        let checkedLeft: HirExpression | undefined;
-        if (operatorTrait && pureLiteralKind(leftSource) === undefined) {
-          checkedLeft = this.checkExpression(
-            leftSource,
-            numericLeftExpected(expression, _expected),
-          );
-          if (!isPrimitiveOperand(checkedLeft.type))
-            return this.operatorTraitCall(
-              operatorTrait,
-              expression.operator,
-              leftSource,
-              checkedLeft,
-              expression.right,
-              expression.span,
-              _expected,
-            );
-          const leftTrait = this.primitiveLeftTrait(
-            expression,
-            operatorTrait,
-            leftSource,
-            checkedLeft,
-            _expected,
-          );
-          if (leftTrait) return leftTrait;
-        }
-        let { left, right } = this.checkNumericOperands(expression, _expected, checkedLeft);
+        // Left-dispatch keeps untyped literals on the numeric path.
+        const dispatched = this.binaryLeftDispatch(expression, _expected);
+        if (dispatched.traitCall) return dispatched.traitCall;
+        let { left, right } = this.checkNumericOperands(
+          expression,
+          _expected,
+          dispatched.checkedLeft,
+          dispatched.checkedRight,
+        );
         if (expression.operator === "is")
           return this.checkIdentityExpression(expression, left, right);
         const logical = expression.operator === "and" || expression.operator === "or";
@@ -777,37 +753,47 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
   }
 
   /**
-   * A primitive left operand with a non-primitive right operand still
-   * selects through its trait (r-expr.op.left-dispatch), as in
-   * `i64(3) * price` with `impl Mul[Money] for i64`. Peeks at the right
-   * without keeping diagnostics: literals keep the numeric path, and a
-   * peek that needs more context falls through to report once below.
+   * Left-dispatch for a binary operator (r-expr.op.left-dispatch): a
+   * non-primitive left calls its trait, and so does a primitive left with
+   * a non-primitive right, as in `i64(3) * price` with
+   * `impl Mul[Money] for i64`. An untyped literal left keeps the numeric
+   * path. Peeks at a non-literal right without keeping diagnostics so the
+   * common two-primitive case adds no candidate trials; a peek needing
+   * more context falls through to report once in the numeric path.
    */
-  private primitiveLeftTrait(
+  private binaryLeftDispatch(
     expression: Extract<Expression, { kind: "binary" }>,
-    operatorTrait: readonly [string, string],
-    leftSource: Expression,
-    checkedLeft: HirExpression,
     expected: ValueType | undefined,
-  ): HirExpression | undefined {
-    if (pureLiteralKind(expression.right) !== undefined) return undefined;
-    const diagnosticCount = this.diagnostics.length;
-    try {
-      const checkedRight = this.checkExpression(expression.right, undefined);
-      if (isPrimitiveOperand(checkedRight.type)) return undefined;
-      return this.operatorTraitCall(
+  ): {
+    traitCall?: HirExpression;
+    checkedLeft?: HirExpression;
+    checkedRight?: HirExpression;
+  } {
+    const operatorTrait = BINARY_OPERATOR_TRAITS[expression.operator];
+    const leftSource = expression.left;
+    if (!operatorTrait || pureLiteralKind(leftSource) !== undefined) return {};
+    const checkedLeft = this.checkExpression(leftSource, numericLeftExpected(expression, expected));
+    const traitCall = (right?: Expression): HirExpression =>
+      this.operatorTraitCall(
         operatorTrait,
         expression.operator,
         leftSource,
         checkedLeft,
-        expression.right,
+        right ?? expression.right,
         expression.span,
         expected,
       );
+    if (!isPrimitiveOperand(checkedLeft.type)) return { traitCall: traitCall() };
+    if (pureLiteralKind(expression.right) !== undefined) return { checkedLeft };
+    const diagnosticCount = this.diagnostics.length;
+    try {
+      const checkedRight = this.checkExpression(expression.right, undefined);
+      if (!isPrimitiveOperand(checkedRight.type)) return { traitCall: traitCall() };
+      return { checkedLeft, checkedRight };
     } catch (error) {
       if (!(error instanceof CheckFailure)) throw error;
       this.diagnostics.length = diagnosticCount;
-      return undefined;
+      return { checkedLeft };
     }
   }
 
@@ -821,6 +807,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     expression: Extract<Expression, { kind: "binary" }>,
     expected: ValueType | undefined,
     checkedLeft?: HirExpression,
+    checkedRight?: HirExpression,
   ): { left: HirExpression; right: HirExpression } {
     const arithmetic = ["+", "-", "*", "/", "%", "&", "|", "^"].includes(expression.operator);
     const numeric =
@@ -915,6 +902,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
                 : undefined;
     let right =
       leftFirstRight ??
+      checkedRight ??
       this.checkExpression(
         expression.right,
         equalityOperator && rightVariant && !leftVariant ? readonlyType(left.type) : rightTarget,
