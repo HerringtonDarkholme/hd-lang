@@ -10,7 +10,9 @@ work can run and the world can change. In hd such a function's name ends in
 point by reading. Like `?`, the mark travels up: a function that makes a `!`
 call must be a `!` function itself. Writing the call without `!`, as in
 `fetch_orders(user)`, does not run it yet; `all!` takes such calls, runs them
-as tasks, and waits until all are done. The clock is provided, so a test can
+as tasks, and waits until all are done. Reading a file or a line of input is
+such a wait, so a program that does I/O through a `!` call starts at `main!`.
+A plain `main` that calls `read_line!()` gets the error shown below. The clock is provided, so a test can
 use a fake one.
 
 ```hd

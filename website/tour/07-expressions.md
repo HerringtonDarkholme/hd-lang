@@ -9,7 +9,9 @@ branch, and a branch you forget leaves it unset. In hd, `if`, `match`, and
 blocks are expressions: `speed :=` takes the value of whichever branch runs, so
 there is nothing to forget. A loop can produce a value too: `break value` ends
 it early with that value, and the loop's `else` gives the value when it runs to
-the end without a `break`. No flag variable, no sentinel.
+the end without a `break`. No flag variable, no sentinel. Those are all the loops there are: `for`, and
+`while` with a condition. There is no `loop` keyword, so an endless loop is
+written `while true:` and left with `break`.
 
 ```hd
 fn delivery_note(country: string, parcels: List[i32]) -> string:

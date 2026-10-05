@@ -9,7 +9,9 @@ can be. For records and lists, whether a value may be changed is part of its
 type: an `Order` is read-only, a `mut Order` can be changed, and `let mut` asks
 for the changeable one. So `receipt(order: Order)` promises in its signature
 that it only reads the order, and the compiler holds it to that promise. To find
-every place an order can change, search for `mut Order`.
+every place an order can change, search for `mut Order`. The `mut` goes on the type, so a parameter is written
+`order: mut Order`; `mut order: Order` is a syntax error. A list a function
+fills in is the same: `todos: mut List[Todo]`.
 
 ```hd
 fn apply_discount(order: mut Order, percent: i32) -> void:  # ← changes the order
