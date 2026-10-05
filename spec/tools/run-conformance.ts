@@ -75,6 +75,7 @@ interface CliStep {
   readonly exit: number;
   readonly files: readonly string[];
   readonly noFiles: readonly string[];
+  readonly stderr?: string;
   readonly stderrJson?: readonly unknown[];
   readonly stdout?: string;
   readonly stdoutJson?: readonly unknown[];
@@ -794,6 +795,7 @@ function parseCliExpect(text: string): CliStep[] | string {
     files: string[];
     noFiles: string[];
     stderrJson?: unknown[];
+    stderrLines?: string[];
     stdoutJson?: unknown[];
     stdoutLines?: string[];
   }
@@ -831,6 +833,11 @@ function parseCliExpect(text: string): CliStep[] | string {
       const decoded = decodeStdoutLine(value);
       if (decoded === undefined) return `${where}: invalid 'stdout:' text`;
       (step.stdoutLines ??= []).push(decoded);
+    } else if (kind === "stderr") {
+      if (step.stderrJson) return `${where}: 'stderr:' and 'stderr-json:' exclude each other`;
+      const decoded = decodeStdoutLine(value);
+      if (decoded === undefined) return `${where}: invalid 'stderr:' text`;
+      (step.stderrLines ??= []).push(decoded);
     } else if (kind === "stdout-json" || kind === "stderr-json") {
       const parsed = jsonLines(value);
       if (!parsed) return `${where}: '${kind}:' takes a JSON array`;
@@ -839,7 +846,8 @@ function parseCliExpect(text: string): CliStep[] | string {
           return `${where}: 'stdout-json:' appears once and excludes 'stdout:'`;
         step.stdoutJson = parsed;
       } else {
-        if (step.stderrJson) return `${where}: a step has one 'stderr-json:'`;
+        if (step.stderrJson || step.stderrLines)
+          return `${where}: 'stderr-json:' appears once and excludes 'stderr:'`;
         step.stderrJson = parsed;
       }
     } else if (kind === "file" || kind === "no-file") {
@@ -854,6 +862,7 @@ function parseCliExpect(text: string): CliStep[] | string {
     exit: draft.exit ?? 0,
     files: draft.files,
     noFiles: draft.noFiles,
+    stderr: draft.stderrLines?.map((line) => `${line}\n`).join(""),
     stderrJson: draft.stderrJson,
     stdout: draft.stdoutLines?.map((line) => `${line}\n`).join(""),
     stdoutJson: draft.stdoutJson,
@@ -950,6 +959,10 @@ async function runCliCase(
       if (step.stdout !== undefined && result.stdout !== step.stdout)
         return fail(
           `stdout ${JSON.stringify(result.stdout)} differs from expected ${JSON.stringify(step.stdout)}`,
+        );
+      if (step.stderr !== undefined && result.stderr !== step.stderr)
+        return fail(
+          `stderr ${JSON.stringify(result.stderr)} differs from expected ${JSON.stringify(step.stderr)}`,
         );
       for (const [stream, expected, actual] of [
         ["stdout-json", step.stdoutJson, result.stdout],

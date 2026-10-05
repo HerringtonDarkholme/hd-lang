@@ -1,0 +1,9 @@
+# dbg((a, b, c)) has one tuple argument and prints one line. dbg(a, b, c) has
+# three arguments and prints three lines, each with its own source text.
+# Both return nothing, and standard output holds only the program's line.
+run: hd run
+stdout: done
+stderr: src/main.hd:5:5: (a, b, c) = (41, 2, 82)
+stderr: src/main.hd:6:5: a = 41
+stderr: src/main.hd:6:5: b = 2
+stderr: src/main.hd:6:5: c = 82

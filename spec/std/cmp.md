@@ -148,5 +148,5 @@ fn is_before(a: string, b: string) -> bool:
 ```
 
 1. r[std-cmp.ordering.eq] `Ordering` implements `Eq`. Two values are equal exactly when they are the same case.
-2. r[std-cmp.ordering.debug] `Ordering` implements `Debug`, and writes its case name: `Less`, `Equal`, or `Greater`.
+2. r[std-cmp.ordering.debug-text] `Ordering` implements `Debug`, and writes its qualified case: `Ordering.Less`, `Ordering.Equal`, or `Ordering.Greater`.
 3. r[std-cmp.ordering.no-display] `Ordering` does not implement `Display`; `debug(o)` gives its text.

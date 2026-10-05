@@ -1,0 +1,21 @@
+# test: dbg prints its arguments and returns nothing, so a program's standard output is unchanged
+# Spec 10 Debug Printing: module.dbg.body.print, module.dbg.body.site, module.dbg.tuple-argument, cli.dbg.run.
+# expect-stdout: 1300
+# expect-stdout: true
+fn line_total(price: i32, qty: i32) -> i32:
+    dbg(price * qty)
+    price * qty + 50
+
+fn check_order(id: i32, count: i32) -> bool:
+    dbg(id, count)
+    dbg((id, count))
+    dbg()
+    id > 0 && count > 0
+
+fn find(id: i32) -> i32?:
+    if id > 0: .Some(id) else: .None
+
+pub fn main() -> void $ Console:
+    dbg(find(7))
+    println(line_total(125, 10))
+    println(check_order(7, 2))

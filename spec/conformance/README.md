@@ -702,12 +702,14 @@ the next `run:`, are that step's assertions. A line before the first
 | `exit: CODE` | The step's exit status, from 0 to 255. A step with no `exit:` line must exit 0. At most one per step. |
 | `stdout: TEXT` | One line of the step's exact standard output. `TEXT` follows the escapes of [Standard Output](#standard-output). The expected output is each `TEXT` followed by U+000A, in order. May repeat. Excludes `stdout-json:`. |
 | `stdout-json: JSON` | The step's standard output is JSON lines that match `JSON`, as below. At most one. Excludes `stdout:`. |
-| `stderr-json: JSON` | The same, for standard error. At most one. |
+| `stderr: TEXT` | One line of the step's exact standard error, as `stdout:` states for standard output. May repeat. Excludes `stderr-json:`. |
+| `stderr-json: JSON` | The same, for standard error. At most one. Excludes `stderr:`. |
 | `file: PATH` | After the step, `PATH` exists, as a file or a directory. `PATH` is relative to the case directory and has no `..`. |
 | `no-file: PATH` | After the step, `PATH` does not exist. |
 
 A step with neither `stdout:` nor `stdout-json:` does not judge standard
-output, and one with no `stderr-json:` does not judge standard error.
+output, and one with neither `stderr:` nor `stderr-json:` does not judge
+standard error.
 Diagnostic message text is free text and no line asserts it.
 
 **JSON lines.** The runner splits the stream at U+000A, drops the empty

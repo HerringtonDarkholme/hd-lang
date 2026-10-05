@@ -1,0 +1,7 @@
+pub fn main() -> void $ Console:
+    a := +41
+    b := +2
+    c := a * b
+    dbg((a, b, c))
+    dbg(a, b, c)
+    println("done")

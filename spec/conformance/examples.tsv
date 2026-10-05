@@ -507,9 +507,9 @@ lang/10-modules.md	17	filesystem-layout	-
 lang/10-modules.md	18	mixed	typing/valid/reimport-prelude-name.hd|typing/invalid/prelude-shadow-renamed-use.hd|typing/invalid/prelude-shadow-println-function.hd|typing/invalid/prelude-shadow-console-parameter.hd|typing/invalid/prelude-shadow-result-generic.hd|typing/invalid/prelude-shadow-hash-local.hd
 lang/10-modules.md	19	mixed	typing/invalid/it-outside-test-code.hd
 lang/10-modules.md	20	mixed	typing/invalid/lowercase-list-type.hd
-lang/10-modules.md	21	accept	runtime/valid/dbg-returns-value.hd
+lang/10-modules.md	21	accept	runtime/valid/dbg-prints-void.hd
 lang/10-modules.md	22	accept	runtime/valid/dbg-without-requirement.hd
-lang/10-modules.md	23	mixed	typing/invalid/dbg-as-value.hd|typing/invalid/dbg-type-arguments.hd
+lang/10-modules.md	23	mixed	typing/invalid/dbg-as-value.hd|typing/invalid/dbg-type-arguments.hd|typing/invalid/dbg-void-binding.hd
 lang/10-modules.md	24	accept	runtime/valid/dbg-without-requirement.hd
 lang/10-modules.md	25	mixed	typing/warnings/unused-debug-text.hd
 lang/10-modules.md	26	type-fragment	-
@@ -658,8 +658,9 @@ lang/14-annotations.md	45	mixed	typing/valid/error-derivation.hd|typing/invalid/
 lang/14-annotations.md	46	mixed	typing/invalid/error-from-same-type.hd|typing/invalid/error-from-type-parameter.hd
 lang/14-annotations.md	47	accept	typing/valid/error-derivation.hd
 lang/14-annotations.md	48	accept	typing/valid/error-generated-bounds.hd|typing/valid/error-interpolated-bound.hd
-std/format.md	1	accept	typing/valid/debug-writer-builders.hd
-std/format.md	2	accept	typing/valid/std-types-debug.hd
+std/format.md	1	accept	runtime/valid/debug-source-text.hd
+std/format.md	2	accept	typing/valid/debug-writer-builders.hd
+std/format.md	3	accept	typing/valid/std-types-debug.hd
 std/iter.md	1	accept	typing/valid/iterator-adapters.hd
 std/iter.md	2	mixed	typing/invalid/iterator-filter-callback-row.hd|typing/invalid/iterator-adapter-readonly.hd|typing/invalid/adapter-callback-scope-key.hd
 std/iter.md	3	accept	typing/valid/adapter-callback-captured-provider.hd

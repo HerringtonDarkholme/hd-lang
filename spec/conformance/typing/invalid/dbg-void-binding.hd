@@ -1,0 +1,4 @@
+# test: dbg returns void, so its call is no i32 value
+# Spec 10 Debug Printing: module.dbg.signature, module.dbg.check.
+pub fn main() -> void:
+    let x: i32 = dbg(1)  # diagnostic: type-mismatch

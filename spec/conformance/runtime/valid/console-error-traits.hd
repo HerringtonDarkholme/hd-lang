@@ -1,5 +1,5 @@
 # test: ConsoleError implements Eq, Debug, and Display
-# Spec std/console Console Errors: std-console.error.traits, std-console.error.debug (spec pass 89, audit item 4).
+# Spec std/console Console Errors: std-console.error.traits, std-console.error.debug-text (spec pass 89, audit item 4).
 use std.testing.{assert, assert_equal}
 
 fn closed(error: ConsoleError) -> bool:
@@ -9,5 +9,5 @@ tests:
     it("compares, shows, and displays"):
         assert(closed(ConsoleError.Closed), reason="one case")
         assert_equal(ConsoleError.Closed, ConsoleError.Closed, reason="assert_equal needs Eq and Debug")
-        assert_equal(debug(ConsoleError.Closed), "Closed", reason="the case name")
+        assert_equal(debug(ConsoleError.Closed), "ConsoleError.Closed", reason="the qualified case name")
         assert_equal("${ConsoleError.Closed}", "console closed", reason="the Display text")

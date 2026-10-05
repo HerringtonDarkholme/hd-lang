@@ -1,0 +1,63 @@
+# expect-stdout: Point { x: 1, y: 2 }
+# expect-stdout: Empty {}
+# expect-stdout: Shape.Dot
+# expect-stdout: Shape.Pair(1, 2)
+# expect-stdout: Shape.Circle(radius=2.0)
+# expect-stdout: Shape.Mixed(1, label="x")
+# expect-stdout: Option.Some(Shape.Dot)
+# expect-stdout: Option.None
+# expect-stdout: Result.Ok(3)
+# expect-stdout: Result.Err("bad")
+# expect-stdout: Meters(2.5)
+# expect-stdout: (1, "a")
+# expect-stdout: (1,)
+# expect-stdout: [1, 2]
+# expect-stdout: {"a": 1}
+# expect-stdout: "say \\"hi\\"\\n\\$5 \\\\ \\t"
+# expect-stdout: '\\''
+# expect-stdout: '\\n'
+# test: debug writes each value the way hd source writes it, so the text pastes back as hd code
+# Spec std/format Debug Text: std-format.debug.source, std-format.debug.source.no-context,
+# std-format.debug.source.data, std-format.debug.source.variant, std-format.debug.source.prelude,
+# std-format.debug.source.newtype, std-format.debug.source.tuple, std-format.debug.source.list,
+# std-format.debug.source.map, std-format.debug.source.string, std-format.debug.source.char.
+@derive(Debug)
+data Point:
+    x: i32
+    y: i32
+
+@derive(Debug)
+data Empty: pass
+
+@derive(Debug)
+enum Shape:
+    Dot
+    Pair(i32, i32)
+    Circle(radius: f64)
+    Mixed(i32, label: string)
+
+@derive(Debug)
+type Meters(f64)
+
+pub fn main() -> void $ Console:
+    println(debug(Point { x: 1, y: 2 }))
+    println(debug(Empty {}))
+    println(debug(Shape.Dot))
+    println(debug(Shape.Pair(1, 2)))
+    println(debug(Shape.Circle(radius=2.0)))
+    println(debug(Shape.Mixed(1, label="x")))
+    println(debug(Option.Some(Shape.Dot)))
+    let none: Shape? = .None
+    println(debug(none))
+    let ok: Result[i32, string] = .Ok(3)
+    println(debug(ok))
+    let bad: Result[i32, string] = .Err("bad")
+    println(debug(bad))
+    println(debug(Meters(2.5)))
+    println(debug((+1, "a")))
+    println(debug((+1,)))
+    println(debug([+1, +2]))
+    println(debug({"a": +1}))
+    println(debug("say \"hi\"\n\$5 \\ \t"))
+    println(debug('\''))
+    println(debug('\n'))

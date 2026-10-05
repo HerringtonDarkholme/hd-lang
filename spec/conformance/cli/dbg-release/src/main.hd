@@ -1,4 +1,6 @@
 use dep.money.{cents}
 
 pub fn main() -> void $ Console:
-    println(dbg(cents(12)) + 50)
+    total := cents(12) + 50
+    dbg(total)
+    println(total)

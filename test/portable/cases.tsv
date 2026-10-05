@@ -1819,9 +1819,7 @@ runtime/panic/list-chunks-zero.hd	runtime
 runtime/valid/cmp-clamp.hd	runtime
 runtime/panic/cmp-clamp-reversed.hd	runtime
 runtime/valid/cmp-min-max.hd	runtime
-runtime/valid/cmp-ordering-eq.hd	runtime
 runtime/valid/std-errors-erased.hd	runtime
-runtime/valid/console-error-traits.hd	runtime
 runtime/valid/buffer-console.hd	runtime
 runtime/valid/scripted-input.hd	runtime
 runtime/valid/list-access-building.hd	runtime
@@ -2247,7 +2245,6 @@ typing/valid/readonly-part-nested-data-literal.hd	type
 runtime/valid/typed-derivation-embedded-generic-walk.hd	runtime
 runtime/valid/typed-derivation-build-defaults.hd	runtime
 runtime/valid/derived-equality-members.hd	runtime
-runtime/valid/derived-debug-newtype.hd	runtime
 typing/valid/test-runner-every-registration-form.hd	type
 typing/valid/ambiguous-requirement-key-annotated.hd	type
 typing/valid/type-parameter-shadows-module-name.hd	type
@@ -2475,7 +2472,6 @@ runtime/valid/generic-inherent-box.hd	runtime
 runtime/valid/i64-widening-checked.hd	runtime
 runtime/valid/buffered-println-program-console.hd	runtime
 runtime/valid/debug-derive-data.hd	runtime
-runtime/valid/debug-derive-variants.hd	runtime
 runtime/valid/u8-checked-add.hd	runtime
 runtime/panic/u8-add-overflow.hd	runtime
 typing/invalid/float-misses-ord-bound.hd	type
@@ -2502,9 +2498,9 @@ typing/valid/temp-dir-integration.hd	type
 typing/invalid/script-test-init-requirement.hd	type
 cli/test-integration-env	cli
 cli/test-tasks	cli
-runtime/valid/dbg-returns-value.hd	runtime
 runtime/valid/dbg-without-requirement.hd	runtime
 typing/invalid/dbg-as-value.hd	type
 typing/invalid/dbg-type-arguments.hd	type
 typing/warnings/unused-debug-text.hd	type
 cli/dbg-release	cli
+cli/dbg-values	cli

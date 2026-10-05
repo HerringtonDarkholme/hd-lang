@@ -83,7 +83,7 @@ fn closed(error: ConsoleError) -> bool:
 ```
 
 1. r[std-console.error.traits] `ConsoleError` implements `Eq`, `Debug`, and `Display`. Its `Display` text for `Closed` is `console closed`.
-2. r[std-console.error.debug] Its `Debug` writes the case name, `Closed`.
+2. r[std-console.error.debug-text] Its `Debug` writes the qualified case name, `ConsoleError.Closed`.
 3. r[std-console.error.error] `ConsoleError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
 
 ## Buffer Console

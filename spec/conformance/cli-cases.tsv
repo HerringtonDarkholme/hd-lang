@@ -55,3 +55,4 @@ test-tasks	cli.test.tasks,cli.test.tasks.file,cli.test.tasks.no-tests,cli.test.t
 dbg-release	cli.dbg.run,cli.dbg.release
 test-snapshot-file	cli.exit.test-failure,cli.exit.success
 test-timeout	cli.exit.test-failure,cli.exit.success
+dbg-values	cli.dbg.run

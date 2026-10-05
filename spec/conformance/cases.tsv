@@ -1252,7 +1252,7 @@ runtime/valid/duration-negation.hd	runtime	accept	std/time.md#r-std-time.suffix.
 typing/valid/println-top-level-script.hd	type	accept	lang/10-modules.md#r-module.console.println-script
 runtime/panic/snapshot-mismatch.hd	runtime	panic:assertion-failed	std/testing.md#r-std-testing.snapshot.mismatch
 runtime/panic/snapshot-file-missing.hd	runtime	panic:assertion-failed	std/testing.md#r-std-testing.snapshot-file.missing-panic
-typing/valid/derive-debug-shapes.hd	type	accept	std/format.md#r-std-format.debug.derive-builders.mapping
+typing/valid/derive-debug-shapes.hd	type	accept	std/format.md#r-std-format.debug.derive-builders.source
 typing/invalid/derive-before-trait.hd	type	reject:decorator-not-annotator	lang/14-annotations.md#r-annot.decorator.derive-targets
 typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.decorator.duplicate
 runtime/valid/bare-marker-decorator.hd	runtime	accept	lang/14-annotations.md#r-annot.decorator.bare-call
@@ -2486,7 +2486,7 @@ runtime/valid/generic-inherent-box.hd	runtime	accept	lang/09-traits.md#trait-imp
 runtime/valid/i64-widening-checked.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
 runtime/valid/buffered-println-program-console.hd	runtime	accept	lang/10-modules.md#r-module.console.println-write
 runtime/valid/debug-derive-data.hd	runtime	accept	lang/09-traits.md#r-trait.debug.derive
-runtime/valid/debug-derive-variants.hd	runtime	accept	std/format.md#r-std-format.debug.derive-builders.mapping
+runtime/valid/debug-derive-variants.hd	runtime	accept	std/format.md#r-std-format.debug.derive-builders.source
 runtime/valid/u8-checked-add.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
 runtime/panic/u8-add-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 typing/invalid/float-misses-ord-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#comparison-traits
@@ -2505,8 +2505,10 @@ typing/invalid/script-test-init-requirement.hd	type	reject:missing-requirement	l
 typing/valid/temp-dir-integration.hd	type	accept	std/testing.md#r-std-testing.temp-dir.fresh
 runtime/valid/unit-test-manual-clock.hd	runtime	accept	std/testing.md#unit-test-providers
 typing/invalid/unit-test-real-clock.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.unit.hint
-runtime/valid/dbg-returns-value.hd	runtime	accept	lang/10-modules.md#r-module.dbg.many
+runtime/valid/dbg-prints-void.hd	runtime	accept	lang/10-modules.md#r-module.dbg.body.print
 runtime/valid/dbg-without-requirement.hd	runtime	accept	lang/10-modules.md#r-module.dbg.no-requirement
 typing/invalid/dbg-as-value.hd	type	reject:invalid-dbg-call	lang/10-modules.md#r-module.dbg.call
+typing/invalid/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.dbg.signature
 typing/invalid/dbg-type-arguments.hd	type	reject:invalid-dbg-call	lang/10-modules.md#r-module.dbg.call
 typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-hint
+runtime/valid/debug-source-text.hd	runtime	accept	std/format.md#r-std-format.debug.source

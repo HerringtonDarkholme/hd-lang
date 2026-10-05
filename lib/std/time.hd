@@ -99,7 +99,7 @@ fn fraction_digits(fraction: i64) -> string:
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# (r-std-format.debug.derive-builders.source): the prototype runs the
 # derivation pass before it joins std (src/checker/program.ts), so a
 # `@derive` on a std declaration has no effect.
 # A `Duration` debugs as its `Display` text, as `250ms`

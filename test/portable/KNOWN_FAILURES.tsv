@@ -55,3 +55,10 @@ cli/doc-outside-package	`hd doc` takes a NAME: `hd doc --format json` exits 101 
 cli/doc-check-error	no `hd doc` flags: `hd doc --format json --out site` exits 101 with 'unknown flag --out' and no JSON on stdout, so `hd doc` never checks the package (cli.doc.check)	CLI-DOC
 cli/new-pages	`hd new --pages` is hidden until `hd doc` can build the site (task #309): the flag exits 101 with unknown flag --pages (cli.new.pages, cli.new.pages.workflow, planned)	CLI-PAGES-HIDDEN
 cli/new-pages-existing	`hd new --pages` is hidden until `hd doc` can build the site (task #309): the flag exits 101 with unknown flag --pages (cli.new.pages, planned)	CLI-PAGES-HIDDEN
+runtime/valid/debug-source-text.hd	Debug text is not yet hd source: an enum variant prints unqualified (Some(1), Circle { radius: 2.0 }) and a string is not escaped (std-format.debug.source, task #328)	DEBUG-HD-SYNTAX
+runtime/valid/debug-derive-variants.hd	Derived Debug writes Rust-like variants (Circle(3), Rect { width: 4, height: 5 }), not qualified calls (std-format.debug.derive-builders.variant.*, task #328)	DEBUG-HD-SYNTAX
+runtime/valid/derived-debug-newtype.hd	Derived Debug of a newtype writes the base value, not Meters(3) (trait.derive.newtype.debug, task #328)	DEBUG-HD-SYNTAX
+runtime/valid/cmp-ordering-eq.hd	Ordering writes Less, not Ordering.Less (std-cmp.ordering.debug-text, task #328)	DEBUG-HD-SYNTAX
+runtime/valid/console-error-traits.hd	ConsoleError writes Closed, not ConsoleError.Closed (std-console.error.debug-text, task #328)	DEBUG-HD-SYNTAX
+typing/invalid/dbg-void-binding.hd	dbg still returns its argument, so let x: i32 = dbg(1) is accepted (module.dbg.signature, task #328)	DBG-VOID
+runtime/valid/dbg-prints-void.hd	dbg still returns its argument, so a dbg(find(7)) statement of an optional is discarded-must-use-value (module.dbg.signature, task #328)	DBG-VOID

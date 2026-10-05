@@ -751,30 +751,31 @@ fn count() -> i32:
 2. r[module.prelude.println] The prelude function `println` has the signature `println[T < Display](value: T) -> void $ Console`.
 3. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
 4. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
-5. r[module.prelude.dbg] The prelude name `dbg` is the compiler intrinsic that [Debug Printing](#debug-printing) specifies.
+5. r[module.prelude.dbg] The prelude name `dbg` is the function with the signature that [Debug Printing](#r-module.dbg.signature) specifies, whose body the compiler supplies.
 
 ### Debug Printing
 
-`dbg` prints values while a bug is being chased, and returns them, so it
-can wrap any expression:
+`dbg` prints values while a bug is being chased. It is a statement that
+returns nothing:
 
 ```text
 # src/cart.hd
 fn line_total(price: i32, qty: i32) -> i32:
-    dbg(price * qty) + 50  # prints src/cart.hd:2:5: price * qty = 1250
+    dbg(price * qty)  # prints src/cart.hd:2:5: price * qty = 1250
+    price * qty + 50
 
 fn check_order(id: i32, count: i32) -> bool:
-    let (key, n) = dbg(id, count)  # two lines, one per argument
-    dbg()                          # prints src/cart.hd:6:5
-    key > 0 && n > 0
+    dbg(id, count)  # two lines, one per argument
+    dbg()           # prints src/cart.hd:7:5
+    id > 0 && count > 0
 ```
 
-1. r[module.dbg.intrinsic] `std.format` declares `dbg` as a compiler intrinsic, and the prelude supplies it. This section defines its calls; no ordinary hd signature expresses them.
-2. r[module.dbg.call] A use of `dbg` must be a direct call whose arguments are positional and not spread. Any other use, such as `dbg` as a value or a call with type arguments, is an error. Error: `invalid-dbg-call`.
-3. r[module.dbg.one] `dbg(x)` evaluates `x`, prints its value, and returns it. The call has the type of `x`.
-4. r[module.dbg.one.expected] The expected type of a call `dbg(x)` is the expected type of `x`, so `let small: u8 = dbg(1)` makes `1` a `u8`.
-5. r[module.dbg.many] `dbg(a, b, c)` evaluates its arguments from left to right and prints each value when it is evaluated. It returns the tuple `(a, b, c)`.
-6. r[module.dbg.none] `dbg()` prints only the call's location. It has the type `void`.
+1. r[module.dbg.signature] `std.format` declares `dbg` as `@intrinsic pub fn dbg[Args < Tuple](values...: Args) -> void`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
+2. r[module.dbg.check] A `dbg` call is checked by the plain call rules and the [vararg rules](07-functions.md#varargs): `dbg()`, `dbg(x)`, and `dbg(a, b, c)` collect their arguments into `Args` as [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr) says. No rule gives `dbg` a type that the declaration does not.
+3. r[module.dbg.tuple-argument] `dbg((a, b, c))` is a call with one argument, a tuple, as [`fn.vararg.no-auto-spread`](07-functions.md#r-fn.vararg.no-auto-spread) says. It prints one line for the tuple, where `dbg(a, b, c)` prints one line for each argument.
+4. r[module.dbg.call] A use of `dbg` must be a direct call whose arguments are positional and not spread, with no type arguments. Any other use, such as `dbg` as a value, is an error. Error: `invalid-dbg-call`.
+5. r[module.dbg.body.print] The body evaluates the arguments from left to right and prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type.
+6. r[module.dbg.body.site] The body knows each argument's source text and the call's location, which no ordinary hd parameter can supply, as [Debug Lines](#debug-lines) says. `dbg()` prints only the location.
 7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test case](#r-module.testing.unit-row.anywhere), and in generic code.
 8. r[module.dbg.not-behavior] What `dbg` prints is diagnostic output, not program behavior. It is not an effect, a replay does not record it, and tools that judge a program's output ignore it.
 
@@ -782,7 +783,8 @@ fn check_order(id: i32, count: i32) -> bool:
 fn total(prices: List[i32]) -> i32:
     let sum = +0
     for price in prices:
-        sum = dbg(sum + price)  # valid: no Console in the row
+        sum = sum + price
+        dbg(sum)  # valid: no Console in the row
     sum
 ```
 
@@ -790,13 +792,15 @@ fn total(prices: List[i32]) -> i32:
 pub fn main() -> void:
     show := dbg          # error: invalid-dbg-call
     _ := dbg::[i32](1)   # error: invalid-dbg-call
+    let x: i32 = dbg(1)  # error: type-mismatch
 ```
 
-> **Why.** Rust's `dbg!` returns its argument and writes to standard
-> error. A print added while chasing a bug must not change a function's
-> signature, so `dbg` is the one way to print without `Console`. Its
-> output is for the person debugging, so the program's behavior never
-> depends on it.
+> **Why.** Rust's `dbg!` writes to standard error. A print added while
+> chasing a bug must not change a function's signature, so `dbg` is the
+> one way to print without `Console`. Its output is for the person
+> debugging, so the program's behavior never depends on it. Returning
+> nothing keeps `dbg` a plain statement: deleting it never changes a
+> type.
 
 #### Debug Lines
 
@@ -809,14 +813,15 @@ pub fn main() -> void:
 1. r[module.dbg.value.debug] A value whose static type implements `Debug` prints as its `Debug` text, as [`debug`](#r-module.prelude.debug) returns it.
 2. r[module.dbg.value.structural] A value of any other static type prints its structure, as the table below says. Each part prints by these same rules, so a part whose type implements `Debug` prints through it.
 3. r[module.dbg.value.no-bound] Neither rule needs a trait bound, so every value prints.
-4. r[module.dbg.value.generic] Inside generic code, a value whose static type mentions a type parameter prints through `Debug` when that type implements `Debug` under the bounds in scope, as for `T < Debug`. Otherwise what it prints is implementation-defined.
+4. r[module.dbg.value.source] A printed value is hd source wherever its parts have a source form, so it pastes back as an expression that builds an equal value, as [`std-format.debug.source`](../std/format.md#r-std-format.debug.source) specifies. A string prints as a string literal, and a char as a char literal.
+5. r[module.dbg.value.generic] Inside generic code, a value whose static type mentions a type parameter prints through `Debug` when that type implements `Debug` under the bounds in scope, as for `T < Debug`. Otherwise what it prints is implementation-defined.
 
 | Rule | Static type | Prints |
 | --- | --- | --- |
 | r[module.dbg.value.data] Data type | a `data` type | its name and each field with its name, private fields included, as `Point { x: 1, y: 2 }` |
-| r[module.dbg.value.enum] Enum | an `enum` | its variant's name, then its payload as `@derive(Debug)` writes it: `Dot`, `Some(1)`, or `Circle { radius: 2.0 }` |
+| r[module.dbg.value.variant] Enum | an `enum` | its variant as hd source constructs it, qualified by the enum, with positional payloads first and named ones as `name=value`: `Shape.Dot`, `Shape.Pair(1, 2)`, or `Shape.Circle(radius=2.0)` |
 | r[module.dbg.value.newtype] Newtype | a [newtype](04-type-system.md#newtypes) | its name and its base value, as `Meters(1.5)` |
-| r[module.dbg.value.builtin] Built-in composite | a list, map, tuple, `T?`, or `Result` | as its standard `Debug` implementation writes it, as `[1, 2]` or `Some(1)` |
+| r[module.dbg.value.composite] Built-in composite | a list, map, tuple, `T?`, or `Result` | as its standard `Debug` implementation writes it, as `[1, 2]`, `{"a": 1}`, `(1, "a")`, `Option.Some(1)`, or `Result.Ok(1)` |
 | r[module.dbg.value.function] Function | a function or closure | `<fn name(i32) -> i32>` when the argument names a function, else `<fn(i32) -> i32>` |
 | r[module.dbg.value.handle] Handle | a live runtime handle, such as a suspension | `<handle>` |
 
@@ -847,18 +852,18 @@ fn audit(account: Account) -> Account:
 #### Release Builds And Dependencies
 
 ```sh
-hd build --release   # error: dbg-in-release; the fix-it writes price * qty
+hd build --release   # error: dbg-in-release; the fix-it deletes the dbg statement
 ```
 
 1. r[module.dbg.release] A `dbg` call in the user's own code is an error in a release build, one of the [build profiles](04-type-system.md#integer-arithmetic). Error: `dbg-in-release`.
-2. r[module.dbg.release.fix] Its fix-it replaces `dbg(x)` with `x` and `dbg(a, b)` with `(a, b)`, and deletes `dbg()`.
+2. r[module.dbg.release.delete] Its fix-it deletes the whole `dbg(...)` statement.
 3. r[module.dbg.release.debug-build] A debug or test build accepts a `dbg` call with no warning.
 4. r[module.dbg.own-code] The user's own code is the root package, every member of its [workspace](#workspaces), and every package that a [path requirement](#path-requirements) reaches.
-5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments and returns them as [`module.dbg.one`](#r-module.dbg.one) and [`module.dbg.many`](#r-module.dbg.many) say.
+5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments, as [`module.dbg.body.print`](#r-module.dbg.body.print) says.
 6. r[module.dbg.dependency.warning] A build that compiles such a call warns once per fetched package, naming the package. Warning: `dbg-in-dependency`.
 
 > **Why.** A `dbg` call is never meant to ship, so a release build stops
-> it and its fix-it removes it. A published package that forgot one must
+> it and its fix-it removes it. Removing a statement changes no types. A published package that forgot one must
 > not print into its users' programs or break their release builds.
 
 #### Debug Text Hint

@@ -334,8 +334,9 @@ impl Eq for Session:
 4. r[trait.derive.newtype.requires.error] A base type that does not implement a derived trait is an error at the base type, whose message names the trait and the base type. Error: `derive-field-missing-trait`.
 5. r[trait.derive.newtype.not-inherited] A newtype still inherits no implementation it does not derive or implement.
 6. r[trait.derive.newtype.templated] A trait with a template also derives through the base type: the newtype gets no `Structure`, and the base type's implementation is rewrapped.
-7. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
-8. r[trait.derive.newtype.self-error] Any other position, such as `Map[Self, V]`, `Map[string, Self]`, or a tuple holding `Self`, is an error at the `@derive` line that names the trait method. Error: `newtype-derivation-self`.
+7. r[trait.derive.newtype.debug] `@derive(Debug)` on a newtype writes its constructor call, such as `Meters(2.5)`, around the base type's `Debug` text, as [`std-format.debug.source.newtype`](../std/format.md#r-std-format.debug.source.newtype) says.
+8. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
+9. r[trait.derive.newtype.self-error] Any other position, such as `Map[Self, V]`, `Map[string, Self]`, or a tuple holding `Self`, is an error at the `@derive` line that names the trait method. Error: `newtype-derivation-self`.
 
 ```text
 @derive(Eq, Hash)

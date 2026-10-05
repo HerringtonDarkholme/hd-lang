@@ -33,7 +33,7 @@ fn explain(error: ProcessError) -> string:
 | r[std-process.error.display.permission] Permission | `PermissionDenied` | `permission denied` |
 | r[std-process.error.display.other] Other | `Other(message)` | `message`, as written |
 
-1. r[std-process.error.debug] Its `Debug` writes the variant name, and for `Other` the `message` field, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).
+1. r[std-process.error.debug-text] Its `Debug` writes the qualified variant, and for `Other` the `message` argument, as `ProcessError.Other(message="x")`, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).
 2. r[std-process.error.eq] Two `ProcessError` values are equal when they are the same variant and, for `Other`, their messages are equal.
 3. r[std-process.error.error] `ProcessError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
 
@@ -57,7 +57,7 @@ fn same(left: ExitCode, right: ExitCode) -> bool:
 
 1. r[std-process.exit-code.eq] `ExitCode` implements `Eq`; two codes are equal when their `u8` values are.
 2. r[std-process.output.eq] `ProcessOutput` implements `Eq`; two outputs are equal when `stdout`, `stderr`, and `status` are each equal.
-3. r[std-process.debug] `ExitCode` and `ProcessOutput` implement `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types). An `ExitCode` writes its `u8` value.
+3. r[std-process.debug-text] `ExitCode` and `ProcessOutput` implement `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types). An `ExitCode` writes its constructor call, as `ExitCode(0)`.
 
 ## Scripted Process
 

@@ -24,7 +24,7 @@ impl Display for TypeId:
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.mapping): a `@derive` on a std
+# (r-std-format.debug.derive-builders.source): a `@derive` on a std
 # declaration has no effect in the prototype.
 impl Debug for TypeId:
     fn debug(self, out: mut DebugWriter) -> void:

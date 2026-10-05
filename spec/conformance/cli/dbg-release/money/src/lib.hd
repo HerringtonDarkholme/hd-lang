@@ -1,2 +1,3 @@
 pub fn cents(euros: i32) -> i32:
     dbg(euros * 100)
+    euros * 100

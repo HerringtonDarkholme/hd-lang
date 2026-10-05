@@ -20,7 +20,7 @@ impl[E < Error] Error for ResourceError[E]
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# (r-std-format.debug.derive-builders.source): the prototype runs the
 # derivation pass before it joins std (src/checker/program.ts), so a
 # `@derive` on a std declaration has no effect.
 
