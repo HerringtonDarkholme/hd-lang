@@ -601,6 +601,12 @@ export interface Program {
    */
   readonly joinedModules?: true;
   /**
+   * Under `joinedModules`, the linked entry module is a script, so the joined
+   * top level infers its entry requirement row
+   * (spec/lang/10-modules.md#r-module.init.script-row).
+   */
+  readonly scriptEntry?: true;
+  /**
    * Initialization-group boundaries over `statements`, in linker order: the
    * parser maps the linker's group starts to statement indices, but only
    * under `joinedModules`. Absent in a single file (one single-module group)

@@ -213,6 +213,24 @@ test("hd debug parse and hd debug hir replace hd parse and hd dump-hir", async (
 
 const MANIFEST = '[package]\nname = "shop"\n';
 
+test("a package script's top level infers its entry row (module.init.script-row)", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    await mkdir(join(directory, "src/tools"), { recursive: true });
+    await writeFile(
+      join(directory, "hd.toml"),
+      `${MANIFEST}\n[[executable]]\nname = "shop"\nmodule = "main"\n\n[[executable]]\nname = "tool"\nmodule = "tools.tool"\n`,
+    );
+    await writeFile(join(directory, "src/main.hd"), 'println("hi")\n');
+    await writeFile(join(directory, "src/tools/tool.hd"), 'println("tool")\n');
+    assert.equal((await hd(["check"], directory)).stdout, "shop: ok\n");
+    assert.equal((await hd(["run", "shop"], directory)).stdout, "hi\n");
+    assert.equal((await hd(["run", "tool"], directory)).stdout, "tool\n");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("hd test without FILE tests the package of the working directory", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {

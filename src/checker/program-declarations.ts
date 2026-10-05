@@ -519,8 +519,9 @@ export function createProgramDeclarations(
     // A lone file with top-level statements and no `main` is a script: its
     // top level runs through an inferred entry requirement row
     // (spec/lang/10-modules.md#r-module.init.script-row), not an empty one.
-    const script =
-      !program.joinedModules && !declarations.some((declaration) => declaration.name === "main");
+    const script = program.joinedModules
+      ? program.scriptEntry === true
+      : !declarations.some((declaration) => declaration.name === "main");
     declarations.push({
       kind: "function",
       name: "$module-initializer",

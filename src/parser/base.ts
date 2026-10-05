@@ -69,6 +69,11 @@ export interface ParseOptions {
    * only under `joinedModules`.
    */
   readonly packageScopes?: PackageScopes;
+  /**
+   * The linked entry module is a script (src/package.ts), so the parser puts
+   * `scriptEntry` on the program, under `joinedModules`.
+   */
+  readonly scriptEntry?: boolean;
   /** The source is a `lib/std` module, which may write `collect`'s type-argument default. */
   readonly standardLibrary?: boolean;
 }

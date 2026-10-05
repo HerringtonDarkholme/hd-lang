@@ -124,6 +124,9 @@ class Parser extends LetParser {
         statements,
         ...(items.testOnlyNames.size > 0 ? { testOnlyNames: [...items.testOnlyNames] } : {}),
         ...(this.options.joinedModules === true ? { joinedModules: true as const } : {}),
+        ...(this.options.joinedModules === true && this.options.scriptEntry === true
+          ? { scriptEntry: true as const }
+          : {}),
         ...(testsBlock ||
         this.options.testModule === true ||
         (this.options.joinedModules === true && tests.length > 0)

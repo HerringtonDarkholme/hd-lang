@@ -195,6 +195,12 @@ export interface LinkedPackage {
    */
   readonly entryLine?: number;
   /**
+   * The entry module is a script: top-level statements and no `main`
+   * (spec/lang/10-modules.md#r-module.init.script). Never set for a test
+   * build, whose entry module is not the last to initialize.
+   */
+  readonly scriptEntry?: true;
+  /**
    * The source of each linked dependency module, by its absolute path, so a
    * diagnostic that points into a dependency can show its line.
    */
@@ -995,7 +1001,17 @@ export function linkPackage(
     packageScopes: { scopes, modules: namespaceModules },
     dependencySources,
     entryLine: segments.find(({ path }) => path === entry)?.firstLine,
+    ...(!options.tests && isScript(entryModule.program) ? { scriptEntry: true as const } : {}),
   };
+}
+
+/** A script: top-level statements and no `main` (spec/lang/10-modules.md#r-module.init.script). */
+function isScript(program: Program | undefined): boolean {
+  return (
+    program !== undefined &&
+    program.statements.length > 0 &&
+    !program.functions.some(({ name }) => name === "main")
+  );
 }
 
 /**
@@ -1016,6 +1032,7 @@ export function linkedParseOptions(linked: LinkedPackage): ParseOptions {
   return {
     joinedModules: true,
     initGroupStarts: linked.initGroups,
+    ...(linked.scriptEntry ? { scriptEntry: true } : {}),
     ...(linked.packageScopes ? { packageScopes: linked.packageScopes } : {}),
   };
 }
