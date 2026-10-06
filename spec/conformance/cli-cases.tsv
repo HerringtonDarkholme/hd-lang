@@ -80,3 +80,4 @@ dep-path-no-package	cli.dep.invalid,cli.json.diagnostic.file
 exe-unselected-main-used	cli.exe.unselected-main
 typeid-package-name	cli.run.default.one,cli.exit.program
 typeid-single-file	cli.file.run,cli.exit.program
+test-err-report	cli.exit.test-failure,cli.json.test.result,cli.json.test.result.fields

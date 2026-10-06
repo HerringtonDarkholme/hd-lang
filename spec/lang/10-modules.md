@@ -1456,7 +1456,7 @@ tests:
 12. r[module.testing.integration-row.unbound.error] Otherwise checking reports `missing-requirement` with the hint `bind it with $.with(Trait=...)`.
 13. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
 14. r[module.testing.fail] It fails when `report()` returns another code or when its body panics, including by a failed assertion.
-15. r[module.testing.err-print] When the result holds an `.Err`, the runner prints the error as [Entry Results](#entry-results) describes.
+15. r[module.testing.err-print] When the result holds an `.Err`, the runner reports the error and its cause chain, rendered as [Entry Results](#entry-results) describes. The report is the runner's own text or JSON report on standard output, and [`module.entry.err-stderr`](#r-module.entry.err-stderr) does not apply.
 16. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
 
 ```text

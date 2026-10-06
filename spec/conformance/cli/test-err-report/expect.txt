@@ -1,0 +1,11 @@
+# A test case whose body returns .Err fails, and the runner reports the error
+# and its cause chain in its own report on standard output, in text and JSON
+# alike; nothing goes to standard error.
+# Spec 10 Test Outcomes: module.testing.err-print, module.testing.fail.
+run: hd test
+exit: 1
+stderr-json: []
+run: hd test --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"saves the notes","outcome":"failed","message":null},{"kind":"summary","passed":0,"failed":1,"status":1}]
+stderr-json: []

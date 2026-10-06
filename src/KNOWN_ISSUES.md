@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,824 cases: 2,803 selected in `test/portable/cases.tsv` and 21 known
+2,825 cases: 2,803 selected in `test/portable/cases.tsv` and 22 known
 failures. The selected cases are 2,428 language tier, 308 stdlib tier, and 67
-CLI tier; the known failures are 6 language tier, 1 stdlib tier, and 14
+CLI tier; the known failures are 6 language tier, 1 stdlib tier, and 15
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -27,6 +27,7 @@ CLI tier.
 | F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
 | F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
 | F-624 | 1 | a trait-qualified call does not take a type-parameter receiver |
+| F-625 | 1 | `hd test` reports a test case's `.Err` on standard error, without the error |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
 ## Findings
@@ -90,6 +91,14 @@ Correctness and diagnostics:
   which a bound or a child trait's bound proves. `checkImplementedMemberCall`
   in `src/checker/expression-calls.ts` searches implementations only.
   `typing/valid/trait-qualified-call-generic-receiver.hd` shows it.
+- **F-625**: when a test case's body returns `.Err`, `hd test` writes
+  `test "NAME" returned Err` to standard error in text mode, and the JSON
+  `message` holds the same text. By `module.testing.err-print`, the
+  runner's own report on standard output holds the error and its
+  `caused by: ` lines. The entry renderer (`checker/entry-error.ts`) covers
+  only `main`, and `entryError` in `src/diagnostic-report.ts` writes the
+  line.
+  `cli/test-err-report` shows it.
 
 Runtime cost:
 
