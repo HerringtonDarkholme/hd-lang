@@ -90,26 +90,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K9. Usability Probe 4 (Read-Only)
-
-Act as a new hd user. Use only `README.md`, `guide/`, and `spec/` when
-the guide isn't enough. Write four small realistic programs in a scratch
-directory outside the repo:
-
-1. A config loader: `@derive(Serialize, Deserialize)` on a nested config
-   type, read from a JSON file, with a typed error when a field is missing.
-2. A property test with the standard testing library: a function that
-   normalizes whitespace, plus properties that hold for any string.
-3. A service with a `Mailer` requirement, tested by binding a fake
-   provider with `$.with`, and run for real with the default profile.
-4. A command-line tool that reads `Args`, validates them, and reports
-   errors with `@error` types and `?`.
-
-Run them with your worktree's `bin/hd.js`. For every mistake and message,
-add a row to `audit/hd-writing-log.md` in the existing format (task
-`probe 4: …`, model column `kimi`). Commit only the log. In the commit
-message, list the five most painful problems.
-
 ### K10. Add Missing Examples To Spec Sections
 
 `pnpm run spec audit` counts sections without an example (`no-ex`, 225
