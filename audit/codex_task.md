@@ -65,9 +65,9 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
-- Module visibility (another agent is changing it): `src/checker/package-ownership.ts`,
-  `src/checker/member-lookup.ts` visibility paths, `src/checker/module-paths.ts`,
-  `src/package.ts` module scopes.
+- Module name scopes (another agent is changing them): `src/checker/module-paths.ts`,
+  `src/checker/package-ownership.ts`, `src/checker/member-visibility.ts`,
+  `src/package.ts` module scopes and linking.
 
 ## Jobs
 
