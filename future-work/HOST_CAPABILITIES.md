@@ -37,6 +37,11 @@
 >   `Result`, never a panic. The resource is known only at run time, and
 >   the program can recover.
 >
+> **Owner, 2026-10-06: the name is `capabilities`.** The grant table is
+> `[capabilities]` in `hd.toml`, keyed by the requirement-row trait names
+> (`FsRead`, `FsWrite`, `Http`, `Net`, `Env`, `Process`, `Sys`, `Console`,
+> …), and the flags are `--cap Name=…`.
+>
 > **Owner, 2026-10-06: keep sockets.** A `Net` capability (TCP, UDP, DNS),
 > scoped by `host:port`, stays in this design beside `Http`, and is no
 > longer deferred. The prototype sessions still start with the HTTP
