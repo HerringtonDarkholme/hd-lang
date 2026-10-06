@@ -18,8 +18,8 @@ runner implement over the language tier:
 
 The language tier keeps the assertion functions and the literal `expect` of
 `snapshot`. It also keeps the test registration functions `it`, `it_each`,
-`it_prop`, and `it_prop_with`, with their options, position rules, and
-diagnostics
+`it_prop`, and `it_prop_with`. Their options, position rules, and
+diagnostics stay in the language tier too
 ([Standard Testing](../lang/10-modules.md#standard-testing),
 [Test Cases](../lang/10-modules.md#test-cases),
 [Registration Functions](../lang/10-modules.md#registration-functions),
@@ -36,9 +36,9 @@ This chapter defines what their test cases do when they run.
 > `std.time.Duration?` ([Test Timeout](#test-timeout)).
 
 See also: [Table-Test Rows](#table-test-rows), for how an `it_each` call
-expands and names its rows, and [Property Tests](#property-tests),
-[Draw Budget](#draw-budget), and [Derived Arbitrary](#derived-arbitrary),
-for how the runner generates a property's inputs.
+expands and names its rows. [Property Tests](#property-tests),
+[Draw Budget](#draw-budget), and [Derived Arbitrary](#derived-arbitrary)
+show how the runner generates a property's inputs.
 
 ## Property Tests
 
@@ -63,7 +63,7 @@ trait Arbitrary:
 | r[std-testing.choices.draw] Draw | `fn draw[T < Arbitrary](mut self) -> T` | `T::arbitrary(self)`, the type's default |
 
 1. r[std-testing.choices.declare] `std.testing` declares `Choices` and `Arbitrary`. Neither is a prelude name.
-2. r[std-testing.choices.from-case] `std.testing` creates the `Choices` of each generated case from the [`PropertyCase`](#runner-capabilities) that the runner returns, and reports each draw to the runner, so the runner can replay and shrink a case.
+2. r[std-testing.choices.from-case] `std.testing` creates the `Choices` of each generated case from the [`PropertyCase`](#runner-capabilities) that the runner returns. It reports each draw to the runner, so the runner can replay and shrink a case.
 3. r[std-testing.choices.no-size] `Choices` has no size: no member reads or sets one, and no option of `it_prop` or `it_prop_with` sets one.
 4. r[std-testing.choices.string-limit] The limit of `string` counts `char` values, not bytes.
 5. r[std-testing.choices.map.duplicate] When `key` draws a key that the map already holds, the later value replaces the earlier one. So the map may hold fewer entries than were drawn.
@@ -161,7 +161,7 @@ Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
 
 ## Edge Values
 
-The first generated cases of a property run draw edge values, so a
+The first generated cases of a property run draw edge values. So a
 property meets `0`, the bounds of a range, the smallest and largest value
 of an integer type, and an empty collection early. Each edge case takes
 one edge, which its seed picks:
@@ -176,8 +176,8 @@ one edge, which its seed picks:
 1. r[std-testing.edge.cases] A generated case is an edge case when its `size` is below 4. Every other case takes no edge.
 2. r[std-testing.edge.plan] An edge case takes the edge of its seed modulo 4 in the table above, for each fresh draw it makes.
 3. r[std-testing.edge.replay] An edge changes fresh draws only. A replayed draw returns its recorded value, by [`std-testing.runner.replay`](#r-std-testing.runner.replay).
-4. r[std-testing.edge.coverage] When a run discards no case, its first four generated cases take the low, high, zero, and no edge once each, since their seeds are consecutive.
-5. r[std-testing.edge.int-type] A default generator of an integer type returns every value from the type's smallest to its largest, so the low and high edges reach the type's own bounds. For `i32`, `i64`, `u32`, `u64`, and `usize` they may reach them outside an edge case as well.
+4. r[std-testing.edge.coverage] When a run discards no case, its first four generated cases take the low, high, zero, and no edge once each. This holds because their seeds are consecutive.
+5. r[std-testing.edge.int-type] A default generator of an integer type returns every value from the type's smallest to its largest. So the low and high edges reach the type's own bounds. For `i32`, `i64`, `u32`, `u64`, and `usize` they may reach them outside an edge case as well.
 6. r[std-testing.edge.budget] A spent draw budget still returns the simplest value, by [`std-testing.budget.simplest.int`](#r-std-testing.budget.simplest.int), whatever the edge.
 
 > **Why.** Hypothesis and QuickCheck bias draws toward `0`, the bounds,
@@ -199,10 +199,10 @@ through the template of `Arbitrary`.
 6. r[std-testing.arbitrary.derive.manual] Such a type gets its default generator only from a hand-written `impl Arbitrary`.
 7. r[std-testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
 8. r[std-testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`, as [Self References](../lang/14-annotations.md#self-references) computes it from the member types.
-9. r[std-testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
+9. r[std-testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive. Its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
 10. r[std-testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
 11. r[std-testing.arbitrary.derive.no-finite.message] The message is `"${T::name()} has no finite value"`, where [`T::name()`](../lang/14-annotations.md#r-annot.structure.name) is the type's declared name.
-12. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
+12. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way. The compiler does not reject the type either. Panic: `explicit-panic`.
 13. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
 14. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
 15. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [typed fact type](../lang/14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
@@ -314,8 +314,9 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 
 > **Why.** One fact that holds a whole generator covers every range,
 > length, and shape, so derived `Arbitrary` needs no range or length facts.
-> `With[F]` is a typed fact type, so a generator of the wrong type is caught
-> where it is written, and the derived code reads it at the member's type.
+> `With[F]` is a typed fact type. So a generator of the wrong type is
+> caught where it is written, and the derived code reads it at the member's
+> type.
 
 > **Why.** A template states one bound for all of a type's members, and no
 > fact can lift it from one member. So every member meets the bound, and
@@ -326,9 +327,10 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 > A newtype that derives `Arbitrary` through a base with no finite value
 > panics with the base type's name.
 
-> **Note.** These are runner behavior, not rules of this chapter: how often
-> a draw outside an [edge case](#edge-values) returns a small value, any
-> small-first order of cases, and the size of the draw budget. So are which chars `string` draws and
+> **Note.** These are runner behavior, not rules of this chapter. One is
+> how often a draw outside an [edge case](#edge-values) returns a small
+> value. So are any small-first order of cases and the size of the draw
+> budget. So are which chars `string` draws and
 > how the runner shrinks a failing case.
 
 ## Test Timeout
@@ -510,7 +512,7 @@ it("exports the orders into its own directory"):
 ```
 
 > **Note.** A unit test case may call `temp_dir` too, but it reaches no
-> real file: only an integration test case gets `FsRead` and `FsWrite`
+> real file. Only an integration test case gets `FsRead` and `FsWrite`
 > from the runner.
 
 > **Why.** A shared output path makes tests that run at once overwrite
@@ -550,9 +552,9 @@ tests:
         _ := receipt_header("Main St")  # error: missing-requirement
 ```
 
-1. r[std-testing.unit.hint] The `missing-requirement` error for a host trait of this table, inside a unit test case, names the trait's provider and `$.with`, and suggests moving the test case to the test root.
+1. r[std-testing.unit.hint] The `missing-requirement` error for a host trait of this table, inside a unit test case, names the trait's provider and `$.with`. It also suggests moving the test case to the test root.
 
-> **Why.** An agent that meets the error learns both fixes at once: a fake
+> **Why.** An agent that meets the error learns both fixes at once. A fake
 > keeps the test a unit test, and the test root makes it an integration
 > test.
 
@@ -609,7 +611,7 @@ pub data PropertyCase:
 9. r[std-testing.runner.replay] The draw at position `i` of a case returns `replay[i]`, limited to the draw's bound, when `replay` holds a value at `i`. Every other draw is fresh.
 10. r[std-testing.runner.record-every] `Choices` calls `record` once for every draw, replayed or fresh, before it uses the value. So the runner holds the case's draws even when the case then panics.
 11. r[std-testing.runner.random] The fresh draws of a case come from a [`Random`](random.md#random-source) provider that `std.testing` seeds with the case's `seed`. So the same seed draws the same cases.
-12. r[std-testing.runner.case.size-count] The `size` of a run's first generated case is 0, and each later generated case has one more than the case before it, a discarded case not counting.
+12. r[std-testing.runner.case.size-count] The `size` of a run's first generated case is 0. Each later generated case has one more than the case before it, a discarded case not counting.
 13. r[std-testing.runner.case.seed-step] The `seed` of each case of a run, a discarded one included, is one more than the `seed` of the case before it.
 
 ```text
@@ -661,10 +663,10 @@ See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
 ### Discarding A Case
 
 1. r[std-testing.runner.discard-panic] `Choices.assume(false)` ends the case with a panic whose category is that of a `panic` call and whose message is exactly `std.testing: case discarded`. Panic: `explicit-panic`.
-2. r[std-testing.runner.discard-read] The runner reads such a panic, raised before the case calls `show`, as a discard: the case neither passes nor fails, and it does not count toward `cases`.
+2. r[std-testing.runner.discard-read] The runner reads such a panic, raised before the case calls `show`, as a discard. The case neither passes nor fails, and it does not count toward `cases`.
 3. r[std-testing.runner.discard-after-show] The same panic after `show` is an ordinary failure, so a property body cannot discard a case, as [`std-testing.prop.body-no-discard`](#r-std-testing.prop.body-no-discard) states.
 
 > **Why.** A discard is a panic, so it ends the case through the panic
-> rules every case already has, and the runner needs no method that does
+> rules every case already has. The runner needs no method that does
 > not return. Each draw was recorded before the panic, so the runner
 > still holds the stream.
