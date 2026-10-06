@@ -1,0 +1,6 @@
+# test: a supertrait bound that lists one trait twice is an error
+# Spec 09 Supertraits: trait.super.unique (error-code proposal, part D).
+
+trait Parent
+
+trait Twice < Parent & Parent  # diagnostic: duplicate-supertrait

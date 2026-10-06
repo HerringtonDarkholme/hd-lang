@@ -1,0 +1,8 @@
+# test: in another module a data literal cannot construct a type with a private field
+# Spec 08 Field Visibility: data.vis.literal (error-code proposal F1). The tree's
+# cart module declares Cart with the private field total.
+# fixture-package-tree: module-members/src/checkout.hd
+use pkg.cart.{Cart}
+
+fn empty(owner: string) -> Cart:
+    Cart { owner: owner, total: 0 }  # diagnostic: private-member

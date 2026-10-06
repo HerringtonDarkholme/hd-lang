@@ -1,0 +1,5 @@
+# test: a trait method parameter must have an explicit type
+# Spec 09 Trait Members: trait.decl.typed (error-code proposal F4).
+
+trait Scale:
+    fn scale(self, factor) -> i32  # diagnostic: syntax-error

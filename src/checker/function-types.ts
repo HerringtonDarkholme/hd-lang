@@ -1,3 +1,4 @@
+import { arityCode } from "../diagnostics.ts";
 import type { GenericBound, Program } from "../ast.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
@@ -89,7 +90,7 @@ function lowerConstructor(
     return {
       type: spelled,
       error: {
-        code: "generic-arity",
+        code: arityCode(arguments_.length, 3),
         message: `'${constructor}' takes the inputs, the output, and the requirement row`,
       },
     };

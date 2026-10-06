@@ -1,0 +1,11 @@
+# test: an implementation that binds no type for a declared associated type is an error
+# Spec 09 Implementation Declarations: trait.impl.required (error-code proposal, part D).
+
+trait Supplier:
+    type Item
+    fn get(self) -> i32
+
+data Numbers: pass
+
+impl Supplier for Numbers:  # diagnostic: missing-trait-method
+    fn get(self) -> i32: 1

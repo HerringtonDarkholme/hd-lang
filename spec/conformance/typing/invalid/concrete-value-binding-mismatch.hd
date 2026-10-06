@@ -1,0 +1,19 @@
+# test: a value converts to a bound trait value type only when its implementation binds the bound type
+# Spec 09 Associated Type Bindings In Trait Values: trait.dyn.binding.convert (error-code proposal F4).
+
+trait Source:
+    type Item
+    fn next(mut self) -> Self::Item?
+
+data Ints:
+    value: i32
+
+impl Source for Ints:
+    type Item = i32
+    fn next(mut self) -> i32?: .Some(self.value)
+
+fn words(source: mut Source[Item = string]) -> void:
+    pass
+
+fn run() -> void:
+    words(Ints { value: 1 })  # diagnostic: type-mismatch

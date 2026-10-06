@@ -173,7 +173,7 @@ function variantResultProblem(
       : undefined;
   if (!written)
     return {
-      code: "missing-variant-result",
+      code: "missing-required-field",
       message: `variant '${variant.name}' must initialize shared enum data`,
       span: variant.span,
     };

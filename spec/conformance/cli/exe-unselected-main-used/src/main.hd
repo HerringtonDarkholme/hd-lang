@@ -1,0 +1,4 @@
+use pkg.helper.{label}
+
+pub fn main() -> void $ Console:
+    println(label())

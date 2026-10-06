@@ -1,0 +1,8 @@
+# test: in another module a copy-update literal cannot carry a private field
+# Spec 08 Field Visibility: data.vis.private-fields (error-code proposal F1). The
+# tree's cart module declares Cart with the private field total.
+# fixture-package-tree: module-members/src/checkout.hd
+use pkg.cart.{Cart}
+
+fn rename(cart: Cart, owner: string) -> Cart:
+    Cart { ...cart, owner: owner }  # diagnostic: private-member

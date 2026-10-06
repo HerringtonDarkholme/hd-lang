@@ -75,3 +75,6 @@ derivation-lines-agree	cli.json.summary.result,cli.exit.success
 dev-dependency-cyclic-integration	cli.dep.path,cli.json.test.result
 entry-err-display	cli.file.run,cli.exit.program
 entry-err-chain	cli.file.run,cli.exit.program
+task-beside-dir	cli.task.beside-dir,cli.exit.hd-failure
+dep-path-no-package	cli.dep.invalid,cli.json.diagnostic.file
+exe-unselected-main-used	cli.exe.unselected-main

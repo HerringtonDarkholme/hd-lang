@@ -1,0 +1,11 @@
+# test: a local method cannot capture a runtime value of its enclosing function
+# Spec 09 Local Implementations: trait.impl.local.no-capture (error-code proposal F4).
+
+fn describe(base: string) -> string:
+    data Label:
+        text: string
+
+    impl Label:
+        fn full(self) -> string: base + self.text  # diagnostic: unknown-name
+
+    Label { text: "x" }.full()

@@ -1,3 +1,4 @@
+import { arityCode } from "../diagnostics.ts";
 import type { Expression, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirEnum, HirExpression, HirTrait, ValueType } from "../hir.ts";
@@ -117,7 +118,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     span: SourceSpan,
   ): ValueType {
     if (typeArguments && typeArguments.length !== 1)
-      this.fail("generic-arity", `${name} expects one type argument`, span);
+      this.fail(arityCode(typeArguments.length, 1), `${name} expects one type argument`, span);
     if (typeArguments) return this.resolveType(typeArguments[0]!);
     const inferred = expected === undefined ? undefined : optionalInner(expected);
     if (inferred === undefined)
@@ -469,7 +470,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
    */
   protected factsOfCall(expression: CallExpression): Expression {
     if (expression.typeArguments?.length)
-      this.fail("unexpected-type-arguments", "facts_of takes no type arguments", expression.span);
+      this.fail("argument-count", "facts_of takes no type arguments", expression.span);
     if (expression.arguments.length !== 1 || expression.argumentSpreads?.some(Boolean))
       this.fail("argument-count", "facts_of expects one function name", expression.span);
     const argument = expression.arguments[0]!;

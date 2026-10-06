@@ -1,0 +1,15 @@
+# test: a trait that extends Inspectable still needs an implementation before a value converts to it
+# Spec 09 Erasure: trait.erase.child-impl (error-code proposal F4).
+use std.inspect.Inspectable
+
+trait Plugin < Inspectable:
+    fn run(self) -> string
+
+data Echo:
+    text: string
+
+fn load(plugin: Plugin) -> string:
+    plugin.run()
+
+fn start() -> string:
+    load(Echo { text: "hi" })  # diagnostic: type-mismatch

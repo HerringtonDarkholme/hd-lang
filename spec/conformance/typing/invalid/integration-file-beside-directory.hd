@@ -1,0 +1,6 @@
+# test: a file directly under the test root beside a directory of the same name is an error
+# Spec 10 Test Modules: module.test.integration.beside-dir (error-code proposal F5).
+# The tree has tests/common/mod.hd beside this tests/common.hd.
+# fixture-package-tree: integration-shared/tests/common.hd
+pub fn expected_name() -> string:  # diagnostic: duplicate-module-name
+    "hi"

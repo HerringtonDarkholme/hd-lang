@@ -1,0 +1,14 @@
+# test: an implementation that binds an associated type the trait does not declare is an error
+# Spec 09 Implementation Declarations: trait.impl.extra-methods (error-code proposal F4).
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Names: pass
+
+impl Supplier for Names:
+    type Item = string
+    type Key = i32  # diagnostic: extra-trait-member
+
+    fn get(self) -> string: "Ada"

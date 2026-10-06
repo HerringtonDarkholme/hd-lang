@@ -855,7 +855,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         );
       } else {
         this.fail(
-          "pattern-type-mismatch",
+          "type-mismatch",
           `pattern is not valid for '${displayType(context.subject.type)}'`,
           arm.pattern.span,
         );
@@ -898,7 +898,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const declaration = context.declaration!;
     if (pattern.enumName !== undefined && pattern.enumName !== declaration.name) {
       this.fail(
-        "pattern-type-mismatch",
+        "type-mismatch",
         `pattern names '${pattern.enumName}', expected '${declaration.name}'`,
         pattern.span,
       );
@@ -961,7 +961,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         );
       if (seenFields.has(fieldIndex))
         this.fail(
-          "duplicate-variant-pattern-field",
+          "duplicate-data-pattern-field",
           `payload field '${variant.fields[fieldIndex]!.name}' appears more than once`,
           pattern.span,
         );

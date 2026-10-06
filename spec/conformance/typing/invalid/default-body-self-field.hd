@@ -1,0 +1,14 @@
+# test: a default method body cannot read a field of the implementing type
+# Spec 09 Default Method Bodies: trait.default.no-self-members (error-code proposal F4).
+
+trait Greeter:
+    fn name(self) -> string
+
+    fn tag(self) -> string:
+        self.email  # diagnostic: unknown-method
+
+data User:
+    email: string
+
+impl Greeter for User:
+    fn name(self) -> string: self.email

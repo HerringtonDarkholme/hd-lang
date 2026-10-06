@@ -1239,6 +1239,16 @@ fn edit() -> void:
 
 23. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
 24. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
+25. r[types.bind.never] A binding without a type annotation whose initializer has type `never` is an error. Error: `uninhabited-binding`.
+
+```text
+fn first_even(values: List[i32]) -> i32:
+    found := panic("no even value")  # error: uninhabited-binding
+    found
+```
+
+> **Why.** No value of type `never` exists, so the binding could never be
+> read. The initializer alone, without `found :=`, says the same thing.
 
 ### Mutable Paths
 

@@ -1,0 +1,8 @@
+# test: a relative use path cannot move above the package root
+# Spec 10 Relative Uses: module.relative.above-root (error-code proposal F5).
+# From src/report.hd, super is the package root, so super.super is above it.
+# fixture-package-tree: user-modules/src/report.hd
+use super.super.user  # diagnostic: unknown-module
+
+pub fn welcome(name: string) -> string:
+    user.greeting(name)

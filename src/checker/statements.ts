@@ -421,11 +421,7 @@ export abstract class StatementChecker extends CheckerContext {
         if (this.deferDepth > 0)
           this.fail("defer-control-flow", "a defer suite cannot continue", statement.span);
         if (this.loopResults.length === 0)
-          this.fail(
-            "continue-outside-loop",
-            "continue is only valid inside a loop",
-            statement.span,
-          );
+          this.fail("break-outside-loop", "continue is only valid inside a loop", statement.span);
         return { kind: "continue", span: statement.span };
       case "expression": {
         if (statement.expression.kind === "if") STATEMENT_IFS.add(statement.expression);
@@ -524,7 +520,7 @@ export abstract class StatementChecker extends CheckerContext {
     const annotatedElements = annotation ? tupleParts(annotation) : undefined;
     if (annotation && annotatedElements === undefined) {
       this.fail(
-        "tuple-binding-annotation",
+        "type-mismatch",
         `tuple binding annotation '${displayType(annotation)}' is not a tuple type`,
         statement.annotation!.span,
       );

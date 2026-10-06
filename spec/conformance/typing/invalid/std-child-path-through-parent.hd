@@ -3,5 +3,5 @@
 # no-child-import rule as packages.
 use std.testing
 
-fn make(x: testing.arbitrary.With) -> i32:  # diagnostic: unknown-type
+fn make(x: testing.arbitrary.With) -> i32:  # diagnostic: unknown-import
     0

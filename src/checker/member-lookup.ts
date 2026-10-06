@@ -413,6 +413,19 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         return { kind: "inherent", steps: [], method: inherent };
       if (inherent) ownInvisible = true;
     } else {
+      // Nor does it see the implementing type's fields
+      // (09-traits.md#r-trait.default.no-self-members).
+      const defaultTrait = traitDefaultDeclarations.get(this.declaration);
+      if (
+        defaultTrait !== undefined &&
+        this.declaration.parameters[0]?.name === "self" &&
+        type === readonlyType(this.signature.parameters[0]!)
+      )
+        this.fail(
+          "unknown-method",
+          `a default method body sees only the members of its trait and supertraits, which declare no field '${name}'`,
+          span,
+        );
       const field = declaration?.fields.find((candidate) => candidate.name === name);
       if (declaration && field && this.memberVisible(field, span, declaration))
         return { kind: "field", steps: [], final: { declaration, field, substitutions } };

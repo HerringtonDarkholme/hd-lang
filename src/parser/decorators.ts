@@ -81,7 +81,7 @@ export abstract class DecoratorParser extends ExpressionParser {
           );
         if (parameters.includes(parameter.text))
           this.fail(
-            "duplicate-generic-parameter",
+            "duplicate-type",
             `generic parameter '${parameter.text}' is declared more than once`,
             parameter.span,
           );

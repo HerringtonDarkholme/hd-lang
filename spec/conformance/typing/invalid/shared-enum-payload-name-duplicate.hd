@@ -1,0 +1,6 @@
+# test: a named payload parameter must not repeat a named shared parameter of its enum
+# Spec 08 Shared Fields: data.shared.payload-names (error-code proposal F1).
+
+enum Status(code: i32):
+    Ok -> Status(200)
+    Moved(code: i32) -> Status(301)  # diagnostic: duplicate-field

@@ -150,6 +150,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
         ? diagnostic
         : {
             ...diagnostic,
+            code: "member-not-derivable",
             message: `${members.map((member) => `member '${member.name}'`).join(", ")} cannot be derived: ${diagnostic.message}; write the impl of Arbitrary by hand`,
           };
     }

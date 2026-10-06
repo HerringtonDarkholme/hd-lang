@@ -1,0 +1,6 @@
+# test: a variant of an enum with shared data must give its constructor expression
+# Spec 08 Shared Enum Constructor Data: data.shared.constructor (error-code proposal F1).
+
+enum Status(code: i32):
+    Ok -> Status(200)
+    NotFound  # diagnostic: missing-required-field

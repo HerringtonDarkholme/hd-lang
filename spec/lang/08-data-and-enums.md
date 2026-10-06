@@ -77,8 +77,8 @@ See also: [Default Values](07-functions.md#default-values).
 1. r[data.vis.private] Named fields are module-private unless individually marked `pub`.
 2. r[data.vis.type-not-fields] A public data type does not make its unmarked fields public.
 3. r[data.vis.embedded-public] An embedded field takes no marker and is always public: it is visible wherever its outer type is.
-4. r[data.vis.literal] In another module, a data literal may construct the type only when all its fields are public.
-5. r[data.vis.private-fields] In another module, private fields cannot be named, initialized, or carried through a copy-update literal.
+4. r[data.vis.literal] In another module, a data literal may construct the type only when all its fields are public. Any other such literal is an error. Error: `private-member`.
+5. r[data.vis.private-fields] In another module, private fields cannot be named, initialized, or carried through a copy-update literal. Doing so is an error. Error: `private-member`.
 6. r[data.vis.factory] A public factory function can construct a value with private fields inside the defining module.
 
 Because an embedded field is public, embedding a module-private data type in
@@ -729,7 +729,7 @@ retry := fn(error: FsError) -> SyncError: SyncError.Retry(1, error)
 5. r[data.enum.fn-value.generic-rule] For a generic enum, or a variant with its own generic parameters, the value follows the rule for [generic function values](07-functions.md#generic-function-values).
 6. r[data.enum.fn-value.generic-argument] Passed as a call argument, it takes its type arguments from the call. So `result.map_err(TaskError.Failed)` on a `Result[T, FsError]` gives `TaskError[FsError]`.
 7. r[data.enum.fn-value.generic-unsolved] A generic parameter that remains unsolved is an error. Error: `cannot-infer-type`.
-8. r[data.enum.fn-value.shorthand] The contextual shorthand `.Variant` still needs an expected enum type, so it is never a function value.
+8. r[data.enum.fn-value.shorthand] The contextual shorthand `.Variant` still needs an expected enum type, so it is never a function value. Using it as one is an error. Error: `missing-contextual-enum-type`.
 9. r[data.enum.fn-value.call] Calling the value constructs the variant, exactly as calling the constructor does.
 10. r[data.enum.fn-value.multiple] A variant constructor with two or more payload fields is not a function value and must be called.
 11. r[data.enum.fn-value.unsaturated] Using one without an argument clause is an error. Error: `unsaturated-enum-constructor`.
@@ -800,8 +800,8 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 
 1. r[data.shared.declare] An enum may declare data shared by all variants.
 2. r[data.shared.parameters] Constructor parameters may be unnamed or named.
-3. r[data.shared.constructor] Each variant with shared enum data must provide its enum constructor expression after `->`.
-4. r[data.shared.arguments] The constructor call follows ordinary positional/named argument ordering and must initialize each shared parameter without a default.
+3. r[data.shared.constructor] Each variant with shared enum data must provide its enum constructor expression after `->`. A variant without one is an error. Error: `missing-required-field`.
+4. r[data.shared.arguments] The constructor call follows ordinary positional/named argument ordering and must initialize each shared parameter without a default. Error: `missing-required-field`.
 5. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
 6. r[data.shared.compile-time] Each variant's constructor expression is evaluated once, at compile time, as a [fact expression](14-annotations.md#r-annot.fact.eval) is, and it must be requirement-free.
 7. r[data.shared.no-payload] The variant's payload parameters are not in scope in its constructor expression.
@@ -840,9 +840,9 @@ phrase := HttpStatus.NotFound.phrase
 4. r[data.shared.permissions] Shared fields follow ordinary composite access permissions.
 5. r[data.shared.readonly] Reading through a readonly enum yields a readonly viewpoint.
 6. r[data.shared.read-only] A shared field is read-only: assigning one is an error, even through a mutable enum root. Error: `invalid-assignment-target`.
-7. r[data.shared.payload-fields] Variant payload fields remain available through pattern matching rather than direct field access, because they do not exist on every variant.
-8. r[data.shared.payload-names] Within one variant, a named payload parameter must not duplicate a named shared constructor parameter.
-9. r[data.shared.payload-defaults] Variant payload parameters do not have defaults.
+7. r[data.shared.payload-fields] Variant payload fields remain available through pattern matching rather than direct field access, because they do not exist on every variant. A direct access is an error. Error: `unknown-data-field`.
+8. r[data.shared.payload-names] Within one variant, a named payload parameter must not duplicate a named shared constructor parameter. Error: `duplicate-field`.
+9. r[data.shared.payload-defaults] Variant payload parameters do not have defaults; writing one is an error. Error: `syntax-error`.
 
 ```text
 enum HttpStatus(code: i32, phrase: string):

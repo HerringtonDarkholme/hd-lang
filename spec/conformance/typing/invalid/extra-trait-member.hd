@@ -1,0 +1,11 @@
+# test: an implementation method that the trait does not declare is an error
+# Spec 09 Implementation Declarations: trait.impl.extra-methods (error-code proposal F4).
+
+trait Named:
+    fn name(self) -> string
+
+data Admin: pass
+
+impl Named for Admin:
+    fn name(self) -> string: "admin"
+    fn shout(self) -> string: "ADMIN"  # diagnostic: extra-trait-member

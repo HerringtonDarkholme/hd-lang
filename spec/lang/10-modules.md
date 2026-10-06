@@ -232,7 +232,7 @@ json = "github.com/acme/json@2.1.0"
 
 1. r[module.path-dep.form] A **path requirement**, `{ path = "DIR" }`, names the package in the directory `DIR`, relative to the requiring manifest's directory.
 2. r[module.path-dep.any-package] `DIR` may hold any local package. It need not be a member of the requiring package's workspace, and neither package needs a workspace.
-3. r[module.path-dep.no-package] A path requirement whose `DIR` holds no manifest that declares a package is invalid.
+3. r[module.path-dep.no-package] A path requirement whose `DIR` holds no manifest that declares a package is an error. Error: `invalid-requirement`.
 4. r[module.path-dep.root-selection] The selection and `hd.sum` of the root package, or of its workspace, hold for every package that a path requirement reaches. That package's own `hd.sum` and workspace are not read.
 5. r[module.workspace.path-version] A path requirement may also carry a version, as in `{ path = "../ui", version = "0.4.2" }`.
 6. r[module.workspace.path-version.locally] When the requiring package is built from local files, such a requirement names the package at its path. This covers a build in its workspace or in a checkout of its repository. The requirement's version is not used.
@@ -294,12 +294,12 @@ src/user/types.hd    # user.types
 2. r[module.path.mod-file] `mod.hd` is the directory module's source file and public index.
 3. r[module.path.no-child-import] Child modules are not brought automatically into the parent.
 4. r[module.path.no-parent-scope] Parent declarations are not implicitly visible in children.
-5. r[module.path.no-std-child-import] `std` follows the same rule: after `use std.testing`, the path `testing.arbitrary.x` is an error. A std module that wants to expose a child module's items re-exports them with `pub use`.
+5. r[module.path.no-std-child-import] `std` follows the same rule. A std module that wants to expose a child module's items re-exports them with `pub use`. After `use std.testing`, the path `testing.arbitrary.x` is an error. Error: `unknown-import`.
 
 ```text
 use std.testing
 
-fn make(x: testing.arbitrary.With) -> i32:  # unknown-type: no child import
+fn make(x: testing.arbitrary.With) -> i32:  # error: unknown-import
     0
 ```
 
@@ -317,10 +317,10 @@ Two files directly under the source root have fixed roles:
 3. r[module.path.main-file] `main.hd` directly under the source root, `src/main.hd`, is an entry module and its own program, never part of the package's library.
 4. r[module.path.main-no-use] A use of `src/main.hd` from another module is an error. Error: `unknown-module`.
 5. r[module.path.lib-only-root] `src/lib.hd` is the only root file of a package's library; the source root itself is never a directory module.
-6. r[module.path.no-root-mod] A `mod.hd` directly under the source root, `src/mod.hd`, is an error, and its message suggests renaming it `src/lib.hd`.
+6. r[module.path.no-root-mod] A `mod.hd` directly under the source root, `src/mod.hd`, is an error, and its message suggests renaming it `src/lib.hd`. Error: `reserved-module-name`.
 7. r[module.path.lib-target] A package has a library exactly when it has `src/lib.hd`.
 8. r[module.path.executable-only] A package without `src/lib.hd` is executable-only: no dependent can use its modules.
-9. r[module.path.no-lib-dependency] Depending on a package that has no library is an error.
+9. r[module.path.no-lib-dependency] Depending on a package that has no library is an error. Error: `invalid-requirement`.
 10. r[module.path.reserved-pkg] A module named `pkg` directly under the source root, as `src/pkg.hd` or `src/pkg/mod.hd`, is an error. `pkg` names the root module. Error: `reserved-module-name`.
 
 ```text
@@ -338,11 +338,11 @@ src/pkg.hd     # invalid: pkg names the package root module
 
 ### Module Identity
 
-1. r[module.path.unique] Two files must not map to the same module identity.
+1. r[module.path.unique] Two files must not map to the same module identity. Error: `duplicate-module-name`.
 2. r[module.path.case-source] Case sensitivity of module paths is defined by the source language rather than the host filesystem, by the rules below.
-3. r[module.path.identifier] Every non-`mod.hd` path component used in a module identity must be an NFC Unicode identifier under the source identifier rules.
+3. r[module.path.identifier] Every non-`mod.hd` path component used in a module identity must be an NFC Unicode identifier under the source identifier rules. Error: `invalid-module-path`.
 4. r[module.path.case-sensitive] Module identities are case-sensitive.
-5. r[module.path.case-collision] A package is rejected if two source paths collide after full Unicode case folding followed by NFC normalization of each module path component. This holds even when the host filesystem could otherwise distinguish them.
+5. r[module.path.case-collision] A package is rejected if two source paths collide after full Unicode case folding followed by NFC normalization of each module path component. This holds even when the host filesystem could otherwise distinguish them. Error: `duplicate-module-name`.
 6. r[module.path.suffix] The final `.hd` suffix and the special filename `mod.hd` are lowercase and case-sensitive.
 7. r[module.path.unicode-version] The compiler applies the declared Unicode data version from the lexical rules to path validation and collision checks.
 
@@ -375,13 +375,13 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 6. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
 7. r[module.test.integration.program] Each file directly under the test root, such as `tests/checkout.hd`, is an **integration test program**: its own program, compiled separately from the others.
 8. r[module.test.integration.shared] A module in a subdirectory of the test root, such as `tests/common/mod.hd`, is a **shared test module**. Every integration test program of the package may use it.
-9. r[module.test.integration.beside-dir] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is invalid. Its fix-it moves the file to `tests/common/mod.hd`.
+9. r[module.test.integration.beside-dir] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is an error. Its fix-it moves the file to `tests/common/mod.hd`. Error: `duplicate-module-name`.
 10. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
 11. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
 12. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
 13. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
 14. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
-15. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`.
+15. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`. A use path that starts with `tests` is an error. Error: `unknown-module`.
 16. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
 17. r[module.test.dev-dependency] A **dev dependency** is a dependency that the manifest declares in `[dev-dependencies]`. Test code may use it, and a dependent package never sees it.
 18. r[module.test.non-test-use.test-module] Non-test code that uses a test module is an error. Error: `test-only-use`.
@@ -537,8 +537,8 @@ names. A root file starts at its root instead:
 8. r[module.relative.example.top-level] From `src/a.hd`, `self.x` resolves to `pkg.a.x`, in `src/a/x.hd`. A sibling `src/b.hd` is `super.b`, since `super` from a file directly under `src`, other than a root file, is the package root.
 9. r[module.relative.example.mod-file] From `src/a/mod.hd`, `self.x` resolves to `pkg.a.x`, in `src/a/x.hd`, since `self` there is the directory module.
 10. r[module.relative.example.main] From `src/main.hd` or `src/lib.hd`, `self.x` resolves to `pkg.x`, in `src/x.hd`.
-11. r[module.relative.above-root] Moving above the package root is a compile-time error.
-12. r[module.relative.no-cross] Relative use paths cannot cross into `std` or a dependency.
+11. r[module.relative.above-root] Moving above the package root is a compile-time error. Error: `unknown-module`.
+12. r[module.relative.no-cross] Relative use paths cannot cross into `std` or a dependency. A relative path that names one is an error. Error: `unknown-module`.
 13. r[module.relative.test-root.current] In an integration test module, relative lookup works as it does under `src`, with the test root in place of the package root. From `tests/checkout.hd`, a root file, `self.common.x` resolves to `tests.common.x`, in `tests/common/x.hd`.
 14. r[module.relative.above-test-root] In an integration test module, a `super` that moves above the test root is an error. Error: `unknown-module`.
 
@@ -1847,9 +1847,15 @@ pub fn main() -> void:
 5. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
 6. r[module.entry.suspending] A suspending entry point is spelled `main!`.
 7. r[module.entry.private-main.warn] A top-level `main` or `main!` that is not public in an entry module gets a warning. Its message is "main is not pub, so it is not the entry point". Warning: `private-main`.
+8. r[module.entry.parameters] A public top-level `main` or `main!` in an entry module that declares parameters or generic parameters is an error. Error: `entry-point-parameters`.
 
 ```text
 fn main() -> void:  # warning: private-main
+    pass
+```
+
+```text
+pub fn main(args: List[string]) -> void:  # error: entry-point-parameters
     pass
 ```
 

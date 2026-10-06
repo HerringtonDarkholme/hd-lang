@@ -67,7 +67,7 @@ export function withModulePaths(program: Program): {
   };
   const typeSpelling = standardTypeSpelling(program);
   const paths: PathScope = {
-    resolve(key, member, span, position) {
+    resolve(key, member, span) {
       if (key.startsWith("std:")) {
         const module = key.slice("std:".length);
         const visibility = declares(module, member);
@@ -82,7 +82,7 @@ export function withModulePaths(program: Program): {
         // (10-modules.md#r-module.path.no-std-child-import).
         if (isStandardModulePath(`${module}.${member}`))
           return report(
-            position === "value" ? "unknown-name" : "unknown-type",
+            "unknown-import",
             `'${member}' is a child module of 'std.${module}', which a path can't reach through its parent; import it with \`use std.${module}.${member}\``,
             span,
           );

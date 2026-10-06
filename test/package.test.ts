@@ -67,7 +67,7 @@ test("tasks resolve relative uses from tasks/ and are programs of their own", ()
         { [`${root}/shared.hd`]: "pass\n", [`${root}/shared/zip.hd`]: "pub fn zip() -> i32: 2\n" },
         `${root}/shared/zip.hd`,
       ),
-      [`${root}/shared.hd:1:invalid-module-path`],
+      [`${root}/shared.hd:1:duplicate-module-name`],
     );
 });
 
@@ -112,7 +112,7 @@ test("the root files: lib.hd is pkg, main.hd and other entries are programs, pkg
   const root = linkPackage({ "src/mod.hd": "pass\n", "src/a.hd": "pass\n" }, "src/a.hd");
   assert.deepEqual(
     root.diagnostics.map(({ path, code }) => `${path}:${code}`),
-    ["src/mod.hd:invalid-module-path"],
+    ["src/mod.hd:reserved-module-name"],
   );
   assert.match(root.diagnostics[0]!.message, /rename it 'src\/lib\.hd'/);
 });
@@ -674,7 +674,7 @@ test("shared names and bad paths are rejected", () => {
   );
   assert.deepEqual(
     codes({ "src/main.hd": "pub fn main() -> void: pass\n", "src/Main.hd": "pass\n" }),
-    ["src/main.hd:1:duplicate-module-path"],
+    ["src/main.hd:1:duplicate-module-name"],
   );
   assert.deepEqual(codes({ "src/main.hd": "pub fn main(:\n" }), [
     "src/main.hd:1:unclosed-delimiter",

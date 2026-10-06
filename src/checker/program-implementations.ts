@@ -1,3 +1,4 @@
+import { arityCode } from "../diagnostics.ts";
 import { standardImportHint } from "./standard-uses.ts";
 import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE, INSPECTABLE_MEMBERS, TUPLE_TRAIT } from "./standard-traits.ts";
@@ -251,7 +252,7 @@ function specializeTrait(
   const application = nominalGenericParts(implementation.traitName!);
   if (trait.genericParameters.length !== (application?.arguments.length ?? 0)) {
     context.diagnostics.push({
-      code: "generic-arity",
+      code: arityCode(application?.arguments.length ?? 0, trait.genericParameters.length),
       message: `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
       span: implementation.span,
     });
@@ -509,7 +510,7 @@ function prepareInherentImplementation(
     return;
   } else if (target.genericParameters.length > 0 && targetBase === implementation.targetName) {
     diagnostics.push({
-      code: "unsupported-generic-impl",
+      code: "partial-generic-arguments",
       message: `inherent implementation of generic type '${displayType(implementation.targetName)}' requires explicit generic parameters`,
       span: implementation.span,
     });
@@ -790,7 +791,7 @@ function prepareAssociatedTypes(
   for (const binding of implementation.associatedTypes) {
     if (bindings.has(binding.name))
       diagnostics.push({
-        code: "duplicate-impl-member",
+        code: "duplicate-trait-member",
         message: `implementation member '${binding.name}' is declared more than once`,
         span: binding.span,
       });
@@ -807,7 +808,7 @@ function prepareAssociatedTypes(
     const binding = bindings.get(associated.name);
     if (!binding?.value) {
       diagnostics.push({
-        code: "missing-associated-type",
+        code: "missing-trait-method",
         message: `${displayType(implementation.targetName)} does not bind ${displayType(trait.name)}.${associated.name}`,
         span: implementation.span,
       });
@@ -956,7 +957,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     for (const method of implementation.methods) {
       if (supplied.has(method.name))
         diagnostics.push({
-          code: "duplicate-impl-member",
+          code: "duplicate-trait-member",
           message: `implementation member '${method.name}' is declared more than once`,
           span: method.span,
         });
@@ -981,7 +982,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       }
       if (!trait.methods.some((required) => required.name === method.name)) {
         diagnostics.push({
-          code: "extra-trait-method",
+          code: "extra-trait-member",
           message: `method '${method.name}' is not declared by trait ${displayType(trait.name)}`,
           span: method.span,
         });

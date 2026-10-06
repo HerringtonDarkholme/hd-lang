@@ -1,0 +1,2 @@
+pub fn region() -> string:
+    "eu"

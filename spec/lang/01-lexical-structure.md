@@ -53,7 +53,7 @@ the layout tokens emitted inside delimiters.
 
 1. r[lex.line.physical] A physical line ends at a line-feed character or at the end of the file.
 2. r[lex.line.crlf] A carriage-return followed by a line-feed is treated as one line ending.
-3. r[lex.line.bare-cr] A bare carriage return is a lexical error.
+3. r[lex.line.bare-cr] A bare carriage return is a lexical error. Error: `invalid-token`.
 4. r[lex.line.no-backslash] hd-lang has no explicit backslash line-continuation syntax.
 
 ```hd
@@ -258,6 +258,12 @@ fn run(fallback: i32) -> void:
     fallback)  # error: syntax-error
 ```
 
+> **Note.** A line between the header and the body may also dedent to a
+> column that no enclosing suite uses, which
+> [`lex.indent.unknown-column`](#r-lex.indent.unknown-column) reports as
+> `invalid-dedent`. [`lex.closure.between`](#r-lex.closure.between) is
+> the more specific rule, so the error is `syntax-error`.
+
 > **Why.** A line at body indentation belongs to the body. So a later
 > argument written on it is caught rather than silently becoming the
 > closure's result.
@@ -453,7 +459,7 @@ DECIMAL_DIGIT    = "0" ... "9" ;
 1. r[lex.ident.form] An identifier begins with a Unicode `XID_Start` character or `_` and continues with Unicode `XID_Continue` characters or `_`.
 2. r[lex.ident.case] Identifiers are case-sensitive.
 3. r[lex.ident.nfc] Their source spelling must be in Unicode Normalization Form C (NFC).
-4. r[lex.ident.non-nfc] A non-NFC identifier is a lexical error rather than being silently rewritten.
+4. r[lex.ident.non-nfc] A non-NFC identifier is a lexical error rather than being silently rewritten. Error: `invalid-token`.
 5. r[lex.ident.placeholder] The single source spelling `_` is a distinct placeholder token, not an `identifier`.
 6. r[lex.ident.underscore] An identifier that begins with `_` must contain at least one additional `identifier_continue` character.
 7. r[lex.ident.xid] `XID_START` and `XID_CONTINUE` denote the corresponding Unicode derived core properties.

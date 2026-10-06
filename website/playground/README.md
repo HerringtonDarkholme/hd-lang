@@ -206,12 +206,12 @@ What works, relative to [10-modules.md](../../spec/lang/10-modules.md):
   test modules under `tests/` are not supported.
 
 The linker's own diagnostic codes are `invalid-module-path`,
-`duplicate-module-path`, `unknown-module`, `unknown-import`,
-`private-import`, and `package-name-collision`.
+`reserved-module-name`, `duplicate-module-name`, `unknown-module`,
+`unknown-import`, and `private-import`.
 
 Not supported yet:
 
-- Only the entry module may declare `main`. Test case names are shared,
+- Test case names are shared,
   so two modules cannot name a test case alike (`duplicate-test-name`).
 - There are no dependencies (`dep.<name>`) and no `hd.toml` manifest.
 

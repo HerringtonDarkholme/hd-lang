@@ -609,11 +609,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           this.closures.push(undefined as unknown as HirFunction);
         }
         if (!result)
-          this.fail(
-            "closure-result-needs-annotation",
-            "a closure result could not be inferred",
-            expression.span,
-          );
+          this.fail("cannot-infer-type", "a closure result could not be inferred", expression.span);
         const declaration: FunctionDecl = {
           ...baseDeclaration,
           result: expression.result ?? { name: result, span: expression.span },

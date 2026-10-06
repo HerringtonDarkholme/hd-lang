@@ -503,7 +503,7 @@ export abstract class CallChecker extends StatementChecker {
     // `*Args` takes the inputs tuple as one value of type `Args`.
     const parameterTypes = inputTypes.map((type) => inputsInner(type) ?? type);
     if (expression.typeArguments)
-      this.fail("unexpected-type-arguments", `${callable} is not generic`, expression.span);
+      this.fail("argument-count", `${callable} is not generic`, expression.span);
     const plan = this.planArguments(expression, parameterNames, variadic, callable);
     const arguments_ = plan.map((entry): HirExpression => {
       const formal = parameterTypes[entry.parameterIndex]!;
@@ -1129,7 +1129,7 @@ export abstract class CallChecker extends StatementChecker {
         if (providerType) value = this.requireCoercion(value, providerType, entry.value.span);
         else if (!value.type.startsWith("provider:")) {
           this.fail(
-            "provider-type-mismatch",
+            "type-mismatch",
             `provider binding '${displayType(key)}' requires an opaque provider value`,
             entry.value.span,
           );
@@ -1448,7 +1448,7 @@ export abstract class CallChecker extends StatementChecker {
         // inferred (04-type-system.md#r-types.mut.weaken).
         if (inferred !== undefined && inferred !== resolved && mutableInner(resolved) !== inferred)
           this.fail(
-            "associated-type-mismatch",
+            "type-mismatch",
             `projection '${bound.parameter}::${name}' resolves to '${displayType(resolved)}', not '${displayType(inferred)}'`,
             signature.span,
           );

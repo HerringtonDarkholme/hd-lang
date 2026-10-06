@@ -263,7 +263,7 @@ class Parser extends LetParser {
     }
     this.expectKind("dedent", "expected the end of the tests block");
     if (count === 0)
-      this.fail("empty-suite", "a tests block must contain an item", this.current().span);
+      this.fail("syntax-error", "a tests block must contain an item", this.current().span);
   }
 
   parseExpressionFragment(): ExpressionParseResult {
@@ -272,7 +272,7 @@ class Parser extends LetParser {
       while (this.matchKind("newline")) {}
       if (!this.atKind("eof"))
         this.fail(
-          "expected-interpolation-end",
+          "syntax-error",
           `expected the end of an interpolation expression, found '${this.current().text}'`,
           this.current().span,
         );
@@ -339,7 +339,7 @@ class Parser extends LetParser {
         const parameterMetadata = this.parseMemberDecorators(true);
         if (["self", "Self"].includes(this.current().text) && !this.current().raw) {
           this.fail(
-            "reserved-name",
+            "syntax-error",
             `'${this.current().text}' is reserved and cannot name a parameter`,
             this.current().span,
           );
@@ -704,7 +704,7 @@ class Parser extends LetParser {
     if (!this.atText(":")) {
       if (requireBody)
         this.fail(
-          "missing-method-body",
+          "syntax-error",
           `implementation method '${name.text}' requires a body`,
           name.span,
         );
@@ -795,7 +795,7 @@ class Parser extends LetParser {
     this.expectText("]");
     if (arguments_.length === 0)
       this.fail(
-        "generic-arity",
+        "partial-generic-arguments",
         `generic requirement '${name.text}' requires type arguments`,
         name.span,
       );
@@ -990,7 +990,7 @@ class Parser extends LetParser {
     }
     const close = this.expectKind("dedent", "expected the end of the enum body");
     if (variants.length === 0)
-      this.fail("empty-enum", "an enum must declare at least one variant", name.span);
+      this.fail("syntax-error", "an enum must declare at least one variant", name.span);
     return {
       kind: "enum",
       ...(public_ ? { public: true } : {}),
@@ -1067,11 +1067,7 @@ class Parser extends LetParser {
       // written optional constructor can still receive outer permission.
       const inner = this.parseType(false);
       if (inner.name.startsWith("mut:")) {
-        this.fail(
-          "duplicate-mutable-permission",
-          "a type cannot apply 'mut' permission twice",
-          inner.span,
-        );
+        this.fail("syntax-error", "a type cannot apply 'mut' permission twice", inner.span);
       }
       const written = finish(mutableType(inner.name), { start, end: inner.span.end });
       // `mut` on a primitive is a type error the checker reports
@@ -1157,7 +1153,11 @@ class Parser extends LetParser {
       const arguments_ = this.parseNamedTypeArguments();
       const close = this.expectText("]");
       if (arguments_.length === 0)
-        this.fail("generic-arity", `generic type '${rendered}' requires type arguments`, name.span);
+        this.fail(
+          "partial-generic-arguments",
+          `generic type '${rendered}' requires type arguments`,
+          name.span,
+        );
       // `Option[T]` is exactly `T?`; both spellings render to one type.
       rendered =
         rendered === "Option" && arguments_.length === 1
@@ -1202,7 +1202,7 @@ class Parser extends LetParser {
     }
     this.expectKind("dedent", "expected the end of the indented suite");
     if (statements.length === 0)
-      this.fail("empty-suite", "an indented suite must contain a statement", this.current().span);
+      this.fail("syntax-error", "an indented suite must contain a statement", this.current().span);
     return statements;
   }
 

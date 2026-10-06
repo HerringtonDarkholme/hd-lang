@@ -94,11 +94,7 @@ export abstract class PatternParser extends RangeParser {
       };
     }
     if (negative)
-      this.fail(
-        "expected-pattern",
-        "'-' in a pattern must precede a numeric literal",
-        literal.span,
-      );
+      this.fail("syntax-error", "'-' in a pattern must precede a numeric literal", literal.span);
     // A prefixed string is a call, never a pattern
     // (02-grammar.md#r-grammar.pattern.no-literal-call).
     if (literal.kind === "string" && literal.prefix)
@@ -107,7 +103,7 @@ export abstract class PatternParser extends RangeParser {
       this.advance();
       if (typeof literal.value !== "string")
         this.fail(
-          "interpolated-pattern",
+          "syntax-error",
           "string patterns must be constant and cannot contain interpolation",
           literal.span,
         );

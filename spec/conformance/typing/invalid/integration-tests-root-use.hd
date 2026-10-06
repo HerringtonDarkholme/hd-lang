@@ -1,0 +1,7 @@
+# test: there is no tests use root, so an integration test reaches a shared test module through self
+# Spec 10 Test Modules: module.test.no-tests-root (error-code proposal F5).
+# fixture-package-tree: integration-shared/tests/checkout.hd
+use tests.common.{expected}  # diagnostic: unknown-module
+
+pub fn label() -> string:
+    expected()

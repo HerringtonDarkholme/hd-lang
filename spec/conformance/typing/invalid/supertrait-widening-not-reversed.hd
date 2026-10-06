@@ -1,0 +1,11 @@
+# test: a supertrait value does not convert back to a child trait value
+# Spec 09 Supertrait Widening: trait.dyn.no-narrow (error-code proposal F4).
+
+trait Named:
+    fn name(self) -> string
+
+trait Titled < Named:
+    fn title(self) -> string
+
+fn narrow(value: Named) -> Titled:
+    value  # diagnostic: type-mismatch

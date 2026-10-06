@@ -44,8 +44,8 @@ trait Named:
 
 1. r[trait.decl.required] A trait declares required methods.
 2. r[trait.decl.default] A method with a body is a default implementation.
-3. r[trait.decl.unique] Member names must be unique within a trait. A repeated associated type, method, or associated function name is an error. Error: `duplicate-trait-member`.
-4. r[trait.decl.typed] Every parameter and result type is explicit.
+3. r[trait.decl.unique] Member names must be unique within a trait. A repeated associated type, method, or associated function name is an error, in a trait or in an implementation of one. Error: `duplicate-trait-member`.
+4. r[trait.decl.typed] Every parameter and result type is explicit; omitting one is an error. Error: `syntax-error`.
 5. r[trait.decl.method] A function whose first parameter is `self` or `mut self` is a method.
 6. r[trait.decl.mut-receiver] A mutable receiver is a requirement callers must satisfy.
 7. r[trait.decl.associated-fn] A function without a receiver is an associated function. It is called with qualified `Trait::function(...)` or `Type::function(...)` syntax.
@@ -60,7 +60,7 @@ trait Named:
 
 1. r[trait.default.checked-once] A default method body is checked once, in the trait declaration, with `Self` bounded by the trait.
 2. r[trait.default.visible] Through `self` and `Self`, the body sees only the members of the trait and of its transitive supertraits.
-3. r[trait.default.no-self-members] The fields and inherent methods of an implementing type are not accessible there, even when every implementing type declares them.
+3. r[trait.default.no-self-members] The fields and inherent methods of an implementing type are not accessible there, even when every implementing type declares them. Naming one there is an error. Error: `unknown-method`.
 4. r[trait.default.no-self-members.error] A call there of a method that neither the trait nor a supertrait declares is an error. Error: `unknown-method`.
 
 ```text
@@ -72,6 +72,9 @@ trait Greeter:
 
     fn shout(self) -> string:
         self.loud_name()  # error: unknown-method
+
+    fn tag(self) -> string:
+        self.email  # error: unknown-method
 ```
 
 See also: [Supertraits](#supertraits).
@@ -86,7 +89,7 @@ trait Add[T]:
 ```
 
 1. r[trait.decl.generic] Traits may be generic.
-2. r[trait.decl.generic.invariant] A trait's generic parameters are invariant, so `Source[mut User]` and `Source[User]` are unrelated trait instantiations.
+2. r[trait.decl.generic.invariant] A trait's generic parameters are invariant, so `Source[mut User]` and `Source[User]` are unrelated trait instantiations. Using one where the other is required is an error. Error: `type-mismatch`.
 3. r[trait.decl.generic.no-variance] A variance marker on a trait's generic parameter is an error. Error: `invalid-variance`.
 4. r[trait.decl.generic.default] A trait's generic parameter may declare a [default](04-type-system.md#type-argument-defaults), which may name `Self`, as in `trait Same[Other = Self]`. `Self` there is the implementing type or the bounded type.
 
@@ -128,6 +131,7 @@ trait Formattable < Display:
 4. r[trait.super.impl-bounds] The check is made at the implementation, under its own bounds: they must prove every supertrait for its target. With `impl[T < Eq] Parent for Box[T]`, an `impl[T] Child for Box[T]` is an error. Error: `missing-supertrait-implementation`.
 5. r[trait.super.acyclic] The supertrait graph must be acyclic: a direct or indirect cycle is a compile-time error. Error: `supertrait-cycle`.
 6. r[trait.super.cycle-report] An indirect cycle is reported once, on the member of the cycle that appears first. Members are ordered first by module identity, then by source position within the module.
+7. r[trait.super.unique] A supertrait bound must not list one trait twice. Error: `duplicate-supertrait`.
 
 ```text
 trait Parent
@@ -150,6 +154,8 @@ impl[T] Child for Box[T]:  # error: missing-supertrait-implementation
 
 trait Loop < Loop:  # error: supertrait-cycle
     fn step(self) -> void
+
+trait Twice < Parent & Parent  # error: duplicate-supertrait
 ```
 
 #### Supertrait Member Names
@@ -608,12 +614,12 @@ impl Display for User:
 ```
 
 1. r[trait.impl.explicit] An explicit implementation names the trait and target type.
-2. r[trait.impl.required] The implementation must write every required method not supplied by a default. Omitting one is an error. Error: `missing-trait-method`.
+2. r[trait.impl.required] The implementation must write every required method not supplied by a default, and bind every associated type of the trait. Omitting one is an error. Error: `missing-trait-method`.
 3. r[trait.impl.fill] Only a method written in the implementation or a trait default fills a trait method.
 4. r[trait.impl.fill.never] An inherent method of the target and a method promoted from an embedded field never fill a trait method, required or defaulted, whatever its receiver. So neither makes a body optional.
 5. r[trait.impl.override] The implementation may override a default with the exact instantiated signature.
 6. r[trait.impl.signature] A mismatched method is an error. Error: `trait-method-signature`.
-7. r[trait.impl.extra-methods] Additional methods do not become part of that trait implementation; place them in an inherent `impl` instead.
+7. r[trait.impl.extra-methods] Additional methods do not become part of that trait implementation; place them in an inherent `impl` instead. A method or associated type that the trait does not declare is an error. Error: `extra-trait-member`.
 8. r[trait.impl.unique] At most one implementation of the same instantiated trait for the same target type may exist in a resolved program.
 
 ```text
@@ -622,6 +628,11 @@ trait Named:
 
 data User: pass
 impl Named for User  # error: missing-trait-method
+
+data Admin: pass
+impl Named for Admin:
+    fn name(self) -> string: "admin"
+    fn shout(self) -> string: "ADMIN"  # error: extra-trait-member
 ```
 
 #### Method Generic Parameters
@@ -651,11 +662,11 @@ impl Describe for Describer:
 
 1. r[trait.impl.local] An `impl` inside an executable block suite is a compile-time declaration.
 2. r[trait.impl.local.trait] A local trait implementation must involve a local trait or a local nominal target type visible at its declaration point.
-3. r[trait.impl.local.inherent] A local inherent implementation must target a local nominal type.
+3. r[trait.impl.local.inherent] A local inherent implementation must target a local nominal type. Error: `local-impl-nonlocal-pair`.
 4. r[trait.impl.local.nonlocal] Implementations for a pair of nonlocal types belong at module scope. A local one is an error. Error: `local-impl-nonlocal-pair`.
 5. r[trait.impl.local.checks] Local implementations obey the same target, ownership, overlap, and uniqueness checks as module-level implementations.
 6. r[trait.impl.local.no-second] Lexical scope does not permit a second implementation for an existing pair.
-7. r[trait.impl.local.no-capture] Local methods and local-trait default methods cannot capture enclosing runtime values.
+7. r[trait.impl.local.no-capture] Local methods and local-trait default methods cannot capture enclosing runtime values. Such a capture is an error. Error: `unknown-name`.
 8. r[trait.impl.local.lookup] Their methods are available for lookup from the local `impl` declaration point through its enclosing suite and child scopes, not before or outside that scope.
 
 ```hd
@@ -832,7 +843,7 @@ one of these declarations:
 13. r[trait.own.inherent.trait-value] An inherent implementation whose target is a trait value type is an error. Error: `trait-value-impl-target`.
 14. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enums `Option` and `Result`.
 15. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
-16. r[trait.own.inherent.std.no-tuple] Tuples have no inherent members, including from the standard library; they get only trait implementations.
+16. r[trait.own.inherent.std.no-tuple] Tuples have no inherent members, including from the standard library; they get only trait implementations. A member that no trait supplies is an error. Error: `unknown-method`.
 17. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
 
 ```text
@@ -1256,7 +1267,7 @@ second := make::[User]()
 6. r[trait.assoc-call.parameter.one] Exactly one trait among the bounds of `T` and their supertraits must declare `f`. Two or more are an error. Error: `ambiguous-method`.
 7. r[trait.assoc-call.parameter.static] `T::f()` is always resolved statically through a bound, never through a runtime type object.
 8. r[trait.assoc-call.trait] `Trait::f(args)` for an associated function `f` infers `Self` like a generic argument of the call, from the arguments and the expected type.
-9. r[trait.assoc-call.trait.undetermined] A `Trait::f(args)` call whose `Self` that inference does not determine is invalid; write `Type::f(args)` or `T::f(args)` instead.
+9. r[trait.assoc-call.trait.undetermined] A `Trait::f(args)` call whose `Self` that inference does not determine is an error; write `Type::f(args)` or `T::f(args)` instead. Error: `cannot-infer-type`.
 
 See also: [Trait-Qualified Calls](#trait-qualified-calls),
 [Trait Availability](#trait-availability), and
@@ -1618,7 +1629,7 @@ fn run() -> i32:
 2. r[trait.dyn.binding.complete] It must bind every associated type of the trait and of its supertraits. A trait value type that leaves one unbound is not dynamically safe. Error: `trait-not-dynamically-safe`.
 3. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type, and an ambiguous or unknown name is an error.
 4. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
-5. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type.
+5. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type. Any other such conversion is an error. Error: `type-mismatch`.
 6. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type. Order does not matter.
 7. r[trait.dyn.binding.widen] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `NamedSupplier[Item = i32]` widens to `Supplier[Item = i32]`.
 8. r[trait.dyn.binding.no-function] An associated function in the trait or a supertrait still makes the trait not dynamically safe, whatever the value type binds.
@@ -1648,7 +1659,7 @@ fn with_function(factory: Factory[Item = i32]) -> void:  # error: trait-not-dyna
 
 1. r[trait.dyn.supertrait-methods] A child-trait bound or dynamic value exposes the methods of its transitive supertraits.
 2. r[trait.dyn.widen] A dynamic child-trait value widens implicitly to a supertrait value, losing access to child-only methods.
-3. r[trait.dyn.no-narrow] No conversion reverses the widening.
+3. r[trait.dyn.no-narrow] No conversion reverses the widening, so converting back is an error. Error: `type-mismatch`.
 4. r[trait.dyn.recover] Only a value of `Inspectable` or of a trait that extends it can recover its concrete type, through [Runtime Type Identity](#runtime-type-identity).
 
 ```hd
@@ -2088,7 +2099,7 @@ dynamic trait value.
 
 1. r[trait.erase.expected] A value is erased to `Inspectable` by an expected type, like any other dynamic trait value: [`types.assign.trait-value`](04-type-system.md#r-types.assign.trait-value) constructs an `Inspectable` value from an inspectable type.
 2. r[trait.erase.no-cast] There is no cast operator.
-3. r[trait.erase.child-impl] A trait that extends `Inspectable` still needs its own explicit implementation; only its `Inspectable` part is supplied.
+3. r[trait.erase.child-impl] A trait that extends `Inspectable` still needs its own explicit implementation; only its `Inspectable` part is supplied. Converting a value without one is an error. Error: `type-mismatch`.
 4. r[trait.erase.recorded] The recorded type is the static type of the value at the erasure site, without its outer `mut`.
 5. r[trait.erase.parameter] For a value of a type parameter `T < Inspectable`, the recorded type is the type `T` is instantiated with, which the bound supplies at run time.
 6. r[trait.erase.built] A value built from `T`, such as a `Box[T]`, records `Box` applied to that type. `T` instantiated with `mut User` therefore records `Box[mut User]`.

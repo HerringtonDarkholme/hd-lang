@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,775 cases: 2,755 selected in `test/portable/cases.tsv` and 20 known
-failures. The selected cases are 2,387 language tier, 308 stdlib tier, and 60
+2,818 cases: 2,798 selected in `test/portable/cases.tsv` and 20 known
+failures. The selected cases are 2,425 language tier, 308 stdlib tier, and 65
 CLI tier; the known failures are 5 language tier, 1 stdlib tier, and 14
 CLI tier.
 
@@ -159,10 +159,8 @@ Compiler structure:
   available without a use (`trait.avail.module`). Outside std, a std
   type's private fields can still be named or filled in a data literal or
   pattern, as in `Iterator { step: next }`, because the checker's
-  derivations build std structure values in the deriving module. The rules
-  for literals and patterns (`data.vis.literal`, `data.vis.private-fields`,
-  `data.pattern.subset`) name no code; the prototype reports
-  `private-member`.
+  derivations build std structure values in the deriving module, against
+  `data.vis.literal`, `data.vis.private-fields`, and `data.pattern.subset`.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.

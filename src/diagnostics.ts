@@ -142,3 +142,12 @@ export function formatDiagnostic(file: string, diagnostic: Diagnostic): string {
   const severity = diagnostic.severity === "warning" ? "warning: " : "";
   return `${document?.file ?? file}:${line}:${column}: ${severity}${diagnostic.code}: ${diagnostic.message}${notes}`;
 }
+
+/**
+ * The code for a type-argument list of `written` arguments where `expected`
+ * are declared: `argument-count` for too many, and
+ * `partial-generic-arguments` for too few (spec/README.md#diagnostics).
+ */
+export function arityCode(written: number, expected: number): string {
+  return written > expected ? "argument-count" : "partial-generic-arguments";
+}

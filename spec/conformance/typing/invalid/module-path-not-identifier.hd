@@ -1,0 +1,5 @@
+# test: a source file whose path component is not an identifier names no module
+# Spec 10 Module Identity: module.path.identifier (error-code proposal F5).
+# fixture-package-tree: reserved-pkg/src/my-file.hd
+pub fn helper() -> string:  # diagnostic: invalid-module-path
+    "helper"

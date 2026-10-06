@@ -1,0 +1,5 @@
+# test: continue outside a loop body is an error
+# Spec 06 Break, Continue, And Loop Else: flow.break.outside-loop (error-code proposal, part D).
+
+fn skip() -> void:
+    continue  # diagnostic: break-outside-loop

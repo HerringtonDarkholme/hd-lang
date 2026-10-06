@@ -127,7 +127,7 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   linker gives task modules identities under `<tasks>`, which no use path
   spells; a `super` above `tasks/`, or a use of a task, is `unknown-module`.
   A task named like an executable is `duplicate-executable-name`, and a `tasks/x.hd` or
-  `tests/x.hd` beside a directory `x/` is `invalid-module-path`.
+  `tests/x.hd` beside a directory `x/` is `duplicate-module-name`.
 - `hd check` and `hd build` without FILE work on the whole package
   (`compilePackage` in `commands/compile.ts`): each executable, each library
   module, with `--tests` each test module and integration test program, and

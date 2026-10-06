@@ -1,0 +1,6 @@
+# test: a file and a directory module with the same module identity are an error
+# Spec 10 Module Identity: module.path.unique (error-code proposal F5). The tree
+# has src/user/mod.hd, so src/user.hd is a second file for the module user.
+# fixture-package-tree: user-modules/src/user.hd
+pub fn shout(name: string) -> string:  # diagnostic: duplicate-module-name
+    name

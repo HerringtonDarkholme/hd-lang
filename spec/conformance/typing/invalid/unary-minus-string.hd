@@ -1,0 +1,5 @@
+# test: unary minus on a string is an operator with no implementation
+# Spec 05 Operators: expr.op.no-impl (error-code proposal, part D).
+
+fn negate() -> string:
+    -"x"  # diagnostic: type-mismatch

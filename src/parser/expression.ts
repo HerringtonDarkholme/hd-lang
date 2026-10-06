@@ -674,7 +674,7 @@ export abstract class ExpressionParser extends PatternParser {
         "'tests' is reserved: a tests: block may appear only at module top level",
         token.span,
       );
-    this.fail("expected-expression", `expected an expression, found '${token.text}'`, token.span);
+    this.fail("syntax-error", `expected an expression, found '${token.text}'`, token.span);
   }
 
   /**
@@ -983,11 +983,7 @@ export abstract class ExpressionParser extends PatternParser {
         });
         continue;
       }
-      this.fail(
-        "expected-comprehension-clause",
-        "expected 'for', 'if', or '=>' in a comprehension",
-        keyword.span,
-      );
+      this.fail("syntax-error", "expected 'for', 'if', or '=>' in a comprehension", keyword.span);
     }
     return clauses;
   }
@@ -1036,7 +1032,7 @@ export abstract class ExpressionParser extends PatternParser {
     }
     const close = this.expectKind("dedent", "expected the end of the match expression");
     if (arms.length === 0)
-      this.fail("empty-match", "a match expression must contain an arm", keyword.span);
+      this.fail("syntax-error", "a match expression must contain an arm", keyword.span);
     return {
       kind: "match",
       subject,

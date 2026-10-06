@@ -1,3 +1,4 @@
+import { arityCode } from "../diagnostics.ts";
 import { standardImportHint } from "./standard-uses.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type { HirTrait, ValueType } from "../hir.ts";
@@ -72,7 +73,7 @@ export function requirementKeyDiagnostics(
     }
     if (trait.genericParameters.length !== key.positional.length) {
       diagnostics.push({
-        code: "generic-arity",
+        code: arityCode(key.positional.length, trait.genericParameters.length),
         message: `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
         span,
       });

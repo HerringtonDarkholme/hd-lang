@@ -1,0 +1,19 @@
+# test: two instantiations of a generic trait are unrelated, so one does not convert to the other
+# Spec 09 Generic Traits: trait.decl.generic.invariant (error-code proposal F4).
+
+trait Source[T]:
+    fn first(self) -> T
+
+data User:
+    name: string
+
+data Feed: pass
+
+impl Source[i32] for Feed:
+    fn first(self) -> i32: 1
+
+fn take(source: Source[User]) -> void:
+    pass
+
+fn run() -> void:
+    take(Feed {})  # diagnostic: type-mismatch

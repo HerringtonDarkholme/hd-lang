@@ -1,0 +1,7 @@
+# test: a relative use path names only package modules, never std
+# Spec 10 Relative Uses: module.relative.no-cross (error-code proposal F5).
+# fixture-package-tree: user-modules/src/report.hd
+use super.std.text  # diagnostic: unknown-module
+
+pub fn shout(name: string) -> string:
+    name

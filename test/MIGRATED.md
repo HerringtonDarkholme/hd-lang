@@ -376,7 +376,7 @@ later task deletes them.
 - test/package.test.ts :: folders that depend on each other in a loop are rejected -> duplicate of typing/invalid/folder-cycle-facade.hd, typing/valid/folder-cycle-leaf-folder.hd, and typing/invalid/folder-cycle-nested.hd; the message text is not migrated
 - test/package.test.ts :: uses in test code make no folder edge -> duplicate of runtime/valid/folder-graph-test-edges.hd [deleted]
 - test/package.test.ts :: a pub use chain must end at a declaration -> duplicate of typing/invalid/pub-use-loop.hd and typing/invalid/use-through-pub-use-loop.hd [deleted]
-- test/package.test.ts :: shared names and bad paths are rejected -> not migrated: `package-name-collision` and `duplicate-module-path` name no rule of the spec (a module's private names are its own), a used name that collides with a declaration has no code (`names.use.no-collision`), and `unclosed-delimiter` appears only in the README table (Q13)
+- test/package.test.ts :: shared names and bad paths are rejected -> not migrated: two paths that fold to one module are `duplicate-module-name` (`module.path.case-collision`), but no fixture can hold both on a case-insensitive file system; a used name that collides with a declaration has no code (`names.use.no-collision`), and `unclosed-delimiter` appears only in the README table (Q13)
 - test/package.test.ts :: single-declaration uses and the package root module resolve -> typing/valid/use-path-only-declaration.hd for the path-only use of one declaration; the `src/mod.hd` root is not migrated, since `module.path.no-root-mod` makes it an error, and typing/valid/lib-root-pkg.hd covers `pkg.{X}` from `src/lib.hd`
 
 ## Mixed-file rows (batch 3)
@@ -521,16 +521,15 @@ and each line above names the fixture that covers it.
   test asserts at most 16 chars.
   [`std-testing.choices.no-size`](../spec/std/testing.md#r-std-testing.choices.no-size)
   says `Choices` has no size, and no rule gives the default generator a limit.
-- **Q12.** Which code does a `super` above the package root report in a file
-  that is not a root file, as `use super.super.x` in `src/a.hd`? The test
-  expects `unknown-module`.
-  [`module.relative.above-root`](../spec/lang/10-modules.md#r-module.relative.above-root)
-  says only "compile-time error".
-- **Q13.** The package-link test asserts four codes that no rule gives. A
-  private name of one module that another module also declares reports
-  `package-name-collision`. A `use` of a name that a module also declares
-  reports `duplicate-module-name`
+- **Q12, answered 2026-10-06.** A `super` above the package root reports
+  `unknown-module`
+  ([`module.relative.above-root`](../spec/lang/10-modules.md#r-module.relative.above-root));
+  typing/invalid/relative-above-package-root.hd covers it.
+- **Q13.** The package-link test asserts two codes that no rule gives. A
+  `use` of a name that a module also declares reports `duplicate-module-name`
   ([`names.use.no-collision`](../spec/lang/03-names-and-scopes.md#r-names.use.no-collision)
-  gives no code). Two paths such as `src/main.hd` and `src/Main.hd` report
-  `duplicate-module-path`. An unclosed `(` reports `unclosed-delimiter`,
-  which only the README table lists. Which of these belong in the spec?
+  gives no code). An unclosed `(` reports `unclosed-delimiter`, which only
+  the README table lists. Which of these belong in the spec? (Two paths
+  such as `src/main.hd` and `src/Main.hd` report `duplicate-module-name` by
+  [`module.path.case-collision`](../spec/lang/10-modules.md#r-module.path.case-collision),
+  and `package-name-collision` is gone, both 2026-10-06.)

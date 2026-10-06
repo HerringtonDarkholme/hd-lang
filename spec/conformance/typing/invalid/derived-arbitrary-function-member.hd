@@ -3,7 +3,7 @@
 # .derive.manual (Testing AT-with, owner decision 2026-09-30). Job writes its impl Arbitrary by hand.
 use std.testing.{Arbitrary, Choices}
 
-@derive(Arbitrary)  # diagnostic: unsatisfied-trait-bound
+@derive(Arbitrary)  # diagnostic: member-not-derivable
 data Task:
     label: string
     run: fn() -> i32

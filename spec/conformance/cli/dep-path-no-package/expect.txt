@@ -1,0 +1,5 @@
+# money holds sources but no hd.toml, so the path requirement names no package.
+# Spec 10 Path Requirements: module.path-dep.no-package (error-code proposal F5).
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null,"file":"hd.toml","line":null},{"kind":"summary","errors":1,"status":101}]

@@ -178,7 +178,7 @@ modules that tasks share:
 1. r[cli.task.file] Each file `tasks/NAME.hd` in the package directory is a task named `NAME`, and it is an entry module.
 2. r[cli.task.program] Each task is its own program, compiled separately from the package's other tasks.
 3. r[cli.task.shared] A module in a subdirectory of `tasks`, such as `tasks/shared/zip.hd`, is a **shared task module**. Every task of the package may use it.
-4. r[cli.task.beside-dir] A file directly under `tasks` beside a directory of the same name, such as `tasks/shared.hd` beside `tasks/shared/`, is an error. Its fix-it moves the file to `tasks/shared/mod.hd`.
+4. r[cli.task.beside-dir] A file directly under `tasks` beside a directory of the same name, such as `tasks/shared.hd` beside `tasks/shared/`, is an error. Its fix-it moves the file to `tasks/shared/mod.hd`. Error: `duplicate-module-name`.
 5. r[cli.task.relative] In a task or a shared task module, relative lookup works as it does under `src`, with `tasks` in place of the package root.
 6. r[cli.task.root-file] A task resolves relative uses as a [root file](../lang/10-modules.md#r-module.relative.root-file) does, so its lookup starts at `tasks`. From `tasks/build.hd`, `self.shared.zip` names `tasks/shared/zip.hd`.
 7. r[cli.task.super] A `super` in a task is an error. Error: `unknown-module`.
@@ -667,6 +667,10 @@ hd run; echo $?       # the program's own status
 > **Why.** Cargo reserves 101 for its own failures. CI and agents then
 > tell "my code did not compile" apart from "my program failed", which
 > most often exits with 1.
+
+> **Note.** A command-line usage error, such as an unknown flag, has no
+> diagnostic code. Cargo's and Go's usage errors have none either. It
+> still exits with status 101.
 
 ## Workspace Mode
 

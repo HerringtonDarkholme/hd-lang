@@ -11,7 +11,7 @@ data Port:
 fn port(c: mut Choices) -> Port:
     Port { number: c.int(1024, 65535) }
 
-@derive(Arbitrary)  # diagnostic: unsatisfied-trait-bound
+@derive(Arbitrary)  # diagnostic: member-not-derivable
 data Server:
     @arbitrary.with(port)
     port: Port

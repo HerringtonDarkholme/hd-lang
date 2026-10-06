@@ -1,0 +1,6 @@
+# src/helper.hd has a public main that no executable names, and src/main.hd uses
+# the module, so its main is an ordinary function. Warnings leave the status at 0.
+run: hd check --format json
+stdout-json: [{"kind":"diagnostic","code":"unselected-main","severity":"warning","message":null},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd run
+stdout: helper

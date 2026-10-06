@@ -1,3 +1,4 @@
+import { arityCode } from "../diagnostics.ts";
 import { traitValueBindings } from "./associated-bindings.ts";
 import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
@@ -372,7 +373,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     );
     if (matchingBounds.length > 1) {
       this.fail(
-        "ambiguous-bound-method",
+        "ambiguous-method",
         `method '${methodName}' is supplied by multiple bounds on ${receiverGeneric}`,
         expression.callee.span,
       );
@@ -887,7 +888,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (!callable) return this.applyCall(expression, callee, expected);
     if (expression.argumentNames?.some((name) => name !== undefined)) {
       this.fail(
-        "named-argument-needs-declaration",
+        "unknown-named-argument",
         "named arguments require a statically known function or method declaration",
         expression.span,
       );
@@ -944,7 +945,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
       }
       if (expression.typeArguments?.length)
-        this.fail("unexpected-type-arguments", "block_on infers its result type", expression.span);
+        this.fail("argument-count", "block_on infers its result type", expression.span);
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(
           "positional-spread-needs-vararg",
@@ -1004,11 +1005,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     }
     if (this.imports.get(expression.callee.name) === "std.testing.assert_equal") {
       if (expression.typeArguments?.length)
-        this.fail(
-          "unexpected-type-arguments",
-          "assert_equal infers its value type",
-          expression.span,
-        );
+        this.fail("argument-count", "assert_equal infers its value type", expression.span);
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(
           "positional-spread-needs-vararg",
@@ -1071,7 +1068,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     // `assert_equal` of two strings; it has no update run to rewrite `expect`.
     if (this.imports.get(expression.callee.name) === "std.testing.snapshot") {
       if (expression.typeArguments?.length)
-        this.fail("unexpected-type-arguments", "snapshot has no type arguments", expression.span);
+        this.fail("argument-count", "snapshot has no type arguments", expression.span);
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(
           "positional-spread-needs-vararg",
@@ -1376,7 +1373,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const sourceArguments = expression.callee.ownerTypeArguments ?? [];
       if (sourceArguments.length !== trait.genericParameters.length)
         this.fail(
-          "generic-arity",
+          arityCode(sourceArguments.length, trait.genericParameters.length),
           `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
           expression.callee.span,
         );
@@ -1404,7 +1401,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
       if (expression.argumentNames?.[0] !== undefined || expression.argumentSpreads?.[0])
         this.fail(
-          "qualified-receiver-position",
+          "argument-order",
           "a trait-qualified receiver must be the first ordinary argument",
           expression.arguments[0]!.span,
         );

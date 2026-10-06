@@ -70,7 +70,7 @@ pub fn main() -> void $ Console:
 test("O-09: a derived Arbitrary error names a member typed through an alias", () => {
   const result = analyze(ARBITRARY);
   const errors = result.diagnostics.filter(
-    (diagnostic) => diagnostic.code === "unsatisfied-trait-bound",
+    (diagnostic) => diagnostic.code === "member-not-derivable",
   );
   assert.equal(errors.length, 2);
   assert.match(errors[0]!.message, /member 'f' cannot be derived/);

@@ -726,7 +726,7 @@ export abstract class CheckerContext {
     const key = `${implementation.index}:${targetType}:${traitArguments.join(",")}`;
     if (seen.has(key))
       this.fail(
-        "recursive-trait-dictionary",
+        "trait-resolution-depth",
         `constructing the trait dictionary for '${displayType(targetType)}' requires itself`,
         span,
       );

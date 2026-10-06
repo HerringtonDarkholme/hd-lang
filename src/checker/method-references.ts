@@ -1,3 +1,4 @@
+import { arityCode } from "../diagnostics.ts";
 import type { ClosureParameter, Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, HirLocal, ValueType } from "../hir.ts";
@@ -96,7 +97,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
   ): HirExpression {
     if (expression.argumentNames?.[0] !== undefined || expression.argumentSpreads?.[0])
       this.fail(
-        "qualified-receiver-position",
+        "argument-order",
         "a qualified call's receiver must be the first ordinary argument",
         expression.arguments[0]!.span,
       );
@@ -345,7 +346,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
       );
       if (traitArguments.length !== trait.genericParameters.length)
         this.fail(
-          "generic-arity",
+          arityCode(traitArguments.length, trait.genericParameters.length),
           `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
           span,
         );

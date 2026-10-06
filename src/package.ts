@@ -239,7 +239,7 @@ const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}_]*$/u;
 /**
  * The module identity of a package path, or undefined when it names none. A
  * file under `tests/` is the integration test module `tests.<path>`
- * (spec/lang/10-modules.md#r-module.test.integration.tests-root); `tests` is a
+ * (spec/lang/10-modules.md#r-module.test.integration); `tests` is a
  * reserved word, so no library module identity starts with it. `src/lib.hd`
  * is the package root module, whose identity is `""`
  * (spec/lang/10-modules.md#r-module.path.lib-file); `src/mod.hd` names no
@@ -559,8 +559,9 @@ function relativeBase(module: PackageModule): string[] {
 function useModulePath(module: PackageModule, declaration: UseDecl): string[] | string | undefined {
   const [root, ...rest] = declaration.module.split(".");
   if (root === "pkg") return rest;
-  // The parser accepts the `tests` root only in an integration test module.
-  if (root === "tests") return [root, ...rest];
+  // There is no `tests` use root (spec/lang/10-modules.md#r-module.test.no-tests-root).
+  if (root === "tests")
+    return "there is no 'tests' use root; reach the test root through 'self' or 'super'";
   if (root !== "self" && root !== "super") return undefined;
   const base = relativeBase(module);
   const path = [root, ...rest];
@@ -662,7 +663,7 @@ function parsePackageModules(
     if (path === `${SOURCE_ROOT}mod.hd`) {
       report(
         path,
-        "invalid-module-path",
+        "reserved-module-name",
         "'src/mod.hd' is not a module, since the source root is no directory module; rename it 'src/lib.hd', the package root module",
       );
       continue;
@@ -686,21 +687,18 @@ function parsePackageModules(
     ) {
       report(
         path,
-        "invalid-module-path",
+        "duplicate-module-name",
         `'${path}' lies beside the directory '${directory}/', so it is no program; move it to '${directory}/mod.hd'`,
       );
       continue;
     }
     const clash = folded.get(fold(identity));
     if (clash !== undefined) {
-      report(path, "duplicate-module-path", `'${path}' and '${clash}' name the same module`);
+      report(path, "duplicate-module-name", `'${path}' and '${clash}' name the same module`);
       continue;
     }
     folded.set(fold(identity), path);
-    const parsed = parse(files[path]!, {
-      testModule: isTestModulePath(path),
-      integrationTest: isIntegrationTestPath(path),
-    });
+    const parsed = parse(files[path]!, { testModule: isTestModulePath(path) });
     for (const diagnostic of parsed.diagnostics) diagnostics.push({ ...diagnostic, path });
     // `pkg` names the root module, so no module directly under the source
     // root takes its name (spec/lang/10-modules.md#r-module.path.reserved-pkg).
@@ -1038,7 +1036,7 @@ export function linkPackage(
 
   const { order, groups } = initializationOrder(reachable, edges);
 
-  const { joinedName, standardName } = joinedNames(order, entryModule, report);
+  const { joinedName, standardName } = joinedNames(order, entryModule);
   const foreignOf = foreignNamesOf(order, importedNames, resolvedUses);
 
   const segments: LinkSegment[] = [];
@@ -1365,7 +1363,6 @@ function byIdentity(left: PackageModule, right: PackageModule): number {
 function joinedNames(
   order: readonly PackageModule[],
   entryModule: PackageModule | undefined,
-  report: (path: string, code: string, message: string, span?: SourceSpan) => void,
 ): {
   readonly joinedName: (declared: Declared) => string;
   readonly standardName: (module: PackageModule, local: string) => string;
@@ -1377,14 +1374,6 @@ function joinedNames(
     if (!program) continue;
     for (const name of topLevelNames(program).keys())
       declarers.set(name, [...(declarers.get(name) ?? []), module]);
-    const main = program.functions.find(({ name }) => name === "main");
-    if (module !== entryModule && main)
-      report(
-        module.path,
-        "package-name-collision",
-        "only the entry module may declare 'main' in a linked package",
-        main.span,
-      );
     for (const declaration of program.uses)
       if (isStandardUse(declaration))
         for (const { name, alias } of declaration.names)
@@ -1408,6 +1397,10 @@ function joinedNames(
     return found;
   };
   const joinedName = ({ module, name }: Declared): string => {
+    // A `main` outside the entry module is an ordinary function
+    // (spec/cli/command-line.md#r-cli.exe.unselected-main), so it never
+    // joins as the program's `main`.
+    if (name === "main" && module !== entryModule) return hidden(module, name);
     const shared =
       (declarers.get(name) ?? []).some((other) => other !== module) ||
       (standardBinders.get(name) ?? []).some((binder) => binder !== module);

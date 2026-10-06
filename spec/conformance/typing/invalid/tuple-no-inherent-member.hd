@@ -1,0 +1,5 @@
+# test: a tuple has no inherent members, not even from the standard library
+# Spec 09 Inherent Members: trait.own.inherent.std.no-tuple (error-code proposal F4).
+
+fn size(pair: (i32, i32)) -> usize:
+    pair.len()  # diagnostic: unknown-method

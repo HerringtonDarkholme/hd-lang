@@ -1,0 +1,5 @@
+# test: a public main that declares generic parameters is an error
+# Spec 10 Executable Entry Point: module.entry.parameters (error-code proposal F5).
+
+pub fn main[T]() -> void:  # diagnostic: entry-point-parameters
+    pass

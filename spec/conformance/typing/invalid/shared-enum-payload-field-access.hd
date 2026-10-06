@@ -1,0 +1,9 @@
+# test: a variant payload field is read by a pattern, not by field access on the enum value
+# Spec 08 Shared Fields: data.shared.payload-fields (error-code proposal F1).
+
+enum Shape(sides: i32):
+    Circle(radius: f64) -> Shape(0)
+    Square(side: f64) -> Shape(4)
+
+fn radius(shape: Shape) -> f64:
+    shape.radius  # diagnostic: unknown-data-field

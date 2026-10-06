@@ -1,3 +1,4 @@
+import { arityCode } from "../diagnostics.ts";
 import {
   listVararg,
   type DataDecl,
@@ -578,7 +579,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
       const traitArguments = application?.arguments ?? [];
       if (traitArguments.length !== supertrait.genericParameters.length) {
         diagnostics.push({
-          code: "generic-arity",
+          code: arityCode(traitArguments.length, supertrait.genericParameters.length),
           message: `trait '${displayType(supertrait.name)}' expects ${supertrait.genericParameters.length} type arguments`,
           span: reference.span,
         });

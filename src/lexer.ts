@@ -178,7 +178,7 @@ class Scanner {
           this.scanNewline();
         } else {
           this.advance();
-          this.report("bare-carriage-return", "a bare carriage return is not a line ending", start);
+          this.report("invalid-token", "a bare carriage return is not a line ending", start);
         }
       } else if (value === "\uFEFF") {
         const start = this.position();
@@ -346,7 +346,7 @@ class Scanner {
     let text = this.advance();
     while (!this.done() && isIdentifierContinue(this.peek())) text += this.advance();
     if (text.normalize("NFC") !== text) {
-      this.report("identifier-not-nfc", `identifier '${text}' is not NFC-normalized`, start);
+      this.report("invalid-token", `identifier '${text}' is not NFC-normalized`, start);
     }
     const kind: TokenKind = text === "_" ? "symbol" : KEYWORDS.has(text) ? "keyword" : "identifier";
     // Security warnings never change identity: a suspicious script mix
@@ -676,7 +676,7 @@ class Scanner {
             segmentStart = this.position();
           } else {
             this.report(
-              "unterminated-string-interpolation",
+              "unterminated-string",
               "unterminated '${...}' interpolation",
               expressionStart,
             );
@@ -691,7 +691,7 @@ class Scanner {
     // An unterminated character literal, as in `0xff'B`, reports only that.
     if (terminated && quote === "'" && [...value].length !== 1) {
       this.report(
-        "invalid-character-literal",
+        "invalid-token",
         "a character literal must contain one Unicode scalar value",
         start,
       );
@@ -775,7 +775,7 @@ class Scanner {
       this.peek();
     if (!SINGLE_SYMBOLS.has(symbol[0]!) && !MULTI_SYMBOLS.includes(symbol)) {
       this.advance();
-      this.report("unexpected-character", `unexpected character '${symbol}'`, start);
+      this.report("invalid-token", `unexpected character '${symbol}'`, start);
       return;
     }
     for (let index = 0; index < symbol.length; index += 1) this.advance();

@@ -1,3 +1,4 @@
+import { arityCode } from "../diagnostics.ts";
 import { standardImportHint } from "./standard-uses.ts";
 import { ambiguousProjection, bindingNameProblem } from "./associated-bindings.ts";
 import { listVararg, tupleVararg, type FunctionDecl, type Program, type TypeRef } from "../ast.ts";
@@ -251,7 +252,7 @@ export function createProgramSignatures(
     const genericBounds = declaration.genericBounds.flatMap((bound) => {
       if (rowParameterSet.has(bound.parameter)) {
         diagnostics.push({
-          code: "generic-kind-conflict",
+          code: "generic-kind-mismatch",
           message: `generic parameter '${displayType(bound.parameter)}' cannot be both a type and a requirement row`,
           span: bound.span,
         });
@@ -302,7 +303,7 @@ export function createProgramSignatures(
         );
         if (traitArguments.length !== trait.genericParameters.length) {
           diagnostics.push({
-            code: "generic-arity",
+            code: arityCode(traitArguments.length, trait.genericParameters.length),
             message: `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
             span: bound.span,
           });
@@ -355,7 +356,7 @@ export function createProgramSignatures(
       declaration.public
     ) {
       diagnostics.push({
-        code: "generic-entry-point",
+        code: "entry-point-parameters",
         message: "main cannot declare generic parameters",
         span: declaration.span,
       });

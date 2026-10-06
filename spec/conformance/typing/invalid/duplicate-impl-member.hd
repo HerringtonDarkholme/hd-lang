@@ -1,0 +1,11 @@
+# test: an implementation that writes one member twice is an error
+# Spec 09 Trait Members: trait.decl.unique (error-code proposal, part D).
+
+trait Named:
+    fn name(self) -> string
+
+data User: pass
+
+impl Named for User:
+    fn name(self) -> string: "Ada"
+    fn name(self) -> string: "Grace"  # diagnostic: duplicate-trait-member

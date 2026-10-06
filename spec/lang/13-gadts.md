@@ -87,8 +87,8 @@ flag := Expr.BoolLit(true) # Expr[bool]
 1. r[gadt.construct.syntax] Construction uses the same enum-qualified function-call syntax as ordinary variants.
 2. r[gadt.construct.order] Positional arguments precede named arguments.
 3. r[gadt.construct.infer] Generic variant arguments are inferred from payload arguments and the expected result type.
-4. r[gadt.construct.no-explicit] Variant constructors do not accept explicit generic arguments.
-5. r[gadt.construct.ambiguous] Ambiguous inference is a compile-time error.
+4. r[gadt.construct.no-explicit] Variant constructors do not accept explicit generic arguments; writing them is an error. Error: `argument-count`.
+5. r[gadt.construct.ambiguous] Ambiguous inference is a compile-time error. Error: `cannot-infer-type`.
 
 See also: [Variant Construction](08-data-and-enums.md#variant-construction).
 
@@ -174,7 +174,7 @@ flag := Expr.BoolLit(true)   # an Expr[bool], exactly the declared result
 1. r[gadt.existential.def] A variant-local parameter that does not occur in the result is existential when that variant is matched.
 2. r[gadt.existential.fresh] An existential parameter is fresh for the selected arm.
 3. r[gadt.existential.bounds] An existential parameter may be used through its declared bounds.
-4. r[gadt.existential.no-escape] An existential parameter must not escape the arm as an unconstrained concrete type.
+4. r[gadt.existential.no-escape] An existential parameter must not escape the arm as an unconstrained concrete type. Error: `type-mismatch`.
 
 ```hd
 enum Job[T]:
@@ -256,7 +256,7 @@ fn eval[T](expr: Expr[T]) -> T:
 ### Erasure And Reification
 
 1. r[gadt.erasure.dynamic] Dynamic trait erasure discards GADT refinements.
-2. r[gadt.erasure.no-descriptor] Matching a GADT does not supply `Inspectable` evidence for an erased parameter.
+2. r[gadt.erasure.no-descriptor] Matching a GADT does not supply `Inspectable` evidence for an erased parameter. A use that needs that evidence is an error. Error: `unsatisfied-trait-bound`.
 
 ```hd
 enum Expr[T]:

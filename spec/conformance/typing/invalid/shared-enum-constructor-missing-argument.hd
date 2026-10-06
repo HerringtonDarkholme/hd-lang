@@ -1,0 +1,6 @@
+# test: a variant's constructor call must initialize every shared parameter without a default
+# Spec 08 Shared Enum Constructor Data: data.shared.arguments (error-code proposal F1).
+
+enum Status(code: i32, phrase: string):
+    Ok -> Status(200, phrase="OK")
+    NotFound -> Status(404)  # diagnostic: missing-required-field

@@ -8,7 +8,7 @@ fn digit_task(c: mut Choices) -> fn() -> i32:
     n := c.int(+0, 9)
     fn() -> i32: n
 
-@derive(Arbitrary)  # diagnostic: unsatisfied-trait-bound
+@derive(Arbitrary)  # diagnostic: member-not-derivable
 data Task:
     @arbitrary.with(digit_task)
     run: fn() -> i32

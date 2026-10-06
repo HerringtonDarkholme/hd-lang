@@ -259,7 +259,7 @@ export function snapshotRewrite(
   const expected = literalAt(message, actual.end + ", expected ".length);
   if (!expected) return undefined;
   const wanted = decodeLiteral(expected.text);
-  const program = parse(test.program, { testModule: true, integrationTest: true }).program;
+  const program = parse(test.program, { testModule: true }).program;
   if (!program) return undefined;
   const offsets = lineOffsets(moduleSource);
   const offset = (position: Call["span"]["start"]): number =>

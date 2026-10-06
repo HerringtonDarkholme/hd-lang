@@ -692,9 +692,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           ),
         );
       if (!numericType(operand.type)) {
-        const code = expression.operator === "+" ? "type-mismatch" : "invalid-unary-operand";
         this.fail(
-          code,
+          "type-mismatch",
           `operator '${expression.operator}' requires a numeric operand`,
           expression.span,
         );

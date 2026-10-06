@@ -511,7 +511,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
     }
     if (!selection)
       this.fail(
-        "member-on-non-data",
+        "invalid-assignment-target",
         `type '${displayType(mutableReceiver)}' has no assignable data fields`,
         statement.target.receiver.span,
       );
@@ -702,7 +702,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           const position = underscorePosition(expression.name);
           if (position === undefined) {
             this.fail(
-              "unknown-tuple-member",
+              "unknown-method",
               `tuple type '${displayType(receiver.type)}' has no member '${expression.name}'`,
               expression.span,
             );
@@ -781,7 +781,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           };
         }
         this.fail(
-          "member-on-non-data",
+          "unknown-method",
           `type '${displayType(receiver.type)}' has no data fields`,
           expression.receiver.span,
         );

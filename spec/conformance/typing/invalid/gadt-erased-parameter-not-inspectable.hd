@@ -1,0 +1,10 @@
+# test: matching a GADT supplies no Inspectable evidence for an erased parameter
+# Spec 13 Erasure And Reification: gadt.erasure.no-descriptor (error-code proposal F2).
+use std.inspect.TypeId
+
+enum Boxed:
+    Item[U](value: U) -> Boxed
+
+fn kind(boxed: Boxed) -> string:
+    match boxed:
+        Boxed.Item(value) => "${TypeId::of::[U]()}"  # diagnostic: unsatisfied-trait-bound

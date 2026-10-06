@@ -35,7 +35,7 @@ pub fn main() -> void $ Console:
     x := testing.arbitrary.With
     println("done")
 `),
-    [["unknown-name", STD_MESSAGE]],
+    [["unknown-import", STD_MESSAGE]],
   );
 });
 
@@ -49,7 +49,7 @@ fn make(x: testing.arbitrary.With) -> i32:
 pub fn main() -> void:
     pass
 `),
-    [["unknown-type", STD_MESSAGE]],
+    [["unknown-import", STD_MESSAGE]],
   );
 });
 

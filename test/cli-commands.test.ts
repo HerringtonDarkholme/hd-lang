@@ -418,7 +418,7 @@ test("hd test links integration test modules under tests/", async () => {
       "tests/common/mod.hd": 'pub fn expected() -> string: "hi"\n',
       "tests/greeting.hd": [
         "use pkg.util.{greet}",
-        "use tests.common.{expected}",
+        "use self.common.{expected}",
         "use std.testing.assert_equal",
         "",
         'it("greets"):',
@@ -441,9 +441,16 @@ test("hd test links integration test modules under tests/", async () => {
       "tests/again.hd: 1 passed\n",
     );
 
-    // Only an integration test module may use the tests root.
+    // There is no tests use root, in an integration test module or elsewhere
+    // (module.test.no-tests-root).
+    await writeFile(join(directory, "tests/rooted.hd"), "use tests.common.{expected}\n");
+    assert.match(
+      await failure(["test", "tests/rooted.hd"], directory),
+      /tests\/rooted\.hd:1:\d+: unknown-module: there is no 'tests' use root/,
+    );
+    await rm(join(directory, "tests/rooted.hd"));
     await writeFile(join(directory, "src/bad.hd"), "use tests.common.{expected}\n");
-    assert.match(await failure(["check", "src/bad.hd"], directory), /test-only-use/);
+    assert.match(await failure(["check", "src/bad.hd"], directory), /unknown-module/);
     await rm(join(directory, "src/bad.hd"));
     // Relative uses stay under the test root.
     await writeFile(join(directory, "tests/up.hd"), "use super.util.{greet}\n");

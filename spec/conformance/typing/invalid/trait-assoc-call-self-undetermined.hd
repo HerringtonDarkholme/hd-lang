@@ -1,0 +1,13 @@
+# test: a trait-qualified associated call whose Self nothing determines is an error
+# Spec 09 Associated Function Calls: trait.assoc-call.trait.undetermined (error-code proposal F4).
+
+trait Make:
+    fn make() -> i32
+
+data Widget: pass
+
+impl Make for Widget:
+    fn make() -> i32: 1
+
+fn run() -> i32:
+    Make::make()  # diagnostic: cannot-infer-type

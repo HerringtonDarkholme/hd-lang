@@ -263,6 +263,17 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
     expected?: ValueType,
   ): HirExpression {
     const span = expression.span;
+    // A variant constructor takes no explicit generic arguments
+    // (13-gadts.md#r-gadt.construct.no-explicit).
+    const written =
+      expression.typeArguments ??
+      (expression.callee.kind === "member" ? expression.callee.typeArguments : undefined);
+    if (written?.length)
+      this.fail(
+        "argument-count",
+        `variant constructor '${declaration.name}.${variantName}' takes no type arguments; they are inferred`,
+        span,
+      );
     const variant = declaration.variants.find((candidate) => candidate.name === variantName);
     if (!variant)
       this.fail(
@@ -542,7 +553,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
       const declaration = this.dataTypes.get(nominal?.name ?? type);
       if (!declaration || pattern.typeName !== declaration.name) {
         this.fail(
-          "pattern-type-mismatch",
+          "type-mismatch",
           `pattern names '${pattern.typeName}', expected '${displayType(type)}'`,
           pattern.span,
         );
@@ -610,7 +621,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
         (pattern.enumName !== undefined && pattern.enumName !== declaration.name)
       ) {
         this.fail(
-          "pattern-type-mismatch",
+          "type-mismatch",
           `variant pattern does not match '${displayType(type)}'`,
           pattern.span,
         );
@@ -657,7 +668,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
           );
         if (seen.has(index))
           this.fail(
-            "duplicate-variant-pattern-field",
+            "duplicate-data-pattern-field",
             `payload field '${variant.fields[index]!.name}' appears more than once`,
             pattern.span,
           );
@@ -729,7 +740,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
     const elements = tupleLayout(readonlyType(type));
     if (!elements)
       this.fail(
-        "pattern-type-mismatch",
+        "type-mismatch",
         `a tuple pattern does not match '${displayType(type)}'`,
         pattern.span,
       );
@@ -775,7 +786,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
   ): boolean {
     if (pattern.typeName !== declaration.name) {
       this.fail(
-        "pattern-type-mismatch",
+        "type-mismatch",
         `pattern names '${pattern.typeName}', expected '${declaration.name}'`,
         pattern.span,
       );
@@ -849,7 +860,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
         );
         if (!nestedDeclaration)
           this.fail(
-            "pattern-type-mismatch",
+            "type-mismatch",
             `field '${entry.name}' has non-data type '${displayType(fieldType)}'`,
             nested.span,
           );
@@ -872,7 +883,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
         continue;
       }
       this.fail(
-        "pattern-type-mismatch",
+        "type-mismatch",
         `pattern is not valid for field '${entry.name}' of type '${displayType(field.type)}'`,
         nested.span,
       );

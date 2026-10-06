@@ -1,0 +1,6 @@
+# test: a variant payload parameter has no default
+# Spec 08 Shared Fields: data.shared.payload-defaults (error-code proposal F1).
+
+enum Shape:
+    Circle(radius: f64 = 1.0)  # diagnostic: syntax-error
+    Dot
