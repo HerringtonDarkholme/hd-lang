@@ -125,3 +125,42 @@ Paths are `Path` values, so `"reports/$name.txt"` is one argument, not
 string surgery on separators. Integration tests get the real file system
 and a fresh temporary directory per case; see
 [Temporary Directories](../spec/std/testing.md#temporary-directories).
+## Scanning Logs With Regex
+
+Operations read logs: count the server errors by status, or find the
+minute that broke. `std.regex` compiles a pattern once and captures groups
+by number or name; it runs in linear time, so a hostile log line cannot
+stall the scan. The exact rules are in [Regex](../spec/std/regex.md):
+
+```hd
+use std.num.parse_i32
+use std.regex.Regex
+use std.text.r
+use std.testing.{assert_equal, it}
+
+fn status_of(line: string) -> i32?:
+    match Regex::new(r"\"[A-Z]+ /[^ ]*\" (\d\d\d)"):
+        .Ok(pattern) =>
+            match pattern.captures(line):
+                .Some(found) => found.get(1).map(fn(m): parse_i32(m.text).expect("digits"))
+                .None => .None
+        .Err(_) => .None
+
+fn errors_by_status(lines: List[string]) -> Map[i32, usize]:
+    let counts: mut Map[i32, usize] = {}
+    for line in lines:
+        match status_of(line):
+            .Some(code) => if code >= 500:
+                counts[code] = counts.get(code).unwrap_or(0) + 1
+            .None => pass
+    counts
+
+tests:
+    it("counts server errors by status"):
+        lines := ["\"GET /ok\" 200", "\"POST /x\" 500", "\"GET /y\" 502", "\"GET /z\" 500"]
+        assert_equal(errors_by_status(lines).get(500), .Some(2), reason="two 500s")
+        assert_equal(errors_by_status(lines).get(502), .Some(1), reason="one 502")
+```
+
+Write the pattern as a raw string, `r"..."`, so `\d` needs no second
+backslash. A pattern that does not compile is a `RegexError`, not a panic.

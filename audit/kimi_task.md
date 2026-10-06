@@ -141,33 +141,6 @@ navigation if `website/build.ts` lists guide pages. Run
 `pnpm run website:build`. Commit one section at a time or the whole page
 at once, whichever reads better in review.
 
-### K16. Guide Sections For The Top Coverage Gaps (1 to 5)
-
-`audit/guide-coverage-2026-10-06.md` (your K15 report) ranks the gaps.
-Write one guide section for each of gaps 1 to 5:
-
-1. JSON and serde: a config loader.
-2. Doc tests.
-3. `race!` and a timeout.
-4. File I/O with `FsRead`/`FsWrite`, `Path`, `MemoryFs` in tests and
-   temp dirs.
-5. Regex: a log scanner.
-
-Put each section where it fits in `guide/LANGUAGE_TOUR.md`, or in a new
-guide page linked from `guide/README.md` if the tour would grow too long.
-Follow the guide's style:
-- each section opens with the problem the feature solves;
-- use a realistic domain, never bare syntax;
-- link to the spec section for the exact rules.
-
-Every code block must run with hd before you commit. Run complete
-programs, and make fragments part of a program shown in the same
-section. Where the guide and the spec disagree, the spec wins; list any
-compiler mismatch under Questions.
-
-Commit one section at a time. Run `pnpm run website:build` before each
-commit, since the guide renders on the site.
-
 ### K17. Guide Sections For Gaps 6 To 10
 
 Same method as K16, for gaps 6 to 10 of the report.
