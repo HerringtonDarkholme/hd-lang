@@ -71,22 +71,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### BT. Record The Baseline Across Runners, Not On One (Do First, Small)
-
-Review of BO (d2dec1f0). `.github/workflows/perf-baseline.yml` records
-all five runs inside one job, so all five run on the same machine. The
-variance that failed CI was between runners (about 1.0x on a fast one,
-1.6x on a slow one), so five runs on one runner don't capture it, and a
-baseline recorded on a fast runner still fails on slow ones.
-
-Use a job matrix of five independent jobs (each `pnpm run perf:check
---update --baseline baseline-N.json`, each uploading its file as an
-artifact), then a final job that downloads the five files, merges them
-with the existing `--merge … --percentile 90`, and uploads the merged
-`baseline.json`. Keep `baseline-merge.ts` and its test; update the README
-section. No change to the gate's rules.
-
-
 ### BQ. Intern Types (Compile Speed)
 
 The checker represents types as strings and re-parses them on every
