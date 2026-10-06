@@ -104,7 +104,7 @@ A package's versions are the git tags of its repository:
 9. r[module.version.no-bare-path-release] A tagged version's manifest must not hold a path requirement that carries no version. Such a version is rejected when it is fetched, and the toolchain does not tag one.
 10. r[module.version.tag-missing] A dependency requirement whose version is not a pseudo-version, and whose package has no tag for that version, is invalid. So `lint = "github.com/acme/tools/lint@2.4.1"` is invalid when the repository has no tag `lint/v2.4.1`.
 11. r[module.version.no-fallback] The toolchain never falls back to an untagged commit or to a nearby version in place of a missing tag.
-12. r[module.version.pseudo-missing] A pseudo-version whose `HASH` names no commit of the package's repository, or whose `TIME` is not that commit's time, is invalid, as a missing tag is.
+12. r[module.version.pseudo-missing] A pseudo-version whose `HASH` names no commit of the package's repository, or whose `TIME` is not that commit's time, is invalid. A missing tag is invalid too.
 13. r[module.version.pseudo-missing.no-fallback] The toolchain never falls back to another commit or version in place of such a pseudo-version.
 
 Pseudo-versions take Go's three forms:
@@ -143,7 +143,7 @@ a minimum, and the build uses the largest minimum stated for each package:
 6. r[module.select.no-lock] The manifests alone determine the selection. There is no lockfile of versions.
 7. r[module.select.path] Selection also reads the manifest of each package that a [path requirement](#r-module.path-dep.form) reaches, from the root package, a member, or another such package. Its dependency requirements join the selection.
 
-> **Note.** A package that a path requirement reaches is a dependency, so
+> **Note.** A package that a path requirement reaches is a dependency. So
 > its dev dependencies are never read, by
 > [`module.select.dev-dependencies`](#r-module.select.dev-dependencies),
 > unless it is also a member of the workspace.
@@ -204,7 +204,7 @@ json = "github.com/acme/json@2.1.0"
 3. r[module.path-dep.no-package] A path requirement whose `DIR` holds no manifest that declares a package is invalid.
 4. r[module.path-dep.root-selection] The selection and `hd.sum` of the root package, or of its workspace, hold for every package that a path requirement reaches. That package's own `hd.sum` and workspace are not read.
 5. r[module.workspace.path-version] A path requirement may also carry a version, as in `{ path = "../ui", version = "0.4.2" }`.
-6. r[module.workspace.path-version.locally] When the requiring package is built from local files, in its workspace or in a checkout of its repository, such a requirement names the package at its path, and its version is not used.
+6. r[module.workspace.path-version.locally] When the requiring package is built from local files, such a requirement names the package at its path. This covers a build in its workspace or in a checkout of its repository. Its version is not used.
 7. r[module.workspace.path-version.fetched-version] In a fetched version of the requiring package, `path` is ignored, and the requirement is a dependency requirement on `version`.
 8. r[module.workspace.path-version.fetched-host] Its host path comes from the host path by which the requiring package was fetched, as [`module.dep.no-self-path`](#r-module.dep.no-self-path) gives every fetched package its host path.
 9. r[module.path-dep.fetched-outside] In a fetched version, a path requirement whose `DIR` lies outside the repository is invalid, since no host path names that directory.
@@ -348,7 +348,7 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 21. r[module.test.cyclic-dev-allowed] Integration test modules and [tasks](../cli/command-line.md#tasks) may use such a dev dependency.
 
 > **Why.** Each integration test program builds on its own, as each Cargo
-> integration test is its own crate, so helpers go in a subdirectory such
+> integration test is its own crate. So helpers go in a subdirectory such
 > as `tests/common/`. A dev dependency that depends back would give a unit
 > test a second copy of the package, whose types differ from the ones
 > under test. An integration test sees only the one normal build. A test
@@ -487,7 +487,7 @@ names. A root file starts at its root instead:
 
 1. r[module.relative.keywords] Relative use paths use `self` and `super`.
 2. r[module.relative.base.current] Except in a root file, relative lookup starts at the source file's own module, as the table shows. In `mod.hd`, that module is the directory module.
-3. r[module.relative.root-file] A **root file** is `src/lib.hd`, `src/main.hd`, or an [integration test program](#r-module.test.integration.program). Relative lookup in a root file starts at its root: the package root for a file under `src`, and the test root for one under `tests`.
+3. r[module.relative.root-file] A **root file** is `src/lib.hd`, `src/main.hd`, or an [integration test program](#r-module.test.integration.program). Relative lookup in a root file starts at its root. That is the package root for a file under `src`, and the test root for one under `tests`.
 4. r[module.relative.self.current] `self` names the module where relative lookup starts, so `self.x` names its child module `x`.
 5. r[module.relative.super] Each leading `super` moves to its parent.
 6. r[module.relative.root-file.super] A `super` in a root file is an error. Error: `unknown-module`.
@@ -615,7 +615,7 @@ directory of its child modules:
 
 ### Folder Graph
 
-1. r[module.cycle.folder-edge] The **folder graph** of a package has an edge from folder `A` to a different folder `B` when a file in `A` uses a module in `B`. A `use` or `pub use` uses the module its path reaches, so `use pkg.shop.{Item}` and `use pkg.shop.Item` both use `shop`.
+1. r[module.cycle.folder-edge] The **folder graph** of a package has an edge from folder `A` to a different folder `B`. The edge exists when a file in `A` uses a module in `B`. A `use` or `pub use` uses the module its path reaches. So `use pkg.shop.{Item}` and `use pkg.shop.Item` both use `shop`.
 2. r[module.cycle.same-package] Only uses of the package's own modules make edges. Uses of `std` and of dependencies make none.
 3. r[module.cycle.test-code] A use in [test code](#r-module.test.code) makes no edge.
 4. r[module.cycle.nested] A folder and its parent or child folder are separate nodes, and an edge between them counts like any other.
@@ -721,8 +721,9 @@ fn helper() -> void:
 13. r[module.prelude.ops-call-traits] `std.ops` also declares `Apply` and `Update`, the traits of [callable values](05-expressions.md#callable-values). Code imports one to name it; `v()` and `v() = x` need no import.
 14. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
 
-> **Note.** More standard names outside the prelude are stdlib tier:
-> the string prefix [`r`](../std/text.md#raw-text-prefix) of `std.text`,
+> **Note.** More standard names outside the prelude are stdlib tier.
+> Examples are the string prefix [`r`](../std/text.md#raw-text-prefix) of
+> `std.text`,
 > [`FromIterator`](../std/iter.md#collect-targets) of `std.iter`, and
 > [`Duration`](../std/time.md#duration) and its suffixes of `std.time`.
 
@@ -772,11 +773,11 @@ fn check_order(id: i32, count: i32) -> bool:
 ```
 
 1. r[module.dbg.signature] `std.format` declares `dbg` as `@intrinsic pub fn dbg[Args < Tuple](values...: Args) -> void`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
-2. r[module.dbg.check] A `dbg` call is checked by the plain call rules and the [vararg rules](07-functions.md#varargs): `dbg()`, `dbg(x)`, and `dbg(a, b, c)` collect their arguments into `Args` as [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr) says. No rule gives `dbg` a type that the declaration does not.
+2. r[module.dbg.check] A `dbg` call is checked by the plain call rules and the [vararg rules](07-functions.md#varargs). So `dbg()`, `dbg(x)`, and `dbg(a, b, c)` collect their arguments into `Args` as [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr) says. No rule gives `dbg` a type that the declaration does not.
 3. r[module.dbg.tuple-argument] `dbg((a, b, c))` is a call with one argument, a tuple, as [`fn.vararg.no-auto-spread`](07-functions.md#r-fn.vararg.no-auto-spread) says. It prints one line for the tuple, where `dbg(a, b, c)` prints one line for each argument.
-4. r[module.dbg.body.print] The body evaluates the arguments from left to right and prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type.
+4. r[module.dbg.body.print] The body evaluates the arguments from left to right. It prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type.
 5. r[module.dbg.body.site] The body prints what it knows of the call site, which no ordinary hd parameter can supply, as [Debug Lines](#debug-lines) says. A direct call with only positional arguments and no explicit type arguments knows each argument's source text. Any other call knows only the location.
-6. r[module.dbg.body.value] A `dbg` used as a function value, as in `let show: fn((i32, string)) -> void = dbg`, has no call site, so its body prints each element of its one tuple argument on a line of its own, with no location.
+6. r[module.dbg.body.value] A `dbg` used as a function value, as in `let show: fn((i32, string)) -> void = dbg`, has no call site. So its body prints each element of its one tuple argument on a line of its own, with no location.
 7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test case](#r-module.testing.unit-row.anywhere), and in generic code.
 8. r[module.dbg.not-behavior] What `dbg` prints is diagnostic output, not program behavior. It is not an effect, a replay does not record it, and tools that judge a program's output ignore it.
 
@@ -810,7 +811,7 @@ pub fn main() -> void:
 #### Debug Lines
 
 1. r[module.dbg.line] Each argument of a direct `dbg` call with positional arguments prints one line: the call's location, `: `, the argument's source text, ` = `, and its value.
-2. r[module.dbg.line.bare] A call that has no per-argument source text, as [`module.dbg.body.site`](#r-module.dbg.body.site) says, prints one line for each element of `values`: the call's location, `: `, and the element's value.
+2. r[module.dbg.line.bare] A call that has no per-argument source text, as [`module.dbg.body.site`](#r-module.dbg.body.site) says, prints one line for each element of `values`. The line holds the call's location, `: `, and the element's value.
 3. r[module.dbg.location] The location is `FILE:LINE:COLUMN`: the file as diagnostics name it, and the line and column where the call begins.
 4. r[module.dbg.stream] A `dbg` line goes to the program's debug output, which a program that `hd` runs writes to standard error. [Debug Output](../cli/command-line.md#debug-output) says where it goes in tests and the REPL.
 
@@ -819,8 +820,8 @@ pub fn main() -> void:
 1. r[module.dbg.value.debug] A value whose static type implements `Debug` prints as its `Debug` text, as [`debug`](#r-module.prelude.debug) returns it.
 2. r[module.dbg.value.structural] A value of any other static type prints its structure, as the table below says. Each part prints by these same rules, so a part whose type implements `Debug` prints through it.
 3. r[module.dbg.value.no-bound] Neither rule needs a trait bound, so every value prints.
-4. r[module.dbg.value.source] A printed value is hd source wherever its parts have a source form, so it pastes back as an expression that builds an equal value, as [`std-format.debug.source`](../std/format.md#r-std-format.debug.source) specifies. A string prints as a string literal, and a char as a char literal.
-5. r[module.dbg.value.generic] Inside generic code, a value whose static type mentions a type parameter prints through `Debug` when that type implements `Debug` under the bounds in scope, as for `T < Debug`. Otherwise what it prints is implementation-defined.
+4. r[module.dbg.value.source] A printed value is hd source wherever its parts have a source form, as [`std-format.debug.source`](../std/format.md#r-std-format.debug.source) specifies. So it pastes back as an expression that builds an equal value. A string prints as a string literal, and a char as a char literal.
+5. r[module.dbg.value.generic] Inside generic code, a value whose static type mentions a type parameter prints through `Debug` when that type implements `Debug` under the bounds in scope. One such bound is `T < Debug`. Otherwise what it prints is implementation-defined.
 
 | Rule | Static type | Prints |
 | --- | --- | --- |
@@ -861,7 +862,7 @@ fn audit(account: Account) -> Account:
 hd build --release   # error: dbg-in-release; the fix-it deletes the dbg statement
 ```
 
-1. r[module.dbg.release] A reference to `dbg` in the user's own code, a call or a function value, is an error in a release build, one of the [build profiles](04-type-system.md#integer-arithmetic). Error: `dbg-in-release`.
+1. r[module.dbg.release] A reference to `dbg` in the user's own code, a call or a function value, is an error in a release build. Release is one of the [build profiles](04-type-system.md#integer-arithmetic). Error: `dbg-in-release`.
 2. r[module.dbg.release.delete] The fix-it of a call deletes the whole `dbg(...)` statement. A reference that is not a call has no fix-it, because the code that uses the value must change.
 3. r[module.dbg.release.debug-build] A debug or test build accepts a reference to `dbg` with no warning.
 4. r[module.dbg.own-code] The user's own code is the root package, every member of its [workspace](#workspaces), and every package that a [path requirement](#path-requirements) reaches.
@@ -1035,7 +1036,7 @@ fn version!() -> string $ Process:
 > stdlib provider `ScriptedProcess` are stdlib tier:
 > [Process](../std/process.md) in `std.process`.
 
-> **Why.** Starting a program is a host capability like any other, so a
+> **Why.** Starting a program is a host capability like any other. So a
 > function that starts one states it in its row, and a test can install a
 > scripted provider. A missing program and a refused start are failures,
 > not absence, so `run!` returns a `Result`, as the file system traits do.
@@ -1093,9 +1094,9 @@ The following built-in methods are normative:
 > [`flow.for.invalidate`](06-control-flow.md#r-flow.for.invalidate).
 
 See also: [Text](../std/text.md#string-methods) for the string methods above
-these, such as `trim` and `split`, [Iterators](../std/iter.md#list-and-optional-map)
-for `map` on a list or an optional, and [Collections](../std/collections.md)
-for the list method `view`.
+these, such as `trim` and `split`. [Iterators](../std/iter.md#list-and-optional-map)
+covers `map` on a list or an optional, and [Collections](../std/collections.md)
+covers the list method `view`.
 
 #### Map Complexity
 
@@ -1187,7 +1188,7 @@ pub fn it[T < Termination, $R](name: string, ignore: string? = .None, expect_pan
 ```
 
 1. r[module.testing.it-function] `it` is an ordinary function with the signature above, which `std.testing` declares and the prelude supplies. Each call in test position registers one **test case**.
-2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument, usually as a trailing block.
+2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument. The body is usually a trailing block.
 3. r[module.testing.it.body] The body has type `fn!() -> T $ R` with `T < std.process.Termination`, so a trailing block body is a suspending closure.
 4. r[module.testing.it.name] The name must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
 5. r[module.testing.it.options-strings] The named options are those of the signature above: `ignore`, `expect_panic`, and `timeout`. An `ignore` or `expect_panic` value must be a string literal without interpolation. Any other value for them is an error. Error: `non-literal-test-argument`.
@@ -1286,7 +1287,7 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 9. r[module.testing.reg.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
 10. r[module.testing.reg.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
 11. r[module.testing.reg.body-result] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
-12. r[module.testing.reg.body-closure-result] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](05-expressions.md#r-expr.try.test.without-try), as a trailing block given to `it` does.
+12. r[module.testing.reg.body-closure-result] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](05-expressions.md#r-expr.try.test.without-try). A trailing block given to `it` gets its result type the same way.
 13. r[module.testing.reg.prop-debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
@@ -1326,13 +1327,13 @@ fn helper() -> void:
 > [Time](../std/time.md#duration)). The language tier names them in these
 > signatures only and specifies none of their members.
 
-> **Why.** The compiler lists every test case without running it, so it
+> **Why.** The compiler lists every test case without running it. So it
 > knows each registration function by its declaration, where its calls stand, and
 > which of their arguments must be literals.
 
 See also: [Table-Test Rows](../std/testing.md#table-test-rows), for how an
-`it_each` call expands and names its rows, and
-[Property Tests](../std/testing.md#property-tests), for how the runner
+`it_each` call expands and names its rows.
+[Property Tests](../std/testing.md#property-tests) tells how the runner
 generates, shrinks, and reports a property's inputs.
 
 ### Test Outcomes
@@ -1350,13 +1351,13 @@ tests:
 1. r[module.testing.instance] Each test case runs in its own fresh program instance, after module initialization.
 2. r[module.testing.no-reuse] Instances are not reused between test cases.
 3. r[module.testing.driven] The runner drives the body's suspension to completion, as the host drives `main!`.
-4. r[module.testing.runner-provider] A test run's profile also binds the host capability trait `std.testing.TestRunner`, and the runner binds a provider of it for the body of every test case.
+4. r[module.testing.runner-provider] A test run's profile also binds the host capability trait `std.testing.TestRunner`. The runner binds a provider of it for the body of every test case.
 5. r[module.testing.unit-row.test-runner] A test case in a `tests:` block or a test module gets no other host provider. Its body's requirement row may hold `TestRunner` and no other key, so every other requirement comes from a `$.with` provider scope. Error: `missing-requirement`.
 6. r[module.testing.unit-row.anywhere] A **unit test case** is a test case in a `tests:` block or a test module. Rule `module.testing.unit-row.test-runner` holds for it wherever its file lies.
 7. r[module.testing.unit-row.places] So a `tests:` block under the source root, in a [task](../cli/command-line.md#tasks) or a shared task module, or in a [single-file program](#single-file-programs) gets `TestRunner` alone.
 8. r[module.testing.kind-decides] The kind of a test case decides what the runner binds for it, never the directory of its file. Only an integration test case and a [doc test](#doc-tests) get the profile's providers.
 9. r[module.testing.profile] A test run compiles against one [runtime profile](#runtime-profiles), the default profile unless the run selects another.
-10. r[module.testing.integration-row] For a test case in an integration test module, the runner binds the body's requirement row from that profile, as the host binds the row of `main`.
+10. r[module.testing.integration-row] For a test case in an integration test module, the runner binds the body's requirement row from that profile. The host binds the row of `main` the same way.
 11. r[module.testing.integration-row.unbound] An integration test case whose body needs a trait that the profile does not bind must bind it explicitly with `$.with`.
 12. r[module.testing.integration-row.unbound.error] Otherwise checking reports `missing-requirement` with the hint `bind it with $.with(Trait=...)`.
 13. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
@@ -1391,7 +1392,7 @@ tests:
 > alone, so they pass on every machine; only integration tests reach real
 > providers.
 
-> **Why.** The runner is not a resource that a fake would replace, so a
+> **Why.** The runner is not a resource that a fake would replace. So a
 > unit test that reaches it through `TestRunner` still passes on every
 > machine.
 
@@ -1407,7 +1408,8 @@ tests:
 
 > **Note.** The `missing-requirement` error in a unit test case suggests
 > a std fake for the missing trait, such as `ManualClock` for `Clock`
-> ([Unit Test Providers](../std/testing.md#unit-test-providers)), or moving
+> ([Unit Test Providers](../std/testing.md#unit-test-providers)). It also
+> suggests moving
 > the test case to the test root.
 
 See also: [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks),
@@ -1437,7 +1439,7 @@ tests:
         snapshot(greeting("Ada"), expect=greeting("Ada"))  # error: non-literal-test-argument
 ```
 
-> **Why.** A literal `expect` lets a tool rewrite it in place, so an update
+> **Why.** A literal `expect` lets a tool rewrite it in place. So an update
 > run records a new or changed expectation, and an empty `expect` is filled
 > on the first update.
 
@@ -1451,7 +1453,7 @@ This section defines which modules initialize, in what order, and what their
 top-level code may do.
 
 1. r[module.init.script] A **script** is an entry module whose top-level executable statements are the entry behavior and which has no `main` declaration.
-2. r[module.init.entry-module.selected] An **entry module** is the module that a program starts from: a module that the toolchain selects in a package, or the file of a single-file program.
+2. r[module.init.entry-module.selected] An **entry module** is the module that a program starts from. That is a module that the toolchain selects in a package, or the file of a single-file program.
 3. r[module.init.statements-and-main] If an entry module contains both top-level statements and `main`, its top-level statements initialize the module first and then the runtime invokes `main`. That form is an executable entry module, not a script.
 4. r[module.init.program-instance] A **program instance** is one instantiated Wasm module graph together with its module storage, provider bindings, and execution state.
 
@@ -1534,7 +1536,7 @@ fn first_name() -> string:
 3. r[module.init.tests] Test runners initialize the module under test and the modules it uses before running its test cases.
 4. r[module.init.test-cases] The `it` calls of a `tests:` block or a test module, and their bodies, are not part of module initialization.
 5. r[module.init.script-empty] An entry module with no `main` and no top-level executable statements is a script with no entry behavior. Running it does nothing and exits with status 0.
-6. r[module.init.tests.no-entry] A test run runs no entry behavior, so the module under test is not an entry module in it, even when it is a script or a [task](../cli/command-line.md#tasks).
+6. r[module.init.tests.no-entry] A test run runs no entry behavior. So the module under test is not an entry module in it, even when it is a script or a [task](../cli/command-line.md#tasks).
 7. r[module.init.tests.requirement-free] A script's top-level statements are then its module initialization, which must be requirement-free by [`module.init.requirement-free`](#r-module.init.requirement-free). Error: `missing-requirement`.
 
 ```text
@@ -1602,7 +1604,7 @@ use pkg.user.{User, UserId, load_user}
 2. r[module.pub-use.public-source] A publicly used declaration must already be public in its defining module.
 3. r[module.pub-use.binding] `pub use` introduces the same local binding as `use` and additionally exposes that binding to other modules.
 4. r[module.pub-use.identity] `pub use` does not create a new declaration identity.
-5. r[module.pub-use.chain] A `pub use` chain must end at a declaration: following each `pub use` of a name to the module it names must reach the module that declares the name.
+5. r[module.pub-use.chain] A `pub use` chain must end at a declaration. Following each `pub use` of a name to the module it names must reach the module that declares the name.
 6. r[module.pub-use.chain.loop] A chain that returns to a `pub use` it has already passed is an error. Error: `re-export-loop`.
 7. r[module.pub-use.chain.loop-use] A plain `use` whose name leads into such a loop is an error with the same code. Error: `re-export-loop`.
 
@@ -1701,7 +1703,7 @@ pub fn main() -> void:
 4. r[module.entry.row.host] Every key in that row must be a host capability trait of the selected runtime profile. Any other key is an error. Error: `nonhost-entry-requirement`.
 5. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
 6. r[module.entry.suspending] A suspending entry point is spelled `main!`.
-7. r[module.entry.private-main.warn] A top-level `main` or `main!` that is not public in an entry module gets a warning whose message is "main is not pub, so it is not the entry point". Warning: `private-main`.
+7. r[module.entry.private-main.warn] A top-level `main` or `main!` that is not public in an entry module gets a warning. Its message is "main is not pub, so it is not the entry point". Warning: `private-main`.
 
 ```text
 fn main() -> void:  # warning: private-main
@@ -1718,7 +1720,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 1. r[module.entry.exit-report] When an entry point returns, the process exits with the `u8` held by the `ExitCode` that `report()` returns for its result, as [Exit Status](#exit-status) describes.
 2. r[module.entry.err-host-prints] When the result holds an `.Err`, the host prints that error by the rules below before it exits.
 3. r[module.entry.err-dynamic] A dynamic trait value type whose trait is `Display` or has it as a supertrait, such as the erased `std.error.Error`, satisfies the `E < Display` bound.
-4. r[module.entry.err-render-chain] When `E` implements `std.error.Error`, including the erased `Error`, the host prints the error's `Display` text and then each cause that the standard-library `chain` yields after it.
+4. r[module.entry.err-render-chain] When `E` implements `std.error.Error`, including the erased `Error`, the host prints the error's `Display` text. Then it prints each cause that the standard-library `chain` yields after it.
 5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
 6. r[module.entry.err-render-display] Otherwise the host renders the error with `Display.to_string`.
 7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
@@ -1776,7 +1778,8 @@ pub fn main() -> Result[ExitCode, string]:
 > `Result[ExitCode, E]`.
 
 > **Note.** A tool that must exit without printing, such as one that stops
-> quietly on a closed pipe, prints what it needs and returns an `ExitCode`.
+> quietly on a closed pipe, prints what it needs. Then it returns an
+> `ExitCode`.
 
 ### Entry Arguments
 
@@ -1809,7 +1812,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 A profile's boundary adapter checks every value that comes in from the
 host before hd code sees it:
 
-1. r[module.profile.host-result.checked] The adapter checks each value that a call of a host capability trait's method returns, suspending or not, against the result type that the method declares.
+1. r[module.profile.host-result.checked] The adapter checks each value that a call of a host capability trait's method returns against the result type that the method declares. This holds whether the call suspends or not.
 
 | Rule | Declared type | The value must be |
 | --- | --- | --- |
@@ -1832,7 +1835,7 @@ host before hd code sees it:
 
 A float crosses a live host call as its IEEE 754 value, with no encoding:
 
-1. r[module.profile.host-float.raw] A call of a host capability trait's method passes each `f32` or `f64` argument, and returns each such result, as a raw IEEE 754 value of that width.
+1. r[module.profile.host-float.raw] A call of a host capability trait's method passes each `f32` or `f64` argument as a raw IEEE 754 value of that width. It returns each such result the same way.
 2. r[module.profile.host-float.special] So a NaN, both infinities, and `-0.0` cross the call unchanged, in either direction.
 3. r[module.profile.host-float.nan] A NaN's payload may arrive replaced with the canonical NaN of [`types.display.nan-canonical`](04-type-system.md#r-types.display.nan-canonical).
 

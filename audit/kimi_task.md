@@ -85,26 +85,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K0. Push Your Five Reviewed K6 Commits
-
-Your worktree `/private/tmp/kimi-work` holds five K6 commits that never
-reached main: lang/06, 08, 07, 01 and 02 (head `d59431eb`). They were
-reviewed and approved as they are; don't reword them. Rebase them on
-origin/main, run `bash spec/check.sh` and `pnpm run check`, and push. Then
-continue with K6 from chapter 03.
-
-### K6. Split Long Sentences In The Language Chapters (Remaining)
-
-Same method and rules as K1, including the qualifier rule above. Chapters
-06, 08, 07, 01 and 02 are done (K0). Remaining, smallest first, with
-today's `sent>25` counts: 03-names-and-scopes (18), 14-annotations (23),
-09-traits (24), 11-requirements-and-suspension (24), 05-expressions (26),
-04-type-system (32), 10-modules (33). One commit per chapter. After each,
-run `bash spec/check.sh` and `pnpm run spec audit`: that chapter's
-`sent>25` must drop to 0, and no other count may rise. Language rules are
-normative: if a split could change what a rule allows or forbids, leave
-the sentence and list it under Questions.
-
 ### K8. Check The Guide's Examples Against The Compiler And The Spec
 
 The guide shows many complete programs in ```text blocks, which no tool
