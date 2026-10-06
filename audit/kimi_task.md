@@ -109,6 +109,38 @@ work, following spec/STYLE.md.
 One commit per chapter; that chapter's `no-ex` must drop and nothing else
 may rise.
 
+### K11. Add Missing Examples To The Remaining Language Chapters
+
+Continue K10's method for the remaining chapters, smallest `no-ex` count
+first: 01-lexical-structure, 06-control-flow, 03-names-and-scopes,
+05-expressions, 11-requirements-and-suspension, 09-traits,
+04-type-system, 10-modules. One commit per chapter. Every ```hd example
+must run with hd before committing. Realign `examples.tsv` for each
+chapter, keep `bash spec/check.sh` green, and make sure that chapter's
+`no-ex` drops while nothing else rises. If the compiler disagrees with a
+rule, list it under Questions rather than bending the example.
+
+### K12. Usability Probe 5 (Read-Only)
+
+Same method as K9, with new areas. Write four programs, using only
+`README.md`, `guide/`, and `spec/`:
+
+1. A concurrent fetcher that runs three suspending lookups with `all!`
+   and a timeout with `race!`, tested with fake providers.
+2. A small inventory using `Map`, `Set` and iterator chains (`filter`,
+   `map`, `fold`, `sorted`), with unit tests.
+3. A two-package workspace where an app depends on a local library by
+   path. Use a temporary HOME, HD_CACHE and GIT_CONFIG_GLOBAL inside your
+   scratch directory, and no network.
+4. A config loader whose config type has fields with default values,
+   loaded from JSON where some keys are present and some missing. Check
+   that a present key's value wins over the default. This area has a
+   known bug, F-616; log what you see.
+
+Log every mistake and message in `audit/hd-writing-log.md` (task
+`probe 5: …`, model `kimi`). Commit only the log, and list the five most
+painful problems in the commit message.
+
 ## Questions
 
 (none)
