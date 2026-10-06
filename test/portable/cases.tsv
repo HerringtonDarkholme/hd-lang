@@ -2573,3 +2573,8 @@ runtime/valid/generic-data-pattern-nested-generic.hd	runtime
 runtime/valid/generic-data-match-pattern.hd	runtime
 runtime/valid/generic-data-pattern-in-generic-function.hd	runtime
 typing/valid/unused-underscore-bindings.hd	type
+runtime/valid/generic-call-nested-fresh-literal.hd	runtime
+runtime/valid/generic-call-nested-fresh-pair.hd	runtime
+typing/valid/generic-call-fresh-list-of-boxes.hd	type
+typing/invalid/generic-call-readonly-into-mut-part.hd	type
+typing/invalid/generic-call-built-nested-mut-not-weakened.hd	type

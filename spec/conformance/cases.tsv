@@ -2524,3 +2524,8 @@ runtime/valid/generic-data-pattern-nested-generic.hd	runtime	accept	lang/06-cont
 runtime/valid/generic-data-match-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic
 runtime/valid/generic-data-pattern-in-generic-function.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic
 typing/valid/unused-underscore-bindings.hd	type	warn:unused-local-binding	lang/06-control-flow.md#r-flow.unused.underscore
+runtime/valid/generic-call-nested-fresh-literal.hd	runtime	accept	lang/04-type-system.md#r-types.fresh.weaken
+runtime/valid/generic-call-nested-fresh-pair.hd	runtime	accept	lang/04-type-system.md#r-types.fresh.weaken
+typing/valid/generic-call-fresh-list-of-boxes.hd	type	accept	lang/04-type-system.md#r-types.fresh.weaken
+typing/invalid/generic-call-readonly-into-mut-part.hd	type	reject:mutable-upgrade	lang/04-type-system.md#r-types.mut.no-upgrade
+typing/invalid/generic-call-built-nested-mut-not-weakened.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.fresh.element-no-weaken

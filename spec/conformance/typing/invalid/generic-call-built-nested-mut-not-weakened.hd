@@ -1,0 +1,12 @@
+# test: an argument already built as Box[mut Box[f64]] does not weaken its nested mut for Box[Box[T]]
+# Spec 04 Bindings And Fresh Values: types.fresh.element-no-weaken; only a fresh expression weakens, and Box is invariant.
+data Box[T]:
+    item: T
+
+fn nested[T](b: Box[Box[T]]) -> T:
+    b.item.item
+
+fn invalid() -> f64:
+    let mut inner = Box { item: 1.5 }
+    built := Box { item: inner }
+    nested(built)  # diagnostic: type-mismatch

@@ -1,0 +1,17 @@
+# test: a fresh Box literal inside a fresh Pair literal fills a generic Pair[Box[T], U] parameter
+# Spec 04 Bindings And Fresh Values: types.fresh.weaken; the Box literal weakens at the readonly Box[T] position.
+use std.testing.assert_equal
+
+data Box[T]:
+    item: T
+
+data Pair[A, B]:
+    first: A
+    second: B
+
+fn left[T, U](pair: Pair[Box[T], U]) -> T:
+    pair.first.item
+
+tests:
+    it("solves T as i64 and U as string from the nested literal"):
+        assert_equal(left(Pair { first: Box { item: i64(7) }, second: "seven" }), i64(7), reason="T is i64 and U is string")

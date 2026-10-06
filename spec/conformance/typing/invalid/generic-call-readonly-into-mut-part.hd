@@ -1,0 +1,15 @@
+# test: weakening goes one way: a readonly Box cannot fill the mut Box[T] part of a generic parameter
+# Spec 04 Access Permission: types.mut.no-upgrade; T is solved as f64, and the readonly x is no mut Box[f64].
+data Box[T]:
+    item: T
+
+data Pair[A, B]:
+    first: A
+    second: B
+
+fn reset[T](pair: Pair[mut Box[T], T]) -> void:
+    pair.first.item = pair.second
+
+fn invalid() -> void:
+    x := Box { item: 1.5 }
+    reset(Pair { first: x, second: 2.5 })  # diagnostic: mutable-upgrade

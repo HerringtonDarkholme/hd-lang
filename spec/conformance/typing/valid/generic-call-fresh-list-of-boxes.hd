@@ -1,0 +1,12 @@
+# test: a list literal of fresh Box literals fills a generic List[Box[T]] parameter
+# Spec 04 Bindings And Fresh Values: types.fresh.weaken; each Box literal weakens at the readonly Box[T] element.
+data Box[T]:
+    item: T
+
+fn first_item[T](boxes: List[Box[T]]) -> T?:
+    match boxes.first():
+        .Some(b) => .Some(b.item)
+        .None => .None
+
+fn sample() -> f64?:
+    first_item([Box { item: 1.5 }, Box { item: 2.5 }])

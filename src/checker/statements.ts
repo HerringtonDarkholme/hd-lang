@@ -6,7 +6,7 @@ import {
   withDefaultedLocalHint,
   firstBareLiteral,
 } from "./literal-join.ts";
-import { spellBinding } from "./spelling.ts";
+import { spellBinding, type SpelledValueType } from "./spelling.ts";
 import type { Expression, Statement } from "../ast.ts";
 import type { HirExpression, HirGlobal, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
@@ -30,7 +30,8 @@ import {
 import type { SourceSpan } from "../diagnostics.ts";
 import { numericType } from "../numeric.ts";
 import { CheckerContext, CheckFailure, PRELUDE_NAMES } from "./context.ts";
-import { statementsReferenceName } from "./shared.ts";
+import { statementsReferenceName, traitTypeName } from "./shared.ts";
+import { speculationSafeArguments } from "./call-speculation.ts";
 
 /**
  * The `if` expressions written as statements. Only there may an `if` omit
@@ -723,6 +724,61 @@ export abstract class StatementChecker extends CheckerContext {
   ): HirExpression {
     return this.withLiteralHint([[expression, expected]], () =>
       super.requireCoercion(expression, expected, span, expectedSpelling),
+    );
+  }
+
+  /** A parameter joins only by removing `mut`, never widening, variance, wrapping, or traits (types.generic.infer.join). */
+  protected failArgumentJoin(
+    name: string,
+    parameter: string,
+    earlier: SpelledValueType,
+    current: SpelledValueType,
+    span: SourceSpan,
+  ): never {
+    if (traitTypeName(earlier.type) !== undefined || traitTypeName(current.type) !== undefined)
+      this.fail(
+        "no-common-type",
+        `arguments of types '${displayType(earlier.spelling)}' and '${displayType(current.spelling)}' both solve '${displayType(parameter)}' of '${name}', and inference never converts to a trait value; write '${name}::[${displayType(traitTypeName(earlier.type) ?? traitTypeName(current.type)!)}](...)'`,
+        span,
+      );
+    this.fail(
+      "type-mismatch",
+      `arguments of types '${displayType(earlier.spelling)}' and '${displayType(current.spelling)}' both solve '${displayType(parameter)}' of '${name}', and inference converts only 'mut X' to 'X'; convert one argument to the other's type`,
+      span,
+    );
+  }
+
+  /**
+   * Converts an argument to its solved formal, which is also its expected
+   * type. An argument checked while the formal was still open had no expected
+   * type, so a fresh value nested in it kept its `mut`, as the inner literal
+   * of `nested(Box { item: Box { item: 2.25 } })` for `b: Box[Box[T]]` does.
+   * When that argument does not convert, it is checked again against the
+   * formal its own type solved, and the fresh value weakens there
+   * (04-type-system.md#r-types.fresh.weaken). The first check had no lasting
+   * effect, because the argument is speculation-safe. Only a fresh value's
+   * own `mut` weakens: an already built `Box[mut Box[f64]]` still fails.
+   */
+  protected coerceArgument(
+    source: Expression,
+    checked: HirExpression,
+    formal: ValueType,
+    spelling: ValueType,
+    recheck: boolean,
+  ): HirExpression {
+    const reported = this.diagnostics.length;
+    try {
+      return this.requireCoercion(checked, formal, source.span, spelling);
+    } catch (error) {
+      if (!(error instanceof CheckFailure) || !recheck || !speculationSafeArguments(source))
+        throw error;
+      this.diagnostics.length = reported;
+    }
+    return this.requireCoercion(
+      this.checkExpression(source, formal),
+      formal,
+      source.span,
+      spelling,
     );
   }
 

@@ -56,7 +56,6 @@ import {
   argumentOwnType,
   defaultCallFields,
   traitKeyName,
-  traitTypeName,
 } from "./shared.ts";
 import { spelledCall, spelledValue, type SpelledValueType } from "./spelling.ts";
 import { checkLiteralArgumentsLast } from "./literal-arguments.ts";
@@ -881,7 +880,8 @@ export abstract class CallChecker extends StatementChecker {
         let unconverted: HirExpression | undefined;
         // A formal that mentions only the caller's own type parameters is a
         // known expected type; only the callee's unsolved ones leave it open.
-        if (!mentionsUnsolved(inferredFormal, signature, substitutions, rowSubstitutions)) {
+        const open = mentionsUnsolved(inferredFormal, signature, substitutions, rowSubstitutions);
+        if (!open) {
           unconverted = this.checkExpressionRaw(source, inferredFormal);
           checked = this.coerce(unconverted, inferredFormal, source.span);
         } else if (source.kind === "closure" || this.isGenericFunctionValue(calleeOf(source))) {
@@ -958,7 +958,19 @@ export abstract class CallChecker extends StatementChecker {
         // A callback lacking a discharged key keeps its own type; the emitter
         // adapts it to the pattern (11-requirements-and-suspension.md#r-req.poly.absent-matches).
         if (lacksOnlyPatternKeys(formal, instantiatedFormal, checked.type)) return checked;
-        return this.requireCoercion(checked, instantiatedFormal, source.span, spelledFormal);
+        const solved = !mentionsUnsolved(
+          instantiatedFormal,
+          signature,
+          substitutions,
+          rowSubstitutions,
+        );
+        return this.coerceArgument(
+          source,
+          checked,
+          instantiatedFormal,
+          spelledFormal,
+          open && solved,
+        );
       }
       const nominal = nominalGenericParts(formal);
       const elementFormal = nominal?.name === "List" ? nominal.arguments[0]! : "void";
@@ -969,10 +981,8 @@ export abstract class CallChecker extends StatementChecker {
           substitutions,
           rowSubstitutions,
         );
-        const checked = this.checkExpression(
-          source,
-          containsGenericType(inferredElement) ? undefined : inferredElement,
-        );
+        const open = containsGenericType(inferredElement);
+        const checked = this.checkExpression(source, open ? undefined : inferredElement);
         const conflict = inferGenericType(
           elementFormal,
           checked.type,
@@ -980,11 +990,13 @@ export abstract class CallChecker extends StatementChecker {
           rowSubstitutions,
         );
         if (conflict) this.fail("type-mismatch", conflict, source.span);
-        return this.requireCoercion(
+        const solvedElement = substituteGenericType(elementFormal, substitutions, rowSubstitutions);
+        return this.coerceArgument(
+          source,
           checked,
-          substituteGenericType(elementFormal, substitutions, rowSubstitutions),
-          source.span,
+          solvedElement,
           nominalGenericParts(spelledFormal)?.arguments[0] ?? elementFormal,
+          open && !mentionsUnsolved(solvedElement, signature, substitutions, rowSubstitutions),
         );
       });
       const elementType = substituteGenericType(elementFormal, substitutions, rowSubstitutions);
@@ -1073,27 +1085,6 @@ export abstract class CallChecker extends StatementChecker {
     }
     return this.requireCoercion(checked, solved, source.span);
   }
-  /** A parameter joins only by removing `mut`, never widening, variance, wrapping, or traits (types.generic.infer.join). */
-  protected failArgumentJoin(
-    name: string,
-    parameter: string,
-    earlier: SpelledValueType,
-    current: SpelledValueType,
-    span: SourceSpan,
-  ): never {
-    if (traitTypeName(earlier.type) !== undefined || traitTypeName(current.type) !== undefined)
-      this.fail(
-        "no-common-type",
-        `arguments of types '${displayType(earlier.spelling)}' and '${displayType(current.spelling)}' both solve '${displayType(parameter)}' of '${name}', and inference never converts to a trait value; write '${name}::[${displayType(traitTypeName(earlier.type) ?? traitTypeName(current.type)!)}](...)'`,
-        span,
-      );
-    this.fail(
-      "type-mismatch",
-      `arguments of types '${displayType(earlier.spelling)}' and '${displayType(current.spelling)}' both solve '${displayType(parameter)}' of '${name}', and inference converts only 'mut X' to 'X'; convert one argument to the other's type`,
-      span,
-    );
-  }
-
   /**
    * Gives each parameter that inference left unsolved its default, in
    * declaration order with the earlier solutions substituted
