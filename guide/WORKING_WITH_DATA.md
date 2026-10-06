@@ -41,3 +41,57 @@ pub fn total(prices: List[i32]) -> i32:
 
 A doc test is its own program: it imports what it uses, from the package
 under `pkg` or from `std`. Run it with `hd test` in the package.
+## Concurrent Work With A Timeout
+
+A dashboard needs three lookups, and a user will not wait forever. `all!`
+runs several suspending lookups together and returns their results in
+order; `race!` returns the first to finish and cancels the rest. Both take
+cold suspensions — plain calls, not bang calls — so `race!(fetch_user(),
+slow())` starts two candidates and keeps one. A test binds a fake store
+and a manual clock, so the timeout never actually fires. The exact rules
+are in [Tasks](../spec/std/task.md):
+
+```hd
+use std.task.{all, race}
+use std.testing.{assert_equal, it}
+use std.time.{Clock, ManualClock, Timestamp, s, sleep}
+
+trait Store:
+    fn lookup!(self, key: string) -> string
+
+fn fetch_user!() -> string $ Store:
+    $.use(Store).lookup!("user")
+
+fn fetch_orders!() -> string $ Store:
+    $.use(Store).lookup!("orders")
+
+fn fetch_profile!() -> string $ Store:
+    $.use(Store).lookup!("profile")
+
+fn load_page!() -> (string, string, string) $ Store:
+    all!(fetch_user(), fetch_orders(), fetch_profile())
+
+fn slow!() -> string $ Clock:
+    sleep!(s(60))
+    "too slow"
+
+fn load_with_timeout!() -> string $ Store + Clock:
+    race!(fetch_user(), slow())
+
+data FakeStore:
+    tag: string
+
+impl Store for FakeStore:
+    fn lookup!(self, key: string) -> string:
+        "fake-$key"
+
+tests:
+    it("loads all three at once"):
+        $.with(Store=FakeStore { tag: "t" }):
+            assert_equal(load_page!(), ("fake-user", "fake-orders", "fake-profile"), reason="all three")
+
+    it("a fast lookup beats the timeout"):
+        $.with(Store=FakeStore { tag: "t" }):
+            $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
+                assert_equal(load_with_timeout!(), "fake-user", reason="the lookup wins")
+```
