@@ -43,7 +43,7 @@ See also: [Requirements and Suspension](11-requirements-and-suspension.md),
 2. r[types.never.assignable] `never` is assignable to every type, and no ordinary value is assignable to it.
 3. r[types.never.abrupt] An expression that completes abruptly has type `never` on that control-flow path.
 4. r[types.never.abrupt-forms] These expressions complete abruptly: an unconditional `return`, `break`, or `continue`, propagation that exits the current body, and a call to `panic`.
-5. r[types.never.forms] Exactly six forms have type `never`: `return`, `break`, `continue`, a call to `panic`, any other call whose result type is `never`, and an [infinite loop](06-control-flow.md#r-flow.while.infinite) that no `break` targets.
+5. r[types.never.forms] Exactly six forms have type `never`: `return`, `break`, `continue`, a call to `panic`, and any other call whose result type is `never`. The sixth is an [infinite loop](06-control-flow.md#r-flow.while.infinite) that no `break` targets.
 6. r[types.never.fits] Each of them therefore fits any expected type, as in a match arm `.None => continue` or a branch `else: break`.
 
 ```text
@@ -198,7 +198,7 @@ fn size(name: string) -> usize:
 3. r[types.string.literal-utf8] The value of a string literal is the UTF-8 encoding of its Unicode scalar values.
 4. r[types.string.concat-bytes] Concatenation joins the bytes of its operands, so its result is valid UTF-8.
 5. r[types.string.from-bytes] A conversion from arbitrary bytes to `string` must check that they are valid UTF-8, and must fail when they are not.
-6. r[types.string.boundary] A **scalar boundary** of a string is a byte offset from `0` to its length that does not fall inside the encoding of a scalar value.
+6. r[types.string.boundary] A **scalar boundary** of a string is a byte offset from `0` to its length. It does not fall inside the encoding of a scalar value.
 7. r[types.string.split-scalar] An operation given a byte offset that is not a scalar boundary is a checked runtime panic.
 8. r[types.string.no-normalization] Source text and runtime operations do not perform Unicode normalization.
 9. r[types.string.compare-bytes] Equality and ordering compare bytes in sequence.
@@ -213,7 +213,7 @@ fn size(name: string) -> usize:
 > **Why.** This is Go's layout with the validity guarantee of Rust and
 > Swift. Length and indexing take constant time, and a host string crosses
 > without conversion. Because `len` and `s[i]` count bytes, a string is not
-> `Iterable`: a loop over characters is written out, so no code silently
+> `Iterable`. A loop over characters is written out, so no code silently
 > treats a string as characters.
 
 See also: [String Indexing](05-expressions.md#string-indexing),
@@ -224,8 +224,8 @@ See also: [String Indexing](05-expressions.md#string-indexing),
 ## Literal Types
 
 An unsuffixed numeric literal takes its type inside the expression that
-holds it: from an expected type, from the typed parts of that expression,
-or else from its own form, as [Open Literal Width](#open-literal-width)
+holds it. It comes from an expected type, from the typed parts of that
+expression, or else from its own form, as [Open Literal Width](#open-literal-width)
 states:
 
 ```text
@@ -235,7 +235,7 @@ y := -1  # i32
 
 ### Integer Literals
 
-1. r[types.literal.int-local] An integer literal in any supported radix with no expected type takes its width from its expression, by [`types.literal.local.join`](#r-types.literal.local.join), or else its [default type](#r-types.literal.local.default), in every value range.
+1. r[types.literal.int-local] An integer literal in any supported radix with no expected type takes its width from its expression, by [`types.literal.local.join`](#r-types.literal.local.join). Otherwise it takes its [default type](#r-types.literal.local.default). Both hold in every value range.
 2. r[types.literal.int-no-widen] An integer literal does not automatically choose a wider type.
 3. r[types.literal.int-range] When an integer literal has an expected integer type, the compiler checks the literal against that type's range. A literal outside it is an error. Error: `integer-literal-range`.
 
@@ -322,7 +322,7 @@ The expression forms in which literals meet typed parts:
 
 10. r[types.literal.local.form.closure-return.statements] The return paths of one closure, and the values of one loop, join although they are in different statements of its body. A value that leaves its own statement takes no part.
 11. r[types.literal.local.erased] A literal converted to `Any`, or to a trait value type, has the default type of its group, as in `let x: Any = 42`, which holds a `usize`.
-12. r[types.literal.local.instantiation] When two or more instantiations of one generic trait fit a call only because a literal argument could take several widths, the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
+12. r[types.literal.local.instantiation] Two or more instantiations of one generic trait may fit a call only because a literal argument could take several widths. Then the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
 
 ```text
 use std.ops.Add
@@ -368,7 +368,7 @@ fn charge(price: Money) -> Money:
 > number is primitive at every width.
 
 > **Note.** A checker may meet [`types.literal.local.join`](#r-types.literal.local.join)
-> with at most one retry per statement: it checks the statement with the
+> with at most one retry per statement. It checks the statement with the
 > default types, and only when that fails, once more for each width that
 > the failure names.
 
@@ -377,13 +377,13 @@ fn charge(price: Money) -> Money:
 > error: write `i64(10).halve()`, or give its binding an annotation.
 
 See also: [Binary Numeric Operators](#binary-numeric-operators),
-[Ordering](05-expressions.md#ordering), for comparisons that a `usize`
-default makes always true,
 [Inference From Several Arguments](#inference-from-several-arguments),
 [Binding Forms](#binding-forms), [Range Expressions](05-expressions.md#range-expressions),
 [For Loops](06-control-flow.md#for-loops),
 [Let Patterns](06-control-flow.md#let-patterns), and
 [the REPL](../cli/command-line.md#repl).
+[Ordering](05-expressions.md#ordering) covers comparisons that a `usize`
+default makes always true.
 
 ### Suffixed Literals
 
@@ -444,7 +444,7 @@ fn find(name: string, big: i64) -> string:
     ids"id = $big"  # error: implicit-narrowing
 ```
 
-1. r[types.literal.prefixed.values] Each interpolated expression is checked with the `T` of the prefix function's `Template[T]` parameter as its expected type, as an argument is, and converts to `T` by the same rules.
+1. r[types.literal.prefixed.values] Each interpolated expression is checked with the `T` of the prefix function's `Template[T]` parameter as its expected type, as an argument is. It converts to `T` by the same rules.
 
 > **Note.** So the argument errors apply at each value: a `string` where
 > `T` is `i32` is `type-mismatch`, and an `i64` there is
@@ -482,8 +482,8 @@ data PostId:
 ### Tuple Types
 
 A tuple is an immutable value without identity, so it implements `AnyVal`,
-as [`types.sealed.anyval-types`](#r-types.sealed.anyval-types) states, and
-no element of it is a place, as
+as [`types.sealed.anyval-types`](#r-types.sealed.anyval-types) states. No
+element of it is a place, as
 [`expr.place.tuple-element`](05-expressions.md#r-expr.place.tuple-element)
 states.
 
@@ -543,7 +543,7 @@ See also: [Vararg Inputs](07-functions.md#vararg-inputs),
 ### Function Type Identity
 
 1. r[types.fn.constructor] A function type is an application of the standard constructor `Fn` or `SuspendFn`, and the `fn(...) -> T` spelling is exact sugar for it.
-2. r[types.fn.same] Two function types are the same type when they apply the same constructor to the same inputs, the same output, and the same normalized requirement row.
+2. r[types.fn.same] Two function types are the same type when they apply the same constructor to the same inputs. The output and the normalized requirement row must also be the same.
 3. r[types.fn.declared-variance] Function types convert only by the declared variance of their constructor, as [Readonly Outer Views](#readonly-outer-views) states.
 
 See also: [Function Type Constructors](07-functions.md#function-type-constructors),
@@ -778,7 +778,7 @@ f32, f64
 
 1. r[types.num.families] The signed integers, the unsigned integers, and the floating-point types are the three numeric families above, each ordered by width.
 2. r[types.num.no-implicit] No numeric type converts implicitly to another numeric type. Every change of numeric type is an explicit cast, as in `i64(small)` or `f64(ratio)`.
-3. r[types.num.no-implicit.wider] So a value where a wider type of its family is expected is an error, as an `i16` passed to an `i64` parameter or an `f32` assigned to an `f64`. Error: `type-mismatch`.
+3. r[types.num.no-implicit.wider] So a value where a wider type of its family is expected is an error. Examples are an `i16` passed to an `i64` parameter and an `f32` assigned to an `f64`. Error: `type-mismatch`.
 4. r[types.num.no-implicit.fix] That diagnostic should offer a fix-it that writes the conversion around the value, as in `i64(small)`.
 5. r[types.num.narrowing] A value where a narrower type of its family is expected is an error. Error: `implicit-narrowing`.
 6. r[types.num.usize-width] `usize` is the unsigned type of the target's width, by [`types.usize.width`](#r-types.usize.width). On Wasm32 it is wider than `u16`, narrower than `u64`, and as wide as `u32`.
@@ -795,7 +795,7 @@ f32, f64
 ### Binary Numeric Operators
 
 1. r[types.num.binary.literal-join] In a binary arithmetic or comparison expression, an operand built only of unsuffixed literals takes the other operand's type, on either side, by [`types.literal.local.form.operand`](#r-types.literal.local.form.operand).
-2. r[types.num.binary.literal-left] So an unsuffixed integer literal on the left takes the right operand's integer type: `0xFFFF_FFFF_FFFF_FFFF - count` with a `u64` `count` is valid, and `1 < count` compares two `u64` values.
+2. r[types.num.binary.literal-left] So an unsuffixed integer literal on the left takes the right operand's integer type. `0xFFFF_FFFF_FFFF_FFFF - count` with a `u64` `count` is valid, and `1 < count` compares two `u64` values.
 3. r[types.num.binary.same-type] Otherwise both operands must have one type, and the result has that type, so `f32 op f32` produces `f32`. Two types of one family are an error, as `small + large` with an `i16` and an `i64`, or an `f32` and an `f64` operand. Error: `type-mismatch`.
 4. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
 5. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
@@ -819,9 +819,9 @@ narrow := i16(wide)
 ```
 
 1. r[types.cast.syntax] Explicit numeric conversion uses constructor-style casts.
-2. r[types.cast.wrap] An integer-to-integer cast wraps at run time, as Go conversions and Rust `as` do: the result keeps the low bits of the source value's two's-complement form, read in the target type. It never panics.
+2. r[types.cast.wrap] An integer-to-integer cast wraps at run time, as Go conversions and Rust `as` do. The result keeps the low bits of the source value's two's-complement form, read in the target type. It never panics.
 3. r[types.cast.wrap.example] So `u8(x)` with `x = 300` gives 44, and `i8(x)` with `x = 200` gives -56.
-4. r[types.cast.literal-range] When a cast's argument is an integer literal, alone or under unary `-` or `+`, the literal is checked with the target type as its expected type, by [Integer Literals](#integer-literals). An out-of-range literal is an error, as Go reports a constant overflow. Error: `integer-literal-range`.
+4. r[types.cast.literal-range] A cast's argument may be an integer literal, alone or under unary `-` or `+`. Then the literal is checked with the target type as its expected type, by [Integer Literals](#integer-literals). An out-of-range literal is an error, as Go reports a constant overflow. Error: `integer-literal-range`.
 5. r[types.cast.fallible] Libraries may provide separate fallible conversion functions returning `Result`.
 
 ```text
@@ -858,13 +858,13 @@ A program is built under one of three **build profiles**: debug, release, or tes
 
 1. r[types.arith.checked] In a debug or test build, an integer overflow or underflow of `+`, `-`, `*`, `**`, or unary `-` panics. Panic: `integer-overflow`.
 2. r[types.arith.release] In a release build, those operations wrap to the type's width as two's complement, as in Rust.
-3. r[types.arith.failure] In a debug or test build, an invalid shift panics, and an explicit wrapping or fallible library operation is the way to ask for other behavior.
-4. r[types.arith.always] Division and remainder by zero, `MIN / -1`, an out-of-bounds index, the rules of an explicit conversion, and the `checked_*`, `wrapping_*`, and `saturating_*` library operations behave the same in every build.
+3. r[types.arith.failure] In a debug or test build, an invalid shift panics. An explicit wrapping or fallible library operation is the way to ask for other behavior.
+4. r[types.arith.always] Division and remainder by zero, `MIN / -1`, an out-of-bounds index, and the rules of an explicit conversion behave the same in every build. So do the `checked_*`, `wrapping_*`, and `saturating_*` library operations.
 5. r[types.arith.division] Integer division truncates toward zero.
 6. r[types.arith.remainder] Integer remainder has the sign of the dividend.
 7. r[types.arith.shift-count] A shift count is invalid when it is negative or not smaller than the bit width of the shifted value.
 8. r[types.arith.shift-count.debug] In a debug or test build, an invalid shift count panics. Panic: `invalid-shift`.
-9. r[types.arith.shift-count.release] In a release build, an invalid shift count is masked to the bit width of the shifted value, so `x << n` shifts by `n % bits`, as in Rust.
+9. r[types.arith.shift-count.release] In a release build, an invalid shift count is masked to the bit width of the shifted value. So `x << n` shifts by `n % bits`, as in Rust.
 10. r[types.arith.shift-right] Right shift of a signed integer is arithmetic and sign-extending.
 11. r[types.arith.min-division] For every signed width, `MIN / -1` panics with `integer-overflow` in every build.
 12. r[types.arith.min-remainder] For every signed width, `MIN % -1` produces zero.
@@ -909,7 +909,7 @@ r[types.assign] An expression of type `S` is assignable to a location of type `T
 4. r[types.assign.trait-value] `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is an inspectable type, allowing construction of a dynamic trait value.
 5. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
 6. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
-7. r[types.assign.row-subsumption] `S` and `T` are function types, `T`'s row entails every key of `S`'s row, and `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
+7. r[types.assign.row-subsumption] `S` and `T` are function types, and `T`'s row entails every key of `S`'s row. Then `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 8. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
 9. r[types.assign.trait-value.mut] `S` is `mut U`, `T` is `mut Trait`, and `U` meets `types.assign.trait-value` for `Trait`. This builds a mutable dynamic trait value, as in `let edit: mut Display = mutable_user`.
 
@@ -1009,7 +1009,7 @@ See also: [Mutable Paths](#mutable-paths).
 1. r[types.fresh.mutable-outer] A fresh data or copy-update expression, stored enum construction, list expression, or map expression produces mutable access to its new outer object.
 2. r[types.fresh.tuple] A tuple expression produces a tuple, which has no `mut` form, as [`types.tuple.no-mut`](#r-types.tuple.no-mut) states. Its elements keep their permissions.
 3. r[types.fresh.weaken] This permission may be weakened immediately by an expected readonly type.
-4. r[types.fresh.weaken.meet] It is also weakened where the fresh value meets a readonly value of its type: an `==` or `!=` operand pair compares at the readonly view, and a generic inference join solves at it.
+4. r[types.fresh.weaken.meet] It is also weakened where the fresh value meets a readonly value of its type. An `==` or `!=` operand pair compares at the readonly view, and a generic inference join solves at it.
 5. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
 6. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
 7. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `mut Iterator[mut Word]`, and returning it as `mut Iterator[Word]` is an error. Error: `type-mismatch`.
@@ -1065,7 +1065,7 @@ fn invalid() -> void:
 9. r[types.bind.let-mut-tuple] `let mut` on a name whose type is a tuple, as in `let mut pair = (1, 2)`, is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-tuple`.
 10. r[types.bind.let-mut-tuple.hint] The diagnostic says that a plain `let` is already reassignable, and that an element's permission comes from its own type.
 11. r[types.bind.let-mut-optional] For `let mut`, an optional written `mut T?` counts as mutable access. So `let mut u = find()` is valid when `find` returns `mut User?`, and `u` has that type.
-12. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`, so a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
+12. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`. So a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
 13. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
 
 ```text
@@ -1372,11 +1372,11 @@ fn count(names: List[string, i32]) -> i32:  # error: argument-count
 When a call solves one type parameter from several arguments, the
 arguments' types may differ only in `mut`:
 
-1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening: `mut X` and `X` meet at `X`.
+1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening. `mut X` and `X` meet at `X`.
 2. r[types.generic.infer.join.outer-permission] Sources that disagree only in outer permission weaken to the readonly view, so a `mut T` and a `T` solve the parameter as `T`. This holds when one argument is a fresh value, as in `same(Date { year: 2026 }, d)` with `d: Date`.
 3. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
 4. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
-5. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error, as for `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `List[mut User]` and a `List[User]`, or a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
+5. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error. Examples are `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `List[mut User]` and a `List[User]`, and a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
 6. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
 7. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
 8. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
@@ -1417,7 +1417,7 @@ fn same(user: User, label: Display) -> bool:
     cmp::[Display](user, label)
 ```
 
-> **Why.** A call's arguments are not a list literal: a reader expects `T`
+> **Why.** A call's arguments are not a list literal. A reader expects `T`
 > to be the type written at the call, as Rust and Go do. So a mixed
 > numeric call names its cast, and a trait value is asked for by name.
 
@@ -1445,7 +1445,7 @@ fn name(label: Label) -> string:
     text
 ```
 
-1. r[types.generic.infer.bound] A **bound-only parameter** of a call is a type parameter that no parameter type names but a bound of another type parameter does, as `U` in `read[U, S < Source[U]](source: S)`.
+1. r[types.generic.infer.bound] A **bound-only parameter** of a call is a type parameter that no parameter type names but a bound of another type parameter does. One case is `U` in `read[U, S < Source[U]](source: S)`.
 2. r[types.generic.infer.bound.after] Call inference solves a bound-only parameter after the other parameters.
 3. r[types.generic.infer.bound.one] Once the bounded parameter is known, if its type implements the bound's trait for exactly one instantiation, that instantiation solves the bound-only parameter.
 4. r[types.generic.infer.bound.none] If the type implements the bound's trait for no instantiation, the call is an error. Error: `unsatisfied-trait-bound`.
@@ -1599,7 +1599,7 @@ How a use site treats a defaulted parameter:
 | its slot omitted from an explicit list in an expression | inferred; the default when inference leaves it unsolved |
 | its slot omitted, or no list, in a written type | the default |
 
-8. r[types.generic.default.after-inference] At a use site that infers, such as a call, a function value, or a data literal, the use site first solves its parameters as it would without defaults.
+8. r[types.generic.default.after-inference] At a use site that infers, the use site first solves its parameters as it would without defaults. That holds for a call, a function value, and a data literal.
 9. r[types.generic.default.fill] Then each parameter left unsolved that has a default takes it, in declaration order, with the earlier arguments substituted. The bounds are checked last.
 10. r[types.generic.default.argument-wins] A default never replaces a solution, so an argument or expected type that solves the parameter wins: `widen(3)` above has `T = i32`.
 11. r[types.generic.default.unsolved] A parameter left unsolved that has no default stays an error. Error: `cannot-infer-type`.
@@ -1663,7 +1663,7 @@ data Cell[T]:
 
 1. r[types.variance.markers] Generic type declarations mark covariance with `+T`, contravariance with `-T`, and invariance by leaving `T` unmarked.
 2. r[types.variance.verified] The compiler verifies each declared parameter against its use on the type's readonly surface.
-3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, trait method signatures, and the signature of every inherent method of the nominal type that has a `self` receiver, private methods included.
+3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, and trait method signatures. It also includes the signature of every inherent method of the nominal type that has a `self` receiver, private methods included.
 4. r[types.variance.trait-impl] A separate trait implementation does not alter the nominal type declaration's variance; its own instantiated signatures must still type-check.
 5. r[types.variance.trait-params] A trait's generic parameters are invariant. A variance marker on one is an error. Error: `invalid-variance`.
 
@@ -1676,7 +1676,7 @@ impl[T] Box[T]:
         pass
 ```
 
-> **Why.** Privacy in hd is module-wide, so any code in the declaring
+> **Why.** Privacy in hd is module-wide. So any code in the declaring
 > module can convert a value by variance and then call a private method on
 > it. So a private method's signature counts toward variance as a public
 > one's does.
@@ -2126,7 +2126,7 @@ Generic code over reference types shares one body. Each distinct value
 layout that a generic function is instantiated with gets its own
 specialized body. Packages ship their sources, and package interfaces carry
 generic function bodies, as
-[`types.generic.interfaces`](#r-types.generic.interfaces) requires, so the
+[`types.generic.interfaces`](#r-types.generic.interfaces) requires. So the
 package that instantiates a value layout may compile its body.
 
 A value with a value layout stays unboxed everywhere: in locals, fields,
@@ -2155,12 +2155,12 @@ A method called through a trait value has exactly one body at run time, as
 the one-copy rule of [Dynamic Safety](09-traits.md#dynamic-safety) requires.
 The dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
 therefore limits method-level type parameters of dynamically safe traits to
-reference types, which all share the reference shape. A row parameter
+reference types. All reference types share the reference shape. A row parameter
 passes its providers as one bundle, so it keeps one body.
 
 > **Why.** One rule is easy to remember: reference types share code, and a
-> value keeps its layout everywhere. .NET generics over value types and Go's
-> GC-shape stenciling work the same way.
+> value keeps its layout everywhere. Both .NET generics over value types and
+> Go's GC-shape stenciling work the same way.
 
 See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across-packages).
 
@@ -2205,8 +2205,8 @@ only live values.
 
 The frame representation as a whole is not observable either. When a
 suspension frame is statically known, as for a direct `fn!` call, an
-implementation may skip the uniform `Suspend[T]` wrapper and the boxing of
-the frame's result.
+implementation may skip the uniform `Suspend[T]` wrapper. It may also skip
+the boxing of the frame's result.
 
 ### Requirement Rows
 
