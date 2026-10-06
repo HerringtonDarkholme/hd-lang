@@ -2,7 +2,7 @@
 // linking it, and reporting diagnostics against the file they point into.
 
 import { readFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { SINGLE_FILE_USE } from "../checker/standard-uses.ts";
 import type { CompileOptions } from "../compiler.ts";
@@ -88,6 +88,11 @@ export interface PackagePlacement {
   readonly package?: LocalPackage;
   /** The packages its `dep.NAME` uses reach (src/package.ts). */
   readonly dependencies?: PackageDependencies;
+  /**
+   * The package's `[package]` name (LinkOptions.packageName); a package tree
+   * or role without a manifest takes its directory's name.
+   */
+  readonly packageName?: string;
 }
 
 /**
@@ -204,6 +209,7 @@ export async function loadSource(
           tests: options.linkTests,
           ...(placement.programs ? { programs: placement.programs } : {}),
           ...(placement.dependencies ? { dependencies: placement.dependencies } : {}),
+          packageName: placement.packageName ?? basename(resolve(placement.root)),
           // A doc test sees the package as a dependent does (module.test.doc.view).
           ...(options.docTest ? { entryPackage: "<doc test>" } : {}),
         })
@@ -257,6 +263,9 @@ export async function loadSource(
     release: options.release ?? false,
     debugLocation,
     ...(integrationTest ? { integrationTest } : {}),
+    // A single-file program's TypeId names start with its file stem
+    // (spec/lang/09-traits.md#r-trait.typeid.name.single-file).
+    ...(linked ? {} : { programName: basename(path, ".hd") }),
     ...(options.docTest ? { docTest: true } : {}),
     // Linking the test code makes a test build, which runs no entry
     // behavior (spec/lang/10-modules.md#r-module.init.tests.no-entry).
@@ -600,6 +609,7 @@ async function enclosingPlacement(
     files: pkg.files,
     programs: pkg.executables.map((executable) => executable.path),
     package: pkg,
+    packageName: pkg.name,
     ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
   };
 }
@@ -623,6 +633,7 @@ async function rolePlacement(
     packages[sourceRoot] = {
       id: sourceRoot,
       shown: `dep.${name}`,
+      name,
       sourceRoot,
       files: await hdFilesUnder(sourceRoot),
       dependencies: {},

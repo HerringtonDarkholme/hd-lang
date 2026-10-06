@@ -626,6 +626,12 @@ export interface PackageScopes {
   readonly scopes: readonly ModuleScope[];
   /** The modules that namespace uses name, by identity. */
   readonly modules: Readonly<Record<string, NamespaceModule>>;
+  /**
+   * The printed `TypeId` name of each package data type, enum, and trait, by
+   * its joined spelling: its package name, module path, and name, as
+   * `acme_shop.model.User` (spec/lang/09-traits.md#r-trait.typeid.name.package).
+   */
+  readonly typeIdNames?: Readonly<Record<string, string>>;
 }
 
 export interface Program {

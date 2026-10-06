@@ -291,6 +291,8 @@ interface InstantiateOptions {
   readonly docTest?: boolean;
   /** A test build (CompileOptions.testBuild). */
   readonly testBuild?: boolean;
+  /** A single-file program's stem, which its TypeId names start with (CompileOptions.programName). */
+  readonly programName?: string;
   /** A compilation of `source` to instantiate again, as for a fresh test instance. */
   readonly compilation?: Compilation;
   /** Where a `dbg` line names its call (CompileOptions.debugLocation). */

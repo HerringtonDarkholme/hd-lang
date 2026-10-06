@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,818 cases: 2,798 selected in `test/portable/cases.tsv` and 20 known
-failures. The selected cases are 2,425 language tier, 308 stdlib tier, and 65
+2,820 cases: 2,800 selected in `test/portable/cases.tsv` and 20 known
+failures. The selected cases are 2,425 language tier, 308 stdlib tier, and 67
 CLI tier; the known failures are 5 language tier, 1 stdlib tier, and 14
 CLI tier.
 
@@ -62,15 +62,6 @@ Correctness and diagnostics:
   `src/checker/expression-control.ts`.
   `typing/invalid/match-arm-misses-expected-type.hd` and
   `typing/invalid/if-branch-misses-expected-type.hd` show it.
-- **F-620**: a `TypeId` spells a package declaration by its joined
-  spelling, not its absolute qualified name (`trait.typeid.name.qualified`):
-  `Item` alone, or `__pkg_left_Item` when another module also declares an
-  `Item`. Std declarations print qualified, and the joined spelling is
-  unique, so identity holds (`trait.identity.modules`,
-  `runtime/valid/typeid-same-name-modules.hd`). The qualified spelling of a
-  package declaration waits for an owner answer: package name or `pkg`,
-  and what a single-file program prints. `inspectKey` in
-  `src/checker/inspectable.ts` builds the key.
 - **F-621**: a package build whose module under test is a library module,
   not `src/main.hd` or another entry, treats that module as the entry. So
   its top level gets an inferred entry row (`scriptEntry` in

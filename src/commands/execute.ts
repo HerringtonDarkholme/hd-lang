@@ -202,6 +202,7 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
       root: shownRoot(pkg, args),
       path: executable.path,
       files: pkg.files,
+      packageName: pkg.name,
       programs: pkg.executables.map(({ path }) => path),
       ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
     },
@@ -501,6 +502,7 @@ async function testPackage(
     root: shownRoot(pkg, args),
     path,
     files: pkg.files,
+    packageName: pkg.name,
     reported,
     programs,
     ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
@@ -685,6 +687,7 @@ export async function execute(
       integrationTest: loaded.compileOptions.integrationTest,
       docTest: loaded.compileOptions.docTest,
       testBuild: loaded.compileOptions.testBuild,
+      programName: loaded.compileOptions.programName,
       // `hd test` always runs a checked build (spec/cli/command-line.md#r-cli.profile.test).
       release: command === "run" ? (execution.release ?? false) : false,
       // An integration test's `Process` runs the package's executables and

@@ -16,7 +16,9 @@ import { INSPECTABLE, STANDARD_DOWNCAST_VAL } from "./standard-traits.ts";
 // inside a type argument is kept (Inspectable decision 16). A std
 // declaration outside the prelude is spelled by its qualified name, as
 // `std.error.Error` (r-trait.typeid.name.qualified). A package declaration
-// keeps its joined spelling, which the linker makes unique, so two
+// is spelled by its package name and module path, as `acme_shop.model.User`,
+// and a single-file program's by its file stem
+// (r-trait.typeid.name.package, r-trait.typeid.name.single-file), so two
 // declarations of different modules never share a key
 // (r-trait.identity.modules). A key part
 // `{ generic }` stands for a bounded type parameter whose name the bound's
@@ -98,10 +100,18 @@ export function extendsInspectable(
 
 /**
  * How a declaration named `name` in the checked program prints in a key: a
- * std declaration outside the prelude by its qualified `standardName`, any
- * other by `name` (spec/lang/09-traits.md#r-trait.typeid.name.qualified).
+ * std declaration outside the prelude by its qualified `standardName`
+ * (spec/lang/09-traits.md#r-trait.typeid.name.qualified), a package or
+ * single-file declaration by its `typeIdName`
+ * (spec/lang/09-traits.md#r-trait.typeid.name.package), and any other by
+ * `name`.
  */
-export function printedName(name: string, standardName: string | undefined): string {
+export function printedName(
+  name: string,
+  declaration: { readonly standardName?: string; readonly typeIdName?: string } | undefined,
+): string {
+  if (declaration?.typeIdName !== undefined) return declaration.typeIdName;
+  const standardName = declaration?.standardName;
   if (standardName === undefined) return name;
   const dot = standardName.lastIndexOf(".");
   const short = standardName.slice(dot + 1);

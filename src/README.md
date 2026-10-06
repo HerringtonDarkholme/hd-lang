@@ -1214,10 +1214,11 @@ else`, `break`, `break value`, and `continue`;
   implemented `runtime_type`/`downcast`/`downcast_mut`, and an Inspectable
   requirement key in a function's requirement clause are rejected. Not
   covered: `Hash` for `TypeId`, Inspectable keys in
-  closure types and provider scopes, qualified printable names for package
-  declarations (the key is the linker's joined spelling, unique per
-  declaration but not its qualified name, F-620), and opaqueness (`TypeId { key: ... }` is
-  constructible). A type parameter instantiated with `mut U` looks up
+  closure types and provider scopes, and opaqueness (`TypeId { key: ... }` is
+  constructible). A package declaration's key is its package name, module
+  path, and name, which the linker gives the checker (`PackageScopes.typeIdNames`),
+  and a single-file program's starts with the file stem
+  (`CheckOptions.programName`). A type parameter instantiated with `mut U` looks up
   implementations for `U`, and its Inspectable dictionary adds the inner
   `mut` when a composite key is built from it;
 - error derivation (spec/lang/14-annotations.md#error-derivation), lowered before

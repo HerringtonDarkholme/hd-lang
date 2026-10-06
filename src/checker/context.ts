@@ -960,9 +960,9 @@ export abstract class CheckerContext {
         const declaration = this.dataTypes.get(name) ?? this.enumTypes.get(name);
         return declaration === undefined || declaration.local
           ? undefined
-          : printedName(name, declaration.standardName);
+          : printedName(name, declaration);
       },
-      trait: (name) => printedName(name, this.traitTypes.get(name)?.standardName),
+      trait: (name) => printedName(name, this.traitTypes.get(name)),
       inspectableParameter: (name) =>
         this.inspectableBound(name, inspectable?.index ?? -1, ZERO_SPAN) !== undefined,
       ...(this.handleWitness ? { handleType: this.handleWitness.type } : {}),

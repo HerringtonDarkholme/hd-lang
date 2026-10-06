@@ -1,0 +1,5 @@
+# A single-file program prints its declaration with its file stem, as shop.User.
+# Spec 09 Stability And Printing: trait.typeid.name.single-file, trait.typeid.name.option.
+run: hd shop.hd
+stdout: shop.User
+stdout: shop.User?

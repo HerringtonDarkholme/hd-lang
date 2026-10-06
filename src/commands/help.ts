@@ -53,6 +53,7 @@ export async function replCommand(
     {},
     {
       files: pkg.files,
+      name: pkg.name,
       programs: pkg.executables.map(({ path }) => path),
       ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
     },

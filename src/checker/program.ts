@@ -86,6 +86,11 @@ export interface CheckOptions extends DebugPrintOptions {
    * level requirement-free (spec/lang/10-modules.md#r-module.init.tests.requirement-free).
    */
   readonly testBuild?: boolean;
+  /**
+   * A single-file program's file stem, which its declarations' `TypeId`
+   * names start with (spec/lang/09-traits.md#r-trait.typeid.name.single-file).
+   */
+  readonly programName?: string;
 }
 
 export function check(written: Program, options: CheckOptions = {}): CheckResult {
@@ -306,6 +311,12 @@ function checkProgram(
     defaultProfile,
     entryModule: options.entryModule === true,
     testBuild: options.testBuild === true,
+    typeIdName: (name) =>
+      source.packageScopes
+        ? source.packageScopes.typeIdNames?.[name]
+        : options.programName === undefined
+          ? undefined
+          : `${options.programName}.${name}`,
     integrationTest: options.integrationTest === true,
     runsExecutables: options.integrationTest === true && options.docTest !== true,
   };

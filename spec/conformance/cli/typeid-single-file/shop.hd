@@ -1,0 +1,8 @@
+use std.inspect.TypeId
+
+data User:
+    name: string
+
+pub fn main() -> void $ Console:
+    println("${TypeId::of::[User]()}")
+    println("${TypeId::of::[User?]()}")

@@ -2024,6 +2024,8 @@ fn demo() -> bool:
 | --- | --- | --- |
 | r[trait.typeid.name.prelude] Prelude name | a prelude name | written as it is, as in `i32`, `string`, `List[string]`, or `Map[string, i32]` |
 | r[trait.typeid.name.qualified] Other declaration | every other nominal declaration, including the trait of a trait value type | its absolute qualified name, as in `std.error.Error` |
+| r[trait.typeid.name.package] Package declaration | a declaration in a package | the package name from `hd.toml` with each `-` written `_`, then the module path and the name, as in `acme_shop.model.User` |
+| r[trait.typeid.name.single-file] Single-file declaration | a declaration in a [single-file program](10-modules.md#single-file-programs) | the file's stem, then the name, as in `shop.User` in `shop.hd` |
 | r[trait.typeid.name.option] Option | `Option[T]` | `T?` |
 | r[trait.typeid.name.tuple] Tuple | a tuple | `(A, B)` |
 | r[trait.typeid.name.separator] Separator | elements and type arguments | separated by `, ` |

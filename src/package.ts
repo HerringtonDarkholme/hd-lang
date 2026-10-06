@@ -103,6 +103,11 @@ export interface DependencyPackage {
   readonly id: string;
   /** How messages name the package, such as `dep.json`. */
   readonly shown: string;
+  /**
+   * The `[package]` name of its `hd.toml`, which its declarations' `TypeId`
+   * names start with (spec/lang/09-traits.md#r-trait.typeid.name.package).
+   */
+  readonly name?: string;
   /** The package's source root, an absolute path with `/`, which holds `lib.hd`. */
   readonly sourceRoot: string;
   /** Its library's source files, by their paths under the source root, such as `lib.hd`. */
@@ -166,6 +171,11 @@ interface LinkOptions {
    * does (spec/lang/10-modules.md#r-module.test.doc.view).
    */
   readonly entryPackage?: string;
+  /**
+   * The root package's `[package]` name, which its declarations' `TypeId`
+   * names start with (spec/lang/09-traits.md#r-trait.typeid.name.package).
+   */
+  readonly packageName?: string;
 }
 
 /** Whether a package path is an integration test module (spec/lang/10-modules.md#r-module.test.integration). */
@@ -264,6 +274,22 @@ export function moduleIdentity(path: string): string | undefined {
 
 /** The first part of a task module's identity; no identifier spells it. */
 const TASKS_IDENTITY = "<tasks>";
+
+/**
+ * What a `TypeId` name of a module's declaration starts with: its package's
+ * name, `-` mapped to `_`, then the module path, as `acme_shop.model`
+ * (spec/lang/09-traits.md#r-trait.typeid.name.package). A task module's
+ * path starts with `tasks`. Undefined when the package has no name.
+ */
+function typeIdPrefix(module: PackageModule, rootName: string | undefined): string | undefined {
+  const name = module.dependency ? module.dependency.name : rootName;
+  if (name === undefined) return undefined;
+  const path = module.identity === "" ? [] : module.identity.split(".");
+  return [
+    name.replaceAll("-", "_"),
+    ...path.map((part) => (part === TASKS_IDENTITY ? "tasks" : part)),
+  ].join(".");
+}
 
 /**
  * A module's name in a message: its identity, `pkg` for the root module, or
@@ -1061,6 +1087,7 @@ export function linkPackage(
   // names (spec/lang/05-expressions.md#r-expr.name.qualified).
   const scopes: ModuleScope[] = [];
   const namespaceModules: Record<string, NamespaceModule> = {};
+  const typeIdNames: Record<string, string> = {};
   const moduleScope = (module: PackageModule, firstLine: number, lastLine: number): ModuleScope => {
     const names: Record<string, string> = {};
     const [namespaces, imports]: [Record<string, string>, string[]] = [{}, []];
@@ -1126,6 +1153,11 @@ export function linkPackage(
     const indent = wrapAsTestsBlock ? 4 : 0;
     segments.push({ path: module.path, firstLine: line, lineCount, indent, deleted });
     scopes.push(moduleScope(module, line, line + lineCount - 1));
+    const prefix = typeIdPrefix(module, options.packageName);
+    const { data, enums, traits } = module.program!;
+    if (prefix !== undefined)
+      for (const { name } of [...data, ...enums, ...traits])
+        typeIdNames[joinedName({ module, name })] = `${prefix}.${name}`;
     source += text;
     line += lineCount;
   }
@@ -1135,7 +1167,7 @@ export function linkPackage(
     diagnostics,
     locate,
     initGroups,
-    packageScopes: { scopes, modules: namespaceModules },
+    packageScopes: { scopes, modules: namespaceModules, typeIdNames },
     dependencySources,
     entryLine: segments.find(({ path }) => path === entry)?.firstLine,
     // A test build runs no entry behavior, so an entry module with a

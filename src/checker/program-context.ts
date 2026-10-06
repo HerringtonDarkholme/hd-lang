@@ -44,6 +44,12 @@ export interface ProgramCheckContext {
   /** A test build (CheckOptions.testBuild). */
   readonly testBuild: boolean;
   /**
+   * The printed `TypeId` name of a program declaration, by its joined name:
+   * the linker's, or the single-file program's stem and the name
+   * (09-traits.md#r-trait.typeid.name.package).
+   */
+  readonly typeIdName: (name: string) => string | undefined;
+  /**
    * The program is an integration test program: its test cases take the
    * default profile and the `Process` the runner binds
    * (spec/cli/command-line.md#r-cli.test.env.integration,

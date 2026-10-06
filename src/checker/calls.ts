@@ -1,3 +1,4 @@
+import { inspectKey } from "./inspectable.ts";
 import type { Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type {
@@ -1369,7 +1370,10 @@ export abstract class CallChecker extends StatementChecker {
       if (!implementation) {
         const builtin =
           this.builtinTraitDictionaryPlan(bound.traitIndex, actual, traitArguments, span) ??
-          forwardingPlan(this.traitTypes, actual, bound.traitIndex, traitArguments);
+          forwardingPlan(this.traitTypes, actual, bound.traitIndex, traitArguments, (type) => {
+            const parts = inspectKey(type, this.inspectEnvironment(), true);
+            return parts?.every((part) => typeof part === "string") ? parts.join("") : undefined;
+          });
         if (builtin)
           return {
             kind: "trait-dictionary",

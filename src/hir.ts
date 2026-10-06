@@ -53,6 +53,11 @@ export interface HirData {
   readonly standard?: true;
   /** The qualified name of a std data type, such as `std.ops.Range`. */
   readonly standardName?: string;
+  /**
+   * The printed `TypeId` name of a package or single-file declaration, such
+   * as `acme_shop.model.User` (09-traits.md#r-trait.typeid.name.package).
+   */
+  readonly typeIdName?: string;
   /** A typed fact type's pattern over its own parameters (14-annotations.md#r-annot.typed-fact.pattern). */
   readonly factPattern?: ValueType;
   readonly span: SourceSpan;
@@ -87,6 +92,8 @@ export interface HirEnum {
   readonly name: string;
   /** The qualified name of a std enum, independent of its local binding. */
   readonly standardName?: string;
+  /** The printed `TypeId` name of a package or single-file enum (HirData.typeIdName). */
+  readonly typeIdName?: string;
   readonly index: number;
   /** Declared `+T`/`-T` markers (04-type-system.md#variance); absent means all invariant. */
   readonly variances?: readonly ("+" | "-" | undefined)[];
@@ -155,6 +162,8 @@ export interface HirTrait {
   readonly name: string;
   /** The qualified name of a std trait, such as `std.ops.Add`. */
   readonly standardName?: string;
+  /** The printed `TypeId` name of a package or single-file trait (HirData.typeIdName). */
+  readonly typeIdName?: string;
   readonly index: number;
   readonly genericParameters: readonly string[];
   /**
@@ -233,6 +242,12 @@ export type HirBuiltinTraitImplementation =
       readonly kind: "forward";
       readonly traitIndex: number;
       readonly targetType: ValueType;
+      /**
+       * The printed `TypeId` name of the trait value type without its outer
+       * `mut`, as `acme.Named` (09-traits.md#r-trait.typeid.name.package);
+       * absent when it has none, and the trait key is printed as written.
+       */
+      readonly typeIdName?: string;
       readonly sourceTraitIndex: number;
       readonly path: readonly { readonly traitIndex: number; readonly fieldIndex: number }[];
     }

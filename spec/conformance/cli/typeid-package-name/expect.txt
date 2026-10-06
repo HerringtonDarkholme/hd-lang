@@ -1,0 +1,5 @@
+# The package acme-shop prints a declaration of src/model.hd as acme_shop.model.User.
+# Spec 09 Stability And Printing: trait.typeid.name.package, trait.typeid.name.inner-mut.
+run: hd run
+stdout: acme_shop.model.User
+stdout: List[mut acme_shop.model.User]

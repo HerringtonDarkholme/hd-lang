@@ -1,0 +1,2 @@
+pub data User:
+    pub name: string

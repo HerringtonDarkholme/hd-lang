@@ -602,7 +602,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   ): string {
     const inner = mutableInner(builtin.targetType);
     const target = inner ?? builtin.targetType;
-    const name = target.slice("trait:".length);
+    const name = builtin.typeIdName ?? target.slice("trait:".length);
     const plain = this.emitStringLiteral(name);
     const nested = inner
       ? `(call ${this.stringFunction("concat")} ${this.emitStringLiteral("mut ")} ${plain})`

@@ -671,6 +671,7 @@ async function linkGraph(
     packages[node.id] = {
       id: node.id,
       shown: shown.get(node) ?? shownNode(node),
+      ...(node.manifest.name === undefined ? {} : { name: node.manifest.name }),
       sourceRoot: posix(join(node.directory, "src")),
       files: await libraryFiles(node),
       dependencies,

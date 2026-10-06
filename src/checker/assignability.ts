@@ -178,6 +178,7 @@ export function forwardingPlan(
   type: ValueType,
   traitIndex: number,
   traitArguments: readonly ValueType[],
+  typeIdName?: (type: ValueType) => string | undefined,
 ): HirTraitDictionaryPlan | undefined {
   const sourceType = readonlyType(type);
   if (!sourceType.startsWith("trait:")) return undefined;
@@ -204,6 +205,7 @@ export function forwardingPlan(
     path.push({ traitIndex: current.index, fieldIndex });
     current = byIndex.get(current.supertraits[fieldIndex]!.traitIndex)!;
   }
+  const printed = typeIdName?.(sourceType);
   return {
     bounds: [],
     implementationIndex: -1,
@@ -212,6 +214,7 @@ export function forwardingPlan(
       kind: "forward",
       traitIndex,
       targetType: type,
+      ...(printed === undefined ? {} : { typeIdName: printed }),
       sourceTraitIndex: source.index,
       path,
     },

@@ -2797,3 +2797,5 @@ typing/invalid/module-path-not-identifier.hd	type
 cli/task-beside-dir	cli
 cli/dep-path-no-package	cli
 cli/exe-unselected-main-used	cli
+cli/typeid-package-name	cli
+cli/typeid-single-file	cli

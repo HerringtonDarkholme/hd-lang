@@ -56,6 +56,15 @@ import { traitImpliesValueCategory } from "./value-categories.ts";
 
 export function declareProgramTypes(context: ProgramCheckContext): void {
   const { program, diagnostics, dataTypes, enumTypes, traitTypes } = context;
+  // A declaration of the program, not of std, prints its TypeId name
+  // qualified (09-traits.md#r-trait.typeid.name.package).
+  const typeIdName = (declaration: {
+    readonly name: string;
+    readonly standard?: boolean;
+  }): { readonly typeIdName?: string } => {
+    const name = declaration.standard ? undefined : context.typeIdName(declaration.name);
+    return name === undefined ? {} : { typeIdName: name };
+  };
   program.data.forEach((declaration, index) => {
     if (PRELUDE_NAMES.has(declaration.name) && !declaration.standard) {
       diagnostics.push({
@@ -97,6 +106,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       ...(declaration.local ? { local: true as const } : {}),
       ...(declaration.standard ? { standard: true as const } : {}),
       ...(declaration.standardName ? { standardName: declaration.standardName } : {}),
+      ...typeIdName(declaration),
       ...(declaration.variances ? { variances: declaration.variances } : {}),
       span: declaration.span,
     });
@@ -121,6 +131,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     enumTypes.set(declaration.name, {
       name: declaration.name,
       ...(declaration.standardName ? { standardName: declaration.standardName } : {}),
+      ...typeIdName(declaration),
       index,
       genericParameters: declaration.genericParameters,
       ...((declaration.genericBounds ?? []).length > 0
@@ -163,6 +174,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     traitTypes.set(declaration.name, {
       name: declaration.name,
       ...(declaration.standardName ? { standardName: declaration.standardName } : {}),
+      ...typeIdName(declaration),
       index,
       genericParameters: declaration.genericParameters,
       supertraits: [],

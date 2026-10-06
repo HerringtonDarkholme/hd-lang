@@ -93,6 +93,8 @@ interface RunResult {
  */
 export interface ReplPackage {
   readonly files: Readonly<Record<string, string>>;
+  /** The `[package]` name (LinkOptions.packageName). */
+  readonly name?: string;
   readonly programs: readonly string[];
   /**
    * The selected dependency packages. The session may use the dependencies
@@ -172,6 +174,7 @@ export class ReplSession {
     const graph = pkg.dependencies;
     const linked = linkPackage(files, LIB_FILE, {
       programs: pkg.programs,
+      ...(pkg.name === undefined ? {} : { packageName: pkg.name }),
       ...(graph
         ? {
             dependencies: {
