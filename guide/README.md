@@ -14,3 +14,5 @@ These documents introduce hd-lang from complementary perspectives:
 For normative syntax and semantics, use the
 [formal specification](../spec/README.md). Deferred and exploratory work is
 collected under [Future Work](../future-work/README.md).
+- For the everyday data jobs — JSON config, doc tests, timeouts, files, and
+  log scanning — read [Working With Data](WORKING_WITH_DATA.md).
