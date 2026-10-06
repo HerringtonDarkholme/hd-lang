@@ -90,6 +90,30 @@ and add a runtime fixture with nested patterns in first, middle and last
 positions, including two nested patterns in one arm. Run the parent
 commit and yours, and check `--phase type` and `--phase runtime`.
 
+### BN. A Readonly Argument To A Generic `mut` Parameter Names The Real Problem
+
+Found by #335. The non-generic case reports
+`readonly-argument-to-mutable-parameter`; the generic one doesn't:
+
+```
+data Box[T]:
+    item: T
+
+fn bump[T](b: mut Box[Box[T]]) -> void:
+    pass
+
+let b: Box[Box[f64]] = Box { item: Box { item: 1.0 } }
+bump(b)    # type-mismatch: expected mut Box[Box[T]], found Box[Box[f64]]  (T unsolved)
+```
+
+Inference doesn't solve `T` through a `mut` formal from a readonly
+argument, so the message shows an unsolved `T` and the wrong code. Solve
+`T` from the readonly view first (the argument's shape still fixes `T`),
+then report the same `readonly-argument-to-mutable-parameter` as the
+non-generic case, naming `mut Box[Box[f64]]`. If no spec rule names that
+code, add the rule to the mutability section (agent-made, flag it in the
+commit). Add a fixture for the generic case.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
