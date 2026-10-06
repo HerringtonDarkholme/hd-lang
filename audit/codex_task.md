@@ -109,6 +109,48 @@ script plus `src/util.hd` printing at top level: error; the same with the
 print inside a function: ok), run before and after, and update
 KNOWN_ISSUES. Checker only; no rule changes.
 
+### BQ. Intern Types (Compile Speed)
+
+**Start only after `src/types.ts` is no longer in Don't Touch** (another
+agent is making `usize` a distinct type); until then do BR first.
+
+The checker represents types as strings and re-parses them on every
+inspection (audit/compiler/perf-audit.md, finding F3: `functionParts`,
+`nominalGenericParts`, `containsGenericParameter`, the `Name=type` regex;
+about 8.6% of a profile, and the speed gate's `list-nest` case grows
+11x per 3.33x because nested types re-scan inner text at every level).
+Also fix the nested-tuple crash the same finding area mentions if it
+still reproduces (try a deeply nested tuple type, e.g. 40 levels).
+
+Do it in two steps, one commit each:
+1. Memoize the pure text parsers in a Map keyed by the type string (the
+   audit's low-risk fix). Measure.
+2. Intern parsed types: one canonical parsed object per distinct type
+   string, so the parsers and predicates read structure instead of
+   scanning text. Keep the string API at module edges if a full
+   migration is too big; say what you did and what's left.
+Measure `pnpm run perf:check` (all cases; compare against origin/main
+in a detached worktree on the same load, `uptime` below ~20) before and
+after each step, and report the table. No behavior change: the type and
+runtime phases must stay identical. Delete F3 from perf-audit.md when it
+is fixed.
+
+### BR. Microbenchmarks And Wasm Size
+
+Measure, don't optimize. Add `test/perf/micro/` with a few small
+programs written the same way in hd, Python and Node (for example: sum of
+1..10M, string building of 100k parts, a map with 100k inserts and
+lookups, recursive fib(30), sorting 100k items), and a script
+(`node --experimental-strip-types test/perf/micro/run.ts`) that builds
+the hd ones with `hd build --release`, runs each three times, and prints
+a table of median times and the hd Wasm size of each program. Python
+and Node are optional on the machine: skip a column if the tool is
+missing. Then write the findings into `audit/compiler/perf-audit.md` as
+a short new section: where hd stands (rough multiples), the biggest Wasm
+size contributors (the std splice: which std modules a tiny program
+pulls in and their size), and the two or three most promising fixes.
+No compiler changes in this job.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
