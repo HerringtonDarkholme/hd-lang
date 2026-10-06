@@ -14,6 +14,13 @@ wrapping methods of [Num](num.md#wrapping-arithmetic) and the shifts of
 
 1. r[std-digest.import] `std.digest` declares `sha256` and `sha256_hex`. Neither is a prelude name; code imports them, as in `use std.digest.sha256`.
 
+```text
+use std.digest.sha256_hex
+
+fn digest_of(text: string) -> string:
+    sha256_hex(text.bytes().collect())
+```
+
 ## SHA-256
 
 `sha256` hashes bytes with SHA-256:
