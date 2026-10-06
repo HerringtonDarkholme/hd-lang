@@ -32,8 +32,6 @@ Only three tests start `bin/hd.js`: the executable smoke test in
 adapter comparison. When a TypeScript test
 finds a language-level regression, add or extend a `.hd` conformance fixture;
 keep a TS assertion only when it verifies one of those implementation details.
-[`MIGRATED.md`](MIGRATED.md) maps TypeScript tests that now have conformance
-fixtures to those fixtures, so the tests can be deleted.
 
 Self-contained fixtures put their name and observable expectations in the hd
 source. Compiler diagnostics are marked on the source line they must point to;

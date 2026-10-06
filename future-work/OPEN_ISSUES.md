@@ -283,6 +283,20 @@ wrap by hand or match on it.
 The flat-stage iterator design waits for a specializing compiler, one of
 the performance tasks queued for later.
 
+### API Compatibility Checking (from the deleted PACKAGES.md)
+
+**Deferred.** `hd api diff O N` will decide whether two versions on one
+compatibility line are compatible by classifying each difference between
+their interface files. An unclassified difference counts as breaking:
+patch when the signatures are equal, minor when every difference is a
+compatible addition, a new line otherwise. Owner decisions 6 and 7
+(2026-09-26) fix two classes. Adding an implementation of a foreign trait
+is minor, and adding an enum variant is breaking, for now. The full
+starting classification table is in git history
+(`git show 382a3c1d:future-work/PACKAGES.md`, section 3.3). Also open: which
+targets take the root-application role. The package model itself is
+specified in [Package Manifest](../spec/lang/10-modules.md#package-manifest).
+
 ## Runtime, Library, ABI, And Tooling Work
 
 These items remain required but do not currently require new core syntax:

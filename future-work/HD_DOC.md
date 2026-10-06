@@ -13,6 +13,12 @@
 > Agents need no special mode. They read the package source, which git
 > distribution already puts on disk for every dependency, and
 > `build/doc/md` (owner, 2026-10-06).
+>
+> **Layout (owner, 2026-10-06).** `build/doc/html` and `build/doc/md`
+> document **the package only**; dependencies and std are linked out, not
+> documented. A workspace root documents every member. There is no
+> `missing-doc` lint; a broken doc link is a warning during `hd doc`. The
+> website's std pages stay the spec chapters.
 
 
 Status: design proposal, 2026-10-06. Nothing in it is accepted behavior.
