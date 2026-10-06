@@ -83,20 +83,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K4. Examples For Std Rules That Have None
-
-The audit's `no-ex` column counts rule groups without an example:
-std/json.md (13), cli/command-line.md (12), std/regex.md (3),
-std/random.md (3), std/testing.md (2), and singles. Add a short,
-realistic ```text example (see `spec/STYLE.md` and nearby examples) to
-each listed section in `spec/std/json.md` first, then the others. Every
-example must be correct hd: put it in a scratch file outside the repo and
-run it with `node --experimental-strip-types bin/hd.js FILE` (or `hd
-check`) before committing. Adding a ```text block renumbers later blocks
-in that chapter: realign that chapter's rows in
-`spec/conformance/examples.tsv` (the one exception to Don't Touch), and
-run `bash spec/check.sh`. One commit per chapter.
-
 ### K5. Microbenchmarks And Wasm Size (Moved From Codex's BR)
 
 Measure, don't optimize. This job is the exception to Don't Touch for

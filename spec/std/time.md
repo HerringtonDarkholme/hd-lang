@@ -182,6 +182,16 @@ pub trait Clock:
 9. r[std-time.timestamp.display] `Timestamp` implements `Display`, and its text is `t.to_rfc3339()`. `Instant` does not implement `Display`.
 10. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
 
+```text
+use std.time.{Instant, Timestamp}
+
+fn epoch() -> Timestamp:
+    Timestamp::from_unix_milliseconds(0)   # displays as 1970-01-01T00:00:00Z
+
+fn same_milliseconds(m: i64) -> bool:
+    Timestamp::from_unix_milliseconds(m).unix_milliseconds() == m && Instant::from_milliseconds(m).as_milliseconds() == m
+```
+
 ### Clock Helpers
 
 ```text
