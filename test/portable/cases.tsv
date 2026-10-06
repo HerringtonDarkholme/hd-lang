@@ -2581,3 +2581,6 @@ typing/invalid/generic-call-readonly-into-mut-part.hd	type
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd	type
 typing/invalid/generic-readonly-argument-to-mut-parameter.hd	type
 runtime/valid/usize-width-wasm32.hd	runtime
+typing/invalid/usize-u32-operand.hd	type
+typing/invalid/usize-to-u32-argument.hd	type
+typing/invalid/u32-to-usize-binding.hd	type

@@ -35,7 +35,7 @@ import {
   restoreState,
   statementLiterals,
 } from "./literal-retry.ts";
-const USIZE = /\bu32\b/;
+const USIZE = /\busize\b/;
 
 export class FunctionChecker extends ExpressionControlChecker {
   private contextualHintDepth = 0;

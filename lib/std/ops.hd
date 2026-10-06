@@ -317,6 +317,30 @@ impl[T] Index[RangeTo[usize]] for List[T]:
     type Out = mut List[T]
     fn index(self, key: RangeTo[usize]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
 
+impl Index[Range[u32]] for string:
+    type Out = string
+    fn index(self, key: Range[u32]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+
+impl[T] Index[Range[u32]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: Range[u32]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+
+impl Index[RangeFrom[u32]] for string:
+    type Out = string
+    fn index(self, key: RangeFrom[u32]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+
+impl[T] Index[RangeFrom[u32]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[u32]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+
+impl Index[RangeTo[u32]] for string:
+    type Out = string
+    fn index(self, key: RangeTo[u32]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+
+impl[T] Index[RangeTo[u32]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[u32]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+
 impl Index[Range[u64]] for string:
     type Out = string
     fn index(self, key: Range[u64]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
@@ -547,11 +571,41 @@ impl Iterable[u32] for Range[u32]:
             .Some(value)
         )
 
+impl Iterable[usize] for Range[usize]:
+    fn iter(self) -> mut Iterator[usize]:
+        let next = self.start
+        end := self.end
+        inclusive := self.inclusive
+        let done = next > end || (next == end && !inclusive)
+        Iterator::from_fn(fn() -> usize?:
+            if done:
+                return .None
+            value := next
+            if value == end:
+                done = true
+            else:
+                next = next + 1
+                if next == end && !inclusive:
+                    done = true
+            .Some(value)
+        )
+
 impl Iterable[u32] for RangeFrom[u32]:
     fn iter(self) -> mut Iterator[u32]:
         let next = self.start
         let started = false
         Iterator::from_fn(fn() -> u32?:
+            if started:
+                next = next + 1
+            started = true
+            .Some(next)
+        )
+
+impl Iterable[usize] for RangeFrom[usize]:
+    fn iter(self) -> mut Iterator[usize]:
+        let next = self.start
+        let started = false
+        Iterator::from_fn(fn() -> usize?:
             if started:
                 next = next + 1
             started = true
@@ -709,6 +763,9 @@ impl Default for u16:
 
 impl Default for u32:
     fn default() -> u32: 0
+
+impl Default for usize:
+    fn default() -> usize: 0
 
 impl Default for u64:
     fn default() -> u64: 0

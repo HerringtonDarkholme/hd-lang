@@ -22,7 +22,6 @@ import {
   orderedTypeSubstitutions,
   substituteGenericType,
 } from "./shared.ts";
-import { spelledApplication } from "./spelling.ts";
 
 import { ExpressionSuspensionChecker } from "./expression-suspensions.ts";
 
@@ -271,14 +270,11 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         if (unresolved.length > 0)
           this.failUnresolvedType(
             unresolved,
-            spelledApplication(
-              nominalGenericType(
-                declaration.name,
-                declaration.genericParameters.map(
-                  (parameter) => substitutions.get(parameter) ?? parameter,
-                ),
+            nominalGenericType(
+              declaration.name,
+              declaration.genericParameters.map(
+                (parameter) => substitutions.get(parameter) ?? parameter,
               ),
-              initiallyChecked,
             ),
             expression.span,
             substitutions,

@@ -31,6 +31,8 @@ export const NUMERIC_TYPES: ReadonlyMap<ValueType, NumericType> = new Map([
   ["u16", integer("unsigned", 16)],
   ["u32", integer("unsigned", 32)],
   ["u64", integer("unsigned", 64)],
+  // `usize` has the target's width: 32 bits on Wasm32 (04-type-system.md#r-types.usize.width).
+  ["usize", integer("unsigned", 32)],
   ["f32", { family: "float", bits: 32, wasm: "f32" }],
   ["f64", { family: "float", bits: 64, wasm: "f64" }],
 ]);
@@ -58,6 +60,17 @@ export function widensTo(from: ValueType, to: ValueType): boolean {
   const target = numericType(to);
   if (!source || !target || from === to) return false;
   return source.family === target.family && source.bits < target.bits;
+}
+
+/**
+ * Whether `from` and `to` are two types of one family and width, as `u32` and
+ * `usize` on Wasm32 (spec/lang/04-type-system.md#r-types.num.same-width).
+ */
+export function sameWidthNumeric(from: ValueType, to: ValueType): boolean {
+  const source = numericType(from);
+  const target = numericType(to);
+  if (!source || !target || from === to) return false;
+  return source.family === target.family && source.bits === target.bits;
 }
 
 /** Whether `from` narrows implicitly to `to` within one family, which is an error. */

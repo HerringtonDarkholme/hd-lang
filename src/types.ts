@@ -46,7 +46,7 @@ export function mutableInner(type: ValueType): ValueType | undefined {
 
 /** The primitive types (04-type-system.md#primitive-types). */
 export const PRIMITIVE_TYPES: ReadonlySet<ValueType> = new Set(
-  "bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char string".split(" "),
+  "bool i8 i16 i32 i64 u8 u16 u32 u64 usize f32 f64 char string".split(" "),
 );
 
 /**
@@ -322,6 +322,11 @@ export function typeSourceText(type: ValueType): string {
   const nominal = nominalGenericParts(type);
   if (nominal) return nominalGenericType(nominal.name, nominal.arguments.map(typeSourceText));
   return type;
+}
+
+/** The distinct types of `members`, in first-seen order, for a "no common type" list. */
+export function uniqueTypes(members: readonly { readonly type: ValueType }[]): ValueType[] {
+  return [...new Set(members.map((member) => member.type))];
 }
 
 /**

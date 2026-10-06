@@ -237,9 +237,17 @@ impl Serialize for u32:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
         out.uint(u64(self))
 
+impl Serialize for usize:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.uint(u64(self))
+
 impl Deserialize for u32:
     fn deserialize[R < Deserializer](input: mut R) -> Result[u32, R::Error]:
         .Ok(u32(unsigned_in(input, 4294967295, "u32")?))
+
+impl Deserialize for usize:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[usize, R::Error]:
+        .Ok(usize(unsigned_in(input, 4294967295, "usize")?))
 
 impl Serialize for u64:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:

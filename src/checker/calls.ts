@@ -57,7 +57,6 @@ import {
   defaultCallFields,
   traitKeyName,
 } from "./shared.ts";
-import { spelledCall, spelledValue, type SpelledValueType } from "./spelling.ts";
 import { checkLiteralArgumentsLast } from "./literal-arguments.ts";
 import { calleeOf, keepSolvedPositions } from "./partial-expected.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
@@ -484,12 +483,12 @@ export abstract class CallChecker extends StatementChecker {
           type: suspensionType(signature.index, resultType),
           span: expression.span,
         }
-      : spelledCall(signature, {
+      : {
           kind: "call",
           ...callBase,
           type: resultType,
           span: expression.span,
-        });
+        };
   }
 
   protected checkConcreteArguments(
@@ -849,7 +848,7 @@ export abstract class CallChecker extends StatementChecker {
     const inferredBeforeExpected = new Set(substitutions.keys());
     // The first argument's own type per parameter; later arguments must match up to `mut`
     // (04-type-system.md#inference-from-several-arguments).
-    const joined = new Map<string, SpelledValueType>();
+    const joined = new Map<string, ValueType>();
     if (expected) inferGenericType(signature.result, expected, substitutions, rowSubstitutions);
     keepSolvedPositions(substitutions, solved);
     const inferredFromExpected = new Set(
@@ -867,7 +866,6 @@ export abstract class CallChecker extends StatementChecker {
     );
     const checkEntry = (entry: PlannedArgument): HirExpression => {
       const formal = signature.parameters[entry.parameterIndex]!;
-      const spelledFormal = signature.spelledParameters?.[entry.parameterIndex] ?? formal;
       if (entry.kind === "single") {
         const source = expression.arguments[entry.argumentIndices[0]!]!;
         this.inferTypesThroughBounds(signature, substitutions);
@@ -899,9 +897,9 @@ export abstract class CallChecker extends StatementChecker {
         const own = argumentOwnType(source, unconverted ?? checked);
         if (formalGeneric && own !== undefined && !inferredBeforeExpected.has(formalGeneric)) {
           const earlier = joined.get(formalGeneric);
-          const current = spelledValue(readonlyType(own), unconverted ?? checked);
+          const current = readonlyType(own);
           if (earlier === undefined) joined.set(formalGeneric, current);
-          else if (earlier.type !== current.type)
+          else if (earlier !== current)
             this.failArgumentJoin(signature.name, formalGeneric, earlier, current, source.span);
         }
         if (
@@ -969,13 +967,7 @@ export abstract class CallChecker extends StatementChecker {
           substitutions,
           rowSubstitutions,
         );
-        return this.coerceArgument(
-          source,
-          checked,
-          instantiatedFormal,
-          spelledFormal,
-          open && solved,
-        );
+        return this.coerceArgument(source, checked, instantiatedFormal, open && solved);
       }
       const nominal = nominalGenericParts(formal);
       const elementFormal = nominal?.name === "List" ? nominal.arguments[0]! : "void";
@@ -1000,7 +992,6 @@ export abstract class CallChecker extends StatementChecker {
           source,
           checked,
           solvedElement,
-          nominalGenericParts(spelledFormal)?.arguments[0] ?? elementFormal,
           open && !mentionsUnsolved(solvedElement, signature, substitutions, rowSubstitutions),
         );
       });
@@ -1084,9 +1075,7 @@ export abstract class CallChecker extends StatementChecker {
     const checked = this.checkExpression(source, solved);
     const own = argumentOwnType(source, checked);
     if (own !== undefined && readonlyType(own) !== readonlyType(solved)) {
-      const earlier = spelledValue(readonlyType(solved), undefined);
-      const current = spelledValue(readonlyType(own), checked);
-      this.failArgumentJoin(name, "T", earlier, current, source.span);
+      this.failArgumentJoin(name, "T", readonlyType(solved), readonlyType(own), source.span);
     }
     return this.requireCoercion(checked, solved, source.span);
   }

@@ -135,13 +135,9 @@ export function namedWidths(
   if (found.spans.size === 0) return [];
   // A range error names a wider type as advice, not a type the literal meets.
   const meetings = failed.filter(({ code }) => !code.endsWith("-literal-range"));
-  const named = new Set(
-    meetings.flatMap(({ message }) =>
-      (message.match(NUMERIC) ?? []).map((word) => (word === "usize" ? "u32" : word)),
-    ),
-  );
+  const named = new Set(meetings.flatMap(({ message }) => message.match(NUMERIC) ?? []));
   const kinds = new Set(found.spans.values());
-  const integerDefault = found.signed ? "i32" : "u32";
+  const integerDefault = found.signed ? "i32" : "usize";
   const defaults = [kinds.has("integer") && integerDefault, kinds.has("float") && "f64"];
   if (!defaults.some((type) => type && named.has(type))) return [];
   const widths: LiteralWidths[] = [];

@@ -459,6 +459,7 @@ export class EmitterContext {
     return (
       type === "i32" ||
       type === "u32" ||
+      type === "usize" ||
       type === "u8" ||
       type === "bool" ||
       type === "char" ||

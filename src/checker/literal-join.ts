@@ -9,7 +9,7 @@ import { leastCommonType } from "./least-common-type.ts";
 // The join model for unsuffixed numeric literals (task #296 prototype).
 //
 // 1. A literal with an expected type takes it.
-// 2. With none, a bare integer literal is `usize` (`u32` here), a signed one,
+// 2. With none, a bare integer literal is `usize`, a signed one,
 //    `-1` or `+5`, is `i32`, and a float literal is `f64`.
 // 3. Within one expression only (operands of one operator, the arguments of
 //    one generic call, the elements of one collection literal, the arms of one
@@ -114,7 +114,7 @@ export function literalGroupDefault(members: readonly Expression[]): ValueType |
   const [kind] = kinds;
   if (kind === "float") return "f64";
   if (kind !== "integer") return undefined;
-  return members.some(hasSignedLiteral) ? "i32" : "u32";
+  return members.some(hasSignedLiteral) ? "i32" : "usize";
 }
 
 /** A local whose type came from a bare literal's rule-2 default, for the fix hint. */
@@ -236,14 +236,14 @@ export function defaultedLocalHint(
         : other
       : other;
   const numeric = numericType(width);
-  if (!width || !numeric || numeric.family === "float" || width === "u32") return undefined;
+  if (!width || !numeric || numeric.family === "float" || width === "usize") return undefined;
   const at = `line ${origin.span.start.line}`;
   const signed = `+${origin.literal}`;
   const whole =
     origin.kind !== "structure"
       ? width
       : numericType(other)
-        ? displayType(readonlyType(value.type)).replace(/\b(u32|usize)\b/g, width)
+        ? displayType(readonlyType(value.type)).replace(/\busize\b/g, width)
         : displayType(readonlyType(other));
   const annotation =
     origin.kind === "loop"
@@ -296,17 +296,13 @@ function hintFix(
   };
 }
 
-/** The numeric type in `other` where `type` has `usize`, as `i32` in `List[i32]` against `List[u32]`. */
+/** The numeric type in `other` where `type` has `usize`, as `i32` in `List[i32]` against `List[usize]`. */
 function widthAtUsize(type: ValueType, other: ValueType): ValueType | undefined {
   const words = (text: ValueType) => displayType(readonlyType(text)).split(/[^A-Za-z0-9_]+/);
   const mine = words(type);
   const theirs = words(other);
   for (let index = 0; index < Math.min(mine.length, theirs.length); index += 1)
-    if (
-      (mine[index] === "u32" || mine[index] === "usize") &&
-      numericType(theirs[index]) &&
-      theirs[index] !== mine[index]
-    )
+    if (mine[index] === "usize" && numericType(theirs[index]) && theirs[index] !== mine[index])
       return theirs[index];
   return undefined;
 }
@@ -374,7 +370,7 @@ export function literalNoFitMessage(
   const own = literalGroupDefault([literal])!;
   const text = literalText(literal);
   const example = /\[([^,\]]+)\]$/.exec(fits[0] ?? "")?.[1];
-  return `the literal argument '${text}' of '${name}' is ${own === "u32" ? "usize" : own} on its own, and only another type fits: ${fits.join(", ")}; write the type you mean${example ? `, as in '${example === "i32" && !text.startsWith("-") ? `+${text}` : `${example}(${text})`}'` : ""}`;
+  return `the literal argument '${text}' of '${name}' is ${own} on its own, and only another type fits: ${fits.join(", ")}; write the type you mean${example ? `, as in '${example === "i32" && !text.startsWith("-") ? `+${text}` : `${example}(${text})`}'` : ""}`;
 }
 
 /**
@@ -433,7 +429,7 @@ export function joinDefaultedInPlace(
       : integers
         ? literals.includes("i32")
           ? "i32"
-          : "u32"
+          : "usize"
         : "f64";
   const family = target === undefined ? undefined : numericType(readonlyType(target))?.family;
   if (family === undefined || (family === "float") !== !integers) return types;
@@ -474,7 +470,7 @@ export function fallbackLiteralHint(
     RESOLVED_LOCAL_HINTS.has(diagnostic)
   )
     return diagnostic;
-  if (!/\b(u32|usize)\b/.test(diagnostic.message)) return diagnostic;
+  if (!/\busize\b/.test(diagnostic.message)) return diagnostic;
   const { start, end } = diagnostic.span;
   const names = new Set<string>();
   const walk = (node: unknown): void => {
@@ -490,9 +486,7 @@ export function fallbackLiteralHint(
     for (const [key, child] of Object.entries(node)) if (key !== "span") walk(child);
   };
   walk(body);
-  const widths = (diagnostic.message.match(/\b[iu](8|16|32|64)\b/g) ?? []).filter(
-    (width) => width !== "u32",
-  );
+  const widths = diagnostic.message.match(/\b[iu](8|16|32|64)\b/g) ?? [];
   for (const local of [...locals].reverse()) {
     if (!names.has(local.name) || !DEFAULTED_LOCALS.has(local)) continue;
     const value: HirExpression = { kind: "local", local, type: local.type, span: diagnostic.span };

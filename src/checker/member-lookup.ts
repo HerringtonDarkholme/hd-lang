@@ -20,9 +20,7 @@ import {
 } from "./shared.ts";
 import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
-import { standardCoreTypeAlias } from "./standard-core.ts";
 import { registeredPackageOwnership } from "./package-ownership.ts";
-import { respelled, spellAs, spelledFieldType } from "./spelling.ts";
 import { builtInMethodNames } from "./built-in-methods.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
@@ -154,7 +152,6 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     expected?: ValueType,
   ): HirExpression | undefined {
     const name = expression.callee.name;
-    const numericName = standardCoreTypeAlias(this.imports.get(name) ?? name) ?? name;
     const newtype = this.dataTypes.get(name);
     const constructorOf = (type: ValueType): string =>
       nominalGenericParts(readonlyType(type))?.name ?? readonlyType(type);
@@ -168,7 +165,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       !expression.argumentNames?.some(Boolean) &&
       !expression.argumentSpreads?.some(Boolean);
     // A constructor-style numeric cast (04 Numeric Casts).
-    if (numericType(numericName) && !newtype?.newtype) {
+    if (numericType(name) && !newtype?.newtype) {
       if (!single)
         this.fail("argument-count", `a numeric cast to '${name}' takes one value`, expression.span);
       // An integer literal argument, alone or under unary `-` or `+`, is
@@ -179,21 +176,16 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         (argument.kind === "unary" &&
           (argument.operator === "-" || argument.operator === "+") &&
           argument.operand.kind === "integer");
-      const target =
-        literal && numericType(numericName)?.family !== "float" ? numericName : undefined;
+      const target = literal && numericType(name)?.family !== "float" ? name : undefined;
       const value = this.checkExpression(argument, target);
       if (numericType(readonlyType(value.type)))
-        // `usize(x)` prints as `usize` (04-type-system.md#r-types.alias.usize.display).
-        return spellAs<HirExpression>(
-          {
-            kind: "unary",
-            operator: "cast",
-            operand: value,
-            type: numericName,
-            span: expression.span,
-          },
-          name,
-        );
+        return {
+          kind: "unary",
+          operator: "cast",
+          operand: value,
+          type: name,
+          span: expression.span,
+        };
       if (!unwraps)
         this.fail(
           "type-mismatch",
@@ -306,22 +298,19 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       : mutableInner(receiver.type) !== undefined || genericTypeName(field.type)
         ? declaredType
         : readonlyType(declaredType);
-    return spellAs<HirExpression>(
-      {
-        kind: "member",
-        receiver,
-        dataIndex: declaration.index,
-        fieldIndex: field.index,
-        erasedFieldType: erasedFieldType(field.type),
-        erasedTypeSubstitutions: orderedTypeSubstitutions(
-          declaration.genericParameters,
-          substitutions,
-        ),
-        type,
-        span,
-      },
-      respelled(type, substituteGenericType(spelledFieldType(field) ?? field.type, substitutions)),
-    );
+    return {
+      kind: "member",
+      receiver,
+      dataIndex: declaration.index,
+      fieldIndex: field.index,
+      erasedFieldType: erasedFieldType(field.type),
+      erasedTypeSubstitutions: orderedTypeSubstitutions(
+        declaration.genericParameters,
+        substitutions,
+      ),
+      type,
+      span,
+    };
   }
 
   /** Reads the embedded fields of a promoted member's path, outermost first. */

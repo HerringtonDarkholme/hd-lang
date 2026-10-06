@@ -19,7 +19,6 @@ import {
 import { leastCommonType, rowUnionType } from "./least-common-type.ts";
 import { laterPushedElementType, unresolvedEmptyListMessage } from "./cannot-infer.ts";
 import { FORCED_LITERALS } from "./literal-retry.ts";
-import { spelledValueType } from "./spelling.ts";
 import {
   isDefaultedLiteral,
   isLiteralStructure,
@@ -78,7 +77,6 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     what: string,
     span: SourceSpan,
     spreadParts = false,
-    members: readonly (HirExpression | undefined)[] = [],
   ): ValueType {
     const declarations = { data: this.dataTypes, enums: this.enumTypes };
     const least = leastCommonType(types, declarations);
@@ -95,9 +93,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
       ? rowUnionType(elements as ValueType[], declarations)
       : undefined;
     if (elementUnion !== undefined) return nominalGenericType("List", [elementUnion]);
-    const listed = [...new Set(types.map((type, index) => spelledValueType(type, members[index])))]
-      .map(displayType)
-      .join(", ");
+    const listed = [...new Set(types)].map(displayType).join(", ");
     this.fail(
       least.code,
       least.code === "no-common-type"
@@ -213,7 +209,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
       (expected === undefined || numericType(readonlyType(expected)) === undefined
         ? FORCED_LITERALS.get(span)
         : undefined);
-    const target = fixed ?? (signed ? "i32" : "u32");
+    const target = fixed ?? (signed ? "i32" : "usize");
     const { minimum, maximum, bits } = numericType(target)! as Required<NumericType>;
     const wider = widerIntegerName(target);
     if (value < minimum || value > maximum)
@@ -264,21 +260,19 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     spreadParts = false,
   ): ValueType {
     const flexible = members.map((member) => isDefaultedLiteral(member));
-    if (!flexible.some(Boolean))
-      return this.inferLeastCommonType(types, what, span, spreadParts, members);
+    if (!flexible.some(Boolean)) return this.inferLeastCommonType(types, what, span, spreadParts);
     const others = types.filter((type, index) => !flexible[index] && type !== "never");
-    const otherMembers = members.filter((_, index) => !flexible[index] && types[index] !== "never");
     const literals = types.filter((_, index) => flexible[index]);
     if (others.length === 0) {
       if (literals.every((type) => isIntegerType(type)))
-        return literals.includes("i32") ? "i32" : "u32";
-      return this.inferLeastCommonType(types, what, span, spreadParts, members);
+        return literals.includes("i32") ? "i32" : "usize";
+      return this.inferLeastCommonType(types, what, span, spreadParts);
     }
-    const joined = this.inferLeastCommonType(others, what, span, spreadParts, otherMembers);
+    const joined = this.inferLeastCommonType(others, what, span, spreadParts);
     const kind = numericType(readonlyType(joined))?.family;
     const literalKind = literals.every((type) => isIntegerType(type)) ? "integer" : "float";
     if (kind === undefined || (kind === "float") !== (literalKind === "float"))
-      return this.inferLeastCommonType(types, what, span, spreadParts, members);
+      return this.inferLeastCommonType(types, what, span, spreadParts);
     // A literal that does not fit the typed members' type names them.
     const typed = members.find((member, index) => !flexible[index] && member !== undefined);
     const typedName =

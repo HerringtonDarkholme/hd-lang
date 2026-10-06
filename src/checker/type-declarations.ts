@@ -20,7 +20,6 @@ import {
   displayType,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
-import { STANDARD_CORE_TYPE_ALIASES, standardCoreTypeAlias } from "./standard-core.ts";
 
 // Type declarations (04-type-system.md#transparent-aliases-and-newtypes). A
 // transparent alias is expanded wherever a type is written, so the rest of
@@ -358,8 +357,6 @@ class AliasExpander {
   }
 }
 
-const USIZE_WORD = /(?<![\w$:])usize(?![\w])/;
-
 function rewriteTypes<T>(
   node: T,
   expander: AliasExpander,
@@ -372,13 +369,7 @@ function rewriteTypes<T>(
   if (isTypeRef(node)) {
     if (!expander.mentions(node.name)) return node;
     const name = expander.type(node.name, node.span);
-    // A written `usize` stays display metadata (04-type-system.md#r-types.alias.usize.display).
-    const written = node.written ?? (USIZE_WORD.test(node.name) ? node.name : undefined);
-    return {
-      ...node,
-      name,
-      ...(written !== undefined && written !== name ? { written } : {}),
-    } as T;
+    return { ...node, name } as T;
   }
   const record = node as Record<string, unknown>;
   const own = (record.span as SourceSpan | undefined) ?? span;
@@ -525,12 +516,7 @@ export function withTypeDeclarations(
   readonly diagnostics: readonly Diagnostic[];
 } {
   const importDiagnostics: Diagnostic[] = [];
-  const importedAliases = new Map<string, Alias>(
-    [...STANDARD_CORE_TYPE_ALIASES].map(([name, target]) => [
-      name,
-      { parameters: [], rows: new Set<string>(), target },
-    ]),
-  );
+  const importedAliases = new Map<string, Alias>();
   const importedRows = new Map<string, RowAlias>();
   const nominalDeclarations = [
     ...source.data,
@@ -539,15 +525,6 @@ export function withTypeDeclarations(
     ...(source.types ?? []),
   ];
   for (const [local, target] of importAliases) {
-    const compilerTarget = standardCoreTypeAlias(target);
-    if (compilerTarget !== undefined) {
-      importedAliases.set(local, {
-        parameters: [],
-        rows: new Set<string>(),
-        target: compilerTarget,
-      });
-      continue;
-    }
     const declaration = nominalDeclarations.find((candidate) => candidate.name === target);
     if (!declaration) continue;
     const parameters = declaration.genericParameters;
@@ -559,13 +536,16 @@ export function withTypeDeclarations(
       importedRows.set(local, { parameters, rows: rowParameters, keys: [application] });
     else importedAliases.set(local, { parameters, rows: rowParameters, target: application });
   }
-  const importExpander = new AliasExpander(importedAliases, importedRows, importDiagnostics);
-  const program = rewriteTypes(
-    source,
-    importExpander,
-    undefined,
-    new Set([...STANDARD_CORE_TYPE_ALIASES.keys(), ...importAliases.keys()]),
-  );
+  // With no imported alias, nothing to rewrite: the walk would copy the program unchanged.
+  const program =
+    importedAliases.size === 0 && importedRows.size === 0
+      ? source
+      : rewriteTypes(
+          source,
+          new AliasExpander(importedAliases, importedRows, importDiagnostics),
+          undefined,
+          new Set(importAliases.keys()),
+        );
   const declarations = program.types ?? [];
   if (declarations.length === 0 && importAliases.size === 0)
     return { program, typeDeclarations: [], diagnostics: [] };

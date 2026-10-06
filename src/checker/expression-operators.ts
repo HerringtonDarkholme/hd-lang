@@ -13,7 +13,13 @@ import {
   displayType,
   tupleParts,
 } from "../types.ts";
-import { isIntegerType, numericType, widensTo, widerNumeric } from "../numeric.ts";
+import {
+  isIntegerType,
+  numericType,
+  sameWidthNumeric,
+  widensTo,
+  widerNumeric,
+} from "../numeric.ts";
 import { CheckFailure, isKnownType, PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
 import { ALL_COMBINATOR } from "./standard-traits.ts";
@@ -30,8 +36,7 @@ import {
 } from "./shared.ts";
 import { displayName } from "./display-names.ts";
 
-import { defaultedLocalHint, pureLiteralKind } from "./literal-join.ts";
-import { spelledType } from "./spelling.ts";
+import { defaultedLocalHint, hasSignedLiteral, pureLiteralKind } from "./literal-join.ts";
 import { defaultGroupWidth, forcedGroupWidth } from "./literal-retry.ts";
 import {
   ExpressionLiteralChecker,
@@ -700,10 +705,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     left: HirExpression,
     right: HirExpression,
   ): never {
-    const [shownLeft, shownRight] = [
-      displayType(spelledType(left)),
-      displayType(spelledType(right)),
-    ];
+    const [shownLeft, shownRight] = [displayType(left.type), displayType(right.type)];
     // 04 Binary Numeric Operators: signed and unsigned integers do not mix.
     if (
       isIntegerType(left.type) &&
@@ -754,6 +756,17 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         narrower.to,
         narrower.value.span,
       );
+    // One width, two types, as `u32` and `usize` (04-type-system.md#r-types.num.same-width):
+    // the fix-it converts the value that is not a size, else the right one.
+    if (sameWidthNumeric(left.type, right.type)) {
+      const converted = readonlyType(left.type) === "usize" ? right : left;
+      const to = converted === left ? right.type : left.type;
+      this.failWithConversion(
+        `${what} have types ${displayType(left.type)} and ${displayType(right.type)}, which never convert implicitly; write ${displayType(to)}(...)`,
+        readonlyType(to),
+        converted.span,
+      );
+    }
   }
 
   /**
@@ -882,15 +895,20 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         leftFirstRight ? readonlyType(leftFirstRight.type) : (groupTarget ?? leftContext),
       );
     // A floating-point literal exponent takes the base's type
-    // (r-expr.power.float.same-type), and a shift count is a `u32`
-    // (r-expr.shift.count-literal).
+    // (r-expr.power.float.same-type), an unsigned literal exponent of an
+    // integer base is a `u32` (r-expr.power.int.literal), and so is a shift
+    // count (r-expr.shift.count-literal).
     const contextualRight = contextualNumericKind(expression.right);
     const rightTarget = shift
       ? "u32"
       : expression.operator === "**"
         ? contextualRight === "float" && left.type === "f32"
           ? "f32"
-          : undefined
+          : contextualRight === "integer" &&
+              isIntegerType(left.type) &&
+              !hasSignedLiteral(expression.right)
+            ? "u32"
+            : undefined
         : groupTarget !== undefined
           ? groupTarget
           : contextualRight === "integer"
@@ -1049,8 +1067,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
   ): HirExpression {
     const index =
       expression.kind === "range"
-        ? this.checkRangeExpression(expression, undefined, "u32")
-        : this.checkExpression(expression, "u32");
+        ? this.checkRangeExpression(expression, undefined, "usize")
+        : this.checkExpression(expression, "usize");
     if (!this.isRangeType(index.type))
       return this.requireUnsignedIndex(index, receiver, expression.span);
 

@@ -229,6 +229,7 @@ const TYPE_NAMES = new Set<ValueType>([
   "u16",
   "u32",
   "u64",
+  "usize",
   "f32",
   "i32",
   "i64",

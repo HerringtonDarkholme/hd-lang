@@ -15,7 +15,6 @@ import {
   type PackageDiagnostic,
 } from "./package.ts";
 import type { HirExpression, HirProgram } from "./hir.ts";
-import { spelledBindingType, spelledType } from "./checker/spelling.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
 import { displayType } from "./types.ts";
@@ -284,7 +283,7 @@ export class ReplSession {
     const found = valueType(analysis.hir);
     return found === undefined
       ? { errors: ["expression has no value"] }
-      : { type: displayType(found.shown), errors: [] };
+      : { type: displayType(found.type), errors: [] };
   }
 
   /** Adds `text` as top-level declarations, whatever its leading word. */
@@ -343,7 +342,7 @@ export class ReplSession {
     // `void` is the empty tuple, so a void call binds; only the `()` literal
     // has a value to show, any other void input runs as a statement.
     if (found?.type === "void" && !found.unitLiteral) return this.evaluateStatement(text, execute);
-    const shownType = displayType(found?.shown ?? "void");
+    const shownType = displayType(found?.type ?? "void");
     if (!execute) {
       this.statements = [...this.statements, `_ := ${text}`];
       return {
@@ -574,13 +573,10 @@ function replLocation(diagnostic: Diagnostic, attempt: Attempt): string {
   return relative >= 1 ? `${relative}:${Math.max(1, column - shift)}` : `session:${line}:${column}`;
 }
 
-/**
- * The type of the input's value, and how it prints: `usize` for a size or a
- * bare literal's default (04-type-system.md#r-types.alias.usize.display).
- */
+/** The type of the input's value, and whether it is the `()` literal. */
 function valueType(
   hir: HirProgram,
-): { readonly type: string; readonly shown: string; readonly unitLiteral?: boolean } | undefined {
+): { readonly type: string; readonly unitLiteral?: boolean } | undefined {
   const main = hir.functions.find(({ name }) => name === "main");
   if (!main) return undefined;
   // `:=` always binds a readonly view, so the binding's own type loses `mut`.
@@ -589,10 +585,10 @@ function valueType(
   if (binding) {
     const value =
       binding.value.kind === "permission-weaken" ? binding.value.operand : binding.value;
-    return { type: value.type, shown: spelledType(value), unitLiteral: value.kind === "tuple" };
+    return { type: value.type, unitLiteral: value.kind === "tuple" };
   }
   const local = main.locals.findLast(({ name }) => name === VALUE);
-  return local && { type: local.type, shown: spelledBindingType(local) };
+  return local && { type: local.type };
 }
 
 interface BindingNode {

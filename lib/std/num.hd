@@ -52,6 +52,11 @@ impl Num for u32:
     fn one() -> u32: 1
     fn from_i64(n: i64) -> u32: u32(fit(n, 0, 4294967295))
 
+impl Num for usize:
+    fn zero() -> usize: 0
+    fn one() -> usize: 1
+    fn from_i64(n: i64) -> usize: usize(fit(n, 0, 4294967295))
+
 impl Num for u64:
     fn zero() -> u64: 0
     fn one() -> u64: 1
@@ -80,6 +85,8 @@ impl Integer for u8
 impl Integer for u16
 
 impl Integer for u32
+
+impl Integer for usize
 
 impl Integer for u64
 
@@ -257,6 +264,10 @@ impl u32:
     pub fn abs_diff(self, other: u32) -> u32:
         if self > other: self - other else: other - self
 
+impl usize:
+    pub fn abs_diff(self, other: usize) -> usize:
+        if self > other: self - other else: other - self
+
 impl u64:
     pub fn abs_diff(self, other: u64) -> u64:
         if self > other: self - other else: other - self
@@ -318,7 +329,7 @@ fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberEr
 
 # Unsigned parsing (r-std-num.parse.unsigned): the signed grammar without
 # `-`, which is an invalid digit at position 0. A `u64` holds every result,
-# so one reader serves all three widths.
+# so one reader serves every width.
 pub fn parse_u32(text: string) -> Result[u32, ParseNumberError]:
     match parse_unsigned(text, 4294967295):
         .Ok(value) => .Ok(u32(value))
@@ -327,9 +338,11 @@ pub fn parse_u32(text: string) -> Result[u32, ParseNumberError]:
 pub fn parse_u64(text: string) -> Result[u64, ParseNumberError]:
     parse_unsigned(text, 18446744073709551615)
 
-# On Wasm32 `usize` has the range of `u32` (r-std-num.parse.usize-range).
+# `usize` has the target's width, 32 bits on Wasm32 (r-std-num.parse.usize-range).
 pub fn parse_usize(text: string) -> Result[usize, ParseNumberError]:
-    parse_u32(text)
+    match parse_unsigned(text, 4294967295):
+        .Ok(value) => .Ok(usize(value))
+        .Err(error) => .Err(error)
 
 fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
     scalars := text.split("")

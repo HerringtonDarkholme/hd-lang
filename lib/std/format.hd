@@ -346,6 +346,10 @@ impl Display for u32:
     fn to_string(self) -> string:
         unsigned_text(u64(self))
 
+impl Display for usize:
+    fn to_string(self) -> string:
+        unsigned_text(u64(self))
+
 impl Display for u64:
     fn to_string(self) -> string:
         unsigned_text(self)
@@ -458,6 +462,10 @@ impl Debug for u16:
         out.write("$self")
 
 impl Debug for u32:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for usize:
     fn debug(self, out: mut DebugWriter) -> void:
         out.write("$self")
 

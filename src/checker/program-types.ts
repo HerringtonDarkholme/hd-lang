@@ -51,7 +51,6 @@ import {
 } from "./written-type-validation.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
-import { spellField } from "./spelling.ts";
 import { traitImpliesValueCategory } from "./value-categories.ts";
 
 export function declareProgramTypes(context: ProgramCheckContext): void {
@@ -306,20 +305,17 @@ export function defineProgramData(context: ProgramCheckContext): void {
           message: `public data '${declaration.name}' embeds private type '${leaked}'; embedded fields are always public`,
           span: field.span,
         });
-      return spellField(
-        {
-          ...(field.public || field.embedded ? { public: true } : {}),
-          name: field.name,
-          type,
-          index,
-          embedded: field.embedded,
-          defaultFunctionName: field.default
-            ? `$default.${declaration.name}.${field.name}`
-            : undefined,
-          span: field.span,
-        },
-        field.type.written,
-      );
+      return {
+        ...(field.public || field.embedded ? { public: true } : {}),
+        name: field.name,
+        type,
+        index,
+        embedded: field.embedded,
+        defaultFunctionName: field.default
+          ? `$default.${declaration.name}.${field.name}`
+          : undefined,
+        span: field.span,
+      };
     });
     const defaults = Object.entries(declaration.genericDefaults ?? {}).map(
       ([name, type]) =>
@@ -462,15 +458,12 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           variantBounds,
         );
         const type = resolved ?? "void";
-        const checked = spellField(
-          {
-            name: field.name,
-            type,
-            index: allFields.length,
-            span: field.span,
-          },
-          field.type.written,
-        );
+        const checked = {
+          name: field.name,
+          type,
+          index: allFields.length,
+          span: field.span,
+        };
         allFields.push(checked);
         return checked;
       });

@@ -297,7 +297,7 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
                 return {
                   ...statement.target,
                   receiver,
-                  index: once(statement.target.index, builtIn ? "u32" : undefined),
+                  index: once(statement.target.index, builtIn ? "usize" : undefined),
                   required: true,
                 };
               })();

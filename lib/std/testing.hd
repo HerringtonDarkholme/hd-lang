@@ -382,6 +382,13 @@ impl Arbitrary for u32:
             9 => 4294967295
             _ => c.int(0, 1000)
 
+impl Arbitrary for usize:
+    fn arbitrary(c: mut Choices) -> usize:
+        match c.extreme():
+            8 => 0
+            9 => 4294967295
+            _ => c.int(0, 1000)
+
 impl Arbitrary for u64:
     fn arbitrary(c: mut Choices) -> u64:
         match c.extreme():

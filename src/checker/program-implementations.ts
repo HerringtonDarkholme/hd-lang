@@ -356,7 +356,6 @@ function substituteSelfType(type: TypeRef, targetName: string): TypeRef {
     name: substituteGenericType(generic, new Map([["Self", targetName]])),
     span: type.span,
     ...(type.name === "Self" || type.name === "mut:Self" ? { implementationTarget: true } : {}),
-    ...(type.written !== undefined ? { written: type.written } : {}),
   };
 }
 

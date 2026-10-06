@@ -95,7 +95,7 @@ interface HostPollReplayEvent extends ReplayEventBase {
 }
 
 interface EncodedHostInteger {
-  readonly kind: "bool" | "char" | "i8" | "i16" | "i32" | "u8" | "u16" | "u32";
+  readonly kind: "bool" | "char" | "i8" | "i16" | "i32" | "u8" | "u16" | "u32" | "usize";
   readonly value: number;
 }
 

@@ -653,13 +653,13 @@ test("usize host arguments and Result payloads preserve unsigned bits during rep
   const polls = events.filter((event) => event.operation === "provider-poll");
   assert.deepEqual(
     polls.map((event) => event.encodedArguments),
-    [[{ kind: "u32", value: 4294967295 }], [{ kind: "u32", value: 0 }]],
+    [[{ kind: "usize", value: 4294967295 }], [{ kind: "usize", value: 0 }]],
   );
   assert.deepEqual(
     polls.map((event) => event.encodedValue),
     [
-      { kind: "ok", value: { kind: "u32", value: 4294967295 } },
-      { kind: "err", value: { kind: "u32", value: 4294967295 } },
+      { kind: "ok", value: { kind: "usize", value: 4294967295 } },
+      { kind: "err", value: { kind: "usize", value: 4294967295 } },
     ],
   );
   const replayed = await instantiate(source, {

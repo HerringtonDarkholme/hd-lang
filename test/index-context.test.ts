@@ -34,7 +34,7 @@ function nestedExpressions(value: HirExpression | HirStatement): HirExpression[]
   return expressions;
 }
 
-test("built-in literal indices take the u32 usize context", () => {
+test("built-in literal indices take the usize context", () => {
   const hir = checked(`fn list_read(items: List[i32]) -> i32: items[0]
 fn string_read(text: string) -> u8: text[0]
 fn list_store(items: mut List[i32]) -> void:
@@ -49,12 +49,12 @@ fn list_store(items: mut List[i32]) -> void:
   assert.equal(listRead.kind, "list-index");
   assert.equal(stringRead.kind, "string-index");
   assert.equal(listStore.kind, "list-set");
-  assert.equal(listRead.index.type, "u32");
-  assert.equal(stringRead.index.type, "u32");
-  assert.equal(listStore.index.type, "u32");
+  assert.equal(listRead.index.type, "usize");
+  assert.equal(stringRead.index.type, "usize");
+  assert.equal(listStore.index.type, "usize");
 });
 
-test("slice literals default to u32 while a typed peer determines the bound width", () => {
+test("slice literals default to usize while a typed peer determines the bound width", () => {
   const hir = checked(`fn narrow(text: string) -> string: text[0..2]
 fn positive(text: string) -> string: text[+0..+2]
 fn compound(text: string) -> string: text[(0 + 1)..(2 + 3)]
@@ -69,9 +69,9 @@ fn wide(text: string, end: u64) -> string: text[0..end]
     assert.ok(range);
     return range.type;
   };
-  assert.match(rangeType("narrow"), /Range\[u32\]$/);
-  assert.match(rangeType("positive"), /Range\[u32\]$/);
-  assert.match(rangeType("compound"), /Range\[u32\]$/);
+  assert.match(rangeType("narrow"), /Range\[usize\]$/);
+  assert.match(rangeType("positive"), /Range\[usize\]$/);
+  assert.match(rangeType("compound"), /Range\[usize\]$/);
   assert.match(rangeType("byte"), /Range\[u8\]$/);
   assert.match(rangeType("wide"), /Range\[u64\]$/);
 });
@@ -87,7 +87,7 @@ fn run(numbers: mut List[i32]) -> void:
 `);
   const call = expressionOf(hir.functions.find((candidate) => candidate.name === "run")!);
   assert.equal(call.kind, "call");
-  assert.equal(call.arguments[1]?.type, "u32");
+  assert.equal(call.arguments[1]?.type, "usize");
 
   const rejected = analyze(`${declarations}
 fn invalid(numbers: mut List[i32]) -> void:

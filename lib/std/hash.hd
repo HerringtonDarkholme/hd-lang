@@ -82,6 +82,10 @@ impl Hash for u32:
     fn hash(self, state: mut Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 4))
 
+impl Hash for usize:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write(unsigned_bytes(u64(self), 4))
+
 impl Hash for u64:
     fn hash(self, state: mut Hasher) -> void:
         state.write(unsigned_bytes(self, 8))

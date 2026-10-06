@@ -6,7 +6,6 @@ import {
   withDefaultedLocalHint,
   firstBareLiteral,
 } from "./literal-join.ts";
-import { spellBinding, type SpelledValueType } from "./spelling.ts";
 import type { Expression, Statement } from "../ast.ts";
 import type { HirExpression, HirGlobal, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
@@ -207,7 +206,7 @@ export abstract class StatementChecker extends CheckerContext {
         }
         const nominal = nominalGenericParts(mutableReceiver);
         if (nominal?.name === "List" && nominal.arguments.length === 1) {
-          const checkedIndex = this.checkExpression(statement.target.index, "u32");
+          const checkedIndex = this.checkExpression(statement.target.index, "usize");
           if (this.isRangeType(checkedIndex.type))
             this.fail(
               "invalid-assignment-target",
@@ -543,7 +542,6 @@ export abstract class StatementChecker extends CheckerContext {
           span: binding.span,
         };
         this.globals.set(binding.name, global);
-        spellBinding(global, checkedElement);
         output.push({
           kind: "global-binding",
           global,
@@ -574,7 +572,6 @@ export abstract class StatementChecker extends CheckerContext {
       };
       this.locals.push(local);
       this.currentScope().set(binding.name, local);
-      spellBinding(local, checkedElement);
       const defaultedLiteral =
         sourceElement?.kind === "integer"
           ? isDefaultedLiteral(checkedElement)
@@ -583,7 +580,7 @@ export abstract class StatementChecker extends CheckerContext {
           : sourceElement &&
               checkedElement &&
               ["list", "map", "tuple", "data", "range"].includes(sourceElement.kind) &&
-              /\bu32\b/.test(checkedElement.type)
+              /\busize\b/.test(checkedElement.type)
             ? firstBareLiteral(sourceElement)
             : undefined;
       if (defaultedLiteral)
@@ -720,10 +717,9 @@ export abstract class StatementChecker extends CheckerContext {
     expression: HirExpression,
     expected: ValueType,
     span: SourceSpan,
-    expectedSpelling?: ValueType,
   ): HirExpression {
     return this.withLiteralHint([[expression, expected]], () =>
-      super.requireCoercion(expression, expected, span, expectedSpelling),
+      super.requireCoercion(expression, expected, span),
     );
   }
 
@@ -731,19 +727,19 @@ export abstract class StatementChecker extends CheckerContext {
   protected failArgumentJoin(
     name: string,
     parameter: string,
-    earlier: SpelledValueType,
-    current: SpelledValueType,
+    earlier: ValueType,
+    current: ValueType,
     span: SourceSpan,
   ): never {
-    if (traitTypeName(earlier.type) !== undefined || traitTypeName(current.type) !== undefined)
+    if (traitTypeName(earlier) !== undefined || traitTypeName(current) !== undefined)
       this.fail(
         "no-common-type",
-        `arguments of types '${displayType(earlier.spelling)}' and '${displayType(current.spelling)}' both solve '${displayType(parameter)}' of '${name}', and inference never converts to a trait value; write '${name}::[${displayType(traitTypeName(earlier.type) ?? traitTypeName(current.type)!)}](...)'`,
+        `arguments of types '${displayType(earlier)}' and '${displayType(current)}' both solve '${displayType(parameter)}' of '${name}', and inference never converts to a trait value; write '${name}::[${displayType(traitTypeName(earlier) ?? traitTypeName(current)!)}](...)'`,
         span,
       );
     this.fail(
       "type-mismatch",
-      `arguments of types '${displayType(earlier.spelling)}' and '${displayType(current.spelling)}' both solve '${displayType(parameter)}' of '${name}', and inference converts only 'mut X' to 'X'; convert one argument to the other's type`,
+      `arguments of types '${displayType(earlier)}' and '${displayType(current)}' both solve '${displayType(parameter)}' of '${name}', and inference converts only 'mut X' to 'X'; convert one argument to the other's type`,
       span,
     );
   }
@@ -763,23 +759,17 @@ export abstract class StatementChecker extends CheckerContext {
     source: Expression,
     checked: HirExpression,
     formal: ValueType,
-    spelling: ValueType,
     recheck: boolean,
   ): HirExpression {
     const reported = this.diagnostics.length;
     try {
-      return this.requireCoercion(checked, formal, source.span, spelling);
+      return this.requireCoercion(checked, formal, source.span);
     } catch (error) {
       if (!(error instanceof CheckFailure) || !recheck || !speculationSafeArguments(source))
         throw error;
       this.diagnostics.length = reported;
     }
-    return this.requireCoercion(
-      this.checkExpression(source, formal),
-      formal,
-      source.span,
-      spelling,
-    );
+    return this.requireCoercion(this.checkExpression(source, formal), formal, source.span);
   }
 
   /** `check`, whose failure gains the join model's literal fix hint (literal-join.ts). */
@@ -910,7 +900,7 @@ export abstract class StatementChecker extends CheckerContext {
           ? statement.value
           : undefined
         : ["list", "map", "tuple", "data", "range"].includes(statement.value.kind) &&
-            /\bu32\b/.test(value.type)
+            /\busize\b/.test(value.type)
           ? firstBareLiteral(statement.value)
           : undefined;
     // `:=` and a plain `let` infer the readonly view, even of a fresh value;
@@ -944,7 +934,6 @@ export abstract class StatementChecker extends CheckerContext {
         span: statement.span,
       };
       if (!recursiveGlobal) this.globals.set(statement.name, global);
-      spellBinding(global, annotation ? statement.annotation?.written : value);
       return { kind: "global-binding", global, value, span: statement.span };
     }
     const local: HirLocal = recursiveLocal ?? {
@@ -960,7 +949,6 @@ export abstract class StatementChecker extends CheckerContext {
       this.locals.push(local);
       this.currentScope().set(statement.name, local);
     }
-    spellBinding(local, annotation ? statement.annotation?.written : value);
     if (defaultedLiteral)
       recordDefaultedLocal(local, {
         name: statement.name,

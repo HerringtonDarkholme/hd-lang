@@ -225,7 +225,7 @@ export const CASES: readonly PerfCase[] = [
     generate: (scale) => {
       const count = 10 * scale;
       return [
-        "fn run() -> u32:",
+        "fn run() -> usize:",
         "    let n = 0",
         indent(
           lines(
@@ -233,7 +233,7 @@ export const CASES: readonly PerfCase[] = [
             (index) => `let step${index} = fn() -> void:\n    n = n + ${index % 7}\nstep${index}()`,
           ),
         ),
-        "    let fixed: u32 = n",
+        "    let fixed: usize = n",
         "    fixed",
         "",
       ].join("\n");

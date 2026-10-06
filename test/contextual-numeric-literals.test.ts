@@ -147,8 +147,8 @@ fn counted(sizes: List[usize]) -> i32:
     integerLeaves(program.functions.find((candidate) => candidate.name === name)!.body).map(
       ({ type }) => type,
     );
-  assert.deepEqual(literalTypes("widest"), ["u32"]);
-  assert.deepEqual(literalTypes("total"), ["u32"]);
+  assert.deepEqual(literalTypes("widest"), ["usize"]);
+  assert.deepEqual(literalTypes("total"), ["usize"]);
   assert.deepEqual(literalTypes("stepped"), ["i64"]);
   // A closure with an unannotated parameter reads the literal's own width.
   assert.deepEqual(literalTypes("counted"), ["i32"]);

@@ -38,7 +38,6 @@ import {
   orderedTypeSubstitutions,
   substituteGenericType,
 } from "./shared.ts";
-import { spelledApplication, spelledType } from "./spelling.ts";
 
 import { GadtChecker } from "./gadt-checker.ts";
 import { variantResultType, variantShape } from "./gadt.ts";
@@ -220,7 +219,7 @@ export abstract class PatternChecker extends GadtChecker {
     if (!parts) {
       // Name what the payload leaves unsolved: `E` for `.Ok`, `T` for `.Err`.
       const argument = expression.arguments.length === 1 ? expression.arguments[0]! : undefined;
-      const payload = argument && spelledType(this.checkExpression(argument));
+      const payload = argument && this.checkExpression(argument).type;
       const [success, error] = ok ? [payload ?? "T", "E"] : ["T", payload ?? "E"];
       this.failUnresolvedType(
         payload === undefined ? ["T", "E"] : [ok ? "E" : "T"],
@@ -316,13 +315,10 @@ export abstract class PatternChecker extends GadtChecker {
     if (unresolved.length > 0)
       this.failUnresolvedType(
         unresolved,
-        spelledApplication(
-          variantResultType(
-            declaration,
-            variant,
-            new Map(shape.variables.map((name) => [name, substitutions.get(name) ?? name])),
-          ),
-          fields,
+        variantResultType(
+          declaration,
+          variant,
+          new Map(shape.variables.map((name) => [name, substitutions.get(name) ?? name])),
         ),
         span,
       );
