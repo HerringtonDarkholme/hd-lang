@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { lstat, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { compareVersions, parseVersion } from "./requirement.ts";
+import { compareVersions, parseHostPath, parseVersion } from "./requirement.ts";
 
 /** The file name of `hd.sum`. */
 export const SUM_FILE = "hd.sum";
@@ -32,21 +32,68 @@ export function manifestKey(hostPath: string, version: string): string {
   return `${sumKey(hostPath, version)}${MANIFEST_SUFFIX}`;
 }
 
-/** `hd.sum`'s entries, or the line and message of the first malformed line. */
+/** A key's host path, version, and whether it is a manifest line's. */
+function splitKey(key: string): [path: string, version: string, manifest: boolean] {
+  const manifest = key.endsWith(MANIFEST_SUFFIX);
+  const bare = manifest ? key.slice(0, -MANIFEST_SUFFIX.length) : key;
+  const at = bare.lastIndexOf("@");
+  return [bare.slice(0, at), bare.slice(at + 1), manifest];
+}
+
+/**
+ * The order of `hd.sum`'s keys (cli.sum.order): by host path, then by
+ * version order, with a version's tree line before its manifest line.
+ */
+function compareKeys(left: string, right: string): number {
+  const [leftPath, leftVersion, leftManifest] = splitKey(left);
+  const [rightPath, rightVersion, rightManifest] = splitKey(right);
+  if (leftPath !== rightPath) return leftPath < rightPath ? -1 : 1;
+  if (leftVersion !== rightVersion) {
+    const [a, b] = [parseVersion(leftVersion), parseVersion(rightVersion)];
+    if (a && b && compareVersions(a, b) !== 0) return compareVersions(a, b);
+    return leftVersion < rightVersion ? -1 : 1;
+  }
+  return Number(leftManifest) - Number(rightManifest);
+}
+
+/**
+ * `hd.sum`'s entries, or the line and message of the first line outside
+ * `cli.sum.line` and `cli.sum.manifest-line`, out of `cli.sum.order`, or a
+ * repeat of an earlier key. The last line, too, ends with a newline.
+ */
 export function readSum(
   text: string,
 ): { readonly entries: SumEntries } | { readonly line: number; readonly message: string } {
   const entries = new Map<string, string>();
-  for (const [index, line] of text.split("\n").entries()) {
-    if (line.trim() === "") continue;
-    const match = /^(\S+@\S+) (h1:[A-Za-z0-9+/]{43}=)$/.exec(line);
-    if (!match)
+  const repair = "restore hd.sum from version control, or delete the line and run hd fetch";
+  const lines = text.split("\n");
+  // The text after the last newline: empty when every line ends with one.
+  const last = lines.pop()!;
+  let previous: string | undefined;
+  for (const [index, line] of lines.entries()) {
+    const number = index + 1;
+    const match = /^(\S+)@(\S+?)(\/hd\.toml)? (h1:[A-Za-z0-9+/]{43}=)$/.exec(line);
+    if (!match || typeof parseHostPath(match[1]!) === "string" || !parseVersion(match[2]!))
       return {
-        line: index + 1,
-        message: `hd.sum line ${index + 1} is not 'HOST_PATH@VERSION h1:HASH' or 'HOST_PATH@VERSION/hd.toml h1:HASH'; restore hd.sum from version control, or delete the line and run hd fetch`,
+        line: number,
+        message: `hd.sum line ${number} is not 'HOST_PATH@VERSION h1:HASH' or 'HOST_PATH@VERSION/hd.toml h1:HASH'; ${repair}`,
       };
-    entries.set(match[1]!, match[2]!);
+    const key = sumKey(match[1]!, match[2]!) + (match[3] ?? "");
+    if (entries.has(key))
+      return { line: number, message: `hd.sum line ${number} repeats the entry ${key}; ${repair}` };
+    if (previous !== undefined && compareKeys(previous, key) > 0)
+      return {
+        line: number,
+        message: `hd.sum line ${number} is out of order: ${key} sorts before ${previous}, by host path, then version; ${repair}`,
+      };
+    entries.set(key, match[4]!);
+    previous = key;
   }
+  if (last !== "")
+    return {
+      line: lines.length + 1,
+      message: `hd.sum line ${lines.length + 1} does not end with a newline; restore hd.sum from version control, or run hd fetch`,
+    };
   return { entries };
 }
 
@@ -55,22 +102,7 @@ export function readSum(
  * version's tree line before its manifest line (cli.sum.order).
  */
 export function formatSum(entries: SumEntries): string {
-  const split = (key: string): [string, string, boolean] => {
-    const manifest = key.endsWith(MANIFEST_SUFFIX);
-    const bare = manifest ? key.slice(0, -MANIFEST_SUFFIX.length) : key;
-    const at = bare.lastIndexOf("@");
-    return [bare.slice(0, at), bare.slice(at + 1), manifest];
-  };
-  const keys = [...entries.keys()].sort((left, right) => {
-    const [leftPath, leftVersion, leftManifest] = split(left);
-    const [rightPath, rightVersion, rightManifest] = split(right);
-    if (leftPath !== rightPath) return leftPath < rightPath ? -1 : 1;
-    if (leftVersion !== rightVersion) {
-      const [a, b] = [parseVersion(leftVersion), parseVersion(rightVersion)];
-      return a && b ? compareVersions(a, b) : leftVersion < rightVersion ? -1 : 1;
-    }
-    return Number(leftManifest) - Number(rightManifest);
-  });
+  const keys = [...entries.keys()].sort(compareKeys);
   return keys.map((key) => `${key} ${entries.get(key)!}\n`).join("");
 }
 
