@@ -106,7 +106,6 @@ observable properties of the result, not whether the source "looks good".
 
 - **Cleanup that suspends** (from usability probe 6). `defer` can't make
   a bang call (`flow.defer.suspend`), so a temp file can't be removed in
-  a `defer`. This is queued for the owner. The recommendation is to keep
-  the rule for the first release and revisit it with NonEscapable. It
-  touches how suspension is lowered, so the new compiler should leave
-  room for it.
+  a `defer`. **Owner, 2026-10-06: keep the rule for the first release,
+  and revisit it with NonEscapable.** It touches how suspension is
+  lowered, so the new compiler should leave room for it.
