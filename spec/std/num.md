@@ -113,7 +113,7 @@ fn gap(a: i32, b: i32) -> u32:
 | r[std-num.abs-diff.u64] On `u64` | `fn abs_diff(self, other: u64) -> u64` |
 | r[std-num.abs-diff.usize] On `usize` | `fn abs_diff(self, other: usize) -> usize` |
 
-1. r[std-num.abs-diff] `a.abs_diff(b)` returns the distance between `a` and `b` as the table's result type: the receiver's own type when it is unsigned, and otherwise the unsigned type of the same width.
+1. r[std-num.abs-diff] `a.abs_diff(b)` returns the distance between `a` and `b` as the table's result type. That is the receiver's own type when it is unsigned, and otherwise the unsigned type of the same width.
 2. r[std-num.abs-diff.no-panic] It never panics, since that unsigned type holds every distance, including the one between the minimum and the maximum.
 3. r[std-num.abs-diff.unsigned] The result is unsigned, so a signed operand beside it needs an explicit cast. Without one, the operation is an error. Error: `mixed-signedness`.
 
@@ -266,13 +266,13 @@ fn ratio(text: string) -> f64:
 4. r[std-num.parse-f64.exponent] An exponent is `e` or `E`, an optional `+` or `-`, and one or more digits.
 5. r[std-num.parse-f64.special] A special word is `nan`, `inf`, or `infinity`, with each letter in either case.
 6. r[std-num.parse-f64.excluded] So whitespace, `_` separators, hex digits, a type suffix, and a `,` decimal mark are not accepted.
-7. r[std-num.parse-f64.decimal-value] A decimal number gives `.Ok` of the value that the [`parse_f64` primitive](README.md#standard-library-primitives) returns for it: the nearest `f64`, with a tie rounded to the even one.
+7. r[std-num.parse-f64.decimal-value] A decimal number gives `.Ok` of the value that the [`parse_f64` primitive](README.md#standard-library-primitives) returns for it. That is the nearest `f64`, with a tie rounded to the even one.
 8. r[std-num.parse-f64.sign] A leading `-` negates the value, so `-0` gives `-0.0`. A leading `+` changes nothing.
 9. r[std-num.parse-f64.range] So a value past the finite `f64` range gives an infinity, and a value too small for the smallest subnormal gives a zero. Each keeps the text's sign.
 10. r[std-num.parse-f64.special-value] `nan` gives a NaN, and `inf` and `infinity` give positive infinity, negated by a leading `-`.
 11. r[std-num.parse-f64.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
 12. r[std-num.parse-f64.invalid-digit-byte] Other text is read from left to right. The first character that no continuation of the grammar allows gives `.Err(ParseNumberError.InvalidDigit(position))`, with its byte offset into the text.
-13. r[std-num.parse-f64.text-end] Text that ends before the grammar is complete gives `InvalidDigit` at the text's length in characters, so a lone `-` gives `InvalidDigit(1)` and `in` gives `InvalidDigit(2)`.
+13. r[std-num.parse-f64.text-end] Text that ends before the grammar is complete gives `InvalidDigit` at the text's length in characters. So a lone `-` gives `InvalidDigit(1)` and `in` gives `InvalidDigit(2)`.
 14. r[std-num.parse-f64.no-out-of-range] `parse_f64` never gives `OutOfRange`.
 15. r[std-num.parse-f64.round-trip] For every `f64` value `x`, `parse_f64(x.to_string())` gives `.Ok` of `x`: the same value with the same sign, or a NaN when `x` is a NaN.
 16. r[std-num.parse-f64.hook] `lib/std` checks the grammar and reads the sign and the special words itself. It calls the primitive only with an unsigned decimal number.
@@ -333,7 +333,7 @@ fn seconds(elapsed: f64) -> string:
 
 1. r[std-num.to-fixed.value] For a finite `self`, `to_fixed(digits)` writes the multiple of 10 to the power `-digits` nearest the exact value of `self`.
 2. r[std-num.to-fixed.ties] When two multiples are equally near, it writes the one whose last digit is even.
-3. r[std-num.to-fixed.form] The text is an optional `-`, the integer part in decimal with no leading zero but a lone `0`, and then, when `digits` is above 0, `.` and exactly `digits` digits.
+3. r[std-num.to-fixed.form] The text is an optional `-`, then the integer part in decimal with no leading zero but a lone `0`. When `digits` is above 0, `.` and exactly `digits` digits follow.
 4. r[std-num.to-fixed.no-exponent] The text never uses scientific notation, however large or small the value.
 5. r[std-num.to-fixed.sign] The text starts with `-` exactly when `self` has its sign bit set, so `(-0.0).to_fixed(1)` is `"-0.0"` and `(-0.001).to_fixed(2)` is `"-0.00"`.
 6. r[std-num.to-fixed.special] A NaN gives `NaN`, and the infinities give `inf` and `-inf`, the text that [`types.display.special`](../lang/04-type-system.md#r-types.display.special) gives.
