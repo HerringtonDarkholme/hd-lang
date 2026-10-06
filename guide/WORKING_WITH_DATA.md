@@ -95,3 +95,33 @@ tests:
             $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
                 assert_equal(load_with_timeout!(), "fake-user", reason="the lookup wins")
 ```
+## Reading And Writing Files
+
+Importing a CSV, writing a report: the file system is a capability, so a
+test never touches a real one. `FsWrite` writes, `FsRead` reads, and a
+unit test binds `MemoryFs` for both. The exact rules are in
+[Fs](../spec/std/fs.md):
+
+```hd
+use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
+use std.path.Path
+use std.testing.{assert_equal, it}
+
+fn save_report!(name: string, total: i32) -> void $ FsWrite:
+    _ := write_text!(Path("reports/$name.txt"), "total: $total")
+
+fn read_report!(name: string) -> string $ FsRead:
+    read_text!(Path("reports/$name.txt")).expect("the report exists")
+
+tests:
+    it("writes and reads back a report"):
+        let mut fs = MemoryFs::new()
+        $.with(FsWrite=fs, FsRead=fs):
+            save_report!("q4", 4500)
+            assert_equal(read_report!("q4"), "total: 4500", reason="round trip")
+```
+
+Paths are `Path` values, so `"reports/$name.txt"` is one argument, not
+string surgery on separators. Integration tests get the real file system
+and a fresh temporary directory per case; see
+[Temporary Directories](../spec/std/testing.md#temporary-directories).
