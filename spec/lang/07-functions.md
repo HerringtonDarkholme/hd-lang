@@ -6,6 +6,13 @@ This chapter defines functions, hd-lang's primary unit of behavior.
 
 1. r[fn.kind.ordinary] Methods, entry points, tests, tools, workflows, and generated adapters are ordinary functions with additional library metadata or calling conventions.
 
+```hd
+fn square(n: i32) -> i32: n * n
+
+fn demo() -> i32:
+    square(3) + square(4)   # 25
+```
+
 ## Declarations
 
 A named function declares typed parameters and a result type.
@@ -86,6 +93,12 @@ fn invalid(flag: bool) -> i32:
 
 1. r[fn.name.unique] Function names are unique in their scope.
 2. r[fn.name.no-overloading] hd-lang has no function or method overloading: one name resolves to one declaration in its scope.
+
+```text
+fn value(input: i32) -> i32: input
+
+fn value(input: string) -> string: input  # error: duplicate-module-name
+```
 
 ### Same-Line Bodies
 
@@ -529,6 +542,13 @@ See also: [Type Inference Boundaries](04-type-system.md#type-inference-boundarie
 4. r[fn.type.suspend.no-reverse] The reverse conversion is not implicit.
 5. r[fn.type.suspend.ctor] In constructor form, the weakening converts `SuspendFn[I, O, $ R]` to `Fn[I, mut Suspend[O], $ R]`.
 
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn store() -> void:
+    _ := fetch("k1")   # a mut Suspend[string]; nothing has run
+```
+
 ### Method References
 
 A **method reference** names a method or an associated function as a
@@ -767,6 +787,14 @@ let next: fn() -> i32 = fn() -> i32:
 
 1. r[fn.capture.in-process] This section defines ordinary in-process closure behavior only.
 2. r[fn.capture.serializable-deferred] Serializable closure capture, how a restored closure names its code beyond [the same compiled program](11-requirements-and-suspension.md#r-req.determinism.same-program), and restoration semantics are deferred to the runtime design.
+
+```hd
+fn apply_twice(f: fn(i32) -> i32, x: i32) -> i32:
+    f(f(x))
+
+fn demo() -> i32:
+    apply_twice(fn(n) -> i32: n + 1, 10)
+```
 
 ## Multiple Inline Closures
 
@@ -1014,9 +1042,19 @@ This section defines program entry functions.
 4. r[fn.entry.requirements] Entry points may declare host requirements with the ordinary `$` clause.
 5. r[fn.entry.pub] `pub` controls module visibility and does not itself create a Wasm host export.
 
+```hd
+pub fn main() -> void:
+    pass
+```
+
 ## Unsupported Function Extensions
 
 1. r[fn.unsupported.features] hd-lang has no general recursive local binding facility, shorthand-argument closures, or non-local returns from closures.
+
+```hd
+fn double_all(items: List[i32]) -> List[i32]:
+    items.map(fn(x: i32) -> i32: x * 2)   # the closure is written out
+```
 
 ### Method Values
 
@@ -1027,5 +1065,17 @@ The rules below still hold:
 2. r[fn.unsupported.closure-adapter] An explicit closure, such as `fn(user: User) -> string: user.domain()`, adapts a method where a function value is needed.
 3. r[fn.unsupported.variant-value] A variant constructor with exactly one payload field, written `Enum.Variant` with a `.` and no argument clause, is already a function value.
 4. r[fn.unsupported.variant-multi] A constructor with two or more payload fields stays an error. Error: `unsaturated-enum-constructor`.
+
+```hd
+data Counter:
+    value: i32
+
+impl Counter:
+    fn read(self) -> i32: self.value
+
+fn demo(counter: Counter) -> i32:
+    read := counter::read   # a bound method value: the receiver is fixed now
+    read()
+```
 
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
