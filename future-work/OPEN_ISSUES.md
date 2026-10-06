@@ -365,11 +365,6 @@ These items remain required but do not currently require new core syntax:
     trait that a provider returns crosses the component ABI.
   - **An HTTP server**, as a registered boundary that exports the
     `wasi:http` handler, with `Net` covering its listen address.
-  - **Running a prebuilt Wasm module.**
-    [`cli.cap.total.any-module`](../spec/cli/command-line.md#r-cli.cap.total.any-module)
-    holds for prebuilt Wasm, but no CLI rule names the command that runs
-    one: [`cli.run.file`](../spec/cli/command-line.md#r-cli.run.file)
-    rejects `hd run FILE`.
   - **A code for the total-deny refusal.** Under `--format json`, a
     diagnostic object needs a stable code
     ([`cli.json.diagnostic`](../spec/cli/command-line.md#r-cli.json.diagnostic)),

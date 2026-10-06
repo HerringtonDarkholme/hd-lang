@@ -6,7 +6,7 @@ This chapter is the CLI tier of the specification. It defines how the `hd`
 command finds a package and what each command runs:
 
 - package mode, workspace mode, and single files;
-- `hd`, `hd FILE`, `hd run`, `hd build`, `hd check`, and `hd test`;
+- `hd`, `hd FILE`, `hd FILE.wasm`, `hd run`, `hd build`, `hd check`, and `hd test`;
 - the executables a manifest declares, and package tasks;
 - program arguments, host capabilities, machine output, and exit status;
 - `hd doc`, which writes a package's documentation;
@@ -28,6 +28,7 @@ says which program a command starts. Its diagnostic codes are in the
 | --- | --- |
 | `hd` | opens the [REPL](#repl), or runs [standard input](#r-cli.stdin.program) when it is not a terminal |
 | `hd FILE` | runs FILE as a [single file](#single-files) |
+| `hd FILE.wasm` | runs a [prebuilt module](#prebuilt-modules) that `hd build` wrote |
 | `hd run [--release]`, `hd run [--release] NAME` | runs an [executable or a task](#running-a-package) of the package, in the [build profile](#build-profiles) its flag selects |
 | `hd build [--release]` | builds the [package](#building-and-checking), or one FILE, in that profile |
 | `hd check`, `hd test` | work on the [package](#building-and-checking), or on one FILE |
@@ -104,6 +105,40 @@ hd notes.hd
 > `hd test FILE` binds them `TestRunner` alone
 > ([`cli.test.env.unit`](#r-cli.test.env.unit)). A script is tested
 > against the real system by running it.
+
+### Prebuilt Modules
+
+`hd FILE.wasm` runs a Wasm module that `hd build` wrote, without its
+source. FILE's extension picks the mode:
+
+```sh
+hd build                                  # writes build/debug/greeter.wasm
+hd build/debug/greeter.wasm -- a b        # runs it with the arguments a and b
+hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 101
+```
+
+1. r[cli.wasm.run] When FILE's name ends in `.wasm`, `hd FILE` instantiates FILE as a module that [`hd build`](#r-cli.build.output) wrote, and runs it.
+2. r[cli.wasm.mode] Only the extension picks the mode: `hd FILE` for a FILE whose name ends in `.hd` runs a single-file program, by [`cli.file.run`](#r-cli.file.run).
+3. r[cli.wasm.host] The module runs under the [default profile](#host-capabilities), in the working directory of the `hd` command.
+4. r[cli.wasm.host.imports] `hd` binds each trait of the default profile that the module's import list names.
+5. r[cli.wasm.grant] The module's [capability grant](#capability-grants) comes from the command's `--cap` flags alone, even when FILE lies in a package, since no `hd.toml` comes with a module.
+6. r[cli.wasm.total-deny] The [total deny](#total-deny) refusal applies, with the module's needs read from its import list by [`cli.cap.total.needs`](#r-cli.cap.total.needs).
+7. r[cli.wasm.args] `hd FILE.wasm` passes the words after `--` to the module as its program arguments, by [`cli.args.pass`](#r-cli.args.pass).
+8. r[cli.wasm.status] Once the module starts, `hd FILE.wasm` exits with the program's own status, by [`cli.exit.program`](#r-cli.exit.program).
+9. r[cli.wasm.invalid] A FILE that is not a valid Wasm module is an error whose message names FILE. It exits with status 101, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
+10. r[cli.wasm.not-hd] A valid module that `hd build` did not write is an error, with status 101.
+11. r[cli.wasm.not-hd.detect] `hd` knows such a module by a missing entry export, or by an import of a host function that `hd` does not provide.
+12. r[cli.wasm.not-hd.message] The error's message names the missing export or the unknown import, and suggests rebuilding the module with `hd build`.
+
+> **Why.** A module carries no `hd.toml`, so its grant comes from the
+> command line, as for a single file outside any package.
+
+> **Note.** The runtime ABI is not specified yet
+> ([`module.host.abi`](../lang/10-modules.md#r-module.host.abi)), so a
+> module records no build profile and no `hd` version that this chapter
+> defines. `hd` cannot tell which profile built a module, and the module
+> keeps that profile's overflow behavior. A module from an incompatible
+> `hd` shows only as a missing entry export or an unknown import.
 
 ## Running A Package
 
@@ -363,7 +398,7 @@ Where a program's grant comes from:
 | Program | Its grant comes from |
 | --- | --- |
 | an executable or a task under `hd run`, or `hd FILE` for a FILE in a package | the package's `[capabilities]` table, and the command's `--cap` flags |
-| `hd FILE` outside any package, and `hd` with no FILE | the command's `--cap` flags alone |
+| `hd FILE` outside any package, `hd FILE.wasm`, and `hd` with no FILE | the command's `--cap` flags alone |
 | a program that [`hd_run!`](../std/testing.md#running-executables) starts | the package's `[capabilities]` table, with no flags |
 | an integration test case, or a doc test | the [test grant](#r-cli.test.env.grant) |
 | a unit test case | none, since it gets no host provider |
@@ -431,7 +466,7 @@ hd run; echo $?
 6. r[cli.cap.total.test] `hd test` refuses an integration test module or a doc test with a totally denied need in the same way, with status 101.
 7. r[cli.cap.total.check] `hd check` may report a total deny before any run, but the startup refusal is the rule that decides.
 
-> **Why.** `hd run` also runs prebuilt Wasm, whose source `hd` never
+> **Why.** `hd FILE.wasm` runs prebuilt Wasm, whose source `hd` never
 > sees. Every host capability call is an import, and dead code is
 > removed, so the import list is exactly what the module can reach. A
 > refusal at startup comes before any side effect.
