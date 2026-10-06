@@ -14,3 +14,5 @@ it_prop("top-level derived property", cases=1, shrink=1, prop=fn!(value: i32):
 it_prop_with("top-level generated property", gen=small, cases=1, shrink=1, prop=fn!(value: i32):
     pass
 )
+
+# Spec 10 Registration Functions: module.testing.reg.import, module.testing.reg.row-body-closure, module.testing.reg.prop-registers.

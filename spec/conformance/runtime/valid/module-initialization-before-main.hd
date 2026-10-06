@@ -1,3 +1,4 @@
+# Spec 10 Module Initialization: module.init.statements-and-main, module.init.main, module.init.source-order-single.
 use std.testing.assert_equal
 
 let initialized = +0

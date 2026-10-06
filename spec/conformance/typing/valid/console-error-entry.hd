@@ -1,2 +1,3 @@
+# Spec 10 Console and Executable Entry Point: module.console.error, module.entry.row, module.entry.row.host.
 pub fn main() -> Result[void, ConsoleError] $ Console:
     .Ok(())

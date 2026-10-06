@@ -25,3 +25,5 @@ it("has no program arguments and a closed standard input"):
 it("lets a provider scope replace the real clock"):
     $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
         assert_equal(now().unix_milliseconds(), 0, reason="the fake clock")
+
+# Spec 10 Test Modules: module.test.integration.program, module.test.integration.pkg-root; Test Outcomes: module.testing.integration-row, module.testing.kind-decides.

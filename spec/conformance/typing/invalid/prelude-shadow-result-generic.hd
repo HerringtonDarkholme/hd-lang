@@ -1,3 +1,4 @@
 # test: prelude Result cannot be shadowed
+# Spec 10 Prelude: module.prelude.no-shadow.
 
 fn identity[Result](value: Result) -> Result: value  # diagnostic: prelude-name-shadow

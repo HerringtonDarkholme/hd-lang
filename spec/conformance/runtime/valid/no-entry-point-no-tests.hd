@@ -1,3 +1,4 @@
 # test: a module with no entry point and no test blocks executes nothing and succeeds
+# Spec 10 Top-Level Statements and Entry Behavior: module.init.no-step, module.init.script-empty.
 fn helper() -> i32:
     return 1

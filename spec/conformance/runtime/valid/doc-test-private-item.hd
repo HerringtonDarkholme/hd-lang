@@ -1,4 +1,5 @@
 # test: a doc test on a private item runs, and it reaches the package only through the public API
+# Spec 10 Doc Tests: module.test.doc.view.
 # Spec 10 Doc Tests: module.test.doc.private-items.
 # fixture-package-tree: doc-tests/src/words.hd
 

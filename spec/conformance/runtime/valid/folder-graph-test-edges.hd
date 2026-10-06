@@ -1,4 +1,5 @@
 # test: a use in test code makes no folder edge, so a test module may use a helper folder that uses its own folder
+# Spec 10 Test Modules: module.test.module.view, module.test.code.
 # Spec 10 Folder Graph: module.cycle.test-code (Dependency Cycles DC6, DC11).
 # fixture-package-tree: test-edges/src/shop/cart_test.hd
 use pkg.testkit.{make}

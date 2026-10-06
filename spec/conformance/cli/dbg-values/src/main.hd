@@ -5,3 +5,5 @@ pub fn main() -> void $ Console:
     dbg((a, b, c))
     dbg(a, b, c)
     println("done")
+
+# Spec 10 Debug Lines: module.dbg.line, module.dbg.location; Debug Values: module.dbg.value.debug, module.dbg.value.composite; Debug Printing: module.dbg.tuple-argument.

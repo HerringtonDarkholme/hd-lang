@@ -1,4 +1,5 @@
 # test: a fenced hd block in a ## comment is a doc test that uses the package's public API, and it passes
+# Spec 10 Doc Tests: module.test.doc.uses, module.test.doc.body, module.test.doc.view, module.test.code.doc.
 # Spec 10 Doc Tests: module.test.doc.block, module.test.doc.program.
 # fixture-package-tree: doc-tests/src/text.hd
 

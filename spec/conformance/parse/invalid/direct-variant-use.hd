@@ -1,2 +1,3 @@
+# Spec 10 Use Forms: module.use.no-variant.
 
 use pkg.status.{Status.Queued}  # diagnostic: direct-variant-use

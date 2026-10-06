@@ -1,6 +1,7 @@
 # expect-stdout: recorded 3
 # expect-stdout: [1] a
 # test: prelude / Console / println drives a provider's write_line! through its own bang calls
+# Spec 10 Console: module.console.println-non-suspending.
 # Spec 10 Console: println drives write_line! with block_on and stays
 # non-suspending, so a non-suspending caller keeps its signature, as the
 # non-suspending main shows.

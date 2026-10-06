@@ -1,4 +1,5 @@
 # test: module bindings are shared with declared functions
+# Spec 10 Top-Level Statements: module.init.binding, module.init.storage.
 
 use std.testing.assert_equal
 

@@ -1,4 +1,5 @@
 # test: assert failure is a runtime panic
+# Spec 10 Standard Testing: module.testing.assert-panic.
 
 use std.testing.assert
 

@@ -1,3 +1,4 @@
+# Spec 10 Standard Testing: module.testing.uses-eq.
 use std.testing.assert_equal
 
 @derive(Debug)

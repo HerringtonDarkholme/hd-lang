@@ -1,3 +1,4 @@
+# Spec 10 Closable Handles: module.resource.error, module.resource.result, module.resource.disposed.
 # fixture-runtime-profile: disposed-file
 use std.resource.ResourceError
 

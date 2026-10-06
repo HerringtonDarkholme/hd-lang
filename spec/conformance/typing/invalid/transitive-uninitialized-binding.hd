@@ -1,3 +1,4 @@
+# Spec 10 Definite Initialization: module.init.definite, module.init.definite.implicit.
 first := apply(first_name)  # diagnostic: top-level-read-before-initialization
 let names: List[string] = ["Ada"]
 

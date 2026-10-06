@@ -1,4 +1,5 @@
 # test: files of one folder may use each other in a loop
+# Spec 10 Folders and Public Uses: module.folder.holder, module.folder.mod-file, module.pub-use.facade.
 # Spec 10 Folder Graph: module.cycle.within-folder (Dependency Cycles DC2, DC11).
 # fixture-package-tree: folder-loop/src/shop/cart.hd
 use pkg.shop.{Item}

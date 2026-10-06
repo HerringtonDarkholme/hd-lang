@@ -1,4 +1,5 @@
 # test: a group's statements run in dependency order, so catalog's binding waits for prices' markup
+# Spec 10 Initialization Order: module.init.use-graph, module.init.group, module.init.group.once, module.init.group.dependency.
 # Spec 10 Order Inside A Group: module.init.group.step (Dependency Cycles DC7, DC11).
 # fixture-package-tree: init-group/src/shop/catalog.hd
 use pkg.shop.prices.{price_of}

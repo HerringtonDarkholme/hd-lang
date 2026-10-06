@@ -1,4 +1,5 @@
 # test: an entry point picks its exit code by returning std.process.ExitCode
+# Spec 10 Exit Status: module.entry.exit-code, module.entry.process-import, module.entry.termination.exit-code, module.entry.termination.ok.
 # Spec 10 Exit Status: Result[ExitCode, E] implements Termination, and its .Ok value's
 # report() is the exit code.
 use std.process.ExitCode

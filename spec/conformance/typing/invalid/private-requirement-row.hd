@@ -1,3 +1,4 @@
+# Spec 10 Public Signatures: module.vis.signature.coverage.
 trait Database
 
 pub fn query() -> void $ Database:  # diagnostic: private-type-leak

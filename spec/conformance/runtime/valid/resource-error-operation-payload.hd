@@ -1,4 +1,5 @@
 # test: resource error operation payload
+# Spec 10 Closable Handles: module.resource.error.
 
 use std.testing.assert_equal
 

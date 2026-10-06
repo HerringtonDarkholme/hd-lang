@@ -1,3 +1,4 @@
 # test: a public main returning Result[void, E] with E: Display is a runnable entry point
+# Spec 10 Exit Status: module.entry.termination.result, module.entry.termination.ok, module.console.error.
 pub fn main() -> Result[void, ConsoleError]:
     .Ok(())

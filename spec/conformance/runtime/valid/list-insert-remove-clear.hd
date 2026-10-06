@@ -1,5 +1,5 @@
 # test: list insert moves later elements up and appends at len(), remove_at returns the element it removes, and clear empties the list
-# Spec lang/10 Built-In Methods: module.method.list-insert, .list-insert.end, .list-remove-at, and .list-clear.
+# Spec lang/10 Built-In Methods: module.method.list-insert, module.method.list-insert.end, module.method.list-remove-at, and module.method.list-clear.
 
 use std.testing.assert_equal
 

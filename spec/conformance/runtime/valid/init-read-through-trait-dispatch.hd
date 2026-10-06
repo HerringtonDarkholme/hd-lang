@@ -1,3 +1,4 @@
+# Spec 10 Definite Initialization: module.init.definite.dispatch, module.init.binding.
 use std.testing.assert_equal
 
 data Box:

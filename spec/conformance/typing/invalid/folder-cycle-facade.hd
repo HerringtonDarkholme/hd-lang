@@ -1,4 +1,5 @@
 # test: a root facade and a shared root file that a child folder uses make a loop of folders
+# Spec 10 Folder Graph: module.cycle.folder-edge.
 # Spec 10 Folder Graph: module.cycle.acyclic (Dependency Cycles DC2, DC11).
 # fixture-package-tree: facade-error/src/shop/mod.hd
 use pkg.error.{Error}  # diagnostic: folder-cycle

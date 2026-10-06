@@ -1,5 +1,6 @@
 # expect-stdout: recorded: hello, Ada
 # test: prelude / Console / println writes its line through a program-defined provider
+# Spec 10 Console: module.console.println-non-suspending.
 # Spec 10 Console: println calls write_line! with the value's text on the Console
 # provider that covers the call, and drives the call to completion. The entry
 # is a non-suspending main.

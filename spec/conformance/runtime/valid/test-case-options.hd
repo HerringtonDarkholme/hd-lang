@@ -1,4 +1,5 @@
 # test: an ignored test case does not run, and options take literal values
+# Spec 10 Test Cases: module.testing.option.ignore, module.testing.it.form.
 # Spec 10 Test Cases: the ignore option skips the test case.
 use std.testing.assert_equal
 

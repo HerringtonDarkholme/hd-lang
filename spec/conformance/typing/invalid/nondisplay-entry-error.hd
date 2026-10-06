@@ -1,3 +1,4 @@
+# Spec 10 Exit Status: module.entry.termination.result.
 pub data HiddenError: pass
 
 pub fn main() -> Result[void, HiddenError]:  # diagnostic: unsatisfied-trait-bound

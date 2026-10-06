@@ -1,3 +1,4 @@
+# Spec 10 Console and Runtime Profiles: module.console.println-write, module.profile.default.
 # expect-stdout: value 42
 # expect-stdout: 42
 # expect-stdout: λ

@@ -6,3 +6,5 @@ pub fn is_late(deadline_millis: i64) -> bool $ Clock:
 tests:
     it("reads the real clock"):
         _ := is_late(0)
+
+# Spec 10 Test Outcomes: module.testing.unit-row.anywhere.

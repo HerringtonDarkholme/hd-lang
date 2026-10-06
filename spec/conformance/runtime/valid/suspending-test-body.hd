@@ -1,4 +1,5 @@
 # test: a trailing test body is a suspending closure, so it may make bang calls
+# Spec 10 Test Outcomes: module.testing.driven.
 # Spec 10 Test Cases and 07 Trailing Callback Blocks: the body parameter of it has an fn!
 # type, and the runner drives the body like main!.
 use std.testing.assert_equal

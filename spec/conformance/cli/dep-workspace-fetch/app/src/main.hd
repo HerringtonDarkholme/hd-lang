@@ -2,3 +2,5 @@ use dep.money.{cents}
 
 pub fn main() -> void $ Console:
     println(cents(3))
+
+# Spec 10 Workspaces: module.workspace.definition; Path Requirements: module.path-dep.form.

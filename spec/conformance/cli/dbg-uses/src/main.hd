@@ -5,3 +5,5 @@ pub fn main() -> void $ Console:
     let show: fn((i32, string)) -> void = dbg
     show((+5, "five"))
     println("done")
+
+# Spec 10 Debug Lines: module.dbg.line.bare, module.dbg.location, module.dbg.stream; Debug Printing: module.dbg.body.value.

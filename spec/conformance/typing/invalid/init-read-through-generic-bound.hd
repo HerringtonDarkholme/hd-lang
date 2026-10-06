@@ -1,3 +1,4 @@
+# Spec 10 Definite Initialization: module.init.definite.dispatch.
 data Box:
     value: i32
 

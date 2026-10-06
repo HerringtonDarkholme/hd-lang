@@ -1,4 +1,5 @@
 # test: src/shop.hd is in folder src/shop with its child module, so the two may use each other
+# Spec 10 Folders: module.folder.interchangeable.
 # Spec 10 Folders: module.folder.parent-file, module.folder.parent-child (batch 48 FOLDER-SELF).
 # fixture-package-tree: parent-file/src/shop.hd
 use pkg.shop.item.{Item}

@@ -2,3 +2,5 @@ use dep.money.{cents}
 
 pub fn main() -> void $ Console:
     println(cents(12))
+
+# Spec 10 Path Requirements: module.path-dep.form, module.path-dep.any-package; Integrity: module.sum.path; Version Selection: module.select.dev-dependencies; Dependency Requirements: module.dep.key-name.

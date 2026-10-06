@@ -1,4 +1,5 @@
 # test: println requires Console and streams displayed UTF-8 through the host boundary
+# Spec 10 Console: module.console.println.
 
 pub fn main() -> void:
     println("missing")  # diagnostic: missing-requirement

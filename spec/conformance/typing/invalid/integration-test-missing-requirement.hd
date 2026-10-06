@@ -1,5 +1,6 @@
 # fixture-test-layout: integration
 # test: an integration test must bind a user capability that its profile does not provide
+# Spec 10 Test Outcomes: module.testing.integration-row.unbound, module.testing.kind-decides.
 trait Repo:
     fn count(self) -> i32
 

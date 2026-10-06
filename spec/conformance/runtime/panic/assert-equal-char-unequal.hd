@@ -1,3 +1,4 @@
+# Spec 10 Standard Testing: module.testing.assert-panic.
 use std.testing.assert_equal
 
 tests:

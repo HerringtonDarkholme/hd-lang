@@ -1,1 +1,2 @@
+# Spec 10 Prelude: module.prelude.no-shadow.
 data Display: pass  # diagnostic: prelude-name-shadow

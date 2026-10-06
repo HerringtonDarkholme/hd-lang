@@ -1,4 +1,5 @@
 # test: a top-level main that is not pub is an ordinary function and is not run as an entry point
+# Spec 10 Executable Entry Point: module.entry.private-main.
 # Spec 10 Executable Entry Point: "A top-level `main` that is not public is an ordinary function and is
 # not an entry point." Spec conformance README, Runtime Execution: only entry points and test blocks
 # execute, so the failing assertion in this main never runs.

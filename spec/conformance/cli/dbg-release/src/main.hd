@@ -6,3 +6,5 @@ pub fn main() -> void $ Console:
     println(total)
     let show: fn((i32,)) -> void = dbg
     show((+1,))
+
+# Spec 10 Release Builds And Dependencies: module.dbg.release, module.dbg.release.debug-build, module.dbg.own-code; Debug Lines: module.dbg.stream. The path dependency money is the user's own code.

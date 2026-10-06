@@ -10,3 +10,5 @@ pub fn main() -> void $ Console + Clock:
 tests:
     it("stamps with the host clock"):
         assert_equal(stamp() > 0, true, reason="a clock after 1970")
+
+# Spec 10 Test Outcomes: module.testing.unit-row.places, module.testing.kind-decides.

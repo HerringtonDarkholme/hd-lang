@@ -1,4 +1,5 @@
 # test: Termination.report maps void, ExitCode, and Result to an exit code
+# Spec 10 Exit Status: module.entry.termination, module.entry.termination.exit-code, module.entry.termination.ok, module.entry.termination.err-code, module.testing.pass.
 # Spec 10 Exit Status: void reports 0, ExitCode reports itself, .Ok reports its value's
 # code, and .Err prints the error and reports 1. A test body may return an ExitCode.
 use std.process.{ExitCode, Termination}

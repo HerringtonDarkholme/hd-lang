@@ -1,4 +1,5 @@
 # test: a single-file program is in no package, so a self use names no module and is reported at the use
+# Spec 10 Single-File Programs: module.single-file.definition.
 # Spec 10 Single-File Programs: module.single-file.roots (Batch 46 NONPKG).
 use std.process.ExitCode
 use self.util.{helper}  # diagnostic: unknown-module
