@@ -1,0 +1,8 @@
+# test: a use of a function that another module of the same package declares without pub is an error
+# Spec 10 Use Forms: module.use.private-name (task P1a2). The tree's cart
+# module declares fee without pub.
+# fixture-package-tree: module-names/src/checkout.hd
+use pkg.cart.{fee}  # diagnostic: private-import
+
+fn charge() -> i32:
+    fee()

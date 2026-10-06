@@ -1,4 +1,5 @@
 import type {
+  ForeignName,
   InitGroupStart,
   ModuleScope,
   NamespaceModule,
@@ -11,6 +12,7 @@ import type { Diagnostic, SourcePosition, SourceSpan } from "./diagnostics.ts";
 import { physicalDiagnostic, sourceDocument } from "./diagnostics.ts";
 import { KEYWORDS } from "./lexer.ts";
 import { parse } from "./parser/index.ts";
+import { directoryOf, folderLoops, folders, stronglyConnected } from "./package-folders.ts";
 import { nominalGenericParts } from "./types.ts";
 
 // Package linking for the prototype (10-modules.md). Every source file of one
@@ -26,10 +28,11 @@ import { nominalGenericParts } from "./types.ts";
 // the joined source: a declaration whose name another linked module also
 // declares joins under a hidden spelling, and the scope maps the module's
 // own spellings, its renamed (`as`) uses, and its module namespace uses
-// (`use pkg.user.types`) to the joined spellings. The checker applies the
-// scopes before anything else (checker/module-paths.ts). The joined
-// namespace still does not stop one module from naming another's
-// declaration without a `use`.
+// (`use pkg.user.types`) to the joined spellings. The scope also lists the
+// other linked modules' top-level names that the module neither declares
+// nor imports, so that naming one is an error, as it would be if the
+// modules were compiled apart (03-names-and-scopes.md#r-names.module.declarations).
+// The checker applies the scopes before anything else (checker/module-paths.ts).
 //
 // A `*_test.hd` file is a test module. It joins as a `tests:` block, so the
 // joined source may hold several `tests:` blocks and is parsed with
@@ -45,9 +48,8 @@ import { nominalGenericParts } from "./types.ts";
 // program from another module is `unknown-module`
 // (spec/lang/10-modules.md#r-module.test.integration.program-use). A module
 // in a subdirectory of the test root is shared test code that any program
-// may use through `self`. The joined program shares one namespace, so it
-// does not hide a library module's private names from an integration test
-// module.
+// may use through `self`. Its scope hides a library module's top-level
+// names as any module's does.
 
 export const SOURCE_ROOT = "src/";
 /** The default test root, which holds the integration test modules. */
@@ -1040,6 +1042,7 @@ export function linkPackage(
   const { order, groups } = initializationOrder(reachable, edges);
 
   const joinedName = joinedNames(order, entryModule, report);
+  const foreignOf = foreignNamesOf(order, importedNames, resolvedUses);
 
   const segments: LinkSegment[] = [];
   const locate = segmentLocator(segments, entry, (path) => files[path] ?? dependencySources[path]);
@@ -1062,30 +1065,6 @@ export function linkPackage(
   // names (spec/lang/05-expressions.md#r-expr.name.qualified).
   const scopes: ModuleScope[] = [];
   const namespaceModules: Record<string, NamespaceModule> = {};
-  const namespaceMembers = (target: PackageModule): NamespaceModule => {
-    const members: Record<string, string | null> = {};
-    for (const name of topLevelNames(target.program!).keys())
-      members[name] = isPublic(target.program!, name) ? joinedName({ module: target, name }) : null;
-    for (const use of resolvedUses.get(target) ?? [])
-      if (use.declaration.public)
-        for (const { local } of use.names) {
-          const found = exporterOf(resolvedUses, target, local, new Set());
-          if (typeof found === "object") members[local] = joinedName(found);
-        }
-    // A path cannot reach a child module through its parent
-    // (10-modules.md#r-module.path.no-child-import): each direct child with
-    // the `use` path that imports it, for the diagnostic.
-    const children: Record<string, string> = {};
-    const prefix = target.identity === "" ? "" : `${target.identity}.`;
-    for (const candidate of modules.values()) {
-      if (candidate.dependency !== target.dependency) continue;
-      if (!candidate.identity.startsWith(prefix)) continue;
-      const rest = candidate.identity.slice(prefix.length);
-      if (rest === "" || rest.includes(".")) continue;
-      children[rest] = candidate.dependency ? shown(candidate) : `pkg.${candidate.identity}`;
-    }
-    return { shown: shown(target), members, children };
-  };
   const moduleScope = (module: PackageModule, firstLine: number, lastLine: number): ModuleScope => {
     const names: Record<string, string> = {};
     const [namespaces, imports]: [Record<string, string>, string[]] = [{}, []];
@@ -1101,7 +1080,12 @@ export function linkPackage(
     for (const use of resolvedUses.get(module) ?? []) {
       if (use.namespace === undefined) continue;
       namespaces[use.namespace] = keyOf(use.target);
-      namespaceModules[keyOf(use.target)] ??= namespaceMembers(use.target);
+      namespaceModules[keyOf(use.target)] ??= namespaceMembers(
+        use.target,
+        modules,
+        resolvedUses,
+        joinedName,
+      );
     }
     const owner =
       module === entryModule && options.entryPackage !== undefined
@@ -1113,6 +1097,7 @@ export function linkPackage(
       names,
       namespaces,
       ...ownershipFields(module, imports),
+      ...foreignOf(module),
       ...owner,
     };
   };
@@ -1162,6 +1147,104 @@ export function linkPackage(
       ? { scriptEntry: true as const }
       : {}),
   };
+}
+
+/**
+ * For each linked module, the top-level names of the other linked modules
+ * (`order`) that it must not name (03-names-and-scopes.md#r-names.module.declarations):
+ * those it neither declares nor binds through a use. A std use joins once
+ * for every module, so its names stay visible (checker/module-paths.ts).
+ */
+function foreignNamesOf(
+  order: readonly PackageModule[],
+  importedNames: ReadonlyMap<PackageModule, ReadonlyMap<string, Declared>>,
+  resolvedUses: ReadonlyMap<PackageModule, readonly ResolvedUse[]>,
+): (module: PackageModule) => Pick<ModuleScope, "foreign"> {
+  const declarers = new Map<string, PackageModule[]>();
+  for (const module of order)
+    for (const name of module.program ? topLevelNames(module.program).keys() : [])
+      declarers.set(name, [...(declarers.get(name) ?? []), module]);
+  return (module) => {
+    const program = module.program;
+    if (!program) return {};
+    const visible = new Set([
+      ...topLevelNames(program).keys(),
+      ...(importedNames.get(module)?.keys() ?? []),
+      ...(resolvedUses.get(module) ?? []).flatMap(({ namespace }) => namespace ?? []),
+    ]);
+    for (const use of program.uses)
+      if (isStandardUse(use)) for (const { name, alias } of use.names) visible.add(alias ?? name);
+    const foreign: Record<string, ForeignName> = {};
+    for (const [name, modules] of declarers) {
+      if (visible.has(name)) continue;
+      const others = modules.filter((other) => other !== module);
+      const target =
+        others.find((other) => importPath(module, other) && isPublic(other.program!, name)) ??
+        others[0];
+      if (!target) continue;
+      const trait = target.program!.traits.some((declaration) => declaration.name === name);
+      foreign[name] = { ...(trait ? { trait } : {}), hint: foreignHint(module, target, name) };
+    }
+    return Object.keys(foreign).length > 0 ? { foreign } : {};
+  };
+}
+
+/** The path a use in `from` names `target` by, as `pkg.cart`; undefined when no use can. */
+function importPath(from: PackageModule, target: PackageModule): string | undefined {
+  // A program root is no module's import (module.path.main-no-use,
+  // module.test.integration.program-use), and only test code may use a
+  // test module (module.test.non-test-use.test-module).
+  if (target.path === MAIN_FILE || isRootProgram(target.path)) return undefined;
+  if (isTestModulePath(target.path) && !isTestModulePath(from.path)) return undefined;
+  if (from.dependency === target.dependency)
+    return target.identity === "" ? "pkg" : `pkg.${target.identity}`;
+  return from.dependency ? undefined : shown(target);
+}
+
+/** What a diagnostic says about `name`, which `target` declares and `from` names bare. */
+function foreignHint(from: PackageModule, target: PackageModule, name: string): string {
+  const where = `module '${shown(target)}'`;
+  const program = target.program!;
+  const path = importPath(from, target);
+  if (path === undefined) return `${where} declares it, and this module can't use that module`;
+  // A top-level binding can't be `pub` (module.package.no-pub-binding).
+  if (program.statements.some((item) => item.kind === "binding" && item.name === name))
+    return `it is a top-level binding of ${where}, private to that module`;
+  const use = `\`use ${path}.{${name}}\``;
+  if (isPublic(program, name)) return `${where} declares it; import it with ${use}`;
+  if (from.dependency !== target.dependency) return `it is private to ${where}`;
+  return `it is private to ${where}; mark it 'pub' and import it with ${use}`;
+}
+
+/** What a module path may select in `target`, the module a namespace use names. */
+function namespaceMembers(
+  target: PackageModule,
+  modules: ReadonlyMap<string, PackageModule>,
+  resolvedUses: ReadonlyMap<PackageModule, readonly ResolvedUse[]>,
+  joinedName: (declared: Declared) => string,
+): NamespaceModule {
+  const members: Record<string, string | null> = {};
+  for (const name of topLevelNames(target.program!).keys())
+    members[name] = isPublic(target.program!, name) ? joinedName({ module: target, name }) : null;
+  for (const use of resolvedUses.get(target) ?? [])
+    if (use.declaration.public)
+      for (const { local } of use.names) {
+        const found = exporterOf(resolvedUses, target, local, new Set());
+        if (typeof found === "object") members[local] = joinedName(found);
+      }
+  // A path cannot reach a child module through its parent
+  // (10-modules.md#r-module.path.no-child-import): each direct child with
+  // the `use` path that imports it, for the diagnostic.
+  const children: Record<string, string> = {};
+  const prefix = target.identity === "" ? "" : `${target.identity}.`;
+  for (const candidate of modules.values()) {
+    if (candidate.dependency !== target.dependency) continue;
+    if (!candidate.identity.startsWith(prefix)) continue;
+    const rest = candidate.identity.slice(prefix.length);
+    if (rest === "" || rest.includes(".")) continue;
+    children[rest] = candidate.dependency ? shown(candidate) : `pkg.${candidate.identity}`;
+  }
+  return { shown: shown(target), members, children };
 }
 
 /** A script: top-level statements and no `main` (spec/lang/10-modules.md#r-module.init.script). */
@@ -1310,124 +1393,6 @@ function initializationOrder(
 
 function byIdentity(left: PackageModule, right: PackageModule): number {
   return left.identity < right.identity ? -1 : left.identity > right.identity ? 1 : 0;
-}
-
-interface FolderEdge {
-  readonly from: string;
-  readonly to: string;
-  readonly module: PackageModule;
-  readonly use: ResolvedUse;
-}
-
-/** The directory that holds a package file. */
-function directoryOf(path: string): string {
-  return path.slice(0, path.lastIndexOf("/"));
-}
-
-/**
- * Each module's folder (spec/lang/10-modules.md#folders): the directory that
- * holds it (module.folder.holder), except that a file `x.hd` whose directory
- * `x/` beside it holds its child modules is in folder `x/`, as `x/mod.hd`
- * would be (module.folder.parent-file).
- */
-function folders(modules: Iterable<PackageModule>): (module: PackageModule) => string {
-  // Each parent file that has a child module, as `src/shop.hd` for
-  // `src/shop/item.hd` or `src/shop/item/mod.hd`.
-  const parents = new Set<string>();
-  for (const { path, identity } of modules) {
-    if (!identity.includes(".")) continue;
-    const directory = directoryOf(path.endsWith("/mod.hd") ? directoryOf(path) : path);
-    parents.add(`${directory}.hd`);
-  }
-  return ({ path }) => (parents.has(path) ? path.slice(0, -".hd".length) : directoryOf(path));
-}
-
-// One shortest loop per strongly connected component of the folder graph
-// (spec/lang/10-modules.md#cycle-diagnostic). Each edge is carried by the first use
-// that makes it; `tangle` is the component's size.
-function folderLoops(
-  uses: readonly { module: PackageModule; use: ResolvedUse }[],
-  folderOf: (module: PackageModule) => string,
-): (FolderEdge[] & { tangle: number })[] {
-  const out = new Map<string, Map<string, FolderEdge>>();
-  for (const { module, use } of uses) {
-    const from = folderOf(module);
-    const to = folderOf(use.target);
-    if (from === to) continue;
-    const targets = out.get(from) ?? new Map<string, FolderEdge>();
-    out.set(from, targets);
-    if (!targets.has(to)) targets.set(to, { from, to, module, use });
-  }
-  const successors = (folder: string): FolderEdge[] =>
-    [...(out.get(folder)?.values() ?? [])].sort((left, right) => (left.to < right.to ? -1 : 1));
-  const folders = [
-    ...new Set([...out.keys(), ...[...out.values()].flatMap((targets) => [...targets.keys()])]),
-  ].sort();
-  const loops: (FolderEdge[] & { tangle: number })[] = [];
-  for (const component of stronglyConnected(folders, (folder) =>
-    successors(folder).map(({ to }) => to),
-  )) {
-    if (component.length < 2) continue;
-    const inside = new Set(component);
-    let best: FolderEdge[] | undefined;
-    for (const start of [...component].sort()) {
-      // Breadth-first search back to `start`, staying inside the component.
-      const previous = new Map<string, FolderEdge>();
-      const queue = [start];
-      let closing: FolderEdge | undefined;
-      for (let index = 0; index < queue.length && !closing; index++) {
-        for (const edge of successors(queue[index]!)) {
-          if (!inside.has(edge.to)) continue;
-          if (edge.to === start) {
-            closing = edge;
-            break;
-          }
-          if (previous.has(edge.to)) continue;
-          previous.set(edge.to, edge);
-          queue.push(edge.to);
-        }
-      }
-      if (!closing) continue;
-      const path = [closing];
-      for (let edge = previous.get(closing.from); edge; edge = previous.get(edge.from))
-        path.unshift(edge);
-      if (!best || path.length < best.length) best = path;
-    }
-    if (best) loops.push(Object.assign(best, { tangle: component.length }));
-  }
-  return loops;
-}
-
-// Tarjan's algorithm: the strongly connected components of a graph.
-function stronglyConnected<T>(nodes: readonly T[], next: (node: T) => readonly T[]): T[][] {
-  const index = new Map<T, number>();
-  const low = new Map<T, number>();
-  const stack: T[] = [];
-  const onStack = new Set<T>();
-  const components: T[][] = [];
-  const connect = (node: T): void => {
-    index.set(node, index.size);
-    low.set(node, index.get(node)!);
-    stack.push(node);
-    onStack.add(node);
-    for (const target of next(node)) {
-      if (!index.has(target)) {
-        connect(target);
-        low.set(node, Math.min(low.get(node)!, low.get(target)!));
-      } else if (onStack.has(target)) low.set(node, Math.min(low.get(node)!, index.get(target)!));
-    }
-    if (low.get(node) !== index.get(node)) return;
-    const component: T[] = [];
-    for (;;) {
-      const member = stack.pop()!;
-      onStack.delete(member);
-      component.push(member);
-      if (member === node) break;
-    }
-    components.push(component);
-  };
-  for (const node of nodes) if (!index.has(node)) connect(node);
-  return components;
 }
 
 // The joined program has one namespace for every linked module. Each

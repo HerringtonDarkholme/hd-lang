@@ -1,0 +1,8 @@
+# test: a pub type alias of another module of the same package is not in scope without a use
+# Spec 03 Module Scope: names.module.declarations (task P1a2). The tree's
+# cart module declares the pub alias Cents.
+# fixture-package-tree: module-names/src/checkout.hd
+use pkg.cart.{Cart, total}
+
+fn charge(cart: Cart) -> Cents:  # diagnostic: unknown-type
+    total(cart)

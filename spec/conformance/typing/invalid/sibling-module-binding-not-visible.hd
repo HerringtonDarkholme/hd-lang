@@ -1,0 +1,8 @@
+# test: a top-level binding of another module of the same package is not in scope there
+# Spec 10 Visibility: module.vis.private-default (task P1a2). The tree's cart
+# module binds UNIT at its top level, and a binding cannot be pub.
+# fixture-package-tree: module-names/src/checkout.hd
+use pkg.cart.{Cart}
+
+fn charge(cart: Cart) -> i32:
+    cart.items * UNIT  # diagnostic: unknown-name

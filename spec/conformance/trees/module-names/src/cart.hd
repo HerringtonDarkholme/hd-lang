@@ -1,0 +1,19 @@
+UNIT := +100
+
+pub trait Priced:
+    fn price(self) -> i32
+
+pub data Cart:
+    pub items: i32
+
+pub type Cents = i32
+
+pub fn total(cart: Cart) -> Cents:
+    cart.items * UNIT + fee()
+
+fn fee() -> i32:
+    +5
+
+impl Priced for Cart:
+    fn price(self) -> i32:
+        total(self)

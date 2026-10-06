@@ -932,8 +932,8 @@ else`, `break`, `break value`, and `continue`;
   file under `tests/` is the integration test module `tests.<path>`, which
   links like a test module: it uses the library through `pkg` (public
   declarations, library modules only) and other integration test modules
-  through the `tests` root or `self`, whose base is the test root. The
-  shared namespace does not hide library privates from it. Files
+  through the `tests` root or `self`, whose base is the test root. Its
+  scope hides the library's top-level names that it does not import. Files
   of one folder may use each other in a loop; a loop of folders is
   `folder-cycle`, reported once per tangle with one shortest folder loop,
   each edge's `use` line, the tangle size, and an `x.hd` to `x/mod.hd`
@@ -945,8 +945,10 @@ else`, `break`, `break value`, and `continue`;
   uses. The prototype does not order a group's statements by dependency
   (10-modules.md#order-inside-a-group), so a read that needs a later-joined
   module's binding is `top-level-read-before-initialization`. Linked
-  modules share one top-level namespace, and namespace or renaming uses of
-  package declarations are not supported
+  modules share one top-level namespace. Each module's scope hides the
+  other modules' top-level names that it does not import, so a bare one is
+  `unknown-name`, `unknown-type`, or `unknown-trait` with a `use` hint;
+  only names bound by a std use, which joins once, stay shared
   (`../website/playground/README.md#packages-and-modules`);
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation

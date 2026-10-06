@@ -182,7 +182,10 @@ What works, relative to [10-modules.md](../../spec/lang/10-modules.md):
 - relative uses, as in `use self.types.{User}` and
   `use super.shared.{Email}`, which start at the file's own module;
 - each module keeps its own top-level names: two modules may declare the
-  same name, and the linker joins one of them under a hidden spelling;
+  same name, and the linker joins one of them under a hidden spelling. A
+  module sees another module's declaration only through a `use`: naming it
+  bare is `unknown-name`, `unknown-type`, or `unknown-trait`, with a hint
+  that gives the `use` line;
 - `pub use` re-exports, typically in `mod.hd`;
 - uses of missing modules, missing declarations, and private declarations
   are rejected. Files of one folder may use each other in a loop, but
@@ -195,7 +198,7 @@ What works, relative to [10-modules.md](../../spec/lang/10-modules.md):
 - standard-library uses (`use std.testing.assert_equal`) may repeat across
   modules;
 - test modules: a `*_test.hd` file holds its test cases at top level and
-  sees public declarations package-wide. Test links every test module, and
+  may use public declarations package-wide. Test links every test module, and
   Run links none unless test code uses it. A test module joins the program
   as a `tests:` block, so it must not hold its own (`misplaced-tests-block`),
   and code outside test code must not use it (`test-only-use`). Integration
@@ -211,8 +214,8 @@ Not supported yet:
   bind one name to different std declarations (`package-name-collision`),
   and only the entry module may declare `main`. Test case names are shared
   too, so two modules cannot name a test case alike (`duplicate-test-name`).
-- The linker checks that each `use` names a public declaration. It does not
-  stop a module from naming another module's declaration without a `use`.
+- A name that one module imports from std is visible in every linked
+  module, since the linker joins the std uses once.
 - There are no dependencies (`dep.<name>`) and no `hd.toml` manifest.
 
 ## Other Limits

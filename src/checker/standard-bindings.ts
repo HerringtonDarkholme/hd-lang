@@ -24,16 +24,30 @@ import type { SourceSpan } from "../diagnostics.ts";
 
 type Renames = ReadonlyMap<string, string>;
 
+/**
+ * The start of a module scope's spelling for another module's top-level
+ * name, which the module must not name (checker/module-paths.ts). No
+ * identifier contains it.
+ */
+export const FOREIGN = "\u0000";
+
 /** A name with its dotted segments, as `cmp.Ordering`. */
 const QUALIFIED_NAME =
   /[\p{ID_Start}_][\p{ID_Continue}]*(?:\.[\p{ID_Start}_][\p{ID_Continue}]*)*/gu;
 
 // A word after `::` names a member of the type before it, as `Error` in
-// `W::Error`, so it is never a std module's top-level name.
-function renameWords(text: string, names: Renames): string {
-  if (names.size === 0) return text;
+// `W::Error`, so it is never a std module's top-level name. A word after a
+// dot is renamed but never reported as another module's name.
+function renameWords(
+  text: string,
+  size: number,
+  rename: (word: string, member: boolean) => string,
+): string {
+  if (size === 0) return text;
   return text.replace(/[\p{ID_Start}_][\p{ID_Continue}]*/gu, (word, offset: number) =>
-    text.slice(Math.max(0, offset - 2), offset) === "::" ? word : (names.get(word) ?? word),
+    text.slice(Math.max(0, offset - 2), offset) === "::"
+      ? word
+      : rename(word, text[offset - 1] === "."),
   );
 }
 
@@ -87,6 +101,11 @@ export interface PathScope {
     span: SourceSpan | undefined,
     position: "value" | "type",
   ): string | undefined;
+  /**
+   * Reports `name`, another module's top-level name that this module
+   * neither declares nor imports, at `span`.
+   */
+  foreign?(name: string, span: SourceSpan | undefined, position: "value" | "type"): void;
 }
 
 /** A module's scope: its renames, and its module namespace names with what each names. */
@@ -114,7 +133,14 @@ class BindingScope {
   static inModules(program: Program, scopeOf: (span: SourceSpan) => ModuleBindings): Program {
     const scope = (span: SourceSpan): BindingScope => {
       const { names, namespaces, paths } = scopeOf(span);
-      return new BindingScope(names, names, namespaces, paths);
+      // A name with no span of its own, as a trait in a bound, is reported
+      // at its top-level item.
+      const item: PathScope = {
+        resolve: (module, member, at, position) =>
+          paths.resolve(module, member, at ?? span, position),
+        foreign: (name, at, position) => paths.foreign?.(name, at ?? span, position),
+      };
+      return new BindingScope(names, names, namespaces, item);
     };
     return {
       ...program,
@@ -160,6 +186,24 @@ class BindingScope {
     return new BindingScope(this.values, without(this.types, hidden), this.namespaces, this.paths);
   }
 
+  /** The joined spelling of the value name `name`, written at `span`. */
+  private value(name: string, span: SourceSpan): string {
+    return this.spelled(this.values, name, span, "value");
+  }
+
+  private spelled(
+    names: Renames,
+    name: string,
+    span: SourceSpan | undefined | null,
+    position: "value" | "type",
+  ): string {
+    const spelling = names.get(name);
+    if (spelling === undefined) return name;
+    if (!spelling.startsWith(FOREIGN)) return spelling;
+    if (span !== null) this.paths?.foreign?.(name, span, position);
+    return name;
+  }
+
   private generics(parameters: readonly string[], rows: readonly string[] = []): BindingScope {
     return this.shadowTypes([...parameters, ...rows]);
   }
@@ -170,7 +214,12 @@ class BindingScope {
    * its first two segments become the spelling the path resolves to.
    */
   private text(text: string, span?: SourceSpan): string {
-    if (this.namespaces.size === 0 || !text.includes(".")) return renameWords(text, this.types);
+    // A later segment of a dotted name, as a variant, is never another
+    // module's top-level name: `null` renames it without reporting.
+    const word = (name: string, member = false): string =>
+      this.spelled(this.types, name, member ? null : span, "type");
+    if (this.namespaces.size === 0 || !text.includes("."))
+      return renameWords(text, this.types.size, word);
     return text.replace(QUALIFIED_NAME, (path) => {
       const [first, member, ...rest] = path.split(".");
       const module = member === undefined ? undefined : this.namespaces.get(first!);
@@ -179,7 +228,7 @@ class BindingScope {
       if (resolved !== undefined) return [resolved, ...rest].join(".");
       return path
         .split(".")
-        .map((word) => this.types.get(word) ?? word)
+        .map((name, index) => word(name, index > 0))
         .join(".");
     });
   }
@@ -388,8 +437,8 @@ class BindingScope {
     return {
       ...value,
       genericBounds: generic.bounds(value.genericBounds),
-      ...(value.traitName ? { traitName: generic.text(value.traitName) } : {}),
-      targetName: generic.text(value.targetName),
+      ...(value.traitName ? { traitName: generic.text(value.traitName, value.span) } : {}),
+      targetName: generic.text(value.targetName, value.span),
       associatedTypes: value.associatedTypes.map((associated) => ({
         ...associated,
         ...(associated.value ? { value: generic.type(associated.value) } : {}),
@@ -510,7 +559,7 @@ class BindingScope {
       case "name":
         return {
           ...value,
-          name: this.values.get(value.name) ?? value.name,
+          name: this.value(value.name, value.span),
           ...typeArguments(value),
         };
       case "qualified-name":
@@ -709,7 +758,7 @@ class BindingScope {
       case "assignment":
         return {
           ...value,
-          name: this.values.get(value.name) ?? value.name,
+          name: this.value(value.name, value.span),
           value: e(value.value),
         };
       case "discard":

@@ -2542,3 +2542,11 @@ typing/invalid/sibling-module-private-field.hd	type	reject:private-member	lang/1
 typing/invalid/sibling-module-private-method.hd	type	reject:private-member	lang/10-modules.md#r-module.vis.members
 runtime/valid/sibling-module-pub-members.hd	runtime	accept	lang/10-modules.md#r-module.vis.members
 runtime/valid/own-module-private-members.hd	runtime	accept	lang/10-modules.md#r-module.vis.members
+typing/invalid/sibling-module-function-not-imported.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.declarations
+typing/invalid/sibling-module-private-function-bare.hd	type	reject:unknown-name	lang/10-modules.md#r-module.vis.private-default
+typing/invalid/sibling-module-private-function-import.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name
+typing/invalid/sibling-module-binding-not-visible.hd	type	reject:unknown-name	lang/10-modules.md#r-module.vis.private-default
+typing/invalid/sibling-module-type-not-imported.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.module.declarations
+typing/invalid/sibling-module-alias-not-imported.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.module.declarations
+typing/invalid/sibling-module-trait-name-not-imported.hd	type	reject:unknown-trait	lang/03-names-and-scopes.md#r-names.module.declarations
+runtime/valid/sibling-module-names-imported.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.use.introduces

@@ -583,6 +583,20 @@ export interface ModuleScope {
   readonly fetched?: string;
   /** The joined spelling of each package declaration a use of the module imports. */
   readonly imports?: readonly string[];
+  /**
+   * The top-level names of other linked modules that this module neither
+   * declares nor imports, which it must not name
+   * (spec/lang/03-names-and-scopes.md#r-names.module.declarations).
+   */
+  readonly foreign?: Readonly<Record<string, ForeignName>>;
+}
+
+/** Another module's top-level name, with what a diagnostic says about it. */
+export interface ForeignName {
+  /** Set when the name is a trait, whose unknown use in a type is `unknown-trait`. */
+  readonly trait?: true;
+  /** Where the name is declared and how to reach it, as `module 'cart' declares it; ...`. */
+  readonly hint: string;
 }
 
 /** A package module that a namespace use names, with what a module path may select. */

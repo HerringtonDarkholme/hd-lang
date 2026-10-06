@@ -1,6 +1,11 @@
 import type { ModuleScope, PackageScopes, Program } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import { resolveModuleBindings, type ModuleBindings, type PathScope } from "./standard-bindings.ts";
+import {
+  FOREIGN,
+  resolveModuleBindings,
+  type ModuleBindings,
+  type PathScope,
+} from "./standard-bindings.ts";
 import { standardTypeSpelling } from "./standard-library.ts";
 import { declares, isStandardModulePath } from "./standard-uses.ts";
 
@@ -18,7 +23,11 @@ import { declares, isStandardModulePath } from "./standard-uses.ts";
 // In a linked package it also applies each module's scope from the linker
 // (`Program.packageScopes`, src/package.ts): the module's own spellings and
 // renamed uses map to their joined spellings, and its namespace uses of
-// package modules resolve through the linker's member tables.
+// package modules resolve through the linker's member tables. A bare name
+// that only another module declares is an error, `unknown-name` for a value
+// and `unknown-type` or `unknown-trait` in a type, whose message says how to
+// import it (03-names-and-scopes.md#r-names.module.declarations,
+// 10-modules.md#r-module.vis.private-default).
 //
 // A std namespace use, as `use std.cmp`, stays in the program, and a path
 // through it to a type becomes the type's joined spelling. A path to a std
@@ -38,8 +47,10 @@ export function withModulePaths(program: Program): {
   const needed =
     standard.size > 0 ||
     (scopes?.scopes.some(
-      ({ names, namespaces }) =>
-        Object.keys(names).length > 0 || Object.keys(namespaces).length > 0,
+      ({ names, namespaces, foreign }) =>
+        Object.keys(names).length > 0 ||
+        Object.keys(namespaces).length > 0 ||
+        foreign !== undefined,
     ) ??
       false);
   if (!needed) return { program, diagnostics: [] };
@@ -110,7 +121,18 @@ export function withModulePaths(program: Program): {
       const namespaces = new Map(standard);
       for (const [local, identity] of Object.entries(scope.namespaces))
         namespaces.set(local, packageKey(identity));
-      found = { names: new Map(Object.entries(scope.names)), namespaces, paths };
+      const names = new Map(Object.entries(scope.names));
+      const foreign = scope.foreign ?? {};
+      for (const name of Object.keys(foreign)) names.set(name, `${FOREIGN}${name}`);
+      const reporting: PathScope = {
+        resolve: paths.resolve,
+        foreign(name, span, position) {
+          const { trait, hint } = foreign[name]!;
+          const kind = position === "value" ? "name" : trait ? "trait" : "type";
+          report(`unknown-${kind}`, `unknown ${kind} '${name}': ${hint}`, span);
+        },
+      };
+      found = { names, namespaces, paths: reporting };
       bindings.set(scope, found);
     }
     return found;

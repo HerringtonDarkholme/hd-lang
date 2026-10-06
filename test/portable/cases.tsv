@@ -2591,3 +2591,11 @@ typing/invalid/sibling-module-private-field.hd	type
 typing/invalid/sibling-module-private-method.hd	type
 runtime/valid/sibling-module-pub-members.hd	runtime
 runtime/valid/own-module-private-members.hd	runtime
+typing/invalid/sibling-module-function-not-imported.hd	type
+typing/invalid/sibling-module-private-function-bare.hd	type
+typing/invalid/sibling-module-private-function-import.hd	type
+typing/invalid/sibling-module-binding-not-visible.hd	type
+typing/invalid/sibling-module-type-not-imported.hd	type
+typing/invalid/sibling-module-alias-not-imported.hd	type
+typing/invalid/sibling-module-trait-name-not-imported.hd	type
+runtime/valid/sibling-module-names-imported.hd	runtime

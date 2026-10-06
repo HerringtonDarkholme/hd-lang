@@ -429,6 +429,88 @@ test("another module's private members and unimported traits stay hidden on ever
   );
 });
 
+test("another module's top-level names are in scope only through a use", () => {
+  // Bare functions, types, aliases, traits, and bindings have conformance
+  // fixtures (sibling-module-*.hd, tree module-names). These are the other
+  // paths and the hints.
+  const check = (files: Record<string, string>, entry = "src/main.hd"): string[] => {
+    const linked = linkPackage(files, entry);
+    assert.deepEqual(linked.diagnostics, []);
+    const { diagnostics } = analyze(linked.source!, { parse: linkedParseOptions(linked) });
+    return diagnostics
+      .filter(({ severity }) => severity !== "warning")
+      .map((diagnostic) => {
+        const { path, span, code } = linked.locate(diagnostic);
+        return `${path}:${span.start.line}:${code}: ${diagnostic.message}`;
+      });
+  };
+  const cart = [
+    "pub enum Size:",
+    "    Small",
+    "pub fn total() -> i32:",
+    "    +1",
+    "fn helper() -> i32:",
+    "    +2",
+    "",
+  ].join("\n");
+  // A root module's declaration hints `use pkg.{...}`, and the entry
+  // module's names are hidden from the modules it uses.
+  assert.deepEqual(
+    check({
+      "src/lib.hd": "pub fn shared() -> i32:\n    leaked()\n",
+      "src/main.hd":
+        "use pkg.{shared}\n\nfn leaked() -> i32:\n    +1\n\npub fn main() -> void:\n    x := shared()\n",
+    }),
+    [
+      "src/lib.hd:2:unknown-name: unknown name 'leaked': module 'main' declares it, and this module can't use that module",
+    ],
+  );
+  assert.deepEqual(
+    check({
+      "src/lib.hd": "pub fn root() -> i32:\n    +1\n",
+      "src/cart.hd": "use pkg.{root}\n\npub fn total() -> i32:\n    root()\n",
+      "src/main.hd": "use pkg.cart.{total}\n\npub fn main() -> void:\n    x := total() + root()\n",
+    }),
+    [
+      "src/main.hd:4:unknown-name: unknown name 'root': module 'pkg' declares it; import it with `use pkg.{root}`",
+    ],
+  );
+  // Locals, parameters, and generic parameters may reuse another module's
+  // names; a variant after a dot is a member, and a namespace path reaches
+  // a pub declaration.
+  assert.deepEqual(
+    check({
+      "src/cart.hd": cart,
+      "src/main.hd": [
+        "use pkg.cart",
+        "",
+        "fn pick[Size](total: i32, size: Size) -> i32:",
+        "    helper := total + 1",
+        "    helper",
+        "",
+        "pub fn main() -> void:",
+        "    x := pick(cart.total(), cart.Size.Small)",
+        "",
+      ].join("\n"),
+    }),
+    [],
+  );
+  // A name that two other modules declare under hidden spellings hints the
+  // pub one, and assigning another module's binding is unknown-name too.
+  assert.deepEqual(
+    check({
+      "src/cart.hd": `${cart}let count = +0\n`,
+      "src/tax.hd": "pub fn helper() -> i32:\n    +3\n",
+      "src/main.hd":
+        "use pkg.cart.{total}\nuse pkg.tax\n\npub fn main() -> void:\n    x := helper() + total()\n    count = x\n",
+    }),
+    [
+      "src/main.hd:5:unknown-name: unknown name 'helper': module 'tax' declares it; import it with `use pkg.tax.{helper}`",
+      "src/main.hd:6:unknown-name: unknown name 'count': it is a top-level binding of module 'cart', private to that module",
+    ],
+  );
+});
+
 test("folders that depend on each other in a loop are rejected", () => {
   const files = {
     "src/lib.hd": "pub use pkg.shop.{Cart}\n",

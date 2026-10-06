@@ -1,0 +1,26 @@
+# test: imported pub declarations of another module, and this module's own private ones, are in scope
+# Spec 03 Use Declarations: names.use.introduces (task P1a2). The tree's cart
+# module declares Priced, Cart, Cents, total, and the private fee. The
+# parameter fee here names only itself, since cart's fee is not in scope.
+# fixture-package-tree: module-names/src/checkout.hd
+use pkg.cart.{Cart, Cents, Priced, total}
+use std.testing.assert_equal
+
+data Basket:
+    carts: List[Cart]
+
+impl Priced for Basket:
+    fn price(self) -> i32:
+        sum(self.carts, +0)
+
+fn sum(carts: List[Cart], fee: i32) -> Cents:
+    let acc = fee
+    for cart in carts:
+        acc = acc + total(cart)
+    acc
+
+tests:
+    it("uses imported and own names"):
+        basket := Basket { carts: [Cart { items: 2 }, Cart { items: 1 }] }
+        assert_equal(basket.price(), 310, reason="two carts with their fees")
+        assert_equal(Cart { items: 1 }.price(), 105, reason="Priced is imported")

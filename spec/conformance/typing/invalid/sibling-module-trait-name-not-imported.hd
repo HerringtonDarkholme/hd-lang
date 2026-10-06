@@ -1,0 +1,12 @@
+# test: a pub trait of another module of the same package is not in scope without a use
+# Spec 03 Module Scope: names.module.declarations (task P1a2). The tree's
+# cart module declares the pub trait Priced; this module imports only Cart.
+# fixture-package-tree: module-names/src/checkout.hd
+use pkg.cart.{Cart}
+
+data Basket:
+    carts: List[Cart]
+
+impl Priced for Basket:  # diagnostic: unknown-trait
+    fn price(self) -> i32:
+        +0
