@@ -806,8 +806,11 @@ std/num.md	10	accept	runtime/valid/num-parse-f64-errors.hd
 std/num.md	11	accept	runtime/valid/num-to-fixed.hd
 std/num.md	12	accept	runtime/valid/num-rotate.hd
 std/encoding.md	1	accept	runtime/valid/encoding-hex-vectors.hd
-std/encoding.md	2	accept	runtime/valid/encoding-base64-vectors.hd
-std/encoding.md	3	type-fragment	-
+std/encoding.md	2	accept	runtime/valid/encoding-hex-vectors.hd
+std/encoding.md	3	accept	runtime/valid/encoding-base64-vectors.hd
+std/encoding.md	4	accept	runtime/valid/encoding-base64-vectors.hd
+std/encoding.md	5	accept	runtime/valid/encoding-decode-errors.hd
+std/encoding.md	6	type-fragment	-
 std/digest.md	1	accept	runtime/valid/digest-sha256-vectors.hd
 std/digest.md	2	accept	runtime/valid/digest-sha256-vectors.hd
 std/json.md	1	type-fragment	-

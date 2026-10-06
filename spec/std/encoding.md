@@ -19,6 +19,13 @@ in `text.bytes().collect()`.
 1. r[std-encoding.import] `std.encoding` declares `DecodeError`, `hex_encode`, `hex_decode`, `base64_encode`, and `base64_decode`. None is a prelude name; code imports them, as in `use std.encoding.hex_encode`.
 2. r[std-encoding.no-panic] None of these functions panics.
 
+```text
+use std.encoding.hex_encode
+
+fn hex_of(text: string) -> string:
+    hex_encode(text.bytes().collect())
+```
+
 ## Hex
 
 Hex text writes each byte as two digits:
@@ -91,6 +98,17 @@ The base64 alphabet is the standard one of RFC 4648, section 4:
 2. r[std-encoding.base64.encode.padding] A final group of one byte gives two symbols and `==`. A final group of two bytes gives three symbols and `=`.
 3. r[std-encoding.base64.encode.pad-bits] The low bits of the last symbol that encode no byte, the **pad bits**, are zero.
 
+```text
+use std.encoding.base64_encode
+
+fn token(bytes: List[u8]) -> string:
+    base64_encode(bytes)
+
+fn padded() -> List[string]:
+    [token("f".bytes().collect()), token("fo".bytes().collect()), token("foo".bytes().collect())]
+    # ["Zg==", "Zm8=", "Zm9v"]: one, two, and three bytes
+```
+
 ### Decoding
 
 `base64_decode` accepts exactly the texts that `base64_encode` returns.
@@ -101,6 +119,22 @@ The base64 alphabet is the standard one of RFC 4648, section 4:
 4. r[std-encoding.base64.decode.character] A character that is neither in the alphabet nor `=` gives `.Err(DecodeError.InvalidCharacter(position))`.
 5. r[std-encoding.base64.decode.pad-bits] When the text has padding and the character before it is in the alphabet, that symbol's pad bits must be zero. Otherwise the result is `.Err(DecodeError.InvalidPadding(position))` at that symbol.
 6. r[std-encoding.base64.decode.order] The length is checked first. Among the other errors, the one at the smallest position is the result.
+
+```text
+use std.encoding.{base64_decode, DecodeError}
+
+fn problem(text: string) -> DecodeError?:
+    match base64_decode(text):
+        .Ok(_) => .None
+        .Err(error) => .Some(error)
+
+fn at(text: string) -> string:
+    match problem(text):
+        .Some(DecodeError.InvalidLength(n)) => "length $n"
+        .Some(DecodeError.InvalidCharacter(n)) => "character $n"
+        .Some(DecodeError.InvalidPadding(n)) => "padding $n"
+        .None => "ok"
+```
 
 | Text | `base64_decode` gives |
 | --- | --- |
