@@ -8,6 +8,11 @@ entry points, and the Wasm boundary.
 1. r[module.kind.module] Modules organize names by source path.
 2. r[module.kind.package] Packages organize compilation, dependencies, and Wasm artifacts.
 
+```hd
+fn demo(text: string) -> List[string]:
+    text.trim().split(" ")   # names resolve through modules
+```
+
 ## Package Manifest
 
 An hd-lang package has an `hd.toml` manifest:
@@ -83,6 +88,12 @@ it:
 6. r[module.repo.no-stored-credentials] The toolchain stores no credentials.
 7. r[module.repo.private-pattern] A private-path pattern marks host paths as private. The toolchain never sends a private path to a checksum log or proxy.
 
+```toml
+[dependencies]
+json = "github.com/acme/json@2.3.0"
+billing = { path = "../billing" }
+```
+
 ### Versions
 
 A package's versions are the git tags of its repository:
@@ -124,6 +135,11 @@ Pseudo-versions take Go's three forms:
 > does not match its commit. The error is `unknown-version`, by
 > [`cli.dep.unknown-version`](../cli/command-line.md#r-cli.dep.unknown-version).
 
+```sh
+git tag v2.3.0        # version 2.3.0 at the repository root
+git tag lint/v2.3.0   # version 2.3.0 of the package in lint/
+```
+
 ### Version Selection
 
 Selection is **minimal version selection**: each dependency requirement is
@@ -152,6 +168,11 @@ a minimum, and the build uses the largest minimum stated for each package:
 > which needs no registry index. A new tag reaches no build until some
 > manifest names it.
 
+```toml
+[dependencies]
+json = "github.com/acme/json@2.1.0"   # a minimum: 2.3.0 may be selected
+```
+
 ### Integrity
 
 A committed `hd.sum` file is what makes a fetched dependency trusted.
@@ -165,6 +186,11 @@ A committed `hd.sum` file is what makes a fetched dependency trusted.
 > **Why.** hd runs no paid servers. A checksum log or a caching proxy may
 > be added later only if it needs no infrastructure, or reuses free public
 > infrastructure.
+
+```sh
+hd fetch     # fetch every selected version the cache lacks
+cat hd.sum   # one hash per selected version; a mismatch is rejected
+```
 
 ### Workspaces
 
@@ -186,6 +212,11 @@ A workspace builds several packages of one repository as one graph.
 > ([`module.dep.no-self-path`](#r-module.dep.no-self-path)), so nothing
 > ties it to a fetched version of the same repository. Cargo likewise
 > treats a path source and a git source of one crate as two packages.
+
+```toml
+[workspace]
+members = ["libs/ui", "libs/shared"]
+```
 
 ### Path Requirements
 
@@ -231,6 +262,12 @@ A manifest states which toolchain versions can build its package.
 2. r[module.toolchain.graph-minimum] A build whose toolchain is older than the minimum of any package in the selected graph is rejected.
 3. r[module.toolchain.pin] Only a root manifest may pin one exact toolchain version.
 4. r[module.toolchain.no-editions] There are no language editions.
+
+```toml
+[package]
+name = "shop"
+hd = "0.2.0"   # the minimum toolchain that builds this package
+```
 
 ## Path-Inferred Modules
 
@@ -311,6 +348,11 @@ src/pkg.hd     # invalid: pkg names the package root module
 
 > **Why.** Checking paths this way rejects ambiguous module names before
 > host filesystem case behavior can change the module graph.
+
+```text
+src/user/types.hd    # user.types
+src/User/types.hd    # a different module: identities are case-sensitive
+```
 
 ### Test Modules
 
@@ -613,6 +655,11 @@ directory of its child modules:
 5. r[module.folder.mod-file] A `mod.hd` file is in the folder of its directory, like the other files there.
 6. r[module.folder.nested] Nested directories are separate folders: a file in `src/shop/orders` is not in folder `src/shop`.
 
+```text
+src/shop/mod.hd      # module shop, folder src/shop
+src/shop/cart.hd     # module shop.cart, folder src/shop
+```
+
 ### Folder Graph
 
 1. r[module.cycle.folder-edge] The **folder graph** of a package has an edge from folder `A` to a different folder `B`. The edge exists when a file in `A` uses a module in `B`. A `use` or `pub use` uses the module its path reaches. So `use pkg.shop.{Item}` and `use pkg.shop.Item` both use `shop`.
@@ -653,6 +700,11 @@ use pkg.error.{Error}  # error: folder-cycle
 1. r[module.cycle.diagnostic.loop] The `folder-cycle` diagnostic must show one shortest loop of folders, with the `use` declaration that makes each edge.
 2. r[module.cycle.diagnostic.size] It must show the size of the tangle: the number of folders that lie on some loop with the shown ones.
 3. r[module.cycle.diagnostic.fix] It must offer a fix-it that moves a file `x.hd` on the loop to `x/mod.hd`, which keeps its module name.
+
+```text
+folder-cycle: src/shop -> src/cart -> src/shop
+tangle of 3 folders; move src/cart.hd to src/cart/mod.hd
+```
 
 See also: [Use Declarations](03-names-and-scopes.md#use-declarations),
 [Initialization Order](#initialization-order).
@@ -721,6 +773,17 @@ fn helper() -> void:
 13. r[module.prelude.ops-call-traits] `std.ops` also declares `Apply` and `Update`, the traits of [callable values](05-expressions.md#callable-values). Code imports one to name it; `v()` and `v() = x` need no import.
 14. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
 
+```hd
+use std.cmp.Eq
+
+@derive(Eq)
+data Point:
+    x: i32
+
+fn same(a: Point, b: Point) -> bool:
+    a == b   # Eq is available through the use
+```
+
 > **Note.** More standard names outside the prelude are stdlib tier.
 > Examples are the string prefix [`r`](../std/text.md#raw-text-prefix) of
 > `std.text`,
@@ -754,6 +817,11 @@ fn count() -> i32:
 3. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
 4. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
 5. r[module.prelude.dbg] The prelude name `dbg` is the function with the signature that [Debug Printing](#r-module.dbg.signature) specifies, whose body the compiler supplies.
+
+```hd
+pub fn main() -> void $ Console:
+    println("hi")   # prelude: no import needed
+```
 
 ### Debug Printing
 
@@ -815,6 +883,12 @@ pub fn main() -> void:
 3. r[module.dbg.location] The location is `FILE:LINE:COLUMN`: the file as diagnostics name it, and the line and column where the call begins.
 4. r[module.dbg.stream] A `dbg` line goes to the program's debug output, which a program that `hd` runs writes to standard error. [Debug Output](../cli/command-line.md#debug-output) says where it goes in tests and the REPL.
 
+```hd
+fn demo(x: i32) -> i32:
+    dbg(x)   # prints "FILE:LINE:COLUMN: x = 1" to standard error
+    x * 2
+```
+
 #### Debug Values
 
 1. r[module.dbg.value.debug] A value whose static type implements `Debug` prints as its `Debug` text, as [`debug`](#r-module.prelude.debug) returns it.
@@ -852,6 +926,11 @@ fn audit(account: Account) -> Account:
 3. r[module.dbg.limit.entries] A list or map prints at most its first 100 entries, then `… N more` for the N entries it leaves out.
 4. r[module.dbg.limit.depth] A part nested more than 10 levels deep prints `…`.
 5. r[module.dbg.limit.string] A string longer than 1000 characters prints its first 1000 characters, then `…`.
+
+```hd
+fn demo(items: List[i32]) -> void:
+    dbg(items)   # over 100 entries: the rest print as … N more
+```
 
 > **Note.** The limits keep one `dbg` call of a large or cyclic value
 > readable, and keep it from running without end.
@@ -1052,6 +1131,11 @@ fn version!() -> string $ Process:
 5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
 6. r[module.prelude.any-sealed] User code cannot implement either.
 
+```hd
+fn demo[T < AnyRef](value: T) -> bool:
+    value is value
+```
+
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any),
 [`types.sealed.never`](04-type-system.md#r-types.sealed.never) for `never`,
 [Sealed Traits](09-traits.md#sealed-traits).
@@ -1098,11 +1182,21 @@ these, such as `trim` and `split`. [Iterators](../std/iter.md#list-and-optional-
 covers `map` on a list or an optional, and [Collections](../std/collections.md)
 covers the list method `view`.
 
+```hd
+fn demo(items: List[string]) -> usize:
+    items.len()
+```
+
 #### Map Complexity
 
 1. r[module.map.complexity] Map lookup, insertion, and removal take expected amortized O(1) time.
 2. r[module.map.complexity.operations] This covers `get`, `remove`, reading `entries[key]`, and inserting or replacing through `entries[key] = value`.
 3. r[module.map.complexity.step] Each call of the key type's `Hash` or `Eq` implementation counts as one step.
+
+```hd
+fn demo(table: Map[string, i32], key: string) -> i32?:
+    table.get(key)   # expected amortized O(1)
+```
 
 See also: [Indexing](05-expressions.md#indexing).
 
@@ -1457,6 +1551,11 @@ top-level code may do.
 3. r[module.init.statements-and-main] If an entry module contains both top-level statements and `main`, its top-level statements initialize the module first and then the runtime invokes `main`. That form is an executable entry module, not a script.
 4. r[module.init.program-instance] A **program instance** is one instantiated Wasm module graph together with its module storage, provider bindings, and execution state.
 
+```hd
+pub fn main() -> void:
+    pass   # an executable entry module, not a script
+```
+
 ### Initialization Order
 
 1. r[module.init.use-graph] Before execution, the compiler resolves the use graph reachable from the selected script or executable entry module. The graph may have loops inside one folder.
@@ -1466,6 +1565,15 @@ top-level code may do.
 
 > **Why.** Ordering by module identity makes initialization independent of
 > filesystem enumeration.
+
+```hd
+start := +1
+
+fn total() -> i32:
+    start + 1
+
+demo := total()
+```
 
 #### Order Inside A Group
 
@@ -1503,6 +1611,13 @@ pub fn price_of(sku: string) -> i32:
 4. r[module.init.binding] Top-level bindings are initialized at their statement, before later function bodies may access them.
 5. r[module.init.storage] Their storage remains available to functions in that module for the lifetime of the program instance.
 6. r[module.init.no-step] A module with no top-level executable statements has no observable initialization step.
+
+```hd
+count := +0
+
+fn demo() -> i32:
+    count + 1   # storage lives for the program instance
+```
 
 ### Definite Initialization
 
@@ -1564,10 +1679,23 @@ tests:
 4. r[module.init.script-row.report] The compiler reports that row alongside `main!` rows for host configuration.
 5. r[module.init.script-not-driver] A script's top level is not itself a suspension driver. Bang calls must occur in a suspending entry function or another specified driver context.
 
+```hd
+limit := +10
+
+fn demo(n: i32) -> bool:
+    n < limit   # requirement-free: no $.use, no bang call
+```
+
 ### Program Instances
 
 1. r[module.init.per-instance] This initialization rule governs one program instance.
 2. r[module.init.histories] Interactive cell re-execution and durable replay have separate runtime histories described in `RUNTIME_AND_LIBRARY.md`.
+
+```hd
+tests:
+    it("each case runs in a fresh instance"):
+        _ := +1
+```
 
 ## Public Uses And Visibility
 
@@ -1630,6 +1758,12 @@ use pkg.shop.a.{Token}  # error: re-export-loop
 4. r[module.vis.trait-methods] Trait methods follow their trait's visibility.
 5. r[module.vis.impl-target] A usable implementation additionally requires its target type to be visible.
 
+```hd
+data User:
+    pub name: string
+    id: i32
+```
+
 ### Public Signatures
 
 1. r[module.vis.signature] A public declaration's complete source-level signature must not expose a module-private declaration. Error: `private-type-leak`.
@@ -1653,6 +1787,10 @@ See also: [Field Visibility](08-data-and-enums.md#field-visibility).
 3. r[module.package.identity-part] Resolved package identity is part of a declaration's identity.
 4. r[module.package.public-surface] A package must not access another package except through declarations reachable from that package's public module surface.
 5. r[module.package.separate] Implementations may compile packages separately.
+
+```hd
+use std.json.parse
+```
 
 ### Fully Annotated Declarations
 
@@ -1687,6 +1825,11 @@ A package interface must contain:
 6. r[module.interface.early-facts] A downstream package can be compiled as soon as the interfaces of its dependencies are known. It need not wait for their function bodies to be checked or compiled, except the bodies their fact expressions call.
 7. r[module.interface.coherence] Coherence is checked at link time over the complete set of resolved interface files.
 8. r[module.interface.link-reject] Linking may therefore reject a graph even when each package compiled independently.
+
+```hd
+pub fn total(items: List[i32]) -> usize:
+    items.len()   # fully annotated: this signature enters the package interface
+```
 
 ## Executable Entry Point
 
@@ -1786,6 +1929,14 @@ pub fn main() -> Result[ExitCode, string]:
 1. r[module.entry.no-arguments] `main` has no source-level arguments.
 2. r[module.entry.host-facilities] Process arguments, console access, environment, and other host facilities are requirements supplied by the runtime through the requirement model.
 
+```hd
+use std.host.Args
+
+pub fn main() -> void $ Args:
+    args := $.use(Args).list()
+    _ := args
+```
+
 ## Wasm Boundary
 
 This section defines runtime profiles, registered boundary functions, the
@@ -1806,6 +1957,11 @@ values that cross a boundary, and the official host boundary.
 > so a panicking program and a failed build never share a status.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
+
+```hd
+pub fn main() -> void $ Console:
+    println("hi")   # the default profile binds Console
+```
 
 ### Host Results
 
@@ -1831,6 +1987,13 @@ host before hd code sees it:
 > Stopping at the boundary names the host, where a silently wrapped value
 > would surface later as a wrong answer in hd code.
 
+```hd
+use std.console.{ConsoleError, ConsoleInput, read_line}
+
+fn demo!() -> Result[string?, ConsoleError] $ ConsoleInput:
+    .Ok(read_line!()?)   # the adapter checks the host's answer against the declared result
+```
+
 #### Floats At The Host Boundary
 
 A float crosses a live host call as its IEEE 754 value, with no encoding:
@@ -1838,6 +2001,11 @@ A float crosses a live host call as its IEEE 754 value, with no encoding:
 1. r[module.profile.host-float.raw] A call of a host capability trait's method passes each `f32` or `f64` argument as a raw IEEE 754 value of that width. It returns each such result the same way.
 2. r[module.profile.host-float.special] So a NaN, both infinities, and `-0.0` cross the call unchanged, in either direction.
 3. r[module.profile.host-float.nan] A NaN's payload may arrive replaced with the canonical NaN of [`types.display.nan-canonical`](04-type-system.md#r-types.display.nan-canonical).
+
+```hd
+fn demo(x: f64) -> f64:
+    x + 0.5   # floats cross calls as raw IEEE 754 values
+```
 
 > **Why.** WIT's `f64`, wasm-bindgen, and the C ABI all pass floats as raw
 > IEEE 754 values. Special values need care only when a value becomes text,
@@ -1852,6 +2020,11 @@ A float crosses a live host call as its IEEE 754 value, with no encoding:
 5. r[module.register.application] That bindable set may include application traits such as `Database` when the adapter explicitly supports them.
 6. r[module.register.row] Every key in the registered function's row must be in that bindable set, and the host must bind all of them before invocation.
 7. r[module.register.failure] Otherwise registration or startup fails before user code executes.
+
+```hd
+pub fn main() -> void:
+    pass   # a tool becomes host-callable only through its library's explicit registration
+```
 
 ### Boundary-Safe Values
 
@@ -1869,6 +2042,14 @@ Registered boundaries initially allow recursively structural values:
 4. r[module.boundary.erased-error] In particular, the erased error `std.error.Error` never crosses a registered boundary.
 5. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
 
+```hd
+data User:
+    name: string
+
+fn demo(user: User) -> string:
+    user.name   # data crosses: recursively structural values are boundary-safe
+```
+
 > **Note.** An error type with a member of type `Error` is therefore not
 > boundary-safe either. Before such an error crosses a boundary, code
 > converts it with the standard-library `report_of` to an `ErrorReport`,
@@ -1882,6 +2063,18 @@ See also: [Error Trait](09-traits.md#error-trait).
 2. r[module.boundary.cycle] Encoding a cycle is a boundary error. Boundary failure: `boundary-cycle`.
 3. r[module.boundary.sharing] When an acyclic graph shares a node, each incoming path encodes a duplicate tree value, and decoding does not restore sharing.
 4. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
+
+```hd
+use std.hash.Hash
+
+@derive(Eq, Hash)
+data Tag:
+    id: i32
+
+fn demo() -> void:
+    let table: mut Map[Tag, string] = {}
+    table[Tag { id: +1 }] = "one"   # decoding a map invokes Eq and Hash
+```
 5. r[module.boundary.decoder-panic] If either panics, the adapter reports a boundary failure and does not enter the registered function. Boundary failure: `boundary-decoder-panic`.
 6. r[module.boundary.decoder-poison] The adapter treats that event as an ordinary poisoning panic: the program instance must be discarded.
 7. r[module.boundary.float-bits] A boundary value or host-call result serialized as text, as in a replay record, writes an `f64` as its IEEE 754 bit pattern. That is 16 lowercase hex digits, most significant first.
@@ -1929,6 +2122,11 @@ pub trait Vault:  # a host capability of the selected runtime profile
 5. r[module.boundary.consent.error] A boundary signature whose type, or a type inside it, would cross without the consent its direction needs is an error, reported at that signature. Error: `boundary-private-field`.
 6. r[module.boundary.consent.tree] A consented value crosses as the same tree of fields as any other data value. The consent permits the crossing and changes no encoding.
 
+```hd
+fn demo() -> List[i32]:
+    [+1, +2]   # boundary values have tree semantics: shared nodes encode twice
+```
+
 > **Why.** A host is one more format. A type that lets JSON read its
 > private fields lets the host read them too. Without its author's
 > consent, its private state stays away from both.
@@ -1945,6 +2143,11 @@ pub trait Vault:  # a host capability of the selected runtime profile
 2. r[module.instance.parallel] Hosts may run multiple Wasm instances in parallel only by exchanging boundary-safe values.
 3. r[module.instance.disjoint] Their heaps, mutable globals, and suspension drivers are disjoint.
 
+```hd
+fn demo() -> i32:
+    +1   # one thread, no atomics: this is the whole story
+```
+
 ### Host Boundary
 
 1. r[module.host.wasm] The official compiler targets Wasm only.
@@ -1955,6 +2158,10 @@ pub trait Vault:  # a host capability of the selected runtime profile
 6. r[module.host.requirements] Every host facility is injected through an ordinary requirement trait.
 7. r[module.host.capability-set] The eventual standard capability-trait set is runtime and library work.
 8. r[module.host.abi] The exact component-model ABI and registration APIs are runtime and library specification work.
+
+```sh
+hd build --release src/main.hd   # the official compiler targets Wasm
+```
 
 ### Closable Handles
 
@@ -1976,6 +2183,15 @@ enum ResourceError[E]:
 
 1. r[module.tooling.abi] The exact Wasm component boundary and registration mechanism belong to the runtime ABI.
 2. r[module.unsupported.visibility] hd-lang has no package-private visibility or independent visibility for enum variants and trait methods.
+
+```hd
+enum Choice:
+    Yes
+    No
+
+fn demo(choice: Choice) -> bool:
+    choice is Choice.Yes   # variants share the enum's visibility
+```
 
 See also: [Command Line](../cli/command-line.md), which defines package tooling: package
 mode, executables, tasks, and the `hd` commands.
