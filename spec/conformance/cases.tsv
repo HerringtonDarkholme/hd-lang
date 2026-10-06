@@ -2591,3 +2591,14 @@ parse/invalid/gadt-named-pattern-before-positional.hd	parse	reject:pattern-order
 parse/invalid/gadt-named-argument-before-positional.hd	parse	reject:argument-order	lang/13-gadts.md#r-gadt.construct.order
 typing/invalid/match-arm-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.result.least-common
 typing/invalid/if-branch-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.if.value.least-common
+runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
+runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
+runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.order
+runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args
+runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors
+runtime/valid/json-typed-members.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.embedded
+typing/invalid/serde-derive-member-not-deserialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error
+typing/invalid/boundary-result-needs-deserialize.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.consent.in
+typing/invalid/boundary-nested-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.consent.error
+runtime/valid/boundary-public-fields-cross.hd	runtime	accept	lang/10-modules.md#r-module.boundary.consent.public
+runtime/valid/boundary-consent-by-hand.hd	runtime	accept	lang/14-annotations.md#r-annot.serde.by-hand

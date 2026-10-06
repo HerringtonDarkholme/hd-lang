@@ -2639,3 +2639,14 @@ typing/invalid/gadt-match-missing-inhabitable-variant.hd	type
 typing/invalid/gadt-variant-result-undeclared-parameter.hd	type
 parse/invalid/gadt-named-pattern-before-positional.hd	parse
 parse/invalid/gadt-named-argument-before-positional.hd	parse
+runtime/valid/serde-std-writes.hd	runtime
+runtime/valid/serde-std-reads.hd	runtime
+runtime/valid/serde-derive-read-order.hd	runtime
+runtime/valid/serde-variant-member-facts.hd	runtime
+runtime/valid/serde-writer-first-error.hd	runtime
+runtime/valid/json-typed-members.hd	runtime
+typing/invalid/serde-derive-member-not-deserialize.hd	type
+typing/invalid/boundary-result-needs-deserialize.hd	type
+typing/invalid/boundary-nested-private-field.hd	type
+runtime/valid/boundary-public-fields-cross.hd	runtime
+runtime/valid/boundary-consent-by-hand.hd	runtime

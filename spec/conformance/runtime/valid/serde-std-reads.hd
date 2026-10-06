@@ -1,0 +1,205 @@
+# test: each standard Deserialize reads one value with its own call and expected name, and a value that does not fit is the reader's invalid error
+# Spec std/serde Reading, Standard Implementations: std-serde.read.scalar, std-serde.read.expected, std-serde.read.invalid, std-serde.read.is-null, std-serde.read.list, std-serde.read.map, std-serde.read.one-value, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map, std-serde.std.range, std-serde.std.float-read.
+use std.serde.{Deserialize, Deserializer, ValueKind}
+use std.structure.{Facts, VariantInfo, Member}
+use std.testing.assert_equal
+
+# One scripted value or step of a sensor feed.
+enum Tok:
+    Absent
+    Null
+    Bool(value: bool)
+    Int(value: i64)
+    Uint(value: u64)
+    Float(value: f64)
+    Text(value: string)
+    Item
+    Key(name: string)
+    Done
+    Pick(index: usize)
+
+# A reader over a fixed list of tokens. It records each call as a word.
+data Feed:
+    pub toks: List[Tok]
+    pub at: usize
+    pub log: string
+
+impl Feed:
+    fn add(mut self, word: string) -> void:
+        if self.log == "":
+            self.log = word
+        else:
+            self.log = self.log + " " + word
+
+    fn take(mut self) -> Tok:
+        if self.at >= self.toks.len():
+            return Tok.Done
+        found := self.toks[self.at]
+        self.at = self.at + 1
+        found
+
+impl Deserializer for Feed:
+    type Error = string
+
+    fn peek(mut self) -> Result[ValueKind, string]:
+        self.add("peek")
+        if self.at >= self.toks.len():
+            return .Ok(ValueKind.Null)
+        match self.toks[self.at]:
+            Tok.Absent => .Ok(ValueKind.Null)
+            Tok.Null => .Ok(ValueKind.Null)
+            Tok.Bool(_) => .Ok(ValueKind.Bool)
+            Tok.Int(_) => .Ok(ValueKind.Int)
+            Tok.Uint(_) => .Ok(ValueKind.Uint)
+            Tok.Float(_) => .Ok(ValueKind.Float)
+            Tok.Text(_) => .Ok(ValueKind.Text)
+            _ => .Err("not a value")
+
+    fn is_null(mut self) -> Result[bool, string]:
+        self.add("is-null")
+        if self.at < self.toks.len():
+            match self.toks[self.at]:
+                Tok.Absent =>
+                    self.at = self.at + 1
+                    return .Ok(true)
+                Tok.Null =>
+                    self.at = self.at + 1
+                    return .Ok(true)
+                _ => pass
+        .Ok(false)
+
+    fn bool(mut self, expected: string) -> Result[bool, string]:
+        self.add("bool:$expected")
+        match self.take():
+            Tok.Bool(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn int(mut self, expected: string) -> Result[i64, string]:
+        self.add("int:$expected")
+        match self.take():
+            Tok.Int(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn uint(mut self, expected: string) -> Result[u64, string]:
+        self.add("uint:$expected")
+        match self.take():
+            Tok.Uint(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn float(mut self, expected: string) -> Result[f64, string]:
+        self.add("float:$expected")
+        match self.take():
+            Tok.Float(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn text(mut self, expected: string) -> Result[string, string]:
+        self.add("text:$expected")
+        match self.take():
+            Tok.Text(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn begin_list(mut self) -> Result[void, string]:
+        self.add("list")
+        .Ok(())
+
+    fn next_item(mut self) -> Result[bool, string]:
+        match self.take():
+            Tok.Item => .Ok(true)
+            _ => .Ok(false)
+
+    fn begin_map(mut self) -> Result[void, string]:
+        self.add("map")
+        .Ok(())
+
+    fn next_key(mut self) -> Result[string?, string]:
+        match self.take():
+            Tok.Key(name) => .Ok(.Some(name))
+            _ => .Ok(.None)
+
+    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        let names: mut List[string] = []
+        for choice in choices:
+            names.push(choice.name)
+        self.add("variant:${names.join("|")}")
+        match self.take():
+            Tok.Pick(index) => .Ok(index)
+            _ => .Err("no variant")
+
+    fn member(mut self, m: Member) -> Result[void, string]:
+        self.add("member:${m.name}")
+        .Ok(())
+
+    fn end_variant(mut self) -> Result[void, string]:
+        self.add("end-variant")
+        .Ok(())
+
+    fn invalid(mut self, expected: string) -> string:
+        "invalid $expected"
+
+# Reads one T, and gives the result, the call log, and how many tokens it used.
+fn read[T < Deserialize](toks: List[Tok]) -> (Result[T, string], string, usize):
+    let input: mut Feed = Feed { toks: toks, at: 0, log: "" }
+    result := T::deserialize(input)
+    (result, input.log, input.at)
+
+tests:
+    it("each scalar type reads with its own call and its name as expected"):
+        assert_equal(read::[bool]([Tok.Bool(true)]), (.Ok(true), "bool:bool", 1), reason="bool")
+        assert_equal(read::[string]([Tok.Text("north")]), (.Ok("north"), "text:string", 1), reason="string")
+        assert_equal(read::[char]([Tok.Text("N")]), (.Ok('N'), "text:char", 1), reason="char")
+        assert_equal(read::[i8]([Tok.Int(-40)]), (.Ok(-40), "int:i8", 1), reason="i8")
+        assert_equal(read::[i16]([Tok.Int(-300)]), (.Ok(-300), "int:i16", 1), reason="i16")
+        assert_equal(read::[i32]([Tok.Int(70000)]), (.Ok(+70000), "int:i32", 1), reason="i32")
+        assert_equal(read::[i64]([Tok.Int(-9000000000)]), (.Ok(-9000000000), "int:i64", 1), reason="i64")
+        assert_equal(read::[u8]([Tok.Uint(255)]), (.Ok(255), "uint:u8", 1), reason="u8")
+        assert_equal(read::[u16]([Tok.Uint(65535)]), (.Ok(65535), "uint:u16", 1), reason="u16")
+        assert_equal(read::[u32]([Tok.Uint(4000000000)]), (.Ok(4000000000), "uint:u32", 1), reason="u32")
+        assert_equal(read::[u64]([Tok.Uint(18446744073709551615)]), (.Ok(18446744073709551615), "uint:u64", 1), reason="u64")
+        assert_equal(read::[usize]([Tok.Uint(12)]), (.Ok(12), "uint:usize", 1), reason="usize")
+        assert_equal(read::[f64]([Tok.Float(21.5)]), (.Ok(21.5), "float:f64", 1), reason="f64")
+        assert_equal(read::[f32]([Tok.Float(0.25)]), (.Ok(0.25), "float:f32", 1), reason="f32")
+
+    it("a value the type cannot hold is the reader's invalid error for expected"):
+        assert_equal(read::[i8]([Tok.Int(128)])._0, .Err("invalid i8"), reason="past i8")
+        assert_equal(read::[i16]([Tok.Int(-32769)])._0, .Err("invalid i16"), reason="below i16")
+        assert_equal(read::[i32]([Tok.Int(2147483648)])._0, .Err("invalid i32"), reason="past i32")
+        assert_equal(read::[u8]([Tok.Uint(256)])._0, .Err("invalid u8"), reason="past u8")
+        assert_equal(read::[u16]([Tok.Uint(65536)])._0, .Err("invalid u16"), reason="past u16")
+        assert_equal(read::[u32]([Tok.Uint(4294967296)])._0, .Err("invalid u32"), reason="past u32")
+        assert_equal(read::[char]([Tok.Text("NE")])._0, .Err("invalid char"), reason="two characters")
+        assert_equal(read::[char]([Tok.Text("")])._0, .Err("invalid char"), reason="no character")
+        assert_equal(read::[f32]([Tok.Float(1.0e300)])._0, .Err("invalid f32"), reason="past the finite f32 range")
+        assert_equal(read::[f32]([Tok.Float(-1.0e300)])._0, .Err("invalid f32"), reason="below the finite f32 range")
+
+    it("a value of another kind is the reader's error too"):
+        assert_equal(read::[u8]([Tok.Int(5)])._0, .Err("invalid u8"), reason="an unsigned type reads uint")
+        assert_equal(read::[string]([Tok.Bool(false)])._0, .Err("invalid string"), reason="a string reads text")
+
+    it("an f32 reads the nearest f32 to the f64"):
+        let reading: f32 = 0.1
+        assert_equal(read::[f32]([Tok.Float(0.1)])._0, .Ok(reading), reason="0.1 rounds to the nearest f32")
+
+    it("an optional asks is_null first"):
+        assert_equal(read::[i32?]([Tok.Null]), (.Ok(.None), "is-null", 1), reason="null")
+        assert_equal(read::[i32?]([Tok.Absent]), (.Ok(.None), "is-null", 1), reason="absent")
+        assert_equal(read::[i32?]([Tok.Int(12)]), (.Ok(.Some(+12)), "is-null int:i32", 1), reason="present")
+
+    it("a list reads next_item before each item"):
+        readings := read::[List[f64]]([Tok.Item, Tok.Float(20.5), Tok.Item, Tok.Float(21.0), Tok.Done])
+        assert_equal(readings, (.Ok([20.5, 21.0]), "list float:f64 float:f64", 5), reason="two items")
+        assert_equal(read::[List[f64]]([Tok.Done]), (.Ok([]), "list", 1), reason="no item")
+
+    it("a map reads next_key before each entry, and keeps the order read"):
+        found := read::[Map[string, u16]]([Tok.Key("west"), Tok.Uint(3), Tok.Key("east"), Tok.Uint(9), Tok.Done])
+        assert_equal(found._1, "map uint:u16 uint:u16", reason="calls")
+        match found._0:
+            .Ok(gusts) =>
+                assert_equal(gusts.get("east"), .Some(9), reason="east")
+                let order: mut List[string] = []
+                for entry in gusts:
+                    order.push(entry._0)
+                assert_equal(order, ["west", "east"], reason="order read")
+            .Err(error) => panic("read failed: $error")
+
+    it("a bad item ends the read with the reader's error"):
+        assert_equal(read::[List[u8]]([Tok.Item, Tok.Uint(1), Tok.Item, Tok.Uint(300), Tok.Item, Tok.Uint(2), Tok.Done]), (.Err("invalid u8"), "list uint:u8 uint:u8", 4), reason="stops at the second item")

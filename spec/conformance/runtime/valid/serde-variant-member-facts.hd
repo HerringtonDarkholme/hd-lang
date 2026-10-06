@@ -1,0 +1,118 @@
+# test: begin_variant gets the type's facts and the variant's VariantInfo, and member gets each member's Member with the facts its derivation sees
+# Spec std/serde Data Model: std-serde.model.variant-args, std-serde.model.member-args, std-serde.model.variant.
+# Spec 14 Structure: annot.structure.per-derivation.
+use std.serde.{Serialize, Serializer}
+use std.structure.{Structure, Facts, VariantInfo, Member}
+use std.testing.assert_equal
+
+data Topic:
+    name: string
+
+fn topic(name: string) -> Topic:
+    Topic { name: name }
+
+data Rename:
+    name: string
+
+fn rename(name: string) -> Rename:
+    Rename { name: name }
+
+# Records the facts that an event format would use for its topic and keys.
+data Envelope:
+    pub log: string
+
+impl Envelope:
+    fn add(mut self, word: string) -> Result[void, never]:
+        if self.log == "":
+            self.log = word
+        else:
+            self.log = self.log + " " + word
+        .Ok(())
+
+impl Serializer for Envelope:
+    type Error = never
+
+    fn null(mut self) -> Result[void, never]:
+        self.add("null")
+
+    fn bool(mut self, value: bool) -> Result[void, never]:
+        self.add("$value")
+
+    fn int(mut self, value: i64) -> Result[void, never]:
+        self.add("$value")
+
+    fn uint(mut self, value: u64) -> Result[void, never]:
+        self.add("$value")
+
+    fn float(mut self, value: f64) -> Result[void, never]:
+        self.add("$value")
+
+    fn text(mut self, value: string) -> Result[void, never]:
+        self.add(value)
+
+    fn begin_list(mut self, len: usize) -> Result[void, never]:
+        self.add("[")
+
+    fn end_list(mut self) -> Result[void, never]:
+        self.add("]")
+
+    fn begin_map(mut self, len: usize) -> Result[void, never]:
+        self.add("{")
+
+    fn key(mut self, key: string) -> Result[void, never]:
+        self.add("$key=")
+
+    fn end_map(mut self) -> Result[void, never]:
+        self.add("}")
+
+    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+        let on: string = match facts.find::[Topic]():
+            .Some(found) => found.name
+            .None => "-"
+        self.add("<$on ${v.name}#${v.index} data=${v.of_data}>")
+
+    fn member(mut self, m: Member) -> Result[void, never]:
+        let key: string = match m.facts.find::[Rename]():
+            .Some(found) => found.name
+            .None => m.name
+        self.add("$key@${m.position}:")
+
+    fn end_variant(mut self) -> Result[void, never]:
+        self.add("</>")
+
+fn send[T < Serialize](value: T) -> string:
+    let out: mut Envelope = Envelope { log: "" }
+    _ := value.serialize(out)
+    out.log
+
+@derive(Serialize)
+@topic("billing")
+data Invoiced:
+    @rename("invoice_id")
+    id: u64
+    total_cents: i64
+
+@derive(Serialize)
+@topic("shipping")
+enum Shipment:
+    Packed
+    Sent(carrier: string, tracking: string)
+
+data Refund:
+    id: u64
+    amount_cents: i64
+
+impl Serialize for Refund by Structure:
+    Self += [topic("refunds")]
+    amount_cents = [rename("amount")]
+
+tests:
+    it("a data value is its type's one variant, with of_data true and the type's facts"):
+        assert_equal(send(Invoiced { id: 81, total_cents: 1999 }), "<billing Invoiced#0 data=true> invoice_id@0: 81 total_cents@1: 1999 </>", reason="type fact and member fact")
+
+    it("an enum value names its variant and index, with of_data false"):
+        assert_equal(send(Shipment.Packed), "<shipping Packed#0 data=false> </>", reason="first variant")
+        assert_equal(send(Shipment.Sent("DHL", "JD01")), "<shipping Sent#1 data=false> carrier@0: DHL tracking@1: JD01 </>", reason="second variant")
+
+    it("the facts are the ones the Serialize derivation block adds"):
+        assert_equal(send(Refund { id: 5, amount_cents: 250 }), "<refunds Refund#0 data=true> id@0: 5 amount@1: 250 </>", reason="block facts")

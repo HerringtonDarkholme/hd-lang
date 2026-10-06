@@ -1,0 +1,76 @@
+# test: an embedded member is one key named by its type, shared constructor data is not written, a newtype is its base value, and a generic type round trips
+# Spec std/json Derived Serialize, Derived Deserialize, Encode And Decode: std-json.derive.to-json.embedded, std-json.derive.to-json.shared, std-json.derive.from-json.inverse, std-json.from-json.root.
+# Spec std/serde Derived Consent: std-serde.derive.shared, std-serde.derive.serialize.template, std-serde.derive.deserialize.template.
+# Spec 09 Derived Newtypes: trait.derive.newtype.templated, trait.derive.newtype.self-positions.
+use std.json.{encode, decode, from_json, parse, Json, JsonError}
+use std.serde.{Serialize, Deserialize}
+use std.testing.assert_equal
+
+@derive(Serialize, Deserialize)
+type OrderId(u64)
+
+@derive(Serialize, Deserialize)
+data Audit:
+    created_by: string
+    revision: u32
+
+@derive(Serialize, Deserialize)
+data Order:
+    Audit
+    id: OrderId
+    total_cents: i64
+    currency: string
+
+@derive(Serialize, Deserialize)
+data Page[T]:
+    items: List[T]
+    next: string?
+
+@derive(Serialize, Deserialize)
+enum Status(code: i32):
+    Placed -> Status(+1)
+    Shipped(carrier: string) -> Status(+2)
+
+fn order() -> Order:
+    Order { Audit: ...Audit { created_by: "ada", revision: 3 }, id: OrderId(42), total_cents: 1999, currency: "EUR" }
+
+fn order_text() -> string:
+    "{\"Audit\":{\"created_by\":\"ada\",\"revision\":3},\"id\":42,\"total_cents\":1999,\"currency\":\"EUR\"}"
+
+fn read[T < Deserialize](text: string) -> T:
+    match decode::[T](text):
+        .Ok(value) => value
+        .Err(error) => panic("decode failed: $error")
+
+tests:
+    it("an embedded member is one key named by its type, not flattened"):
+        assert_equal(encode(order()), order_text(), reason="Audit is a nested object")
+        back := read::[Order](order_text())
+        assert_equal(back.Audit.created_by, "ada", reason="the embedded part reads back")
+        assert_equal(encode(back), order_text(), reason="round trip")
+
+    it("a newtype writes and reads its base value"):
+        assert_equal(encode(OrderId(42)), "42", reason="no wrapper")
+        assert_equal(encode(read::[OrderId]("7")), "7", reason="reads its base value")
+        assert_equal(decode::[OrderId]("-1").map(fn(found): encode(found)), .Err(JsonError.WrongType("$", "u64")), reason="the base type's error")
+
+    it("a generic data type round trips for each type argument"):
+        let numbers: Page[i32] = Page { items: [+1, +2], next: .None }
+        assert_equal(encode(numbers), "{\"items\":[1,2],\"next\":null}", reason="Page[i32]")
+        let orders: Page[Order] = Page { items: [order()], next: .Some("p2") }
+        text := encode(orders)
+        assert_equal(text, "{\"items\":[${order_text()}],\"next\":\"p2\"}", reason="Page[Order]")
+        assert_equal(encode(read::[Page[Order]](text)), text, reason="round trip")
+
+    it("shared constructor data is neither written nor read"):
+        assert_equal(encode(Status.Shipped("DHL")), "{\"Shipped\":{\"carrier\":\"DHL\"}}", reason="no code key")
+        assert_equal(encode(Status.Placed), "\"Placed\"", reason="a variant with no member")
+        assert_equal(read::[Status]("{\"Shipped\":{\"carrier\":\"DHL\"}}").code, +2, reason="code comes from the variant")
+        assert_equal(read::[Status]("{\"Placed\":{\"code\":9}}").code, +1, reason="a code key is ignored")
+
+    it("from_json paths start at the value it reads"):
+        match parse("{\"order\":{\"Audit\":{\"created_by\":\"ada\",\"revision\":3},\"id\":42,\"total_cents\":\"x\"}}"):
+            .Ok(root) =>
+                inner := root.get("order").unwrap_or(Json.Null)
+                assert_equal(from_json::[Order](inner).map(fn(found): found.total_cents), .Err(JsonError.WrongType("$.total_cents", "i64")), reason="not $.order.total_cents")
+            .Err(error) => panic("parse failed: $error")

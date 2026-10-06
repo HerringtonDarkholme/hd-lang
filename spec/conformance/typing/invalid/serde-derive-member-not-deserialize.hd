@@ -1,0 +1,11 @@
+# test: deriving Deserialize for a type with a member that has no Deserialize is an error at the opt-in
+# Spec Annotations, Serialization: annot.serde.members, annot.serde.members.error.
+use std.serde.Deserialize
+
+data Signature:
+    digest: string
+
+@derive(Deserialize)  # diagnostic: member-not-derivable
+data Release:
+    version: string
+    signature: Signature

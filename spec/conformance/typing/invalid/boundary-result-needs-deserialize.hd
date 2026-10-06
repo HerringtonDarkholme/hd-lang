@@ -1,0 +1,15 @@
+# test: a host capability method's result crosses into hd, so a type with a private field that only consents to Serialize cannot be its result
+# Spec Modules, Private Fields At A Boundary: module.boundary.consent.in, module.boundary.consent.direction, module.boundary.consent.error.
+# fixture-runtime-profile: consent-vault
+use std.serde.Serialize
+
+@derive(Serialize)
+pub data Token:
+    pub owner: string
+    secret: i64
+
+pub trait Vault:
+    fn keep(self, token: Token) -> Token  # diagnostic: boundary-private-field
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(Token { owner: "ada", secret: 42 })

@@ -1,0 +1,227 @@
+# test: a derived Deserialize offers every variant to begin_variant, then reads each built member with member and its own deserialize, then calls end_variant; a hand-written one may peek
+# Spec std/serde Reading, Derived Consent: std-serde.read.variant, std-serde.read.choices, std-serde.read.member, std-serde.read.peek, std-serde.derive.deserialize.template, std-serde.derive.deserialize.order, std-serde.derive.omitted, std-serde.derive.shared.
+# Spec 14 Serialization: annot.serde.by-hand.
+use std.serde.{Deserialize, Deserializer, ValueKind}
+use std.structure.{Structure, Facts, VariantInfo, Member}
+use std.testing.assert_equal
+
+
+# One scripted value or step of a sensor feed.
+enum Tok:
+    Absent
+    Null
+    Bool(value: bool)
+    Int(value: i64)
+    Uint(value: u64)
+    Float(value: f64)
+    Text(value: string)
+    Item
+    Key(name: string)
+    Done
+    Pick(index: usize)
+
+# A reader over a fixed list of tokens. It records each call as a word.
+data Feed:
+    pub toks: List[Tok]
+    pub at: usize
+    pub log: string
+
+impl Feed:
+    fn add(mut self, word: string) -> void:
+        if self.log == "":
+            self.log = word
+        else:
+            self.log = self.log + " " + word
+
+    fn take(mut self) -> Tok:
+        if self.at >= self.toks.len():
+            return Tok.Done
+        found := self.toks[self.at]
+        self.at = self.at + 1
+        found
+
+impl Deserializer for Feed:
+    type Error = string
+
+    fn peek(mut self) -> Result[ValueKind, string]:
+        self.add("peek")
+        if self.at >= self.toks.len():
+            return .Ok(ValueKind.Null)
+        match self.toks[self.at]:
+            Tok.Absent => .Ok(ValueKind.Null)
+            Tok.Null => .Ok(ValueKind.Null)
+            Tok.Bool(_) => .Ok(ValueKind.Bool)
+            Tok.Int(_) => .Ok(ValueKind.Int)
+            Tok.Uint(_) => .Ok(ValueKind.Uint)
+            Tok.Float(_) => .Ok(ValueKind.Float)
+            Tok.Text(_) => .Ok(ValueKind.Text)
+            _ => .Err("not a value")
+
+    fn is_null(mut self) -> Result[bool, string]:
+        self.add("is-null")
+        if self.at < self.toks.len():
+            match self.toks[self.at]:
+                Tok.Absent =>
+                    self.at = self.at + 1
+                    return .Ok(true)
+                Tok.Null =>
+                    self.at = self.at + 1
+                    return .Ok(true)
+                _ => pass
+        .Ok(false)
+
+    fn bool(mut self, expected: string) -> Result[bool, string]:
+        self.add("bool:$expected")
+        match self.take():
+            Tok.Bool(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn int(mut self, expected: string) -> Result[i64, string]:
+        self.add("int:$expected")
+        match self.take():
+            Tok.Int(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn uint(mut self, expected: string) -> Result[u64, string]:
+        self.add("uint:$expected")
+        match self.take():
+            Tok.Uint(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn float(mut self, expected: string) -> Result[f64, string]:
+        self.add("float:$expected")
+        match self.take():
+            Tok.Float(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn text(mut self, expected: string) -> Result[string, string]:
+        self.add("text:$expected")
+        match self.take():
+            Tok.Text(value) => .Ok(value)
+            _ => .Err(self.invalid(expected))
+
+    fn begin_list(mut self) -> Result[void, string]:
+        self.add("list")
+        .Ok(())
+
+    fn next_item(mut self) -> Result[bool, string]:
+        match self.take():
+            Tok.Item => .Ok(true)
+            _ => .Ok(false)
+
+    fn begin_map(mut self) -> Result[void, string]:
+        self.add("map")
+        .Ok(())
+
+    fn next_key(mut self) -> Result[string?, string]:
+        match self.take():
+            Tok.Key(name) => .Ok(.Some(name))
+            _ => .Ok(.None)
+
+    fn begin_variant(mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        let names: mut List[string] = []
+        for choice in choices:
+            names.push(choice.name)
+        self.add("variant:${names.join("|")}")
+        match self.take():
+            Tok.Pick(index) => .Ok(index)
+            _ => .Err("no variant")
+
+    fn member(mut self, m: Member) -> Result[void, string]:
+        self.add("member:${m.name}")
+        .Ok(())
+
+    fn end_variant(mut self) -> Result[void, string]:
+        self.add("end-variant")
+        .Ok(())
+
+    fn invalid(mut self, expected: string) -> string:
+        "invalid $expected"
+
+# Reads one T, and gives the result, the call log, and how many tokens it used.
+fn read[T < Deserialize](toks: List[Tok]) -> (Result[T, string], string, usize):
+    let input: mut Feed = Feed { toks: toks, at: 0, log: "" }
+    result := T::deserialize(input)
+    (result, input.log, input.at)
+
+
+@derive(Deserialize)
+enum Payment:
+    Cash
+    Card(last4: string, amount: u32)
+    Voucher(code: string)
+
+@derive(Deserialize)
+data Order:
+    id: u32
+    note: string?
+
+data Cache:
+    hits: i64
+
+data Basket:
+    owner: string
+    cache: Cache = Cache { hits: 0 }
+
+impl Deserialize for Basket by Structure:
+    cache = pass
+
+@derive(Deserialize)
+enum Status(code: i32):
+    Placed -> Status(+1)
+    Shipped(carrier: string) -> Status(+2)
+
+# A limit is a count, or the text "unlimited".
+enum Limit:
+    Unlimited
+    Max(count: i64)
+
+impl Deserialize for Limit:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Limit, R::Error]:
+        match input.peek()?:
+            .Text =>
+                text := input.text("Limit")?
+                if text == "unlimited":
+                    return .Ok(Limit.Unlimited)
+                .Err(input.invalid("Limit"))
+            _ => .Ok(Limit.Max(input.int("Limit")?))
+
+tests:
+    it("an enum offers every variant in declaration order, then reads the chosen one's members"):
+        card := read::[Payment]([Tok.Pick(1), Tok.Text("4242"), Tok.Uint(1999)])
+        assert_equal(card._1, "variant:Cash|Card|Voucher member:last4 text:string member:amount uint:u32 end-variant", reason="calls")
+        match card._0:
+            .Ok(Payment.Card(last4, amount)) =>
+                assert_equal(last4, "4242", reason="last4")
+                assert_equal(amount, 1999, reason="amount")
+            _ => panic("not a card")
+        cash := read::[Payment]([Tok.Pick(0)])
+        assert_equal(cash._1, "variant:Cash|Card|Voucher end-variant", reason="a variant with no member")
+
+    it("a data type offers its one variant, and a member may be absent"):
+        order := read::[Order]([Tok.Pick(0), Tok.Uint(7), Tok.Absent])
+        assert_equal(order._1, "variant:Order member:id uint:u32 member:note is-null end-variant", reason="calls")
+        assert_equal(order._0.map(fn(found): found.note), .Ok(.None), reason="absent note")
+
+    it("an omitted member is not read and takes its declared default"):
+        basket := read::[Basket]([Tok.Pick(0), Tok.Text("ada")])
+        assert_equal(basket._1, "variant:Basket member:owner text:string end-variant", reason="no member call for cache")
+        assert_equal(basket._0.map(fn(found): found.cache.hits), .Ok(0), reason="default")
+
+    it("shared constructor data is not read"):
+        shipped := read::[Status]([Tok.Pick(1), Tok.Text("DHL")])
+        assert_equal(shipped._1, "variant:Placed|Shipped member:carrier text:string end-variant", reason="no member call for code")
+        assert_equal(shipped._0.map(fn(found): found.code), .Ok(+2), reason="the variant fixes code")
+
+    it("the first error ends the derived read"):
+        bad := read::[Payment]([Tok.Pick(1), Tok.Int(4242), Tok.Uint(1999)])
+        assert_equal(bad._1, "variant:Cash|Card|Voucher member:last4 text:string", reason="nothing after the error")
+        assert_equal(bad._0.map(fn(found): +0), .Err("invalid string"), reason="the reader's error, unchanged")
+
+    it("a hand-written Deserialize may peek at the next value without reading it"):
+        assert_equal(read::[Limit]([Tok.Text("unlimited")])._1, "peek text:Limit", reason="text")
+        match read::[Limit]([Tok.Int(5)])._0:
+            .Ok(Limit.Max(count)) => assert_equal(count, 5, reason="count")
+            _ => panic("not a count")
+        assert_equal(read::[Limit]([Tok.Int(5)])._2, 1, reason="peek reads nothing")
+        assert_equal(read::[Limit]([Tok.Text("lots")])._0.map(fn(found): +0), .Err("invalid Limit"), reason="the reader's invalid error")

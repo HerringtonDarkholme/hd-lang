@@ -1,0 +1,133 @@
+# test: each standard Serialize writes exactly one value of the data model with its own call, and a derived newtype writes its base value
+# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.one-value, std-serde.model.len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map.
+# Spec 09 Derived Newtypes: trait.derive.newtype.templated.
+use std.serde.{Serialize, Serializer}
+use std.structure.{Facts, VariantInfo, Member}
+use std.testing.assert_equal
+
+# Records each call as a word, so a test reads what a value writes.
+data Calls:
+    pub log: string
+
+impl Calls:
+    fn add(mut self, word: string) -> Result[void, never]:
+        if self.log == "":
+            self.log = word
+        else:
+            self.log = self.log + " " + word
+        .Ok(())
+
+impl Serializer for Calls:
+    type Error = never
+
+    fn null(mut self) -> Result[void, never]:
+        self.add("null")
+
+    fn bool(mut self, value: bool) -> Result[void, never]:
+        self.add("bool:$value")
+
+    fn int(mut self, value: i64) -> Result[void, never]:
+        self.add("int:$value")
+
+    fn uint(mut self, value: u64) -> Result[void, never]:
+        self.add("uint:$value")
+
+    fn float(mut self, value: f64) -> Result[void, never]:
+        self.add("float:$value")
+
+    fn text(mut self, value: string) -> Result[void, never]:
+        self.add("text:$value")
+
+    fn begin_list(mut self, len: usize) -> Result[void, never]:
+        self.add("list:$len")
+
+    fn end_list(mut self) -> Result[void, never]:
+        self.add("end-list")
+
+    fn begin_map(mut self, len: usize) -> Result[void, never]:
+        self.add("map:$len")
+
+    fn key(mut self, key: string) -> Result[void, never]:
+        self.add("key:$key")
+
+    fn end_map(mut self) -> Result[void, never]:
+        self.add("end-map")
+
+    fn begin_variant(mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+        self.add("variant:${v.name}")
+
+    fn member(mut self, m: Member) -> Result[void, never]:
+        self.add("member:${m.name}")
+
+    fn end_variant(mut self) -> Result[void, never]:
+        self.add("end-variant")
+
+fn calls[T < Serialize](value: T) -> string:
+    let out: mut Calls = Calls { log: "" }
+    _ := value.serialize(out)
+    out.log
+
+@derive(Serialize)
+type Sku(string)
+
+@derive(Serialize)
+type Cents(i64)
+
+tests:
+    it("a scalar writes one call"):
+        assert_equal(calls(true), "bool:true", reason="bool")
+        assert_equal(calls("in stock"), "text:in stock", reason="string")
+        assert_equal(calls('é'), "text:é", reason="a char is text of one character")
+
+    it("each signed integer type writes int"):
+        let delta: i8 = -3
+        let floor: i16 = -2
+        assert_equal(calls(delta), "int:-3", reason="i8")
+        assert_equal(calls(floor), "int:-2", reason="i16")
+        assert_equal(calls(+40000), "int:40000", reason="i32")
+        let ledger: i64 = -9000000000
+        assert_equal(calls(ledger), "int:-9000000000", reason="i64")
+
+    it("each unsigned integer type writes uint"):
+        let units: u8 = 12
+        let bin: u16 = 300
+        let stock: u32 = 4000000000
+        let serial: u64 = 18446744073709551615
+        let index: usize = 7
+        assert_equal(calls(units), "uint:12", reason="u8")
+        assert_equal(calls(bin), "uint:300", reason="u16")
+        assert_equal(calls(stock), "uint:4000000000", reason="u32")
+        assert_equal(calls(serial), "uint:18446744073709551615", reason="u64")
+        assert_equal(calls(index), "uint:7", reason="usize")
+
+    it("each float type writes float of the value as an f64"):
+        let weight: f32 = 0.25
+        assert_equal(calls(weight), "float:0.25", reason="f32")
+        assert_equal(calls(19.5), "float:19.5", reason="f64")
+        assert_equal(calls(0.0 / 0.0), "float:NaN", reason="NaN is a float value")
+
+    it("an optional writes null for .None and its payload for .Some"):
+        let none: string? = .None
+        let some: string? = .Some("gift wrap")
+        assert_equal(calls(none), "null", reason=".None")
+        assert_equal(calls(some), "text:gift wrap", reason=".Some")
+        let lost: i32?? = .Some(.None)
+        assert_equal(calls(lost), "null", reason="T?? loses a layer")
+
+    it("a list writes its length, then each item in order"):
+        assert_equal(calls(["pen", "ink"]), "list:2 text:pen text:ink end-list", reason="two items")
+        let empty: List[i64] = []
+        assert_equal(calls(empty), "list:0 end-list", reason="no item")
+        let boxes: List[List[i32]] = [[+1], []]
+        assert_equal(calls(boxes), "list:2 list:1 int:1 end-list list:0 end-list end-list", reason="nested")
+
+    it("a map writes its length, then a key and a value per entry, in insertion order"):
+        let stock: Map[string, u32] = { "pen": 4, "ink": 0, "pad": 9 }
+        assert_equal(calls(stock), "map:3 key:pen uint:4 key:ink uint:0 key:pad uint:9 end-map", reason="insertion order")
+        let none: Map[string, bool] = {}
+        assert_equal(calls(none), "map:0 end-map", reason="no entry")
+
+    it("a derived newtype writes its base value"):
+        assert_equal(calls(Sku("PEN-01")), "text:PEN-01", reason="string base")
+        assert_equal(calls(Cents(1999)), "int:1999", reason="i64 base")
+        assert_equal(calls([Cents(5), Cents(-5)]), "list:2 int:5 int:-5 end-list", reason="inside a list")
