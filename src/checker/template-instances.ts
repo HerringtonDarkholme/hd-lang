@@ -648,8 +648,10 @@ function newtypeHelper(
         compilerGenerated: true,
         name,
         suspending: false,
-        genericParameters: [parameter],
-        genericBounds: [{ parameter, traits: [trait], span }],
+        // The method's own generic parameters, as the `W` of `serialize[W]`,
+        // stay generic in the helper.
+        genericParameters: [parameter, ...method.genericParameters],
+        genericBounds: [{ parameter, traits: [trait], span }, ...method.genericBounds],
         parameters,
         result: method.result,
         requirements: [],
@@ -687,13 +689,18 @@ export function forwardNewtype(
       );
       return undefined;
     }
+    const resultType = readonlyType(renameWords(method.result.name, selfRenames));
+    const resultSelf = resultType.startsWith("Result[Self,");
     const unsupported = positions.find(
-      (type) => /\bSelf\b/.test(type) && readonlyType(type) !== "Self",
+      (type, index) =>
+        /\bSelf\b/.test(type) &&
+        readonlyType(type) !== "Self" &&
+        !(index === positions.length - 1 && resultSelf),
     );
     if (unsupported !== undefined) {
       error(
         "unsupported-derivation",
-        `the prototype forwards a newtype method only through the receiver and plain Self, not '${displayType(unsupported)}'`,
+        `the prototype forwards a newtype method only through the receiver, plain Self, and a Result[Self, E] result, not '${displayType(unsupported)}'`,
         item.span,
       );
       return undefined;
@@ -750,15 +757,25 @@ export function forwardNewtype(
             arguments: args,
             span,
           };
+    const rewrap = (value: Expression): Expression => ({
+      kind: "call",
+      callee: { kind: "name", name: item.declaration.name, span },
+      arguments: [value],
+      span,
+    });
+    // `Result[Self, E]` rewraps the base's `.Ok` value and passes its error
+    // on (trait.derive.newtype.self-positions).
     const wrapped: Expression =
-      readonlyType(renameWords(method.result.name, selfRenames)) === "Self"
-        ? {
-            kind: "call",
-            callee: { kind: "name", name: item.declaration.name, span },
-            arguments: [call],
-            span,
-          }
-        : call;
+      resultType === "Self"
+        ? rewrap(call)
+        : resultSelf
+          ? {
+              kind: "call",
+              callee: { kind: "contextual-variant", name: "Ok", span },
+              arguments: [rewrap({ kind: "propagate", operand: call, span })],
+              span,
+            }
+          : call;
     methods.push({
       ...renameTypes(method, new Map([[parameter, item.declaration.name]])),
       body: [{ kind: "expression", expression: wrapped, span }],
