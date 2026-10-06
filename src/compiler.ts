@@ -1,9 +1,7 @@
-import { createHash } from "node:crypto";
-
 import type { Diagnostic } from "./diagnostics.ts";
-import { DiagnosticError, physicalSpan, sourceDocument } from "./diagnostics.ts";
+import { DiagnosticError } from "./diagnostics.ts";
 import { check, type CheckOptions } from "./checker/index.ts";
-import { emitWat, isRuntimePrimitive } from "./emitter/index.ts";
+import { emitWat } from "./emitter/index.ts";
 import {
   hostStringImports,
   HOST_FUNCTIONS,
@@ -14,17 +12,15 @@ import {
 import {
   boundaryFieldsVisible,
   boundaryShape,
-  CONSENT_TRAITS,
-  consentingTypes,
   isBoundaryScalar,
   isStringListArgument,
   payloadlessSingletonEnum,
-  programImplementations,
   programLookups,
   resultSides,
   structuralHostArgument,
   structuralHostResult,
   checkedModule,
+  type BoundaryTypes,
 } from "./host-boundary.ts";
 import {
   argumentBuffers,
@@ -36,12 +32,17 @@ import {
 import { checkedHostValue, hostArgumentValue } from "./host-values.ts";
 import { numericType } from "./numeric.ts";
 import { substituteTypeParameters } from "./types.ts";
-import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "./hir.ts";
+import type { HirEnum, HirProgram, HirTrait, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName, type PanicSite } from "./runtime-panic.ts";
 import { panicLocator, stackExhaustionPanics } from "./panic-locator.ts";
-import { emissionReachability, traitMethodKey } from "./emitter/reachability.ts";
+import {
+  runtimeInterface,
+  type FunctionIdentity,
+  type HostMethodInterface,
+  type RuntimeInterface,
+} from "./runtime-interface.ts";
 
 /** A checked program and its WAT, before Wasm assembly. */
 interface WatCompilation {
@@ -258,14 +259,6 @@ interface HostString {
   readonly bytes: Uint8Array;
 }
 
-interface FunctionIdentity {
-  readonly codeId: string;
-  readonly end: number;
-  readonly index: number;
-  readonly name: string;
-  readonly start: number;
-}
-
 type HostImport = (...arguments_: unknown[]) => unknown;
 
 interface InstantiateOptions {
@@ -335,19 +328,19 @@ function withBoundaryObject<T>(
 
 // The types that consent to come in from a host, by program
 // (module.boundary.consent.in).
-const incomingConsent = new WeakMap<HirProgram, ReadonlySet<string>>();
+const incomingConsent = new WeakMap<BoundaryTypes, ReadonlySet<string>>();
 
-function consentsToComeIn(program: HirProgram): ReadonlySet<string> {
+function consentsToComeIn(program: BoundaryTypes): ReadonlySet<string> {
   let found = incomingConsent.get(program);
   if (!found) {
-    found = consentingTypes(programImplementations(program), CONSENT_TRAITS.in);
+    found = new Set(program.consentIn);
     incomingConsent.set(program, found);
   }
   return found;
 }
 
 function checkedHostBoundaryNode(
-  program: HirProgram,
+  program: BoundaryTypes,
   type: ValueType,
   value: HostBoundaryValue,
   ancestors: Set<object> = new Set(),
@@ -577,7 +570,7 @@ function decodeHostResult(
 }
 
 function encodeHostBoundaryNode(
-  program: HirProgram,
+  program: BoundaryTypes,
   type: ValueType,
   node: HostBoundaryNode,
 ): EncodedHostValue {
@@ -665,7 +658,7 @@ function encodeHostBoundaryNode(
 }
 
 function decodeHostBoundaryNode(
-  program: HirProgram,
+  program: BoundaryTypes,
   type: ValueType,
   encoded: EncodedHostValue,
 ): HostBoundaryNode {
@@ -797,7 +790,7 @@ function bytesFromHex(value: string): Uint8Array {
  * host result is.
  */
 function encodeHostArgument(
-  program: HirProgram,
+  program: BoundaryTypes,
   type: ValueType,
   value: HostArgumentValue,
 ): EncodedHostValue {
@@ -916,9 +909,9 @@ function validateReplayHostOutcome(
 }
 
 function hostPollEvent(
-  program: HirProgram,
+  program: BoundaryTypes,
   call: HostSuspensionCall,
-  method: HirTraitMethod,
+  method: HostMethodInterface,
   outcome: HostSuspensionOutcome,
   configurationId: string,
   enums: readonly HirEnum[],
@@ -1011,7 +1004,7 @@ export async function compileToWasm(
  * a scalar, a string's UTF-8 bytes, or a `Result[T, E]`'s tag and payload.
  */
 function hostResultImports(
-  program: HirProgram,
+  program: BoundaryTypes,
   prefix: string,
   name: string,
   type: ValueType,
@@ -1131,42 +1124,13 @@ function makeHostCall(
   };
 }
 
-function runtimeFunctionIdentities(source: string, program: HirProgram): FunctionIdentity[] {
-  return [...program.functions, ...program.closures].map((declaration) => {
-    const span = physicalSpan(declaration.span);
-    const text = sourceDocument(declaration.span)?.text ?? source;
-    return {
-      codeId: createHash("sha256")
-        .update(declaration.name)
-        .update("\0")
-        .update(text.slice(span.start.offset, span.end.offset))
-        .digest("hex")
-        .slice(0, 16),
-      end: span.end.offset,
-      index: declaration.suspensionIndex ?? declaration.index,
-      name: declaration.name,
-      start: span.start.offset,
-    };
-  });
-}
-
-/**
- * The module initializer's entry requirements, when the initializer takes
- * providers: each arrives as the `{requirement}` stub the host passes
- * `main!` rows. A suspending initializer keeps its driver path.
- */
-function initializerEntryRequirements(hir: HirProgram): readonly string[] {
-  const initializer = hir.functions.find((declaration) => declaration.index === hir.initializer);
-  return initializer !== undefined && !initializer.suspending ? initializer.requirements : [];
-}
-
 /**
  * The `host:NAME` import of each `lib/std` function whose `@intrinsic` names a
  * host function (host-functions.ts). `dbg_write` writes to the program's
  * debug output, apart from its console (spec/lang/10-modules.md#r-module.dbg.stream).
  */
 function hostFunctionImports(
-  program: HirProgram,
+  runtime: RuntimeInterface,
   options: InstantiateOptions,
   textDecoder: TextDecoder,
 ): Record<string, HostImport> {
@@ -1179,15 +1143,14 @@ function hostFunctionImports(
     ...options.hostFunctions,
   };
   const imports: Record<string, HostImport> = {};
-  for (const declaration of program.functions) {
-    const name = declaration.intrinsic;
-    if (!name || isRuntimePrimitive(name)) continue;
+  for (const declaration of runtime.hostFunctions) {
+    const { name } = declaration;
     imports[`host:${name}`] = (...arguments_) => {
       const implementation = hostFunctions[name];
       if (!implementation) throw new Error(`the host has no function '${name}'`);
       const result = implementation(
         ...declaration.parameters.map((parameter, index) =>
-          parameter.type === "string"
+          parameter === "string"
             ? textDecoder.decode((arguments_[index] as HostString).bytes)
             : (arguments_[index] as number | bigint),
         ),
@@ -1201,13 +1164,46 @@ function hostFunctionImports(
   return imports;
 }
 
+/**
+ * A module's import that the host does not provide, so `hd build` did not
+ * write the module (spec/cli/command-line.md#r-cli.wasm.not-hd.detect).
+ */
+export class UnknownImportError extends Error {
+  constructor(importName: string) {
+    super(`it imports ${importName}, which this hd does not provide`);
+  }
+}
+
+/** Compiles `source`, or takes `options.compilation`, and instantiates its module. */
 export async function instantiate(
   source: string,
   options: InstantiateOptions = {},
 ): Promise<Instantiation> {
   const compilation = options.compilation ?? (await compileToWasm(source, options));
-  const hostEnums = compilation.hir.enums;
-  const functionIdentities = runtimeFunctionIdentities(source, compilation.hir);
+  const { instance, replay } = await instantiateModule(
+    compilation.bytes,
+    runtimeInterface(source, compilation.hir),
+    options,
+    compilation,
+  );
+  return { compilation, instance, replay };
+}
+
+/**
+ * Instantiates the Wasm module `input` with the host imports that `runtime`
+ * describes: a module compiled just now, or one `hd build` wrote
+ * (runtime-interface.ts). `artifact` holds a compilation's panic sites,
+ * which a built module lacks.
+ */
+export async function instantiateModule(
+  input: Uint8Array | WebAssembly.Module,
+  runtime: RuntimeInterface,
+  options: InstantiateOptions = {},
+  artifact: Parameters<typeof panicLocator>[0] = {},
+): Promise<Omit<Instantiation, "compilation">> {
+  const boundary = runtime.boundary;
+  const hostEnums = boundary.enums;
+  const functionIdentities = runtime.functions;
   const functionIdentity = (index: number): FunctionIdentity | undefined =>
     functionIdentities.find((identity) => identity.index === index);
   const configurationId = options.providerConfigurationId ?? "default";
@@ -1216,7 +1212,7 @@ export async function instantiate(
   // a byte order mark to drop.
   const textDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   // A panic that an import raises names the program operation it happened at.
-  const located = panicLocator(compilation, options.debugLocation);
+  const located = panicLocator(artifact, options.debugLocation);
   let replayIndex = 0;
   const pending = (functionIndex: number, pollCount: number): number => {
     const identity = functionIdentity(functionIndex);
@@ -1265,7 +1261,7 @@ export async function instantiate(
   const hostImports: Record<string, HostImport> = {};
   // The module initializer's entry requirements, bound the way `main!` rows
   // are. Only the run path instantiates, so check-time behavior is untouched.
-  const requirements = initializerEntryRequirements(compilation.hir);
+  const requirements = runtime.initializerRequirements;
   if (requirements.length > 0)
     hostImports.init_provider = (index) => ({ requirement: requirements[Number(index)]! });
   hostImports.panic_with_message = located((code, message) => {
@@ -1273,16 +1269,13 @@ export async function instantiate(
     throw new RuntimePanicError(runtimePanicName(Number(code)), textDecoder.decode(bytes));
   });
   Object.assign(hostImports, structuralBoundaryImports(textEncoder), argumentTokenImports());
-  const hostCapabilities = new Set(compilation.hir.hostCapabilities);
-  const calledHostMethods = emissionReachability(compilation.hir).traitMethods;
-  for (const trait of compilation.hir.traits) {
-    if (!hostCapabilities.has(trait.name)) continue;
+  // Each host capability trait, with the methods the module calls.
+  for (const trait of runtime.hostTraits) {
     // An unrecorded provider's calls are neither recorded nor replayed
     // (host-functions.ts). A profile may hold even a built-in call pending;
     // once released, the built-in supplies the ready answer.
     const recorded = !UNRECORDED_PROVIDERS.has(trait.name);
     for (const method of trait.methods) {
-      if (!calledHostMethods.has(traitMethodKey(trait.index, method.index))) continue;
       const prefix = `host_${trait.index}_${method.index}`;
       const builtIn = HOST_PROVIDERS[`${trait.name}.${method.name}`];
       hostImports[`${prefix}_begin`] = (provider, functionIndex, siteOffset, ...arguments_) => ({
@@ -1317,13 +1310,7 @@ export async function instantiate(
       hostImports[`${prefix}_poll`] = located((value) => {
         const state = value as HostCallState;
         const { call } = state;
-        decodeStreamedArguments(
-          compilation.hir,
-          method.parameters,
-          state,
-          call.arguments,
-          textDecoder,
-        );
+        decodeStreamedArguments(boundary, method.parameters, state, call.arguments, textDecoder);
         const expected = recorded ? options.replay?.[replayIndex] : undefined;
         if (options.replay && recorded) {
           if (!expected) throw new Error(`replay exhausted before provider site ${call.siteId}`);
@@ -1338,11 +1325,7 @@ export async function instantiate(
               (argument, index) =>
                 !sameEncodedHostValue(
                   argument,
-                  encodeHostArgument(
-                    compilation.hir,
-                    method.parameters[index]!,
-                    call.arguments[index]!,
-                  ),
+                  encodeHostArgument(boundary, method.parameters[index]!, call.arguments[index]!),
                 ),
             )
           ) {
@@ -1363,7 +1346,7 @@ export async function instantiate(
           );
           state.outcome = {
             pending: expected.encodedResult === "pending",
-            ...(expected.encodedValue && !structuralHostResult(compilation.hir, method.result)
+            ...(expected.encodedValue && !structuralHostResult(boundary, method.result)
               ? {
                   value: decodeHostResult(method.result, expected.encodedValue, hostEnums),
                 }
@@ -1372,10 +1355,10 @@ export async function instantiate(
           if (
             !state.outcome.pending &&
             expected.encodedValue &&
-            structuralHostResult(compilation.hir, method.result)
+            structuralHostResult(boundary, method.result)
           )
             state.resultNode = decodeHostBoundaryNode(
-              compilation.hir,
+              boundary,
               method.result,
               expected.encodedValue,
             );
@@ -1406,7 +1389,7 @@ export async function instantiate(
           );
         if (state.outcome.pending) state.outcome = { pending: true };
         else {
-          const value = structuralHostResult(compilation.hir, method.result)
+          const value = structuralHostResult(boundary, method.result)
             ? (() => {
                 if (state.outcome!.value === undefined)
                   throw new RuntimePanicError(
@@ -1415,7 +1398,7 @@ export async function instantiate(
                   );
                 try {
                   state.resultNode = checkedHostBoundaryNode(
-                    compilation.hir,
+                    boundary,
                     method.result,
                     state.outcome!.value,
                   );
@@ -1444,7 +1427,7 @@ export async function instantiate(
           : hostResultText(method.result, state.outcome.value);
         if (text !== undefined) state.resultBytes = textEncoder.encode(text);
         const event = hostPollEvent(
-          compilation.hir,
+          boundary,
           call,
           method,
           state.outcome,
@@ -1459,31 +1442,36 @@ export async function instantiate(
       };
       Object.assign(
         hostImports,
-        hostResultImports(compilation.hir, prefix, `${trait.name}.${method.name}`, method.result),
+        hostResultImports(boundary, prefix, `${trait.name}.${method.name}`, method.result),
       );
     }
   }
   // The generic host-function boundary, and an entry `.Err` report (host-functions.ts).
   Object.assign(hostImports, hostStringImports(options.entryError ?? options.consoleError));
   // A host function may panic, as `lib/std`'s panic primitive does.
-  for (const [name, host] of Object.entries(
-    hostFunctionImports(compilation.hir, options, textDecoder),
-  ))
+  for (const [name, host] of Object.entries(hostFunctionImports(runtime, options, textDecoder)))
     hostImports[name] = located(host);
-  const module = await checkedModule(compilation.bytes, compilation.hir, options.needs);
-  const instance = await WebAssembly.instantiate(module, {
-    hd: {
-      ...hostImports,
-      trace: options.trace ?? (() => undefined),
-      pending,
-      pow_f64: Math.pow,
-      // JavaScript `%` on numbers is the truncated remainder of C `fmod`.
-      rem_f64: (left: number, right: number) => left % right,
-      panic: located((code) => {
-        throw new RuntimePanicError(runtimePanicName(Number(code)));
-      }),
-    },
-  });
+  const imports: WebAssembly.ModuleImports = {
+    ...hostImports,
+    trace: options.trace ?? (() => undefined),
+    pending,
+    pow_f64: Math.pow,
+    // JavaScript `%` on numbers is the truncated remainder of C `fmod`.
+    rem_f64: (left: number, right: number) => left % right,
+    panic: located((code) => {
+      throw new RuntimePanicError(runtimePanicName(Number(code)));
+    }),
+  };
+  const module =
+    input instanceof WebAssembly.Module ? input : await WebAssembly.compile(input as BufferSource);
+  // Every import is one this host provides, or `hd build` did not write the
+  // module (spec/cli/command-line.md#r-cli.wasm.not-hd.detect).
+  const unknown = WebAssembly.Module.imports(module).find(
+    (entry) => entry.module !== "hd" || !Object.hasOwn(imports, entry.name),
+  );
+  if (unknown) throw new UnknownImportError(`${unknown.module}.${unknown.name}`);
+  await checkedModule(module, runtime.hostTraits, options.needs);
+  const instance = await WebAssembly.instantiate(module, { hd: imports });
   // Every caller (`hd run`, `hd test`, the REPL, the playground) reads the wrapped exports.
   Object.defineProperty(instance, "exports", { value: stackExhaustionPanics(instance.exports) });
   const replay: ReplaySession = {
@@ -1496,5 +1484,5 @@ export async function instantiate(
       }
     },
   };
-  return { compilation, instance, replay };
+  return { instance, replay };
 }

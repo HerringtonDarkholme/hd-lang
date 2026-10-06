@@ -101,6 +101,7 @@ const COMMANDS: readonly CommandSpec[] = [
       FILE_NOTE,
       "FILE's module goes to build/debug/files/, named after FILE: tests/one.hd gives one.wasm.",
       "Outside a package, hd build is an error; run one file with hd FILE.",
+      "Run a written module with hd FILE.wasm, as in hd build/debug/NAME.wasm.",
     ],
   },
   {
@@ -392,6 +393,7 @@ export function overviewHelp(): string {
     "commands:",
     ...columns([
       ["FILE", "run FILE as a single-file program, which may use only std"],
+      ["FILE.wasm", "run a module that hd build wrote"],
       ...listed.map((command): [string, string] => [command.name, command.summary]),
       ["debug", DEBUG_SUMMARY],
       ["help", HELP_SUMMARY],
@@ -512,9 +514,12 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
         `hd debug: no subcommand '${sub}'; use parse or hir\nRun 'hd help debug' for its subcommands.`,
       );
   }
-  // `hd FILE` runs FILE as a single-file program (cli.file.run).
+  // `hd FILE` runs FILE as a single-file program (cli.file.run), and
+  // `hd FILE.wasm` a module that `hd build` wrote (cli.wasm.run).
   const isFile =
-    commandNamed(name) === undefined && !first.startsWith("-") && first.endsWith(".hd");
+    commandNamed(name) === undefined &&
+    !first.startsWith("-") &&
+    (first.endsWith(".hd") || first.endsWith(".wasm"));
   if (isFile) {
     rest.unshift(first);
     name = "file";

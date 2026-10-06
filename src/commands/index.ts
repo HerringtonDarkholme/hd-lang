@@ -27,9 +27,11 @@ export {
 } from "./compile.ts";
 export {
   fileCommand,
+  moduleCommand,
   runCommand,
   testCommand,
   type FileArgs,
+  type ModuleArgs,
   type RunArgs,
   type TestArgs,
 } from "./execute.ts";

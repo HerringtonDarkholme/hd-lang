@@ -66,6 +66,7 @@ in-process conformance adapter calls the same `main` with a buffering sink
 
 ```text
 hd FILE  [--cap NAME=VALUE] [-- ARGS]
+hd FILE.wasm [--cap NAME=VALUE] [-- ARGS]
 hd build [--wat] [--release] [FILE]
 hd run   [--release] [--cap NAME=VALUE] [NAME] [-- ARGS]
 hd test  [--update] [--filter PATTERN] [--seed N] [--cases N] [--shrink N] [--cap NAME=VALUE] [FILE]
@@ -81,7 +82,7 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   that does not own it exits 101 and names the commands that do.
 - Flags may come before or after the operands. The words after the first
   `--` are the program's arguments ([`cli.args.separator`](../spec/cli/command-line.md#r-cli.args.separator));
-  only `hd run` and `hd FILE` take them, and a further word before `--`
+  only `hd run`, `hd FILE`, and `hd FILE.wasm` take them, and a further word before `--`
   is an error that suggests `--`. No host capability reads them yet.
 - `--cap NAME=VALUE` sets one trait's capability grant
   ([`cli.cap.flag`](../spec/cli/command-line.md#r-cli.cap.flag)) for `hd FILE`,
@@ -269,6 +270,23 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `unknown-module`; when FILE lies in a package, its note names the
   executable FILE is the entry of and its `hd run` command, or else
   suggests a task ([`cli.file.in-package`](../spec/cli/command-line.md#r-cli.file.in-package)).
+- `hd FILE.wasm` (a first word that ends in `.wasm`) runs a module that
+  `hd build` wrote, without its source
+  ([Prebuilt Modules](../spec/cli/command-line.md#prebuilt-modules);
+  `moduleCommand` in `commands/execute.ts`). `hd build` appends the custom
+  section `hd.runtime` to each module it writes (`runtime-interface.ts`):
+  JSON of the host traits and methods the module calls, the data and enum
+  types they cross, the `@intrinsic` host functions, function identities for
+  call sites, and the entry point. `instantiateModule` in `compiler.ts`
+  binds the imports from it, the same path `instantiate` takes after it
+  compiles a source. The spec leaves the runtime ABI open
+  (`module.host.abi`), so the section is the prototype's own. The grant is
+  the `--cap` flags alone, even inside a package, and the total-deny
+  refusal reads the import list as for `hd FILE`. A FILE that is no Wasm
+  module, a module without the section or its entry export, and one that
+  imports what the host does not provide each exit 101. A built module has
+  no panic sites, so a panic names no location. `hd run FILE.wasm` is an
+  error, as `hd run FILE.hd` is.
 
 `hd FILE` and `hd run` run the public `main` or `main!`; a module without one
 runs its initialization and exits 0, while the adapter's `entry` runner option runs the
@@ -1806,13 +1824,16 @@ REPL's `debug` entries, and the playground's marked output lines.
 - `compiler.ts` exposes the in-process compiler API. `compileToWat` is
   synchronous and stops at WAT: it parses, checks, lowers to HIR, and emits
   WAT, and never loads Binaryen. `compileToWasm` is asynchronous and adds
-  the Wasm assembly; `instantiate` builds on it. No setup call comes first.
+  the Wasm assembly; `instantiate` builds on it, and `instantiateModule`
+  binds a module from its `runtime-interface.ts` description. No setup
+  call comes first.
 - `package.ts` links the modules of a multi-file package into one program.
 - `cli.ts` turns a command line into one call to a command function;
   `cli-args.ts` holds the command table, flag parsing, and help text.
 - `commands/` holds the command functions, one per command, and exposes
   them from `commands/index.ts`: `compile.ts` has `parse`, `check`,
-  `debug hir`, and `build`; `execute.ts` has `run` and `test`;
+  `debug hir`, and `build`; `execute.ts` has `run`, `test`, `hd FILE`,
+  and `hd FILE.wasm`;
   `queries.ts` has `explain`, `def`, and `doc`; `help.ts` has `help` and
   `repl`. `source.ts` finds and links a FILE's package for them.
 - `diagnostic-report.ts` writes diagnostics as text or JSON Lines and derives

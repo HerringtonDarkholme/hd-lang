@@ -6,6 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 
 import { analyze, compileToWasm, compileToWat } from "../compiler.ts";
+import { runtimeInterface, withRuntimeSection } from "../runtime-interface.ts";
 import { Report } from "../diagnostic-report.ts";
 import { DiagnosticError } from "../diagnostics.ts";
 import { LIB_FILE, SOURCE_ROOT, TEST_ROOT } from "../package.ts";
@@ -204,7 +205,12 @@ async function compilePackage(
         const directory = join(pkg.root, BUILD_DIRECTORY, profile);
         await mkdir(directory, { recursive: true });
         const output = join(directory, `${executable.name}.wasm`);
-        await writeFile(output, compilation.bytes);
+        // The module carries what `hd FILE.wasm` needs to bind it
+        // (spec/cli/command-line.md#prebuilt-modules).
+        await writeFile(
+          output,
+          withRuntimeSection(compilation.bytes, runtimeInterface(loaded.source, compilation.hir)),
+        );
         written.push(
           shownPath(pkg, join(BUILD_DIRECTORY, profile, `${executable.name}.wasm`), environment),
         );
@@ -340,7 +346,12 @@ async function build(
       `${basename(loaded.path, extname(loaded.path))}.wasm`,
     );
     await mkdir(dirname(join(pkg.root, written)), { recursive: true });
-    await writeFile(join(pkg.root, written), result.bytes);
+    // The module carries what `hd FILE.wasm` needs to bind it
+    // (spec/cli/command-line.md#prebuilt-modules).
+    await writeFile(
+      join(pkg.root, written),
+      withRuntimeSection(result.bytes, runtimeInterface(loaded.source, result.hir)),
+    );
     if (args.format === "text") io.out(shownPath(pkg, written, args));
     return 0;
   } catch (error) {

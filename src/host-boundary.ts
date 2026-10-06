@@ -1,4 +1,4 @@
-import type { HirData, HirEnum, HirProgram, ValueType } from "./hir.ts";
+import type { HirData, HirEnum, HirProgram, HirTrait, ValueType } from "./hir.ts";
 import { NUMERIC_TYPES } from "./numeric.ts";
 import { nominalGenericParts, optionalInner, tupleParts } from "./types.ts";
 
@@ -185,6 +185,18 @@ export function structuralHostArgument(type: ValueType): boolean {
   return !isBoundaryScalar(type) && type !== "string" && !isStringListArgument(type);
 }
 
+/**
+ * What the host boundary reads of a program at run time: the data and enum
+ * types that cross it, and the head names of those that consent to come in
+ * (module.boundary.consent.in). A built module carries them
+ * (runtime-interface.ts).
+ */
+export interface BoundaryTypes {
+  readonly data: readonly HirData[];
+  readonly enums: readonly HirEnum[];
+  readonly consentIn: readonly string[];
+}
+
 /** The program's lookups of a boundary data or enum type by name. */
 export function programLookups(program: {
   readonly data: readonly HirData[];
@@ -217,7 +229,10 @@ export function resultSides(type: ValueType): readonly [ValueType, ValueType] | 
 }
 
 /** Whether a host result of `type` crosses as a boundary node tree. */
-export function structuralHostResult(program: HirProgram, type: ValueType): boolean {
+export function structuralHostResult(
+  program: Pick<HirProgram, "data" | "enums">,
+  type: ValueType,
+): boolean {
   const lookups = programLookups(program);
   const shape = boundaryShape(type, ...lookups);
   return (
@@ -235,8 +250,11 @@ export function structuralHostResult(program: HirProgram, type: ValueType): bool
  * such as `Console` (spec/cli/command-line.md#r-cli.cap.total.needs). Dead
  * code is removed, so they are what the module can reach.
  */
-function moduleNeeds(module: WebAssembly.Module, program: HirProgram): string[] {
-  const traits = new Map(program.traits.map((trait) => [trait.index, trait]));
+function moduleNeeds(
+  module: WebAssembly.Module,
+  hostTraits: readonly Pick<HirTrait, "index" | "standardName">[],
+): string[] {
+  const traits = new Map(hostTraits.map((trait) => [trait.index, trait]));
   const needs = new Set<string>();
   for (const { name } of WebAssembly.Module.imports(module)) {
     const index = /^host_(\d+)_\d+_begin$/.exec(name)?.[1];
@@ -252,11 +270,12 @@ function moduleNeeds(module: WebAssembly.Module, program: HirProgram): string[] 
  * (spec/cli/command-line.md#r-cli.cap.total.refuse).
  */
 export async function checkedModule(
-  bytes: Uint8Array,
-  program: HirProgram,
+  input: Uint8Array | WebAssembly.Module,
+  hostTraits: readonly Pick<HirTrait, "index" | "standardName">[],
   needs?: (traits: readonly string[]) => void,
 ): Promise<WebAssembly.Module> {
-  const module = await WebAssembly.compile(bytes as BufferSource);
-  needs?.(moduleNeeds(module, program));
+  const module =
+    input instanceof WebAssembly.Module ? input : await WebAssembly.compile(input as BufferSource);
+  needs?.(moduleNeeds(module, hostTraits));
   return module;
 }

@@ -1,0 +1,10 @@
+# A built module takes its grant from the --cap flags alone, so the
+# hd.toml table that denies Console does not apply to it. A flag that
+# denies Console refuses the start: status 101, and nothing printed.
+run: hd build
+file: build/debug/greeter.wasm
+run: hd build/debug/greeter.wasm
+stdout: hello
+run: hd build/debug/greeter.wasm --cap Console=false
+exit: 101
+stdout-json: []

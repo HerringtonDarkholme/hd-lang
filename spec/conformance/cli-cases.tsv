@@ -85,3 +85,6 @@ cap-total-deny	cli.cap.value.false,cli.cap.total.needs,cli.cap.total.refuse,cli.
 cap-flag-overrides-table	cli.cap.order.flag,cli.cap.order.table,cli.cap.flag,cli.cap.scope.path,cli.cap.scope.path.relative,cli.cap.partial.refuse
 cap-partial-deny	cli.cap.value.list,cli.cap.partial.refuse,cli.cap.scope.path,cli.cap.order.default
 cap-env-notice	cli.cap.env.get,cli.cap.env.notice,cli.cap.env.notice.text,cli.cap.source.flags-only,cli.cap.order.default
+wasm-run-built	cli.wasm.run,cli.wasm.mode,cli.wasm.host,cli.wasm.host.imports,cli.wasm.args,cli.wasm.status,cli.build.output,cli.run.file
+wasm-cap-flags-only	cli.wasm.grant,cli.wasm.total-deny,cli.cap.total.needs,cli.cap.total.refuse,cli.cap.total.status,cli.cap.total.any-module
+wasm-invalid	cli.wasm.invalid,cli.wasm.not-hd,cli.wasm.not-hd.detect,cli.exit.hd-failure

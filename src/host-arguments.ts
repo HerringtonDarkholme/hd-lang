@@ -97,7 +97,7 @@ export function argumentTokenImports(): Record<string, (...arguments_: unknown[]
 
 /** Puts the value of each streamed argument into `arguments_`. */
 export function decodeStreamedArguments(
-  program: HirProgram,
+  program: Pick<HirProgram, "data" | "enums">,
   parameters: readonly ValueType[],
   buffers: ArgumentBuffers,
   arguments_: unknown[],

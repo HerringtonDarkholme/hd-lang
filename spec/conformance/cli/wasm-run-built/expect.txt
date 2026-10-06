@@ -1,0 +1,21 @@
+# hd FILE.wasm runs the module that hd build wrote, without its source. It
+# binds Console and Args, passes the words after --, and exits with the
+# program's own status. A FILE ending in .hd still runs as a single file,
+# and hd run rejects the module's FILE.
+run: hd build
+file: build/debug/greeter.wasm
+run: hd build/debug/greeter.wasm
+stdout: hello
+run: hd build/debug/greeter.wasm -- a b
+exit: 3
+stdout: hello
+stdout: a
+stdout: b
+run: hd src/main.hd -- a b
+exit: 3
+stdout: hello
+stdout: a
+stdout: b
+run: hd run build/debug/greeter.wasm
+exit: 101
+stdout-json: []

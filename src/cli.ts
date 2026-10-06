@@ -19,6 +19,7 @@ import {
   fileCommand,
   helpCommand,
   hirCommand,
+  moduleCommand,
   newCommand,
   parseCommand,
   processIo,
@@ -175,6 +176,13 @@ export async function main(
     case "run":
       return runCommand({ ...options, name: first, programArguments: parsed.programArguments }, io);
     case "file":
+      // The extension picks the mode: `hd FILE.wasm` runs a module that
+      // `hd build` wrote (spec/cli/command-line.md#r-cli.wasm.mode).
+      if (first!.endsWith(".wasm"))
+        return moduleCommand(
+          { ...environment, file: first!, format, programArguments: parsed.programArguments },
+          io,
+        );
       return fileCommand({ ...options, programArguments: parsed.programArguments }, io);
     case "test":
       return testCommand({ ...options, path: first }, io);

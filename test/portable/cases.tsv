@@ -2812,3 +2812,6 @@ cli/cap-partial-deny	cli
 cli/cap-env-notice	cli
 typing/valid/trait-qualified-call-generic-receiver.hd	type
 cli/test-err-report	cli
+cli/wasm-run-built	cli
+cli/wasm-cap-flags-only	cli
+cli/wasm-invalid	cli

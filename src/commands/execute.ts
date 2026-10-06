@@ -1,17 +1,24 @@
 // `hd FILE`, `hd run`, and `hd test`: the commands that compile a program
-// and run it.
+// and run it; and `hd FILE.wasm`, which runs a module that `hd build` wrote.
 
-import { stat, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 
-import { analyze, instantiate } from "../compiler.ts";
-import { Report, type TestOutcome } from "../diagnostic-report.ts";
+import { analyze, instantiate, instantiateModule, UnknownImportError } from "../compiler.ts";
+import { DiagnosticReporter, Report, type TestOutcome } from "../diagnostic-report.ts";
 import type { DocTest } from "../doc-tests.ts";
 import { DiagnosticError } from "../diagnostics.ts";
 import type { HirFunction } from "../hir.ts";
 import { SOURCE_ROOT, TASK_ROOT, TEST_ROOT } from "../package.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
+import { RuntimePanicError, UnsupportedAtRunTimeError } from "../runtime-panic.ts";
+import {
+  readRuntimeSection,
+  RUNTIME_SECTION,
+  type RuntimeInterface,
+} from "../runtime-interface.ts";
+import { loadSpecIndex } from "../spec-index.ts";
 import { runSelected, type TempDirs } from "../test-runner.ts";
 import {
   grantsOf,
@@ -139,6 +146,151 @@ export async function fileCommand(args: FileArgs, io: CommandIo): Promise<number
   );
 }
 
+export interface ModuleArgs extends CommandEnvironment {
+  /** FILE, whose name ends in `.wasm`. */
+  readonly file: string;
+  readonly format: SourceArgs["format"];
+  /** The program's arguments, after `--` (spec/cli/command-line.md#r-cli.wasm.args). */
+  readonly programArguments?: readonly string[];
+}
+
+/**
+ * `hd FILE.wasm`: runs a module that `hd build` wrote, without its source
+ * (spec/cli/command-line.md#prebuilt-modules). The module's `hd.runtime`
+ * section says how to bind its imports (runtime-interface.ts).
+ */
+export async function moduleCommand(args: ModuleArgs, io: CommandIo): Promise<number> {
+  // The program's standard output passes through, so a JSON run writes its
+  // records to standard error (spec/cli/command-line.md#r-cli.json.run).
+  const report = new Report(args.format, io, { stream: "stderr", summary: true });
+  const fail = (message: string): number => {
+    report.commandError(`hd: ${message}`);
+    return report.finish(EXIT_HD_FAILURE);
+  };
+  let bytes: Uint8Array;
+  try {
+    bytes = await readFile(resolve(workingDirectory(args), args.file));
+  } catch (error) {
+    // A missing or unreadable FILE is a mistake of the command line, not a crash.
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "EACCES" && code !== "EISDIR") throw error;
+    return fail(
+      `cannot read ${args.file}: ${code === "ENOENT" ? "no such file" : code === "EISDIR" ? "it is a directory" : "permission denied"}`,
+    );
+  }
+  // A FILE that is no valid Wasm module (spec/cli/command-line.md#r-cli.wasm.invalid).
+  let module: WebAssembly.Module;
+  try {
+    module = await WebAssembly.compile(bytes as BufferSource);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return fail(`${args.file} is not a valid WebAssembly module: ${reason}`);
+  }
+  // A module that `hd build` did not write names what it lacks
+  // (spec/cli/command-line.md#r-cli.wasm.not-hd.message).
+  const notBuiltByHd = (why: string): number =>
+    fail(`${args.file} was not built by this hd: ${why}; rebuild it with hd build`);
+  const runtime = readRuntimeSection(module);
+  if (!runtime) return notBuiltByHd(`it has no ${RUNTIME_SECTION} section, which hd build writes`);
+  const entry = runtime.entry;
+  if (
+    entry &&
+    !WebAssembly.Module.exports(module).some(
+      ({ name, kind }) => name === entry.name && kind === "function",
+    )
+  )
+    return notBuiltByHd(`it lacks the entry export '${entry.name}'`);
+  // No `hd.toml` comes with a module, so its grant is the flags alone, and
+  // it runs in the working directory (cli.wasm.grant, cli.wasm.host).
+  const host = defaultHost(args, args.file, workingDirectory(args));
+  const specIndex = args.format === "json" ? await loadSpecIndex(args.specDir) : undefined;
+  const reporter = new DiagnosticReporter(report, args.file, "", specIndex);
+  try {
+    return report.finish(await runModule(module, runtime, io, reporter, host));
+  } catch (error) {
+    if (error instanceof UnknownImportError) return notBuiltByHd(error.message);
+    throw error;
+  }
+}
+
+/**
+ * Runs a built module's entry point under the default profile, as `execute`
+ * runs a compiled program's (spec/cli/command-line.md#r-cli.wasm.host).
+ */
+async function runModule(
+  module: WebAssembly.Module,
+  runtime: RuntimeInterface,
+  io: CommandIo,
+  reporter: DiagnosticReporter,
+  runHost: RunHost,
+): Promise<number> {
+  let readLine: (() => string | undefined | null) | undefined;
+  const host: DefaultProfileHost = {
+    ...runHost,
+    // The `Env` notice goes to standard error (spec/cli/command-line.md#r-cli.cap.env.notice).
+    notice: (line) => io.err(line),
+    readLine: () => (readLine ??= inputLines())(),
+  };
+  // Set once the program wrote an entry point's `.Err` report, which then
+  // stands for the failure (spec/lang/10-modules.md#r-module.entry.err-stderr).
+  let entryErrorReported = false;
+  try {
+    const { instance } = await instantiateModule(module, runtime, {
+      console: (text) => io.out(text),
+      consoleError: (text) => io.err(text),
+      entryError: (text) => {
+        entryErrorReported = true;
+        io.err(text);
+      },
+      debugOutput: (line) => io.err(line),
+      // A totally denied need refuses the start (spec/cli/command-line.md#r-cli.wasm.total-deny).
+      needs: (traits) => {
+        const message = totalDenial(traits, host.grants);
+        if (message !== undefined) throw new CapabilityRefusal(message);
+      },
+      hostSuspensionInvoke: (call) => defaultProfileAnswer(call, host) ?? { pending: false },
+    });
+    // Supplied standard input arrives as a whole, before a program that
+    // reads lines runs.
+    if (
+      runHost.readInput &&
+      runtime.hostTraits.some(({ standardName }) => standardName === "std.console.ConsoleInput")
+    )
+      readLine = inputLines(await runHost.readInput());
+    // A module without an entry point ran its initialization (cli.wasm.run).
+    if (!runtime.entry) return 0;
+    const { name, requirements } = runtime.entry;
+    const outcome = await runSelected(
+      [{ name, parameters: [], requirements, entry: true }],
+      instance.exports,
+      async () => instance.exports,
+    );
+    if (outcome.kind === "exit") return outcome.code;
+    if (outcome.kind === "failed") {
+      if (!entryErrorReported) reporter.entryError(outcome.subject, outcome.outcome);
+      return 1;
+    }
+    if (outcome.result !== undefined) io.out(String(outcome.result));
+    return 0;
+  } catch (error) {
+    // A refused start runs no program, and exits 101 (cli.cap.total.status).
+    if (error instanceof CapabilityRefusal) {
+      io.err(error.message);
+      return EXIT_HD_FAILURE;
+    }
+    // A built module has no panic sites, so a panic names no location.
+    if (error instanceof RuntimePanicError) {
+      reporter.runtimePanic(error.code, error.detail, undefined, error.notes);
+      return 1;
+    }
+    if (error instanceof UnsupportedAtRunTimeError) {
+      reporter.unsupported(error.code, error.message);
+      return EXIT_HD_FAILURE;
+    }
+    throw error;
+  }
+}
+
 /**
  * What the default profile reads for a run of `program` in `directory`
  * (spec/cli/command-line.md#host-capabilities).
@@ -244,8 +396,9 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
   // records to standard error (spec/cli/command-line.md#r-cli.json.run).
   const report = new Report(args.format, io, { stream: "stderr", summary: true });
   if (args.name !== undefined) {
-    // `hd run FILE` is an error (spec/cli/command-line.md#r-cli.run.file).
-    if (args.name.endsWith(".hd")) {
+    // `hd run FILE` is an error, for a source FILE or a built module
+    // (spec/cli/command-line.md#r-cli.run.file).
+    if (args.name.endsWith(".hd") || args.name.endsWith(".wasm")) {
       report.commandError(
         `hd run: runs an executable of the package, not a FILE; use hd run, or hd run NAME for the executable NAME (run ${args.name} on its own with hd ${args.name})`,
       );

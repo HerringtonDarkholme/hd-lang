@@ -1,0 +1,11 @@
+use std.host.{args, Args}
+use std.process.ExitCode
+
+pub fn main!() -> Result[ExitCode, string] $ Console + Args:
+    println("hello")
+    words := args()
+    for word in words:
+        println(word)
+    if words.len() > 0:
+        return .Ok(ExitCode(3))
+    .Ok(ExitCode(0))

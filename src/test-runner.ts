@@ -35,6 +35,15 @@ type RunOutcome =
 
 type Exports = WebAssembly.Exports;
 
+/**
+ * What the runner reads of an entry point or a test case. A built module's
+ * entry point has no other part (runtime-interface.ts).
+ */
+export type RunnableFunction = Pick<
+  HirFunction,
+  "name" | "parameters" | "requirements" | "entry" | "testOptions"
+>;
+
 /** Where the runner reports each test case, and whether a failure ends the run. */
 export interface TestReporting {
   readonly record: (
@@ -55,7 +64,7 @@ export interface TestReporting {
   readonly keepGoing: boolean;
 }
 
-function exportName(declaration: HirFunction): string {
+function exportName(declaration: RunnableFunction): string {
   return /^\$test\.\d+$/.test(declaration.name)
     ? `__hd_test_${declaration.name.slice(6)}`
     : declaration.name;
@@ -132,7 +141,7 @@ function runnerProvider(
 
 function call(
   exports: Exports,
-  declaration: HirFunction,
+  declaration: RunnableFunction,
   row: number,
   report: CaseReport,
   properties?: PropertyRun,
@@ -156,7 +165,7 @@ function call(
   );
 }
 
-function caseName(declaration: HirFunction, row: number | undefined): string {
+function caseName(declaration: RunnableFunction, row: number | undefined): string {
   const name = declaration.testOptions?.name ?? declaration.name;
   return row === undefined ? name : `${name}[${row}]`;
 }
@@ -166,7 +175,11 @@ function caseName(declaration: HirFunction, row: number | undefined): string {
 // (spec/lang/10-modules.md#r-module.entry.exit-report), whether it suspends or
 // not. A test case fails on any nonzero code
 // (spec/lang/10-modules.md#r-module.testing.fail).
-function judge(declaration: HirFunction, result: unknown, subject: string): RunOutcome | undefined {
+function judge(
+  declaration: RunnableFunction,
+  result: unknown,
+  subject: string,
+): RunOutcome | undefined {
   if (typeof result !== "number") return undefined;
   if (declaration.entry) {
     if (result === -1) return { kind: "failed", subject: "main" };
@@ -200,7 +213,7 @@ function isDiscardPanic(error: RuntimePanicError, properties: PropertyRun): bool
 /** Runs one test case (or table row) in `exports`; undefined when it passes. */
 function runCase(
   exports: Exports,
-  declaration: HirFunction,
+  declaration: RunnableFunction,
   row: number | undefined,
   properties?: PropertyRun,
   snapshotCheck?: (text: string) => string,
@@ -218,7 +231,7 @@ function runCase(
 
 function judgeCase(
   exports: Exports,
-  declaration: HirFunction,
+  declaration: RunnableFunction,
   row: number | undefined,
   report: CaseReport,
   properties: PropertyRun | undefined,
@@ -255,7 +268,7 @@ function judgeCase(
 // instance (spec/lang/10-modules.md#r-module.testing.instance); the entry point
 // runs in `shared`.
 export async function runSelected(
-  selected: readonly HirFunction[],
+  selected: readonly RunnableFunction[],
   shared: Exports,
   fresh: () => Promise<Exports>,
   // Called as each test case, or `it_each` row, starts (for `snapshot_file`).

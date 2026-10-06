@@ -1,0 +1,9 @@
+# notes.wasm is text, not a Wasm module, and empty.wasm is a valid module
+# with no entry export, which hd build never writes. Both are errors of
+# hd itself, so nothing runs and each exits 101.
+run: hd notes.wasm
+exit: 101
+stdout-json: []
+run: hd empty.wasm
+exit: 101
+stdout-json: []
