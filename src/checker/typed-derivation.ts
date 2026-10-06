@@ -1,3 +1,4 @@
+import { writtenVariantGadt } from "./gadt.ts";
 import type {
   DataDecl,
   Decorators,
@@ -299,10 +300,9 @@ export function withTypedDerivationSupport(source: Program): Program {
   };
 }
 
+/** An enum with a variant that refines its result or declares its own parameters (13-gadts.md). */
 function isGadt(declaration: EnumDecl): boolean {
-  return declaration.variants.some(
-    (variant) => variant.result !== undefined && variant.result.kind !== "call",
-  );
+  return declaration.variants.some((variant) => writtenVariantGadt(declaration, variant));
 }
 
 /** The concrete type a fact expression evaluates to, when it is evident from syntax. */

@@ -115,6 +115,25 @@ export class EmitterContext {
   protected currentRequirements: readonly string[] = [];
   /** The HIR function whose body is currently emitted, for host call-site identity. */
   protected currentFunctionIndex = -1;
+  /**
+   * The evidence locals of the current function's GADT existential bounds,
+   * by bound index (13-gadts.md#r-gadt.runtime.evidence.match).
+   */
+  protected currentBoundLocals: ReadonlyMap<number, number> = new Map();
+
+  protected enterBoundLocals(declaration: HirFunction): void {
+    this.currentBoundLocals = new Map(
+      (declaration.existentialBounds ?? []).map(
+        (local, index) => [declaration.genericBounds.length + index, local] as const,
+      ),
+    );
+  }
+
+  /** The dictionary of bound `index`: a parameter, or an existential's evidence local. */
+  protected boundLocal(index: number): string {
+    const local = this.currentBoundLocals.get(index);
+    return local === undefined ? `(local.get $bound${index})` : `(local.get ${localName(local)})`;
+  }
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
   protected readonly callableStorageAdapters = new Map<ValueType, CallableStorageAdapter>();
   protected readonly suspensionResultAdapters = new Map<string, SuspensionResultAdapter>();
@@ -229,7 +248,7 @@ export class EmitterContext {
    */
   protected closureBoundValues(closureIndex: number): string[] {
     const bounds = this.closuresByIndex.get(closureIndex)?.genericBounds ?? [];
-    return bounds.map((_, index) => `(local.get $bound${index})`);
+    return bounds.map((_, index) => this.boundLocal(index));
   }
 
   /** A bound's dictionary, or a supertrait's dictionary reached through it. */
@@ -237,7 +256,7 @@ export class EmitterContext {
     boundIndex: number,
     supertrait?: { readonly sourceTraitIndex: number; readonly path: readonly number[] },
   ): string {
-    const dictionary = `(local.get $bound${boundIndex})`;
+    const dictionary = this.boundLocal(boundIndex);
     if (!supertrait) return dictionary;
     const source = this.traitsByIndex.get(supertrait.sourceTraitIndex)!;
     return this.traitDictionaryPath(`trait:${source.name}`, supertrait.path, dictionary).dictionary;

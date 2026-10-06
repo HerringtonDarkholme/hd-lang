@@ -70,6 +70,13 @@ export class FunctionChecker extends ExpressionControlChecker {
   /** The check, with the join model's literal hint added where no site gave one. */
   override check(): FunctionCheckResult {
     const result = super.check();
+    // GADT arms' existential bounds read their evidence locals
+    // (13-gadts.md#r-gadt.runtime.evidence.match).
+    if (result.function && this.existentialBoundLocals.length > 0)
+      return {
+        ...result,
+        function: { ...result.function, existentialBounds: this.existentialBoundLocals },
+      };
     if (result.function || result.diagnostics.length === 0) return result;
     const scope = [...this.locals, ...this.availableCaptures.values()];
     const last = result.diagnostics.at(-1)!;

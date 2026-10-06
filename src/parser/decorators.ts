@@ -1,6 +1,8 @@
 import type {
   AssociatedTypeBinding,
+  DataField,
   Decorators,
+  EnumVariant,
   Expression,
   GenericBound,
   MemberLine,
@@ -358,5 +360,80 @@ export abstract class DecoratorParser extends ExpressionParser {
       : name.text;
     for (const binding of own) bindings.push({ ...binding, trait: rendered });
     return { name: rendered, span: { start: name.span.start, end: close.span.end } };
+  }
+
+  // Set while parsing a variant result, whose named type may take an
+  // argument clause (02-grammar.md#enums).
+  protected variantResult = false;
+
+  private parseVariantResultType(): TypeRef {
+    this.variantResult = true;
+    try {
+      return this.parseType(false);
+    } finally {
+      this.variantResult = false;
+    }
+  }
+
+  /** One enum variant line (02-grammar.md#enums). */
+  protected parseEnumVariant(): EnumVariant {
+    const { doc: variantDoc, metadata: variantMetadata } = this.parseMemberPrefix();
+    const variantName = this.expectKind("identifier", "expected an enum variant name");
+    // Variant-local generic parameters (13-gadts.md#variant-result-types).
+    const variantGenerics = this.parseGenericParameters({ defaults: false });
+    this.rejectRowParameters(variantGenerics.rows, variantGenerics.spans, "an enum variant");
+    const fields: DataField[] = [];
+    if (this.matchText("(")) {
+      if (!this.atText(")")) {
+        do {
+          const fieldDoc = this.parseDocComments();
+          const fieldStart = this.current().span.start;
+          const payloadMetadata = this.parseMemberDecorators(true);
+          // An unnamed positional payload field is named by its position
+          // (08-data-and-enums.md#variant-payloads).
+          const fieldName =
+            this.current().kind === "identifier" && this.peek(1).text === ":"
+              ? this.advance().text
+              : undefined;
+          if (fieldName !== undefined) this.expectText(":");
+          const type = this.parseType();
+          fields.push({
+            name: fieldName ?? String(fields.length),
+            type,
+            doc: fieldDoc,
+            ...(payloadMetadata.length > 0 ? { metadata: payloadMetadata } : {}),
+            ...(fieldName === undefined ? { positional: true } : {}),
+            span: { start: fieldStart, end: type.span.end },
+          });
+        } while (this.matchText(",") && !this.atText(")"));
+      }
+      this.expectText(")");
+    }
+    // `variant_result = named_type, [ argument_clause ]` (02-grammar.md#enums).
+    const resultType = this.matchText("->") ? this.parseVariantResultType() : undefined;
+    const resultCall =
+      resultType && this.atText("(")
+        ? this.parseCall({
+            kind: "name",
+            name: resultType.name.replace(/\[.*$/s, ""),
+            span: resultType.span,
+          })
+        : undefined;
+    const result = resultCall?.kind === "call" ? resultCall : undefined;
+    const end = result?.span.end ?? resultType?.span.end ?? this.peek(-1).span.end;
+    this.expectKind("newline", "expected a line ending after an enum variant");
+    return {
+      name: variantName.text,
+      ...(variantGenerics.parameters.length > 0
+        ? { genericParameters: variantGenerics.parameters }
+        : {}),
+      ...(variantGenerics.bounds.length > 0 ? { genericBounds: variantGenerics.bounds } : {}),
+      fields,
+      ...(resultType ? { resultType } : {}),
+      result,
+      doc: variantDoc,
+      ...variantMetadata,
+      span: { start: variantName.span.start, end },
+    };
   }
 }

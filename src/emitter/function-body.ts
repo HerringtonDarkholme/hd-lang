@@ -480,11 +480,31 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
   private emitPermissionWeakening(
     expression: Extract<HirExpression, { kind: "permission-weaken" }>,
   ): string {
+    if (expression.refinement) return this.emitRefinement(expression);
     const actual = functionParts(expression.operand.type);
     const formal = functionParts(expression.type);
     return actual && formal
       ? this.emitCallableAdaptation(expression.operand, expression.type, expression.operand.type)
       : this.emitExpression(expression.operand);
+  }
+
+  /**
+   * A GADT arm's type equality is no runtime cast (13-gadts.md#r-gadt.unify.no-cast),
+   * but an erased type parameter is boxed where its refined type is not.
+   */
+  private emitRefinement(
+    expression: Extract<HirExpression, { kind: "permission-weaken" }>,
+  ): string {
+    const from = readonlyType(expression.operand.type);
+    const to = readonlyType(expression.type);
+    const value = this.emitExpression(expression.operand);
+    if (isGenericValueType(from) && !isGenericValueType(to))
+      return this.unboxValue(value, expression.type);
+    if (!isGenericValueType(from) && isGenericValueType(to))
+      return this.boxWatValue(value, expression.operand.type);
+    return functionParts(from) && functionParts(to) && from !== to
+      ? this.emitCallableAdaptation(expression.operand, expression.type, expression.operand.type)
+      : value;
   }
 
   private emitBindingExpression(
@@ -758,7 +778,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         return this.boundDictionary(expression.boundIndex, expression.supertrait);
       case "trait-bound": {
         const trait = this.traitsByIndex.get(expression.traitIndex)!;
-        const dictionary = `(local.get $bound${expression.boundIndex})`;
+        const dictionary = this.boundLocal(expression.boundIndex);
         const methods = this.liveTraitMethods(trait).map(
           (method) =>
             `(struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dictionary})`,

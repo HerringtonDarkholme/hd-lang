@@ -1,6 +1,7 @@
 import type { Expression, FunctionDecl, Parameter, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
-import { nominalGenericType } from "../types.ts";
+import { nominalGenericParts, nominalGenericType, readonlyType } from "../types.ts";
+import { substituteWritten, writtenVariantGadt } from "./gadt.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
 
@@ -124,12 +125,10 @@ function laterNamesContext(
   };
 }
 
-/** The outer named type of a variant result such as `Expr[i32]` or `Status(404)`. */
-function variantResultOwner(result: Expression): string | undefined {
-  if (result.kind === "name") return result.name;
-  if (result.kind === "call") return variantResultOwner(result.callee);
-  if (result.kind === "index") return variantResultOwner(result.receiver);
-  return undefined;
+/** The outer named type of a written variant result such as `Expr[i32]`. */
+function variantResultOwner(result: TypeRef): string {
+  const plain = readonlyType(result.name.trim());
+  return nominalGenericParts(plain)?.name ?? plain;
 }
 
 type EnumDeclaration = ProgramCheckContext["program"]["enums"][number];
@@ -149,42 +148,34 @@ function enumTypeArguments(
 
 /**
  * Why a variant's explicit result cannot initialize its enum, if it cannot:
- * the result must construct the enclosing enum (13-gadts.md), a variant of
- * an enum with shared data must initialize it, and GADT refinement is outside
- * the prototype.
+ * the result must construct the enclosing enum (13-gadts.md#r-gadt.result.owner),
+ * a variant of an enum with shared data must initialize it, and only shared
+ * data takes an argument clause (13-gadts.md#r-gadt.result.shared-data).
  */
 function variantResultProblem(
   declaration: EnumDeclaration,
   variant: EnumDeclaration["variants"][number],
 ): Diagnostic | undefined {
-  const result = variant.result;
-  if (result && variantResultOwner(result) !== declaration.name)
+  const written = variant.resultType;
+  if (written && variantResultOwner(written) !== declaration.name)
     return {
       code: "variant-result-owner",
       message: `variant '${variant.name}' must construct ${declaration.name}`,
-      span: result.span,
+      span: written.span,
     };
-  if (!result)
-    return declaration.sharedFields.length === 0
-      ? undefined
-      : {
-          code: "missing-variant-result",
-          message: `variant '${variant.name}' must initialize shared enum data`,
-          span: variant.span,
-        };
   if (declaration.sharedFields.length === 0)
+    return variant.result
+      ? {
+          code: "argument-count",
+          message: `${declaration.name} has no shared data for '${variant.name}' to initialize`,
+          span: variant.result.span,
+        }
+      : undefined;
+  if (!written)
     return {
-      code: "unsupported-gadt-result",
-      message:
-        "explicit variant results without shared enum data are outside the current MVP slice",
-      span: result.span,
-    };
-  if (result.kind !== "call" || result.callee.kind !== "name")
-    return {
-      code: "unsupported-gadt-result",
-      message:
-        "a variant result that refines the enum's type arguments is outside the current MVP slice",
-      span: result.span,
+      code: "missing-variant-result",
+      message: `variant '${variant.name}' must initialize shared enum data`,
+      span: variant.span,
     };
   return undefined;
 }
@@ -203,14 +194,34 @@ function createEnumVariantDeclarations(
     for (const variant of declaration.variants) {
       const problem = variantResultProblem(declaration, variant);
       if (problem) diagnostics.push(problem);
-      if (problem || variant.result?.kind !== "call") continue;
-      const argumentNames =
-        variant.result.argumentNames ?? variant.result.arguments.map(() => undefined);
+      if (problem || declaration.sharedFields.length === 0 || !variant.resultType) continue;
+      // A result without an argument clause initializes every shared field
+      // from its default.
+      const call: Extract<Expression, { kind: "call" }> = variant.result ?? {
+        kind: "call",
+        callee: { kind: "name", name: declaration.name, span: variant.resultType.span },
+        arguments: [],
+        span: variant.resultType.span,
+      };
+      // A GADT variant's constructors are generic over its own variables, and
+      // its shared data is typed under its refinement (13-gadts.md#r-gadt.shared.assignable).
+      const gadt = writtenVariantGadt(declaration, variant);
+      const generics = gadt ? gadt.variables : declaration.genericParameters;
+      const refined = new Map(
+        gadt
+          ? declaration.genericParameters.map(
+              (parameter, index) => [parameter, gadt.resultArguments[index]!] as const,
+            )
+          : [],
+      );
+      const sharedType = (type: TypeRef): TypeRef =>
+        gadt ? { ...type, name: substituteWritten(type.name, refined) } : type;
+      const argumentNames = call.argumentNames ?? call.arguments.map(() => undefined);
       let nextPositional = 0;
       const seen = new Set<number>();
       const explicit: ExplicitEnumFieldValue[] = [];
       let valid = true;
-      variant.result.arguments.forEach((value, argumentIndex) => {
+      call.arguments.forEach((value, argumentIndex) => {
         const name = argumentNames[argumentIndex];
         const fieldIndex =
           name === undefined
@@ -246,7 +257,7 @@ function createEnumVariantDeclarations(
         diagnostics.push({
           code: "missing-required-field",
           message: `variant '${variant.name}' does not initialize shared field '${missingRequired.name}'`,
-          span: variant.result.span,
+          span: call.span,
         });
         valid = false;
       }
@@ -255,21 +266,24 @@ function createEnumVariantDeclarations(
       const body: Statement[] = explicit.map(({ fieldIndex, value }) => ({
         kind: "binding",
         name: localName(fieldIndex),
-        annotation: declaration.sharedFields[fieldIndex]!.type,
+        annotation: sharedType(declaration.sharedFields[fieldIndex]!.type),
         mutable: false,
         value,
         span: value.span,
       }));
       for (const field of missing) {
         const fieldIndex = declaration.sharedFields.indexOf(field);
-        const call: Expression = {
+        const defaultCall: Expression = {
           kind: "call",
           callee: {
             kind: "name",
             name: `$enum-default.${declaration.name}.${field.name}`,
             span: field.span,
           },
-          typeArguments: enumTypeArguments(declaration, field.span),
+          typeArguments:
+            gadt && declaration.genericParameters.length > 0
+              ? gadt.resultArguments.map((name) => ({ name, span: field.span }))
+              : enumTypeArguments(declaration, field.span),
           arguments: declaration.sharedFields.slice(0, fieldIndex).map((_, earlierIndex) => ({
             kind: "name" as const,
             name: localName(earlierIndex),
@@ -280,19 +294,24 @@ function createEnumVariantDeclarations(
         body.push({
           kind: "binding",
           name: localName(fieldIndex),
-          annotation: field.type,
+          annotation: sharedType(field.type),
           mutable: false,
-          value: call,
+          value: defaultCall,
           span: field.span,
         });
       }
       const resultType: TypeRef = {
         name:
           declaration.genericParameters.length > 0
-            ? nominalGenericType(declaration.name, declaration.genericParameters)
+            ? nominalGenericType(
+                declaration.name,
+                gadt ? gadt.resultArguments : declaration.genericParameters,
+              )
             : declaration.name,
         span: variant.span,
       };
+      const variableArguments =
+        generics.length > 0 ? generics.map((name) => ({ name, span: variant.span })) : undefined;
       // Shared data is a per-variant constant (08-data-and-enums.md#r-data.shared.per-variant):
       // `$enum-shared` computes it once, without the payload in scope
       // (r[data.shared.no-payload]), and the emitter caches its result, so a
@@ -322,8 +341,8 @@ function createEnumVariantDeclarations(
         ...(declaration.standard ? { standard: true } : {}),
         name: sharedName,
         suspending: false,
-        genericParameters: declaration.genericParameters,
-        genericBounds: [],
+        genericParameters: generics,
+        genericBounds: gadt ? (variant.genericBounds ?? []) : [],
         parameters: [],
         result: resultType,
         requirements: [],
@@ -340,7 +359,7 @@ function createEnumVariantDeclarations(
           name: sharedName,
           span: variant.span,
         },
-        typeArguments: enumTypeArguments(declaration, variant.span),
+        typeArguments: variableArguments,
         arguments: [],
         span: variant.span,
       };
@@ -372,8 +391,8 @@ function createEnumVariantDeclarations(
         ...(declaration.standard ? { standard: true } : {}),
         name: `$enum-variant.${declaration.name}.${variant.name}`,
         suspending: false,
-        genericParameters: declaration.genericParameters,
-        genericBounds: [],
+        genericParameters: generics,
+        genericBounds: gadt ? (variant.genericBounds ?? []) : [],
         parameters: variant.fields.map((field) => ({
           name: field.name,
           type: field.type,

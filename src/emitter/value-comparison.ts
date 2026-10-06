@@ -131,7 +131,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   private boundDispatchDictionary(
     dispatch: Extract<HirEqualityDispatch, { kind: "bound" }>,
   ): string {
-    let dictionary = `(local.get $bound${dispatch.boundIndex})`;
+    let dictionary = this.boundLocal(dispatch.boundIndex);
     if (!dispatch.via) return dictionary;
     let trait = this.traitsByIndex.get(dispatch.via.traitIndex)!;
     for (const fieldIndex of dispatch.via.path) {

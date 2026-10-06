@@ -984,46 +984,7 @@ class Parser extends LetParser {
     const variants: EnumDecl["variants"][number][] = [];
     while (!this.atKind("dedent") && !this.atKind("eof")) {
       if (this.matchKind("newline")) continue;
-      const { doc: variantDoc, metadata: variantMetadata } = this.parseMemberPrefix();
-      const variantName = this.expectKind("identifier", "expected an enum variant name");
-      const fields: EnumDecl["variants"][number]["fields"][number][] = [];
-      if (this.matchText("(")) {
-        if (!this.atText(")")) {
-          do {
-            const fieldDoc = this.parseDocComments();
-            const fieldStart = this.current().span.start;
-            const payloadMetadata = this.parseMemberDecorators(true);
-            // An unnamed positional payload field is named by its position
-            // (08-data-and-enums.md#variant-payloads).
-            const fieldName =
-              this.current().kind === "identifier" && this.peek(1).text === ":"
-                ? this.advance().text
-                : undefined;
-            if (fieldName !== undefined) this.expectText(":");
-            const type = this.parseType();
-            fields.push({
-              name: fieldName ?? String(fields.length),
-              type,
-              doc: fieldDoc,
-              ...(payloadMetadata.length > 0 ? { metadata: payloadMetadata } : {}),
-              ...(fieldName === undefined ? { positional: true } : {}),
-              span: { start: fieldStart, end: type.span.end },
-            });
-          } while (this.matchText(",") && !this.atText(")"));
-        }
-        this.expectText(")");
-      }
-      const result = this.matchText("->") ? this.parseExpression() : undefined;
-      const end = result?.span.end ?? this.peek(-1).span.end;
-      this.expectKind("newline", "expected a line ending after an enum variant");
-      variants.push({
-        name: variantName.text,
-        fields,
-        result,
-        doc: variantDoc,
-        ...variantMetadata,
-        span: { start: variantName.span.start, end },
-      });
+      variants.push(this.parseEnumVariant());
     }
     const close = this.expectKind("dedent", "expected the end of the enum body");
     if (variants.length === 0)
@@ -1208,7 +1169,7 @@ class Parser extends LetParser {
       end = member.span.end;
     }
     const written = finish(rendered, { start: name.span.start, end });
-    if (this.atText("("))
+    if (this.atText("(") && !this.variantResult)
       this.fail(
         "unsupported-type-form",
         "function and tuple types are introduced with closure support",

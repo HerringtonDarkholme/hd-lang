@@ -221,7 +221,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               expression.span,
             );
           this.readLocals.add(local);
-          return { kind: "local", local, type: local.type, span: expression.span };
+          return this.refinedRead({
+            kind: "local",
+            local,
+            type: local.type,
+            span: expression.span,
+          });
         }
         const source = this.availableCaptures.get(expression.name);
         if (source) {

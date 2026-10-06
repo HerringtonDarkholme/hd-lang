@@ -51,6 +51,7 @@ import { spellBinding, uniqueSpelledTypes } from "./spelling.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionComprehensionChecker, FOR_PATTERN_ITEM } from "./expression-comprehensions.ts";
 import { STATEMENT_IFS } from "./statements.ts";
+import { variantShape } from "./gadt.ts";
 type MatchExpression = Extract<Expression, { kind: "match" }>;
 type MatchSourceArm = MatchExpression["arms"][number];
 type MatchBinding = HirMatchArm["bindings"][number];
@@ -80,6 +81,7 @@ interface MatchContext {
 function enumPatternAccess(
   declaration: HirEnum,
   field: HirEnum["fields"][number],
+  variables: readonly string[],
   substitutions: ReadonlyMap<string, ValueType>,
   valueType: ValueType,
 ): HirPatternAccessStep {
@@ -88,7 +90,7 @@ function enumPatternAccess(
     typeIndex: declaration.index,
     fieldIndex: field.index,
     erasedFieldType: erasedFieldType(field.type),
-    erasedTypeSubstitutions: orderedTypeSubstitutions(declaration.genericParameters, substitutions),
+    erasedTypeSubstitutions: orderedTypeSubstitutions(variables, substitutions),
     valueType,
   };
 }
@@ -496,6 +498,11 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       resultTypes: [],
       catchAll: false,
     };
+    // Exhaustiveness counts only the variants that can inhabit the subject's
+    // type (13-gadts.md#r-gadt.refine.exhaustive).
+    for (const variant of declaration?.variants ?? [])
+      if (!this.variantInhabits(declaration!, variant, subject.type))
+        context.covered.add(variant.tag);
     const previousReadonly = this.matchSubjectReadonly;
     this.matchSubjectReadonly = mutableInner(subject.type) === undefined;
     try {
@@ -683,6 +690,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     let literal: HirExpression | undefined;
     const guarded = arm.guard !== undefined;
     this.rangePatternConditions = [];
+    const outerRefinement = this.beginArmRefinement();
     try {
       this.rejectBareCallPattern(arm.pattern);
       if (context.dataDeclaration && arm.pattern.kind === "data") {
@@ -727,107 +735,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       } else if (arm.pattern.kind === "range") {
         this.checkRangeArm(arm.pattern, context, guarded, bindings);
       } else if (context.declaration && arm.pattern.kind === "variant") {
-        const pattern = arm.pattern;
-        if (pattern.enumName !== undefined && pattern.enumName !== context.declaration.name) {
-          this.fail(
-            "pattern-type-mismatch",
-            `pattern names '${pattern.enumName}', expected '${context.declaration.name}'`,
-            pattern.span,
-          );
-        }
-        const variant = context.declaration.variants.find(
-          (candidate) => candidate.name === pattern.variantName,
-        );
-        if (!variant)
-          this.fail(
-            "unknown-variant",
-            `enum '${context.declaration.name}' has no variant '${pattern.variantName}'`,
-            pattern.span,
-          );
-        if (context.covered.has(variant.tag))
-          this.fail(
-            "unreachable-match-arm",
-            `variant '${variant.name}' is already covered`,
-            pattern.span,
-          );
-        const payloadPatterns =
-          pattern.payloadPatterns ??
-          pattern.bindings.map((name) =>
-            name
-              ? { kind: "binding" as const, name, span: pattern.span }
-              : { kind: "wildcard" as const, span: pattern.span },
-          );
-        if (payloadPatterns.length !== variant.fields.length) {
-          this.fail(
-            "pattern-arity",
-            `variant '${variant.name}' expects ${variant.fields.length} payload patterns`,
-            pattern.span,
-          );
-        }
-        const bindingNames = pattern.bindingNames ?? payloadPatterns.map(() => undefined);
-        let nextPositional = 0;
-        const seenFields = new Set<number>();
-        const fieldIndices = bindingNames.map((fieldName) => {
-          const fieldIndex =
-            fieldName === undefined
-              ? nextPositional++
-              : variant.fields.findIndex((field) => field.name === fieldName);
-          if (fieldIndex < 0)
-            this.fail(
-              "unknown-data-field",
-              `variant '${variant.name}' has no payload field '${fieldName}'`,
-              pattern.span,
-            );
-          if (seenFields.has(fieldIndex))
-            this.fail(
-              "duplicate-variant-pattern-field",
-              `payload field '${variant.fields[fieldIndex]!.name}' appears more than once`,
-              pattern.span,
-            );
-          seenFields.add(fieldIndex);
-          return fieldIndex;
-        });
-        tag = variant.tag;
-        let payloadRefutable = false;
-        const substitutions = new Map<string, ValueType>();
-        if (context.subjectNominal)
-          context.declaration.genericParameters.forEach((parameter, parameterIndex) =>
-            substitutions.set(parameter, context.subjectNominal!.arguments[parameterIndex]!),
-          );
-        payloadPatterns.forEach((payloadPattern, index) => {
-          const fieldIndex = fieldIndices[index]!;
-          const field = variant.fields[fieldIndex]!;
-          const fieldType = substituteGenericType(field.type, substitutions);
-          if (payloadPattern.kind === "binding") {
-            const name = payloadPattern.name;
-            if (
-              bindingNames[index] === undefined &&
-              name !== field.name &&
-              variant.fields.some(
-                (candidate, candidateIndex) =>
-                  candidateIndex !== fieldIndex && candidate.name === name,
-              )
-            ) {
-              this.diagnostics.push({
-                code: "variant-binding-name-mismatch",
-                message: `positional binding '${name}' occupies payload field '${field.name}'`,
-                span: payloadPattern.span,
-                severity: "warning",
-              });
-            }
-          }
-          const accessPath = [
-            enumPatternAccess(context.declaration!, field, substitutions, fieldType),
-          ];
-          payloadRefutable ||= !this.checkNestedPattern(
-            payloadPattern,
-            fieldType,
-            accessPath,
-            bindings,
-            tests,
-          );
-        });
-        if (!guarded && !payloadRefutable) context.covered.add(tag);
+        tag = this.checkEnumVariantArm(arm.pattern, context, guarded, bindings, tests);
       } else if (
         context.optional !== undefined &&
         arm.pattern.kind === "variant" &&
@@ -953,17 +861,148 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           arm.pattern.span,
         );
       }
-      const guard = this.checkArmGuard(arm);
-      // An arm's final expression is the value of the enclosing match, even
-      // before its common result type has been inferred.
-      const body = this.checkStatements(arm.body, false, context.expected, true);
+      // The guard and body check under the arm's GADT refinement; the body
+      // checks against the refined expected type, and its value converts back
+      // (13-gadts.md#r-gadt.refine.scope).
+      const { guard, body } = this.withArmRefinement(outerRefinement, () => {
+        const guard = this.checkArmGuard(arm);
+        const expected =
+          context.expected === undefined ? undefined : this.refineArmType(context.expected);
+        // An arm's final expression is the value of the enclosing match, even
+        // before its common result type has been inferred.
+        const body = this.checkStatements(arm.body, false, expected, true);
+        if (expected === context.expected || this.blockType(body) === "never")
+          return { guard, body };
+        return {
+          guard,
+          body: this.coerceBlockResult(this.coerceBlockResult(body, expected!), context.expected!),
+        };
+      });
       const checkedArm = { tag, literal, guard, tests, bindings, body, span: arm.span };
       const armType = this.letElseArmType(arm, checkedArm, context);
       context.resultTypes.push(armType);
       context.arms.push(checkedArm);
     } finally {
+      this.pendingRefinement = outerRefinement;
       this.scopes.pop();
     }
+  }
+
+  /** A variant arm on an enum subject; a GADT variant refines the arm (13-gadts.md#pattern-refinement). */
+  private checkEnumVariantArm(
+    pattern: Extract<MatchSourceArm["pattern"], { kind: "variant" }>,
+    context: MatchContext,
+    guarded: boolean,
+    bindings: MatchBinding[],
+    tests: MatchTest[],
+  ): number {
+    const declaration = context.declaration!;
+    if (pattern.enumName !== undefined && pattern.enumName !== declaration.name) {
+      this.fail(
+        "pattern-type-mismatch",
+        `pattern names '${pattern.enumName}', expected '${declaration.name}'`,
+        pattern.span,
+      );
+    }
+    const variant = declaration.variants.find(
+      (candidate) => candidate.name === pattern.variantName,
+    );
+    if (!variant)
+      this.fail(
+        "unknown-variant",
+        `enum '${declaration.name}' has no variant '${pattern.variantName}'`,
+        pattern.span,
+      );
+    // An impossible GADT variant is reported before coverage, which already
+    // counts it (13-gadts.md#r-gadt.refine.impossible).
+    const substitutions = this.variantPatternSubstitutions(
+      declaration,
+      variant,
+      context.subject.type,
+      [],
+      bindings,
+      pattern.span,
+    );
+    if (context.covered.has(variant.tag))
+      this.fail(
+        "unreachable-match-arm",
+        `variant '${variant.name}' is already covered`,
+        pattern.span,
+      );
+    const payloadPatterns =
+      pattern.payloadPatterns ??
+      pattern.bindings.map((name) =>
+        name
+          ? { kind: "binding" as const, name, span: pattern.span }
+          : { kind: "wildcard" as const, span: pattern.span },
+      );
+    if (payloadPatterns.length !== variant.fields.length) {
+      this.fail(
+        "pattern-arity",
+        `variant '${variant.name}' expects ${variant.fields.length} payload patterns`,
+        pattern.span,
+      );
+    }
+    const bindingNames = pattern.bindingNames ?? payloadPatterns.map(() => undefined);
+    let nextPositional = 0;
+    const seenFields = new Set<number>();
+    const fieldIndices = bindingNames.map((fieldName) => {
+      const fieldIndex =
+        fieldName === undefined
+          ? nextPositional++
+          : variant.fields.findIndex((field) => field.name === fieldName);
+      if (fieldIndex < 0)
+        this.fail(
+          "unknown-data-field",
+          `variant '${variant.name}' has no payload field '${fieldName}'`,
+          pattern.span,
+        );
+      if (seenFields.has(fieldIndex))
+        this.fail(
+          "duplicate-variant-pattern-field",
+          `payload field '${variant.fields[fieldIndex]!.name}' appears more than once`,
+          pattern.span,
+        );
+      seenFields.add(fieldIndex);
+      return fieldIndex;
+    });
+    const tag = variant.tag;
+    let payloadRefutable = false;
+    const variables = variantShape(declaration, variant).variables;
+    payloadPatterns.forEach((payloadPattern, index) => {
+      const fieldIndex = fieldIndices[index]!;
+      const field = variant.fields[fieldIndex]!;
+      const fieldType = substituteGenericType(field.type, substitutions);
+      if (payloadPattern.kind === "binding") {
+        const name = payloadPattern.name;
+        if (
+          bindingNames[index] === undefined &&
+          name !== field.name &&
+          variant.fields.some(
+            (candidate, candidateIndex) => candidateIndex !== fieldIndex && candidate.name === name,
+          )
+        ) {
+          this.diagnostics.push({
+            code: "variant-binding-name-mismatch",
+            message: `positional binding '${name}' occupies payload field '${field.name}'`,
+            span: payloadPattern.span,
+            severity: "warning",
+          });
+        }
+      }
+      const accessPath = [
+        enumPatternAccess(declaration, field, variables, substitutions, fieldType),
+      ];
+      payloadRefutable ||= !this.checkNestedPattern(
+        payloadPattern,
+        fieldType,
+        accessPath,
+        bindings,
+        tests,
+      );
+    });
+    if (!guarded && !payloadRefutable) context.covered.add(tag);
+    return tag;
   }
 
   /** A top-level range arm; an empty or already covered range is unreachable (06 Range Patterns). */

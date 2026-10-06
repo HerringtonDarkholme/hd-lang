@@ -247,6 +247,7 @@ runtime/valid/map-lookup-and-duplicate-keys.hd	runtime
 runtime/valid/list-of-trait-values.hd	runtime
 runtime/valid/generic-data-fields.hd	runtime
 runtime/valid/generic-enum-payloads.hd	runtime
+runtime/valid/gadt-existential-evidence.hd	runtime
 runtime/valid/generic-callable-adapter.hd	runtime
 runtime/valid/generic-inference-scalars-and-data.hd	runtime
 typing/invalid/unresolved-generic-return-placeholder.hd	type
@@ -865,6 +866,10 @@ parse/valid/bracketed-suite-header-line.hd	parse
 parse/valid/same-line-loop-else.hd	parse
 typing/invalid/duplicate-binding-in-one-pattern.hd	type
 typing/invalid/variant-result-owner.hd	type
+typing/valid/gadts.hd	type
+typing/invalid/impossible-gadt-pattern.hd	type
+typing/invalid/covariant-gadt-result.hd	type
+typing/valid/invariant-gadt-result.hd	type
 runtime/valid/boxed-primitive-identity.hd	runtime
 runtime/valid/composite-identity-and-views.hd	runtime
 typing/invalid/any-exposes-no-methods.hd	type

@@ -9,6 +9,7 @@ import {
 } from "../types.ts";
 import { isIntegerType, numericType } from "../numeric.ts";
 import { substituteGenericType } from "./shared.ts";
+import { refineVariant, subjectArguments } from "./gadt.ts";
 
 // Match exhaustiveness by pattern-matrix usefulness: the unguarded arms cover
 // the subject type when no value escapes every row
@@ -72,10 +73,20 @@ function constructorsOf(
   const declaration = environment.enums.get(name);
   if (declaration) {
     const substitution = substitutions(declaration.genericParameters, view);
-    return declaration.variants.map((variant) => ({
-      name: variant.name,
-      arguments: variant.fields.map((field) => substituteGenericType(field.type, substitution)),
-    }));
+    // A GADT variant counts only where it can inhabit the type
+    // (13-gadts.md#r-gadt.unify.exhaustive).
+    return declaration.variants.flatMap((variant) => {
+      const arguments_ = variant.gadt && subjectArguments(declaration, view);
+      const refinement = arguments_ && refineVariant(arguments_, variant.gadt!, (name) => name);
+      if (arguments_ && !refinement) return [];
+      const solved = refinement ? refinement.substitutions : substitution;
+      return [
+        {
+          name: variant.name,
+          arguments: variant.fields.map((field) => substituteGenericType(field.type, solved)),
+        },
+      ];
+    });
   }
   const data = environment.data.get(name);
   if (data) {

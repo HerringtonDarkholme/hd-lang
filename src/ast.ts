@@ -316,8 +316,14 @@ export interface TypeDecl {
 
 export interface EnumVariant {
   readonly name: string;
+  /** Variant-local generic parameters, as `T` in `If[T](...) -> Expr[T]` (13-gadts.md). */
+  readonly genericParameters?: readonly string[];
+  readonly genericBounds?: readonly GenericBound[];
   readonly fields: readonly DataField[];
-  readonly result?: Expression;
+  /** The explicit result type after `->`, as `Expr[i64]` or `StatusCode` (13-gadts.md#variant-result-types). */
+  readonly resultType?: TypeRef;
+  /** The result's argument clause, as `StatusCode(404)`: a call that initializes shared enum data. */
+  readonly result?: Extract<Expression, { kind: "call" }>;
   readonly doc?: string;
   readonly metadata?: readonly Expression[];
   readonly span: SourceSpan;

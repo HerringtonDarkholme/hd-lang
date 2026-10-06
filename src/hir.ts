@@ -58,11 +58,28 @@ export interface HirData {
   readonly span: SourceSpan;
 }
 
-interface HirEnumVariant {
+export interface HirEnumVariant {
   readonly name: string;
   readonly tag: number;
   readonly fields: readonly HirDataField[];
   readonly factoryFunctionName?: string;
+  /**
+   * A GADT variant (13-gadts.md): its constructor's own type variables, the
+   * variant-local parameters and the declaration parameters it uses, and
+   * its result's type arguments over them, one per declaration parameter.
+   */
+  readonly gadt?: {
+    readonly variables: readonly string[];
+    readonly localParameters: readonly string[];
+    readonly resultArguments: readonly ValueType[];
+    /** Bounds of the variant-local parameters. */
+    readonly bounds: readonly HirGenericBound[];
+    /**
+     * One hidden field per bound of an existential parameter, holding the
+     * bound's dictionary (13-gadts.md#r-gadt.runtime.evidence).
+     */
+    readonly evidence: readonly { readonly bound: number; readonly fieldIndex: number }[];
+  };
   readonly span: SourceSpan;
 }
 
@@ -335,6 +352,12 @@ export interface HirFunction {
   readonly variadic: boolean;
   readonly genericParameters: readonly string[];
   readonly genericBounds: readonly HirGenericBound[];
+  /**
+   * The locals that hold the evidence of the existential bounds that GADT
+   * arms introduce (13-gadts.md#r-gadt.runtime.evidence.match): bound index
+   * `genericBounds.length + i` reads local `existentialBounds[i]`.
+   */
+  readonly existentialBounds?: readonly number[];
   readonly rowParameters: readonly string[];
   readonly parameters: readonly HirLocal[];
   readonly result: ValueType;
@@ -550,7 +573,16 @@ export type HirExpression =
       readonly strategy: HirOrderingStrategy;
       readonly operator: HirOrderingOperator;
     })
-  | (HirExpressionBase & { readonly kind: "permission-weaken"; readonly operand: HirExpression })
+  | (HirExpressionBase & {
+      readonly kind: "permission-weaken";
+      readonly operand: HirExpression;
+      /**
+       * A GADT arm's type equality (13-gadts.md#r-gadt.refine.equalities):
+       * not a runtime cast, but an erased type parameter and its refined
+       * type may differ in representation.
+       */
+      readonly refinement?: true;
+    })
   | (HirExpressionBase & { readonly kind: "character"; readonly value: number })
   | (HirExpressionBase & { readonly kind: "boolean"; readonly value: boolean })
   | (HirExpressionBase & {

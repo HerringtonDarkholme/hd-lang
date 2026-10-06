@@ -104,7 +104,7 @@ export abstract class ParserBase {
   // requirement clause belongs to the declaration.
   protected rowlessResult = false;
 
-  protected abstract parseType(): TypeRef;
+  protected abstract parseType(postfix?: boolean): TypeRef;
 
   protected parseResultType(): TypeRef {
     this.rowlessResult = true;

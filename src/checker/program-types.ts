@@ -27,6 +27,7 @@ import {
   displayType,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
+import { resolveVariantGadt } from "./gadt.ts";
 import {
   requirementKeyDiagnostics,
   requirementKeyDiagnosticsInType,
@@ -413,6 +414,22 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           span: variant.span,
         });
       variantNames.add(variant.name);
+      // A variant's payload sees its own generic parameters (13-gadts.md).
+      const variantGenerics = new Set([
+        ...declaration.genericParameters,
+        ...(variant.genericParameters ?? []),
+      ]);
+      const variantBounds = [
+        ...(declaration.genericBounds ?? []),
+        ...(variant.genericBounds ?? []),
+      ];
+      for (const parameter of variant.genericParameters ?? [])
+        if (PRELUDE_NAMES.has(parameter))
+          diagnostics.push({
+            code: "prelude-name-shadow",
+            message: `generic parameter '${displayType(parameter)}' shadows a prelude name`,
+            span: variant.span,
+          });
       const fieldNames = new Set<string>();
       const fields = variant.fields.map((field) => {
         if (!field.positional && sharedNamed.has(field.name))
@@ -434,7 +451,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           enumTypes,
           traitTypes,
           diagnostics,
-          new Set(declaration.genericParameters),
+          variantGenerics,
           new Set(),
           new Set(),
           {
@@ -442,7 +459,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
             validateDynamicSafety: false,
             validateWrittenBounds: false,
           },
-          declaration.genericBounds ?? [],
+          variantBounds,
         );
         const type = resolved ?? "void";
         const checked = spellField(
@@ -457,10 +474,39 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
         allFields.push(checked);
         return checked;
       });
+      const gadt = resolveVariantGadt({
+        declaration,
+        variant,
+        fields,
+        traitTypes,
+        diagnostics,
+        resolve: (type, generics) =>
+          typeName(
+            type,
+            dataTypes,
+            enumTypes,
+            traitTypes,
+            diagnostics,
+            generics,
+            new Set(),
+            new Set(),
+            {
+              validateRequirementKeys: false,
+              validateDynamicSafety: false,
+              validateWrittenBounds: false,
+            },
+            variantBounds,
+          ),
+        addField: (name, type, span) => {
+          allFields.push({ name, type, index: allFields.length, span });
+          return allFields.length - 1;
+        },
+      });
       return {
         name: variant.name,
         tag,
         fields,
+        ...(gadt ? { gadt } : {}),
         factoryFunctionName:
           sharedFields.length > 0 ? `$enum-variant.${declaration.name}.${variant.name}` : undefined,
         span: variant.span,

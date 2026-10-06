@@ -11,16 +11,15 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,585 cases: 2,568 selected in `test/portable/cases.tsv` and 17 known
-failures. The selected cases are 2,216 language tier, 301 stdlib tier, and 51
-CLI tier; the known failures are 6 language tier, 1 stdlib tier, and 10
+2,586 cases: 2,574 selected in `test/portable/cases.tsv` and 12 known
+failures. The selected cases are 2,222 language tier, 301 stdlib tier, and 51
+CLI tier; the known failures are 1 language tier, 1 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
 | CLI-DOC | 8 | no `hd doc` command |
 | CLI-PAGES-HIDDEN | 2 | `hd new --pages` stays hidden until `hd doc` can build the site |
-| F-250 | 5 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
@@ -32,10 +31,6 @@ Correctness and diagnostics:
   source location, so nothing checks a panic marker's line.
 - **F-161**: unbounded recursion ends in a Node `RangeError` stack trace,
   not a `stack-exhausted` panic.
-- **F-250**: a GADT variant result gets `syntax-error`,
-  `expected-expression`, or `unsupported-gadt-result`, and a pack function
-  gets `unsupported-generic-parameter`, not one stable code per deferred
-  feature. Fixtures: the five rows tagged F-250.
 - **F-259**: the adapter rejects the `disposed-file` runtime profile, so
   `runtime/valid/resource-disposed-result.hd` cannot run.
 - **F-265**: code-generation failures and an adapter `entry` option with no runnable
@@ -47,6 +42,11 @@ Correctness and diagnostics:
   test cases never run.
 - **F-605**: parsing stops at the first error, and checking reports one
   error per function; a signature error hides every body error.
+- **F-613**: a GADT variant in a let-else or `for` pattern refines only the
+  lowered match arm that copies its bindings out, so after the `let` an
+  existential binding has lost its bounds and the arm's type equalities no
+  longer hold. A `match` arm keeps both.
+
 Runtime cost:
 
 - **F-501**: `Map` is an unhashed association list, so `get` and `insert`

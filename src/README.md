@@ -900,6 +900,13 @@ else`, `break`, `break value`, and `continue`;
 - generic enums with inferred and contextual construction, recursive
   instantiations, precise pattern bindings, and uniform `anyref` payload
   erasure in one Wasm GC layout per declaration;
+- GADT-style variants (`checker/gadt.ts`, `checker/gadt-checker.ts`): a
+  variant's own generic parameters and refined result, construction typed by
+  that result, arm-local equalities from first-order unification with the
+  subject (`impossible-gadt-pattern` for an arm that cannot unify, and
+  exhaustiveness over inhabitable variants), invariance of a refined
+  parameter, and existential bounds whose dictionaries the value stores in
+  hidden fields (a let-else or `for` pattern is F-613);
 - trait values as lexical providers, including dispatch after generic
   requirement-row packing and removal by extension;
 - reusable `$.Context[...]` values backed by GC structs, `$.context` creation,
@@ -1401,7 +1408,7 @@ and the checker lowers each `all!` call to a drive of the frame
 `all_frame` builds. Both builders are runtime primitives in
 `lib/std/task.hd`. A `race!` with no tasks never completes.
 There are no type packs: `...` in a type is only a rest element, and
-`[Ts...]` is a `syntax-error`. GADT variant results are not implemented.
+`[Ts...]` is a `syntax-error`.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type
 does not implement the canonical prelude trait.
 

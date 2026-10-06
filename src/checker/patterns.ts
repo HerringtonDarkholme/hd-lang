@@ -40,8 +40,9 @@ import {
 } from "./shared.ts";
 import { spelledApplication, spelledType } from "./spelling.ts";
 
-import { CallChecker } from "./calls.ts";
-export abstract class PatternChecker extends CallChecker {
+import { GadtChecker } from "./gadt-checker.ts";
+import { variantResultType, variantShape } from "./gadt.ts";
+export abstract class PatternChecker extends GadtChecker {
   /**
    * A std submodule member, unless a value binding owns the receiver name.
    * A test registration function reached through `std.testing`, as
@@ -282,14 +283,17 @@ export abstract class PatternChecker extends CallChecker {
       new Set(),
       "unknown-data-field",
     );
+    // The expected type solves the variables its arguments name
+    // (13-gadts.md#r-gadt.construct.infer); a conflict shows in the final check.
+    const shape = variantShape(declaration, variant);
     const substitutions = new Map<string, ValueType>();
-    const expectedNominal = expected ? nominalGenericParts(expected) : undefined;
+    const expectedNominal = expected ? nominalGenericParts(readonlyType(expected)) : undefined;
     if (
       expectedNominal?.name === declaration.name &&
-      expectedNominal.arguments.length === declaration.genericParameters.length
+      expectedNominal.arguments.length === shape.resultArguments.length
     ) {
-      declaration.genericParameters.forEach((parameter, index) =>
-        substitutions.set(parameter, expectedNominal.arguments[index]!),
+      shape.resultArguments.forEach((argument, index) =>
+        inferGenericType(argument, expectedNominal.arguments[index]!, substitutions),
       );
     }
     const fields = plan.map((entry) => {
@@ -308,45 +312,37 @@ export abstract class PatternChecker extends CallChecker {
         argument.span,
       );
     });
-    const unresolved = declaration.genericParameters.filter(
-      (parameter) => !substitutions.has(parameter),
-    );
+    const unresolved = shape.variables.filter((parameter) => !substitutions.has(parameter));
     if (unresolved.length > 0)
       this.failUnresolvedType(
         unresolved,
         spelledApplication(
-          nominalGenericType(
-            declaration.name,
-            declaration.genericParameters.map(
-              (parameter) => substitutions.get(parameter) ?? parameter,
-            ),
+          variantResultType(
+            declaration,
+            variant,
+            new Map(shape.variables.map((name) => [name, substitutions.get(name) ?? name])),
           ),
           fields,
         ),
         span,
       );
-    const type =
-      declaration.genericParameters.length > 0
-        ? nominalGenericType(
-            declaration.name,
-            declaration.genericParameters.map((parameter) => substitutions.get(parameter)!),
-          )
-        : declaration.name;
+    const type = variantResultType(declaration, variant, substitutions);
+    const evidence = this.variantEvidence(declaration, variant, substitutions, span);
     return {
       kind: "enum",
       enumIndex: declaration.index,
       tag: variant.tag,
-      fields,
-      fieldIndices: plan.map((entry) => variant.fields[entry.parameterIndex]!.index),
+      fields: [...fields, ...evidence.values],
+      fieldIndices: [
+        ...plan.map((entry) => variant.fields[entry.parameterIndex]!.index),
+        ...evidence.fieldIndices,
+      ],
       fieldTypes: declaration.fields.map((field) => field.type),
       erasedFieldTypes:
-        declaration.genericParameters.length > 0
+        declaration.genericParameters.length > 0 || variant.gadt
           ? declaration.fields.map((field) => field.type)
           : undefined,
-      erasedTypeSubstitutions: orderedTypeSubstitutions(
-        declaration.genericParameters,
-        substitutions,
-      ),
+      erasedTypeSubstitutions: orderedTypeSubstitutions(shape.variables, substitutions),
       type,
       span,
     };
@@ -378,22 +374,12 @@ export abstract class PatternChecker extends CallChecker {
         expression.span,
       );
     }
-    const fields = expression.arguments.map((argument, index) =>
-      this.requireCoercion(
-        this.checkExpression(argument, sourceFields[index]!.type),
-        sourceFields[index]!.type,
-        argument.span,
-      ),
-    );
     const expectedNominal = expected ? nominalGenericParts(expected) : undefined;
     const type =
       expectedNominal?.name === declaration.name
         ? expected!
         : declaration.genericParameters.length > 0
-          ? nominalGenericType(
-              declaration.name,
-              declaration.genericParameters.map((parameter) => `generic:${parameter}`),
-            )
+          ? variantResultType(declaration, variant, new Map())
           : declaration.name;
     if (expected) this.requireAssignable(type, expected, expression.span);
     const substitutions = new Map<string, ValueType>();
@@ -402,20 +388,39 @@ export abstract class PatternChecker extends CallChecker {
       declaration.genericParameters.forEach((parameter, index) =>
         substitutions.set(parameter, nominal.arguments[index]!),
       );
+    // Shared data is typed under the variant's refinement
+    // (13-gadts.md#r-gadt.shared.assignable); the payload keeps the
+    // variables of the generated constructor that builds it.
+    const fieldType = (field: (typeof sourceFields)[number]): ValueType =>
+      declaration.sharedFields.includes(field)
+        ? substituteGenericType(field.type, substitutions)
+        : field.type;
+    const fields = expression.arguments.map((argument, index) =>
+      this.requireCoercion(
+        this.checkExpression(argument, fieldType(sourceFields[index]!)),
+        fieldType(sourceFields[index]!),
+        argument.span,
+      ),
+    );
+    const variables = variant.gadt?.variables ?? [];
+    const identity = new Map(variables.map((name) => [name, `generic:${name}`] as const));
+    const evidence = internalName.startsWith("$enum-template.")
+      ? { fieldIndices: [], values: [] }
+      : this.variantEvidence(declaration, variant, identity, expression.span);
     return {
       kind: "enum",
       enumIndex: declaration.index,
       tag: variant.tag,
-      fields,
-      fieldIndices: sourceFields.map((field) => field.index),
+      fields: [...fields, ...evidence.values],
+      fieldIndices: [...sourceFields.map((field) => field.index), ...evidence.fieldIndices],
       fieldTypes: declaration.fields.map((field) => field.type),
       erasedFieldTypes:
-        declaration.genericParameters.length > 0
+        declaration.genericParameters.length > 0 || variant.gadt
           ? declaration.fields.map((field) => field.type)
           : undefined,
       erasedTypeSubstitutions: orderedTypeSubstitutions(
-        declaration.genericParameters,
-        substitutions,
+        [...declaration.genericParameters, ...variables],
+        new Map([...substitutions, ...identity]),
       ),
       type,
       span: expression.span,
@@ -646,11 +651,17 @@ export abstract class PatternChecker extends CallChecker {
         return index;
       });
       tests.push({ accessPath, tag: variant.tag, tagEnumIndex: declaration.index });
-      const substitutions = new Map<string, ValueType>();
-      if (nominal)
-        declaration.genericParameters.forEach((parameter, index) =>
-          substitutions.set(parameter, nominal.arguments[index]!),
-        );
+      // A nested GADT pattern composes its equalities with the arm's
+      // (13-gadts.md#r-gadt.unify.nested).
+      const substitutions = this.variantPatternSubstitutions(
+        declaration,
+        variant,
+        type,
+        accessPath,
+        bindings,
+        pattern.span,
+      );
+      const variables = variantShape(declaration, variant).variables;
       payloadPatterns.forEach((payloadPattern, sourceIndex) => {
         const fieldIndex = fieldIndices[sourceIndex]!;
         const field = variant.fields[fieldIndex]!;
@@ -678,10 +689,7 @@ export abstract class PatternChecker extends CallChecker {
             typeIndex: declaration.index,
             fieldIndex: field.index,
             erasedFieldType: erasedFieldType(field.type),
-            erasedTypeSubstitutions: orderedTypeSubstitutions(
-              declaration.genericParameters,
-              substitutions,
-            ),
+            erasedTypeSubstitutions: orderedTypeSubstitutions(variables, substitutions),
             valueType: fieldType,
           },
         ];

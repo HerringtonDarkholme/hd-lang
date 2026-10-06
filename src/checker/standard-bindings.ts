@@ -326,14 +326,21 @@ class BindingScope {
         ? { genericDefaults: generic.defaults(value.genericDefaults) }
         : {}),
       sharedFields: value.sharedFields.map((field) => generic.field(field)),
-      variants: value.variants.map((variant) => ({
-        ...variant,
-        fields: variant.fields.map((field) => generic.field(field)),
-        ...(variant.result ? { result: generic.expression(variant.result) } : {}),
-        ...(variant.metadata
-          ? { metadata: variant.metadata.map((metadata) => generic.expression(metadata)) }
-          : {}),
-      })),
+      variants: value.variants.map((variant) => {
+        const local = generic.generics(variant.genericParameters ?? []);
+        return {
+          ...variant,
+          ...(variant.genericBounds ? { genericBounds: local.bounds(variant.genericBounds) } : {}),
+          fields: variant.fields.map((field) => local.field(field)),
+          ...(variant.resultType ? { resultType: local.type(variant.resultType) } : {}),
+          ...(variant.result
+            ? { result: local.expression(variant.result) as typeof variant.result }
+            : {}),
+          ...(variant.metadata
+            ? { metadata: variant.metadata.map((metadata) => generic.expression(metadata)) }
+            : {}),
+        };
+      }),
       ...(value.decorators ? { decorators: generic.decorators(value.decorators) } : {}),
     };
   }

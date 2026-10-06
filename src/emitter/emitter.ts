@@ -78,6 +78,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
   emit(declaration: HirFunction, isStart = false): string {
     this.currentRequirements = declaration.requirements;
     this.currentFunctionIndex = declaration.suspensionIndex ?? declaration.index;
+    this.enterBoundLocals(declaration);
     // The module initializer runs as the Wasm `start` function, which takes
     // no parameters, so a script's entry requirements arrive through the
     // `hd.init_provider` host import: the host answers each requirement the
@@ -199,6 +200,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
 
   emitSuspensionSupport(declaration: HirFunction): string {
     this.currentFunctionIndex = declaration.suspensionIndex ?? declaration.index;
+    this.enterBoundLocals(declaration);
     const plan = this.suspensionPlans.get(suspensionIndex(declaration));
     if (plan) return this.emitCfgSuspensionSupport(declaration, plan);
     const parameters = declaration.parameters

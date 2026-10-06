@@ -7,6 +7,7 @@ import {
   nominalGenericParts,
   optionalInner,
   tupleParts,
+  displayType,
 } from "../types.ts";
 import { functionVariancePairs } from "./assignability.ts";
 import {
@@ -144,11 +145,13 @@ export function varianceDiagnostics(declarations: Declarations): Diagnostic[] {
   };
   for (const data of declarations.data.values())
     check(data.genericParameters, data.variances, data.fields);
-  for (const declaration of declarations.enums.values())
+  for (const declaration of declarations.enums.values()) {
     check(declaration.genericParameters, declaration.variances, [
       ...declaration.sharedFields,
       ...declaration.variants.flatMap((variant) => variant.fields),
     ]);
+    diagnostics.push(...gadtResultVariance(declaration));
+  }
   return diagnostics;
 }
 
@@ -304,4 +307,32 @@ export function varianceConversion(
     if (conversion !== true) return conversion;
   }
   return true;
+}
+
+/**
+ * A declaration parameter whose argument in a GADT variant result is not
+ * exactly that parameter is invariant (04-type-system.md#r-types.variance.gadt).
+ */
+function gadtResultVariance(declaration: HirEnum): Diagnostic[] {
+  const variances = declaration.variances ?? [];
+  return declaration.variants.flatMap((variant) => {
+    const gadt = variant.gadt;
+    if (!gadt) return [];
+    return declaration.genericParameters.flatMap((parameter, position) => {
+      const marker = variances[position];
+      const argument = gadt.resultArguments[position]!;
+      if (
+        !marker ||
+        (argument === `generic:${parameter}` && !gadt.localParameters.includes(parameter))
+      )
+        return [];
+      return [
+        {
+          code: "invalid-variance",
+          message: `'${marker}${parameter}' must be invariant: variant '${variant.name}' refines it to '${displayType(argument)}'`,
+          span: variant.span,
+        },
+      ];
+    });
+  });
 }

@@ -136,7 +136,7 @@ export abstract class CheckerContext {
   protected abstract isIdentityType(type: ValueType): boolean;
 
   protected readonly declaration: FunctionDecl;
-  protected readonly signature: Signature;
+  protected signature: Signature;
   protected readonly signatures: ReadonlyMap<string, Signature>;
   protected readonly dataTypes: ReadonlyMap<string, HirData>;
   protected readonly enumTypes: ReadonlyMap<string, HirEnum>;
