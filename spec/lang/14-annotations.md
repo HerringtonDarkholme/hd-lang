@@ -1228,7 +1228,7 @@ data Twice:
 ```
 
 13. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph. [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension) rules the same for a default expression.
-14. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method can prevent the compiler from proving `block_on` unreachable. Such a call is rejected in a fact or metadata expression.
+14. r[annot.fact.no-block-on.unprovable] Some calls through a function value or a dynamic trait method keep the compiler from proving `block_on` unreachable. Such a call is rejected in a fact or metadata expression.
 15. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
 
 ```text

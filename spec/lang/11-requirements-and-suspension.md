@@ -1047,7 +1047,7 @@ fn main() -> i32: work!()  # error: bang-call-outside-suspension
 5. r[req.drive.block-on.forbidden-contexts] `block_on` is forbidden in a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
 6. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.no-block-on).
 7. r[req.drive.block-on.transitive] This ban is transitive through the statically known call graph.
-8. r[req.drive.block-on.unprovable] A call through a function value or dynamic trait method may prevent the compiler from proving that `block_on` is unreachable. Such a call is rejected in one of these contexts.
+8. r[req.drive.block-on.unprovable] Some calls through a function value or dynamic trait method keep the compiler from proving that `block_on` is unreachable. Such a call is rejected in one of these contexts.
 9. r[req.drive.block-on.error] Every direct or transitive violation is an error. Error: `suspension-forbidden-context`.
 10. r[req.drive.block-on.under-driver] A `block_on` call while another suspension driver is active is valid, as in `main!` or a test body, whether reached directly or through non-suspending helpers.
 11. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.

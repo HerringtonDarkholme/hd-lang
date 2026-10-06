@@ -73,6 +73,11 @@ and list it under Questions.
   character"), a condition, a build mode, an error code. Review of K1
   found one dropped location (fixed in 111a9a0b). Reread each split
   rule and ask: does every case still carry everything it had?
+- **Keep a condition a condition.** Don't turn "If an X does Y, it is
+  rejected" into "An X may (or can) do Y. Such an X is rejected". The
+  second form reads as rejecting every X. Write "Some X do Y. Such an X is
+  rejected", or keep the `If`. Review of K6 found this twice
+  (`annot.fact.no-block-on.unprovable` and `req.drive.block-on.unprovable`).
 
 ## Don't Touch
 

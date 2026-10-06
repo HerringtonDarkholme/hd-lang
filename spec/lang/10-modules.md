@@ -204,7 +204,7 @@ json = "github.com/acme/json@2.1.0"
 3. r[module.path-dep.no-package] A path requirement whose `DIR` holds no manifest that declares a package is invalid.
 4. r[module.path-dep.root-selection] The selection and `hd.sum` of the root package, or of its workspace, hold for every package that a path requirement reaches. That package's own `hd.sum` and workspace are not read.
 5. r[module.workspace.path-version] A path requirement may also carry a version, as in `{ path = "../ui", version = "0.4.2" }`.
-6. r[module.workspace.path-version.locally] When the requiring package is built from local files, such a requirement names the package at its path. This covers a build in its workspace or in a checkout of its repository. Its version is not used.
+6. r[module.workspace.path-version.locally] When the requiring package is built from local files, such a requirement names the package at its path. This covers a build in its workspace or in a checkout of its repository. The requirement's version is not used.
 7. r[module.workspace.path-version.fetched-version] In a fetched version of the requiring package, `path` is ignored, and the requirement is a dependency requirement on `version`.
 8. r[module.workspace.path-version.fetched-host] Its host path comes from the host path by which the requiring package was fetched, as [`module.dep.no-self-path`](#r-module.dep.no-self-path) gives every fetched package its host path.
 9. r[module.path-dep.fetched-outside] In a fetched version, a path requirement whose `DIR` lies outside the repository is invalid, since no host path names that directory.
