@@ -1489,7 +1489,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           expression.callee.span,
         );
       this.fail(
-        "unknown-associated-function",
+        "unknown-method",
         `type '${displayType(ownerType)}' has no associated function '${expression.callee.name}'`,
         expression.callee.span,
       );

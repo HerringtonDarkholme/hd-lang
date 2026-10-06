@@ -433,11 +433,10 @@ test("another module's private members and unimported traits stay hidden on ever
   rejected("(Cart::hidden)()", "private-member");
   rejected("Cart::audit(c)\n    c", "private-member");
   // A trait's associated function and reference need the trait available.
-  // The spec's code is unknown-method (09-traits.md#r-trait.assoc-call.type.none);
-  // the prototype still says unknown-associated-function, so only the line is checked.
+  // The code is unknown-method (09-traits.md#r-trait.assoc-call.type.none).
   assert.match(
     check("fn f(c: Cart) -> Cart:\n    Cart::zero()").join(),
-    /^src\/main\.hd:4:unknown-/,
+    /^src\/main\.hd:4:unknown-method/,
   );
   assert.deepEqual(check("fn f(c: Cart) -> Cart:\n    Cart::zero()", "Cart, Priced"), []);
   assert.deepEqual(

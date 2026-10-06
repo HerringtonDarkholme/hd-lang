@@ -121,7 +121,7 @@ export abstract class TraitCallChecker extends DebugPrintChecker {
     const candidate = candidates[0];
     if (!candidate)
       this.fail(
-        "unknown-associated-function",
+        "unknown-method",
         `no bound on '${owner}' supplies an associated function '${name}'`,
         expression.callee.span,
       );

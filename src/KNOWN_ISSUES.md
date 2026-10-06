@@ -130,9 +130,7 @@ Compiler structure:
   derivations build std structure values in the deriving module. The rules
   for literals and patterns (`data.vis.literal`, `data.vis.private-fields`,
   `data.pattern.subset`) name no code; the prototype reports
-  `private-member`. `Type::f` with no available trait candidate reports
-  `unknown-associated-function`, not `unknown-method`
-  (`trait.assoc-call.type.none`).
+  `private-member`.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.
