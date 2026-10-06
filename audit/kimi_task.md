@@ -121,6 +121,29 @@ commit, since the guide renders on the site.
 
 Same method as K16, for gaps 6 to 10 of the report.
 
+### K18. Diagnostics Wishlist For The New Compiler (Read-Only Report)
+
+`audit/hd-writing-log.md` records every mistake that agents (Haiku,
+Sonnet, Kimi) made while writing hd, with the compiler's message and
+whether it helped. The new compiler is judged by how few retries an agent
+needs (future-work/NEW_COMPILER_ARCHITECTURE.md, "Arena", pillar 1).
+Turn the log into a wishlist:
+
+1. Group every row whose Helped? is `no` or `partly` by root cause: a
+   message missing its fix, a confusing code, a missing did-you-mean, a
+   doc gap, or a language rule that surprises newcomers.
+2. For each group, give the row count, two or three representative rows
+   quoted verbatim, the message today (run it with your worktree's hd,
+   since some were improved on 2026-10-06), and the message an agent
+   would need: the effect plus the fix, in one line.
+3. At the top, rank the ten changes that would save the most retries.
+4. Leave out rows the 2026-10-06 work already fixed: P1k hints,
+   panic locations and the error-code revamp. Verify each by running
+   it.
+
+Write `audit/diagnostics-wishlist-2026-10-06.md`. Don't change any code
+or messages. Commit only the report.
+
 ## Questions
 
 (none)
