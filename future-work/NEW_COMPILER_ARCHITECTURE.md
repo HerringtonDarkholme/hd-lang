@@ -95,9 +95,29 @@ medians in ms, release builds, after the P1e/P1f string fixes:
   same way, so process startup is excluded everywhere.
 - **Limits.** Build and compile time are not in these numbers. Three runs
   is a small sample, and V8's Wasm tier-up may fall inside them.
-- **Likely causes of the gaps.** Boxed integers and dictionary-passing
-  generics, with no per-layout code. The planned value-layout
-  specialization (task P4a) moved to the new compiler.
+- **Why `sum` is 11x slower** (read from the emitted WAT, 2026-10-06).
+  `for i in a..b` is not a counted loop. It runs the generic iterator
+  protocol, and each iteration costs:
+  - two indirect calls: `next`, then `call_ref` into the range closure;
+  - about three heap allocations. The closure's counter is a captured
+    `mut` in a `$hd.cell` holding a boxed `i32`, and each increment
+    allocates a new box. `next` returns `Option[i32]` as a variant struct,
+    and the payload is a second boxed `i32`;
+  - about six `ref.cast`s with null checks.
+
+  The loop body itself compiles to one `i64.add`. So 10M iterations do
+  about 30M allocations and 20M indirect calls.
+- **What the new compiler needs:**
+  - **Counted range loops:** lower integer `a..b` / `a..=b` in `for` to a
+    counted loop.
+  - **Per-value-layout code** (the old task P4a), so `Option[i32]` and
+    `i32` aren't boxed in generic code.
+  - **Unboxed captured locals:** escape analysis and scalar replacement
+    turn a non-escaping closure's captured `mut` back into a local.
+  - **Inlined `next`:** inline small `next` bodies, so iterator chains
+    compile to loops too. This is the specializing iterator design.
+- **The other gaps** (map, sort, string-build) likely share the boxing and
+  dictionary-passing causes. They haven't been profiled yet.
 
 **Compile and check latency (Arena pillar 1).** From the
 [baseline report](../audit/compiler/baseline-2026-10-06.md), as CLI wall
