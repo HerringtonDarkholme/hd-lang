@@ -90,26 +90,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K8. Check The Guide's Examples Against The Compiler And The Spec
-
-The guide shows many complete programs in ```text blocks, which no tool
-checks (for example the GADT `Expr[T]` example in
-`guide/LANGUAGE_TOUR.md`). For each block in `guide/*.md` that is a
-complete program, or can become one by adding only a `main`, copy it to a
-scratch directory outside the repo and run it with
-`node --experimental-strip-types <your worktree>/bin/hd.js FILE`.
-
-- If it works, leave it.
-- If it fails and the spec agrees with the guide, the compiler is wrong:
-  don't change the guide; list the block, the command, and the output
-  under Questions.
-- If it fails because the guide is wrong (old syntax, a missing `use`, a
-  private field, a renamed std function), fix the guide text so it matches
-  the spec, and run it again until it works.
-
-One commit per guide file. Put a short table in the commit message: block
-heading, result (ok / fixed / compiler mismatch).
-
 ### K9. Usability Probe 4 (Read-Only)
 
 Act as a new hd user. Use only `README.md`, `guide/`, and `spec/` when

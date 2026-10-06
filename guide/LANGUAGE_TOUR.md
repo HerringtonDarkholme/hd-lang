@@ -612,7 +612,7 @@ have no start. A `match` on an integer takes `a..b`, `a..=b`, `a..`,
 
 ```text
 fn sum_below(n: i32) -> i32:
-    let total = 0
+    let total = +0
     for i in 0..n:
         total = total + i
     total
@@ -731,7 +731,7 @@ message := match status:
 The pipe `value |> step` feeds a value into the next step, so nested calls read left to right. A step either marks the value's slot with `_`, or is a bare function name, which is called with the value:
 
 ```text
-fn tag(label: string, level: i32) -> string:
+fn tag(label: string, level: usize) -> string:
     "$label:$level"
 
 fn clean(raw: string) -> string:
@@ -1404,7 +1404,7 @@ fn sum(values...: List[i32]) -> i32:
 
 sum(1, 2, 3)
 
-nums := [1, 2, 3]
+nums := [+1, +2, +3]
 sum(nums...)
 ```
 
@@ -1431,7 +1431,7 @@ fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
 fn add(a: i32, b: i32) -> i32: a + b
 
 call(add, 1, 2)        # Args is (i32, i32)
-pair := (1, 2)
+pair := (+1, +2)
 add(pair...)           # a tuple spread fills a and b
 ```
 
@@ -2670,7 +2670,7 @@ fn instant_and_offset(c: mut Choices) -> (i64, i32):
     (c.int(-1_000_000, 1_000_000), c.int(-720, 840))
 
 fn ordered_pair(c: mut Choices) -> (i32, i32):
-    low := c.int(0, 100)
+    low := c.int(+0, +100)
     high := c.int(low, 100)
     (low, high)
 
