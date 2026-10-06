@@ -90,6 +90,25 @@ and add a runtime fixture with nested patterns in first, middle and last
 positions, including two nested patterns in one arm. Run the parent
 commit and yours, and check `--phase type` and `--phase runtime`.
 
+### BM. `usize` In The Receiver Of Method Messages
+
+Review of AY/AZ. `unknown-method` (and any message naming a method's
+receiver type) still prints the canonical `u32`:
+
+```
+pub fn main() -> void $ Console:
+    xs := [1]
+    xs.pussh(2)                       # type 'List[u32]' has no supported method 'pussh'
+    let m: Map[string, usize] = {}
+    _ := m.remov("a")                 # type 'Map[string, u32]' has no ...
+```
+
+Both must say `usize` (`List[usize]`, `Map[string, usize]`), through
+`src/checker/spelling.ts` as AZ did for the other messages. Sweep the
+other member-lookup and method messages (unknown-field, ambiguous-method,
+unavailable trait method) for the same gap, add a test per message, and
+never change type identity.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
