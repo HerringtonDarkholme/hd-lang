@@ -41,6 +41,12 @@ says which program a command starts. Its diagnostic codes are in the
 2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes. So the help of `hd add` names `--dev` and the help of `hd clean` names `--cache`.
 3. r[cli.command.positional] A positional word of a command is a NAME or a FILE. A directory is neither: `hd test libs/ui` is an error, and its message suggests [`-p`](#selecting-members).
 
+```sh
+hd help          # the command list
+hd help add      # the usage and flags of add, --dev included
+hd add --help    # the same text
+```
+
 ## Package Mode
 
 A command works on a package when it finds that package's `hd.toml`:
@@ -62,6 +68,15 @@ A command works on a package when it finds that package's `hd.toml`:
 8. r[cli.mode.member.unlisted] When that workspace manifest neither lists the package in `members` nor in `exclude`, the command is an error that names the manifest, as Cargo's is.
 9. r[cli.mode.member.unlisted.fix] The error has two fix-its: one adds the package's directory to the manifest's `members`, and the other adds it to the manifest's `exclude`.
 10. r[cli.mode.member.excluded] A package whose directory the workspace manifest's `exclude` lists is not a member. A command in it works on it as on a package outside any workspace.
+
+```sh
+shop/hd.toml          # declares the package shop
+shop/src/lib.hd
+shop/src/cart/mod.hd
+
+cd shop/src/cart
+hd check              # package mode: checks shop
+```
 
 > **Note.** A `src` directory without an `hd.toml` does not make a package.
 
@@ -201,6 +216,12 @@ hd run migrate    # the executable or task named migrate
 1. r[cli.run.cwd.task] A task runs with its package directory, the directory of its `hd.toml`, as its working directory.
 2. r[cli.run.cwd.executable] An executable runs in the working directory of the `hd run` command.
 
+```sh
+cd shop/src/cart
+hd run          # the executable runs here, in shop/src/cart
+hd run gen      # the task gen runs in shop, beside its hd.toml
+```
+
 > **Why.** A task acts on its package, as an npm script does. What it
 > reads then does not depend on where the command ran. An executable is
 > the user's tool, as with `cargo run`.
@@ -242,6 +263,13 @@ profile**, which binds these traits:
 4. r[cli.host.default-profile.other] A row key outside the default profile is an error, as [`module.entry.row.host`](../lang/10-modules.md#r-module.entry.row.host) states. Error: `nonhost-entry-requirement`.
 5. r[cli.host.default-profile.console-closed] Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write the line. One such case is a pipe whose reader has closed it.
 6. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
+
+```sh
+cat src/main.hd
+# pub fn main() -> void $ Console:
+#     println("hello")
+hd run        # the default profile binds Console: prints hello
+```
 
 > **Why.** A closed pipe makes `println` panic, by
 > [`module.console.println-error`](../lang/10-modules.md#r-module.console.println-error),
@@ -471,6 +499,11 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 | type alias | the whole declaration |
 | `pub` method of an inherent `impl` | the method's signature, under the type's heading |
 
+```sh
+hd doc               # writes build/doc, HTML and Markdown together
+hd doc --private     # the private items and members too
+```
+
 ### Output
 
 1. r[cli.doc.dir] `hd doc` writes into the directory `doc` of the [build directory](#r-cli.build.directory), as `build/doc`. `--out DIR` writes into DIR instead.
@@ -489,6 +522,13 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 | `llms.txt` | the index for agents, by [`cli.doc.llms`](#r-cli.doc.llms) |
 | `llms-full.txt` | the whole documentation in one file, by [`cli.doc.llms-full`](#r-cli.doc.llms-full) |
 
+```sh
+build/doc/index.html      # the entry page
+build/doc/pkg.md          # the root module, beside pkg.html
+build/doc/shop/cart.md    # module shop.cart, beside shop/cart.html
+build/doc/llms.txt        # the index for agents
+```
+
 ### Pages
 
 1. r[cli.doc.page] A module's Markdown page starts with the heading `` # Module `PATH` ``, which reads `` # Module `pkg` `` for the root module. Then come the module's documentation and a list of its items. Each list entry links to the item's anchor and ends with the item's summary.
@@ -501,11 +541,34 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 8. r[cli.doc.example] Each [doc test](../lang/10-modules.md#doc-tests) appears in place, as written, in an `hd` block. The word `Example` and the doc test's name in code, as [`cli.test.doc.name`](#r-cli.test.doc.name) forms it, come before the block.
 9. r[cli.doc.example.compile-fail] A compile-fail doc test is labelled `Does not compile (CODE)`, with its error code, and its block keeps the `# error: CODE` line.
 
+```sh
+# shop/cart.md, the page of module shop.cart:
+# # Module `shop.cart`
+#
+# ## `total`
+#
+# ```hd
+# pub fn total(cart: Cart) -> i64
+# ```
+#
+# Sums the prices.
+```
+
 ### Pages For Agents
 
 1. r[cli.doc.llms] `llms.txt` starts with a heading of the package's name. Then it holds a blockquote with the summary of the root module's documentation, and a `## Modules` list.
 2. r[cli.doc.llms.modules] The list has one entry for each module, `pkg` first: a link to its `.md` page, a colon, and the summary of the module's documentation. The link of a top-level module `index` is to `index/index.md`.
 3. r[cli.doc.llms-full] `llms-full.txt` holds the Markdown of every module page, the root module first and the others in path order.
+
+```sh
+# build/doc/llms.txt:
+# # shop
+#
+# > Tools for the shop's catalog.
+#
+# ## Modules
+# - [pkg](pkg.md): Tools for the shop's catalog.
+```
 
 ### Links
 
@@ -514,6 +577,13 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 3. r[cli.doc.link.resolved] A resolved link becomes a link to the target's anchor, on the target's page.
 4. r[cli.doc.link.external] A NAME that resolves to a `std` item links to the page for that item in the standard library reference. A NAME that resolves into a dependency is checked, but shows as plain code.
 5. r[cli.doc.link.broken] A NAME that resolves to no item is a warning, as is one that resolves to a private item the run does not document. The text shows as plain code. Warning: `broken-doc-link`.
+
+```sh
+# in the doc comments of src/text.hd:
+# /// Reads what [`slugify`] wrote.      # a link to #slugify on this page
+# /// See [`std.json.parse`].            # a link to the standard library reference
+# /// See [`sluggify`].                  # warning: broken-doc-link
+```
 
 ### Looking Up One Item
 
@@ -524,6 +594,12 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 5. r[cli.doc.name.std] A NAME that starts with `std.`, as in `std.text.split`, names an item of the standard library: `std`, a module, and an item of that module.
 6. r[cli.doc.name.std.output] It prints the item's signature in an `hd` block, its summary, and a link to the item's section of the standard library reference.
 7. r[cli.doc.name.missing] A NAME that names no documented item is an error. That includes a `std` NAME that names no item the standard library reference specifies.
+
+```sh
+hd doc text.slugify      # the slugify section of text.md, on standard output
+hd doc text              # the whole page of module text
+hd doc std.json.parse    # parse's signature, summary, and reference link
+```
 
 > **Why.** The Markdown pages let an agent fetch one module in one
 > request, and `hd doc NAME` answers a lookup without any file. A broken
@@ -576,6 +652,12 @@ hd check --format json
 3. r[cli.exit.program] Once its program is built, `hd FILE` or `hd run` exits with the program's own status, by [Exit Status](../lang/10-modules.md#exit-status) and [`module.entry.panic`](../lang/10-modules.md#r-module.entry.panic).
 4. r[cli.exit.test-failure] `hd test` exits with status 1 when a test case fails and `hd` reports no error.
 
+```sh
+hd check; echo $?     # 0: warnings do not change it
+hd test; echo $?      # 1 when a test case failed
+hd run; echo $?       # the program's own status
+```
+
 > **Why.** Cargo reserves 101 for its own failures. CI and agents then
 > tell "my code did not compile" apart from "my program failed", which
 > most often exits with 1.
@@ -617,6 +699,12 @@ cd libs/ui && hd test -p shared    # from inside member ui, the tests of shared
 
 1. r[cli.name.hyphen] A package's name and an executable's name may contain `-`, as Cargo's do.
 2. r[cli.name.task] A task's name is its file name, so it is an identifier and contains no `-`.
+
+```sh
+hd new my-app       # a package's name may contain -
+hd run my-tool      # an executable's name too
+hd run gen          # a task's name is its file name: tasks/gen.hd
+```
 
 > **Note.** Where source needs an identifier for such a name, each `-`
 > becomes `_`, as the dependency key `my-app` is `dep.my_app`
