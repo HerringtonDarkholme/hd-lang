@@ -7,7 +7,8 @@
 > no `--html` flag (HTML is always written) and no JSON item records. The
 > query sections, D1, D2, D4, D5, D9 and D11 below, and the query rules in
 > the spec draft are dropped. The spec draft must be redone for this one
-> form before it is applied.
+> form before it is applied. `hd doc --open` builds the docs, then opens
+> the HTML index in the web browser.
 
 
 Status: design proposal, 2026-10-06. Nothing in it is accepted behavior.
