@@ -74,7 +74,7 @@ value. The forms below are the whole syntax.
 
 1. r[std-regex.syntax.punctuation] The ASCII punctuation characters are those from `!` to `/`, from `:` to `@`, from `[` to `` ` ``, and from `{` to `~`.
 2. r[std-regex.syntax.escape.other] Any other escape, such as `\b`, `\q`, or `\1`, or a `\` that ends the pattern, is an error. Error: `BadEscape`.
-3. r[std-regex.syntax.brace-literal] A `{` that does not begin a counted repetition, as in `a{` or `a{x}`, is a literal, and so are `}` and `]` outside a class.
+3. r[std-regex.syntax.brace-literal] A `{` that does not begin a counted repetition, as in `a{` or `a{x}`, is a literal. So are `}` and `]` outside a class.
 
 ### Classes
 
@@ -89,7 +89,7 @@ value. The forms below are the whole syntax.
 4. r[std-regex.syntax.class.close-first] A `]` right after `[` or `[^` is an item, not the end, so `[]a]` matches `]` or `a`.
 5. r[std-regex.syntax.class.dash] A `-` first, last, or right after a range is an item, as in `[-a]` or `[a-]`.
 6. r[std-regex.syntax.class.unclosed] A class with no closing `]` is an error, at its `[`. Error: `MissingBracket`.
-7. r[std-regex.syntax.class.bad-range] A range whose end is below its start, or whose start or end is `\d`, `\w`, `\s`, or their negations, is an error, at the range's first character. Error: `BadRange`.
+7. r[std-regex.syntax.class.bad-range] A range whose end is below its start is an error, at the range's first character. So is one whose start or end is `\d`, `\w`, `\s`, or their negations. Error: `BadRange`.
 
 ### Anchors, Groups, And Alternation
 
@@ -130,7 +130,7 @@ class, an anchor, or a group.
 1. r[std-regex.repeat.counts] `m` and `n` are runs of ASCII digits.
 2. r[std-regex.repeat.greedy] A quantifier prefers more repetitions, and its lazy form prefers fewer. The preference picks among matches that start at one position; see [Searching](#searching).
 3. r[std-regex.repeat.bad-count] A count above 1000, or an `n` below `m`, is an error, at the `{`. Error: `BadRepeat`.
-4. r[std-regex.repeat.nothing] A quantifier with no item before it is an error, at the quantifier. That covers one at the start of the pattern or a group, one after `|`, and one right after another quantifier, as in `a**` or `a{2}{3}`. Error: `NothingToRepeat`.
+4. r[std-regex.repeat.nothing] A quantifier with no item before it is an error, at the quantifier. That covers one at the start of the pattern or a group, and one after `|`. It also covers one right after another quantifier, as in `a**` or `a{2}{3}`. Error: `NothingToRepeat`.
 
 ```text
 use std.regex.{Regex, Match}
@@ -156,7 +156,7 @@ fn year(line: string) -> string?:
 
 1. r[std-regex.find.chars] A search steps through `text` one character, a Unicode scalar value, at a time. A match starts and ends at character boundaries.
 2. r[std-regex.find.leftmost] `find` returns a match that starts at the smallest offset where any match starts.
-3. r[std-regex.find.leftmost-first] Among the matches that start there, it returns the one the pattern prefers: the left side of `|` before the right, and each quantifier's preferred count, earlier choices first.
+3. r[std-regex.find.leftmost-first] Among the matches that start there, it returns the one the pattern prefers. That is the left side of `|` before the right, and each quantifier's preferred count, earlier choices first.
 4. r[std-regex.find.empty] A match may be empty. So `x*` finds the empty match at offset 0 of `"abc"`.
 5. r[std-regex.is-match.find] `is_match(text)` is `find(text).is_some()`.
 
@@ -215,9 +215,9 @@ fn spots() -> List[usize]:
 
 ### Time Bound
 
-1. r[std-regex.time.linear] A search takes time in O(m × n), where n is the length of the text and m is the size of the pattern with each counted repetition written out. No pattern makes it slower: there is no backtracking.
+1. r[std-regex.time.linear] A search takes time in O(m × n). Here n is the length of the text, and m is the size of the pattern with each counted repetition written out. No pattern makes it slower: there is no backtracking.
 2. r[std-regex.time.memory] A search uses memory in O(m + n).
-3. r[std-regex.time.linear.groups] A search that also reports groups, as `captures` and the replacements do, takes time in O(m × g × n), where g is the number of groups plus one.
+3. r[std-regex.time.linear.groups] A search that also reports groups, as `captures` and the replacements do, takes time in O(m × g × n). Here g is the number of groups plus one.
 4. r[std-regex.time.memory.groups] Such a search uses memory in O(m × g + n).
 5. r[std-regex.time.all] `find_all`, `captures_all`, `replace_all`, and `split` run at most 2k + 1 searches for k matches.
 6. r[std-regex.time.no-backrefs] So the syntax has no backreference and no lookaround, which no linear-time matcher supports.
@@ -244,7 +244,7 @@ fn quick(text: string) -> bool:
         .Err(_) => false
 ```
 
-> **Note.** `lib/std` compiles a pattern to a Pike VM: it runs every
+> **Note.** `lib/std` compiles a pattern to a Pike VM. The VM runs every
 > thread in step over the text and keeps at most one thread for each
 > instruction, in priority order. Each thread carries the positions of the
 > groups it has passed. The written-out size is the number of instructions
@@ -253,9 +253,9 @@ fn quick(text: string) -> bool:
 
 > **Why.** A script runs patterns on input it does not control. RE2's
 > guarantee keeps a pattern like `(a*)*b`, which takes exponential time in
-> a backtracking engine, linear. A search may read on past its match to the
-> end of the text, so `find_all` can take O(m × n²), as Rust documents for
-> its iterators.
+> a backtracking engine, linear. A search may read on past its match to
+> the end of the text. So `find_all` can take O(m × n²), as Rust documents
+> for its iterators.
 
 ## Captures
 
@@ -290,11 +290,12 @@ fn year_and_month(line: string) -> (string, string)?:
     .Some((found.name("year")?.text, found.get(2)?.text))  # "2026-10" gives ("2026", "10")
 ```
 
-> **Why.** Group numbers, `.None` for a group that took no part, and the
-> last pass of a repeated group are what RE2, Go, and Rust report. Both
+> **Why.** Group numbers are what RE2, Go, and Rust report. So are
+> `.None` for a group that took no part, and the
+> last pass of a repeated group. Both
 > spellings of a named group are accepted, as RE2, Go 1.22, and Rust
-> accept them: `(?P<name>)` is Python's, and `(?<name>)` is JavaScript's,
-> Java's, and .NET's.
+> accept them. `(?P<name>)` is Python's spelling, and `(?<name>)` is
+> JavaScript's, Java's, and .NET's.
 
 ## Replacing And Splitting
 
@@ -318,7 +319,7 @@ fn year_and_month(line: string) -> (string, string)?:
 4. r[std-regex.replace.longest] A number takes every digit that follows the `$`, so `$12` is group 12. Write `${1}2` for group 1 then `2`.
 5. r[std-regex.replace.absent] A reference to a group that took no part, or that the pattern does not have, is replaced by the empty text.
 6. r[std-regex.replace.literal] A `$` that begins no reference in the table is itself. So `$x`, `${}`, an unclosed `${1`, and a final `$` stay as written.
-7. r[std-regex.split.pieces] With k matches, `split` returns k + 1 pieces: the text before the first match, the text between each pair of matches, and the text after the last.
+7. r[std-regex.split.pieces] With k matches, `split` returns k + 1 pieces. They are the text before the first match, the text between each pair of matches, and the text after the last.
 8. r[std-regex.split.ends] So a match at the start of `text` gives a first piece `""`, and one at its end a last piece `""`. Splitting `""` with no match gives `[""]`.
 
 ```text
