@@ -110,18 +110,29 @@ here (owner, 2026-10-06).
 | `disk` | artifacts plus toolchain size per worktree | ≤ 10 MB |
 | `suite-cpu` | total CPU of the conformance suite | ≤ 60 s |
 
-### Pillar 3: Artifact quality (correctness is the gate)
+### Pillar 3: Artifact quality: the user's program, not the compiler
+
+The artifact is the program built from the user's code (owner,
+2026-10-06). Pillar 3 measures what that program does and how well the
+toolchain helps make it correct.
 
 | Script | Measures | Target |
 |---|---|---|
-| `conformance` | portable suite pass rate | 100% minus listed known failures |
-| `proptest-perf` | a fixed property-test suite (derived `Arbitrary` generators, `it_prop`, shrinking): cases per second and time to shrink a known failure | e.g. ≥ 100k cases/s for simple generators; shrink ≤ 1 s |
-| `runtime` | microbenchmarks with warm-up and spread, geomean vs Node | ≤ 1.5x; no case > 3x |
-| `allocations` | allocations per iteration in counted loops and iterator chains | 0 for counted loops; ≤ 1 for chains |
-| `size-startup-heap` | release Wasm size, instantiate to first output, peak heap | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node |
+| `proptest-perf` | a fixed property-test suite of user-style code (derived `Arbitrary` generators, `it_prop`, shrinking): cases per second, time to shrink a known failure | e.g. ≥ 100k cases/s for simple generators; shrink ≤ 1 s |
+| `test-throughput` | a generated user test suite (unit, integration, doc tests): tests per second in `hd test` | budget per suite size |
+| `runtime` | microbenchmarks of user-style programs with warm-up and spread, geomean vs Node | ≤ 1.5x; no case > 3x |
+| `allocations` | allocations per iteration in counted loops and iterator chains of user programs | 0 for counted loops; ≤ 1 for chains |
+| `size-startup-heap` | release Wasm size of user programs, instantiate to first output, peak heap | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node |
 
-`proptest-perf` matters for app correctness: the more property cases an
-agent can afford per test run, the more bugs its tests catch.
+`proptest-perf` and `test-throughput` matter for the program's
+correctness: the more cases an agent can afford per test run, the more
+bugs its tests catch.
+
+### Prerequisite: compiler correctness (a gate, not a pillar)
+
+| Script | Measures | Target |
+|---|---|---|
+| `conformance` | portable conformance suite pass rate | 100% minus listed known failures; known failures → 0 |
 
 ## Prototype Baselines To Beat (2026-10-06)
 
