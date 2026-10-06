@@ -77,17 +77,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K1. Split Long Sentences In The Std Chapters
-
-`node --experimental-strip-types spec/tools/spec.ts audit --list` lists
-sentences over 25 words (`sent>25`) per chapter. Work through `spec/std/`
-first: testing.md (16), regex.md (11), time.md (8), json.md (5), num.md
-(4), format.md (4), path.md (2), collections.md (2), and the singles.
-Split each long sentence into two or three short ones that say exactly
-the same thing; follow `spec/STYLE.md`. One commit per chapter. After each
-chapter run `bash spec/check.sh` and the audit again; the chapter's
-`sent>25` count must drop and nothing else may rise.
-
 ### K2. Split Long Sentences In The CLI Chapter
 
 Same as K1 for `spec/cli/command-line.md` (10 long sentences). One commit.

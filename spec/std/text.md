@@ -167,7 +167,7 @@ fn decode(bytes: List[u8]) -> string:
 4. r[std-text.utf8.round-trip] For every string `s`, `string::from_utf8(s.to_utf8())` is `.Ok(s)`.
 5. r[std-text.utf8.error.declared] `std.text` declares the enum `Utf8Error`, with the variants `InvalidSequence(position: usize)` and `Truncated`. Code imports it, as in `use std.text.Utf8Error`.
 6. r[std-text.utf8.error.first] The error describes the first sequence, from the start of `bytes`, that is not well formed.
-7. r[std-text.utf8.error.truncated] It is `Truncated` when the bytes end before that sequence has the length its first byte gives, and each byte of it after the first is a continuation byte, `0x80` to `0xBF`.
+7. r[std-text.utf8.error.truncated] It is `Truncated` when the bytes end before that sequence has the length its first byte gives. That holds only when each byte of it after the first is a continuation byte, `0x80` to `0xBF`.
 8. r[std-text.utf8.error.invalid] Otherwise it is `InvalidSequence(position)`, where `position` is the byte offset at which that sequence starts.
 9. r[std-text.utf8.error.traits] `Utf8Error` implements `Eq`, `Debug`, and `Display`. Two errors are equal when they are the same variant with the same position.
 
