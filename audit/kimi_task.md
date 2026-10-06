@@ -90,6 +90,59 @@ and list it under Questions.
 
 ## Jobs
 
+### K13. Check The Website And Playground Examples
+
+Use K8's method on the website. Run every complete program with your
+worktree's hd:
+- each file in `website/playground/examples/`;
+- each ```hd or ```text block in `website/tour/` and `website/src/`
+  pages that is a complete program, or can become one by adding only a
+  `main`.
+
+What to do with each result:
+- **It works:** leave it.
+- **It fails and the spec agrees with the page:** the compiler is wrong.
+  Don't change the page; list the file, the command and the output under
+  Questions.
+- **It fails because the page is wrong:** fix the page to match the
+  spec, and run it again until it works.
+
+Playground examples must stay realistic and show the problem a feature
+solves; don't shrink one to bare syntax. One commit per directory. Put a
+table in the commit message: file, result (ok / fixed / compiler
+mismatch). Run `pnpm run website:build` before each commit.
+
+### K14. Usability Probe 6 (Read-Only)
+
+Same method as K9 and K12, with new areas. Write four programs, using only
+`README.md`, `guide/`, and `spec/`:
+
+1. A log scanner. It reads lines from stdin, extracts fields with
+   `std.regex`, and groups them by hour using `std.time` (`Timestamp`,
+   `Duration`). It has unit tests.
+2. A pricing module whose input type derives `Arbitrary`, with property
+   tests (`it_prop`) and a doc test on its public function. Run it with
+   `hd test --filter`.
+3. A file-import command with `@error` types that wrap causes. Run it so
+   that a failure prints the "caused by:" chain. It uses `defer` to clean
+   up a temporary file.
+4. A package with a `tasks/` script that `hd run` executes, for example a
+   data seeding task.
+
+Log every mistake and message in `audit/hd-writing-log.md` (task
+`probe 6: …`, model `kimi`). Commit only the log, and list the five most
+painful problems in the commit message.
+
+### K15. Guide Coverage Report (Read-Only)
+
+For each spec chapter in `spec/lang/` and each std module in `spec/std/`,
+list the user-facing features that `guide/` never shows or mentions. A
+feature is a section heading or a named construct, not a single rule.
+Write the list to `audit/guide-coverage-2026-10-06.md` as one table per
+chapter, with columns: feature, spec link, guide mention (none / brief /
+full). Put a ranking of the ten gaps a new user would hit first at the
+top. Don't edit the guide. Commit only the report.
+
 ## Questions
 
 (none)
