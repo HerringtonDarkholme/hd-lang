@@ -1,3 +1,4 @@
+# Spec 08 Field Access: data.access.generic; Copy-Update Literals: data.update.generic.
 data Child:
     name: string
 

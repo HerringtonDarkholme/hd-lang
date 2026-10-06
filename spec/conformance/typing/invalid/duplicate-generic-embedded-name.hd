@@ -1,3 +1,4 @@
+# Spec 08 Embedded Field Names: data.embed.member, data.embed.unique.
 data Box[T]:
     value: T
 

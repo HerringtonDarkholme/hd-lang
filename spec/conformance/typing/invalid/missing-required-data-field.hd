@@ -1,3 +1,4 @@
+# Spec 08 Data Literals: data.literal.required.
 data User:
     id: i32
     active: bool = true

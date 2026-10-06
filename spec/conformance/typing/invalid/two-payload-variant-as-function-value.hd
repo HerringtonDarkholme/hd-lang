@@ -1,6 +1,7 @@
 # test: a variant constructor with two payload fields is not a function value
 # Spec 08 Enum Declarations: a variant constructor with two or more payload fields is not a
 # function value; using one without an argument clause is `unsaturated-enum-constructor`.
+# Spec 08 Variant Constructors As Function Values: data.enum.fn-value.multiple, data.enum.fn-value.unsaturated.
 
 enum FsError:
     NotFound(path: string)

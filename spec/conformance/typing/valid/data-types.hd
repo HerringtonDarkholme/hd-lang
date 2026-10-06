@@ -1,3 +1,4 @@
+# Spec 08 Data Literals and Copy-Update Literals: data.literal.form, data.update.spread.
 data User:
     id: string
     display_name: string

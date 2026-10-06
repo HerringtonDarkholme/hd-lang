@@ -1,4 +1,5 @@
 # test: through a mut outer value the embedded part is mut; reading it out aliases it; construction copies
+# Spec 08 Access Through Parts: data.part.access.
 use std.testing.assert_equal
 
 data Timestamps:

@@ -1,4 +1,5 @@
 # test: the copy marker is required even for a fresh literal
+# Spec 08 Copy Markers: data.part.marker-required.
 data Timestamps:
     created_at: i32
     updated_at: i32

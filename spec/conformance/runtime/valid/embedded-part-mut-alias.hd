@@ -1,4 +1,5 @@
 # test: reading a part out of a mut value yields a mut alias; mutation through it is seen in the container
+# Spec 08 Access Through Parts: data.part.access; Part Ownership: data.part.aliases-untracked.
 use std.testing.assert_equal
 
 data Timestamps:

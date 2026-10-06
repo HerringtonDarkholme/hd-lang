@@ -1,4 +1,5 @@
 # test: a mut copy of a readonly original cannot copy a part whose type has a direct mut field
+# Spec 08 Copy-Update Literals: data.update.mutable-result.
 data Owner:
     name: string
 

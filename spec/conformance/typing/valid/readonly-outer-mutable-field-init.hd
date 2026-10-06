@@ -1,3 +1,4 @@
+# Spec 08 Field Access: data.access.construct-mut-field; Copy-Update Literals: data.update.readonly-source.
 data Child:
     name: string
 

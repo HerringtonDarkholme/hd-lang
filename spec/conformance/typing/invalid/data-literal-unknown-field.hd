@@ -1,4 +1,5 @@
 # test: data initialization rejects unknown fields
+# Spec 08 Data Literals: data.literal.unknown.
 
 data Point:
     x: i32

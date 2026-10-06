@@ -1,4 +1,5 @@
 # test: the copy assignment ...= on an ordinary field is rejected
+# Spec 08 Copy Markers: data.part.marker-required.
 data User:
     name: string
 

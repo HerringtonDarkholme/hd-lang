@@ -1,4 +1,5 @@
 # test: reading a part out of a readonly value yields a readonly alias
+# Spec 08 Access Through Parts: data.part.access.
 data Timestamps:
     created_at: i32
     updated_at: i32

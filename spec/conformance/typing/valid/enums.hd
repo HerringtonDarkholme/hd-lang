@@ -1,3 +1,4 @@
+# Spec 08 Enum Declarations, Variant Payloads, and Payload Patterns: data.enum.qualified, data.enum.payload, data.enum.payload.typed, data.match.payload.parentheses, data.match.payload.names, data.match.payload.named, data.match.payload.constrain; Shared Enum Constructor Data: data.shared.parameters, data.shared.underscore-field.
 enum ToolError:
     NotFound(resource: string)
     Unauthorized(reason: string)

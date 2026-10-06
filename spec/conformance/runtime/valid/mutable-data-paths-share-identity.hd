@@ -1,4 +1,5 @@
 # test: mutable data paths share identity
+# Spec 08 Reference Semantics: data.kind.data, data.ref.shared.
 
 use std.testing.assert_equal
 

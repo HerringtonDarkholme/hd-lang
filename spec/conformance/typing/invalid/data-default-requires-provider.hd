@@ -1,4 +1,5 @@
 # test: a data-field default must not use a provider
+# Spec 08 Field Defaults: data.default.requirement-free.
 
 trait Clock:
     fn now(self) -> i32

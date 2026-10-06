@@ -1,4 +1,5 @@
 # test: contextual variant expressions
+# Spec 08 Enum Declarations and Matching Enums: data.enum.shorthand, data.match.shorthand.
 
 use std.testing.assert_equal
 

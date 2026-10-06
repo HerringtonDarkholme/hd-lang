@@ -1,4 +1,5 @@
 # test: copy-update copies embedded parts, so the copy never shares a part with its original
+# Spec 08 Parts And Copies: data.part.copy-update.
 use std.testing.assert_equal
 
 data Timestamps:

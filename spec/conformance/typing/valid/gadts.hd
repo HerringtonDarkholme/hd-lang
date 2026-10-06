@@ -1,3 +1,4 @@
+# Spec 08 Generalized Algebraic Data Types: data.gadt.declare, data.gadt.refine.
 enum Expr[T]:
     IntLit(value: i64) -> Expr[i64]
     BoolLit(value: bool) -> Expr[bool]

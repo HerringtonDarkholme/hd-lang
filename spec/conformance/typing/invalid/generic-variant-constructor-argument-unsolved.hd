@@ -1,5 +1,6 @@
 # test: a generic variant constructor whose parameter the call leaves unsolved is rejected
 # Spec 08 Variant Constructors As Function Values: nothing determines Either's R.
+# Spec 08 Variant Constructors As Function Values: data.enum.fn-value.generic-unsolved.
 enum Either[L, R]:
     Left(value: L)
     Right(value: R)

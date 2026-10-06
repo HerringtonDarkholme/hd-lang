@@ -1,4 +1,5 @@
 # test: a part is copied when its field expression is evaluated, so a later field's side effect on the source is not seen
+# Spec 08 When Copies Are Made: data.part.copy-time.
 use std.testing.assert_equal
 
 data Stamp:

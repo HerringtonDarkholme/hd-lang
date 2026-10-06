@@ -1,4 +1,5 @@
 # test: data field defaults run per construction after explicit fields
+# Spec 08 Field Defaults: data.default.allowed, data.literal.defaulted.
 
 use std.testing.assert_equal
 

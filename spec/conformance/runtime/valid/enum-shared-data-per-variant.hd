@@ -1,4 +1,5 @@
 # test: every value of one variant has the same shared data, and identity compares variants
+# Spec 08 Shared Fields: data.shared.value-read; Variant Constructors As Function Values: data.enum.fn-value.payload-free.
 
 use std.testing.assert_equal
 

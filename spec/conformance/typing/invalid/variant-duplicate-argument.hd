@@ -1,4 +1,5 @@
 # test: a variant construction cannot supply one payload field twice
+# Spec 08 Variant Construction: data.enum.construct.call-codes.
 
 enum Pair:
     Value(first: i32, second: i32)

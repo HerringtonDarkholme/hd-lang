@@ -1,4 +1,5 @@
 # test: copy update skips defaults
+# Spec 08 Copy-Update Literals: data.update.supplies-all, data.update.no-defaults.
 
 use std.testing.assert_equal
 

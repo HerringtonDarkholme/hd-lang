@@ -1,4 +1,5 @@
 # test: a GADT enum cannot be derived through a template
+# Spec 08 Typed Derivation Of Data And Enums: data.derive.gadt.
 use std.structure.{Structure, Field, Variant, Walker}
 
 trait Show:

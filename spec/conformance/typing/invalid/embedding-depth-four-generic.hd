@@ -1,4 +1,5 @@
 # test: the depth limit counts embedding through generic data types
+# Spec 08 Embedding Limits: data.embed.depth.
 data Stamp:
     at: i32
 

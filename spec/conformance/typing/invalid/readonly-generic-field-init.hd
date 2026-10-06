@@ -1,3 +1,4 @@
+# Spec 08 Field Access: data.access.generic.
 data Child:
     name: string
 

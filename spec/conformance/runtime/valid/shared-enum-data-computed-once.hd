@@ -1,5 +1,6 @@
 # test: shared enum defaults compute once per variant, not once per value
 # Spec 08 Data and Enums: shared enum constructor data is per-variant state.
+# Spec 08 Shared Parameter Defaults: data.shared.default.eval-once.
 let calls: i32 = 0
 
 fn bump() -> i32:

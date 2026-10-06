@@ -1,4 +1,5 @@
 # test: copy update source type mismatch
+# Spec 08 Copy-Update Literals: data.update.same-type.
 
 data Other:
     value: i32

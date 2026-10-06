@@ -1,3 +1,4 @@
+# Spec 08 Field Defaults: data.default.allowed, data.literal.defaulted.
 fn default_name() -> string: "anonymous"
 
 data User:

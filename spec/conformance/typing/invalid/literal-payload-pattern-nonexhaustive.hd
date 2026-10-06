@@ -1,4 +1,5 @@
 # test: literal payload pattern nonexhaustive
+# Spec 08 Matching Enums: data.match.exhaustive.
 
 enum Expr:
     Scale(value: i32, factor: i32)

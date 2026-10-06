@@ -1,4 +1,5 @@
 # test: shared enum data uses per-variant factories and pure ordered defaults
+# Spec 08 Shared Enum Constructor Data: data.shared.declare, data.shared.default.scope, data.shared.named-field.
 
 use std.testing.assert_equal
 

@@ -1,3 +1,4 @@
+# Spec 08 Field Access: data.access.readonly-root.
 data Child:
     name: string
 

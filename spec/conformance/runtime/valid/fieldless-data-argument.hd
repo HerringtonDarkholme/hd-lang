@@ -1,4 +1,5 @@
 # test: fieldless data argument
+# Spec 08 Fieldless Data Types: data.empty.pass.
 
 use std.testing.assert_equal
 

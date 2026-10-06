@@ -1,6 +1,7 @@
 # test: a generic variant constructor passed as an argument takes its type arguments from the call
 # Spec 08 Variant Constructors As Function Values: TaskError.Failed passed to wrap_error on a
 # Result[string, FsError] is instantiated as fn(FsError) -> TaskError[FsError].
+# Spec 08 Variant Constructors As Function Values: data.enum.fn-value.generic-rule, data.enum.fn-value.generic-argument.
 use std.testing.assert
 
 enum FsError:

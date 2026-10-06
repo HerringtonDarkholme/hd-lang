@@ -1,3 +1,4 @@
+# Spec 08 Field Access: data.access.readonly-root; Reference Semantics: data.ref.views.
 data User:
     name: string
 

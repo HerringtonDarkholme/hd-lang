@@ -1,4 +1,5 @@
 # test: embedding may be three levels deep, and promotion reaches the deepest part
+# Spec 08 Embedding Limits: data.embed.depth; Member Promotion: data.promote.members.
 data Stamp:
     pub at: i32
 

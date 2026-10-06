@@ -1,3 +1,4 @@
+# Spec 08 Variant Constructors As Function Values: data.enum.fn-value.multiple, data.enum.fn-value.unsaturated.
 enum ToolError:
     RateLimited(resource: string, retry_after_ms: i32)
 constructor := ToolError.RateLimited  # diagnostic: unsaturated-enum-constructor

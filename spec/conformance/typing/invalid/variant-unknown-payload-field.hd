@@ -1,4 +1,5 @@
 # test: a variant construction cannot name a missing payload field
+# Spec 08 Variant Construction: data.enum.construct.unknown.
 
 enum Pair:
     Value(first: i32, second: i32)

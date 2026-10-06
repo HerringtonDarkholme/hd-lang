@@ -1,4 +1,5 @@
 # test: contextual variant patterns
+# Spec 08 Matching Enums: data.match.variant-patterns.
 
 use std.testing.assert_equal
 

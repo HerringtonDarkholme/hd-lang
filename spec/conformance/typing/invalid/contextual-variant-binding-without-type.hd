@@ -1,4 +1,5 @@
 # test: contextual variant binding without type
+# Spec 08 Enum Declarations and Matching Enums: data.enum.shorthand.needs-type, data.match.no-inference.
 
 enum Status:
     Queued

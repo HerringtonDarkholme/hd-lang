@@ -1,3 +1,4 @@
+# Spec 08 Data Literals: data.literal.duplicate.
 data User:
     name: string
 

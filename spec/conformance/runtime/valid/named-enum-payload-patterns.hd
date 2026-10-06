@@ -1,4 +1,5 @@
 # test: named enum payload patterns resolve bindings by field name
+# Spec 08 Payload Patterns: data.match.payload.named.
 
 use std.testing.assert_equal
 

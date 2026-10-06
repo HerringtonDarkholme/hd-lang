@@ -1,4 +1,5 @@
 # test: named enum payloads preserve source evaluation order
+# Spec 08 Variant Construction: data.enum.construct.call.
 
 use std.testing.assert_equal
 

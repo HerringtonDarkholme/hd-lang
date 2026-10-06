@@ -1,4 +1,5 @@
 # test: a copy marker after an ordinary field label is rejected
+# Spec 08 Copy Markers: data.part.marker-required.
 data User:
     name: string
 

@@ -1,2 +1,3 @@
+# Spec 08 Fields: data.field.no-mut-modifier.
 data User:
     mut name: string  # diagnostic: mutable-field-modifier

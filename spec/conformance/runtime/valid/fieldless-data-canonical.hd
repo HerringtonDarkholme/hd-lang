@@ -1,3 +1,4 @@
+# Spec 08 Fieldless Data Types: data.empty.pass, data.empty.canonical.
 use std.testing.assert
 
 data Unit: pass

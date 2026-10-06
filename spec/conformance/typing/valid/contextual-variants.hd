@@ -1,3 +1,4 @@
+# Spec 08 Enum Declarations and Matching Enums: data.enum.shorthand, data.enum.shorthand.other-enum, data.match.variant-patterns, data.match.shorthand.
 enum Status:
     Queued
     Running
