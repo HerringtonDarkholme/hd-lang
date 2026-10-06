@@ -86,6 +86,9 @@ Owner rules for these metrics:
 
 ### Pillar 1: Single-agent development cost (proxies)
 
+Compile time is agent wait time, so the pathological compile cases belong
+here (owner, 2026-10-06).
+
 | Script | Measures | Target |
 |---|---|---|
 | `edit-latency` | scripted one-function edit in a generated 10k-line package, then `hd check`; p50/p95 over 20 edits | p50 ≤ 50 ms, p95 ≤ 200 ms |
@@ -94,6 +97,7 @@ Owner rules for these metrics:
 | `mistakes` | corpus of single-mistake programs (seeded from audit/hd-writing-log.md), each with its expected code: diagnostics per mistake, output bytes, and whether applying the `--format json` fix-it in a temporary copy makes `hd check` pass | 1 diagnostic in ≥ 95%; fix-it resolves ≥ 80%; diagnostic ≤ 60 tokens |
 | `answer-size` | bytes of `hd doc ITEM`, one failing `hd test`, `--format json` records on fixed inputs | fixed budgets, regression-gated |
 | `determinism` | same inputs run 10 times | byte-identical output |
+| `pathological` | compile-time stress cases, each with a time and memory budget: many overlapping impls (e.g. 1,600 `From` calls over two impls), deep nesting, long method and iterator chains, wide literals, large enums and matches, deep generic instantiation, long `?` chains, big files | each case within budget (e.g. ≤ 2 s, ≤ 200 MB); time grows near-linearly with size |
 
 ### Pillar 2: Agent scalability (compiler CPU and memory)
 
@@ -111,7 +115,6 @@ Owner rules for these metrics:
 | Script | Measures | Target |
 |---|---|---|
 | `conformance` | portable suite pass rate | 100% minus listed known failures |
-| `pathological` | compile-time stress cases, each with a time and memory budget: many overlapping impls (e.g. 1,600 `From` calls over two impls), deep nesting, long method and iterator chains, wide literals, large enums and matches, deep generic instantiation, long `?` chains, big files | each case within budget (e.g. ≤ 2 s, ≤ 200 MB); time grows near-linearly with size |
 | `proptest-perf` | a fixed property-test suite (derived `Arbitrary` generators, `it_prop`, shrinking): cases per second and time to shrink a known failure | e.g. ≥ 100k cases/s for simple generators; shrink ≤ 1 s |
 | `runtime` | microbenchmarks with warm-up and spread, geomean vs Node | ≤ 1.5x; no case > 3x |
 | `allocations` | allocations per iteration in counted loops and iterator chains | 0 for counted loops; ≤ 1 for chains |
