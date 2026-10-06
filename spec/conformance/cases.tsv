@@ -2696,3 +2696,5 @@ runtime/valid/console-error-line-override.hd	runtime	accept	lang/10-modules.md#r
 runtime/valid/entry-suspending-main.hd	runtime	accept	lang/10-modules.md#r-module.entry.suspending
 parse/valid/use-group-trailing-comma.hd	parse	accept	lang/10-modules.md#r-module.use.trailing-comma
 runtime/valid/termination-void-reports-zero.hd	runtime	accept	lang/10-modules.md#r-module.entry.termination.void
+runtime/valid/mut-bound-value-passed-on.hd	runtime	accept	lang/04-type-system.md#r-types.path.access.mut-bound
+typing/invalid/readonly-bound-value-for-mut-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.path.access.mut-bound

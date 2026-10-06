@@ -1,0 +1,11 @@
+# test: a value of a type parameter without a mut bound is readonly, so it cannot be passed on to a mut bound
+# Spec 04 Mutation Checks: types.path.access.mut-bound; Spec 09 Generic Bounds: trait.bound.mut, trait.bound.unsatisfied.cases.
+
+trait Clear:
+    fn clear(mut self) -> void
+
+fn clear_inner[U < mut Clear](inner: U) -> void:
+    inner.clear()
+
+fn clear_outer[T < Clear](outer: T) -> void:
+    clear_inner(outer)  # diagnostic: unsatisfied-trait-bound

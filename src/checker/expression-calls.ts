@@ -388,7 +388,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           traitIndex: receiverBound.bound.traitIndex,
           boundIndex: receiverBound.boundIndex,
           type:
-            receiverBound.bound.mutable || mutableInner(receiver.type) !== undefined
+            receiverBound.bound.mutable || this.hasMutableAccess(receiver.type)
               ? mutableType(`trait:${receiverBoundTrait}`)
               : `trait:${receiverBoundTrait}`,
           span: receiver.span,

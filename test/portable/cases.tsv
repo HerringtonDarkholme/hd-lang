@@ -2750,3 +2750,5 @@ cli/dev-dependency-integration	cli
 cli/dev-dependency-non-test	cli
 cli/test-outcomes	cli
 cli/dbg-value-forms	cli
+runtime/valid/mut-bound-value-passed-on.hd	runtime
+typing/invalid/readonly-bound-value-for-mut-bound.hd	type

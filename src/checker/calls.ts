@@ -909,7 +909,7 @@ export abstract class CallChecker extends StatementChecker {
             (bound) => bound.parameter === formalGeneric && bound.mutable,
           ) ||
             (signature.mutableParameters ?? []).includes(formalGeneric)) &&
-          mutableInner(checked.type) === undefined
+          !this.hasMutableAccess(checked.type)
         )
           this.fail(
             "unsatisfied-trait-bound",

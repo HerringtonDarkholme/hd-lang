@@ -930,6 +930,23 @@ export abstract class CheckerContext {
     );
   }
 
+  /**
+   * Whether a value of `type` has mutable access: its type is `mut U`, or it
+   * is a type parameter of this function bounded by `mut Trait` or `mut Any`
+   * (04-type-system.md#r-types.path.access.mut-bound).
+   */
+  protected hasMutableAccess(type: ValueType): boolean {
+    if (mutableInner(type) !== undefined) return true;
+    const parameter = genericTypeName(type);
+    return (
+      parameter !== undefined &&
+      (this.signature.genericBounds.some(
+        (bound) => bound.parameter === parameter && bound.mutable,
+      ) ||
+        (this.signature.mutableParameters ?? []).includes(parameter))
+    );
+  }
+
   /** The standard `Inspectable`, declared by a `std.inspect` or `std.error` import. */
   protected isStandardInspectable(trait: HirTrait): boolean {
     return trait.name === INSPECTABLE && usesStandardInspect(this.imports);
