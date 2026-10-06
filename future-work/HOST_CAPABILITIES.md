@@ -1,5 +1,38 @@
 # Host Capabilities And Permissions (Task N1)
 
+> **Owner feedback, 2026-10-06. It overrides the recommendations below
+> where they differ.**
+>
+> 1. Two levels of control: yes. Requirement rows are static; a run-time
+>    grant scopes them.
+> 2. Grants are written in `hd.toml`, and CLI flags override them.
+> 3. **The default is everything granted.** A program gets every capability
+>    unless `hd.toml` has a grant table or a CLI flag restricts it. This
+>    reverses H3, deny by default.
+> 4. **Every capability is gated,** including Console, ConsoleInput, Clock,
+>    Random and Args. This reverses "ungated, as in Deno".
+> 5. **Two tiers of deny,** with details proposed below.
+> 6. **The playground grants `Http` to its own origin only,** as the browser's
+>    same-origin rule does.
+> 7. **Naming:** "permissions" is rejected. The name is open; see below.
+>
+> **Orchestrator's proposals on 0 and 5, awaiting the owner's OK:**
+>
+> - **Name:** a `[capabilities]` table keyed by the requirement-row trait
+>   names (`FsRead = ["data/"]`, `Http = ["api.example.com"]`,
+>   `Console = true`, `Process = false`), with matching flags
+>   `--cap Http=api.example.com` and `--cap Process=false`. This drops
+>   Deno's read/net/run category names.
+> - **Total deny** (`Process = false`) is a compile error from `hd check`,
+>   `hd run` and `hd build` when anything reachable from the entry point
+>   requires it, as a missing provider is today. A built artifact run by
+>   another host checks at instantiation and exits before `main` with a
+>   startup error.
+> - **Partial deny** (a scoped list) returns `NotGranted` through the call's
+>   `Result`, never a panic. The resource is known only at run time, and
+>   the program can recover.
+
+
 Status: design proposal, 2026-10-06. Nothing in it is accepted behavior.
 Every decision below waits for the owner or the orchestrator, as each one
 says. The spec outline is a draft and is not applied to `spec/`.
