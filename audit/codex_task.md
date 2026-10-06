@@ -68,23 +68,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AY. Follow-Ups From The Review Of AP (cc5b1679)
-
-Both non-blocking. The four hints work as a user sees them.
-
-1. **The intrinsic method list can drift.** `INTRINSIC_METHODS` in
-   `src/checker/member-lookup.ts` hard-codes `List` and `Map` intrinsics
-   (`len`, `iter`, `push`, `get`, `remove`), copying the built-in methods
-   table. A method added to that table later is never suggested. Read the
-   names from the same source the call checker uses for intrinsics
-   (`src/checker/expression-calls.ts`), so there is one list.
-2. **The empty-list message names the type it says it can't infer.**
-   `let names = []` then `names.push("ada")` gives: cannot infer `T` in
-   `List[string]`; annotate the binding: `let names: List[string] = ...`.
-   Write instead: cannot infer the element type of `[]`; annotate the
-   binding: `let names: List[string] = ...` (keep the placeholder
-   `List[T]` when no later push shows the type). Update its test.
-
 ### AX. `it_each` At The Top Level Of An Integration Test
 
 Found by #321. A top-level `it_each(...)` in `tests/x.hd` is rejected as

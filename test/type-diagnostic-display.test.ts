@@ -197,7 +197,7 @@ test("an empty list pushed later suggests the pushed element type", () => {
   assert.equal(diagnostics.length, 1);
   assert.equal(
     diagnostics[0]!.message,
-    "cannot infer `T` in `List[string]`; annotate the binding: `let todos: List[string] = ...`",
+    "cannot infer the element type of `[]`; annotate the binding: `let todos: List[string] = ...`",
   );
 });
 
@@ -208,7 +208,7 @@ test("an empty list with no later use keeps the placeholder", () => {
   assert.equal(diagnostics.length, 1);
   assert.equal(
     diagnostics[0]!.message,
-    "cannot infer `T` in `List[T]`; annotate the binding: `let todos: List[T] = ...`",
+    "cannot infer the element type of `[]`; annotate the binding: `let todos: List[T] = ...`",
   );
 });
 

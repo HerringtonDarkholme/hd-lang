@@ -46,6 +46,7 @@ import { isDowncastValImport } from "./inspectable.ts";
 import { checkLiteralSuffixCall, checkStringPrefixCall } from "./literal-suffixes.ts";
 import { TYPE_ID } from "./standard-traits.ts";
 import { STRUCTURE_AS_DECLARED, STRUCTURE_MISMATCH } from "./typed-derivation.ts";
+import { BUILT_IN_METHODS } from "./built-in-methods.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
 export interface MemberCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "member" }>;
@@ -229,12 +230,13 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           };
     }
     const receiverNominal = nominalGenericParts(readonlyType(receiver.type));
-    if (receiverNominal?.name === "List" && expression.callee.name === "len") {
+    const { List, Map } = BUILT_IN_METHODS;
+    if (receiverNominal?.name === "List" && methodName === List.length) {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "list.len expects no arguments", expression.span);
       return { kind: "list-length", receiver, type: "u32", span: expression.span };
     }
-    if (receiverNominal?.name === "List" && expression.callee.name === "iter") {
+    if (receiverNominal?.name === "List" && methodName === List.iterator) {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "list.iter expects no arguments", expression.span);
       const elementType = receiverNominal.arguments[0]!;
@@ -259,7 +261,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         span: expression.span,
       };
     }
-    if (receiverNominal?.name === "List" && expression.callee.name === "push") {
+    if (receiverNominal?.name === "List" && methodName === List.push) {
       if (mutableInner(receiver.type) === undefined)
         this.failReadonlyMethodReceiver("push", expression.callee.receiver, receiver);
       if (expression.argumentSpreads?.some(Boolean))
@@ -286,12 +288,12 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         span: expression.span,
       };
     }
-    if (receiverNominal?.name === "Map" && expression.callee.name === "len") {
+    if (receiverNominal?.name === "Map" && methodName === Map.length) {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "map.len expects no arguments", expression.span);
       return { kind: "map-length", receiver, type: "u32", span: expression.span };
     }
-    if (receiverNominal?.name === "Map" && expression.callee.name === "iter") {
+    if (receiverNominal?.name === "Map" && methodName === Map.iterator) {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "map.iter expects no arguments", expression.span);
       const elementType = tupleType(receiverNominal.arguments);
@@ -306,11 +308,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         elementType,
       );
     }
-    if (
-      receiverNominal?.name === "Map" &&
-      (expression.callee.name === "get" || expression.callee.name === "remove")
-    ) {
-      const removing = expression.callee.name === "remove";
+    if (receiverNominal?.name === "Map" && (methodName === Map.get || methodName === Map.remove)) {
+      const removing = methodName === Map.remove;
       if (removing && mutableInner(receiver.type) === undefined) {
         this.fail(
           "mutable-receiver-required",
@@ -766,8 +765,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
       const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);
       const bounds = this.resolveBoundDictionaries(signature, substitutions, expression.span);
-      // An intrinsic method has no code: a call on a primitive receiver is
-      // its operation inline (09-traits.md#r-trait.impl.intrinsic.inline).
+      // An intrinsic method has no code; the call is inline (09-traits.md#r-trait.impl.intrinsic.inline).
       if (candidate.implementation.intrinsic)
         return {
           kind: "intrinsic-call",

@@ -23,6 +23,7 @@ import { NEWTYPE_FIELD } from "./type-declarations.ts";
 import { standardCoreTypeAlias } from "./standard-core.ts";
 import { registeredPackageOwnership } from "./package-ownership.ts";
 import { respelled, spellAs, spelledFieldType } from "./spelling.ts";
+import { builtInMethodNames } from "./built-in-methods.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
 
@@ -93,16 +94,6 @@ function nameDistance(left: string, right: string): number {
     }
   return distance[leftChars.length]![rightChars.length]!;
 }
-
-/**
- * Checker-intrinsic methods by receiver head, from the normative built-in
- * methods table (10-modules.md#built-in-methods). Intrinsics bypass member
- * lookup (expression-calls.ts), so the tables never name them.
- */
-const INTRINSIC_METHODS: ReadonlyMap<string, readonly string[]> = new Map([
-  ["List", ["len", "iter", "push"]],
-  ["Map", ["len", "iter", "get", "remove"]],
-]);
 
 /** Whether an inherent `method` applies to a receiver of `type`. */
 function inherentTargetMatches(method: InherentMethod, type: ValueType): boolean {
@@ -660,7 +651,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     for (const method of this.inherentMethods)
       if (!method.associated && inherentTargetMatches(method, type)) candidates.add(method.name);
     const head = nominalGenericParts(type)?.name;
-    for (const intrinsic of (head && INTRINSIC_METHODS.get(head)) ?? []) candidates.add(intrinsic);
+    for (const intrinsic of builtInMethodNames(head)) candidates.add(intrinsic);
     const index = traitLookupIndex(this.traitTypes);
     for (const implementation of implementationsFor(this.implementations, type)) {
       if (!matchImplementationTarget(implementation, type, new Map())) continue;

@@ -34,6 +34,16 @@ export function unresolvedTypeMessage(
   return `cannot infer ${parameterList(unresolved)} in \`${shown}\`; ${advice}`;
 }
 
+/** The empty-list diagnostic, with its inferred annotation or `List[T]` placeholder. */
+export function unresolvedEmptyListMessage(
+  type: ValueType,
+  span: SourceSpan,
+  binding: InferredBinding | undefined,
+): string {
+  const advice = unresolvedTypeMessage(["T"], type, span, binding).split("; ").at(-1)!;
+  return `cannot infer the element type of \`[]\`; ${advice}`;
+}
+
 /** A plain literal's default type, for the empty-collection hint. */
 function literalDefaultType(kind: Expression["kind"]): ValueType | undefined {
   switch (kind) {

@@ -17,7 +17,7 @@ import {
   tupleType,
 } from "../types.ts";
 import { leastCommonType, rowUnionType } from "./least-common-type.ts";
-import { laterPushedElementType } from "./cannot-infer.ts";
+import { laterPushedElementType, unresolvedEmptyListMessage } from "./cannot-infer.ts";
 import { FORCED_LITERALS } from "./literal-retry.ts";
 import { spelledValueType } from "./spelling.ts";
 import {
@@ -389,9 +389,13 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
                   binding.name,
                 )
               : undefined;
-          this.failUnresolvedType(
-            ["T"],
-            element === undefined ? "List[T]" : `List[${element}]`,
+          this.fail(
+            "cannot-infer-type",
+            unresolvedEmptyListMessage(
+              element === undefined ? "List[T]" : `List[${element}]`,
+              expression.span,
+              binding,
+            ),
             expression.span,
           );
         }
