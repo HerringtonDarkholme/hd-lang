@@ -326,6 +326,30 @@ test("a source-order violation in a single-module group is still rejected in a p
   );
 });
 
+test("only an entry script's top level may infer requirements", () => {
+  const check = (util: string): string[] => {
+    const linked = linkPackage(
+      {
+        "src/main.hd": 'use pkg.util.{ready}\n\nprintln("main")\nready()\n',
+        "src/util.hd": util,
+      },
+      "src/main.hd",
+    );
+    assert.deepEqual(linked.diagnostics, []);
+    return analyze(linked.source!, { parse: linkedParseOptions(linked) })
+      .diagnostics.filter(({ severity }) => severity !== "warning")
+      .map((diagnostic) => {
+        const { path, span, code } = linked.locate(diagnostic);
+        return `${path}:${span.start.line}:${code}`;
+      });
+  };
+
+  assert.deepEqual(check('println("util")\npub fn ready() -> void: pass\n'), [
+    "src/util.hd:1:missing-requirement",
+  ]);
+  assert.deepEqual(check('pub fn ready() -> void $ Console:\n    println("util")\n'), []);
+});
+
 test("a trait implementation outside the trait's and target's modules is nonlocal-impl", () => {
   const alpha =
     "pub trait Greeter:\n    fn greet(self) -> string\npub data Person:\n    name: string\n";

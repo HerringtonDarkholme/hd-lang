@@ -1,4 +1,5 @@
 import type { FunctionDecl } from "../ast.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import type { HirGlobal, HirTraitImplementation } from "../hir.ts";
 import { FunctionChecker } from "./checker.ts";
 import type { FunctionCheckResult, Signature } from "./context.ts";
@@ -138,6 +139,7 @@ export class SignatureInference {
   private readonly declarations: readonly FunctionDecl[];
   private readonly implementations: readonly HirTraitImplementation[];
   private readonly moduleDeclaration: FunctionDecl | undefined;
+  private readonly moduleRequirementsAvailableAt: ((span: SourceSpan) => boolean) | undefined;
 
   constructor(
     context: ProgramCheckContext,
@@ -145,12 +147,14 @@ export class SignatureInference {
     signatures: ReadonlyMap<string, Signature>,
     implementations: readonly HirTraitImplementation[],
     moduleDeclaration: FunctionDecl | undefined,
+    moduleRequirementsAvailableAt?: (span: SourceSpan) => boolean,
   ) {
     this.signatures = new LazySignatures(this, context.standardAliases);
     this.context = context;
     this.declarations = declarations;
     this.implementations = implementations;
     this.moduleDeclaration = moduleDeclaration;
+    this.moduleRequirementsAvailableAt = moduleRequirementsAvailableAt;
     for (const [name, signature] of signatures) this.signatures.set(name, signature);
     for (const declaration of declarations) {
       this.declarationsByName.set(declaration.name, declaration);
@@ -251,6 +255,7 @@ export class SignatureInference {
       this.globals,
       new Set(declaration.localImplementations ?? []),
       this.context.runsExecutables,
+      declaration === this.moduleDeclaration ? this.moduleRequirementsAvailableAt : undefined,
     ).check();
   }
 

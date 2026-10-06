@@ -71,21 +71,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### BP. Top-Level Effects In A Non-Entry Module Of A Script Package
-
-`module.init.requirement-free` (spec/lang/10-modules.md): a module's
-top-level statements must be requirement-free unless it is the entry. In a
-package whose entry is a script (top-level statements, no `main`), the
-prototype joins every module's top level into one script, so a non-entry
-module's top-level `println("x")` is accepted (gap from c7d9c4e3; see the
-script-entry rows in `src/KNOWN_ISSUES.md`). Track each top-level
-statement's module of origin and report `module.init.requirement-free`'s
-error for a requirement in a non-entry module's top level, while the
-entry script keeps its row. Add fixtures (a package with `src/main.hd`
-script plus `src/util.hd` printing at top level: error; the same with the
-print inside a function: ok), run before and after, and update
-KNOWN_ISSUES. Checker only; no rule changes.
-
 ### BQ. Intern Types (Compile Speed)
 
 The checker represents types as strings and re-parses them on every

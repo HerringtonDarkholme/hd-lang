@@ -132,6 +132,7 @@ export abstract class CallChecker extends StatementChecker {
       const local = this.providerScopes[index]!.get(key);
       if (local) return this.referenceLocal(local, span);
     }
+    if (this.requirementsAvailableAt?.(span) === false) return undefined;
     const providerIndex = this.signature.requirements.indexOf(key);
     if (providerIndex >= 0)
       return {

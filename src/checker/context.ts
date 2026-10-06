@@ -153,6 +153,8 @@ export abstract class CheckerContext {
   protected readonly availableCaptures: ReadonlyMap<string, HirLocal>;
   protected readonly availableProviders: ReadonlyMap<string, HirLocal>;
   protected readonly inferRequirements: boolean;
+  /** Whether this function's declared or inferred row is available at a source location. */
+  protected readonly requirementsAvailableAt: ((span: SourceSpan) => boolean) | undefined;
   protected readonly inferResult: boolean;
   protected readonly selfClosureLocal?: HirLocal;
   protected readonly imports: ReadonlyMap<string, string>;
@@ -225,6 +227,7 @@ export abstract class CheckerContext {
     globals: Map<string, HirGlobal> = new Map(),
     localImplementations: ReadonlySet<number> = new Set(),
     integrationTest = false,
+    requirementsAvailableAt?: (span: SourceSpan) => boolean,
   ) {
     this.declaration = declaration;
     this.signature = signature;
@@ -248,6 +251,7 @@ export abstract class CheckerContext {
     this.availableCaptures = availableCaptures;
     this.availableProviders = availableProviders;
     this.inferRequirements = inferRequirements;
+    this.requirementsAvailableAt = requirementsAvailableAt;
     this.inferResult = inferResult;
     this.selfClosureLocal = selfClosureLocal;
     this.imports = imports;

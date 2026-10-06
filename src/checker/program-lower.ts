@@ -1,5 +1,6 @@
 import { shareCapturedLocals } from "./captured-cells.ts";
-import type { FunctionDecl } from "../ast.ts";
+import type { FunctionDecl, Program } from "../ast.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import type { HirFunction, HirGenericBound, HirGlobal, HirTraitImplementation } from "../hir.ts";
 import { FunctionChecker } from "./checker.ts";
 import { type CheckResult, type Signature } from "./context.ts";
@@ -10,6 +11,26 @@ import { matchTraitImplementation, substituteGenericType } from "./shared.ts";
 import { inherentVarianceDiagnostics } from "./variance.ts";
 
 import type { ImplementationPreparation, ProgramCheckContext } from "./program-context.ts";
+
+/**
+ * A package script infers requirements only from its entry module. The
+ * linker's per-module line scopes preserve the origin of every joined
+ * top-level statement without changing the initializer's runtime order.
+ */
+function scriptEntryRequirementsAvailableAt(
+  program: Program,
+): ((span: SourceSpan) => boolean) | undefined {
+  if (!program.scriptEntry || !program.packageScopes) return undefined;
+  const lastStatementLine = program.statements.at(-1)?.span.start.line;
+  const entryScope = program.packageScopes.scopes.find(
+    ({ firstLine, lastLine }) =>
+      lastStatementLine !== undefined &&
+      firstLine <= lastStatementLine &&
+      lastStatementLine <= lastLine,
+  );
+  if (!entryScope) return undefined;
+  return ({ start }) => entryScope.firstLine <= start.line && start.line <= entryScope.lastLine;
+}
 
 function supertraitImplementationIndices(
   implementation: ImplementationPreparation,
@@ -142,6 +163,7 @@ export function lowerCheckedProgram(
   const moduleDeclaration = declarations.find(
     (declaration) => program.statements.length > 0 && declaration.body === program.statements,
   );
+  const moduleRequirementsAvailableAt = scriptEntryRequirementsAvailableAt(program);
   const checkingOrder = moduleDeclaration
     ? [
         moduleDeclaration,
@@ -154,6 +176,7 @@ export function lowerCheckedProgram(
     declaredSignatures,
     implementations,
     moduleDeclaration,
+    moduleRequirementsAvailableAt,
   );
   const signatures: ReadonlyMap<string, Signature> = inference.active
     ? inference.signatures
@@ -191,6 +214,7 @@ export function lowerCheckedProgram(
       globals,
       new Set(declaration.localImplementations ?? []),
       context.runsExecutables,
+      moduleBody ? moduleRequirementsAvailableAt : undefined,
     ).check();
     diagnostics.push(...checked.diagnostics);
     if (checked.hasPanicDetail) hasPanicDetail = true;
