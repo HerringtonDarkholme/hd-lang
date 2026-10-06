@@ -315,6 +315,25 @@ loop (F-555), against
 - Tests to cover: delayed, synchronous, duplicate, and stale wakes;
   competing drivers; cancellation; provider retention; and poisoning.
 
+## Host Capabilities: What The New Compiler Inherits (2026-10-06)
+
+The prototype implements the approved host-capability spec (task N3, three
+sessions): `std.http` with `ScriptedHttp`, `[capabilities]` and `--cap`
+with precedence, path and env scope checks, the test grant, startup refusal
+read from the Wasm import list, `Process` behind its grant, and the
+playground's same-origin `Http`. The new compiler must also deliver these,
+which the prototype doesn't:
+
+- **`std.sys`** and **`std.net`** (TCP, UDP, DNS), with closable handles.
+- **An HTTP server and streaming bodies.**
+- **Async host calls,** for example through `wasi:http` and `host_wait!`, with
+  real cancellation (`std-http.send.cancel`). The prototype answers host
+  calls synchronously, so cancelling `send!` doesn't abort the request.
+- **A race-free path sandbox.** Use preopened directories rather than
+  `realpath`-then-open; the prototype has a check-then-use race on swapped
+  symlinks.
+- **Runtime code loading,** parked in OPEN_ISSUES.
+
 ## Follow-Up Questions
 
 <!-- Questions that the notes raise, each with a recommendation. -->
