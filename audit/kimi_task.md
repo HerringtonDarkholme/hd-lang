@@ -90,24 +90,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K0. Reset Your Worktree
-
-Your three K11 commits (chapters 01, 06, 03; head `834868dd`) were
-reviewed and landed on main under new hashes while you were away. Don't
-push them again. In `/private/tmp/kimi-work`, run `git fetch origin` and
-`git reset --hard origin/main`, then start K11.
-
-### K11. Add Missing Examples To The Remaining Language Chapters
-
-Chapters 01, 06 and 03 are done. Remaining, smallest `no-ex` count first:
-05-expressions, 11-requirements-and-suspension, 09-traits, 04-type-system,
-10-modules. Same method as K10: one example per flagged section, one
-commit per chapter. Every ```hd example must run with hd before
-committing. Realign `examples.tsv`, keep `bash spec/check.sh` green, and
-make sure that chapter's `no-ex` drops while nothing else rises. Where
-the compiler disagrees with a rule, list it under Questions rather than
-bending the example.
-
 ## Questions
 
 (none)
