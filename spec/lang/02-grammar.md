@@ -10,6 +10,12 @@ This chapter collects the hd-lang grammar in EBNF.
 4. r[grammar.scope.comments] Comments do not appear in this grammar.
 5. r[grammar.scope.consolidated] The feature chapters refine the semantic constraints on these productions, but do not maintain separate extension grammars.
 
+```hd
+fn demo() -> i32:
+    x := +1
+    x + 1
+```
+
 ## Source Files And Suites
 
 A source file is a sequence of top-level items:
@@ -279,6 +285,13 @@ fn sum(p: Point, pair: (i32, i32)) -> i32:
 2. r[grammar.stmt.discard.suite] The suite form of a discard exists for the same reason when the discarded expression owns an indented suite.
 3. r[grammar.stmt.defer] `defer` is parsed wherever a suite statement is accepted; the semantic rules in [Control Flow](06-control-flow.md#deferred-cleanup) restrict it to executing cleanup scopes.
 
+```hd
+fn twice(n: i32) -> i32: n * 2
+
+fn demo() -> void:
+    _ := twice(21)   # the value is discarded
+```
+
 ### Suite Statements
 
 1. r[grammar.stmt.suite] A `suite_statement` is a statement whose outermost expression owns a suite.
@@ -287,6 +300,12 @@ fn sum(p: Point, pair: (i32, i32)) -> i32:
 4. r[grammar.stmt.suite.trailing-block] Every right-hand side that accepts a suite expression, after `:=`, `let ... =`, `=`, `_ :=`, `return`, and `break`, also accepts a trailing block call.
 5. r[grammar.stmt.chain] A chain of bindings continues only with single names, as in `a := b := if c: 1 else: 2`.
 6. r[grammar.stmt.suite.in-delimiters] A suite expression nested inside delimiters remains part of its enclosing expression, and the enclosing statement ends normally after the closing delimiter.
+
+```hd
+fn choose(flag: bool) -> i32:
+    y := if flag: +1 else: +2
+    y
+```
 
 ### Statements Ending At A Newline
 
@@ -370,6 +389,12 @@ See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logi
 3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values). Other postfix expressions are rejected semantically.
 4. r[grammar.stmt.copy-assign] The copy assignment `place ...= value` is valid only when the place is an embedded field.
 5. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
+
+```hd
+fn demo() -> void:
+    let x = 1
+    x = x + 1   # x is a reassignable local
+```
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -852,6 +877,11 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 7. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
 8. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
 
+```hd
+fn readers() -> (fn() -> i32)?:
+    .None   # the group makes the function itself optional
+```
+
 ### Tuple Rest Types
 
 A `rest_type` is a type followed by `...`. It may end a tuple type or a
@@ -1306,10 +1336,27 @@ data_field_item = identifier, ":", [ "..." ], expression
 1. r[grammar.primary.pipe-placeholder] `_` in expression position is the pipe placeholder.
 2. r[grammar.primary.pipe-placeholder.semantic] The grammar accepts it as any primary expression; [Pipe Expressions](05-expressions.md#pipe-expressions) limits it to pipe steps.
 
+```hd
+fn wrap(text: string, mark: string) -> string:
+    "$mark$text$mark"
+
+fn demo(text: string) -> string:
+    text |> wrap(_, "*")   # _ marks where the piped value goes
+```
+
 #### Copies In Data Expressions
 
 1. r[grammar.primary.field-copy] A `...` after a field label copies the value into an embedded field.
 2. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression always means "copy the named members of this value". This holds whether it begins a copy-update spread or follows a field label.
+
+```hd
+data Point:
+    x: i32
+    y: i32
+
+fn move_right(p: Point) -> Point:
+    Point { ...p, x: p.x + 1 }
+```
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -1335,6 +1382,15 @@ See also: [Data Literals](08-data-and-enums.md#data-literals).
 #### Reflection
 
 1. r[grammar.primary.no-reflection-syntax] Declaration reflection has no dedicated syntax.
+
+```hd
+@derive(Debug)
+data Point:
+    x: i32
+
+fn label(p: Point) -> string:
+    debug(p)   # "Point { x: 1 }": the name reaches text through a derivation
+```
 
 #### Suffixed Literals
 
@@ -1395,6 +1451,17 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 5. r[grammar.primary.member-type-arguments] Method-level type arguments follow the member name, as in the dot call `parser.parse::[User](text)`.
 6. r[grammar.primary.member-type-arguments.rules] That list is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).
 
+```hd
+data Point:
+    x: i32
+    y: i32
+
+fn demo() -> i32:
+    p := Point { x: 1, y: 2 }   # a data expression: Point names a data type
+    m := {"x": +1}              # a map expression
+    p.x + m.get("x").unwrap_or(+0)
+```
+
 #### Prefix And Suffix `...`
 
 1. r[grammar.primary.list-spread] A list element ending in `...` is a spread that expands a list's elements in place.
@@ -1419,6 +1486,18 @@ See also: [List And Map Expressions](05-expressions.md#list-and-map-expressions)
 1. r[grammar.primary.method-reference] A `::` member without an argument clause, such as `User::domain`, `Json::decode::[User]`, or `user::domain`, is a `method_reference`.
 2. r[grammar.primary.method-reference.meaning] [Method References](07-functions.md#method-references) gives its meaning; with an argument clause, the same form is a call.
 3. r[grammar.primary.method-reference.no-bang] A reference with type arguments directly followed by `!(` is not a bang call of that reference. So `Identity::echo::[i32]!(42)` is an error, and the call is `Identity::echo!::[i32](42)`. Error: `syntax-error`.
+
+```hd
+data User:
+    domain: string
+
+impl User:
+    fn label(self) -> string: self.domain
+
+fn demo(user: User) -> string:
+    f := user::label
+    f()
+```
 
 ### Calls And Arguments
 
