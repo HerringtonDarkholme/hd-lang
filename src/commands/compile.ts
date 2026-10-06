@@ -273,8 +273,8 @@ export interface BuildArgs extends CommandEnvironment, MemberSelection {
  * `hd build [FILE]`: writes each executable of the package to
  * `build/debug/NAME.wasm` (`build/release/` with `--release`) and prints
  * its path. With FILE in a package, it writes FILE's module, linked with the
- * package, to that directory as `NAME.wasm`, NAME being FILE's base name, or
- * with `--wat` prints the WAT without assembling it.
+ * package, to `build/debug/files/STEM.wasm`, STEM being FILE's name without
+ * `.hd`, or with `--wat` prints the WAT without assembling it.
  */
 export async function buildCommand(args: BuildArgs, io: CommandIo): Promise<number> {
   // `--wat` prints the module, so it has no JSON summary after it.
@@ -328,12 +328,13 @@ async function build(
       return 0;
     }
     const result = await compileToWasm(loaded.source, loaded.compileOptions);
-    // Build output goes to the package's build directory
-    // (spec/cli/command-line.md#r-cli.build.directory), in the profile's
-    // directory as a whole-package build's executables do (cli.build.output).
+    // FILE's module goes to the profile's `files` directory in the build
+    // directory, apart from the executables
+    // (spec/cli/command-line.md#r-cli.build.output.file).
     const written = join(
       BUILD_DIRECTORY,
       args.release ? "release" : "debug",
+      "files",
       `${basename(loaded.path, extname(loaded.path))}.wasm`,
     );
     await mkdir(dirname(join(pkg.root, written)), { recursive: true });

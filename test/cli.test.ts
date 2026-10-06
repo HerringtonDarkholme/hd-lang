@@ -102,14 +102,15 @@ test("documented CLI commands work end to end", async () => {
 
     const buildSource = join(directory, "src/main.hd");
     await copyFile(suspension, buildSource);
-    // FILE's module goes to the build directory too (cli.build.directory),
-    // named after FILE, and its path is shown from the working directory.
+    // FILE's module goes to the profile's files directory
+    // (cli.build.output.file), named after FILE, and its path is shown from
+    // the working directory.
     const built = await hd(["build", buildSource], directory);
-    assert.equal(built.stdout, "build/debug/main.wasm\n");
-    assert.ok((await stat(join(directory, "build/debug/main.wasm"))).size > 8);
+    assert.equal(built.stdout, "build/debug/files/main.wasm\n");
+    assert.ok((await stat(join(directory, "build/debug/files/main.wasm"))).size > 8);
     const released = await hd(["build", "--release", "main.hd"], join(directory, "src"));
-    assert.equal(released.stdout, "../build/release/main.wasm\n");
-    assert.ok((await stat(join(directory, "build/release/main.wasm"))).size > 8);
+    assert.equal(released.stdout, "../build/release/files/main.wasm\n");
+    assert.ok((await stat(join(directory, "build/release/files/main.wasm"))).size > 8);
     await rm(join(directory, "src/core.hd"));
     const whole = await hd(["build"], directory);
     assert.equal(whole.stdout, "build/debug/demo.wasm\n");
