@@ -2556,3 +2556,4 @@ runtime/valid/generic-data-let-pattern.hd	runtime
 runtime/valid/generic-data-pattern-nested-generic.hd	runtime
 runtime/valid/generic-data-match-pattern.hd	runtime
 runtime/valid/generic-data-pattern-in-generic-function.hd	runtime
+typing/valid/unused-underscore-bindings.hd	type

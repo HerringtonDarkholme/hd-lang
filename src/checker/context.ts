@@ -351,7 +351,13 @@ export abstract class CheckerContext {
         if (failure) this.fail("unsatisfied-trait-bound", failure.message, failure.span);
       }
       for (const local of this.locals) {
-        if (local.parameter || local.name.startsWith("$") || this.readLocals.has(local)) continue;
+        if (
+          local.parameter ||
+          local.name.startsWith("$") ||
+          local.name.startsWith("_") ||
+          this.readLocals.has(local)
+        )
+          continue;
         this.diagnostics.push({
           code: "unused-local-binding",
           message: `local binding '${local.name}' is never read`,

@@ -1,0 +1,21 @@
+# test: every underscore-prefixed local binding form suppresses the unused warning, while an ordinary unread binding still warns
+# Spec 06 Control Flow: flow.unused.underscore (a name beginning with _ suppresses unused-local-binding).
+data Point:
+    x: i32
+    y: i32
+
+fn ignore_parameter(_parameter: i32) -> void:
+    pass
+
+fn exercise(point: Point, optional: i32?) -> void:
+    _short := +1
+    let _annotated: i32 = +2
+    let (_tuple_left, _tuple_right) = (+3, +4)
+    let Point { x: _field_x, y: _field_y } = point
+    match optional:
+        .Some(_payload) => pass
+        .None => pass
+    for _loop_item in [+5, +6]:
+        pass
+    ignore_parameter(+7)
+    ordinary := +8  # warning: unused-local-binding
