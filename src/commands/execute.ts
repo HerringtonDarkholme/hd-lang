@@ -1046,7 +1046,7 @@ export async function execute(
       properties,
       snapshots.check,
       test && {
-        record: (name, outcome, message, panic, err) => {
+        record: (name, outcome, message, panic) => {
           if (test.intercept?.(name, outcome, message)) return;
           if (outcome === "passed") passedCases += 1;
           if (outcome === "failed") {
@@ -1054,12 +1054,12 @@ export async function execute(
             failedCases += 1;
             if (test.tally) test.tally.failed += 1;
             // Text output names each failure, and a panic with its location.
-            // An `.Err` result's report is part of the runner's report on
-            // standard output (spec/lang/10-modules.md#r-module.testing.err-print).
+            // Any other failure line, and an `.Err` result's report, is part
+            // of the runner's report on standard output
+            // (spec/lang/10-modules.md#r-module.testing.err-print).
             if (test.format === "text")
               if (panic) reportFailure(loaded, panic);
-              else if (err) io.out(`${file}: ${message}`);
-              else reporter.entryError(`test "${name}"`, message);
+              else io.out(`${file}: ${message}`);
           }
           loaded.output.test(name, outcome, message);
         },

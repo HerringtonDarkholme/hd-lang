@@ -3,3 +3,11 @@
 run: hd test --format json
 exit: 1
 stdout-json: [{"kind":"test","name":"passes when the body completes","outcome":"passed"},{"kind":"test","name":"fails on a nonzero exit code","outcome":"failed","message":null},{"kind":"test","name":"fails on an error result","outcome":"failed","message":null},{"kind":"test","name":"fails when the expected panic never comes","outcome":"failed","message":null},{"kind":"test","name":"fails on a panic of another category","outcome":"failed","message":null},{"kind":"test","name":"passes on the expected panic","outcome":"passed"},{"kind":"summary","passed":2,"failed":4,"status":1}]
+run: hd test
+exit: 1
+stdout: src/lib.hd: test "fails on a nonzero exit code" reported exit code 3
+stdout: src/lib.hd: test "fails on an error result" returned Err
+stdout: card declined: limit
+stdout: src/lib.hd: test "fails when the expected panic never comes" expecting panic index-out-of-bounds
+stdout: src/lib.hd: 2 passed, 4 failed
+stderr: src/lib.hd:33:9: explicit-panic: not an index error

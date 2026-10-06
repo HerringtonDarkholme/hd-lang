@@ -216,7 +216,8 @@ test("hd run and hd test judge suspending results by Termination", async () => {
       "    )",
     ]);
     const failed = await failure(["test", reported]);
-    assert.match(failed.stdout + failed.stderr, /test "reports a code" reported exit code 2/);
+    assert.match(failed.stdout, /^.*: test "reports a code" reported exit code 2$/m);
+    assert.equal(failed.stderr, "");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -436,7 +437,8 @@ test("hd test runs each it_each row in a fresh instance", async () => {
     assert.match((await hd(["test", source])).stdout, /: 3 passed/);
     await writeFile(source, lines.join("\n"));
     await assert.rejects(hd(["test", source]), (error: CommandResult & { code?: number }) => {
-      assert.match(error.stdout + error.stderr, /test "fails on two\[1\]" returned Err/);
+      assert.match(error.stdout, /^.*: test "fails on two\[1\]" returned Err$/m);
+      assert.equal(error.stderr, "");
       return true;
     });
   } finally {
@@ -475,7 +477,8 @@ test("hd test fails a test case that runs longer than its timeout", async () => 
     assert.match((await hd(["test", source])).stdout, /: 1 passed/);
     await writeFile(source, lines.join("\n"));
     await assert.rejects(hd(["test", source]), (error: CommandResult & { code?: number }) => {
-      assert.match(error.stdout + error.stderr, /test "overruns" exceeding its 0ms timeout/);
+      assert.match(error.stdout, /^.*: test "overruns" exceeding its 0ms timeout$/m);
+      assert.equal(error.stderr, "");
       return true;
     });
   } finally {

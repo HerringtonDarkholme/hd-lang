@@ -52,8 +52,6 @@ export interface TestReporting {
     message: string,
     /** The panic that failed the test case, when one did. */
     panic?: RuntimePanicError,
-    /** The test case's result held an `.Err`, whose report ends `message`. */
-    err?: boolean,
   ) => void;
   /**
    * The rendered report of the `.Err` that the test case run last returned,
@@ -186,7 +184,8 @@ function judge(
     if (result !== 0) return { kind: "exit", code: result };
     return undefined;
   }
-  if (declaration.testOptions && result === -1) return { kind: "failed", subject, err: true };
+  if (declaration.testOptions && result === -1)
+    return { kind: "failed", subject, outcome: "returned Err", err: true };
   if (declaration.testOptions && result !== 0)
     return { kind: "failed", subject, outcome: `reported exit code ${result}` };
   return undefined;
@@ -199,7 +198,7 @@ function judge(
 function overran(report: CaseReport, started: number, subject: string): RunOutcome | undefined {
   const limit = report.timeoutMs;
   if (limit === undefined || limit < 0 || performance.now() - started <= limit) return undefined;
-  return { kind: "failed", subject: `${subject} exceeding its ${limit}ms timeout` };
+  return { kind: "failed", subject, outcome: `exceeding its ${limit}ms timeout` };
 }
 
 function isDiscardPanic(error: RuntimePanicError, properties: PropertyRun): boolean {
@@ -257,7 +256,7 @@ function judgeCase(
   if (late) return { outcome: late, rowCount: report.rowCount };
   if (expected !== undefined)
     return {
-      outcome: { kind: "failed", subject: `${subject} expecting panic ${expected}` },
+      outcome: { kind: "failed", subject, outcome: `expecting panic ${expected}` },
       rowCount: report.rowCount,
     };
   const outcome = judge(declaration, result, subject);
@@ -282,16 +281,15 @@ export async function runSelected(
   tempDirs?: TempDirs,
 ): Promise<RunOutcome> {
   const keepGoing = reporting?.keepGoing === true;
-  const failure = (subject: string, outcome?: string): string =>
-    `${subject} ${outcome ?? "returned Err"}`;
+  // One failure line: the subject once, then its reason.
+  const failure = (subject: string, outcome: string | undefined): string =>
+    outcome === undefined ? subject : `${subject} ${outcome}`;
   // An `.Err` result's report follows on the lines after its failure: the
   // error's `Display` text, then its `caused by: ` lines.
   const withReport = (text: string, err: boolean | undefined): string => {
     const report = err ? reporting?.errReport?.() : undefined;
     return report === undefined ? text : `${text}\n${report}`;
   };
-  // The failures of property cases whose result held an `.Err`.
-  const errFailures = new Set<string>();
   let count = 0;
   let last: unknown;
   for (const declaration of selected) {
@@ -329,7 +327,6 @@ export async function runSelected(
           if (outcome?.kind !== "failed") return "pass";
           if (!outcome.err) return { failure: outcome.outcome ?? outcome.subject };
           const failed = withReport("returned Err", true);
-          errFailures.add(failed);
           return { failure: failed };
         } catch (error) {
           if (error instanceof PropertyDiscard) return "discard";
@@ -342,16 +339,8 @@ export async function runSelected(
       };
       const failed = await runProperty(properties, name, once);
       if (failed && !keepGoing) return { kind: "failed", ...failed };
-      if (failed)
-        reporting?.record(
-          name,
-          "failed",
-          failure(failed.subject, failed.outcome),
-          undefined,
-          [...errFailures].some((text) => failed.outcome.includes(text)),
-        );
+      if (failed) reporting?.record(name, "failed", failure(failed.subject, failed.outcome));
       else reporting?.record(name, "passed", "");
-      errFailures.clear();
       if (!failed) count += 1;
       continue;
     }
@@ -385,8 +374,6 @@ export async function runSelected(
           name,
           "failed",
           withReport(failure(outcome.subject, outcome.outcome), outcome.err),
-          undefined,
-          outcome.err,
         );
         if (!table) break;
         rows = rowCount;
