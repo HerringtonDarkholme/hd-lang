@@ -91,15 +91,15 @@ fn record(tally: mut Tally, hits: List[i64]) -> Meters:
 
 1. r[expr.assign.compound.form] Compound assignment is a statement, written with one of ten operators: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=`.
 2. r[expr.assign.compound.no-others] There is no `**=`, `&&=`, or `||=`.
-3. r[expr.assign.compound.place-form] The left side must have the form of a place: a name, a field selection, an index expression, or a call whose callee's type implements `Update`. Any other left side, such as a function call, is an error. Error: `invalid-assignment-target`.
+3. r[expr.assign.compound.place-form] The left side must have the form of a place. That is a name, a field selection, an index expression, or a call whose callee's type implements `Update`. Any other left side, such as a function call, is an error. Error: `invalid-assignment-target`.
 4. r[expr.assign.compound.once] The receiver and index of the place are evaluated once, then the right-hand expression.
 5. r[expr.assign.compound.meaning] For every type, `p op= e` means `p = p op e`: it reads the place, applies the operator to that value and `e`, and stores the result in the place.
 6. r[expr.assign.compound.primitive] When the place and the right operand have primitive types, `p op= e` computes `p op e` by the built-in rules and stores the result in the place. The store follows the rules of `p = p op e`, so a name must be a reassignable local.
 7. r[expr.assign.compound.operator] Otherwise the operator follows [Operator Traits](#operator-traits), so the place's type needs the operator's trait. Without a fitting implementation, the statement is an error. Error: `type-mismatch`.
-8. r[expr.assign.compound.store-rules] The store follows the rules of assignment. So the place must be a reassignable local, a field selected through a mutable root, an index place that accepts a store, or a call place.
+8. r[expr.assign.compound.store-rules] The store follows the rules of assignment. So the place must be a reassignable local, a field selected through a mutable root, or an index place that accepts a store. A call place also qualifies.
 9. r[expr.assign.compound.index-read-write] On an index place, the read is `r[k]` and the store is `r[k] = v`. `List` and `Map` use their built-in indexing, and another type needs both `Index` and `IndexSet`, as [Index Traits](#index-traits) defines.
 10. r[expr.assign.compound.call-once] On a call place `v() op= e`, the callee `v` is evaluated once, then `e`.
-11. r[expr.assign.compound.call-read-write] On a call place, the read is `v()` and the store is `v() = x`, so the callee's type needs both `Apply` and `Update`, as [Callable Values](#callable-values) defines.
+11. r[expr.assign.compound.call-read-write] On a call place, the read is `v()` and the store is `v() = x`. So the callee's type needs both `Apply` and `Update`, as [Callable Values](#callable-values) defines.
 12. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
 13. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
 
@@ -226,7 +226,8 @@ fn render(value: Secret) -> string:
 
 A [suffixed literal](01-lexical-structure.md#literal-suffixes) or a
 [prefixed string](01-lexical-structure.md#prefixed-strings) is a call of a
-**literal function**: a function marked `@num_suffix` for a suffix, or
+**literal function**. A literal function is marked `@num_suffix` for a
+suffix, or
 `@str_prefix` for a prefix. This section gives the rules both forms share,
 then the suffix rules; [Prefixed Strings](#prefixed-strings) adds the
 template.
@@ -511,7 +512,7 @@ fn run(xs: List[i32]) -> usize:
 ```
 
 1. r[expr.tuple.rest.collect] Against an expected tuple type with a rest element `List[T]...`, a tuple expression's elements fill the fixed elements one each, in order. The elements after them are collected into the rest element, each checked against `T`. Too few elements is an error. Error: `type-mismatch`.
-2. r[expr.tuple.rest.spread] A spread `xs...` that ends a tuple expression supplies the rest element: the elements before it are the fixed elements, and `xs` is the rest element's list. Against an expected type, both must match it. Error: `type-mismatch`.
+2. r[expr.tuple.rest.spread] A spread `xs...` that ends a tuple expression supplies the rest element. The elements before it are the fixed elements, and `xs` is the rest element's list. Against an expected type, both must match it. Error: `type-mismatch`.
 3. r[expr.tuple.rest.spread.list] The spread operand must be a `List[T]`, which gives the rest element `List[T]...`. A tuple or any other operand is an error. Error: `type-mismatch`.
 4. r[expr.tuple.rest.value] The resulting tuple's rest element is a `List[T]` that holds the collected elements in order, or the spread operand's list.
 
@@ -595,7 +596,7 @@ user := User {
 1. r[expr.data.required] A data expression names its type and provides every required field.
 2. r[expr.data.once] Every field may appear at most once.
 3. r[expr.data.eval] Field initializers evaluate in source order, not declaration order.
-4. r[expr.data.shorthand] A field written as its bare name, as in `Point { x, y }`, is field shorthand for `name: name`; its initializer is a use of that value name, evaluated in its source position.
+4. r[expr.data.shorthand] A field written as its bare name, as in `Point { x, y }`, is field shorthand for `name: name`. Its initializer is a use of that value name, evaluated in its source position.
 
 > **Note.** An embedded field is filled with a copy marker, as in
 > `Timestamps: ...stamps`, which stores the copy-update
@@ -628,7 +629,7 @@ renamed := User {
 10. r[expr.update.shallow] Copy-update is shallow: primitive fields are copied by value, while composite field references continue to refer to the same underlying objects.
 11. r[expr.update.no-upgrade] A fresh mutable outer result does not upgrade copied child references.
 
-> **Note.** Embedded parts are the exception to a shallow copy: each part
+> **Note.** Embedded parts are the exception to a shallow copy. Each part
 > that is not replaced is copied as a copy-update of its own, as
 > [`data.part.copy-update`](08-data-and-enums.md#r-data.part.copy-update)
 > states.
@@ -654,7 +655,7 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
 
 #### Method Calls
 
-1. r[expr.member.method-call] When a member suffix is immediately followed by an argument clause, `value.name(arguments...)` is a method call: member lookup selects a method, which is called with `value` as its receiver.
+1. r[expr.member.method-call] When a member suffix is immediately followed by an argument clause, `value.name(arguments...)` is a method call. Member lookup selects a method, which is called with `value` as its receiver.
 2. r[expr.member.no-field-call] A method call never reads a field.
 3. r[expr.member.stored-fn] A function stored in a field is called by parenthesizing the field read, as in `(handler.callback)(event)`.
 4. r[expr.member.stored-fn.error] `handler.callback(event)` looks for a method named `callback`, and is an error when there is none. Error: `unknown-method`.
@@ -685,7 +686,7 @@ See also: [Method References](07-functions.md#method-references).
 
 1. r[expr.index.order] `receiver[index]` evaluates the receiver, then the index, and invokes the receiver type's indexing behavior.
 2. r[expr.index.expected] For a `List` or `string` receiver, the index is checked with `usize` as its expected type, so an integer literal index is a `usize`.
-3. r[expr.index.expected.range] For such a receiver, an index that is a range expression gives each of its bounds `usize` as the expected type, so `items[1..3]` slices with a `Range[usize]`.
+3. r[expr.index.expected.range] For such a receiver, an index that is a range expression gives each of its bounds `usize` as the expected type. So `items[1..3]` slices with a `Range[usize]`.
 4. r[expr.index.negative-literal] A negated literal index or slice bound, as in `items[-1]` or `items[-1..]`, negates an unsigned value. It is an error. Error: `unsigned-negation`.
 
 #### List Indexing
@@ -817,7 +818,7 @@ fn invalid(items: List[i32], start: i32) -> void:
 
 > **Why.** A slice goes through `std.ops.Index`, as Rust's does, so generic
 > code bounded by `Index[Range[usize]]` accepts strings and lists. A list
-> slice is a copy, so later changes to the list never reach it, and a
+> slice is a copy, so later changes to the list never reach it. A
 > string slice shares its bytes because strings are immutable. The copy's
 > mutable access comes from the implementation's declared `Out`, so no
 > extra freshness rule is needed.
@@ -864,7 +865,7 @@ pub trait IndexSet[K, V]:
 ```
 
 1. r[expr.index.trait.std] `std.ops` declares `Index[K]`, with an associated type `Out`, and `IndexSet[K, V]`, as shown above.
-2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index::[K]::index(r, k)`, and its type is that implementation's `Out`.
+2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index::[K]::index(r, k)`. Its type is that implementation's `Out`.
 3. r[expr.index.trait.write] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(r, k, v)`.
 4. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
 5. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
@@ -1020,7 +1021,7 @@ fn total(values: List[i32]) -> i32: fixed(values...)       # error: positional-s
 ```
 
 A function with a `List[T]` vararg takes a tuple whose rest element stands
-for it, and a function with a plain `List[T]` parameter takes a tuple
+for it. A function with a plain `List[T]` parameter takes a tuple
 without one:
 
 ```text
@@ -1249,7 +1250,7 @@ These rules refine the steps:
 1. r[expr.try.convert.assignable.covers] The assignability step covers an identical type, permission weakening, and variance. It also covers construction of a dynamic trait value such as the erased `Error`, supertrait widening of a dynamic value, and optional injection.
 2. r[expr.try.convert.strip-mut] In the conversion step, an outer `mut` on `E` is removed before the implementation is chosen.
 3. r[expr.try.convert.no-import] The code using `?` does not need to import `From`.
-4. r[expr.try.convert.message] The message of the third step's error should name `E` and `F`, and suggest an implementation of `From[E]` for `F` or an explicit mapping of the error.
+4. r[expr.try.convert.message] The message of the third step's error should name `E` and `F`. It should suggest an implementation of `From[E]` for `F` or an explicit mapping of the error.
 5. r[expr.try.convert.one-step] Exactly one step converts the error.
 6. r[expr.try.convert.no-combine] `?` never combines an assignability rule with a conversion, and it never chains conversions.
 7. r[expr.try.convert.no-chain] With `impl From[A] for B` and `impl From[B] for C`, a `?` on `Result[T, A]` in a function returning `Result[U, C]` is an error. Error: `invalid-result-propagation`.
@@ -1317,7 +1318,7 @@ tests:
 2. r[expr.try.test.with-try] If the block contains a `?` outside any nested closure, its result type is `Result[void, Error]`, where `Error` is the erased `std.error.Error`.
 3. r[expr.try.test.without-try] Otherwise its result type is `void`.
 4. r[expr.try.test.converts] `?` in such a block converts by the ordinary rules, so an error type that implements `Error` propagates into the erased `Error`. An error type that does not is an error. Error: `invalid-result-propagation`.
-5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body, so a block that uses `?` usually ends in `.Ok(())`.
+5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body. So a block that uses `?` usually ends in `.Ok(())`.
 6. r[expr.try.test.explicit-closure] A body passed as an explicit closure keeps its written or inferred result type. That type must implement `std.process.Termination`, the bound on `it`. Error: `unsatisfied-trait-bound`.
 7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
 
@@ -1416,7 +1417,7 @@ fn product(a: List[i32], b: List[i32]) -> List[i32]: a * b  # error: type-mismat
 ### Bitwise Operators
 
 1. r[expr.bit.primitive-integer] Between primitive operands, `~`, `&`, `|`, and `^` accept integer values only and produce the operand common type. Other operands use [Operator Traits](#operator-traits).
-2. r[expr.bit.non-integer-no-impl] A binary `&`, `|`, or `^` with a primitive operand that is not an integer, such as a `bool`, floating-point, or `string` operand, is an error. So is one with a non-primitive operand when no operator trait implementation fits. Error: `type-mismatch`.
+2. r[expr.bit.non-integer-no-impl] A binary `&`, `|`, or `^` with a primitive operand that is not an integer is an error. `bool`, floating-point, and `string` operands are examples. One with a non-primitive operand is an error too when no operator trait implementation fits. Error: `type-mismatch`.
 
 ```text
 fn both(a: bool, b: bool) -> bool: a & b          # error: type-mismatch
@@ -1499,7 +1500,7 @@ fn main() -> f64: 2 ** 2.0                     # error: mixed-numeric-types
 10. r[expr.eq.contextual-both] When both operands are contextual variants, neither has an expected type, so `.None == .None` is an error. Error: `missing-contextual-enum-type`.
 11. r[expr.eq.readonly-view] `==` and `!=` with one `mut T` operand and one `T` operand compare at `T`, because the readonly view is enough. So `d == Date { year: 2026 }` with `d: Date` is valid, though the literal is a fresh `mut Date`.
 12. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `missing-eq`.
-13. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it that inserts `@derive(Eq)` on its own line before the enum's declaration.
+13. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it. The fix-it inserts `@derive(Eq)` on its own line before the enum's declaration.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
@@ -1549,8 +1550,8 @@ result fixed by the type, so it gets a warning:
 
 1. r[expr.ord.unsigned-zero] A comparison in one of the forms in the table, where `t` has an unsigned integer type, gets a warning, and the program still compiles. Warning: `unsigned-comparison-always`.
 2. r[expr.ord.unsigned-zero.literal] The `0` of a form is any unsuffixed integer literal whose value is zero, in any radix, such as `0` or `0x0`.
-3. r[expr.ord.unsigned-zero.binding-type] The type of `t` is its type at the comparison: a declared unsigned type, or the [`usize` default](04-type-system.md#r-types.literal.local.default) of the literal its binding was initialized with.
-5. r[expr.ord.unsigned-zero.message] The warning must name the operand and say whether the comparison is always true or always false, as in "`t` is unsigned, so `t >= 0` is always true". When `t` has the `usize` default, it should also suggest a signed literal such as `+10` or another condition.
+3. r[expr.ord.unsigned-zero.binding-type] The type of `t` is its type at the comparison. That is a declared unsigned type, or the [`usize` default](04-type-system.md#r-types.literal.local.default) of the literal its binding was initialized with.
+5. r[expr.ord.unsigned-zero.message] The warning must name the operand and say whether the comparison is always true or always false. One phrasing is "`t` is unsigned, so `t >= 0` is always true". When `t` has the `usize` default, it should also suggest a signed literal such as `+10` or another condition.
 
 ```text
 fn countdown() -> void:
@@ -1592,7 +1593,7 @@ fn below(value: u32) -> bool:
 
 1. r[expr.is.tuple] Tuples have no identity, and using `is` with a tuple is an error even if it contains references. Error: `identity-requires-references`.
 2. r[expr.is.primitive] Primitive values likewise cannot be compared with `is`: an operand type must implement `AnyRef`, not `AnyVal`. Error: `identity-requires-references`.
-3. r[expr.is.compatible] Both operands must otherwise have compatible composite reference types. Two such types are compatible when, after removing `mut` at every level, they are equal, or one is a trait value or `Any` type that the other converts to.
+3. r[expr.is.compatible] Both operands must otherwise have compatible composite reference types. Two such types are compatible when, after removing `mut` at every level, they are equal. They are also compatible when one is a trait value or `Any` type that the other converts to.
 4. r[expr.is.permissions] Permissions never affect identity, so `List[User]` and `mut List[mut User]` are compatible.
 5. r[expr.is.incompatible] Two composite reference operands that are not compatible, such as `List[User]` and `List[Order]`, are an error. Error: `incompatible-identity-operands`.
 6. r[expr.is.function] A direct `is` with an operand whose static type is a function type is an error. Error: `unsupported-function-identity`.
@@ -1736,7 +1737,7 @@ fn total(a: Meters, b: Meters) -> Meters:
 #### Primitive Implementations
 
 The standard library implements the operator traits for the primitive number
-types, and `Add` for `string`, so generic code bounded by an operator trait
+types, and `Add` for `string`. So generic code bounded by an operator trait
 accepts them:
 
 ```text
@@ -1777,7 +1778,7 @@ fn count(items: List[i32]) -> i32:
 > defaults to `Self`, so the common same-type case omits it. The output is an associated
 > type that the operands fix, so `x := a + b` never becomes ambiguous when an
 > implementation is added. Primitive operands skip trait search, so numeric
-> code compiles as before and type checking never searches across numeric
+> code compiles as before. Type checking never searches across numeric
 > types, the cost Swift pays for overloaded operators.
 
 See also: [Compound Assignment](#compound-assignment),
@@ -1979,7 +1980,7 @@ pub data RangeFull: pass
 5. r[expr.range.order] A range expression evaluates its start bound, then its end bound.
 6. r[expr.range.no-check] Building a range never compares its bounds, so `5..2` is a valid, empty range.
 7. r[expr.range.bound.integer] Each bound must have an integer type. A bound of any other type is an error. Error: `type-mismatch`.
-8. r[expr.range.bound.operands] The two bounds of `a..b` or `a..=b` are typed as the operands of a [binary numeric operator](04-type-system.md#binary-numeric-operators): a literal takes the other bound's type, and bounds of two types of one family are an error. Error: `type-mismatch`.
+8. r[expr.range.bound.operands] The two bounds of `a..b` or `a..=b` are typed as the operands of a [binary numeric operator](04-type-system.md#binary-numeric-operators). A literal takes the other bound's type, and bounds of two types of one family are an error. Error: `type-mismatch`.
 9. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
 10. r[expr.range.element-type] The range's element type `T` is the bounds' common type, or the one bound's type for `a..`, `..b`, and `..=b`. `RangeFull` has no bound and no element type.
 11. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
@@ -1993,7 +1994,7 @@ fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:
 ```
 
 > **Note.** `for` iterates `a..b`, `a..`, and `a..=b`, as
-> [Range Iteration](06-control-flow.md#range-iteration) states, and an index
+> [Range Iteration](06-control-flow.md#range-iteration) states. An index
 > of a range type slices a string or a list with unsigned bounds, as
 > [Slicing](#slicing) states. A `match` takes the range forms but `..b` and `..` as
 > [range patterns](06-control-flow.md#range-patterns).
@@ -2056,8 +2057,8 @@ by_id := {for user in users if user.active => user.id: user}
 ### Comprehension Restrictions
 
 1. r[expr.comp.eager] Comprehensions are eager.
-2. r[expr.comp.suspension] A comprehension follows the loops it abbreviates, so a bang call inside it is valid exactly where it would be valid in those loops: in a [driver context](11-requirements-and-suspension.md#r-req.bang.driver-contexts). Outside one it is an error. Error: `bang-call-outside-suspension`.
-3. r[expr.comp.suspension.sequential] The bang calls of a comprehension run one at a time, in the order the loops reach them: each call completes before the comprehension evaluates any later clause, guard, key, or element.
+2. r[expr.comp.suspension] A comprehension follows the loops it abbreviates. So a bang call inside it is valid exactly where it would be valid in those loops: in a [driver context](11-requirements-and-suspension.md#r-req.bang.driver-contexts). Outside one it is an error. Error: `bang-call-outside-suspension`.
+3. r[expr.comp.suspension.sequential] The bang calls of a comprehension run one at a time, in the order the loops reach them. Each call completes before the comprehension evaluates any later clause, guard, key, or element.
 4. r[expr.comp.no-jumps] `return`, `break`, and `continue` are not valid inside a comprehension.
 5. r[expr.comp.no-let] There is no comprehension `let` clause.
 
@@ -2096,6 +2097,6 @@ sizes := [for user in users
 2. r[expr.unsupported.chaining] hd-lang has no comparison chaining.
 3. r[expr.unsupported.any-fallback] hd-lang has no fallback conversion of heterogeneous literals to `Any`.
 4. r[expr.unsupported.try-mapping] Postfix `?` has no mapping clause.
-5. r[expr.unsupported.try-mapping.explicit] A site that needs a different error conversion maps the `Result` explicitly before `?`, for example with a function that takes a single-payload variant constructor as its mapper.
+5. r[expr.unsupported.try-mapping.explicit] A site that needs a different error conversion maps the `Result` explicitly before `?`. One way is a function that takes a single-payload variant constructor as its mapper.
 
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
