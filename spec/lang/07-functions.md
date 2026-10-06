@@ -43,7 +43,7 @@ impl Cart:
         self.count
 ```
 
-> **Why.** Every signature that another file can see is written out, so a
+> **Why.** Every signature that another file can see is written out. So a
 > caller in another file never waits for a callee's body to be checked.
 > Files can then be checked in parallel.
 
@@ -68,7 +68,7 @@ fn is_odd(n: i32):
 
 1. r[fn.body.final-value] The body's normal final value must be assignable to the declared or inferred result.
 2. r[fn.body.early-return] Explicit `return` may complete the function earlier.
-3. r[fn.body.paths] Every reachable control path must return a value assignable to the declared result, fall through with such a final value, or complete abruptly by propagation or panic.
+3. r[fn.body.paths] Every reachable control path must do one of three things. It returns a value assignable to the declared result, falls through with such a final value, or completes abruptly by propagation or panic.
 4. r[fn.body.value-less-fallthrough] A non-`void` function with a reachable value-less fallthrough is an error. Error: `missing-return-value`.
 5. r[fn.body.infinite-loop] A path that enters an [infinite loop](06-control-flow.md#r-flow.while.infinite) that no `break` targets never completes, so it needs no value.
 6. r[fn.body.void-final] A `void` function likewise rejects a non-`void` final expression.
@@ -174,7 +174,7 @@ fn connect(host: string, port: i32 = 443, tls: bool = true) -> Connection:
 ```
 
 1. r[fn.default.allowed] A parameter may declare a default.
-2. r[fn.default.order-final-function] After the first parameter with a default, every following non-vararg parameter must also have a default, except a final parameter whose type is a function type. A later parameter without one is an error. Error: `default-order`.
+2. r[fn.default.order-final-function] After the first parameter with a default, every following non-vararg parameter must also have a default. The one exception is a final parameter whose type is a function type. A later parameter without one is an error. Error: `default-order`.
 3. r[fn.default.omit] Calls may omit only parameters that have defaults.
 4. r[fn.default.eval] Defaults are evaluated for each call, in parameter declaration order, after all explicit argument expressions have been evaluated.
 5. r[fn.default.scope] A default may refer to earlier parameters but not later parameters.
@@ -194,7 +194,7 @@ fn run() -> void:
 ```
 
 > **Why.** As in Kotlin and Swift, defaulted options may come before a
-> trailing body, because a trailing block or a named argument always reaches
+> trailing body. A trailing block or a named argument always reaches
 > the final parameter.
 
 #### Requirement-Free Defaults
@@ -249,7 +249,7 @@ sum(items...)
 
 1. r[fn.vararg.collect.list] For `List[T]`, each argument is checked against `T`, and the list holds the arguments in order.
 2. r[fn.vararg.collect.tuple-expr] For a tuple type, the arguments are collected exactly as the tuple expression of them, against that type, by [Tuple Expressions](05-expressions.md#parenthesized-and-tuple-expressions) and [Tuple Rest Elements](05-expressions.md#tuple-rest-elements). So `call(g, 1, 2, xs...)` collects `(1, 2, xs...)`. Error: `type-mismatch`.
-3. r[fn.vararg.tuple-param.expected] When another argument solves the vararg's `Tuple`-bounded type parameter, as `f` solves `Args` below, the vararg's arguments are checked against that solved tuple as an expected type.
+3. r[fn.vararg.tuple-param.expected] Another argument may solve the vararg's `Tuple`-bounded type parameter, as `f` solves `Args` below. Then the vararg's arguments are checked against that solved tuple as an expected type.
 4. r[fn.vararg.tuple-param.infer] When no other argument solves it, inference solves it as the tuple of the argument types, one element per argument, with no join.
 5. r[fn.vararg.no-auto-spread] A tuple argument is never spread automatically: it is one element of the collected tuple.
 
@@ -366,13 +366,13 @@ fn suspending() -> SuspendFn[(i32,), string, $ Database]:
 ```
 
 1. r[fn.type.ctor.decl] `std.function` declares the function type constructors `Fn` and `SuspendFn`. Each takes three arguments: the inputs, the output, and the requirement row.
-2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, or `(A, B)`, or a type parameter bounded by `Tuple`.
+2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, or `(A, B)`. It may also be a type parameter bounded by `Tuple`.
 3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, $ R]` takes one pair, and `Fn[(A, B), O, $ R]` takes two values.
 4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys are joined with `+`, as in `$ Db + Cache`.
 5. r[fn.type.ctor.row.dollar] The row argument is a [row slot](11-requirements-and-suspension.md#row-slots), so one key or a row alias is written after `$` too, as in `Fn[(), O, $ Db]` and `Fn[(), O, $ AppRow]`. A bare one is an error. Error: `generic-kind-mismatch`.
 6. r[fn.type.ctor.tuple-trait] `std.function` also declares `Tuple`, an empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
 7. r[fn.type.ctor.tuple-trait.rest] A tuple type with a [rest element](04-type-system.md#rest-elements) is a tuple type and implements `Tuple`, so `Args` may be `(i32, List[i32]...)`.
-8. r[fn.type.ctor.inputs-tuple] An inputs argument that is not a tuple type or a type parameter bounded by `Tuple`, as in `Fn[i32, i32, $()]` or `Fn[Args, O, $ R]` with an unbounded `Args`, is an error. Error: `generic-kind-mismatch`.
+8. r[fn.type.ctor.inputs-tuple] An inputs argument that is not a tuple type or a type parameter bounded by `Tuple` is an error. Examples are `Fn[i32, i32, $()]`, and `Fn[Args, O, $ R]` with an unbounded `Args`. Error: `generic-kind-mismatch`.
 9. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, $ R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, $ R]`.
 10. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
 11. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
@@ -414,7 +414,7 @@ fn apply(callback: fn(usize, usize, List[i32]...) -> usize) -> usize:
 
 1. r[fn.type.vararg-rest] A `List[T]` vararg is the rest element `List[T]...` of its function's inputs tuple. So `g` above has type `fn(usize, usize, List[i32]...) -> usize`, which differs from `h`'s type.
 2. r[fn.type.rest-call] Calling a function value whose inputs end in a rest element `List[T]...` treats that element as a `List[T]` vararg, as in `f(1, 2, 3, 4)` above.
-3. r[fn.type.tuple-vararg-input] A vararg whose type is a tuple type or a `Tuple`-bounded type parameter is one ordinary input of its function's type, which takes the collected tuple. `call` has type `fn(Fn[Args, O, $ R], Args) -> O $ R`.
+3. r[fn.type.tuple-vararg-input] A vararg whose type is a tuple type or a `Tuple`-bounded type parameter is one ordinary input of its function's type. That input takes the collected tuple. `call` has type `fn(Fn[Args, O, $ R], Args) -> O $ R`.
 
 ```text
 fn sum(values...: List[i32]) -> i32: values[0]
@@ -562,7 +562,7 @@ fn bumper(counter: mut Counter) -> fn(i32) -> void:
 2. r[fn.ref.unbound.receiver] For a method, the reference takes the receiver first, then the method's own parameters: `Counter::bump` has type `fn(mut Counter, i32) -> void`.
 3. r[fn.ref.unbound.mut-self] A `mut self` method gives a `mut` first parameter, and a `self` method a readonly one.
 4. r[fn.ref.associated] For an associated function, the parameters are the function's own: `Counter::zero` has type `fn() -> Counter`.
-5. r[fn.ref.lookup] A reference resolves `name` as the qualified call `Owner::name(...)` does: inherent members of a type first, then its available traits, and a type parameter through its bounds.
+5. r[fn.ref.lookup] A reference resolves `name` as the qualified call `Owner::name(...)` does. That is inherent members of a type first, then its available traits, and a type parameter through its bounds.
 6. r[fn.ref.lookup.ambiguous] Two trait candidates for one name are an error. Error: `ambiguous-method`.
 7. r[fn.ref.trait-self] For `Trait::name`, `Self` is inferred from the expected function type, as a generic function value's parameters are.
 8. r[fn.ref.trait-self.unsolved] A trait reference whose `Self` nothing determines is an error. Error: `cannot-infer-type`.
@@ -604,9 +604,9 @@ fn restart(counter: Counter) -> fn() -> Counter:
 
 > **Why.** A reference reads as the call it stands for, as in Rust, Java,
 > and Go. A bound reference fixes its receiver when it is made, as Kotlin
-> and Go method values do, while a closure such as `fn(): counter.read()`
-> reads the variable when it runs. Fields stay closures, so a field and a
-> method may share a name without a clash.
+> and Go method values do. A closure such as `fn(): counter.read()`
+> instead reads the variable when it runs. Fields stay closures, so a field
+> and a method may share a name without a clash.
 
 See also: [Associated Function Calls](09-traits.md#associated-function-calls),
 [Trait-Qualified Calls](09-traits.md#trait-qualified-calls).
@@ -728,7 +728,7 @@ fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
 
 1. r[fn.capture.access] A closure uses each capture with the access that the captured binding has in the enclosing scope.
 2. r[fn.capture.mutate] A closure may assign captured `let` storage and may obtain mutable access from a captured `mut T` binding.
-3. r[fn.capture.mutate.forms] Calling a `mut self` method on a captured list or mutable child, passing a captured `mut T` binding to a `mut T` parameter, and returning that access are such uses.
+3. r[fn.capture.mutate.forms] Calling a `mut self` method on a captured list or mutable child is such a use. So are passing a captured `mut T` binding to a `mut T` parameter, and returning that access.
 4. r[fn.capture.readonly] A readonly capture stays readonly. Assigning a field through a captured readonly root is an error. Error: `readonly-root`.
 5. r[fn.capture.result-not-weakened] A callable's declared `mut T` result is not itself weakened when the callable is read through a readonly reference.
 
@@ -788,7 +788,7 @@ choice(
 
 1. r[fn.multi.parenthesized] Multiple multiline closures may be passed by parenthesizing each closure expression and separating the arguments with commas.
 2. r[fn.multi.commas] Newlines do not replace commas in argument lists.
-3. r[fn.multi.unparenthesized] Without parentheses, the line after an indented closure body must start with `,` or a closing delimiter and be indented no farther than the line holding the closure header.
+3. r[fn.multi.unparenthesized] Without parentheses, the line after an indented closure body must start with `,` or a closing delimiter. It must be indented no farther than the line holding the closure header.
 4. r[fn.multi.next-closure] The next closure may start on that line, as in `, fn(b):`.
 5. r[fn.multi.syntax-error] A later argument written at body indentation, or a closing delimiter at the end of a body line, is a `syntax-error`.
 
@@ -813,7 +813,7 @@ transaction:
 2. r[fn.trailing.arguments] Ordinary arguments remain in parentheses.
 3. r[fn.trailing.empty-parentheses] If there are no ordinary arguments, empty `()` is omitted.
 4. r[fn.trailing.closure] The trailing block is equivalent to a zero-argument closure whose result and behavior are contextually inferred from the final parameter.
-5. r[fn.trailing.position] A trailing block call may be a complete statement or the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`, as in `total = sum_of(items):` or `return retry(3):` followed by the block.
+5. r[fn.trailing.position] A trailing block call may be a complete statement or the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`. Examples are `total = sum_of(items):` and `return retry(3):`, each followed by the block.
 6. r[fn.trailing.one] Only one trailing block is permitted, and only for a zero-argument final parameter. Error: `trailing-block-position`.
 7. r[fn.trailing.parameterized] Parameterized callbacks use explicit closure syntax.
 8. r[fn.trailing.return] `return` inside the block returns from the generated callback, not from the enclosing function.
@@ -878,7 +878,7 @@ first::[string](names)
 
 1. r[fn.generic.explicit.trailing] An explicit type-argument list may omit trailing slots. Each omitted slot is inferred as a `_` slot is, then takes its default if inference leaves it unsolved.
 2. r[fn.generic.explicit.too-long-count] A list with more slots than the function has generic parameters is an error. Error: `argument-count`.
-3. r[fn.generic.explicit.row-dollar] The slot of a row parameter takes a [row type argument](02-grammar.md#row-type-arguments), written after `$` even for one key or a row alias, as in `::[$ Log]`, `::[$ AppRow]`, or `::[$()]`. A bare key or row alias there is an error. Error: `generic-kind-mismatch`.
+3. r[fn.generic.explicit.row-dollar] The slot of a row parameter takes a [row type argument](02-grammar.md#row-type-arguments), written after `$` even for one key or a row alias. Examples are `::[$ Log]`, `::[$ AppRow]`, and `::[$()]`. A bare key or row alias there is an error. Error: `generic-kind-mismatch`.
 
 ```text
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
