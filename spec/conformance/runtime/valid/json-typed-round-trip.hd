@@ -1,5 +1,6 @@
 # test: a nested data type with lists, maps, and optionals encodes to an object per value, in declaration order, and decodes back
 # Spec std/json Typed JSON, Derived Serialize, Derived Deserialize: std-json.derive.to-json.data, std-json.derive.from-json.inverse, std-json.to-json, std-json.encode, std-json.decode (task #241).
+# Spec std/json Standard Implementations, Derived Deserialize: std-json.std.list, std-json.std.map, std-json.derive.from-json.member, std-json.derive.from-json.unknown.
 use std.json.{encode, decode, to_json, JsonError}
 use std.serde.{Serialize, Deserialize}
 use std.testing.assert_equal

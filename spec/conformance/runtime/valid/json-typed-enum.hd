@@ -1,5 +1,6 @@
 # test: an enum is externally tagged: a variant without members is its name, any other variant an object with one key
 # Spec std/json Derived Serialize, Derived Deserialize: std-json.derive.to-json.enum, std-json.derive.to-json.unit, std-json.derive.from-json.enum, std-json.derive.from-json.name-only (task #241).
+# Spec std/json Derived Serialize: std-json.derive.to-json.positional.
 use std.json.{encode, decode}
 use std.serde.{Serialize, Deserialize}
 use std.testing.assert_equal

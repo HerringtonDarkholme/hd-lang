@@ -1,5 +1,6 @@
 # test: .None encodes as null, and a missing key decodes as null, so an optional member may be missing
 # Spec std/json Standard Implementations, Derived Deserialize: std-json.std.optional, std-json.derive.from-json.missing, std-json.std.json (task #241).
+# Spec std/json Standard Implementations: std-json.std.json.consent.
 use std.json.{encode, decode, Json}
 use std.serde.{Serialize, Deserialize}
 use std.testing.{assert, assert_equal}

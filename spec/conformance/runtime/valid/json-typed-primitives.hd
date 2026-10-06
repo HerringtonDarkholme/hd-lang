@@ -1,5 +1,7 @@
 # test: the standard implementations for integers, floats, bool, char, and string, with their ranges
 # Spec std/json Standard Implementations: std-json.std.integer, std-json.std.integer.read, std-json.std.float, std-json.std.float-special, std-json.std.float-read, std-json.std.char, std-json.std.text (task #241).
+# Spec std/json Standard Implementations: std-json.std.bool, std-json.std.wrong-kind.
+# Spec std/serde Reading, Standard Implementations: std-serde.read.expected, std-serde.std.range.
 use std.json.{encode, decode, from_json, Json, JsonError, Number}
 use std.serde.Deserialize
 use std.testing.assert_equal
