@@ -8,6 +8,13 @@ and runtime panics.
 1. r[flow.suites] hd-lang control-flow constructs use indentation-delimited suites and may produce values.
 2. r[flow.condition.bool] Conditions are always `bool`: there is no truthiness conversion from numbers, strings, collections, or optional values.
 
+```hd
+fn sign(n: i32) -> i32:
+    if n > 0: +1
+    else if n < 0: -1
+    else: +0
+```
+
 ## Blocks And Completion
 
 A suite evaluates its statements in order, and its final expression may give
@@ -21,6 +28,15 @@ it a value.
 4. r[flow.block.abrupt] `return`, `break`, `continue`, optional or result propagation with `?`, and a runtime panic complete the current control path abruptly. They do not produce the suite's ordinary final value.
 5. r[flow.block.non-empty] An indented suite must contain at least one statement.
 6. r[flow.block.pass] `pass` supplies an explicit no-op expression when a body is intentionally empty.
+
+```hd
+fn demo(flag: bool) -> i32:
+    x := if flag:
+        +1
+    else:
+        +2
+    x
+```
 
 ### Must-Use Values
 
@@ -55,6 +71,12 @@ fn save_all(values: List[i32]) -> void:
 3. r[flow.unused.must-use] The exception is an unread binding of a must-use value, which is an error. Error: `discarded-must-use-value`.
 4. r[flow.unused.discard-forms] The two discard forms, `_ := expression` and `let _ = expression`, each explicitly discard a must-use value without binding it. No other form discards one.
 
+```hd
+fn demo() -> i32:
+    _unused := +1   # names that begin with _ need no read
+    +2
+```
+
 ## Conditional Expressions
 
 `if`, `else if`, and `else` select exactly one suite:
@@ -79,6 +101,12 @@ else:
 2. r[flow.if.value.branches] Every reachable branch must then produce a value, and those values must have one compatible result type.
 3. r[flow.if.value.least-common] Without an expected type, that type is the [least common type](04-type-system.md#least-common-type) of the branch values.
 4. r[flow.if.statement] In statement position, `else` may be omitted, and the conditional then has type `void`.
+
+```hd
+fn fee(rush: bool) -> i32:
+    base := if rush: +10 else: +5
+    base * 2
+```
 
 ### Same-Line Conditionals
 
@@ -267,6 +295,14 @@ the iterator adapters, `collect`, and `FromIterator`.
 4. r[flow.for.no-root-grant] Iteration does not grant mutable element access merely because the list root is mutable. The declared list or map value type determines that permission, and mutating a readonly element is an error. Error: `readonly-root`.
 5. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
 
+```hd
+fn total(items: List[i32]) -> i32:
+    let sum = +0
+    for item in items:
+        sum = sum + item
+    sum
+```
+
 ### Range Iteration
 
 A `for` loop iterates the integers of a [range](05-expressions.md#range-expressions):
@@ -318,6 +354,13 @@ fn invalid(n: i32) -> void:
 4. r[flow.for.replace] Replacing an existing list element or map value keeps the length, so it does not invalidate the iterator.
 5. r[flow.for.replace.observed] Later visits observe the replacement.
 6. r[flow.for.user-defined] User-defined iterables must document equivalent mutation behavior in their own contract.
+
+```hd
+fn demo() -> void:
+    let items: mut List[i32] = [+1, +2]
+    for item in items:
+        items.push(item)   # panics with iterator-invalidated
+```
 
 > **Note.** The check compares lengths only, so a removal and an addition
 > between two `next` calls that restore the length are not detected. This is
@@ -442,6 +485,14 @@ message := match status:
 6. r[flow.match.body] Only the selected arm's body is evaluated.
 7. r[flow.match.result] All arm results must have one compatible type when the match value is used.
 8. r[flow.match.result.least-common] Without an expected type, that type is the [least common type](04-type-system.md#least-common-type) of the arm results.
+
+```hd
+fn grade(score: i32) -> string:
+    match score:
+        90 => "top"
+        s if s >= 70 => "passing"
+        _ => "needs work"
+```
 
 ### Exhaustiveness
 
@@ -568,6 +619,17 @@ fn bad(choice: Choice) -> i32:
 5. r[flow.match.bind.tuple] Tuple pattern elements retain their declared types.
 6. r[flow.match.literal-payload] A literal-constrained payload pattern such as `Expr.Scale(value, factor=2)` covers only that subset of the variant.
 7. r[flow.match.literal-payload.rest] Another arm must therefore cover the remaining `Scale` values unless a later catch-all does.
+
+```hd
+enum Event:
+    Click(x: i32, y: i32)
+    Key(key: string)
+
+fn describe(event: Event) -> string:
+    match event:
+        Event.Click(x, y) => "click at $x,$y"
+        Event.Key(key) => "key $key"
+```
 
 ### Nested And Data Patterns
 
@@ -865,11 +927,29 @@ fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files
 6. r[flow.defer.operands] Likewise, a `return` or `break` operand and a value being propagated by `?` are evaluated before cleanup begins.
 7. r[flow.defer.captures] A cleanup suite observes captured lexical storage at cleanup time.
 
+```hd
+fn first() -> void: pass
+
+fn second() -> void: pass
+
+fn work() -> void: pass
+
+fn demo() -> void:
+    defer: first()
+    defer: second()
+    work()   # work, then second, then first
+```
+
 ### Cleanup Scopes
 
 1. r[flow.defer.scopes] Cleanup scopes are function and closure bodies, loop bodies, each selected `if` or `else` suite, and match arms. Provider scopes and trailing callback blocks, including test bodies, are cleanup scopes too.
 2. r[flow.defer.not-scopes] Module top level and declaration bodies that do not execute are not cleanup scopes.
 3. r[flow.defer.outside] A `defer` there is an error. Error: `defer-outside-cleanup-scope`.
+
+```text
+defer:   # error: defer-outside-cleanup-scope
+    pass
+```
 
 ### Cleanup Suite Restrictions
 
@@ -905,6 +985,14 @@ See also: [Suspending Functions](11-requirements-and-suspension.md#suspending-fu
 2. r[flow.defer.cleanup-panic] If a cleanup suite itself panics, the instance is poisoned and no remaining cleanup suite is guaranteed to run.
 3. r[flow.defer.alias-escape] `defer` does not stop an alias to a closed handle from escaping.
 
+```hd
+fn cleanup() -> void: pass
+
+fn demo() -> void:
+    defer: cleanup()   # not run: a panic skips pending defer suites
+    panic("boom")
+```
+
 > **Why.** Core hd-lang has no panic unwinding.
 
 > **Note.** Ownership and alias-escape prevention remain
@@ -939,6 +1027,11 @@ This section defines runtime panics.
 3. r[flow.panic.sources] Integer overflow, division errors, invalid shifts, out-of-bounds indexing, and invalidated built-in iterators panic when their owning chapters require a checked runtime failure. Integer overflow and invalid shifts panic in a debug or test build only. Exhausting the call stack also panics, by [`flow.panic.stack-exhausted`](#r-flow.panic.stack-exhausted).
 4. r[flow.panic.stack-exhausted] Exhausting the call stack panics. The report gives a source location when one is available, as [`flow.panic.report`](#r-flow.panic.report) says. Panic: `stack-exhausted`.
 
+```hd
+fn demo(a: i32, b: i32) -> i32:
+    a / b   # b == 0 panics with integer-division-by-zero
+```
+
 ### Panic Behavior
 
 1. r[flow.panic.stop] When a panic occurs, ordinary evaluation stops immediately.
@@ -949,6 +1042,12 @@ This section defines runtime panics.
 6. r[flow.panic.encoding] Its Wasm trap, host error, and diagnostic encoding are ABI details.
 7. r[flow.panic.report.fallback] When an operation that panics with `integer-overflow` has a type from the [`usize` default](04-type-system.md#r-types.literal.local.default), the report must say so. The category stays `integer-overflow`.
 8. r[flow.panic.report.fallback.fix] That report must suggest a signed literal or a type annotation, and should name the binding whose type fell back when the operation reads one.
+
+```hd
+fn must(n: i32) -> i32:
+    if n < 0: panic("negative")
+    n
+```
 
 > **Note.** The report text is not normative. For `let balance = 100`
 > followed by `balance = balance - 150`, one such message is
@@ -961,10 +1060,24 @@ This section defines runtime panics.
 2. r[flow.panic.poison] A panic poisons that instance: the host must not invoke it again and must discard it after reporting the failure.
 3. r[flow.panic.isolation] Hosts that require invocation isolation create a separate instance per invocation.
 
+```hd
+tests:
+    it("one case"):
+        _ := +1
+    it("another"):
+        _ := +2   # a fresh program instance; nothing carries over
+```
+
 ### Panic Categories
 
 1. r[flow.panic.stable-categories] Stable panic categories are exactly `assertion-failed`, `explicit-panic`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-reentrant-poll`, `suspension-invalid-state`, and `stack-exhausted`.
 2. r[flow.panic.explicit] The prelude function `panic(message: string) -> never` explicitly causes an `explicit-panic` failure.
 3. r[flow.panic.never] A panic or other abrupt expression is valid in any value-producing arm without affecting the compatible result type of reachable normal arms.
+
+```hd
+fn must(n: i32) -> i32:
+    if n < 0: panic("negative")
+    n
+```
 
 > **Why.** `never` is assignable to every type.

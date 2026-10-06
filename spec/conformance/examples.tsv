@@ -319,8 +319,9 @@ lang/06-control-flow.md	31	accept	typing/valid/let-pattern-read.hd
 lang/06-control-flow.md	32	mixed	typing/invalid/let-refutable-without-else.hd|typing/invalid/let-else-falls-through.hd|typing/invalid/tuple-binding-arity.hd|typing/invalid/let-else-irrefutable.hd
 lang/06-control-flow.md	33	mixed	typing/invalid/top-level-return.hd
 lang/06-control-flow.md	34	accept	typing/valid/defer-cleanup.hd
-lang/06-control-flow.md	35	mixed	typing/invalid/top-level-defer.hd|typing/invalid/defer-suspends.hd|typing/invalid/defer-return.hd
-lang/06-control-flow.md	36	mixed	typing/warnings/unreachable-after-infinite-loop.hd
+lang/06-control-flow.md	35	mixed	typing/invalid/top-level-defer.hd
+lang/06-control-flow.md	36	mixed	typing/invalid/top-level-defer.hd|typing/invalid/defer-suspends.hd|typing/invalid/defer-return.hd
+lang/06-control-flow.md	37	mixed	typing/warnings/unreachable-after-infinite-loop.hd
 lang/07-functions.md	1	accept	typing/valid/functions.hd
 lang/07-functions.md	2	mixed	typing/invalid/public-function-missing-result-type.hd|typing/invalid/public-method-missing-result-type.hd
 lang/07-functions.md	3	mixed	typing/invalid/mutual-recursion-omitted-results.hd
