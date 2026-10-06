@@ -25,9 +25,9 @@ The language tier keeps what the compiler knows by name
 
 1. r[std-format.debug.render] The prelude function `debug(value)` returns the text that `Debug` writes for `value`: stable, field by field, multi-line, and consistently indented.
 2. r[std-format.debug.render.whole] `debug(value)` applies none of the limits of [Large Values](../lang/10-modules.md#large-values), which only `dbg` applies, so it returns the whole text.
-3. r[std-format.debug.source] `Debug` writes a value the way hd source writes it, so a printed value pastes back as hd code and builds an equal value, wherever each of its parts has a source form.
+3. r[std-format.debug.source] `Debug` writes a value the way hd source writes it. So a printed value pastes back as hd code and builds an equal value, wherever each of its parts has a source form.
 4. r[std-format.debug.source.no-context] The text needs no expected type: a variant is written qualified by its enum, never as the `.Variant` shorthand.
-5. r[std-format.debug.source.markers] A part with no source form writes a marker instead: `<fn ...>` for a function, `<handle>` for a runtime handle, and `<cycle>` and the `…` limits of `dbg` for a large value. Such text is not source.
+5. r[std-format.debug.source.markers] A part with no source form writes a marker instead. It writes `<fn ...>` for a function, `<handle>` for a runtime handle, and `<cycle>` and the `…` limits of `dbg` for a large value. Such text is not source.
 
 | Rule | Value | Text |
 | --- | --- | --- |
@@ -95,7 +95,7 @@ impl Debug for Point:
 
 > **Why.** `assert_equal` and property tests show failing values through
 > `Debug`, so any type a test compares can show itself without a
-> user-facing `Display`. Builders keep the layout in the writer: plain
+> user-facing `Display`. Builders keep the layout in the writer. Plain
 > writes would fix it in each implementation, which leaves no pretty mode
 > or depth limit and lets derived and hand-written text drift apart.
 
@@ -127,7 +127,7 @@ fn shown(timeout: Duration) -> string:
 5. r[std-format.debug.std-types.set] `Set` is one more exception: it writes one `debug_list` entry per element, in iteration order.
 6. r[std-format.debug.std-types.exempt-members] A type with a member that holds a function value, or a trait value whose trait does not extend `Debug`, does not implement `Debug`. Examples are `Iterator[T]` and `Choices`.
 7. r[std-format.debug.std-types.context-error] `ContextError` is the exception to [`std-format.debug.std-types.exempt-members`](#r-std-format.debug.std-types.exempt-members): it implements `Debug` by [`std-error.context.debug`](error.md#r-std-error.context.debug), though it holds an erased `Error`.
-8. r[std-format.debug.std-types.time] `Duration`, `Timestamp`, and `Instant` are exceptions to [`std-format.debug.std-types.calls`](#r-std-format.debug.std-types.calls): each writes text with `write`, so `debug` shows a `Duration` as its `Display` text (`250ms`), a `Timestamp` as its RFC 3339 text, and an `Instant` as `Instant(5ms)`.
+8. r[std-format.debug.std-types.time] `Duration`, `Timestamp`, and `Instant` are exceptions to [`std-format.debug.std-types.calls`](#r-std-format.debug.std-types.calls). Each writes text with `write`. So `debug` shows a `Duration` as its `Display` text (`250ms`), a `Timestamp` as its RFC 3339 text, and an `Instant` as `Instant(5ms)`.
 
 > **Note.** The derived calls name a type's private fields too. Like all
 > `debug` text, that text is not portable, and fixtures do not depend on it.
