@@ -9,6 +9,18 @@ selected.
 2. r[trait.kind.explicit] Conformance is explicit.
 3. r[trait.kind.no-structural] hd-lang does not use structural method matching or class inheritance.
 
+```hd
+trait Greet:
+    fn greet(self) -> string
+
+data User:
+    name: string
+
+impl Greet for User:
+    fn greet(self) -> string:
+        "hi, ${self.name}"
+```
+
 ## Trait Declarations
 
 A trait declares required methods:
@@ -219,6 +231,15 @@ The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in
 8. r[trait.cmp.float-ord] Floating-point types implement `PartialOrd` but not `Ord`, because NaN is unordered.
 9. r[trait.cmp.operators-comparison] `==`, `!=`, and the relational operators invoke the comparison traits. The other operators invoke the `std.ops` traits of [Operator Traits](05-expressions.md#operator-traits).
 
+```hd
+@derive(Eq, PartialOrd, Ord)
+data Level:
+    rank: i32
+
+fn demo(a: Level, b: Level) -> bool:
+    a < b
+```
+
 > **Why.** This follows Swift's `Equatable`: one equality trait serves `==`,
 > map keys, and derivation, and floats keep IEEE 754 equality.
 
@@ -427,6 +448,24 @@ See also: [Requirement Rows](11-requirements-and-suspension.md#requirement-rows)
 7. r[trait.from.candidates] Each instantiation is a candidate, and the one whose parameter the argument fits is selected.
 8. r[trait.from.no-fit] When no instantiation fits, the call is an error. Error: `type-mismatch`.
 
+```hd
+use std.convert.From
+
+data AppError:
+    message: string
+
+impl From[i32] for AppError:
+    fn from(code: i32) -> AppError:
+        AppError { message: "code $code" }
+
+impl From[string] for AppError:
+    fn from(text: string) -> AppError:
+        AppError { message: text }
+
+fn demo(code: i32) -> AppError:
+    AppError::from(code)   # the i32 instantiation is selected
+```
+
 ### Error Trait
 
 The standard library declares the standard error trait `Error` in
@@ -618,6 +657,17 @@ impl Describe for Describer:
 6. r[trait.impl.local.no-second] Lexical scope does not permit a second implementation for an existing pair.
 7. r[trait.impl.local.no-capture] Local methods and local-trait default methods cannot capture enclosing runtime values.
 8. r[trait.impl.local.lookup] Their methods are available for lookup from the local `impl` declaration point through its enclosing suite and child scopes, not before or outside that scope.
+
+```hd
+fn demo() -> string:
+    trait Shout:
+        fn shout(self) -> string
+    data Whisper:
+        text: string
+    impl Shout for Whisper:
+        fn shout(self) -> string: self.text
+    Whisper { text: "hi" }.shout()
+```
 
 #### Intrinsic Methods
 
@@ -830,6 +880,17 @@ impl Shape:  # error: trait-value-impl-target
 4. r[trait.own.module.error] An implementation declared in any other module of the owning package is an error. Error: `nonlocal-impl`.
 5. r[trait.own.module.generated] A derived implementation is generated in the module of its declaration, so it always satisfies these rules.
 
+```hd
+trait Greet:
+    fn greet(self) -> string
+
+data User:
+    name: string
+
+impl Greet for User:   # same module as User: fine
+    fn greet(self) -> string: "hi"
+```
+
 > **Why.** A reader of the type's or the trait's module sees every
 > implementation that can answer a call. No distant module of the package
 > can add one.
@@ -939,6 +1000,15 @@ impl User:
 | **inherent method** | `self` or `mut self` as its first parameter | with dot syntax, as in `user.domain()` |
 | **inherent associated function** | none | through the type, as in `User::guest()` |
 
+```hd
+data Counter:
+    value: i32
+
+impl Counter:
+    fn read(self) -> i32: self.value
+    fn zero() -> Counter: Counter { value: 0 }
+```
+
 See also: [Implementation Ownership](#implementation-ownership),
 [Member Resolution](03-names-and-scopes.md#member-resolution).
 
@@ -948,6 +1018,14 @@ See also: [Implementation Ownership](#implementation-ownership),
 2. r[trait.vis.trait-methods] Methods in trait declarations and trait implementations follow the trait's visibility.
 3. r[trait.vis.no-pub] `pub` is not written on an individual trait method or its implementation.
 4. r[trait.vis.uniform] A trait has one visibility level for all its methods; it cannot mix public and private methods.
+
+```hd
+data Counter:
+    value: i32
+
+impl Counter:
+    pub fn read(self) -> i32: self.value
+```
 
 ### Inherent Member Names
 
@@ -1000,6 +1078,17 @@ candidates are reported.
 2. r[trait.resolve.lookup.kinds] That lookup covers inherent methods, trait methods, and promoted methods together.
 3. r[trait.resolve.no-field] It never selects a field.
 
+```hd
+data Counter:
+    value: i32
+
+impl Counter:
+    fn read(self) -> i32: self.value
+
+fn demo(c: Counter) -> i32:
+    c.read()
+```
+
 ### Trait Availability
 
 For a concrete receiver, a trait is available to dot-call lookup when its
@@ -1019,9 +1108,37 @@ name is one of these:
 6. r[trait.avail.as-absent] Lookup proceeds as if the implementation were absent, so a promoted method of the same name may be selected.
 7. r[trait.avail.suggest] A call that finds no method should suggest a use declaration for the trait.
 
+```hd
+use std.cmp.Eq
+
+@derive(Eq)
+data Point:
+    x: i32
+
+fn same(a: Point, b: Point) -> bool:
+    a == b   # Eq is available through the use
+```
+
 ### Inherent Methods Win
 
 1. r[trait.resolve.inherent-first] A visible inherent method of the receiver's nominal type is always selected over trait methods. That includes a method of a trait that the same type implements.
+
+```hd
+trait Show:
+    fn show(self) -> string
+
+data Wrapper:
+    value: i32
+
+impl Wrapper:
+    fn show(self) -> string: "inherent"
+
+impl Show for Wrapper:
+    fn show(self) -> string: "trait"
+
+fn demo(w: Wrapper) -> string:
+    w.show()   # the inherent method wins
+```
 
 > **Why.** Only the package that owns the type can declare an inherent
 > method, so no other package can change which method such a call reaches.
@@ -1359,6 +1476,15 @@ fn third[T, R < Record[Item = T]](record: R) -> T:  # error: ambiguous-associate
 3. r[trait.binding.non-trait] A binding in the arguments of a named type that is not a trait, as in `List[i32, Item = i32]`, is an error. Error: `unknown-associated-type`.
 4. r[trait.binding.ambiguous-projection] A binding does not make an ambiguous projection unambiguous. When two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it. Error: `ambiguous-associated-type`.
 
+```hd
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+fn demo[S < Source[Item = i32]](s: S) -> i32:
+    s.get()
+```
+
 #### Supertrait Bindings
 
 A supertrait may bind an associated type of its trait, so every
@@ -1525,6 +1651,29 @@ fn with_function(factory: Factory[Item = i32]) -> void:  # error: trait-not-dyna
 3. r[trait.dyn.no-narrow] No conversion reverses the widening.
 4. r[trait.dyn.recover] Only a value of `Inspectable` or of a trait that extends it can recover its concrete type, through [Runtime Type Identity](#runtime-type-identity).
 
+```hd
+trait Animal:
+    fn name(self) -> string
+
+trait Dog < Animal:
+    fn bark(self) -> string
+
+data Pup:
+    name: string
+
+impl Animal for Pup:
+    fn name(self) -> string: self.name
+
+impl Dog for Pup:
+    fn bark(self) -> string: "woof"
+
+fn name_of(animal: Animal) -> string:
+    animal.name()
+
+fn demo(pup: Pup) -> string:
+    name_of(pup)   # a Pup widens to Animal
+```
+
 ### Trait Values As Bounds
 
 ```text
@@ -1560,6 +1709,20 @@ fn describe(named: Named, shown: Display) -> string:
 3. r[trait.dyn.mut] Mutable dynamic access uses `mut Trait` and cannot be recovered from a readonly `Trait` value.
 4. r[trait.dyn.type-test] A dynamic trait value supports a type test only when its trait is `Inspectable` or extends it. The test recovers an exact concrete type.
 5. r[trait.dyn.no-trait-test] No test asks whether a value implements another trait.
+
+```hd
+trait Greet:
+    fn greet(self) -> string
+
+data User:
+    name: string
+
+impl Greet for User:
+    fn greet(self) -> string: "hi"
+
+fn demo(user: User) -> Greet:
+    user   # an explicit implementation converts the value
+```
 
 See also: [Runtime Type Identity](#runtime-type-identity).
 
@@ -1628,11 +1791,34 @@ impl AnyRef for Handle  # error: sealed-trait-implementation
 7. r[trait.sealed.inherent-ok] An inherent method with the same name is allowed.
 8. r[trait.sealed.inherent-lookup] Ordinary method lookup finds that inherent method on the concrete type, and it changes nothing that the compiler-supplied implementation reports.
 
+```hd
+use std.inspect.Inspectable
+
+data User:
+    name: string
+
+fn id_of(value: User) -> string:
+    "${value.runtime_type()}"   # no impl Inspectable for User written: the compiler supplies it
+```
+
 ### Extending A Sealed Trait
 
 1. r[trait.sealed.extend] A trait that extends a sealed trait is declared and implemented normally.
 2. r[trait.sealed.extend.members] Its implementation writes only the child's members; the sealed supertrait's implementation comes from the compiler.
 3. r[trait.sealed.extend.missing] When the target is not a type the compiler supplies the sealed trait for, the implementation is an error, as for any missing supertrait. Error: `missing-supertrait-implementation`.
+
+```hd
+use std.inspect.Inspectable
+
+trait Named < Inspectable:
+    fn type_name(self) -> string
+
+data User:
+    name: string
+
+impl Named for User:
+    fn type_name(self) -> string: "User"
+```
 
 ### Numeric Traits
 
@@ -1760,6 +1946,13 @@ pub fn downcast_val[T < Inspectable](value: Inspectable) -> T?
 6. r[trait.inspect.static] For a value whose static type is concrete, the recorded type is its static type.
 7. r[trait.inspect.dynamic] For a dynamic value of `Inspectable`, it is the concrete type recorded when the value was erased, never the trait. The same holds for a dynamic value of a trait that has `Inspectable` as a supertrait.
 
+```hd
+use std.inspect.Inspectable
+
+fn id_of[T < Inspectable](value: T) -> string:
+    "${value.runtime_type()}"
+```
+
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
 #### `TypeId` Values
@@ -1770,6 +1963,13 @@ See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 4. r[trait.typeid.equality] Equality holds exactly when two `TypeId` values denote the same runtime identity, as defined below.
 5. r[trait.typeid.no-ops] `TypeId` has no other operations. It exposes no type arguments, fields, or shape.
 6. r[trait.typeid.no-trait-query] A `TypeId` cannot answer whether a type implements a trait, and nothing can be constructed or called through it.
+
+```hd
+use std.inspect.TypeId
+
+fn same_type() -> bool:
+    TypeId::of::[i32]() == TypeId::of::[i32]()
+```
 
 #### Runtime Identity
 
@@ -1793,6 +1993,13 @@ The rules have these consequences:
 
 See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-aliases-and-newtypes).
 
+```hd
+use std.inspect.TypeId
+
+fn demo() -> bool:
+    TypeId::of::[List[i32]]() == TypeId::of::[List[i32]]()
+```
+
 #### Stability And Printing
 
 1. r[trait.typeid.build] A `TypeId` depends only on which [compiled program](11-requirements-and-suspension.md#r-req.determinism.same-program) runs.
@@ -1815,6 +2022,13 @@ See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-alias
 > **Note.** A tag that must persist is an explicit value with its own
 > versioning.
 
+```hd
+use std.inspect.TypeId
+
+fn demo() -> string:
+    "${TypeId::of::[i32]()}"   # "i32"
+```
+
 See also: [Runtime Boundary](11-requirements-and-suspension.md#runtime-boundary),
 [Wasm Boundary](10-modules.md#wasm-boundary).
 
@@ -1836,6 +2050,13 @@ The compiler supplies `Inspectable` for exactly the **inspectable types**:
 4. r[trait.inspectable.argument-only] As a type argument only, any trait value type and `Any` also count as inspectable, and they match exactly.
 5. r[trait.inspectable.argument-examples] `List[Display]`, `Result[void, FsError]`, and `Map[string, Any]` are inspectable.
 
+```hd
+use std.inspect.TypeId
+
+fn demo() -> string:
+    "${TypeId::of::[List[i32]]()}"   # inspectable: a collection of an inspectable argument
+```
+
 #### Types That Are Not Inspectable
 
 These types are not inspectable, as values or as type arguments:
@@ -1851,6 +2072,14 @@ These types are not inspectable, as values or as type arguments:
 
 1. r[trait.inspectable.dynamic-values] A dynamic trait value whose trait does not have `Inspectable` as a supertrait, and `Any`, are not inspectable as values.
 2. r[trait.inspectable.one-way] Erasing to them stays one-way.
+
+```text
+use std.inspect.Inspectable
+
+fn erase() -> void:
+    let erased: Inspectable = fn(x: i32) -> i32: x + 1   # error: type-mismatch
+    pass
+```
 
 ### Erasure To `Inspectable`
 
@@ -1916,6 +2145,23 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 8. r[trait.downcast.same-reference] A recovered reference value is the same reference that was erased, so `is` holds between them.
 9. r[trait.downcast.unboxed] A value without identity is unboxed.
 
+```hd
+use std.inspect.{Inspectable, downcast_val}
+
+data User:
+    name: string
+
+fn user_name(value: Inspectable) -> string:
+    match value.downcast::[User]():
+        .Some(user) => user.name
+        .None => "not a user"
+
+fn number(value: Inspectable) -> i32:
+    match downcast_val::[i32](value):
+        .Some(found) => found
+        .None => -1
+```
+
 > **Note.** `downcast_val` is bounded by `Inspectable` alone on purpose:
 > generic code over a type of either category needs only one downcast.
 
@@ -1933,6 +2179,13 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 10. r[trait.downcast.bound] A target that fails a bound is an error. Error: `unsatisfied-trait-bound`.
 11. r[trait.downcast.bound.examples] `Any`, `Display`, and function types fail `Inspectable` everywhere. `i32`, `string`, and tuples fail `AnyRef`, so they are recovered with `downcast_val`.
 
+```hd
+use std.inspect.Inspectable
+
+fn get[T < AnyRef & Inspectable](value: Inspectable) -> T?:
+    value.downcast()
+```
+
 > **Note.** A concrete receiver uses its own compiler-supplied
 > implementation, so `user.downcast::[User]()` with `user: User` is valid and
 > always returns `.Some`. A trait value target such as
@@ -1947,6 +2200,18 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 3. r[trait.limit.signatures] **Visible in signatures.** Only a value of an inspectable type can be erased to `Inspectable`. A value of an unbounded type parameter, of `Any`, or of a trait value type whose trait does not extend `Inspectable` cannot.
 4. r[trait.limit.signatures.branch] A function can therefore branch on a value's type only when a parameter type names `Inspectable` or a trait extending it. A parameter bounded by one of them also qualifies.
 5. r[trait.limit.deterministic] **Deterministic.** `runtime_type`, the `TypeId` operations, and `downcast` are pure functions of the build and the value, and call no provider.
+
+```hd
+use std.inspect.Inspectable
+
+data User:
+    name: string
+
+fn demo(value: Inspectable) -> string:
+    match value.downcast::[User]():
+        .Some(user) => user.name   # branches only because the parameter names Inspectable
+        .None => "not a user"
+```
 
 See also: [Requirement Rows](11-requirements-and-suspension.md#requirement-rows).
 
@@ -2137,6 +2402,24 @@ impl Named for Service by Logger  # error: missing-trait-method
 
 1. r[trait.by.ordinary] Otherwise a delegating implementation is an ordinary trait implementation, under every rule for one. Those are [Implementation Ownership](#implementation-ownership), [Overlap](#overlap), trait visibility, bounds, dynamic trait values, and [Method Resolution](#method-resolution).
 
+```hd
+trait Describe:
+    fn describe(self) -> string
+
+data Logger:
+    name: string
+
+impl Describe for Logger:
+    fn describe(self) -> string:
+        self.name
+
+data Service:
+    Logger
+    port: i32
+
+impl Describe for Service by Logger
+```
+
 ## Default-Method Conflicts
 
 A type that implements two traits with same-named default methods makes a
@@ -2169,5 +2452,15 @@ fn invalid(user: User) -> string:
 
 1. r[trait.unsupported.list] The language has no specialization, negative implementations, implicit structural conformance, trait-to-trait assertions, or type tests other than exact-type recovery from `Inspectable` values.
 2. r[trait.unsupported.abi] Dynamic trait-value representation is an ABI detail and must preserve the dispatch semantics in this chapter.
+
+```text
+@derive(Eq)
+data Badge:
+    text: string
+
+impl Eq for Badge:   # error: overlapping-impl
+    fn eq(self, other: Badge) -> bool:
+        self.text == other.text
+```
 
 See also: [Runtime Type Identity](#runtime-type-identity).
