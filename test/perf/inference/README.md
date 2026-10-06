@@ -66,15 +66,16 @@ rule still catches anything that becomes super-linear.
 ### Baseline Runner
 
 Record `baseline.json` on the same `ubuntu-latest` GitHub runners that apply
-the gate. The manual **Record performance baseline** workflow makes five
-independent update runs and keeps the nearest-rank 90th percentile of every
-case's small score, large score, and growth ratio. With five samples this is
-the highest observation, so an ordinarily slow runner remains below the
-1.5x slowdown limit. The artifact's `recorded` object identifies its platform,
-run count, and percentile.
+the gate. The manual **Record performance baseline** workflow runs five independent
+update jobs, each on its own runner, because the variance that matters is
+between runners and not within one. A final job merges the five files and keeps
+the nearest-rank 90th percentile of every case's small score, large score,
+and growth ratio. With five samples this is the highest observation, so an
+ordinarily slow runner remains below the 1.5x slowdown limit. The artifact's
+`recorded` object identifies its platform, run count, and percentile.
 
-The workflow writes each run to a separate file. It invokes `gate.ts` with
-repeated `--merge FILE` options to produce the artifact; merging rejects
+Each job uploads its own `inference-perf-run-N` artifact. The merge job
+invokes `gate.ts` with repeated `--merge FILE` options; merging rejects
 different Node versions, platforms, scales, or result codes.
 
 ### Sizes
@@ -89,8 +90,8 @@ After a change that makes the checker faster, a deliberate performance
 trade, or a diagnostic change in a case:
 
 1. Open GitHub Actions and run **Record performance baseline** on `main`.
-2. Download its `inference-perf-baseline` artifact.
-3. Replace `test/perf/inference/baseline.json` with the artifact's file.
+2. Download the `inference-perf-baseline` artifact of the finished run.
+3. Commit its file as `test/perf/inference/baseline.json`.
 4. Run `pnpm run perf:check` locally as a sanity check, then commit the file.
 
 The workflow never pushes or commits. Do not replace the baseline with a
