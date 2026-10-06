@@ -835,8 +835,9 @@ std/serde.md	2	accept	runtime/valid/serde-derive-call-order.hd
 std/serde.md	3	mixed	typing/invalid/serde-map-key-not-string.hd
 std/cli.md	1	accept	runtime/valid/cli-parse-args.hd
 std/cli.md	2	accept	runtime/valid/cli-parse-args.hd
-std/cli.md	3	type-fragment	-
+std/cli.md	3	accept	runtime/valid/cli-parse-args.hd
 std/cli.md	4	type-fragment	-
+std/cli.md	5	type-fragment	-
 std/regex.md	1	accept	runtime/valid/regex-literals-escapes.hd
 std/regex.md	2	accept	runtime/valid/regex-anchors-groups.hd
 std/regex.md	3	accept	runtime/valid/regex-literals-escapes.hd

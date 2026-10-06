@@ -92,6 +92,23 @@ Each argument is read by its form:
 5. r[std-cli.form.repeat-flag] A flag given more than once is set once.
 6. r[std-cli.form.repeat-option] An option given more than once keeps its last value.
 
+```text
+use std.cli.Cli
+
+fn tool() -> Cli:
+    Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count")
+
+fn out_of(arguments: List[string]) -> string:
+    match tool().parse(arguments):
+        .Ok(parsed) => parsed.value("out").unwrap_or("stdout")
+        .Err(error) => "$error"
+
+fn demo() -> List[string]:
+    [out_of(["-o", "a.txt", "*.txt"]),   # a short option takes the next argument
+     out_of(["--out=b.txt", "*.txt"]),   # an attached value
+     out_of(["--", "--out"])]            # after --, a positional: "stdout"
+```
+
 > **Why.** Clusters and attached short values make `-ofile` ambiguous
 > beside a flag `-f`. Go's `flag` package leaves them out too, and a script
 > rarely misses them.
