@@ -233,5 +233,17 @@ fn total(values: List[i32]) -> i32:
 
 1. r[std-iter.method.map] `List.map` and optional `map` are non-suspending and evaluate the transform in source order.
 
+```text
+use std.testing.assert_equal
+
+tests:
+    it("map doubles each item, in order"):
+        assert_equal([+3, 1, 2].map(fn(value: i32) -> i32: value * 2), [+6, 2, 4], reason="doubled")
+
+    it("optional map keeps .None"):
+        let absent: i32? = .None
+        assert_equal(absent.map(fn(value: i32) -> i32: value * 2), .None, reason="kept")
+```
+
 See also: [Built-In Methods](../lang/10-modules.md#built-in-methods), which
 lists the methods of the built-in types that stay in the language tier.
