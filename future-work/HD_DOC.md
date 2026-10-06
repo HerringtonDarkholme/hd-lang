@@ -1,18 +1,13 @@
 # `hd doc` Redesign (Task D2)
 
-> **Owner decision, 2026-10-06. This supersedes the query design below.**
-> `hd doc` has two forms only:
->
-> - `hd doc` prints the package outline: the package doc comment and one
->   line per public declaration, as `go doc` does with no argument.
-> - `hd doc --html` builds the static site.
->
-> There is no QUERY argument, no `--all`, and no agent-facing extras: no
-> JSON item records, `llms.txt` or `.md` pages. The owner's reasoning:
-> agents read source with grep and won't use doc lookups. The query
-> sections, D4, D5, D7, D9 and D11 below, and the query rules in the spec
-> draft are dropped. The spec draft must be redone for the two forms before
-> it is applied.
+> **Owner decision, 2026-10-06 (final). This supersedes the query and
+> outline design below.** `hd doc` builds documentation files: HTML and
+> Markdown for the package and its dependencies. It prints nothing for
+> reading and runs no server. There is no QUERY argument, no outline mode,
+> no `--html` flag (HTML is always written) and no JSON item records. The
+> query sections, D1, D2, D4, D5, D9 and D11 below, and the query rules in
+> the spec draft are dropped. The spec draft must be redone for this one
+> form before it is applied.
 
 
 Status: design proposal, 2026-10-06. Nothing in it is accepted behavior.
