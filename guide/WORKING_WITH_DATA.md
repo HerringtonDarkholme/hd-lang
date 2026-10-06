@@ -208,3 +208,43 @@ tests:
 
 Write the pattern as a raw string, `r"..."`, so `\d` needs no second
 backslash. A pattern that does not compile is a `RegexError`, not a panic.
+
+## Testing The Whole Program
+
+A unit test runs on fakes; an integration test runs the real thing. Three
+tools cover the rest of the job: `snapshot_file` compares rendered text
+with a recorded file, `hd_run!` runs the package's own executable, and
+`temp_dir` gives each test case a directory of its own that the runner
+removes. The exact rules are in
+[Snapshot Files](../spec/std/testing.md#snapshot-files) and
+[Running Executables](../spec/std/testing.md#running-executables). In the
+`shop` package, `src/report.hd` renders a report and
+`tests/report.hd` checks it end to end:
+
+```hd
+use std.time.Timestamp
+
+pub fn render(name: string, total: i32, at: Timestamp) -> string:
+    "report $name: $total cents, at ${at.to_rfc3339()}"
+```
+
+```hd
+use std.testing.{assert_equal, hd_run, snapshot_file, temp_dir}
+use std.time.Timestamp
+use pkg.report.render
+
+it("renders the quarterly report"):
+    snapshot_file(render("q4", 4500, Timestamp::from_unix_milliseconds(0)))
+
+it("runs the built program in its own directory"):
+    let out = hd_run!("shop")
+    assert_equal(out.status, 0, reason="a clean exit")
+    dir := temp_dir()
+    assert_equal("$dir".len() > 0, true, reason="each case gets its own directory")
+```
+
+The first run fails until you record the snapshot with `hd test
+--update`; every later run compares against it. A snapshot that should
+change is re-recorded with another `--update`, and the diff is the review.
+Tests that need deterministic randomness or arguments bind `SeededRandom`
+or `MapArgs` the same way as `MemoryFs`.
