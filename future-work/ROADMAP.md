@@ -14,24 +14,27 @@ action at a distance.
 
 ## Order
 
-1. **Correctness.** Close the
-   [known failures](../test/portable/KNOWN_FAILURES.tsv), and lower
-   templates and derives as the
-   [specification](../spec/lang/14-annotations.md#typed-derivation) states.
-2. **Library moves.** Done: the Compiler/Library Audit's steps M1 to M11
-   moved library code from TypeScript into `lib/std`. New library code
-   goes in `lib/std` from the start.
-3. **Packages.** Workspaces, version tags, minimal version selection, and
-   `hd.sum` ([Package Manifest](../spec/lang/10-modules.md#package-manifest),
-   [Packages](PACKAGES.md)).
-4. **CLI and Wasm size.** Redesign the CLI, and shrink the Wasm it emits.
-5. **Performance.** Value-layout specialization (batch 37,
+1. **New compiler** (owner decision, 2026-10-06). The owner writes a new
+   compiler and CLI. The prototype in [`src/`](../src/README.md) is frozen
+   as a test oracle: bug fixes and spec-sync fixes only, no new features
+   and no performance work. Its state is recorded in the
+   [baseline report](../audit/compiler/baseline-2026-10-06.md). These
+   move to the new compiler: the CLI redesign including `hd doc`, Wasm
+   size, value-layout specialization (batch 37,
    [Shapes and Generic Code](../spec/lang/04-type-system.md#shapes-and-generic-code)),
-   measured by a microbenchmark suite.
-6. **Error messages.** A Haiku probe of the messages
-   ([hd writing log](../audit/hd-writing-log.md)), then the error-code
-   revamp, task #101
-   ([codes waiting for it](OPEN_ISSUES.md#codes-waiting-for-the-code-revamp)).
+   caching checked std, and the specializing iterator design.
+2. **Conformance coverage.** Fixtures cite only about a third of the spec's
+   rules. New fixtures serve both compilers. Thinnest first: data and enums,
+   GADTs, serde, then traits and modules. A fixture the prototype fails
+   gets a prototype fix or a tagged
+   [known failure](../test/portable/KNOWN_FAILURES.tsv) row.
+3. **Error-code revamp,** task #101
+   ([codes waiting for it](OPEN_ISSUES.md#codes-waiting-for-the-code-revamp)),
+   settled before the new compiler fixes its codes.
+4. **Core decisions.** Before the new compiler's core is fixed, the owner
+   rules on the parked items that shape it: NonEscapable (a checker
+   rule), serializable closures (closure representation), and the
+   observability and replay hooks (how suspension compiles).
 
 ## Parked
 

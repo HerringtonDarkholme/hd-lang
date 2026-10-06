@@ -10,6 +10,12 @@ Small pipeline stages remain direct modules such as `lexer.ts`, `ast.ts`,
 `checker/`, and `emitter/`). Each folder exposes its public surface only from
 `index.ts`; consumers do not import its internal files.
 
+**Frozen (2026-10-06).** The owner is writing a new compiler. This
+prototype now serves as a test oracle: it takes bug fixes and spec-sync
+fixes only, with no new features and no performance work
+([Roadmap](../future-work/ROADMAP.md#order)). Its measured state is in the
+[baseline report](../audit/compiler/baseline-2026-10-06.md).
+
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists what the prototype gets wrong today:
 its open findings, the tags of its known conformance failures, and the
 applied decisions it does not follow yet.
