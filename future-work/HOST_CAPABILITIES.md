@@ -1,5 +1,16 @@
 # Host Capabilities And Permissions (Task N1)
 
+> **Applied to the spec, task N2 (2026-10-06).** The approved decisions
+> are in [Host Capabilities](../spec/cli/command-line.md#host-capabilities),
+> [Capability Grants](../spec/cli/command-line.md#capability-grants),
+> [Test Environments](../spec/cli/command-line.md#test-environments),
+> [Processes](../spec/lang/10-modules.md#processes),
+> [Host Boundary](../spec/lang/10-modules.md#host-boundary),
+> [Http](../spec/std/http.md), [Net](../spec/std/net.md) and
+> [Sys](../spec/std/sys.md). The prototype follows in task N3; the gap is
+> the CAPS tag in `test/portable/KNOWN_FAILURES.tsv`. Open points are in
+> [Open Issues](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work).
+
 > **Owner feedback, 2026-10-06. It overrides the recommendations below
 > where they differ.**
 >
@@ -905,7 +916,7 @@ Draft rules for the CLI **Permissions** subsection (IDs proposed):
 
 Rule accounting: 25 new `cli.perm.*` rules. Two rules change
 (`cli.host.default-profile` gains `Process` and `Http`;
-`module.process.permission-denied` narrows to the OS refusal). One new
+`module.process.permission-denied` (since retired) narrows to the OS refusal). One new
 language rule is `module.process.not-granted`. One Why callout is removed.
 The stdlib tier gains `std/http.md`, about 30 rules.
 

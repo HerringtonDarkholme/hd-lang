@@ -307,9 +307,9 @@ These items remain required but do not currently require new core syntax:
 - the mandatory default algorithm, canonical field encoding, and evolution
   rules for `std.fingerprint`, whose digests always carry an algorithm/version
   identifier;
-- the final `hd.toml` schema. The default profile's host binding is
-  specified in [Host Capabilities](../spec/cli/command-line.md#host-capabilities)
-  and implemented;
+- the final `hd.toml` schema. The default profile's host binding and
+  `[capabilities]` are specified in
+  [Host Capabilities](../spec/cli/command-line.md#host-capabilities);
 - the manifest diagnostics that wait for the manifest schema (DEP14,
   [`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema)).
   Dependencies themselves (fetching, the cache, `hd.sum`, selection,
@@ -334,18 +334,51 @@ These items remain required but do not currently require new core syntax:
   structured scopes only, with `scope!`, `start`, and `join!`
   (STDLIB decision 11), and must not weaken
   one-shot `Suspend[T]` semantics;
-- the host extensions after the default profile, `Process` and an HTTP
-  client, and the provider configuration format
-  ([Host Capabilities](../spec/cli/command-line.md#host-capabilities)).
-  Starting sketch (2026-10-05, not approved): one table configures which
-  host resources `hd run` and `hd test` may touch, after Deno's
-  permission flags and WASI's preopened directories, for example
-  `[run.host] fs-read = ["data/"]`, `fs-write = ["out/"]`,
-  `env = ["APP_ENV"]`. A program's own capability traits are not
-  configured here: `main` binds them with `$.with`, one entry point per
-  setup (`src/main.hd` for production, `src/dev.hd` for development).
-  Today there is one hard-coded default profile and no way to configure
-  it. Owner, 2026-10-06: designed with the new compiler's CLI;
+- host capability grants are specified: the default profile and
+  `[capabilities]` in
+  [Host Capabilities](../spec/cli/command-line.md#host-capabilities) and
+  [Capability Grants](../spec/cli/command-line.md#capability-grants), the
+  test grant in
+  [Test Environments](../spec/cli/command-line.md#test-environments), and
+  [Http](../spec/std/http.md), [Net](../spec/std/net.md) and
+  [Sys](../spec/std/sys.md). These points stay open:
+  - **Runtime code loading (parked, 2026-10-06).** A host trait `Loader`
+    would load a built `.wasm` plugin at run time. It would check the
+    plugin's exports against an hd interface trait, bind its row from an
+    explicit `$.Context`, copy every value as boundary-safe data, and run
+    it under memory and time limits, behind a `load` permission. It waits
+    on:
+    - the component ABI, so two builds agree on a trait's types;
+    - an intrinsic that reifies a trait for a run-time check;
+    - cross-instance provider handles (`own` and `borrow`);
+    - the component-model async ABI for suspending plugin calls.
+
+    Until then a plugin is a program started through `Process` or a
+    service called through `Http`. Design:
+    [Host Capabilities](HOST_CAPABILITIES.md#runtime-code-loading).
+  - **Opaque host handles (with the resource design).** A host trait
+    can't return a native object, such as a database connection, as a
+    boundary value, because live handles are not boundary-safe. Custom
+    host traits are hd's FFI ([Host Capabilities](HOST_CAPABILITIES.md#ffi)),
+    so this limits every embedder. Target: component-model `resource`
+    types.
+  - **`std.net` after the minimal API.** The spec gives lookup, TCP and
+    UDP over closable handle traits. Open: a deterministic `Net`
+    provider, as `ScriptedHttp` is for `Http`; whether socket handles are
+    `NonEscapable`; read and connect timeouts; socket options; the port
+    that `listen!` picks for port 0; TLS over a stream; and how a handle
+    trait that a provider returns crosses the component ABI.
+  - **An HTTP server**, as a registered boundary that exports the
+    `wasi:http` handler, with `Net` covering its listen address.
+  - **Running a prebuilt Wasm module.**
+    [`cli.cap.total.any-module`](../spec/cli/command-line.md#r-cli.cap.total.any-module)
+    holds for prebuilt Wasm, but no CLI rule names the command that runs
+    one: [`cli.run.file`](../spec/cli/command-line.md#r-cli.run.file)
+    rejects `hd run FILE`.
+  - **A code for the total-deny refusal.** Under `--format json`, a
+    diagnostic object needs a stable code
+    ([`cli.json.diagnostic`](../spec/cli/command-line.md#r-cli.json.diagnostic)),
+    and the startup refusal has none;
 - what `hd build` produces for a library-only package (CLI-21); an
   executable builds to one Wasm file under `build/`;
 - exporter configuration, sampling, storage, and operational privacy policy
