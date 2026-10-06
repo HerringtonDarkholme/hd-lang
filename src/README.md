@@ -768,7 +768,8 @@ else`, `break`, `break value`, and `continue`;
   readonly variance conversions; row type arguments such as
   `Fn[(), void, $ Logger + Clock]`, with `generic-kind-mismatch` for a data,
   enum, or trait parameter used in a row; a dynamic trait value satisfying
-  bounds on its own trait and supertraits through forwarding dictionaries;
+  bounds on its own trait and supertraits, at the instantiation its trait
+  arguments give each, through forwarding dictionaries;
 - associated type bindings (`associated-bindings.ts`): a binding may name an
   associated type the trait reaches through its supertraits, and a name two
   reachable declarations share is `ambiguous-associated-type`, as is a

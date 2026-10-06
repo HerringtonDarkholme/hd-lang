@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,771 cases: 2,748 selected in `test/portable/cases.tsv` and 23 known
-failures. The selected cases are 2,380 language tier, 308 stdlib tier, and 60
-CLI tier; the known failures are 8 language tier, 1 stdlib tier, and 14
+2,771 cases: 2,749 selected in `test/portable/cases.tsv` and 22 known
+failures. The selected cases are 2,381 language tier, 308 stdlib tier, and 60
+CLI tier; the known failures are 7 language tier, 1 stdlib tier, and 14
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -24,7 +24,6 @@ CLI tier.
 | F-614 | 1 | a `.Variant` line right after a same-line `if` suite is joined to it |
 | F-615 | 2 | an `if` or `match` with an expected type joins its branches by least common type |
 | F-617 | 1 | `Trait::f()` for an associated function does not infer `Self` |
-| F-618 | 1 | a trait value of a generic trait does not satisfy a bound on its own instantiation |
 | F-619 | 1 | `T < mut Any` accepts a readonly argument |
 | F-621 | 1 | a library module under test gets an entry row for its top level |
 | F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
@@ -70,12 +69,6 @@ Correctness and diagnostics:
   `trait.assoc-call.trait`, the call infers `Self` from its arguments and
   expected type. The rejection is in `src/checker/expression-calls.ts`.
   `runtime/valid/trait-associated-call-infers-self.hd` shows it.
-- **F-618**: a dynamic trait value of a generic trait, such as
-  `Repository[User]`, does not satisfy the bound `R < Repository[User]`,
-  against `trait.dyn.bound.instantiation`. `forwardingPlan` in
-  `src/checker/assignability.ts` forwards only bounds without trait
-  arguments. `runtime/valid/trait-value-satisfies-instantiated-bound.hd`
-  shows it.
 - **F-619**: `T < mut Any` accepts a readonly argument, against
   `trait.bound.mut-any`. `src/checker/program-signatures.ts` drops an
   `Any` bound, and its `mut` with it.

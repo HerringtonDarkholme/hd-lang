@@ -2669,6 +2669,7 @@ runtime/valid/associated-binding-positions.hd	runtime
 typing/invalid/self-parameter-not-dynamically-safe.hd	type
 runtime/valid/unsafe-trait-static-bound.hd	runtime
 runtime/valid/trait-value-binding-identity.hd	runtime
+runtime/valid/trait-value-satisfies-instantiated-bound.hd	runtime
 typing/invalid/readonly-trait-value-mut-bound.hd	type
 typing/invalid/trait-value-unrelated-bound.hd	type
 typing/invalid/sealed-member-written-in-impl.hd	type

@@ -1,6 +1,8 @@
 import type { HirTrait, HirTraitDictionaryPlan, ValueType } from "../hir.ts";
 import { genericTypeName } from "./shared.ts";
+import { findSupertraitPath } from "./trait-paths.ts";
 import {
+  bindingParts,
   functionParts,
   functionType,
   mutableInner,
@@ -167,7 +169,8 @@ export function weakenBoundedGenericActual(
 
 /**
  * A dynamic trait value type satisfies a bound on its own trait and on each
- * supertrait (09-traits.md#dynamic-trait-values): the dictionary forwards to
+ * supertrait, each at the instantiation the value's trait arguments give it
+ * (09-traits.md#r-trait.dyn.bound.instantiation): the dictionary forwards to
  * the value's own table, found along the supertrait path.
  */
 export function forwardingPlan(
@@ -180,36 +183,37 @@ export function forwardingPlan(
   if (!sourceType.startsWith("trait:")) return undefined;
   const byIndex = new Map([...traits.values()].map((trait) => [trait.index, trait] as const));
   const key = sourceType.slice("trait:".length);
-  const source = traits.get(nominalGenericParts(key)?.name ?? key);
-  if (!source || traitArguments.length > 0) return undefined;
-  const search = (
-    trait: HirTrait,
-    path: readonly { readonly traitIndex: number; readonly fieldIndex: number }[],
-  ): typeof path | undefined => {
-    if (trait.index === traitIndex) return path;
-    for (const [fieldIndex, parent] of trait.supertraits.entries()) {
-      const next = byIndex.get(parent.traitIndex);
-      const found =
-        next && parent.traitArguments.length === 0
-          ? search(next, [...path, { traitIndex: trait.index, fieldIndex }])
-          : undefined;
-      if (found) return found;
-    }
-    return undefined;
+  const application = nominalGenericParts(key);
+  const source = traits.get(application?.name ?? key);
+  if (!source) return undefined;
+  // `Name=type` arguments bind associated types; the rest instantiate the trait.
+  const sourceArguments = (application?.arguments ?? []).filter(
+    (argument) => bindingParts(argument) === undefined,
+  );
+  const fields =
+    source.index === traitIndex
+      ? sourceArguments.length === traitArguments.length &&
+        sourceArguments.every((argument, index) => argument === traitArguments[index])
+        ? []
+        : undefined
+      : findSupertraitPath(traits, source, sourceArguments, traitIndex, traitArguments);
+  if (!fields) return undefined;
+  const path: { readonly traitIndex: number; readonly fieldIndex: number }[] = [];
+  let current = source;
+  for (const fieldIndex of fields) {
+    path.push({ traitIndex: current.index, fieldIndex });
+    current = byIndex.get(current.supertraits[fieldIndex]!.traitIndex)!;
+  }
+  return {
+    bounds: [],
+    implementationIndex: -1,
+    supertraits: [],
+    builtin: {
+      kind: "forward",
+      traitIndex,
+      targetType: type,
+      sourceTraitIndex: source.index,
+      path,
+    },
   };
-  const path = search(source, []);
-  return path
-    ? {
-        bounds: [],
-        implementationIndex: -1,
-        supertraits: [],
-        builtin: {
-          kind: "forward",
-          traitIndex,
-          targetType: type,
-          sourceTraitIndex: source.index,
-          path,
-        },
-      }
-    : undefined;
 }
