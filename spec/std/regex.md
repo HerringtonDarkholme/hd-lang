@@ -89,7 +89,7 @@ value. The forms below are the whole syntax.
 4. r[std-regex.syntax.class.close-first] A `]` right after `[` or `[^` is an item, not the end, so `[]a]` matches `]` or `a`.
 5. r[std-regex.syntax.class.dash] A `-` first, last, or right after a range is an item, as in `[-a]` or `[a-]`.
 6. r[std-regex.syntax.class.unclosed] A class with no closing `]` is an error, at its `[`. Error: `MissingBracket`.
-7. r[std-regex.syntax.class.bad-range] A range whose end is below its start is an error, at the range's first character. So is one whose start or end is `\d`, `\w`, `\s`, or their negations. Error: `BadRange`.
+7. r[std-regex.syntax.class.bad-range] A range whose end is below its start is an error, at the range's first character. So is one whose start or end is `\d`, `\w`, `\s`, or their negations, at the same place. Error: `BadRange`.
 
 ### Anchors, Groups, And Alternation
 
