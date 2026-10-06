@@ -327,3 +327,36 @@ tests:
 A `Set` keeps each value once, in the order it first appeared. `Deque`
 and `Heap` serve a queue and a priority queue; see
 [Collections](../spec/std/collections.md).
+
+## Points And Intervals In Time
+
+Two types cover the clock: a `Timestamp` is a point in UTC time, and a
+`Duration` is a distance between two points. Text in and out is RFC 3339,
+so a config or a log line reads the same everywhere. An `Instant` is a
+monotonic reading for measuring intervals, never a wall time. The exact
+rules are in [Time](../spec/std/time.md):
+
+```hd
+use std.testing.{assert_equal, it}
+use std.time.{Duration, Instant, Timestamp, min, s}
+
+fn deadline(now: Timestamp) -> Timestamp:
+    now + 30s
+
+fn elapsed(start: Instant, end: Instant) -> Duration:
+    end.since(start)
+
+tests:
+    it("reads and writes RFC 3339 text"):
+        at := Timestamp::parse_rfc3339("2026-10-06T12:00:00Z").expect("valid")
+        assert_equal(at.to_rfc3339(), "2026-10-06T12:00:00Z", reason="round trip")
+        assert_equal(deadline(at).to_rfc3339(), "2026-10-06T12:00:30Z", reason="30s later")
+
+    it("measures an interval"):
+        let span: Duration = elapsed(Instant::from_milliseconds(1000), Instant::from_milliseconds(1600))
+        assert_equal("$span", "600ms", reason="600 ms")
+```
+
+A `Duration` displays as `1h2min3.5s`, and `sleep!(d)` waits on the
+clock. A test binds `ManualClock`, so waiting costs no real time; see
+[Concurrent Work With A Timeout](#concurrent-work-with-a-timeout).
