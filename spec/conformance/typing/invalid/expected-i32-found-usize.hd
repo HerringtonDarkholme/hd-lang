@@ -1,6 +1,5 @@
-# test: a defaulted literal's type prints as usize, not u32
-# Spec 04 Type System: r-types.alias.usize.display renders a bare-literal
-# default as `usize`.
+# test: a bare literal defaults to usize, a primitive distinct from i32 and u32
+# Spec 04 The usize Type: types.usize.primitive; Open Literal Width: types.literal.local.default.
 fn take_i32(x: i32) -> i32: x
 
 pub fn main() -> i32:

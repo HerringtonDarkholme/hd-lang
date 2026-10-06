@@ -1,3 +1,3 @@
 # test: usize is a prelude name, so a module cannot declare its own usize
-# Spec 04 The usize Alias: types.alias.usize.prelude; 10 Prelude: module.prelude.no-shadow.
+# Spec 04 The usize Type: types.usize.prelude; 10 Prelude: module.prelude.no-shadow.
 type usize = u32  # diagnostic: prelude-name-shadow

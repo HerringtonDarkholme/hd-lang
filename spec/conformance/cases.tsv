@@ -2126,8 +2126,8 @@ typing/invalid/list-slice-negative-literal.hd	type	reject:unsigned-negation	lang
 typing/invalid/list-slice-signed-bound.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.slice.unsigned
 typing/invalid/string-index-signed.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.string.unsigned
 typing/invalid/string-slice-negative-offset.hd	type	reject:unsigned-negation	lang/10-modules.md#r-module.method.usize-sizes
-typing/valid/usize-alias.hd	type	accept	lang/04-type-system.md#the-usize-alias
-runtime/panic/usize-len-underflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.alias.usize.sizes
+typing/valid/usize-type.hd	type	accept	lang/04-type-system.md#the-usize-type
+runtime/panic/usize-len-underflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.usize.sizes
 typing/invalid/list-view-negative-literal.hd	type	reject:unsigned-negation	std/collections.md#list-methods
 typing/invalid/iterator-take-negative-literal.hd	type	reject:unsigned-negation	std/iter.md#r-std-iter.adapter.take-first
 typing/invalid/string-repeat-negative-literal.hd	type	reject:unsigned-negation	std/text.md#r-std-text.string.repeat
@@ -2428,8 +2428,8 @@ typing/invalid/unknown-package-name.hd	type	reject:unknown-import	lang/10-module
 runtime/panic/list-index-u64-beyond-u32.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.list.range
 runtime/panic/list-set-u64-beyond-u32.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.list.assign
 runtime/valid/compound-assign-index-once.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.once
-typing/valid/usize-alias-positions.hd	type	accept	lang/04-type-system.md#r-types.alias.usize
-typing/invalid/prelude-shadow-usize-alias.hd	type	reject:prelude-name-shadow	lang/04-type-system.md#r-types.alias.usize.prelude
+typing/valid/usize-positions.hd	type	accept	lang/04-type-system.md#r-types.usize.primitive
+typing/invalid/prelude-shadow-usize-alias.hd	type	reject:prelude-name-shadow	lang/04-type-system.md#r-types.usize.prelude
 typing/invalid/literal-operand-range-wide.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.int-range
 typing/invalid/literal-operand-negation-unsigned.hd	type	reject:unsigned-negation	lang/04-type-system.md#r-types.literal.negation.unsigned
 typing/invalid/mixed-width-operands-no-widening.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.no-implicit
@@ -2500,7 +2500,7 @@ runtime/valid/shared-enum-data-computed-once.hd	runtime	accept	lang/08-data-and-
 runtime/valid/closure-result-keeps-requirement-row.hd	runtime	accept	lang/11-requirements-and-suspension.md#requirement-rows
 runtime/valid/trait-default-method-instantiates-params.hd	runtime	accept	lang/09-traits.md#trait-implementations
 typing/valid/user-defined-all.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.combinator.all-typing
-typing/invalid/expected-i32-found-usize.hd	type	reject:type-mismatch	lang/04-type-system.md#the-usize-alias
+typing/invalid/expected-i32-found-usize.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.usize.primitive
 typing/invalid/std-child-path-through-parent.hd	type	reject:unknown-type	lang/10-modules.md#r-module.path.no-std-child-import
 typing/valid/std-reexported-child-item.hd	type	accept	lang/10-modules.md#r-module.path.no-std-child-import
 typing/invalid/script-test-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.tests.requirement-free
@@ -2531,3 +2531,7 @@ typing/valid/generic-call-fresh-list-of-boxes.hd	type	accept	lang/04-type-system
 typing/invalid/generic-call-readonly-into-mut-part.hd	type	reject:mutable-upgrade	lang/04-type-system.md#r-types.mut.no-upgrade
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.fresh.element-no-weaken
 typing/invalid/generic-readonly-argument-to-mut-parameter.hd	type	reject:readonly-argument-to-mutable-parameter	lang/04-type-system.md#r-types.mut.argument.infer
+typing/invalid/usize-u32-operand.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.usize.convert
+typing/invalid/usize-to-u32-argument.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.same-width
+typing/invalid/u32-to-usize-binding.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.same-width
+runtime/valid/usize-width-wasm32.hd	runtime	accept	lang/04-type-system.md#r-types.usize.behavior

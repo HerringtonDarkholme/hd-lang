@@ -1068,7 +1068,7 @@ The following built-in methods are normative:
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
-2. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-alias).
+2. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-type).
 3. r[module.method.no-set] No `set` type is part of the core prelude.
 4. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
 5. r[module.method.list-pop.empty] `pop` on an empty list returns `.None` and leaves the list unchanged.

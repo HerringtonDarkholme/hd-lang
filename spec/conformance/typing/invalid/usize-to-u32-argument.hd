@@ -1,0 +1,7 @@
+# test: a usize argument for a u32 parameter is a type of the same width, which needs a cast
+# Spec 04 The usize Type: types.usize.convert; Numeric Conversions: types.num.same-width.
+fn take_count(count: u32) -> u32:
+    count
+
+fn counted(items: List[i32]) -> u32:
+    take_count(items.len())  # diagnostic: type-mismatch

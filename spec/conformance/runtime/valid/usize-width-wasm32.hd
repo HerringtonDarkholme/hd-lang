@@ -1,0 +1,21 @@
+# test: on Wasm32 a usize has the range of a 32-bit unsigned integer, so a cast to it wraps at 32 bits
+# Spec 04 The usize Type: types.usize.width, types.usize.behavior, types.usize.convert; Numeric Casts: types.cast.wrap.
+
+use std.testing.assert_equal
+
+fn shown(size: usize) -> string:
+    "$size"
+
+tests:
+    it("a cast to usize keeps the low 32 bits"):
+        let big: u64 = 4294967297
+        assert_equal(usize(big), 1, reason="2 to the 32, plus 1, wraps to 1")
+        let negative: i32 = -1
+        assert_equal(usize(negative), 4294967295, reason="-1 wraps to the usize maximum")
+
+    it("a usize and a u32 convert by casts without loss"):
+        let size: usize = 4294967295
+        assert_equal(u32(size), 4294967295, reason="u32 holds every usize on Wasm32")
+        let count: u32 = 7
+        assert_equal(usize(count), 7, reason="usize holds every u32 on Wasm32")
+        assert_equal(shown(size), "4294967295", reason="a usize displays its digits")

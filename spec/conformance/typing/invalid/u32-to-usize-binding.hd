@@ -1,0 +1,5 @@
+# test: a u32 value where a usize is expected is an error, not a conversion
+# Spec 04 Numeric Conversions: types.num.same-width.
+fn first(items: List[i32], at: u32) -> i32:
+    let index: usize = at  # diagnostic: type-mismatch
+    items[index]

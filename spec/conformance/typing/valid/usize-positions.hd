@@ -1,0 +1,23 @@
+# test: usize names one type in an alias target, a newtype base, and trait and implementation heads
+# Spec 04 The usize Type: types.usize.primitive, with types.alias.identical.
+type Size = usize
+type Count(usize)
+
+trait Marker[T]:
+    fn mark(self) -> T
+
+data Wrapper[T]:
+    value: T
+
+impl Marker[usize] for Wrapper[usize]:
+    fn mark(self) -> usize:
+        self.value
+
+fn same(value: Size) -> usize:
+    value
+
+fn make(value: usize) -> Count:
+    Count(value)
+
+fn through(wrapper: Wrapper[usize]) -> Size:
+    wrapper.mark()

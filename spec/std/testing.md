@@ -177,7 +177,7 @@ one edge, which its seed picks:
 2. r[std-testing.edge.plan] An edge case takes the edge of its seed modulo 4 in the table above, for each fresh draw it makes.
 3. r[std-testing.edge.replay] An edge changes fresh draws only. A replayed draw returns its recorded value, by [`std-testing.runner.replay`](#r-std-testing.runner.replay).
 4. r[std-testing.edge.coverage] When a run discards no case, its first four generated cases take the low, high, zero, and no edge once each, since their seeds are consecutive.
-5. r[std-testing.edge.int-type] A default generator of an integer type returns every value from the type's smallest to its largest, so the low and high edges reach the type's own bounds. For `i32`, `i64`, `u32`, and `u64` they may reach them outside an edge case as well.
+5. r[std-testing.edge.int-type] A default generator of an integer type returns every value from the type's smallest to its largest, so the low and high edges reach the type's own bounds. For `i32`, `i64`, `u32`, `u64`, and `usize` they may reach them outside an edge case as well.
 6. r[std-testing.edge.budget] A spent draw budget still returns the simplest value, by [`std-testing.budget.simplest.int`](#r-std-testing.budget.simplest.int), whatever the edge.
 
 > **Why.** Hypothesis and QuickCheck bias draws toward `0`, the bounds,

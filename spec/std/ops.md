@@ -44,7 +44,7 @@ fn start() -> (i32, string, bool):
 
 | Rule | Type | Default value |
 | --- | --- | --- |
-| r[std-ops.default.std.integer] Integers | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, and `u64` | `0` |
+| r[std-ops.default.std.integer] Integers | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, and `usize` | `0` |
 | r[std-ops.default.std.float] Floats | `f32` and `f64` | `0.0` |
 | r[std-ops.default.std.bool] Boolean | `bool` | `false` |
 | r[std-ops.default.std.string] String | `string` | `""` |

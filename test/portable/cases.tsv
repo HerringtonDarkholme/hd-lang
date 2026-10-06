@@ -2083,7 +2083,7 @@ typing/invalid/list-slice-negative-literal.hd	type
 typing/invalid/list-slice-signed-bound.hd	type
 typing/invalid/string-index-signed.hd	type
 typing/invalid/string-slice-negative-offset.hd	type
-typing/valid/usize-alias.hd	type
+typing/valid/usize-type.hd	type
 runtime/panic/usize-len-underflow.hd	runtime
 typing/invalid/list-view-negative-literal.hd	type
 typing/invalid/iterator-take-negative-literal.hd	type
@@ -2308,7 +2308,7 @@ typing/invalid/unknown-package-name.hd	type
 runtime/panic/list-index-u64-beyond-u32.hd	runtime
 runtime/panic/list-set-u64-beyond-u32.hd	runtime
 runtime/valid/compound-assign-index-once.hd	runtime
-typing/valid/usize-alias-positions.hd	type
+typing/valid/usize-positions.hd	type
 typing/invalid/prelude-shadow-usize-alias.hd	type
 typing/invalid/literal-operand-range-wide.hd	type
 typing/invalid/literal-operand-negation-unsigned.hd	type
@@ -2580,3 +2580,4 @@ typing/valid/generic-call-fresh-list-of-boxes.hd	type
 typing/invalid/generic-call-readonly-into-mut-part.hd	type
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd	type
 typing/invalid/generic-readonly-argument-to-mut-parameter.hd	type
+runtime/valid/usize-width-wasm32.hd	runtime

@@ -127,7 +127,7 @@ impl Deserialize for Session by Structure:
 | r[std-serde.std.text] String | `string` | `text` | `text`, `"string"` |
 | r[std-serde.std.char] Character | `char` | `text` of that one character | `text` of exactly one character, `"char"` |
 | r[std-serde.std.signed] Signed integers | `i8`, `i16`, `i32`, and `i64` | `int` | `int` within the type's range, the type's name |
-| r[std-serde.std.unsigned] Unsigned integers | `u8`, `u16`, `u32`, and `u64` | `uint` | `uint` within the type's range, the type's name |
+| r[std-serde.std.unsigned] Unsigned integers | `u8`, `u16`, `u32`, `u64`, and `usize` | `uint` | `uint` within the type's range, the type's name |
 | r[std-serde.std.float] Floats | `f32` and `f64` | `float` of the value as an `f64` | `float`, the type's name |
 | r[std-serde.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload for `.Some` | `.None` when `is_null` is `true`, and `.Some` of what `T` reads otherwise |
 | r[std-serde.std.list] List | `List[T]`, where `T` implements the trait | a list of the items, in order | a list, item by item |

@@ -88,7 +88,7 @@ fn digest() -> u64:
 
 | Rule | Value | Bytes written, in order |
 | --- | --- | --- |
-| r[std-hash.bytes.integer] Integer | an `i8` to `i64` or `u8` to `u64` | its two's-complement bytes at its own width, least significant first |
+| r[std-hash.bytes.integer] Integer | an `i8` to `i64`, a `u8` to `u64`, or a `usize` | its two's-complement bytes at its own width, least significant first |
 | r[std-hash.bytes.bool] `bool` | `false` or `true` | one byte, `0` or `1` |
 | r[std-hash.bytes.char] `char` | a Unicode scalar value | the scalar value, written as a `u32` writes it |
 | r[std-hash.bytes.string] `string` | a UTF-8 text | the number of its UTF-8 bytes as a `u64`, then those bytes |

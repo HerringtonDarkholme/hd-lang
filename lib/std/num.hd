@@ -327,7 +327,7 @@ pub fn parse_u32(text: string) -> Result[u32, ParseNumberError]:
 pub fn parse_u64(text: string) -> Result[u64, ParseNumberError]:
     parse_unsigned(text, 18446744073709551615)
 
-# `usize` is `u32` (r-types.alias.usize), so this is `parse_u32` by name.
+# On Wasm32 `usize` has the range of `u32` (r-std-num.parse.usize-range).
 pub fn parse_usize(text: string) -> Result[usize, ParseNumberError]:
     parse_u32(text)
 

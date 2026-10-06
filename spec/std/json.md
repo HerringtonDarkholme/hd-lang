@@ -373,7 +373,7 @@ JSON writes and reads each standard implementation of
 | r[std-json.std.bool] Boolean | `bool` | a `Bool` | a `Bool` |
 | r[std-json.std.text] String | `string` | a `Text` | a `Text` |
 | r[std-json.std.char] Character | `char` | a `Text` of that one character | a `Text` of exactly one character |
-| r[std-json.std.integer] Integers | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, and `u64` | the exact integer, as `Number::from_i64` or `Number::from_u64` gives it | a `Number` that is an integer in the type's range |
+| r[std-json.std.integer] Integers | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, and `usize` | the exact integer, as `Number::from_i64` or `Number::from_u64` gives it | a `Number` that is an integer in the type's range |
 | r[std-json.std.float] Floats | `f32` and `f64` | the `Number` of the value as an `f64` | any `Number`, as `as_f64` gives it |
 | r[std-json.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload's `Json` for `.Some` | `.None` from `null`, and `.Some` of what `T` reads from any other value |
 | r[std-json.std.list] List | `List[T]`, where `T` implements the trait | an `Array` of the items' values, in order | an `Array`, item by item |

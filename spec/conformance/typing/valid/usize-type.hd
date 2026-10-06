@@ -1,12 +1,12 @@
-# test: usize is a prelude alias of u32, the type of lengths and indices
-# Spec 04 The usize Alias: types.alias.usize, .prelude, .sizes, and .cast.
+# test: usize is a prelude primitive, the type of lengths and indices, converted to and from u32 by a cast
+# Spec 04 The usize Type: types.usize.primitive, .prelude, .sizes, and .convert.
 fn last(items: List[string]) -> string:
     items[items.len() - 1]  # panics with integer-overflow when items is empty
 
 fn middle(items: List[i32]) -> usize:
     items.len() / 2
 
-fn same(size: usize) -> u32: size
+fn narrowed(size: usize) -> u32: u32(size)
 
 fn widened(count: i32) -> usize: usize(count)
 
@@ -15,3 +15,6 @@ fn offsets(text: string) -> List[usize]:
 
 fn sizes(names: List[string], scores: Map[string, i32]) -> (usize, usize, usize):
     (names.len(), scores.len(), names[0].len())
+
+fn sizes_with(items: List[i32], limit: u32) -> usize:
+    usize(limit) + items.len()

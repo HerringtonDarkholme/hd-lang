@@ -69,7 +69,7 @@ r[types.prim.set] The primitive types are:
 | --- | --- |
 | Boolean | `bool` |
 | Signed integers | `i8`, `i16`, `i32`, `i64` |
-| Unsigned integers | `u8`, `u16`, `u32`, `u64` |
+| Unsigned integers | `u8`, `u16`, `u32`, `u64`, `usize` |
 | Floating point | `f32`, `f64` |
 | Text | `char`, `string` |
 
@@ -114,8 +114,53 @@ impl Step for i32:
 fn advance(start: i32) -> i32: start.next()  # valid
 ```
 
-> **Note.** Sizes have the type `usize`, a transparent alias of `u32`, as
-> [The `usize` Alias](#the-usize-alias) states.
+### The `usize` Type
+
+`usize` is the type of sizes: lengths, indices, counts, and byte offsets:
+
+```text
+fn last(items: List[string]) -> string:
+    items[items.len() - 1]  # in a debug or test build, panics with integer-overflow when items is empty
+
+fn middle(items: List[i32]) -> usize:
+    items.len() / 2
+```
+
+1. r[types.usize.primitive] `usize` is a primitive unsigned integer type. It is distinct from `u32` and from every other numeric type.
+2. r[types.usize.width] The width of `usize` is the target's: 32 bits on Wasm32, the one target today.
+3. r[types.usize.behavior] Its range, overflow, wrapping, casts, and literal range are those of an unsigned integer of that width, so on Wasm32 they are those of `u32`.
+4. r[types.usize.prelude] `usize` is a [prelude](10-modules.md#prelude) name, so every module may write it without a `use`.
+5. r[types.usize.sizes] Every length, index, count, and byte offset that the language defines has type `usize`.
+6. r[types.usize.convert] A `usize` and a `u32` convert only by a written cast, as `usize(limit)` or `u32(size)`, by [`types.num.no-implicit`](#r-types.num.no-implicit). A value of one where the other is expected is an error. Error: `type-mismatch`.
+
+```text
+fn take_count(count: u32) -> u32:
+    count
+
+fn total(items: List[i32], limit: u32) -> usize:
+    limit + items.len()  # error: type-mismatch
+
+fn counted(items: List[i32]) -> u32:
+    take_count(items.len())  # error: type-mismatch
+
+fn fixed(items: List[i32], limit: u32) -> usize:
+    usize(limit) + items.len()
+```
+
+> **Note.** On Wasm32 a `usize` has the representation of a `u32`, a Wasm
+> `i32`. That is a fact about representation: the two stay distinct types.
+
+> **Note.** A size is never negative, so `len() - 1` on an empty
+> collection is below the range of `usize`. In a debug or test build it
+> panics with `integer-overflow` by [`types.arith.checked`](#r-types.arith.checked),
+> as in Rust. A release build wraps by [`types.arith.release`](#r-types.arith.release).
+
+> **Why.** A size cannot be negative, so an unsigned type rejects a
+> negative index when the program is checked rather than when it runs. A
+> size has its own type, as in Rust's `usize` and Go's `int`. So a size
+> never mixes silently with a 32-bit value that means something else.
+
+See also: [Numeric Conversions](#numeric-conversions), [Numeric Casts](#numeric-casts).
 
 ### `void` And The Empty Tuple
 
@@ -534,44 +579,6 @@ type AppRow = $ Ledger  # error: unknown-trait
 > **Why.** A transparent alias is replaced by its right side, so a cycle
 > never ends. A recursive type needs a `data` or `enum` declaration.
 
-### The `usize` Alias
-
-`usize` is the type of sizes: lengths, indices, counts, and byte offsets:
-
-```text
-fn last(items: List[string]) -> string:
-    items[items.len() - 1]  # in a debug or test build, panics with integer-overflow when items is empty
-
-fn middle(items: List[i32]) -> usize:
-    items.len() / 2
-```
-
-1. r[types.alias.usize] `std.core` declares the transparent alias `type usize = u32`, so `usize` and `u32` are one type by [`types.alias.identical`](#r-types.alias.identical).
-2. r[types.alias.usize.prelude] `usize` is a [prelude](10-modules.md#prelude) name, so every module may write it without a `use`.
-3. r[types.alias.usize.sizes] Every length, index, count, and byte offset that the language defines has type `usize`.
-4. r[types.alias.usize.cast] `usize(x)` is the numeric cast `u32(x)`, by [Numeric Casts](#numeric-casts).
-5. r[types.alias.usize.display] Diagnostics and the REPL render a type that came from a bare-literal default, or was written `usize`, as `usize`, not `u32`.
-
-```text
-fn take_i32(x: i32) -> i32: x
-
-pub fn main() -> i32:
-    total := 0
-    take_i32(total)  # type-mismatch: expected i32, found usize
-```
-
-> **Note.** `usize` is `u32` on every target today. Code that names
-> `usize` keeps working if a later target makes it wider.
-
-> **Note.** A size is never negative, so `len() - 1` on an empty
-> collection is below the range of `usize`. In a debug or test build it
-> panics with `integer-overflow` by [`types.arith.checked`](#r-types.arith.checked),
-> as in Rust. A release build wraps by [`types.arith.release`](#r-types.arith.release).
-
-> **Why.** A size cannot be negative, so an unsigned type rejects a
-> negative index when the program is checked rather than when it runs.
-> One alias names every size, as Rust's `usize` does.
-
 ### Newtypes
 
 A parenthesized type declaration creates a nominal single-field newtype:
@@ -765,7 +772,7 @@ The numeric types form three families, each ordered from narrower to wider:
 
 ```text
 i8, i16, i32, i64
-u8, u16, u32, u64
+u8, u16, u32, usize, u64
 f32, f64
 ```
 
@@ -774,9 +781,11 @@ f32, f64
 3. r[types.num.no-implicit.wider] So a value where a wider type of its family is expected is an error, as an `i16` passed to an `i64` parameter or an `f32` assigned to an `f64`. Error: `type-mismatch`.
 4. r[types.num.no-implicit.fix] That diagnostic should offer a fix-it that writes the conversion around the value, as in `i64(small)`.
 5. r[types.num.narrowing] A value where a narrower type of its family is expected is an error. Error: `implicit-narrowing`.
-6. r[types.num.no-sign-change] There is no implicit conversion between signed and unsigned integers.
-7. r[types.num.no-int-float] There is no implicit integer-to-floating or floating-to-integer conversion in the current core.
-8. r[types.num.literal-kind] A numeric literal is not a conversion: it takes an expected type of its own kind, as [Literal Types](#literal-types) states. So `let x: i64 = 300` is valid, and `let y: f64 = 1` is an error. Error: `type-mismatch`.
+6. r[types.num.usize-width] `usize` is the unsigned type of the target's width, by [`types.usize.width`](#r-types.usize.width). On Wasm32 it is wider than `u16`, narrower than `u64`, and as wide as `u32`.
+7. r[types.num.same-width] A value where another type of its family with the same width is expected is an error, as a `u32` passed to a `usize` parameter. Error: `type-mismatch`.
+8. r[types.num.no-sign-change] There is no implicit conversion between signed and unsigned integers.
+9. r[types.num.no-int-float] There is no implicit integer-to-floating or floating-to-integer conversion in the current core.
+10. r[types.num.literal-kind] A numeric literal is not a conversion: it takes an expected type of its own kind, as [Literal Types](#literal-types) states. So `let x: i64 = 300` is valid, and `let y: f64 = 1` is an error. Error: `type-mismatch`.
 
 > **Why.** Go, Rust, and Swift have no implicit numeric conversion, and
 > Kotlin's mixed operators are one overload per pair of types. With none, an

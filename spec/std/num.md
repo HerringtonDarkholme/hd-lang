@@ -42,7 +42,7 @@ fn total(prices: List[i64]) -> i64?:
 ```
 
 In this chapter, `N` is any integer type: `i8`, `i16`, `i32`, `i64`, `u8`,
-`u16`, `u32`, or `u64`.
+`u16`, `u32`, `u64`, or `usize`.
 
 | Rule | Method | Result |
 | --- | --- | --- |
@@ -111,8 +111,9 @@ fn gap(a: i32, b: i32) -> u32:
 | r[std-num.abs-diff.u16] On `u16` | `fn abs_diff(self, other: u16) -> u16` |
 | r[std-num.abs-diff.u32] On `u32` | `fn abs_diff(self, other: u32) -> u32` |
 | r[std-num.abs-diff.u64] On `u64` | `fn abs_diff(self, other: u64) -> u64` |
+| r[std-num.abs-diff.usize] On `usize` | `fn abs_diff(self, other: usize) -> usize` |
 
-1. r[std-num.abs-diff] `a.abs_diff(b)` returns the distance between `a` and `b` as the unsigned type of the same width.
+1. r[std-num.abs-diff] `a.abs_diff(b)` returns the distance between `a` and `b` as the table's result type: the receiver's own type when it is unsigned, and otherwise the unsigned type of the same width.
 2. r[std-num.abs-diff.no-panic] It never panics, since that unsigned type holds every distance, including the one between the minimum and the maximum.
 3. r[std-num.abs-diff.unsigned] The result is unsigned, so a signed operand beside it needs an explicit cast. Without one, the operation is an error. Error: `mixed-signedness`.
 
@@ -213,7 +214,7 @@ pub enum ParseNumberError:
 10. r[std-num.parse.error-traits] `ParseNumberError` implements `Eq` and `Display`.
 11. r[std-num.parse.unsigned] The unsigned functions read the same grammar without the `-`: an optional `+`, then one or more digits. Every other rule above holds for them, with the result type's range.
 12. r[std-num.parse.unsigned.minus] A `-` at the start of the text is an invalid digit, so `"-1"`, `"-0"`, and `"-"` give `.Err(ParseNumberError.InvalidDigit(0))`.
-13. r[std-num.parse.usize-is-u32] `parse_usize` returns what `parse_u32` returns, since `usize` is `u32` by [`types.alias.usize`](../lang/04-type-system.md#r-types.alias.usize).
+13. r[std-num.parse.usize-range] `parse_usize` reads the range of `usize`, whose width is the target's by [`types.usize.width`](../lang/04-type-system.md#r-types.usize.width). On Wasm32 it accepts the text that `parse_u32` accepts.
 
 | Text | `parse_i32` gives |
 | --- | --- |

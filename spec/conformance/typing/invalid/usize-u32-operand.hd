@@ -1,0 +1,7 @@
+# test: a u32 and a usize operand are two types of one family, so adding them needs a cast
+# Spec 04 The usize Type: types.usize.convert; Binary Numeric Operators: types.num.binary.same-type.
+fn total(items: List[i32], limit: u32) -> usize:
+    limit + items.len()  # diagnostic: type-mismatch
+
+fn fixed(items: List[i32], limit: u32) -> usize:
+    usize(limit) + items.len()
