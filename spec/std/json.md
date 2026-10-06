@@ -18,6 +18,13 @@ Nothing in it is language tier.
 2. r[std-json.import.format] `std.json` also declares `to_json`, `from_json`, `encode`, and `decode`. None is a prelude name either.
 3. r[std-json.no-panic] None of these functions panics.
 
+```text
+use std.json.{Json, JsonError, parse}
+
+fn read(text: string) -> Result[Json, JsonError]:
+    parse(text)   # a bad text is an .Err: no call here panics
+```
+
 ## Json Values
 
 A `Json` is one of six kinds:
@@ -96,9 +103,23 @@ fn half() -> Number?:
 2. r[std-json.number.eq.mixed] An integer is never equal to a float, so `1` and `1.0` differ.
 3. r[std-json.number.eq.zero] The floats `0.0` and `-0.0` are equal, as `f64` values are.
 
+```text
+use std.json.Number
+
+fn is_integer_two(n: Number) -> bool:
+    n == Number::from_i64(2)   # false when n is the float 2.0
+```
+
 ### Number Text
 
 1. r[std-json.number.display] `Number` implements `Display`. An integer prints in base ten, as [`types.display.int`](../lang/04-type-system.md#r-types.display.int) gives, and a float prints as `f64` does ([`types.display.float`](../lang/04-type-system.md#r-types.display.float)).
+
+```text
+use std.json.Number
+
+fn show(n: Number) -> string:
+    "$n"   # an integer prints in base ten, a float as an f64
+```
 
 > **Note.** The text of a finite float is always valid JSON. It has a
 > decimal point or an exponent, as `1.0` and `1e+21`, and negative zero is
@@ -136,11 +157,33 @@ fn title(text: string) -> string:
 5. r[std-json.parse.depth] An array or object nested inside 128 others is an error, and one nested inside 127 is not. The error is `NestingTooDeep`, at its opening bracket.
 6. r[std-json.parse.literals] The words `true`, `false`, and `null` are lowercase only.
 
+```text
+use std.json.parse
+
+fn accepts(text: string) -> bool:
+    match parse(text):
+        .Ok(_) => true
+        .Err(_) => false
+
+fn checks() -> List[bool]:
+    [accepts("[1, 2]"), accepts("[1, 2,]"), accepts("[1, /* c */ 2]")]
+    # [true, false, false]: no trailing comma, no comment
+```
+
 ### Objects
 
 1. r[std-json.parse.object.order] The keys of a parsed object are in the order of their first occurrence in the text.
 2. r[std-json.parse.object.duplicate] When a key occurs more than once, the object has one entry for it. Its value is the last one, and its position is the first one's.
 3. r[std-json.parse.object.key] A key is a string, and its escapes are decoded as a string's are.
+
+```text
+use std.json.parse
+
+fn last_wins() -> string:
+    match parse("{\"b\": 1, \"a\": 2, \"b\": 3}"):
+        .Ok(value) => "${value}"   # {"b":3,"a":2}: first position, last value
+        .Err(_) => "error"
+```
 
 ### Strings
 
@@ -157,6 +200,15 @@ fn title(text: string) -> string:
 3. r[std-json.parse.string.lone-surrogate] A surrogate escape with no partner is a `LoneSurrogate` error at the backslash of the first escape of the pair.
 4. r[std-json.parse.string.control] A raw character below U+0020 inside a string is a `ControlCharacter` error. A raw DEL (U+007F) and every other scalar value stand for themselves.
 5. r[std-json.parse.string.nul] `\u0000` is valid, and the string then holds U+0000.
+
+```text
+use std.json.parse
+
+fn decoded() -> string:
+    match parse("\"a\\u0041\\n\""):
+        .Ok(value) => value.as_text().unwrap_or("")   # "aA" and a line feed
+        .Err(_) => ""
+```
 
 ### Number Syntax
 
@@ -178,6 +230,19 @@ fn title(text: string) -> string:
 > `f64` range is an error, since a `Number` holds no infinity
 > ([`std-json.number.repr`](#r-std-json.number.repr)).
 
+```text
+use std.json.parse
+
+fn read_number(text: string) -> string:
+    match parse(text):
+        .Ok(.Number(n)) => "$n"
+        _ => "not a number"
+
+fn demos() -> List[string]:
+    [read_number("1.5"), read_number("-0"), read_number("18446744073709551616")]
+    # ["1.5", "-0.0", "18446744073709552000.0"]
+```
+
 ### Error Order
 
 1. r[std-json.parse.error-order] `parse` reads the text from the left. Its error is the first position at which no continuation is valid, with the kind that the position gives.
@@ -190,6 +255,18 @@ fn title(text: string) -> string:
 | `"\"\\ud800\""` | `.Err(LoneSurrogate(1))` |
 | `"1e400"` | `.Err(NumberOutOfRange(0))` |
 | `"1.x"` | `.Err(UnexpectedCharacter(2))` |
+
+```text
+use std.json.parse
+
+fn first_error(text: string) -> string:
+    match parse(text):
+        .Ok(_) => "ok"
+        .Err(error) => "$error"
+
+fn demo() -> string:
+    first_error("[1,]")   # unexpected character at position 3
+```
 
 ## JSON Errors
 
@@ -256,6 +333,24 @@ The `expected` of a `WrongType` depends on the type that reads the value:
 > **Note.** A path is for people to read. A key that holds `.` or `[`
 > makes it ambiguous, as in `serde_path_to_error`.
 
+```text
+use std.json.{decode, JsonError}
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+data User:
+    name: string
+    age: i32
+
+fn load(text: string) -> Result[User, JsonError]:
+    decode::[User](text)
+
+fn report(text: string) -> string:
+    match load(text):
+        .Ok(user) => user.name
+        .Err(error) => "$error"   # "{\"name\": \"ada\"}" misses $.age
+```
+
 ## Writing
 
 A `Json` writes as JSON text in two layouts, compact and pretty:
@@ -286,6 +381,18 @@ fn show_pretty(value: Json) -> string:
 4. r[std-json.display.text] A `Text` and each key print in quotes. A quote, a backslash, and each character below U+0020 are escaped, and every other scalar value prints as itself.
 5. r[std-json.display.escapes] The escapes are `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, and `\t`, and `\u00` with two lowercase hex digits for the other controls. `/` is not escaped.
 
+```text
+use std.json.{Json, parse}
+
+fn compact(value: Json) -> string:
+    "$value"   # no whitespace outside strings: [1,2] and {"a":1}
+
+fn demo() -> string:
+    match parse("{ \"a\" : [ 1, 2 ] }"):
+        .Ok(value) => compact(value)   # {"a":[1,2]}
+        .Err(_) => "error"
+```
+
 > **Note.** The compact text of a value that `parse` read parses back to an
 > equal value.
 
@@ -301,6 +408,15 @@ fn show_pretty(value: Json) -> string:
 | --- | --- |
 | `[1,2]` | `"[\n  1,\n  2\n]"` |
 | `{"a":[]}` | `"{\n  \"a\": []\n}"` |
+
+```text
+use std.json.parse
+
+fn pretty_demo(text: string) -> string:
+    match parse(text):
+        .Ok(value) => value.pretty()
+        .Err(_) => ""
+```
 
 ## Typed JSON
 
@@ -386,6 +502,13 @@ JSON writes and reads each standard implementation of
 5. r[std-json.std.wrong-kind] Any other kind of value is a `WrongType`, with the `expected` that [Decode Errors](#decode-errors) gives.
 6. r[std-json.std.item-path] An error inside a list item gets the segment `[index]`, and one inside a map value gets `.key`.
 
+```text
+use std.json.{encode, decode, JsonError}
+
+fn round_trip(names: List[string]) -> Result[List[string], JsonError]:
+    decode::[List[string]](encode(names))
+```
+
 > **Note.** `T??` loses a layer: `.Some(.None)` writes `null`, which reads
 > back as `.None`. A NaN writes `null`, which no float reads.
 
@@ -457,6 +580,27 @@ JSON reads the form that it writes for a derived `Serialize`:
 8. r[std-json.derive.from-json.name-only] A `Text` reads as an `Object` whose one key is that text and whose value is an empty `Object`.
 9. r[std-json.derive.from-json.unknown-variant] A name that is not a variant of the enum is an `UnknownVariant` at the enum value's path.
 10. r[std-json.derive.from-json.payload] The variant's payload must be an `Object`, or it is a `WrongType` with the segment `.name` of the variant. Its members then read as a data type's do, under that segment.
+
+```text
+use std.json.{decode, JsonError}
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+enum Shape:
+    Circle(radius: u32)
+    Rect(width: i32, height: i32)
+    Point(i32, i32)
+    Empty
+
+fn read(text: string) -> Result[Shape, JsonError]:
+    decode::[Shape](text)
+
+fn shape_of(text: string) -> string:
+    match read(text):
+        .Ok(Shape.Empty) => "empty"
+        .Ok(_) => "a shape with members"
+        .Err(error) => "$error"
+```
 
 > **Note.** So a member of type `T?` may be missing, and reads `.None`,
 > and a member of type `Json` reads `null`. A member of any other
