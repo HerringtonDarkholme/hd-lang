@@ -108,28 +108,6 @@ make sure that chapter's `no-ex` drops while nothing else rises. Where
 the compiler disagrees with a rule, list it under Questions rather than
 bending the example.
 
-### K12. Usability Probe 5 (Read-Only)
-
-Same method as K9. Write four programs, using only `README.md`, `guide/`,
-and `spec/`:
-
-1. A concurrent fetcher that runs three suspending lookups with `all!`
-   and a timeout with `race!`, tested with fake providers.
-2. A small inventory using `Map`, `Set` and iterator chains (`filter`,
-   `map`, `fold`, `sorted`), with unit tests.
-3. A two-package workspace where an app depends on a local library by
-   path. Use a temporary HOME, HD_CACHE and GIT_CONFIG_GLOBAL inside your
-   scratch directory, and no network.
-4. A config loader whose config type has fields with default values,
-   loaded from JSON with some keys present and some missing. Check that a
-   present key's value wins over its default, and that a missing key with
-   no default is an error. Bug F-616 here was fixed on 2026-10-06; log any
-   sign that it is back.
-
-Log every mistake and message in `audit/hd-writing-log.md` (task
-`probe 5: …`, model `kimi`). Commit only the log, and list the five most
-painful problems in the commit message.
-
 ## Questions
 
 (none)
