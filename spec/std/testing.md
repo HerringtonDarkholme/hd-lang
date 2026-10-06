@@ -180,6 +180,19 @@ one edge, which its seed picks:
 5. r[std-testing.edge.int-type] A default generator of an integer type returns every value from the type's smallest to its largest. So the low and high edges reach the type's own bounds. For `i32`, `i64`, `u32`, `u64`, and `usize` they may reach them outside an edge case as well.
 6. r[std-testing.edge.budget] A spent draw budget still returns the simplest value, by [`std-testing.budget.simplest.int`](#r-std-testing.budget.simplest.int), whatever the edge.
 
+```text
+use std.testing.{assert, Choices, it_prop_with}
+
+fn span(c: mut Choices) -> i64:
+    c.int(-10, 10)
+
+tests:
+    # the first generated cases draw the edges: -10, 10, and 0
+    it_prop_with("the span holds", gen=span, cases=8, prop=fn!(n: i64):
+        assert(n >= -10 && n <= 10, reason="in range")
+    )
+```
+
 > **Why.** Hypothesis and QuickCheck bias draws toward `0`, the bounds,
 > and empty collections, since off-by-one and overflow bugs sit there. A
 > property that never sees the largest `i32` cannot find an overflow.
@@ -665,6 +678,20 @@ See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
 1. r[std-testing.runner.discard-panic] `Choices.assume(false)` ends the case with a panic whose category is that of a `panic` call and whose message is exactly `std.testing: case discarded`. Panic: `explicit-panic`.
 2. r[std-testing.runner.discard-read] The runner reads such a panic, raised before the case calls `show`, as a discard. The case neither passes nor fails, and it does not count toward `cases`.
 3. r[std-testing.runner.discard-after-show] The same panic after `show` is an ordinary failure, so a property body cannot discard a case, as [`std-testing.prop.body-no-discard`](#r-std-testing.prop.body-no-discard) states.
+
+```text
+use std.testing.{assert, Choices, it_prop_with}
+
+fn even(c: mut Choices) -> i64:
+    let value: i64 = c.int(0, 100)
+    c.assume(value % 2 == 0)   # a false assumption discards the case
+    value
+
+tests:
+    it_prop_with("only even values are checked", gen=even, cases=20, prop=fn!(n: i64):
+        assert(n % 2 == 0, reason="assume discards odd values")
+    )
+```
 
 > **Why.** A discard is a panic, so it ends the case through the panic
 > rules every case already has. The runner needs no method that does
