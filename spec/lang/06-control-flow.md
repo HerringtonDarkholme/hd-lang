@@ -18,7 +18,7 @@ it a value.
 1. r[flow.block.order] A suite evaluates statements in source order.
 2. r[flow.block.value] If control reaches the final expression statement normally, that expression is the suite's value.
 3. r[flow.block.void] A suite whose final statement is not a value expression has type `void`.
-4. r[flow.block.abrupt] `return`, `break`, `continue`, optional or result propagation with `?`, and a runtime panic complete the current control path abruptly rather than producing the suite's ordinary final value.
+4. r[flow.block.abrupt] `return`, `break`, `continue`, optional or result propagation with `?`, and a runtime panic complete the current control path abruptly. They do not produce the suite's ordinary final value.
 5. r[flow.block.non-empty] An indented suite must contain at least one statement.
 6. r[flow.block.pass] `pass` supplies an explicit no-op expression when a body is intentionally empty.
 
@@ -113,7 +113,7 @@ for value in values:
 1. r[flow.for.iterable-once] The iterable expression is evaluated exactly once.
 2. r[flow.for.fresh-iterator] A new iterator is obtained for each execution of the loop.
 3. r[flow.for.binding] The binding pattern receives each yielded value before the body executes.
-4. r[flow.for.pattern] The pattern of a `for` loop or a comprehension `for` clause matches each yielded value of type `T` as a `let` pattern matches an initializer of type `T`, under [Let Patterns](#let-patterns).
+4. r[flow.for.pattern] The pattern of a `for` loop or a comprehension `for` clause matches each yielded value of type `T`. It matches as a `let` pattern matches an initializer of type `T`, under [Let Patterns](#let-patterns).
 5. r[flow.for.pattern.irrefutable] The pattern must be irrefutable for `T`. A refutable pattern is an error, and a loop's `else` does not handle it. Error: `refutable-let-pattern`.
 
 ```text
@@ -158,7 +158,7 @@ data Iterator[T]:
 ```
 
 1. r[flow.for.iterator-type] `Iterator[T]` is a concrete prelude `data` type, not a trait. Its one field, `step`, is a closure that yields the next item or `.None`.
-2. r[flow.for.iterator-private] `step` is a private field. Code outside the module that declares `Iterator` cannot read it or build an `Iterator` with a data literal, as [Field Visibility](08-data-and-enums.md#field-visibility) says of every private field.
+2. r[flow.for.iterator-private] `step` is a private field. Code outside the module that declares `Iterator` cannot read it or build an `Iterator` with a data literal. [Field Visibility](08-data-and-enums.md#field-visibility) says the same of every private field.
 3. r[flow.for.iterator-from-fn] The associated function `fn from_fn(step: fn() -> T?) -> mut Iterator[T]`, called as `Iterator::from_fn(step)`, builds an iterator whose `step` is the given closure.
 4. r[flow.for.iterator-next] The method `fn next(mut self) -> T?` advances the iterator by calling `step` once.
 5. r[flow.for.iter-independent] An ordinary iterable creates an independent mutable iterator on every `iter()` call.
@@ -293,7 +293,7 @@ fn first_square_over(limit: i32) -> i32:
 2. r[flow.for.range.half-open] Iterating `a..b` yields `a`, `a + 1`, and so on, up to but not including `b`. It yields nothing when `a >= b`.
 3. r[flow.for.range.inclusive] Iterating `a..=b` yields `a` through `b`, and yields `b` even when it is the type's largest value. It yields nothing when `a > b`.
 4. r[flow.for.range.from] Iterating `a..` yields `a`, `a + 1`, and so on, with no end, so `for i in 0..:` runs until the loop exits another way.
-5. r[flow.for.range.from-overflow] Asking an iterator over `a..` for the item after the type's largest value is, as `a + 1` is, a checked runtime panic in a debug or test build and wraps in a release build. Panic: `integer-overflow`.
+5. r[flow.for.range.from-overflow] An iterator over `a..` has no end. Asking it for the item after the type's largest value is a checked runtime panic in a debug or test build, as `a + 1` is. It wraps in a release build, again as `a + 1` does. Panic: `integer-overflow`.
 6. r[flow.for.range.fresh] Each `iter()` call on a range starts from its start bound, and iterating never changes the range value.
 7. r[flow.for.range.to] `RangeTo[T]` does not implement `Iterable`, since it has no start, so a loop over `..b` is an error. Error: `unsatisfied-trait-bound`.
 8. r[flow.for.range.to-through] `..=b` is a `RangeTo[T]` too, so a loop over it is an error. Error: `unsatisfied-trait-bound`.
@@ -491,7 +491,7 @@ fn choose(flag: Flag) -> i32:
 ### Catch-All And Variant Patterns
 
 1. r[flow.match.catch-all] `_` and a bare binding identifier are catch-all patterns for the subject type.
-2. r[flow.match.bare-variant] If a bare identifier resolves to a variant of the subject enum, it is an error rather than a new catch-all binding: write `.Variant` or a qualified variant name. Error: `bare-variant-pattern`.
+2. r[flow.match.bare-variant] If a bare identifier resolves to a variant of the subject enum, it is an error rather than a new catch-all binding. Write `.Variant` or a qualified variant name. Error: `bare-variant-pattern`.
 3. r[flow.match.bare-payload] An unqualified identifier followed by a payload list, such as `Some(value)` or `Ok(value)`, is also an error. Error: `bare-variant-pattern`.
 4. r[flow.match.optional] An optional is matched like any other enum.
 5. r[flow.match.optional.some] For a subject of type `T?`, `.Some(value)` matches only the present case and binds `value` as `T`.
@@ -788,7 +788,7 @@ fn read(id: i32) -> i32:
 5. r[flow.let.refutable.else] A `let` with a refutable pattern, such as a literal, an enum variant, or `.Some(v)`, must have an `else` block. A refutable pattern without one is an error. Error: `refutable-let-pattern`.
 6. r[flow.let.else.order] A let-else evaluates its initializer once. When the pattern matches, it binds the names; otherwise the `else` block runs.
 7. r[flow.let.else.diverge] The `else` block must diverge: control never reaches its end.
-8. r[flow.let.else.diverge.forms] A block diverges when its final statement has type `never`, such as `return`, `break`, `continue`, or a call to `panic`, or is an `if` or `match` whose every branch diverges.
+8. r[flow.let.else.diverge.forms] A block diverges when its final statement has type `never`, such as `return`, `break`, `continue`, or a call to `panic`. It also diverges when the final statement is an `if` or `match` whose every branch diverges.
 9. r[flow.let.else.falls-through] An `else` block that may complete normally is an error. Error: `let-else-falls-through`.
 10. r[flow.let.else.unreachable] An `else` block after an irrefutable pattern could never run, so it is an error. Error: `unreachable-match-arm`.
 11. r[flow.let.tuple-arity] A tuple pattern needs a tuple of the same arity. Against any other value it is an error. Error: `type-mismatch`.
@@ -818,7 +818,7 @@ fn always(pair: (i32, i32)) -> i32:
 > **Why.** An `else` block that fell through would reach code that reads
 > names the pattern never bound. Rust's let-else and Swift's `guard let`
 > require the same divergence.
-> An `else` that can never run tells the reader the pattern may fail, which
+> An `else` that can never run tells the reader the pattern may fail. That
 > is false, so it is rejected as an unreachable arm would be.
 
 See also: [Let-Else Statements](02-grammar.md#let-else-statements), and
@@ -867,7 +867,7 @@ fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files
 
 ### Cleanup Scopes
 
-1. r[flow.defer.scopes] Cleanup scopes are function and closure bodies, loop bodies, each selected `if` or `else` suite, match arms, provider scopes, and trailing callback blocks, including test bodies.
+1. r[flow.defer.scopes] Cleanup scopes are function and closure bodies, loop bodies, each selected `if` or `else` suite, and match arms. Provider scopes and trailing callback blocks, including test bodies, are cleanup scopes too.
 2. r[flow.defer.not-scopes] Module top level and declaration bodies that do not execute are not cleanup scopes.
 3. r[flow.defer.outside] A `defer` there is an error. Error: `defer-outside-cleanup-scope`.
 
