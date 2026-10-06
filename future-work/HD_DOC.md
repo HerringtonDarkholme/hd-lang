@@ -9,6 +9,10 @@
 > the spec draft are dropped. The spec draft must be redone for this one
 > form before it is applied. `hd doc --open` builds the docs, then opens
 > the HTML index in the web browser.
+>
+> Agents need no special mode. They read the package source, which git
+> distribution already puts on disk for every dependency, and
+> `build/doc/md` (owner, 2026-10-06).
 
 
 Status: design proposal, 2026-10-06. Nothing in it is accepted behavior.
