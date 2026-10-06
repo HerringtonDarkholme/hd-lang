@@ -72,6 +72,43 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### BO. Speed Gate: Baselines Recorded On CI
+
+Owner decision: record the speed-gate baselines on GitHub's runners, so a
+slow runner stops failing the gate. Today `test/perf/inference/baseline.json`
+holds numbers from one laptop; CI runners vary up to ~1.6x on identical
+code (`occurs-check`, `retry-receivers` failed on guide-only commits).
+
+1. Add a manual-dispatch workflow (`.github/workflows/perf-baseline.yml`)
+   that runs `pnpm run perf:check --update --json FILE` several times (for
+   example 5 runs) on ubuntu-latest, and keeps, per case and size, a high
+   percentile of the score (say the 90th) so ordinary slow runners pass.
+   It uploads the resulting `baseline.json` as an artifact (no push from
+   CI). Read `test/perf/inference/gate.ts` and README for how scores and
+   `--update` work; extend `gate.ts` only as needed to merge several runs.
+2. Keep the gate's rules (1.5x slowdown limit, growth limits, the retry)
+   unchanged; only the baseline numbers change.
+3. Document in `test/perf/inference/README.md`: when and how to refresh
+   the baseline (run the workflow, download the artifact, commit it).
+4. Don't commit a new baseline yourself; say in the commit how to produce it.
+Check: `pnpm run perf:check` still passes locally against the current
+baseline; `actionlint`-style sanity by reading the YAML; lint/format.
+
+### BP. Top-Level Effects In A Non-Entry Module Of A Script Package
+
+`module.init.requirement-free` (spec/lang/10-modules.md): a module's
+top-level statements must be requirement-free unless it is the entry. In a
+package whose entry is a script (top-level statements, no `main`), the
+prototype joins every module's top level into one script, so a non-entry
+module's top-level `println("x")` is accepted (gap from c7d9c4e3; see the
+script-entry rows in `src/KNOWN_ISSUES.md`). Track each top-level
+statement's module of origin and report `module.init.requirement-free`'s
+error for a requirement in a non-entry module's top level, while the
+entry script keeps its row. Add fixtures (a package with `src/main.hd`
+script plus `src/util.hd` printing at top level: error; the same with the
+print inside a function: ok), run before and after, and update
+KNOWN_ISSUES. Checker only; no rule changes.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
