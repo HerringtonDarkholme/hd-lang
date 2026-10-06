@@ -7,6 +7,11 @@ This chapter defines expressions, which compute values.
 1. r[expr.static-type] Every expression has a static type.
 2. r[expr.evaluated] Every expression is evaluated according to the order defined here and in the relevant feature chapter.
 
+```hd
+fn demo(x: i32) -> i32:
+    x * 2 + 1
+```
+
 ## Evaluation Order
 
 This section defines the default order in which subexpressions are evaluated.
@@ -16,12 +21,28 @@ This section defines the default order in which subexpressions are evaluated.
 3. r[expr.order.conditional] `&&`, `||`, `if`, `match`, loops, optional or result propagation with `?`, and comprehension filters evaluate conditionally as described below.
 4. r[expr.order.reorder] A compiler may reorder only when it can prove that the program's observable behavior is unchanged.
 
+```hd
+fn demo() -> string:
+    let log: mut List[string] = []
+    fn mark(s: string) -> string:
+        log.push(s)
+        s
+    _ := "${mark("a")}${mark("b")}"
+    log.join(",")   # "a,b": left to right
+```
+
 ## Expression Categories
 
 This section defines value expressions and place expressions.
 
 1. r[expr.category.value] A **value expression** produces a value.
 2. r[expr.category.place] A **place expression** identifies a storage location and may be read or, when permissions allow, assigned.
+
+```hd
+fn demo() -> void:
+    let x = +1   # x is a place expression; x * 2 is a value expression
+    _ := x * 2
+```
 
 ### Places
 
@@ -36,6 +57,12 @@ calls through a callable value that accepts a store:
 6. r[expr.place.value-forms] `:=` bindings, literals, other calls, arithmetic, and temporary values are not places.
 7. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
 8. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
+
+```hd
+fn demo() -> void:
+    let x = +1
+    x = x + 1   # x is a place: a reassignable local
+```
 
 ### Assignment
 
@@ -185,6 +212,13 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 1. r[expr.literal.defined] Boolean, integer, floating-point, string, and character literals are defined lexically in [Lexical Structure](01-lexical-structure.md) and typed in [Type System](04-type-system.md).
 2. r[expr.literal.call] A suffixed literal or prefixed string is a call, as [Literal Suffixes](#literal-suffixes) specifies.
 4. r[expr.literal.pass] `pass` is the no-op expression. It has type `void` and performs no operation.
+
+```hd
+use std.time.s
+
+fn demo() -> void:
+    _ := 5s   # a suffixed literal is a call of the suffix function s
+```
 
 #### String Interpolation
 
@@ -565,6 +599,11 @@ fn numbers(count: i32) -> List[i32]:
 3. r[expr.map.iteration] Map iteration is in insertion order and is not part of map equality.
 4. r[expr.map.keys] Key validity and equality/hash requirements are defined in [Type System](04-type-system.md#map-key-types).
 
+```hd
+fn demo() -> Map[string, i32]:
+    {"a": +1, "b": +2}
+```
+
 #### Element Types
 
 1. r[expr.collection.empty] Empty `[]` and `{}` literals require an expected collection type.
@@ -641,6 +680,11 @@ See also: [Copy-Update Literals](08-data-and-enums.md#copy-update-literals),
 
 1. r[expr.postfix.binding] Postfix operations bind more tightly than every infix operator.
 
+```hd
+fn demo(items: List[i32]) -> usize:
+    items.len() + 1   # .len() binds tighter than +
+```
+
 ### Member Access
 
 `value.member` selects a member, and `tuple._0` selects a tuple element.
@@ -650,6 +694,15 @@ See also: [Copy-Update Literals](08-data-and-enums.md#copy-update-literals),
 3. r[expr.member.lookup] [Member Resolution](03-names-and-scopes.md#member-resolution) defines field and method lookup, including promoted members and the declaration-time check `ambiguous-promoted-member`.
 4. r[expr.member.enum-variant] `Enum.Variant` is not member access: it names an enum variant.
 5. r[expr.member.variant-fn-value] A variant constructor with exactly one payload field is a function value.
+
+```hd
+data Point:
+    x: i32
+    y: i32
+
+fn demo(p: Point) -> i32:
+    p.x + p.y
+```
 
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
 
@@ -682,12 +735,25 @@ See also: [Method References](07-functions.md#method-references).
 2. r[expr.member.readonly-generic] Member access through a readonly data root does not weaken a generic field's substituted type.
 3. r[expr.member.other-forms] Other member forms follow their own access rules in [Type System](04-type-system.md).
 
+```hd
+data Shelf:
+    content: mut List[i32]
+
+fn demo(shelf: Shelf) -> usize:
+    shelf.content.len()   # readonly root: content reads as List[i32]
+```
+
 ### Indexing
 
 1. r[expr.index.order] `receiver[index]` evaluates the receiver, then the index, and invokes the receiver type's indexing behavior.
 2. r[expr.index.expected] For a `List` or `string` receiver, the index is checked with `usize` as its expected type, so an integer literal index is a `usize`.
 3. r[expr.index.expected.range] For such a receiver, an index that is a range expression gives each of its bounds `usize` as the expected type. So `items[1..3]` slices with a `Range[usize]`.
 4. r[expr.index.negative-literal] A negated literal index or slice bound, as in `items[-1]` or `items[-1..]`, negates an unsigned value. It is an error. Error: `unsigned-negation`.
+
+```hd
+fn demo(items: List[i32]) -> i32:
+    items[0] + items[1]
+```
 
 #### List Indexing
 
@@ -1176,6 +1242,13 @@ See also: [Index Traits](#index-traits),
 1. r[expr.call.suspension] Suspension calls with `!` construct and drive a child suspension as specified in [Requirements and Suspension](11-requirements-and-suspension.md).
 2. r[expr.call.suspension.order] The callee and arguments are evaluated left to right before the child begins execution.
 
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn demo!() -> string:
+    fetch!("a") + fetch!("b")   # left to right: "value of avalue of b"
+```
+
 ### Propagation
 
 Postfix `?` handles either an optional or a `Result` value:
@@ -1397,6 +1470,11 @@ This section defines operator precedence and the meaning of each operator.
 > **Note.** Write `low <= value && value < high` rather than
 > `low <= value < high`.
 
+```hd
+fn demo() -> i32:
+    2 + 3 * 4   # 14: * binds tighter than +
+```
+
 ### Arithmetic Operators
 
 1. r[expr.arith.primitive-numeric] Between primitive operands, arithmetic operators require compatible numeric operands. Other operands use [Operator Traits](#operator-traits).
@@ -1480,11 +1558,21 @@ fn main() -> f64: 2 ** 2.0                     # error: mixed-numeric-types
 3. r[expr.float.remainder-truncated] Floating `%` returns the remainder of division truncated toward zero, as C `fmod` and Rust `%` do. The result is exact and has the dividend's sign.
 4. r[expr.float.remainder-special] A zero divisor, an infinite dividend, or a NaN operand gives NaN. A finite dividend with an infinite divisor gives the dividend.
 
+```hd
+fn demo() -> f64:
+    5.5 % 2.0   # 1.5: truncated toward zero, with the dividend's sign
+```
+
 ### Logical Operators
 
 1. r[expr.logic.not] Prefix `!` requires `bool`.
 2. r[expr.logic.bool] `&&` and `||` require `bool` operands and produce `bool`.
 3. r[expr.logic.short-circuit] `&&` and `||` evaluate the right operand only when needed.
+
+```hd
+fn demo(a: bool, b: bool) -> bool:
+    a && !b   # b is read only when a is true
+```
 
 ### Equality
 
@@ -1536,6 +1624,11 @@ fn neither() -> bool:
 10. r[expr.ord.unordered] An unordered comparison makes all four relational operators false.
 11. r[expr.ord.std.intrinsic] The `PartialOrd` implementations of the number types and `char`, and the `Ord` implementations of the integer types and `char`, are [intrinsic methods](09-traits.md#intrinsic-methods). Those for `string` are not.
 
+```hd
+fn demo(names: List[string]) -> List[string]:
+    names.sorted()   # byte order: "Zebra" before "apple"
+```
+
 #### Unsigned Comparisons With Zero
 
 A comparison of an unsigned value with zero in one of four forms has a
@@ -1573,6 +1666,11 @@ fn below(value: u32) -> bool:
 
 1. r[expr.is.no-user-code] `is` compares identity without invoking user code.
 
+```hd
+fn demo(a: List[i32], b: List[i32]) -> bool:
+    a is b   # identity, not contents
+```
+
 #### Allocation Identity
 
 1. r[expr.is.heap] Data values, stored enum payloads, lists, maps, and other heap composites have allocation identity; access permission (`mut`) does not change it.
@@ -1588,6 +1686,13 @@ fn below(value: u32) -> bool:
 11. r[expr.is.shared-data-canonical] Shared constructor data is not stored in enum values, so a variant without a payload is canonical even when its enum declares shared data.
 12. r[expr.is.none] Optionals follow the same enum rules: `.None` is payload-free and canonical, so every `.None` of one optional type is the same value.
 13. r[expr.is.some] Each construction of `.Some(value)`, including the implicit wrap of a `T` where `T?` is expected, has its own identity, distinct from its payload's.
+
+```hd
+fn demo() -> bool:
+    let items: mut List[i32] = [+1]
+    same := items
+    items is same   # one allocation, one identity
+```
 
 #### Identity Operands
 
@@ -2091,6 +2196,13 @@ sizes := [for user in users
 1. r[expr.closure] Closures are expressions described in [Functions](07-functions.md).
 2. r[expr.control] `if`, `match`, and loops are value-capable expressions described in [Control Flow](06-control-flow.md).
 
+```hd
+fn demo(flag: bool) -> i32:
+    apply := fn(x: i32) -> i32: x * 2
+    f := if flag: apply else: fn(x: i32) -> i32: x
+    f(+21)
+```
+
 ## Unsupported Expression Extensions
 
 1. r[expr.unsupported.custom-operators] hd-lang has no user-defined operator symbols, and no overloading of the operators that [`expr.op.not-overloaded`](#r-expr.op.not-overloaded) lists.
@@ -2098,5 +2210,10 @@ sizes := [for user in users
 3. r[expr.unsupported.any-fallback] hd-lang has no fallback conversion of heterogeneous literals to `Any`.
 4. r[expr.unsupported.try-mapping] Postfix `?` has no mapping clause.
 5. r[expr.unsupported.try-mapping.explicit] A site that needs a different error conversion maps the `Result` explicitly before `?`. One way is a function that takes a single-payload variant constructor as its mapper.
+
+```text
+fn inside(value: i32) -> bool:
+    0 < value < 10   # error: comparison-chaining
+```
 
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).

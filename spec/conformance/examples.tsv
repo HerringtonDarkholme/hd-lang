@@ -287,6 +287,7 @@ lang/05-expressions.md	79	accept	typing/valid/collections.hd
 lang/05-expressions.md	80	accept	typing/valid/collections.hd
 lang/05-expressions.md	81	mixed	typing/invalid/bang-call-in-comprehension.hd|runtime/valid/comprehension-bang-calls.hd
 lang/05-expressions.md	82	accept	typing/valid/collections.hd
+lang/05-expressions.md	83	mixed	parse/invalid/chained-comparison.hd
 lang/06-control-flow.md	1	mixed	typing/invalid/discarded-result.hd
 lang/06-control-flow.md	2	accept	typing/valid/control-flow.hd
 lang/06-control-flow.md	3	mixed	parse/invalid/nested-same-line-if.hd|parse/invalid/same-line-if-in-function-body.hd
