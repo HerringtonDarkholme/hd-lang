@@ -80,6 +80,9 @@ type identity here; only what messages print.
    a field declared `usize`; the types listed by `no-common-type`; and the
    generic-inference conflict ("both solve T"). Route each through
    `spelling.ts`, add a test per message, and delete F-611 when done.
+Also: a literal bound through a tuple pattern, `let (_a, b) = (1, 2)`
+   then `work(1, b)` with an `i32` parameter, says `found u32`; it must say
+   `found usize` with the "'b' is usize because its literal…" note.
 2. `xs := [1]` then `take_i32(xs.len())` adds the note "'xs' has usize in
    its type… write '+1'". That is wrong: `len()` is a size whatever the
    list holds, so no edit to `xs` helps. Give no literal hint when the
