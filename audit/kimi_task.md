@@ -90,25 +90,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K10. Add Missing Examples To Spec Sections
-
-`pnpm run spec audit` counts sections without an example (`no-ex`, 225
-today). Work smallest chapter first: 13-gadts (6), 07-functions (7),
-14-annotations (7), 02-grammar (10), 08-data-and-enums (13). For each
-flagged section, add one short example that shows the section's rule at
-work, following spec/STYLE.md.
-
-- An example that should compile goes in an ```hd block, and you must run
-  it with hd before committing. A rejected example uses the existing
-  ```text convention with its error code.
-- Realign `spec/conformance/examples.tsv` for every chapter where you add
-  a block (see "Spec examples" above), and keep `bash spec/check.sh` green.
-- If the compiler disagrees with the rule, don't change the example to
-  match the compiler: list it under Questions.
-
-One commit per chapter; that chapter's `no-ex` must drop and nothing else
-may rise.
-
 ### K11. Add Missing Examples To The Remaining Language Chapters
 
 Continue K10's method for the remaining chapters, smallest `no-ex` count
