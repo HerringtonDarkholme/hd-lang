@@ -77,40 +77,92 @@ and list it under Questions.
 ## Don't Touch
 
 - `src/`, `lib/`, `test/`, `spec/conformance/` (fixtures and indexes), and
-  `audit/codex_task.md`: other agents work there.
+  `audit/codex_task.md`: other agents work there. The one exception is
+  realigning `spec/conformance/examples.tsv` rows after you add, remove or
+  move a ```text or ```hd block in a spec chapter.
 - Rule IDs: never rename, add, or remove an `r[...]` ID. Rewording a rule's
   sentence keeps its ID.
 
 ## Jobs
 
-### K6. Split Long Sentences In The Language Chapters
+### K0. Push Your Five Reviewed K6 Commits
 
-Same method and rules as K1 (including the qualifier rule above), now for
-`spec/lang/`. The audit counts sentences over 25 words per chapter:
-06-control-flow (8), 08-data-and-enums (7), 07-functions (14),
-01-lexical-structure (15), 02-grammar (17), 03-names-and-scopes (18),
-14-annotations (23), 09-traits (24), 11-requirements-and-suspension (24),
-05-expressions (26), 04-type-system (32), 10-modules (33). Work in that
-order (smallest first). One commit per chapter; after each, run `bash
-spec/check.sh` and the audit; that chapter's `sent>25` must drop to 0 and
-nothing else may rise. Language rules are normative: if a split could
-change what a rule allows or forbids, leave the sentence and list it under
-Questions.
+Your worktree `/private/tmp/kimi-work` holds five K6 commits that never
+reached main: lang/06, 08, 07, 01 and 02 (head `d59431eb`). They were
+reviewed and approved as they are; don't reword them. Rebase them on
+origin/main, run `bash spec/check.sh` and `pnpm run check`, and push. Then
+continue with K6 from chapter 03.
 
-### K7. Usability Probe 3 (Read-Only)
+### K6. Split Long Sentences In The Language Chapters (Remaining)
 
-Act as a new hd user. Using only `README.md`, `guide/`, and `spec/` when
-the guide isn't enough, write four small realistic programs in a scratch
-directory outside the repo (never in it): (1) a todo CLI that stores items
-in a file and supports add/list/done via arguments; (2) a package with two
-modules (`src/model.hd`, `src/report.hd`) where one imports the other, plus
-a unit test and an integration test; (3) a word-frequency counter reading
-stdin and printing the top 10 with `dbg` while you develop; (4) a typed
-expression tree with a GADT-style `Expr[T]` and an `eval`. Run them with
-`node --experimental-strip-types <your worktree>/bin/hd.js`. For every
-mistake and message, add a row to `audit/hd-writing-log.md` in the existing
-format (agent column `kimi`). Commit only the log. Report the five most
-painful problems.
+Same method and rules as K1, including the qualifier rule above. Chapters
+06, 08, 07, 01 and 02 are done (K0). Remaining, smallest first, with
+today's `sent>25` counts: 03-names-and-scopes (18), 14-annotations (23),
+09-traits (24), 11-requirements-and-suspension (24), 05-expressions (26),
+04-type-system (32), 10-modules (33). One commit per chapter. After each,
+run `bash spec/check.sh` and `pnpm run spec audit`: that chapter's
+`sent>25` must drop to 0, and no other count may rise. Language rules are
+normative: if a split could change what a rule allows or forbids, leave
+the sentence and list it under Questions.
+
+### K8. Check The Guide's Examples Against The Compiler And The Spec
+
+The guide shows many complete programs in ```text blocks, which no tool
+checks (for example the GADT `Expr[T]` example in
+`guide/LANGUAGE_TOUR.md`). For each block in `guide/*.md` that is a
+complete program, or can become one by adding only a `main`, copy it to a
+scratch directory outside the repo and run it with
+`node --experimental-strip-types <your worktree>/bin/hd.js FILE`.
+
+- If it works, leave it.
+- If it fails and the spec agrees with the guide, the compiler is wrong:
+  don't change the guide; list the block, the command, and the output
+  under Questions.
+- If it fails because the guide is wrong (old syntax, a missing `use`, a
+  private field, a renamed std function), fix the guide text so it matches
+  the spec, and run it again until it works.
+
+One commit per guide file. Put a short table in the commit message: block
+heading, result (ok / fixed / compiler mismatch).
+
+### K9. Usability Probe 4 (Read-Only)
+
+Act as a new hd user. Use only `README.md`, `guide/`, and `spec/` when
+the guide isn't enough. Write four small realistic programs in a scratch
+directory outside the repo:
+
+1. A config loader: `@derive(Serialize, Deserialize)` on a nested config
+   type, read from a JSON file, with a typed error when a field is missing.
+2. A property test with the standard testing library: a function that
+   normalizes whitespace, plus properties that hold for any string.
+3. A service with a `Mailer` requirement, tested by binding a fake
+   provider with `$.with`, and run for real with the default profile.
+4. A command-line tool that reads `Args`, validates them, and reports
+   errors with `@error` types and `?`.
+
+Run them with your worktree's `bin/hd.js`. For every mistake and message,
+add a row to `audit/hd-writing-log.md` in the existing format (task
+`probe 4: …`, model column `kimi`). Commit only the log. In the commit
+message, list the five most painful problems.
+
+### K10. Add Missing Examples To Spec Sections
+
+`pnpm run spec audit` counts sections without an example (`no-ex`, 225
+today). Work smallest chapter first: 13-gadts (6), 07-functions (7),
+14-annotations (7), 02-grammar (10), 08-data-and-enums (13). For each
+flagged section, add one short example that shows the section's rule at
+work, following spec/STYLE.md.
+
+- An example that should compile goes in an ```hd block, and you must run
+  it with hd before committing. A rejected example uses the existing
+  ```text convention with its error code.
+- Realign `spec/conformance/examples.tsv` for every chapter where you add
+  a block (see "Spec examples" above), and keep `bash spec/check.sh` green.
+- If the compiler disagrees with the rule, don't change the example to
+  match the compiler: list it under Questions.
+
+One commit per chapter; that chapter's `no-ex` must drop and nothing else
+may rise.
 
 ## Questions
 
