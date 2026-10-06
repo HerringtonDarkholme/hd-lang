@@ -3,9 +3,9 @@
 Status: standard library specification draft.
 
 This chapter defines the part of `std.result` that `lib/std` writes in
-ordinary hd over the language tier: the inherent methods `and_then`,
-`map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect`
-of `Result[T, E]`.
+ordinary hd over the language tier. That is the inherent methods
+`and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`,
+and `expect` of `Result[T, E]`.
 
 The language tier keeps what the compiler knows by name
 ([Result Types](../lang/04-type-system.md#result-types)):
