@@ -83,6 +83,35 @@ and list it under Questions.
 
 ## Jobs
 
+### K6. Split Long Sentences In The Language Chapters
+
+Same method and rules as K1 (including the qualifier rule above), now for
+`spec/lang/`. The audit counts sentences over 25 words per chapter:
+06-control-flow (8), 08-data-and-enums (7), 07-functions (14),
+01-lexical-structure (15), 02-grammar (17), 03-names-and-scopes (18),
+14-annotations (23), 09-traits (24), 11-requirements-and-suspension (24),
+05-expressions (26), 04-type-system (32), 10-modules (33). Work in that
+order (smallest first). One commit per chapter; after each, run `bash
+spec/check.sh` and the audit; that chapter's `sent>25` must drop to 0 and
+nothing else may rise. Language rules are normative: if a split could
+change what a rule allows or forbids, leave the sentence and list it under
+Questions.
+
+### K7. Usability Probe 3 (Read-Only)
+
+Act as a new hd user. Using only `README.md`, `guide/`, and `spec/` when
+the guide isn't enough, write four small realistic programs in a scratch
+directory outside the repo (never in it): (1) a todo CLI that stores items
+in a file and supports add/list/done via arguments; (2) a package with two
+modules (`src/model.hd`, `src/report.hd`) where one imports the other, plus
+a unit test and an integration test; (3) a word-frequency counter reading
+stdin and printing the top 10 with `dbg` while you develop; (4) a typed
+expression tree with a GADT-style `Expr[T]` and an `eval`. Run them with
+`node --experimental-strip-types <your worktree>/bin/hd.js`. For every
+mistake and message, add a row to `audit/hd-writing-log.md` in the existing
+format (agent column `kimi`). Commit only the log. Report the five most
+painful problems.
+
 ## Questions
 
 (none)
