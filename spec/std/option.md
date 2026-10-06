@@ -3,8 +3,9 @@
 Status: standard library specification draft.
 
 This chapter defines the part of `std.option` that `lib/std` writes in
-ordinary hd over the language tier: the inherent methods `and_then`,
-`unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of `T?`.
+ordinary hd over the language tier. That is the inherent methods
+`and_then`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of
+`T?`.
 
 The language tier keeps what the compiler knows by name
 ([Optional Types](../lang/04-type-system.md#optional-types)):
