@@ -15,7 +15,6 @@ runtime/valid/contextual-variant-after-same-line-if.hd	check exits 101 with type
 typing/invalid/match-arm-misses-expected-type.hd	check reports no-common-type on the match line, where the declared result is an expected type, so the arm that misses it is a type-mismatch on its own line	F-615
 typing/invalid/if-branch-misses-expected-type.hd	check reports no-common-type on the if line, where the declared result is an expected type, so the branch that misses it is a type-mismatch on its own line	F-615
 runtime/valid/trait-associated-call-infers-self.hd	check exits 101 with associated-function-needs-target on Factory::create(): a Trait::f call does not infer Self from the expected type (trait.assoc-call.trait)	F-617
-typing/invalid/mut-any-bound-readonly-argument.hd	check accepts a readonly argument for T < mut Any, which drops the mut requirement with the Any bound (trait.bound.mut-any)	F-619
 typing/invalid/non-entry-top-level-println.hd	check exits 0: in a package, the module under test is treated as the entry module whatever its path, so the top level of a library module gets an inferred entry row and println there is accepted (module.init.requirement-free)	F-621
 cli/derivation-lines-agree	hd check warns derivation-line-drift on the Deserialize block, although both blocks write the same member line cache = pass; the warning is only for lines that differ (annot.line.drift)	F-622
 cli/dep-package-cycle	hd check exits 0: the prototype does not model the package graph, so money requiring shop back by path is no package-cycle (module.cycle.package)	F-623

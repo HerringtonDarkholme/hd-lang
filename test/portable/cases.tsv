@@ -2689,6 +2689,7 @@ typing/invalid/typeid-of-any.hd	type
 typing/invalid/downcast-result-readonly.hd	type
 typing/invalid/any-bare-none.hd	type
 typing/valid/any-optional-none-and-mut-any.hd	type
+typing/invalid/mut-any-bound-readonly-argument.hd	type
 typing/invalid/child-trait-redeclares-associated-type.hd	type
 typing/invalid/child-trait-redeclares-associated-function.hd	type
 typing/invalid/from-reflexive-impl.hd	type

@@ -119,6 +119,12 @@ export interface HirTraitMethod {
   // Method-level generic parameters bounded by AnyVal. They keep the method
   // out of dynamic dispatch (04-type-system.md#trait-values-and-any).
   readonly valueParameters?: readonly string[];
+  /**
+   * Type parameters whose `mut` bound names a trait that passes no
+   * dictionary, as `T < mut Any`: an argument must still be a mutable root
+   * (09-traits.md#r-trait.bound.mut-any).
+   */
+  readonly mutableParameters?: readonly string[];
   /** Type-argument defaults of the method-level parameters (09-traits.md#method-generic-parameters). */
   readonly genericDefaults?: ReadonlyMap<string, ValueType>;
   readonly suspending: boolean;

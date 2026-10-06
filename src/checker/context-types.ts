@@ -15,6 +15,12 @@ export interface Signature {
   readonly genericBounds: readonly HirGenericBound[];
   readonly referenceParameters?: readonly string[];
   readonly valueParameters?: readonly string[];
+  /**
+   * Type parameters whose `mut` bound names a trait that passes no
+   * dictionary, as `T < mut Any`: an argument must still be a mutable root
+   * (09-traits.md#r-trait.bound.mut-any).
+   */
+  readonly mutableParameters?: readonly string[];
   readonly rowParameters: readonly string[];
   /**
    * Every generic parameter in declared order, type and row alike, when a

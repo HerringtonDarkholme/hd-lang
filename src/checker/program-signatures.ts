@@ -246,6 +246,7 @@ export function createProgramSignatures(
       AnyVal: new Set<string>(),
       Tuple: new Set<string>(),
     };
+    const mutableParameters = new Set<string>();
     const boundProjections = new Set<string>();
     const genericBounds = declaration.genericBounds.flatMap((bound) => {
       if (rowParameterSet.has(bound.parameter)) {
@@ -272,6 +273,10 @@ export function createProgramSignatures(
         // (09-traits.md#generic-bounds-and-static-dispatch).
         if (seen.has(traitKey)) return [];
         seen.add(traitKey);
+        // These pass no dictionary, so their `mut` is kept apart
+        // (09-traits.md#r-trait.bound.mut-any).
+        if (mutable && (traitName === "AnyRef" || traitName === "AnyVal" || traitName === "Any"))
+          mutableParameters.add(bound.parameter);
         if (traitName === "AnyRef" || traitName === "AnyVal") {
           categoryParameters[traitName].add(bound.parameter);
           return [];
@@ -467,6 +472,7 @@ export function createProgramSignatures(
       genericBounds,
       referenceParameters: [...categoryParameters.AnyRef],
       valueParameters: [...categoryParameters.AnyVal],
+      ...(mutableParameters.size > 0 ? { mutableParameters: [...mutableParameters] } : {}),
       ...(categoryParameters.Tuple.size > 0
         ? { tupleParameters: [...categoryParameters.Tuple] }
         : {}),

@@ -710,12 +710,17 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         ) ?? "void";
       const referenceParameters: string[] = [];
       const valueParameters: string[] = [];
+      const mutableParameters: string[] = [];
       const genericBounds = method.genericBounds.flatMap((bound) =>
         bound.traits.flatMap((sourceTraitName) => {
           const mutable = mutableInner(sourceTraitName) !== undefined;
           const traitKey = mutableInner(sourceTraitName) ?? sourceTraitName;
           const application = nominalGenericParts(traitKey);
           const traitName = application?.name ?? traitKey;
+          // These pass no dictionary, so their `mut` is kept apart
+          // (09-traits.md#r-trait.bound.mut-any).
+          if (mutable && (traitName === "AnyRef" || traitName === "AnyVal" || traitName === "Any"))
+            mutableParameters.push(bound.parameter);
           if (traitName === "AnyRef") {
             referenceParameters.push(bound.parameter);
             return [];
@@ -780,6 +785,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         ...(defaults.length > 0 ? { genericDefaults: new Map(defaults) } : {}),
         referenceParameters,
         valueParameters,
+        ...(mutableParameters.length > 0 ? { mutableParameters } : {}),
         suspending: method.suspending,
         receiverMutable: method.parameters[0]?.type.name === "mut:Self",
         parameters: parameters.map((parameter) => parameter ?? "void"),

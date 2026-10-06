@@ -905,9 +905,10 @@ export abstract class CallChecker extends StatementChecker {
         }
         if (
           formalGeneric &&
-          signature.genericBounds.some(
+          (signature.genericBounds.some(
             (bound) => bound.parameter === formalGeneric && bound.mutable,
-          ) &&
+          ) ||
+            (signature.mutableParameters ?? []).includes(formalGeneric)) &&
           mutableInner(checked.type) === undefined
         )
           this.fail(
