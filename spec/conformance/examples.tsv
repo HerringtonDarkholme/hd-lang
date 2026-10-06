@@ -641,7 +641,7 @@ lang/14-annotations.md	28	mixed	typing/invalid/omitted-member-without-default.hd
 lang/14-annotations.md	29	accept	typing/valid/trait-less-derivation-block.hd
 lang/14-annotations.md	30	mixed	typing/invalid/trait-less-block-omit.hd|typing/invalid/trait-less-block-method.hd|typing/invalid/trait-less-block-newtype.hd|typing/invalid/trait-less-block-generic-argument.hd|typing/invalid/trait-less-block-second.hd
 lang/14-annotations.md	31	accept	typing/valid/typed-derivation.hd
-lang/14-annotations.md	32	mixed	typing/warnings/unused-derivation-fact.hd|typing/warnings/trait-less-self-line-unused-fact.hd|typing/warnings/derivation-block-decorator.hd|typing/invalid/duplicate-type-level-fact.hd|typing/warnings/derivation-block-decorator-std.hd
+lang/14-annotations.md	32	mixed	typing/valid/type-level-fact-without-template.hd|typing/valid/trait-less-self-line-fact.hd|typing/warnings/derivation-block-decorator.hd|typing/invalid/duplicate-type-level-fact.hd|typing/warnings/derivation-block-decorator-std.hd
 lang/14-annotations.md	33	mixed	typing/invalid/block-on-in-fact.hd
 lang/14-annotations.md	34	accept	runtime/valid/debug-tuple-rest.hd
 lang/14-annotations.md	35	accept	runtime/valid/structure-self-ref.hd|runtime/valid/structure-self-ref-enum.hd

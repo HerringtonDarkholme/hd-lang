@@ -1041,7 +1041,7 @@ typing/invalid/derive-member-not-derivable.hd	type
 typing/valid/derived-equality.hd	type
 typing/valid/typed-derivation-build.hd	type
 typing/warnings/derivation-line-drift.hd	type
-typing/warnings/unused-derivation-fact.hd	type
+typing/valid/type-level-fact-without-template.hd	type
 typing/valid/literal-suffix-duration.hd	type
 typing/valid/literal-suffix-result-type.hd	type
 typing/valid/literal-suffix-local-shadow.hd	type
@@ -1078,10 +1078,10 @@ typing/invalid/duplicate-type-level-fact.hd	type
 typing/invalid/trait-less-block-generic-argument.hd	type
 typing/invalid/trait-less-block-generic-bound.hd	type
 typing/invalid/trait-less-block-second.hd	type
-typing/warnings/trait-less-self-line-unused-fact.hd	type
+typing/valid/trait-less-self-line-fact.hd	type
 typing/valid/trait-less-block-generic-rename.hd	type
 typing/invalid/member-line-not-list.hd	type
-typing/warnings/per-trait-self-line-unused-fact.hd	type
+typing/valid/per-trait-self-line-foreign-fact.hd	type
 typing/invalid/println-in-defer.hd	type
 typing/invalid/println-in-default.hd	type
 typing/invalid/test-module-tests-block.hd	type

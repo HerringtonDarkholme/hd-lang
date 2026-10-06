@@ -56,15 +56,12 @@ import {
   type TraversalGenerics,
 } from "./template-instances.ts";
 import { withTypedFacts } from "./typed-facts.ts";
-import { foreignSelfLines } from "./package-ownership.ts";
 import { factsOfBuilders, importsFactsOf, STRUCTURE_FACT } from "./function-facts.ts";
-import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
+import { checkDuplicateDeclarationFacts } from "./declaration-facts.ts";
 import {
   checkMemberLines,
   isSpreadFact,
-  isTraitLess,
   withInlinedListLines,
-  lineFacts,
   type Target,
   withTraitLessBlocks,
 } from "./member-lines.ts";
@@ -554,8 +551,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
     derivations.push({ trait, target, lines, block, span: block.span });
   }
 
-  // Warnings: line drift and unused type-level facts.
-  // Only a decorator's fact can be unused (annot.fact.unused-non-std).
+  // Warnings: line drift and decorators attached to derivation blocks.
   lintDerivations(source, derivations, diagnostics);
 
   if (diagnostics.some((item) => item.severity !== "warning"))
@@ -978,42 +974,6 @@ function lintDerivations(
         );
     });
   }
-  // Only a fact whose type comes from a package other than `std` warns
-  // (annot.fact.unused-non-std). A fact built by a name imported from `std`,
-  // such as `@annotate(.Field)`, has a standard type (annot.fact.unused-std).
-  const standardNames = new Set(
-    program.uses
-      .filter((use) => use.module.startsWith("std."))
-      .flatMap((use) => use.names.map((name) => name.alias ?? name.name)),
-  );
-  const standardFact = (fact: Expression): boolean =>
-    (fact.kind === "call" && fact.callee.kind === "name" && standardNames.has(fact.callee.name)) ||
-    (fact.kind === "data" && standardNames.has(fact.name));
-  for (const declaration of [...program.data, ...program.enums]) {
-    if (declaration.standard && (declaration.decorators?.derives.length ?? 0) === 0) continue;
-    const facts = declaration.decorators?.facts ?? [];
-    if (facts.length === 0 || byTarget.has(declaration.name)) continue;
-    for (const fact of facts)
-      if (!isLiteralFact(fact) && !standardFact(fact))
-        warn(
-          "unused-derivation-fact",
-          `type '${declaration.name}' derives no template that could read this fact`,
-          fact.span,
-        );
-  }
-  // A trait-less block's `Self` line warns the same way, on the line
-  // (annot.fact.unused-self-line).
-  for (const block of program.implementations.filter(isTraitLess)) {
-    const name = headName(block.targetName);
-    if (byTarget.has(name)) continue;
-    for (const line of block.memberLines ?? [])
-      if (line.name === "Self" && line.value && lineFacts(line.value).some(nonLiteral))
-        warn(
-          "unused-derivation-fact",
-          `type '${name}' derives no template that could read this fact`,
-          line.span,
-        );
-  }
   // A decorator before a derivation block attaches nothing a derivation
   // reads (annot.fact.unused-block-decorator); the fix-it moves it into the
   // block (annot.fact.unused-block-decorator.fix).
@@ -1026,14 +986,6 @@ function lintDerivations(
         fact.span,
       );
   }
-  // A per-trait block's `Self` line warns only when the fact's package does
-  // not supply the block's trait (annot.fact.unused-self-line.per-trait).
-  for (const span of foreignSelfLines(program, lineFacts, nonLiteral))
-    warn(
-      "unused-derivation-fact",
-      "this fact's package does not supply the block's trait, so no template of it reads the fact",
-      span,
-    );
 }
 
 /**
@@ -1070,10 +1022,6 @@ function checkUnderivableTargets(
  */
 function unscoped(fact: Expression): Expression {
   return fact.kind === "call" && fact.typedFactScope ? fact.arguments[0]! : fact;
-}
-
-function nonLiteral(fact: Expression): boolean {
-  return !isLiteralFact(fact);
 }
 
 /**

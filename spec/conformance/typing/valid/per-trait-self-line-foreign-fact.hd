@@ -1,6 +1,6 @@
 # fixture-package-role: root-application
-# test: a Self line in a per-trait derivation block warns, on the line, when the fact's package does not supply the block's trait
-# Spec 14 Facts: annot.fact.unused-self-line.per-trait (M29).
+# test: a per-trait block may write a fact from a package that supplies no template for the trait
+# Spec 14 Member Lines: annot.line.self; dead-fact warnings are parked.
 use dep.models.{User}
 use std.structure.{Structure, Field, Variant, Walker}
 
@@ -30,4 +30,4 @@ data Quiet:
     id: i64
 
 impl Show for Quiet by Structure:
-    Self += [User { name: "owner" }]  # warning: unused-derivation-fact
+    Self += [User { name: "owner" }]

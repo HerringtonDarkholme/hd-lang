@@ -118,3 +118,27 @@ test("typed derivation reports its diagnostics at the opt-in", () => {
     "decorator-not-annotator",
   ]);
 });
+
+test("dead-fact warnings keep only the local derivation-block case", () => {
+  const result = analyze(`${LIBRARY}
+@rename(name="plain")
+data Plain:
+    id: i32
+
+data Quiet:
+    id: i32
+
+impl Quiet by Structure:
+    Self += [rename(name="quiet")]
+
+data Loud:
+    id: i32
+
+@rename(name="loud")
+impl Loud by Structure:
+    id += [rename(name="member")]
+`);
+  const warnings = result.diagnostics.filter(({ code }) => code === "unused-derivation-fact");
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!.message, /decorator before a derivation block/);
+});

@@ -2,8 +2,7 @@ import type { Expression, Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 
 // Declaration facts: the decorators on items, members, variants, and
-// parameters (spec/lang/14-annotations.md#member-metadata), and the literal facts that the
-// unused-fact warning skips (#r-annot.fact.unused-std).
+// parameters (spec/lang/14-annotations.md#member-metadata).
 
 /**
  * One member, variant, or parameter holds at most one declaration fact of
@@ -48,11 +47,4 @@ export function checkDuplicateDeclarationFacts(
   }
   for (const declaration of program.types ?? [])
     check(declaration.decorators?.facts, "declaration");
-}
-
-/** A literal fact has a primitive type, so it never warns as unused. */
-export function isLiteralFact(fact: Expression): boolean {
-  return ["string", "interpolated-string", "integer", "float", "boolean", "character"].includes(
-    fact.kind,
-  );
 }

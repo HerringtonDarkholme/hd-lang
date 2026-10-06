@@ -1,5 +1,5 @@
-# test: a type-level fact written in a trait-less block's Self line warns, on the line, when its package derives nothing on the type
-# Spec 14 Facts: annot.fact.unused-self-line (M28).
+# test: a type-level fact is accepted when no template in its package reads it
+# Spec 14 Facts: annot.fact.type-level-decorator; dead-fact warnings are parked.
 use std.structure.{Structure, Field, Variant, Walker}
 
 trait Show:
@@ -34,8 +34,10 @@ data Style:
 fn style(prefix: string = "") -> Style:
     Style { prefix: prefix }
 
-data Quiet:
+@style(prefix="p_")
+data Plain:
     id: i64
 
-impl Quiet by Structure:
-    Self += [style(prefix="q_")]  # warning: unused-derivation-fact
+@"internal"
+data Note:
+    id: i64

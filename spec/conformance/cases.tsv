@@ -1127,7 +1127,7 @@ typing/invalid/generic-member-call.hd	type	reject:generic-member-call	lang/14-an
 typing/invalid/newtype-derivation-self.hd	type	reject:newtype-derivation-self	lang/09-traits.md#r-trait.derive.newtype.self-error
 typing/invalid/gadt-derivation.hd	type	reject:gadt-derivation	lang/14-annotations.md#r-annot.block.gadt
 typing/warnings/derivation-line-drift.hd	type	warn:derivation-line-drift	lang/14-annotations.md#r-annot.line.drift
-typing/warnings/unused-derivation-fact.hd	type	warn:unused-derivation-fact	lang/14-annotations.md#r-annot.fact.unused-non-std
+typing/valid/type-level-fact-without-template.hd	type	accept	lang/14-annotations.md#r-annot.fact.type-level-decorator
 runtime/panic/structure-variant-mismatch.hd	runtime	panic:structure-variant-mismatch	lang/14-annotations.md#r-annot.handle.get.variant
 parse/valid/derivation-member-lines.hd	parse	accept	lang/02-grammar.md#r-grammar.impl.derivation-line
 parse/invalid/mutable-requirement-key.hd	parse	reject:syntax-error	lang/11-requirements-and-suspension.md#r-req.mut.no-spelling
@@ -1233,11 +1233,11 @@ typing/valid/trait-less-block-generic.hd	type	accept	lang/14-annotations.md#r-an
 typing/invalid/trait-less-block-generic-argument.hd	type	reject:misplaced-derivation	lang/14-annotations.md#r-annot.traitless.generic.error
 typing/invalid/trait-less-block-generic-bound.hd	type	reject:misplaced-derivation	lang/14-annotations.md#r-annot.traitless.generic.error
 typing/invalid/trait-less-block-second.hd	type	reject:overlapping-impl	lang/14-annotations.md#r-annot.traitless.unique
-typing/warnings/trait-less-self-line-unused-fact.hd	type	warn:unused-derivation-fact	lang/14-annotations.md#r-annot.fact.unused-self-line
+typing/valid/trait-less-self-line-fact.hd	type	accept	lang/14-annotations.md#r-annot.traitless.self
 runtime/valid/member-line-list-expression.hd	runtime	accept	lang/14-annotations.md#r-annot.line.right-typed
 typing/valid/trait-less-block-generic-rename.hd	type	accept	lang/14-annotations.md#r-annot.traitless.generic.rename
 typing/invalid/member-line-not-list.hd	type	reject:invalid-member-line	lang/14-annotations.md#r-annot.line.right.not-list
-typing/warnings/per-trait-self-line-unused-fact.hd	type	warn:unused-derivation-fact	lang/14-annotations.md#r-annot.fact.unused-self-line.per-trait
+typing/valid/per-trait-self-line-foreign-fact.hd	type	accept	lang/14-annotations.md#r-annot.line.self
 runtime/valid/println-under-main-driver.hd	runtime	accept	lang/10-modules.md#r-module.console.println-block-on.under-driver
 runtime/valid/println-in-test-body.hd	runtime	accept	lang/10-modules.md#r-module.console.println-block-on.under-driver
 typing/invalid/println-in-defer.hd	type	reject:suspension-forbidden-context	lang/10-modules.md#r-module.console.println-block-on

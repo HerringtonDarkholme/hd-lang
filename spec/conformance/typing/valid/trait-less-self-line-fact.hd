@@ -1,4 +1,5 @@
-# test: a type-level fact whose package derives nothing on the type gets a warning
+# test: a trait-less block may write a type-level fact that no known template reads
+# Spec 14 Trait-Less Blocks: annot.traitless.self; dead-fact warnings are parked.
 use std.structure.{Structure, Field, Variant, Walker}
 
 trait Show:
@@ -33,10 +34,8 @@ data Style:
 fn style(prefix: string = "") -> Style:
     Style { prefix: prefix }
 
-@style(prefix="p_")  # warning: unused-derivation-fact
-data Plain:
+data Quiet:
     id: i64
 
-@"internal"
-data Note:
-    id: i64
+impl Quiet by Structure:
+    Self += [style(prefix="q_")]

@@ -56,6 +56,41 @@ gives their background:
 M30 deferred template constants, typed shared constants, and composing
 templates until a real template needs them; they are not in the spec.
 
+#### Parked: Dead-Fact Warnings
+
+The commit titled `BA: Defer dead-fact warnings` removed these four rules
+from [Facts](../spec/lang/14-annotations.md#facts):
+
+> 9. r[annot.fact.unused-non-std] A type-level fact whose type comes from a package other than `std`, where that package supplies no template that the type derives, gets a warning, reported on its decorator. Warning: `unused-derivation-fact`.
+>
+> 10. r[annot.fact.unused-std] A fact of a primitive or standard type, such as `@"internal"`, never gets this warning.
+>
+> 11. r[annot.fact.unused-self-line] A type-level fact that a trait-less block's `Self` line writes gets the same warning under the same conditions, reported on that line. Warning: `unused-derivation-fact`.
+>
+> 12. r[annot.fact.unused-self-line.per-trait] A type-level fact that a `Self` line of a derivation block for a trait writes gets the same warning, reported on that line, when the fact's package does not supply that trait. Warning: `unused-derivation-fact`.
+
+That commit renamed three warning fixtures as acceptance fixtures:
+`typing/warnings/unused-derivation-fact.hd` to
+`typing/valid/type-level-fact-without-template.hd`,
+`typing/warnings/trait-less-self-line-unused-fact.hd` to
+`typing/valid/trait-less-self-line-fact.hd`, and
+`typing/warnings/per-trait-self-line-unused-fact.hd` to
+`typing/valid/per-trait-self-line-foreign-fact.hd`. Use
+`git show ':/^BA: Defer dead-fact warnings$'` to restore the removed rules,
+checker code, and former fixtures.
+
+Dead facts are worth a warning, but the accurate rule is read-set based.
+Warn only when no template the type derives reads facts of that type; for a
+`Self` line, consider the block's template. A template's read set is the fact
+types it looks up with `find::[F]`; a dynamic fact lookup counts as reading all
+fact types.
+
+Revisit the warning when the checker can see template read sets across
+packages, such as from a dependency's checked interface. The motivating false
+positive was a shared vocabulary package that only defines fact types: a
+`Label` fact read by both `Form` and `Grid` templates was incorrectly warned as
+dead.
+
 #### Parked: Tool Adapters
 
 Parked with typed derivation (FN_TYPE decision 10); tools register
