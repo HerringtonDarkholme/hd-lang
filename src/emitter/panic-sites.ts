@@ -39,12 +39,20 @@ export class PanicSiteTable {
   readonly sites: PanicSite[] = [];
   private readonly ids = new Map<string, number>();
   private annotating = false;
+  /**
+   * Where the closure being emitted starts. A closure that the compiler
+   * wrote for an expression, such as the step of `list.iter()`, puts its
+   * code at that expression; it carries no site, so a panic in it names the
+   * program's call that ran it. A written closure's code starts after `fn`.
+   */
+  private closureStart: number | undefined;
   /** The keys of the open expressions' sites, innermost last. */
   private readonly open_: string[] = [];
 
   /** Annotates the expressions of `declaration` when it is program code, not `lib/std`. */
   enter(declaration: HirFunction | undefined): void {
     this.annotating = declaration !== undefined && declaration.standard !== true;
+    this.closureStart = declaration?.closure ? declaration.span.start.offset : undefined;
     this.open_.length = 0;
   }
 
@@ -52,6 +60,7 @@ export class PanicSiteTable {
   open(expression: HirExpression): OpenSite | undefined {
     if (!this.annotating || READS.has(expression.kind)) return undefined;
     const { line, column, offset } = expression.span.start;
+    if (offset === this.closureStart) return undefined;
     const fallback = usizeFallback(expression);
     const key = `${offset}:${line}:${column}${fallback ? ":fallback" : ""}`;
     const outer = this.open_.at(-1);
@@ -79,6 +88,11 @@ export class PanicSiteTable {
     }
     const { line, column } = open.site.span.start;
     return `;;@ s${id}:${line}:${column}\n${wat}`;
+  }
+
+  /** `wat`, code that `expression` runs outside its own emission, at its site. */
+  at(expression: HirExpression, wat: string): string {
+    return this.close(this.open(expression), wat);
   }
 }
 

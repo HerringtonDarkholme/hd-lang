@@ -200,6 +200,12 @@ class FunctionEmitter extends FunctionBodyEmitter {
     ].join("\n");
   }
 
+  /** The poll of `drive`'s suspension, at the site of the drive, which a panic in it names. */
+  private sitePoll(drive: Parameters<typeof suspensionPoll>[0], child: string): string {
+    const poll = suspensionPoll(drive, child);
+    return this.panicSites ? this.panicSites.at(drive, poll) : poll;
+  }
+
   emitSuspensionSupport(declaration: HirFunction): string {
     this.currentFunctionIndex = declaration.suspensionIndex ?? declaration.index;
     this.enterBoundLocals(declaration);
@@ -389,7 +395,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       return [
         `(if (i32.eq (local.get $resume-state) (i32.const ${5 + site.siteIndex}))`,
         `  (then`,
-        `    (if (i32.eqz ${suspensionPoll(site.drive, child)})`,
+        `    (if (i32.eqz ${this.sitePoll(site.drive, child)})`,
         `      (then`,
         ...storeFrame.map((line) => `        ${line}`),
         `        (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (local.get $resume-state))`,
@@ -605,7 +611,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
         const child = `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${terminator.siteIndex} (local.get $frame))`;
         return [
           `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${terminator.siteIndex} (local.get $frame) ${this.emitExpression(terminator.drive.suspension)})`,
-          `(if (i32.eqz ${suspensionPoll(terminator.drive, child)})`,
+          `(if (i32.eqz ${this.sitePoll(terminator.drive, child)})`,
           `  (then`,
           ...storeFrame.map((line) => `    ${line}`),
           `    (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const ${5 + terminator.siteIndex}))`,

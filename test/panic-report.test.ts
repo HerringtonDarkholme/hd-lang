@@ -74,6 +74,27 @@ test("a panic names the program operation it happened at, inside std calls too",
     });
 });
 
+test("code the compiler writes for an expression names the call that ran it", async () => {
+  // `values.iter()` makes a step closure at line 2; the panic is in `next()`.
+  const source = [
+    "fn invalidated(values: mut List[i32]) -> void:",
+    "    let iterator: mut Iterator[i32] = values.iter()",
+    "    values.push(4)",
+    "    _ := iterator.next()",
+    "",
+    "pub fn main() -> void:",
+    "    let values: mut List[i32] = [1, 2, 3]",
+    "    invalidated(values)",
+    "",
+  ].join("\n");
+  await withFile(source, async (file) => {
+    assert.equal(
+      (await runHd([file])).stderr.trim(),
+      `${file}:4:10: iterator-invalidated: runtime panic`,
+    );
+  });
+});
+
 test("an overflow at a usize default type names the binding and the fix", async () => {
   const source = [
     "pub fn main() -> void $ Console:",
