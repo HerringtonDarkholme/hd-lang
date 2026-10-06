@@ -8,6 +8,16 @@ This chapter defines data types and enums.
 2. r[data.kind.enum] An **enum** is a nominal sum type.
 3. r[data.kind.no-class] Neither is a class, and neither creates an inheritance hierarchy.
 
+```hd
+data Point:
+    x: i32
+    y: i32
+
+enum Shape:
+    Dot
+    Circle(radius: f64)
+```
+
 > **Why.** The keyword `data` names the declaration form without suggesting
 > value-type copying.
 
@@ -50,6 +60,15 @@ data User:
 5. r[data.default.scope] A default sees the declaration's lexical scope.
 6. r[data.default.no-field-binding] A default does not implicitly bind other fields of the new value.
 7. r[data.default.embedded] Embedded fields have no default syntax.
+
+```hd
+data Config:
+    retries: i32 = 3
+    name: string
+
+fn demo() -> i32:
+    Config { name: "shop" }.retries   # 3: the default fills the missing field
+```
 
 See also: [Default Values](07-functions.md#default-values).
 
@@ -105,6 +124,12 @@ See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operat
 3. r[data.recursive.local] Local data types follow declaration-point visibility and cannot refer to a later local declaration.
 4. r[data.recursive.required-fields] Recursion does not imply optionality: a program must still provide a value for every required field during construction.
 
+```hd
+data Chain:
+    value: i32
+    next: Chain?
+```
+
 > **Note.** A recursive graph therefore normally includes an optional, enum,
 > list, or another finite base case.
 
@@ -115,6 +140,19 @@ See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operat
 
 1. r[data.ref.shared] Passing a data value to a function passes a shared reference, not a copy of its fields.
 2. r[data.ref.views] The `T` and `mut T` views control mutation through that reference.
+
+```hd
+data Log:
+    entries: mut List[string]
+
+fn add(log: mut Log, entry: string) -> void:
+    log.entries.push(entry)
+
+fn demo() -> usize:
+    let mut log = Log { entries: [] }
+    add(log, "a")
+    log.entries.len()   # 1: add saw the same Log
+```
 
 See also: [Composite Values And Access Permission](04-type-system.md#composite-values-and-access-permission).
 
@@ -228,6 +266,15 @@ See also: [Data Embedding](#data-embedding),
 9. r[data.access.graph] The language permits shared mutable children and does not guarantee invariants over the entire reachable object graph.
 10. r[data.access.other-module] In another module, field access reaches only public fields; member lookup skips the others.
 
+```hd
+data User:
+    pub name: string
+    email: string
+
+fn rename(user: mut User, name: string) -> void:
+    user.name = name   # a mut root may reassign a field
+```
+
 > **Note.** Keep fields private and expose controlled methods when writes to
 > those fields must preserve such invariants. This does not control other
 > mutable aliases to an object stored in a private field.
@@ -241,6 +288,18 @@ See also: [Mutable Paths](04-type-system.md#mutable-paths),
 1. r[data.pattern.form] Data values may be destructured in `match` patterns using the same `DataName { ... }` form.
 2. r[data.pattern.subset] The pattern may mention any subset of visible fields; omitted fields are not tested.
 3. r[data.pattern.fields] Within the braces, `field` binds the field value and `field: pattern` applies a nested pattern.
+
+```hd
+data Point:
+    x: i32
+    y: i32
+
+fn on_axis(p: Point) -> bool:
+    match p:
+        Point { x: 0 } => true
+        Point { y: 0 } => true
+        _ => false
+```
 
 See also: [Match Expressions](06-control-flow.md#match-expressions).
 
@@ -400,6 +459,18 @@ See also: [Primary Expressions](02-grammar.md#primary-expressions).
 
 1. r[data.part.copy-time] A part is copied as soon as the value that fills it is evaluated. In a literal, that is at its field expression, before any later field expression runs. For parts that a spread supplies, it is when the spread is evaluated, before every explicit field expression.
 
+```hd
+data Base:
+    id: i32
+
+data Outer:
+    Base
+    tag: string
+
+fn demo(b: Base) -> Outer:
+    Outer { Base: ...b, tag: "t" }   # b is copied into the part now
+```
+
 > **Note.** Only a `...` copies: passing, returning, binding, or matching
 > the outer value, or reading its part, never copies.
 
@@ -441,6 +512,17 @@ fn invalid(post: Post) -> void:
 
 1. r[data.part.aliases-untracked] A part is owned by its outer value only in one sense: a part is copied whenever it is filled. So no two outer values receive the same part. The language does not track or prevent later aliases. A read of the part, or a `mut self` method of the embedded type that stores `self` elsewhere, keeps a reference. Changes through it are observed in the outer value.
 2. r[data.part.unobservable] An implementation may lay a part out inline or as a separate object referenced only by its outer value. It may also omit the copy of a value that nothing else can reference, such as a fresh literal. Neither choice is observable.
+
+```hd
+data Inner:
+    value: i32
+
+data Outer:
+    Inner
+
+fn read(o: Outer) -> i32:
+    o.Inner.value   # the part itself
+```
 
 ### Mutable Edges
 
@@ -857,6 +939,12 @@ and exhaustiveness.
 5. r[data.prelude.abi] The representation of either type is an ABI decision, not a source-language difference.
 6. r[data.prelude.null] An implementation may, for example, represent `.None` as a null reference.
 
+```hd
+fn head(items: List[i32]) -> i32?:
+    if items.len() == 0: .None
+    else: .Some(items[0])
+```
+
 See also: [Optional Types](04-type-system.md#optional-types),
 [Result Types](04-type-system.md#result-types).
 
@@ -870,6 +958,16 @@ See also: [Optional Types](04-type-system.md#optional-types),
 6. r[data.repr.cleanup] Resource cleanup is separate from memory reclamation.
 7. r[data.repr.defer] Block-scoped `defer` provides explicit synchronous cleanup on ordinary control-flow exits and cancellation; it is not an ownership or garbage-collection mechanism.
 
+```hd
+fn work() -> void: pass
+
+fn done() -> void: pass
+
+fn demo() -> void:
+    defer: done()
+    work()
+```
+
 Ownership, alias-escape prevention, automatic finalization, and asynchronous
 or fallible cleanup policy remain deferred in
 [Open Issues](../../future-work/OPEN_ISSUES.md).
@@ -878,6 +976,15 @@ or fallible cleanup policy remain deferred in
 
 1. r[data.gadt.declare] Variants may declare explicit refined result types and variant-local generic parameters.
 2. r[data.gadt.refine] Matching such a variant refines the subject type within that arm.
+
+```hd
+enum Expr[T]:
+    Int(value: i64) -> Expr[i64]
+
+fn eval(e: Expr[i64]) -> i64:
+    match e:
+        Expr.Int(value) => value
+```
 
 See also: [Generalized Algebraic Data Types](13-gadts.md).
 
@@ -892,6 +999,16 @@ block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 4. r[data.derive.gadt] A GADT enum cannot be derived through a template. Error: `gadt-derivation`.
 5. r[data.derive.newtype] A newtype derives through its base type, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
 
+```hd
+@derive(Eq, Debug)
+data Point:
+    x: i32
+    y: i32
+
+fn same(a: Point, b: Point) -> bool:
+    a == b
+```
+
 See also: [Members And Variants](14-annotations.md#members-and-variants).
 
 ## Unsupported Aggregate Extensions
@@ -902,6 +1019,19 @@ See also: [Members And Variants](14-annotations.md#members-and-variants).
 > **Note.** A library that needs to grow a set of error kinds can wrap a
 > private enum in a data type with a private field. It then exposes accessor
 > methods.
+
+```hd
+enum Kind:
+    Timeout
+    Refused
+
+data ApiError:
+    kind: Kind
+
+impl ApiError:
+    fn is_timeout(self) -> bool:
+        self.kind is Kind.Timeout
+```
 
 See also: [Variant Payloads](#variant-payloads), where
 `data.enum.payload.no-field-blocks` rules out variant field blocks.
