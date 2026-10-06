@@ -115,8 +115,9 @@ Same method as K9, with new areas. Write four programs, using only
    scratch directory, and no network.
 4. A config loader whose config type has fields with default values,
    loaded from JSON where some keys are present and some missing. Check
-   that a present key's value wins over the default. This area has a
-   known bug, F-616; log what you see.
+   that a present key's value wins over the default, and that a missing
+   key without a default is an error. Bug F-616 here was fixed on
+   2026-10-06; log any sign that it is back.
 
 Log every mistake and message in `audit/hd-writing-log.md` (task
 `probe 5: …`, model `kimi`). Commit only the log, and list the five most
