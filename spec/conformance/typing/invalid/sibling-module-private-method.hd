@@ -1,0 +1,8 @@
+# test: an inherent method without pub is not visible from another module of the same package
+# Spec 10 Member Visibility: module.vis.members (task P1a). The tree's cart
+# module declares Cart with the private method audit.
+# fixture-package-tree: module-members/src/checkout.hd
+use pkg.cart.{Cart}
+
+fn report(cart: Cart) -> string:
+    cart.audit()  # diagnostic: private-member

@@ -1,0 +1,8 @@
+# test: a field without pub is not visible from another module of the same package
+# Spec 10 Member Visibility: module.vis.no-package-private (task P1a). The
+# tree's cart module declares Cart with the private field total.
+# fixture-package-tree: module-members/src/checkout.hd
+use pkg.cart.{Cart}
+
+fn cents(cart: Cart) -> i32:
+    cart.total  # diagnostic: private-member

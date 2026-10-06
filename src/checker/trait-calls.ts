@@ -1,4 +1,5 @@
 import type { Expression } from "../ast.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import type {
   HirExpression,
   HirTrait,
@@ -33,11 +34,12 @@ export abstract class TraitCallChecker extends DebugPrintChecker {
    * The implementations whose trait supplies the associated function `name`
    * for `ownerType`, with the implementation's parameters that the target
    * solves, as `T = Point` for `Box::[Point]::name()`, which a receiverless
-   * call's arguments may not mention.
+   * call's arguments may not mention. Only a trait available at the
+   * callee's span is a candidate (09-traits.md#r-trait.assoc-call.type.traits).
    */
   protected associatedCandidates(
     ownerType: ValueType,
-    name: string,
+    { name, span }: { readonly name: string; readonly span: SourceSpan },
   ): {
     readonly candidateTrait: HirTrait;
     readonly method: HirTraitMethod;
@@ -57,7 +59,7 @@ export abstract class TraitCallChecker extends DebugPrintChecker {
       const mapping =
         method &&
         implementation.methodFunctions.find((candidate) => candidate.methodIndex === method.index);
-      return candidateTrait && method && mapping
+      return candidateTrait && method && mapping && this.traitAvailable(candidateTrait.name, span)
         ? [
             {
               candidateTrait,

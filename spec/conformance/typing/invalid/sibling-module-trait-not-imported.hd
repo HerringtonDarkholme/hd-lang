@@ -1,0 +1,8 @@
+# test: a trait of another module of the same package is not available without a use, so its method is not found
+# Spec 09 Trait Availability: trait.avail.not-candidate (task P1a). The tree's
+# cart module declares Priced and implements it for Cart.
+# fixture-package-tree: module-members/src/checkout.hd
+use pkg.cart.{Cart}
+
+fn charge(cart: Cart) -> i32:
+    cart.price()  # diagnostic: unknown-method

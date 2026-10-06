@@ -1,0 +1,12 @@
+# test: pub fields and pub inherent methods are visible from another module of the same package
+# Spec 10 Member Visibility: module.vis.members (task P1a). The tree's cart
+# module declares Cart with the pub field owner and the pub method summary.
+# fixture-package-tree: module-members/src/checkout.hd
+use pkg.cart.{Cart}
+use std.testing.assert_equal
+
+tests:
+    it("reads pub members"):
+        cart := Cart::open("ana", 250)
+        assert_equal(cart.owner, "ana", reason="owner is pub")
+        assert_equal(cart.summary(), "ana: 250 cents", reason="summary is pub")

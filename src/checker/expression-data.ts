@@ -120,6 +120,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             );
           supplied.set(field.name, field.value);
         }
+        this.requireLiteralFieldsVisible(declaration, expression);
         const substitutions = new Map<string, ValueType>();
         if (expression.typeArguments) {
           if (expression.typeArguments.length > declaration.genericParameters.length)

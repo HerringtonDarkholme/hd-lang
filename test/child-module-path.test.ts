@@ -23,7 +23,7 @@ function packageMessages(files: Record<string, string>, entry: string): [string,
   return checked.diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.message]);
 }
 
-const SHOP = "pub data Cart:\n    count: i32\npub fn total() -> i32:\n    2\n";
+const SHOP = "pub data Cart:\n    pub count: i32\npub fn total() -> i32:\n    2\n";
 const LIB = "pass\n";
 const PARENT = "pass\n";
 

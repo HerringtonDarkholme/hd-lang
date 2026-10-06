@@ -660,7 +660,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         trait &&
         method &&
         qualifiedTraitIndex === undefined &&
-        !this.traitAvailable(trait.name)
+        !this.traitAvailable(trait.name, expression.span)
       ) {
         unavailable.add(trait.name);
         return [];
@@ -1392,6 +1392,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         (nominalGenericParts(method.targetType)?.name ?? method.targetType) === owner &&
         method.name === expression.callee.name,
     );
+    if (member) this.requireInherentVisible(member, expression.callee.span);
     if (member)
       return this.checkDeclaredCall(
         {
@@ -1411,7 +1412,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       expression.arguments.length > 0
     )
       return this.checkReceiverFirstCall(expression, ownerType, expected);
-    const associatedCandidates = this.associatedCandidates(ownerType, expression.callee.name);
+    const associatedCandidates = this.associatedCandidates(ownerType, expression.callee);
     const signatureOf = (candidate: (typeof associatedCandidates)[number]): Signature =>
       [...this.signatures.values()].find(
         (signature) => signature.index === candidate.mapping.functionIndex,

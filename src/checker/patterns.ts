@@ -39,9 +39,9 @@ import {
   substituteGenericType,
 } from "./shared.ts";
 
-import { GadtChecker } from "./gadt-checker.ts";
+import { MemberVisibilityChecker } from "./member-visibility.ts";
 import { variantResultType, variantShape } from "./gadt.ts";
-export abstract class PatternChecker extends GadtChecker {
+export abstract class PatternChecker extends MemberVisibilityChecker {
   /**
    * A std submodule member, unless a value binding owns the receiver name.
    * A test registration function reached through `std.testing`, as
@@ -561,6 +561,13 @@ export abstract class PatternChecker extends GadtChecker {
             `type '${declaration.name}' has no field '${entry.name}'`,
             entry.span,
           );
+        // A pattern names only visible fields (08-data-and-enums.md#r-data.pattern.subset).
+        if (!this.literalFieldVisible(field, entry.span, declaration))
+          this.fail(
+            "private-member",
+            `field '${entry.name}' is not visible from this module`,
+            entry.span,
+          );
         const fieldType = substituteGenericType(field.type, substitutions);
         const nextPath: HirPatternAccessStep[] = [
           ...accessPath,
@@ -783,6 +790,13 @@ export abstract class PatternChecker extends GadtChecker {
         this.fail(
           "unknown-data-field",
           `type '${declaration.name}' has no field '${entry.name}'`,
+          entry.span,
+        );
+      // A pattern names only visible fields (08-data-and-enums.md#r-data.pattern.subset).
+      if (!this.literalFieldVisible(field, entry.span, declaration))
+        this.fail(
+          "private-member",
+          `field '${entry.name}' is not visible from this module`,
           entry.span,
         );
       const fieldType = substituteGenericType(field.type, substitutions);

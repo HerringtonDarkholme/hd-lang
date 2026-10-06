@@ -2584,3 +2584,9 @@ runtime/valid/usize-width-wasm32.hd	runtime
 typing/invalid/usize-u32-operand.hd	type
 typing/invalid/usize-to-u32-argument.hd	type
 typing/invalid/u32-to-usize-binding.hd	type
+typing/invalid/sibling-module-trait-not-imported.hd	type
+runtime/valid/sibling-module-trait-imported.hd	runtime
+typing/invalid/sibling-module-private-field.hd	type
+typing/invalid/sibling-module-private-method.hd	type
+runtime/valid/sibling-module-pub-members.hd	runtime
+runtime/valid/own-module-private-members.hd	runtime

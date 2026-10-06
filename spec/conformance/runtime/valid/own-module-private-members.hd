@@ -1,0 +1,28 @@
+# test: a module uses its own trait and private members without pub or a use, in a package with other modules
+# Spec 10 Member Visibility: module.vis.members, and Spec 09 Trait
+# Availability: trait.avail.module (task P1a). The tree's cart module declares
+# its own Priced trait and Cart type.
+# fixture-package-tree: module-members/src/ledger.hd
+use std.testing.assert_equal
+
+trait Priced:
+    fn price(self) -> i32
+
+data Entry:
+    label: string
+    cents: i32
+
+impl Entry:
+    fn describe(self) -> string:
+        "${self.label}: ${self.cents}"
+
+impl Priced for Entry:
+    fn price(self) -> i32:
+        self.cents
+
+tests:
+    it("uses its own private members and trait"):
+        entry := Entry { label: "tea", cents: 300 }
+        assert_equal(entry.cents, 300, reason="private field read in its module")
+        assert_equal(entry.describe(), "tea: 300", reason="private method call in its module")
+        assert_equal(entry.price(), 300, reason="trait declared in this module")

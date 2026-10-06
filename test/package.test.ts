@@ -362,6 +362,73 @@ test("a trait implementation outside the trait's and target's modules is nonloca
   );
 });
 
+test("another module's private members and unimported traits stay hidden on every path", () => {
+  // Field reads, method calls, and trait method calls have conformance
+  // fixtures (sibling-module-*.hd). These paths reach the same members.
+  const cart = [
+    "pub trait Priced:",
+    "    fn price(self) -> i32",
+    "    fn zero() -> Self",
+    "pub data Cart:",
+    "    pub owner: string",
+    "    total: i32",
+    "impl Cart:",
+    "    pub fn open(owner: string) -> Cart:",
+    "        Cart { owner: owner, total: 0 }",
+    "    fn hidden() -> Cart:",
+    '        Cart { owner: "", total: 1 }',
+    "    fn audit(self) -> i32:",
+    "        self.total",
+    "impl Priced for Cart:",
+    "    fn price(self) -> i32:",
+    "        self.total",
+    "    fn zero() -> Cart:",
+    '        Cart { owner: "", total: 0 }',
+    "",
+  ].join("\n");
+  const check = (body: string, uses = "Cart"): string[] => {
+    const files = { "src/cart.hd": cart, "src/main.hd": `use pkg.cart.{${uses}}\n\n${body}\n` };
+    const linked = linkPackage(files, "src/main.hd");
+    assert.deepEqual(linked.diagnostics, []);
+    const { diagnostics } = analyze(linked.source!, { parse: linkedParseOptions(linked) });
+    return diagnostics.map((diagnostic) => {
+      const { path, span, code } = linked.locate(diagnostic);
+      return `${path}:${span.start.line}:${code}`;
+    });
+  };
+  const rejected = (body: string, code: string, line = 4): void =>
+    assert.deepEqual(check(`fn f(c: Cart) -> Cart:\n    ${body}`), [`src/main.hd:${line}:${code}`]);
+  // A data literal or copy-update of a type with a private field, and a
+  // pattern that names one (08-data-and-enums.md#field-visibility).
+  rejected('Cart { owner: "a", total: 1 }', "private-member");
+  rejected('Cart { ...c, owner: "b" }', "private-member");
+  rejected("match c:\n        Cart { total: 0 } => c\n        _ => c", "private-member", 5);
+  // A private associated function, called or referenced, and a private
+  // method's reference.
+  rejected("Cart::hidden()", "private-member");
+  rejected("(Cart::hidden)()", "private-member");
+  rejected("Cart::audit(c)\n    c", "private-member");
+  // A trait's associated function and reference need the trait available.
+  // The spec's code is unknown-method (09-traits.md#r-trait.assoc-call.type.none);
+  // the prototype still says unknown-associated-function, so only the line is checked.
+  assert.match(
+    check("fn f(c: Cart) -> Cart:\n    Cart::zero()").join(),
+    /^src\/main\.hd:4:unknown-/,
+  );
+  assert.deepEqual(check("fn f(c: Cart) -> Cart:\n    Cart::zero()", "Cart, Priced"), []);
+  assert.deepEqual(
+    check("fn f(c: Cart) -> i32:\n    g := Cart::price\n    g(c)", "Cart, Priced"),
+    [],
+  );
+  // Public members need no use beyond the type's.
+  assert.deepEqual(
+    check(
+      'fn f(c: Cart) -> Cart:\n    match c:\n        Cart { owner: "a" } => c\n        _ => Cart::open(c.owner)',
+    ),
+    [],
+  );
+});
+
 test("folders that depend on each other in a loop are rejected", () => {
   const files = {
     "src/lib.hd": "pub use pkg.shop.{Cart}\n",

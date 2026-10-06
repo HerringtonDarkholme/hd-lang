@@ -2535,3 +2535,9 @@ typing/invalid/usize-u32-operand.hd	type	reject:type-mismatch	lang/04-type-syste
 typing/invalid/usize-to-u32-argument.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.same-width
 typing/invalid/u32-to-usize-binding.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.same-width
 runtime/valid/usize-width-wasm32.hd	runtime	accept	lang/04-type-system.md#r-types.usize.behavior
+typing/invalid/sibling-module-trait-not-imported.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.avail.not-candidate
+runtime/valid/sibling-module-trait-imported.hd	runtime	accept	lang/09-traits.md#r-trait.avail.module
+typing/invalid/sibling-module-private-field.hd	type	reject:private-member	lang/10-modules.md#r-module.vis.no-package-private
+typing/invalid/sibling-module-private-method.hd	type	reject:private-member	lang/10-modules.md#r-module.vis.members
+runtime/valid/sibling-module-pub-members.hd	runtime	accept	lang/10-modules.md#r-module.vis.members
+runtime/valid/own-module-private-members.hd	runtime	accept	lang/10-modules.md#r-module.vis.members

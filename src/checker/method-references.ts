@@ -473,6 +473,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
       (method) => method.name === name && this.inherentOwner(method.targetType) === base,
     );
     if (inherent) {
+      this.requireInherentVisible(inherent, span);
       const signature = this.signatures.get(inherent.functionName)!;
       const substitutions = new Map<string, ValueType>();
       matchGenericTypePattern(inherent.targetType, ownerType, substitutions);
@@ -503,7 +504,8 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
         (candidate) => candidate.index === implementation.traitIndex,
       );
       const method = trait?.methods.find((candidate) => candidate.name === name);
-      if (!trait || !method) return [];
+      // Only an available trait's member is a candidate (07-functions.md#r-fn.ref.lookup).
+      if (!trait || !method || !this.traitAvailable(trait.name, span)) return [];
       trait.genericParameters.forEach((parameter, index) =>
         substitutions.set(
           parameter,

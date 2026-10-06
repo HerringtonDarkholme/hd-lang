@@ -1,0 +1,20 @@
+pub trait Priced:
+    fn price(self) -> i32
+
+pub data Cart:
+    pub owner: string
+    total: i32
+
+impl Cart:
+    pub fn open(owner: string, total: i32) -> Cart:
+        Cart { owner: owner, total: total }
+
+    pub fn summary(self) -> string:
+        "${self.owner}: ${self.audit()}"
+
+    fn audit(self) -> string:
+        "${self.total} cents"
+
+impl Priced for Cart:
+    fn price(self) -> i32:
+        self.total

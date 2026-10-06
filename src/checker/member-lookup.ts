@@ -20,7 +20,6 @@ import {
 } from "./shared.ts";
 import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
-import { registeredPackageOwnership } from "./package-ownership.ts";
 import { builtInMethodNames } from "./built-in-methods.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
@@ -337,7 +336,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * method `name`. A trait that is not available at the call is invisible to
    * method lookup (spec 03 Member Resolution, Rust-style trait lookup).
    */
-  private traitWithMember(type: ValueType, name: string): string | undefined {
+  private traitWithMember(type: ValueType, name: string, span: SourceSpan): string | undefined {
     const index = traitLookupIndex(this.traitTypes);
     if (!index.byMember.has(name)) return undefined;
     for (const implementation of implementationsFor(this.implementations, type)) {
@@ -345,66 +344,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       const trait = index.byIndex.get(implementation.traitIndex);
       if (
         trait &&
-        this.traitAvailable(trait.name) &&
+        this.traitAvailable(trait.name, span) &&
         trait.methods.some((method) => !method.associated && method.name === name)
       )
         return trait.name;
     }
     return undefined;
-  }
-
-  /**
-   * Spec 09 Trait Availability: a trait is available when it is declared in
-   * or imported into the calling module, or supplied by the prelude
-   * (09-traits.md#r-trait.avail.module). A trait of another package is
-   * available only where a use imports it (checker/package-ownership.ts).
-   * The prototype still treats every trait of the calling module's own
-   * package, and every std trait, as available.
-   */
-  protected traitAvailable(name: string): boolean {
-    const ownership = registeredPackageOwnership(this.traitTypes);
-    if (!ownership || this.declaration.standard === true) return true;
-    const trait = this.traitTypes.get(name);
-    if (!trait || trait.standardName !== undefined) return true;
-    const here = this.declaration.span;
-    return (
-      ownership.packageOf(trait.span) === ownership.packageOf(here) ||
-      ownership.imports(here, trait.name)
-    );
-  }
-
-  /**
-   * Spec 03 Member Resolution: an own field or inherent method is visible when
-   * it is declared in the calling module or marked `pub`
-   * (10-modules.md#r-module.vis.members). A `lib/std` type's private member
-   * is hidden from code outside std (08-data-and-enums.md#field-visibility),
-   * and another package's from code outside that package
-   * (checker/package-ownership.ts). The prototype still shows every member
-   * of the calling module's own package.
-   */
-  private memberVisible(member: HirDataField | InherentMethod, owner?: HirData): boolean {
-    if (
-      member.public === true ||
-      this.declaration.standard === true ||
-      this.declaration.privateAccess === true ||
-      this.compilerPrivateMember
-    )
-      return true;
-    if (owner?.standard === true) return false;
-    const ownership = registeredPackageOwnership(this.traitTypes);
-    if (!ownership) return true;
-    let declared = owner?.span;
-    if (!owner) {
-      // An inherent method lives in its target's package (09-traits.md#r-trait.own.inherent).
-      const target = nominalGenericParts(readonlyType((member as InherentMethod).targetType));
-      const name = target?.name ?? readonlyType((member as InherentMethod).targetType);
-      const data = this.dataTypes.get(name);
-      const enumType = this.enumTypes.get(name);
-      if (data?.standard === true || (!data && enumType?.standardName !== undefined)) return true;
-      if (!data && !enumType) return true;
-      declared = (member as InherentMethod).span;
-    }
-    return ownership.packageOf(declared!) === ownership.packageOf(this.declaration.span);
   }
 
   /**
@@ -481,7 +426,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     let traitCandidate: string | undefined;
     if (method) {
       const inherent = this.findInherentMethod(type, name);
-      traitCandidate = this.traitWithMember(type, name);
+      traitCandidate = this.traitWithMember(type, name, span);
       const defaultTrait = traitDefaultDeclarations.get(this.declaration);
       if (defaultTrait !== undefined && this.declaration.parameters[0]?.name === "self") {
         // A default body sees, through `self`, only the members of its trait
@@ -497,12 +442,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         }
       }
       if (traitCandidate && defaultTrait !== undefined) return { kind: "trait" };
-      if (inherent && this.memberVisible(inherent))
+      if (inherent && this.memberVisible(inherent, span))
         return { kind: "inherent", steps: [], method: inherent };
       if (inherent) ownInvisible = true;
     } else {
       const field = declaration?.fields.find((candidate) => candidate.name === name);
-      if (declaration && field && this.memberVisible(field, declaration))
+      if (declaration && field && this.memberVisible(field, span, declaration))
         return { kind: "field", steps: [], final: { declaration, field, substitutions } };
       if (field) ownInvisible = true;
     }
@@ -605,8 +550,8 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     span: SourceSpan,
     unavailable: ReadonlySet<string>,
   ): never {
-    const traitPath = this.embeddedTraitMethodPath(receiverType, name);
-    const similar = this.similarMethodNames(receiverType, name);
+    const traitPath = this.embeddedTraitMethodPath(receiverType, name, span);
+    const similar = this.similarMethodNames(receiverType, name, span);
     const hints = [
       this.hasFieldNamed(receiverType, name)
         ? `; to call the function stored in the field, write (value.${name})(...)`
@@ -633,7 +578,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * by edit distance: inherent methods of its target and methods of the
    * available traits implemented for it, supertraits included.
    */
-  private similarMethodNames(receiverType: ValueType, name: string): string[] {
+  private similarMethodNames(receiverType: ValueType, name: string, span: SourceSpan): string[] {
     // Method lookup matches the readonly view, as selectMember does.
     const type = readonlyType(receiverType);
     const candidates = new Set<string>();
@@ -645,7 +590,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     for (const implementation of implementationsFor(this.implementations, type)) {
       if (!matchImplementationTarget(implementation, type, new Map())) continue;
       const trait = index.byIndex.get(implementation.traitIndex);
-      if (trait && this.traitAvailable(trait.name))
+      if (trait && this.traitAvailable(trait.name, span))
         this.collectTraitMethods(trait, candidates, new Set());
     }
     candidates.delete(name);
@@ -672,12 +617,16 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     }
   }
 
-  protected embeddedTraitMethodPath(receiverType: ValueType, name: string): string | undefined {
+  protected embeddedTraitMethodPath(
+    receiverType: ValueType,
+    name: string,
+    span: SourceSpan,
+  ): string | undefined {
     const type = readonlyType(receiverType);
     const declaration = this.dataTypes.get(nominalGenericParts(type)?.name ?? type);
     if (!declaration) return undefined;
     for (const part of this.embeddedParts(declaration, this.dataSubstitutions(declaration, type)))
-      if (this.traitWithMember(part.type, name))
+      if (this.traitWithMember(part.type, name, span))
         return part.steps.map((step) => step.field.name).join(".");
     return undefined;
   }

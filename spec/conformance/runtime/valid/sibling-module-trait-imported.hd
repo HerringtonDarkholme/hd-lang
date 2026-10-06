@@ -1,0 +1,13 @@
+# test: a use of a trait from another module of the same package makes its method available
+# Spec 09 Trait Availability: trait.avail.module (task P1a). The tree's cart
+# module declares Priced and implements it for Cart.
+# fixture-package-tree: module-members/src/checkout.hd
+use pkg.cart.{Cart, Priced}
+use std.testing.assert_equal
+
+fn charge(cart: Cart) -> i32:
+    cart.price()
+
+tests:
+    it("calls an imported trait's method"):
+        assert_equal(charge(Cart::open("ana", 250)), 250, reason="Priced is imported")
