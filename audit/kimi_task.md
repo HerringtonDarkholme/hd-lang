@@ -90,27 +90,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K14. Usability Probe 6 (Read-Only)
-
-Same method as K9 and K12, with new areas. Write four programs, using only
-`README.md`, `guide/`, and `spec/`:
-
-1. A log scanner. It reads lines from stdin, extracts fields with
-   `std.regex`, and groups them by hour using `std.time` (`Timestamp`,
-   `Duration`). It has unit tests.
-2. A pricing module whose input type derives `Arbitrary`, with property
-   tests (`it_prop`) and a doc test on its public function. Run it with
-   `hd test --filter`.
-3. A file-import command with `@error` types that wrap causes. Run it so
-   that a failure prints the "caused by:" chain. It uses `defer` to clean
-   up a temporary file.
-4. A package with a `tasks/` script that `hd run` executes, for example a
-   data seeding task.
-
-Log every mistake and message in `audit/hd-writing-log.md` (task
-`probe 6: …`, model `kimi`). Commit only the log, and list the five most
-painful problems in the commit message.
-
 ### K15. Guide Coverage Report (Read-Only)
 
 For each spec chapter in `spec/lang/` and each std module in `spec/std/`,
