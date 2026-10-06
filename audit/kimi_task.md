@@ -83,10 +83,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K2. Split Long Sentences In The CLI Chapter
-
-Same as K1 for `spec/cli/command-line.md` (10 long sentences). One commit.
-
 ### K3. The Long Paragraph In 06-Control-Flow
 
 `bash spec/check.sh` warns that `spec/lang/06-control-flow.md:181` is a

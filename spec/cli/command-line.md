@@ -38,7 +38,7 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd help`, `hd --help`, `hd help COMMAND` | prints the command list, or one command's usage and flags |
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list. It names every command of the table above.
-2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes, so the help of `hd add` names `--dev` and the help of `hd clean` names `--cache`.
+2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes. So the help of `hd add` names `--dev` and the help of `hd clean` names `--cache`.
 3. r[cli.command.positional] A positional word of a command is a NAME or a FILE. A directory is neither: `hd test libs/ui` is an error, and its message suggests [`-p`](#selecting-members).
 
 ## Package Mode
@@ -56,12 +56,12 @@ A command works on a package when it finds that package's `hd.toml`:
 2. r[cli.mode.start] The start directory is the directory of the FILE that a command names, or the working directory when it names none.
 3. r[cli.mode.workspace] A command works in **workspace mode** when that nearest `hd.toml` is a workspace manifest, which lists members and declares no package.
 4. r[cli.mode.outside] Otherwise the command works outside any package.
-5. r[cli.mode.workspace-file] A command that names a FILE under a workspace root but in no member works outside any package, so FILE is a single-file program that may use only `std`.
+5. r[cli.mode.workspace-file] A command that names a FILE under a workspace root but in no member works outside any package. So FILE is a single-file program that may use only `std`.
 6. r[cli.mode.member] In package mode, the command also searches the directories above the package's directory for the nearest workspace manifest. When that manifest lists the package as a member, the package is still the one the command works on.
 7. r[cli.mode.member.shared] Version selection and `hd.sum` then come from that workspace, by [Workspaces](../lang/10-modules.md#workspaces), as Cargo's do.
 8. r[cli.mode.member.unlisted] When that workspace manifest neither lists the package in `members` nor in `exclude`, the command is an error that names the manifest, as Cargo's is.
 9. r[cli.mode.member.unlisted.fix] The error has two fix-its: one adds the package's directory to the manifest's `members`, and the other adds it to the manifest's `exclude`.
-10. r[cli.mode.member.excluded] A package whose directory the workspace manifest's `exclude` lists is not a member, and a command in it works on it as on a package outside any workspace.
+10. r[cli.mode.member.excluded] A package whose directory the workspace manifest's `exclude` lists is not a member. A command in it works on it as on a package outside any workspace.
 
 > **Note.** A `src` directory without an `hd.toml` does not make a package.
 
@@ -240,7 +240,7 @@ profile**, which binds these traits:
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
 3. r[cli.host.default-profile.row] The entry module's row still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-row`](#r-cli.host.entry-row).
 4. r[cli.host.default-profile.other] A row key outside the default profile is an error, as [`module.entry.row.host`](../lang/10-modules.md#r-module.entry.row.host) states. Error: `nonhost-entry-requirement`.
-5. r[cli.host.default-profile.console-closed] Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write the line, as when the reader of a pipe has closed it.
+5. r[cli.host.default-profile.console-closed] Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write the line. One such case is a pipe whose reader has closed it.
 6. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
 
 > **Why.** A closed pipe makes `println` panic, by
@@ -288,7 +288,7 @@ hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 3. r[cli.test.filter] `hd test --filter PATTERN` runs only the test cases whose name contains PATTERN, with a FILE or without one.
 4. r[cli.test.filter.none] `hd test FILE --filter PATTERN` is an error when no test case of FILE has a name that contains PATTERN, as when FILE registers none.
 5. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
-6. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider that starts the package's executables, each by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
+6. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider. That provider starts the package's executables, each by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
 7. r[cli.test.process.tasks] That provider also starts each [task](#tasks) of the package by its name, as `hd run NAME` does. A name names at most one program, by [`cli.task.name-clash`](#r-cli.task.name-clash).
 8. r[cli.test.process.unknown] That provider returns `.Err(ProcessError.NotFound)` for a program name that names neither an executable nor a task of the package.
 9. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
@@ -330,7 +330,7 @@ file lies:
 | an integration test case, or a doc test | the default profile, `TestRunner`, and `Process` | the package directory | none | closed |
 
 1. r[cli.test.env.unit] `hd test` binds `TestRunner` alone for a unit test case, in a package or outside one, by [`module.testing.unit-row.places`](../lang/10-modules.md#r-module.testing.unit-row.places).
-2. r[cli.test.env.integration] For an integration test case or a doc test, `hd test` binds the traits of the [default profile](#host-capabilities) that the body's row names, as `hd run` binds them, except as this list says.
+2. r[cli.test.env.integration] For an integration test case or a doc test, `hd test` binds the traits of the [default profile](#host-capabilities) that the body's row names. It binds them as `hd run` does, except as this list says.
 3. r[cli.test.env.cwd] Such a test case runs with the package directory, the directory of its `hd.toml`, as its working directory. A relative path such as `fixtures/orders.csv` then names a file of the package.
 4. r[cli.test.env.args] Its `Args` provider holds no program arguments, so `list` returns an empty list.
 5. r[cli.test.env.args.program] Its `Args.program` returns the path of the test case's file relative to the package directory, such as `tests/report.hd`.
@@ -491,7 +491,7 @@ assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a
 
 ### Pages
 
-1. r[cli.doc.page] A module's Markdown page starts with the heading `` # Module `PATH` ``, which reads `` # Module `pkg` `` for the root module, then the module's documentation, then a list of its items. Each list entry links to the item's anchor and ends with the item's summary.
+1. r[cli.doc.page] A module's Markdown page starts with the heading `` # Module `PATH` ``, which reads `` # Module `pkg` `` for the root module. Then come the module's documentation and a list of its items. Each list entry links to the item's anchor and ends with the item's summary.
 2. r[cli.doc.summary] An item's **summary** is the first sentence of its documentation, or empty when it has none.
 3. r[cli.doc.item] Each item has a second-level heading with its name in code, and each member a third-level heading with `Type.member` in code. Below the heading come the signature, the documentation, and the examples.
 4. r[cli.doc.anchor] An item's anchor is its item name, as [`cli.test.doc.name`](#r-cli.test.doc.name) forms `<item>`, such as `slugify` or `Slug.new`.
@@ -605,7 +605,7 @@ hd run -p web serve        # serve of member web
 cd libs/ui && hd test -p shared    # from inside member ui, the tests of shared
 ```
 
-1. r[cli.workspace.select.anywhere] `-p NAME` or `--package NAME` selects the member whose package is named `NAME`, wherever a command finds a workspace: at its root, or inside a member by [`cli.mode.member`](#r-cli.mode.member). It works on `hd run`, `hd test`, `hd check`, and `hd build`.
+1. r[cli.workspace.select.anywhere] `-p NAME` or `--package NAME` selects the member whose package is named `NAME`. This works wherever a command finds a workspace: at its root, or inside a member by [`cli.mode.member`](#r-cli.mode.member). It works on `hd run`, `hd test`, `hd check`, and `hd build`.
 2. r[cli.workspace.select.repeat] The flag may be repeated, and the command then acts on the selected members only, by the rules above.
 3. r[cli.workspace.select.unknown] A `-p NAME` that names no member of the workspace is an error.
 
@@ -726,7 +726,7 @@ echo 'println(1 + 2)' | hd    # prints 3
 2. r[cli.stdin.program] When standard input is not a terminal, `hd` with no arguments runs all of it as a [single-file program](../lang/10-modules.md#single-file-programs), as `python` does. This holds in every mode.
 3. r[cli.repl.package.lib] In package mode, the session acts as code inside `src/lib.hd`, wherever in the package it starts. It sees the private declarations of `src/lib.hd`, and `use self.util` names `src/util.hd`.
 4. r[cli.repl.package.dependencies] In package mode, the session may use the package's dependencies and its dev dependencies.
-5. r[cli.repl.package.no-lib] In a package without `src/lib.hd`, the session may still use the public declarations of the package's modules through `self`, as `src/main.hd` does, and the package's dependencies, its dev dependencies, and `std`.
+5. r[cli.repl.package.no-lib] In a package without `src/lib.hd`, the session may still use the public declarations of the package's modules through `self`, as `src/main.hd` does. It may also use the package's dependencies, its dev dependencies, and `std`.
 6. r[cli.repl.package.no-lib.main] `src/main.hd` itself stays unusable from the session, as it is from every module by [`module.path.main-no-use`](../lang/10-modules.md#r-module.path.main-no-use).
 7. r[cli.repl.uses.other] Apart from the declarations of `src/lib.hd`, names reach the session only through its `use` declarations.
 8. r[cli.repl.outside] Outside any package, the session may use only `std`.
@@ -745,7 +745,7 @@ hd> read_text!("notes.txt")   # reads ./notes.txt
 ```
 
 > **Note.** An input such as `x := 21` has no signed literal, so `x`
-> is a `usize`, and a session that shows types shows `x * 2` as a
+> is a `usize`. A session that shows types then shows `x * 2` as a
 > `usize`. `y := -21` is an `i32`, by
 > [`types.literal.local.default`](../lang/04-type-system.md#r-types.literal.local.default).
 
