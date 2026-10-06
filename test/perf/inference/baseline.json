@@ -1,176 +1,90 @@
 {
-  "note": "Recorded by `node --experimental-strip-types test/perf/inference/gate.ts --update`; see README.md.",
+  "note": "Merged from 5 update runs at the nearest-rank 90th percentile; see README.md.",
   "recorded": {
-    "date": "2026-10-04",
+    "date": "2026-10-06",
     "node": "v24.19.0",
-    "platform": "darwin-arm64"
+    "platform": "linux-x64",
+    "runs": 5,
+    "percentile": 90
   },
-  "referenceMs": 184.8,
+  "referenceMs": 485.6,
   "cases": {
     "list-nest": {
-      "scales": [
-        300,
-        1000
-      ],
-      "scores": [
-        0.2686,
-        3.2371
-      ],
-      "ratio": 12.05,
-      "codes": [
-        "implicit-narrowing"
-      ]
+      "scales": [300, 1000],
+      "scores": [0.2141, 2.1907],
+      "ratio": 13.4,
+      "codes": ["implicit-narrowing"]
     },
     "open-lets-reverse": {
-      "scales": [
-        5,
-        50
-      ],
-      "scores": [
-        0.2216,
-        3.2705
-      ],
-      "ratio": 14.76,
-      "codes": [
-        "type-mismatch"
-      ]
+      "scales": [5, 50],
+      "scores": [0.2494, 3.2599],
+      "ratio": 14.49,
+      "codes": ["type-mismatch"]
     },
     "method-calls-one-var": {
-      "scales": [
-        30,
-        300
-      ],
-      "scores": [
-        0.8382,
-        9.3063
-      ],
-      "ratio": 11.1,
+      "scales": [30, 300],
+      "scores": [0.9059, 9.0355],
+      "ratio": 10.94,
       "codes": []
     },
     "add-many-types": {
-      "scales": [
-        10,
-        30
-      ],
-      "scores": [
-        0.6257,
-        4.5238
-      ],
-      "ratio": 7.23,
-      "codes": [
-        "type-mismatch"
-      ]
+      "scales": [10, 30],
+      "scores": [0.6287, 3.7102],
+      "ratio": 6.42,
+      "codes": ["type-mismatch"]
     },
     "overload-candidates": {
-      "scales": [
-        10,
-        100
-      ],
-      "scores": [
-        0.4346,
-        4.2643
-      ],
-      "ratio": 9.81,
+      "scales": [10, 100],
+      "scores": [0.4754, 4.1755],
+      "ratio": 9.51,
       "codes": []
     },
     "big-body": {
-      "scales": [
-        10,
-        100
-      ],
-      "scores": [
-        0.7417,
-        8.3229
-      ],
-      "ratio": 11.22,
+      "scales": [10, 100],
+      "scores": [0.7065, 7.3669],
+      "ratio": 10.43,
       "codes": []
     },
     "mutual-bounds": {
-      "scales": [
-        10,
-        30
-      ],
-      "scores": [
-        0.0646,
-        0.2917
-      ],
-      "ratio": 2.92,
+      "scales": [10, 30],
+      "scores": [0.1109, 0.3883],
+      "ratio": 3.88,
       "codes": []
     },
     "closures-shared-var": {
-      "scales": [
-        100,
-        300
-      ],
-      "scores": [
-        0.6082,
-        3.6728
-      ],
-      "ratio": 6.04,
+      "scales": [100, 300],
+      "scores": [0.2944, 0.7909],
+      "ratio": 3.53,
       "codes": []
     },
     "polymorphic-recursion": {
-      "scales": [
-        30,
-        300
-      ],
-      "scores": [
-        0.3655,
-        2.568
-      ],
-      "ratio": 7.03,
+      "scales": [30, 300],
+      "scores": [0.4202, 2.3817],
+      "ratio": 6.72,
       "codes": []
     },
     "late-conflict": {
-      "scales": [
-        10,
-        100
-      ],
-      "scores": [
-        0.1803,
-        2.248
-      ],
-      "ratio": 12.47,
-      "codes": [
-        "implicit-narrowing"
-      ]
+      "scales": [10, 100],
+      "scores": [0.2453, 2.198],
+      "ratio": 14.35,
+      "codes": ["implicit-narrowing"]
     },
     "occurs-check": {
-      "scales": [
-        40,
-        400
-      ],
-      "scores": [
-        0.2611,
-        2.864
-      ],
-      "ratio": 10.97,
-      "codes": [
-        "type-mismatch"
-      ]
+      "scales": [40, 400],
+      "scores": [0.3604, 3.6354],
+      "ratio": 11.41,
+      "codes": ["type-mismatch"]
     },
     "retry-receivers": {
-      "scales": [
-        3,
-        30
-      ],
-      "scores": [
-        0.5038,
-        5.5043
-      ],
-      "ratio": 10.92,
+      "scales": [3, 30],
+      "scores": [0.8521, 7.8911],
+      "ratio": 12.23,
       "codes": []
     },
     "retry-nested": {
-      "scales": [
-        10,
-        100
-      ],
-      "scores": [
-        0.3641,
-        3.4753
-      ],
-      "ratio": 9.55,
+      "scales": [10, 100],
+      "scores": [0.5231, 5.2652],
+      "ratio": 12.7,
       "codes": []
     }
   }
