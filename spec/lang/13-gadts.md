@@ -7,6 +7,17 @@ This chapter defines GADT-style enums, whose variants refine the result type.
 1. r[gadt.intro.refine] GADT-style enums let each variant refine the result instantiation of its enclosing generic enum.
 2. r[gadt.intro.recover] Pattern matching recovers that refinement inside the selected arm.
 
+```hd
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+
+fn eval[T](expr: Expr[T]) -> T:
+    match expr:
+        Expr.IntLit(value) => value   # T is i64 in this arm
+        Expr.BoolLit(value) => value  # T is bool in this arm
+```
+
 ## Variant Result Types
 
 A variant may declare an explicit result type after `->`:
@@ -148,6 +159,14 @@ For each variant, the compiler must verify each of these requirements:
 4. r[gadt.check.construct] Construction produces exactly the declared result instantiation.
 5. r[gadt.check.no-escape] Pattern-arm equalities do not escape their arm.
 
+```hd
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+
+flag := Expr.BoolLit(true)   # an Expr[bool], exactly the declared result
+```
+
 > **Note.** The design does not require higher-kinded types.
 
 ### Existential Parameters
@@ -156,6 +175,17 @@ For each variant, the compiler must verify each of these requirements:
 2. r[gadt.existential.fresh] An existential parameter is fresh for the selected arm.
 3. r[gadt.existential.bounds] An existential parameter may be used through its declared bounds.
 4. r[gadt.existential.no-escape] An existential parameter must not escape the arm as an unconstrained concrete type.
+
+```hd
+enum Job[T]:
+    Ready(value: T)
+    Apply[S < Display](input: S, step: fn(S) -> T) -> Job[T]
+
+fn describe[T](job: Job[T]) -> string:
+    match job:
+        Job.Ready(_) => "ready"
+        Job.Apply(input, _) => "apply to $input"   # input: S, used through Display
+```
 
 ## Runtime Representation
 
@@ -187,6 +217,17 @@ This section defines how a variant result is unified with a match subject.
 4. r[gadt.unify.nominal] Distinct nominal types never unify merely because one converts to the other.
 5. r[gadt.unify.solution] A successful solution becomes a set of arm-local type equalities and existential variables.
 
+```hd
+enum Expr[T]:
+    Lit(value: T)
+    IntLit(value: i64) -> Expr[i64]
+
+fn read(expr: Expr[i64]) -> i64:
+    match expr:
+        Expr.Lit(value) => value      # the unrefined result Expr[T] unifies with T = i64
+        Expr.IntLit(value) => value   # the refined result Expr[i64] unifies directly
+```
+
 ### Exhaustiveness And Nesting
 
 1. r[gadt.unify.exhaustive] Exhaustiveness considers the closed set of variants with a successful unification.
@@ -196,10 +237,35 @@ This section defines how a variant result is unified with a match subject.
 5. r[gadt.unify.variance] Arm-local equalities do not change variance declarations.
 6. r[gadt.unify.no-cast] Arm-local equalities are not runtime casts.
 
+```hd
+enum Expr[T]:
+    Lit(value: T)
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+    If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]
+
+fn eval[T](expr: Expr[T]) -> T:
+    match expr:
+        Expr.Lit(value) => value
+        Expr.IntLit(value) => value
+        Expr.BoolLit(value) => value
+        Expr.If(Expr.BoolLit(true), then_value, _) => eval(then_value)
+        Expr.If(_, _, else_value) => eval(else_value)
+```
+
 ### Erasure And Reification
 
 1. r[gadt.erasure.dynamic] Dynamic trait erasure discards GADT refinements.
 2. r[gadt.erasure.no-descriptor] Matching a GADT does not supply `Inspectable` evidence for an erased parameter.
+
+```hd
+enum Expr[T]:
+    Lit(value: T)
+    IntLit(value: i64) -> Expr[i64]
+
+fn as_any[T](expr: Expr[T]) -> Any:
+    expr   # dynamic erasure: a stored IntLit's refinement to i64 is not kept
+```
 
 See also: [Variance](04-type-system.md#variance), which states when a variant
 result makes a declaration parameter invariant.
