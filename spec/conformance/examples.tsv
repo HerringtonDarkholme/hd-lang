@@ -837,8 +837,9 @@ std/json.md	19	type-fragment	-
 std/json.md	20	accept	runtime/valid/json-typed-enum.hd
 std/json.md	21	type-fragment	-
 std/serde.md	1	accept	runtime/valid/serde-derive-call-order.hd
-std/serde.md	2	accept	runtime/valid/serde-derive-call-order.hd
-std/serde.md	3	mixed	typing/invalid/serde-map-key-not-string.hd
+std/serde.md	2	type-fragment	-
+std/serde.md	3	accept	runtime/valid/serde-derive-call-order.hd
+std/serde.md	4	mixed	typing/invalid/serde-map-key-not-string.hd
 std/cli.md	1	accept	runtime/valid/cli-parse-args.hd
 std/cli.md	2	accept	runtime/valid/cli-parse-args.hd
 std/cli.md	3	accept	runtime/valid/cli-parse-args.hd

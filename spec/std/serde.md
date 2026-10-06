@@ -72,6 +72,15 @@ A `Deserializer` reads the same tree, one call per value:
 3. r[std-serde.read.member] `member(m)` makes the value of member `m` the next value. The format decides which value that is, and it may be absent.
 4. r[std-serde.read.choices] `choices` holds the `VariantInfo` of every variant of the type, in declaration order. A data type offers its one variant.
 
+```text
+use std.serde.Deserializer
+
+fn read_text_or_empty[R < Deserializer](input: mut R) -> Result[string, R::Error]:
+    match input.peek()?:
+        .Text => input.text("string")
+        _ => .Ok("")
+```
+
 > **Note.** `peek` lets a value that holds any kind, such as a `Json`,
 > read itself. A format that is not self-describing may return an error
 > from `peek`.
