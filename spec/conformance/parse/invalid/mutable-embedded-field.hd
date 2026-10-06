@@ -3,4 +3,4 @@ data Base:
     id: string
 
 data User:
-    mut Base  # diagnostic: mutable-embedded-field
+    mut Base  # diagnostic: mutable-field-modifier

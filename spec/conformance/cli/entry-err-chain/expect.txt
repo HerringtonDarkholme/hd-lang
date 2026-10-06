@@ -1,0 +1,10 @@
+# An error type that implements `Error` is printed as its `Display` text,
+# then one `caused by: ` line per cause, outermost first
+# (module.entry.err-render-chain, module.entry.err-render-chain.line). The
+# report goes to standard error, and an `.Err` exits with status 1 even
+# when the result type is `Result[ExitCode, E]` (module.entry.err-stderr).
+run: hd chain.hd
+exit: 1
+stderr: sync failed
+stderr: caused by: cannot save notes.txt
+stderr: caused by: disk full

@@ -1,0 +1,3 @@
+pub fn main() -> Result[void, string] $ Console:
+    println("checking")
+    .Err("config file is missing")

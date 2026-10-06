@@ -1,2 +1,2 @@
 fn invalid_power(base: f64, exponent: i32) -> f64:
-    base ** exponent  # diagnostic: mixed-numeric-types
+    base ** exponent  # diagnostic: type-mismatch

@@ -1,4 +1,4 @@
 # test: string slice offsets are usize, so a negated literal offset is rejected
 # Spec 10 Built-In Methods: module.method.usize-sizes.
 text := "abc"
-part := text.slice(-1, 2)  # diagnostic: unsigned-negation
+part := text.slice(-1, 2)  # diagnostic: type-mismatch

@@ -3,5 +3,5 @@
 fn ready!() -> void: pass
 fn main!() -> void:
     defer:
-        ready!()  # diagnostic: suspending-defer
+        ready!()  # diagnostic: suspension-forbidden-context
     pass

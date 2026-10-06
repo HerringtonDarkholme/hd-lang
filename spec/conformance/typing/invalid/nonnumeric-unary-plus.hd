@@ -1,2 +1,2 @@
 
-invalid := +"hello"  # diagnostic: nonnumeric-unary-plus
+invalid := +"hello"  # diagnostic: type-mismatch

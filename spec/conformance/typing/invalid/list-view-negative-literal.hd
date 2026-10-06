@@ -1,4 +1,4 @@
 # test: List.view takes usize offsets, so a negated literal offset is rejected
 # Spec std/collections List Methods: the view signature, with expr.arith.unary-minus.
 items := [1, 2, 3]
-part := items.view(-2, 1)  # diagnostic: unsigned-negation
+part := items.view(-2, 1)  # diagnostic: type-mismatch

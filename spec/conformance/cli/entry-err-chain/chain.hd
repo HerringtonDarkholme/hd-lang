@@ -1,0 +1,22 @@
+use std.process.ExitCode
+
+@error("disk full")
+pub data DiskError:
+    free: i64
+
+@error
+pub enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+
+@error
+pub enum SyncError:
+    @error("sync failed")
+    Save(@from error: SaveError)
+
+fn sync() -> Result[void, SyncError]:
+    .Err(SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 })))
+
+pub fn main() -> Result[ExitCode, SyncError]:
+    sync()?
+    .Ok(ExitCode(0))

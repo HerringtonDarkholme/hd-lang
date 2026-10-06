@@ -1,0 +1,9 @@
+# The host writes an entry point's `.Err` report to standard error and
+# exits with status 1 (module.entry.err-stderr). An error type that does
+# not implement `Error` is printed as its `Display` text alone
+# (module.entry.err-render-display). Standard output keeps only the
+# program's own output.
+run: hd display.hd
+exit: 1
+stdout: checking
+stderr: config file is missing

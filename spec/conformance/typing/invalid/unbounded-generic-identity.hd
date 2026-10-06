@@ -1,2 +1,2 @@
 fn same[T](left: T, right: T) -> bool:
-    left is right  # diagnostic: identity-needs-reference-bound
+    left is right  # diagnostic: identity-requires-references

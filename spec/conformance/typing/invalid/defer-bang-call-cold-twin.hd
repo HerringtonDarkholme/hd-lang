@@ -4,7 +4,7 @@ fn ready!() -> i32:
 
 fn bang_cleanup!() -> i32:
     defer:
-        _ := ready!()  # diagnostic: suspending-defer
+        _ := ready!()  # diagnostic: suspension-forbidden-context
     2
 
 fn cold_cleanup!() -> i32:

@@ -1,2 +1,2 @@
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
-    left == right  # diagnostic: unsupported-equality
+    left == right  # diagnostic: type-mismatch
