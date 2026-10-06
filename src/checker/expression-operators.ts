@@ -205,8 +205,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       isKnownType(name, this.dataTypes, this.enumTypes, this.traitTypes) ||
       this.traitTypes.has(name) ||
       this.signature.genericParameters.includes(name)
-    )
-      this.fail("type-used-as-value", `'${name}' names a type, not a value`, span);
+    ) {
+      // A requirement key of this function names its provider through
+      // `$.use` (spec/lang/11-requirements-and-suspension.md#r-req.use.context).
+      const provider = this.signature.requirements.includes(name)
+        ? `; to call its provider, write '$.use(${name})'`
+        : "";
+      this.fail("type-used-as-value", `'${name}' names a type, not a value${provider}`, span);
+    }
   }
 
   protected checkOperatorExpression(

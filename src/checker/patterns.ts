@@ -1,3 +1,4 @@
+import { variantHint } from "./name-suggestions.ts";
 import type { Expression, Pattern } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type {
@@ -113,7 +114,11 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
     const expectedOptional = expected ? optionalInner(expected) : undefined;
     const optionalType = expectedOptional !== undefined ? expected : undefined;
     if (variantName !== "Some" && variantName !== "None")
-      this.fail("unknown-variant", `enum 'Option' has no variant '${variantName}'`, span);
+      this.fail(
+        "unknown-variant",
+        `enum 'Option' has no variant '${variantName}'${variantHint(variantName, ["Some", "None"])}`,
+        span,
+      );
     if (call?.argumentSpreads?.some(Boolean))
       this.fail(
         "positional-spread-needs-vararg",
@@ -205,7 +210,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
     if (variantName !== "Ok" && variantName !== "Err")
       this.fail(
         "unknown-variant",
-        `enum 'Result' has no variant '${variantName}'`,
+        `enum 'Result' has no variant '${variantName}'${variantHint(variantName, ["Ok", "Err"])}`,
         expression.span,
       );
     if (expression.argumentSpreads?.some(Boolean))
@@ -262,7 +267,10 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
     if (!variant)
       this.fail(
         "unknown-variant",
-        `enum '${declaration.name}' has no variant '${variantName}'`,
+        `enum '${declaration.name}' has no variant '${variantName}'${variantHint(
+          variantName,
+          declaration.variants.map((candidate) => candidate.name),
+        )}`,
         span,
       );
     if (variant.factoryFunctionName) {
@@ -503,7 +511,7 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
       if (pattern.variantName !== "Some" && pattern.variantName !== "None")
         this.fail(
           "unknown-variant",
-          `enum 'Option' has no variant '${pattern.variantName}'`,
+          `enum 'Option' has no variant '${pattern.variantName}'${variantHint(pattern.variantName, ["Some", "None"])}`,
           pattern.span,
         );
       const some = pattern.variantName === "Some";
@@ -613,7 +621,10 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
       if (!variant)
         this.fail(
           "unknown-variant",
-          `enum '${declaration.name}' has no variant '${pattern.variantName}'`,
+          `enum '${declaration.name}' has no variant '${pattern.variantName}'${variantHint(
+            pattern.variantName,
+            declaration.variants.map((candidate) => candidate.name),
+          )}`,
           pattern.span,
         );
       const payloadPatterns =

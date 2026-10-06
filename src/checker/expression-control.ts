@@ -1,3 +1,4 @@
+import { variantHint } from "./name-suggestions.ts";
 import type { Expression, Statement } from "../ast.ts";
 import type {
   HirData,
@@ -151,7 +152,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         if (info?.iteratorKind === "trait" && mutableInner(iterable.type) === undefined)
           this.fail(
             "mutable-receiver-required",
-            "iteration requires mutable access to an Iterator implementation",
+            `iteration requires mutable access to an Iterator implementation${this.readonlyBindingHint(expression.iterable)}`,
             expression.iterable.span,
           );
         if (!info) {
@@ -588,7 +589,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     if (pattern.variantName !== "Some" && pattern.variantName !== "None")
       this.fail(
         "unknown-variant",
-        `enum 'Option' has no variant '${pattern.variantName}'`,
+        `enum 'Option' has no variant '${pattern.variantName}'${variantHint(pattern.variantName, ["Some", "None"])}`,
         pattern.span,
       );
     const payloadPatterns =
@@ -749,7 +750,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         if (arm.pattern.variantName !== "Ok" && arm.pattern.variantName !== "Err")
           this.fail(
             "unknown-variant",
-            `enum 'Result' has no variant '${arm.pattern.variantName}'`,
+            `enum 'Result' has no variant '${arm.pattern.variantName}'${variantHint(arm.pattern.variantName, ["Ok", "Err"])}`,
             arm.pattern.span,
           );
         const ok = arm.pattern.variantName === "Ok";
@@ -908,7 +909,10 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     if (!variant)
       this.fail(
         "unknown-variant",
-        `enum '${declaration.name}' has no variant '${pattern.variantName}'`,
+        `enum '${declaration.name}' has no variant '${pattern.variantName}'${variantHint(
+          pattern.variantName,
+          declaration.variants.map((candidate) => candidate.name),
+        )}`,
         pattern.span,
       );
     // An impossible GADT variant is reported before coverage, which already

@@ -1,3 +1,4 @@
+import { standardImportHint } from "./standard-uses.ts";
 import { ambiguousProjection, bindingNameProblem } from "./associated-bindings.ts";
 import { listVararg, tupleVararg, type FunctionDecl, type Program, type TypeRef } from "../ast.ts";
 import type { HirAssociatedBinding, HirGenericBound, HirTrait, ValueType } from "../hir.ts";
@@ -281,7 +282,7 @@ export function createProgramSignatures(
         if (!trait) {
           diagnostics.push({
             code: "unknown-trait",
-            message: `unknown trait '${displayType(traitName)}'`,
+            message: `unknown trait '${displayType(traitName)}'${standardImportHint(traitName, "type")}`,
             span: bound.span,
           });
           return [];

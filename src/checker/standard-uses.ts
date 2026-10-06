@@ -1,6 +1,10 @@
 import type { Program } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
-import { standardDeclarationNames, standardPublicNames } from "./standard-library.ts";
+import {
+  standardDeclarationNames,
+  standardPublicNames,
+  standardPublicTypeNames,
+} from "./standard-library.ts";
 import { STANDARD_MODULES } from "./standard-sources.ts";
 
 // Checks a program's `std` uses before anything joins the standard library:
@@ -66,6 +70,49 @@ export function declares(module: string, name: string): "public" | "private" | u
   if (file === undefined) return undefined;
   if ((standardPublicNames(file) ?? []).includes(name)) return "public";
   return (standardDeclarationNames(file) ?? []).includes(name) ? "private" : undefined;
+}
+
+/** Each name a std module exports, with its exporting modules; built on the first hint. */
+let exportIndex: Map<string, { readonly module: string; readonly type: boolean }[]> | undefined;
+
+/**
+ * The std modules that export `name` publicly, at most three, so that a
+ * diagnostic can say which `use` brings it into scope. A `"type"` position
+ * counts only types and traits. Compiler-provided names count by case: a
+ * type name starts with a capital. Only a reported diagnostic calls this.
+ */
+export function standardExporters(name: string, position: "value" | "type"): string[] {
+  if (!exportIndex) {
+    exportIndex = new Map();
+    const add = (module: string, exported: string, type: boolean): void => {
+      const entries = exportIndex!.get(exported) ?? [];
+      entries.push({ module, type });
+      exportIndex!.set(exported, entries);
+    };
+    for (const [module, file] of MODULE_FILES) {
+      for (const exported of COMPILER_NAMES.get(module) ?? [])
+        add(module, exported, /^[A-Z]/.test(exported));
+      if (file === undefined) continue;
+      const types = new Set(standardPublicTypeNames(file));
+      for (const exported of standardPublicNames(file) ?? [])
+        add(module, exported, types.has(exported));
+    }
+  }
+  return (exportIndex.get(name) ?? [])
+    .filter((entry) => position === "value" || entry.type)
+    .map((entry) => entry.module)
+    .slice(0, 3);
+}
+
+/**
+ * The `; import it with use std.M.name` clause for a name that std modules
+ * export, or nothing when none does.
+ */
+export function standardImportHint(name: string, position: "value" | "type"): string {
+  const modules = standardExporters(name, position);
+  return modules.length > 0
+    ? `; import it with ${modules.map((module) => `use std.${module}.${name}`).join(" or ")}`
+    : "";
 }
 
 /**

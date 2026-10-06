@@ -757,6 +757,19 @@ export abstract class ParserBase {
     );
   }
 
+  /**
+   * A use names a suspending function without its `!`, which only a call
+   * writes, as `use std.fs.{read_text}` in spec/std/fs.md; the error says so.
+   */
+  private rejectUseBang(name: string, expected: string): void {
+    if (this.atText("!"))
+      this.fail(
+        "syntax-error",
+        `expected ${expected}, found '!'; a use names '${name}' without '!', and a call writes '${name}!(...)'`,
+        this.current().span,
+      );
+  }
+
   protected parseUse(): UseDecl {
     const public_ = this.matchText("pub");
     const start = this.expectText("use").span.start;
@@ -791,6 +804,7 @@ export abstract class ParserBase {
       module = parts.join(".");
       do {
         const name = this.expectKind("identifier", "expected an imported declaration name").text;
+        this.rejectUseBang(name, "'}'");
         if (this.atText("."))
           this.fail(
             "direct-variant-use",
@@ -812,6 +826,7 @@ export abstract class ParserBase {
           { start, end: this.peek(-1).span.end },
         );
       const name = parts.pop()!;
+      this.rejectUseBang(name, "a line ending");
       module = parts.join(".");
       const alias = this.matchText("as")
         ? this.expectKind("identifier", "expected an import alias").text

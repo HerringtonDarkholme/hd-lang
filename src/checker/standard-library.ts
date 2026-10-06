@@ -304,6 +304,18 @@ export function standardPublicNames(module: string): readonly string[] | undefin
   return isStandardModule(module) ? declaredModule(module).publicNames : undefined;
 }
 
+/**
+ * The type and trait names that `lib/std/<module>.hd` declares `pub`, or
+ * undefined when there is no such file. Only diagnostic hints ask for them.
+ */
+export function standardPublicTypeNames(module: string): readonly string[] | undefined {
+  if (!isStandardModule(module)) return undefined;
+  const { program } = declaredModule(module);
+  return [...program.data, ...program.enums, ...program.traits, ...(program.types ?? [])]
+    .filter((declaration) => declaration.public === true)
+    .map((declaration) => declaration.name);
+}
+
 /** Whether `lib/std/<module>.hd` declares a trait named `name`. */
 export function standardDeclaresTrait(module: string, name: string): boolean {
   return (

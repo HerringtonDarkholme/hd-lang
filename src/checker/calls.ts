@@ -559,7 +559,7 @@ export abstract class CallChecker extends StatementChecker {
     if (bindingName !== undefined && binding && mutableInner(binding.type) === undefined) {
       this.fail(
         "mutable-receiver-required",
-        `method '${methodName}' takes mut self, but binding '${bindingName}' has readonly type '${receiverType}'`,
+        `method '${methodName}' takes mut self, but binding '${bindingName}' has readonly type '${receiverType}'${this.readonlyBindingHint(source)}`,
         source.span,
       );
     }

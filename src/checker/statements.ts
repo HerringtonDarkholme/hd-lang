@@ -28,8 +28,10 @@ import {
 } from "../types.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { numericType } from "../numeric.ts";
-import { CheckerContext, CheckFailure, PRELUDE_NAMES } from "./context.ts";
-import { statementsReferenceName, traitTypeName } from "./shared.ts";
+import { CheckerContext, CheckFailure, PRELUDE_NAMES, TEST_CASE_FUNCTIONS } from "./context.ts";
+import { closestNames, didYouMean } from "./name-suggestions.ts";
+import { standardImportHint } from "./standard-uses.ts";
+import { genericTypeName, statementsReferenceName, traitTypeName } from "./shared.ts";
 import { speculationSafeArguments } from "./call-speculation.ts";
 
 /**
@@ -38,7 +40,85 @@ import { speculationSafeArguments } from "./call-speculation.ts";
  */
 export const STATEMENT_IFS = new WeakSet<Expression>();
 
+/**
+ * The readonly locals whose initializer had mutable access, so that a later
+ * `mutable-receiver-required` can name the binding's valid fix: `"let"`
+ * for an unannotated binding, `"annotated"` for one with a type.
+ */
+const MUTABLE_INITIALIZERS = new WeakMap<HirLocal, "let" | "annotated">();
+
 export abstract class StatementChecker extends CheckerContext {
+  protected failUnknownName(name: string, message: string, span: SourceSpan): never {
+    const imported = this.imports.get(name);
+    // The prelude's `it` is in scope only in test code; elsewhere it is an
+    // unknown name (spec/lang/10-modules.md#r-module.prelude.test-only.outside).
+    const preludeIt = name === "it" && this.declaration.testOnly === true;
+    if (preludeIt || (imported !== undefined && TEST_CASE_FUNCTIONS.has(imported)))
+      this.fail(
+        "misplaced-test-case",
+        `${name}(...) registers a test case only as a direct call at the top level of a tests block`,
+        span,
+      );
+    if (this.declaration.defaultContext?.laterNames.includes(name))
+      this.fail(
+        "binding-not-yet-visible",
+        `a default cannot refer to the later parameter '${name}'`,
+        span,
+      );
+    this.fail("unknown-name", `${message}${this.unknownNameHint(name)}`, span);
+  }
+
+  /**
+   * The fix for an unknown value name: the use that imports a std name, or
+   * else the visible names it may misspell. A test registration function
+   * outside test code gets no use hint, since importing it cannot help there.
+   */
+  private unknownNameHint(name: string): string {
+    if (name === "loop") return "";
+    const testCase = TEST_CASE_FUNCTIONS.has(`std.testing.${name}`) && !this.declaration.testOnly;
+    const imported = testCase ? "" : standardImportHint(name, "value");
+    if (imported) return imported;
+    const visible = [
+      ...this.scopes.flatMap((scope) => [...scope.keys()]),
+      ...this.availableCaptures.keys(),
+      ...[...this.globals.keys()].filter((global) => this.resolveGlobal(global)),
+      ...[...this.signatures.keys()].filter((function_) => this.visibleSignature(function_)),
+      ...this.imports.keys(),
+    ].filter(
+      (candidate) =>
+        /^[A-Za-z][A-Za-z0-9_]*$|^_[A-Za-z0-9_]+$/.test(candidate) && !candidate.startsWith("__"),
+    );
+    return didYouMean(closestNames(name, visible));
+  }
+
+  /**
+   * The fix for a readonly binding `source` that needs mutable access: the
+   * `let` form or parameter type that gives it, when the spec allows one
+   * (04-type-system.md#binding-forms, #r-types.param.mut). A generic
+   * parameter, `self`, and a method's parameter get none: their fix is a
+   * bound, or a signature that a trait may fix.
+   */
+  protected readonlyBindingHint(source: Expression): string {
+    if (source.kind !== "name") return "";
+    const binding = this.resolveLocal(source.name) ?? this.availableCaptures.get(source.name);
+    if (!binding || mutableInner(binding.type) !== undefined) return "";
+    const mutable = displayType(mutableType(binding.type));
+    const form = MUTABLE_INITIALIZERS.get(binding);
+    if (form === "let") return `; declare it 'let mut ${source.name} = ...'`;
+    if (form === "annotated") return `; declare it 'let ${source.name}: ${mutable} = ...'`;
+    const parameters = this.declaration.parameters;
+    if (
+      !binding.parameter ||
+      this.insideClosure ||
+      !this.locals.includes(binding) ||
+      parameters[0]?.name === "self" ||
+      genericTypeName(binding.type) !== undefined ||
+      !parameters.some((parameter) => parameter.name === source.name && parameter.type)
+    )
+      return "";
+    return `; declare the parameter '${source.name}: ${mutable}'`;
+  }
+
   /** Whether a resolved type is one of std.ops' range types. */
   protected abstract isRangeType(type: ValueType): boolean;
 
@@ -903,6 +983,12 @@ export abstract class StatementChecker extends CheckerContext {
             /\busize\b/.test(value.type)
           ? firstBareLiteral(statement.value)
           : undefined;
+    // `let mut name = value`, or a `mut T` annotation, is valid for this
+    // value (04-type-system.md#r-types.bind.let-mut-infer, #r-types.bind.let-mut).
+    const mutableInitializer =
+      !letMut &&
+      (this.mutableBindingAccess(value.type) ||
+        (annotation !== undefined && ["data", "enum", "list", "map"].includes(value.kind)));
     // `:=` and a plain `let` infer the readonly view, even of a fresh value;
     // `let mut` infers `mut T` and never upgrades a readonly value
     // (04-type-system.md#binding-forms).
@@ -949,6 +1035,8 @@ export abstract class StatementChecker extends CheckerContext {
       this.locals.push(local);
       this.currentScope().set(statement.name, local);
     }
+    if (mutableInitializer && mutableInner(type) === undefined)
+      MUTABLE_INITIALIZERS.set(local, annotation ? "annotated" : "let");
     if (defaultedLiteral)
       recordDefaultedLocal(local, {
         name: statement.name,

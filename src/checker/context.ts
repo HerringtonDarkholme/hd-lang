@@ -5,6 +5,7 @@ import { snapshotCheckerState } from "./checker-trial-state.ts";
 import { mapKeyKind } from "./map-keys.ts";
 import { traitKeyParts, traitValueBindings } from "./associated-bindings.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
+import { standardImportHint } from "./standard-uses.ts";
 import type { AssignmentStatement, Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, DiagnosticFix, SourceSpan } from "../diagnostics.ts";
 import type {
@@ -1280,7 +1281,7 @@ export abstract class CheckerContext {
     if (!isKnownType(declared, this.dataTypes, this.enumTypes, this.traitTypes))
       this.fail(
         "unknown-type",
-        `unknown or unsupported type '${displayType(type.name)}'`,
+        `unknown or unsupported type '${displayType(type.name)}'${standardImportHint(type.name, "type")}`,
         type.span,
       );
     // A written application meets its declaration's bounds, nested ones
@@ -1464,26 +1465,6 @@ export abstract class CheckerContext {
   protected visibleSignature(name: string): Signature | undefined {
     const signature = this.signatures.get(name);
     return signature?.testOnly && !this.declaration.testOnly ? undefined : signature;
-  }
-
-  protected failUnknownName(name: string, message: string, span: SourceSpan): never {
-    const imported = this.imports.get(name);
-    // The prelude's `it` is in scope only in test code; elsewhere it is an
-    // unknown name (spec/lang/10-modules.md#r-module.prelude.test-only.outside).
-    const preludeIt = name === "it" && this.declaration.testOnly === true;
-    if (preludeIt || (imported !== undefined && TEST_CASE_FUNCTIONS.has(imported)))
-      this.fail(
-        "misplaced-test-case",
-        `${name}(...) registers a test case only as a direct call at the top level of a tests block`,
-        span,
-      );
-    if (this.declaration.defaultContext?.laterNames.includes(name))
-      this.fail(
-        "binding-not-yet-visible",
-        `a default cannot refer to the later parameter '${name}'`,
-        span,
-      );
-    this.fail("unknown-name", message, span);
   }
 }
 

@@ -17,7 +17,7 @@ test("readonly generic inherent receiver names its binding and concrete type", (
   assert.equal(diagnostic.code, "mutable-receiver-required");
   assert.equal(
     diagnostic.message,
-    "method 'push' takes mut self, but binding 'values' has readonly type 'List[i32]'",
+    "method 'push' takes mut self, but binding 'values' has readonly type 'List[i32]'; declare the parameter 'values: mut List[i32]'",
   );
 });
 
@@ -36,7 +36,7 @@ fn bad(counter: Counter) -> void:
   assert.equal(diagnostic.code, "mutable-receiver-required");
   assert.equal(
     diagnostic.message,
-    "method 'bump' takes mut self, but binding 'counter' has readonly type 'Counter'",
+    "method 'bump' takes mut self, but binding 'counter' has readonly type 'Counter'; declare the parameter 'counter: mut Counter'",
   );
 });
 
@@ -58,7 +58,7 @@ fn bad(counter: Counter) -> void:
   assert.equal(diagnostic.code, "mutable-receiver-required");
   assert.equal(
     diagnostic.message,
-    "method 'bump' takes mut self, but binding 'counter' has readonly type 'Counter'",
+    "method 'bump' takes mut self, but binding 'counter' has readonly type 'Counter'; declare the parameter 'counter: mut Counter'",
   );
 });
 

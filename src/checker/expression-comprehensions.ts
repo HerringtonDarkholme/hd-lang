@@ -355,7 +355,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
     if (info?.iteratorKind === "trait" && mutableInner(iterable.type) === undefined)
       this.fail(
         "mutable-receiver-required",
-        "iteration requires mutable access to an Iterator implementation",
+        `iteration requires mutable access to an Iterator implementation${this.readonlyBindingHint(expression)}`,
         expression.span,
       );
     if (info) return { iterable, ...info };

@@ -1,3 +1,4 @@
+import { standardImportHint } from "./standard-uses.ts";
 import { writtenBindingProblem } from "./associated-bindings.ts";
 import { markAmbiguous } from "./ambiguous-solutions.ts";
 import {
@@ -1336,7 +1337,7 @@ export function typeName(
   if (!isKnownType(resolved, dataTypes, enumTypes, traitTypes)) {
     diagnostics.push({
       code: "unknown-type",
-      message: `unknown or unsupported type '${displayType(type.name)}'`,
+      message: `unknown or unsupported type '${displayType(type.name)}'${standardImportHint(type.name, "type")}`,
       span: type.span,
     });
     return undefined;

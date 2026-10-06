@@ -1,3 +1,4 @@
+import { standardImportHint } from "./standard-uses.ts";
 import { traitValueBindings } from "./associated-bindings.ts";
 import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
@@ -1484,7 +1485,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (!this.dataTypes.has(ownerBase) && !this.enumTypes.has(ownerBase))
         this.fail(
           "unknown-type",
-          `unknown associated-function owner '${displayType(ownerType)}'`,
+          `unknown associated-function owner '${displayType(ownerType)}'${standardImportHint(ownerBase, "type")}`,
           expression.callee.span,
         );
       this.fail(

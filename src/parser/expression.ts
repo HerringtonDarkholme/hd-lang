@@ -1004,6 +1004,14 @@ export abstract class ExpressionParser extends PatternParser {
     while (!this.atKind("dedent") && !this.atKind("eof")) {
       if (this.matchKind("newline")) continue;
       const pattern = this.parsePattern();
+      // A variant pattern is `Enum.Variant` or `.Variant`, with no type
+      // arguments (06-control-flow.md#r-flow.match.variant.shorthand).
+      if (pattern.kind === "binding" && this.atText("["))
+        this.fail(
+          "syntax-error",
+          "expected '=>', found '['; a variant pattern takes no type arguments, as in 'Enum.Variant(...)'",
+          this.current().span,
+        );
       const guard = this.matchText("if") ? this.parseExpression() : undefined;
       this.expectText("=>");
       let body: readonly Statement[];

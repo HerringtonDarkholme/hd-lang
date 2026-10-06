@@ -1,3 +1,4 @@
+import { standardImportHint } from "./standard-uses.ts";
 import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE, INSPECTABLE_MEMBERS, TUPLE_TRAIT } from "./standard-traits.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
@@ -878,7 +879,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     if (!trait) {
       diagnostics.push({
         code: "unknown-trait",
-        message: `unknown trait '${displayType(implementation.traitName)}'`,
+        message: `unknown trait '${displayType(implementation.traitName)}'${standardImportHint(implementation.traitName, "type")}`,
         span: implementation.span,
       });
       continue;

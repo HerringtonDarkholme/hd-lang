@@ -21,6 +21,7 @@ import {
 import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 import { builtInMethodNames } from "./built-in-methods.ts";
+import { didYouMean, similarMethods } from "./name-suggestions.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
 
@@ -57,40 +58,6 @@ interface EmbeddedPart {
 type PromotedSelection = Extract<MemberSelection, { readonly kind: "field" | "inherent" }>;
 
 const MAX_EMBEDDING_DEPTH = 64;
-
-/**
- * The Damerau-Levenshtein distance between two method names: a transposition
- * counts as one edit, so `psuh` is one edit from `push`.
- */
-function nameDistance(left: string, right: string): number {
-  const leftChars = [...left];
-  const rightChars = [...right];
-  const rows = leftChars.length + 1;
-  const columns = rightChars.length + 1;
-  const distance: number[][] = Array.from({ length: rows }, (_, row) =>
-    Array.from({ length: columns }, (_, column) => (row === 0 ? column : column === 0 ? row : 0)),
-  );
-  for (let row = 1; row < rows; row += 1)
-    for (let column = 1; column < columns; column += 1) {
-      const cost = leftChars[row - 1] === rightChars[column - 1] ? 0 : 1;
-      distance[row]![column] = Math.min(
-        distance[row - 1]![column]! + 1,
-        distance[row]![column - 1]! + 1,
-        distance[row - 1]![column - 1]! + cost,
-      );
-      if (
-        row > 1 &&
-        column > 1 &&
-        leftChars[row - 1] === rightChars[column - 2] &&
-        leftChars[row - 2] === rightChars[column - 1]
-      )
-        distance[row]![column] = Math.min(
-          distance[row]![column]!,
-          distance[row - 2]![column - 2]! + 1,
-        );
-    }
-  return distance[leftChars.length]![rightChars.length]!;
-}
 
 /** Whether an inherent `method` applies to a receiver of `type`. */
 function inherentTargetMatches(method: InherentMethod, type: ValueType): boolean {
@@ -562,9 +529,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       unavailable.size > 0
         ? `; the trait ${[...unavailable].map((trait) => `'${displayType(trait)}'`).join(", ")} supplies it, but this module does not import it: add a use declaration for it`
         : "",
-      similar.length > 0
-        ? `; did you mean ${similar.map((method) => `'${method}'`).join(", ")}?`
-        : "",
+      didYouMean(similar),
     ];
     return this.fail(
       "unknown-method",
@@ -574,9 +539,9 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   }
 
   /**
-   * Up to three supported method names of `receiverType` closest to `name`
-   * by edit distance: inherent methods of its target and methods of the
-   * available traits implemented for it, supertraits included.
+   * Up to three supported method names of `receiverType` that `name` likely
+   * meant, by synonym or edit distance: inherent methods of its target and
+   * methods of the available traits implemented for it, supertraits included.
    */
   private similarMethodNames(receiverType: ValueType, name: string, span: SourceSpan): string[] {
     // Method lookup matches the readonly view, as selectMember does.
@@ -593,16 +558,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       if (trait && this.traitAvailable(trait.name, span))
         this.collectTraitMethods(trait, candidates, new Set());
     }
-    candidates.delete(name);
-    const allowed = Math.max(1, Math.floor(Math.max(name.length, 1) / 3));
-    const scored = [...candidates]
-      .map((candidate) => ({ candidate, distance: nameDistance(name, candidate) }))
-      .filter(({ distance }) => distance <= allowed);
-    scored.sort(
-      (left, right) =>
-        left.distance - right.distance || (left.candidate < right.candidate ? -1 : 1),
-    );
-    return scored.slice(0, 3).map(({ candidate }) => candidate);
+    return similarMethods(name, candidates);
   }
 
   /** The non-associated methods `trait` and its transitive supertraits declare. */

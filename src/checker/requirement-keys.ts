@@ -1,3 +1,4 @@
+import { standardImportHint } from "./standard-uses.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type { HirTrait, ValueType } from "../hir.ts";
 import {
@@ -56,7 +57,7 @@ export function requirementKeyDiagnostics(
     if (!trait) {
       diagnostics.push({
         code: "unknown-trait",
-        message: `unknown trait '${displayType(key.name)}' in requirement key '${displayType(requirement)}'`,
+        message: `unknown trait '${displayType(key.name)}' in requirement key '${displayType(requirement)}'${standardImportHint(key.name, "type")}`,
         span,
       });
       continue;
