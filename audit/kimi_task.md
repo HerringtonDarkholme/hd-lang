@@ -90,6 +90,35 @@ and list it under Questions.
 
 ## Jobs
 
+### K19. A Human Guide To The `hd` Command (Do First)
+
+Owner, 2026-10-06: "the cli reference is for spec, not for human read".
+`spec/cli/command-line.md` is normative reference text. Write
+`guide/COMMANDS.md`, a task-oriented guide for people, in the style of
+the Cargo book's "Guide" chapters or `go help`:
+
+- Start a project: `hd new`, the layout it makes, and `hd.toml`.
+- Run: `hd FILE`, `hd run`, `hd run NAME`, `-p`, `--release`, tasks.
+- Check and build: `hd check`, `hd build`, and where outputs go.
+- Test: `hd test`, `--filter`, the test tiers, doc tests, snapshots,
+  `--format json`.
+- Dependencies and workspaces: path and versioned dependencies,
+  `hd.sum`, `[dev-dependencies]`, workspaces.
+- Debugging and tooling: `dbg`, `hd explain CODE`, `hd def`, the REPL,
+  `--format json` for agents.
+- Common errors and their fixes.
+
+Each section opens with the job the reader wants done. Show the command,
+its real output (run it with your worktree's hd in a scratch directory
+outside the repo, and paste what it prints), and one line on what to
+read next, with a link to the exact `spec/cli` or spec section. Keep
+sentences short; no rule IDs in the prose.
+
+Link the page from `guide/README.md`, and put it in the website
+navigation if `website/build.ts` lists guide pages. Run
+`pnpm run website:build`. Commit one section at a time or the whole page
+at once, whichever reads better in review.
+
 ### K16. Guide Sections For The Top Coverage Gaps (1 to 5)
 
 `audit/guide-coverage-2026-10-06.md` (your K15 report) ranks the gaps.
