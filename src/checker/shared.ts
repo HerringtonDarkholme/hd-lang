@@ -24,11 +24,13 @@ import type {
 import type { Signature } from "./context-types.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
 import { matchGenericTypePattern } from "./generic-patterns.ts";
+import { containsGenericType } from "./generic-type.ts";
 import { pureLiteralKind } from "./literal-join.ts";
 import { familyHolds } from "./numeric-family.ts";
 import { normalizedRequirements, rowParameterName, sameRequirements } from "./requirement-rows.ts";
 
 export { matchGenericTypePattern } from "./generic-patterns.ts";
+export { containsGenericType };
 export { normalizedRequirements, rowParameterName, sameRequirements } from "./requirement-rows.ts";
 import {
   contextKeys,
@@ -594,33 +596,6 @@ export function mentionsUnsolved(
  */
 export function erasedFieldType(declared: ValueType): ValueType | undefined {
   return containsGenericType(declared) || declared.includes("row:") ? declared : undefined;
-}
-
-export function containsGenericType(type: ValueType): boolean {
-  if (genericTypeName(type)) return true;
-  const inputs = inputsInner(type) ?? restInner(type);
-  if (inputs !== undefined) return containsGenericType(inputs);
-  const binding = bindingParts(type);
-  if (binding) return containsGenericType(binding.type);
-  const mutable = mutableInner(type);
-  if (mutable !== undefined) return containsGenericType(mutable);
-  const tuple = tupleParts(type);
-  if (tuple !== undefined) return tuple.some(containsGenericType);
-  const optional = optionalInner(type);
-  if (optional !== undefined) return containsGenericType(optional);
-  const result = resultParts(type);
-  if (result) return containsGenericType(result.ok) || containsGenericType(result.error);
-  const nominal = nominalGenericParts(type);
-  if (nominal) return nominal.arguments.some(containsGenericType);
-  const callable = functionParts(type);
-  return Boolean(
-    callable &&
-    (callable.parameters.some(containsGenericType) ||
-      containsGenericType(callable.result) ||
-      callable.requirements.some(
-        (requirement) => !rowParameterName(requirement) && containsGenericType(requirement),
-      )),
-  );
 }
 
 /**

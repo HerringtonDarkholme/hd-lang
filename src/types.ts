@@ -40,6 +40,14 @@ interface StoredSuspensionParts {
   readonly result: ValueType;
 }
 
+function memoized<K, V>(cache: Map<K, V>, key: K, parse: (key: K) => V): V {
+  const cached = cache.get(key);
+  if (cached !== undefined || cache.has(key)) return cached as V;
+  const parsed = parse(key);
+  cache.set(key, parsed);
+  return parsed;
+}
+
 export function mutableInner(type: ValueType): ValueType | undefined {
   return type.startsWith("mut:") ? type.slice("mut:".length) : undefined;
 }
@@ -65,7 +73,9 @@ export function readonlyType(type: ValueType): ValueType {
   return mutableInner(type) ?? type;
 }
 
-export function tupleParts(type: ValueType): readonly ValueType[] | undefined {
+const TUPLE_PARTS = new Map<ValueType, readonly ValueType[] | undefined>();
+
+function parseTupleParts(type: ValueType): readonly ValueType[] | undefined {
   if (!type.startsWith("(") || !type.endsWith(")")) return undefined;
   const contents = type.slice(1, -1);
   if (contents === "") return [];
@@ -87,6 +97,10 @@ export function tupleParts(type: ValueType): readonly ValueType[] | undefined {
   const final = contents.slice(start);
   if (final) values.push(final);
   return sawComma ? values : undefined;
+}
+
+export function tupleParts(type: ValueType): readonly ValueType[] | undefined {
+  return memoized(TUPLE_PARTS, type, parseTupleParts);
 }
 
 /**
@@ -148,7 +162,9 @@ export function tupleLayout(type: ValueType): readonly ValueType[] | undefined {
   return tupleParts(type)?.map((element) => restInner(element) ?? element);
 }
 
-export function nominalGenericParts(type: ValueType): NominalGenericParts | undefined {
+const NOMINAL_GENERIC_PARTS = new Map<ValueType, NominalGenericParts | undefined>();
+
+function parseNominalGenericParts(type: ValueType): NominalGenericParts | undefined {
   if (type.startsWith("fn(") || type.startsWith("fn!(")) return undefined;
   const open = type.indexOf("[");
   if (open <= 0 || !type.endsWith("]")) return undefined;
@@ -168,6 +184,10 @@ export function nominalGenericParts(type: ValueType): NominalGenericParts | unde
     }
   }
   return { name, arguments: arguments_ };
+}
+
+export function nominalGenericParts(type: ValueType): NominalGenericParts | undefined {
+  return memoized(NOMINAL_GENERIC_PARTS, type, parseNominalGenericParts);
 }
 
 export function nominalGenericType(name: string, arguments_: readonly ValueType[]): ValueType {
@@ -200,9 +220,15 @@ export function splitTypeBindings(arguments_: readonly ValueType[]): {
 }
 
 /** The parts of one binding argument `Name=type`, or undefined for a type. */
-export function bindingParts(argument: ValueType): TypeBinding | undefined {
+const BINDING_PARTS = new Map<ValueType, TypeBinding | undefined>();
+
+function parseBindingParts(argument: ValueType): TypeBinding | undefined {
   const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.+)$/su.exec(argument);
   return match ? { name: match[1]!, type: match[2]! } : undefined;
+}
+
+export function bindingParts(argument: ValueType): TypeBinding | undefined {
+  return memoized(BINDING_PARTS, argument, parseBindingParts);
 }
 
 /** A binding argument with its type rewritten. */
@@ -359,7 +385,9 @@ export function displayType(type: ValueType): string {
     .replace(/,(?! )/g, ", ");
 }
 
-export function resultParts(type: ValueType): ResultParts | undefined {
+const RESULT_PARTS = new Map<ValueType, ResultParts | undefined>();
+
+function parseResultParts(type: ValueType): ResultParts | undefined {
   if (!type.startsWith("Result[") || !type.endsWith("]")) return undefined;
   const contents = type.slice("Result[".length, -1);
   let depth = 0;
@@ -374,6 +402,10 @@ export function resultParts(type: ValueType): ResultParts | undefined {
   return undefined;
 }
 
+export function resultParts(type: ValueType): ResultParts | undefined {
+  return memoized(RESULT_PARTS, type, parseResultParts);
+}
+
 export function resultType(ok: ValueType, error: ValueType): ValueType {
   return `Result[${ok},${error}]`;
 }
@@ -382,7 +414,9 @@ export function isErasedVariant(type: ValueType): boolean {
   return optionalInner(type) !== undefined || resultParts(type) !== undefined;
 }
 
-export function functionParts(type: ValueType): FunctionParts | undefined {
+const FUNCTION_PARTS = new Map<ValueType, FunctionParts | undefined>();
+
+function parseFunctionParts(type: ValueType): FunctionParts | undefined {
   const suspending = type.startsWith("fn!(");
   if ((!suspending && !type.startsWith("fn(")) || !type.includes(")->")) return undefined;
   const prefixLength = suspending ? 4 : 3;
@@ -435,6 +469,10 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
     variadic && index === renderedParameters.length - 1 ? parameter.slice(0, -3) : parameter,
   );
   return { parameters, suspending, variadic, result, requirements };
+}
+
+export function functionParts(type: ValueType): FunctionParts | undefined {
+  return memoized(FUNCTION_PARTS, type, parseFunctionParts);
 }
 
 export function functionType(
@@ -514,7 +552,9 @@ export function substituteTypeParameters(
  * as `WithLog[$(Clock+Db)]` keeps the row argument of a row alias whole
  * (11-requirements-and-suspension.md#row-aliases).
  */
-export function splitRowKeys(text: string): readonly string[] {
+const ROW_KEYS = new Map<string, readonly string[]>();
+
+function parseRowKeys(text: string): readonly string[] {
   const keys: string[] = [];
   let depth = 0;
   let start = 0;
@@ -529,6 +569,10 @@ export function splitRowKeys(text: string): readonly string[] {
     }
   }
   return keys;
+}
+
+export function splitRowKeys(text: string): readonly string[] {
+  return memoized(ROW_KEYS, text, parseRowKeys);
 }
 
 export function contextKeys(type: ValueType): readonly string[] | undefined {

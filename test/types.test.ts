@@ -7,22 +7,49 @@ import { parse } from "../src/parser/index.ts";
 import { ReplSession } from "../src/repl.ts";
 import { inspectKey } from "../src/checker/inspectable.ts";
 import { unresolvedTypeMessage } from "../src/checker/cannot-infer.ts";
-import { matchGenericTypePattern, resolveGenericType } from "../src/checker/shared.ts";
 import {
+  containsGenericType,
+  matchGenericTypePattern,
+  resolveGenericType,
+} from "../src/checker/shared.ts";
+import {
+  bindingParts,
   displayType,
   eraseTypePermissions,
   functionParts,
   functionType,
   mutableInner,
   mutableType,
+  nominalGenericParts,
   optionalInner,
   optionalType,
+  resultParts,
   substituteTypeParameters,
+  tupleParts,
   tupleType,
   typeSourceText,
 } from "../src/types.ts";
 
 const user = "data User:\n    name: i32\n";
+
+test("structural type parsers memoize parts by type text", () => {
+  for (const [parts, type] of [
+    [tupleParts, "(i32,List[string])"],
+    [nominalGenericParts, "Map[string,List[i32]]"],
+    [bindingParts, "Item=List[i32]"],
+    [resultParts, "Result[List[i32],string]"],
+    [functionParts, "fn(i32,List[string])->Result[i32,string]$Console"],
+  ] as const)
+    assert.equal(parts(type), parts(type));
+  assert.equal(containsGenericType("List[generic:T]"), true);
+  assert.equal(containsGenericType("List[i32]"), false);
+});
+
+test("a deeply nested tuple type checks without overflowing", () => {
+  let type = "i32";
+  for (let depth = 0; depth < 40; depth += 1) type = `(${type},)`;
+  assert.deepEqual(analyze(`fn deep(value: ${type}) -> void:\n    pass\n`).diagnostics, []);
+});
 
 test("inference advice preserves optional permission boundaries in source annotations", () => {
   const span = { start: { offset: 0, line: 1, column: 1 }, end: { offset: 1, line: 1, column: 2 } };
