@@ -1,0 +1,61 @@
+# test: a typed expression evaluator returns i64 or bool by the variant each arm matched
+# Spec 13 Generalized Algebraic Data Types: gadt.intro.refine, gadt.intro.recover.
+# Spec 13 Variant Result Types: gadt.result.declare, gadt.result.refine, gadt.result.default.
+# Spec 13 Construction: gadt.construct.syntax, gadt.construct.infer; Type-Checking Requirements: gadt.check.construct.
+# Spec 13 Pattern Refinement: gadt.refine.equalities, gadt.refine.scope, gadt.refine.match-type.
+# Spec 13 Refinement Algorithm: gadt.unify.first-order, gadt.unify.solvable, gadt.unify.solution.
+# Spec 13 Runtime Representation: gadt.runtime.compile-time, gadt.runtime.tag.
+use std.testing.assert_equal
+
+enum Expr[T]:
+    Lit(value: T)
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+    Add(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Less(left: Expr[i64], right: Expr[i64]) -> Expr[bool]
+    If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]
+
+fn eval[T](expr: Expr[T]) -> T:
+    match expr:
+        Expr.Lit(value) => value
+        Expr.IntLit(value) => value
+        Expr.BoolLit(value) => value
+        Expr.Add(left, right) => eval(left) + eval(right)
+        Expr.Less(left, right) => eval(left) < eval(right)
+        Expr.If(cond, then_value, else_value) =>
+            if eval(cond): eval(then_value) else: eval(else_value)
+
+fn kind[T](expr: Expr[T]) -> string:
+    match expr:
+        Expr.Lit(_) => "lit"
+        Expr.IntLit(_) => "int"
+        Expr.BoolLit(_) => "bool"
+        Expr.Add(_, _) => "add"
+        Expr.Less(_, _) => "less"
+        Expr.If(_, _, _) => "if"
+
+tests:
+    it("an i64 expression evaluates to an i64"):
+        sum := Expr.Add(Expr.IntLit(40), Expr.IntLit(2))
+        let total: i64 = eval(sum)
+        assert_equal(total, 42, reason="Add arm checks under T = i64")
+
+    it("a bool expression evaluates to a bool"):
+        let check: Expr[bool] = Expr.Less(Expr.IntLit(1), Expr.IntLit(2))
+        assert_equal(eval(check), true, reason="Less arm checks under T = bool")
+
+    it("If takes its result type from its branches"):
+        pick := Expr.If(Expr.BoolLit(false), Expr.IntLit(1), Expr.IntLit(2))
+        let picked: i64 = eval(pick)
+        assert_equal(picked, 2, reason="the else branch")
+        label := Expr.If(Expr.BoolLit(true), Expr.Lit("yes"), Expr.Lit("no"))
+        assert_equal(eval(label), "yes", reason="a string If through the unrefined Lit")
+
+    it("a variant without a result keeps the declaration's type argument"):
+        let name: Expr[string] = Expr.Lit("ada")
+        assert_equal(eval(name), "ada", reason="Lit constructs Expr[string]")
+
+    it("values keep their ordinary variant tag"):
+        assert_equal(kind(Expr.IntLit(7)), "int", reason="IntLit tag")
+        assert_equal(kind(Expr.Lit(7)), "lit", reason="Lit tag, though its type is Expr[i32]")
+        assert_equal(kind(Expr.If(Expr.BoolLit(true), Expr.BoolLit(true), Expr.BoolLit(false))), "if", reason="If tag")

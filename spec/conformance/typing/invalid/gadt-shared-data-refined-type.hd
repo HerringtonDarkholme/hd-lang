@@ -1,0 +1,5 @@
+# test: shared constructor data must fit the shared field after the variant's refinement
+# Spec 13 Shared Constructor Data: gadt.shared.assignable; Type-Checking Requirements: gadt.check.payload.
+enum Column[T](blank: T):
+    Count(name: string) -> Column[i64](0)
+    Flag(name: string) -> Column[bool](0)  # diagnostic: type-mismatch

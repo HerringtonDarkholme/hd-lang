@@ -1,0 +1,10 @@
+# test: GADT payload patterns keep the enum rule that positional patterns come first
+# Spec 13 Payload Pattern Conventions: gadt.pattern.order, gadt.pattern.syntax.
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    Sub(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+
+fn eval(expr: Expr[i64]) -> i64:
+    match expr:
+        Expr.IntLit(value) => value
+        Expr.Sub(left=l, r) => eval(l) - eval(r)  # diagnostic: pattern-order

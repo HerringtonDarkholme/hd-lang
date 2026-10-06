@@ -1,0 +1,10 @@
+# test: a match over Key[i32] must still cover every key whose result is Key[i32]
+# Spec 13 Pattern Refinement: gadt.refine.exhaustive; Exhaustiveness And Nesting: gadt.unify.exhaustive.
+enum Key[T]:
+    Port -> Key[i32]
+    Retries -> Key[i32]
+    Host -> Key[string]
+
+fn int_name(key: Key[i32]) -> string:
+    match key:  # diagnostic: nonexhaustive-match
+        Key.Port => "port"

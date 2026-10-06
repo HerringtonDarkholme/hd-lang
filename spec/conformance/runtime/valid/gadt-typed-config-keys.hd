@@ -1,0 +1,59 @@
+# test: typed config keys read a field of the key's type, and a match lists only the keys its type allows
+# Spec 13 Variant Result Types: gadt.result.refine; Pattern Refinement: gadt.refine.equalities, gadt.refine.exhaustive.
+# Spec 13 Exhaustiveness And Nesting: gadt.unify.exhaustive, gadt.unify.catch-all.
+# Spec 13 Construction: gadt.construct.infer (a payload-free variant typed by its expected type).
+use std.testing.assert_equal
+
+enum Key[T]:
+    Port -> Key[i32]
+    Retries -> Key[i32]
+    Host -> Key[string]
+    Verbose -> Key[bool]
+
+data Config:
+    port: i32
+    retries: i32
+    host: string
+    verbose: bool
+
+fn get[T](config: Config, key: Key[T]) -> T:
+    match key:
+        Key.Port => config.port
+        Key.Retries => config.retries
+        Key.Host => config.host
+        Key.Verbose => config.verbose
+
+fn int_name(key: Key[i32]) -> string:
+    match key:
+        Key.Port => "port"
+        Key.Retries => "retries"
+
+fn text_name(key: Key[string]) -> string:
+    match key:
+        Key.Host => "host"
+
+fn flag_name(key: Key[bool]) -> string:
+    match key:
+        _ => "a flag"
+
+fn is_port(key: Key[i32]) -> bool:
+    match key:
+        Key.Port => true
+        _ => false
+
+tests:
+    it("each key reads a value of its own type"):
+        config := Config { port: +8080, retries: +3, host: "localhost", verbose: true }
+        assert_equal(get(config, Key.Port), +8080, reason="Key[i32]")
+        assert_equal(get(config, Key.Host), "localhost", reason="Key[string]")
+        assert_equal(get(config, Key.Verbose), true, reason="Key[bool]")
+
+    it("a match over one instantiation lists only its inhabitable keys"):
+        let retries: Key[i32] = Key.Retries
+        assert_equal(int_name(retries), "retries", reason="two i32 keys")
+        assert_equal(text_name(Key.Host), "host", reason="one string key")
+        assert_equal(flag_name(Key.Verbose), "a flag", reason="a catch-all over one bool key")
+
+    it("a catch-all covers the remaining inhabitable keys"):
+        assert_equal(is_port(Key.Port), true, reason="the listed key")
+        assert_equal(is_port(Key.Retries), false, reason="the catch-all")

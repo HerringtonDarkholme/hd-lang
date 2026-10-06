@@ -1,0 +1,55 @@
+# test: a simplifier matches nested GADT patterns with positional, named, and literal payload patterns
+# Spec 13 Payload Pattern Conventions: gadt.pattern.syntax, gadt.pattern.positional, gadt.pattern.named, gadt.pattern.literal.
+# Spec 13 Exhaustiveness And Nesting: gadt.unify.nested; Pattern Refinement: gadt.refine.scope.
+# Spec 13 Refinement Algorithm: gadt.unify.aliases (Count expands to i64 before unification).
+use std.testing.assert_equal
+
+type Count = i64
+
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+    Add(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Scale(value: Expr[i64], factor: i64) -> Expr[i64]
+    If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]
+
+fn eval[T](expr: Expr[T]) -> T:
+    match expr:
+        Expr.IntLit(n) => n
+        Expr.BoolLit(b) => b
+        Expr.Add(l, r) => eval(l) + eval(r)
+        Expr.Scale(inner, factor=2) => eval(inner) * 2
+        Expr.Scale(inner, factor) => eval(inner) * factor
+        Expr.If(c, t, e) => if eval(c): eval(t) else: eval(e)
+
+fn simplify[T](expr: Expr[T]) -> Expr[T]:
+    match expr:
+        Expr.Add(Expr.IntLit(0), r) => r
+        Expr.Add(left=l, right=Expr.IntLit(0)) => l
+        Expr.Scale(inner, factor=1) => inner
+        Expr.If(Expr.BoolLit(true), t, _) => t
+        Expr.If(Expr.BoolLit(false), _, e) => e
+        _ => expr
+
+fn total(expr: Expr[Count]) -> Count:
+    match expr:
+        Expr.IntLit(n) => n
+        Expr.Add(l, r) => total(l) + total(r)
+        Expr.Scale(inner, factor) => total(inner) * factor
+        Expr.If(c, t, e) => if eval(c): total(t) else: total(e)
+
+tests:
+    it("named and literal payload patterns pick the arm"):
+        assert_equal(eval(Expr.Scale(Expr.IntLit(5), factor=2)), 10, reason="factor=2 arm")
+        assert_equal(eval(Expr.Scale(Expr.IntLit(5), 3)), 15, reason="general Scale arm")
+
+    it("nested patterns compose their refinements"):
+        sum := simplify(Expr.Add(Expr.IntLit(0), Expr.IntLit(9)))
+        assert_equal(eval(sum), 9, reason="0 + r simplifies to r")
+        right := simplify(Expr.Add(Expr.IntLit(4), Expr.IntLit(0)))
+        assert_equal(eval(right), 4, reason="l + 0 simplifies to l")
+        flag := simplify(Expr.If(Expr.BoolLit(false), Expr.BoolLit(true), Expr.BoolLit(false)))
+        assert_equal(eval(flag), false, reason="if false picks the else branch")
+
+    it("an alias of i64 refines like i64"):
+        assert_equal(total(Expr.Add(Expr.IntLit(2), Expr.Scale(Expr.IntLit(3), 4))), 14, reason="2 + 3 * 4")

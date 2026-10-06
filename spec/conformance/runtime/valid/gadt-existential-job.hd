@@ -1,0 +1,30 @@
+# test: a deferred job hides its input type, and the arm that runs it uses that type only through the payload and its bound
+# Spec 13 Existential Parameters: gadt.existential.def, gadt.existential.fresh, gadt.existential.bounds.
+# Spec 13 Construction: gadt.construct.infer; Refinement Algorithm: gadt.unify.solvable, gadt.unify.solution.
+use std.testing.assert_equal
+
+enum Job[T]:
+    Ready(value: T)
+    Apply[S < Display](input: S, step: fn(S) -> T) -> Job[T]
+
+fn run[T](job: Job[T]) -> T:
+    match job:
+        Job.Ready(value) => value
+        Job.Apply(input, step) => step(input)
+
+fn describe[T](job: Job[T]) -> string:
+    match job:
+        Job.Ready(_) => "ready"
+        Job.Apply(input, _) => "apply to $input"
+
+tests:
+    it("a job runs its step on its own hidden input"):
+        let greeting: Job[bool] = Job.Apply("hello", fn(text: string) -> bool: text == "hello")
+        assert_equal(run(greeting), true, reason="S = string, T = bool")
+        double := Job.Apply(+21, fn(n: i32) -> i64: i64(n) * 2)
+        assert_equal(run(double), 42, reason="S = i32, T = i64")
+        assert_equal(run(Job.Ready(+7)), +7, reason="no hidden input")
+
+    it("an arm uses the hidden input through its Display bound"):
+        assert_equal(describe(Job.Apply(+3, fn(n: i32) -> bool: n > 2)), "apply to 3", reason="Display of i32")
+        assert_equal(describe(Job.Ready(true)), "ready", reason="the other arm")

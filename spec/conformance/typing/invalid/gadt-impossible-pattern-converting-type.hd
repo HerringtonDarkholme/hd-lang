@@ -1,0 +1,10 @@
+# test: i64 converts to i64? by optional injection but does not unify with it, so an Expr[i64] variant cannot match an Expr[i64?] subject
+# Spec 13 Refinement Algorithm: gadt.unify.nominal; Pattern Refinement: gadt.refine.impossible.
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    Lit(value: T)
+
+fn reading(expr: Expr[i64?]) -> i64?:
+    match expr:
+        Expr.IntLit(value) => .Some(value)  # diagnostic: impossible-gadt-pattern
+        Expr.Lit(value) => value

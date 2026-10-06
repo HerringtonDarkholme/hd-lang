@@ -1,0 +1,7 @@
+# test: GADT construction keeps the call rule that positional arguments come first
+# Spec 13 Construction: gadt.construct.order, gadt.construct.syntax.
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    Scale(value: Expr[i64], factor: i64) -> Expr[i64]
+
+doubled := Expr.Scale(factor=2, Expr.IntLit(21))  # diagnostic: argument-order

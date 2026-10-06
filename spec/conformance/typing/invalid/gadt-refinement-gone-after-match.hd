@@ -1,0 +1,11 @@
+# test: a refinement ends with its arm, even when only that arm can reach the code after the match
+# Spec 13 Pattern Refinement: gadt.refine.scope; Type-Checking Requirements: gadt.check.no-escape.
+enum Key[T]:
+    Port -> Key[i32]
+    Host -> Key[string]
+
+fn read_port[T](key: Key[T], value: T) -> i32:
+    match key:
+        Key.Port => ()
+        _ => return +0
+    value  # diagnostic: type-mismatch

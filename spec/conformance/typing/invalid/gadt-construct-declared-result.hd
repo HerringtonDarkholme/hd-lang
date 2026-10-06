@@ -1,0 +1,9 @@
+# test: constructing a GADT variant produces exactly its declared result, so an i64 sum is not a bool expression
+# Spec 13 Type-Checking Requirements: gadt.check.construct.
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    Add(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Less(left: Expr[i64], right: Expr[i64]) -> Expr[bool]
+
+fn condition() -> Expr[bool]:
+    Expr.Add(Expr.IntLit(1), Expr.IntLit(2))  # diagnostic: type-mismatch
