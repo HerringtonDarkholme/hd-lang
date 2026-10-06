@@ -250,7 +250,7 @@ trait Hash:
 4. r[trait.derive.arguments] Its arguments name traits, not metadata values.
 5. r[trait.derive.generate] The compiler generates ordinary implementations of the named traits from the declaration's shape.
 6. r[trait.derive.check] The compiler checks trait requirements and coherence, and rejects traits for which it has no derivation rule.
-7. r[trait.derive.bounds] For each derived trait, the generated implementation adds a `T < Trait` bound for every declaration type parameter `T` that occurs in a field compared, ordered, or hashed by that derivation.
+7. r[trait.derive.bounds] For each derived trait, the generated implementation adds a `T < Trait` bound for some declaration type parameters. That is every `T` that occurs in a field compared, ordered, or hashed by that derivation.
 8. r[trait.derive.bounds.example] Thus `@derive(Eq) data Box[T]` produces conformance only when `T < Eq`.
 9. r[trait.derive.supertraits] The target must also satisfy each derived trait's supertraits, whether through an existing implementation or another derivation.
 10. r[trait.derive.cmp-templates] `Eq`, `PartialOrd`, `Ord`, and `Hash` derive through their templates, as every derivable trait does. The compiler writes none of their bodies.
@@ -258,7 +258,7 @@ trait Hash:
 12. r[trait.derive.templated] `@derive` accepts a trait that has a derivation template, as [Typed Derivation](14-annotations.md#typed-derivation) defines. Any other trait is an error. Error: `underivable-trait`.
 13. r[trait.derive.field-missing-trait] A field that a derived `Eq`, `PartialOrd`, `Ord`, or `Hash` compares, orders, or hashes must implement the derived trait. A field that does not is an error at the field, whose message names the trait and the field. Error: `derive-field-missing-trait`.
 14. r[trait.derive.field-missing-trait.template] For these four traits, this error replaces the template's `member-not-derivable` of [`annot.walker.obligation.error`](14-annotations.md#r-annot.walker.obligation.error).
-15. r[trait.derive.bound-unmet] A use of a derived implementation whose type argument does not meet a bound that `trait.derive.bounds` added is an error at the use, as `==` on two `Box[fn() -> void]` values is. Error: `missing-derived-bound`.
+15. r[trait.derive.bound-unmet] A use of a derived implementation whose type argument does not meet a bound that `trait.derive.bounds` added is an error at the use. One case is `==` on two `Box[fn() -> void]` values. Error: `missing-derived-bound`.
 16. r[trait.derive.owner] A derived implementation is owned by the module that declares its target, whichever module declares the trait.
 17. r[trait.derive.beside-written] Deriving a trait for a type that also has a hand-written implementation of that trait is an error, reported on the `@derive` line. Error: `overlapping-impl`.
 
@@ -331,7 +331,7 @@ impl Eq for Session:
 1. r[trait.derive.newtype] `@derive` on a newtype declaration generates each named trait's implementation from the base type's implementation.
 2. r[trait.derive.newtype.base] The generated method applies the base type's method to the wrapped values, as in `Mile(1) == Mile(1)` comparing the two `i32` values.
 3. r[trait.derive.newtype.requires] The base type must implement each derived trait, as a derived field must.
-4. r[trait.derive.newtype.requires.error] A base type that does not implement a derived trait is an error at the base type, whose message names the trait and the base type. Error: `derive-field-missing-trait`.
+4. r[trait.derive.newtype.requires.error] A base type that does not implement a derived trait is an error at the base type. The message names the trait and the base type. Error: `derive-field-missing-trait`.
 5. r[trait.derive.newtype.not-inherited] A newtype still inherits no implementation it does not derive or implement.
 6. r[trait.derive.newtype.templated] A trait with a template also derives through the base type: the newtype gets no `Structure`, and the base type's implementation is rewrapped.
 7. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
@@ -537,7 +537,7 @@ fn describe(point: Point) -> string:
 3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
 4. r[trait.debug.std-impls] `std` implements `Debug` for the primitives, collections, `T?`, and `Result`, each when its type arguments implement `Debug`.
 5. r[trait.debug.tuples] `std.format` declares a tuple template for `Debug`, so every tuple whose elements implement `Debug` implements it, at every size.
-6. r[trait.debug.tuples.rest] For a tuple with a rest element, `T` must implement `Debug`. Its rest element's items are written inline after the fixed elements, so a value `(1, 2, 3, 4)` of type `(i32, i32, List[i32]...)` writes as the tuple `(1, 2, 3, 4)` of four `i32` does.
+6. r[trait.debug.tuples.rest] For a tuple with a rest element, `T` must implement `Debug`. Its rest element's items are written inline after the fixed elements. So a value `(1, 2, 3, 4)` of type `(i32, i32, List[i32]...)` writes as the tuple `(1, 2, 3, 4)` of four `i32` does.
 7. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
 8. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
 9. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
@@ -571,7 +571,7 @@ impl Display for User:
 1. r[trait.impl.explicit] An explicit implementation names the trait and target type.
 2. r[trait.impl.required] The implementation must write every required method not supplied by a default. Omitting one is an error. Error: `missing-trait-method`.
 3. r[trait.impl.fill] Only a method written in the implementation or a trait default fills a trait method.
-4. r[trait.impl.fill.never] An inherent method of the target and a method promoted from an embedded field never fill a trait method, required or defaulted, whatever its receiver, so neither makes a body optional.
+4. r[trait.impl.fill.never] An inherent method of the target and a method promoted from an embedded field never fill a trait method, required or defaulted, whatever its receiver. So neither makes a body optional.
 5. r[trait.impl.override] The implementation may override a default with the exact instantiated signature.
 6. r[trait.impl.signature] A mismatched method is an error. Error: `trait-method-signature`.
 7. r[trait.impl.extra-methods] Additional methods do not become part of that trait implementation; place them in an inherent `impl` instead.
@@ -826,12 +826,12 @@ impl Shape:  # error: trait-value-impl-target
 
 1. r[trait.own.module.inherent-target] An inherent implementation must be declared in the module that declares its target type, except as `trait.own.module.inherent.std` allows.
 2. r[trait.own.module.inherent.std] An inherent implementation that `trait.own.inherent.std` allows may be declared in any module of the standard library.
-3. r[trait.own.module.trait] A trait implementation must be declared in a module that declares the trait, the target's outer type constructor, or the outer type constructor of a trait argument that gives its package ownership.
+3. r[trait.own.module.trait] A trait implementation must be declared in a module that declares one of three things. They are the trait, the target's outer type constructor, or the outer type constructor of a trait argument that gives its package ownership.
 4. r[trait.own.module.error] An implementation declared in any other module of the owning package is an error. Error: `nonlocal-impl`.
 5. r[trait.own.module.generated] A derived implementation is generated in the module of its declaration, so it always satisfies these rules.
 
 > **Why.** A reader of the type's or the trait's module sees every
-> implementation that can answer a call, and no distant module of the package
+> implementation that can answer a call. No distant module of the package
 > can add one.
 
 ### Overlap
@@ -846,7 +846,7 @@ impl[T < Display] Printable for Box[T]:
 ```
 
 1. r[trait.overlap.generic] Implementations may be generic and state their bounds inline in the generic parameter list.
-2. r[trait.overlap.constrained-head] Every type parameter of a generic implementation must be constrained: it appears in the implemented trait's arguments or in the target type, or an associated-type binding fixes it. A parameter that appears only in another bound, as `T` in `impl[T < Display, I < Holder[T]] Summary for Feed[I]`, is an error. Error: `unconstrained-impl-parameter`.
+2. r[trait.overlap.constrained-head] Every type parameter of a generic implementation must be constrained: it appears in the implemented trait's arguments or in the target type, or an associated-type binding fixes it. A parameter that appears only in another bound is an error. One case is `T` in `impl[T < Display, I < Holder[T]] Summary for Feed[I]`. Error: `unconstrained-impl-parameter`.
 3. r[trait.overlap.constrained-binding] An associated-type binding in the bound of a constrained parameter constrains the parameter it names, as `T` in `impl[T < Display, I < Store[Item = T]] Summary for Feed[I]`.
 4. r[trait.overlap.definition] Two implementations overlap when they implement the same trait and their full heads unify.
 5. r[trait.overlap.unify] Heads unify when, after each implementation's parameters are renamed apart, one substitution makes both their trait arguments and their complete target types equal.
@@ -954,7 +954,7 @@ See also: [Implementation Ownership](#implementation-ownership),
 1. r[trait.inherent.unique-unifying] Two inherent members with one name are an error when their implementations' targets unify, including two members of one implementation. Error: `duplicate-inherent-member`.
 2. r[trait.inherent.unique-unifying.disjoint] Inherent implementations of one type constructor whose targets cannot unify may repeat a member name. `impl Box[i32]` and `impl Box[string]` may each declare `show`, but `impl[T] Box[T]` and `impl Box[i32]` must not.
 3. r[trait.inherent.unique-unifying.unify] Targets unify as implementation heads do in [Overlap](#overlap), after renaming each implementation's parameters apart.
-4. r[trait.inherent.target-match] An inherent member is a member of a receiver's type only when its implementation's target matches that type, so `box.show()` on a `Box[string]` calls the member of `impl Box[string]`.
+4. r[trait.inherent.target-match] An inherent member is a member of a receiver's type only when its implementation's target matches that type. So `box.show()` on a `Box[string]` calls the member of `impl Box[string]`.
 5. r[trait.inherent.field-names] An inherent member may share its name with a field of the type, named or embedded, because fields and methods are separate namespaces.
 6. r[trait.inherent.no-overloading] hd-lang has no method or associated-function overloading.
 
@@ -1021,7 +1021,7 @@ name is one of these:
 
 ### Inherent Methods Win
 
-1. r[trait.resolve.inherent-first] A visible inherent method of the receiver's nominal type is always selected over trait methods, including a method of a trait that the same type implements.
+1. r[trait.resolve.inherent-first] A visible inherent method of the receiver's nominal type is always selected over trait methods. That includes a method of a trait that the same type implements.
 
 > **Why.** Only the package that owns the type can declare an inherent
 > method, so no other package can change which method such a call reaches.
@@ -1323,7 +1323,7 @@ fn first[T, I < NamedSupplier[Item = T]](source: I) -> T:
 3. r[trait.binding.name-reach.meaning] A binding of a supertrait's associated type constrains that supertrait's projection, so `I::Item` above equals `T`.
 4. r[trait.binding.name-reach.ambiguous-type] When two different associated type declarations reachable that way have the name, the binding is ambiguous. An ambiguous binding is an error. Error: `ambiguous-associated-type`.
 5. r[trait.binding.once] Each projection may be bound at most once in one generic parameter list.
-6. r[trait.binding.once.error] A second binding of the same parameter's associated type, in the same bound or another bound, is an error even when both bindings name the same type. Error: `duplicate-associated-binding`.
+6. r[trait.binding.once.error] A second binding of the same parameter's associated type, in the same bound or another bound, is an error. This holds even when both bindings name the same type. Error: `duplicate-associated-binding`.
 
 ```text
 trait Supplier:
@@ -1357,7 +1357,7 @@ fn third[T, R < Record[Item = T]](record: R) -> T:  # error: ambiguous-associate
 1. r[trait.binding.positions-key] Bindings appear in generic parameter bounds, in supertrait lists, in [trait value types](#bound-associated-types), and in [requirement keys](11-requirements-and-suspension.md#r-req.key.binding).
 2. r[trait.binding.rejected-trait-type] The trait of an `impl` header, a trait-qualified call, and a method reference do not accept them. The grammar reports an error there. Error: `syntax-error`.
 3. r[trait.binding.non-trait] A binding in the arguments of a named type that is not a trait, as in `List[i32, Item = i32]`, is an error. Error: `unknown-associated-type`.
-4. r[trait.binding.ambiguous-projection] A binding does not make an ambiguous projection unambiguous: when two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it. Error: `ambiguous-associated-type`.
+4. r[trait.binding.ambiguous-projection] A binding does not make an ambiguous projection unambiguous. When two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it. Error: `ambiguous-associated-type`.
 
 #### Supertrait Bindings
 
@@ -1413,7 +1413,7 @@ fn print_display(value: Display) -> void $ Console:
 ### Dynamic Safety
 
 1. r[trait.dyn.safe] The trait of a dynamic trait value must be dynamically safe.
-2. r[trait.dyn.safe.one-copy] A trait is dynamically safe when every method of it and of its supertraits compiles to one copy: one body shared by every implementation's callers, with no per-call specialization.
+2. r[trait.dyn.safe.one-copy] A trait is dynamically safe when every method of it and of its supertraits compiles to one copy. That is one body shared by every implementation's callers, with no per-call specialization.
 3. r[trait.dyn.safe.error] Using a trait that is not dynamically safe as a value type is an error. Error: `trait-not-dynamically-safe`.
 
 The one-copy rule has these consequences:
@@ -1454,9 +1454,9 @@ fn valid(registry: Registry) -> void:
 
 > **Why.** A method called through a trait value has exactly one body at run
 > time. A bound associated type makes every signature that uses it
-> concrete. An `AnyRef`-bounded parameter shares the reference shape, a
-> suspending method's frame is a reference-shaped heap value, and a row
-> parameter's providers arrive as one bundle, so each keeps one body. An
+> concrete. An `AnyRef`-bounded parameter shares the reference shape, and a
+> suspending method's frame is a reference-shaped heap value. A row
+> parameter's providers arrive as one bundle. Each keeps one body. An
 > associated function has no receiver to dispatch on.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
@@ -1493,7 +1493,7 @@ fn run() -> i32:
 3. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type, and an ambiguous or unknown name is an error.
 4. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
 5. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type.
-6. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type, in any order.
+6. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type. Order does not matter.
 7. r[trait.dyn.binding.widen] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `NamedSupplier[Item = i32]` widens to `Supplier[Item = i32]`.
 8. r[trait.dyn.binding.no-function] An associated function in the trait or a supertrait still makes the trait not dynamically safe, whatever the value type binds.
 
@@ -1542,7 +1542,7 @@ fn describe(named: Named, shown: Display) -> string:
 ```
 
 1. r[trait.dyn.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each direct or transitive supertrait of that trait.
-2. r[trait.dyn.bound.projection] When it satisfies a bound `T < Tr`, each projection such as `T::Item` is the type the value type binds, so `first(source)` in [Bound Associated Types](#bound-associated-types) has type `i32`.
+2. r[trait.dyn.bound.projection] When it satisfies a bound `T < Tr`, each projection such as `T::Item` is the type the value type binds. So `first(source)` in [Bound Associated Types](#bound-associated-types) has type `i32`.
 3. r[trait.dyn.bound.binding] It satisfies a bound's binding only when it binds the same type, so `Supplier[Item = i32]` does not satisfy `T < Supplier[Item = string]`. Error: `unsatisfied-trait-bound`.
 4. r[trait.dyn.bound.instantiation] For a generic trait, the bound must name the same instantiation, so `Repository[User]` satisfies `T < Repository[User]`.
 5. r[trait.dyn.bound.dispatch] A statically dispatched call through such a bound dispatches each method through the value's table.
@@ -1622,7 +1622,7 @@ impl AnyRef for Handle  # error: sealed-trait-implementation
 1. r[trait.sealed.supplied] The compiler supplies the implementations listed for each sealed trait.
 2. r[trait.sealed.behaves] A compiler-supplied implementation behaves like an explicit one: it satisfies bounds, constructs dynamic trait values, and counts for supertrait checks.
 3. r[trait.sealed.no-replace] A compiler-supplied implementation cannot be replaced or overridden.
-4. r[trait.sealed.member-names] A trait that has a sealed trait as a direct or transitive supertrait must not declare a member with the name of one of that sealed trait's members.
+4. r[trait.sealed.member-names] A trait may have a sealed trait as a direct or transitive supertrait. Such a trait must not declare a member with the name of one of that sealed trait's members.
 5. r[trait.sealed.member-names.impl] An implementation of such a trait must not write such a member either.
 6. r[trait.sealed.member-names.error] Either is an error, reported on the member, in place of `duplicate-trait-member`. Error: `sealed-trait-implementation`.
 7. r[trait.sealed.inherent-ok] An inherent method with the same name is allowed.
@@ -1758,7 +1758,7 @@ pub fn downcast_val[T < Inspectable](value: Inspectable) -> T?
 4. r[trait.inspect.supplied.members] The implementation provides `runtime_type` and keeps the two default methods.
 5. r[trait.inspect.runtime-type] `value.runtime_type()` returns the `TypeId` of the value's recorded type.
 6. r[trait.inspect.static] For a value whose static type is concrete, the recorded type is its static type.
-7. r[trait.inspect.dynamic] For a dynamic value of `Inspectable`, or of a trait that has `Inspectable` as a supertrait, it is the concrete type recorded when the value was erased, never the trait.
+7. r[trait.inspect.dynamic] For a dynamic value of `Inspectable`, it is the concrete type recorded when the value was erased, never the trait. The same holds for a dynamic value of a trait that has `Inspectable` as a supertrait.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
@@ -1945,7 +1945,7 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 1. r[trait.limit.no-trait-tests] **No trait tests.** A test compares two runtime identities. Nothing asks whether a value implements a trait, and a dynamic value of one trait is never converted to an unrelated trait.
 2. r[trait.limit.no-requirement-keys] **No inspectable requirement keys.** A trait that is `Inspectable` or has it as a supertrait is never a requirement key. A provider view therefore cannot be tested to recover a concrete provider.
 3. r[trait.limit.signatures] **Visible in signatures.** Only a value of an inspectable type can be erased to `Inspectable`. A value of an unbounded type parameter, of `Any`, or of a trait value type whose trait does not extend `Inspectable` cannot.
-4. r[trait.limit.signatures.branch] A function can therefore branch on a value's type only when a parameter type names `Inspectable`, a trait extending it, or a parameter bounded by one of them.
+4. r[trait.limit.signatures.branch] A function can therefore branch on a value's type only when a parameter type names `Inspectable` or a trait extending it. A parameter bounded by one of them also qualifies.
 5. r[trait.limit.deterministic] **Deterministic.** `runtime_type`, the `TypeId` operations, and `downcast` are pure functions of the build and the value, and call no provider.
 
 See also: [Requirement Rows](11-requirements-and-suspension.md#requirement-rows).
@@ -2015,8 +2015,9 @@ fn invalid(page: Page) -> string:
     page.describe()  # error: unknown-method
 ```
 
-> **Note.** For the error revamp: when `Page` has no `describe` of its own,
-> no promoted one, and no available trait method with that name, the
+> **Note.** For the error revamp: a `Page` may have no `describe` of its
+> own, no promoted one, and no available trait method with that name. Then
+> the
 > `unknown-method` message should suggest `page.Label.describe()`.
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution).
@@ -2097,7 +2098,7 @@ impl Describe for Service:
 ```
 
 > **Note.** The forwarding call runs the part's implementation with the
-> part as its receiver, so a default body there calls the part's methods,
+> part as its receiver. So a default body there calls the part's methods,
 > never the delegating implementation's: there is no overriding. A
 > `mut self` method forwards through `self.E`, which has `mut` access
 > through `mut self`.
@@ -2109,7 +2110,7 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 
 1. r[trait.by.assoc-types] Associated types take the part's bindings: each associated type of the delegating implementation is bound to the type that the part's implementation binds.
 2. r[trait.by.assoc-binding] An associated type binding in the body is an error. Error: `invalid-delegation`.
-3. r[trait.by.assoc-fn] Associated functions have no receiver to forward through and are never generated: the body writes each one, as in any implementation, unless the trait gives it a default. A missing one is an error. Error: `missing-trait-method`.
+3. r[trait.by.assoc-fn] Associated functions have no receiver to forward through and are never generated. The body writes each one, as in any implementation, unless the trait gives it a default. A missing one is an error. Error: `missing-trait-method`.
 
 ```text
 trait Named:
@@ -2134,14 +2135,14 @@ impl Named for Service by Logger  # error: missing-trait-method
 
 ### Delegation Is An Ordinary Implementation
 
-1. r[trait.by.ordinary] Otherwise a delegating implementation is an ordinary trait implementation, under every rule for one: [Implementation Ownership](#implementation-ownership), [Overlap](#overlap), trait visibility, bounds, dynamic trait values, and [Method Resolution](#method-resolution).
+1. r[trait.by.ordinary] Otherwise a delegating implementation is an ordinary trait implementation, under every rule for one. Those are [Implementation Ownership](#implementation-ownership), [Overlap](#overlap), trait visibility, bounds, dynamic trait values, and [Method Resolution](#method-resolution).
 
 ## Default-Method Conflicts
 
 A type that implements two traits with same-named default methods makes a
 dot call of that name ambiguous where both traits are available.
 
-1. r[trait.conflict.ambiguous-available] When a type implements two traits whose default methods share a name, a dot call of that name is an error if both traits are available. Each implementation is still valid alone. Error: `ambiguous-method`.
+1. r[trait.conflict.ambiguous-available] A type may implement two traits whose default methods share a name. When both traits are available, a dot call of that name is an error. Each implementation is still valid alone. Error: `ambiguous-method`.
 2. r[trait.conflict.inherent] The type may define an inherent method to provide its ordinary dot-call behavior.
 3. r[trait.conflict.qualified] The caller may instead use `Trait::method(value, ...)` to select one implementation.
 
