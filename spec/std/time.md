@@ -60,7 +60,7 @@ fn later(start: Timestamp) -> Timestamp:
 
 1. r[std-time.duration.add] `Duration` implements `std.ops.Add` with `Out = Duration`. `a + b` holds the sum of the milliseconds of `a` and `b`.
 2. r[std-time.duration.sub] `Duration` implements `std.ops.Sub` with `Out = Duration`. `a - b` holds the milliseconds of `a` minus those of `b`.
-3. r[std-time.duration.overflow] A sum or difference that does not fit in `i64` milliseconds panics at run time in a debug or test build, as checked `i64` arithmetic does, and wraps in a release build. Panic: `integer-overflow`.
+3. r[std-time.duration.overflow] A sum or difference that does not fit in `i64` milliseconds panics at run time in a debug or test build. This is as checked `i64` arithmetic does, and it wraps in a release build. Panic: `integer-overflow`.
 4. r[std-time.timestamp.add] `Timestamp` implements `std.ops.Add[Duration]` with `Out = Timestamp`. `t + d` is the timestamp whose milliseconds are those of `t` plus those of `d`.
 5. r[std-time.timestamp.add.overflow] A `t + d` whose milliseconds do not fit in `i64` panics at run time in a debug or test build, and wraps in a release build. Panic: `integer-overflow`.
 
@@ -70,9 +70,9 @@ fn later(start: Timestamp) -> Timestamp:
 
 ### Duration Display
 
-A duration displays as Go's `time.Duration` does, with hd's unit names:
-hours, minutes, and seconds, as in `1h2min3.5s`, or milliseconds under
-one second, as in `500ms`:
+A duration displays as Go's `time.Duration` does, with hd's unit names.
+That is hours, minutes, and seconds, as in `1h2min3.5s`, or milliseconds
+under one second, as in `500ms`:
 
 ```text
 use std.time.{Duration, min, s}
@@ -82,7 +82,7 @@ fn waited() -> string:
 ```
 
 1. r[std-time.duration.text] `Duration` implements `Display` with the algorithm of Go's `time.Duration.String`, using the unit names `h`, `min`, `s`, and `ms`.
-2. r[std-time.duration.text.components] A duration of one second or more displays as components, each a whole count followed by its unit with no space: hours `h`, then minutes `min`, then seconds `s`.
+2. r[std-time.duration.text.components] A duration of one second or more displays as components. Each is a whole count followed by its unit with no space: hours `h`, then minutes `min`, then seconds `s`.
 3. r[std-time.duration.text.first] The first component is the largest unit whose count is not zero.
 4. r[std-time.duration.text.lower] Every component after the first is written down to `s`, even when its count is zero, as in `1h0min5s` and `1min0s`.
 5. r[std-time.duration.text.fraction] The seconds component carries the remaining milliseconds as a decimal fraction without trailing zeros, as in `3.5s` and `1.005s`. Whole seconds have no point.
@@ -125,7 +125,7 @@ The standard library declares these suffixes in `std.time`:
 1. r[std-time.suffix.std.fn] Each is a suffix function that takes one `i64` and returns the standard `std.time.Duration`, as in `@num_suffix pub fn ms(count: i64) -> Duration`.
 2. r[std-time.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
 3. r[std-time.suffix.std.import] None is a prelude name; code imports them, as in `use std.time.{ms, s}`.
-4. r[std-time.suffix.std.overflow] A standard suffix call whose result does not fit in `i64` milliseconds, as in `10_000_000_000_000_000h`, panics at run time in a debug or test build, and wraps in a release build, as `i64` arithmetic does. Panic: `integer-overflow`.
+4. r[std-time.suffix.std.overflow] A standard suffix call whose result does not fit in `i64` milliseconds panics at run time in a debug or test build, as in `10_000_000_000_000_000h`. It wraps in a release build, as `i64` arithmetic does. Panic: `integer-overflow`.
 
 ```text
 use std.time.{Duration, ms, s}
@@ -162,7 +162,7 @@ pub trait Clock:
 8. r[std-time.clock.mut] `sleep!` takes `mut self`, so `Clock` is a mutable requirement trait and a provider may advance its own time.
 
 > **Why.** A clock read is a value from the host, as an environment read
-> is, so it needs no driver; replay records it at the boundary either
+> is, so it needs no driver. Replay records it at the boundary either
 > way. Waiting is the one operation that suspends.
 
 > **Why.** `Duration` is signed, so a negative wait can be written. It is
@@ -228,7 +228,7 @@ tests:
 9. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
 10. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
 
-> **Why.** Virtual time advances by itself: a test of a timeout or a
+> **Why.** Virtual time advances by itself. A test of a timeout or a
 > backoff sleeps through it in no real time and needs no extra call. A
 > test that only moves the clock calls `sleep!` on it.
 
@@ -279,7 +279,7 @@ pub data Date:
 > `std` function takes a `Date`.
 
 > **Why.** The proleptic Gregorian calendar with a year 0 is the one ISO
-> 8601 and RFC 3339 use, so a date needs no table of calendar reforms.
+> 8601 and RFC 3339 use. So a date needs no table of calendar reforms.
 > Time zones need a database, and Rust, Kotlin, and Zig keep them out of
 > their standard libraries too.
 
@@ -320,7 +320,7 @@ not zero, then `Z`:
 | `-62198755200000` | `-0001-01-01T00:00:00Z` |
 | `253402300800000` | `10000-01-01T00:00:00Z` |
 
-> **Note.** RFC 3339 allows only the years 0000 to 9999, so the text of
+> **Note.** RFC 3339 allows only the years 0000 to 9999. So the text of
 > a year outside them is not RFC 3339, and `parse_rfc3339` rejects it.
 > Go's `time.Format` writes such a year the same way.
 
