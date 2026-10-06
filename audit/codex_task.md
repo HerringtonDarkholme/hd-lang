@@ -65,10 +65,9 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
-- `usize` work (another agent is making it a distinct type): `src/types.ts`,
-  `src/numeric.ts`, `src/checker/spelling.ts`, `src/checker/literal-join.ts`,
-  `src/checker/numeric-family.ts`, `lib/std/num.hd`, and `usize`/`u32`
-  sites in `lib/std`.
+- Module visibility (another agent is changing it): `src/checker/package-ownership.ts`,
+  `src/checker/member-lookup.ts` visibility paths, `src/checker/module-paths.ts`,
+  `src/package.ts` module scopes.
 
 ## Jobs
 
@@ -110,9 +109,6 @@ print inside a function: ok), run before and after, and update
 KNOWN_ISSUES. Checker only; no rule changes.
 
 ### BQ. Intern Types (Compile Speed)
-
-**Start only after `src/types.ts` is no longer in Don't Touch** (another
-agent is making `usize` a distinct type); until then do BR first.
 
 The checker represents types as strings and re-parses them on every
 inspection (audit/compiler/perf-audit.md, finding F3: `functionParts`,
