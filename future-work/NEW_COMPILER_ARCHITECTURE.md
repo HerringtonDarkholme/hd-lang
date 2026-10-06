@@ -116,8 +116,27 @@ medians in ms, release builds, after the P1e/P1f string fixes:
     turn a non-escaping closure's captured `mut` back into a local.
   - **Inlined `next`:** inline small `next` bodies, so iterator chains
     compile to loops too. This is the specializing iterator design.
-- **The other gaps** (map, sort, string-build) likely share the boxing and
-  dictionary-passing causes. They haven't been profiled yet.
+- **Sort** (read from lib/std, 2026-10-06). `List.sorted()` is a naive
+  recursive merge sort written in hd. Each of its ~1.7M comparisons is an
+  indirect closure call plus an `Ord` dictionary call that returns an
+  `Ordering`, and both elements are unboxed first. Each recursion level
+  allocates new left, right and merged lists and pushes one element at a
+  time. The base case copies through `filter(fn: true)`. Node uses TimSort
+  on unboxed numbers.
+- **Map** (inferred from the stdlib and emitter; WAT not traced): boxed
+  `usize` keys and `u64` values, an `Option` allocation per `get`, generic
+  hash and equality dispatch, plus the range-loop cost above.
+- **Owner, 2026-10-06: "at least compile it to i31ref".** A cheap first
+  step before per-layout code: represent small integers as `i31ref`
+  instead of a heap-allocated box struct.
+  - `bool`, `char`, `u8`, `i8`, `u16` and `i16` always fit.
+  - `i32`, `u32` and `usize` use `i31ref` when the value fits and fall back
+    to a box when it doesn't (OCaml-style tagging), checked with one
+    `ref.test` on unbox.
+  - 64-bit integers and floats still need boxes or per-layout code.
+
+  This removes most per-iteration allocations in sum, map and sort. The
+  indirect calls and per-step `Option` structs remain.
 
 **Compile and check latency (Arena pillar 1).** From the
 [baseline report](../audit/compiler/baseline-2026-10-06.md), as CLI wall
