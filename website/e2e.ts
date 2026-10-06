@@ -210,7 +210,9 @@ try {
     const color = await last(page, ".repl-error").evaluate((node) => getComputedStyle(node).color);
     assert.equal(color, "rgb(255, 123, 114)");
     await enter(page, "1 / 0");
-    await page.locator(".repl-error", { hasText: "panic at 1:1: integer-division-by-zero" }).waitFor();
+    await page
+      .locator(".repl-error", { hasText: "panic at 1:1: integer-division-by-zero" })
+      .waitFor();
     await page.context().close();
   });
 
