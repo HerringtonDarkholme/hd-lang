@@ -1426,7 +1426,7 @@ export const MAX_BOUND_DEPTH = 64;
 /**
  * A numeric literal, alone or under unary `-` or `+`, that was typed before
  * its expected type was known takes the wider `target` type directly
- * (04-type-system.md#r-types.num.binary.literal). Any other value never
+ * (04-type-system.md#r-types.num.binary.literal-join). Any other value never
  * widens implicitly (04-type-system.md#r-types.num.no-implicit).
  */
 export function numericWidening(

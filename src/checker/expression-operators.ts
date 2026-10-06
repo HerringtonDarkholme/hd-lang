@@ -948,7 +948,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (groupTarget !== undefined && fixedGroup === undefined) markDefaultedGroup([left, right]);
     if (!numeric || expression.operator === "**") return { left, right };
     // A literal operand typed before the other operand takes its type
-    // (04-type-system.md#r-types.num.binary.literal); no other operand widens.
+    // (04-type-system.md#r-types.num.binary.literal-join); no other operand widens.
     const wider = widerNumeric(left.type, right.type);
     if (wider && wider !== left.type) left = this.coerce(left, wider, left.span);
     if (wider && wider !== right.type) right = this.coerce(right, wider, right.span);
