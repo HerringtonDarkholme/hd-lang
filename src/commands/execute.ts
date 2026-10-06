@@ -12,8 +12,8 @@ import type { HirFunction } from "../hir.ts";
 import { SOURCE_ROOT, TASK_ROOT, TEST_ROOT } from "../package.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
-import { runSelected } from "../test-runner.ts";
-import type { CapabilityGrants } from "./capabilities.ts";
+import { runSelected, type TempDirs } from "../test-runner.ts";
+import { grantsOf, testGrantsOf, totalDenial, type CapabilityGrants } from "./capabilities.ts";
 import { defaultProfileAnswer, inputLines, type DefaultProfileHost } from "./default-profile.ts";
 import {
   combinedStatus,
@@ -88,8 +88,6 @@ export interface FileArgs extends SourceArgs {
   readonly profile?: RuntimeProfileName;
   /** The program's arguments, after `--` (spec/cli/command-line.md#r-cli.args.pass). */
   readonly programArguments?: readonly string[];
-  /** The grants of the `--cap` flags (spec/cli/command-line.md#r-cli.cap.flag). */
-  readonly grants?: CapabilityGrants;
 }
 
 /**
@@ -107,13 +105,24 @@ export async function fileCommand(args: FileArgs, io: CommandIo): Promise<number
     singleFileNote: await singleFileNote(args),
   });
   if (typeof loaded === "number") return report.finish(loaded);
+  // A FILE in a package takes the package's `[capabilities]` table
+  // (spec/cli/command-line.md#r-cli.cap.source.package); standard input is in none.
+  const mode =
+    args.file === "<stdin>"
+      ? undefined
+      : await packageMode(dirname(resolve(workingDirectory(args), args.file)));
   return report.finish(
     await execute(loaded, io, {
       kind: "run",
       entry: args.entry,
       pendingFirstPoll: args.pendingFirstPoll,
       profile: args.profile,
-      host: defaultHost(args, args.file, workingDirectory(args)),
+      host: defaultHost(
+        args,
+        args.file,
+        workingDirectory(args),
+        mode?.kind === "package" ? mode.package : undefined,
+      ),
     }),
   );
 }
@@ -123,21 +132,63 @@ export async function fileCommand(args: FileArgs, io: CommandIo): Promise<number
  * (spec/cli/command-line.md#host-capabilities).
  */
 function defaultHost(
-  environment: CommandEnvironment & {
-    readonly programArguments?: readonly string[];
-    readonly grants?: CapabilityGrants;
-  },
+  environment: CommandEnvironment & { readonly programArguments?: readonly string[] },
   program: string,
   directory: string,
+  pkg?: Pick<LocalPackage, "root" | "manifest">,
 ): RunHost {
   return {
     program,
     arguments: environment.programArguments ?? [],
     variables: variablesOf(environment),
     workingDirectory: directory,
-    ...(environment.grants ? { grants: environment.grants } : {}),
+    grants: runGrants(environment, pkg),
     ...(environment.readInput ? { readInput: environment.readInput } : {}),
   };
+}
+
+/** A start that a total deny refuses (spec/cli/command-line.md#total-deny). */
+class CapabilityRefusal extends Error {}
+
+/**
+ * The test grant of an integration test case or a doc test in the package
+ * at `root` (spec/cli/command-line.md#r-cli.test.env.grant): its
+ * `[test.capabilities]` table and the flags of `hd test`.
+ */
+async function testGrants(
+  environment: CommandEnvironment,
+  root: string,
+  tempDir: () => string | undefined,
+): Promise<CapabilityGrants> {
+  const mode = await packageMode(root);
+  const table = mode.kind === "package" ? mode.package.manifest?.testCapabilities : undefined;
+  return testGrantsOf(
+    {
+      ...(table ? { table, tableName: "[test.capabilities] of hd.toml", tableBase: root } : {}),
+      flags: environment.capabilities ?? [],
+      flagBase: workingDirectory(environment),
+    },
+    root,
+    tempDir,
+  );
+}
+
+/**
+ * A run's grant (spec/cli/command-line.md#grant-precedence): the package's
+ * `[capabilities]` table, when the program is in one, and the command's
+ * `--cap` flags (cli.cap.source.package, cli.cap.source.flags-only).
+ */
+function runGrants(
+  environment: CommandEnvironment,
+  pkg: Pick<LocalPackage, "root" | "manifest"> | undefined,
+): CapabilityGrants {
+  return grantsOf({
+    ...(pkg?.manifest?.capabilities
+      ? { table: pkg.manifest.capabilities, tableName: "hd.toml", tableBase: pkg.root }
+      : {}),
+    flags: environment.capabilities ?? [],
+    flagBase: workingDirectory(environment),
+  });
 }
 
 /**
@@ -170,8 +221,6 @@ export interface RunArgs extends CommandEnvironment, MemberSelection {
   readonly profile?: RuntimeProfileName;
   /** The program's arguments, after `--` (spec/cli/command-line.md#r-cli.args.pass). */
   readonly programArguments?: readonly string[];
-  /** The grants of the `--cap` flags (spec/cli/command-line.md#r-cli.cap.flag). */
-  readonly grants?: CapabilityGrants;
 }
 
 /**
@@ -226,7 +275,7 @@ export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> 
       pendingFirstPoll: args.pendingFirstPoll,
       release: args.release,
       profile: args.profile,
-      host: defaultHost(args, executable.name, task ? pkg.root : workingDirectory(args)),
+      host: defaultHost(args, executable.name, task ? pkg.root : workingDirectory(args), pkg),
     }),
   );
 }
@@ -620,16 +669,34 @@ export async function execute(
   // package directory, with no arguments and a closed standard input
   // (spec/cli/command-line.md#r-cli.test.env.integration); a unit test case
   // gets no host provider (spec/lang/10-modules.md#r-module.testing.unit-row.anywhere).
+  // The temporary directory of the test case that runs, which the test
+  // grant covers (spec/cli/command-line.md#r-cli.test.env.grant.fs-read).
+  let tempDir: string | undefined;
+  const tempDirs: TempDirs = {
+    make: () => (tempDir = TEST_TEMP_DIRS.make()),
+    remove: (path) => {
+      if (path === tempDir) tempDir = undefined;
+      TEST_TEMP_DIRS.remove(path);
+    },
+  };
+  // The `Env` notice goes to standard error once per name in a run
+  // (spec/cli/command-line.md#r-cli.cap.env.notice).
+  const notice = (line: string): void => io.err(line);
+  const testRoot = resolve(workingDirectory(execution), placement?.root ?? ".");
   const host: DefaultProfileHost | undefined =
     execution.kind === "run"
-      ? { ...execution.host, readLine: () => (readLine ??= inputLines())() }
+      ? { ...execution.host, notice, readLine: () => (readLine ??= inputLines())() }
       : loaded.compileOptions.integrationTest
-        ? integrationTestHost(
-            resolve(workingDirectory(execution), placement?.root ?? "."),
-            // A doc test's program is its module's file (cli.test.env.args.program).
-            loaded.docTest?.modulePath ?? placement?.path ?? file,
-            variablesOf(execution),
-          )
+        ? {
+            ...integrationTestHost(
+              testRoot,
+              // A doc test's program is its module's file (cli.test.env.args.program).
+              loaded.docTest?.modulePath ?? placement?.path ?? file,
+              variablesOf(execution),
+            ),
+            notice,
+            grants: await testGrants(execution, testRoot, () => tempDir),
+          }
         : undefined;
   // A failing file gets its result line too, as a passing one does: the
   // cases that passed before the failure ended the run, and the failure.
@@ -692,6 +759,11 @@ export async function execute(
                 }
               : undefined,
       hostCapabilities: loaded.compileOptions.hostCapabilities,
+      // A totally denied need refuses the start (spec/cli/command-line.md#r-cli.cap.total.refuse).
+      needs: (traits) => {
+        const message = totalDenial(traits, host?.grants);
+        if (message !== undefined) throw new CapabilityRefusal(message);
+      },
       parse: loaded.parseOptions,
       integrationTest: loaded.compileOptions.integrationTest,
       docTest: loaded.compileOptions.docTest,
@@ -816,7 +888,7 @@ export async function execute(
         // selected test case runs and reports (cli.test.every-case).
         keepGoing: test.keepGoing ?? true,
       },
-      test && TEST_TEMP_DIRS,
+      test && tempDirs,
     );
     if (outcome.kind === "exit") return outcome.code;
     if (outcome.kind === "failed") {
@@ -835,6 +907,11 @@ export async function execute(
     return 0;
   } catch (error) {
     showDebugLines();
+    // A refused start runs no program, and exits 101 (cli.cap.total.status).
+    if (error instanceof CapabilityRefusal) {
+      io.err(error.message);
+      return EXIT_HD_FAILURE;
+    }
     const status = reportFailure(loaded, error);
     if (running) failedLine();
     return status;

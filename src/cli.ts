@@ -5,7 +5,7 @@
 import { pathToFileURL } from "node:url";
 
 import { parseCommandLine, UsageError, type ParsedCommand } from "./cli-args.ts";
-import { capabilityFlags, type CapabilityGrants } from "./commands/capabilities.ts";
+import { capabilityFlags, type CapabilityFlag } from "./commands/capabilities.ts";
 import {
   addCommand,
   buildCommand,
@@ -90,6 +90,22 @@ export async function main(
     return EXIT_HD_FAILURE;
   }
   if (parsed.kind === "help") return helpCommand({ topic: parsed.topic }, io);
+  // The `--cap` flags, checked before anything runs (cli.cap.flag.unknown).
+  let capabilities: CapabilityFlag[];
+  try {
+    capabilities =
+      parsed.kind === "default"
+        ? capabilityFlags(parsed.caps, "hd")
+        : capabilityFlags(
+            parsed.repeated.get("--cap") ?? [],
+            parsed.command.name === "file" ? "hd FILE" : `hd ${parsed.command.name}`,
+          );
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    io.err(error.message);
+    return EXIT_HD_FAILURE;
+  }
+  if (capabilities.length > 0) environment = { ...environment, capabilities };
   if (parsed.kind === "default") {
     // `hd` opens the REPL on a terminal (cli.repl.open.terminal), and
     // otherwise runs all of standard input as a single-file program, in
@@ -102,15 +118,6 @@ export async function main(
   const [first, second] = parsed.operands;
   const { format } = parsed;
   const options = { ...flags(parsed, environment.runner), ...environment };
-  let grants: CapabilityGrants;
-  try {
-    const shown = parsed.command.name === "file" ? "hd FILE" : `hd ${parsed.command.name}`;
-    grants = capabilityFlags(parsed.repeated.get("--cap") ?? [], shown);
-  } catch (error) {
-    if (!(error instanceof UsageError)) throw error;
-    io.err(error.message);
-    return EXIT_HD_FAILURE;
-  }
   switch (parsed.command.name) {
     case "repl":
       return replCommand({ input: process.stdin, output: process.stdout }, environment);
@@ -166,12 +173,9 @@ export async function main(
     case "build":
       return buildCommand({ ...options, file: first }, io);
     case "run":
-      return runCommand(
-        { ...options, name: first, programArguments: parsed.programArguments, grants },
-        io,
-      );
+      return runCommand({ ...options, name: first, programArguments: parsed.programArguments }, io);
     case "file":
-      return fileCommand({ ...options, programArguments: parsed.programArguments, grants }, io);
+      return fileCommand({ ...options, programArguments: parsed.programArguments }, io);
     case "test":
       return testCommand({ ...options, path: first }, io);
     default:

@@ -26,7 +26,14 @@ import { resolve } from "node:path";
 
 import type { HostBoundaryValue, HostSuspensionCall, HostSuspensionOutcome } from "../compiler.ts";
 import { wait, WEB_HOST_ANSWERS } from "../web-host.ts";
-import { UNLIMITED, type CapabilityGrants } from "./capabilities.ts";
+import {
+  coversName,
+  coversPath,
+  resolvedPath,
+  UNLIMITED,
+  type CapabilityGrants,
+  type Grant,
+} from "./capabilities.ts";
 import { sendRequest } from "./http-host.ts";
 
 /** What the default profile reads from the `hd` command that runs the program. */
@@ -43,6 +50,68 @@ export interface DefaultProfileHost {
   readonly readLine: () => string | undefined | null;
   /** The program's capability grants (cli.cap.*); a trait it lacks has no limit. */
   readonly grants?: CapabilityGrants;
+  /** Writes a line of `hd`'s own to standard error, as the `Env` notice. */
+  readonly notice?: (line: string) => void;
+}
+
+const grantOf = (host: DefaultProfileHost, trait: string): Grant =>
+  host.grants?.get(trait) ?? UNLIMITED;
+
+/** The names whose `Env` notice a host has written (cli.cap.env.notice). */
+const noticed = new WeakMap<DefaultProfileHost, Set<string>>();
+
+/**
+ * Whether the `Env` grant covers `name`. A set variable it does not cover
+ * gets one notice line per run (spec/cli/command-line.md#r-cli.cap.env.notice.text).
+ */
+function envGranted(host: DefaultProfileHost, name: string): boolean {
+  if (coversName(grantOf(host, "Env"), name)) return true;
+  const written = noticed.get(host) ?? new Set<string>();
+  noticed.set(host, written);
+  if (host.variables[name] !== undefined && !written.has(name)) {
+    written.add(name);
+    host.notice?.(`hd: env ${name} is set but not granted; run with --cap Env=${name}`);
+  }
+  return false;
+}
+
+/**
+ * The trait whose grant covers each file system method, and the indices of
+ * its path arguments (spec/cli/command-line.md#r-cli.cap.scope.path);
+ * `rename!` needs both of its paths (cli.cap.scope.rename).
+ */
+const FS_PATHS: Readonly<Record<string, readonly [string, readonly number[]]>> = {
+  "std.fs.FsRead.read_bytes": ["FsRead", [0]],
+  "std.fs.FsRead.read_text": ["FsRead", [0]],
+  "std.fs.FsRead.list_dir": ["FsRead", [0]],
+  "std.fs.FsRead.stat": ["FsRead", [0]],
+  "std.fs.FsWrite.write_bytes": ["FsWrite", [0]],
+  "std.fs.FsWrite.write_text": ["FsWrite", [0]],
+  "std.fs.FsWrite.append_text": ["FsWrite", [0]],
+  "std.fs.FsWrite.create_dir_all": ["FsWrite", [0]],
+  "std.fs.FsWrite.remove": ["FsWrite", [0]],
+  "std.fs.FsWrite.rename": ["FsWrite", [0, 1]],
+};
+
+/**
+ * `.Err(FsError.NotGranted(path))` for the first path of `call` that its
+ * trait's grant does not cover (spec/cli/command-line.md#r-cli.cap.partial.refuse).
+ */
+function fsRefusal(
+  key: string,
+  call: HostSuspensionCall,
+  host: DefaultProfileHost,
+): HostBoundaryValue | undefined {
+  const checked = FS_PATHS[key];
+  if (!checked) return undefined;
+  const grant = grantOf(host, checked[0]);
+  if (grant.kind === "all") return undefined;
+  for (const index of checked[1]) {
+    const path = String(call.arguments[index]);
+    if (!coversPath(grant, resolvedPath(host.workingDirectory, path)))
+      return { tag: "err", value: { tag: "NotGranted", path } } as HostBoundaryValue;
+  }
+  return undefined;
 }
 
 /**
@@ -121,10 +190,14 @@ function bytesOf(value: unknown): Uint8Array {
 const ANSWERS: Readonly<Record<string, Answer>> = {
   "std.host.Args.program": (_call, host) => host.program,
   "std.host.Args.list": (_call, host) => [...host.arguments],
-  "std.host.Env.get": (call, host) => optional(host.variables[String(call.arguments[0])]),
+  // A variable outside the `Env` grant reads as unset (cli.cap.env.get, cli.cap.env.names).
+  "std.host.Env.get": (call, host) => {
+    const name = String(call.arguments[0]);
+    return optional(envGranted(host, name) ? host.variables[name] : undefined);
+  },
   "std.host.Env.names": (_call, host) =>
     Object.entries(host.variables)
-      .filter(([, value]) => value !== undefined)
+      .filter(([name, value]) => value !== undefined && coversName(grantOf(host, "Env"), name))
       .map(([name]) => name),
   // The end of input is `.Ok(.None)`, and a read that fails is
   // `.Err(ConsoleError.Closed)` (cli.host.default-profile.input-closed).
@@ -214,8 +287,7 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
       ),
     );
   },
-  "std.http.Http.send": (call, host) =>
-    sendRequest(call.arguments[0]!, host.grants?.get("Http") ?? UNLIMITED),
+  "std.http.Http.send": (call, host) => sendRequest(call.arguments[0]!, grantOf(host, "Http")),
 };
 
 /**
@@ -226,8 +298,10 @@ export function defaultProfileAnswer(
   call: HostSuspensionCall,
   host: DefaultProfileHost,
 ): HostSuspensionOutcome | undefined {
-  const answer = call.standardName ? ANSWERS[`${call.standardName}.${call.methodName}`] : undefined;
-  return answer ? ready(answer(call, host) ?? undefined) : undefined;
+  const key = `${call.standardName}.${call.methodName}`;
+  const answer = call.standardName ? ANSWERS[key] : undefined;
+  if (!answer) return undefined;
+  return ready(fsRefusal(key, call, host) ?? answer(call, host) ?? undefined);
 }
 
 /**

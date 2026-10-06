@@ -1,6 +1,7 @@
 # A failing test case stops neither the cases after it nor the later files,
 # in text mode as in JSON mode. Each later case writes a marker file into
-# the package directory, its working directory.
+# the package directory, its working directory, which [test.capabilities]
+# lets it write (cli.test.env.grant.table).
 run: hd test
 exit: 1
 file: ran-after-failure.txt

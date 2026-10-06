@@ -38,6 +38,7 @@ pub data ProcessOutput:
 pub enum ProcessError:
     NotFound
     PermissionDenied
+    NotGranted
     Other(message: string)
 
 pub trait Process:
@@ -73,6 +74,7 @@ impl Eq for ProcessError:
         match (self, other):
             (.NotFound, .NotFound) => true
             (.PermissionDenied, .PermissionDenied) => true
+            (.NotGranted, .NotGranted) => true
             (.Other(left), .Other(right)) => left == right
             _ => false
 
@@ -82,6 +84,7 @@ impl Display for ProcessError:
         match self:
             .NotFound => "program not found"
             .PermissionDenied => "permission denied"
+            .NotGranted => "program not granted; run with --cap Process=PROGRAM"
             .Other(message) => message
 
 # A std error type implements `Error` (r-std-error.std-types.impl).
@@ -106,6 +109,7 @@ impl Debug for ProcessError:
         match self:
             .NotFound => out.write("ProcessError.NotFound")
             .PermissionDenied => out.write("ProcessError.PermissionDenied")
+            .NotGranted => out.write("ProcessError.NotGranted")
             .Other(message) => out.debug_tuple("ProcessError.Other").named_field("message", message).finish()
 
 impl Debug for ScriptedProcess:

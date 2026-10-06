@@ -9,6 +9,7 @@ use std.error.Error
 pub enum FsError:
     NotFound(path: Path)
     PermissionDenied(path: Path)
+    NotGranted(path: Path)
     AlreadyExists(path: Path)
     NotADirectory(path: Path)
     IsADirectory(path: Path)
@@ -40,6 +41,7 @@ fn fs_error_text(error: FsError) -> string:
     match error:
         .NotFound(path) => "not found: ${path}"
         .PermissionDenied(path) => "permission denied: ${path}"
+        .NotGranted(path) => "access to ${path} is not granted; run with --cap FsRead=${path} or --cap FsWrite=${path}"
         .AlreadyExists(path) => "already exists: ${path}"
         .NotADirectory(path) => "not a directory: ${path}"
         .IsADirectory(path) => "is a directory: ${path}"
@@ -299,6 +301,7 @@ impl Debug for FsError:
         match self:
             .NotFound(path) => out.debug_tuple("FsError.NotFound").named_field("path", path).finish()
             .PermissionDenied(path) => out.debug_tuple("FsError.PermissionDenied").named_field("path", path).finish()
+            .NotGranted(path) => out.debug_tuple("FsError.NotGranted").named_field("path", path).finish()
             .AlreadyExists(path) => out.debug_tuple("FsError.AlreadyExists").named_field("path", path).finish()
             .NotADirectory(path) => out.debug_tuple("FsError.NotADirectory").named_field("path", path).finish()
             .IsADirectory(path) => out.debug_tuple("FsError.IsADirectory").named_field("path", path).finish()

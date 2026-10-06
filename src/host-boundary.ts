@@ -229,3 +229,34 @@ export function structuralHostResult(program: HirProgram, type: ValueType): bool
     (shape.kind === "result" && !scalarResult(type, lookups[1]))
   );
 }
+
+/**
+ * A module's needs: the std host traits whose methods its import list names,
+ * such as `Console` (spec/cli/command-line.md#r-cli.cap.total.needs). Dead
+ * code is removed, so they are what the module can reach.
+ */
+function moduleNeeds(module: WebAssembly.Module, program: HirProgram): string[] {
+  const traits = new Map(program.traits.map((trait) => [trait.index, trait]));
+  const needs = new Set<string>();
+  for (const { name } of WebAssembly.Module.imports(module)) {
+    const index = /^host_(\d+)_\d+_begin$/.exec(name)?.[1];
+    const standardName = index === undefined ? undefined : traits.get(Number(index))?.standardName;
+    if (standardName) needs.add(standardName.slice(standardName.lastIndexOf(".") + 1));
+  }
+  return [...needs];
+}
+
+/**
+ * Compiles `bytes`, and shows `needs` the module's needs, which may throw to
+ * refuse the start before the module initializes
+ * (spec/cli/command-line.md#r-cli.cap.total.refuse).
+ */
+export async function checkedModule(
+  bytes: Uint8Array,
+  program: HirProgram,
+  needs?: (traits: readonly string[]) => void,
+): Promise<WebAssembly.Module> {
+  const module = await WebAssembly.compile(bytes as BufferSource);
+  needs?.(moduleNeeds(module, program));
+  return module;
+}

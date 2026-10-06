@@ -2804,3 +2804,9 @@ typing/invalid/trait-qualified-supertrait-reference.hd	type
 typing/valid/trait-qualified-declaring-trait.hd	type
 runtime/valid/http-scripted-provider.hd	runtime
 runtime/valid/http-scripted-unknown-url.hd	runtime
+runtime/valid/process-not-granted.hd	runtime
+runtime/valid/not-granted-display.hd	runtime
+cli/cap-total-deny	cli
+cli/cap-flag-overrides-table	cli
+cli/cap-partial-deny	cli
+cli/cap-env-notice	cli

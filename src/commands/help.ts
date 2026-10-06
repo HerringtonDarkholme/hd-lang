@@ -9,6 +9,7 @@ import {
   inputLines,
   type DefaultProfileHost,
 } from "./default-profile.ts";
+import { grantsOf } from "./capabilities.ts";
 import { variablesOf, workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
 import { MANIFEST_FILE, packageMode } from "./package-mode.ts";
 import { withDependencies } from "./dependencies.ts";
@@ -89,6 +90,13 @@ function replHost(io: ReplIo, environment: CommandEnvironment): ReplHost {
     variables: variablesOf(environment),
     workingDirectory: workingDirectory(environment),
     readLine,
+    // The REPL takes its grant from the flags of `hd` alone
+    // (spec/cli/command-line.md#r-cli.cap.source.flags-only).
+    grants: grantsOf({
+      flags: environment.capabilities ?? [],
+      flagBase: workingDirectory(environment),
+    }),
+    notice: (line) => process.stderr.write(`${line}\n`),
   };
   return { traits: DEFAULT_PROFILE_TRAITS, invoke: (call) => defaultProfileAnswer(call, host) };
 }

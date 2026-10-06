@@ -68,7 +68,7 @@ in-process conformance adapter calls the same `main` with a buffering sink
 hd FILE  [--cap NAME=VALUE] [-- ARGS]
 hd build [--wat] [--release] [FILE]
 hd run   [--release] [--cap NAME=VALUE] [NAME] [-- ARGS]
-hd test  [--update] [--filter PATTERN] [--seed N] [--cases N] [--shrink N] [FILE]
+hd test  [--update] [--filter PATTERN] [--seed N] [--cases N] [--shrink N] [--cap NAME=VALUE] [FILE]
 hd check [--tests] [--all] [FILE]
 hd new   [--app] [--lib] [--vcs none] [PATH]
 hd add NAME PATH@VERSION    hd update [NAME]    hd remove NAME    hd fetch
@@ -84,11 +84,15 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   only `hd run` and `hd FILE` take them, and a further word before `--`
   is an error that suggests `--`. No host capability reads them yet.
 - `--cap NAME=VALUE` sets one trait's capability grant
-  ([`cli.cap.flag`](../spec/cli/command-line.md#r-cli.cap.flag)), and may
-  be repeated. `commands/capabilities.ts` reads it; only `Http` is
-  checked so far, by `commands/http-host.ts` on each request and redirect
-  hop. `Http=false` refuses each request with `NotGranted` instead of
-  refusing to start, and another trait's flag is a usage error (CAPS).
+  ([`cli.cap.flag`](../spec/cli/command-line.md#r-cli.cap.flag)) for `hd FILE`,
+  `hd run`, `hd test`, and `hd` with no FILE; it may be repeated, and may
+  come before FILE. `commands/capabilities.ts` combines the flags with
+  `[capabilities]`, or `[test.capabilities]` for an integration test or a
+  doc test, by Grant Precedence. The default profile checks paths, hosts,
+  and `Env` names on each call (`commands/default-profile.ts`,
+  `commands/http-host.ts`), and `instantiate`'s `needs` hook refuses a
+  module that imports a method of a totally denied trait, before its
+  initialization, with status 101.
 - A usage error prints to stderr and exits 101 ([`cli.exit.hd-failure`](../spec/cli/command-line.md#r-cli.exit.hd-failure)).
 - `hd debug parse` and `hd debug hir` print internal compiler output.
   `hd parse FILE` stays as a hidden spelling of `hd debug parse`, because

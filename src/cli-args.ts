@@ -133,6 +133,7 @@ const COMMANDS: readonly CommandSpec[] = [
       { name: "--cases", value: "N", count: true, help: "cases per property test" },
       { name: "--shrink", value: "N", count: true, help: "most shrink steps for a failing case" },
       PACKAGE,
+      CAP,
     ],
     notes: [
       PACKAGE_NOTE,
@@ -324,7 +325,12 @@ export class UsageError extends Error {}
 
 export type ParsedCommand =
   | { readonly kind: "help"; readonly topic?: string }
-  | { readonly kind: "default"; readonly format: "text" | "json" }
+  | {
+      readonly kind: "default";
+      readonly format: "text" | "json";
+      /** The `--cap` values of `hd` with no FILE (spec/cli/command-line.md#r-cli.cap.flag.commands). */
+      readonly caps: readonly string[];
+    }
   | {
       readonly kind: "command";
       readonly command: CommandSpec;
@@ -476,13 +482,17 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
   const rest = [...args];
   let format: "text" | "json" = "text";
   // `--format` may also come before the command.
-  while (rest[0] === "--format") {
-    rest.shift();
-    format = flagValue(undefined, FORMAT, rest.shift()) as "text" | "json";
+  // `--cap` may come before FILE too, and is all that `hd` with no FILE
+  // takes (spec/cli/command-line.md#r-cli.cap.flag.commands).
+  const caps: string[] = [];
+  while (rest[0] === "--format" || rest[0] === "--cap") {
+    const flag = rest.shift();
+    if (flag === "--cap") caps.push(flagValue(undefined, CAP, rest.shift()));
+    else format = flagValue(undefined, FORMAT, rest.shift()) as "text" | "json";
   }
   const first = rest.shift();
   // `hd` alone opens the REPL, or runs standard input (cli.repl.open.terminal, cli.stdin.program).
-  if (first === undefined) return { kind: "default", format };
+  if (first === undefined) return { kind: "default", format, caps };
   if (first === "--help" || first === "-h") return { kind: "help" };
   if (first === "help") {
     const topic = rest.join(" ");
@@ -519,6 +529,13 @@ export function parseCommandLine(args: readonly string[]): ParsedCommand {
   }
   const flags = new Map<string, string | true>();
   const repeated = new Map<string, string[]>();
+  if (caps.length > 0) {
+    if (!command.flags.includes(CAP))
+      throw new UsageError(
+        `hd ${command.name}: --cap is not a flag of hd ${command.name}; hd FILE, hd run, hd test, and hd accept it\n${hint(command.name)}`,
+      );
+    repeated.set(CAP.name, caps);
+  }
   const operands: string[] = [];
   // `hd` reads none of the words after the first `--` as its own
   // (spec/cli/command-line.md#r-cli.args.separator).

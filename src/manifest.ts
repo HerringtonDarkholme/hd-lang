@@ -62,6 +62,68 @@ export interface Manifest {
    * (spec/cli/command-line.md#r-cli.manifest.unknown-key).
    */
   readonly unknownKeys: readonly ManifestError[];
+  /** The `[capabilities]` table (spec/cli/command-line.md#r-cli.cap.table). */
+  readonly capabilities?: CapabilityTable;
+  /** The `[test.capabilities]` table (spec/cli/command-line.md#r-cli.test.env.grant.table). */
+  readonly testCapabilities?: CapabilityTable;
+}
+
+/** A capability table's value for each trait it names: `true`, `false`, or scope entries. */
+export type CapabilityTable = Readonly<Record<string, boolean | readonly string[]>>;
+
+/**
+ * The capability keys, and whether each takes scope entries
+ * (spec/cli/command-line.md#capability-grants).
+ */
+export const CAPABILITY_KEYS: Readonly<Record<string, boolean>> = {
+  FsRead: true,
+  FsWrite: true,
+  Http: true,
+  Net: true,
+  Env: true,
+  Process: true,
+  Sys: true,
+  Console: false,
+  ConsoleInput: false,
+  Clock: false,
+  Random: false,
+  Args: false,
+};
+
+/** Reads one capability table, adding an error for each bad key or value. */
+function capabilityTable(
+  value: TomlValue | undefined,
+  name: string,
+  line: (key?: string) => number,
+  errors: ManifestError[],
+): CapabilityTable | undefined {
+  if (value === undefined) return undefined;
+  if (!isTable(value)) {
+    errors.push({ line: line(), message: `'${name}' must be a table, [${name}]` });
+    return undefined;
+  }
+  const table: Record<string, boolean | readonly string[]> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const scoped = CAPABILITY_KEYS[key];
+    if (scoped === undefined)
+      errors.push({
+        line: line(key),
+        message: `'${key}' is not a capability in [${name}]; use one of ${Object.keys(CAPABILITY_KEYS).join(", ")}`,
+      });
+    else if (typeof entry === "boolean") table[key] = entry;
+    else if (!Array.isArray(entry) || !entry.every((item) => typeof item === "string"))
+      errors.push({
+        line: line(key),
+        message: `[${name}] ${key} must be true, false, or a list of strings`,
+      });
+    else if (!scoped)
+      errors.push({
+        line: line(key),
+        message: `[${name}] ${key} takes only true or false, since ${key} has no scope entries`,
+      });
+    else table[key] = entry as readonly string[];
+  }
+  return table;
 }
 
 /**
@@ -76,6 +138,8 @@ const KNOWN_KEYS: Readonly<Record<string, readonly string[] | null>> = {
   "dev-dependencies": null,
   workspace: ["members", "exclude"],
   toolchain: ["pin"],
+  capabilities: null,
+  test: ["capabilities"],
 };
 
 class TomlError extends Error {
@@ -532,11 +596,31 @@ export function readManifest(
   };
   const members = directories("members");
   const exclude = directories("exclude");
+  const tableLine =
+    (table: TomlValue | undefined) =>
+    (key?: string): number =>
+      (isTable(table) && key !== undefined ? reader.keyLines.get(table)?.get(key) : undefined) ??
+      lineOf(isTable(table) ? table : undefined);
+  const capabilities = capabilityTable(
+    root.capabilities,
+    "capabilities",
+    tableLine(root.capabilities),
+    errors,
+  );
+  const testTable = isTable(root.test) ? root.test.capabilities : undefined;
+  const testCapabilities = capabilityTable(
+    testTable,
+    "test.capabilities",
+    tableLine(testTable),
+    errors,
+  );
   if (errors.length > 0) return { errors };
   const unknownKeys = unknownManifestKeys(root, reader);
   return {
     manifest: {
       unknownKeys,
+      ...(capabilities ? { capabilities } : {}),
+      ...(testCapabilities ? { testCapabilities } : {}),
       ...(name === undefined ? {} : { name }),
       packageLine,
       executables,

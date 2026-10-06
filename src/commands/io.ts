@@ -1,3 +1,4 @@
+import type { CapabilityFlag } from "./capabilities.ts";
 import { formatWithOptions } from "node:util";
 
 import type { RuntimeScenario } from "./profiles.ts";
@@ -86,6 +87,8 @@ export interface CommandEnvironment {
    * stands for the process's own.
    */
   readonly variables?: Readonly<Record<string, string | undefined>>;
+  /** The command's `--cap` flags, checked (spec/cli/command-line.md#r-cli.cap.flag). */
+  readonly capabilities?: readonly CapabilityFlag[];
 }
 
 /** The environment variables of `environment`. */

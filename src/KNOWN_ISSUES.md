@@ -11,14 +11,14 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,835 cases: 2,805 selected in `test/portable/cases.tsv` and 30 known
-failures. The selected cases are 2,428 language tier, 310 stdlib tier, and 67
-CLI tier; the known failures are 7 language tier, 4 stdlib tier, and 19
+2,835 cases: 2,811 selected in `test/portable/cases.tsv` and 24 known
+failures. The selected cases are 2,429 language tier, 311 stdlib tier, and 71
+CLI tier; the known failures are 6 language tier, 3 stdlib tier, and 15
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
-| CAPS | 8 | no `[capabilities]` table, no `--cap` but `Http`, no startup refusal, no `std.net` or `std.sys`, and no `NotGranted` in `FsError` or `ProcessError` (task N3) |
+| CAPS | 2 | no `std.net` or `std.sys` (task N3) |
 | CLI-DOC | 8 | `hd doc` prints one item; it writes no pages and takes no flags |
 | CLI-PAGES-HIDDEN | 2 | `hd new --pages` stays hidden until `hd doc` can build the site |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
@@ -156,7 +156,7 @@ Compiler structure:
 
 | Tag | Decision and gap |
 | --- | --- |
-| CAPS | Task N2 (owner, 2026-10-06): host capability grants. `[capabilities]`, `[test.capabilities]` and `--cap`; total deny refused at startup; `NotGranted` in `FsError`, `ProcessError`, `HttpError`, `NetError`, and `SysError`; the `Env` notice; `Process`, `Http`, `Net`, and `Sys` in the default profile; `std.http`, `std.net`, and `std.sys`. The prototype has `std.http` with `ScriptedHttp`, `Http` in the default profile (src/commands/http-host.ts), and `--cap Http=` on `hd FILE` and `hd run`, checked on each request and redirect hop. `Http=false` refuses each request with `NotGranted` instead of refusing to start. The rest is not implemented yet. |
+| CAPS | Task N2 (owner, 2026-10-06): host capability grants. `[capabilities]`, `[test.capabilities]` and `--cap`; total deny refused at startup; `NotGranted` in `FsError`, `ProcessError`, `HttpError`, `NetError`, and `SysError`; the `Env` notice; `Process`, `Http`, `Net`, and `Sys` in the default profile; `std.http`, `std.net`, and `std.sys`. The prototype implements `std.http` with `ScriptedHttp` and `Http` in the default profile; the tables, `--cap` on `hd FILE`, `hd run`, `hd test`, and `hd`, with Grant Precedence (src/commands/capabilities.ts); path, host, and `Env` scopes with the notice; the test grant; and the startup refusal, read from the module's import list. Not yet: `Process` in the default profile and its grant, the playground's `Http`, `std.net`, `std.sys`, and a total deny in the REPL, whose inputs start without the import-list check. A path check resolves links with `realpath` before the call, so a link that changes between check and use escapes it. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds the whole profile (src/commands/default-profile.ts). `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 
 ## Gaps No Fixture Reaches

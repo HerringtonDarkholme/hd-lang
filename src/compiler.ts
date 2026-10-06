@@ -24,6 +24,7 @@ import {
   resultSides,
   structuralHostArgument,
   structuralHostResult,
+  checkedModule,
 } from "./host-boundary.ts";
 import {
   argumentBuffers,
@@ -277,6 +278,7 @@ interface InstantiateOptions {
   readonly replay?: readonly ReplayEvent[];
   readonly providerConfigurationId?: string;
   readonly hostCapabilities?: readonly string[];
+  readonly needs?: (traits: readonly string[]) => void; // host-boundary.ts checkedModule
   readonly hostSuspensionCancel?: (call: HostSuspensionCall) => void;
   readonly hostSuspensionInvoke?: (call: HostSuspensionCall) => HostSuspensionOutcome;
   readonly hostSuspensionPending?: (call: HostSuspensionCall) => boolean;
@@ -1468,7 +1470,8 @@ export async function instantiate(
     hostFunctionImports(compilation.hir, options, textDecoder),
   ))
     hostImports[name] = located(host);
-  const { instance } = await WebAssembly.instantiate(compilation.bytes, {
+  const module = await checkedModule(compilation.bytes, compilation.hir, options.needs);
+  const instance = await WebAssembly.instantiate(module, {
     hd: {
       ...hostImports,
       trace: options.trace ?? (() => undefined),
@@ -1481,8 +1484,7 @@ export async function instantiate(
       }),
     },
   });
-  // Every caller of the program, `hd run`, `hd test`, the REPL, and the
-  // playground, reads the wrapped exports.
+  // Every caller (`hd run`, `hd test`, the REPL, the playground) reads the wrapped exports.
   Object.defineProperty(instance, "exports", { value: stackExhaustionPanics(instance.exports) });
   const replay: ReplaySession = {
     get consumed() {

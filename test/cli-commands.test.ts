@@ -86,7 +86,7 @@ test("hd help COMMAND lists only that command's flags", async () => {
   const tested = (await hd(["help", "test"])).stdout;
   assert.match(
     tested,
-    /^usage: hd test \[--update\] \[--filter PATTERN\] \[--seed N\] \[--cases N\] \[--shrink N\] \[-p NAME\] \[FILE\]$/m,
+    /^usage: hd test \[--update\] \[--filter PATTERN\] \[--seed N\] \[--cases N\] \[--shrink N\] \[-p NAME\] \[--cap NAME=VALUE\] \[FILE\]$/m,
   );
   assert.deepEqual(flagsOf(tested), [
     "--update",
@@ -95,6 +95,7 @@ test("hd help COMMAND lists only that command's flags", async () => {
     "--cases",
     "--shrink",
     "--package",
+    "--cap",
     "--format",
   ]);
 

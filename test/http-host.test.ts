@@ -6,8 +6,8 @@ import test from "node:test";
 import { Worker } from "node:worker_threads";
 
 import { UsageError } from "../src/cli-args.ts";
-import { capabilityFlags, coversHost, type Grant } from "../src/commands/capabilities.ts";
-import { hd } from "./hd-in-process.ts";
+import { capabilityFlags, coversHost, grantsOf, type Grant } from "../src/commands/capabilities.ts";
+import { hd, runHd } from "./hd-in-process.ts";
 
 // The default profile's `Http` provider (spec/std/http.md#sending) and the
 // `--cap Http=` grant (spec/cli/command-line.md#grant-scopes). The provider
@@ -143,11 +143,26 @@ test("--cap Http= refuses a host outside the grant, on a request or a redirect",
       "",
     ].join("\n"),
   );
-  const denied = await runProgram(["--cap", "Http=false"]);
-  assert.match(denied, /^hello error: http access to 127\.0\.0\.1 is not granted/);
 });
 
-const grant = (...values: string[]): Grant => capabilityFlags(values, "hd FILE").get("Http")!;
+test("--cap Http=false refuses to start a program that imports Http", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-http-host-"));
+  try {
+    await writeFile(join(directory, "fetch.hd"), PROGRAM);
+    // The refusal comes before main, so no request is sent (cli.cap.total.refuse).
+    const refused = await runHd(["fetch.hd", "--cap", "Http=false", "--", "http://127.0.0.1:9/"], {
+      cwd: directory,
+    });
+    assert.equal(refused.status, 101);
+    assert.equal(refused.stdout, "");
+    assert.equal(refused.stderr, "hd: the program needs Http, which --cap Http=false denies\n");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+const grant = (...values: string[]): Grant =>
+  grantsOf({ flags: capabilityFlags(values, "hd FILE"), flagBase: "/" }).get("Http")!;
 const covers = (value: Grant, url: string): boolean => coversHost(value, new URL(url));
 
 test("an Http entry matches a host, a *. wildcard, an address, and a port", () => {
