@@ -92,7 +92,7 @@ fn half() -> Number?:
 
 ### Number Equality
 
-1. r[std-json.number.eq] `Number` implements `Eq`, with the rule of `serde_json`: two numbers are equal when both are integers with the same value, or both are floats that are equal as `f64` values.
+1. r[std-json.number.eq] `Number` implements `Eq`, with the rule of `serde_json`. Two numbers are equal when both are integers with the same value, or both are floats that are equal as `f64` values.
 2. r[std-json.number.eq.mixed] An integer is never equal to a float, so `1` and `1.0` differ.
 3. r[std-json.number.eq.zero] The floats `0.0` and `-0.0` are equal, as `f64` values are.
 
@@ -104,8 +104,8 @@ fn half() -> Number?:
 > decimal point or an exponent, as `1.0` and `1e+21`, and negative zero is
 > `-0.0` ([`types.display.fixed`](../lang/04-type-system.md#r-types.display.fixed)).
 
-> **Why.** `serde_json` keeps three representations for the same reason:
-> a `u64` above `i64::MAX` and an `i64` below zero must survive a round
+> **Why.** `serde_json` keeps three representations for the same reason.
+> A `u64` above `i64::MAX` and an `i64` below zero must survive a round
 > trip that an `f64` would round. A JSON number is a decimal text, so a
 > library that read every number as an `f64` would lose the low bits of an
 > identifier.
@@ -164,7 +164,7 @@ fn title(text: string) -> string:
 2. r[std-json.parse.number.integer] An integer in the `i64` range or in the `u64` range is exact, as `Number.as_i64` or `Number.as_u64` reads it.
 3. r[std-json.parse.number.negative-zero] `-0` is the float `-0.0`, as in `serde_json`, and `0` is the integer zero.
 4. r[std-json.parse.number.float] A number with a fraction or an exponent, or an integer outside both ranges, is the float that [`parse_f64`](num.md#r-std-num.parse-f64.decimal-value) gives for its text.
-5. r[std-json.parse.number.out-of-range] A float past the finite `f64` range, which `parse_f64` gives as an infinity, is a `NumberOutOfRange` error at the number's first character, once its grammar is read to the end.
+5. r[std-json.parse.number.out-of-range] A float past the finite `f64` range, which `parse_f64` gives as an infinity, is a `NumberOutOfRange` error. The error sits at the number's first character, once its grammar is read to the end.
 
 | Text | `parse` gives |
 | --- | --- |
@@ -239,7 +239,7 @@ A decode error names the value that failed by its path from the root, as
 | r[std-json.error.kind.missing] `MissingField` | an object without the key of a member whose type does not read `null`; `path` ends with that key |
 | r[std-json.error.kind.variant] `UnknownVariant` | a variant name that the enum does not declare; `path` is the enum value's, and `name` is the name read |
 
-1. r[std-json.error.path] A `path` is `$`, then one segment per step from the root value: `.key` for an object's member or a variant's payload, and `[index]` for an array item.
+1. r[std-json.error.path] A `path` is `$`, then one segment per step from the root value. A segment is `.key` for an object's member or a variant's payload, and `[index]` for an array item.
 2. r[std-json.error.path.index] An index is written in base ten, counted from 0.
 3. r[std-json.error.path.key] A key is written as it is, with no quotes and no escapes.
 4. r[std-json.error.display.path] The `Display` text of a decode error contains its `path`.
@@ -291,7 +291,7 @@ fn show_pretty(value: Json) -> string:
 
 ### Pretty Text
 
-1. r[std-json.pretty.layout] `pretty` writes the compact text's tokens with each item of an array and each entry of an object on its own line, indented by two spaces for each level of nesting.
+1. r[std-json.pretty.layout] `pretty` writes the compact text's tokens with each item of an array and each entry of an object on its own line. Each line is indented by two spaces for each level of nesting.
 2. r[std-json.pretty.separator] An entry is `"key": value`, with one space after the colon. A comma follows every item or entry but the last, with no space before it.
 3. r[std-json.pretty.empty] An empty array prints as `[]` and an empty object as `{}`, on one line.
 4. r[std-json.pretty.scalar] A value that is not an array or an object prints as its compact text, with no line break.
