@@ -2775,7 +2775,7 @@ literal that `hd test --update` rewrites. `hd check` checks test code only
 with `--tests`; `hd test` always compiles it.
 
 Larger suites get their own files. A file whose name ends in `_test.hd`,
-such as `src/billing_test.hd`, is a test module: it sees the package's
+such as `src/billing_test.hd`, is a test module: it may use the package's
 public names and holds `it` calls at its top level, with no `tests:` block.
 Integration tests live under `tests/`, see the package as a dependent does,
 and get real providers from the test profile. Each file directly under
@@ -2973,7 +2973,7 @@ impl Mailer for OutboxMailer:
 The recommended layout uses two entry points. `src/main.hd` wires production:
 
 ```text
-use pkg.{FileRepo, SmtpMailer, register}
+use pkg.{FileRepo, Mailer, Repo, SmtpMailer, register}
 
 pub fn main() -> void $ Console:
     $.with(Mailer=SmtpMailer { endpoint: "smtp.example.com" }, Repo=FileRepo { root: "data/users" }):
@@ -2983,7 +2983,7 @@ pub fn main() -> void $ Console:
 `src/dev.hd` wires local adapters without changing the application module:
 
 ```text
-use pkg.{MemoryRepo, OutboxMailer, register}
+use pkg.{Mailer, MemoryRepo, OutboxMailer, Repo, register}
 
 pub fn main() -> void $ Console:
     $.with(Mailer=OutboxMailer { label: "local" }, Repo=MemoryRepo { namespace: "dev" }):
@@ -3018,7 +3018,7 @@ Sometimes one executable must choose at startup. This alternative
 still need no common concrete type:
 
 ```text
-use pkg.{FileRepo, MemoryRepo, OutboxMailer, SmtpMailer, register}
+use pkg.{FileRepo, Mailer, MemoryRepo, OutboxMailer, Repo, SmtpMailer, register}
 use std.host.{Env, env}
 use std.time.Clock
 
@@ -3047,7 +3047,7 @@ An integration test is another composition root. A file directly under
 `tests/` puts `it` at top level and wires test-specific adapters itself:
 
 ```text
-use pkg.{MemoryRepo, OutboxMailer, register}
+use pkg.{Mailer, MemoryRepo, OutboxMailer, Repo, register}
 use std.testing.assert_equal
 
 it("wires test adapters"):
