@@ -36,6 +36,59 @@ authoritative, and anything that changes language behavior goes through it.
 - **Parallel checking.**
 - **Incremental checking.**
 
+### Candidate Features (2026-10-06)
+
+Owner: "just think about features; later, if a feature is too hard to
+implement, removing it is fine." Every item is in until its cost says
+otherwise. Items marked ✓ exist in the prototype or are already decided.
+
+- **Build and targets**
+  - `hd build --target wasm | native | js | wasi`, with cross-compilation.
+  - Native: one standalone executable with the runtime linked in.
+  - WASI output for wasmtime, edge and serverless hosts.
+  - JS: an npm package with generated TypeScript declarations.
+  - `hd build --size-report`.
+  - `hd app.wasm` ✓, and running native executables directly.
+- **Dev loop**
+  - `hd watch` / `hd dev`: incremental check, test and rerun on save.
+  - Hot reload in dev: swap changed functions into the running program.
+  - `hd fix`: apply all safe fix-its.
+  - `hd fmt`.
+  - A language server: errors as you type, hover, go-to-definition,
+    rename, completion, and code actions built from the same fix-its.
+  - `hd explain CODE` ✓, `hd doc` ✓ (HTML and Markdown).
+  - A notebook-style REPL whose cells rerun when what they depend on
+    changes.
+- **Testing and quality**
+  - `hd test --affected`, `--watch`, run in parallel.
+  - Snapshot tests with `--update`.
+  - `hd test --coverage`.
+  - `hd bench`: warm-up and spread reported.
+  - `hd fuzz`: coverage-guided, reusing the derived `Arbitrary` generators.
+  - Property tests ✓.
+  - Conformance and differential testing across backends.
+- **Debugging and observability**
+  - Native debugging (lldb/gdb) and Wasm debugging in browser devtools,
+    with source lines.
+  - `hd run --profile`: CPU flamegraph and allocation profile.
+  - `hd run --record` / `--replay`: deterministic replay, built on the
+    reserved hooks.
+  - Panic locations and cause chains ✓, `dbg` ✓.
+- **Safety**
+  - Capability grants ✓, identical on every backend.
+  - `hd audit`: which capabilities each dependency's code requires.
+- **Packages**
+  - Git dependencies, `hd.sum` and workspaces ✓.
+  - `hd add` / `remove` / `update`, plus offline and vendored mode.
+  - `hd api diff` (an open issue).
+  - `hd migrate` codemods, since hd has no editions.
+- **Interop and embedding**
+  - Embedding APIs: a Rust crate for native hosts, an npm package for JS
+    hosts. The host supplies custom capability traits.
+  - hd libraries exported as Wasm components, with WIT generated from hd
+    traits.
+  - Plugins: the parked runtime code loading.
+
 ### Multiple Backends (2026-10-06)
 
 The language has more than one backend: **Wasm** and **Cranelift** first,
