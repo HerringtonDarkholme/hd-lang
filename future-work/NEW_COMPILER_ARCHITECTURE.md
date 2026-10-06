@@ -73,65 +73,52 @@ observable properties of the result, not whether the source "looks good".
 
 ## Goal Metrics (proposal, 2026-10-06; awaiting the owner's edits)
 
-The owner asked for goal metrics from the three Arena pillars. Running
-agents is too expensive, so every metric is a **proxy measured by running
-only the compiler** (owner: "instead of measure how many agents work,
-measure compiler's cpu and mem usage").
+Owner rules for these metrics:
+- **Scripts only.** Every metric is checked by a script, with no AI and
+  no agent runs ("each check must be tested without AI").
+- **Read-only.** A script measures and reports pass/fail against its
+  target. It never writes to the repo or the program under test; edits,
+  such as applying a fix-it, happen in a temporary copy.
+- **No prototype baselines.** The frozen prototype is not a baseline and
+  shapes no target ("no need to think about it").
+- **Neutral tooling.** Scripts live under `test/metrics/` and take any
+  `hd` binary.
 
-### Pillar 1: Single-agent development cost
+### Pillar 1: Single-agent development cost (proxies)
 
-An agent's cost is mostly time spent waiting, tokens spent reading, and
-retries. Each has a compiler-only proxy.
+| Script | Measures | Target |
+|---|---|---|
+| `edit-latency` | scripted one-function edit in a generated 10k-line package, then `hd check`; p50/p95 over 20 edits | p50 ≤ 50 ms, p95 ≤ 200 ms |
+| `cold-check` | cold `hd check` of the 10k-line package | ≤ 1 s |
+| `test-latency` | edit, then `hd test --filter one` | ≤ 300 ms |
+| `mistakes` | corpus of single-mistake programs (seeded from audit/hd-writing-log.md), each with its expected code: diagnostics per mistake, output bytes, and whether applying the `--format json` fix-it in a temporary copy makes `hd check` pass | 1 diagnostic in ≥ 95%; fix-it resolves ≥ 80%; diagnostic ≤ 60 tokens |
+| `answer-size` | bytes of `hd doc ITEM`, one failing `hd test`, `--format json` records on fixed inputs | fixed budgets, regression-gated |
+| `determinism` | same inputs run 10 times | byte-identical output |
 
-| Proxy | Stands in for | How measured | Target |
-|---|---|---|---|
-| Edit → diagnostics latency | waiting per loop | scripted one-function edit in a 10k-line package, time `hd check` | p50 ≤ 50 ms, p95 ≤ 200 ms |
-| Cold check; edit → test result | waiting per loop | cold `hd check` of 10k lines; `hd test --filter one` after an edit | ≤ 1 s; ≤ 300 ms |
-| Fix-it success rate | retries | mistake corpus from the writing log (~250 rows, grown by probes): apply the diagnostic's machine-readable fix, recheck | ≥ 80% fixed by the first suggestion |
-| Diagnostics per root cause | retries, noise | same corpus: diagnostics per single-mistake program | 1.0 in ≥ 95% |
-| Output tokens per answer | tokens read | size of: one typical error, `hd doc ITEM`, one failing `hd test`, `--format json` | fixed budgets (e.g. diagnostic ≤ 60 tokens, doc item ≤ 150), regression-gated |
-| Determinism | re-runs | same input run 10 times | byte-identical, 100% |
+### Pillar 2: Agent scalability (compiler CPU and memory)
 
-### Pillar 2: Agent scalability, as compiler CPU and memory
-
-Run N compiler processes, not N agents.
-
-| Proxy | How measured | Prototype | Target |
-|---|---|---|---|
-| CPU-seconds per operation | `hd check`/`test`/`build` on fixed small, 10k- and 50k-line packages, cold and warm cache | not measured | budget per size (e.g. warm check of 10k lines ≤ 0.2 CPU-s) |
-| Peak RSS per operation | same runs | not measured; intern caches grow without bound | ≤ 50 MB at 10k lines; flat over 1,000 REPL inputs |
-| Startup cost | `hd --version` and checking an empty file: CPU and RSS | Node + TypeScript load | ≤ 20 ms, ≤ 10 MB |
-| Concurrency slowdown | N = 1, 4, 16, 64 concurrent `hd check` on one box; p95 vs N = 1 | full suite ~9x slower with several worktrees | ≤ 1.5x at N = cores |
-| Cache sharing | N processes over the same std and dependencies: module reuse, total CPU vs N | 0% reuse | ≥ 95% reuse; total CPU sublinear in N |
-| Disk per worktree | artifacts plus toolchain | `node_modules` per worktree | ≤ 10 MB |
-| Conformance-suite CPU | total CPU, ~2,800 cases | ~764 s | ≤ 60 s |
+| Script | Measures | Target |
+|---|---|---|
+| `resources` | CPU-seconds and peak RSS for check, test and build on generated small, 10k- and 50k-line packages, cold and warm | warm check of 10k lines ≤ 0.2 CPU-s and ≤ 50 MB |
+| `long-session` | RSS across 1,000 REPL inputs or watch-mode rechecks | flat (no growth beyond a fixed bound) |
+| `startup` | `hd --version` and checking an empty file: wall time, CPU, RSS | ≤ 20 ms, ≤ 10 MB |
+| `concurrency` | N = 1, 4, 16, 64 concurrent `hd check` processes; p95 latency vs N = 1, total CPU vs N | ≤ 1.5x at N = cores; total CPU sublinear in N with a shared cache |
+| `disk` | artifacts plus toolchain size per worktree | ≤ 10 MB |
+| `suite-cpu` | total CPU of the conformance suite | ≤ 60 s |
 
 ### Pillar 3: Artifact quality (correctness is the gate)
 
-| Proxy | How measured | Prototype | Target |
-|---|---|---|---|
-| Conformance | portable suite | 2,803 / 2,825, 22 known failures | 100% minus listed known failures; known failures → 0 |
-| Oracle agreement | fixtures plus fuzzed programs through both compilers | — | 0 unexplained divergences |
-| Runtime speed | microbenchmarks with warm-up and spread, geomean vs Node | fib 0.66x … sum 11x | ≤ 1.5x; no case > 3x |
-| Allocations in hot loops | instrumented runs | ~3 per iteration in a counted loop | 0 for counted loops; ≤ 1 for iterator chains |
-| Size, startup, peak heap | release Wasm; instantiate → first output; heap high-water mark | tiny 1,669 B; others not measured | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node |
+| Script | Measures | Target |
+|---|---|---|
+| `conformance` | portable suite pass rate | 100% minus listed known failures |
+| `pathological` | compile-time stress cases, each with a time and memory budget: many overlapping impls (e.g. 1,600 `From` calls over two impls), deep nesting, long method and iterator chains, wide literals, large enums and matches, deep generic instantiation, long `?` chains, big files | each case within budget (e.g. ≤ 2 s, ≤ 200 MB); time grows near-linearly with size |
+| `proptest-perf` | a fixed property-test suite (derived `Arbitrary` generators, `it_prop`, shrinking): cases per second and time to shrink a known failure | e.g. ≥ 100k cases/s for simple generators; shrink ≤ 1 s |
+| `runtime` | microbenchmarks with warm-up and spread, geomean vs Node | ≤ 1.5x; no case > 3x |
+| `allocations` | allocations per iteration in counted loops and iterator chains | 0 for counted loops; ≤ 1 for chains |
+| `size-startup-heap` | release Wasm size, instantiate to first output, peak heap | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node |
 
-### Tools To Build First
-
-- **Mistake corpus with fix-it checking.** It turns the hd writing log into an
-  automatic diagnostics regression test, and is the best proxy for agent
-  cost.
-- **Resource harness.** One script runs check, test and build at three
-  package sizes, alone and N-way concurrent. It reports CPU-seconds, peak
-  RSS, p50/p95 latency and cache reuse.
-
-Both can run against the frozen prototype now, to fill the "not measured"
-cells. In CI, the cheap ones become gates, as `perf:check` is today.
-
-Staging: Milestone 1 is correctness parity plus the pillar 1 latency and
-pillar 2 resource numbers, which come from the architecture: a native
-binary, a shared cache and incremental checking. Milestone 2 is runtime
-speed: `i31ref`, then per-layout code.
+`proptest-perf` matters for app correctness: the more property cases an
+agent can afford per test run, the more bugs its tests catch.
 
 ## Prototype Baselines To Beat (2026-10-06)
 
