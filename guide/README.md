@@ -16,3 +16,4 @@ For normative syntax and semantics, use the
 collected under [Future Work](../future-work/README.md).
 - For the everyday data jobs — JSON config, doc tests, timeouts, files, and
   log scanning — read [Working With Data](WORKING_WITH_DATA.md).
+- For the commands day to day, read [The `hd` Command](COMMANDS.md).
