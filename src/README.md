@@ -1040,7 +1040,10 @@ else`, `break`, `break value`, and `continue`;
   `std.error`'s report with its `caused by: ` lines for an `Error` type, and
   the entry wrapper hands the text to the host through the `entry_error`
   import. A `Result` reached only through a type alias still reports
-  `main returned Err`;
+  `main returned Err`. A test case whose written result is a `Result`, as
+  a body that uses `?` has, gets its own renderer; `hd test` puts the
+  report after its `test "NAME" returned Err` line, on standard output in
+  text mode and in the JSON `message` (module.testing.err-print);
 - typed derivation (spec/lang/14-annotations.md#typed-derivation, Typed
   Derivation M1-M29), lowered before checking by `checker/typed-derivation.ts`:
   decorators on data, enum, newtype, field, variant, payload, and function

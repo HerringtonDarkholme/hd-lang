@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,835 cases: 2,812 selected in `test/portable/cases.tsv` and 23 known
-failures. The selected cases are 2,430 language tier, 311 stdlib tier, and 71
-CLI tier; the known failures are 5 language tier, 3 stdlib tier, and 15
+2,835 cases: 2,813 selected in `test/portable/cases.tsv` and 22 known
+failures. The selected cases are 2,430 language tier, 311 stdlib tier, and 72
+CLI tier; the known failures are 5 language tier, 3 stdlib tier, and 14
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -27,7 +27,6 @@ CLI tier.
 | F-621 | 1 | a library module under test gets an entry row for its top level |
 | F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
 | F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
-| F-625 | 1 | `hd test` reports a test case's `.Err` on standard error, without the error |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
 ## Findings
@@ -86,14 +85,6 @@ Correctness and diagnostics:
   build (`module.test.cyclic-dev-unit`, `module.test.cyclic-dev-allowed`).
   `cli/dep-package-cycle`, `cli/dev-dependency-cyclic-unit`, and
   `cli/dev-dependency-cyclic-integration` show it.
-- **F-625**: when a test case's body returns `.Err`, `hd test` writes
-  `test "NAME" returned Err` to standard error in text mode, and the JSON
-  `message` holds the same text. By `module.testing.err-print`, the
-  runner's own report on standard output holds the error and its
-  `caused by: ` lines. The entry renderer (`checker/entry-error.ts`) covers
-  only `main`, and `entryError` in `src/diagnostic-report.ts` writes the
-  line.
-  `cli/test-err-report` shows it.
 
 Runtime cost:
 

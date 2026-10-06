@@ -156,9 +156,11 @@ test("hd test fails a test whose result is .Err", async () => {
         "",
       ].join("\n"),
     );
-    // The 1 status is cli/exit-test-failure; here the failure text stays.
+    // The 1 status is cli/exit-test-failure; here the failure text stays,
+    // and the runner's report on stdout holds the error (module.testing.err-print).
     await assert.rejects(hd(["test", source]), (error: CommandResult) => {
-      assert.match(error.stdout + error.stderr, /test "propagates an error" returned Err/);
+      assert.match(error.stdout, /test "propagates an error" returned Err\nnot a digit\n/);
+      assert.equal(error.stderr, "");
       return true;
     });
   } finally {

@@ -25,7 +25,13 @@ const RUNNER_TRAITS: ReadonlySet<string> = new Set(["TestRunner", "PropertyRunne
 type RunOutcome =
   | { readonly kind: "passed"; readonly count: number; readonly result?: unknown }
   | { readonly kind: "exit"; readonly code: number }
-  | { readonly kind: "failed"; readonly subject: string; readonly outcome?: string };
+  | {
+      readonly kind: "failed";
+      readonly subject: string;
+      readonly outcome?: string;
+      /** A test case's result held an `.Err`, whose report the host rendered. */
+      readonly err?: boolean;
+    };
 
 type Exports = WebAssembly.Exports;
 
@@ -37,7 +43,14 @@ export interface TestReporting {
     message: string,
     /** The panic that failed the test case, when one did. */
     panic?: RuntimePanicError,
+    /** The test case's result held an `.Err`, whose report ends `message`. */
+    err?: boolean,
   ) => void;
+  /**
+   * The rendered report of the `.Err` that the test case run last returned,
+   * which the runner reports (spec/lang/10-modules.md#r-module.testing.err-print).
+   */
+  readonly errReport?: () => string | undefined;
   /** Run every test case after a failure, and record a panic as a failure. */
   readonly keepGoing: boolean;
 }
@@ -160,7 +173,7 @@ function judge(declaration: HirFunction, result: unknown, subject: string): RunO
     if (result !== 0) return { kind: "exit", code: result };
     return undefined;
   }
-  if (declaration.testOptions && result === -1) return { kind: "failed", subject };
+  if (declaration.testOptions && result === -1) return { kind: "failed", subject, err: true };
   if (declaration.testOptions && result !== 0)
     return { kind: "failed", subject, outcome: `reported exit code ${result}` };
   return undefined;
@@ -258,6 +271,14 @@ export async function runSelected(
   const keepGoing = reporting?.keepGoing === true;
   const failure = (subject: string, outcome?: string): string =>
     `${subject} ${outcome ?? "returned Err"}`;
+  // An `.Err` result's report follows on the lines after its failure: the
+  // error's `Display` text, then its `caused by: ` lines.
+  const withReport = (text: string, err: boolean | undefined): string => {
+    const report = err ? reporting?.errReport?.() : undefined;
+    return report === undefined ? text : `${text}\n${report}`;
+  };
+  // The failures of property cases whose result held an `.Err`.
+  const errFailures = new Set<string>();
   let count = 0;
   let last: unknown;
   for (const declaration of selected) {
@@ -293,7 +314,10 @@ export async function runSelected(
             tempDirs,
           );
           if (outcome?.kind !== "failed") return "pass";
-          return { failure: outcome.outcome ?? outcome.subject };
+          if (!outcome.err) return { failure: outcome.outcome ?? outcome.subject };
+          const failed = withReport("returned Err", true);
+          errFailures.add(failed);
+          return { failure: failed };
         } catch (error) {
           if (error instanceof PropertyDiscard) return "discard";
           if (error instanceof RuntimePanicError && isDiscardPanic(error, properties))
@@ -305,8 +329,16 @@ export async function runSelected(
       };
       const failed = await runProperty(properties, name, once);
       if (failed && !keepGoing) return { kind: "failed", ...failed };
-      if (failed) reporting?.record(name, "failed", failure(failed.subject, failed.outcome));
+      if (failed)
+        reporting?.record(
+          name,
+          "failed",
+          failure(failed.subject, failed.outcome),
+          undefined,
+          [...errFailures].some((text) => failed.outcome.includes(text)),
+        );
       else reporting?.record(name, "passed", "");
+      errFailures.clear();
       if (!failed) count += 1;
       continue;
     }
@@ -336,7 +368,13 @@ export async function runSelected(
       if (outcome && !keepGoing) return outcome;
       if (outcome) {
         if (outcome.kind !== "failed") return outcome;
-        reporting?.record(name, "failed", failure(outcome.subject, outcome.outcome));
+        reporting?.record(
+          name,
+          "failed",
+          withReport(failure(outcome.subject, outcome.outcome), outcome.err),
+          undefined,
+          outcome.err,
+        );
         if (!table) break;
         rows = rowCount;
         continue;

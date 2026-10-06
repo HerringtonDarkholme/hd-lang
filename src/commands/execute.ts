@@ -728,6 +728,9 @@ export async function execute(
   // Set once the program wrote an entry point's `.Err` report, which then
   // stands for the failure (spec/lang/10-modules.md#r-module.entry.err-stderr).
   let entryErrorReported = false;
+  // The report of the `.Err` the running test case returned, which goes into
+  // the runner's own report (spec/lang/10-modules.md#r-module.testing.err-print).
+  let testErrReport: string | undefined;
   const showDebugLines = (): void => {
     for (const line of debugLines) io.err(line);
     debugLines = [];
@@ -753,6 +756,10 @@ export async function execute(
       console: (text) => (test?.format === "json" ? io.err(text) : io.out(text)),
       consoleError: (text) => io.err(text),
       entryError: (report) => {
+        if (test) {
+          testErrReport = report;
+          return;
+        }
         entryErrorReported = true;
         io.err(report);
       },
@@ -880,12 +887,13 @@ export async function execute(
         (await instantiate(source, { ...instantiateOptions, compilation })).instance.exports,
       (name, row) => {
         debugLines = [];
+        testErrReport = undefined;
         snapshots.begin(name, row);
       },
       properties,
       snapshots.check,
       test && {
-        record: (name, outcome, message, panic) => {
+        record: (name, outcome, message, panic, err) => {
           if (test.intercept?.(name, outcome, message)) return;
           if (outcome === "passed") passedCases += 1;
           if (outcome === "failed") {
@@ -893,8 +901,11 @@ export async function execute(
             failedCases += 1;
             if (test.tally) test.tally.failed += 1;
             // Text output names each failure, and a panic with its location.
+            // An `.Err` result's report is part of the runner's report on
+            // standard output (spec/lang/10-modules.md#r-module.testing.err-print).
             if (test.format === "text")
               if (panic) reportFailure(loaded, panic);
+              else if (err) io.out(`${file}: ${message}`);
               else reporter.entryError(`test "${name}"`, message);
           }
           loaded.output.test(name, outcome, message);
@@ -902,6 +913,7 @@ export async function execute(
         // In every output mode a failure does not stop the run: every
         // selected test case runs and reports (cli.test.every-case).
         keepGoing: test.keepGoing ?? true,
+        errReport: () => testErrReport,
       },
       test && tempDirs,
     );

@@ -143,8 +143,11 @@ export class EmitterContext {
   protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();
   protected readonly providerKeys = new Map<string, number>();
   private readonly stringKernel: ReadonlyMap<string, number>;
-  /** The index of the generated renderer of an entry `.Err` (checker/entry-error.ts). */
-  protected readonly entryErrorRenderer: number | undefined;
+  /**
+   * The index of the generated renderer of an entry point's or a test
+   * case's `.Err`, by that function's name (checker/entry-error.ts).
+   */
+  protected readonly entryErrorRenderers: ReadonlyMap<string, number>;
 
   constructor(
     data: readonly HirData[],
@@ -159,9 +162,11 @@ export class EmitterContext {
     functions: readonly HirFunction[] = [],
     traitMethods: ReadonlySet<string> = new Set(),
   ) {
-    this.entryErrorRenderer = functions.find(
-      (declaration) => declaration.entryErrorRenderer === true,
-    )?.index;
+    this.entryErrorRenderers = new Map(
+      functions.flatMap(({ entryErrorRenderer, index }) =>
+        entryErrorRenderer === undefined ? [] : [[entryErrorRenderer, index] as const],
+      ),
+    );
     this.stringKernel = new Map(
       functions
         .filter((declaration) => STRING_KERNEL_NAMES.has(declaration.name))
@@ -455,7 +460,7 @@ export class EmitterContext {
       .map((argument) => ` ${argument}`)
       .join("")})`;
     const locals: string[] = [];
-    const report = this.emitEntryReport(call, declaration.result, locals, true);
+    const report = this.emitEntryReport(call, declaration.result, locals, declaration.name);
     return [
       `(func (export ${exportName("main")})${providers.length ? " " + providers.join(" ") : ""} (result i32)`,
       ...locals.map((local) => `  ${local}`),
@@ -695,14 +700,16 @@ export class EmitterContext {
 
   // `report()` of an entry result: 0 for `void`, the `u8` of `ExitCode`, and
   // for a `Result` its `.Ok` value's code or -1 for `.Err`. The checker admits
-  // no other result (termination.ts runnableEntryResult). An entry point's
-  // `.Err` first hands its rendered report to the host, which writes it to
-  // standard error (spec/lang/10-modules.md#r-module.entry.err-stderr).
+  // no other result (termination.ts runnableEntryResult). The `.Err` of the
+  // entry point or test case named `owner` first hands its rendered report
+  // to the host: an entry point's goes to standard error
+  // (spec/lang/10-modules.md#r-module.entry.err-stderr), and a test case's
+  // into the runner's report (r-module.testing.err-print).
   protected emitEntryReport(
     value: string,
     type: ValueType,
     locals: string[],
-    entry = false,
+    owner?: string,
   ): string {
     const parts = resultParts(readonlyType(type));
     if (parts) {
@@ -714,7 +721,7 @@ export class EmitterContext {
       );
       const ok =
         parts.ok === "void" ? "(i32.const 0)" : this.emitEntryReport(payload, parts.ok, locals);
-      const renderer = entry ? this.entryErrorRenderer : undefined;
+      const renderer = owner === undefined ? undefined : this.entryErrorRenderers.get(owner);
       const failed =
         renderer === undefined
           ? "(i32.const -1)"

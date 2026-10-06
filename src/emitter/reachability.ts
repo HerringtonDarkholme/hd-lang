@@ -243,7 +243,7 @@ export function emissionReachability(program: HirProgram): EmissionReachability 
       (!declaration.synthetic ||
         declaration.entry ||
         declaration.developmentEntry ||
-        declaration.entryErrorRenderer ||
+        declaration.entryErrorRenderer !== undefined ||
         declaration.testOptions)
     )
       functionByIndex(declaration.index);

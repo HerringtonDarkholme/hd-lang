@@ -144,8 +144,11 @@ export function emitHostFunctionImports(program: HirProgram): {
 } {
   const functions = hostFunctions(program);
   const panicDetail = program.hasPanicDetail;
-  // An entry point's `.Err` report (checker/entry-error.ts) crosses as a string.
-  const entryError = program.functions.some((declaration) => declaration.entryErrorRenderer);
+  // An entry point's or test case's `.Err` report (checker/entry-error.ts)
+  // crosses as a string.
+  const entryError = program.functions.some(
+    (declaration) => declaration.entryErrorRenderer !== undefined,
+  );
   const imports = functions.map(
     (declaration) =>
       `  (import "hd" "host:${declaration.intrinsic}" (func ${hostImportName(declaration.intrinsic!)} ${hostSignature(declaration)}))`,

@@ -269,8 +269,9 @@ interface StringHandle {
  * The generic host-function boundary: a `string` crosses as a handle whose
  * UTF-8 bytes the Wasm side copies one by one. Through it, `entry_error`
  * takes the report of an entry point's `.Err`, which the host writes to
- * standard error (spec/lang/10-modules.md#r-module.entry.err-stderr;
- * emitter/context.ts, emitEntryReport).
+ * standard error (spec/lang/10-modules.md#r-module.entry.err-stderr), or of a
+ * test case's, which `hd test` puts in its own report
+ * (r-module.testing.err-print; emitter/context.ts, emitEntryReport).
  */
 export function hostStringImports(
   writeEntryError: ((report: string, provider: unknown) => void) | undefined,
