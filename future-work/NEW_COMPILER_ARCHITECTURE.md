@@ -31,6 +31,11 @@ authoritative, and anything that changes language behavior goes through it.
 2. **Parallel.**
 3. **Supports incremental builds.**
 
+### Must-Have Features (2026-10-06)
+
+- **Parallel checking.**
+- **Incremental checking.**
+
 ### Multiple Backends (2026-10-06)
 
 The language has more than one backend: **Wasm** and **Cranelift** first,
