@@ -71,6 +71,53 @@ observable properties of the result, not whether the source "looks good".
   memory use, executable size.
 - Correctness is a gate: a faster wrong program is not a better outcome.
 
+## Prototype Baselines To Beat (2026-10-06)
+
+The numbers come from the frozen prototype and were taken on a shared,
+loaded machine. Treat the ratios as rough; the order of magnitude is the
+reliable part.
+
+**Runtime (Arena pillar 3).** `node --experimental-strip-types test/perf/micro/run.ts`,
+medians in ms, release builds, after the P1e/P1f string fixes:
+
+| case | hd | Node | Python | hd vs Node | Wasm size |
+|---|---:|---:|---:|---:|---:|
+| fib (recursion) | 3.9 | 5.9 | 58.0 | 0.66x (faster) | 1,186 B |
+| sum (integer loop) | 76.7 | 7.0 | 177.8 | 11x slower | 1,555 B |
+| string-build (100k parts) | 21.1 | 5.6 | 8.2 | 3.8x slower | 2,092 B |
+| map (insert and lookup) | 27.7 | 5.2 | 7.0 | 5.3x slower | 3,613 B |
+| sort | 41.7 | 17.0 | 9.5 | 2.5x slower | 3,412 B |
+
+- **What the runner measures.** `hd build --release` runs once per case
+  and only reports the Wasm size. Timing then compiles and instantiates in
+  the same Node process, which is excluded, and times only the `main` call,
+  three runs, median. The Python and Node programs time themselves the
+  same way, so process startup is excluded everywhere.
+- **Limits.** Build and compile time are not in these numbers. Three runs
+  is a small sample, and V8's Wasm tier-up may fall inside them.
+- **Likely causes of the gaps.** Boxed integers and dictionary-passing
+  generics, with no per-layout code. The planned value-layout
+  specialization (task P4a) moved to the new compiler.
+
+**Compile and check latency (Arena pillar 1).** From the
+[baseline report](../audit/compiler/baseline-2026-10-06.md), as CLI wall
+time with process startup included:
+
+| program | `hd check` | `hd build` | Wasm |
+|---|---:|---:|---:|
+| tiny program | 0.32 s | 0.60 s | 1,669 B |
+| `calc.hd` (248 lines) | 0.50 s | 0.82 s | 14,442 B |
+
+**Test suite.** `run-portable` (2,600+ cases) takes 65 s of wall time
+alone, and 15–17 min when several worktrees run it at once.
+
+**Benchmark gaps to close for the new compiler.**
+- An edit-check latency benchmark: change one function in a mid-size
+  package and time `hd check`. This measures pillar 1 and incremental
+  builds.
+- A memory-per-check measure for pillar 2.
+- More runtime runs, with warm-up and a reported spread.
+
 ## What The Arena Asks Of The Compiler (orchestrator's reading, not owner text)
 
 - **Pillar 1, development cost:**
