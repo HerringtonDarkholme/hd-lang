@@ -18,5 +18,5 @@ programs time themselves the same way, each in its own process. A missing
 A case's hd file spells `-` as `_` (`string-build` → `string_build.hd`),
 since hd module paths are identifiers.
 
-Findings are in [../../audit/compiler/perf-audit.md](../../audit/compiler/perf-audit.md),
-under "Runtime Microbenchmarks And Wasm Size".
+The latest measurements are in the
+[baseline report](../../../audit/compiler/baseline-2026-10-06.md#62-runtime-microbenchmarks).

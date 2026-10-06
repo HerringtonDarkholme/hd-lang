@@ -4,7 +4,7 @@ Status: observational audit at `caac922a0041511a80e82e82b1bc4b7638a9a97f`, 2026-
 
 This audit describes the compiler before designing its successor. It adds documents without changing the existing audit reports or compiler implementation.
 
-The sources under review are [src/README.md](../../src/README.md), [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md), and every TypeScript and WAT file under `src/`. Earlier evidence is in [opus.md](opus.md) and [perf-audit.md](perf-audit.md).
+The sources under review are [src/README.md](../../src/README.md), [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md), and every TypeScript and WAT file under `src/`. Earlier evidence was in `opus.md` and `perf-audit.md`, now in git history; their open findings are F-626 and F-627 in [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md).
 
 The semantic references are [the language chapters](../../spec/lang/), especially [types](../../spec/lang/04-type-system.md), [functions](../../spec/lang/07-functions.md), [traits](../../spec/lang/09-traits.md), [modules](../../spec/lang/10-modules.md), [requirements](../../spec/lang/11-requirements-and-suspension.md), and [annotations](../../spec/lang/14-annotations.md). Std APIs and command behavior remain in [spec/std](../../spec/std/README.md) and [spec/cli](../../spec/cli/README.md).
 

@@ -130,6 +130,13 @@ Runtime cost:
 - **F-558**: strings cross the host boundary one byte per import call.
 - **F-604**: checking nested unannotated closures doubles in time per
   nesting level.
+- **F-626** (was O-06 and speed finding F1): a call with several
+  candidate instantiations, as `C::from(x)` with two `From` impls, copies
+  the checker's state per candidate (`speculate`), so a `main` of 1,600
+  such lines checks in 96 s, against 1.7 s with one impl.
+- **F-627** (was speed finding F10): the emitter's `linkWat` re-parses the
+  generated WAT, and Binaryen's `parseText` parses it again, about a third
+  of a calc-sized compile.
 
 Compiler structure:
 

@@ -222,7 +222,9 @@ alone, and 15–17 min when several worktrees run it at once.
     test at once.
   - That favors a shared, content-addressed cache of checked std and
     dependencies over a per-process copy. Today each process re-checks
-    std (task P4c, deferred).
+    std (task P4c, deferred). Measured 2026-10-04: std is about 78% of a
+    small warm compile (75 ms of 96 ms), and about 35% of the portable
+    suite's CPU time.
   - It also favors a small resident memory per check, and no heavyweight
     daemon per agent.
   - The prototype's numbers: about 0.3 s to check a tiny program, and 15–17

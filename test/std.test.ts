@@ -127,7 +127,7 @@ test("a joined module declares every inherent method on a built-in type", () => 
 test("building a string from 200,000 parts takes linear-ish time", async () => {
   // Appending each part to the text so far copies that text again, so the
   // quadratic join took about 5 s for 100,000 parts; the bound is generous
-  // (audit/compiler/perf-audit.md, Runtime Microbenchmarks And Wasm Size).
+  // (task P1e, commit b1dee393).
   const source = `use std.text.{StringBuilder, join}
 
 pub fn main() -> void:
