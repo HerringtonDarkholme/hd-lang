@@ -21,6 +21,38 @@ diagnostic of the 1085 swept invalid fixtures. The literal-join and
 overflow commits the queue names remain covered by the earlier
 passes.
 
+Reviewed through `6c8344b5` (2026-10-05): 72 commits, two findings.
+The pass covered the dependency, workspace, host-profile, test-tier,
+documentation-test, debug-printing, `usize`-display, inference, `void`,
+generic-pattern, typed-fact, and GADT series, plus their review follow-ups.
+Every active rule ID cited in a commit message resolves in the current
+specification; cited retired IDs are absent as intended. The literal-join
+and overflow commits named by the queue remain covered by the earlier
+passes.
+
+Reviewed through `4567de8a` (2026-10-05): one further commit, no new
+findings. The distinct-`usize` checker and emitter changes match
+`types.usize.primitive`, `types.num.same-width`, the literal-default and
+index rules, and the companion spec commit `05404d28`; the later shift-count
+owner decision is queued separately as BS.
+
 ## Open Findings
 
-(none)
+1. **Blocker.** Effect: two `hd` processes fetching the same version can
+   both pass the `existsSync` check and one then fails its `rename` with an
+   uncaught filesystem error. In another valid interleaving, the second
+   writer replaces the hash record before noticing the first writer's tree,
+   leaving the cache with one tree and the other tree's hash. A later
+   `hd.sum` comparison can therefore approve bytes whose hash it never
+   checked, contrary to `cli.cache.shared`, `cli.cache.complete`, and
+   `cli.cache.hash`. Fix: publish the tree and its hash as one collision-safe
+   unit (or serialize writers with a per-entry lock); on losing a publish
+   race, discard the staged pair and read the winner, never overwrite one
+   half independently. File: `src/dependencies/cache.ts:119`.
+2. **Non-blocking.** Effect: `readSum` accepts a non-host key, a non-version,
+   an arbitrary suffix after the version, duplicate or unsorted entries, and
+   a final line without a newline. Such a file is outside `cli.sum.line` and
+   `cli.sum.order`, but commands treat it as a valid `hd.sum`; duplicate
+   hashes silently use the last one. Fix: parse each key as a host path plus
+   version and an optional exact `/hd.toml`, reject duplicate/out-of-order
+   keys, and require the final newline. File: `src/dependencies/sum.ts:40`.

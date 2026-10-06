@@ -160,20 +160,6 @@ a short new section: where hd stands (rough multiples), the biggest Wasm
 size contributors (the std splice: which std modules a tiny program
 pulls in and their size), and the two or three most promising fixes.
 No compiler changes in this job.
-
-### J. Ongoing: Review New `src/` Commits
-
-For each new commit on `origin/main` that touches `src/`, review the diff
-against the spec rule IDs or known-failure tags its message cites. Add the
-findings to `audit/job6-src-commit-review.md`, in this order: verdict
-(Blocker / Non-blocking / Nit), effect, fix, file:line.
-
-Large recent ones to review:
-
-- the literal join model, 62a084a2 and 288105cf, against
-  `types.literal.local.*` in `spec/lang/04-type-system.md`;
-- overflow build modes, 65a84de1 and c05682dc, against `types.arith.*`.
-
 ## Questions
 
 (none)
