@@ -1,0 +1,11 @@
+# test: a generic mutable parameter diagnoses a readonly argument with its fully solved type
+# Spec 04 Access Permission: types.mut.argument.infer; T is solved from the readonly Box[Box[f64]].
+data Box[T]:
+    item: T
+
+fn bump[T](box: mut Box[Box[T]]) -> void:
+    pass
+
+fn invalid() -> void:
+    let box: Box[Box[f64]] = Box { item: Box { item: 1.0 } }
+    bump(box)  # diagnostic: readonly-argument-to-mutable-parameter

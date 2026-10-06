@@ -2530,3 +2530,4 @@ runtime/valid/generic-call-nested-fresh-pair.hd	runtime	accept	lang/04-type-syst
 typing/valid/generic-call-fresh-list-of-boxes.hd	type	accept	lang/04-type-system.md#r-types.fresh.weaken
 typing/invalid/generic-call-readonly-into-mut-part.hd	type	reject:mutable-upgrade	lang/04-type-system.md#r-types.mut.no-upgrade
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.fresh.element-no-weaken
+typing/invalid/generic-readonly-argument-to-mut-parameter.hd	type	reject:readonly-argument-to-mutable-parameter	lang/04-type-system.md#r-types.mut.argument.infer

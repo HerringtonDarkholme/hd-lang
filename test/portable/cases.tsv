@@ -2579,3 +2579,4 @@ runtime/valid/generic-call-nested-fresh-pair.hd	runtime
 typing/valid/generic-call-fresh-list-of-boxes.hd	type
 typing/invalid/generic-call-readonly-into-mut-part.hd	type
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd	type
+typing/invalid/generic-readonly-argument-to-mut-parameter.hd	type

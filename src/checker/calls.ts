@@ -918,6 +918,11 @@ export abstract class CallChecker extends StatementChecker {
           );
         const boundedParameters = new Set(signature.genericBounds.map((bound) => bound.parameter));
         const inferredActual = weakenBoundedGenericActual(formal, checked.type, boundedParameters);
+        // A readonly argument cannot satisfy an outer `mut`, but its shape
+        // still solves the formal's generic variables for the diagnostic
+        // (types.mut.argument.infer).
+        if (mutableInner(formal) !== undefined && mutableInner(inferredActual) === undefined)
+          inferGenericType(readonlyType(formal), inferredActual, substitutions, rowSubstitutions);
         let conflict = inferGenericType(formal, inferredActual, substitutions, rowSubstitutions);
         // An earlier `mut T` argument and this readonly `T` meet at `T`
         // (types.generic.infer.join.outer-permission); an expected type never

@@ -38,6 +38,25 @@ pub fn main() -> void:
   );
 });
 
+test("generic mutable-parameter diagnostics solve nested type arguments", () => {
+  const diagnostic = onlyDiagnostic(`data Box[T]:
+    item: T
+
+fn bump[T](box: mut Box[Box[T]]) -> void:
+    pass
+
+pub fn main() -> void:
+    let box: Box[Box[f64]] = Box { item: Box { item: 1.0 } }
+    bump(box)
+`);
+
+  assert.equal(diagnostic.code, "readonly-argument-to-mutable-parameter");
+  assert.equal(
+    diagnostic.message,
+    "readonly argument 'Box[Box[f64]]' cannot satisfy mutable parameter 'mut Box[Box[f64]]'",
+  );
+});
+
 test("mutable-upgrade diagnostics render target types as source text", () => {
   const diagnostic = onlyDiagnostic(`data Box:
     value: i32

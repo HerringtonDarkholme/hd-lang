@@ -956,6 +956,11 @@ For a composite type `T`:
 6. r[types.mut.weaken] A `mut T` may be viewed as `T`.
 7. r[types.mut.no-upgrade] A `T` must never be upgraded to `mut T`. An upgrade is an error. Error: `mutable-upgrade`.
 8. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(readonly_value)` to a `mut T` declaration is rejected rather than inferring `T` as a mutable type.
+9. r[types.mut.argument] A readonly argument cannot satisfy a mutable parameter. Error: `readonly-argument-to-mutable-parameter`.
+10. r[types.mut.argument.infer] Before reporting this error for a generic mutable parameter, inference solves its type variables from the argument's readonly shape.
+
+> **Why.** Solving the generic variables keeps the diagnostic concrete without
+> granting mutable access to the readonly argument.
 
 ```text
 fn keep[T](value: T) -> T:
