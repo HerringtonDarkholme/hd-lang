@@ -68,15 +68,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AX. `it_each` At The Top Level Of An Integration Test
-
-Found by #321. A top-level `it_each(...)` in `tests/x.hd` is rejected as
-`misplaced-test-case`, but test position includes integration test
-modules (see the testing rules in spec/lang/10-modules.md; `it(...)` there
-works). Fix the checker so `it_each` is accepted wherever `it` is, add a
-fixture for an integration module using `it_each`, and check the other
-test-case forms (property tests) the same way.
-
 ### BA. Defer The Dead-Fact Warnings
 
 Owner decision, 2026-10-05: defer the `unused-derivation-fact` warnings

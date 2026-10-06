@@ -1,0 +1,16 @@
+use std.testing.{Choices, it_each, it_prop, it_prop_with}
+
+fn small(choices: mut Choices) -> i32:
+    choices.int(0, 2)
+
+it_each("top-level table", [1, 2], body=fn!(value: i32):
+    pass
+)
+
+it_prop("top-level derived property", cases=1, shrink=1, prop=fn!(value: i32):
+    pass
+)
+
+it_prop_with("top-level generated property", gen=small, cases=1, shrink=1, prop=fn!(value: i32):
+    pass
+)
