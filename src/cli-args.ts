@@ -78,7 +78,7 @@ const COMMANDS: readonly CommandSpec[] = [
     operands: "[FILE]",
     minOperands: 0,
     maxOperands: 1,
-    summary: "build the package's executables, or compile FILE to NAME.wasm",
+    summary: "build the package's executables, or the module of one FILE in the package",
     flags: [
       { name: "--wat", help: "with FILE, print the WebAssembly text instead of writing a file" },
       RELEASE,
@@ -88,6 +88,8 @@ const COMMANDS: readonly CommandSpec[] = [
       PACKAGE_NOTE,
       "Each executable NAME is written to build/debug/NAME.wasm, or build/release/ with --release.",
       FILE_NOTE,
+      "FILE's module goes to the same directory, named after FILE: tests/one.hd gives one.wasm.",
+      "Outside a package, hd build is an error; run one file with hd FILE.",
     ],
   },
   {

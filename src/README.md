@@ -128,7 +128,7 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   with `--all` also each task, is the entry of its own link, unless an
   earlier link already joined it.
   `hd build` writes each executable to `build/debug/NAME.wasm`, or
-  `build/release/` with `--release` ([`cli.build.output`](../spec/cli/command-line.md#r-cli.build.output)). `hd build FILE` writes `NAME.wasm` to the working directory, and
+  `build/release/` with `--release` ([`cli.build.output`](../spec/cli/command-line.md#r-cli.build.output)). `hd build FILE` writes FILE's module there too, named after FILE, and
   `--wat` prints the WAT. Outside any package `hd build` and `hd run` are
   errors, and `hd check` and `hd test` need a FILE.
 - `hd run [NAME]` runs the executable or task NAME, or the package's one

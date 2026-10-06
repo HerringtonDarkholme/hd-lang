@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 
@@ -102,10 +102,14 @@ test("documented CLI commands work end to end", async () => {
 
     const buildSource = join(directory, "src/main.hd");
     await copyFile(suspension, buildSource);
+    // FILE's module goes to the build directory too (cli.build.directory),
+    // named after FILE, and its path is shown from the working directory.
     const built = await hd(["build", buildSource], directory);
-    const wasmPath = built.stdout.trim();
-    assert.equal(basename(wasmPath), "main.wasm");
-    assert.ok((await stat(wasmPath)).size > 8);
+    assert.equal(built.stdout, "build/debug/main.wasm\n");
+    assert.ok((await stat(join(directory, "build/debug/main.wasm"))).size > 8);
+    const released = await hd(["build", "--release", "main.hd"], join(directory, "src"));
+    assert.equal(released.stdout, "../build/release/main.wasm\n");
+    assert.ok((await stat(join(directory, "build/release/main.wasm"))).size > 8);
     await rm(join(directory, "src/core.hd"));
     const whole = await hd(["build"], directory);
     assert.equal(whole.stdout, "build/debug/demo.wasm\n");

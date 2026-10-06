@@ -361,6 +361,8 @@ test("hd run runs the package's executable, and check and build link a package f
     await rm(join(directory, "hd.toml"));
     assert.match(await failure(["check", main]), /unknown-module/);
     assert.match(await failure(["run"], directory), /not in a package.*hd new/);
+    // So is `hd build`, with a FILE too (cli.run.package-only).
+    assert.match(await failure(["build", main], directory), /not in a package.*hd new/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -3,7 +3,7 @@
 // on the whole package, or on one FILE (spec/cli/command-line.md#building-and-checking).
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { basename, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 
 import { analyze, compileToWasm, compileToWat } from "../compiler.ts";
 import { Report } from "../diagnostic-report.ts";
@@ -11,12 +11,7 @@ import { DiagnosticError } from "../diagnostics.ts";
 import { LIB_FILE, SOURCE_ROOT, TEST_ROOT } from "../package.ts";
 import { parse } from "../parser/index.ts";
 import { checkDocTests } from "./doc-tests.ts";
-import {
-  EXIT_HD_FAILURE,
-  workingDirectory,
-  type CommandEnvironment,
-  type CommandIo,
-} from "./io.ts";
+import { EXIT_HD_FAILURE, type CommandEnvironment, type CommandIo } from "./io.ts";
 import { BUILD_DIRECTORY, unselectedMains, type LocalPackage } from "./package-mode.ts";
 import {
   commandPackages,
@@ -278,8 +273,8 @@ export interface BuildArgs extends CommandEnvironment, MemberSelection {
  * `hd build [FILE]`: writes each executable of the package to
  * `build/debug/NAME.wasm` (`build/release/` with `--release`) and prints
  * its path. With FILE in a package, it writes FILE's module, linked with the
- * package, to `NAME.wasm` in the current directory, or with `--wat` prints
- * the WAT without assembling it.
+ * package, to that directory as `NAME.wasm`, NAME being FILE's base name, or
+ * with `--wat` prints the WAT without assembling it.
  */
 export async function buildCommand(args: BuildArgs, io: CommandIo): Promise<number> {
   // `--wat` prints the module, so it has no JSON summary after it.
@@ -309,11 +304,14 @@ export async function buildCommand(args: BuildArgs, io: CommandIo): Promise<numb
       );
     return report.finish(status);
   }
-  return report.finish(await build({ ...args, file: args.file }, io, report));
+  return report.finish(
+    await build({ ...args, file: args.file }, selected.packages[0]!, io, report),
+  );
 }
 
 async function build(
   args: BuildArgs & { readonly file: string },
+  pkg: LocalPackage,
   io: CommandIo,
   report: Report,
 ): Promise<number> {
@@ -330,10 +328,17 @@ async function build(
       return 0;
     }
     const result = await compileToWasm(loaded.source, loaded.compileOptions);
-    const name = `${basename(loaded.path, extname(loaded.path))}.wasm`;
-    const output = resolve(workingDirectory(args), name);
-    await writeFile(output, result.bytes);
-    if (args.format === "text") io.out(output);
+    // Build output goes to the package's build directory
+    // (spec/cli/command-line.md#r-cli.build.directory), in the profile's
+    // directory as a whole-package build's executables do (cli.build.output).
+    const written = join(
+      BUILD_DIRECTORY,
+      args.release ? "release" : "debug",
+      `${basename(loaded.path, extname(loaded.path))}.wasm`,
+    );
+    await mkdir(dirname(join(pkg.root, written)), { recursive: true });
+    await writeFile(join(pkg.root, written), result.bytes);
+    if (args.format === "text") io.out(shownPath(pkg, written, args));
     return 0;
   } catch (error) {
     return reportFailure(loaded, error);
