@@ -19,7 +19,7 @@ resolve. It does not define type compatibility or access permission.
 1. r[names.category.syntax] A use is resolved in the category required by its syntax.
 2. r[names.category.syntax.type] For example, the name before `{` in `User { ... }` is resolved as a type.
 3. r[names.category.syntax.value] In `user.email`, `user` is resolved as a value and `email` as a member of its type.
-4. r[names.type-as-value] A name resolved as a value that names a type, a trait, or a type alias and no value is an error, as in `let x = User` or `field.metadata(MaxLen)`. Error: `type-used-as-value`.
+4. r[names.type-as-value] A name resolved as a value that names a type, a trait, or a type alias and no value is an error. Examples are `let x = User` and `field.metadata(MaxLen)`. Error: `type-used-as-value`.
 5. r[names.module.unique] A module cannot contain two declarations with the same module name, even if they are different kinds of declaration. Error: `duplicate-module-name`.
 6. r[names.module.no-overloading] Function overloading is therefore not permitted.
 
@@ -131,7 +131,7 @@ name := normalize(name)  # the right-hand name, if valid, resolves outward
 4. r[names.module.well-typed] A declaration must still be well typed as a whole.
 5. r[names.module.no-init-order] Forward visibility does not imply initialization order for executable top-level statements.
 6. r[names.module.scope] A module's scope holds its own top-level declarations, the [prelude](10-modules.md#prelude) names, and the names that its own `use` declarations introduce.
-7. r[names.module.other-module] Outside the prelude, a declaration of another module, in the package, a dependency, or `std`, is in scope only through this module's own `use` of it.
+7. r[names.module.other-module] Outside the prelude, a declaration of another module is in scope only through this module's own `use` of it. That holds for a module in the package, in a dependency, or in `std`.
 8. r[names.module.use-own-module] A `use` declaration introduces its names into its own module only, never into another module of the same package.
 9. r[names.module.other-module.value] A bare value name that is not in scope is an error, even when another module declares it. Error: `unknown-name`.
 10. r[names.module.other-module.type] A bare type name that is not in scope is an error, even when another module declares it. Error: `unknown-type`.
@@ -154,8 +154,8 @@ fn charge(cart: Cart) -> i32:
     total(cart) + fee()  # error: unknown-name
 ```
 
-> **Why.** No action at a distance: every bare name in a file traces to that
-> file's declarations, the prelude, or one of its own `use` lines.
+> **Why.** No action at a distance. Every bare name in a file traces to
+> that file's declarations, the prelude, or one of its own `use` lines.
 
 See also: [Use Declarations](#use-declarations), [Public Uses And Visibility](10-modules.md#public-uses-and-visibility).
 
@@ -180,7 +180,7 @@ let count = +0
 
 1. r[names.init.no-bypass] Referring to a named module declaration from a top-level executable statement does not bypass initialization order.
 2. r[names.init.transitive] At every top-level executable statement, the compiler computes the transitive set of top-level bindings read by every module function or closure referenced by that statement.
-3. r[names.init.references] A function or closure counts as referenced whether it is called directly, passed as a value, or reached through a trait method, interpolation, iteration, or another implicit call.
+3. r[names.init.references] A function or closure counts as referenced whether it is called directly or passed as a value. It also counts when reached through a trait method, interpolation, iteration, or another implicit call.
 4. r[names.init.required] Every binding in that set must have been initialized by an earlier top-level statement.
 5. r[names.init.whole-module] This is a whole-module value-flow and call-graph check; an indirect read through a later function value is rejected like a direct forward binding reference.
 
@@ -277,7 +277,7 @@ fn retry_after(s: i32) -> i32:
     s
 ```
 
-1. r[names.literal-fn.bare-in-scope] A literal suffix or a string prefix is a bare name, resolved as a module name: a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
+1. r[names.literal-fn.bare-in-scope] A literal suffix or a string prefix is a bare name, resolved as a module name. That is a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
 2. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
 3. r[names.literal-fn.unknown-name] A suffix or prefix that names nothing in module scope is an error. Error: `unknown-name`.
 
@@ -377,7 +377,7 @@ fn read(id: i32) -> i32:
     value + 1
 ```
 
-1. r[names.let-else.after] The names that a `let` pattern binds are visible from the end of the statement, after any `else` block, to the end of the enclosing scope.
+1. r[names.let-else.after] The names that a `let` pattern binds are visible to the end of the enclosing scope. Their scope starts at the end of the statement, after any `else` block.
 2. r[names.let-else.not-in-else] They are not visible in the `else` block. A use there resolves to an outer binding of the same name, if one exists.
 
 > **Why.** The `else` block runs only when the pattern did not match, so
@@ -414,7 +414,7 @@ fn main() -> i32:
 3. r[names.definite.merge] At a merge, the name is definitely initialized only if every incoming reachable path has evaluated the same binding.
 4. r[names.definite.reject] A use that may observe an uninitialized binding is an error. Error: `possibly-uninitialized-binding`.
 5. r[names.definite.condition] A direct binding in an `if` or `while` condition is evaluated whenever that condition is evaluated.
-6. r[names.definite.skipped] A binding inside the conditionally evaluated operand of `&&` or `||`, an unselected branch or match arm, or a loop body is not thereby initialized on paths that skip it.
+6. r[names.definite.skipped] Some paths skip a binding inside the conditionally evaluated operand of `&&` or `||`, an unselected branch or match arm, or a loop body. On those paths the binding is not thereby initialized.
 7. r[names.definite.proof] Flow analysis may still prove it initialized inside a branch whose selection implies that the binding ran.
 8. r[names.definite.diverging] A branch that diverges, as [`flow.let.else.diverge.forms`](06-control-flow.md#r-flow.let.else.diverge.forms) defines, is not an incoming path at the merge after it.
 
@@ -452,7 +452,7 @@ fn greeting(args: List[string]) -> string:
 
 ### Local Type Declarations
 
-1. r[names.local-type.name] A local `data`, `enum`, `trait`, or `type` declaration introduces a type name at its declaration point, visible in its own definition and in the rest of its enclosing suite.
+1. r[names.local-type.name] A local `data`, `enum`, `trait`, or `type` declaration introduces a type name at its declaration point. The name is visible in its own definition and in the rest of its enclosing suite.
 2. r[names.local-type.not-visible] The name is not visible before that point or outside the suite.
 3. r[names.local-type.static] Local type declarations do not execute, capture runtime values, or become module members nameable by a `use` declaration.
 4. r[names.local-type.refs] Local type declarations may refer to type names and type parameters visible at their declaration point.
@@ -650,7 +650,7 @@ See also: [Data Declarations](08-data-and-enums.md#data-declarations),
 
 1. r[names.part.definition] A **part** of `S` is a value reached from `S` through one or more embedded fields.
 2. r[names.part.depth] A part's **depth** is the number of embedded fields on its path; the own fields and inherent methods of `S` are at depth 0.
-3. r[names.promote.member] Each `pub` field and `pub` inherent method of a part's type, at any depth, is a **promoted member** of `S` at the part's depth, reached through the part's path. A private member or a trait method of a part's type is never promoted, even in the module that declares it, and has no effect on lookup through `S`.
+3. r[names.promote.member] Each `pub` field and `pub` inherent method of a part's type, at any depth, is a **promoted member** of `S`. It sits at the part's depth, reached through the part's path. A private member or a trait method of a part's type is never promoted, even in the module that declares it. It has no effect on lookup through `S`.
 
 ```text
 data Base:
@@ -674,8 +674,8 @@ fn invalid(record: Record) -> string:
 ### Hiding And Conflicts
 
 1. r[names.hide.depth] In each namespace, a member **hides** every member with the same name at a greater depth.
-2. r[names.conflict.definition] A **conflict** is two or more members with one name at the smallest depth where that name occurs, including one member reached through two different paths. An example is the embedded field name of a type embedded twice at one depth.
-3. r[names.conflict.private-shadow] An own field or inherent method of `S` that is not `pub` and has the name of a promoted member in its namespace is also a conflict.
+2. r[names.conflict.definition] A **conflict** is two or more members with one name at the smallest depth where that name occurs. That includes one member reached through two different paths. An example is the embedded field name of a type embedded twice at one depth.
+3. r[names.conflict.private-shadow] An own field or inherent method of `S` may have the name of a promoted member in its namespace. When that field or method is not `pub`, it is also a conflict.
 
 Only a `pub` own member hides a promoted one. A private own member with
 that name is an error, and its author picks another name:
@@ -716,8 +716,8 @@ data Record:
 ```
 
 > **Note.** For the error revamp: a conflict is reported on the later of
-> the two embedded fields of `S` through which the conflicting members are
-> reached. When both are reached through one embedded field `E`, it is
+> the two embedded fields of `S` that reach the conflicting members. When
+> both are reached through one embedded field `E`, it is
 > reported at `S` only when it is not also a conflict of `E`'s type. The
 > message names both paths, as in `Record.LeftBox.Left.id` and
 > `Record.RightBox.Right.id`. A private own member's conflict is reported
@@ -730,7 +730,7 @@ data Record:
 
 > **Note.** An implementation may compute one table of resolved members for
 > each data type. It holds the type's own members at depth 0 and the `pub`
-> members of every part at the part's depth, and a shallower member
+> members of every part at the part's depth. A shallower member
 > replaces a deeper one. A part's private member is not in the table, so it hides
 > nothing there. The rules above define only the result.
 
@@ -836,9 +836,9 @@ If `Page` also implemented `Display`, `page.to_string()` would be
 
 ### Promoted Member Access
 
-1. r[names.promoted.path] When the selected member is promoted, `x.name` means the explicit path `x.E1.E2...Ek.name` through the embedded fields `E1` to `Ek`, with the same type, permission, and evaluation. Each embedded step follows its container's access, so through a `mut S` receiver a promoted field may be assigned and a promoted `mut self` method called. A promoted method runs as the embedded type's own method with the part as its receiver, so there is no overriding.
-2. r[names.promoted.readonly] Through a readonly `S`, a promoted field is readonly, and a promoted `mut self` method is selected and then rejected; lookup never skips it to try another member. Error: `mutable-receiver-required`.
-3. r[names.promoted.explicit] Explicit qualification through an embedded field, as in `x.E1.name`, starts a new lookup with `E1`'s type as the receiver's type, where the member's own visibility applies. It reaches a private member of a part, as in `x.Part.secret`, where that member is visible.
+1. r[names.promoted.path] When the selected member is promoted, `x.name` means the explicit path `x.E1.E2...Ek.name` through the embedded fields `E1` to `Ek`. It has the same type, permission, and evaluation. Each embedded step follows its container's access, so through a `mut S` receiver a promoted field may be assigned and a promoted `mut self` method called. A promoted method runs as the embedded type's own method with the part as its receiver, so there is no overriding.
+2. r[names.promoted.readonly] Through a readonly `S`, a promoted field is readonly, and a promoted `mut self` method is selected and then rejected. Lookup never skips it to try another member. Error: `mutable-receiver-required`.
+3. r[names.promoted.explicit] Explicit qualification through an embedded field, as in `x.E1.name`, starts a new lookup with `E1`'s type as the receiver's type. There the member's own visibility applies. It reaches a private member of a part, as in `x.Part.secret`, where that member is visible.
 
 ```text
 data Resetter:
@@ -870,9 +870,9 @@ See also: [Mutable Paths](04-type-system.md#mutable-paths).
 
 ### Dependency Changes
 
-> **Note.** The shallower member wins even across packages. When a part's
-> type in a dependency gains a public member at a shallower depth than the
-> one a use selects, the use silently selects the new member.
+> **Note.** The shallower member wins even across packages. A part's type
+> in a dependency may gain a public member at a shallower depth than the
+> one a use selects. The use then silently selects the new member.
 
 > **Note.** No other change outside the package that owns `S` switches a
 > use silently. A new conflict is an error at the declaration of `S`, and
