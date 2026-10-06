@@ -58,14 +58,14 @@ fn is_markdown(file: Path) -> bool:
 
 1. r[std-path.ops.methods] `std.path` gives `Path` the four methods above. Calling one needs only the `Path` import.
 2. r[std-path.ops.separator] The separator is `/` on every host.
-3. r[std-path.ops.components] The components of a path are the pieces of its text between separators, leaving out empty pieces and `.` pieces, except a `.` that comes first in a path that does not start with `/`.
+3. r[std-path.ops.components] The components of a path are the pieces of its text between separators. Empty pieces and `.` pieces are left out, except a `.` that comes first in a path that does not start with `/`.
 4. r[std-path.ops.text-only] The methods read text only. None touches a file system, resolves `..`, or changes a path beyond what a rule below says.
 5. r[std-path.join.absolute] When `part` starts with `/`, `join` returns `Path(part)`.
 6. r[std-path.join.separator] Otherwise `join` returns the text of the path, then `/` unless that text is empty or ends in `/`, then `part`. So `Path("a").join("")` is `Path("a/")`.
 7. r[std-path.parent.value] `parent` returns, in `.Some`, the path of every component but the last, separated by `/`, with a leading `/` when the path starts with `/`.
 8. r[std-path.parent.none] A path with no component, `""` or `/`, has no parent, so `parent` returns `.None`.
 9. r[std-path.parent.single] So a path of one component has the parent `Path("")`, or `Path("/")` when it starts with `/`.
-10. r[std-path.file-name.value] `file_name` returns the last component in `.Some`, except that it returns `.None` when the path has no component or the last one is `.` or `..`.
+10. r[std-path.file-name.value] `file_name` returns the last component in `.Some`. It returns `.None` when the path has no component or the last one is `.` or `..`.
 11. r[std-path.extension.value] `extension` returns, in `.Some`, the text after the last `.` of the file name, without the `.`.
 12. r[std-path.extension.none] It returns `.None` when there is no file name, when the name has no `.`, or when its only `.` is its first character.
 13. r[std-path.extension.empty] A file name that ends in `.` gives `.Some("")`.
