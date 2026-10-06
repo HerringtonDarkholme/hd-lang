@@ -27,6 +27,14 @@ mechanisms:
 7. r[req.model.runtimes] Production, test, sandbox, and replay runtimes may bind different providers or drivers at explicit requirement and suspension boundaries.
 8. r[req.model.never-reinterpreted] Code outside those boundaries is never reinterpreted: every runtime runs it the same way.
 
+```hd
+trait Store:
+    fn get(self) -> string
+
+fn read() -> string $ Store:
+    $.use(Store).get()
+```
+
 ## Requirement Rows
 
 This section defines requirement rows, the `$` clause that writes them, and
@@ -36,6 +44,14 @@ how the compiler checks them.
 2. r[req.row.parameter] A **row parameter** is a generic parameter whose values are requirement rows.
 
 These are the only terms used below for the concrete and generic forms.
+
+```hd
+trait Logger:
+    fn log(self, text: string) -> void
+
+fn work() -> void $ Logger:
+    $.use(Logger).log("done")
+```
 
 ### Row Syntax
 
@@ -80,6 +96,17 @@ requirement clause:
 1. r[req.row.callable.same-clause] Function declarations, closure expressions, and function types use the same requirement clause.
 2. r[req.row.callable.methods] The same callable name and optional requirement clause apply to trait methods and functions inside `impl` blocks.
 3. r[req.row.callable.impl-agrees] A trait requirement and its implementation must agree on suspension and normalized requirement row behavior.
+
+```hd
+trait Store:
+    fn get(self) -> string
+
+fn read() -> string $ Store:
+    $.use(Store).get()
+
+fn run(read: fn() -> string $ Store) -> string $ Store:
+    read()
+```
 
 ### Omitted Requirement Clauses
 
@@ -146,6 +173,16 @@ pub fn invalid() -> void:
 7. r[req.row.entail.parameter] An unknown row parameter `R` is entailed by a row exactly when that row lists `R` itself.
 8. r[req.row.entail.parameter.concrete] No set of concrete keys entails `R`.
 9. r[req.row.entail.generic] A generic key such as `Repo[T]` is entailed only by a key that is identical to it after alias expansion.
+
+```text
+trait Clock
+
+fn read() -> i32 $ Clock: 1
+
+pub fn value() -> i32: read()   # error: missing-requirement
+
+fn tick() -> i32 $ Clock: read()   # ok: the row entails Clock
+```
 
 ### Least Row Solutions
 
@@ -640,10 +677,26 @@ trait Clock
 4. r[req.use.value.outlives-scope] A provider value remains usable after its provider scope ends.
 5. r[req.use.value.row-meaning] A requirement row therefore records unresolved provider lookup, not every authority a callable can exercise through values it holds.
 
+```hd
+trait Store:
+    fn get(self) -> string
+
+fn keep() -> Store $ Store:
+    $.use(Store)   # an ordinary value: it may flow into a return
+```
+
 ### Context Namespace
 
 1. r[req.use.namespace] `$` is a special context namespace, not an ordinary value.
 2. r[req.use.namespace.keys] Requirement keys in its operations are type-level keys rather than named argument labels.
+
+```hd
+trait Store:
+    fn get(self) -> string
+
+fn read() -> string $ Store:
+    $.use(Store).get()   # $ is the context namespace, not a value
+```
 
 ## Provider Scopes
 
@@ -846,6 +899,21 @@ gives the productions `context_use`, `context_create`, `context_type`,
 2. r[req.context.ordinary-values] Provider values are ordinary values and use ordinary trait implementations.
 3. r[req.context.no-handler] There is no separate `handler` declaration.
 
+```hd
+trait Logger:
+    fn log(self, text: string) -> void
+
+data Quiet:
+    silent: bool
+
+impl Logger for Quiet:
+    fn log(self, text: string) -> void: pass
+
+fn demo() -> void:
+    $.with(Logger=Quiet { silent: true }):
+        $.use(Logger).log("done")
+```
+
 ## Mutable Providers
 
 A requirement trait with a `mut self` method is always provided with mutable
@@ -941,11 +1009,24 @@ fn tick() -> void $ Counter:
 2. r[req.mut.row.no-access-rules] Rows, `$.Context[$ Row]` rows, and removal by extension therefore compare and remove keys by trait alone.
 3. r[req.mut.row.missing-key] A required key with no available provider is an error, whatever its trait's access. Error: `missing-requirement`.
 
+```hd
+trait Counter:
+    fn bump(mut self) -> void
+
+fn demo() -> void $ Counter:
+    $.use(Counter).bump()
+```
+
 ### Entry-Point Access
 
 1. r[req.mut.entry.trait-access] A runtime profile binds the host provider for a mutable requirement trait with mutable access, and every other host provider with readonly access.
 2. r[req.mut.entry.registered-access] A registration contract binds each trait it lists the same way.
 3. r[req.mut.entry.no-marking] Neither a runtime profile nor a registration contract marks a trait mutable.
+
+```hd
+pub fn main!() -> void $ Console:
+    println("hi")
+```
 
 See also: [Wasm Boundary](10-modules.md#wasm-boundary).
 
@@ -953,6 +1034,14 @@ See also: [Wasm Boundary](10-modules.md#wasm-boundary).
 
 1. r[req.mut.capture-trait] A cold suspension captures each provider with its trait's access.
 2. r[req.mut.capture.fixed] [Construction-Time Requirement Binding](#construction-time-requirement-binding) therefore also fixes the access a stored computation later uses.
+
+```hd
+trait Store:
+    fn get(self) -> string
+
+fn fetch!() -> string $ Store:
+    $.use(Store).get()   # a stored suspension keeps the Store access
+```
 
 ## Suspending Functions
 
@@ -1073,10 +1162,22 @@ fn main() -> void:
 3. r[req.entry.pending] When a poll returns `Pending` because a host provider operation is pending, the driver returns control to the host. It polls again only after a waker for that suspension is invoked.
 4. r[req.entry.busy-poll] A driver that keeps polling a pending host operation without returning to the host is not conforming.
 
+```hd
+pub fn main!() -> void:
+    pass   # the host executor drives this entry point
+```
+
 ### Host Waits
 
 1. r[req.host-wait.leaf] The runtime-provided leaf `std.task.host_wait![T](operation: std.task.HostWait[T]) -> T` maps an opaque host wait operation to the WebAssembly Component Model async ABI as used by WASI 0.3 host interfaces.
 2. r[req.host-wait.source] User code obtains `HostWait[T]` values only from host providers; the type has no public constructor.
+
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn demo!() -> string:
+    fetch!("k")   # a host wait inside resolves through the provider; user code never builds one
+```
 
 ## `Suspend[T]` Protocol
 
@@ -1109,6 +1210,13 @@ trait Suspend[T]:
 | r[req.value.exclusive] Exclusive | exclusively driven at runtime |
 | r[req.value.stateful] Stateful | stateful across normal successive polls while pending |
 
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn demo() -> void:
+    pending := fetch("k")   # cold: the plain call only constructs, nothing runs
+```
+
 ### Poll Context
 
 Standard-library suspension implementations access the waker of a
@@ -1135,6 +1243,13 @@ trait Waker:
 3. r[req.waker.coalesced] Redundant wakes are coalesced and never poll concurrently.
 4. r[req.waker.no-result] The waker carries no result; state remains in the suspension frame.
 
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn demo!() -> void:
+    _ := fetch!("k")   # a pending poll arranges its own waker; the driver polls again on wake
+```
+
 ### Runtime Checks
 
 1. r[req.check.panics] Competing drivers, reentrant polling, polling after `Ready`, or attempting a second execution cause a runtime panic.
@@ -1147,11 +1262,26 @@ trait Waker:
 8. r[req.check.code.reentrant] Recursive polling and active-stack cancellation report `suspension-reentrant-poll`.
 9. r[req.check.code.invalid-state] Polling after completion or cancellation and attempting a second execution report `suspension-invalid-state`.
 
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn demo!() -> string:
+    first := fetch!("k")
+    first   # one driver only: a second driver on this suspension would panic
+```
+
 ### Discarding A Suspension
 
 1. r[req.discard.cold] Discarding a cold suspension that has never been polled has no cleanup work to perform.
 2. r[req.discard.started] Once polling has begun, a host or driver that stops owning the suspension must cancel it before discarding it.
 3. r[req.discard.abandoned] Raw abandonment of a started suspension does not run its registered `defer` suites.
+
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn demo() -> void:
+    _ := fetch("k")   # discarded cold: no cleanup to run
+```
 
 ### Cooperative Scheduling
 
@@ -1159,6 +1289,15 @@ trait Waker:
 2. r[req.schedule.yield-points] Bang calls are the only language-level yield points; code between them does not interleave with a sibling suspension in that instance.
 3. r[req.schedule.all-unfinished] `std.task.all!` polls its children in argument order on its initial poll. After every wake it polls again, in argument order, only the children that have not completed.
 4. r[req.schedule.all-completed] `all!` never polls a completed child again; it keeps that child's result.
+
+```hd
+fn first!() -> i32: +1
+
+fn second!() -> i32: +2
+
+fn demo!() -> i32:
+    first!() + second!()   # one thread: no interleaving between bang calls
+```
 
 ## Compilation Strategy
 
@@ -1249,6 +1388,14 @@ combinators cancel their children.
 6. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.
 7. r[req.cancel.hook-synchronous] Cleanup that can fail or requires asynchronous work needs a separate design; the cancellation hook itself remains synchronous.
 
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn demo!() -> string $ Console:
+    println("start")
+    fetch!("k")   # cancelling here would run pending defers first, synchronously
+```
+
 ### Standard Combinators
 
 1. r[req.combinator.cancel-children] The `std.task` combinators `all!` and `race!` cancel their children when the parent is cancelled.
@@ -1263,6 +1410,20 @@ combinators cancel their children.
 10. r[req.combinator.race-empty-literal] A `race!` call that passes an empty list literal by name, as `race!::[i32](tasks=[])`, is the same error. Error: `argument-count`.
 11. r[req.combinator.race-empty-run] A `race!` call whose task list is empty at run time, passed by a spread or as a list value, panics when it is called. Panic: `explicit-panic`.
 12. r[req.combinator.library-rest] The other concrete signatures, and the complete intrinsic set, remain standard-library API design.
+
+```hd
+use std.task.all
+
+fn load_user!(id: i64) -> string:
+    "user $id"
+
+fn load_orders!(id: i64) -> List[i64]:
+    [id]
+
+fn page!(id: i64) -> string:
+    let (user, orders) = all!(load_user(id), load_orders(id))
+    "$user: ${orders.len()}"
+```
 
 #### Typing `all!`
 
@@ -1389,6 +1550,13 @@ providers come from, and what a program instance's behavior depends on.
 4. r[req.runtime.library] Scheduling APIs, durable replay storage and runners, and affine resource ownership are runtime or library concerns.
 5. r[req.runtime.cancel-cleanup] Cancellation participates in synchronous `defer` cleanup but does not replace an ownership or resource-lifetime design.
 
+```hd
+fn fetch!(key: string) -> string: "value of $key"
+
+fn demo!() -> string:
+    fetch!("k")   # driven by a runtime driver; providers come from $.with or the host
+```
+
 ### Determinism
 
 1. r[req.determinism.inputs] A program instance is deterministic in its inputs.
@@ -1399,6 +1567,11 @@ providers come from, and what a program instance's behavior depends on.
 6. r[req.determinism.limits] Failures caused by host stack or memory limits are outside this guarantee.
 7. r[req.determinism.limits-profile] The host's stack and memory limits are part of the runtime profile.
 8. r[req.determinism.weak] Garbage collection timing is not an input: user code cannot observe a weak reference clearing or a finalizer running.
+
+```hd
+fn demo(seed: u64) -> u64:
+    seed * 2   # same inputs, same outputs: nothing else varies between host calls
+```
 
 > **Note.** A host-call result that is a float arrives as its raw IEEE 754
 > value, by [`module.profile.host-float.raw`](10-modules.md#r-module.profile.host-float.raw).
