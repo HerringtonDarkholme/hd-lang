@@ -68,6 +68,12 @@ and list it under Questions.
   any rebase, rerun `bash spec/check.sh` before pushing; never push with
   it red.
 
+- **When you split a sentence,** every qualifier that covered the whole
+  sentence must still cover each part: a location ("at the range's first
+  character"), a condition, a build mode, an error code. Review of K1
+  found one dropped location (fixed in 111a9a0b). Reread each split
+  rule and ask: does every case still carry everything it had?
+
 ## Don't Touch
 
 - `src/`, `lib/`, `test/`, `spec/conformance/` (fixtures and indexes), and
