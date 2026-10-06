@@ -1,0 +1,8 @@
+# mistake: an indexed assignment into a readonly map
+# log: 2026-10-01 #144 scratch test
+# expect: readonly-root
+
+fn table() -> Map[string, i32]:
+    let scores: Map[string, i32] = {}
+    scores["ada"] = 10  # diagnostic: readonly-root
+    scores

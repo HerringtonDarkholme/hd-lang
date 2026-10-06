@@ -1,0 +1,7 @@
+# mistake: Python's `not` for logical negation
+# log: 2026-09-29 property-test trial; 2026-10-05 GADT variant results
+# expect: syntax-error
+# fixed:     !ready
+
+fn negate(ready: bool) -> bool:
+    not ready  # diagnostic: syntax-error

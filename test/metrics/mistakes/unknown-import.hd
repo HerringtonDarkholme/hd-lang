@@ -1,0 +1,9 @@
+# mistake: importing a name the module does not declare
+# log: 2026-10-03 website examples #231
+# expect: unknown-import
+# fixed: use std.testing.assert_equal
+
+use std.testing.assert_eq  # diagnostic: unknown-import
+
+fn one() -> i32:
+    1

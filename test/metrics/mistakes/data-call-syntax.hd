@@ -1,0 +1,11 @@
+# mistake: building a data value with call syntax
+# log: 2026-10-01 M1 scratch test
+# expect: syntax-error
+# fixed:     Point { x: 0, y: 0 }
+
+data Point:
+    x: i32
+    y: i32
+
+fn origin() -> Point:
+    Point(x: 0, y: 0)  # diagnostic: syntax-error

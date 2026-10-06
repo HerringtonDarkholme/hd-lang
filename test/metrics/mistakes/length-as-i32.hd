@@ -1,0 +1,10 @@
+# mistake: returning a `usize` length as `i32`
+# log: 2026-10-03 U32-SIZES migration
+# expect: type-mismatch
+# fixed:     i32(user.name.len())
+
+data User:
+    name: string
+
+fn name_length(user: User) -> i32:
+    user.name.len()  # diagnostic: type-mismatch

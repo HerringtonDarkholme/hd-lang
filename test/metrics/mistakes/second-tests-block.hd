@@ -1,0 +1,16 @@
+# mistake: a second `tests:` block
+# log: 2026-10-06 probe 5; 2026-10-06 probe 6
+# expect: duplicate-tests-block
+
+use std.testing.assert_equal
+
+fn twice(n: i32) -> i32:
+    n * 2
+
+tests:
+    it("doubles two"):
+        assert_equal(twice(2), 4, reason="double")
+
+tests:  # diagnostic: duplicate-tests-block
+    it("doubles three"):
+        assert_equal(twice(3), 6, reason="double")

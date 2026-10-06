@@ -1,0 +1,10 @@
+# mistake: `==` on an enum with no `Eq`
+# log: 2026-10-05 usability probe #77 money lib
+# expect: type-mismatch
+
+enum Currency:
+    Usd
+    Eur
+
+fn same(a: Currency, b: Currency) -> bool:
+    a == b  # diagnostic: type-mismatch

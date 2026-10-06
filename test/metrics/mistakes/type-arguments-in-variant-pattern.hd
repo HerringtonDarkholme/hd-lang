@@ -1,0 +1,13 @@
+# mistake: type arguments in a variant pattern
+# log: 2026-10-06 probe 3
+# expect: syntax-error
+# fixed:         Slot.Full(value) => value
+
+enum Slot[T]:
+    Full(value: T)
+    Empty
+
+fn read(slot: Slot[i32]) -> i32:
+    match slot:
+        Slot[i32].Full(value) => value  # diagnostic: syntax-error
+        Slot.Empty => 0

@@ -1,0 +1,10 @@
+# mistake: `let mut` on a primitive
+# log: 2026-10-03 haiku probe #77; 2026-10-06 K5; 2026-10-06 probe 3
+# expect: mut-on-primitive
+# fixed:     let count = +0
+
+fn count_up(limit: i32) -> i32:
+    let mut count = +0  # diagnostic: mut-on-primitive
+    while count < limit:
+        count = count + 1
+    count

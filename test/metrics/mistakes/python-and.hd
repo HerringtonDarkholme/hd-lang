@@ -1,0 +1,9 @@
+# mistake: Python's `and` between conditions
+# log: 2026-10-01 lib/std/format.hd
+# expect: syntax-error
+# fixed:     if first && second:
+
+fn both(first: bool, second: bool) -> bool:
+    if first and second:  # diagnostic: syntax-error
+        return true
+    false

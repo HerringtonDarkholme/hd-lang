@@ -1,0 +1,10 @@
+# mistake: `let mut x: T` where `let x: mut T` was meant
+# log: 2026-10-03 dogfood #199 calc
+# expect: let-mut-readonly-type
+# fixed:     let chars: mut List[char] = []
+
+fn letters(text: string) -> List[char]:
+    let mut chars: List[char] = []  # diagnostic: let-mut-readonly-type
+    for c in text.chars():
+        chars.push(c)
+    chars

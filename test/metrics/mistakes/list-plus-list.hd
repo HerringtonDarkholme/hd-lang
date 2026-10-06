@@ -1,0 +1,6 @@
+# mistake: `+` to append to a list
+# log: 2026-10-01 #144 scratch test
+# expect: type-mismatch
+
+fn with_key(keys: List[string], key: string) -> List[string]:
+    keys + [key]  # diagnostic: type-mismatch

@@ -1,0 +1,13 @@
+# mistake: a string where a data type is expected
+# log: 2026-10-06 P1j; 2026-10-06 probe 6
+# expect: type-mismatch
+# fixed:     depth(Path { text: "data/orders.csv" })
+
+data Path:
+    text: string
+
+fn depth(path: Path) -> usize:
+    path.text.len()
+
+fn run() -> usize:
+    depth("data/orders.csv")  # diagnostic: type-mismatch

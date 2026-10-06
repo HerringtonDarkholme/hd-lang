@@ -1,0 +1,9 @@
+# mistake: breaking `a && b` after the operator
+# log: 2026-10-06 K5
+# expect: syntax-error
+# fixed:     first && second
+# fixed-lines: 2
+
+fn both(first: bool, second: bool) -> bool:
+    first &&  # diagnostic: syntax-error
+        second

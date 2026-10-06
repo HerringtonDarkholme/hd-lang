@@ -1,0 +1,10 @@
+# mistake: a list of literals whose sign makes them i32, one too big
+# log: 2026-10-03 #225 date fixture
+# expect: integer-literal-range
+
+fn count_after_epoch() -> i32:
+    let count = +0
+    for millis in [0, -1, 951782400000]:  # diagnostic: integer-literal-range
+        if millis > 0:
+            count = count + 1
+    count

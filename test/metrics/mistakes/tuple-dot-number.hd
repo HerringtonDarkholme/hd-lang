@@ -1,0 +1,7 @@
+# mistake: Rust's `pair.0` for a tuple element
+# log: 2026-10-01 #144; 2026-10-03 dogfood #199
+# expect: syntax-error
+# fixed:     pair._0
+
+fn first(pair: (string, i32)) -> string:
+    pair.0  # diagnostic: syntax-error

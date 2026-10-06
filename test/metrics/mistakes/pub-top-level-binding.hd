@@ -1,0 +1,9 @@
+# mistake: `pub` on a top-level binding
+# log: 2026-10-05 module paths #270
+# expect: syntax-error
+# fixed: LIMIT := +10
+
+pub LIMIT := +10  # diagnostic: syntax-error
+
+pub fn limit() -> i32:
+    LIMIT

@@ -1,0 +1,10 @@
+# mistake: `push` on a readonly list field in a `mut self` method
+# log: 2026-10-03 website examples #231; 2026-10-06 probe 4
+# expect: mutable-receiver-required
+
+data Outbox:
+    sent: List[string]
+
+impl Outbox:
+    fn record(mut self, message: string) -> void:
+        self.sent.push(message)  # diagnostic: mutable-receiver-required

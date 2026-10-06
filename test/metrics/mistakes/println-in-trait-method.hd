@@ -1,0 +1,13 @@
+# mistake: `println` in a trait method, which carries no row
+# log: 2026-10-03 website examples #231
+# expect: missing-requirement
+
+trait Mailer:
+    fn send(self, to: string) -> void
+
+data ConsoleMailer:
+    prefix: string
+
+impl Mailer for ConsoleMailer:
+    fn send(self, to: string) -> void:
+        println("${self.prefix} ${to}")  # diagnostic: missing-requirement

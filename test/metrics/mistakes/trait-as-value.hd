@@ -1,0 +1,10 @@
+# mistake: calling a method on a trait name
+# log: 2026-10-06 P1j playground host probe
+# expect: type-used-as-value
+# fixed:     $.use(Clock).now()
+
+trait Clock:
+    fn now(self) -> i64
+
+fn stamp() -> i64 $ Clock:
+    Clock.now()  # diagnostic: type-used-as-value

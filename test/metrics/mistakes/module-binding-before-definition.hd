@@ -1,0 +1,8 @@
+# mistake: a function reading a module binding declared below it
+# log: 2026-10-03 example reshape #249
+# expect: binding-not-yet-visible
+
+fn count() -> usize:
+    names.len()  # diagnostic: binding-not-yet-visible
+
+let names: List[string] = ["ada"]

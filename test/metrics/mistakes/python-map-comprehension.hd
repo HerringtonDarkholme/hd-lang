@@ -1,0 +1,7 @@
+# mistake: a Python-style map comprehension
+# log: 2026-10-01 #144 scratch test
+# expect: syntax-error
+# fixed:     {for k in keys => k: k * 2}
+
+fn doubled(keys: List[i32]) -> Map[i32, i32]:
+    {k: k * 2 for k in keys}  # diagnostic: syntax-error

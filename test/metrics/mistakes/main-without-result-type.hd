@@ -1,0 +1,7 @@
+# mistake: a public `main` with no result type
+# log: 2026-10-02 #219 footprint probe
+# expect: missing-result-type
+# fixed: pub fn main() -> void:
+
+pub fn main():  # diagnostic: missing-result-type
+    pass

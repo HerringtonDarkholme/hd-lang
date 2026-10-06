@@ -1,0 +1,6 @@
+# mistake: `println` in a `main` with no `$ Console`
+# log: 2026-10-02 #200; 2026-10-03 #224; 2026-10-06 P1j
+# expect: missing-requirement
+
+pub fn main() -> void:
+    println("ready")  # diagnostic: missing-requirement

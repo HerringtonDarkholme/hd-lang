@@ -1,0 +1,11 @@
+# mistake: a generic call whose type argument nothing fixes
+# log: 2026-10-05 usability probe 2
+# expect: cannot-infer-type
+# fixed:     items := empty_list::[string]()
+
+fn empty_list[T]() -> List[T]:
+    []
+
+fn count() -> usize:
+    items := empty_list()  # diagnostic: cannot-infer-type
+    items.len()

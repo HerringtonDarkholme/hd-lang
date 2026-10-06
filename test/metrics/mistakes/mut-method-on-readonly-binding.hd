@@ -1,0 +1,15 @@
+# mistake: a `mut self` method on a readonly binding
+# log: 2026-10-03 dogfood #199 calc; 2026-10-06 P1j
+# expect: mutable-receiver-required
+
+data Parser:
+    at: i32
+
+impl Parser:
+    fn advance(mut self) -> void:
+        self.at = self.at + 1
+
+fn run() -> i32:
+    let parser = Parser { at: 0 }
+    parser.advance()  # diagnostic: mutable-receiver-required
+    parser.at

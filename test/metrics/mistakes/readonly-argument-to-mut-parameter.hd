@@ -1,0 +1,14 @@
+# mistake: a readonly binding passed to a `mut` parameter
+# log: 2026-09-30 COLLECT; 2026-10-03 dogfood #199 tasks
+# expect: readonly-argument-to-mutable-parameter
+
+data Counter:
+    hits: i32
+
+fn bump(counter: mut Counter) -> void:
+    counter.hits = counter.hits + 1
+
+fn run() -> i32:
+    let counter = Counter { hits: 0 }
+    bump(counter)  # diagnostic: readonly-argument-to-mutable-parameter
+    counter.hits

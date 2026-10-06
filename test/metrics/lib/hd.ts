@@ -1,0 +1,235 @@
+// Running the `hd` under test: command parsing, timing, CPU time and peak RSS.
+//
+// The implementation under test is a command prefix, such as `hd` or
+// `node --experimental-strip-types bin/hd.js`. Nothing here imports the
+// prototype; every measurement goes through a child process.
+
+import { spawn } from "node:child_process";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
+import { platform } from "node:process";
+import { performance } from "node:perf_hooks";
+
+import { makeTempDir } from "./tmp.ts";
+
+export interface HdCommand {
+  /** The program and the leading arguments; the action and its flags follow. */
+  readonly argv: readonly string[];
+  /** The command as the user wrote it, for reports. */
+  readonly display: string;
+}
+
+/** Splits a command line on spaces, honoring single and double quotes. */
+export function splitCommand(text: string): string[] {
+  const words: string[] = [];
+  let current = "";
+  let quote: string | null = null;
+  let started = false;
+  for (const char of text) {
+    if (quote) {
+      if (char === quote) quote = null;
+      else current += char;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+      started = true;
+    } else if (/\s/.test(char)) {
+      if (started) words.push(current);
+      current = "";
+      started = false;
+    } else {
+      current += char;
+      started = true;
+    }
+  }
+  if (quote) throw new Error(`unclosed ${quote} in the hd command: ${text}`);
+  if (started) words.push(current);
+  return words;
+}
+
+/**
+ * Parses the `--hd` value. A word that names an existing file relative to
+ * `base` becomes absolute, so the command still works when a script runs it
+ * from a temporary directory.
+ */
+export function parseHdCommand(text: string, base = process.cwd()): HdCommand {
+  const words = splitCommand(text);
+  if (words.length === 0) throw new Error("the hd command is empty");
+  const argv = words.map((word) =>
+    !isAbsolute(word) && !word.startsWith("-") && existsSync(join(base, word))
+      ? resolve(base, word)
+      : word,
+  );
+  return { argv, display: text };
+}
+
+export interface RunOptions {
+  readonly cwd: string;
+  /** Kill the run after this long; the result then has `timedOut`. Default 60 s. */
+  readonly timeoutMs?: number;
+  /** Measure CPU time and peak RSS with `/usr/bin/time`. Default false. */
+  readonly measure?: boolean;
+  /** Extra environment variables, such as `HD_CACHE`. */
+  readonly env?: Readonly<Record<string, string>>;
+  /** Text written to the child's standard input. */
+  readonly input?: string;
+}
+
+export interface RunResult {
+  /** The exit status; null when a signal ended the run. */
+  readonly status: number | null;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly wallMs: number;
+  /** User plus system CPU time; undefined when not measured. */
+  readonly cpuMs?: number;
+  /** Peak resident set size in bytes; undefined when not measured. */
+  readonly rssBytes?: number;
+  readonly timedOut: boolean;
+}
+
+const TIME = "/usr/bin/time";
+
+/** Process groups of the runs still alive, so an interrupted runner can end them. */
+const live = new Set<number>();
+
+/** Kills every run this process started that is still alive. */
+export function killLiveRuns(): void {
+  for (const pid of live) {
+    try {
+      process.kill(-pid, "SIGKILL");
+    } catch {
+      // Already gone.
+    }
+  }
+  live.clear();
+}
+
+/** Whether `/usr/bin/time` can report CPU time and peak RSS on this host. */
+export const canMeasure = (): boolean =>
+  existsSync(TIME) && (platform === "darwin" || platform === "linux");
+
+/** Parses the report of `/usr/bin/time -l` (macOS) or `-v` (GNU, Linux). */
+export function parseTimeReport(
+  text: string,
+): { readonly cpuMs: number; readonly rssBytes: number } | undefined {
+  const bsd = /([\d.]+)\s+real\s+([\d.]+)\s+user\s+([\d.]+)\s+sys/.exec(text);
+  const bsdRss = /(\d+)\s+maximum resident set size/.exec(text);
+  if (bsd && bsdRss)
+    return {
+      cpuMs: (Number(bsd[2]) + Number(bsd[3])) * 1000,
+      rssBytes: Number(bsdRss[1]),
+    };
+  const user = /User time \(seconds\):\s*([\d.]+)/.exec(text);
+  const sys = /System time \(seconds\):\s*([\d.]+)/.exec(text);
+  const gnuRss = /Maximum resident set size \(kbytes\):\s*(\d+)/.exec(text);
+  if (user && sys && gnuRss)
+    return {
+      cpuMs: (Number(user[1]) + Number(sys[1])) * 1000,
+      rssBytes: Number(gnuRss[1]) * 1024,
+    };
+  return undefined;
+}
+
+/** Runs `argv` as a child process in its own process group. */
+export function runProcess(argv: readonly string[], options: RunOptions): Promise<RunResult> {
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  const reportDir = options.measure && canMeasure() ? makeTempDir("time") : undefined;
+  const reportFile = reportDir ? join(reportDir, "time.txt") : undefined;
+  const full = reportFile
+    ? [TIME, platform === "darwin" ? "-l" : "-v", "-o", reportFile, ...argv]
+    : [...argv];
+  return new Promise((done, fail) => {
+    const start = performance.now();
+    const child = spawn(full[0]!, full.slice(1), {
+      cwd: options.cwd,
+      env: { ...process.env, NO_COLOR: "1", ...options.env },
+      detached: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    if (child.pid !== undefined) live.add(child.pid);
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
+    child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => err.push(chunk));
+    child.stdin.on("error", () => {});
+    child.stdin.end(options.input ?? "");
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      // The group holds only processes this run started: the child and,
+      // when measuring, the hd under `/usr/bin/time`.
+      try {
+        process.kill(-child.pid!, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
+    }, timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      fail(error);
+    });
+    child.on("close", (status) => {
+      clearTimeout(timer);
+      if (child.pid !== undefined) live.delete(child.pid);
+      const wallMs = performance.now() - start;
+      let usage: ReturnType<typeof parseTimeReport>;
+      if (reportFile && existsSync(reportFile))
+        usage = parseTimeReport(readFileSync(reportFile, "utf8"));
+      if (reportDir) rmSync(reportDir, { recursive: true, force: true });
+      done({
+        status,
+        stdout: Buffer.concat(out).toString("utf8"),
+        stderr: Buffer.concat(err).toString("utf8"),
+        wallMs,
+        ...usage,
+        timedOut,
+      });
+    });
+  });
+}
+
+/** Runs one `hd` action, as `hd check --format json`, with `args` after the prefix. */
+export const runHd = (
+  hd: HdCommand,
+  args: readonly string[],
+  options: RunOptions,
+): Promise<RunResult> => runProcess([...hd.argv, ...args], options);
+
+/** Whether this `hd` has COMMAND: `hd help COMMAND` succeeds (cli.command.help.command). */
+export async function supportsCommand(hd: HdCommand, command: string, cwd: string) {
+  const result = await runHd(hd, ["help", command], { cwd, timeoutMs: 30_000 });
+  return result.status === 0;
+}
+
+/** Whether a command takes FLAG: its `hd help COMMAND` text names it. */
+export async function supportsFlag(hd: HdCommand, command: string, flag: string, cwd: string) {
+  const result = await runHd(hd, ["help", command], { cwd, timeoutMs: 30_000 });
+  return result.status === 0 && new RegExp(`(^|\\s)${flag}(\\s|=|,|$)`, "m").test(result.stdout);
+}
+
+/** The JSON lines of a `--format json` run; non-JSON lines are skipped. */
+export function jsonLines(text: string): Record<string, unknown>[] {
+  const records: Record<string, unknown>[] = [];
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    try {
+      const value: unknown = JSON.parse(trimmed);
+      if (value && typeof value === "object" && !Array.isArray(value))
+        records.push(value as Record<string, unknown>);
+    } catch {
+      // Not a JSON object line: some other output.
+    }
+  }
+  return records;
+}
+
+/** The diagnostic objects of a `--format json` run (cli.json.kind). */
+export const diagnosticsOf = (text: string): Record<string, unknown>[] =>
+  jsonLines(text).filter((record) => record.kind === "diagnostic");
+
+/** The summary object of a `--format json` run, the last one (cli.json.summary.result). */
+export const summaryOf = (text: string): Record<string, unknown> | undefined =>
+  jsonLines(text)
+    .filter((record) => record.kind === "summary")
+    .at(-1);

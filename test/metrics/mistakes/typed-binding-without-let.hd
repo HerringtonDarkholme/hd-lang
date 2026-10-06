@@ -1,0 +1,8 @@
+# mistake: a typed local binding without `let`
+# log: 2026-09-30 lib/std/testing.hd; 2026-10-05 std batch #281
+# expect: missing-let
+# fixed:     let zero: f64 = 0.5
+
+fn half() -> f64:
+    zero: f64 = 0.5  # diagnostic: missing-let
+    zero

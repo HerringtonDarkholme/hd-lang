@@ -1,0 +1,8 @@
+# mistake: a tuple pattern before `:=`
+# log: 2026-09-29 property-test trial; 2026-10-03 #234
+# expect: missing-let
+# fixed:     let (low, high) = pair
+
+fn spread(pair: (i32, i32)) -> i32:
+    (low, high) := pair  # diagnostic: missing-let
+    high - low

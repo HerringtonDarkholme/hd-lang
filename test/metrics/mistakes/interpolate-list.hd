@@ -1,0 +1,7 @@
+# mistake: interpolating a list
+# log: 2026-10-05 default profile #312
+# expect: unsatisfied-trait-bound
+# fixed:     "args ${args.len()}"
+
+fn show(args: List[string]) -> string:
+    "args ${args}"  # diagnostic: unsatisfied-trait-bound

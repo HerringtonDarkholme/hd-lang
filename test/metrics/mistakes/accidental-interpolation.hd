@@ -1,0 +1,7 @@
+# mistake: a `$` in a string meant as plain text
+# log: 2026-10-03 #243 regex scratch test
+# expect: unknown-name
+# fixed:     "costs \$total"
+
+fn price_label() -> string:
+    "costs $total"  # diagnostic: unknown-name

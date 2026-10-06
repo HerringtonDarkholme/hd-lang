@@ -1,0 +1,9 @@
+# mistake: Rust's `unwrap()` on a `Result`
+# log: 2026-10-03 #243 regex scratch test
+# expect: unknown-method
+
+fn parse(text: string) -> Result[i32, string]:
+    if text == "": .Err("empty") else: .Ok(1)
+
+fn value() -> i32:
+    parse("7").unwrap()  # diagnostic: unknown-method

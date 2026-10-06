@@ -1,0 +1,9 @@
+# mistake: a `!` on a name in a `use` list
+# log: 2026-10-06 P1j playground host probe
+# expect: syntax-error
+# fixed: use std.fs.{FsRead, read_text}
+
+use std.fs.{FsRead, read_text!}  # diagnostic: syntax-error
+
+fn one() -> i32:
+    1

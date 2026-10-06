@@ -1,0 +1,10 @@
+# mistake: `mut` before a parameter name instead of on its type
+# log: 2026-09-29 property-test trial; 2026-10-05 usability probe
+# expect: syntax-error
+# fixed: fn bump(counter: mut Counter) -> void:
+
+data Counter:
+    hits: i32
+
+fn bump(mut counter: Counter) -> void:  # diagnostic: syntax-error
+    counter.hits = counter.hits + 1

@@ -1,0 +1,8 @@
+# mistake: an empty list literal with no element type
+# log: 2026-10-05 usability probe #77; 2026-10-06 probe 4
+# expect: cannot-infer-type
+# fixed:     let pieces: List[string] = []
+
+fn words() -> usize:
+    pieces := []  # diagnostic: cannot-infer-type
+    pieces.len()

@@ -1,0 +1,9 @@
+# mistake: a public function exposing a private type
+# log: 2026-10-05 usability probe 2
+# expect: private-type-leak
+
+data Item:
+    name: string
+
+pub fn label(item: Item) -> string:  # diagnostic: private-type-leak
+    item.name

@@ -1,0 +1,10 @@
+# mistake: `assert` with no `reason`
+# log: 2026-10-06 P1j recursion probe
+# expect: argument-count
+# fixed:         assert(1 == 1, reason="equal")
+
+use std.testing.assert
+
+tests:
+    it("compares"):
+        assert(1 == 1)  # diagnostic: argument-count

@@ -1,0 +1,10 @@
+# mistake: adding a `usize` to an `i64`
+# log: 2026-10-03 U32-SIZES migration; 2026-10-06 K5
+# expect: mixed-signedness
+# fixed:         sum = sum + i64(index)
+
+fn total(values: List[i64]) -> i64:
+    let sum: i64 = 0
+    for index in 0..values.len():
+        sum = sum + index  # diagnostic: mixed-signedness
+    sum

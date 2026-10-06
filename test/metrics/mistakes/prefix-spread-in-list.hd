@@ -1,0 +1,7 @@
+# mistake: JavaScript's prefix `...` spread in a list literal
+# log: 2026-10-03 dogfood #199 tasks
+# expect: syntax-error
+# fixed:     [path..., name]
+
+fn extend(path: List[string], name: string) -> List[string]:
+    [...path, name]  # diagnostic: syntax-error

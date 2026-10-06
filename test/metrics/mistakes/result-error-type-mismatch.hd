@@ -1,0 +1,13 @@
+# mistake: `?` on a `Result` whose error type the function's cannot take
+# log: 2026-10-05 usability probe 2
+# expect: invalid-result-propagation
+
+enum ParseError:
+    Empty
+
+fn parse(text: string) -> Result[i32, ParseError]:
+    if text == "": .Err(ParseError.Empty) else: .Ok(1)
+
+fn doubled(text: string) -> Result[i32, string]:
+    n := parse(text)?  # diagnostic: invalid-result-propagation
+    .Ok(n * 2)

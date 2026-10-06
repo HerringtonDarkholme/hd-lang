@@ -1,0 +1,8 @@
+# mistake: `push` on a list bound as readonly
+# log: 2026-10-03 dogfood #199; 2026-10-05 std batch #281
+# expect: mutable-receiver-required
+
+fn pieces(text: string) -> List[string]:
+    let found: List[string] = []
+    found.push(text)  # diagnostic: mutable-receiver-required
+    found

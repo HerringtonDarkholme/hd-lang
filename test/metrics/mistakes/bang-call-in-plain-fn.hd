@@ -1,0 +1,9 @@
+# mistake: a bang call in a function without `!`
+# log: 2026-10-06 K5; 2026-10-06 probe 6
+# expect: bang-call-outside-suspension
+
+trait Source:
+    fn read!(self) -> i32
+
+fn total(source: Source) -> i32:
+    source.read!()  # diagnostic: bang-call-outside-suspension

@@ -1,0 +1,7 @@
+# mistake: an `as` cast
+# log: 2026-10-02 #200 scratch test
+# expect: syntax-error
+# fixed:     u8(value)
+
+fn narrow(value: i32) -> u8:
+    (value as u8)  # diagnostic: syntax-error

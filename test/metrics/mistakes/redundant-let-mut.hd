@@ -1,0 +1,9 @@
+# mistake: `let mut` before an annotation that already says `mut`
+# log: 2026-10-05 usability probe #77 todo app
+# expect: redundant-let-mut
+# fixed:     let found: mut List[string] = []
+
+fn lines() -> List[string]:
+    let mut found: mut List[string] = []  # warning: redundant-let-mut
+    found.push("one")
+    found

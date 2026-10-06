@@ -1,0 +1,7 @@
+# mistake: a `use` inside a function body
+# log: 2026-10-06 probe 5; 2026-10-06 probe 6
+# expect: syntax-error
+
+fn smallest(a: i32, b: i32) -> i32:
+    use std.cmp.min  # diagnostic: syntax-error
+    if a < b: a else: b

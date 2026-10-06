@@ -1,0 +1,8 @@
+# mistake: Swift's `{:}` for an empty map
+# log: 2026-10-02 test/std/map.hd
+# expect: syntax-error
+# fixed:     let table: Map[string, i32] = {}
+
+fn empty() -> Map[string, i32]:
+    let table: Map[string, i32] = {:}  # diagnostic: syntax-error
+    table

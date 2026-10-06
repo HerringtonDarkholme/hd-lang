@@ -1,0 +1,9 @@
+# mistake: a `{ ... }` block as a match arm body
+# log: 2026-09-29 property-test trial
+# expect: syntax-error
+# fixed:         0 => 1
+
+fn score(n: i32) -> i32:
+    match n:
+        0 => { 1 }  # diagnostic: syntax-error
+        _ => n

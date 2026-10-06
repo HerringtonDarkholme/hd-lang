@@ -1,0 +1,12 @@
+# mistake: Python's `elif`
+# log: 2026-10-03 #222 lib/std text
+# expect: syntax-error
+# fixed:     else if n > 10:
+
+fn size(n: i32) -> string:
+    if n > 100:
+        "large"
+    elif n > 10:  # diagnostic: syntax-error
+        "medium"
+    else:
+        "small"

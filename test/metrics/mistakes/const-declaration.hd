@@ -1,0 +1,9 @@
+# mistake: a `const` declaration
+# log: 2026-09-29 property-test trial
+# expect: syntax-error
+# fixed: let LIMIT: i32 = 10
+
+const LIMIT: i32 = 10  # diagnostic: syntax-error
+
+fn limit() -> i32:
+    LIMIT

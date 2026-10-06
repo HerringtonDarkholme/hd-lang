@@ -1,0 +1,6 @@
+# mistake: a same-line `if` inside a same-line body
+# log: 2026-10-02 #202; 2026-10-03 #220
+# expect: syntax-error
+# fixed: fn sign(n: i32) -> i32:\n    if n < 0: -1 else: 1
+
+fn sign(n: i32) -> i32: if n < 0: -1 else: 1  # diagnostic: syntax-error

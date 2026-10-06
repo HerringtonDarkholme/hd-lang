@@ -1,0 +1,7 @@
+# mistake: a Rust literal suffix such as `1u32`
+# log: 2026-10-02 #202 benchmark program
+# expect: invalid-literal-suffix
+# fixed:     x << u32(1)
+
+fn shifted(x: u32) -> u32:
+    x << 1u32  # diagnostic: invalid-literal-suffix

@@ -1,0 +1,15 @@
+# mistake: a `Result` bound to an optional
+# log: 2026-10-05 usability probe 2
+# expect: type-mismatch
+
+data Config:
+    port: i32
+
+fn load(text: string) -> Result[Config, string]:
+    .Ok(Config { port: 80 })
+
+fn port(text: string) -> i32:
+    let loaded: Config? = load(text)  # diagnostic: type-mismatch
+    match loaded:
+        .Some(config) => config.port
+        .None => 0

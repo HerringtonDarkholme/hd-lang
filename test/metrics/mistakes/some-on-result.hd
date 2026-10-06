@@ -1,0 +1,11 @@
+# mistake: matching `.Some` on a `Result`
+# log: 2026-10-06 probe 3
+# expect: unknown-variant
+
+fn parse(text: string) -> Result[i32, string]:
+    if text == "": .Err("empty") else: .Ok(1)
+
+fn value(text: string) -> i32:
+    match parse(text):
+        .Some(n) => n  # diagnostic: unknown-variant
+        .None => 0

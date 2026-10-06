@@ -1,0 +1,11 @@
+# mistake: Rust's `loop:` for an endless loop
+# log: 2026-10-05 default profile #312; 2026-10-05 usability probe #77
+# expect: unknown-name
+# fixed:     while true:
+
+fn first_square(limit: i32) -> i32:
+    let n = +0
+    loop:  # diagnostic: unknown-name
+        n = n + 1
+        if n * n > limit:
+            return n
