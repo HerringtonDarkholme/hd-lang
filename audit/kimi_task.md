@@ -73,6 +73,10 @@ and list it under Questions.
   character"), a condition, a build mode, an error code. Review of K1
   found one dropped location (fixed in 111a9a0b). Reread each split
   rule and ask: does every case still carry everything it had?
+- **A new guide or website page must be listed** in `website/src/pages.ts`.
+  Then run `node --test --experimental-strip-types website/test/site.test.ts`
+  before pushing. K16 added `guide/WORKING_WITH_DATA.md` without listing
+  it, which turned CI red (fixed in 4acf0ee5).
 - **Keep a condition a condition.** Don't turn "If an X does Y, it is
   rejected" into "An X may (or can) do Y. Such an X is rejected". The
   second form reads as rejecting every X. Write "Some X do Y. Such an X is
