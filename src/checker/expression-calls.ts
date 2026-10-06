@@ -126,6 +126,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       return this.checkFunctionValueCall(expression, expected);
     }
     const namedExpression = expression as NamedCallExpression;
+    if (expression.typedFact) return this.checkTypedFactCall(namedExpression, expected);
     const intrinsic =
       this.checkNamedIntrinsicCall(namedExpression, expected) ??
       (expression.kind === "call" ? this.checkNewtypeCall(namedExpression, expected) : undefined);
@@ -178,8 +179,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (builtin) return builtin;
     const dynamic = this.checkDynamicMemberCall(expression, receiver);
     if (dynamic) return dynamic;
-    return this.withHandleWitness(expression, receiver, () =>
-      this.checkImplementedMemberCall(expression, receiver, expected),
+    return this.withHandleWitness(expression, receiver, (call) =>
+      this.checkImplementedMemberCall(call, receiver, expected),
     );
   }
 

@@ -1,5 +1,7 @@
 import {
   listVararg,
+  type DataDecl,
+  type EnumDecl,
   type FunctionDecl,
   type GenericBound,
   type MethodDecl,
@@ -7,7 +9,7 @@ import {
 } from "../ast.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
-import type { HirAssociatedBinding, HirData, HirDataField, HirTrait } from "../hir.ts";
+import type { HirAssociatedBinding, HirData, HirDataField, HirTrait, ValueType } from "../hir.ts";
 import {
   bindingParts,
   contextKeys,
@@ -208,6 +210,31 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
   });
 }
 
+/**
+ * A typed fact type's pattern, a type over the fact type's own parameters
+ * (14-annotations.md#r-annot.typed-fact.pattern, .pattern.scope). An
+ * unknown name in it is reported at the `@annotate` type argument.
+ */
+function resolveFactPattern(
+  context: ProgramCheckContext,
+  declaration: DataDecl | EnumDecl,
+): ValueType | undefined {
+  if (!declaration.factPattern) return undefined;
+  const { dataTypes, enumTypes, traitTypes, diagnostics } = context;
+  return typeName(
+    declaration.factPattern,
+    dataTypes,
+    enumTypes,
+    traitTypes,
+    diagnostics,
+    new Set(declaration.genericParameters),
+    new Set(),
+    new Set(),
+    { validateRequirementKeys: false, validateDynamicSafety: false, validateWrittenBounds: false },
+    declaration.genericBounds ?? [],
+  );
+}
+
 export function defineProgramData(context: ProgramCheckContext): void {
   const { program, diagnostics, dataTypes, enumTypes, traitTypes } = context;
   for (const declaration of program.data) {
@@ -307,10 +334,12 @@ export function defineProgramData(context: ProgramCheckContext): void {
           ) ?? "void",
         ] as const,
     );
+    const factPattern = resolveFactPattern(context, declaration);
     dataTypes.set(declaration.name, {
       ...data,
       fields,
       ...(defaults.length > 0 ? { genericDefaults: new Map(defaults) } : {}),
+      ...(factPattern !== undefined ? { factPattern } : {}),
     });
   }
 }
@@ -430,11 +459,13 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
         span: variant.span,
       };
     });
+    const factPattern = resolveFactPattern(context, declaration);
     enumTypes.set(declaration.name, {
       ...enumType,
       sharedFields,
       variants,
       fields: allFields,
+      ...(factPattern !== undefined ? { factPattern } : {}),
     });
   }
 }

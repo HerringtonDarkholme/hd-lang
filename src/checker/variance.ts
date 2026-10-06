@@ -23,7 +23,7 @@ import {
 
 type Polarity = 1 | -1 | 0;
 
-type Declarations = {
+export type Declarations = {
   readonly data: ReadonlyMap<string, HirData>;
   readonly enums: ReadonlyMap<string, HirEnum>;
 };

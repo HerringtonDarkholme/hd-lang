@@ -1700,6 +1700,17 @@ typing/invalid/literal-suffix-parameter-type.hd	type
 typing/invalid/literal-suffix-generic-unbounded.hd	type
 typing/valid/arbitrary-with-generic-generator.hd	type
 typing/valid/typed-fact-other-params.hd	type
+typing/valid/typed-fact-fn-pattern.hd	type
+typing/invalid/typed-fact-fn-pattern-arity.hd	type
+typing/invalid/typed-fact-fn-pattern-field.hd	type
+typing/invalid/typed-fact-fn-pattern-bound.hd	type
+typing/invalid/typed-fact-fn-pattern-suspending.hd	type
+typing/valid/typed-fact-concrete-pattern.hd	type
+typing/invalid/typed-fact-concrete-pattern-mismatch.hd	type
+typing/valid/typed-fact-pattern-other-params.hd	type
+typing/valid/typed-fact-pattern-mut-field.hd	type
+typing/valid/handle-fact-pattern.hd	type
+typing/invalid/handle-fact-pattern-mismatch.hd	type
 typing/invalid/facts-of-without-import.hd	type
 typing/valid/untyped-fact-default.hd	type
 typing/valid/facts-find-generic-key.hd	type

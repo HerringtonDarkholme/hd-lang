@@ -93,10 +93,13 @@ const TYPE_LIST_KEYS = new Set(["typeArguments", "ownerTypeArguments"]);
 
 class DefaultFiller {
   private readonly shapes: ReadonlyMap<string, GenericShape>;
+  /** The generic typed fact types, which `h.fact::[D]()` may name bare. */
+  readonly typedFacts: ReadonlySet<string>;
   readonly diagnostics: Diagnostic[] = [];
 
-  constructor(shapes: ReadonlyMap<string, GenericShape>) {
+  constructor(shapes: ReadonlyMap<string, GenericShape>, typedFacts: ReadonlySet<string>) {
     this.shapes = shapes;
+    this.typedFacts = typedFacts;
   }
 
   private mentions(type: string, scope: ReadonlySet<string>): boolean {
@@ -207,6 +210,24 @@ function fillBound(
 }
 
 /** The scope inside a node: a declaration's generic parameters shadow type names. */
+/**
+ * A bare typed fact type in `h.fact::[D]()`, whose arguments the checker
+ * infers from the handle's member type (14-annotations.md#r-annot.handle.fact.pattern).
+ */
+function inferredFactArgument(
+  record: Record<string, unknown>,
+  argument: TypeRef,
+  filler: DefaultFiller,
+): boolean {
+  const callee = record.callee as { kind?: unknown; name?: unknown } | undefined;
+  return (
+    record.kind === "call" &&
+    callee?.kind === "member" &&
+    callee.name === "fact" &&
+    filler.typedFacts.has(argument.name)
+  );
+}
+
 function innerScope(
   record: Record<string, unknown>,
   scope: ReadonlySet<string>,
@@ -235,7 +256,9 @@ function fillNode<T>(
       result[key] = { ...value, name: filler.type(value.name, value.span, scope) };
     else if (TYPE_LIST_KEYS.has(key) && Array.isArray(value))
       result[key] = value.map((item) =>
-        isTypeRef(item) ? { ...item, name: filler.type(item.name, item.span, scope) } : item,
+        !isTypeRef(item) || inferredFactArgument(record, item, filler)
+          ? item
+          : { ...item, name: filler.type(item.name, item.span, scope) },
       );
     else if (key === "genericBounds" && Array.isArray(value) && own)
       result[key] = (value as GenericBound[]).map((bound) => fillBound(bound, filler, own, scope));
@@ -433,7 +456,12 @@ export function withTypeDefaults(
       shapes.set(declaration.name, shapeOf(declaration));
   const diagnostics = defaultDeclarationDiagnostics(program);
   if (diagnostics.length > 0) return { program, diagnostics };
-  const filler = new DefaultFiller(shapes);
+  const typedFacts = new Set(
+    [...program.data, ...program.enums]
+      .filter((declaration) => declaration.factPattern && declaration.genericParameters.length > 0)
+      .map((declaration) => declaration.name),
+  );
+  const filler = new DefaultFiller(shapes, typedFacts);
   const { traits, implementations, ...rest } = program;
   const filled: Program = {
     ...fillNode(rest, filler),

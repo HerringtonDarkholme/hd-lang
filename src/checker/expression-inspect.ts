@@ -1,14 +1,16 @@
 import type { Expression, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import type { HirExpression, HirTrait, ValueType } from "../hir.ts";
+import type { HirData, HirEnum, HirExpression, HirTrait, ValueType } from "../hir.ts";
 import {
   mutableInner,
   nominalGenericParts,
+  nominalGenericType,
   optionalInner,
   optionalType,
   readonlyType,
   displayType,
 } from "../types.ts";
+import { matchFactPattern } from "./fact-patterns.ts";
 import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
 import { MemberLookupChecker } from "./member-lookup.ts";
 import { genericTypeName, traitTypeName } from "./shared.ts";
@@ -20,11 +22,21 @@ type CallExpression = Extract<Expression, { kind: "call" }>;
 interface MemberCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "member" }>;
 }
+interface NamedCallExpression extends CallExpression {
+  readonly callee: Extract<Expression, { kind: "name" }>;
+}
 
 // Runtime type identity intrinsics (spec/lang/09-traits.md#runtime-type-identity):
 // the `downcast` default methods, `downcast_val`, `TypeId::of`, and
-// `runtime_type` on a concrete receiver.
+// `runtime_type` on a concrete receiver; and typed-fact patterns, at a
+// typed fact's checking call and at `h.fact::[D]()` (fact-patterns.ts).
 export abstract class InspectChecker extends MemberLookupChecker {
+  protected abstract checkDeclaredCall(
+    expression: NamedCallExpression,
+    expected?: ValueType,
+    initialSubstitutions?: ReadonlyMap<string, ValueType>,
+  ): HirExpression;
+
   /** The standard Inspectable trait, when the module imported `std.inspect` or `std.error`. */
   protected standardInspectable(): HirTrait | undefined {
     const trait = this.traitTypes.get(INSPECTABLE);
@@ -270,6 +282,125 @@ export abstract class InspectChecker extends MemberLookupChecker {
   }
 
   /**
+   * The arguments that a typed fact type's pattern takes from `target`
+   * (annot.typed-fact.infer). A target that does not fit the pattern is an
+   * error at `span` (annot.typed-fact.infer.mismatch,
+   * annot.handle.fact.pattern.mismatch).
+   */
+  protected factPatternArguments(
+    factType: HirData | HirEnum,
+    pattern: ValueType,
+    target: ValueType,
+    span: SourceSpan,
+  ): ReadonlyMap<string, ValueType> {
+    const bounded = new Set((factType.declaredBounds ?? []).map((bound) => bound.parameter));
+    const solved = matchFactPattern(pattern, target, bounded, {
+      data: this.dataTypes,
+      enums: this.enumTypes,
+    });
+    if (!solved)
+      this.fail(
+        "type-mismatch",
+        `'${displayType(target)}' does not fit the pattern '${displayType(pattern)}' of the typed fact type '${displayType(factType.name)}'`,
+        span,
+      );
+    return solved;
+  }
+
+  /**
+   * A typed fact's checking call `hd__typed_fact_N(v)` (typed-facts.ts): the
+   * fact type's pattern, matched against the target's type, gives the call
+   * the arguments that the pattern mentions (annot.typed-fact.infer). The
+   * ordinary call then checks `v` and the bounds (annot.typed-fact.check).
+   */
+  protected checkTypedFactCall(
+    expression: NamedCallExpression,
+    expected?: ValueType,
+  ): HirExpression {
+    const { target, factType } = expression.typedFact!;
+    const typed = this.typedFactType(factType);
+    const helper = this.visibleSignature(expression.callee.name);
+    if (!typed || !helper) return this.checkDeclaredCall(expression, expected);
+    const { declaration, pattern } = typed;
+    const targetType = this.resolveType({ name: target, span: expression.span });
+    const solved = this.factPatternArguments(declaration, pattern, targetType, expression.span);
+    // The helper's parameters are the fact type's, renamed in order.
+    const initial = new Map<string, ValueType>();
+    declaration.genericParameters.forEach((parameter, index) => {
+      const type = solved.get(parameter);
+      if (type !== undefined) initial.set(helper.genericParameters[index]!, type);
+    });
+    return this.checkDeclaredCall(expression, expected, initial);
+  }
+
+  /** The typed fact type that `type` names, with its pattern. */
+  protected typedFactType(
+    type: ValueType,
+  ): { readonly declaration: HirData | HirEnum; readonly pattern: ValueType } | undefined {
+    const name = nominalGenericParts(type)?.name ?? type;
+    const declaration = this.dataTypes.get(name) ?? this.enumTypes.get(name);
+    const pattern = declaration?.factPattern;
+    return declaration && pattern !== undefined ? { declaration, pattern } : undefined;
+  }
+
+  /**
+   * `h.fact::[D]()` on a `std.structure` handle `Field[S, F]`, where `D` is a
+   * typed fact type: `D`'s pattern is matched against `F` as the
+   * attach-time check matches it (annot.handle.fact.pattern), and a bare `D`
+   * becomes `D[A]` with the inferred arguments. Written arguments must be
+   * those (annot.handle.fact.pattern.written).
+   */
+  protected withHandleFactPattern(
+    expression: MemberCallExpression,
+    receiver: HirExpression,
+  ): MemberCallExpression {
+    const written =
+      expression.typeArguments?.length === 1 ? expression.typeArguments[0] : undefined;
+    const handle = nominalGenericParts(readonlyType(receiver.type));
+    const memberType = handle?.arguments[1];
+    if (
+      expression.callee.name !== "fact" ||
+      !written ||
+      memberType === undefined ||
+      !this.dataTypes
+        .get(handle!.name)
+        ?.fields.some((field) => field.name === STRUCTURE_WITNESS_FIELD)
+    )
+      return expression;
+    const bare = !written.name.includes("[");
+    const typed = this.typedFactType(bare ? written.name : this.resolveType(written));
+    if (!typed) return expression;
+    const { declaration, pattern } = typed;
+    const solved = this.factPatternArguments(declaration, pattern, memberType, expression.span);
+    if (!bare) {
+      const writtenArguments = nominalGenericParts(this.resolveType(written))?.arguments ?? [];
+      declaration.genericParameters.forEach((parameter, index) => {
+        const inferred = solved.get(parameter);
+        if (inferred !== undefined && writtenArguments[index] !== inferred)
+          this.fail(
+            "type-mismatch",
+            `'${displayType(written.name)}' does not match the handle's member type '${displayType(memberType)}': the pattern '${displayType(pattern)}' gives '${displayType(parameter)}' = '${displayType(inferred)}'`,
+            written.span,
+          );
+      });
+      return expression;
+    }
+    if (declaration.genericParameters.length === 0) return expression;
+    const unsolved = declaration.genericParameters.filter((parameter) => !solved.has(parameter));
+    if (unsolved.length > 0)
+      this.fail(
+        "cannot-infer-type",
+        `the pattern '${displayType(pattern)}' of '${displayType(declaration.name)}' does not mention ${unsolved.map((name) => `'${displayType(name)}'`).join(", ")}; write the type arguments: \`fact::[${displayType(declaration.name)}[...]]\``,
+        written.span,
+      );
+    const type = nominalGenericType(
+      declaration.name,
+      declaration.genericParameters.map((parameter) => solved.get(parameter)!),
+    );
+    return { ...expression, typeArguments: [{ name: type, span: written.span }] };
+  }
+
+  /**
    * Checks a member call with `h.fact::[M]()`'s exemption
    * (annot.handle.fact.key): when `h` is a `std.structure` handle
    * `Field[S, F]` whose `F` has no runtime identity of its own, the handle's
@@ -278,10 +409,11 @@ export abstract class InspectChecker extends MemberLookupChecker {
    * receiver keeps the `Inspectable` bound on `F`.
    */
   protected withHandleWitness(
-    expression: MemberCallExpression,
+    written: MemberCallExpression,
     receiver: HirExpression,
-    check: () => HirExpression,
+    check: (expression: MemberCallExpression) => HirExpression,
   ): HirExpression {
+    const expression = this.withHandleFactPattern(written, receiver);
     const handle = nominalGenericParts(readonlyType(receiver.type));
     const type = handle?.arguments[1];
     if (
@@ -293,7 +425,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
         ?.fields.some((field) => field.name === STRUCTURE_WITNESS_FIELD) ||
       inspectKey(type, this.inspectEnvironment())
     )
-      return check();
+      return check(expression);
     const privateMember = this.compilerPrivateMember;
     this.compilerPrivateMember = true;
     let dictionary: HirExpression;
@@ -310,7 +442,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     const saved = this.handleWitness;
     this.handleWitness = { type, dictionary };
     try {
-      return check();
+      return check(expression);
     } finally {
       this.handleWitness = saved;
     }

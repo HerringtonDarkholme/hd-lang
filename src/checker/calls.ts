@@ -60,6 +60,7 @@ import {
 } from "./shared.ts";
 import { spelledCall } from "./spelling.ts";
 import { checkLiteralArgumentsLast } from "./literal-arguments.ts";
+import { calleeOf, keepSolvedPositions } from "./partial-expected.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
 import { StatementChecker } from "./statements.ts";
 
@@ -790,6 +791,7 @@ export abstract class CallChecker extends StatementChecker {
     callable = `function '${displayType(signature.name)}'`,
     initialSubstitutions: ReadonlyMap<string, ValueType> = new Map(),
   ): CheckedSignatureArguments {
+    const solved = this.takeSolvedPositions();
     const expression = this.spreadIntoInputs(
       this.collectTupleVararg(written, signature),
       signature.parameters,
@@ -851,6 +853,7 @@ export abstract class CallChecker extends StatementChecker {
     // (04-type-system.md#inference-from-several-arguments).
     const joined = new Map<string, ValueType>();
     if (expected) inferGenericType(signature.result, expected, substitutions, rowSubstitutions);
+    keepSolvedPositions(substitutions, solved);
     const inferredFromExpected = new Set(
       [...substitutions.keys()].filter((name) => !inferredBeforeExpected.has(name)),
     );
@@ -881,7 +884,7 @@ export abstract class CallChecker extends StatementChecker {
         if (!mentionsUnsolved(inferredFormal, signature, substitutions, rowSubstitutions)) {
           unconverted = this.checkExpressionRaw(source, inferredFormal);
           checked = this.coerce(unconverted, inferredFormal, source.span);
-        } else if (source.kind === "closure" || this.isGenericFunctionValue(source)) {
+        } else if (source.kind === "closure" || this.isGenericFunctionValue(calleeOf(source))) {
           this.pendingCallGenerics = new Set(
             signature.genericParameters.filter((parameter) => !substitutions.has(parameter)),
           );

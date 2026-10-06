@@ -53,6 +53,8 @@ export interface HirData {
   readonly standard?: true;
   /** The qualified name of a std data type, such as `std.ops.Range`. */
   readonly standardName?: string;
+  /** A typed fact type's pattern over its own parameters (14-annotations.md#r-annot.typed-fact.pattern). */
+  readonly factPattern?: ValueType;
   readonly span: SourceSpan;
 }
 
@@ -79,6 +81,8 @@ export interface HirEnum {
   readonly sharedFields: readonly HirDataField[];
   readonly variants: readonly HirEnumVariant[];
   readonly fields: readonly HirDataField[];
+  /** A typed fact type's pattern, as on a data type. */
+  readonly factPattern?: ValueType;
   readonly span: SourceSpan;
 }
 

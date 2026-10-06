@@ -21,11 +21,6 @@ interface NamedCallExpression extends Extract<Expression, { kind: "call" }> {
 
 /** Calls of the std functions that the checker lowers itself: `facts_of` and `dbg`. */
 export abstract class DebugPrintChecker extends InspectChecker {
-  protected abstract checkDeclaredCall(
-    expression: NamedCallExpression,
-    expected?: ValueType,
-  ): HirExpression;
-
   /** A call of `facts_of`, `dbg`, or the REPL's `dbg_text`; undefined for any other callee. */
   protected checkIntrinsicFunctionCall(
     expression: NamedCallExpression,

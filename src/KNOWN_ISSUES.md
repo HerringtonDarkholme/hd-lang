@@ -11,17 +11,17 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,585 cases: 2,557 selected in `test/portable/cases.tsv` and 28 known
-failures. The selected cases are 2,205 language tier, 301 stdlib tier, and 51
-CLI tier; the known failures are 17 language tier, 1 stdlib tier, and 10
+2,585 cases: 2,568 selected in `test/portable/cases.tsv` and 17 known
+failures. The selected cases are 2,216 language tier, 301 stdlib tier, and 51
+CLI tier; the known failures are 6 language tier, 1 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
 | CLI-DOC | 8 | no `hd doc` command |
+| CLI-PAGES-HIDDEN | 2 | `hd new --pages` stays hidden until `hd doc` can build the site |
 | F-250 | 5 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
-| FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
 ## Findings
@@ -100,7 +100,6 @@ Compiler structure:
 | --- | --- |
 | EMB-S | A trait method is a candidate only where its trait is available. The prototype tracks trait imports only for a trait of another package (`checker/package-ownership.ts`); every trait of the calling module's own package, and every std trait, stays available. No fixture shows the gap. |
 | P2 | Member lookup skips members not visible from the calling module. The prototype hides a member without `pub` from another package and a std type's from code outside std; another module of the same package still sees it. No fixture shows the gap. |
-| FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds the whole profile (src/commands/default-profile.ts). `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 
 ## Gaps No Fixture Reaches

@@ -7,6 +7,7 @@ import type {
   GenericBound,
   MemberLine,
   Program,
+  TypeRef,
 } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { functionResultText, readonlyType } from "../types.ts";
@@ -18,18 +19,21 @@ import {
 } from "./standard-library.ts";
 
 // Typed facts (spec/lang/14-annotations.md#member-typed-facts). A data type or
-// enum declared with `@annotate::[F](...)` is a typed fact type `D`, and `F`
-// stands for its target's type. Each of its values on a field or a
-// module-level function checks like `let f: D[X] = v`, with `X` the target's
-// type. This pass rewrites `v` to the call `hd__typed_fact_N::[X, _](v)` of
-// a generated identity function `fn hd__typed_fact_N[P1, P2](fact: D[P1, P2])
-// -> D[P1, P2]`, so the ordinary call checking gives `v` its expected type,
-// infers the other slots, and checks `D`'s bounds, all at the decorator or
-// member line (annot.typed-fact.check, .check.other-params, .check.inferred,
-// .check.bounds, .check.reported). Every later reader of the fact, such as
-// a derivation's facts, sees the typed value. It runs after trait-less
-// blocks are folded into the declarations, before any derivation reads
-// them.
+// enum declared with `@annotate::[Q](...)` is a typed fact type `D`, and the
+// pattern `Q`, a type over `D`'s parameters such as `F`, `List[T]`, or
+// `fn(T) -> R`, describes its target's type. This pass moves `Q` onto the
+// declaration (`factPattern`) and rewrites each value `v` on a field or a
+// module-level function to the call `hd__typed_fact_N(v)` of a generated
+// identity function `fn hd__typed_fact_N[P1, P2](fact: D[P1, P2]) -> D[P1, P2]`,
+// marked with the target's monomorphic type `X`. The checker matches `Q`
+// against `X` as a call's argument infers its parameter's type
+// (annot.typed-fact.infer), which gives the call the arguments `Q` mentions;
+// the ordinary call checking then gives `v` its expected type, infers the
+// other slots, and checks `D`'s bounds, all at the decorator or member line
+// (annot.typed-fact.check, .check.other-params, .check.inferred,
+// .check.bounds, .check.reported). Every later reader of the fact, such as a
+// derivation's facts, sees the typed value. It runs after trait-less blocks
+// are folded into the declarations, before any derivation reads them.
 
 type Report = (code: string, message: string, span: SourceSpan) => void;
 
@@ -37,8 +41,6 @@ interface TypedFactType {
   /** The fact type's name in the program. */
   readonly name: string;
   readonly declaration: DataDecl | EnumDecl;
-  /** The position of the target parameter among the type's parameters. */
-  readonly target: number;
 }
 
 /** A target's type and the generic scope its type arguments need. */
@@ -153,12 +155,14 @@ export function withTypedFacts(program: Program, error: Report): Program {
   const annotate = annotateNames(program);
   const local = new Map<string, TypedFactType>();
 
-  // Declarations: read and drop `annotate`'s type argument. Without one, it
-  // is the default `Any`, an untyped fact type (annot.typed-fact.untyped).
+  // Declarations: move `annotate`'s type argument, the pattern, onto the
+  // declaration. Without one, it is the default `Any`, an untyped fact type
+  // (annot.typed-fact.untyped).
   const declare = <T extends DataDecl | EnumDecl>(declaration: T): T => {
     const decorators = declaration.decorators;
     if (!decorators || annotate.size === 0) return declaration;
     let changed = false;
+    let pattern: TypeRef | undefined;
     const facts = decorators.facts.map((fact) => {
       if (
         fact.kind !== "call" ||
@@ -169,26 +173,25 @@ export function withTypedFacts(program: Program, error: Report): Program {
       )
         return fact;
       changed = true;
-      const [argument] = fact.typeArguments;
-      const target = declaration.genericParameters.indexOf(argument!.name);
       if (fact.typeArguments.length > 1)
         error(
           "argument-count",
           `annotate takes one type argument, received ${fact.typeArguments.length}`,
           fact.span,
         );
-      else if (target < 0)
-        // annot.typed-fact.target-param.invalid
-        error(
-          "type-mismatch",
-          `annotate's type argument '${argument!.name}' must be one of the type parameters of '${declaration.name}'`,
-          fact.span,
-        );
-      else local.set(declaration.name, { name: declaration.name, declaration, target });
+      else {
+        pattern = fact.typeArguments[0]!;
+        local.set(declaration.name, { name: declaration.name, declaration });
+      }
       const { typeArguments: _typeArguments, ...call } = fact;
       return call;
     });
-    return changed ? { ...declaration, decorators: { ...decorators, facts } } : declaration;
+    if (!changed) return declaration;
+    return {
+      ...declaration,
+      decorators: { ...decorators, facts },
+      ...(pattern ? { factPattern: pattern } : {}),
+    };
   };
   const declared: Program = {
     ...program,
@@ -255,11 +258,9 @@ export function withTypedFacts(program: Program, error: Report): Program {
         item.callee.name === "annotate" &&
         (item.typeArguments?.length ?? 0) > 0,
     );
-    if (call?.kind !== "call") return undefined;
-    const target = standard.declaration.genericParameters.indexOf(call.typeArguments![0]!.name);
-    return target < 0
-      ? undefined
-      : { name: standard.name, declaration: standard.declaration, target };
+    return call?.kind === "call"
+      ? { name: standard.name, declaration: standard.declaration }
+      : undefined;
   };
 
   // One identity function per fact type, its parameters renamed apart from
@@ -283,8 +284,13 @@ export function withTypedFacts(program: Program, error: Report): Program {
         ? `${renames.get(parameter)} < ${traits.join(" & ")}`
         : renames.get(parameter)!;
     });
-    const type = `${fact.name}[${parameters.map((parameter) => renames.get(parameter)).join(", ")}]`;
-    helperSources.push(`fn ${name}[${list.join(", ")}](fact: ${type}) -> ${type}:`, `    fact`);
+    // A pattern such as `i32` may need no parameters (annot.typed-fact.pattern.concrete).
+    const type =
+      parameters.length > 0
+        ? `${fact.name}[${parameters.map((parameter) => renames.get(parameter)).join(", ")}]`
+        : fact.name;
+    const generics = list.length > 0 ? `[${list.join(", ")}]` : "";
+    helperSources.push(`fn ${name}${generics}(fact: ${type}) -> ${type}:`, `    fact`);
     return name;
   };
 
@@ -295,12 +301,9 @@ export function withTypedFacts(program: Program, error: Report): Program {
     return {
       kind: "call",
       callee: { kind: "name", name: helperOf(typed), span },
-      typeArguments: typed.declaration.genericParameters.map((_, index) => ({
-        name: index === typed.target ? target.type : "_",
-        span,
-      })),
       arguments: [fact],
       span,
+      typedFact: { target: target.type, factType: typed.name },
       ...(target.scope ? { typedFactScope: target.scope } : {}),
     };
   };

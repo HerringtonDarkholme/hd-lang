@@ -264,6 +264,12 @@ export interface DataDecl {
   /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
   readonly local?: boolean;
   readonly decorators?: Decorators;
+  /**
+   * The pattern of a typed fact type, the type argument of its
+   * `@annotate::[Q](...)` (14-annotations.md#r-annot.typed-fact.pattern).
+   * The typed-facts pass moves it here from the decorator.
+   */
+  readonly factPattern?: TypeRef;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `Display`. */
   readonly standard?: boolean;
   /**
@@ -332,6 +338,8 @@ export interface EnumDecl {
   /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
   readonly local?: boolean;
   readonly decorators?: Decorators;
+  /** The pattern of a typed fact type, as on a data declaration. */
+  readonly factPattern?: TypeRef;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `Display`. */
   readonly standard?: boolean;
   /** The qualified name of a `lib/std` enum, independent of its local binding. */
@@ -854,8 +862,12 @@ export type Expression =
       readonly stringPrefix?: string;
       // Set on the call that checks a typed fact against its target's type
       // (14-annotations.md#r-annot.typed-fact.check): the generic parameter
-      // list, such as `[HdFactT < Integer]`, that its type arguments need.
+      // list, such as `[HdFactT < Integer]`, that its target's type needs.
       readonly typedFactScope?: string;
+      // Set on the same call: the target's monomorphic type and the fact
+      // type, whose pattern the checker matches against that type to give
+      // the call its type arguments (r-annot.typed-fact.infer).
+      readonly typedFact?: { readonly target: string; readonly factType: string };
       readonly span: SourceSpan;
     }
   | {
