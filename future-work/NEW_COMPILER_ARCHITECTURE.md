@@ -346,6 +346,79 @@ which the prototype doesn't:
   symlinks.
 - **Runtime code loading,** parked in OPEN_ISSUES.
 
+## Architecture Brainstorm From The Metrics (2026-10-06)
+
+The orchestrator's ideas for which compiler features move which metrics.
+Owner: "these suggestions are meaningful". Big features are discussed
+first. Runtime performance gets its own systematic discussion later. Many
+agents on one machine is "probably too stretched" and is deprioritized.
+Nothing here is decided.
+
+### Big Features (to discuss first)
+
+| # | Feature | Moves |
+|---|---|---|
+| A | A native single-binary toolchain (Rust, Go or Zig rather than Node) | startup, lookup-latency, cold-check, disk, resources |
+| B | A query-based incremental engine (salsa / rust-analyzer style), keyed by interface hashes. Explicit signatures mean a body edit never changes an interface | edit-latency, test-latency, recheck-precision, incremental-soundness |
+| C | A shared content-addressed on-disk cache of checked interfaces and compiled modules (std, dependencies, own modules), published atomically | cold-check, cache reuse, suite-cpu |
+| D | Parallel checking: interfaces resolved in module-graph waves, then all function bodies checked in parallel | parallel-speedup, cold-check, suite-cpu |
+| E | Code generated per value layout (monomorphization), with `i31ref` as the first step | runtime, allocations, proptest/serde/test perf |
+
+Open decisions they raise:
+- **Implementation language.** Rust leads: it has salsa, rayon, rowan and wasm-encoder.
+- **Wasm engine for `hd run` and `hd test`.** V8 is mature but slow to start. Embedded wasmtime starts fast, but its Wasm GC support is maturing. The engine should sit behind an interface either way.
+- **Daemon or none.** The lean is none: a native binary plus the shared cache.
+- **Limits on monomorphization,** so binaries don't grow without bound.
+
+### Pillar 1 Ideas (agent wait time and retries)
+
+- A lossless CST parser with error recovery, plus checker recovery per item with "poison" types, so one error never hides or multiplies others.
+- Machine-readable fix-its as exact text edits, plus `hd fix` to apply every safe fix-it in one command.
+- Compact JSON diagnostics by default, with details on request. Today one diagnostic is 7.4 KB.
+- A formatter on the same CST. Deterministic output everywhere.
+- Skip dependency bodies when checking: explicit signatures make them unnecessary.
+- Early cutoff: an unchanged interface hash stops propagation.
+- `hd test --affected`: run only the tests the change can reach.
+- Pre-checked std baked into the binary, and zero-copy, memory-mappable cache files.
+- No exponential algorithms: bounded impl search (F-626), iterative passes for deep nesting and chains, arenas.
+- Hard limits (recursion, instantiation depth, impl-search steps), each with its own diagnostic instead of a hang.
+- A pathology fuzzer that flags superlinear growth.
+- A lightly optimized debug build with cheap overflow and bounds checks.
+- `hd doc`, `def` and `explain` answered from the query database.
+
+### Pillar 2 Ideas (deprioritized: "too stretched")
+
+- A cross-process jobserver: `hd` processes share a CPU token pool, as make and cargo do, to stop the 9x slowdown from too many threads.
+- A remote cache later, using the same content-addressed keys.
+- Interning per compilation run, not global.
+- A capped cache with eviction, lock-free reads, and change detection by hash and mtime.
+
+### Pillar 3 Ideas (runtime; discussed systematically later)
+
+- Counted range loops, inlining, and escape analysis that turns captured counters back into locals.
+- `Option` of a reference as a nullable ref (no allocation); `Option` of a scalar returned as two values.
+- Closures that capture nothing become function references.
+- Derive templates compiled to straight-line code at compile time.
+- Typed host imports for scalars, serde only for structured values, and buffered console output.
+- Suspension compiled to state machines with an allocation-free "already ready" path, or stack switching later.
+- Snapshot-started tests and a pooled test runner.
+- Integrated shrinking for proptest, with cases run in one instance.
+- Enum layout chosen per enum (GC subtypes or a tag plus shared fields).
+- Whole-program dead-code elimination and `wasm-opt`.
+
+### Correctness Tooling
+
+- Incremental-soundness fuzzing: random edit scripts, with incremental builds compared against clean builds.
+- Differential fuzzing across the new compiler, the frozen prototype and the spec examples.
+
+### Language Note
+
+No language change is needed. Explicit signatures and requirement rows, no
+overloading, no wildcard imports, orphan rules, per-module scope, and
+checked templates instead of macros already give what this architecture
+needs. Two things to watch: typed-derivation templates expanded per type
+(cache them per type), and cross-package coherence checks.
+
 ## Follow-Up Questions
 
 <!-- Questions that the notes raise, each with a recommendation. -->
