@@ -2910,6 +2910,155 @@ fn demo_mock!() -> Result[User?, DbError] $ Cache:
         load_user!(UserId("user_123"))
 ```
 
+### Wire application providers in `main`
+
+A package's own requirements are not host capabilities. If the application
+uses `Mailer` and `Repo`, its library code declares `$ Mailer + Repo`, while an
+entry point is the composition root: it constructs concrete adapters and
+removes those two requirements with `$.with`. The entry point's signature then
+lists only capabilities supplied by the host.
+
+Here is the shared application in `src/app.hd`:
+
+```text
+pub trait Repo:
+    fn save(self, name: string) -> string
+
+pub trait Mailer:
+    fn send(self, to: string) -> string
+
+pub fn register(name: string, email: string) -> string $ Mailer + Repo:
+    saved := $.use(Repo).save(name)
+    sent := $.use(Mailer).send(email)
+    "$saved; $sent"
+```
+
+The adapters in `src/adapters.hd` are ordinary types. Production and
+development implementations need not share a concrete type:
+
+```text
+use super.app.{Mailer, Repo}
+
+pub data FileRepo:
+    root: string
+
+impl Repo for FileRepo:
+    fn save(self, name: string) -> string:
+        "file:${self.root}/$name"
+
+pub data MemoryRepo:
+    namespace: string
+
+impl Repo for MemoryRepo:
+    fn save(self, name: string) -> string:
+        "memory:${self.namespace}:$name"
+
+pub data SmtpMailer:
+    endpoint: string
+
+impl Mailer for SmtpMailer:
+    fn send(self, to: string) -> string:
+        "smtp:${self.endpoint}:$to"
+
+pub data OutboxMailer:
+    label: string
+
+impl Mailer for OutboxMailer:
+    fn send(self, to: string) -> string:
+        "outbox:${self.label}:$to"
+```
+
+The recommended layout uses two entry points. `src/main.hd` wires production:
+
+```text
+use pkg.{FileRepo, SmtpMailer, register}
+
+pub fn main() -> void $ Console:
+    $.with(Mailer=SmtpMailer { endpoint: "smtp.example.com" }, Repo=FileRepo { root: "data/users" }):
+        println(register("Ada", "ada@example.com"))
+```
+
+`src/dev.hd` wires local adapters without changing the application module:
+
+```text
+use pkg.{MemoryRepo, OutboxMailer, register}
+
+pub fn main() -> void $ Console:
+    $.with(Mailer=OutboxMailer { label: "local" }, Repo=MemoryRepo { namespace: "dev" }):
+        println(register("Ada", "ada@example.com"))
+```
+
+Re-export the library pieces from `src/lib.hd`, then select both programs in
+`hd.toml`:
+
+```text
+pub use self.app.{Mailer, Repo, register}
+pub use self.adapters.{FileRepo, MemoryRepo, OutboxMailer, SmtpMailer}
+```
+
+```toml
+[package]
+name = "wiring"
+
+[[executable]]
+name = "app"
+module = "main"
+
+[[executable]]
+name = "dev"
+module = "dev"
+```
+
+Run them with `hd run app` and `hd run dev`.
+
+Sometimes one executable must choose at startup. This alternative
+`src/main.hd` uses one `$.with` in each branch, so the two sets of adapters
+still need no common concrete type:
+
+```text
+use pkg.{FileRepo, MemoryRepo, OutboxMailer, SmtpMailer, register}
+use std.host.{Env, env}
+use std.time.Clock
+
+pub fn main() -> void $ Console + Env + Clock:
+    mode := match env("APP_ENV"):
+        .Some(value) => value
+        .None => "production"
+    if mode == "dev":
+        seed := $.use(Clock).now().unix_milliseconds()
+        $.with(Mailer=OutboxMailer { label: "run-$seed" }, Repo=MemoryRepo { namespace: "dev" }):
+            println(register("Ada", "ada@example.com"))
+    else:
+        endpoint := match env("SMTP_URL"):
+            .Some(value) => value
+            .None => "smtp.example.com"
+        $.with(Mailer=SmtpMailer { endpoint: endpoint }, Repo=FileRepo { root: "data/users" }):
+            println(register("Ada", "ada@example.com"))
+```
+
+The cost of runtime selection is visible in its row: `main` lists the union
+of host capabilities used by either branch (`Env` for configuration, `Clock`
+for the development label, and `Console` for output), even though one branch
+runs. `Mailer` and `Repo` remain absent because both branches install them.
+
+An integration test is another composition root. A file directly under
+`tests/` puts `it` at top level and wires test-specific adapters itself:
+
+```text
+use pkg.{MemoryRepo, OutboxMailer, register}
+use std.testing.assert_equal
+
+it("wires test adapters"):
+    $.with(Mailer=OutboxMailer { label: "test" }, Repo=MemoryRepo { namespace: "case" }):
+        assert_equal(
+            register("Ada", "ada@example.com"),
+            "memory:case:Ada; outbox:test:ada@example.com",
+            reason="the app uses the installed test providers",
+        )
+```
+
+This test needs no host profile entry for either application trait.
+
 Reusable contexts are provider-map values typed by a requirement row:
 
 ```text
