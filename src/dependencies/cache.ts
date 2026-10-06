@@ -94,9 +94,16 @@ async function makeContentsReadOnly(path: string): Promise<void> {
 
 /**
  * Stores the tree in `source` as a version's entry. Only the files of the
- * tree are copied (spec/cli/command-line.md#r-cli.sum.tree), its hash is
- * recorded, and the entry is made read-only, then moved into place in one
- * rename, so a reader never sees a partial entry (cli.cache.complete).
+ * tree are copied (spec/cli/command-line.md#r-cli.sum.tree), and the entry
+ * is made read-only, then moved into place in one rename, so a reader never
+ * sees a partial entry (cli.cache.complete).
+ *
+ * Several `hd` processes may store one version at once (cli.cache.shared).
+ * The first rename into place wins; a loser discards its own tree and uses
+ * the winner's. The hash record is written only after the tree is in place,
+ * and only as the hash of that tree, so a record never describes another
+ * tree (cli.cache.hash). A record missing beside a placed tree, as after a
+ * crash between the two steps, is written by the next store.
  */
 export async function storeEntry(
   cache: string,
@@ -112,22 +119,40 @@ export async function storeEntry(
       await mkdir(dirname(join(tree, path)), { recursive: true });
       await cp(join(source, path), join(tree, path));
     }
-    const hash = await treeHash(tree);
+    let hash = await treeHash(tree);
+    await makeContentsReadOnly(tree);
+    const directory = entryPath(cache, hostPath, version);
+    await mkdir(dirname(directory), { recursive: true });
+    if (await placeTree(tree, directory)) await chmod(directory, 0o555);
+    else {
+      const recorded = await cachedEntry(cache, hostPath, version);
+      if (recorded) return recorded;
+      // The winner has not written its record yet, or it was lost: record
+      // the hash of the tree in place, never of the staged one.
+      hash = await treeHash(directory);
+    }
+    // A rename replaces a record atomically; every writer writes the same one.
     const record = hashPath(cache, hostPath, version);
     await mkdir(dirname(record), { recursive: true });
     await writeFile(join(staging, "hash"), `${hash}\n`);
     await rename(join(staging, "hash"), record);
-    await makeContentsReadOnly(tree);
-    const directory = entryPath(cache, hostPath, version);
-    await mkdir(dirname(directory), { recursive: true });
-    // Another `hd` may have stored the same version meanwhile; its entry stays.
-    if (!existsSync(directory)) {
-      await rename(tree, directory);
-      await chmod(directory, 0o555);
-    }
-    return { directory, hash: (await cachedEntry(cache, hostPath, version))?.hash ?? hash };
+    return { directory, hash };
   } finally {
     await removeTree(staging);
+  }
+}
+
+/**
+ * Moves the staged `tree` to `directory` in one rename, or reports false
+ * when another store's tree is there already, which then stays.
+ */
+async function placeTree(tree: string, directory: string): Promise<boolean> {
+  try {
+    await rename(tree, directory);
+    return true;
+  } catch (error) {
+    if (existsSync(directory)) return false;
+    throw error;
   }
 }
 
