@@ -106,6 +106,28 @@ template the type derives. For this job you may edit
 4. Run `bash spec/check.sh` and the retired-ID check; no rule may still
    cite a removed ID.
 
+### BL. A Nested Variant Pattern Before A Positional Binding Loses The Binding
+
+Found by task #278; fails on main too. In a match arm, a nested variant
+pattern in an earlier position makes a later positional binding unknown:
+
+```
+enum Plain:
+    Lit(i64)
+    Add(Plain, Plain)
+
+fn simplify(e: Plain) -> Plain:
+    match e:
+        Plain.Add(Plain.Lit(0), right) => right    # unknown-name: 'right'
+        _ => e
+```
+
+Find the root cause (likely the nested pattern's bindings or test path
+replaces the outer arm's binding list instead of extending it), fix it,
+and add a runtime fixture with nested patterns in first, middle and last
+positions, including two nested patterns in one arm. Run the parent
+commit and yours, and check `--phase type` and `--phase runtime`.
+
 ### J. Ongoing: Review New `src/` Commits
 
 For each new commit on `origin/main` that touches `src/`, review the diff
