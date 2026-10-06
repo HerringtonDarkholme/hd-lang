@@ -169,7 +169,7 @@ options:
 1. r[std-cli.usage.decl] `pub fn usage(self) -> string` returns the lines below, joined by `\n`, with no final line break.
 2. r[std-cli.usage.line] The first line is `usage: `, the program name, ` [options]` when a flag or an option is declared, and ` <name>` for each positional, in declaration order.
 3. r[std-cli.usage.arguments] When a positional is declared, an empty line and the line `arguments:` follow, then one entry per positional, in declaration order. A positional's term is its name.
-4. r[std-cli.usage.options] When a flag or an option is declared, an empty line and the line `options:` follow, then one entry per flag or option, in declaration order.
+4. r[std-cli.usage.options] When a flag or an option is declared, an empty line and the line `options:` follow. Then one entry per flag or option follows, in declaration order.
 5. r[std-cli.usage.term] A flag's or option's term is `-c, --name`, or four spaces and `--name` when it has no short name. An option's term ends with ` <value>`.
 6. r[std-cli.usage.entry] An entry is two spaces, its term padded with spaces to the width of the longest term in the text, two spaces, and its help.
 7. r[std-cli.usage.width] A width counts characters, as `pad_end` does.
