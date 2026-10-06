@@ -303,8 +303,27 @@ export class DiagnosticReporter {
     return this.at ? `${this.file}:${this.at.line}:${this.at.column}: ` : `${this.file}: `;
   }
 
-  runtimePanic(code: string, detail = "runtime panic"): void {
-    this.located(`${this.at ? this.place() : ""}${code}: ${detail}`, code, detail);
+  /**
+   * A runtime panic, at the operation that panicked when the host found it
+   * (spec/lang/06-control-flow.md#r-flow.panic.report), with its notes.
+   */
+  runtimePanic(
+    code: string,
+    detail = "runtime panic",
+    site?: {
+      readonly file: string;
+      readonly jsonFile: string;
+      readonly line: number;
+      readonly column: number;
+    },
+    notes: readonly string[] = [],
+  ): void {
+    const place = site ? `${site.file}:${site.line}:${site.column}: ` : this.at ? this.place() : "";
+    const text = `${place}${code}: ${detail}${notes.map((note) => `\n  note: ${note}`).join("")}`;
+    this.located(text, code, detail, true, site, [], {
+      notes,
+      ...(site ? { file: site.jsonFile } : {}),
+    });
   }
 
   /** A checked program that stopped at a feature the prototype does not run. */
@@ -359,6 +378,7 @@ export class DiagnosticReporter {
     applyRules = true,
     position?: { readonly line: number; readonly column: number },
     fixes: readonly DiagnosticFix[] = [],
+    extra: { readonly file?: string; readonly notes?: readonly string[] } = {},
   ): void {
     this.report.count("error");
     const rules = code && applyRules ? ruleRefs(this.index, code) : [];
@@ -367,10 +387,10 @@ export class DiagnosticReporter {
       code,
       severity: "error",
       message,
-      file: this.jsonFile,
+      file: extra.file ?? this.jsonFile,
       line: (position ?? this.at)?.line ?? null,
       column: (position ?? this.at)?.column ?? null,
-      notes: [],
+      notes: [...(extra.notes ?? [])],
       related: [],
       fix: fixes.length === 1 ? jsonFix(fixes[0]!) : null,
       fixes: fixes.map(jsonFix),

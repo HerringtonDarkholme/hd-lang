@@ -29,6 +29,7 @@ import {
   type FunctionParts,
 } from "../types.ts";
 import type { SuspensionPlan } from "./suspension.ts";
+import type { PanicSiteTable } from "./panic-sites.ts";
 
 interface BuiltinTraitAdapter {
   readonly index: number;
@@ -110,6 +111,8 @@ export class EmitterContext {
    * count is masked (spec/lang/04-type-system.md#r-types.arith.checked).
    */
   release = false;
+  /** The panic sites the emitted expressions annotate (emitter/panic-sites.ts), if any. */
+  panicSites: PanicSiteTable | undefined;
   protected floatPower = false;
   protected floatRemainder = false;
   protected currentRequirements: readonly string[] = [];

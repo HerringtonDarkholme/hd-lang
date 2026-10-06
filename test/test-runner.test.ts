@@ -78,7 +78,7 @@ tests:
   if (failed.kind === "failed")
     assert.match(
       failed.outcome ?? "",
-      /panicked with explicit-panic: std\.testing: case discarded/,
+      /panicked with 4:9: explicit-panic: std\.testing: case discarded/,
     );
 });
 

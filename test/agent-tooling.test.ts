@@ -391,8 +391,8 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
         severity: "error",
         message: "runtime panic",
         file: panics,
-        line: null,
-        column: null,
+        line: 2,
+        column: 10,
         notes: [],
         related: [],
         fix: null,
@@ -411,7 +411,7 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
       },
     ]);
     const plain = await hd([panics]);
-    assert.equal(plain.stderr.trim(), "integer-division-by-zero: runtime panic");
+    assert.equal(plain.stderr.trim(), `${panics}:2:10: integer-division-by-zero: runtime panic`);
 
     // `main` is not a test case, so `hd test FILE` finds none (cli.test.file-empty).
     const tested = await hd(["test", "--format", "json", warned]);

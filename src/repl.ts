@@ -477,7 +477,7 @@ export class ReplSession {
     } catch (error) {
       const message =
         error instanceof RuntimePanicError
-          ? `panic: ${error.detail ? error.message : error.code}`
+          ? replPanic(error)
           : `internal error: ${(error as Error).message}`;
       return { lines, error: message, hostAnswers };
     }
@@ -523,10 +523,25 @@ export interface ReplMessage {
   readonly code: string;
   /** The diagnostic message, or the panic code for `runtime-panic`. */
   readonly message: string;
+  /** A panic's notes, such as the fix of a `usize` fallback. */
+  readonly notes?: readonly string[];
+}
+
+/**
+ * A panic's error text: `panic at LOCATION: CODE: detail`, where LOCATION is
+ * where `replLocation` puts the operation that panicked, when it is known,
+ * then a line for each note.
+ */
+function replPanic(error: RuntimePanicError): string {
+  const at = error.location ? ` at ${error.location}` : "";
+  const what = error.detail ? `${error.code}: ${error.detail}` : error.code;
+  return `panic${at}: ${what}${error.notes.map((note) => `\n  note: ${note}`).join("")}`;
 }
 
 /** Parses a line of `ReplOutcome.errors` or `ReplOutcome.warnings`. */
 export function parseReplMessage(text: string): ReplMessage {
+  const panic = parseReplPanic(text);
+  if (panic) return panic;
   const sourced = /^(.+):(\d+):(\d+): (warning: )?([a-z0-9-]+): ([\s\S]*)$/.exec(text);
   if (sourced && sourced[1] !== "session") {
     const [, file, line, column, warning, code, message] = sourced;
@@ -547,9 +562,27 @@ export function parseReplMessage(text: string): ReplMessage {
       : { line: Number(line), column: Number(column) };
     return { ...position, severity: warning ? "warning" : "error", code: code!, message: message! };
   }
-  const panic = /^panic: (.*)$/.exec(text);
-  if (panic) return { severity: "error", code: "runtime-panic", message: panic[1]! };
   return { severity: "error", code: "internal-error", message: text };
+}
+
+/** A `replPanic` text: its position, when it names one, its code and detail, and its notes. */
+function parseReplPanic(text: string): ReplMessage | undefined {
+  const panic = /^panic(?: at (?:(\S+?):)?(\d+):(\d+))?: (.*)((?:\n {2}note: .*)*)$/.exec(text);
+  if (!panic) return undefined;
+  const [, file, line, column, message, notes] = panic;
+  const position =
+    line === undefined
+      ? {}
+      : file === "session"
+        ? { sessionLine: Number(line) }
+        : { ...(file ? { file } : {}), line: Number(line), column: Number(column) };
+  return {
+    ...position,
+    severity: "error",
+    code: "runtime-panic",
+    message: message!,
+    ...(notes ? { notes: notes.split("\n  note: ").slice(1) } : {}),
+  };
 }
 
 function formatReplDiagnostic(diagnostic: Diagnostic, attempt: Attempt): string {

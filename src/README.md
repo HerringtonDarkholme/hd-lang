@@ -398,7 +398,7 @@ order, then declaration order. The summary object counts `errors`,
 | `severity` | `error` or `warning`. |
 | `message`, `notes` | The prose the text format prints. |
 | `file` | The source containing the position: in a package the path relative to the package root, outside one the path as written, or `lib/std/<module>.hd` for a standard-library diagnostic. |
-| `line`, `column` | Primary position. Both are 1-based, and columns count UTF-16 code units. `null` for a failure with no source location, such as a panic. |
+| `line`, `column` | Primary position. Both are 1-based, and columns count UTF-16 code units. `null` for a failure with no source location, such as a panic the host cannot place. |
 | `related` | Secondary positions as `{message, file, line, column}`. |
 | `fix` | `{message, edits}` when the prototype knows the one correct edit, else `null`. An edit replaces its `span` (`offset` is the 0-based UTF-16 offset, and `end` is exclusive) with `replacement`; an empty span inserts and an empty replacement deletes. |
 | `fixes` | Every suggested fix-it: `[fix]` when there is one, or the alternatives, as the two of an unlisted workspace member. |
@@ -1396,6 +1396,16 @@ codes, including explicit panic, assertions, integer overflow and division,
 invalid shifts, list bounds, iterator invalidation, and suspension driver/state
 failures. Portable panic fixtures verify the declared code rather than
 accepting an arbitrary Wasm trap.
+
+A panic report names the program operation that panicked, as
+`FILE:LINE:COL: CODE: detail`. The emitter puts a Binaryen debug-location
+line, `;;@ sN:LINE:COL`, before each operation of program code that may panic
+(src/emitter/panic-sites.ts); `lib/std` code has none, so a panic inside it
+names the program's call. Binaryen turns the lines into a source map, never
+into module bytes (src/wasm.ts). On a panic, the host reads the Wasm frames
+under the panicking import from a stack trace and maps the innermost annotated
+one to its site (src/panic-locator.ts). An `integer-overflow` at a type from
+the `usize` literal default adds a note that names the binding and the fix.
 
 The host boundary covers scalars, strings, and structural results
 (optionals, tuples, lists, data with public fields, non-generic enums

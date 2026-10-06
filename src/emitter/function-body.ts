@@ -166,6 +166,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
   }
 
   protected emitExpression(expression: HirExpression): string {
+    const site = this.panicSites?.open(expression);
     const emitted =
       this.emitValueExpression(expression) ??
       this.emitCallExpression(expression) ??
@@ -173,9 +174,11 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       this.emitControlExpression(expression);
     if (emitted === undefined) throw new Error(`unsupported expression '${expression.kind}'`);
     // A stored `void` reads as its slot's null; as an expression it leaves nothing.
-    return expression.type === "void" && VOID_SLOT_READS.has(expression.kind)
-      ? `(drop ${emitted})`
-      : emitted;
+    const wat =
+      expression.type === "void" && VOID_SLOT_READS.has(expression.kind)
+        ? `(drop ${emitted})`
+        : emitted;
+    return this.panicSites ? this.panicSites.close(site, wat) : wat;
   }
 
   /**

@@ -241,6 +241,24 @@ test("REPL messages parse back into positions and codes", async () => {
     code: "runtime-panic",
     message: "integer-division-by-zero",
   });
+  // A panic names the operation that panicked, and its notes follow.
+  assert.deepEqual(
+    parseReplMessage("panic at 1:5: integer-overflow\n  note: 'n' fell back to usize"),
+    {
+      line: 1,
+      column: 5,
+      severity: "error",
+      code: "runtime-panic",
+      message: "integer-overflow",
+      notes: ["'n' fell back to usize"],
+    },
+  );
+  assert.deepEqual(parseReplMessage("panic at session:2:9: explicit-panic: at 3:4: x"), {
+    sessionLine: 2,
+    severity: "error",
+    code: "runtime-panic",
+    message: "explicit-panic: at 3:4: x",
+  });
   const session = new ReplSession();
   for (const error of (await session.evaluate('fn bad() -> i32: "no"')).errors)
     assert.equal(parseReplMessage(error).line, 1);
@@ -355,7 +373,7 @@ test("REPL rejects invalid inputs without changing the session", async () => {
   const mismatch = await session.evaluate('fn bad() -> i32: "no"');
   assert.match(mismatch.errors[0]!, /^1:18: type-mismatch:/);
   const panic = await session.evaluate("1 / 0");
-  assert.deepEqual(panic.errors, ["panic: integer-division-by-zero"]);
+  assert.deepEqual(panic.errors, ["panic at 1:1: integer-division-by-zero"]);
   assert.equal(session.source().includes("missing"), false);
   assert.equal(session.source().includes("1 / 0"), false);
   assert.equal((await session.evaluate("x + 1")).value, "2");

@@ -27,8 +27,6 @@ CLI tier.
 
 Correctness and diagnostics:
 
-- **F-155**: a runtime panic prints only `CODE: runtime panic`, with no
-  source location, so nothing checks a panic marker's line.
 - **F-161**: unbounded recursion ends in a Node `RangeError` stack trace,
   not a `stack-exhausted` panic.
 - **F-259**: the adapter rejects the `disposed-file` runtime profile, so

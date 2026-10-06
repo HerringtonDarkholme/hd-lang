@@ -36,7 +36,12 @@ import {
 } from "./shared.ts";
 import { displayName } from "./display-names.ts";
 
-import { defaultedLocalHint, hasSignedLiteral, pureLiteralKind } from "./literal-join.ts";
+import {
+  defaultedLocalHint,
+  hasSignedLiteral,
+  markDefaultedGroup,
+  pureLiteralKind,
+} from "./literal-join.ts";
 import { defaultGroupWidth, forcedGroupWidth } from "./literal-retry.ts";
 import {
   ExpressionLiteralChecker,
@@ -844,10 +849,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     // side is checked first, in either order.
     const leftPure = checkedLeft === undefined ? pureLiteralKind(expression.left) : undefined;
     const rightPure = pureLiteralKind(expression.right);
-    const groupTarget =
+    const fixedGroup =
       leftPure !== undefined && rightPure !== undefined
         ? ((leftPure === "integer" ? outer : outerFloat) ??
-          forcedGroupWidth([expression.left, expression.right]) ??
+          forcedGroupWidth([expression.left, expression.right]))
+        : undefined;
+    const groupTarget =
+      leftPure !== undefined && rightPure !== undefined
+        ? (fixedGroup ??
           defaultGroupWidth(
             countOrExponent ? [expression.left] : [expression.left, expression.right],
           ))
@@ -930,6 +939,9 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         expression.right,
         equalityOperator && rightVariant && !leftVariant ? readonlyType(left.type) : rightTarget,
       );
+    // A panic report says when the group's type is its default
+    // (06-control-flow.md#r-flow.panic.report.fallback).
+    if (groupTarget !== undefined && fixedGroup === undefined) markDefaultedGroup([left, right]);
     if (!numeric || expression.operator === "**") return { left, right };
     // A literal operand typed before the other operand takes its type
     // (04-type-system.md#r-types.num.binary.literal); no other operand widens.

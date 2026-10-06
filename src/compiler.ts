@@ -37,7 +37,8 @@ import { substituteTypeParameters } from "./types.ts";
 import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
-import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
+import { RuntimePanicError, runtimePanicName, type PanicSite } from "./runtime-panic.ts";
+import { panicLocator } from "./panic-locator.ts";
 import { emissionReachability, traitMethodKey } from "./emitter/reachability.ts";
 
 /** A checked program and its WAT, before Wasm assembly. */
@@ -45,6 +46,8 @@ interface WatCompilation {
   readonly wat: string;
   readonly hir: HirProgram;
   readonly diagnostics: readonly Diagnostic[];
+  /** The panic sites the WAT annotates (emitter/panic-sites.ts). */
+  readonly sites?: readonly PanicSite[];
 }
 
 /** A checked program, its WAT, and the assembled Wasm binary. */
@@ -972,10 +975,14 @@ export function analyze(source: string, options: CompileOptions = {}): Analysis 
 export function compileToWat(source: string, options: CompileOptions = {}): WatCompilation {
   const analysis = analyze(source, options);
   if (!analysis.hir) throw new DiagnosticError(analysis.diagnostics);
+  // A release build keeps its panic sites too: its remaining panics, such as
+  // an index out of bounds, report where they happened.
+  const sites: PanicSite[] = [];
   return {
-    wat: emitWat(analysis.hir, { release: options.release }),
+    wat: emitWat(analysis.hir, { release: options.release, sites }),
     hir: analysis.hir,
     diagnostics: analysis.diagnostics,
+    sites,
   };
 }
 
@@ -989,8 +996,8 @@ export async function compileToWasm(
   options: CompileOptions = {},
 ): Promise<Compilation> {
   const compilation = typeof input === "string" ? compileToWat(input, options) : input;
-  const { bytes } = await assembleWat(compilation.wat);
-  return { ...compilation, bytes };
+  const { bytes, siteMap } = await assembleWat(compilation.wat);
+  return { ...compilation, bytes, ...(siteMap ? { siteMap } : {}) };
 }
 
 /**
@@ -1202,6 +1209,8 @@ export async function instantiate(
   // Strings are UTF-8 at every host boundary, so a leading U+FEFF is text, not
   // a byte order mark to drop.
   const textDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  // A panic that an import raises names the program operation it happened at.
+  const located = panicLocator(compilation, options.debugLocation);
   let replayIndex = 0;
   const pending = (functionIndex: number, pollCount: number): number => {
     const identity = functionIdentity(functionIndex);
@@ -1253,10 +1262,10 @@ export async function instantiate(
   const requirements = initializerEntryRequirements(compilation.hir);
   if (requirements.length > 0)
     hostImports.init_provider = (index) => ({ requirement: requirements[Number(index)]! });
-  hostImports.panic_with_message = (code, message) => {
+  hostImports.panic_with_message = located((code, message) => {
     const bytes = (message as HostString).bytes;
     throw new RuntimePanicError(runtimePanicName(Number(code)), textDecoder.decode(bytes));
-  };
+  });
   Object.assign(hostImports, structuralBoundaryImports(textEncoder), argumentTokenImports());
   const hostCapabilities = new Set(compilation.hir.hostCapabilities);
   const calledHostMethods = emissionReachability(compilation.hir).traitMethods;
@@ -1299,7 +1308,7 @@ export async function instantiate(
         hostImports,
         streamedArgumentImports(prefix, `${trait.name}.${method.name}`, method.parameters),
       );
-      hostImports[`${prefix}_poll`] = (value) => {
+      hostImports[`${prefix}_poll`] = located((value) => {
         const state = value as HostCallState;
         const { call } = state;
         decodeStreamedArguments(
@@ -1438,7 +1447,7 @@ export async function instantiate(
         );
         if (recorded) options.record?.(event);
         return state.outcome.pending ? 0 : 1;
-      };
+      });
       hostImports[`${prefix}_cancel`] = (value) => {
         if (!builtIn) options.hostSuspensionCancel?.((value as HostCallState).call);
       };
@@ -1456,7 +1465,11 @@ export async function instantiate(
   };
   hostImports.host_string_length = (handle) => (handle as HostString).bytes.length;
   hostImports.host_string_get = (handle, index) => (handle as HostString).bytes[Number(index)];
-  Object.assign(hostImports, hostFunctionImports(compilation.hir, options, textDecoder));
+  // A host function may panic, as `lib/std`'s panic primitive does.
+  for (const [name, host] of Object.entries(
+    hostFunctionImports(compilation.hir, options, textDecoder),
+  ))
+    hostImports[name] = located(host);
   const { instance } = await WebAssembly.instantiate(compilation.bytes, {
     hd: {
       ...hostImports,
@@ -1465,9 +1478,9 @@ export async function instantiate(
       pow_f64: Math.pow,
       // JavaScript `%` on numbers is the truncated remainder of C `fmod`.
       rem_f64: (left: number, right: number) => left % right,
-      panic: (code: number) => {
-        throw new RuntimePanicError(runtimePanicName(code));
-      },
+      panic: located((code) => {
+        throw new RuntimePanicError(runtimePanicName(Number(code)));
+      }),
     },
   });
   const replay: ReplaySession = {

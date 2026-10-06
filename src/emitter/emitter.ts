@@ -2,6 +2,8 @@ import type { HirExpression, HirFunction, HirLocal, HirMatchArm, HirProgram } fr
 import { scalarWasm } from "./scalars.ts";
 import { emissionReachability, traitMethodKey } from "./reachability.ts";
 import { linkWat } from "./link-wat.ts";
+import { PanicSiteTable } from "./panic-sites.ts";
+import type { PanicSite } from "../runtime-panic.ts";
 import { contextKeys, functionParts, functionType } from "../types.ts";
 import { collectModuleTypes } from "./module-types.ts";
 import {
@@ -898,13 +900,21 @@ function emittedFunctions(program: HirProgram): readonly HirFunction[] {
 export interface EmitOptions {
   /** A release build wraps integer overflow instead of panicking. Default: a debug build. */
   readonly release?: boolean;
+  /**
+   * Receives the program's panic sites; the WAT then carries their
+   * debug-location lines (emitter/panic-sites.ts). Without it, it has none.
+   */
+  readonly sites?: PanicSite[];
 }
 
 export function emitWat(program: HirProgram, options: EmitOptions = {}): string {
   const reachable = emissionReachability(program);
-  return linkWat(
-    emitReachableWat(reachable.program, reachable.traitMethods, options.release ?? false),
+  const sites = options.sites ? new PanicSiteTable() : undefined;
+  const wat = linkWat(
+    emitReachableWat(reachable.program, reachable.traitMethods, options.release ?? false, sites),
   );
+  if (sites) options.sites!.push(...sites.sites);
+  return wat;
 }
 
 function emitProgramStoredSuspensionAdapters(
@@ -983,6 +993,7 @@ function emitReachableWat(
   program: HirProgram,
   traitMethods: ReadonlySet<string>,
   release: boolean,
+  sites: PanicSiteTable | undefined,
 ): string {
   const methodIsLive = (traitIndex: number, methodIndex: number): boolean =>
     traitMethods.has(traitMethodKey(traitIndex, methodIndex));
@@ -1003,6 +1014,7 @@ function emitReachableWat(
     traitMethods,
   );
   emitter.release = release;
+  emitter.panicSites = sites;
   const hostProviders = emitHostProviders(program, traitMethods, emitter);
   const signatureTypes = [...signatureNames]
     .map(([type, index]) => {
@@ -1168,8 +1180,9 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
     )
     .join("\n");
   const functions = [...emittedFunctions(program), ...program.closures]
-    .map((declaration) =>
-      [
+    .map((declaration) => {
+      sites?.enter(declaration);
+      const emitted = [
         declaration.suspending && suspensionPlans.has(suspensionIndex(declaration))
           ? ""
           : indent(emitter.emit(declaration, declaration.index === program.initializer)),
@@ -1180,8 +1193,10 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
           : "",
       ]
         .filter(Boolean)
-        .join("\n\n"),
-    )
+        .join("\n\n");
+      sites?.enter(undefined);
+      return emitted;
+    })
     .join("\n\n");
   const traitAdapters = [
     emitter.emitTraitAdapters(),

@@ -90,6 +90,17 @@ export interface PackagePlacement {
   readonly dependencies?: PackageDependencies;
 }
 
+/**
+ * A position as a diagnostic names it: the file text shows, the file the
+ * JSON `file` field holds (`cli.json.diagnostic.file`), and its line and column.
+ */
+export interface SourceLocation {
+  readonly file: string;
+  readonly jsonFile: string;
+  readonly line: number;
+  readonly column: number;
+}
+
 /** A FILE ready to compile: its source, after linking, and where its diagnostics go. */
 export interface LoadedSource {
   readonly file: string;
@@ -105,6 +116,8 @@ export interface LoadedSource {
   readonly linked?: LinkedPackage;
   readonly placement?: PackagePlacement;
   readonly reporter: DiagnosticReporter;
+  /** Where a span of `source` is, as a diagnostic names it. */
+  readonly locate: (span: SourceSpan) => SourceLocation;
   /** The command's output: its test results and summary counts. */
   readonly output: Report;
   readonly report: (diagnostic: Diagnostic | PackageDiagnostic) => void;
@@ -214,12 +227,15 @@ export async function loadSource(
     options.testLayout === "integration" || (placement?.path.startsWith(TEST_ROOT) ?? false);
   // A `dbg` line names its call's file as diagnostics name it
   // (spec/lang/10-modules.md#r-module.dbg.location).
-  const debugLocation = (span: SourceSpan): string => {
-    if (!linked || !placement) return `${file}:${span.start.line}:${span.start.column}`;
+  // A runtime panic names its operation the same way
+  // (spec/lang/06-control-flow.md#r-flow.panic.report).
+  const locate = (span: SourceSpan): SourceLocation => {
+    if (!linked || !placement)
+      return { file, jsonFile: file, line: span.start.line, column: span.start.column };
     const located = linked.locate({ code: "", message: "", span });
     if (options.docTest && located.path === placement.path) {
       const at = options.docTest.test.locate(located.span.start.line, located.span.start.column);
-      return `${file}:${at.line}:${at.column}`;
+      return { file, jsonFile: options.docTest.modulePath, line: at.line, column: at.column };
     }
     const shown =
       located.path === placement.path
@@ -227,7 +243,12 @@ export async function loadSource(
         : isAbsolute(located.path)
           ? located.path
           : join(placement.root, located.path);
-    return `${shown}:${located.span.start.line}:${located.span.start.column}`;
+    const { line, column } = located.span.start;
+    return { file: shown, jsonFile: located.path, line, column };
+  };
+  const debugLocation = (span: SourceSpan): string => {
+    const { file: shown, line, column } = locate(span);
+    return `${shown}:${line}:${column}`;
   };
   const compileOptions: CompileOptions = {
     hostCapabilities: profile?.hostCapabilities,
@@ -335,6 +356,7 @@ export async function loadSource(
     linked,
     placement,
     reporter,
+    locate,
     output: options.report,
     report,
   };
@@ -394,7 +416,8 @@ export function reportFailure(loaded: LoadedSource, error: unknown): number {
     return EXIT_HD_FAILURE;
   }
   if (error instanceof RuntimePanicError) {
-    loaded.reporter.runtimePanic(error.code, error.detail);
+    const at = error.site && loaded.locate(error.site.span);
+    loaded.reporter.runtimePanic(error.code, error.detail, at, error.notes);
     return 1;
   }
   if (error instanceof UnsupportedAtRunTimeError) {

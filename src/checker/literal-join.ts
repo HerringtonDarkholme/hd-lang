@@ -35,6 +35,26 @@ export function isDefaultedLiteral(value: HirExpression | undefined): boolean {
   return value !== undefined && DEFAULTED.has(value);
 }
 
+/**
+ * The literals of a literals-only operator group that took the group's
+ * default type. They stay fixed, unlike `DEFAULTED`'s: only a panic report
+ * reads them (06-control-flow.md#r-flow.panic.report.fallback).
+ */
+const GROUP_DEFAULTED = new WeakSet<HirExpression>();
+
+export function markDefaultedGroup(members: readonly HirExpression[]): void {
+  for (const member of members) {
+    if (member.kind === "integer") GROUP_DEFAULTED.add(member);
+    else if (member.kind === "unary") markDefaultedGroup([member.operand]);
+    else if (member.kind === "binary") markDefaultedGroup([member.left, member.right]);
+  }
+}
+
+/** A literal whose type came from a default: its own, or its operator group's. */
+export function tookLiteralDefault(value: HirExpression): boolean {
+  return DEFAULTED.has(value) || GROUP_DEFAULTED.has(value);
+}
+
 const ARITHMETIC = new Set(["+", "-", "*", "/", "%", "&", "|", "^", "**", "<<", ">>"]);
 
 /**

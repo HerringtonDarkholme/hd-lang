@@ -297,7 +297,7 @@ export async function runSelected(
           if (error instanceof RuntimePanicError && isDiscardPanic(error, properties))
             return "discard";
           if (error instanceof RuntimePanicError)
-            return { failure: `panicked with ${error.message}` };
+            return { failure: `panicked with ${error.report}` };
           throw error;
         }
       };
@@ -327,7 +327,7 @@ export async function runSelected(
       } catch (error) {
         if (!keepGoing || !(error instanceof RuntimePanicError)) throw error;
         // A panic in a row leaves the table's row count unknown: it ends the table.
-        reporting?.record(name, "failed", error.message);
+        reporting?.record(name, "failed", error.report);
         break;
       }
       const { outcome, rowCount } = result;

@@ -111,7 +111,8 @@ test("hd test runs doc tests and names a failure's ## line", async () => {
     );
     const text = await runHd(["test", "src/text.hd", "--filter", "slugify"], { cwd: directory });
     assert.equal(text.status, 1);
-    assert.match(text.stderr, /^src\/text\.hd:12:4: assertion-failed: a stale example/m);
+    // The panic names the `##` line of the call that failed (flow.panic.report).
+    assert.match(text.stderr, /^src\/text\.hd:16:4: assertion-failed: a stale example/m);
     assert.match(text.stdout, /^src\/text\.hd: 0 passed, 1 failed$/m);
   });
 });

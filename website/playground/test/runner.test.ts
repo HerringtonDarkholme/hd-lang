@@ -121,7 +121,10 @@ test("a runtime panic is reported after the output before it", async () => {
   );
   assert.equal(result.status, "panic");
   assert.deepEqual(result.stdout, ["before"]);
-  assert.match(result.summary, /^integer-division-by-zero: runtime panic in main$/);
+  assert.match(
+    result.summary,
+    /^src\/main\.hd:1:35: integer-division-by-zero: runtime panic in main$/,
+  );
 });
 
 test("a two-file project with a package use compiles and runs", async () => {
@@ -190,7 +193,7 @@ test("test cases run when there is no entry point", async () => {
   assert.equal(result.status, "panic");
   assert.equal(
     result.summary,
-    'assertion-failed: wrong: actual 2, expected 3 in test case "fails"',
+    'src/main.hd:8:9: assertion-failed: wrong: actual 2, expected 3 in test case "fails"',
   );
 });
 
@@ -232,7 +235,7 @@ test("without main, errors and panics point at the file's lines", async () => {
   const panic = await runner.runProject(single('println("before")\n\n1 / 0\n'), "run");
   assert.equal(panic.status, "panic");
   assert.deepEqual(panic.stdout, ["before"]);
-  assert.equal(panic.summary, "integer-division-by-zero: runtime panic at src/main.hd:3");
+  assert.equal(panic.summary, "integer-division-by-zero: runtime panic at src/main.hd:3:1");
 });
 
 test("without main, a multi-file project evaluates the entry module", async () => {
@@ -311,7 +314,7 @@ test("Test judges it_each rows, expected panics, and ignored cases as hd test do
       '        assert(value < 3, reason="rows are small")',
       "    )",
     ]),
-    'panic: assertion-failed: rows are small in test case "small"',
+    'panic: src/main.hd:5:9: assertion-failed: rows are small in test case "small"',
   );
   assert.equal(
     await test([
@@ -368,7 +371,7 @@ test("Test runs the test cases of _test.hd modules", async () => {
   );
   assert.equal(
     failing.summary,
-    'assertion-failed: one day late: actual 5, expected 4 in test case "charges a fee after 30 days"',
+    'src/billing_test.hd:6:5: assertion-failed: one day late: actual 5, expected 4 in test case "charges a fee after 30 days"',
   );
   const misplaced = await runner.runProject(
     {

@@ -218,8 +218,10 @@ export async function runProject(
       `${passed} ${passed === 1 ? "test" : "tests"} passed${ignored > 0 ? `, ${ignored} ignored` : ""}`,
     );
   } catch (error) {
-    if (error instanceof RuntimePanicError)
-      return finish("panic", diagnostics, `${error.message} in ${current}`);
+    if (error instanceof RuntimePanicError) {
+      const notes = error.notes.map((note) => `; note: ${note}`).join("");
+      return finish("panic", diagnostics, `${error.message} in ${current}${notes}`);
+    }
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     return finish("failure", diagnostics, `${message} (in ${current})`);
   }
@@ -249,9 +251,10 @@ export async function watProject(project: Project): Promise<WatResult> {
   if (!analysis.hir || hasErrors(diagnostics))
     return { status: "compile-error", diagnostics, summary: "compilation failed" };
   try {
-    // Assembling validates the WAT, as a run would.
+    // Assembling validates the WAT, as a run would. The WAT is the module a
+    // run assembles, with its panic sites' debug-location lines.
     const { wat } = await compileToWasm({
-      wat: emitWat(analysis.hir),
+      wat: emitWat(analysis.hir, { sites: [] }),
       hir: analysis.hir,
       diagnostics: analysis.diagnostics,
     });
@@ -334,7 +337,7 @@ async function evaluateTopLevel(
       column,
       endLine: line,
       endColumn: Math.max(column, endColumn(line)),
-      notes: [],
+      notes: [...(message.notes ?? [])],
     };
   };
 
@@ -362,12 +365,17 @@ async function evaluateTopLevel(
     const messages = outcome.errors.map(parseReplMessage);
     diagnostics.push(...messages.map((message) => inEntry(message, input)));
     const panic = messages.find(({ code }) => code === "runtime-panic");
-    if (panic)
+    if (panic) {
+      // The panic names its operation in the input, when the host found it.
+      const { line, column } = inEntry(panic, input);
+      const notes = (panic.notes ?? []).map((note) => `; note: ${note}`).join("");
+      const at = panic.line === undefined ? `${line}` : `${line}:${column}`;
       return finish(
         "panic",
         diagnostics,
-        `${panic.message}: runtime panic at ${path}:${input.line}`,
+        `${panic.message}: runtime panic at ${path}:${at}${notes}`,
       );
+    }
     const internal = messages.find(({ code }) => code === "internal-error");
     if (internal) return finish("failure", diagnostics, internal.message);
     return finish("compile-error", diagnostics, "compilation failed");
