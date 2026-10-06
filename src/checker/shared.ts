@@ -1264,7 +1264,8 @@ export function normalizeRowArguments(
       nominal.arguments.map((argument, index) => {
         const row = rowArgumentKeys(argument);
         if (!rows.has(parameters[index] ?? "")) {
-          if (row)
+          // An unknown type has no parameters to compare; `typeName` reports it.
+          if (row && parameters[index] !== undefined)
             mismatch ??= `'${nominal.name}' takes a type, not the row '${displayType(argument)}', for '${displayType(parameters[index])}'`;
           return visit(argument);
         }

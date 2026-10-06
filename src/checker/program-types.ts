@@ -296,13 +296,18 @@ export function defineProgramData(context: ProgramCheckContext): void {
           message: `an embedded field must name a data type, not '${displayType(field.type.name)}'`,
           span: field.span,
         });
-      // An embedded field is always public (08-data-and-enums.md#data-declarations).
+      // A public field is part of a public type's signature, and an embedded field is
+      // always public (10-modules.md#r-module.vis.signature.coverage, 08-data-and-enums.md#data-declarations).
       const leaked =
-        declaration.public && field.embedded ? firstPrivateSignatureType(type, program) : undefined;
+        declaration.public && (field.embedded || field.public)
+          ? firstPrivateSignatureType(type, program)
+          : undefined;
       if (leaked)
         diagnostics.push({
           code: "private-type-leak",
-          message: `public data '${declaration.name}' embeds private type '${leaked}'; embedded fields are always public`,
+          message: field.embedded
+            ? `public data '${declaration.name}' embeds private type '${leaked}'; embedded fields are always public`
+            : `public field '${field.name}' of public data '${declaration.name}' exposes private type '${leaked}'`,
           span: field.span,
         });
       return {
@@ -458,6 +463,14 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
           variantBounds,
         );
         const type = resolved ?? "void";
+        // A public enum's payloads are part of its signature (10-modules.md#r-module.vis.signature.coverage).
+        const leaked = declaration.public ? firstPrivateSignatureType(type, program) : undefined;
+        if (leaked)
+          diagnostics.push({
+            code: "private-type-leak",
+            message: `public enum '${declaration.name}' exposes private type '${leaked}' in a payload`,
+            span: field.span,
+          });
         const checked = {
           name: field.name,
           type,

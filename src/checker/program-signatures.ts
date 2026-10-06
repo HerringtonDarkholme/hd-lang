@@ -174,6 +174,11 @@ function privateSignatureLeak(
     declaration.requirements
       .flatMap((requirement) => resolveGenericRequirement(requirement, rowParameterSet))
       .map((requirement) => firstPrivateSignatureType(requirement, program))
+      .find((candidate) => candidate !== undefined) ??
+    // Trait bounds are part of the signature too (10-modules.md#r-module.vis.signature.coverage).
+    declaration.genericBounds
+      .flatMap((bound) => bound.traits)
+      .map((trait) => firstPrivateSignatureType(trait, program))
       .find((candidate) => candidate !== undefined)
   );
 }
