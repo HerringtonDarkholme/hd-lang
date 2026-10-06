@@ -1,0 +1,8 @@
+use pkg.billing.{late_fee}
+use std.testing.assert_equal
+
+pub fn overdue_days() -> i32:
+    45
+
+it("charges an overdue invoice"):
+    assert_equal(late_fee(overdue_days()), 5, reason="45 days is late")

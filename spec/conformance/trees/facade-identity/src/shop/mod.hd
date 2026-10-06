@@ -1,0 +1,4 @@
+pub use pkg.shop.cart.{Cart}
+
+pub fn empty_cart() -> Cart:
+    Cart { items: 0 }

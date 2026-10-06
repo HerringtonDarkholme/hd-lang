@@ -1,0 +1,9 @@
+# test: an integration test program reaches the package's library through pkg, as a dependent does
+# Spec 10 Test Modules: module.test.integration, module.test.integration.view,
+# module.test.integration.pkg-root. The tree's src/lib.hd declares order_total and a private discount.
+# fixture-package-tree: shop-lib/tests/checkout.hd
+use pkg.{order_total}
+use std.testing.assert_equal
+
+it("totals an order through the public API"):
+    assert_equal(order_total([100, 250, 50]), 395, reason="three items take the discount")

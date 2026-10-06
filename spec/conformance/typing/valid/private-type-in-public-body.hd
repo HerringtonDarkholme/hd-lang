@@ -1,0 +1,15 @@
+# test: a private type may appear in a public function's body, and in a private field of a public type
+# Spec 10 Public Signatures: module.vis.body.
+data Address:
+    city: string
+
+pub data Customer:
+    pub name: string
+    address: Address
+
+pub fn city_length(customer: Customer) -> usize:
+    let address: Address = customer.address
+    address.city.len()
+
+pub fn new_customer(name: string, city: string) -> Customer:
+    Customer { name: name, address: Address { city: city } }

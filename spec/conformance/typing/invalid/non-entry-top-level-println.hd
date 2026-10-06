@@ -1,0 +1,8 @@
+# test: top-level code of a non-entry module must be requirement-free, so println there has no Console
+# Spec 10 Requirement-Free Initialization: module.init.requirement-free, module.init.requirement-free.forms;
+# Console: module.console.println. The primary file is an ordinary module of the tree's package.
+# fixture-package-tree: lib-root/src/catalog.hd
+println("loading the catalog")  # diagnostic: missing-requirement
+
+pub fn item_count() -> i32:
+    3

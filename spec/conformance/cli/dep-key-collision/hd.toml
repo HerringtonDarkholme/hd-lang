@@ -1,0 +1,6 @@
+[package]
+name = "shop"
+
+[dependencies]
+my-money = { path = "a" }
+my_money = { path = "b" }

@@ -1,0 +1,4 @@
+pub fn main() -> void $ Console:
+    println("shop")
+
+# Spec 10 Root Files: module.path.no-lib-dependency; Path Requirements: module.path-dep.form.

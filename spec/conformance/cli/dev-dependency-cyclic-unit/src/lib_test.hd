@@ -1,0 +1,9 @@
+use dep.fixtures.{sample_orders}
+use pkg.{order_count}
+use std.testing.assert_equal
+
+it("counts the sample orders"):
+    assert_equal(order_count(sample_orders()), 2, reason="two sample orders")
+
+# Spec 10 Test Modules: module.test.cyclic-dev-unit. fixtures depends back on shop,
+# so a test module must not use it.

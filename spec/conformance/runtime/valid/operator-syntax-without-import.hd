@@ -1,0 +1,16 @@
+# test: operator syntax needs no import, even where the module never names the operator trait
+# Spec 10 Standard Names Outside The Prelude: module.prelude.ops-operator-traits. The tree's
+# src/money.hd imports std.ops.Add and implements it for Money.
+# fixture-package-tree: money-ops/src/ledger.hd
+use pkg.money.{Money}
+use std.testing.assert_equal
+
+fn balance(entries: List[Money]) -> Money:
+    let total = Money { cents: 0 }
+    for entry in entries:
+        total = total + entry
+    total
+
+tests:
+    it("adds money with + and no use of Add"):
+        assert_equal(balance([Money { cents: 250 }, Money { cents: 125 }]).cents, 375, reason="Money implements Add")

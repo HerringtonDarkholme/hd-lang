@@ -1,0 +1,4 @@
+# A test module uses a dev dependency that depends back on the package.
+run: hd test --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"cyclic-test-dependency","severity":"error","message":null,"file":"src/lib_test.hd","line":1},{"kind":"summary","errors":1,"status":101}]

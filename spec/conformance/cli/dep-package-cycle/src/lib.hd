@@ -1,0 +1,7 @@
+use dep.money.{cents}
+
+pub fn price(euros: i32) -> i32:
+    cents(euros)
+
+# Spec 10 Folder Graph: module.cycle.package; Path Requirements: module.path-dep.form,
+# module.path-dep.any-package. shop requires money, and money requires shop.

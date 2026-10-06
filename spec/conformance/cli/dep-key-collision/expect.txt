@@ -1,0 +1,4 @@
+# my-money and my_money are both dep.my_money, so the manifest is invalid.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null,"file":"hd.toml","line":null},{"kind":"summary","errors":1,"status":101}]

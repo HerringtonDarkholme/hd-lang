@@ -1,0 +1,2 @@
+pub fn words(text: string) -> i32:
+    if text == "": 0 else: 1

@@ -1,0 +1,10 @@
+use std.ops.Add
+
+pub data Money:
+    pub cents: i64
+
+impl Add[Money] for Money:
+    type Out = Money
+
+    fn add(self, other: Money) -> Money:
+        Money { cents: self.cents + other.cents }

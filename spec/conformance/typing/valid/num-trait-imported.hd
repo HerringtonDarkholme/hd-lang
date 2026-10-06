@@ -1,0 +1,9 @@
+# test: a module imports a numeric trait from std.num to name it in a bound
+# Spec 10 Standard Names Outside The Prelude: module.prelude.imported, module.prelude.num.
+use std.num.Num
+
+fn largest[T < Num](values: List[T], fallback: T) -> T:
+    fallback
+
+fn top_score(scores: List[i32]) -> i32:
+    largest(scores, 0)

@@ -1,0 +1,2 @@
+pub fn late_fee(days: i32) -> i32:
+    if days > 30: 5 else: 0

@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,719 cases: 2,700 selected in `test/portable/cases.tsv` and 19 known
-failures. The selected cases are 2,338 language tier, 308 stdlib tier, and 54
-CLI tier; the known failures are 8 language tier, 1 stdlib tier, and 10
+2,770 cases: 2,746 selected in `test/portable/cases.tsv` and 24 known
+failures. The selected cases are 2,378 language tier, 308 stdlib tier, and 60
+CLI tier; the known failures are 9 language tier, 1 stdlib tier, and 14
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -27,6 +27,9 @@ CLI tier.
 | F-618 | 1 | a trait value of a generic trait does not satisfy a bound on its own instantiation |
 | F-619 | 1 | `T < mut Any` accepts a readonly argument |
 | F-620 | 1 | a `TypeId` prints a non-prelude declaration without its qualified name |
+| F-621 | 1 | a library module under test gets an entry row for its top level |
+| F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
+| F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
 ## Findings
@@ -85,6 +88,26 @@ Correctness and diagnostics:
   two same-named declarations of different modules may share one
   (`trait.identity.modules`). `runtime/valid/typeid-qualified-trait-name.hd`
   shows the name.
+- **F-621**: a package build whose module under test is a library module,
+  not `src/main.hd` or another entry, treats that module as the entry. So
+  its top level gets an inferred entry row (`scriptEntry` in
+  `src/package.ts`), and `println` there is accepted. By
+  `module.init.requirement-free`, a non-entry module initializes
+  requirement-free. `typing/invalid/non-entry-top-level-println.hd` shows it.
+- **F-622**: `derivation-line-drift` warns on the later of two derivation
+  blocks of one package even when their member lines are identical, as two
+  blocks over `Serialize` and `Deserialize` that both write `cache = pass`.
+  By `annot.line.drift`, only lines that differ warn. The comparison is in
+  `lintDerivations` in `src/checker/typed-derivation.ts`. Found by Kimi
+  (K10); `cli/derivation-lines-agree` shows it.
+- **F-623**: the package graph is not modeled. A path requirement that
+  reaches the root package back is not linked, so a cycle of packages is no
+  `package-cycle` error (`module.cycle.package`), and a dev dependency that
+  depends back on the package fails with `unknown-module`, where a test
+  module should get `cyclic-test-dependency` and an integration test should
+  build (`module.test.cyclic-dev-unit`, `module.test.cyclic-dev-allowed`).
+  `cli/dep-package-cycle`, `cli/dev-dependency-cyclic-unit`, and
+  `cli/dev-dependency-cyclic-integration` show it.
 
 Runtime cost:
 

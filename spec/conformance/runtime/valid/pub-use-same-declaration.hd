@@ -1,0 +1,19 @@
+# test: a facade's pub use binds the name locally too, and the name it exposes is the declaration itself, not a copy
+# Spec 10 Public Uses: module.pub-use.facade, module.pub-use.binding, module.pub-use.identity.
+# The tree's src/shop/mod.hd re-exports Cart from src/shop/cart.hd and uses it in empty_cart.
+# fixture-package-tree: facade-identity/src/checkout.hd
+use pkg.shop.{Cart, empty_cart}
+use pkg.shop.cart.{Cart as StoredCart}
+use std.testing.assert_equal
+
+fn item_count(cart: StoredCart) -> i32:
+    cart.items
+
+fn restock(cart: Cart) -> StoredCart:
+    StoredCart { items: cart.items + 3 }
+
+tests:
+    it("a cart from the facade is a cart from its defining module"):
+        let cart: Cart = empty_cart()
+        assert_equal(item_count(cart), 0, reason="pkg.shop.Cart is pkg.shop.cart.Cart")
+        assert_equal(item_count(restock(cart)), 3, reason="the two names are one type")

@@ -1,0 +1,18 @@
+# test: From and Error are not prelude names, so a module may declare its own
+# Spec 10 Standard Names Outside The Prelude: module.prelude.imported, module.prelude.from-error,
+# module.prelude.own-from-error.
+trait From[T]:
+    fn convert(value: T) -> Self
+
+data Error:
+    code: i32
+
+data Invoice:
+    total: i32
+
+impl From[i32] for Invoice:
+    fn convert(value: i32) -> Invoice:
+        Invoice { total: value }
+
+fn check(invoice: Invoice) -> Result[Invoice, Error]:
+    if invoice.total < 0: .Err(Error { code: 1 }) else: .Ok(invoice)

@@ -1,0 +1,8 @@
+# test: a public data type's public field must not have a private type
+# Spec 10 Public Signatures: module.vis.signature, module.vis.signature.coverage.
+data Address:
+    city: string
+
+pub data Customer:
+    pub name: string
+    pub address: Address  # diagnostic: private-type-leak

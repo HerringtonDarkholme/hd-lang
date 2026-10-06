@@ -1,0 +1,25 @@
+# test: postfix ? converts an error through the standard From, which the module never imports
+# Spec 10 Standard Names Outside The Prelude: module.prelude.question-from, module.prelude.from-error.
+# The tree's src/errors.hd imports std.convert.From and implements From[ParseError] for ImportError.
+# fixture-package-tree: errors-from/src/importer.hd
+use pkg.errors.{ImportError, ParseError}
+use std.testing.assert_equal
+
+fn parse_row(row: string) -> Result[i32, ParseError]:
+    if row == "": .Err(ParseError { line: 4 }) else: .Ok(1)
+
+fn import_rows(rows: List[string]) -> Result[i32, ImportError]:
+    let count = +0
+    for row in rows:
+        count = count + parse_row(row)?
+    .Ok(count)
+
+fn outcome(rows: List[string]) -> string:
+    match import_rows(rows):
+        .Ok(count) => "${count} rows"
+        .Err(error) => error.message
+
+tests:
+    it("converts a parse error to an import error"):
+        assert_equal(outcome(["a", "b"]), "2 rows", reason="no error")
+        assert_equal(outcome(["a", ""]), "bad row on line 4", reason="From[ParseError] ran")

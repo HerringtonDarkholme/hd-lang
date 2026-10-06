@@ -1,0 +1,15 @@
+use std.serde.{Deserialize, Serialize}
+use std.structure.Structure
+
+pub data Session:
+    pub id: i64
+    pub cache: i64 = 0
+
+impl Serialize for Session by Structure:
+    cache = pass
+
+impl Deserialize for Session by Structure:
+    cache = pass
+
+# Spec 14 Line Drift: annot.line.drift, annot.line.drift.legal. The two blocks'
+# member lines agree, so no derivation-line-drift warning.

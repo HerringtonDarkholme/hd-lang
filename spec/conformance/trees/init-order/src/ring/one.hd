@@ -1,0 +1,8 @@
+use pkg.log.{record}
+use pkg.ring.two.{two}
+
+record("one first")
+record("one second")
+
+pub fn one() -> string:
+    "1"

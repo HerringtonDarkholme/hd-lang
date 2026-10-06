@@ -1,0 +1,5 @@
+# test: a grouped use may end with a trailing comma
+# Spec 10 Use Forms: module.use.trailing-comma.
+use std.testing.{assert, assert_equal,}
+use pkg.billing.{Invoice, late_fee,}
+pub use pkg.billing.{Receipt,}

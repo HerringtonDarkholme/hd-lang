@@ -1,0 +1,10 @@
+# test: a test module may use another test module's public declarations, since both are test code
+# Spec 10 Test Modules: module.test.module.view, module.test.code. The tree's
+# src/billing_test.hd is a test module with a pub function.
+# fixture-package-tree: test-only/src/reminder_test.hd
+use pkg.billing.{late_fee}
+use pkg.billing_test.{overdue_days}
+use std.testing.assert_equal
+
+it("reminds about an overdue invoice"):
+    assert_equal(late_fee(overdue_days() - 20), 0, reason="25 days is on time")

@@ -1,0 +1,19 @@
+# test: each test case runs in a fresh program instance after module initialization, so no test sees another's changes
+# Spec 10 Test Outcomes: module.testing.instance, module.testing.no-reuse; Entry Behavior:
+# module.init.tests, module.init.test-cases; Program Instances: module.init.per-instance.
+use std.testing.assert_equal
+
+let visits: mut List[string] = []
+visits.push("landing")
+
+fn visit(page: string) -> usize:
+    visits.push(page)
+    visits.len()
+
+tests:
+    it("the first case starts from the initialized log"):
+        assert_equal(visit("home"), 2, reason="initialization recorded landing once")
+        assert_equal(visit("cart"), 3, reason="the same instance keeps its log")
+
+    it("the second case starts from the initialized log too"):
+        assert_equal(visit("checkout"), 2, reason="a fresh instance, initialized once")

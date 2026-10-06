@@ -1,0 +1,2 @@
+pub fn order_count(lines: List[string]) -> usize:
+    lines.len()

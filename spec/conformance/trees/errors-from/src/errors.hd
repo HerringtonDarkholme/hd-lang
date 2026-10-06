@@ -1,0 +1,11 @@
+use std.convert.From
+
+pub data ParseError:
+    pub line: i32
+
+pub data ImportError:
+    pub message: string
+
+impl From[ParseError] for ImportError:
+    fn from(value: ParseError) -> ImportError:
+        ImportError { message: "bad row on line ${value.line}" }

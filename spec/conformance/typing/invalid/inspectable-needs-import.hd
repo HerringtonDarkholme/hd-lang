@@ -1,0 +1,4 @@
+# test: Inspectable is declared by std.inspect and is not a prelude name
+# Spec 10 Standard Names Outside The Prelude: module.prelude.inspect.
+fn audit_entry[T < Inspectable](entry: T) -> T:  # diagnostic: unknown-trait
+    entry

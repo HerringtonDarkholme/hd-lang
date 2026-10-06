@@ -1,0 +1,5 @@
+pub fn main() -> void $ Console:
+    println("shop")
+
+# Spec 10 Dependency Requirements: module.dep.key-name, module.dep.key-name.collision,
+# module.dep.requirement-form. The keys my-money and my_money both name dep.my_money.

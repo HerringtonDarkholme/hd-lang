@@ -1,0 +1,6 @@
+use dep.fixtures.{sample_orders}
+
+pub fn demo_count() -> usize:
+    sample_orders().len()
+
+# Spec 10 Test Modules: module.test.non-test-use.dev-dependency, module.test.dev-dependency.

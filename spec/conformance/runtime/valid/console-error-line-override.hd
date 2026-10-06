@@ -1,0 +1,30 @@
+# test: a Console provider that overrides write_error_line! keeps error lines apart from ordinary lines
+# Spec 10 Console: module.console.write-error-line, module.console.write-line-mut.
+use std.testing.assert_equal
+
+data SplitConsole:
+    lines: mut List[string]
+    errors: mut List[string]
+
+impl Console for SplitConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.lines.push(text)
+        .Ok(())
+
+    fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.errors.push(text)
+        .Ok(())
+
+fn report!(failed: i32) -> void $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!("checked 3 orders")
+    if failed > 0:
+        _ := console.write_error_line!("${failed} orders failed")
+
+tests:
+    it("records error lines separately"):
+        let mut console = SplitConsole { lines: [], errors: [] }
+        $.with(Console=console):
+            report!(1)
+        assert_equal(console.lines, ["checked 3 orders"], reason="one ordinary line")
+        assert_equal(console.errors, ["1 orders failed"], reason="one error line")

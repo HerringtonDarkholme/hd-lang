@@ -1,0 +1,4 @@
+# shop depends on money, which depends on shop: a package cycle.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"package-cycle","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]

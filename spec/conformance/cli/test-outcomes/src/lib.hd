@@ -1,0 +1,39 @@
+use std.error.Error
+use std.process.ExitCode
+
+pub fn first(items: List[i32]) -> i32:
+    items[0]
+
+data CardError:
+    reason: string
+
+impl Display for CardError:
+    fn to_string(self) -> string:
+        "card declined: ${self.reason}"
+
+impl Error for CardError
+
+fn charge(cents: i32) -> Result[i32, CardError]:
+    if cents > 1000: .Err(CardError { reason: "limit" }) else: .Ok(cents)
+
+tests:
+    it("passes when the body completes"):
+        _ := first([1])
+
+    it("fails on a nonzero exit code", body=fn!() -> ExitCode: ExitCode(3))
+
+    it("fails on an error result"):
+        _ := charge(5000)?
+        .Ok(())
+
+    it("fails when the expected panic never comes", expect_panic="index-out-of-bounds"):
+        _ := first([1])
+
+    it("fails on a panic of another category", expect_panic="index-out-of-bounds"):
+        panic("not an index error")
+
+    it("passes on the expected panic", expect_panic="index-out-of-bounds"):
+        _ := first([])
+
+# Spec 10 Test Outcomes: module.testing.pass, module.testing.fail, module.testing.err-print,
+# module.testing.expect-panic-fail; Exit Status: module.entry.termination.err-code.

@@ -1,0 +1,3 @@
+# Two derivation blocks of one package whose member lines agree get no warning.
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

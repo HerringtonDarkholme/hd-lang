@@ -1,0 +1,8 @@
+pub fn order_total(prices: List[i32]) -> i32:
+    let total = +0
+    for price in prices:
+        total = total + price
+    total - discount(prices.len())
+
+fn discount(count: usize) -> i32:
+    if count > 2: 5 else: 0

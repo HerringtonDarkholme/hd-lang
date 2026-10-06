@@ -1,0 +1,4 @@
+# test: the numeric traits are not prelude names, so a bound on Num needs a use
+# Spec 10 Standard Names Outside The Prelude: module.prelude.imported, module.prelude.num.
+fn largest[T < Num](values: List[T], fallback: T) -> T:  # diagnostic: unknown-trait
+    fallback

@@ -1,0 +1,25 @@
+type Meters(f64)
+
+data Parcel:
+    label: string
+    weight: i32
+
+enum Shape:
+    Dot
+    Pair(i32, i32)
+    Circle(radius: f64)
+
+fn double(value: i32) -> i32:
+    value * 2
+
+pub fn main() -> void $ Console:
+    parcel := Parcel { label: "mug", weight: 3 }
+    dbg(parcel)
+    dbg(Shape.Dot, Shape.Pair(1, 2), Shape.Circle(radius=2.5))
+    dbg(Meters(1.5))
+    dbg('x', "tab\there")
+    dbg(double)
+    println("done")
+
+# Spec 10 Debug Values: module.dbg.value.structural, module.dbg.value.data, module.dbg.value.variant,
+# module.dbg.value.newtype, module.dbg.value.function, module.dbg.value.source; Debug Lines: module.dbg.line.

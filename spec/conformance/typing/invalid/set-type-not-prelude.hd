@@ -1,0 +1,5 @@
+# test: no set type is part of the core prelude
+# Spec 10 Built-In Methods: module.method.no-set; Collection Type Names: module.prelude.collections.
+fn tags() -> List[string]:
+    let seen: Set[string] = ["sale", "new"]  # diagnostic: unknown-type
+    ["sale", "new"]

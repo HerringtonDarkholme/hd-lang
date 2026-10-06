@@ -1,0 +1,6 @@
+# test: a script's top level is not a suspension driver, so a bang call there is an error
+# Spec 10 Requirement-Free Initialization: module.init.script-not-driver; Spec 11: req.bang.top-level.
+fn count_boxes!() -> i32:
+    3
+
+boxes := count_boxes!()  # diagnostic: bang-call-outside-suspension

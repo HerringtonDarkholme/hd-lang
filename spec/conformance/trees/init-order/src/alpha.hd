@@ -1,0 +1,6 @@
+use pkg.log.{record}
+
+record("alpha")
+
+pub fn alpha() -> string:
+    "a"

@@ -1,0 +1,7 @@
+# test: a public function's trait bound must not name a private trait
+# Spec 10 Public Signatures: module.vis.signature, module.vis.signature.coverage.
+trait Audited:
+    fn audit(self) -> string
+
+pub fn audit_all[T < Audited](entries: List[T]) -> i32:  # diagnostic: private-type-leak
+    0

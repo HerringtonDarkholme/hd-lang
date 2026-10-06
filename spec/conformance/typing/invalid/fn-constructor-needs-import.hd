@@ -1,0 +1,4 @@
+# test: the function type constructor Fn is not a prelude name, so writing it needs a use
+# Spec 10 Standard Names Outside The Prelude: module.prelude.function-items.
+fn apply_discount(prices: List[i32], rule: Fn[(i32,), i32, $()]) -> List[i32]:  # diagnostic: unknown-type
+    [for price in prices => rule(price)]

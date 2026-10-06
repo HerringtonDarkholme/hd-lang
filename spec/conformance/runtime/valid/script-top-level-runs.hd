@@ -1,0 +1,12 @@
+# test: a script's top-level statements are its entry behavior, with Console in its inferred row
+# Spec 10 Module Initialization: module.init.script, module.init.entry-module.selected;
+# Entry Behavior: module.init.script-body; Requirement-Free Initialization: module.init.script-row.
+# expect-stdout: packing 3 items
+# expect-stdout: 3 boxes packed
+items := ["mug", "plate", "bowl"]
+println("packing ${items.len()} items")
+boxes := pack(items)
+println("${boxes} boxes packed")
+
+fn pack(items: List[string]) -> usize:
+    items.len()

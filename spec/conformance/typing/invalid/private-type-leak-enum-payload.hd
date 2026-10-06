@@ -1,0 +1,8 @@
+# test: a public enum's payload must not have a private type
+# Spec 10 Public Signatures: module.vis.signature, module.vis.signature.coverage.
+data Address:
+    city: string
+
+pub enum Delivery:
+    Pickup
+    Courier(address: Address)  # diagnostic: private-type-leak

@@ -1,0 +1,7 @@
+use pkg.log.{record}
+use pkg.ring.one.{one}
+
+record("two")
+
+pub fn two() -> string:
+    "2"

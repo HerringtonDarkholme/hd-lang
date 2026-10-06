@@ -1,0 +1,12 @@
+# test: a use of a directory module does not bring its child modules along, so a path through the parent to a child names nothing the parent declares
+# Spec 10 Path-Inferred Modules: module.path.name; Directory Modules: module.path.directory,
+# module.path.mod-file, module.path.no-child-import; Spec 05: expr.name.qualified.missing.
+# The tree has src/user/mod.hd and src/user/types.hd.
+# fixture-package-tree: user-modules/src/report.hd
+use pkg.user
+
+pub fn welcome(name: string) -> string:
+    user.greeting(name)
+
+fn owner_name(owner: user.types.User) -> string:  # diagnostic: unknown-import
+    owner.name

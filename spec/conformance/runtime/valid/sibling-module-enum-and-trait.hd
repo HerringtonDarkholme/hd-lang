@@ -1,0 +1,16 @@
+# test: a public enum's variants and a public trait's methods are usable from another module, with no pub on either
+# Spec 10 Public Uses And Visibility: module.vis.pub; Member Visibility: module.vis.variants,
+# module.vis.trait-methods, module.vis.impl-target. The tree's src/orders.hd declares them.
+# fixture-package-tree: visibility/src/report.hd
+use pkg.orders.{Labeled, Status, ship}
+use std.testing.assert_equal
+
+fn describe(status: Status) -> string:
+    match status:
+        .Queued => "waiting"
+        .Shipped(_) => status.label()
+
+tests:
+    it("builds, matches, and labels a status from another module"):
+        assert_equal(describe(Status.Queued), "waiting", reason="the variant Queued is public with its enum")
+        assert_equal(describe(ship("Z1")), "shipped Z1", reason="label follows the trait's visibility")

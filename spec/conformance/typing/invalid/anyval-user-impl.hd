@@ -1,0 +1,6 @@
+# test: user code cannot implement AnyVal or AnyRef
+# Spec 10 Value-Category Traits: module.prelude.any-sealed.
+data Parcel:
+    weight: i32
+
+impl AnyVal for Parcel  # diagnostic: sealed-trait-implementation

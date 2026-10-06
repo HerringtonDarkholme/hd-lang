@@ -1,0 +1,6 @@
+# test: a parent module's declarations are not visible in its child without a use
+# Spec 10 Directory Modules: module.path.no-parent-scope. The tree's src/user/mod.hd
+# declares greeting.
+# fixture-package-tree: user-modules/src/user/badge.hd
+pub fn badge(name: string) -> string:
+    greeting(name)  # diagnostic: unknown-name

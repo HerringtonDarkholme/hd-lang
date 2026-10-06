@@ -1,0 +1,4 @@
+# tool has src/main.hd and no src/lib.hd, so no package can depend on it.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null,"file":null,"line":null},{"kind":"summary","errors":1,"status":101}]

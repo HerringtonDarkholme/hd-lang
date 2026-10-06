@@ -1,0 +1,5 @@
+[package]
+name = "shop"
+
+[dev-dependencies]
+fixtures = { path = "fixtures" }

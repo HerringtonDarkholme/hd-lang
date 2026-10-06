@@ -1,0 +1,5 @@
+[package]
+name = "shop"
+
+[dependencies]
+tool = { path = "tool" }

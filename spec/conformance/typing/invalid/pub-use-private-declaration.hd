@@ -1,0 +1,5 @@
+# test: a facade cannot re-export a declaration that its defining module keeps private
+# Spec 10 Public Uses: module.pub-use.public-source; Use Forms: module.use.private-name.
+# The tree's src/shop/cart.hd declares audit without pub.
+# fixture-package-tree: facade-private/src/shop/mod.hd
+pub use pkg.shop.cart.{Cart, audit}  # diagnostic: private-import

@@ -1,0 +1,5 @@
+pub fn main() -> void $ Console:
+    println("tool")
+
+# Spec 10 Root Files: module.path.main-file, module.path.lib-target, module.path.executable-only.
+# This package has src/main.hd and no src/lib.hd, so it has no library.

@@ -1,0 +1,5 @@
+# A test case passes only when its body completes and its result reports
+# ExitCode(0); expect_panic passes only on a panic of that category.
+run: hd test --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"passes when the body completes","outcome":"passed"},{"kind":"test","name":"fails on a nonzero exit code","outcome":"failed","message":null},{"kind":"test","name":"fails on an error result","outcome":"failed","message":null},{"kind":"test","name":"fails when the expected panic never comes","outcome":"failed","message":null},{"kind":"test","name":"fails on a panic of another category","outcome":"failed","message":null},{"kind":"test","name":"passes on the expected panic","outcome":"passed"},{"kind":"summary","passed":2,"failed":4,"status":1}]

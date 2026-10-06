@@ -1,0 +1,5 @@
+pub data Cart:
+    pub items: i32
+
+fn audit(cart: Cart) -> string:
+    "${cart.items} items"

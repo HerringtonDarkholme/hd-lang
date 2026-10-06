@@ -1,0 +1,10 @@
+# test: a public main! with no parameters is a suspending entry point, and its row names the host Console
+# Spec 10 Executable Entry Point: module.entry.definition, module.entry.suspending, module.entry.row;
+# Entry Arguments: module.entry.no-arguments, module.entry.host-facilities.
+# expect-stdout: packed 3 boxes
+fn count_boxes!(items: List[string]) -> usize:
+    items.len()
+
+pub fn main!() -> void $ Console:
+    boxes := count_boxes!(["mug", "plate", "bowl"])
+    println("packed ${boxes} boxes")

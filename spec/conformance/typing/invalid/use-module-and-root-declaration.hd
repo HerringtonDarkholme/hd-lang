@@ -1,0 +1,8 @@
+# test: a single use that names both a module and a declaration of its parent module is ambiguous
+# Spec 10 Use Forms: module.use.ambiguous. The tree's src/lib.hd declares
+# words, and src/words.hd is the module words.
+# fixture-package-tree: ambiguous-words/src/report.hd
+use pkg.words  # diagnostic: ambiguous-import
+
+pub fn headline(title: string) -> string:
+    title

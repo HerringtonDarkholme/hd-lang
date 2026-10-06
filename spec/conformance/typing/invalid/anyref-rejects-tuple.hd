@@ -1,0 +1,7 @@
+# test: tuples do not implement AnyRef
+# Spec 10 Value-Category Traits: module.prelude.anyref-not.
+fn keep[T < AnyRef](value: T) -> T:
+    value
+
+fn check() -> void:
+    _ := keep((+1, "a"))  # diagnostic: unsatisfied-trait-bound

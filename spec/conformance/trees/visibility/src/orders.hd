@@ -1,0 +1,18 @@
+pub enum Status:
+    Queued
+    Shipped(tracking: string)
+
+pub trait Labeled:
+    fn label(self) -> string
+
+impl Labeled for Status:
+    fn label(self) -> string:
+        match self:
+            .Queued => "queued"
+            .Shipped(tracking) => "shipped ${tracking}"
+
+pub fn ship(tracking: string) -> Status:
+    Status.Shipped(tracking)
+
+fn audit() -> string:
+    "audited"

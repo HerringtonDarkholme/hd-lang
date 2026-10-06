@@ -1,0 +1,13 @@
+# A type without Debug prints its structure as hd source: a data type with
+# every field, a variant qualified by its enum, a newtype with its base value,
+# a char and a string as literals, and a function as its signature.
+run: hd run
+stdout: done
+stderr: src/main.hd:17:5: parcel = Parcel { label: "mug", weight: 3 }
+stderr: src/main.hd:18:5: Shape.Dot = Shape.Dot
+stderr: src/main.hd:18:5: Shape.Pair(1, 2) = Shape.Pair(1, 2)
+stderr: src/main.hd:18:5: Shape.Circle(radius=2.5) = Shape.Circle(radius=2.5)
+stderr: src/main.hd:19:5: Meters(1.5) = Meters(1.5)
+stderr: src/main.hd:20:5: 'x' = 'x'
+stderr: src/main.hd:20:5: "tab\\there" = "tab\\there"
+stderr: src/main.hd:21:5: double = <fn double(i32) -> i32>
