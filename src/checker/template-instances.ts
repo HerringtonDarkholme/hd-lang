@@ -11,7 +11,11 @@ import type {
 } from "../ast.ts";
 import { preserveSourceOrigin, type SourceSpan } from "../diagnostics.ts";
 import { nominalGenericParts, readonlyType, displayType } from "../types.ts";
-import { derivedBaseSpan, derivedImplementationSpan } from "./derive-intrinsics.ts";
+import {
+  derivedBaseSpan,
+  derivedImplementationSpan,
+  type DerivedOrigins,
+} from "./derive-intrinsics.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 
 // A typed-derivation template checked once, and the implementations that
@@ -447,7 +451,8 @@ interface InstanceInput {
   /** The names of the derivation's traversals and of its facts function. */
   readonly prefix: string;
   readonly part: string;
-  readonly checked: boolean;
+  /** For a checked derivation, the compilation's origins, which record its span. */
+  readonly checked: DerivedOrigins | undefined;
   /** The target belongs to std, so generated code is reachable only through use. */
   readonly standard?: boolean;
   readonly renames: ReadonlyMap<string, string>;
@@ -593,7 +598,7 @@ export function instanceImplementations(input: InstanceInput): {
     associatedTypes: renameTypes(compiled.template.associatedTypes, targetRenames),
     methods: [...forwarded, ...(derivation.block?.methods ?? [])],
     // An unmet derived bound at a use is `missing-derived-bound` (trait.derive.bound-unmet).
-    span: checked ? derivedImplementationSpan(derivation.span) : derivation.span,
+    span: checked ? derivedImplementationSpan(checked, derivation.span) : derivation.span,
   };
   return { structure, implementation };
 }
@@ -668,6 +673,7 @@ export function forwardNewtype(
   item: { trait: string; declaration: TypeDecl; span: SourceSpan },
   template: ImplDecl,
   checked: boolean,
+  origins: DerivedOrigins,
   helpers: Map<string, FunctionDecl>,
   usedHelpers: Set<string>,
   error: (code: string, message: string, span: SourceSpan) => void,
@@ -725,7 +731,7 @@ export function forwardNewtype(
     // A comparison trait calls the base type's method qualified by the trait,
     // so a base type without it is `derive-field-missing-trait` at the base
     // type (trait.derive.newtype.requires.error).
-    const at = derivedBaseSpan(item.declaration, item.trait);
+    const at = derivedBaseSpan(origins, item.declaration, item.trait);
     const helper = checked ? newtypeHelper(item.trait, method, parameter, helpers) : undefined;
     if (helper) usedHelpers.add(helper);
     const call: Expression = helper

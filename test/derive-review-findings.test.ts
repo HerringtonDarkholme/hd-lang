@@ -8,7 +8,9 @@ import {
   derivedFieldDiagnostic,
   derivedFieldSpan,
   derivedImplementationSpan,
-  DERIVED_IMPLEMENTATION_SPANS,
+  DerivedOrigins,
+  isDerivedImplementation,
+  registerDerivedOrigins,
 } from "../src/checker/derive-intrinsics.ts";
 
 const ROWS = `trait Db
@@ -94,14 +96,50 @@ test("O-11: derive diagnostics survive span copies", () => {
     type: { name: "fn(i32) -> i32", span: spanAt(0) },
     span: spanAt(10),
   } as DataField;
-  const registered = derivedFieldSpan(field, "Eq", "Pair");
+  const origins = new DerivedOrigins();
+  const program = {};
+  registerDerivedOrigins(program, origins);
+  const registered = derivedFieldSpan(origins, field, "Eq", "Pair");
   assert.deepEqual(
-    derivedFieldDiagnostic("unsatisfied-trait-bound", "message", copied(registered)),
+    derivedFieldDiagnostic(program, "unsatisfied-trait-bound", "message", copied(registered)),
     {
       code: "derive-field-missing-trait",
       message: "field 'a' of 'Pair' does not implement Eq, which @derive(Eq) requires",
     },
   );
-  const implementation = derivedImplementationSpan(spanAt(20));
-  assert.equal(DERIVED_IMPLEMENTATION_SPANS.has(copied(implementation)), true);
+  const implementation = derivedImplementationSpan(origins, spanAt(20));
+  assert.equal(isDerivedImplementation(program, copied(implementation)), true);
+  // Another program's lookups never see these origins.
+  assert.equal(isDerivedImplementation({}, copied(implementation)), false);
+});
+
+// A derived field's diagnostic origin belongs to its own compilation: the
+// next program's error at the same position keeps its own code and message.
+const DERIVED_HASH = `@derive(Eq)
+data Opq: pass
+@derive(Eq, Hash)
+data Status:
+    code: Opq
+`;
+
+const PLAIN_MISMATCH = `# Type mismatch here
+#
+#
+fn f(small: i16, b: i32) -> i32:
+    1 + small + b
+`;
+
+test("B6: derive origins do not leak into the next compilation", () => {
+  const errors = (source: string) =>
+    analyze(source).diagnostics.filter((diagnostic) => diagnostic.severity !== "warning");
+  const derived = errors(DERIVED_HASH);
+  assert.equal(derived.length, 1);
+  assert.equal(derived[0]!.code, "derive-field-missing-trait");
+  assert.match(derived[0]!.message, /field 'code' of 'Status' does not implement Hash/);
+  const plain = errors(PLAIN_MISMATCH);
+  assert.equal(plain.length, 1);
+  // The two programs report at the same line, column, and offsets.
+  assert.deepEqual(plain[0]!.span, derived[0]!.span);
+  assert.equal(plain[0]!.code, "type-mismatch");
+  assert.match(plain[0]!.message, /operands have types i16 and i32/);
 });

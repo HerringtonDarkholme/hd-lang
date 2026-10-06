@@ -18,7 +18,12 @@ import type {
 import { DiagnosticError, type Diagnostic, type SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
-import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
+import {
+  checkLawPartners,
+  DERIVE_CHECKED_TRAITS,
+  DerivedOrigins,
+  derivedFieldSpan,
+} from "./derive-intrinsics.ts";
 import { carriedLibraryUses, renameStandardBindings } from "./standard-bindings.ts";
 import { deriveMissing, expandTypeAlias, nullaryTypeAliases } from "./derive-aliases.ts";
 import { standardTemplate, standardTupleTraits } from "./standard-library.ts";
@@ -131,6 +136,8 @@ interface DerivationResult {
    * (std-testing.arbitrary.derive.not-derivable).
    */
   readonly arbitraryOptIns: readonly ArbitraryOptIn[];
+  /** This compilation's derive origins, which its checker reads (checker/derive-intrinsics.ts). */
+  readonly origins: DerivedOrigins;
 }
 
 interface ArbitraryOptIn {
@@ -378,6 +385,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const diagnostics: Diagnostic[] = [];
   const optInSpans: SourceSpan[] = [];
   const arbitraryOptIns: ArbitraryOptIn[] = [];
+  const origins = new DerivedOrigins();
   const imported = writtenStructureImports(source);
   // The names of std.structure's items in this program.
   const renames = structureRenames(source);
@@ -561,14 +569,14 @@ export function withTypedDerivation(source: Program): DerivationResult {
   lintDerivations(source, derivations, diagnostics);
 
   if (diagnostics.some((item) => item.severity !== "warning"))
-    return { program, diagnostics, optInSpans, arbitraryOptIns };
+    return { program, diagnostics, optInSpans, arbitraryOptIns, origins };
 
   // Tuple templates (annot.template.tuple.*), and the std ones that the
   // program needs.
   const tuples = loadTupleTemplates(program, localTraits, tupleTemplates, kept, renames, error);
   const { standardTuples, shapes } = tuples;
   if (diagnostics.some((item) => item.severity !== "warning"))
-    return { program, diagnostics, optInSpans, arbitraryOptIns };
+    return { program, diagnostics, optInSpans, arbitraryOptIns, origins };
 
   // Generation.
   const generated: Program[] = [];
@@ -619,7 +627,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       compiledTemplate(derivation.trait),
       standard ? sourceMemberBound(standard.support, structureName("Source")) : [],
       scope,
-      checked,
+      checked ? origins : undefined,
       standard !== undefined && derivation.trait === DECLARED_DEFAULT_TEMPLATE,
       renames,
       definedParts,
@@ -639,7 +647,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
         compiled,
         [],
         scope,
-        false,
+        undefined,
         false,
         renames,
         definedParts,
@@ -659,7 +667,15 @@ export function withTypedDerivation(source: Program): DerivationResult {
       standardTemplates.has(item.trait) &&
       template.methods.every((method) => method.parameters[0]?.name === "self");
     const usedHelpers = new Set<string>();
-    const result = forwardNewtype(item, template, checked, newtypeHelpers, usedHelpers, error);
+    const result = forwardNewtype(
+      item,
+      template,
+      checked,
+      origins,
+      newtypeHelpers,
+      usedHelpers,
+      error,
+    );
     for (const name of usedHelpers) {
       standardNewtypeHelpers.set(
         name,
@@ -673,7 +689,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
   }
   implementations.push(...templateSupport);
   if (diagnostics.some((item) => item.severity !== "warning"))
-    return { program, diagnostics, optInSpans, arbitraryOptIns };
+    return { program, diagnostics, optInSpans, arbitraryOptIns, origins };
 
   const factFunctions = factCheckFunctions(program);
   return {
@@ -702,6 +718,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
     diagnostics,
     optInSpans,
     arbitraryOptIns,
+    origins,
   };
 }
 
@@ -1111,7 +1128,8 @@ function generateDerivation(
   compiled: CompiledTemplate,
   memberBound: readonly string[],
   scope: SelfRefScope,
-  checked: boolean,
+  /** For a checked derivation, the compilation's origins, which record its spans. */
+  checked: DerivedOrigins | undefined,
   /** `build` fills a member that declares a default from that default (DECLARED_DEFAULT_TEMPLATE). */
   fillsDeclaredDefaults: boolean,
   renames: ReadonlyMap<string, string>,
@@ -1122,7 +1140,7 @@ function generateDerivation(
   // A compared or hashed member is reported at its field (trait.derive.field-missing-trait).
   const memberSpan = (member: MemberModel): SourceSpan | undefined =>
     checked && !tuple
-      ? derivedFieldSpan(member.field, compiled.template.traitName!, owner)
+      ? derivedFieldSpan(checked, member.field, compiled.template.traitName!, owner)
       : undefined;
   const target = derivation.target;
   const declaration = target.declaration;

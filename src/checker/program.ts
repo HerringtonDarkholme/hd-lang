@@ -46,7 +46,8 @@ import { withTypedDerivation, withTypedDerivationSupport } from "./typed-derivat
 
 import { withErrorDerivation } from "./error-derivation.ts";
 import { withEntryErrorRenderer } from "./entry-error.ts";
-import { setHashableKeyTypes } from "./map-keys.ts";
+import { registerHashableKeyTypes } from "./map-keys.ts";
+import { registerDerivedOrigins, type DerivedOrigins } from "./derive-intrinsics.ts";
 import { sourceSpanKey, type Diagnostic, type SourceSpan } from "../diagnostics.ts";
 import { testTierNames, withTestTierNotes } from "./test-tier-notes.ts";
 import {
@@ -133,7 +134,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   const result = checkWithDebugPrinters(
     withEntryErrorRenderer(withSuffixMarkers(derived.program)),
     options,
-    prepared,
+    { ...prepared, origins: derived.origins },
   );
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/lang/14-annotations.md#r-annot.walker.obligation.error).
@@ -200,6 +201,12 @@ interface PreparedProgram {
   readonly defaultProfile: readonly string[];
 }
 
+/** What checking a derived program takes besides the program. */
+interface DerivedProgramInputs extends Omit<PreparedProgram, "program"> {
+  /** The derive origins of this compilation alone (checker/derive-intrinsics.ts). */
+  readonly origins: DerivedOrigins;
+}
+
 function prepareForDerivation(source: Program): PreparedProgram {
   const standardAliases = standardImportAliases(source);
   const testRunners = testRunnerNames(source);
@@ -226,7 +233,7 @@ function prepareForDerivation(source: Program): PreparedProgram {
 function checkWithDebugPrinters(
   source: Program,
   options: CheckOptions,
-  prepared: Omit<PreparedProgram, "program">,
+  prepared: DerivedProgramInputs,
 ): CheckResult {
   const first = debugPrintState(source, options);
   const result = checkProgram(source, options, prepared, first);
@@ -258,7 +265,7 @@ function checkWithDebugPrinters(
 function checkProgram(
   source: Program,
   options: CheckOptions,
-  prepared: Omit<PreparedProgram, "program">,
+  prepared: DerivedProgramInputs,
   debugPrint: DebugPrintState,
 ): CheckResult {
   const { standardAliases, testRunners, runnerCapabilities, defaultProfile } = prepared;
@@ -279,7 +286,6 @@ function checkProgram(
     };
   const declared = withTypeDeclarations(defaulted.program, standardAliases);
   const program = declared.program;
-  setHashableKeyTypes(program);
   const context: ProgramCheckContext = {
     program,
     typeDeclarations: declared.typeDeclarations,
@@ -324,6 +330,10 @@ function checkProgram(
   // which package declares what through it (checker/package-ownership.ts).
   registerPackageOwnership(context.traitTypes, program);
   registerDebugPrint(context.traitTypes, debugPrint);
+  // Written map keys and bounds check against this program's implementations.
+  registerHashableKeyTypes(context.traitTypes, program);
+  // Derived spans are keyed by position, so each program reads its own.
+  registerDerivedOrigins(context.traitTypes, prepared.origins);
   validateProgram(context);
   // A missing required result type leaves no signature to check against.
   if (context.diagnostics.some((diagnostic) => diagnostic.code === "missing-result-type"))

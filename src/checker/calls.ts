@@ -12,7 +12,7 @@ import { forwardingPlan } from "./assignability.ts";
 import { enclosingBoundProof } from "./trait-paths.ts";
 import { carryAmbiguous } from "./ambiguous-solutions.ts";
 import { inferTypesThroughBounds } from "./bound-inference.ts";
-import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
+import { isDerivedImplementation } from "./derive-intrinsics.ts";
 import {
   contextKeys,
   mutableInner,
@@ -1321,7 +1321,7 @@ export abstract class CallChecker extends StatementChecker {
     }
     // An unmet bound of an intrinsically derived implementation's method
     // (spec/lang/09-traits.md#r-trait.derive.bound-unmet).
-    const boundCode = DERIVED_IMPLEMENTATION_SPANS.has(signature.span)
+    const boundCode = isDerivedImplementation(this.traitTypes, signature.span)
       ? "missing-derived-bound"
       : "unsatisfied-trait-bound";
     return signature.genericBounds.map((bound) => {

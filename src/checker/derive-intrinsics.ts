@@ -41,18 +41,40 @@ class SpanOriginSet {
 }
 
 /**
- * The origins of generated lines that compare or hash one field. A trait
- * error there is `derive-field-missing-trait` at the field
- * (spec/lang/09-traits.md#r-trait.derive.field-missing-trait).
+ * The derive origins of one compilation. Its typed derivation registers them,
+ * and only the checker of the same program reads them: span keys carry no
+ * program identity, so a module-level registry would match another program's
+ * line and column (checker/program.ts).
  */
-const DERIVED_FIELD_CHECKS = new SpanOrigins<DerivedFieldCheck>();
+export class DerivedOrigins {
+  /**
+   * The origins of generated lines that compare or hash one field. A trait
+   * error there is `derive-field-missing-trait` at the field
+   * (spec/lang/09-traits.md#r-trait.derive.field-missing-trait).
+   */
+  readonly fieldChecks = new SpanOrigins<DerivedFieldCheck>();
+  /**
+   * The origins of derived implementations of the comparison traits. An unmet
+   * bound of one of their methods is `missing-derived-bound` at the use
+   * (spec/lang/09-traits.md#r-trait.derive.bound-unmet).
+   */
+  readonly implementations = new SpanOriginSet();
+}
+
+const registered = new WeakMap<object, DerivedOrigins>();
 
 /**
- * The origins of derived implementations of the comparison traits. An unmet
- * bound of one of their methods is `missing-derived-bound` at the use
- * (spec/lang/09-traits.md#r-trait.derive.bound-unmet).
+ * Records a program's origins under `key`, an object every function check of
+ * the program shares, such as its trait map. The lookups below take that key.
  */
-export const DERIVED_IMPLEMENTATION_SPANS = new SpanOriginSet();
+export function registerDerivedOrigins(key: object, origins: DerivedOrigins): void {
+  registered.set(key, origins);
+}
+
+/** Whether `span` is the origin of a derived implementation of a comparison trait. */
+export function isDerivedImplementation(key: object, span: SourceSpan): boolean {
+  return registered.get(key)?.implementations.has(span) === true;
+}
 
 /** The traits whose derivation reports `derive-field-missing-trait` and `missing-derived-bound`. */
 export const DERIVE_CHECKED_TRAITS: ReadonlySet<string> = new Set([
@@ -75,11 +97,12 @@ const DERIVED_FIELD_CODES: ReadonlySet<string> = new Set([
  * diagnostic is unchanged.
  */
 export function derivedFieldDiagnostic(
+  key: object,
   code: string,
   message: string,
   span: SourceSpan,
 ): { readonly code: string; readonly message: string } {
-  const field = DERIVED_FIELD_CHECKS.get(span);
+  const field = registered.get(key)?.fieldChecks.get(span);
   if (!field || !DERIVED_FIELD_CODES.has(code)) return { code, message };
   return {
     code: "derive-field-missing-trait",
@@ -90,9 +113,14 @@ export function derivedFieldDiagnostic(
 }
 
 /** A fresh span for the line that handles `field`, registered for its diagnostic. */
-export function derivedFieldSpan(field: DataField, trait: string, owner: string): SourceSpan {
+export function derivedFieldSpan(
+  origins: DerivedOrigins,
+  field: DataField,
+  trait: string,
+  owner: string,
+): SourceSpan {
   const span = { ...field.span };
-  DERIVED_FIELD_CHECKS.set(span, {
+  origins.fieldChecks.set(span, {
     trait,
     owner,
     field: field.positional ? `_${field.name}` : field.name,
@@ -101,10 +129,14 @@ export function derivedFieldSpan(field: DataField, trait: string, owner: string)
 }
 
 /** A fresh span for the line that forwards to a newtype's base type, registered for its diagnostic. */
-export function derivedBaseSpan(declaration: TypeDecl, trait: string): SourceSpan {
+export function derivedBaseSpan(
+  origins: DerivedOrigins,
+  declaration: TypeDecl,
+  trait: string,
+): SourceSpan {
   const base = declaration.base!;
   const span = { ...base.span };
-  DERIVED_FIELD_CHECKS.set(span, {
+  origins.fieldChecks.set(span, {
     trait,
     owner: declaration.name,
     field: displayType(base.name),
@@ -114,9 +146,9 @@ export function derivedBaseSpan(declaration: TypeDecl, trait: string): SourceSpa
 }
 
 /** A fresh span for a derived implementation, registered as derived. */
-export function derivedImplementationSpan(span: SourceSpan): SourceSpan {
+export function derivedImplementationSpan(origins: DerivedOrigins, span: SourceSpan): SourceSpan {
   const fresh = { ...span };
-  DERIVED_IMPLEMENTATION_SPANS.add(fresh);
+  origins.implementations.add(fresh);
   return fresh;
 }
 

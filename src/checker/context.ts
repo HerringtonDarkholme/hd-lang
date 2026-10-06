@@ -81,7 +81,7 @@ import {
 import { narrowsTo, numericType, sameWidthNumeric, widensTo } from "../numeric.ts";
 import { captureOf, coerceLiteral, finalValueOf, type InferredReturn } from "./literal-join.ts";
 import { joinedLeastCommonType } from "./literal-join.ts";
-import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
+import { derivedFieldDiagnostic, isDerivedImplementation } from "./derive-intrinsics.ts";
 import type {
   FunctionCheckResult,
   InherentMethod,
@@ -1199,7 +1199,7 @@ export abstract class CheckerContext {
     if (!found || !mapping) return undefined;
     const substitutions = matchTraitImplementation(found.impl, trait.index, found.type, [])!;
     // spec/lang/09-traits.md#r-trait.derive.bound-unmet
-    const code = DERIVED_IMPLEMENTATION_SPANS.has(found.impl.span)
+    const code = isDerivedImplementation(this.traitTypes, found.impl.span)
       ? "missing-derived-bound"
       : "unsatisfied-trait-bound";
     const diagnosticCount = this.diagnostics.length;
@@ -1418,7 +1418,7 @@ export abstract class CheckerContext {
     const shownTarget = displayType(target);
     let code = "type-mismatch";
     ({ code, message } = rowDiagnostic(code, message, this.declaration));
-    ({ code, message } = derivedFieldDiagnostic(code, message, span));
+    ({ code, message } = derivedFieldDiagnostic(this.traitTypes, code, message, span));
     if (code !== "type-mismatch") this.fail(code, message, span);
     this.diagnostics.push({
       code,
@@ -1474,7 +1474,7 @@ export abstract class CheckerContext {
   protected fail(code: string, message: string, span: SourceSpan, fix?: DiagnosticFix): never {
     const written = code;
     ({ code, message } = rowDiagnostic(code, message, this.declaration));
-    ({ code, message } = derivedFieldDiagnostic(code, message, span));
+    ({ code, message } = derivedFieldDiagnostic(this.traitTypes, code, message, span));
     this.diagnostics.push({ code, message, span, ...(fix && code === written ? { fix } : {}) });
     throw new CheckFailure(message);
   }

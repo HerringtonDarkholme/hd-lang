@@ -229,7 +229,7 @@ export function writtenApplicationBoundProblem(
             ? // A map key meets `Eq` and `Hash` through its own bounds (trait.hash.map-key).
               scope.hashableParameters.has(generic)
             : scope.parameterImplied(generic, traitName)
-          : implementsTrait(checked, traitName, scope.hashableParameters, 0);
+          : implementsTrait(scope.traitTypes, checked, traitName, scope.hashableParameters, 0);
       if (!implied) missing.push(traitName);
     }
     if (missing.length > 0)

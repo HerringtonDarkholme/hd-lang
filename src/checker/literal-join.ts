@@ -22,8 +22,12 @@ import { leastCommonType } from "./least-common-type.ts";
 /** A literal typed by rule 2, which a join of its own expression may retype. */
 const DEFAULTED = new WeakSet<HirExpression>();
 
-/** The spans of the literals that ever took a default type: the ones a retry may change. */
-export const DEFAULTED_SPANS = new Set<SourceSpan>();
+/**
+ * The spans of the literals that ever took a default type: the ones a retry
+ * may change. Keyed by span object, weakly, so a finished program's spans are
+ * not kept alive.
+ */
+export const DEFAULTED_SPANS = new WeakSet<SourceSpan>();
 
 export function markDefaultedLiteral<T extends HirExpression>(value: T): T {
   DEFAULTED.add(value);
