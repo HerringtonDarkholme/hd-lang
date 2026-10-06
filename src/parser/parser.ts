@@ -904,8 +904,10 @@ class Parser extends LetParser {
         const type = this.parseType();
         if (this.atText("="))
           this.fail(
-            "embedded-field-default",
-            "an embedded field cannot declare a default",
+            // No grammar form gives an embedded field a default
+            // (08-data-and-enums.md#r-data.default.embedded), so the general code applies.
+            "syntax-error",
+            "an embedded field cannot declare a default; a named field writes its type, as in `name: Type = value`",
             this.current().span,
           );
         this.expectKind("newline", "expected a line ending after an embedded field");
