@@ -71,6 +71,62 @@ observable properties of the result, not whether the source "looks good".
   memory use, executable size.
 - Correctness is a gate: a faster wrong program is not a better outcome.
 
+## Goal Metrics (proposal, 2026-10-06; awaiting the owner's edits)
+
+The owner asked for goal metrics from the three Arena pillars. Each metric
+lists how it is measured, the prototype's number where one exists, and a
+proposed target.
+
+### Pillar 1: Single-agent development cost
+
+| Metric | How measured | Prototype | Target |
+|---|---|---|---|
+| Expected tokens and time per correct solution (headline) | Arena task set (~30 tasks), fixed model and budget; failed runs count | not measured | ≤ the best of TypeScript/Go/Python on the same set |
+| Success rate within budget | same set | not measured | ≥ 95% |
+| Edit → diagnostics latency | change one function in a 10k-line package, time `hd check` | 0.32 s for a tiny file; no incremental builds | p50 ≤ 50 ms, p95 ≤ 200 ms |
+| Cold check | 10k-line package, cold cache | 0.50 s for 248 lines | ≤ 1 s |
+| Edit → test result | `hd test --filter one` after an edit | not measured | ≤ 300 ms |
+| First-fix rate | share of diagnostics whose suggested fix resolves the error (writing log + probe corpus) | not measured | ≥ 80% |
+| One error per root cause | share of single-mistake programs with exactly one diagnostic | not measured | ≥ 95% |
+
+### Pillar 2: Agent scalability
+
+| Metric | How measured | Prototype | Target |
+|---|---|---|---|
+| Slowdown under concurrency | p95 check latency with N = cores concurrent agents vs one alone, 16-core box | suite 1.7 min alone vs 15–17 min with several worktrees (~9x) | ≤ 1.5x |
+| Resident memory per check | peak RSS of `hd check` on a 10k-line package | not measured; intern caches grow without bound | ≤ 50 MB, flat over long sessions |
+| Shared cache hit rate | std and dependencies in a content-addressed cache shared across agents and worktrees | 0% (each process re-checks std) | ≥ 95% |
+| Process start → first diagnostic | startup cost per invocation | Node + TypeScript load (hundreds of ms) | ≤ 20 ms |
+| Disk per worktree | artifacts plus toolchain per agent checkout | full `node_modules` per worktree | ≤ 10 MB; one shared toolchain |
+| Conformance-suite CPU | total CPU for the ~2,800 cases | ~764 s CPU (65 s wall, 12-way) | ≤ 60 s CPU |
+
+### Pillar 3: Artifact quality (correctness is the gate)
+
+| Metric | How measured | Prototype | Target |
+|---|---|---|---|
+| Conformance (gate) | portable suite | 2,803 / 2,825, 22 known failures | 100% minus listed known failures; known failures → 0 |
+| Oracle agreement | fixtures and fuzzed programs through both compilers | — | 0 unexplained divergences |
+| Runtime speed | microbenchmarks with warm-up and spread, geomean vs Node | fib 0.66x … sum 11x | geomean ≤ 1.5x Node; no case > 3x; counted loops allocate nothing |
+| Executable size | release Wasm, tiny program and benchmarks | 1,669 B tiny; 1–4 KB each | no regression; tiny ≤ 2 KB |
+| Startup | instantiate → first output | not measured | ≤ 5 ms |
+| Program peak memory | heap high-water mark on the benchmarks | not measured | ≤ 2x Node |
+
+### Making the metrics real
+
+- **Measurement tools come first:**
+  - an Arena task runner;
+  - an edit-check latency benchmark;
+  - a concurrency harness (N agents × check/test);
+  - a memory probe.
+- **Gates.** The suite, memory, size and runtime benchmarks run as CI
+  gates, as `perf:check` does today. The token-cost Arena runs nightly.
+- **Baseline.** Measure the prototype on the same tools to fill the
+  "not measured" cells.
+- **Staging.** Milestone 1 is correctness parity plus the pillar 2 numbers,
+  which come from the architecture: a native binary, a shared cache and
+  incremental checking. Milestone 2 is runtime speed: `i31ref`, then
+  per-layout code.
+
 ## Prototype Baselines To Beat (2026-10-06)
 
 The numbers come from the frozen prototype and were taken on a shared,
