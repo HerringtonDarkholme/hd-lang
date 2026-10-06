@@ -204,6 +204,18 @@ medians in ms, release builds, after the P1e/P1f string fixes:
     turn a non-escaping closure's captured `mut` back into a local.
   - **Inlined `next`:** inline small `next` bodies, so iterator chains
     compile to loops too. This is the specializing iterator design.
+- **Iterator design after specialization.** The public `Iterator[T]`
+  stays the closure-backed data type (Chaining Study CS8, 2026-09-29).
+  The flat composed-stage design is a later option that waits for this
+  specializing compiler.
+  - Two of its questions stay open until it is pursued: how `take` stops
+    without pulling one element too many, and what `zip`, `chain` and
+    `flat_map` return.
+  - The study's stage 2 benchmarks produced no valid measurements, because
+    the prototype could not run the closure programs. Rerun them on the
+    new compiler.
+  - The study, the benchmark specification and both questions are in git
+    history: `git show 38560c7a^:future-work/archive/ITERATOR_PERF.md`.
 - **Sort** (read from lib/std, 2026-10-06). `List.sorted()` is a naive
   recursive merge sort written in hd. Each of its ~1.7M comparisons is an
   indirect closure call plus an `Ord` dictionary call that returns an

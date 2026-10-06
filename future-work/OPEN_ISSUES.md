@@ -278,11 +278,6 @@ Revisit: a public `ContextError::new(message, cause)` and
 `message(self) -> string`, keeping the layout private, if users need to
 wrap by hand or match on it.
 
-### Iterator Performance
-
-The flat-stage iterator design waits for a specializing compiler, one of
-the performance tasks queued for later.
-
 ### API Compatibility Checking (from the deleted PACKAGES.md)
 
 **Deferred.** `hd api diff O N` will decide whether two versions on one
