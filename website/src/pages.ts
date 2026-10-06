@@ -90,6 +90,7 @@ export const PAGES: readonly PageSource[] = [
   page("guide/README.md", "guide/index.html", "Guide", "Guide"),
   page("guide/OVERVIEW.md", "guide/overview.html", "Language Overview", "Guide"),
   page("guide/LANGUAGE_TOUR.md", "guide/language-tour.html", "Language Tour", "Guide"),
+  page("guide/WORKING_WITH_DATA.md", "guide/working-with-data.html", "Working With Data", "Guide"),
   page("guide/USE_SCENARIOS.md", "guide/use-scenarios.html", "Use Scenarios", "Guide"),
   page("spec/README.md", "spec/index.html", "Specification", "Reference"),
   ...SPEC_CHAPTERS.map(([file, title], index) =>
