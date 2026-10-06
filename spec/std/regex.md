@@ -76,6 +76,22 @@ value. The forms below are the whole syntax.
 2. r[std-regex.syntax.escape.other] Any other escape, such as `\b`, `\q`, or `\1`, or a `\` that ends the pattern, is an error. Error: `BadEscape`.
 3. r[std-regex.syntax.brace-literal] A `{` that does not begin a counted repetition, as in `a{` or `a{x}`, is a literal. So are `}` and `]` outside a class.
 
+```text
+use std.regex.{Regex, Match}
+use std.text.r
+
+fn found(pattern: string, text: string) -> string?:
+    match Regex::new(pattern):
+        .Ok(compiled) => compiled.find(text).map(fn(m: Match) -> string: m.text)
+        .Err(_) => .None
+
+fn demo() -> List[string]:
+    [found(r"a\.b", "axb a.b").unwrap_or(""),
+     found(r"a\tb", "a\tb").unwrap_or(""),
+     found(r"\d+", "abc42").unwrap_or("")]
+    # ["a.b", "a<TAB>b", "42"]
+```
+
 ### Classes
 
 | Rule | Form | Matches |
@@ -90,6 +106,19 @@ value. The forms below are the whole syntax.
 5. r[std-regex.syntax.class.dash] A `-` first, last, or right after a range is an item, as in `[-a]` or `[a-]`.
 6. r[std-regex.syntax.class.unclosed] A class with no closing `]` is an error, at its `[`. Error: `MissingBracket`.
 7. r[std-regex.syntax.class.bad-range] A range whose end is below its start is an error, at the range's first character. So is one whose start or end is `\d`, `\w`, `\s`, or their negations, at the same place. Error: `BadRange`.
+
+```text
+use std.regex.Regex
+use std.text.r
+
+fn hex_digit(text: string) -> bool:
+    match Regex::new(r"^[0-9a-f]$"):
+        .Ok(pattern) => pattern.is_match(text)
+        .Err(_) => false
+
+fn demo() -> List[bool]:
+    [hex_digit("f"), hex_digit("G")]   # [true, false]
+```
 
 ### Anchors, Groups, And Alternation
 
@@ -112,6 +141,20 @@ value. The forms below are the whole syntax.
 7. r[std-regex.syntax.group.unclosed] A `(` with no matching `)` is an error, at the `(`. Error: `MissingParen`.
 8. r[std-regex.syntax.group.unopened] A `)` with no matching `(` is an error, at the `)`. Error: `UnmatchedParen`.
 9. r[std-regex.syntax.precedence] Repetition binds tighter than concatenation, and concatenation binds tighter than `|`. So `ab|cd*` is `(?:ab)|(?:c(?:d*))`.
+
+```text
+use std.regex.Regex
+use std.text.r
+
+fn yes_or_no(line: string) -> bool:
+    match Regex::new(r"^(yes|no)$"):
+        .Ok(pattern) => pattern.is_match(line)
+        .Err(_) => false
+
+fn demo() -> List[bool]:
+    [yes_or_no("yes"), yes_or_no("yesno"), yes_or_no("maybe")]
+    # [true, false, false]
+```
 
 ### Repetition
 
