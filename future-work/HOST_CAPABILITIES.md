@@ -23,14 +23,26 @@
 >   `Console = true`, `Process = false`), with matching flags
 >   `--cap Http=api.example.com` and `--cap Process=false`. This drops
 >   Deno's read/net/run category names.
-> - **Total deny** (`Process = false`) is a compile error from `hd check`,
->   `hd run` and `hd build` when anything reachable from the entry point
->   requires it, as a missing provider is today. A built artifact run by
->   another host checks at instantiation and exits before `main` with a
->   startup error.
+> - **Total deny** (`Process = false`) is a **startup error**. The owner
+>   noted that `hd run` also runs prebuilt Wasm, so it cannot be a compile
+>   error. Before `main` runs, the host compares the module's needs with
+>   the grants, and refuses to start when a needed capability is totally
+>   denied. The refusal names the capability and the setting that denied
+>   it. The needs come from the module's Wasm import list
+>   (`WebAssembly.Module.imports()`): every host-capability call is an
+>   import, and dead code is already removed, so no custom section is
+>   needed. `hd check` may report the same problem early, as a diagnostic;
+>   the normative rule is the startup refusal.
 > - **Partial deny** (a scoped list) returns `NotGranted` through the call's
 >   `Result`, never a panic. The resource is known only at run time, and
 >   the program can recover.
+>
+> **Owner, 2026-10-06: keep sockets.** A `Net` capability (TCP, UDP, DNS),
+> scoped by `host:port`, stays in this design beside `Http`, and is no
+> longer deferred. The prototype sessions still start with the HTTP
+> client. The other suggestions (never prompt, `NotGranted` per error
+> enum, ungranted `Env.get` returns `.None` with a notice, no `ffi`, park
+> runtime loading, Process and Http in the default profile) are approved.
 
 
 Status: design proposal, 2026-10-06. Nothing in it is accepted behavior.
