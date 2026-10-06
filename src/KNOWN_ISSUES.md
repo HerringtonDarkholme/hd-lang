@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,667 cases: 2,652 selected in `test/portable/cases.tsv` and 15 known
-failures. The selected cases are 2,291 language tier, 308 stdlib tier, and 53
+2,670 cases: 2,655 selected in `test/portable/cases.tsv` and 15 known
+failures. The selected cases are 2,293 language tier, 308 stdlib tier, and 54
 CLI tier; the known failures are 4 language tier, 1 stdlib tier, and 10
 CLI tier.
 
@@ -38,8 +38,6 @@ Correctness and diagnostics:
 - **F-401**: replay code identity hashes each function's source text, not
   the module's semantic content, so a changed callee replays and a
   formatting edit does not.
-- **F-403**: a panic outside `expect_panic` stops `hd test`, so the later
-  test cases never run.
 - **F-605**: parsing stops at the first error, and checking reports one
   error per function; a signature error hides every body error.
 - **F-613**: a GADT variant in a let-else or `for` pattern refines only the

@@ -35,6 +35,8 @@ export interface TestReporting {
     name: string,
     outcome: "passed" | "failed" | "ignored",
     message: string,
+    /** The panic that failed the test case, when one did. */
+    panic?: RuntimePanicError,
   ) => void;
   /** Run every test case after a failure, and record a panic as a failure. */
   readonly keepGoing: boolean;
@@ -327,7 +329,7 @@ export async function runSelected(
       } catch (error) {
         if (!keepGoing || !(error instanceof RuntimePanicError)) throw error;
         // A panic in a row leaves the table's row count unknown: it ends the table.
-        reporting?.record(name, "failed", error.report);
+        reporting?.record(name, "failed", error.report, error);
         break;
       }
       const { outcome, rowCount } = result;

@@ -446,16 +446,14 @@ async function testWithDocTests(
     runModule,
     ...selected.filter(({ line }) => line >= testsLine).map((test) => () => runDoc(test)),
   ];
-  // A text run ends a module's run at its first failed test case, as it does
-  // for the module's own test cases; a module that does not compile ends it
-  // too. A doc test that does not compile is a program of its own.
-  const stopAtFailure = args.format === "text" && !args.update;
+  // A failed test case ends no run, in any output mode
+  // (spec/cli/command-line.md#r-cli.test.every-case). A module that does not
+  // compile ends it; a doc test that does not compile is a program of its own.
   let status = 0;
   for (const step of steps) {
     const result = await step();
     status = combinedStatus(status, result);
     if (step === runModule && result === EXIT_HD_FAILURE) return status;
-    if (result === 1 && stopAtFailure) break;
   }
   // `hd test FILE` is an error when FILE registers no test case, or none
   // that `--filter` selects (cli.test.file-empty, cli.test.filter.none).
@@ -626,6 +624,7 @@ export async function execute(
   // cases that passed before the failure ended the run, and the failure.
   let running = false;
   let passedCases = 0;
+  let failedCases = 0;
   const failedLine = (): void => {
     if (test?.tally) {
       test.tally.passed += passedCases;
@@ -780,20 +779,23 @@ export async function execute(
       properties,
       snapshots.check,
       test && {
-        record: (name, outcome, message) => {
+        record: (name, outcome, message, panic) => {
           if (test.intercept?.(name, outcome, message)) return;
           if (outcome === "passed") passedCases += 1;
           if (outcome === "failed") {
             showDebugLines();
+            failedCases += 1;
             if (test.tally) test.tally.failed += 1;
-            // Text output names a failure that does not end the run.
-            if (test.format === "text") reporter.entryError(`test "${name}"`, message);
+            // Text output names each failure, and a panic with its location.
+            if (test.format === "text")
+              if (panic) reportFailure(loaded, panic);
+              else reporter.entryError(`test "${name}"`, message);
           }
           loaded.output.test(name, outcome, message);
         },
-        // With `--format json` every test case reports (cli.json.test.result), so a
-        // failure does not stop the run.
-        keepGoing: test.keepGoing ?? test.format === "json",
+        // In every output mode a failure does not stop the run: every
+        // selected test case runs and reports (cli.test.every-case).
+        keepGoing: test.keepGoing ?? true,
       },
       test && TEST_TEMP_DIRS,
     );
@@ -806,9 +808,9 @@ export async function execute(
     }
     if (test) {
       if (test.tally) test.tally.passed += outcome.count;
-      else if (test.format === "text" && (outcome.count > 0 || !test.quietWhenEmpty))
-        io.out(resultLine(file, { passed: outcome.count, failed: 0 }));
-      return loaded.output.counts.failed > 0 ? 1 : 0;
+      else if (test.format === "text" && (outcome.count + failedCases > 0 || !test.quietWhenEmpty))
+        io.out(resultLine(file, { passed: outcome.count, failed: failedCases }));
+      return failedCases > 0 || loaded.output.counts.failed > 0 ? 1 : 0;
     }
     if (outcome.result !== undefined) io.out(outcome.result);
     return 0;

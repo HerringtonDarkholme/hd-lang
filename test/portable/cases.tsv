@@ -2653,3 +2653,4 @@ runtime/valid/boundary-consent-by-hand.hd	runtime
 runtime/valid/json-typed-missing-key-ignores-default.hd	runtime
 parse/invalid/variant-named-argument-before-positional.hd	parse
 runtime/panic/usize-max-overflow-wasm32.hd	runtime
+cli/test-every-case	cli

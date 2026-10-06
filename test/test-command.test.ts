@@ -21,7 +21,7 @@ const FAILING = [
   'it("boom"):',
   '    assert_equal(+1, +2, reason="boom")',
   "",
-  'it("never runs"):',
+  'it("runs after the failure"):',
   '    assert_equal(+1, +1, reason="ok")',
   "",
 ].join("\n");
@@ -41,12 +41,14 @@ async function withPackage(run: (directory: string) => Promise<void>): Promise<v
   }
 }
 
+// A failing test case stops no later one, in text mode too
+// (spec/cli/command-line.md#r-cli.test.every-case).
 test("a failing test file prints a result line with its counts", async () => {
   await withPackage(async (directory) => {
     const ran = await runHd(["test"], { cwd: directory });
     assert.equal(ran.status, 1);
     assert.match(ran.stderr + ran.stdout, /assertion-failed: boom/);
-    assert.match(ran.stdout, /^tests\/bad\.hd: 1 passed, 1 failed$/m);
+    assert.match(ran.stdout, /^tests\/bad\.hd: 2 passed, 1 failed$/m);
     assert.match(ran.stdout, /^tests\/good\.hd: 1 passed$/m);
   });
 });
