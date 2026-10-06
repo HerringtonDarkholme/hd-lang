@@ -53,6 +53,11 @@
 > (`FsRead`, `FsWrite`, `Http`, `Net`, `Env`, `Process`, `Sys`, `Console`,
 > …), and the flags are `--cap Name=…`.
 >
+> **Owner, 2026-10-06: `Http` stays its own host trait.** The host's HTTP
+> stack performs the whole request, including TLS and redirects. HTTP is not
+> layered on `Net` sockets in hd, matching `wasi:http` being separate from
+> `wasi:sockets` (owner: "i'm fine with make http special").
+>
 > **Owner, 2026-10-06: keep sockets.** A `Net` capability (TCP, UDP, DNS),
 > scoped by `host:port`, stays in this design beside `Http`, and is no
 > longer deferred. The prototype sessions still start with the HTTP
