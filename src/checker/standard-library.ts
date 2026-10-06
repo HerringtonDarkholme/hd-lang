@@ -649,6 +649,7 @@ export const DEFAULT_PROFILE_TRAITS: readonly (readonly [StandardModule, string]
   ["fs", "FsRead"],
   ["fs", "FsWrite"],
   ["http", "Http"],
+  ["process", "Process"],
 ];
 
 /** The program's names of the default profile's traits. */

@@ -1,7 +1,8 @@
-// The `Process` provider that `hd test` binds for an integration test
+// The `Process` providers. `hd test` binds one for an integration test
 // (spec/cli/command-line.md#r-cli.test.process): its programs are the
 // package's executables and tasks (cli.test.process.tasks), each started by
-// its name, as `hd run NAME` would.
+// its name, as `hd run NAME` would. The default profile's starts a host
+// program (runHostProgram). Both check the `Process` grant first.
 
 import { spawnSync } from "node:child_process";
 import { constants } from "node:os";
@@ -9,7 +10,63 @@ import { resolve } from "node:path";
 
 import type { HostBoundaryValue, HostSuspensionCall, HostSuspensionOutcome } from "../compiler.ts";
 import { displayType } from "../types.ts";
+import type { Grant } from "./capabilities.ts";
 import type { LocalPackage } from "./package-mode.ts";
+
+/**
+ * Whether the `Process` grant covers `program`: an entry equals it, as the
+ * program wrote it, before the host looks it up
+ * (spec/cli/command-line.md#r-cli.cap.scope.process).
+ */
+export function coversProgram(grant: Grant, program: string): boolean {
+  if (grant.kind === "all") return true;
+  if (grant.kind === "deny") return false;
+  return grant.entries.includes(program);
+}
+
+/** `.Err(ProcessError.NotGranted)` (spec/lang/10-modules.md#r-module.process.not-granted). */
+export const PROCESS_NOT_GRANTED = {
+  tag: "err",
+  value: { tag: "NotGranted" },
+} as HostBoundaryValue;
+
+/**
+ * The default profile's `Process.run!` (spec/cli/command-line.md#host-capabilities):
+ * the operating system finds `program` by its name, and it runs in the
+ * program's working directory with the whole environment of `hd`
+ * (cli.host.process.env). Its output is decoded as UTF-8 with U+FFFD.
+ */
+export function runHostProgram(
+  [program, args, stdin]: readonly [string, readonly string[], string],
+  directory: string,
+  variables: Readonly<Record<string, string | undefined>>,
+): HostBoundaryValue {
+  const ran = spawnSync(program, [...args], {
+    cwd: directory,
+    env: variables,
+    input: stdin,
+    maxBuffer: 1 << 30,
+  });
+  if (ran.error) {
+    const code = (ran.error as NodeJS.ErrnoException).code;
+    const error =
+      code === "ENOENT"
+        ? { tag: "NotFound" }
+        : code === "EACCES" || code === "EPERM"
+          ? { tag: "PermissionDenied" }
+          : { tag: "Other", message: ran.error.message };
+    return { tag: "err", value: error } as HostBoundaryValue;
+  }
+  const text = (bytes: Buffer): string => new TextDecoder("utf-8").decode(bytes);
+  return {
+    tag: "ok",
+    value: {
+      stdout: text(ran.stdout),
+      stderr: text(ran.stderr),
+      status: ran.status ?? 128 + (ran.signal ? constants.signals[ran.signal] : 0),
+    },
+  } as HostBoundaryValue;
+}
 
 /** The `hd` executable that runs a package's executables. */
 const HD = resolve(import.meta.dirname, "..", "..", "bin", "hd.js");

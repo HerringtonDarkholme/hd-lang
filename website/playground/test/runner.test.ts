@@ -187,6 +187,94 @@ test("a trait the playground does not provide stops the run before it starts", a
   assert.equal((await runner.runProject(single(source), "check")).status, "ok");
 });
 
+test("Http reaches the page's own origin through the browser, and no other", async () => {
+  // A stand-in for the worker's location and synchronous XMLHttpRequest: no
+  // request leaves the process.
+  const sent: string[] = [];
+  class FakeRequest {
+    status = 0;
+    responseType = "";
+    timeout = 0;
+    response: ArrayBuffer = new ArrayBuffer(0);
+    #url = "";
+    #headers: string[] = [];
+    open(method: string, url: string, async: boolean): void {
+      assert.equal(async, false);
+      this.#url = url;
+      sent.push(`${method} ${url}`);
+    }
+    setRequestHeader(name: string, value: string): void {
+      this.#headers.push(`${name}=${value}`);
+    }
+    send(body: Uint8Array | null): void {
+      if (this.#url.endsWith("/cors"))
+        throw Object.assign(new Error("x"), { name: "NetworkError" });
+      this.status = this.#url.endsWith("/missing") ? 404 : 200;
+      const text = `${this.#headers.join(",")}|${body ? new TextDecoder().decode(body) : ""}`;
+      this.response = new TextEncoder().encode(text).buffer as ArrayBuffer;
+    }
+    getAllResponseHeaders(): string {
+      return "content-type: text/plain\r\nset-cookie: a\r\nset-cookie: b\r\n";
+    }
+  }
+  const globals = globalThis as Record<string, unknown>;
+  globals.location = { origin: "http://127.0.0.1:8123" };
+  globals.XMLHttpRequest = FakeRequest;
+  try {
+    const source = [
+      "use std.http.{Http, HttpError, Method, Request, get, send}",
+      "",
+      "fn ping!(url: string) -> string $ Http:",
+      "    match get!(url):",
+      '        .Ok(response) => "status ${response.status} ${response.text()} ${response.header("Content-Type").unwrap_or("-")}"',
+      '        .Err(.NotGranted(host)) => "the playground grants no ${host}"',
+      '        .Err(.Connect(_)) => "the browser refused the request"',
+      '        .Err(error) => "${error}"',
+      "",
+      "pub fn main!() -> void $ Console + Http:",
+      '    println(ping!("http://127.0.0.1:8123/data"))',
+      '    println(ping!("http://127.0.0.1:8123/missing"))',
+      '    println(ping!("http://127.0.0.1:8123/cors"))',
+      '    println(ping!("https://example.com/"))',
+      '    println(ping!("http://127.0.0.1:9999/"))',
+      '    match send!(Request { method: Method.Post, url: "http://127.0.0.1:8123/echo", headers: [("X-Tag", "a")], body: "hi".to_utf8() }):',
+      "        .Ok(response) => println(response.text())",
+      '        .Err(error) => println("${error}")',
+    ].join("\n");
+    const result = await runner.runProject(single(source), "run");
+    assert.equal(result.status, "ok", result.summary);
+    assert.deepEqual(result.stdout, [
+      "status 200 | text/plain",
+      "status 404 | text/plain",
+      "the browser refused the request",
+      "the playground grants no example.com",
+      "the playground grants no 127.0.0.1",
+      "X-Tag=a|hi",
+    ]);
+    // Another origin never reaches the browser (std-http.playground.other-origin).
+    assert.deepEqual(sent, [
+      "GET http://127.0.0.1:8123/data",
+      "GET http://127.0.0.1:8123/missing",
+      "GET http://127.0.0.1:8123/cors",
+      "POST http://127.0.0.1:8123/echo",
+    ]);
+  } finally {
+    delete globals.location;
+    delete globals.XMLHttpRequest;
+  }
+  // Process stays unbound (std-http.playground.unbound).
+  const process = await runner.runProject(
+    single(
+      'use std.process.Process\n\npub fn main!() -> void $ Console + Process:\n    _ := $.use(Process).run!("git", [], "")\n',
+    ),
+    "run",
+  );
+  assert.equal(
+    process.summary,
+    "main needs Process, which the playground does not provide; run it with hd run",
+  );
+});
+
 test("a two-file project with a package use compiles and runs", async () => {
   const project = {
     files: {

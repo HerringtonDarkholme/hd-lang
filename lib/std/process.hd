@@ -1,9 +1,9 @@
 # std.process: exit status (spec/lang/10-modules.md#exit-status), subprocesses
 # (spec/lang/10-modules.md#processes), and the std side in spec/std/process.md.
-# WASI has no subprocess interface, so no
-# prototype runtime profile binds a host `Process`; `ScriptedProcess` is the
-# deterministic provider. `hd test` binds a host `Process` for an
-# integration test, whose programs are the package's executables
+# The default profile binds a host `Process` behind its grant
+# (src/commands/processes.ts); `ScriptedProcess` is the deterministic
+# provider. `hd test` binds a host `Process` for an integration test, whose
+# programs are the package's executables
 # (spec/cli/command-line.md#r-cli.test.process).
 use std.format.DebugWriter
 use std.error.Error

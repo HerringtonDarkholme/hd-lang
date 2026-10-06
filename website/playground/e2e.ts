@@ -27,6 +27,36 @@ interface PlaygroundE2e {
   readonly screenshots?: string;
 }
 
+/**
+ * Runs a program that fetches `pageUrl`, of the playground's own origin, and
+ * another origin, which the grant refuses before any request
+ * (spec/std/http.md#playground). No request leaves 127.0.0.1.
+ */
+async function sameOriginHttp(
+  open: (source: string) => Promise<Page>,
+  pageUrl: string,
+): Promise<void> {
+  const source = [
+    "use std.http.{Http, get}",
+    "",
+    "fn status!(url: string) -> string $ Http:",
+    "    match get!(url):",
+    '        .Ok(response) => "status ${response.status}"',
+    '        .Err(.NotGranted(host)) => "no ${host}"',
+    '        .Err(error) => "${error}"',
+    "",
+    "pub fn main!() -> void $ Console + Http:",
+    `    println(status!("${pageUrl}"))`,
+    '    println(status!("https://example.com/"))',
+    "",
+  ].join("\n");
+  const page = await open(source);
+  await page.click("#run");
+  await page.locator(".outcome.passed").waitFor();
+  assert.equal(await page.locator(".stdout").textContent(), "status 200\nno example.com\n");
+  await page.context().close();
+}
+
 /** Drives the built playground at `origin + base` through every check. */
 export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
   const { browser, origin, base, step, screenshots } = options;
@@ -56,6 +86,10 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     assert.equal(await page.locator(".stdout").textContent(), "hello, world\n");
     await page.context().close();
   });
+
+  await step("Http fetches the playground's own origin, and refuses another", () =>
+    sameOriginHttp((source) => openPage(code(source)), `${origin}${base}`),
+  );
 
   await step("Ctrl+Enter runs; a type error jumps to its line", async () => {
     const source =

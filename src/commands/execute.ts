@@ -13,7 +13,13 @@ import { SOURCE_ROOT, TASK_ROOT, TEST_ROOT } from "../package.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
 import { runSelected, type TempDirs } from "../test-runner.ts";
-import { grantsOf, testGrantsOf, totalDenial, type CapabilityGrants } from "./capabilities.ts";
+import {
+  grantsOf,
+  testGrantsOf,
+  totalDenial,
+  UNLIMITED,
+  type CapabilityGrants,
+} from "./capabilities.ts";
 import { defaultProfileAnswer, inputLines, type DefaultProfileHost } from "./default-profile.ts";
 import {
   combinedStatus,
@@ -33,7 +39,13 @@ import {
   type CommandIo,
 } from "./io.ts";
 import { packageMode, type Executable, type LocalPackage } from "./package-mode.ts";
-import { executableProcesses, isProcessCall, type ProcessProvider } from "./processes.ts";
+import {
+  coversProgram,
+  executableProcesses,
+  isProcessCall,
+  PROCESS_NOT_GRANTED,
+  type ProcessProvider,
+} from "./processes.ts";
 import { integrationTestHost, TEST_TEMP_DIRS } from "./test-host.ts";
 import {
   exportedFunction,
@@ -776,7 +788,10 @@ export async function execute(
       // spec/cli/command-line.md#r-cli.test.process.tasks).
       hostSuspensionInvoke: (call) =>
         isProcessCall(call) && loaded.compileOptions.integrationTest
-          ? (test?.processes ?? executableProcesses(undefined))(call)
+          ? // The test grant's `Process` entries name executables and tasks (cli.cap.scope.process).
+            coversProgram(host?.grants?.get("Process") ?? UNLIMITED, String(call.arguments[0]))
+            ? (test?.processes ?? executableProcesses(undefined))(call)
+            : { pending: false, value: PROCESS_NOT_GRANTED }
           : ((host && defaultProfileAnswer(call, host)) ??
             runtimeProfile?.invoke?.(call) ?? { pending: false }),
       hostSuspensionPending: execution.pendingFirstPoll

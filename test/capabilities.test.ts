@@ -15,6 +15,7 @@ import {
   type Grant,
 } from "../src/commands/capabilities.ts";
 import { readManifest } from "../src/manifest.ts";
+import { ReplRefusal, ReplSession } from "../src/repl.ts";
 import { runHd } from "./hd-in-process.ts";
 
 // Capability grants (spec/cli/command-line.md#capability-grants): the
@@ -185,4 +186,27 @@ test("hd test refuses an integration test module that needs a denied trait", asy
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("a REPL input that needs a totally denied trait is refused before it runs", async () => {
+  const grants = grantsOf({ flags: flags("Clock=false"), flagBase: "/" });
+  let readings = 0;
+  const session = new ReplSession({}, undefined, {
+    traits: [{ module: "std.time", name: "Clock" }],
+    invoke: () => {
+      readings += 1;
+      return { pending: false, value: { millis: 0n } as never };
+    },
+    needs: (traits) => {
+      const message = totalDenial(traits, grants);
+      if (message !== undefined) throw new ReplRefusal(message);
+    },
+  });
+  await session.evaluate("use std.time.{now}");
+  const refused = await session.evaluate("now().to_rfc3339()");
+  assert.equal(refused.accepted, false);
+  assert.deepEqual(refused.errors, ["hd: the program needs Clock, which --cap Clock=false denies"]);
+  assert.equal(readings, 0);
+  // An input that needs no denied trait still runs.
+  assert.equal((await session.evaluate("1 + 1")).value, "2");
 });

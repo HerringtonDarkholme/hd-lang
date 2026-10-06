@@ -35,6 +35,7 @@ import {
   type Grant,
 } from "./capabilities.ts";
 import { sendRequest } from "./http-host.ts";
+import { coversProgram, PROCESS_NOT_GRANTED, runHostProgram } from "./processes.ts";
 
 /** What the default profile reads from the `hd` command that runs the program. */
 export interface DefaultProfileHost {
@@ -129,6 +130,7 @@ export const DEFAULT_PROFILE_TRAITS: readonly { readonly module: string; readonl
     { module: "std.fs", name: "FsRead" },
     { module: "std.fs", name: "FsWrite" },
     { module: "std.http", name: "Http" },
+    { module: "std.process", name: "Process" },
   ];
 
 type Answer = (call: HostSuspensionCall, host: DefaultProfileHost) => HostBoundaryValue | void;
@@ -288,6 +290,13 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
     );
   },
   "std.http.Http.send": (call, host) => sendRequest(call.arguments[0]!, grantOf(host, "Http")),
+  // A program outside the grant never starts (cli.cap.scope.process).
+  "std.process.Process.run": (call, host) => {
+    const request = call.arguments as unknown as readonly [string, readonly string[], string];
+    return coversProgram(grantOf(host, "Process"), request[0])
+      ? runHostProgram(request, host.workingDirectory, host.variables)
+      : PROCESS_NOT_GRANTED;
+  },
 };
 
 /**

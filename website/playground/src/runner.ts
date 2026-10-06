@@ -31,7 +31,7 @@ import {
 } from "../../../src/repl.ts";
 import { RuntimePanicError } from "../../../src/runtime-panic.ts";
 import { runSelected } from "../../../src/test-runner.ts";
-import { WEB_HOST_TRAITS, webHostAnswer } from "../../../src/web-host.ts";
+import { PLAYGROUND_TRAITS, playgroundAnswer } from "./playground-host.ts";
 import type { Project } from "./project.ts";
 
 /** `run` runs `main` or the top-level code, `check` type-checks, `test` runs the test cases. */
@@ -113,17 +113,18 @@ const joinedParse = (linked: LinkedPackage) => ({
 /**
  * The host a playground run binds: of the default profile
  * (spec/cli/command-line.md#r-cli.host.default-profile), the traits a browser
- * can provide, `Clock` and `Random`, with the same answers as `hd run`.
- * `Console` is built in. The REPL panel's session binds it too.
+ * can provide: `Clock` and `Random`, with the same answers as `hd run`, and
+ * `Http` to the page's own origin (playground-host.ts). `Console` is built
+ * in. The REPL panel's session binds it too.
  */
-export const PLAYGROUND_HOST: ReplHost = { traits: WEB_HOST_TRAITS, invoke: webHostAnswer };
+export const PLAYGROUND_HOST: ReplHost = { traits: PLAYGROUND_TRAITS, invoke: playgroundAnswer };
 
 /** The default profile's traits the playground does not provide, by qualified name. */
 const UNPROVIDED_TRAITS: ReadonlySet<string> = new Set(
   DEFAULT_PROFILE_TRAITS.map(([module, name]) => `std.${module}.${name}`).filter(
     (name) =>
       name !== "std.console.Console" &&
-      !WEB_HOST_TRAITS.some((trait) => `${trait.module}.${trait.name}` === name),
+      !PLAYGROUND_TRAITS.some((trait) => `${trait.module}.${trait.name}` === name),
   ),
 );
 
@@ -215,7 +216,7 @@ export async function runProject(
       providerConfigurationId: "playground",
       parse: joinedParse(linked),
       hostSuspensionInvoke: (call: HostSuspensionCall) =>
-        webHostAnswer(call) ?? unprovidedCall(call),
+        playgroundAnswer(call) ?? unprovidedCall(call),
     };
     // A trait the browser cannot provide stops the run before it starts.
     const checked = analysis.hir.functions.find((declaration) => declaration.entry === true);

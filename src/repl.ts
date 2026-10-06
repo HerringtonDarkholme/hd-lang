@@ -113,7 +113,16 @@ export interface ReplHost {
   readonly traits: readonly { readonly module: string; readonly name: string }[];
   /** The answer to a call on one of `traits`, or undefined for any other call. */
   readonly invoke: (call: HostSuspensionCall) => HostSuspensionOutcome | undefined;
+  /**
+   * Sees the std host traits an input's module imports, before it runs; it
+   * throws a {@link ReplRefusal} to refuse a totally denied one
+   * (spec/cli/command-line.md#r-cli.cap.total.refuse).
+   */
+  readonly needs?: (traits: readonly string[]) => void;
 }
+
+/** A host's refusal to start an input's module, whose message the session shows. */
+export class ReplRefusal extends Error {}
 
 /** One host call of an accepted input, kept so a rerun answers it again without its effect. */
 interface HostAnswer {
@@ -468,6 +477,7 @@ export class ReplSession {
         debugLocation: (span: SourceSpan) =>
           replLocation(prepared.located({ code: "", message: "", span }), attempt),
         ...(host ? { hostSuspensionInvoke } : {}),
+        ...(host?.needs ? { needs: host.needs } : {}),
       });
       this.lastModule = compilation.wat;
       this.modules += 1;
@@ -481,7 +491,9 @@ export class ReplSession {
       const message =
         error instanceof RuntimePanicError
           ? replPanic(error)
-          : `internal error: ${(error as Error).message}`;
+          : error instanceof ReplRefusal
+            ? error.message
+            : `internal error: ${(error as Error).message}`;
       return { lines, error: message, hostAnswers };
     }
   }

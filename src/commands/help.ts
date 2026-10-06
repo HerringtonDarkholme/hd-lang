@@ -1,7 +1,7 @@
 import type { ReadStream } from "node:tty";
 
 import { commandHelp, overviewHelp } from "../cli-args.ts";
-import type { ReplHost } from "../repl.ts";
+import { ReplRefusal, type ReplHost } from "../repl.ts";
 import { runRepl, type ReplIo } from "../repl-terminal.ts";
 import {
   defaultProfileAnswer,
@@ -9,7 +9,7 @@ import {
   inputLines,
   type DefaultProfileHost,
 } from "./default-profile.ts";
-import { grantsOf } from "./capabilities.ts";
+import { grantsOf, totalDenial } from "./capabilities.ts";
 import { variablesOf, workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
 import { MANIFEST_FILE, packageMode } from "./package-mode.ts";
 import { withDependencies } from "./dependencies.ts";
@@ -98,5 +98,13 @@ function replHost(io: ReplIo, environment: CommandEnvironment): ReplHost {
     }),
     notice: (line) => process.stderr.write(`${line}\n`),
   };
-  return { traits: DEFAULT_PROFILE_TRAITS, invoke: (call) => defaultProfileAnswer(call, host) };
+  return {
+    traits: DEFAULT_PROFILE_TRAITS,
+    invoke: (call) => defaultProfileAnswer(call, host),
+    // An input that needs a totally denied trait does not run (cli.cap.total.refuse).
+    needs: (traits) => {
+      const message = totalDenial(traits, host.grants);
+      if (message !== undefined) throw new ReplRefusal(message);
+    },
+  };
 }
