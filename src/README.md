@@ -240,8 +240,9 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `hd run` that `hd_run!` starts, so it reads the same cache. Each linked module's scope names its
   package and the declarations its uses import, so the checker
   (`checker/package-ownership.ts`) applies the orphan rule across packages,
-  hides a member without `pub` from another package, makes a trait of
-  another package available only where a use imports it, and warns on a
+  hides a member without `pub` from every other module, makes a trait of
+  another module available only where a use imports it
+  (`checker/member-visibility.ts`), and warns on a
   per-trait `Self` line whose fact's package does not supply the trait.
   A REPL session links the dependencies and dev dependencies, and `hd def`
   and `hd doc` take `dep.KEY.ITEM` for a dependency's `pub` item.
@@ -1373,8 +1374,7 @@ else`, `break`, `break value`, and `continue`;
   calls its `next`. The loader declares `Iterator` when a program names it
   or `Iterable`, or selects `iter`, `take`, `enumerate`, `fold`, or
   `collect`. A private field of a std type is hidden from code outside std,
-  and a private member of another package's type from code outside that
-  package, which are the only member visibility the prototype checks;
+  and a private member of a package type from code outside its module;
 - `collect[C < FromIterator[T] = List[T]]` over the `std.iter` trait
   `FromIterator`, which is not a prelude name. `C` comes from an explicit
   type argument or the expected type, which reaches the operand of `x?` as

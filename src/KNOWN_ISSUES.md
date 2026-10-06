@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-05 the suite has
-2,586 cases: 2,574 selected in `test/portable/cases.tsv` and 12 known
-failures. The selected cases are 2,222 language tier, 301 stdlib tier, and 51
+2,592 cases: 2,580 selected in `test/portable/cases.tsv` and 12 known
+failures. The selected cases are 2,228 language tier, 301 stdlib tier, and 51
 CLI tier; the known failures are 1 language tier, 1 stdlib tier, and 10
 CLI tier.
 
@@ -93,8 +93,6 @@ Compiler structure:
 
 | Tag | Decision and gap |
 | --- | --- |
-| EMB-S | A trait method is a candidate only where its trait is available. The prototype tracks trait imports only for a trait of another package (`checker/package-ownership.ts`); every trait of the calling module's own package, and every std trait, stays available. No fixture shows the gap. |
-| P2 | Member lookup skips members not visible from the calling module. The prototype hides a member without `pub` from another package and a std type's from code outside std; another module of the same package still sees it. No fixture shows the gap. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds the whole profile (src/commands/default-profile.ts). `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 
 ## Gaps No Fixture Reaches
@@ -118,6 +116,21 @@ Compiler structure:
   a non-entry module is accepted instead of rejected
   (`module.init.requirement-free`). Fixing it needs each top-level
   statement's module of origin.
+- **Visibility left over** (task P1a): a std trait outside the prelude is
+  available without a use (`trait.avail.module`). Outside std, a std
+  type's private fields can still be named or filled in a data literal or
+  pattern, as in `Iterator { step: next }`, because the checker's
+  derivations build std structure values in the deriving module. The rules
+  for literals and patterns (`data.vis.literal`, `data.vis.private-fields`,
+  `data.pattern.subset`) name no code; the prototype reports
+  `private-member`. `Type::f` with no available trait candidate reports
+  `unknown-associated-function`, not `unknown-method`
+  (`trait.assoc-call.type.none`).
+- **Top-level names across modules**: once a package links a module, its
+  top-level declarations, private ones included, resolve by bare name in
+  every other linked module without a use (`names.module.declarations`,
+  `module.vis.private-default`). A use of a private name is still
+  `private-import`.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.

@@ -2934,35 +2934,36 @@ pub fn register(name: string, email: string) -> string $ Mailer + Repo:
     "$saved; $sent"
 ```
 
-The adapters in `src/adapters.hd` are ordinary types. Production and
-development implementations need not share a concrete type:
+The adapters in `src/adapters.hd` are ordinary types with `pub` fields, so
+the entry points can build them. Production and development implementations
+need not share a concrete type:
 
 ```text
 use super.app.{Mailer, Repo}
 
 pub data FileRepo:
-    root: string
+    pub root: string
 
 impl Repo for FileRepo:
     fn save(self, name: string) -> string:
         "file:${self.root}/$name"
 
 pub data MemoryRepo:
-    namespace: string
+    pub namespace: string
 
 impl Repo for MemoryRepo:
     fn save(self, name: string) -> string:
         "memory:${self.namespace}:$name"
 
 pub data SmtpMailer:
-    endpoint: string
+    pub endpoint: string
 
 impl Mailer for SmtpMailer:
     fn send(self, to: string) -> string:
         "smtp:${self.endpoint}:$to"
 
 pub data OutboxMailer:
-    label: string
+    pub label: string
 
 impl Mailer for OutboxMailer:
     fn send(self, to: string) -> string:
