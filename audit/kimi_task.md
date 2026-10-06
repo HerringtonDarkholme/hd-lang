@@ -94,10 +94,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K17. Guide Sections For Gaps 6 To 10
-
-Same method as K16, for gaps 6 to 10 of the report.
-
 ### K18. Diagnostics Wishlist For The New Compiler (Read-Only Report)
 
 `audit/hd-writing-log.md` records every mistake that agents (Haiku,

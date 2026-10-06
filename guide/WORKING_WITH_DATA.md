@@ -360,3 +360,39 @@ tests:
 A `Duration` displays as `1h2min3.5s`, and `sleep!(d)` waits on the
 clock. A test binds `ManualClock`, so waiting costs no real time; see
 [Concurrent Work With A Timeout](#concurrent-work-with-a-timeout).
+
+## Building Text
+
+`trim` and `split` take text apart. The other direction has three tools:
+`join` for a list with a separator, `StringBuilder` for a loop that
+appends, and `repeat` for padding. `chars` and `bytes` walk a string by
+character or by byte. The exact rules are in [Text](../spec/std/text.md):
+
+```hd
+use std.testing.{assert_equal, it}
+use std.text.StringBuilder
+
+fn csv_row(cells: List[string]) -> string:
+    cells.join(",")
+
+fn banner(text: string) -> string:
+    let mut out = StringBuilder::new()
+    out.push("=".repeat(4))
+    out.push(" ")
+    out.push(text)
+    out.push(" ")
+    out.push("=".repeat(4))
+    out.build()
+
+tests:
+    it("joins and builds"):
+        assert_equal(csv_row(["a", "b", "c"]), "a,b,c", reason="joined")
+        assert_equal(banner("SALE"), "==== SALE ====", reason="built")
+
+    it("reads characters and bytes"):
+        assert_equal("héllo".chars().collect().len(), 5, reason="five chars")
+        assert_equal("héllo".bytes().collect().len(), 6, reason="six bytes")
+```
+
+A string is bytes: `len()` counts bytes, `chars()` counts characters.
+ASCII text needs no care; anything else, walk it with `chars()`.
