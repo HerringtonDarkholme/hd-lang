@@ -1,0 +1,117 @@
+# Kimi Task Queue
+
+This file is Kimi's work queue. The orchestrating session adds jobs here.
+Kimi does them top to bottom, one commit per job (or per chapter where a
+job says so), and deletes a job's section in the same commit that
+finishes it. Git history keeps the record. When the queue is empty,
+report that and wait.
+
+These jobs are prose, docs, and probes. **Never change behavior:** no
+edits under `src/`, no fixture expectation changes, and no change to what
+a spec rule means. If a rewrite would change meaning, leave that sentence
+and list it under Questions.
+
+## How To Work
+
+- Work in **one** long-lived git worktree of your own, for example
+  `git worktree add /private/tmp/kimi-work -b kimi/work origin/main`
+  the first time, and reuse it for every job. Keep it; don't delete it.
+- **Never write in the shared main checkout**
+  `/Users/hd/code/test/hd-lang`: no edits, commits, or checkouts there.
+  Your commits reach `main` only by `git push origin HEAD:main` from your
+  worktree.
+- Start each job from current main: `git fetch origin && git reset --hard
+  origin/main` in your worktree, but only when it holds no unpushed work
+  (check `git status` and `git log origin/main..HEAD` first).
+- Install dependencies in your worktree with `pnpm install
+  --frozen-lockfile`; never symlink or modify the shared `node_modules`.
+- To finish each job:
+
+  ```sh
+  git fetch origin && git rebase origin/main
+  pnpm run check
+  git push origin HEAD:main
+  ```
+
+  If the push is rejected because main moved, fetch, rebase, rerun
+  `pnpm run check`, and push again. Never force-push.
+- A job is done only when its commit is on `origin/main`. A local commit
+  is not done: push it.
+- While working, run only scoped checks: `node --experimental-strip-types
+  test/run-portable.ts --changed` (or `--phase parse|type|runtime`) and
+  `node --test --experimental-strip-types <the test files you touch>`. Run
+  the full `pnpm run check` and `pnpm run test:ui` once, right before the
+  push.
+- Don't start a full `pnpm run check` or a full conformance run while
+  another agent's full run is going (check the load average with
+  `uptime`; above ~30, wait for it to drop). Two full runs at once push
+  the load past 300 and make both time out.
+- Never wait with an `until` or `while … sleep` loop: run a check in the
+  foreground with a timeout. Use `gh run watch` if you ever need to wait for
+  CI.
+- Use pnpm only. Add files by name, never `git add -A`.
+- For any change under `src/` or `lib/`, put the size-guard numbers in each commit message: `compileToWat` of the
+  tiny program and the one-test program (today 16,350 B / 23 functions and
+  3,143 B / 6 functions). Explain any growth.
+- Print the CI run links once after a push and move on. Don't wait for CI.
+- Never edit a fixture to make it pass. If the spec isn't clear-cut, skip
+  the item, write the question under "Questions" at the end of this file,
+  and go on.
+- hd code style: an `i32` literal is `+N` (`total := +0`), not
+  `let total: i32 = 0`, except in a group of annotated declarations,
+  where the `i32` stays annotated so the widths read side by side.
+
+- **Spec examples.** Adding, removing or moving a ```text block in a spec
+  chapter renumbers every later block, so realign that chapter's rows in
+  `spec/conformance/examples.tsv`, not only the new row. An earlier job missed
+  this and broke `bash spec/check.sh` on main (fixed in c8c35a7e). After
+  any rebase, rerun `bash spec/check.sh` before pushing; never push with
+  it red.
+
+## Don't Touch
+
+- `src/`, `lib/`, `test/`, `spec/conformance/` (fixtures and indexes), and
+  `audit/codex_task.md`: other agents work there.
+- Rule IDs: never rename, add, or remove an `r[...]` ID. Rewording a rule's
+  sentence keeps its ID.
+
+## Jobs
+
+### K1. Split Long Sentences In The Std Chapters
+
+`node --experimental-strip-types spec/tools/spec.ts audit --list` lists
+sentences over 25 words (`sent>25`) per chapter. Work through `spec/std/`
+first: testing.md (16), regex.md (11), time.md (8), json.md (5), num.md
+(4), format.md (4), path.md (2), collections.md (2), and the singles.
+Split each long sentence into two or three short ones that say exactly
+the same thing; follow `spec/STYLE.md`. One commit per chapter. After each
+chapter run `bash spec/check.sh` and the audit again; the chapter's
+`sent>25` count must drop and nothing else may rise.
+
+### K2. Split Long Sentences In The CLI Chapter
+
+Same as K1 for `spec/cli/command-line.md` (10 long sentences). One commit.
+
+### K3. The Long Paragraph In 06-Control-Flow
+
+`bash spec/check.sh` warns that `spec/lang/06-control-flow.md:181` is a
+108-word paragraph (limit 90). Split it into two paragraphs, or move a
+detail into a Note, without changing meaning. One commit.
+
+### K4. Examples For Std Rules That Have None
+
+The audit's `no-ex` column counts rule groups without an example:
+std/json.md (13), cli/command-line.md (12), std/regex.md (3),
+std/random.md (3), std/testing.md (2), and singles. Add a short,
+realistic ```text example (see `spec/STYLE.md` and nearby examples) to
+each listed section in `spec/std/json.md` first, then the others. Every
+example must be correct hd: put it in a scratch file outside the repo and
+run it with `node --experimental-strip-types bin/hd.js FILE` (or `hd
+check`) before committing. Adding a ```text block renumbers later blocks
+in that chapter: realign that chapter's rows in
+`spec/conformance/examples.tsv` (the one exception to Don't Touch), and
+run `bash spec/check.sh`. One commit per chapter.
+
+## Questions
+
+(none)
