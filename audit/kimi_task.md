@@ -90,38 +90,10 @@ and list it under Questions.
 
 ## Jobs
 
-### K11. Add Missing Examples To The Remaining Language Chapters
-
-Continue K10's method for the remaining chapters, smallest `no-ex` count
-first: 01-lexical-structure, 06-control-flow, 03-names-and-scopes,
-05-expressions, 11-requirements-and-suspension, 09-traits,
-04-type-system, 10-modules. One commit per chapter. Every ```hd example
-must run with hd before committing. Realign `examples.tsv` for each
-chapter, keep `bash spec/check.sh` green, and make sure that chapter's
-`no-ex` drops while nothing else rises. If the compiler disagrees with a
-rule, list it under Questions rather than bending the example.
-
-### K12. Usability Probe 5 (Read-Only)
-
-Same method as K9, with new areas. Write four programs, using only
-`README.md`, `guide/`, and `spec/`:
-
-1. A concurrent fetcher that runs three suspending lookups with `all!`
-   and a timeout with `race!`, tested with fake providers.
-2. A small inventory using `Map`, `Set` and iterator chains (`filter`,
-   `map`, `fold`, `sorted`), with unit tests.
-3. A two-package workspace where an app depends on a local library by
-   path. Use a temporary HOME, HD_CACHE and GIT_CONFIG_GLOBAL inside your
-   scratch directory, and no network.
-4. A config loader whose config type has fields with default values,
-   loaded from JSON where some keys are present and some missing. Check
-   that a present key's value wins over the default, and that a missing
-   key without a default is an error. Bug F-616 here was fixed on
-   2026-10-06; log any sign that it is back.
-
-Log every mistake and message in `audit/hd-writing-log.md` (task
-`probe 5: …`, model `kimi`). Commit only the log, and list the five most
-painful problems in the commit message.
+(none) Kimi stopped on 2026-10-06. Its K11 chapters 01, 06 and 03 landed
+from its worktree after review. The rest of K11 (chapters 05, 11, 09, 04,
+10) and K12 (usability probe 5) moved to the orchestrator's tasks. If Kimi
+returns, the orchestrator refills this queue.
 
 ## Questions
 
