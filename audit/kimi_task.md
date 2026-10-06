@@ -94,6 +94,58 @@ and list it under Questions.
 
 ## Jobs
 
+### K20. Doc Summaries For lib/std (Comment Lines Only)
+
+The owner decided (future-work/HD_DOC.md) that `lib/std` gets `##` doc
+comments. Today it has none; every comment is `#`. For every `pub`
+declaration in `lib/std/*.hd`, add a `##` summary above it:
+
+- One or two sentences on what it does, for a user, in the guide's plain
+  style.
+- End with the spec rule it implements, as a Markdown link, e.g.
+  `## See [std-json.decode](../../spec/std/json.md#r-std-json.decode).`
+  Find the rule with `grep -rn 'r\[std-' spec/std/`.
+- Keep any existing `#` comment that explains the implementation, below
+  the `##` summary.
+
+**This job is the one exception to "Don't Touch lib/":** you may add `##`
+lines and nothing else. Before each commit, run `git diff -U0 lib/std`.
+Every added line must start with `##` (after indentation), and no other
+line may change. Then run `node --experimental-strip-types
+test/run-portable.ts --tier std` (all must pass) and `pnpm run
+format:check`.
+
+Commit one std module per commit, largest public surface first:
+collections, text, json, fs, time, testing, then the rest.
+
+### K21. Usability Probe 7: The New Guide Pages (Read-Only)
+
+Your K16/K17 pages (`guide/WORKING_WITH_DATA.md`) and K19
+(`guide/COMMANDS.md`) are new. Test whether they teach. Using **only
+those two pages** plus `guide/LEARN_IN_10_MINUTES.md`, write four
+programs in a scratch directory outside the repo:
+
+1. A config-driven report.
+2. A log scanner with regex and time.
+3. A package with a doc test, unit tests and an integration test, run
+   with `hd test`.
+4. A concurrent fetcher with a timeout.
+
+Log every mistake in `audit/hd-writing-log.md` (task `probe 7: …`,
+model `kimi`). For each place the guide page was missing something or
+led you wrong, add a row of kind `api` that quotes the page section.
+Commit only the log, and list the five most painful problems in the
+commit message. Don't fix the guide pages in this job; that is K22.
+
+### K22. Fix The Guide Gaps Probe 7 Found
+
+For each guide-related row K21 logged, fix the guide page where the
+spec agrees: add the missing step, correct the misleading text, add the
+example. Every changed code block must run with hd. One commit per page.
+Run `pnpm run website:build` and
+`node --test --experimental-strip-types website/test/site.test.ts`
+before pushing.
+
 ## Questions
 
 (none)
