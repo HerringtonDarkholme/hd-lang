@@ -107,6 +107,12 @@ export const STRUCTURE_WITNESS = "hd__structure_witness";
 /** The handle field that holds the witness, which `h.fact` reads (lib/std/structure.hd). */
 export const STRUCTURE_WITNESS_FIELD = "hd_witness";
 const DOWNCAST = "hd__downcast_val";
+/**
+ * The std template whose `build` fills a member that declares a default from
+ * that default, without its source's bounded `member`, so the member's type
+ * needs no `Default` (spec/std/ops.md#r-std-ops.default.derive.member-bound.declared).
+ */
+const DECLARED_DEFAULT_TEMPLATE = "Default";
 
 /**
  * `lib/std/structure.hd` in the program's names. Its `use` lines become the
@@ -614,6 +620,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       standard ? sourceMemberBound(standard.support, structureName("Source")) : [],
       scope,
       checked,
+      standard !== undefined && derivation.trait === DECLARED_DEFAULT_TEMPLATE,
       renames,
       definedParts,
     );
@@ -632,6 +639,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
         compiled,
         [],
         scope,
+        false,
         false,
         renames,
         definedParts,
@@ -1104,6 +1112,8 @@ function generateDerivation(
   memberBound: readonly string[],
   scope: SelfRefScope,
   checked: boolean,
+  /** `build` fills a member that declares a default from that default (DECLARED_DEFAULT_TEMPLATE). */
+  fillsDeclaredDefaults: boolean,
   renames: ReadonlyMap<string, string>,
   defined: Set<string>,
 ): Generated | undefined {
@@ -1329,9 +1339,10 @@ function generateDerivation(
         out.add(
           `        ${position === 0 ? "if" : "else if"} key.info.position == ${member.position}:`,
         );
-        // A declared default reads the handle's default, not the bounded
-        // `member` (member-bound.declared); the missing arm is unreachable.
-        if (member.default === undefined)
+        // Each member is read from the source (annot.build.member). Only
+        // `Default`'s build fills a declared default without the bounded
+        // `member` (member-bound.declared).
+        if (member.default === undefined || !fillsDeclaredDefaults)
           out.add(
             `            ${binding(member)} = .Some(s.member(${handle(variant, member, "d")}, ${binding(member)})?)`,
           );
