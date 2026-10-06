@@ -90,28 +90,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K13. Check The Website And Playground Examples
-
-Use K8's method on the website. Run every complete program with your
-worktree's hd:
-- each file in `website/playground/examples/`;
-- each ```hd or ```text block in `website/tour/` and `website/src/`
-  pages that is a complete program, or can become one by adding only a
-  `main`.
-
-What to do with each result:
-- **It works:** leave it.
-- **It fails and the spec agrees with the page:** the compiler is wrong.
-  Don't change the page; list the file, the command and the output under
-  Questions.
-- **It fails because the page is wrong:** fix the page to match the
-  spec, and run it again until it works.
-
-Playground examples must stay realistic and show the problem a feature
-solves; don't shrink one to bare syntax. One commit per directory. Put a
-table in the commit message: file, result (ok / fixed / compiler
-mismatch). Run `pnpm run website:build` before each commit.
-
 ### K14. Usability Probe 6 (Read-Only)
 
 Same method as K9 and K12, with new areas. Write four programs, using only
