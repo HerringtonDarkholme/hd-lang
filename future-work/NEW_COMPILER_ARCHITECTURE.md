@@ -31,6 +31,11 @@ authoritative, and anything that changes language behavior goes through it.
 2. **Parallel.**
 3. **Supports incremental builds.**
 
+### Multiple Backends (2026-10-06)
+
+The language has more than one backend: **Wasm** and **Cranelift** first,
+with **LLVM** and **JS** at low priority.
+
 ### How To Judge It: The Agentic Programming Language Arena (2026-10-06)
 
 The owner's framework for comparing languages and toolchains for agentic
