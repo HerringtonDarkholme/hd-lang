@@ -31,21 +31,25 @@ action at a distance.
 3. **Error-code revamp,** task #101
    ([codes waiting for it](OPEN_ISSUES.md#codes-waiting-for-the-code-revamp)),
    settled before the new compiler fixes its codes.
-4. **Core decisions.** Before the new compiler's core is fixed, the owner
-   rules on the parked items that shape it: NonEscapable (a checker
-   rule), serializable closures (closure representation), and the
-   observability and replay hooks (how suspension compiles).
+4. **Core decisions** (owner decisions, 2026-10-06). The parked items that
+   shape the new compiler's core are ruled on. NonEscapable comes after
+   v1. Serializable closures are not in v1. Suspension lowering reserves
+   no-op observability and replay hook points from day one; the hook API
+   and replay come later.
 
 ## Parked
 
-- **NonEscapable**
+- **NonEscapable**, planned after v1 (2026-10-06)
   ([Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy),
   [research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)).
 - **Tool adapters** ([Open Issues](OPEN_ISSUES.md#parked-tool-adapters)).
 - **Access control and tenancy**
   ([Open Issues](OPEN_ISSUES.md#access-control-and-tenancy-expressibility)).
-- **Serializable closures**
+- **Serializable closures**, not in v1 (2026-10-06)
   ([Open Issues](OPEN_ISSUES.md#serializable-closures-and-incremental-computation)).
+- **Observability and replay hooks**: the hook API and replay come after
+  the reserved no-op hook points (2026-10-06)
+  ([Open Issues](OPEN_ISSUES.md#observability-hooks)).
 
 ## On Hold
 

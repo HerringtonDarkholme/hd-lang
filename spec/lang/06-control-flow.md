@@ -936,7 +936,8 @@ This section defines runtime panics.
 
 1. r[flow.panic.def] A runtime panic is an abrupt, unrecoverable failure of the current program instance.
 2. r[flow.panic.not-result] It is distinct from a recoverable `Result` error and is not catchable by core hd-lang source code.
-3. r[flow.panic.sources] Integer overflow, division errors, invalid shifts, out-of-bounds indexing, and invalidated built-in iterators panic when their owning chapters require a checked runtime failure. Integer overflow and invalid shifts panic in a debug or test build only.
+3. r[flow.panic.sources] Integer overflow, division errors, invalid shifts, out-of-bounds indexing, and invalidated built-in iterators panic when their owning chapters require a checked runtime failure. Integer overflow and invalid shifts panic in a debug or test build only. Exhausting the call stack also panics, by [`flow.panic.stack-exhausted`](#r-flow.panic.stack-exhausted).
+4. r[flow.panic.stack-exhausted] Exhausting the call stack panics. The report gives a source location when one is available, as [`flow.panic.report`](#r-flow.panic.report) says. Panic: `stack-exhausted`.
 
 ### Panic Behavior
 

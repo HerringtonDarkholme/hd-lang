@@ -1,0 +1,10 @@
+use pkg.{double}
+use std.fs.write_text
+use std.path.Path
+use std.testing.assert_equal
+
+it("fails first"):
+    assert_equal(double(+2), +5, reason="double doubles")
+
+it("still runs after a failure"):
+    write_text!(Path("ran-after-failure.txt"), "ran\n").expect("the marker")

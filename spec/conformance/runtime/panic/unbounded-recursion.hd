@@ -1,4 +1,5 @@
 # test: recursion that never ends exhausts the stack, a stack-exhausted panic
+# Spec 06 Runtime Panics: flow.panic.stack-exhausted.
 
 fn deeper(depth: i32) -> i32:
     deeper(depth) + 1  # panic: stack-exhausted

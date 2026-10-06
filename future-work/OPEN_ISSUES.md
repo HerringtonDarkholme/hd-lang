@@ -181,6 +181,10 @@ Replay Rules, replaces the `Durable` bound), and capturing a provider or mutable
 rejected. The design still needs a record: the hash input, how a closure
 opts in, and graph lifetimes.
 
+**Not in the first release (owner, 2026-10-06).** The new compiler's
+first release has no serializable closures. The decision above waits
+until after it.
+
 ### Observability Hooks
 
 **Problem.** There is no task-local carrier for trace context and no
@@ -207,6 +211,10 @@ structured metrics, and enforceable redaction.
 context task-locally in the poll context; hooks fire at host-boundary calls
 and suspension points; exporters and policy stay ordinary providers. The
 redaction clause waits for `Secret[T]`, which is removed for now.
+
+**Hook points first (owner, 2026-10-06).** The new compiler reserves no-op
+hook points in suspension lowering from day one. The hook API and replay
+come later.
 
 ### Access Control And Tenancy Expressibility
 
@@ -272,6 +280,9 @@ Retain checked disposal errors.
 design, stronger sandbox guarantees, and possibly complete per-tool authority
 reports: provider values are ordinary values that may escape today, and a
 `NonEscapable` provider category is the likely way to close that gap.
+
+**After the first release (owner, 2026-10-06).** NonEscapable is planned
+after the new compiler's first release.
 
 **Parked questions.** The owner does not want to discuss NonEscapable now.
 These are the initial answers, not to be applied until the owner reopens

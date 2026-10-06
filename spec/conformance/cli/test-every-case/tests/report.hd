@@ -1,0 +1,5 @@
+use std.fs.write_text
+use std.path.Path
+
+it("runs in a later file"):
+    write_text!(Path("ran-later-file.txt"), "ran\n").expect("the marker")

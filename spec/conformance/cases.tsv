@@ -2554,7 +2554,7 @@ typing/invalid/sibling-module-std-name-not-imported.hd	type	reject:unknown-name	
 runtime/valid/sibling-module-std-name-imported.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.module.use-own-module
 typing/invalid/sibling-module-requirement-key-not-imported.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.in-scope
 typing/invalid/test-module-name-not-imported.hd	type	reject:unknown-name	lang/10-modules.md#r-module.test.module.import
-runtime/panic/unbounded-recursion.hd	runtime	panic:stack-exhausted	lang/06-control-flow.md#r-flow.panic.stable-categories
+runtime/panic/unbounded-recursion.hd	runtime	panic:stack-exhausted	lang/06-control-flow.md#r-flow.panic.stack-exhausted
 typing/invalid/duplicate-field-declaration.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#r-data.field.unique
 typing/invalid/data-nominal-same-fields.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#r-data.decl.nominal
 parse/invalid/data-field-without-type.hd	parse	reject:syntax-error	lang/08-data-and-enums.md#r-data.field.typed
@@ -2603,3 +2603,5 @@ typing/invalid/boundary-result-needs-deserialize.hd	type	reject:boundary-private
 typing/invalid/boundary-nested-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.consent.error
 runtime/valid/boundary-public-fields-cross.hd	runtime	accept	lang/10-modules.md#r-module.boundary.consent.public
 runtime/valid/boundary-consent-by-hand.hd	runtime	accept	lang/14-annotations.md#r-annot.serde.by-hand
+parse/invalid/variant-named-argument-before-positional.hd	parse	reject:argument-order	lang/08-data-and-enums.md#r-data.enum.payload.order
+runtime/panic/usize-max-overflow-wasm32.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.usize.width

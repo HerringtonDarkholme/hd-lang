@@ -302,6 +302,11 @@ hd test src/billing.hd    # the tests of module billing
 7. r[cli.check.all] `hd check --all` checks the library, the executables, the test code, and the package's [tasks](#tasks).
 8. r[cli.build.directory] The **build directory** is the directory `build` in the package directory, where `hd` writes its build and cache output.
 9. r[cli.build.output] A whole-package `hd build` writes each executable NAME to `build/debug/NAME.wasm`, or to `build/release/NAME.wasm` with `--release`.
+10. r[cli.build.output.file] `hd build FILE` writes FILE's module to `build/debug/files/STEM.wasm`, or to `build/release/files/STEM.wasm` with `--release`. STEM is FILE's name without its `.hd` extension.
+
+> **Why.** The `files` directory keeps a FILE's module apart from the
+> executables, so `hd build src/shop.hd` never overwrites the output of
+> executable `shop`.
 
 ### Test Runs
 
@@ -331,6 +336,7 @@ hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 18. r[cli.test.doc.name.member] For a block on a member, `<item>` is `Type.member`, so the first block on `new` of `Slug` in `src/text.hd` is `doc text.Slug.new[0]`.
 19. r[cli.test.doc.name.module] A block in a module's [module documentation](../lang/01-lexical-structure.md#r-lex.doc.module) has no `<item>` and no dot. The first such block in `src/text.hd` is `doc text[0]`.
 20. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
+21. r[cli.test.every-case] In every output mode, `hd test` runs every selected test case of every file and reports each failure. A failing test case does not stop later ones.
 
 | Part | Value |
 | --- | --- |

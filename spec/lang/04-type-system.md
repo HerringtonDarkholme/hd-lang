@@ -127,7 +127,7 @@ fn middle(items: List[i32]) -> usize:
 ```
 
 1. r[types.usize.primitive] `usize` is a primitive unsigned integer type. It is distinct from `u32` and from every other numeric type.
-2. r[types.usize.width] The width of `usize` is the target's: 32 bits on Wasm32, the one target today.
+2. r[types.usize.width] `usize` is an unsigned integer with the target's pointer width. On the Wasm32 target it is 32 bits.
 3. r[types.usize.behavior] Its range, overflow, wrapping, casts, and literal range are those of an unsigned integer of that width, so on Wasm32 they are those of `u32`.
 4. r[types.usize.prelude] `usize` is a [prelude](10-modules.md#prelude) name, so every module may write it without a `use`.
 5. r[types.usize.sizes] Every length, index, count, and byte offset that the language defines has type `usize`.

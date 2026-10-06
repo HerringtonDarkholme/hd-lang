@@ -3,3 +3,8 @@ file: build/debug/shop.wasm
 no-file: build/release
 run: hd build --release
 file: build/release/shop.wasm
+run: hd build src/main.hd
+file: build/debug/files/main.wasm
+no-file: build/debug/main.wasm
+run: hd build --release src/main.hd
+file: build/release/files/main.wasm

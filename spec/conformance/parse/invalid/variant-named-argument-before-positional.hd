@@ -1,0 +1,6 @@
+# test: a variant constructor call puts positional arguments before name= ones, as a function call does
+# Spec 08 Variant Payloads: data.enum.payload.order.
+enum Shipment:
+    Parcel(weight: i32, express: bool)
+
+late := Shipment.Parcel(express=true, 5)  # diagnostic: argument-order

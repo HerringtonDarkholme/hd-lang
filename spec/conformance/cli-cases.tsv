@@ -44,7 +44,7 @@ dep-outside-package	cli.dep.package-only
 exe-main-unlisted	cli.exe.main-unlisted,cli.json.diagnostic.fields
 task-name-clash	cli.task.name-clash,cli.exe.default-name.clash
 manifest-unknown-key	cli.manifest.unknown-key,cli.exit.success
-build-output	cli.build.directory,cli.build.output,cli.profile.release
+build-output	cli.build.directory,cli.build.output,cli.build.output.file,cli.profile.release
 dep-path-local	cli.dep.path,cli.dep.fetch,cli.dep.offline,cli.json.lines.build
 dep-workspace-fetch	cli.dep.workspace-fetch,cli.dep.workspace-member-only,cli.exit.hd-failure
 member-unlisted	cli.mode.member.unlisted,cli.mode.member.excluded,cli.exit.hd-failure
@@ -62,3 +62,4 @@ clean-outside-package	cli.clean.build.package-only,cli.clean.exit
 clean-workspace	cli.clean.build.workspace
 dep-dev-invalid-add	cli.dep.add.dev,cli.dep.add.check,cli.dep.add.other-table,cli.dep.remove,cli.dep.edit.empty-table,cli.dep.unchanged-on-error
 dep-dev-remove	cli.dep.remove,cli.dep.dev-selected
+test-every-case	cli.test.every-case,cli.exit.test-failure,cli.test.env.cwd,cli.json.test.result

@@ -1,0 +1,10 @@
+# A failing test case stops neither the cases after it nor the later files,
+# in text mode as in JSON mode. Each later case writes a marker file into
+# the package directory, its working directory.
+run: hd test
+exit: 1
+file: ran-after-failure.txt
+file: ran-later-file.txt
+run: hd test --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"fails first","outcome":"failed","message":null},{"kind":"test","name":"still runs after a failure","outcome":"passed"},{"kind":"test","name":"runs in a later file","outcome":"passed"},{"kind":"summary","passed":2,"failed":1,"status":1}]

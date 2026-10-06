@@ -676,7 +676,7 @@ enum ToolError:
 ```
 
 1. r[data.enum.payload] A variant may carry payload parameters.
-2. r[data.enum.payload.order] Payload parameters follow function definition conventions: unnamed positional parameters first, followed by named parameters.
+2. r[data.enum.payload.order] In a variant constructor call and in a variant pattern, positional arguments and sub-patterns come before `name=` ones. Function calls follow the same rule, [`fn.arg.positional-first`](07-functions.md#r-fn.arg.positional-first).
 3. r[data.enum.payload.typed] Each payload type is explicit.
 4. r[data.enum.payload.large] Large payloads should use a separate data type rather than a nested field block.
 5. r[data.enum.payload.no-field-blocks] Variant field blocks are not part of the language.
