@@ -172,6 +172,15 @@ uint32_t next32(uint32_t s[4]) {
 4. r[std-random.rng.below] `below(n)` draws `next_u64` values until one, `x`, is at least `2^64 mod n`. It returns `x mod n`.
 5. r[std-random.rng.below.full] When `n` is 2^64, the whole `i64` range, `below(n)` is one `next_u64` draw.
 
+```text
+use std.random.Rng
+
+fn two_rolls(seed: u64) -> List[i64]:
+    let mut dice = Rng::new(seed)
+    [dice.int(0..10), dice.int(1..=6)]
+    # two_rolls(7) is [7, 5]
+```
+
 > **Why.** Rejection keeps the result unbiased. The accepted draws, from
 > `2^64 mod n` up, number a multiple of `n`, so each remainder has the
 > same share. Fewer than two draws are needed on average, as in OpenBSD's
@@ -184,6 +193,15 @@ uint32_t next32(uint32_t s[4]) {
 
 1. r[std-random.rng.float.bits] `float` is the top 53 bits of one `next_u64` draw, times 2^-53. So it is a multiple of 2^-53, and below 1.0.
 2. r[std-random.rng.bool.bit] `bool` is `true` exactly when the top bit of one `next_u64` draw is set.
+
+```text
+use std.random.Rng
+
+fn coin_and_fraction(seed: u64) -> (f64, bool):
+    let mut gen = Rng::new(seed)
+    (gen.float(), gen.bool())
+    # coin_and_fraction(7) is (0.23382771772151634, false)
+```
 
 ### Lists
 
@@ -202,6 +220,20 @@ uint32_t next32(uint32_t s[4]) {
 | `shuffle` of `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]` | `[10, 3, 7, 4, 6, 5, 1, 9, 2, 8]` |
 | `sample([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3)` | `[8, 3, 4]` |
 | `choose(["a", "b", "c"])` | `.Some("c")` |
+
+```text
+use std.random.Rng
+
+fn pick_three(seed: u64) -> List[i64]:
+    let mut gen = Rng::new(seed)
+    gen.sample([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3)
+    # pick_three(7) is [8, 3, 4]
+
+fn one_letter(seed: u64) -> string?:
+    let mut gen = Rng::new(seed)
+    gen.choose(["a", "b", "c"])
+    # one_letter(7) is .Some("c")
+```
 
 > **Why.** A count past the length is a bug in the caller, so it panics,
 > as `chunks(0)` does. Python's `random.sample` rejects it too.

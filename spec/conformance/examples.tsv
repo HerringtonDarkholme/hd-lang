@@ -782,6 +782,9 @@ std/random.md	1	type-fragment	-
 std/random.md	2	accept	typing/valid/random-trait.hd
 std/random.md	3	accept	runtime/valid/seeded-random.hd
 std/random.md	4	accept	runtime/valid/rng-from-random.hd
+std/random.md	5	accept	runtime/valid/rng-int-range.hd
+std/random.md	6	accept	runtime/valid/rng-seeded-sequence.hd
+std/random.md	7	accept	runtime/valid/rng-shuffle-choose-sample.hd
 std/option.md	1	accept	runtime/valid/option-and-then.hd
 std/option.md	2	accept	runtime/valid/option-tests-conversions.hd
 std/result.md	1	accept	runtime/valid/result-and-then.hd
