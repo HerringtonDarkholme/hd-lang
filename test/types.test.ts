@@ -23,6 +23,7 @@ import {
   nominalGenericParts,
   optionalInner,
   optionalType,
+  parsedType,
   resultParts,
   substituteTypeParameters,
   tupleParts,
@@ -43,6 +44,20 @@ test("structural type parsers memoize parts by type text", () => {
     assert.equal(parts(type), parts(type));
   assert.equal(containsGenericType("List[generic:T]"), true);
   assert.equal(containsGenericType("List[i32]"), false);
+});
+
+test("parsed types intern one structural object per type text", () => {
+  const text = "fn(Map[string,List[generic:T]])->Result[generic:T,string]$Console";
+  const parsed = parsedType(text);
+  assert.equal(parsed, parsedType(text));
+  assert.equal(parsed.callable?.parameters[0], parsedType("Map[string,List[generic:T]]"));
+  assert.equal(
+    parsed.callable?.parameters[0]?.nominal?.arguments[1],
+    parsedType("List[generic:T]"),
+  );
+  assert.equal(parsed.callable?.result.result?.ok, parsedType("generic:T"));
+  assert.equal(parsed.callable?.requirements[0], parsedType("Console"));
+  assert.equal(containsGenericType(text), true);
 });
 
 test("a deeply nested tuple type checks without overflowing", () => {

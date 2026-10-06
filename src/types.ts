@@ -40,11 +40,111 @@ interface StoredSuspensionParts {
   readonly result: ValueType;
 }
 
-function memoized<K, V>(cache: Map<K, V>, key: K, parse: (key: K) => V): V {
-  const cached = cache.get(key);
-  if (cached !== undefined || cache.has(key)) return cached as V;
-  const parsed = parse(key);
-  cache.set(key, parsed);
+export interface ParsedFunctionType {
+  readonly parameters: readonly ParsedType[];
+  readonly suspending: boolean;
+  readonly variadic: boolean;
+  readonly result: ParsedType;
+  readonly requirements: readonly ParsedType[];
+}
+
+export interface ParsedNominalType {
+  readonly name: string;
+  readonly arguments: readonly ParsedType[];
+}
+
+export interface ParsedTypeBinding {
+  readonly name: string;
+  readonly type: ParsedType;
+}
+
+/**
+ * One canonical structural view for each internal type string. The HIR and
+ * checker APIs still carry `ValueType` strings; a full migration would store
+ * these objects there and convert to text only at diagnostics and emission.
+ */
+export interface ParsedType {
+  readonly text: ValueType;
+  readonly generic?: string;
+  readonly mutable?: ParsedType;
+  readonly inputs?: ParsedType;
+  readonly rest?: ParsedType;
+  readonly binding?: ParsedTypeBinding;
+  readonly tuple?: readonly ParsedType[];
+  readonly optional?: ParsedType;
+  readonly result?: { readonly ok: ParsedType; readonly error: ParsedType };
+  readonly nominal?: ParsedNominalType;
+  readonly callable?: ParsedFunctionType;
+}
+
+interface ParsedTypeRecord extends ParsedType {
+  tupleView?: readonly ValueType[];
+  nominalView?: NominalGenericParts;
+  bindingView?: TypeBinding;
+  resultView?: ResultParts;
+  functionView?: FunctionParts;
+}
+
+const PARSED_TYPES = new Map<ValueType, ParsedTypeRecord>();
+
+/** Intern a type string and parse all of its structural views once. */
+export function parsedType(type: ValueType): ParsedType {
+  const cached = PARSED_TYPES.get(type);
+  if (cached) return cached;
+
+  // Publish the object before its children are interned. Type strings are
+  // finite trees, but this also makes the identity invariant explicit while
+  // a parent and its shorter substrings are being assembled.
+  const parsed = { text: type } as ParsedTypeRecord;
+  PARSED_TYPES.set(type, parsed);
+
+  const mutableText = type.startsWith("mut:") ? type.slice("mut:".length) : undefined;
+  const inputsText = type.startsWith("*") ? type.slice(1) : undefined;
+  const restText = type.endsWith("...") ? type.slice(0, -3) : undefined;
+  const tupleView = parseTupleParts(type);
+  const nominalView = parseNominalGenericParts(type);
+  const bindingView = parseBindingParts(type);
+  const resultView = parseResultParts(type);
+  const functionView = parseFunctionParts(type);
+  const optionalText =
+    mutableText === undefined ? parseOptionalInner(type, functionView) : undefined;
+  const generic = /^generic:([^?[\](),]+)$/u.exec(type)?.[1];
+
+  Object.assign(parsed, {
+    generic,
+    mutable: mutableText === undefined ? undefined : parsedType(mutableText),
+    inputs: inputsText === undefined ? undefined : parsedType(inputsText),
+    rest: restText === undefined ? undefined : parsedType(restText),
+    binding:
+      bindingView === undefined
+        ? undefined
+        : { name: bindingView.name, type: parsedType(bindingView.type) },
+    tuple: tupleView?.map(parsedType),
+    optional: optionalText === undefined ? undefined : parsedType(optionalText),
+    result:
+      resultView === undefined
+        ? undefined
+        : { ok: parsedType(resultView.ok), error: parsedType(resultView.error) },
+    nominal:
+      nominalView === undefined
+        ? undefined
+        : { name: nominalView.name, arguments: nominalView.arguments.map(parsedType) },
+    callable:
+      functionView === undefined
+        ? undefined
+        : {
+            parameters: functionView.parameters.map(parsedType),
+            suspending: functionView.suspending,
+            variadic: functionView.variadic,
+            result: parsedType(functionView.result),
+            requirements: functionView.requirements.map(parsedType),
+          },
+    tupleView,
+    nominalView,
+    bindingView,
+    resultView,
+    functionView,
+  });
   return parsed;
 }
 
@@ -73,8 +173,6 @@ export function readonlyType(type: ValueType): ValueType {
   return mutableInner(type) ?? type;
 }
 
-const TUPLE_PARTS = new Map<ValueType, readonly ValueType[] | undefined>();
-
 function parseTupleParts(type: ValueType): readonly ValueType[] | undefined {
   if (!type.startsWith("(") || !type.endsWith(")")) return undefined;
   const contents = type.slice(1, -1);
@@ -100,7 +198,7 @@ function parseTupleParts(type: ValueType): readonly ValueType[] | undefined {
 }
 
 export function tupleParts(type: ValueType): readonly ValueType[] | undefined {
-  return memoized(TUPLE_PARTS, type, parseTupleParts);
+  return (parsedType(type) as ParsedTypeRecord).tupleView;
 }
 
 /**
@@ -162,8 +260,6 @@ export function tupleLayout(type: ValueType): readonly ValueType[] | undefined {
   return tupleParts(type)?.map((element) => restInner(element) ?? element);
 }
 
-const NOMINAL_GENERIC_PARTS = new Map<ValueType, NominalGenericParts | undefined>();
-
 function parseNominalGenericParts(type: ValueType): NominalGenericParts | undefined {
   if (type.startsWith("fn(") || type.startsWith("fn!(")) return undefined;
   const open = type.indexOf("[");
@@ -187,7 +283,7 @@ function parseNominalGenericParts(type: ValueType): NominalGenericParts | undefi
 }
 
 export function nominalGenericParts(type: ValueType): NominalGenericParts | undefined {
-  return memoized(NOMINAL_GENERIC_PARTS, type, parseNominalGenericParts);
+  return (parsedType(type) as ParsedTypeRecord).nominalView;
 }
 
 export function nominalGenericType(name: string, arguments_: readonly ValueType[]): ValueType {
@@ -220,15 +316,13 @@ export function splitTypeBindings(arguments_: readonly ValueType[]): {
 }
 
 /** The parts of one binding argument `Name=type`, or undefined for a type. */
-const BINDING_PARTS = new Map<ValueType, TypeBinding | undefined>();
-
 function parseBindingParts(argument: ValueType): TypeBinding | undefined {
   const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.+)$/su.exec(argument);
   return match ? { name: match[1]!, type: match[2]! } : undefined;
 }
 
 export function bindingParts(argument: ValueType): TypeBinding | undefined {
-  return memoized(BINDING_PARTS, argument, parseBindingParts);
+  return (parsedType(argument) as ParsedTypeRecord).bindingView;
 }
 
 /** A binding argument with its type rewritten. */
@@ -237,7 +331,22 @@ export function bindingType(binding: TypeBinding, type: ValueType): ValueType {
 }
 
 function isFunctionTypeText(type: ValueType): boolean {
-  return (type.startsWith("fn(") || type.startsWith("fn!(")) && functionParts(type) !== undefined;
+  return parsedType(type).callable !== undefined;
+}
+
+function parseOptionalInner(
+  type: ValueType,
+  callable: FunctionParts | undefined,
+): ValueType | undefined {
+  if (!type.endsWith("?") || callable) return undefined;
+  const inner = type.slice(0, -1);
+  if (
+    inner.startsWith("(") &&
+    inner.endsWith(")") &&
+    (mutableInner(inner.slice(1, -1)) !== undefined || isFunctionTypeText(inner.slice(1, -1)))
+  )
+    return inner.slice(1, -1);
+  return inner;
 }
 
 /**
@@ -249,16 +358,7 @@ function isFunctionTypeText(type: ValueType): boolean {
  * function type is rendered `(fn(...)->R)?`.
  */
 export function optionalInner(type: ValueType): ValueType | undefined {
-  type = readonlyType(type);
-  if (!type.endsWith("?") || isFunctionTypeText(type)) return undefined;
-  const inner = type.slice(0, -1);
-  if (
-    inner.startsWith("(") &&
-    inner.endsWith(")") &&
-    (mutableInner(inner.slice(1, -1)) !== undefined || isFunctionTypeText(inner.slice(1, -1)))
-  )
-    return inner.slice(1, -1);
-  return inner;
+  return parsedType(readonlyType(type)).optional?.text;
 }
 
 /**
@@ -385,8 +485,6 @@ export function displayType(type: ValueType): string {
     .replace(/,(?! )/g, ", ");
 }
 
-const RESULT_PARTS = new Map<ValueType, ResultParts | undefined>();
-
 function parseResultParts(type: ValueType): ResultParts | undefined {
   if (!type.startsWith("Result[") || !type.endsWith("]")) return undefined;
   const contents = type.slice("Result[".length, -1);
@@ -403,7 +501,7 @@ function parseResultParts(type: ValueType): ResultParts | undefined {
 }
 
 export function resultParts(type: ValueType): ResultParts | undefined {
-  return memoized(RESULT_PARTS, type, parseResultParts);
+  return (parsedType(type) as ParsedTypeRecord).resultView;
 }
 
 export function resultType(ok: ValueType, error: ValueType): ValueType {
@@ -413,8 +511,6 @@ export function resultType(ok: ValueType, error: ValueType): ValueType {
 export function isErasedVariant(type: ValueType): boolean {
   return optionalInner(type) !== undefined || resultParts(type) !== undefined;
 }
-
-const FUNCTION_PARTS = new Map<ValueType, FunctionParts | undefined>();
 
 function parseFunctionParts(type: ValueType): FunctionParts | undefined {
   const suspending = type.startsWith("fn!(");
@@ -472,7 +568,7 @@ function parseFunctionParts(type: ValueType): FunctionParts | undefined {
 }
 
 export function functionParts(type: ValueType): FunctionParts | undefined {
-  return memoized(FUNCTION_PARTS, type, parseFunctionParts);
+  return (parsedType(type) as ParsedTypeRecord).functionView;
 }
 
 export function functionType(
@@ -572,7 +668,11 @@ function parseRowKeys(text: string): readonly string[] {
 }
 
 export function splitRowKeys(text: string): readonly string[] {
-  return memoized(ROW_KEYS, text, parseRowKeys);
+  const cached = ROW_KEYS.get(text);
+  if (cached) return cached;
+  const parsed = parseRowKeys(text);
+  ROW_KEYS.set(text, parsed);
+  return parsed;
 }
 
 export function contextKeys(type: ValueType): readonly string[] | undefined {

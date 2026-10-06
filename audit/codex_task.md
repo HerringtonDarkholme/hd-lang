@@ -71,29 +71,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### BQ. Intern Types (Compile Speed)
-
-The checker represents types as strings and re-parses them on every
-inspection (audit/compiler/perf-audit.md, finding F3: `functionParts`,
-`nominalGenericParts`, `containsGenericParameter`, the `Name=type` regex;
-about 8.6% of a profile, and the speed gate's `list-nest` case grows
-11x per 3.33x because nested types re-scan inner text at every level).
-Also fix the nested-tuple crash the same finding area mentions if it
-still reproduces (try a deeply nested tuple type, e.g. 40 levels).
-
-Do it in two steps, one commit each:
-1. Memoize the pure text parsers in a Map keyed by the type string (the
-   audit's low-risk fix). Measure.
-2. Intern parsed types: one canonical parsed object per distinct type
-   string, so the parsers and predicates read structure instead of
-   scanning text. Keep the string API at module edges if a full
-   migration is too big; say what you did and what's left.
-Measure `pnpm run perf:check` (all cases; compare against origin/main
-in a detached worktree on the same load, `uptime` below ~20) before and
-after each step, and report the table. No behavior change: the type and
-runtime phases must stay identical. Delete F3 from perf-audit.md when it
-is fixed.
-
 ## Questions
 
 (none)

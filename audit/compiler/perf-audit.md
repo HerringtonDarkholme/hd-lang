@@ -1,12 +1,11 @@
 # Compiler Speed: Open Findings
 
 Status: the open findings of the 2026-10-04 speed audit. Fixed and removed:
-F2 (3edd4e36), F4 (4fba4be5), F8 (2f6dcc50), F9 (06b12ff7), F11 (0bea744a),
-F12 (ad85d9e5), F13 (b44e48c0). Baselines, phase breakdown and full
+F2 (3edd4e36), F3 (BQ), F4 (4fba4be5), F8 (2f6dcc50), F9 (06b12ff7),
+F11 (0bea744a), F12 (ad85d9e5), F13 (b44e48c0). Baselines, phase breakdown and full
 profiles are in git history (`git show a3f8e3b3:audit/compiler/perf-audit.md`).
 Slow-compile profiles per perf case: [../job1-slow-compile-profiles.md](../job1-slow-compile-profiles.md).
-F3 is task #255 (type interning); F5, F6 and the std cache are task #262
-(deferred by the owner).
+F5, F6 and the std cache are task #262 (deferred by the owner).
 
 ### F1. Trial speculation snapshots the whole checker per candidate call
 
@@ -32,25 +31,6 @@ Correctness risk: high; a too-narrow snapshot silently keeps trial mutations
 (the exact bug class the transaction exists to prevent). Covered by the
 checker trial unit tests (`test/**/*.test.ts`, e.g. the nested/sparse-journal
 trials) and the full portable typing suite (1849 language cases).
-
-### F3. Types re-parsed from text on every inspection
-
-File and line: `src/types.ts:340` (`functionParts`, self 73.5 + 63.3 =
-136.8 ms), `src/types.ts:141` (`nominalGenericParts`, self 49.4 ms),
-`src/checker/shared.ts:608` (`containsGenericParameter`, inclusive 651.0 +
-543.3 ms across two nodes), plus the `Name=type` regex rows
-(`^([A-Za-z_][A-Za-z0-9_]*)=(.+)$`, self 120.3 + 89.9 = 210 ms).
-Workload: mb+amt profile; combined self ~400 ms, ~8.6% of the profile.
-Growth: each inspection is O(type-string length); nested types re-scan
-inner text at every level, so deep types (list-nest: 11.1x per 3.33x) pay
-repeatedly.
-Proposed fix: memoize the text parsers in a Map keyed by the type string
-(one wrapper per function). Longer term, intern parsed types; that is a
-bigger change and not proposed here.
-Expected gain: 3-5% on inference-heavy workloads (cache hits remove the
-char scans; Map overhead keeps part of the share).
-Correctness risk: low; pure functions, cache is value-keyed. Covered by
-typing fixtures and the gate.
 
 ### F5. `withStandardSource` rebuilds every std object per compile
 
