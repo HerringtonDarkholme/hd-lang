@@ -1,0 +1,8 @@
+use std.text.StringBuilder
+
+pub fn main() -> void:
+    let mut out = StringBuilder::new()
+    for i in 0..100_000:
+        out.push("part-$i;")
+    text := out.build()
+    if text.len() != 1_088_890: panic("wrong length: ${text.len()}")

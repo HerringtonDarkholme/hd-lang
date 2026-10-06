@@ -121,3 +121,50 @@ check).
 Not recommended now (owner direction "no cache now"); recorded here so the
 number exists when the decision is revisited. Findings F5 and F6 reduce
 parts of this cost without a checked-std cache and are fair game.
+
+## Runtime Microbenchmarks And Wasm Size
+
+Measured 2026-10-06 with `test/perf/micro/run.ts` (medians of three runs,
+compute time only, on an Apple Silicon laptop; Node v24 runs both the hd
+Wasm and the Node column). Measure, don't optimize: the fixes below are
+suspects to profile, not decided work.
+
+| Case | hd (ms) | Python (ms) | Node (ms) | hd / Node | Wasm (B) |
+| --- | --- | --- | --- | --- | --- |
+| fib(30) recursive | 7.2 | 66.2 | 5.7 | 1.3x | 1,186 |
+| sum of 1..10M | 136.8 | 277.8 | 7.3 | 19x | 1,555 |
+| string build, 100k parts | 10,663.4 | 8.4 | 9.4 | ~1100x | 2,416 |
+| map, 100k inserts + lookups | 49.2 | 8.8 | 5.8 | 8.5x | 3,613 |
+| sort, 100k items | 59.7 | 9.9 | 21.9 | 2.7x | 3,412 |
+
+Where hd stands: on par with Node for call-heavy integer code (fib) and
+within 3x for sorting, but 8x behind on map operations, 19x behind on a
+plain counting loop, and three orders of magnitude behind on string
+building. Probes isolating the string case: 100k `StringBuilder.push`
+calls of a constant string take the same ~10.7 s as with interpolation,
+interpolation alone takes 10 ms, and a `List[string]` push plus `join`
+takes ~7 s. So the cost sits in the builder/concat path
+(`__std_text_string_concat`, `__std_text_bytes_concat` and the builder's
+own functions dominate the emitted code), not in interpolation; the shape
+suggests quadratic copying per push. For the sum loop, dropping the
+`u64(i)` cast takes 137 ms to ~100 ms, and the emitted code runs the
+range through an `Iterator` value (`from_fn`/`next` closures), which the
+Wasm engine may not inline.
+
+Wasm size: dead-code elimination strips unused std, so a program pays
+only for what it calls. A minimal `main: pass` builds to 35 B with one
+function; `println("hello, world")` to 1,577 B with three. Every
+benchmark that checks its result pulls in `std.format` and `std.text`
+(number-to-text for the panic message: 2-5 functions, roughly 1-2 KB);
+`map` adds `std.hash`; the rest of each binary is program code plus the
+collection's inherent/impl functions (4-8 functions). No benchmark
+exceeds 3.7 KB.
+
+Most promising fixes, in order:
+1. The `StringBuilder`/concat growth path (string-build is ~1100x Node;
+   the probe points at copying per push, so look at the builder's buffer
+   growth in `lib/std` and its emitted calls).
+2. Range-loop iteration through boxed `Iterator` closures (sum is 19x
+   Node with no allocation; a `for` over `1..N` should lower to a counter
+   loop).
+3. `Map` insert/lookup cost (map is 8.5x Node).

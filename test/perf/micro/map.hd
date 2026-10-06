@@ -1,0 +1,8 @@
+pub fn main() -> void:
+    let table: mut Map[usize, u64] = {}
+    for i in 0..100_000:
+        table[i] = u64(i * 2)
+    let total: u64 = 0
+    for i in 0..100_000:
+        total = total + table.get(i).unwrap_or(0)
+    if total != 9999900000: panic("wrong: $total")

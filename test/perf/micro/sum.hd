@@ -1,0 +1,5 @@
+pub fn main() -> void:
+    let total: u64 = 0
+    for i in 1..10_000_001:
+        total = total + u64(i)
+    if total != 50000005000000: panic("wrong: $total")

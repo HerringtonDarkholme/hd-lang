@@ -1,0 +1,8 @@
+pub fn main() -> void:
+    let items: mut List[usize] = []
+    for i in 0..100_000:
+        items.push((i * 48271) % 1_000_003)
+    ordered := items.sorted()
+    if ordered[0] != 0: panic("wrong min: ${ordered[0]}")
+    for i in 1..100_000:
+        if ordered[i] < ordered[i - 1]: panic("unsorted at $i")
