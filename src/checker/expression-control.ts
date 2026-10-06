@@ -993,13 +993,8 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       const accessPath = [
         enumPatternAccess(declaration, field, variables, substitutions, fieldType),
       ];
-      payloadRefutable ||= !this.checkNestedPattern(
-        payloadPattern,
-        fieldType,
-        accessPath,
-        bindings,
-        tests,
-      );
+      if (!this.checkNestedPattern(payloadPattern, fieldType, accessPath, bindings, tests))
+        payloadRefutable = true;
     });
     if (!guarded && !payloadRefutable) context.covered.add(tag);
     return tag;

@@ -442,6 +442,7 @@ runtime/valid/named-enum-payload-evaluation-order.hd	runtime	accept	lang/08-data
 runtime/valid/named-enum-payload-patterns.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
 typing/invalid/literal-payload-pattern-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/08-data-and-enums.md#matching-enums
 runtime/valid/literal-payload-patterns.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
+runtime/valid/nested-variant-positional-bindings.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.payload.binding
 runtime/valid/shared-enum-data-defaults.hd	runtime	accept	lang/08-data-and-enums.md#shared-enum-constructor-data
 runtime/valid/named-arguments-trait-dispatch.hd	runtime	accept	lang/07-functions.md#positional-and-named-arguments
 typing/invalid/prelude-shadow-console-parameter.hd	type	reject:prelude-name-shadow	lang/10-modules.md#prelude

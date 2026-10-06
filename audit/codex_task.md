@@ -72,28 +72,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### BL. A Nested Variant Pattern Before A Positional Binding Loses The Binding
-
-Found by task #278; fails on main too. In a match arm, a nested variant
-pattern in an earlier position makes a later positional binding unknown:
-
-```
-enum Plain:
-    Lit(i64)
-    Add(Plain, Plain)
-
-fn simplify(e: Plain) -> Plain:
-    match e:
-        Plain.Add(Plain.Lit(0), right) => right    # unknown-name: 'right'
-        _ => e
-```
-
-Find the root cause (likely the nested pattern's bindings or test path
-replaces the outer arm's binding list instead of extending it), fix it,
-and add a runtime fixture with nested patterns in first, middle and last
-positions, including two nested patterns in one arm. Run the parent
-commit and yours, and check `--phase type` and `--phase runtime`.
-
 ### BN. A Readonly Argument To A Generic `mut` Parameter Names The Real Problem
 
 Found by #335. The non-generic case reports

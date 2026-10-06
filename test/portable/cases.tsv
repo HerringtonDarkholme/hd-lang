@@ -315,6 +315,7 @@ runtime/valid/named-enum-payload-evaluation-order.hd	runtime
 runtime/valid/named-enum-payload-patterns.hd	runtime
 typing/invalid/literal-payload-pattern-nonexhaustive.hd	type
 runtime/valid/literal-payload-patterns.hd	runtime
+runtime/valid/nested-variant-positional-bindings.hd	runtime
 runtime/valid/shared-enum-data-defaults.hd	runtime
 runtime/valid/named-arguments-trait-dispatch.hd	runtime
 typing/invalid/prelude-shadow-console-parameter.hd	type

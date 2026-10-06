@@ -1,0 +1,42 @@
+# test: nested variant patterns preserve every positional binding in the arm
+
+use std.testing.assert_equal
+
+enum Plain:
+    Lit(i64)
+    Add(Plain, Plain)
+
+enum Triple:
+    Items(Plain, Plain, Plain)
+
+fn value(item: Plain) -> i64:
+    match item:
+        Plain.Lit(number) => number
+        Plain.Add(left, right) => value(left) + value(right)
+
+fn nested_first(item: Triple) -> i64:
+    match item:
+        Triple.Items(Plain.Lit(0), middle, last) => value(middle) * 10 + value(last)
+        _ => -1
+
+fn nested_middle(item: Triple) -> i64:
+    match item:
+        Triple.Items(first, Plain.Lit(0), last) => value(first) * 10 + value(last)
+        _ => -1
+
+fn nested_last(item: Triple) -> i64:
+    match item:
+        Triple.Items(first, middle, Plain.Lit(0)) => value(first) * 10 + value(middle)
+        _ => -1
+
+fn nested_twice(item: Triple) -> i64:
+    match item:
+        Triple.Items(Plain.Lit(0), middle, Plain.Lit(2)) => value(middle)
+        _ => -1
+
+fn main() -> i64:
+    nested_first(Triple.Items(Plain.Lit(0), Plain.Lit(4), Plain.Lit(2))) + nested_middle(Triple.Items(Plain.Lit(4), Plain.Lit(0), Plain.Lit(2))) + nested_last(Triple.Items(Plain.Lit(4), Plain.Lit(2), Plain.Lit(0))) + nested_twice(Triple.Items(Plain.Lit(0), Plain.Lit(42), Plain.Lit(2)))
+
+tests:
+    it("nested patterns keep every positional binding"):
+        assert_equal(main(), 168, reason="nested variant positional bindings")
