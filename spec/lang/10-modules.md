@@ -1693,7 +1693,7 @@ fn demo(n: i32) -> bool:
 ### Program Instances
 
 1. r[module.init.per-instance] This initialization rule governs one program instance.
-2. r[module.init.histories] Interactive cell re-execution and durable replay have separate runtime histories described in `RUNTIME_AND_LIBRARY.md`.
+2. r[module.init.histories] Interactive cell re-execution and durable replay have separate runtime histories, described in [REPL](../cli/command-line.md#repl) and [Determinism](11-requirements-and-suspension.md#determinism).
 
 ```hd
 tests:
