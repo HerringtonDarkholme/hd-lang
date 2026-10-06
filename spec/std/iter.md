@@ -56,7 +56,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 8. r[std-iter.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
 9. r[std-iter.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
 10. r[std-iter.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
-11. r[std-iter.adapter.callback-row.capture] A `keep` or `transform` closure whose body uses a requirement key has that key in its row, even inside a `$.with` block, so it does not fit. Error: `type-mismatch`.
+11. r[std-iter.adapter.callback-row.capture] A `keep` or `transform` closure whose body uses a requirement key has that key in its row, even inside a `$.with` block. So it does not fit. Error: `type-mismatch`.
 
 ```text
 trait Logger
