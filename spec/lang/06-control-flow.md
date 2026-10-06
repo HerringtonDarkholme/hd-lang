@@ -184,6 +184,7 @@ data Iterator[T]:
 > single cursor and cannot keep that promise. If it implemented `Iterable`,
 > a second pass would silently see only what the first pass left, or
 > nothing, as with Python generators. So iterators stay outside `Iterable`.
+>
 > `for` still consumes an iterator directly, by
 > [`flow.for.iterator-direct`](#r-flow.for.iterator-direct), because there
 > the consumption is visible at the call site. To pass an iterator where an

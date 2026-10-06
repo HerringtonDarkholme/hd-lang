@@ -83,12 +83,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K3. The Long Paragraph In 06-Control-Flow
-
-`bash spec/check.sh` warns that `spec/lang/06-control-flow.md:181` is a
-108-word paragraph (limit 90). Split it into two paragraphs, or move a
-detail into a Note, without changing meaning. One commit.
-
 ### K4. Examples For Std Rules That Have None
 
 The audit's `no-ex` column counts rule groups without an example:
