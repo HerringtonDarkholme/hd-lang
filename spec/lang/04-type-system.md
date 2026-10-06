@@ -9,6 +9,11 @@ variance.
 2. r[types.no-execute] A program with a type error must not execute.
 3. r[types.local-inference] Local inference removes redundant annotations; public and aggregate boundaries remain explicit.
 
+```hd
+fn demo(x: i32) -> i32:
+    x + 1   # every expression has a compile-time type
+```
+
 See also: [Type Inference Boundaries](#type-inference-boundaries).
 
 ## Type Forms
@@ -33,6 +38,11 @@ r[types.forms.set] The type forms are:
 
 1. r[types.suspend] `Suspend[T]` is the dynamic one-shot computation protocol.
 2. r[types.gadt-equalities] GADT refinements are arm-local type equalities rather than additional runtime type forms.
+
+```hd
+fn demo() -> (List[i32], string?):
+    ([+1, +2], .Some("a"))   # a tuple of a list and an optional
+```
 
 See also: [Requirements and Suspension](11-requirements-and-suspension.md),
 [Generalized Algebraic Data Types](13-gadts.md).
@@ -256,11 +266,21 @@ let ratio: f64 = 1   # error: type-mismatch
 3. r[types.literal.negation.unsigned] A negated literal is invalid for an unsigned expected type.
 4. r[types.literal.negation.below-minimum] Values below the signed minimum remain errors.
 
+```hd
+fn demo() -> i8:
+    -128   # valid: checked as a unit against i8
+```
+
 ### Floating-Point Literals
 
 1. r[types.literal.float-local] A floating-point literal with no expected type takes its width from its expression, by [`types.literal.local.join`](#r-types.literal.local.join), or else `f64`. It must be representable as a finite value of the type it takes.
 2. r[types.literal.float-expected] When an expected `f32` or `f64` type is available, the literal is converted directly to that type.
 3. r[types.literal.float-finite] The converted literal must be representable as a finite value under that type's IEEE 754 rounding rules. Error: `float-literal-range`.
+
+```hd
+fn demo() -> f64:
+    1.5
+```
 
 ### Open Literal Width
 
@@ -460,6 +480,11 @@ See also: [Prefixed Strings](05-expressions.md#prefixed-strings).
 2. r[types.literal.string] A string literal has type `string`, and a character literal has type `char`.
 3. r[types.literal.no-absent] There is no literal for an absent optional; it is the enum variant `.None`.
 
+```hd
+fn demo() -> (bool, string, char):
+    (true, "a", 'b')
+```
+
 See also: [Optional Types](#optional-types).
 
 ## Nominal And Structural Types
@@ -545,6 +570,11 @@ See also: [Vararg Inputs](07-functions.md#vararg-inputs),
 1. r[types.fn.constructor] A function type is an application of the standard constructor `Fn` or `SuspendFn`, and the `fn(...) -> T` spelling is exact sugar for it.
 2. r[types.fn.same] Two function types are the same type when they apply the same constructor to the same inputs. The output and the normalized requirement row must also be the same.
 3. r[types.fn.declared-variance] Function types convert only by the declared variance of their constructor, as [Readonly Outer Views](#readonly-outer-views) states.
+
+```hd
+fn apply(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x)
+```
 
 See also: [Function Type Constructors](07-functions.md#function-type-constructors),
 [Variance](#variance).
@@ -669,6 +699,11 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 7. r[types.option.nest.explicit] The inner layer needs an explicit `.Some(...)`, as in `let nested: i32?? = .Some(1)`.
 8. r[types.option.nest.none] `.None` with an expected `T??` is the outer absent value, and `.Some(.None)` is a present outer value holding an absent inner value.
 
+```hd
+fn demo(flag: bool) -> i32?:
+    if flag: +1 else: .None
+```
+
 ### Representation And Propagation
 
 1. r[types.option.repr] The representation of `Option[T]` is an implementation detail; for example, an implementation may represent `.None` as a null reference.
@@ -676,6 +711,15 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 3. r[types.option.propagate.result] That function must itself return a compatible optional type.
 4. r[types.option.propagate.one-layer] Postfix `?` removes and propagates one optional layer at a time.
 5. r[types.option.propagate.permission] A present value keeps the optional's declared contained type `T`, including `mut U` when `T = mut U`; unwrapping does not weaken that generic argument.
+
+```hd
+fn first(items: List[i32]) -> i32?:
+    if items.len() == 0: .None
+    else: .Some(items[0])
+
+fn demo(items: List[i32]) -> i32?:
+    first(items)?   # the value, or .None returns at once
+```
 
 ### Optional Identity And Variance
 
@@ -753,6 +797,15 @@ fn save(ready: bool) -> Result[void, string]:
 5. r[types.result.err-value] Returning an `.Err` value without `?` does not itself alter control flow, and it never calls a conversion.
 6. r[types.result.propagate.permission] The success value retains its declared generic type `T`, including `mut U` when `T = mut U`, regardless of whether the `Result` value itself is readonly.
 7. r[types.result.no-effects] The core language does not use effect syntax for recoverable errors.
+
+```hd
+fn get(items: List[i32]) -> Result[i32, string]:
+    if items.len() == 0: .Err("empty")
+    else: .Ok(items[0])
+
+fn demo(items: List[i32]) -> Result[i32, string]:
+    .Ok(get(items)?)   # the value, or the error returns at once
+```
 
 See also: [Propagation](05-expressions.md#propagation), which defines the rule
 and its diagnostic, and [Conversion Trait](09-traits.md#conversion-trait).
@@ -896,6 +949,11 @@ See also: [Runtime Panics](06-control-flow.md#runtime-panics).
 8. r[types.display.nan-canonical] Before hashing, boundary serialization, or `Display`, every NaN is replaced with the one canonical quiet-NaN value for its width.
 9. r[types.display.nan-compare] NaN comparison continues to follow IEEE 754.
 
+```hd
+fn demo() -> string:
+    "${1.5}"   # "1.5": shortest round-trip digits
+```
+
 > **Note.** Boundary serialization writes a float as its bit pattern, after
 > this replacement, by [`module.boundary.float-bits`](10-modules.md#r-module.boundary.float-bits).
 
@@ -937,6 +995,13 @@ See also: [Inspectable Types](09-traits.md#inspectable-types).
 2. r[types.assign.binding-type] Assignment never changes the declared or inferred type of a binding.
 3. r[types.assign.let-declared] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration. A literal initializer's width is fixed there, by [`types.literal.local.statement`](#r-types.literal.local.statement).
 
+```hd
+fn demo() -> i32:
+    let x = +1
+    x = +2   # still i32: assignment never changes the binding's type
+    x
+```
+
 ## Composite Values And Access Permission
 
 Composite values are shared by reference, and `mut` grants mutable access to
@@ -946,6 +1011,11 @@ one.
 2. r[types.composite.shared] Composite parameters and results use shared references at the language level.
 3. r[types.composite.aliases] hd-lang does not require exclusive ownership and may have multiple aliases to one composite value.
 
+```hd
+fn demo(items: mut List[i32]) -> void:
+    items.push(+1)   # shared by reference: the caller sees the push
+```
+
 ### Views
 
 For a composite type `T`:
@@ -954,6 +1024,11 @@ For a composite type `T`:
 2. r[types.view.mutable] `mut T` is a mutable reference view. It permits operations that mutate the referenced value.
 3. r[types.view.term] Throughout the specification, **readonly view** is the single term for `T` access to a composite value; it does not imply deep immutability.
 4. r[types.view.non-reassignable] A binding is described separately as **non-reassignable** when its name cannot be rebound.
+
+```hd
+fn demo(items: List[i32]) -> usize:
+    items.len()   # a readonly view: observation only
+```
 
 ### Access Permission
 
@@ -1014,6 +1089,11 @@ See also: [Mutable Paths](#mutable-paths).
 6. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
 7. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `mut Iterator[mut Word]`, and returning it as `mut Iterator[Word]` is an error. Error: `type-mismatch`.
 
+```hd
+fn demo() -> List[i32]:
+    [+1, +2]   # fresh: mutable access to the new outer object
+```
+
 #### Fresh Literals With Readonly Parts
 
 1. r[types.fresh.readonly-field] A data literal with a direct `field: mut U` may produce readonly `T` when that field is supplied only `U`.
@@ -1026,6 +1106,14 @@ See also: [Mutable Paths](#mutable-paths).
    - a `mut T` argument or result;
    - a store into a `mut T` field or element.
 7. r[types.fresh.generic-field] A generic field declared `field: P` still requires its substituted type, including `mut U` when `P = mut U`.
+
+```hd
+data Box:
+    content: mut List[i32]
+
+fn demo(items: List[i32]) -> Box:
+    Box { content: items }   # readonly items: the Box is readonly
+```
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -1177,6 +1265,14 @@ and the mutations that access type permits.
 10. r[types.path.contents] Optional and `Result` unwrapping, tuple element extraction, and generic enum payloads likewise yield their declared contents.
 11. r[types.path.enum-payload] A non-generic enum payload declared `mut U` follows the field rule above.
 
+```hd
+data User:
+    name: string
+
+fn rename(user: mut User, name: string) -> void:
+    user.name = name
+```
+
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Member Resolution](03-names-and-scopes.md#member-resolution).
 
@@ -1241,6 +1337,14 @@ fn invalid(parent: mut Parent, child: Child) -> void:
 4. r[types.path.store-readonly] A readonly value may store `U` there and cannot later be upgraded to `mut T`.
 5. r[types.path.store-embedded] Storing into an embedded field, written `e.E ...= value`, stores the copy-update `T { ...value }` of the field's type `T`, which must have mutable access. Otherwise the store is an error. Error: `mutable-upgrade`.
 
+```hd
+data Box:
+    content: mut List[i32]
+
+fn demo(box: mut Box) -> void:
+    box.content = [+1]   # storing mutable access into a mut edge
+```
+
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
 #### Containers And Elements
@@ -1257,6 +1361,12 @@ r[types.path.container-element] Container mutation and element mutation are inde
 1. r[types.path.generic-args] Generic type arguments are never weakened because their enclosing value is readonly.
 2. r[types.path.loses-mut] Only a mutable edge or an embedded field loses `mut` through a readonly container.
 3. r[types.path.patterns] Data patterns and copy-update use the same access types as field reads on the subject.
+
+```hd
+fn demo() -> void:
+    let table: mut Map[string, i32] = {}
+    table["a"] = +1   # replace elements: yes
+```
 
 ### Parameters And Results
 
@@ -1281,6 +1391,12 @@ This section defines generic parameters, bounds, arguments, and their runtime re
 2. r[types.generic.mut-argument] A type parameter `T` may therefore be instantiated with either `User` or `mut User`.
 3. r[types.generic.naming] By convention, generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`.
 4. r[types.generic.kind] The convention is style only: a parameter's kind comes from its declaration and use, never from the case of its name.
+
+```hd
+fn first[T](items: List[T]) -> T?:
+    if items.len() == 0: .None
+    else: .Some(items[0])
+```
 
 ### Mutable Bounds
 
@@ -1637,6 +1753,12 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
    - variance conversions must be representation-preserving.
 3. r[types.generic.interfaces] Package interfaces therefore carry the bodies of generic functions needed by downstream compilation.
 
+```hd
+fn first[T](items: List[T]) -> T?:
+    if items.len() == 0: .None
+    else: .Some(items[0])   # shared or specialized: unobservable either way
+```
+
 See also: [Implementation Model](#implementation-model-non-normative), which
 describes the reference strategy.
 
@@ -1644,6 +1766,11 @@ describes the reference strategy.
 
 1. r[types.generic.identity] Identity comparison `is` on a type parameter is permitted only with the sealed `T < AnyRef` bound. Without it, the comparison is an error. Error: `identity-needs-reference-bound`.
 2. r[types.generic.identity.primitive] An unconstrained type parameter may be primitive after substitution and therefore cannot be used with `is`.
+
+```hd
+fn same[T < AnyRef](a: T, b: T) -> bool:
+    a is b
+```
 
 ## Variance
 
@@ -1712,6 +1839,14 @@ impl[U] Box[U]:
 1. r[types.variance.gadt] Each declaration parameter whose argument position in an explicit GADT variant result is not exactly that parameter is invariant.
 2. r[types.variance.gadt.example] For example, `IsMutUser -> Witness[mut User]` makes `T` invariant in `Witness[T]`, so declaring `Witness[+T]` is rejected.
 
+```hd
+enum Witness[T]:
+    IsI32 -> Witness[i32]
+
+fn demo(w: Witness[i32]) -> void:
+    pass
+```
+
 > **Why.** This prevents a variance conversion from making an arm-local GADT
 > equality upgrade a readonly value or reinterpret a value's runtime
 > representation.
@@ -1735,6 +1870,11 @@ r[types.polarity] Polarity is computed as follows:
 1. r[types.variance.covariant-check] A declared `+T` is rejected if any occurrence is negative or invariant. Error: `invalid-variance`.
 2. r[types.variance.contravariant-check] A declared `-T` is rejected if any occurrence is positive or invariant. Error: `invalid-variance`.
 3. r[types.variance.unmarked] An unmarked invariant parameter may occur in any position.
+
+```hd
+data Box[+T]:
+    value: T
+```
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -1794,6 +1934,17 @@ See also: [Polarity](#polarity), [`types.option.invariant`](#r-types.option.inva
 > by [row subsumption](11-requirements-and-suspension.md#row-subsumption),
 > which may adapt the value.
 
+```hd
+data User:
+    name: string
+
+data Box[+T]:
+    value: T
+
+fn demo(box: Box[mut User]) -> Box[User]:
+    box   # a readonly outer view converts covariantly
+```
+
 ### Representation-Preserving Variance
 
 1. r[types.variance.repr.covariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `S -> T` conversion for each covariant argument.
@@ -1804,6 +1955,11 @@ See also: [Polarity](#polarity), [`types.option.invariant`](#r-types.option.inva
    - child-dynamic-trait to supertrait widening;
    - optional injection `U -> U?`.
 5. r[types.variance.no-insertion] Variance never inserts element wrappers, metadata rewrapping, boxing, copies, or per-access conversions. A variance conversion that would need one is an error. Error: `variance-representation-change`.
+
+```hd
+fn demo(items: mut List[i32]) -> List[i32]:
+    items   # weakening mut U to U keeps the representation
+```
 
 See also: [Representation-Preserving Conversions](#representation-preserving-conversions).
 
@@ -1816,6 +1972,14 @@ trait family.
 2. r[types.trait.no-shape] Matching method shape alone does not make a type implement a trait.
 3. r[types.trait.static] A generic bound such as `T < Display` uses static dispatch and preserves the concrete type.
 
+```hd
+data User:
+    name: string
+
+fn demo(user: User) -> Any:
+    user   # every value satisfies Any
+```
+
 ### Trait Value Types
 
 1. r[types.trait.value] Using a trait name as a value type creates a Go-style dynamic trait value.
@@ -1824,6 +1988,14 @@ trait family.
 4. r[types.trait.value.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each of that trait's supertraits. For example, a `Display` value is a valid argument for `T < Display`.
 5. r[types.trait.value.bindings] A trait value type may bind the trait's associated types, as in `Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
 6. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
+
+```hd
+trait Greet:
+    fn greet(self) -> string
+
+fn demo(g: Greet) -> string:
+    g.greet()
+```
 
 See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values), which
 gives the rule.
@@ -1840,6 +2012,17 @@ gives the rule.
 8. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
 9. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
 
+```text
+trait Consumer:
+    fn consume[S < Source[Factory]](self, source: S) -> void   # error: trait-not-dynamically-safe
+
+trait Source[T]:
+    fn read(self) -> T
+
+trait Factory:
+    fn create() -> Self
+```
+
 > **Why.** One concrete trait instantiation, such as `Repository[User]`, fixes
 > the trait declaration's generic parameters before dispatch.
 
@@ -1849,6 +2032,29 @@ gives the rule.
 2. r[types.trait.child.widen] A dynamic child-trait value may be widened implicitly to a dynamic supertrait value.
 3. r[types.trait.child.one-way] That conversion discards access to child-only methods and cannot be reversed by a conversion; only `Inspectable` values recover a concrete type.
 4. r[types.trait.child.repr] This direct widening may rewrap dispatch metadata and is therefore not representation-preserving for a variance conversion.
+
+```hd
+trait Animal:
+    fn name(self) -> string
+
+trait Dog < Animal:
+    fn bark(self) -> string
+
+data Pup:
+    name: string
+
+impl Animal for Pup:
+    fn name(self) -> string: self.name
+
+impl Dog for Pup:
+    fn bark(self) -> string: "woof"
+
+fn name_of(animal: Animal) -> string:
+    animal.name()
+
+fn demo(pup: Pup) -> string:
+    name_of(pup)   # a Pup widens to Animal
+```
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
@@ -1861,6 +2067,11 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 5. r[types.any.mut] `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
 6. r[types.any.one-way] `Any` erasure is one-way.
 7. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
+
+```hd
+fn demo(value: Any) -> string:
+    "got one"   # Any erases the concrete type
+```
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
@@ -1936,12 +2147,34 @@ fn setup() -> void:
 5. r[types.map.replace] Replacing the value for an existing key does not move that entry; removing and later reinserting a key places it at the end.
 6. r[types.map.semantics] Hash values remain outside map value semantics, and map equality remains independent of insertion order.
 
+```hd
+fn demo() -> List[string]:
+    m := {"b": +1, "a": +2}
+    let keys: mut List[string] = []
+    for entry in m:
+        keys.push(entry._0)
+    keys   # ["b", "a"]: insertion order
+```
+
 ### Mutated Keys
 
 1. r[types.map.key-view] A readonly key view does not freeze the object.
 2. r[types.map.no-reindex] If another mutable alias changes a stored key's equality or hash after insertion, the map does not automatically reindex it.
 3. r[types.map.ghost] The entry can remain visible during iteration yet be unreachable by lookup or removal with the mutated key: a ghost entry.
 4. r[types.map.no-repair] Such mutation does not trigger a compile-time error or an automatic repair.
+
+```hd
+use std.hash.Hash
+
+@derive(Eq, Hash)
+data Tag:
+    id: i32
+
+fn demo() -> void:
+    let table: mut Map[Tag, string] = {}
+    key := Tag { id: +1 }
+    table[key] = "one"   # keyed by id through Eq and Hash
+```
 
 ## Least Common Type
 
@@ -2043,6 +2276,12 @@ r[types.infer.explicit] The following declarations require explicit types:
 6. r[types.infer.explicit.fn-type] Named function type parameters and bounds where applicable.
 
 r[types.infer.body-result-private] Any other named function, inherent method, or local `fn` may infer its result from its body, as [Parameter And Result Types](07-functions.md#parameter-and-result-types) states.
+
+```hd
+fn demo() -> i32:
+    x := +1   # inferred: no annotation needed for a local
+    x
+```
 
 r[types.infer.named-fn] For a named function, inference covers only its result type and its requirement row. Its parameter types, generic parameters, and bounds are always written in its declaration.
 
@@ -2233,6 +2472,11 @@ This section lists type-system features that hd-lang does not have.
 3. r[types.unsupported.no-unions] hd-lang has no anonymous union types, including error unions such as `FsError | HttpError`.
 4. r[types.unsupported.error-type] An error type is a nominal type or a dynamic trait value such as `std.error.Error`.
 5. r[types.unsupported.panic-abi] The exact host representation of a checked runtime panic is an ABI concern; its language-level control-flow semantics are defined in [Control Flow](06-control-flow.md#runtime-panics).
+
+```text
+fn pick(flag: bool) -> i32 | string:   # error: syntax-error
+    if flag: +1 else: "a"
+```
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity),
 [Error Trait](09-traits.md#error-trait).
