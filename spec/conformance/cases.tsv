@@ -2589,3 +2589,5 @@ typing/invalid/gadt-match-missing-inhabitable-variant.hd	type	reject:nonexhausti
 typing/invalid/gadt-variant-result-undeclared-parameter.hd	type	reject:unknown-type	lang/13-gadts.md#r-gadt.check.well-formed
 parse/invalid/gadt-named-pattern-before-positional.hd	parse	reject:pattern-order	lang/13-gadts.md#r-gadt.pattern.order
 parse/invalid/gadt-named-argument-before-positional.hd	parse	reject:argument-order	lang/13-gadts.md#r-gadt.construct.order
+typing/invalid/match-arm-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.result.least-common
+typing/invalid/if-branch-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.if.value.least-common

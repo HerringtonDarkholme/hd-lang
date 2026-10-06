@@ -1,0 +1,11 @@
+# test: with an expected type from the declared result, an arm that does not fit it is a type-mismatch on that arm
+# Spec 06 Match Expressions: flow.match.result, flow.match.result.least-common (no least common type when an expected type exists).
+# Spec 04 Least Common Type: types.lct.sites.
+enum Parcel:
+    Letter
+    Box(weight_grams: i32)
+
+fn postage_cents(parcel: Parcel, note: string) -> i32:
+    match parcel:
+        Parcel.Letter => +80
+        Parcel.Box(_) => note  # diagnostic: type-mismatch

@@ -1,0 +1,8 @@
+# test: with an expected type from the declared result, an if branch that does not fit it is a type-mismatch on that branch
+# Spec 06 Conditional Values: flow.if.value.branches, flow.if.value.least-common (no least common type when an expected type exists).
+# Spec 04 Least Common Type: types.lct.sites.
+fn retry_limit(urgent: bool, label: string) -> i32:
+    if urgent:
+        +5
+    else:
+        label  # diagnostic: type-mismatch

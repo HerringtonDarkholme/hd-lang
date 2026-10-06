@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,637 cases: 2,624 selected in `test/portable/cases.tsv` and 13 known
-failures. The selected cases are 2,270 language tier, 301 stdlib tier, and 53
-CLI tier; the known failures are 2 language tier, 1 stdlib tier, and 10
+2,655 cases: 2,640 selected in `test/portable/cases.tsv` and 15 known
+failures. The selected cases are 2,286 language tier, 301 stdlib tier, and 53
+CLI tier; the known failures are 4 language tier, 1 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -22,6 +22,7 @@ CLI tier.
 | CLI-PAGES-HIDDEN | 2 | `hd new --pages` stays hidden until `hd doc` can build the site |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | F-614 | 1 | a `.Variant` line right after a same-line `if` suite is joined to it |
+| F-615 | 2 | an `if` or `match` with an expected type joins its branches by least common type |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
 ## Findings
@@ -50,6 +51,16 @@ Correctness and diagnostics:
   the `if` becomes a value without `else` (`type-mismatch`). By
   `lex.dot.statement-indent` it starts a new statement;
   `runtime/valid/contextual-variant-after-same-line-if.hd` shows it.
+- **F-615**: a value-producing `if` or `match` joins its branch types by
+  least common type even when an expected type exists, so a branch that
+  misses the expected type is `no-common-type` on the `if` or `match` line,
+  not `type-mismatch` on that branch. By `flow.if.value.least-common` and
+  `flow.match.result.least-common`, the least common type applies only
+  without an expected type. The cause is the join in `checkMatch` and in
+  the `if` case of `checkControlExpression`, both in
+  `src/checker/expression-control.ts`.
+  `typing/invalid/match-arm-misses-expected-type.hd` and
+  `typing/invalid/if-branch-misses-expected-type.hd` show it.
 
 Runtime cost:
 
