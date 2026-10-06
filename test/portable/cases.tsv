@@ -2678,6 +2678,8 @@ runtime/valid/derived-eq-every-member.hd	runtime
 typing/invalid/derived-eq-bound-unmet-data-argument.hd	type
 typing/invalid/derived-eq-enum-payload-missing-trait.hd	type
 runtime/valid/delegation-associated-function-written.hd	runtime
+runtime/valid/typeid-qualified-trait-name.hd	runtime
+runtime/valid/typeid-same-name-modules.hd	runtime
 runtime/valid/inspectable-primitives-collections-options.hd	runtime
 typing/invalid/typeid-of-unbounded-parameter.hd	type
 typing/invalid/typeid-of-function-argument.hd	type

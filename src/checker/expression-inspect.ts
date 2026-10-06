@@ -11,7 +11,13 @@ import {
   displayType,
 } from "../types.ts";
 import { matchFactPattern } from "./fact-patterns.ts";
-import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
+import {
+  extendsInspectable,
+  HANDLE_TYPE,
+  inspectableBuiltin,
+  inspectKey,
+  usesStandardInspect,
+} from "./inspectable.ts";
 import { MemberLookupChecker } from "./member-lookup.ts";
 import { genericTypeName, traitTypeName } from "./shared.ts";
 import { INSPECTABLE, TYPE_ID } from "./standard-traits.ts";
@@ -67,20 +73,28 @@ export abstract class InspectChecker extends MemberLookupChecker {
       return dictionary;
     }
     const traitValue = traitTypeName(type);
-    const plan =
+    // A trait value type's key spells its trait as any other declaration's
+    // (r-trait.identity.trait-value, r-trait.typeid.name.qualified); one whose
+    // arguments have no key keeps its written spelling.
+    const parts =
       traitValue && extendsInspectable(this.traitTypes, traitValue)
-        ? {
-            bounds: [],
-            implementationIndex: -1,
-            supertraits: [],
-            builtin: {
-              kind: "inspectable" as const,
-              traitIndex: trait.index,
-              targetType: type,
-              key: [type.slice("trait:".length)],
-            },
-          }
-        : this.builtinTraitDictionaryPlan(trait.index, type, [], span);
+        ? (inspectKey(type, this.inspectEnvironment(), true) ?? [type.slice("trait:".length)])
+        : undefined;
+    const dictionary =
+      parts &&
+      inspectableBuiltin(parts, trait.index, type, (generic) =>
+        generic === HANDLE_TYPE
+          ? this.handleWitness!.dictionary
+          : this.inspectableBound(generic, trait.index, span)!,
+      );
+    const plan = dictionary
+      ? {
+          bounds: dictionary.bounds,
+          implementationIndex: -1,
+          supertraits: [],
+          builtin: dictionary.builtin,
+        }
+      : this.builtinTraitDictionaryPlan(trait.index, type, [], span);
     if (!plan)
       this.fail(
         "unsatisfied-trait-bound",

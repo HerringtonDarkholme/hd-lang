@@ -1,0 +1,22 @@
+# test: two data types named Item in different modules have different runtime identities and names
+# Spec 09 Runtime Identity: trait.identity.modules; Stability And Printing: trait.typeid.name.qualified.
+# The tree's left and right modules each declare a data type Item.
+# fixture-package-tree: same-name-items/src/check.hd
+use pkg.left
+use pkg.right
+use std.inspect.TypeId
+use std.testing.{assert, assert_equal}
+
+tests:
+    it("a left Item does not downcast to a right Item"):
+        value := left.erased("pen")
+        match value.downcast::[right.Item]():
+            .Some(found) => assert(false, reason="a left Item came back with count {found.count}")
+            .None => assert(true, reason="different declarations")
+        match value.downcast::[left.Item]():
+            .Some(found) => assert_equal(found.label, "pen", reason="the same declaration")
+            .None => assert(false, reason="the downcast must succeed")
+
+    it("the two TypeIds and their names differ"):
+        assert(TypeId::of::[left.Item]() != TypeId::of::[right.Item](), reason="different modules")
+        assert(TypeId::of::[left.Item]().to_string() != TypeId::of::[right.Item]().to_string(), reason="different names")

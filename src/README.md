@@ -1194,7 +1194,8 @@ else`, `break`, `break value`, and `continue`;
   does, declares `lib/std/inspect.hd` under its standard names: the sealed
   `Inspectable` (`std.error.Error` extends it) and `TypeId`, a data type
   holding the canonical printable name (an inner
-  `mut` kept, the outer `mut` dropped); every
+  `mut` kept, the outer `mut` dropped, and a std declaration outside the
+  prelude spelled by its qualified name, as `std.error.Error`); every
   inspectable type erases to `Inspectable` or `mut Inspectable` through a
   generated dictionary whose `runtime_type` builds that name, splicing in the
   names carried by `T < Inspectable` dictionaries, or by the `Inspectable`
@@ -1204,8 +1205,9 @@ else`, `break`, `break value`, and `continue`;
   implemented `runtime_type`/`downcast`/`downcast_mut`, and an Inspectable
   requirement key in a function's requirement clause are rejected. Not
   covered: `Hash` for `TypeId`, Inspectable keys in
-  closure types and provider scopes, qualified printable names (the
-  prototype has one module), and opaqueness (`TypeId { key: ... }` is
+  closure types and provider scopes, qualified printable names for package
+  declarations (the key is the linker's joined spelling, unique per
+  declaration but not its qualified name, F-620), and opaqueness (`TypeId { key: ... }` is
   constructible). A type parameter instantiated with `mut U` looks up
   implementations for `U`, and its Inspectable dictionary adds the inner
   `mut` when a composite key is built from it;

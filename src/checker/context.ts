@@ -31,6 +31,7 @@ import {
   HANDLE_TYPE,
   inspectableBuiltin,
   inspectKey,
+  printedName,
   usesStandardInspect,
   type InspectEnvironment,
 } from "./inspectable.ts";
@@ -938,10 +939,13 @@ export abstract class CheckerContext {
     const inspectable = this.traitTypes.get(INSPECTABLE);
     return {
       // A type declared in a block suite is not inspectable (09-traits.md#inspectable-types).
-      nominal: (name) =>
-        [this.dataTypes.get(name), this.enumTypes.get(name)].some(
-          (declaration) => declaration !== undefined && !declaration.local,
-        ),
+      nominal: (name) => {
+        const declaration = this.dataTypes.get(name) ?? this.enumTypes.get(name);
+        return declaration === undefined || declaration.local
+          ? undefined
+          : printedName(name, declaration.standardName);
+      },
+      trait: (name) => printedName(name, this.traitTypes.get(name)?.standardName),
       inspectableParameter: (name) =>
         this.inspectableBound(name, inspectable?.index ?? -1, ZERO_SPAN) !== undefined,
       ...(this.handleWitness ? { handleType: this.handleWitness.type } : {}),

@@ -8,18 +8,29 @@ import {
   resultParts,
   tupleParts,
 } from "../types.ts";
+import { PRELUDE_ORIGINS } from "./prelude-names.ts";
 import { INSPECTABLE, STANDARD_DOWNCAST_VAL } from "./standard-traits.ts";
 
 // Runtime type identity (spec/lang/09-traits.md#runtime-type-identity). A type's
 // key is its canonical printable name with the outer `mut` removed; a `mut`
-// inside a type argument is kept (Inspectable decision 16). A key part
+// inside a type argument is kept (Inspectable decision 16). A std
+// declaration outside the prelude is spelled by its qualified name, as
+// `std.error.Error` (r-trait.typeid.name.qualified). A package declaration
+// keeps its joined spelling, which the linker makes unique, so two
+// declarations of different modules never share a key
+// (r-trait.identity.modules). A key part
 // `{ generic }` stands for a bounded type parameter whose name the bound's
 // dictionary supplies at run time.
 type InspectKeyPart = string | { readonly generic: string };
 
 export interface InspectEnvironment {
-  /** A module-level data or enum declaration. */
-  readonly nominal: (name: string) => boolean;
+  /**
+   * The key spelling of a module-level data or enum declaration, from
+   * `printedName`, or undefined for any other name.
+   */
+  readonly nominal: (name: string) => string | undefined;
+  /** The key spelling of a trait, from `printedName`; the default is its name. */
+  readonly trait?: (name: string) => string;
   /** A type parameter bounded directly by `Inspectable`. */
   readonly inspectableParameter: (name: string) => boolean;
   /**
@@ -85,6 +96,18 @@ export function extendsInspectable(
   return false;
 }
 
+/**
+ * How a declaration named `name` in the checked program prints in a key: a
+ * std declaration outside the prelude by its qualified `standardName`, any
+ * other by `name` (spec/lang/09-traits.md#r-trait.typeid.name.qualified).
+ */
+export function printedName(name: string, standardName: string | undefined): string {
+  if (standardName === undefined) return name;
+  const dot = standardName.lastIndexOf(".");
+  const short = standardName.slice(dot + 1);
+  return PRELUDE_ORIGINS.get(short) === standardName.slice(0, dot) ? short : standardName;
+}
+
 function join(parts: readonly (readonly InspectKeyPart[])[], separator: string): InspectKeyPart[] {
   return parts.flatMap((part, index) => (index === 0 ? [...part] : [separator, ...part]));
 }
@@ -117,13 +140,14 @@ export function inspectKey(
   if (type.startsWith("trait:") && !type.endsWith("?")) {
     if (!argument && !environment.anyType) return undefined;
     const traitKey = type.slice("trait:".length);
+    const spell = environment.trait ?? ((name: string) => name);
     const application = nominalGenericParts(traitKey);
-    if (!application) return [traitKey];
+    if (!application) return [spell(traitKey)];
     const arguments_ = application.arguments.map((item) =>
       inspectKey(item, environment, true, true),
     );
     if (arguments_.some((item) => item === undefined)) return undefined;
-    return [`${application.name}[`, ...join(arguments_ as InspectKeyPart[][], ", "), "]"];
+    return [`${spell(application.name)}[`, ...join(arguments_ as InspectKeyPart[][], ", "), "]"];
   }
   const generic = /^generic:([^?[\](),]+)$/.exec(type)?.[1];
   if (generic) {
@@ -155,13 +179,17 @@ export function inspectKey(
   }
   const nominal = nominalGenericParts(type);
   if (nominal) {
-    if (nominal.name !== "List" && nominal.name !== "Map" && !environment.nominal(nominal.name))
-      return undefined;
+    const name =
+      nominal.name === "List" || nominal.name === "Map"
+        ? nominal.name
+        : environment.nominal(nominal.name);
+    if (name === undefined) return undefined;
     const arguments_ = nominal.arguments.map((item) => inspectKey(item, environment, true, true));
     if (arguments_.some((item) => item === undefined)) return undefined;
-    return [`${nominal.name}[`, ...join(arguments_ as InspectKeyPart[][], ", "), "]"];
+    return [`${name}[`, ...join(arguments_ as InspectKeyPart[][], ", "), "]"];
   }
-  return environment.nominal(type) ? [type] : undefined;
+  const name = environment.nominal(type);
+  return name === undefined ? undefined : [name];
 }
 
 /**

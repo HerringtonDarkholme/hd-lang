@@ -2631,6 +2631,7 @@ typing/invalid/derived-eq-bound-unmet-data-argument.hd	type	reject:missing-deriv
 typing/invalid/derived-eq-enum-payload-missing-trait.hd	type	reject:derive-field-missing-trait	lang/09-traits.md#r-trait.derive.field-missing-trait
 runtime/valid/delegation-associated-function-written.hd	runtime	accept	lang/09-traits.md#r-trait.by.assoc-fn
 runtime/valid/typeid-qualified-trait-name.hd	runtime	accept	lang/09-traits.md#r-trait.typeid.name.qualified
+runtime/valid/typeid-same-name-modules.hd	runtime	accept	lang/09-traits.md#r-trait.identity.modules
 runtime/valid/inspectable-primitives-collections-options.hd	runtime	accept	lang/09-traits.md#r-trait.inspectable.collections
 typing/invalid/typeid-of-unbounded-parameter.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.inspectable.not.parameter
 typing/invalid/typeid-of-function-argument.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.inspectable.not.argument

@@ -1379,7 +1379,9 @@ function validateSupertraits(
         nominal: (name) =>
           [context.dataTypes.get(name), context.enumTypes.get(name)].some(
             (declaration) => declaration !== undefined && !declaration.local,
-          ),
+          )
+            ? name
+            : undefined,
         inspectableParameter: () => true,
       })
     )

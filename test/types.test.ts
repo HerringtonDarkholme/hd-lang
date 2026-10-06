@@ -191,7 +191,7 @@ test("source type rendering round-trips mutable constructors rather than changin
 
 test("optional type identity includes payload mut and not outer mut", () => {
   const environment = {
-    nominal: (name: string) => name === "User",
+    nominal: (name: string) => (name === "User" ? name : undefined),
     inspectableParameter: () => false,
   };
   assert.deepEqual(inspectKey("(mut:User)?", environment), ["(", "mut ", "User", ")?"]);

@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,770 cases: 2,746 selected in `test/portable/cases.tsv` and 24 known
-failures. The selected cases are 2,378 language tier, 308 stdlib tier, and 60
-CLI tier; the known failures are 9 language tier, 1 stdlib tier, and 14
+2,771 cases: 2,748 selected in `test/portable/cases.tsv` and 23 known
+failures. The selected cases are 2,380 language tier, 308 stdlib tier, and 60
+CLI tier; the known failures are 8 language tier, 1 stdlib tier, and 14
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -26,7 +26,6 @@ CLI tier.
 | F-617 | 1 | `Trait::f()` for an associated function does not infer `Self` |
 | F-618 | 1 | a trait value of a generic trait does not satisfy a bound on its own instantiation |
 | F-619 | 1 | `T < mut Any` accepts a readonly argument |
-| F-620 | 1 | a `TypeId` prints a non-prelude declaration without its qualified name |
 | F-621 | 1 | a library module under test gets an entry row for its top level |
 | F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
 | F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
@@ -81,13 +80,15 @@ Correctness and diagnostics:
   `trait.bound.mut-any`. `src/checker/program-signatures.ts` drops an
   `Any` bound, and its `mut` with it.
   `typing/invalid/mut-any-bound-readonly-argument.hd` shows it.
-- **F-620**: a `TypeId` spells every nominal declaration by its bare name,
-  so `TypeId::of::[Error]()` prints `Error`, not `std.error.Error`
-  (`trait.typeid.name.qualified`). The key comes from `inspectKey` in
-  `src/checker/inspectable.ts`, which is also the runtime identity, so
-  two same-named declarations of different modules may share one
-  (`trait.identity.modules`). `runtime/valid/typeid-qualified-trait-name.hd`
-  shows the name.
+- **F-620**: a `TypeId` spells a package declaration by its joined
+  spelling, not its absolute qualified name (`trait.typeid.name.qualified`):
+  `Item` alone, or `__pkg_left_Item` when another module also declares an
+  `Item`. Std declarations print qualified, and the joined spelling is
+  unique, so identity holds (`trait.identity.modules`,
+  `runtime/valid/typeid-same-name-modules.hd`). The qualified spelling of a
+  package declaration waits for an owner answer: package name or `pkg`,
+  and what a single-file program prints. `inspectKey` in
+  `src/checker/inspectable.ts` builds the key.
 - **F-621**: a package build whose module under test is a library module,
   not `src/main.hd` or another entry, treats that module as the entry. So
   its top level gets an inferred entry row (`scriptEntry` in
