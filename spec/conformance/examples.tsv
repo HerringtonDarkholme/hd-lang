@@ -669,6 +669,7 @@ std/iter.md	5	mixed	typing/invalid/iterator-chain-iterator-arg.hd
 std/iter.md	6	accept	typing/valid/collect-targets.hd
 std/iter.md	7	type-fragment	-
 std/iter.md	8	mixed	typing/invalid/collect-target-not-fromiterator.hd
+std/iter.md	9	accept	runtime/valid/list-and-optional-map.hd
 std/ops.md	1	accept	typing/valid/default-trait.hd
 std/ops.md	2	mixed	typing/invalid/default-tuple-element-without-default.hd
 std/ops.md	3	accept	runtime/valid/derived-default-declared.hd|runtime/valid/derived-default-data.hd|runtime/valid/derived-default-enum.hd
@@ -774,7 +775,8 @@ std/fs.md	1	type-fragment	-
 std/fs.md	2	type-fragment	-
 std/fs.md	3	type-fragment	-
 std/fs.md	4	accept	runtime/valid/fs-helpers.hd
-std/fs.md	5	accept	runtime/valid/memory-fs.hd
+std/fs.md	5	accept	runtime/valid/fs-helpers.hd
+std/fs.md	6	accept	runtime/valid/memory-fs.hd
 std/path.md	1	accept	typing/valid/path-newtype.hd
 std/path.md	2	accept	runtime/valid/path-operations.hd
 std/process.md	1	accept	runtime/valid/process-error-display.hd

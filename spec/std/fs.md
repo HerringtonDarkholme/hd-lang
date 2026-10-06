@@ -84,6 +84,16 @@ pub trait FsWrite:
 
 1. r[std-fs.suspends] File system access is I/O, so every method of `FsRead` and `FsWrite` is a bang method.
 
+```text
+use std.fs.FsRead
+use std.path.Path
+
+fn show!(path: Path) -> string $ FsRead:
+    match $.use(FsRead).read_text!(path):   # a bang call: it suspends on I/O
+        .Ok(text) => text
+        .Err(_) => ""
+```
+
 > **Why.** Reading and writing are separate traits, so a row says which
 > one a function needs. A program that only reads gains no authority
 > to change files.
