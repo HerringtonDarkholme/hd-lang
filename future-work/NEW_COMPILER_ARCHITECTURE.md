@@ -98,6 +98,13 @@ here (owner, 2026-10-06).
 | `answer-size` | bytes of `hd doc ITEM`, one failing `hd test`, `--format json` records on fixed inputs | fixed budgets, regression-gated |
 | `determinism` | same inputs run 10 times | byte-identical output |
 | `pathological` | compile-time stress cases, each with a time and memory budget: many overlapping impls (e.g. 1,600 `From` calls over two impls), deep nesting, long method and iterator chains, wide literals, large enums and matches, deep generic instantiation, long `?` chains, big files | each case within budget (e.g. ≤ 2 s, ≤ 200 MB); time grows near-linearly with size |
+| `recheck-precision` | edit a private function body, count modules rechecked; edit a public signature, check only dependents recheck | 1 module for a private body edit; dependents only for a signature edit |
+| `errors-per-run` | a file with N independent mistakes: diagnostics reported in one `hd check` | all N reported, each once |
+| `diag-location` | mistake corpus: share of diagnostics whose line is the mistake's line | ≥ 95% |
+| `fixit-safety` | applying a fix-it (in a temp copy) never adds a new error | 100% |
+| `lookup-latency` | `hd doc ITEM`, `hd def NAME`, `hd explain CODE` wall time | p95 ≤ 100 ms |
+| `fmt` | `hd fmt` time on the 10k-line package, and idempotence (if hd has a formatter) | ≤ 200 ms; idempotent |
+| `release-check-cost` | runtime cost of overflow and bounds checks: the same test suite in a debug vs a release build, since agents run tests in debug | debug ≤ 1.3x release |
 
 ### Pillar 2: Agent scalability (compiler CPU and memory)
 
@@ -109,6 +116,11 @@ here (owner, 2026-10-06).
 | `concurrency` | N = 1, 4, 16, 64 concurrent `hd check` processes; p95 latency vs N = 1, total CPU vs N | ≤ 1.5x at N = cores; total CPU sublinear in N with a shared cache |
 | `disk` | artifacts plus toolchain size per worktree | ≤ 10 MB |
 | `suite-cpu` | total CPU of the conformance suite | ≤ 60 s |
+| `parallel-speedup` | checking a 50k-line package on 1 core vs all cores (one process) | ≥ 0.6 × cores speedup up to 8 cores |
+| `cache-contention` | N processes writing the same cache entries at once | no corruption; each entry computed once |
+| `cache-growth` | cache size after a scripted day of edits; eviction | bounded by a configured cap |
+| `io-per-check` | files read or stat'ed per warm check | proportional to what changed |
+| `fetch-dedup` | a dependency fetched by N worktrees | fetched once |
 
 ### Pillar 3: Artifact quality: the user's program, not the compiler
 
@@ -124,6 +136,12 @@ toolchain helps make it correct.
 | `runtime` | microbenchmarks of user-style programs with warm-up and spread, geomean vs Node | ≤ 1.5x; no case > 3x |
 | `allocations` | allocations per iteration in counted loops and iterator chains of user programs | 0 for counted loops; ≤ 1 for chains |
 | `size-startup-heap` | release Wasm size of user programs, instantiate to first output, peak heap | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node |
+| `host-call-overhead` | cost per crossing for Console, Fs and serde-boundary calls | budget per call, e.g. ≤ 1 µs for a scalar call |
+| `suspension-overhead` | cost per `!` await; `all!`/`race!` task throughput | budget per await; tasks/s target |
+| `serde-throughput` | JSON encode/decode MB/s on fixed documents | within 2x of Node's JSON |
+| `text-throughput` | string building, splitting and regex MB/s on fixed inputs | within 2x of Node |
+| `dead-code` | Wasm bytes per 1,000 lines; unused std excluded | budget per size; no unused std in the binary |
+| `long-run-memory` | a simulated service for 10 minutes: heap over time | flat after warm-up |
 
 `proptest-perf`, `unit-test-perf` and `integration-test-perf` matter for
 the program's correctness: the more cases an agent can afford per test run, the more
@@ -134,6 +152,12 @@ bugs its tests catch.
 | Script | Measures | Target |
 |---|---|---|
 | `conformance` | portable conformance suite pass rate | 100% minus listed known failures; known failures → 0 |
+| `incremental-soundness` | random edit sequences: the incremental result equals a clean build every time | 100% |
+
+### Parked Metrics
+
+- **Reproducible builds** (same source → same Wasm bytes across runs and
+  machines). Parked by the owner, 2026-10-06.
 
 ## Prototype Baselines To Beat (2026-10-06)
 
