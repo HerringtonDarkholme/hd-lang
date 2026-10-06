@@ -89,6 +89,15 @@ fn work[T < Display](value: T) -> string:
 3. r[names.self-type.impl] In a trait or inherent implementation, `Self` denotes that implementation's target type.
 4. r[names.self-type.outside] `Self` has no valid type meaning outside those bodies.
 
+```hd
+data Counter:
+    value: i32
+
+impl Counter:
+    fn zero() -> Self:
+        Counter { value: 0 }   # Self is Counter here
+```
+
 ## Lexical Scopes
 
 1. r[names.scope.lexical] Scopes are lexical.
@@ -105,6 +114,15 @@ fn work[T < Display](value: T) -> string:
 1. r[names.scope.shadow] A name declared in an inner scope may shadow a name from an outer scope.
 2. r[names.scope.duplicate] Two bindings with the same name in one scope are a compile-time error.
 3. r[names.scope.reassign] Reassignment uses `=` and does not introduce another binding.
+
+```hd
+fn demo(flag: bool) -> i32:
+    x := +1
+    if flag:
+        x := +2   # a new scope: this x shadows the outer one
+        _ := x
+    x   # the outer one: +1
+```
 
 ### Binding Start
 
@@ -184,10 +202,28 @@ let count = +0
 4. r[names.init.required] Every binding in that set must have been initialized by an earlier top-level statement.
 5. r[names.init.whole-module] This is a whole-module value-flow and call-graph check; an indirect read through a later function value is rejected like a direct forward binding reference.
 
+```hd
+start := +1
+
+fn total() -> i32:
+    start + 1
+
+demo := total()   # reads start through total, after both are initialized
+```
+
 ### Declarations In Blocks
 
 1. r[names.block-decl.allowed] Named `fn`, `data`, `enum`, `trait`, and `type` declarations may also occur inside executable block suites.
 2. r[names.block-decl.impl] `impl` declarations may occur at module scope or inside an executable block suite; they do not introduce an independently referencable name.
+
+```hd
+fn demo() -> i32:
+    data Pair:
+        a: i32
+        b: i32
+    p := Pair { a: +1, b: +2 }
+    p.a + p.b   # 3; Pair is local to demo
+```
 
 See also: [Function And Closure Scopes](#function-and-closure-scopes).
 
@@ -231,6 +267,14 @@ See also: [Test Cases](10-modules.md#test-cases).
 2. r[names.pub.eligible] `pub` makes a declaration eligible to be used from another module.
 3. r[names.pub.no-export] `pub` does not register a Wasm export or make a declaration host-callable.
 
+```hd
+pub fn visible() -> i32:
+    internal()   # same module: fine
+
+fn internal() -> i32:
+    +2
+```
+
 ## Use Declarations
 
 A `use` declaration introduces either one local module name or one or more
@@ -260,6 +304,10 @@ use dep.billing.types.{UserId as BillingUserId}
 1. r[names.use.pub] Prefixing a grouped use declaration with `pub` makes every name it introduces available to other modules.
 2. r[names.use.pub.source] The source declaration must already be public.
 3. r[names.use.pub.binding] A `pub use` introduces the same local binding as an ordinary `use`; it additionally exposes that binding without creating a new declaration identity.
+
+```text
+pub use std.text.{trim, split}
+```
 
 ### Literal Suffix Names
 
@@ -443,12 +491,25 @@ fn greeting(args: List[string]) -> string:
 4. r[names.generic.defaults.earlier] A type-argument default sees only the earlier parameters of its list, as [`types.generic.default.later`](04-type-system.md#r-types.generic.default.later) states. Error: `binding-not-yet-visible`.
 5. r[names.fn.params.scope] All value parameters belong to the function body's outermost local scope and must have distinct names.
 
+```hd
+fn first[A, B](pair: (A, B)) -> A:
+    pair._0
+```
+
 ### Local Functions
 
 1. r[names.local-fn.name] A named function declared in a block suite introduces a local value name at its declaration point.
 2. r[names.local-fn.visible] The name is visible in the rest of that suite and in the function's own body, permitting recursion.
 3. r[names.local-fn.not-visible] The name is not visible before its declaration, outside the suite, or from another module.
 4. r[names.local-fn.rules] A local named function follows the same shadowing and duplicate-name rules as other local values.
+
+```hd
+fn demo() -> i32:
+    fn down(n: i32) -> i32:
+        if n == 0: 0
+        else: down(n - 1)   # the name is visible in its own body
+    down(+3)
+```
 
 ### Local Type Declarations
 
@@ -460,12 +521,28 @@ fn greeting(args: List[string]) -> string:
 6. r[names.local-type.duplicate] Local type and value declarations cannot duplicate a name in the same scope.
 7. r[names.local-type.prelude] Local type declarations are also subject to the prelude shadowing rule.
 
+```hd
+fn demo() -> i32:
+    enum Choice:
+        Yes
+        No
+    match Choice.Yes:
+        Choice.Yes => +1
+        Choice.No => +0
+```
+
 See also: [Prelude Names](#prelude-names).
 
 ### Local Declaration Limits
 
 1. r[names.local.no-pub] `pub` is not permitted on local declarations.
 2. r[names.local.no-metadata] Decorators and [trait-less derivation blocks](14-annotations.md#trait-less-derivation-blocks) are not permitted in a local scope.
+
+```hd
+fn demo() -> i32:
+    fn helper(n: i32) -> i32: n * 2   # a plain local fn: no pub, no decorators
+    helper(+21)
+```
 
 ### Local Implementations
 
@@ -503,6 +580,13 @@ fn describe(name: string) -> string:
 4. r[names.capture.definition] Those resolved names are its captures.
 5. r[names.capture.mutation-access] Whether a capture permits mutation is determined by the captured binding and its access type alone, as specified in [Functions](07-functions.md#captures).
 6. r[names.return.closure] `return` in a closure or trailing block targets that closure, not the enclosing named function.
+
+```hd
+fn demo() -> i32:
+    base := +10
+    add := fn(n: i32) -> i32: n + base   # captures base
+    add(+5)
+```
 
 ## Control-Flow Binding Scopes
 
@@ -611,6 +695,14 @@ select.
 8. r[names.member.shared-name] A field and a method may share a name, whether the method is inherent or a trait method.
 9. r[names.member.no-hiding] Neither hides the other, because no use looks in both namespaces.
 
+```hd
+data Timer:
+    count: i32
+
+impl Timer:
+    fn count(self) -> i32: self.count   # a field and a method may share a name
+```
+
 > **Note.** Trait availability works as in Rust, where a trait method is a
 > candidate only while its trait is in scope.
 
@@ -642,6 +734,12 @@ See also: [Member Access](05-expressions.md#member-access).
 1. r[names.visible.field-method] A field or inherent method is **visible** from a module when it is declared in that module or marked `pub`.
 2. r[names.visible.trait] A trait method is **available** when its trait is available to dot-call lookup there.
 
+```hd
+data User:
+    pub name: string
+    id: i32   # private: usable inside this module only
+```
+
 See also: [Data Declarations](08-data-and-enums.md#data-declarations),
 [Inherent Implementations](09-traits.md#inherent-implementations),
 [Method Resolution](09-traits.md#method-resolution).
@@ -667,6 +765,15 @@ fn invalid(record: Record) -> string:
 
 1. r[names.take-part.definition] The members of `S` that **take part** in lookup are its own fields and inherent methods, whatever their visibility, and its promoted members.
 2. r[names.take-part.uniform] They are the same for every use, in every module. A type has a single view of its members, and each name resolves to the same member for every caller. Visibility decides only whether a caller may use the member that lookup finds.
+
+```hd
+data Point:
+    x: i32
+    y: i32
+
+fn demo(p: Point) -> i32:
+    p.x + p.y
+```
 
 > **Note.** This differs from Rust's and Go's privacy-aware lookup, where a
 > private name does not match outside its module.
@@ -742,6 +849,14 @@ data Record:
 2. r[names.field-lookup.private] **Visibility.** When the selected field is an own field of `S` that is not visible from `M`, the use is an error. Error: `private-member`.
 3. r[names.field-lookup.unknown] **Not found.** If no field named `name` takes part, the use is an error. Error: `unknown-data-field`.
 
+```hd
+data User:
+    name: string
+
+fn demo(user: User) -> string:
+    user.name
+```
+
 ### Method Lookup
 
 **Method lookup** of `x.name(args)` from a module `M` tries an own inherent
@@ -751,6 +866,17 @@ method, then the candidates, and reports an error when neither applies.
 
 1. r[names.method-lookup.inherent] If `S` has a visible inherent method named `name`, it is selected; it wins over every trait method.
 2. r[names.method-lookup.inherent.by-name] Selection is by name alone, whatever the method's arity or parameter types. A visible inherent method with the wrong signature is still selected, and the call is then checked against it.
+
+```hd
+data Counter:
+    value: i32
+
+impl Counter:
+    fn read(self) -> i32: self.value
+
+fn demo(c: Counter) -> i32:
+    c.read()
+```
 
 #### Method Candidates
 
@@ -794,6 +920,14 @@ fn invalid(page: Page) -> string:
 2. r[names.method-lookup.unknown] With no candidate and no such inherent method of `S`, the use is an error. Error: `unknown-method`.
 3. r[names.method-lookup.hint.use] The message should suggest a use declaration when `S` has a trait method named `name` whose trait is not available at the call.
 4. r[names.method-lookup.hint.field] The message should suggest `(x.name)(args)` when the receiver has a field named `name`.
+
+```text
+data Button:
+    on_click: fn(i32) -> i32
+
+fn invalid(button: Button) -> i32:
+    button.on_click(41)   # error: unknown-method
+```
 
 > **Note.** For the error revamp: the message should suggest the explicit
 > path `x.E1...Ek.name(args)` when a part's type has a trait method named
@@ -911,3 +1045,12 @@ match status:
 1. r[names.unsupported.shadow-warning] hd-lang permits shadowing of outer local names; a style tool may warn about it, but that warning is not part of language semantics.
 2. r[names.unsupported.variant-use] hd-lang does not support direct uses of enum variants.
 3. r[names.unsupported.stored-value] Top-level stored values use ordinary `:=` and `let` bindings; there is no separate stored-value declaration form.
+
+```hd
+enum Choice:
+    Yes
+    No
+
+fn demo() -> Choice:
+    Choice.Yes   # the qualified spelling
+```
