@@ -1,4 +1,5 @@
-
+# test: a variant whose result cannot be the subject type is a statically impossible arm
+# Spec 13 Pattern Refinement: gadt.refine.impossible.
 enum Expr[T]:
     IntLit(value: i64) -> Expr[i64]
     BoolLit(value: bool) -> Expr[bool]

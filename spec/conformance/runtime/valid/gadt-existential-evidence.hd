@@ -1,5 +1,6 @@
 # test: a GADT variant with a bounded existential stores the bound's evidence, and its arm uses it
-# Spec 13 Runtime Representation: gadt.runtime.evidence and .evidence.match (owner decision TY-05, batch 51b, 2026-10-02).
+# Spec 13 Runtime Representation: gadt.runtime.evidence and gadt.runtime.evidence.match (owner decision TY-05, batch 51b, 2026-10-02).
+# Spec 13 Existential Parameters: gadt.existential.def, gadt.existential.bounds.
 use std.testing.assert_equal
 
 enum Shown:

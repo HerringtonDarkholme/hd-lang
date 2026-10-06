@@ -1,3 +1,5 @@
+# test: a variant result must name the enclosing enum
+# Spec 13 Variant Result Types: gadt.result.owner; Type-Checking Requirements: gadt.check.owner.
 enum Other[T]:
     Value(T)
 

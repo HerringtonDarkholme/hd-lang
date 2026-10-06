@@ -1,3 +1,4 @@
+# Spec 13 Variant Result Types: gadt.result.refine; Type-Checking Requirements: gadt.check.construct.
 data User:
     name: string
 

@@ -1,4 +1,7 @@
 # Spec 08 Generalized Algebraic Data Types: data.gadt.declare, data.gadt.refine.
+# Spec 13 Generalized Algebraic Data Types: gadt.intro.refine, gadt.intro.recover; Variant Result Types: gadt.result.declare, gadt.result.refine.
+# Spec 13 Shared Constructor Data: gadt.result.shared-data, gadt.shared.assignable; Type-Checking Requirements: gadt.check.owner, gadt.check.payload.
+# Spec 13 Pattern Refinement: gadt.refine.equalities, gadt.refine.scope, gadt.refine.match-type; Refinement Algorithm: gadt.unify.solvable.
 enum Expr[T]:
     IntLit(value: i64) -> Expr[i64]
     BoolLit(value: bool) -> Expr[bool]
