@@ -23,8 +23,8 @@ and [`std.cli`](../spec/std/cli.md), and spec passes 86 and 87 applied
 [`std.regex`](../spec/std/regex.md), as stdlib calls; every other module
 sketch below is still a proposal for the owner. The spec reconcile pass
 (task #257) keeps decisions that wait for a design in
-[Decided, Not Yet Applied](#decided-not-yet-applied), and those that wait
-only for the prototype in [Compiler Handoff](#compiler-handoff).
+[Decided, Not Yet Applied](#decided-not-yet-applied). A decided gap that
+the prototype still has is in [src/KNOWN_ISSUES.md](../src/KNOWN_ISSUES.md).
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
 library itself ([lib/std/](../lib/std/)), the host rules of
@@ -50,14 +50,13 @@ every feature belongs in `std`.
 3. [Earlier Owner Decisions](#earlier-owner-decisions)
 4. [Decided, Not Yet Applied](#decided-not-yet-applied)
 5. [Audit Gaps Left](#audit-gaps-left)
-6. [Compiler Handoff](#compiler-handoff)
-7. [Survey Matrices](#survey-matrices)
-8. [Gap Survey By Area](#gap-survey-by-area)
-9. [A Script With The Proposed Surface](#a-script-with-the-proposed-surface)
-10. [The Effect Review](#the-effect-review)
-11. [Ranked Rollout](#ranked-rollout)
-12. [Sources](#sources)
-13. [Parse Log](#parse-log)
+6. [Survey Matrices](#survey-matrices)
+7. [Gap Survey By Area](#gap-survey-by-area)
+8. [A Script With The Proposed Surface](#a-script-with-the-proposed-surface)
+9. [The Effect Review](#the-effect-review)
+10. [Ranked Rollout](#ranked-rollout)
+11. [Sources](#sources)
+12. [Parse Log](#parse-log)
 
 ## Findings In Brief
 
@@ -94,21 +93,18 @@ every feature belongs in `std`.
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | none |
 | `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `now`, `sleep!`, `Timestamp` with `+ Duration` and `unix_milliseconds`, `Instant`, `ManualClock`; the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, `TimeParseError` | [time.md](../spec/std/time.md) | no time zones or local time |
 | `std.task` | `race!`, `retry!`, `all_list!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `timeout!`; no `Backoff` or `retry_with!`, held out (`RETRY-WITH`) |
-| `std.console` | `Console` with `write_error_line!`, `println`, `eprintln`, `ConsoleInput`, `read_line!`, `BufferConsole`, `ScriptedInput` | [console.md](../spec/std/console.md); `Console` and `println` are language tier | no profile binds `ConsoleInput` |
+| `std.console` | `Console` with `write_error_line!`, `println`, `eprintln`, `ConsoleInput`, `read_line!`, `BufferConsole`, `ScriptedInput` | [console.md](../spec/std/console.md); `Console` and `println` are language tier | none |
 | `std.process` | `ExitCode`, `Termination`, `Process.run!` with `ProcessError`, `ScriptedProcess::new`, and `Eq` and `Debug` for the exit data | [process.md](../spec/std/process.md); the trait is language tier | no profile binds `Process`; no working directory or environment |
 | `std.resource` | `ResourceError[E]` | none | no handle type uses it yet |
 | `std.error` | `Error` with `root_cause` and `find`, `chain`, `ErrorReport`, `report_of`, `Result.context`, `ContextError` | [error.md](../spec/std/error.md); `Error` is language tier | none |
 | `std.testing`, `std.structure`, `std.inspect`, `std.annotation`, `std.function` | test, derivation, and type-identity support | [testing.md](../spec/std/testing.md) | complete for their purpose |
 | `std.random` | `Random`, `SeededRandom`; `Rng` with `int`, `float`, `bool`, `choose`, `shuffle`, and `sample`; `rng` | [random.md](../spec/std/random.md) | none |
 | `std.cli` | `Cli` with `flag`, `option`, `positional`, `parse`, `parse_args`, and `usage`; `Parsed`, `CliError` | [cli.md](../spec/std/cli.md) | no typed `FromArgs` derivation |
-| `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | no profile binds `FsRead` or `FsWrite` |
+| `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | none |
 | `std.encoding`, `std.digest` | `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, `DecodeError`; `sha256`, `sha256_hex` | [encoding.md](../spec/std/encoding.md), [digest.md](../spec/std/digest.md) | no URL-safe base64, no streaming hasher |
 | `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, the `pretty` method, and the `Json` accessors; `to_json`, `from_json`, `encode`, and `decode` over the `std.serde` consent | [json.md](../spec/std/json.md) | `parse` reads a number with a fraction or an exponent through `parse_f64`; no field renames, conditional skips, or defaults per field |
 | `std.regex` | `Regex` with `new`, `as_str`, `is_match`, `find`, `find_all`, `captures`, `captures_all`, `replace`, `replace_all`, and `split`; `Match`; `Captures`; `RegexError`, `RegexErrorKind` | [regex.md](../spec/std/regex.md) | no flags |
 | absent | log, http | none | the gap this plan covers |
-
-The prototype also lacks the inferred row of a script's top level
-(`MHP-1` in [src/KNOWN_ISSUES.md](../src/KNOWN_ISSUES.md)).
 
 ## Earlier Owner Decisions
 
@@ -172,14 +168,12 @@ The spec reconcile pass (task #257) found one more complete:
 | --- | --- |
 | 12 | nothing to write: no chapter names `Secret[T]`, and [Open Issues](OPEN_ISSUES.md) keeps the removed draft |
 
-The rest are listed in [Decided, Not Yet Applied](#decided-not-yet-applied),
-or wait for the prototype in [Compiler Handoff](#compiler-handoff).
+The rest are listed in [Decided, Not Yet Applied](#decided-not-yet-applied).
 
 ## Decided, Not Yet Applied
 
 These owner decisions still stand, and each waits for a design that is
-not decided yet. A decision whose spec side is complete, and that waits
-only for `src/` or `lib/std`, is in [Compiler Handoff](#compiler-handoff).
+not decided yet.
 
 | Decision | Decided | What it says | Waits for |
 | --- | --- | --- | --- |
@@ -199,47 +193,6 @@ later pass.
 | float math | `sqrt`, `floor`, `round`, `abs`, `powi` on `f64` in `std.num`; most need a host hook, so the primitives need owner approval |
 | `print` without a newline | add when a prompt needs it; it needs a `Console` method (language tier) |
 | hint diagnostics | `unsatisfied-trait-bound` on `Display` for an optional suggests `debug(...)`; `unknown-method` `unwrap` suggests `expect`; `Map::new()` suggests `{}` |
-
-## Compiler Handoff
-
-The spec, the fixtures, and the indexes have every decision below; the
-prototype does not follow it yet. Each row keeps the work left in `src/`,
-and in `lib/std` where the row says so, with the tag of its rows in
-[`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv).
-When a row's cases pass, move them back to `test/portable/cases.tsv` and
-delete the row.
-
-| Decision | Decided | What the spec says | Work left | Known failures |
-| --- | --- | --- | --- | --- |
-| SNAPSHOT-ROW, RUNNER-SURFACE | 2026-10-02 | [Runner Capabilities](../spec/std/testing.md#runner-capabilities) | `lib/std/testing.hd` uses the new surface, so the compiler chat may now delete the old shims: the `resultType === "i32"` answer and the `seed`, `size`, `draw`, and `discard` methods in `src/property-tests.ts`, and the `snapshot_file_check` host function in `src/snapshots.ts` (with its uses in `src/compiler.ts` and `src/README.md`) | none |
-| STD-DEBUG | 2026-10-03 | `std.inspect`'s `TypeId` and `std.structure`'s `SelfRef` implement `Debug` ([`std-format.debug.std-types`](../spec/std/format.md#r-std-format.debug.std-types)) | The typed-derivation pass declares both modules before `std.format`, so `inspect.hd` and `structure.hd` cannot name `DebugWriter`, and an impl in `format.hd` names `SelfRef` in programs that join no `std.structure` (`unknown-type`), even with reachable-only emission | `STD-DEBUG` 1 |
-| RETRY-WITH | 2026-10-03 | the spec has `Backoff` and `retry_with!` ([Retry With Backoff](../spec/std/task.md#retry-with-backoff)), but `lib/std/task.hd` leaves them out | Held by the owner (batch 73): implementing them makes `std.task` import `std.time`, which costs every program a `std.time` check. No work until the owner lifts the hold | `RETRY-WITH` 1 |
-| LITERAL-FIRST-USE | 2026-10-03, type variables in pass 92 | an unsuffixed literal with no expected type has an [open variable](../spec/lang/04-type-system.md#open-literal-width), `{integer}` or `{float}`, that flows unchanged through ranges, lists, maps, generic enums and data, tuples, generic calls, and closures; patterns (`let`, tuples, `for`, payloads, data) bind names to it. Uses in one body unify it, independent of order; a conflict is blamed at the later use of the first conflicting pair in source order, naming the earlier one. An integer variable never unifies with a float type. Width-sensitive checks are obligations discharged once at the end of the body, after the fallback (`usize` or `i32` by SIGN-FALLBACK, `f64` for floats): a choice among several instantiations (`price.add(n)`, `k * price`), bounds, methods of some widths (a dependent result variable), and literal ranges; only one fitting candidate fixes a variable mid-body (ONE-FIT). No cross-body flow: a function that reads an undecided top-level binding is `cannot-infer-type`; each REPL input is its own body | In `src/checker`, follow the guidance below. Then move the `LITERAL-FIRST-USE` rows back to `test/portable/cases.tsv`. Update the comment at `src/checker/expression-operators.ts:291`, which cites the retired `expr.op.left-literal`: it is now `expr.op.left-literal.join`. After that, the `let i: usize = 0` annotations in `lib/std`, the guide, and `examples/` may be dropped | `LITERAL-FIRST-USE` 23 |
-| SIGN-FALLBACK | 2026-10-03, batch 83, pass 93 | an integer variable that no use fixes falls back to `usize`, or to `i32` when its [literal group](../spec/lang/04-type-system.md#r-types.literal.local.group) holds a [signed literal](../spec/lang/04-type-system.md#r-types.literal.local.signed) such as `-1` or `+5` ([`types.literal.local.default`](../spec/lang/04-type-system.md#r-types.literal.local.default)); floats stay `f64`. `t >= 0`, `0 <= t`, `t < 0`, and `0 > t` on an unsigned `t` are the warning `unsigned-comparison-always` ([Unsigned Comparisons With Zero](../spec/lang/05-expressions.md#unsigned-comparisons-with-zero)). An `integer-overflow` report on a fallback `usize` says so and suggests a sign or an annotation ([`flow.panic.report.fallback`](../spec/lang/06-control-flow.md#r-flow.panic.report.fallback)) | In `src/checker`, on top of LITERAL-FIRST-USE: keep one signed-seen bit per union-find root, set by a signed literal and ORed on union; the end-of-body fallback picks `usize` or `i32` from that bit; record which variables took the `usize` fallback, with a binding name, and carry that provenance to the overflow trap of each operation of that type, so the panic message can name it. Then move the `SIGN-FALLBACK` rows back to `test/portable/cases.tsv`. Update the REPL expectations in `website/e2e.ts` and `website/playground/e2e.ts` (`x := 21` then `x * 2` shows `42 : usize`). Check `lib/std` and `examples/` for unannotated literals that go negative or meet `< 0` | `SIGN-FALLBACK` 10 |
-| ONE-FIT | 2026-10-03, task #254 | exactly one fitting candidate decides an open variable at once ([`types.literal.local.join`](../spec/lang/04-type-system.md#r-types.literal.local.join)): one type of the kind that satisfies a generic call's bounds, one that provides a method or a left operand's operator, or one fitting instantiation of a generic trait. Two or more decide nothing, and a check that fails after the fallback suggests `+5` or an annotation ([`types.literal.local.hint`](../spec/lang/04-type-system.md#r-types.literal.local.hint)). A literal joined with a dependent variable takes the resolved method's result type ([`types.literal.local.statement`](../spec/lang/04-type-system.md#r-types.literal.local.statement)); no use of a method result decides the receiver ([`types.literal.local.statement`](../spec/lang/04-type-system.md#r-types.literal.local.statement)); a literal erased to `Any` or `Inspectable` takes the fallback ([`types.literal.local.erased`](../spec/lang/04-type-system.md#r-types.literal.local.erased)). Task #262: a conversion to a trait value type is never a one-fit site ([`types.literal.local.erased`](../spec/lang/04-type-system.md#r-types.literal.local.erased)), and a receiver's width fits by the receiver alone; widths whose methods declare different parameter lists are `ambiguous-method` unless a use fixes the receiver ([`types.literal.local.form.receiver`](../spec/lang/04-type-system.md#r-types.literal.local.form.receiver)) | On top of LITERAL-FIRST-USE and SIGN-FALLBACK: when an obligation's candidates leave exactly one fit, unify the variable with it at once and wake the obligations that wait on it; count receiver candidates from the receiver alone, never from its arguments, the expected type, or later uses of the result; report `ambiguous-method` when the fitting widths' methods declare different parameter lists and no use fixes the receiver; check a conversion to a trait value type at the fixed width; keep a variable joined with a dependent result out of the fallback until the method resolves; record which arguments took the fallback and add the `+5` or annotation hint to the error | `ONE-FIT` 8 |
-| LITERAL-SIDE | 2026-10-03 | an unsuffixed integer literal takes the other operand's type on either side ([`types.num.binary.literal-left`](../spec/lang/04-type-system.md#r-types.num.binary.literal-left)) | The fixtures pass. Update the comments at `src/checker/expression-operators.ts:714` and `src/checker/shared.ts:1428`, which cite the retired `types.num.binary.literal` (now `types.num.binary.literal-join`) | none |
-| AMBIGUOUS-TYPE | 2026-10-04 | inference with several valid solutions is the new code `ambiguous-type`; `cannot-infer-type` stays for no solution ([`types.infer.ambiguous.code`](../spec/lang/04-type-system.md#r-types.infer.ambiguous.code)) | Report `ambiguous-type` where requirement-key matching finds two binder mappings, as `Job { callback: read_both }` for `$ Repo[User] + Repo[Post]` against `Repo[A] + Repo[B]`; it reports `cannot-infer-type` today. The TS test `unordered requirement keys do not guess an ambiguous binder mapping` asserts the old code | `AMBIGUOUS-TYPE` 1 |
-| SHADOW-TPARAM | 2026-10-04 | no declaration within a type parameter's scope may reuse its name: a method's own type parameter, a local declaration, a local value, or a parameter ([`names.type-param.no-redeclare`](../spec/lang/03-names-and-scopes.md#r-names.type-param.no-redeclare)) | Report `duplicate-binding` for `fn echo[T]` inside `impl[T]`, and for a local `data T` or value `T` inside `fn work[T]`, instead of renaming the method binder (`src/checker/generic-method-scope.ts`). The variance TS tests that use a shadowing binder assert acceptance | `SHADOW-TPARAM` 3 |
-| VARIANCE-MUT-SELF | 2026-10-04 | a `mut self` inherent method counts toward declared variance ([`types.variance.surface.mut-self`](../spec/lang/04-type-system.md#r-types.variance.surface.mut-self)) | Check `mut self` methods in the variance pass; `pub fn set(mut self, value: U)` on `Box[+T]` is accepted today. The TS test `associated construction and mutable receiver signatures are not readonly instance views` asserts acceptance | `VARIANCE-MUT-SELF` 1 |
-| ALIAS-MISSING | 2026-10-04 | an alias whose right side names nothing is an error at the alias, used or not: `unknown-type`, or `unknown-trait` for a key after `$` ([`types.alias.target-unknown`](../spec/lang/04-type-system.md#r-types.alias.target-unknown)) | Resolve every alias's right side at its declaration; today an unused one is never checked, and a used one reports `unknown-trait` at the use. The TS test `aliases are expanded before requirement keys are validated` asserts the error at the use | `ALIAS-MISSING` 2 |
-| DERIVE-MISSING | 2026-10-04 | a `@derive` entry that names nothing is `unknown-trait`; `underivable-trait` stays for a real trait with no template ([`annot.derive.unknown`](../spec/lang/14-annotations.md#r-annot.derive.unknown)) | Resolve each `@derive` name before the template lookup; `@derive(Sortable)` reports `underivable-trait` today. The TS test `typed derivation reports its diagnostics at the opt-in` asserts `underivable-trait` for `@derive(Missing)` | `DERIVE-MISSING` 1 |
-| HD-DOC | 2026-10-04, task #263 | `hd doc` writes HTML and Markdown pages side by side, with `llms.txt` and `llms-full.txt`, and `hd doc NAME` prints one item ([Documentation](../spec/cli/command-line.md#documentation)); `hd new --pages` writes a GitHub Pages workflow ([`cli.new.pages`](../spec/cli/command-line.md#r-cli.new.pages)); `broken-doc-link` is a warning | Add the `hd doc` command with `--private`, `--out`, `--open`, and `NAME` lookup; build a doc model from the checked package (a module's documentation is `Program.moduleDoc`, signatures as written, the `pub` filter, impls per type with derived ones marked, `pub use` links); render Markdown, and HTML from it (`markdown-it` is only a dev dependency today); resolve `` [`Name`] `` links and report `broken-doc-link`; write `llms.txt` and `llms-full.txt`; with `--format json`, write diagnostic and summary lines as `hd check` does ([`cli.json.commands`](../spec/cli/command-line.md#r-cli.json.commands)); `hd doc NAME --format json` prints the prototype's old symbol object today. `hd new --pages` and its prompt are done. The `setup-hd` action and release tarballs the workflow installs are infrastructure, not compiler work. | `CLI-DOC` |
-| BOUND-AMBIGUOUS | 2026-10-04, task #288 | a bound-only parameter that several instantiations fit, and that has no default, reports `ambiguous-type`; bounds that allow different single instantiations stay `cannot-infer-type` ([`types.generic.infer.bound.no-default.ambiguous`](../spec/lang/04-type-system.md#r-types.generic.infer.bound.no-default.ambiguous)) | Where call inference leaves a bound-only parameter unsolved, report `ambiguous-type` when any bound allows several instantiations, else `cannot-infer-type`; both fixtures report `cannot-infer-type` today | `BOUND-AMBIGUOUS` 2 |
-| VARIANCE-ASSOC-FN | 2026-10-04, task #288 | an inherent associated function with no `self` receiver does not count toward declared variance, so `pub fn new(value: U) -> Box[U]` on `Box[+T]` is accepted ([`types.variance.surface.no-receiver`](../spec/lang/04-type-system.md#r-types.variance.surface.no-receiver)) | none: the prototype's variance pass already skips receiverless functions; keep that when VARIANCE-MUT-SELF adds the `mut self` check | none |
-| HD-DOC-2 | 2026-10-04, task #288 | the root module's pages are `pkg.md` and `pkg.html`, and `index.md` and `index.html` are an entry page ([`cli.doc.files`](../spec/cli/command-line.md#r-cli.doc.files)); `hd doc std.MODULE.ITEM` prints a std item with a link to its reference ([`cli.doc.name.std`](../spec/cli/command-line.md#r-cli.doc.name.std)); `src/main.hd` has a page only with `--private` ([`cli.doc.main`](../spec/cli/command-line.md#r-cli.doc.main)); a top-level module `index` has its pages under `index/` ([`cli.doc.index-module`](../spec/cli/command-line.md#r-cli.doc.index-module)) | Fold into the HD-DOC command: name the root pages `pkg`, write the entry page, resolve `std.` names against `spec/std`, document `src/main.hd` as module `main` under `--private`, and put a module `index` under `index/` | `CLI-DOC` 8 |
-
-LITERAL-FIRST-USE implementation guidance for the compiler session (not
-spec text):
-
-1. Check bidirectionally first. A literal with an expected type gets its concrete type on the spot, and a binary operator checks its non-literal operand first, on either side. Only a literal with no expected type gets a variable.
-2. Keep variables as integer IDs in flat per-body arrays: a union-find parent with path halving and rank, a binding (a width or none), and the first deciding span for blame. Free the arena after the body.
-3. Unify in O(α). Detect a conflict at union time, with the stored blame span.
-4. Sweep only what is open: a has-vars bit on interned types, and a per-body list of nodes whose types hold variables. The end-of-body sweep walks only that list.
-5. Keep obligations in an append-only list of (node, kind). After the fallback, process each once and patch the result into a side table, with no argument re-check.
-6. For speculation, push union-find bindings on a trail (an undo log), and roll back by popping it. Never copy checker state (audit O-06).
-7. Bodies are independent: check the top-level body first, then function bodies in any order, in parallel or lazily. An edit re-checks only its body.
-8. Queue a generic instantiation that meets an open variable until after the sweep, then deduplicate it through the instantiation cache by concrete types. Codegen sees only concrete types.
-9. The cost is O(n·α) per body, and nothing extra for a literal with an expected type.
 
 ## Survey Matrices
 

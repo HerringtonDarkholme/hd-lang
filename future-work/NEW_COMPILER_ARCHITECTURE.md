@@ -237,6 +237,45 @@ alone, and 15–17 min when several worktrees run it at once.
     worst: 2.5–11x slower than Node outside recursion
     ([baseline](../audit/compiler/baseline-2026-10-06.md)).
 
+## Carried Over From Prototype Records (not owner text)
+
+Implementation notes written for the prototype, moved here when their
+records were deleted (2026-10-06). The spec decides behavior; these say
+how.
+
+### Literal Inference
+
+From the Standard Library Plan's compiler handoff, for the open literal
+variables of [Open Literal Width](../spec/lang/04-type-system.md#open-literal-width):
+
+1. Check bidirectionally first. A literal with an expected type gets its concrete type on the spot, and a binary operator checks its non-literal operand first, on either side. Only a literal with no expected type gets a variable.
+2. Keep variables as integer IDs in flat per-body arrays: a union-find parent with path halving and rank, a binding (a width or none), and the first deciding span for blame. Free the arena after the body.
+3. Unify in O(α). Detect a conflict at union time, with the stored blame span.
+4. Sweep only what is open: a has-vars bit on interned types, and a per-body list of nodes whose types hold variables. The end-of-body sweep walks only that list.
+5. Keep obligations in an append-only list of (node, kind). After the fallback, process each once and patch the result into a side table, with no argument re-check.
+6. For speculation, push union-find bindings on a trail (an undo log), and roll back by popping it. Never copy checker state (the prototype's F-626 in [src/KNOWN_ISSUES.md](../src/KNOWN_ISSUES.md)).
+7. Bodies are independent: check the top-level body first, then function bodies in any order, in parallel or lazily. An edit re-checks only its body.
+8. Queue a generic instantiation that meets an open variable until after the sweep, then deduplicate it through the instantiation cache by concrete types. Codegen sees only concrete types.
+9. The cost is O(n·α) per body, and nothing extra for a literal with an expected type.
+
+### Wake-Driven Host Entries
+
+From the deferred Wake-Driven Host Entries proposal. The prototype's
+suspending entry export polls until Ready and blocks the JavaScript event
+loop (F-555), against
+[`req.entry.busy-poll`](../spec/lang/11-requirements-and-suspension.md#r-req.entry.busy-poll).
+
+- The embedding exposes a JavaScript host entry interface apart from the
+  raw Wasm exports: ordinary entries return directly, and suspending
+  entries return a Promise over native start, poll, cancel, and result.
+- A stale waker must not affect a later execution.
+- Failure cleanup runs once and keeps the original failure if cleanup
+  also fails.
+- The instance's providers and the execution frame survive each Pending
+  interval.
+- Tests to cover: delayed, synchronous, duplicate, and stale wakes;
+  competing drivers; cancellation; provider retention; and poisoning.
+
 ## Follow-Up Questions
 
 <!-- Questions that the notes raise, each with a recommendation. -->

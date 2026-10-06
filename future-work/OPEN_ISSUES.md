@@ -72,11 +72,6 @@ Nominal Function Types.
 | FN-Q9: how does a tool adapter get per-declaration data about a function? | A1, `shape_of(f)` passed beside the value; A2, a `fn_view(f)` intrinsic; B, per-declaration item types with a compiler-generated `FnStructure`, so `@derive(mcp.Tool)` works on functions. | B, or A2 if item types are too much surface. |
 | FN-Q10: where are item types visible? | A, only where a generic parameter is inferred from the argument and in heads written `fn name`; B, everywhere, as in Rust. | A: bindings and list literals keep their function types. |
 
-**Member-typed facts.** Testing AT-with (batch 20) chose option B, and
-option D, member-typed facts, stayed open. Batch 36 (O7) then accepted
-typed member facts, and batch 39 gave them their final form,
-[Member-Typed Facts](../spec/lang/14-annotations.md#member-typed-facts).
-
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
 from the standard-library design as too early
 (STDLIB decision 12, 2026-09-26). Revisit them
@@ -288,14 +283,6 @@ wrap by hand or match on it.
 The flat-stage iterator design waits for a specializing compiler, one of
 the performance tasks queued for later.
 
-### Testing Open Points
-
-From the archived Testing Redesign.
-
-- **A deferred fixture** (T54). A test-layout fixture package for
-  `cyclic-test-dependency` is added when that rule needs coverage. The `# fixture-test-layout:`
-  header exists ([Test Layouts](../spec/conformance/README.md#test-layouts)).
-
 ## Runtime, Library, ABI, And Tooling Work
 
 These items remain required but do not currently require new core syntax:
@@ -303,11 +290,6 @@ These items remain required but do not currently require new core syntax:
 - weak-reference runtime representation inside the standard runtime; weak
   references and finalizers are never user-visible
   ([`data.repr.runtime-only`](../spec/lang/08-data-and-enums.md#r-data.repr.runtime-only));
-- the prototype's replay experiments in the
-  Wasm GC compiler plan predate the
-  decided Replay Rules: their
-  identity is per function rather than per program, their site IDs contain
-  byte offsets, and they stop at the end of a history instead of resuming;
 - the mandatory default algorithm, canonical field encoding, and evolution
   rules for `std.fingerprint`, whose digests always carry an algorithm/version
   identifier;
@@ -319,12 +301,6 @@ These items remain required but do not currently require new core syntax:
   Dependencies themselves (fetching, the cache, `hd.sum`, selection,
   workspaces, pseudo-versions, path requirements) are specified and
   implemented ([Dependencies](../spec/cli/command-line.md#dependencies));
-- conformance fixtures for `missing-entry-point` and `unselected-main`,
-  which need manifest input in the fixture format, so they wait for the
-  manifest schema like the other manifest diagnostics;
-- a `package-cycle` conformance fixture, which waits until the manifest
-  schema exists (Dependency Cycles DC12,
-  [`module.cycle.package`](../spec/lang/10-modules.md#r-module.cycle.package));
 - the Wasm component ABI, exact export registration API, adapter wire format,
   and runtime-profile panic status codes (histories record a panic by its
   diagnostic name, as Replay Rules

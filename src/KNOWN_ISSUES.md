@@ -42,7 +42,9 @@ Correctness and diagnostics:
   export exit through a JavaScript stack trace, not a stable code.
 - **F-401**: replay code identity hashes each function's source text, not
   the module's semantic content, so a changed callee replays and a
-  formatting edit does not.
+  formatting edit does not. The replay experiments also predate the
+  decided Replay Rules: their site IDs hold byte offsets, and they stop
+  at the end of a history instead of resuming.
 - **F-605**: parsing stops at the first error, and checking reports one
   error per function; a signature error hides every body error.
 - **F-613**: a GADT variant in a let-else or `for` pattern refines only the

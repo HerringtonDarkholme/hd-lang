@@ -19,11 +19,12 @@ Planning and backlog:
   standard-library design. It holds only open questions; the commit message
   records what a pass applied.
 
-Prototype plan:
+Compiler:
 
-- The Compiler/Library Audit's migration is finished (M1 to M11; the
-  record is in git history). [`src/README.md`](../src/README.md) keeps the
-  compiler/library boundary.
+- [New Compiler: Architecture Notes](NEW_COMPILER_ARCHITECTURE.md) holds
+  the owner's goals for the new compiler and CLI, and implementation
+  notes carried over from the prototype's records. The prototype in
+  [`src/`](../src/README.md) is frozen as a test oracle.
 
 Research and direction outside the specification:
 
