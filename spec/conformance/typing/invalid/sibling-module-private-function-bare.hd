@@ -1,5 +1,5 @@
 # test: a private function of another module of the same package is not in scope there
-# Spec 10 Visibility: module.vis.private-default (task P1a2). The tree's cart
+# Spec 03 Module Scope: names.module.other-module.value (task P1a2). The tree's cart
 # module declares fee without pub.
 # fixture-package-tree: module-names/src/checkout.hd
 use pkg.cart.{Cart}

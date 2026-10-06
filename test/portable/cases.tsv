@@ -2599,3 +2599,7 @@ typing/invalid/sibling-module-type-not-imported.hd	type
 typing/invalid/sibling-module-alias-not-imported.hd	type
 typing/invalid/sibling-module-trait-name-not-imported.hd	type
 runtime/valid/sibling-module-names-imported.hd	runtime
+typing/invalid/sibling-module-std-name-not-imported.hd	type
+runtime/valid/sibling-module-std-name-imported.hd	runtime
+typing/invalid/sibling-module-requirement-key-not-imported.hd	type
+typing/invalid/test-module-name-not-imported.hd	type

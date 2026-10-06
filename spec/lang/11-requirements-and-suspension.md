@@ -529,6 +529,7 @@ See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-alias
 
 1. r[req.key.traits] Requirement keys are traits, including interfaces such as `Database` and host capabilities such as `Clock` or `Network`.
 2. r[req.key.no-effect-syntax] The language does not introduce a separate effect-declaration syntax.
+3. r[req.key.in-scope] A requirement key is an ordinary trait name, so its trait must be [in scope](03-names-and-scopes.md#r-names.module.scope) where the key is written, as in `$.with(Mailer=mailer)`. Error: `unknown-trait`.
 3. r[req.key.inspectable] A trait that is `std.inspect.Inspectable` or has it as a direct or transitive supertrait is never a requirement key.
 4. r[req.key.inspectable.error] Writing one as a key, in a requirement clause, a provider scope, or any other place a key is named, is an error reported on the key. Error: `inspectable-requirement`.
 5. r[req.key.inspectable.bound] Such a trait remains valid as a bound and as a value type.

@@ -1,0 +1,10 @@
+# test: a requirement key that another module of the same package declares is not in scope without a use
+# Spec 11 Requirement Keys: req.key.in-scope (task P1a3). The tree's cart
+# module declares the pub trait Priced, which Cart implements; this module
+# imports only Cart.
+# fixture-package-tree: module-names/src/checkout.hd
+use pkg.cart.{Cart}
+
+fn run() -> i32:
+    $.with(Priced=Cart { items: +1 }):  # diagnostic: unknown-trait
+        +0

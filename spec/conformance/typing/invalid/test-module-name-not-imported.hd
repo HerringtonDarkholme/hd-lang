@@ -1,0 +1,10 @@
+# test: a test module names another module's pub function only through a use
+# Spec 10 Test Modules: module.test.module.import (task P1a3). The tree's
+# cart module declares the pub function total; this test module imports
+# only Cart.
+# fixture-package-tree: module-names/src/cart_test.hd
+use pkg.cart.{Cart}
+use std.testing.assert_equal
+
+it("totals one item"):
+    assert_equal(total(Cart { items: +1 }), 105, reason="one item and the fee")  # diagnostic: unknown-name

@@ -1,0 +1,12 @@
+# test: a std name that another module of the same package imports is not in scope without a use here
+# Spec 03 Module Scope: names.module.use-own-module (task P1a3). The tree's
+# label module writes use std.testing.assert_equal; this module does not.
+# fixture-package-tree: module-names/src/receipt.hd
+use pkg.label.{double}
+
+fn quadruple(count: i32) -> i32:
+    double(double(count))
+
+tests:
+    it("quadruples the count"):
+        assert_equal(quadruple(+2), 8, reason="two four times")  # diagnostic: unknown-name

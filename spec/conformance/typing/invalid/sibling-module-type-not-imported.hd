@@ -1,5 +1,5 @@
 # test: a pub data type of another module of the same package is not in scope without a use
-# Spec 03 Module Scope: names.module.declarations (task P1a2). The tree's
+# Spec 03 Module Scope: names.module.other-module.type (task P1a2). The tree's
 # cart module declares the pub data type Cart; this module imports only total.
 # fixture-package-tree: module-names/src/checkout.hd
 use pkg.cart.{total}

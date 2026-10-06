@@ -329,6 +329,7 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 3. r[module.test.code] **Test code** is a package's `tests:` blocks, test modules, and integration test modules. Only a test build, such as `hd test` makes, compiles it.
 4. r[module.test.code.doc] The package's [doc tests](#doc-tests) are test code too.
 5. r[module.test.module.view] A test module is otherwise an ordinary module of its package: it sees public declarations package-wide and may use other test modules.
+6. r[module.test.module.import] Seeing a public declaration means a test module may import it: the declaration is in its scope only through a `use`, as for any module.
 6. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
 7. r[module.test.integration.program] Each file directly under the test root, such as `tests/checkout.hd`, is an **integration test program**: its own program, compiled separately from the others.
 8. r[module.test.integration.shared] A module in a subdirectory of the test root, such as `tests/common/mod.hd`, is a **shared test module**. Every integration test program of the package may use it.

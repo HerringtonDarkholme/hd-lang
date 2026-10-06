@@ -130,6 +130,34 @@ name := normalize(name)  # the right-hand name, if valid, resolves outward
 3. r[names.module.order-free] Their names are visible throughout the module, independent of textual order, which permits direct and mutual recursion between functions in one module.
 4. r[names.module.well-typed] A declaration must still be well typed as a whole.
 5. r[names.module.no-init-order] Forward visibility does not imply initialization order for executable top-level statements.
+6. r[names.module.scope] A module's scope holds its own top-level declarations, the [prelude](10-modules.md#prelude) names, and the names that its own `use` declarations introduce.
+7. r[names.module.other-module] Outside the prelude, a declaration of another module, in the package, a dependency, or `std`, is in scope only through this module's own `use` of it.
+8. r[names.module.use-own-module] A `use` declaration introduces its names into its own module only, never into another module of the same package.
+9. r[names.module.other-module.value] A bare value name that is not in scope is an error, even when another module declares it. Error: `unknown-name`.
+10. r[names.module.other-module.type] A bare type name that is not in scope is an error, even when another module declares it. Error: `unknown-type`.
+11. r[names.module.other-module.trait] A bare trait name that is not in scope is an error, even when another module declares it. Error: `unknown-trait`.
+12. r[names.module.other-module.hint] The message of such an error may name the module that declares the name and the `use` declaration that would import it.
+
+```text
+# src/cart.hd
+pub data Cart:
+    pub items: i32
+
+pub fn total(cart: Cart) -> i32: cart.items * 100
+
+fn fee() -> i32: +5
+
+# src/checkout.hd
+use pkg.cart.{Cart}
+
+fn charge(cart: Cart) -> i32:
+    total(cart) + fee()  # error: unknown-name
+```
+
+> **Why.** No action at a distance: every bare name in a file traces to that
+> file's declarations, the prelude, or one of its own `use` lines.
+
+See also: [Use Declarations](#use-declarations), [Public Uses And Visibility](10-modules.md#public-uses-and-visibility).
 
 ### Module Execution Scope
 
