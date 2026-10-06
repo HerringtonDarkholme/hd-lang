@@ -1,5 +1,6 @@
 # test: comparison dispatches through supertrait dictionaries at run time
 # Spec 09 Traits: an Ord bound supplies cmp and a PartialOrd bound supplies <.
+# Spec 09 Traits: trait.cmp.total-ordering, trait.cmp.ordering, trait.cmp.operators-comparison.
 fn rank(value: Ordering) -> i32:
     match value:
         .Less => 1

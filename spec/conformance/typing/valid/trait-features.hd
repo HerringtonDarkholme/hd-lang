@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.decl.required, trait.decl.default, trait.decl.method, trait.decl.associated-fn, trait.decl.generic, trait.marker.decl, trait.marker.impl, trait.super.bound, trait.assoc.declare, trait.impl.explicit, trait.bound.compose-and, trait.bound.mut, trait.qualified.form, trait.assoc-call.type.traits.
 trait Describe:
     fn describe(self) -> string
 

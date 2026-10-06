@@ -1,4 +1,5 @@
 # test: an inherent method wins a dot call; a trait-qualified call reaches the trait method
+# Spec 09 Traits: trait.resolve.inherent-first, trait.qualified.form, trait.qualified.bypass.
 
 use std.testing.assert_equal
 

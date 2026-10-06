@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.derive.partners.partial-ord, trait.derive.partners.ord.
 use std.testing.assert_equal
 
 @derive(Eq, PartialOrd, Ord)

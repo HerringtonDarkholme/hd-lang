@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.own.rule, trait.own.orphan, trait.own.std.
 impl Display for i32:  # diagnostic: orphan-impl
     fn to_string(self) -> string:
         "$self"

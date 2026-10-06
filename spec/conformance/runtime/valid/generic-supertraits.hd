@@ -1,4 +1,5 @@
 # test: generic supertraits substitute parent arguments across every dispatch path
+# Spec 09 Traits: trait.super.satisfy, trait.dyn.supertrait-methods, trait.dyn.widen.
 
 use std.testing.assert_equal
 

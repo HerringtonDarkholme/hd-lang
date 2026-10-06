@@ -1,4 +1,5 @@
 # test: a default and a written trait method with one name are ambiguous at a dot call
+# Spec 09 Traits: trait.resolve.ambiguous, trait.resolve.ambiguous.defaults.
 
 trait Named:
     fn label(self) -> string:

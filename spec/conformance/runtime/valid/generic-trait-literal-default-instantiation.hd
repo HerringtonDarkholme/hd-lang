@@ -1,4 +1,5 @@
 # test: when instantiations fit only through a numeric literal, the literal's fallback type wins: usize, i32 for a signed literal, or f64
+# Spec 09 Traits: trait.resolve.literal-arg.example.
 use std.testing.assert_equal
 
 trait Combine[T]:

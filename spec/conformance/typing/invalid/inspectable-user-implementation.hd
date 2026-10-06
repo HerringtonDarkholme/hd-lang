@@ -1,5 +1,6 @@
 # test: user code cannot implement the sealed Inspectable trait
 # Spec 09 Sealed Traits: an impl of a sealed trait outside the standard library is rejected.
+# Spec 09 Traits: trait.sealed.inspectable, trait.sealed.no-user-impl, trait.inspect.sealed.
 use std.inspect.{Inspectable, TypeId}
 
 data User:

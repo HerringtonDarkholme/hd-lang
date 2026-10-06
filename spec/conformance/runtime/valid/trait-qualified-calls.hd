@@ -1,4 +1,5 @@
 # test: trait-qualified calls select one implementation when dot lookup is ambiguous
+# Spec 09 Traits: trait.qualified.form, trait.qualified.receiver, trait.resolve.qualified-fix.
 
 use std.testing.assert_equal
 

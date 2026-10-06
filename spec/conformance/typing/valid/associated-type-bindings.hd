@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.binding.form, trait.binding.meaning, trait.binding.equality, trait.binding.inside, trait.binding.interchangeable, trait.binding.inference, trait.binding.reachable, trait.binding.reachable.example.
 trait Supplier:
     type Item
     fn get(self) -> Self::Item

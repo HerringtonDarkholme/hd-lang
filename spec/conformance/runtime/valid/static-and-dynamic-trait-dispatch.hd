@@ -1,4 +1,5 @@
 # test: traits / dispatch
+# Spec 09 Traits: trait.dyn.form, trait.dyn.contents, trait.dyn.convert.
 
 use std.testing.assert_equal
 

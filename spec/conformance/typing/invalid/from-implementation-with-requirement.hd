@@ -1,6 +1,7 @@
 # test: a From implementation must not declare a requirement row
 # Spec 09 Conversion Trait: an implementation whose `from` declares a requirement clause is a
 # `trait-method-signature` error.
+# Spec 09 Traits: trait.from.row, trait.from.signature.
 use std.convert.From
 
 enum FsError:

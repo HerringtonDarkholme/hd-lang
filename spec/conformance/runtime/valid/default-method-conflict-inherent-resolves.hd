@@ -1,6 +1,7 @@
 # test: an inherent method resolves a default-method conflict for dot calls, and Trait::method selects one implementation
 # Spec 09 Default-Method Conflicts: "The type may define an inherent method to provide its ordinary
 # dot-call behavior, or the caller may use `Trait::method(value, ...)` to select one implementation."
+# Spec 09 Traits: trait.conflict.inherent, trait.conflict.qualified.
 use std.testing.assert_equal
 
 trait Loud:

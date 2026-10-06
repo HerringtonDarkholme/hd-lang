@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.binding.use-site, trait.binding.mismatch.
 trait Supplier:
     type Item
     fn get(self) -> Self::Item

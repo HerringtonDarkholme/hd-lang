@@ -1,6 +1,7 @@
 # test: a mut inside a type argument is part of runtime identity; the outer mut is not
 # Spec 09 Inspectable And TypeId: an erased List[User] is not a List[mut User], so the
 # downcast cannot grant mutable elements that the erasing code never had.
+# Spec 09 Traits: trait.identity.outer-mut, trait.identity.inner-permission, trait.erase.recorded, trait.erase.weakened.
 use std.inspect.Inspectable
 use std.testing.assert
 

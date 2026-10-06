@@ -1,5 +1,6 @@
 # test: a subtrait of Inspectable cannot redeclare runtime_type
 # Spec 09 Sealed Traits: redeclaring a sealed supertrait's member is sealed-trait-implementation.
+# Spec 09 Traits: trait.sealed.member-names, trait.sealed.member-names.error.
 use std.inspect.{Inspectable, TypeId}
 
 trait Plugin < Inspectable:

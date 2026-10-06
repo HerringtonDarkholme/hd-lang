@@ -1,5 +1,6 @@
 # test: a bound may list the same trait twice
 # expect: accept
+# Spec 09 Traits: trait.bound.repeat.
 
 trait Describe:
     fn describe(self) -> i32

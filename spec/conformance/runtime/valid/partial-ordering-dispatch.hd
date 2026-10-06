@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.cmp.ordering, trait.cmp.operators-comparison, trait.bound.static.
 use std.testing.assert
 
 data Score:

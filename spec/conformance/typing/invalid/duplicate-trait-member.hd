@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.decl.unique.
 trait Named:
     fn name(self) -> string
     fn name(self) -> string  # diagnostic: duplicate-trait-member

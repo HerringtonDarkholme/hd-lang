@@ -1,4 +1,5 @@
 # test: an implementation needs its supertrait implementations
+# Spec 09 Traits: trait.super.satisfy, trait.super.missing.
 
 trait Parent
 

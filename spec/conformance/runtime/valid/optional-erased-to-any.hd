@@ -1,5 +1,6 @@
 # test: an optional value may be erased to Any like any other enum value
 # expect: test
+# Spec 09 Traits: trait.any.all, trait.any.optional.
 
 use std.testing.assert_equal
 

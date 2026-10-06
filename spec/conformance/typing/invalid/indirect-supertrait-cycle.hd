@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.super.acyclic, trait.super.cycle-report.
 trait First < Third:  # diagnostic: supertrait-cycle
     fn first(self) -> void
 

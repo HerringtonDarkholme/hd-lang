@@ -1,4 +1,5 @@
 # test: an impl method's generic parameters match the trait method's in order, so moving a bound is a mismatch
+# Spec 09 Traits: trait.impl.generics.count, trait.impl.generics.fixed-bounds.
 
 trait Show:
     fn show(self) -> string

@@ -1,5 +1,6 @@
 # fixture-package-role: library
 # test: a trait argument owned by another package does not give ownership
+# Spec 09 Traits: trait.own.argument, trait.own.orphan.
 use dep.models.{User}
 
 impl Iterable[User] for string:  # diagnostic: orphan-impl

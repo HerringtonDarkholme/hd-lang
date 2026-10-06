@@ -1,5 +1,6 @@
 # test: erasing a readonly value to mut Inspectable is a mutable upgrade
 # Spec 09 Erasure To Inspectable: erasing to mut Inspectable requires mutable access to the source.
+# Spec 09 Traits: trait.erase.mut.source.
 use std.inspect.Inspectable
 
 data Counter:

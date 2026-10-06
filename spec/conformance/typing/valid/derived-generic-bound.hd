@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.derive.intrinsic-decl, trait.derive.bounds, trait.derive.bounds.example.
 @derive(Eq)
 data Box[T]:
     value: T

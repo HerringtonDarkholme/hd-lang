@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.target.arguments, trait.inherent.assoc-call.
 trait Notifier:
     fn notify(self, message: string) -> void
 

@@ -1,4 +1,5 @@
 # test: a child trait declares new member names and uses supertrait methods
+# Spec 09 Traits: trait.super.satisfy, trait.marker.all-defaults.
 
 trait Greeter:
     fn greet(self) -> string

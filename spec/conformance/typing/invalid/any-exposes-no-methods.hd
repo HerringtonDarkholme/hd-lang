@@ -1,5 +1,6 @@
 # test: a value of type Any exposes no type-specific methods
 # Spec 09 Any: "As a value type, `Any` erases the concrete type and exposes no type-specific methods."
+# Spec 09 Traits: trait.any.erases.
 trait Named:
     fn name(self) -> string
 

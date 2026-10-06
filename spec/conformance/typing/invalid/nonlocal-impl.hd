@@ -2,6 +2,7 @@
 # Spec 09 Implementation Modules: trait.own.module.error. The tree's alpha
 # module declares both the trait and the type.
 # fixture-package-tree: nonlocal-impl/src/beta.hd
+# Spec 09 Traits: trait.own.module.trait.
 use pkg.alpha.{Greeter, Person}
 
 impl Greeter for Person:  # diagnostic: nonlocal-impl

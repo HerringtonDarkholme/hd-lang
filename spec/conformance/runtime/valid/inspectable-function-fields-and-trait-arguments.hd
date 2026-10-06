@@ -1,6 +1,7 @@
 # test: data with function fields and trait value type arguments are inspectable
 # Spec 09 Inspectable Types: identity is the declaration, whatever its fields hold, and a trait
 # value type counts as inspectable as a type argument, matched exactly.
+# Spec 09 Traits: trait.inspectable.declared, trait.inspectable.fields, trait.inspectable.argument-only, trait.inspectable.argument-examples.
 use std.inspect.Inspectable
 use std.testing.assert_equal
 

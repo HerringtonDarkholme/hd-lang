@@ -1,4 +1,5 @@
 # test: generic trait-qualified calls select one instantiated implementation
+# Spec 09 Traits: trait.decl.generic, trait.qualified.trait-arguments, trait.dyn.generic-trait.
 
 use std.testing.assert_equal
 

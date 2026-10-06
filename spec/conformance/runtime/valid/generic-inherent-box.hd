@@ -1,5 +1,6 @@
 # test: a generic inherent implementation dispatches for each instantiation
 # Spec 09 Traits: inherent methods resolve on the receiver type.
+# Spec 09 Traits: trait.inherent.decl, trait.inherent.target-match.
 data Box[T]:
     value: T
 

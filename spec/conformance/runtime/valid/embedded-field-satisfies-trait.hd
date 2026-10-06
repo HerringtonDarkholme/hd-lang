@@ -1,4 +1,5 @@
 # test: traits / embedded fields
+# Spec 09 Traits: trait.embed.no-conformance, trait.qualified.form.
 
 use std.testing.assert_equal
 

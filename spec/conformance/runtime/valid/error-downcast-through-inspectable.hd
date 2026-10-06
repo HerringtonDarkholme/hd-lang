@@ -1,6 +1,7 @@
 # test: an erased Error recovers its concrete domain error
 # Spec 09 Error Trait: Error extends Inspectable, so an Error value inherits downcast, which
 # recovers the concrete error; a trait value target never matches.
+# Spec 09 Traits: trait.error.defaults, trait.error.complete-reference, trait.error.import, trait.error.no-inspect-import, trait.error.erased, trait.error.downcast, trait.downcast.ordinary.
 use std.error.Error
 use std.testing.assert_equal
 

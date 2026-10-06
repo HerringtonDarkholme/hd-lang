@@ -1,5 +1,6 @@
 # test: a trait default method instantiates the trait's type parameters
 # Spec 09 Traits: default methods run with the impl's substitutions.
+# Spec 09 Traits: trait.decl.generic, trait.decl.default.
 trait Source[T]:
     fn next(mut self) -> T?
     fn second(mut self) -> T?:

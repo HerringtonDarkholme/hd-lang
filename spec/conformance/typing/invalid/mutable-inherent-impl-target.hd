@@ -1,4 +1,5 @@
 # test: an inherent implementation target cannot carry an outer mut
+# Spec 09 Traits: trait.target.constructor, trait.target.no-mut.
 
 data Counter:
     value: i32

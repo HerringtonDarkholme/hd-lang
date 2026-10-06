@@ -1,4 +1,5 @@
 # test: a mutable trait bound rejects a readonly argument
+# Spec 09 Traits: trait.bound.mut, trait.bound.unsatisfied.cases.
 
 trait Clear:
     fn clear(mut self) -> void

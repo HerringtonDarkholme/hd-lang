@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.derive.no-automatic.
 data Score:
     value: i32
 

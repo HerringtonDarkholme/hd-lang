@@ -1,6 +1,7 @@
 # test: a type parameter instantiated with mut U keeps that inner mut in a composite identity
 # Spec 09 Erasure To Inspectable: a value built from T records the declaration applied to the
 # type T is instantiated with, so List[T] with T = mut User records List[mut User].
+# Spec 09 Traits: trait.erase.parameter, trait.erase.built.
 use std.inspect.Inspectable
 use std.testing.assert
 

@@ -1,4 +1,5 @@
 # test: implementations with non-unifying trait arguments do not overlap
+# Spec 09 Traits: trait.overlap.unify, trait.qualified.trait-arguments.
 
 trait Combine[T]:
     fn combine(self, other: T) -> Money

@@ -1,5 +1,6 @@
 # test: downcast_mut needs a mutable receiver, which a readonly view cannot provide
 # Spec 09 Recovering A Concrete Type: downcast_mut through a readonly view is mutable-receiver-required.
+# Spec 09 Traits: trait.downcast.mut-receiver.
 use std.inspect.Inspectable
 
 data Counter:

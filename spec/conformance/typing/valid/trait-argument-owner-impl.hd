@@ -1,5 +1,6 @@
 # test: the package owning a trait argument may implement a foreign trait for a foreign type
 # Fresh Word literals keep mut, so the element type is mut Word (TQ-2 fresh elements, 2026-09-27).
+# Spec 09 Traits: trait.own.argument.
 
 data Word:
     text: string

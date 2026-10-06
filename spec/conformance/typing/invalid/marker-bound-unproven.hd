@@ -1,5 +1,6 @@
 # test: a marker bound must be proven for the nested argument
 # Spec 09 Traits: an impl applies only when its bounds hold.
+# Spec 09 Traits: trait.marker.impl, trait.bound.unsatisfied.
 trait Marker
 
 data Box[T]:

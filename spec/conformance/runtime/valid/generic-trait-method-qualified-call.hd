@@ -1,5 +1,6 @@
 # test: a trait-qualified call takes method-level type arguments after the method name
 # expect: test
+# Spec 09 Traits: trait.impl.generics, trait.qualified.type-arguments.
 
 use std.testing.assert_equal
 

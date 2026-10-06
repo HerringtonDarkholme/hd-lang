@@ -1,6 +1,7 @@
 # test: TypeId equality follows runtime identity and prints the canonical name
 # Spec 09 Inspectable And TypeId: the outer mut does not change identity, while an inner
 # mut and other type arguments do; Display spells prelude names with T? and tuple sugar.
+# Spec 09 Traits: trait.inspect.static, trait.inspect.runtime-type, trait.typeid.traits, trait.typeid.of, trait.typeid.equality, trait.identity.outer-mut, trait.identity.inner-permission, trait.identity.no-conversion, trait.typeid.name, trait.typeid.name.prelude, trait.typeid.name.option, trait.typeid.name.tuple, trait.typeid.name.separator.
 use std.inspect.{Inspectable, TypeId}
 use std.testing.{assert, assert_equal}
 

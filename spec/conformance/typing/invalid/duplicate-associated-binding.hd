@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.binding.once, trait.binding.once.error.
 trait Supplier:
     type Item
     fn get(self) -> Self::Item

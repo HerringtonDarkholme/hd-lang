@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.impl.local, trait.impl.local.trait, trait.impl.local.nonlocal.
 
 trait Label:
     fn label(self) -> string

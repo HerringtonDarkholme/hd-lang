@@ -1,5 +1,6 @@
 # test: char, i64, derived, hand-written, and type-parameter keys work in a map, and lookup uses the key type's own Eq and Hash
 # Spec 04 Map Key Types: types.map-key.declared-bound, types.map-key.builtin-hash, types.map-key.user; Map Semantics: types.map.eq-hash.
+# Spec 09 Traits: trait.hash.map-key, trait.derive.explicit-impl.
 use std.testing.assert_equal
 
 @derive(Eq, Hash)

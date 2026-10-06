@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.resolve.ambiguous.
 trait LeftLabel:
     fn label(self) -> string
 

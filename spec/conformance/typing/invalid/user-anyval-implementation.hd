@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.sealed.anyval-types, trait.sealed.no-user-impl, trait.sealed.user-impl.
 data Handle: pass
 
 impl AnyVal for Handle  # diagnostic: sealed-trait-implementation

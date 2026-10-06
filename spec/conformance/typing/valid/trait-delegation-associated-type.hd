@@ -1,4 +1,5 @@
 # test: a delegating implementation binds each associated type to the part's binding
+# Spec 09 Traits: trait.by.assoc-types.
 trait Supplier:
     type Item
     fn get(self) -> Self::Item

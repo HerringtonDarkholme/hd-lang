@@ -1,6 +1,7 @@
 # test: Target::from(value) calls a conversion directly and selects the instantiation by argument
 # Spec 09 Conversion Trait: code may call a conversion directly as `X::from(value)`; with
 # several instantiations, the one whose parameter the argument fits is selected.
+# Spec 09 Traits: trait.from.meaning, trait.from.import, trait.from.direct, trait.from.no-overlap, trait.from.instantiations, trait.from.candidates.
 use std.convert.From
 use std.testing.assert_equal
 

@@ -1,5 +1,6 @@
 # test: an impl method may rename method-level generic parameters that keep their order and bounds
 # expect: test
+# Spec 09 Traits: trait.impl.generics, trait.impl.generics.count.
 
 use std.testing.assert_equal
 

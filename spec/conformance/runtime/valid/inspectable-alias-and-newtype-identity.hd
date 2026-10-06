@@ -1,6 +1,7 @@
 # test: a transparent alias shares its target's identity and a newtype has its own
 # Spec 09 Inspectable And TypeId: aliases are expanded before comparison; a newtype, including
 # one over a function type, is its own inspectable declaration.
+# Spec 09 Traits: trait.identity.normalize, trait.identity.alias, trait.identity.newtype, trait.inspectable.fields, trait.downcast.val.
 use std.inspect.{Inspectable, TypeId, downcast_val}
 use std.testing.assert
 

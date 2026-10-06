@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.impl.signature.
 trait Named:
     fn name(self) -> string
 

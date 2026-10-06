@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.sealed.suspend, trait.sealed.no-user-impl, trait.sealed.user-impl.
 data Replay: pass
 
 impl Suspend[i32] for Replay:  # diagnostic: sealed-trait-implementation

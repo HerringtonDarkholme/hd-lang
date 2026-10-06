@@ -1,6 +1,7 @@
 # test: generic erasure records the instantiated type, which TypeId and downcast observe
 # Spec 09 Erasure To Inspectable: a value of T < Inspectable records the type T is
 # instantiated with; a Box[T] built from it records Box applied to that type.
+# Spec 09 Traits: trait.erase.expected, trait.erase.parameter, trait.erase.built, trait.inspect.runtime-type, trait.typeid.of, trait.downcast.some.
 use std.inspect.{Inspectable, TypeId}
 use std.testing.{assert, assert_equal}
 

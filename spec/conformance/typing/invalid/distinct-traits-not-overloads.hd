@@ -1,5 +1,6 @@
 # test: two distinct traits do not become overloads through argument shapes
 # Spec 03 Names and Scopes: names.method-lookup.ambiguous (trait candidates of two or more traits are an error).
+# Spec 09 Traits: trait.resolve.one-trait-only.
 trait Apply[T]:
     fn apply(self, run: fn(T) -> T) -> i32
 

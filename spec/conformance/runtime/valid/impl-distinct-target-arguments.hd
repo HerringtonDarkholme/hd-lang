@@ -1,4 +1,5 @@
 # test: implementations whose full targets do not unify do not overlap
+# Spec 09 Traits: trait.target.arguments, trait.overlap.definition, trait.overlap.unify.
 use std.testing.assert_equal
 
 data Box[T]:

@@ -1,6 +1,7 @@
 # test: downcast and downcast_val return the erased value for its exact type and .None otherwise
 # Spec 09 Recovering A Concrete Type: a recovered reference value is the same reference,
 # a value without identity is unboxed, and a different type yields .None.
+# Spec 09 Traits: trait.erase.expected, trait.inspect.supplied, trait.downcast.some, trait.downcast.val, trait.downcast.same-reference, trait.downcast.unboxed.
 use std.inspect.{Inspectable, downcast_val}
 use std.testing.{assert, assert_equal}
 

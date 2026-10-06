@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.impl.explicit, trait.inherent.decl, trait.bound.static, trait.dyn.form, trait.dyn.no-dyn.
 trait Describe:
     fn describe(self) -> string
 

@@ -1,3 +1,4 @@
+# Spec 09 Traits: trait.super.bound.
 trait First:
     fn first(self) -> void
 

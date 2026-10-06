@@ -1,5 +1,6 @@
 # test: owning a trait argument's outer constructor permits a foreign impl
 # Spec 09 Traits: an impl is allowed when it owns an outer constructor.
+# Spec 09 Traits: trait.own.argument.
 data Word:
     text: string
 

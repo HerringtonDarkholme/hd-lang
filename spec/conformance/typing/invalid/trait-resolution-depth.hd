@@ -1,4 +1,5 @@
 # test: a bound proof deeper than 64 nested bounds is an error
+# Spec 09 Traits: trait.bound.depth.
 
 trait Marker
 

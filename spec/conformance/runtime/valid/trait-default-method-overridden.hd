@@ -1,4 +1,5 @@
 # test: traits / defaults / override
+# Spec 09 Traits: trait.impl.override.
 
 use std.testing.assert_equal
 
