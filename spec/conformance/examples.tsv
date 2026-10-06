@@ -253,8 +253,8 @@ lang/05-expressions.md	52	accept	runtime/valid/test-block-propagation.hd
 lang/05-expressions.md	53	mixed	typing/invalid/test-body-error-not-display.hd|typing/invalid/test-body-optional-result.hd|typing/invalid/test-body-string-error.hd
 lang/05-expressions.md	54	mixed	typing/invalid/arithmetic-on-bool.hd|typing/invalid/arithmetic-on-list.hd
 lang/05-expressions.md	55	mixed	typing/invalid/bitwise-and-bool.hd|typing/invalid/bitwise-or-float.hd|typing/invalid/bitwise-xor-string.hd
-lang/05-expressions.md	56	accept	typing/valid/shift-count-u32.hd
-lang/05-expressions.md	57	mixed	typing/invalid/shift-count-not-u32.hd
+lang/05-expressions.md	56	accept	typing/valid/shift-count-unsigned.hd
+lang/05-expressions.md	57	mixed	typing/invalid/shift-count-signed.hd
 lang/05-expressions.md	58	mixed	typing/invalid/signed-integer-exponent.hd|typing/invalid/negative-literal-exponent.hd|typing/invalid/power-mixed-numeric-types.hd
 lang/05-expressions.md	59	mixed	typing/invalid/function-equality.hd
 lang/05-expressions.md	60	mixed	typing/valid/eq-contextual-right-operand.hd|typing/valid/eq-contextual-left-operand.hd|typing/invalid/eq-contextual-both-operands.hd

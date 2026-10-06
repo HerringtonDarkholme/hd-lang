@@ -1,0 +1,24 @@
+# test: a shift count may have any unsigned integer type, and a literal count adopts u32
+# Spec 05 Shifts: expr.shift.left-any, expr.shift.count-unsigned, expr.shift.count-literal; Primitive Implementations: expr.op.std.shift-unsigned (job BS).
+use std.num.Integer
+
+fn mask(x: i64, n: u32) -> i64:
+    (x << n) | (x >> 3)
+
+fn indexed_mask(x: i64, i: usize) -> i64:
+    x << i
+
+fn bytes(b: u8, n: u8) -> u8:
+    let v = b
+    v <<= n
+    v >>= 1
+    v
+
+fn middle_count(x: u32, n: u16) -> u32:
+    x >> n
+
+fn wide_count(x: u32, n: u64) -> u32:
+    x << n
+
+fn generic[N < Integer](x: N, n: u32) -> N:
+    x << n

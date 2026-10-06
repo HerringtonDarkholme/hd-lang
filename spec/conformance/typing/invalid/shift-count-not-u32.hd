@@ -1,4 +1,0 @@
-# test: a shift count of a type other than u32 is a type mismatch
-# Spec 05 Shifts: expr.shift.count-u32, expr.shift.count-other (batch 66).
-fn scale(x: i64, n: i32) -> i64:
-    x << n  # diagnostic: type-mismatch

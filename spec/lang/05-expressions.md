@@ -1426,18 +1426,21 @@ fn toggle(a: string, b: string) -> string: a ^ b  # error: type-mismatch
 
 ### Shifts
 
-A shift moves the left operand's bits by a `u32` count:
+A shift moves the left operand's bits by an unsigned integer count:
 
 ```text
 fn mask(x: i64, n: u32) -> i64:
     (x << n) | (x >> 3)
+
+fn indexed_mask(x: i64, i: usize) -> i64:
+    x << i
 ```
 
 1. r[expr.shift.unification] Shifts are the exception to ordinary binary numeric unification.
 2. r[expr.shift.left-any] The left operand may have any integer type, and the result has the left operand's type.
-3. r[expr.shift.count-u32] The right operand, the shift count, must have type `u32`.
+3. r[expr.shift.count-unsigned] The right operand, the shift count, must have an unsigned integer type. Its type may be `u8`, `u16`, `u32`, `u64`, or `usize`.
 4. r[expr.shift.count-literal] An unsuffixed integer literal count has type `u32`, so `x << 3` needs no suffix.
-5. r[expr.shift.count-other] A count of any other type is an error, and its fix-it converts the count, as in `u32(n)`. Error: `type-mismatch`.
+5. r[expr.shift.count-invalid] A signed integer count or a count of any non-integer type is an error. A numeric count's fix-it converts it, as in `u32(n)`. Error: `type-mismatch`.
 6. r[expr.shift.count] A negative count or a count at least as large as the left operand's bit width is an invalid shift, by [`types.arith.shift-count`](04-type-system.md#r-types.arith.shift-count).
 7. r[expr.shift.fixed-width] The shift itself is a fixed-width bit operation; left-shifted high bits are discarded rather than reported as arithmetic overflow.
 
@@ -1446,9 +1449,10 @@ fn scale(x: i64, n: i32) -> i64:
     x << n  # error: type-mismatch
 ```
 
-> **Why.** One count type gives `x << n` one implementation to choose, as
-> `Integer`'s supertrait `Shl[u32]` already names. `u32` is also the
-> exponent type of `**`, and Rust's `checked_shl` takes a `u32` count.
+> **Why.** Accepting every unsigned width lets an index or a compact count
+> shift without a cast, while excluding negative counts statically. A literal
+> still takes `u32`, the exponent type of `**` and the count type of Rust's
+> `checked_shl`.
 
 ### Exponentiation
 
@@ -1755,7 +1759,7 @@ fn count(items: List[i32]) -> i32:
 | r[expr.op.std.bitwise] Bitwise | `BitAnd`, `BitOr`, `BitXor` | `impl BitAnd for T` and the like, for every integer type `T` |
 | r[expr.op.std.not] Complement | `Not` | every integer type |
 | r[expr.op.std.string-add] Concatenation | `Add` | `impl Add for string` |
-| r[expr.op.std.shift-u32] Shifts | `Shl`, `Shr` | `impl Shl[u32] for T` and `impl Shr[u32] for T`, for every integer type `T` |
+| r[expr.op.std.shift-unsigned] Shifts | `Shl`, `Shr` | `impl Shl[C] for T` and `impl Shr[C] for T`, for every integer type `T` and every unsigned integer type `C` |
 
 1. r[expr.op.std.intrinsic-method] Each method of the number types' implementations in the table is an [intrinsic method](09-traits.md#intrinsic-methods). It computes the operation that this chapter and [Type System](04-type-system.md) define for its type, including checked overflow and its panics.
 2. r[expr.op.std.string-not-intrinsic] `impl Add for string` is an ordinary implementation, not an intrinsic method.

@@ -315,7 +315,7 @@ For floating operands, `**` is IEEE 754-2019 `pow` (clause 9.2), including its
 special cases, correctly rounded to the destination format. Integer and
 floating operands do not mix in `**` without an explicit cast.
 
-Integer `/` truncates toward zero. Integer overflow panics in a debug or test build and wraps in a release build, as in Rust; code that must not wrap uses the explicit `checked_*` APIs. A shift count is a `u32`, and a literal count needs no suffix; in a debug or test build it must be smaller than the shifted type's bit width at runtime unless the compiler can prove that statically, and a release build masks it.
+Integer `/` truncates toward zero. Integer overflow panics in a debug or test build and wraps in a release build, as in Rust; code that must not wrap uses the explicit `checked_*` APIs. A shift count may have any unsigned integer type, and a literal count needs no suffix; in a debug or test build it must be smaller than the shifted type's bit width at runtime unless the compiler can prove that statically, and a release build masks it.
 
 Integer values also support bitwise operators:
 

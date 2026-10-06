@@ -1975,8 +1975,9 @@ runtime/valid/numeric-explicit-widening.hd	runtime	accept	lang/04-type-system.md
 typing/valid/test-runner-capabilities.hd	type	accept	std/testing.md#r-std-testing.runner.declares
 typing/invalid/test-body-uses-property-runner.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.runner.body-property
 typing/invalid/it-outside-test-code.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.test-only.outside
-typing/invalid/shift-count-not-u32.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.shift.count-other
-typing/valid/shift-count-u32.hd	type	accept	lang/05-expressions.md#r-expr.shift.count-u32
+typing/invalid/shift-count-signed.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.shift.count-invalid
+typing/valid/shift-count-unsigned.hd	type	accept	lang/05-expressions.md#r-expr.shift.count-unsigned
+runtime/valid/shift-count-unsigned.hd	runtime	accept	lang/05-expressions.md#r-expr.shift.count-unsigned
 runtime/valid/range-inclusive-field.hd	runtime	accept	lang/05-expressions.md#r-expr.range.inclusive-field
 typing/valid/property-runner-capabilities.hd	type	accept	std/testing.md#r-std-testing.runner.case-type
 typing/valid/test-body-uses-test-runner.hd	type	accept	std/testing.md#r-std-testing.runner.body-property

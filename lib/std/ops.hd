@@ -719,16 +719,57 @@ impl[N < Integer] Not for N:
     @intrinsic
     fn not(self) -> N
 
-# A shift's count is a `u32` (r-expr.shift.count-u32, r-expr.op.std.shift-u32).
+# A shift accepts every unsigned count type
+# (r-expr.shift.count-unsigned, r-expr.op.std.shift-unsigned).
+impl[N < Integer] Shl[u8] for N:
+    type Out = N
+    @intrinsic
+    fn shl(self, rhs: u8) -> N
+
+impl[N < Integer] Shl[u16] for N:
+    type Out = N
+    @intrinsic
+    fn shl(self, rhs: u16) -> N
+
 impl[N < Integer] Shl[u32] for N:
     type Out = N
     @intrinsic
     fn shl(self, rhs: u32) -> N
 
+impl[N < Integer] Shl[u64] for N:
+    type Out = N
+    @intrinsic
+    fn shl(self, rhs: u64) -> N
+
+impl[N < Integer] Shl[usize] for N:
+    type Out = N
+    @intrinsic
+    fn shl(self, rhs: usize) -> N
+
+impl[N < Integer] Shr[u8] for N:
+    type Out = N
+    @intrinsic
+    fn shr(self, rhs: u8) -> N
+
+impl[N < Integer] Shr[u16] for N:
+    type Out = N
+    @intrinsic
+    fn shr(self, rhs: u16) -> N
+
 impl[N < Integer] Shr[u32] for N:
     type Out = N
     @intrinsic
     fn shr(self, rhs: u32) -> N
+
+impl[N < Integer] Shr[u64] for N:
+    type Out = N
+    @intrinsic
+    fn shr(self, rhs: u64) -> N
+
+impl[N < Integer] Shr[usize] for N:
+    type Out = N
+    @intrinsic
+    fn shr(self, rhs: usize) -> N
 
 # `string + string` concatenates (r-expr.op.std.string-add). It is hd over
 # the string's bytes, not an intrinsic: interpolation joins the two texts.

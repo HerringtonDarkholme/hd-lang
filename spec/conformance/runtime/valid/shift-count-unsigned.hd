@@ -1,0 +1,18 @@
+# test: narrower and wider unsigned shift counts convert to the shifted operation's width
+# Spec 05 Shifts: expr.shift.count-unsigned, expr.shift.count, expr.shift.fixed-width (job BS).
+use std.testing.assert_equal
+
+fn indexed_mask() -> u32:
+    let mask: u32 = 0
+    for i in 0..4:
+        mask = mask | (u32(1) << i)
+    mask
+
+tests:
+    it("shifts by every represented count width"):
+        assert_equal(indexed_mask(), 15, reason="a usize loop index is a shift count")
+        let small: u8 = 3
+        assert_equal(u16(1) << small, 8, reason="a narrower count widens for the operation")
+        let wide: u64 = 4
+        assert_equal(u32(1) << wide, 16, reason="a wider count narrows for the operation")
+        assert_equal(u64(32) >> small, 4, reason="right shift accepts the narrower count")

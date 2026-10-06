@@ -1866,8 +1866,9 @@ typing/invalid/test-body-uses-property-runner.hd	type
 typing/invalid/snapshot-file-needs-test-runner.hd	type
 typing/valid/property-runner-capabilities.hd	type
 typing/invalid/it-outside-test-code.hd	type
-typing/invalid/shift-count-not-u32.hd	type
-typing/valid/shift-count-u32.hd	type
+typing/invalid/shift-count-signed.hd	type
+typing/valid/shift-count-unsigned.hd	type
+runtime/valid/shift-count-unsigned.hd	runtime
 runtime/valid/hash-bytes-scalars.hd	runtime
 runtime/valid/hash-bytes-sequences.hd	runtime
 runtime/valid/hash-bytes-derived.hd	runtime

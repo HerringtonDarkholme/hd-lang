@@ -149,8 +149,8 @@ fn drop_flagged(value: u64, flags: u8) -> u64:
 1. r[std-num.bits.signed] A signed value counts its two's-complement bits, so `-1` as `i8` has 8 ones, and a negative value has no leading zeros.
 2. r[std-num.bits.no-panic] A bit count never panics.
 
-> **Why.** A shift count is a `u32`
-> ([`expr.op.std.shift-u32`](../lang/05-expressions.md#r-expr.op.std.shift-u32)),
+> **Why.** `u32` is an accepted shift-count type
+> ([`expr.op.std.shift-unsigned`](../lang/05-expressions.md#r-expr.op.std.shift-unsigned)),
 > so a bit count feeds a shift without a cast. Rust's `count_ones` and
 > `leading_zeros` return `u32` too.
 
@@ -390,5 +390,4 @@ fn swap_nibbles(byte: u8) -> u8:
 | the `u32` value `0x12345678`, `rotate_left(8)` | `0x34567812` |
 
 > **Why.** The names and the `u32` count are Rust's `rotate_left` and
-> `rotate_right`. A `u32` count also matches a shift count
-> ([`expr.op.std.shift-u32`](../lang/05-expressions.md#r-expr.op.std.shift-u32)).
+> `rotate_right`.

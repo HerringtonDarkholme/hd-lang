@@ -244,10 +244,9 @@ export function emitSizedBinary(
 }
 
 /**
- * A shift count of another integer type than the shifted value, in the
- * value's Wasm type (spec/lang/05-expressions.md#shifts). An `i64` count is
- * range-checked before it narrows, and a signed count extends with its sign,
- * so a negative or oversized count still panics.
+ * An unsigned shift count, converted to the shifted value's Wasm type
+ * (spec/lang/05-expressions.md#shifts). An `i64` count is range-checked
+ * before it narrows, so an oversized count still panics.
  */
 export function shiftCount(
   expression: Extract<HirExpression, { kind: "binary" }>,

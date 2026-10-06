@@ -1,0 +1,4 @@
+# test: a signed shift count is a type mismatch
+# Spec 05 Shifts: expr.shift.count-unsigned, expr.shift.count-invalid (job BS).
+fn scale(x: i64, n: i32) -> i64:
+    x << n  # diagnostic: type-mismatch

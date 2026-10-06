@@ -71,20 +71,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### BS. A Shift Count May Be Any Unsigned Type (Do First, Small)
-
-Owner decision, 2026-10-05: `x << i` and `x >> i` accept any unsigned
-integer type as the count (u8, u16, u32, u64, usize), like Rust's `<<`.
-Today `expr.shift.count-u32` requires `u32`, so a `usize` loop index needs
-`u32(i)`. Change the rule (retire the ID, add the new one), keep the
-existing behavior for a count at or above the bit width, keep
-`rotate_left`/`rotate_right` and checked/wrapping shift methods on `u32`
-(as Rust), and keep a signed count an error. Checker and emitter (a
-narrower or wider count converts to the operation's width the same way
-`u32` does today). Fixtures: `x << i` with a `usize` index, a `u8` count,
-a `u64` count, and a signed count rejected. Run them before and after.
-
-
 ### BO. Speed Gate: Baselines Recorded On CI
 
 Owner decision: record the speed-gate baselines on GitHub's runners, so a

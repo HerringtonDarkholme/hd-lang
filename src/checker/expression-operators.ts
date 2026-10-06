@@ -552,15 +552,16 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
   }
 
   /**
-   * Whether `left op right` is an integer shift. Its count must be a `u32`,
-   * whatever the left operand's integer type: any other number is
-   * `type-mismatch`, with a `u32(...)` fix-it (05-expressions.md#r-expr.shift.count-other).
+   * Whether `left op right` is an integer shift. Its count may have any
+   * unsigned integer type; any other number is `type-mismatch`, with a
+   * `u32(...)` fix-it (05-expressions.md#r-expr.shift.count-invalid).
    */
   private checkShiftCount(operator: string, left: HirExpression, right: HirExpression): boolean {
     if ((operator !== "<<" && operator !== ">>") || !isIntegerType(left.type)) return false;
-    if (numericType(right.type) && readonlyType(right.type) !== "u32")
+    const count = numericType(readonlyType(right.type));
+    if (count && count.family !== "unsigned")
       this.failWithConversion(
-        `a shift count must have type u32, found '${displayType(right.type)}'; write u32(...)`,
+        `a shift count must have an unsigned integer type, found '${displayType(right.type)}'; write u32(...)`,
         "u32",
         right.span,
       );
