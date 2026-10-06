@@ -353,14 +353,16 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
       // A method or an associated function (07-functions.md#r-fn.ref.associated);
       // an associated one is called as `Trait::name(...)`, whose `Self` the
       // reference's expected type solves (07-functions.md#r-fn.ref.trait-self).
+      // Only a member the trait itself declares; a supertrait's is named
+      // through its own trait (09-traits.md#r-trait.qualified.declaring).
       const found = [
         ...this.findTraitMethods(trait, name),
         ...this.findTraitMethods(trait, name, [], new Set(), true),
-      ];
+      ].filter(({ path }) => path.length === 0);
       if (found.length === 0)
         this.fail(
           "unknown-method",
-          `trait '${displayType(trait.name)}' has no method or associated function '${name}' to reference`,
+          `trait '${displayType(trait.name)}' has no method or associated function '${name}' to reference${this.declaringTraitHint(trait, name)}`,
           span,
         );
       if (found.length > 1)

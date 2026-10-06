@@ -1,0 +1,14 @@
+# test: a trait-qualified call takes a receiver whose type parameter the trait, or a child trait, bounds
+# Spec 09 Trait-Qualified Calls: trait.qualified.receiver, trait.qualified.declaring; Supertraits: trait.super.satisfy.
+
+trait Parent:
+    fn id(self) -> i32
+
+trait Child < Parent:
+    fn label(self) -> string
+
+fn own[T < Parent](item: T) -> i32:
+    Parent::id(item)
+
+fn inherited[T < Child](item: T) -> string:
+    "${Parent::id(item)} ${Child::label(item)}"

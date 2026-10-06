@@ -2799,3 +2799,6 @@ cli/dep-path-no-package	cli
 cli/exe-unselected-main-used	cli
 cli/typeid-package-name	cli
 cli/typeid-single-file	cli
+typing/invalid/trait-qualified-supertrait-call.hd	type
+typing/invalid/trait-qualified-supertrait-reference.hd	type
+typing/valid/trait-qualified-declaring-trait.hd	type

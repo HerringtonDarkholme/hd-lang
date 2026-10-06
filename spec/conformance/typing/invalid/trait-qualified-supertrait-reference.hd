@@ -1,0 +1,19 @@
+# test: a trait-qualified reference names only a member its trait declares, not a supertrait's
+# Spec 09 Trait-Qualified Calls: trait.qualified.declaring (owner decision 2026-10-06).
+
+trait Parent:
+    fn id(self) -> i32
+
+trait Child < Parent:
+    fn label(self) -> string
+
+data Item: pass
+
+impl Parent for Item:
+    fn id(self) -> i32: 1
+
+impl Child for Item:
+    fn label(self) -> string: "item"
+
+fn show() -> fn(Item) -> i32:
+    Child::id  # diagnostic: unknown-method

@@ -1,0 +1,21 @@
+# test: the declaring trait qualifies a supertrait member, and a dot call reaches it through the child trait
+# Spec 09 Trait-Qualified Calls: trait.qualified.declaring (owner decision 2026-10-06).
+
+trait Parent:
+    fn id(self) -> i32
+
+trait Child < Parent:
+    fn label(self) -> string
+
+data Item: pass
+
+impl Parent for Item:
+    fn id(self) -> i32: 1
+
+impl Child for Item:
+    fn label(self) -> string: "item"
+
+fn show(item: Item) -> i32:
+    first := Parent::id(item)
+    let reference: fn(Item) -> i32 = Parent::id
+    first + reference(item) + item.id()

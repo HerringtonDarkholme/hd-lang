@@ -103,6 +103,20 @@ export abstract class TraitCallChecker extends DebugPrintChecker {
   }
 
   /**
+   * What `Trait::name` says when only a supertrait of `trait` declares
+   * `name`: the declaring trait, which a trait-qualified call or reference
+   * must name (09-traits.md#r-trait.qualified.declaring). Empty otherwise.
+   */
+  protected declaringTraitHint(trait: HirTrait, name: string): string {
+    const declaring = [
+      ...this.findTraitMethods(trait, name),
+      ...this.findTraitMethods(trait, name, [], new Set(), true),
+    ].map(({ trait: owner }) => displayType(owner.name));
+    const [first] = new Set(declaring);
+    return first === undefined ? "" : `; it is declared by '${first}'; write ${first}::${name}`;
+  }
+
+  /**
    * `Type::f(args)` among the implementations `candidates` that supply the
    * associated function `f` for `ownerType` (09-traits.md#associated-function-calls).
    */

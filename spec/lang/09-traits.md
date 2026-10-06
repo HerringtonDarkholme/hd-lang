@@ -1235,6 +1235,31 @@ sum := Add::[Money]::add(left, right)
 5. r[trait.qualified.type-arguments] A generic trait method takes its explicit type arguments after the method name, as in `Identity::select::[i32](picker, 42)`.
 6. r[trait.qualified.trait-arguments] The trait's own type arguments stay before `::`.
 7. r[trait.qualified.generic-rules] The type argument list follows the rules of [Generic Functions](07-functions.md#generic-functions).
+8. r[trait.qualified.declaring] `Trait::name`, as a call or a reference, names only a member that `Trait` itself declares. Naming a supertrait's member is an error, and the message names the declaring trait. Error: `unknown-method`.
+
+```text
+trait Parent:
+    fn id(self) -> i32
+
+trait Child < Parent:
+    fn label(self) -> string
+
+data Item: pass
+
+impl Parent for Item:
+    fn id(self) -> i32: 1
+
+impl Child for Item:
+    fn label(self) -> string: "item"
+
+fn show(item: Item) -> i32:
+    first := Parent::id(item)  # valid: Parent declares id
+    Child::id(item)            # error: unknown-method
+```
+
+> **Note.** A dot call still reaches a supertrait's member, as in
+> `item.id()`. The message says "declared by 'Parent'; write
+> Parent::id".
 
 ### Associated Function Calls
 

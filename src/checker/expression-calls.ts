@@ -1382,7 +1382,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (!traitMethod)
         this.fail(
           "unknown-method",
-          `trait '${displayType(trait.name)}' has no method '${expression.callee.name}'`,
+          `trait '${displayType(trait.name)}' has no method '${expression.callee.name}'${this.declaringTraitHint(trait, expression.callee.name)}`,
           expression.callee.span,
         );
       if (traitMethod.associated)

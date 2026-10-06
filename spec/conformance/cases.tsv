@@ -2738,3 +2738,7 @@ typing/invalid/integration-tests-root-use.hd	type	reject:unknown-module	lang/10-
 typing/invalid/relative-above-package-root.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.above-root
 typing/invalid/relative-path-into-std.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.no-cross
 typing/invalid/module-path-not-identifier.hd	type	reject:invalid-module-path	lang/10-modules.md#r-module.path.identifier
+typing/invalid/trait-qualified-supertrait-call.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.qualified.declaring
+typing/invalid/trait-qualified-supertrait-reference.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.qualified.declaring
+typing/valid/trait-qualified-declaring-trait.hd	type	accept	lang/09-traits.md#r-trait.qualified.declaring
+typing/valid/trait-qualified-call-generic-receiver.hd	type	accept	lang/09-traits.md#r-trait.qualified.receiver
