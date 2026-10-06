@@ -215,13 +215,13 @@ impl Choices:
         if self.spent():
             return ""
         letters := ["a", "b", "z", " ", "0", "\u{E9}", "\u{3C0}", "\u{1F600}"]
-        let text: string = ""
+        let chosen: mut List[string] = []
         let count: usize = usize(self.next(i64(max_chars)))
         let index: usize = 0
         while index < count:
-            text = text + self.choose(letters)
+            chosen.push(self.choose(letters))
             index = index + 1
-        text
+        chosen.join("")
 
     # Picks the value a default 32- or 64-bit integer takes: 8 is the type's
     # smallest, 9 its largest, and anything else a small one. A spent budget

@@ -148,3 +148,37 @@ pub fn main() -> void:
   const elapsed = performance.now() - start;
   assert.ok(elapsed < 2000, `took ${elapsed.toFixed(0)} ms`);
 });
+
+test("Debug text and escape processing of large values take linear-ish time", async () => {
+  // Each of these appended every piece to the text so far, so a large value
+  // took seconds (debug of 100,000 i32: about 7.5 s; 20,000 derived data
+  // values: 5 s; 100,000 escapes: 3.3 s); the bound is generous.
+  const source = `use std.ops.Template
+use std.text.{interpolate, process_escapes}
+
+@derive(Debug)
+data Point:
+    x: i32
+    y: i32
+
+pub fn main() -> void:
+    let numbers: mut List[i32] = []
+    let points: mut List[Point] = []
+    let raw: mut List[string] = [""]
+    for i in +0..100_000:
+        numbers.push(i)
+        raw.push(",")
+        if i < 20_000:
+            points.push(Point { x: i, y: +1 })
+    if debug(numbers).len() != 688_890: panic("numbers")
+    if debug(points).len() != 508_890: panic("points")
+    if debug("a\\nb".repeat(50_000)).len() != 200_002: panic("string")
+    if interpolate(Template { raw_parts: raw, values: numbers }).len() != 588_890: panic("interpolate")
+    if process_escapes("a\\\\tb".repeat(100_000)).unwrap_or("").len() != 300_000: panic("escapes")
+`;
+  const { instance } = await instantiate(source, { release: true });
+  const start = performance.now();
+  (instance.exports.main as () => void)();
+  const elapsed = performance.now() - start;
+  assert.ok(elapsed < 2000, `took ${elapsed.toFixed(0)} ms`);
+});

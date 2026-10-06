@@ -119,14 +119,18 @@ impl Regex:
     pub fn replace_all(self, text: string, replacement: string) -> string:
         hay := Haystack::of(text)
         template := Pattern::of(replacement)
-        let out = ""
+        # The pieces are joined once at the end, since appending each to
+        # the text so far would copy that text again for every match.
+        let pieces: mut List[string] = []
         let last: usize = 0
         for slots in all_slots(self.program, hay, self.slot_count()):
             groups := hay.captures_of(slots, self.names)
             start := hay.offsets[matched(slots, 0)]
-            out = out + text.slice(last, start) + expand(template, groups)
+            pieces.push(text.slice(last, start))
+            pieces.push(expand(template, groups))
             last = hay.offsets[matched(slots, 1)]
-        out + text.slice(last, text.len())
+        pieces.push(text.slice(last, text.len()))
+        pieces.join("")
 
     # The pieces of `text` around each match that `find_all` returns
     # (r-std-regex.split).

@@ -41,10 +41,10 @@ pub data ErrorReport:
 # the message, then one `caused by: ` line per cause.
 impl Display for ErrorReport:
     fn to_string(self) -> string:
-        let text = self.message
+        let lines: mut List[string] = [self.message]
         for cause in self.causes:
-            text = text + "\ncaused by: " + cause
-        text
+            lines.push(cause)
+        lines.join("\ncaused by: ")
 
 # The error itself, then each `cause` in turn until one is `.None`
 # (r-std-error.chain.order).

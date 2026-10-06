@@ -148,6 +148,10 @@ Most promising fixes, in order:
    It now joins by halves, and `replace` and `repeat` stopped appending
    too. string-build fell from 5,160 ms to 20 ms (Node 6.7 ms) on the
    same laptop; `test/std.test.ts` bounds 200,000 parts at 2 s.
+   Task P1f removed the same append from `DebugWriter`, string `Debug`,
+   tuple `Display`, `interpolate`, `process_escapes`, `ErrorReport`,
+   `Regex.replace_all`, and the property-test string generator.
+   `debug` of 100,000 i32 fell from 7.5 s to 32 ms.
 2. Range-loop iteration through boxed `Iterator` closures (sum is 19x
    Node with no allocation; a `for` over `1..N` should lower to a counter
    loop).

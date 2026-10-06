@@ -20,12 +20,13 @@ pub fn r(t: Template[Display]) -> string:
 # The raw pieces joined with the values' `Display` text, in order
 # (the specification names only `r`).
 pub fn interpolate[T < Display](t: Template[T]) -> string:
-    let joined = t.raw_parts[0]
+    let pieces: mut List[string] = [t.raw_parts[0]]
     let index: usize = 0
     while index < t.values.len():
-        joined = joined + t.values[index].to_string() + t.raw_parts[index + 1]
+        pieces.push(t.values[index].to_string())
+        pieces.push(t.raw_parts[index + 1])
         index = index + 1
-    joined
+    join(pieces, "")
 
 # An invalid escape sequence: `position` is the byte offset of its backslash
 # (Literal Suffixes L21, L22; Strings STR10).
@@ -38,17 +39,18 @@ impl Eq for EscapeError:
 
 # The text with each escape sequence replaced by its meaning, or an
 # `EscapeError` at the first invalid one (spec/lang/01-lexical-structure.md#escape-sequences). Every escape is ASCII, so
-# the walk reads bytes and copies each run of plain text whole.
+# the walk reads bytes and copies each run of plain text whole. The pieces
+# are joined once at the end (see `replace`).
 pub fn process_escapes(text: string) -> Result[string, EscapeError]:
     size := bytes_len(text)
-    let processed = ""
+    let pieces: mut List[string] = []
     let plain: usize = 0
     let index: usize = 0
     while index < size:
         if bytes_at(text, index) != 92:
             index = index + 1
             continue
-        processed = processed + bytes_slice(text, plain, index)
+        pieces.push(bytes_slice(text, plain, index))
         backslash := index
         if index + 1 >= size:
             return .Err(EscapeError { position: backslash })
@@ -57,18 +59,19 @@ pub fn process_escapes(text: string) -> Result[string, EscapeError]:
         if escaped == 117:
             match unicode_escape(text, index):
                 .Some(found) =>
-                    processed = processed + found.text
+                    pieces.push(found.text)
                     index = found.end
                 .None =>
                     return .Err(EscapeError { position: backslash })
         else:
             match simple_escape(escaped):
                 .Some(meaning) =>
-                    processed = processed + meaning
+                    pieces.push(meaning)
                 .None =>
                     return .Err(EscapeError { position: backslash })
         plain = index
-    .Ok(processed + bytes_slice(text, plain, size))
+    pieces.push(bytes_slice(text, plain, size))
+    .Ok(join(pieces, ""))
 
 # The meaning of a simple escape, by the byte after the backslash. The
 # carriage return is written `\u{d}` because the std loader renames every
