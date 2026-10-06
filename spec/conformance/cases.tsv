@@ -2698,3 +2698,5 @@ parse/valid/use-group-trailing-comma.hd	parse	accept	lang/10-modules.md#r-module
 runtime/valid/termination-void-reports-zero.hd	runtime	accept	lang/10-modules.md#r-module.entry.termination.void
 runtime/valid/mut-bound-value-passed-on.hd	runtime	accept	lang/04-type-system.md#r-types.path.access.mut-bound
 typing/invalid/readonly-bound-value-for-mut-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.path.access.mut-bound
+runtime/valid/trait-associated-function-reference.hd	runtime	accept	lang/07-functions.md#r-fn.ref.trait-self
+typing/invalid/trait-associated-reference-unsolved-self.hd	type	reject:cannot-infer-type	lang/07-functions.md#r-fn.ref.trait-self.unsolved

@@ -855,7 +855,8 @@ else`, `break`, `break value`, and `continue`;
   `Trait::method`, and `T::method` are checked as the closure that calls the
   member, receiver first, with type arguments written after the name or
   solved from the expected function type (a trait reference's `Self`
-  included). `value::method` evaluates the receiver once and closes over it.
+  included, also for an associated function such as `Factory::create`,
+  which calls `Factory::create()`). `value::method` evaluates the receiver once and closes over it.
   A called reference is an ordinary call: `value::name(...)` is a method
   call, and `Type::method(receiver, ...)` calls the method on its first
   argument. `to_string` on a primitive calls its std `Display`. A

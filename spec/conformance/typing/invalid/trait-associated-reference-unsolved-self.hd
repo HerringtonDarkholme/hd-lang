@@ -1,0 +1,8 @@
+# test: a Trait::f reference to an associated function whose Self nothing determines is an error
+# Spec 07 Method References: fn.ref.associated, fn.ref.trait-self.unsolved.
+
+trait Factory:
+    fn create() -> Self
+
+fn unsolved() -> void:
+    _ := Factory::create  # diagnostic: cannot-infer-type

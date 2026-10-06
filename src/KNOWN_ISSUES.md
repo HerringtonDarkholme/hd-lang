@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,773 cases: 2,753 selected in `test/portable/cases.tsv` and 20 known
-failures. The selected cases are 2,385 language tier, 308 stdlib tier, and 60
+2,775 cases: 2,755 selected in `test/portable/cases.tsv` and 20 known
+failures. The selected cases are 2,387 language tier, 308 stdlib tier, and 60
 CLI tier; the known failures are 5 language tier, 1 stdlib tier, and 14
 CLI tier.
 

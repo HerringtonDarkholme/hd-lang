@@ -2752,3 +2752,5 @@ cli/test-outcomes	cli
 cli/dbg-value-forms	cli
 runtime/valid/mut-bound-value-passed-on.hd	runtime
 typing/invalid/readonly-bound-value-for-mut-bound.hd	type
+runtime/valid/trait-associated-function-reference.hd	runtime
+typing/invalid/trait-associated-reference-unsolved-self.hd	type

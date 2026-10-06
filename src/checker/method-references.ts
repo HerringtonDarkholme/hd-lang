@@ -349,21 +349,29 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
           `trait '${displayType(trait.name)}' expects ${trait.genericParameters.length} type arguments`,
           span,
         );
-      const found = this.findTraitMethods(trait, name);
+      // A method or an associated function (07-functions.md#r-fn.ref.associated);
+      // an associated one is called as `Trait::name(...)`, whose `Self` the
+      // reference's expected type solves (07-functions.md#r-fn.ref.trait-self).
+      const found = [
+        ...this.findTraitMethods(trait, name),
+        ...this.findTraitMethods(trait, name, [], new Set(), true),
+      ];
       if (found.length === 0)
         this.fail(
-          this.findTraitMethods(trait, name, [], new Set(), true).length > 0
-            ? "associated-function-needs-target"
-            : "unknown-method",
-          `trait '${displayType(trait.name)}' has no method '${name}' to reference`,
+          "unknown-method",
+          `trait '${displayType(trait.name)}' has no method or associated function '${name}' to reference`,
           span,
         );
       if (found.length > 1)
-        this.fail("ambiguous-method", `'${name}' is a method of several traits`, span);
+        this.fail("ambiguous-method", `'${name}' is a member of several traits`, span);
       const { method, path, trait: owning } = found[0]!;
       const owningArguments = this.resolveTraitPath(trait, traitArguments, path).arguments;
       return {
-        receiver: method.receiverMutable ? mutableType("generic:Self") : "generic:Self",
+        receiver: method.associated
+          ? undefined
+          : method.receiverMutable
+            ? mutableType("generic:Self")
+            : "generic:Self",
         parameters: method.parameters,
         result: method.result,
         requirements: method.requirements,

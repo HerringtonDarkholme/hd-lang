@@ -1,0 +1,42 @@
+# test: an unbound Trait::f reference to an associated function takes Self from the expected function type
+# Spec 07 Method References: fn.ref.unbound, fn.ref.associated, fn.ref.trait-self.
+use std.testing.assert_equal
+
+trait Factory:
+    fn create() -> Self
+    fn with_code(code: i32) -> Self
+
+data Invoice:
+    total: i32
+
+impl Factory for Invoice:
+    fn create() -> Invoice:
+        Invoice { total: 100 }
+
+    fn with_code(code: i32) -> Invoice:
+        Invoice { total: code }
+
+data Receipt:
+    number: i32
+
+impl Factory for Receipt:
+    fn create() -> Receipt:
+        Receipt { number: 1 }
+
+    fn with_code(code: i32) -> Receipt:
+        Receipt { number: code + 1 }
+
+fn invoice_maker() -> fn() -> Invoice:
+    Factory::create
+
+fn receipt_from_code() -> fn(i32) -> Receipt:
+    Factory::with_code
+
+tests:
+    it("the expected result type selects the implementation"):
+        make := invoice_maker()
+        assert_equal(make().total, 100, reason="Self is Invoice")
+
+    it("an associated function with parameters keeps them"):
+        from_code := receipt_from_code()
+        assert_equal(from_code(41).number, 42, reason="Self is Receipt")
