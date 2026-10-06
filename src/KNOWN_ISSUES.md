@@ -27,8 +27,8 @@ CLI tier.
 
 Correctness and diagnostics:
 
-- **F-161**: unbounded recursion ends in a Node `RangeError` stack trace,
-  not a `stack-exhausted` panic.
+- **F-161**: a `stack-exhausted` panic names no source location, because no
+  panic site marks a call; the report says only the category and a hint.
 - **F-259**: the adapter rejects the `disposed-file` runtime profile, so
   `runtime/valid/resource-disposed-result.hd` cannot run.
 - **F-265**: code-generation failures and an adapter `entry` option with no runnable

@@ -127,6 +127,21 @@ test("a runtime panic is reported after the output before it", async () => {
   );
 });
 
+// spec/lang/06-control-flow.md#r-flow.panic.stable-categories
+test("unbounded recursion is a stack-exhausted panic", async () => {
+  const source = [
+    "fn deeper(depth: i32) -> i32: deeper(depth) + 1",
+    "",
+    "pub fn main() -> void $ Console:",
+    '    println("before")',
+    "    println(deeper(+0))",
+  ].join("\n");
+  const result = await runner.runProject(single(source), "run");
+  assert.equal(result.status, "panic");
+  assert.deepEqual(result.stdout, ["before"]);
+  assert.match(result.summary, /^stack-exhausted: the call stack ran out; .* in main$/);
+});
+
 test("a two-file project with a package use compiles and runs", async () => {
   const project = {
     files: {

@@ -379,6 +379,18 @@ test("REPL rejects invalid inputs without changing the session", async () => {
   assert.equal((await session.evaluate("x + 1")).value, "2");
 });
 
+// spec/lang/06-control-flow.md#r-flow.panic.stable-categories
+test("REPL reports unbounded recursion as a stack-exhausted panic", async () => {
+  const session = new ReplSession();
+  await session.evaluate("fn deeper(depth: i32) -> i32: deeper(depth) + 1");
+  const panic = await session.evaluate("deeper(+0)");
+  assert.equal(panic.accepted, false);
+  assert.deepEqual(panic.errors, [
+    "panic: stack-exhausted: the call stack ran out; check for recursion that never ends",
+  ]);
+  assert.equal((await session.evaluate("+1 + 1")).value, "2");
+});
+
 test("REPL rejects a use of an unknown std module or name", async () => {
   const session = new ReplSession();
   for (const [input, error] of [

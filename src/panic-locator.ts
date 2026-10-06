@@ -5,7 +5,12 @@
 // Wasm frames under the import in a stack trace.
 
 import type { SourceSpan } from "./diagnostics.ts";
-import { fallbackNote, RuntimePanicError, type PanicSite } from "./runtime-panic.ts";
+import {
+  fallbackNote,
+  isStackExhaustion,
+  RuntimePanicError,
+  type PanicSite,
+} from "./runtime-panic.ts";
 import { siteAt, type SiteMap } from "./wasm.ts";
 
 type HostImport = (...arguments_: unknown[]) => unknown;
@@ -48,6 +53,34 @@ export function panicLocator(
         throw error;
       }
     };
+}
+
+const STACK_EXHAUSTED_DETAIL = "the call stack ran out; check for recursion that never ends";
+
+/**
+ * The exports of a program instance, each function wrapped so that running
+ * out of call stack in the program is a `stack-exhausted` panic
+ * (spec/lang/06-control-flow.md#r-flow.panic.stable-categories), not the
+ * engine's error. Its report names no location, as no panic site marks a call.
+ */
+export function stackExhaustionPanics(exports: WebAssembly.Exports): WebAssembly.Exports {
+  const wrapped: WebAssembly.Exports = {};
+  for (const [name, value] of Object.entries(exports)) {
+    if (typeof value !== "function") {
+      wrapped[name] = value;
+      continue;
+    }
+    wrapped[name] = (...arguments_: unknown[]) => {
+      try {
+        return (value as HostImport)(...arguments_);
+      } catch (error) {
+        if (isStackExhaustion(error))
+          throw new RuntimePanicError("stack-exhausted", STACK_EXHAUSTED_DETAIL);
+        throw error;
+      }
+    };
+  }
+  return Object.freeze(wrapped);
 }
 
 /**

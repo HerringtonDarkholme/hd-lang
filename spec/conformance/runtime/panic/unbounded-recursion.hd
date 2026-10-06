@@ -1,0 +1,7 @@
+# test: recursion that never ends exhausts the stack, a stack-exhausted panic
+
+fn deeper(depth: i32) -> i32:
+    deeper(depth) + 1  # panic: stack-exhausted
+
+pub fn main() -> void:
+    _ := deeper(+0)

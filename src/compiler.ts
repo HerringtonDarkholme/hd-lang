@@ -38,7 +38,7 @@ import type { HirEnum, HirProgram, HirTrait, HirTraitMethod, ValueType } from ".
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName, type PanicSite } from "./runtime-panic.ts";
-import { panicLocator } from "./panic-locator.ts";
+import { panicLocator, stackExhaustionPanics } from "./panic-locator.ts";
 import { emissionReachability, traitMethodKey } from "./emitter/reachability.ts";
 
 /** A checked program and its WAT, before Wasm assembly. */
@@ -1483,6 +1483,9 @@ export async function instantiate(
       }),
     },
   });
+  // Every caller of the program, `hd run`, `hd test`, the REPL, and the
+  // playground, reads the wrapped exports.
+  Object.defineProperty(instance, "exports", { value: stackExhaustionPanics(instance.exports) });
   const replay: ReplaySession = {
     get consumed() {
       return replayIndex;

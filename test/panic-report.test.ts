@@ -11,7 +11,7 @@ import test from "node:test";
 
 import { analyze, compileToWat, instantiate } from "../src/compiler.ts";
 import { emitWat, withoutSiteLines } from "../src/emitter/index.ts";
-import { RuntimePanicError } from "../src/runtime-panic.ts";
+import { isStackExhaustion, RuntimePanicError } from "../src/runtime-panic.ts";
 import { assembleWat } from "../src/wasm.ts";
 import { runHd } from "./hd-in-process.ts";
 
@@ -200,4 +200,82 @@ test("without its debug-location lines, the WAT is the code emitted without site
     assert.match(annotated, /;;@ s\d+:/);
     assert.equal(withoutSiteLines(annotated), emitWat(hir!));
   }
+});
+
+// Running out of call stack is the `stack-exhausted` panic
+// (spec/lang/06-control-flow.md#r-flow.panic.stable-categories), not the
+// engine's own error. No panic site marks a call, so it names no location.
+const RECURSION = `use std.testing.assert_equal
+
+fn deeper(depth: i32) -> i32:
+    deeper(depth) + 1
+
+pub fn main() -> void $ Console:
+    println("before")
+    println("$\{deeper(+0)}")
+
+tests:
+    it("recurses"):
+        _ := deeper(+0)
+    it("runs after it"):
+        assert_equal(1, 1, reason="same")
+`;
+
+test("unbounded recursion is a stack-exhausted panic, in hd FILE and hd test", async () => {
+  await withFile(RECURSION, async (file) => {
+    const run = await runHd([file]);
+    assert.equal(run.status, 1);
+    assert.equal(run.stdout, "before\n");
+    assert.match(run.stderr, /^stack-exhausted: the call stack ran out/);
+    assert.doesNotMatch(run.stderr, /RangeError|wasm-function/);
+    // A test case fails with the category, and the next one still runs.
+    const json = await runHd(["test", "--format", "json", file]);
+    assert.equal(json.status, 1);
+    const records = json.stdout
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { name?: string; outcome?: string; message?: string });
+    assert.deepEqual(
+      records.filter(({ name }) => name !== undefined).map(({ name, outcome }) => [name, outcome]),
+      [
+        ["recurses", "failed"],
+        ["runs after it", "passed"],
+      ],
+    );
+    assert.match(records[0]!.message!, /^stack-exhausted: /);
+  });
+});
+
+test("an instance's exports raise stack-exhausted, and other errors pass through", async () => {
+  const { instance } = await instantiate(
+    [
+      "fn deeper(depth: i32) -> i32:",
+      "    deeper(depth) + 1",
+      "",
+      "pub fn probe() -> i32:",
+      "    deeper(+0)",
+      "",
+      "pub fn boom() -> i32:",
+      '    panic("boom")',
+      "",
+    ].join("\n"),
+  );
+  assert.ok(instance instanceof WebAssembly.Instance);
+  assert.throws(instance.exports.probe as () => number, (error: unknown) => {
+    assert.ok(error instanceof RuntimePanicError);
+    assert.equal(error.code, "stack-exhausted");
+    assert.equal(error.location, undefined);
+    return true;
+  });
+  assert.throws(instance.exports.boom as () => number, (error: unknown) => {
+    assert.ok(error instanceof RuntimePanicError);
+    assert.equal(error.code, "explicit-panic");
+    return true;
+  });
+  // Only the engines' stack-overflow errors count.
+  assert.ok(isStackExhaustion(new RangeError("Maximum call stack size exceeded")));
+  const firefox = Object.assign(new Error("too much recursion"), { name: "InternalError" });
+  assert.ok(isStackExhaustion(firefox));
+  assert.ok(!isStackExhaustion(new RangeError("Invalid array length")));
+  assert.ok(!isStackExhaustion(new Error("Maximum call stack size exceeded")));
 });

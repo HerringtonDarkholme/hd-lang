@@ -119,6 +119,17 @@ export class UnsupportedAtRunTimeError extends Error {
   }
 }
 
+/**
+ * Whether `error` is the engine's report that the call stack ran out, as deep
+ * recursion causes: V8 and JavaScriptCore throw a `RangeError`, SpiderMonkey
+ * an `InternalError`.
+ */
+export function isStackExhaustion(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error instanceof RangeError) return /call stack size/i.test(error.message);
+  return error.name === "InternalError" && /too much recursion/i.test(error.message);
+}
+
 export function runtimePanicCode(name: RuntimePanicName): number {
   return RUNTIME_PANIC_NAMES.indexOf(name);
 }
