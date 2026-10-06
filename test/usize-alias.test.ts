@@ -225,3 +225,66 @@ test("messages print a defaulted or written usize, not u32", () => {
   );
   assert.equal(mismatch("    let a: u32 = 1\n    take_i32(a + 1)\n"), "expected i32, found u32");
 });
+
+test("a written usize parameter is the expected type in a mismatch", () => {
+  const diagnostic = analyze(`fn take_size(value: usize) -> void: pass
+
+fn run() -> void:
+    take_size("large")
+`).diagnostics.find(({ code }) => code === "type-mismatch");
+  assert.equal(diagnostic?.message, "expected usize, found string");
+});
+
+test("a field declared usize keeps that spelling when read", () => {
+  const diagnostic = analyze(`data Sizes:
+    count: usize
+
+fn take_i32(value: i32) -> void: pass
+
+fn run(sizes: Sizes) -> void:
+    take_i32(sizes.count)
+`).diagnostics.find(({ code }) => code === "type-mismatch");
+  assert.equal(diagnostic?.message, "expected i32, found usize");
+});
+
+test("no-common-type lists the usize spelling of its value", () => {
+  const diagnostic = analyze(`fn run(size: usize) -> void:
+    _ := [size, "many"]
+`).diagnostics.find(({ code }) => code === "no-common-type");
+  assert.equal(diagnostic?.message, "list elements have no common type: usize, string");
+});
+
+test("a generic-inference conflict lists the usize spelling of its argument", () => {
+  const diagnostic = analyze(`fn same[T](left: T, right: T) -> T: left
+
+fn run(size: usize) -> void:
+    _ := same(size, "many")
+`).diagnostics.find(({ code }) => code === "type-mismatch");
+  assert.equal(
+    diagnostic?.message,
+    "arguments of types 'usize' and 'string' both solve 'T' of 'same', and inference converts only 'mut X' to 'X'; convert one argument to the other's type",
+  );
+});
+
+test("a length mismatch does not offer a literal edit for its receiver", () => {
+  const diagnostic = analyze(`fn take_i32(value: i32) -> void: pass
+
+fn run() -> void:
+    xs := [1]
+    take_i32(xs.len())
+`).diagnostics.find(({ code }) => code === "type-mismatch");
+  assert.equal(diagnostic?.message, "expected i32, found usize");
+  assert.equal(diagnostic?.notes, undefined);
+  assert.equal(diagnostic?.fix, undefined);
+});
+
+test("a literal bound through a tuple pattern keeps its usize spelling and hint", () => {
+  const diagnostic = analyze(`fn work(left: i32, right: i32) -> void: pass
+
+fn run() -> void:
+    let (_a, b) = (1, 2)
+    work(1, b)
+`).diagnostics.find(({ code }) => code === "type-mismatch");
+  assert.equal(diagnostic?.message, "expected i32, found usize");
+  assert.match(diagnostic?.notes?.[0] ?? "", /'b' is usize because its literal '2'/);
+});

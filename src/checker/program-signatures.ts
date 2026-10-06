@@ -468,6 +468,9 @@ export function createProgramSignatures(
       rowParameters,
       ...(rowParameters.length > 0 ? { typeArgumentOrder: declaration.genericParameters } : {}),
       parameters: normalizedParameters,
+      spelledParameters: normalizedParameters.map((parameter, parameterIndex) =>
+        respelled(parameter, declaration.parameters[parameterIndex]?.type.written),
+      ),
       parameterNames: declaration.parameters.map((parameter) => parameter.name),
       defaultFunctionNames: declaration.parameters.map((parameter) =>
         parameter.default ? `$parameter-default.${declaration.name}.${parameter.name}` : undefined,

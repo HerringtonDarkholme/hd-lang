@@ -68,27 +68,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### AZ. `usize` Display Follow-Ups (F-611)
-
-Task #325 (8e03da04) made `u32` the one type again and moved the `usize`
-spelling into display-only data in `src/checker/spelling.ts`. Never change
-type identity here; only what messages print.
-
-1. These messages print `u32` where the source said `usize` (see F-611 in
-   `src/KNOWN_ISSUES.md`): the expected type when it was written `usize`
-   ("expected u32, found string" for a `usize` parameter); a field read of
-   a field declared `usize`; the types listed by `no-common-type`; and the
-   generic-inference conflict ("both solve T"). Route each through
-   `spelling.ts`, add a test per message, and delete F-611 when done.
-Also: a literal bound through a tuple pattern, `let (_a, b) = (1, 2)`
-   then `work(1, b)` with an `i32` parameter, says `found u32`; it must say
-   `found usize` with the "'b' is usize because its literal…" note.
-2. `xs := [1]` then `take_i32(xs.len())` adds the note "'xs' has usize in
-   its type… write '+1'". That is wrong: `len()` is a size whatever the
-   list holds, so no edit to `xs` helps. Give no literal hint when the
-   mismatched value is a length (or any value whose type does not come
-   from the named literal). Add a test.
-
 ### AY. Follow-Ups From The Review Of AP (cc5b1679)
 
 Both non-blocking. The four hints work as a user sees them.

@@ -58,7 +58,7 @@ import {
   traitKeyName,
   traitTypeName,
 } from "./shared.ts";
-import { spelledCall } from "./spelling.ts";
+import { spelledCall, spelledValue, type SpelledValueType } from "./spelling.ts";
 import { checkLiteralArgumentsLast } from "./literal-arguments.ts";
 import { calleeOf, keepSolvedPositions } from "./partial-expected.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
@@ -848,10 +848,9 @@ export abstract class CallChecker extends StatementChecker {
       });
     }
     const inferredBeforeExpected = new Set(substitutions.keys());
-    // The own type of the first argument that solved each parameter; a
-    // later argument of that parameter must have the same type, up to `mut`
+    // The first argument's own type per parameter; later arguments must match up to `mut`
     // (04-type-system.md#inference-from-several-arguments).
-    const joined = new Map<string, ValueType>();
+    const joined = new Map<string, SpelledValueType>();
     if (expected) inferGenericType(signature.result, expected, substitutions, rowSubstitutions);
     keepSolvedPositions(substitutions, solved);
     const inferredFromExpected = new Set(
@@ -869,6 +868,7 @@ export abstract class CallChecker extends StatementChecker {
     );
     const checkEntry = (entry: PlannedArgument): HirExpression => {
       const formal = signature.parameters[entry.parameterIndex]!;
+      const spelledFormal = signature.spelledParameters?.[entry.parameterIndex] ?? formal;
       if (entry.kind === "single") {
         const source = expression.arguments[entry.argumentIndices[0]!]!;
         this.inferTypesThroughBounds(signature, substitutions);
@@ -899,9 +899,9 @@ export abstract class CallChecker extends StatementChecker {
         const own = argumentOwnType(source, unconverted ?? checked);
         if (formalGeneric && own !== undefined && !inferredBeforeExpected.has(formalGeneric)) {
           const earlier = joined.get(formalGeneric);
-          const current = readonlyType(own);
+          const current = spelledValue(readonlyType(own), unconverted ?? checked);
           if (earlier === undefined) joined.set(formalGeneric, current);
-          else if (earlier !== current)
+          else if (earlier.type !== current.type)
             this.failArgumentJoin(signature.name, formalGeneric, earlier, current, source.span);
         }
         if (
@@ -958,7 +958,7 @@ export abstract class CallChecker extends StatementChecker {
         // A callback lacking a discharged key keeps its own type; the emitter
         // adapts it to the pattern (11-requirements-and-suspension.md#r-req.poly.absent-matches).
         if (lacksOnlyPatternKeys(formal, instantiatedFormal, checked.type)) return checked;
-        return this.requireCoercion(checked, instantiatedFormal, source.span);
+        return this.requireCoercion(checked, instantiatedFormal, source.span, spelledFormal);
       }
       const nominal = nominalGenericParts(formal);
       const elementFormal = nominal?.name === "List" ? nominal.arguments[0]! : "void";
@@ -984,6 +984,7 @@ export abstract class CallChecker extends StatementChecker {
           checked,
           substituteGenericType(elementFormal, substitutions, rowSubstitutions),
           source.span,
+          nominalGenericParts(spelledFormal)?.arguments[0] ?? elementFormal,
         );
       });
       const elementType = substituteGenericType(elementFormal, substitutions, rowSubstitutions);
@@ -1065,32 +1066,30 @@ export abstract class CallChecker extends StatementChecker {
   ): HirExpression {
     const checked = this.checkExpression(source, solved);
     const own = argumentOwnType(source, checked);
-    if (own !== undefined && readonlyType(own) !== readonlyType(solved))
-      this.failArgumentJoin(name, "T", readonlyType(solved), readonlyType(own), source.span);
+    if (own !== undefined && readonlyType(own) !== readonlyType(solved)) {
+      const earlier = spelledValue(readonlyType(solved), undefined);
+      const current = spelledValue(readonlyType(own), checked);
+      this.failArgumentJoin(name, "T", earlier, current, source.span);
+    }
     return this.requireCoercion(checked, solved, source.span);
   }
-
-  /**
-   * Two arguments that solve one type parameter have different types. The
-   * join converts only `mut X` to `X`: never by numeric widening, variance,
-   * an optional wrap, or to a trait value (types.generic.infer.join).
-   */
+  /** A parameter joins only by removing `mut`, never widening, variance, wrapping, or traits (types.generic.infer.join). */
   protected failArgumentJoin(
     name: string,
     parameter: string,
-    earlier: ValueType,
-    current: ValueType,
+    earlier: SpelledValueType,
+    current: SpelledValueType,
     span: SourceSpan,
   ): never {
-    if (traitTypeName(earlier) !== undefined || traitTypeName(current) !== undefined)
+    if (traitTypeName(earlier.type) !== undefined || traitTypeName(current.type) !== undefined)
       this.fail(
         "no-common-type",
-        `arguments of types '${displayType(earlier)}' and '${displayType(current)}' both solve '${displayType(parameter)}' of '${name}', and inference never converts to a trait value; write '${name}::[${displayType(traitTypeName(earlier) ?? traitTypeName(current)!)}](...)'`,
+        `arguments of types '${displayType(earlier.spelling)}' and '${displayType(current.spelling)}' both solve '${displayType(parameter)}' of '${name}', and inference never converts to a trait value; write '${name}::[${displayType(traitTypeName(earlier.type) ?? traitTypeName(current.type)!)}](...)'`,
         span,
       );
     this.fail(
       "type-mismatch",
-      `arguments of types '${displayType(earlier)}' and '${displayType(current)}' both solve '${displayType(parameter)}' of '${name}', and inference converts only 'mut X' to 'X'; convert one argument to the other's type`,
+      `arguments of types '${displayType(earlier.spelling)}' and '${displayType(current.spelling)}' both solve '${displayType(parameter)}' of '${name}', and inference converts only 'mut X' to 'X'; convert one argument to the other's type`,
       span,
     );
   }

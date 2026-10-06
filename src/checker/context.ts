@@ -78,6 +78,7 @@ import {
 import { narrowsTo, numericType, widensTo } from "../numeric.ts";
 import { captureOf, coerceLiteral, finalValueOf, type InferredReturn } from "./literal-join.ts";
 import { joinedLeastCommonType } from "./literal-join.ts";
+import { respelled, uniqueSpelledTypes } from "./spelling.ts";
 import { spellBinding, spelledCall, spelledType } from "./spelling.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
 import type {
@@ -324,9 +325,7 @@ export abstract class CheckerContext {
           enums: this.enumTypes,
         });
         if (!("type" in inferred)) {
-          const listed = [...new Set(this.inferredReturns.map(({ type }) => type))]
-            .map(displayType)
-            .join(", ");
+          const listed = uniqueSpelledTypes(this.inferredReturns).map(displayType).join(", ");
           this.fail(
             inferred.code,
             inferred.code === "no-common-type"
@@ -1373,25 +1372,25 @@ export abstract class CheckerContext {
     }
     throw new Error(`cannot materialize closure capture '${source.name}'`);
   }
-
-  /** A `value` of type `actual` prints its spelling, such as `usize` (checker/spelling.ts). */
   protected requireAssignable(
     actual: ValueType,
     expected: ValueType,
     span: SourceSpan,
     value?: HirExpression,
+    expectedSpelling?: ValueType,
   ): void {
     if (actual === "never" || actual === expected || isPermissionWeakening(actual, expected))
       return;
     const shown = value ? spelledType(value) : actual;
-    const [found, wanted] = [displayType(shown), displayType(expected)];
+    const found = displayType(shown);
+    const wanted = displayType(respelled(expected, expectedSpelling));
     const upgrade = `readonly type '${found}' cannot be upgraded to '${wanted}'`;
     if (mutableInner(expected) === actual) this.fail("mutable-upgrade", upgrade, span);
     const cast = `'${found}' does not convert implicitly to '${wanted}'; write an explicit cast`;
     if (narrowsTo(actual, expected)) this.fail("implicit-narrowing", cast, span);
     const widen = `'${found}' does not widen implicitly to '${wanted}'; write ${wanted}(...)`;
     if (widensTo(actual, expected)) this.failWithConversion(widen, expected, span);
-    this.fail("type-mismatch", mismatchMessage(shown, expected), span);
+    this.fail("type-mismatch", mismatchMessage(shown, respelled(expected, expectedSpelling)), span);
   }
 
   /** `type-mismatch` for a narrower number, with a fix-it writing the conversion (04-type-system.md#r-types.num.no-implicit.fix). */
@@ -1420,9 +1419,10 @@ export abstract class CheckerContext {
     expression: HirExpression,
     expected: ValueType,
     span: SourceSpan,
+    expectedSpelling?: ValueType,
   ): HirExpression {
     const coerced = this.coerce(expression, expected, span);
-    this.requireAssignable(coerced.type, expected, span, coerced);
+    this.requireAssignable(coerced.type, expected, span, coerced, expectedSpelling);
     return coerced;
   }
 

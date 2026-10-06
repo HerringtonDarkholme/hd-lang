@@ -47,7 +47,7 @@ import {
   literalText,
   recordDefaultedLocal,
 } from "./literal-join.ts";
-import { spellBinding } from "./spelling.ts";
+import { spellBinding, uniqueSpelledTypes } from "./spelling.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionComprehensionChecker, FOR_PATTERN_ITEM } from "./expression-comprehensions.ts";
 import { STATEMENT_IFS } from "./statements.ts";
@@ -323,7 +323,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     ];
     const joined = joinedLeastCommonType(members, { data: this.dataTypes, enums: this.enumTypes });
     if ("type" in joined) return joined.type;
-    const listed = [...new Set(members.map((member) => displayType(member.type)))].join(", ");
+    const listed = uniqueSpelledTypes(members).map(displayType).join(", ");
     this.fail(joined.code, `loop values have no common type: ${listed}`, span);
   }
 

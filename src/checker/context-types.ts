@@ -23,6 +23,8 @@ export interface Signature {
    */
   readonly typeArgumentOrder?: readonly string[];
   readonly parameters: readonly ValueType[];
+  /** Parameter types with written `usize` spellings restored; display only. */
+  readonly spelledParameters?: readonly ValueType[];
   readonly parameterNames: readonly string[];
   readonly defaultFunctionNames: readonly (string | undefined)[];
   readonly variadic: boolean;

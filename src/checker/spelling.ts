@@ -1,4 +1,11 @@
-import type { HirExpression, HirGlobal, HirLocal, HirStatement, ValueType } from "../hir.ts";
+import type {
+  HirDataField,
+  HirExpression,
+  HirGlobal,
+  HirLocal,
+  HirStatement,
+  ValueType,
+} from "../hir.ts";
 import { DEFAULTED_SPANS, finalValueOf, isDefaultedLiteral } from "./literal-join.ts";
 
 // Display spellings (04-type-system.md#r-types.alias.usize.display).
@@ -21,6 +28,9 @@ const SPELLED = new WeakMap<object, ValueType>();
 /** What a binding's spelling comes from: its written annotation, or its initializer. */
 const BINDING_SOURCES = new WeakMap<HirLocal | HirGlobal, ValueType | HirExpression>();
 
+/** A field's declared spelling before aliases were made canonical. */
+const FIELD_SPELLINGS = new WeakMap<HirDataField, ValueType>();
+
 /** The deepest expression nesting a spelling walks; deeper trees print canonically. */
 const MAX_DEPTH = 64;
 
@@ -38,6 +48,18 @@ export function spellBinding(
   if (source === undefined) return;
   if (typeof source === "string" ? source.includes("usize") : source.type.includes("u32"))
     BINDING_SOURCES.set(binding, source);
+}
+
+/** Records a field's written type as display metadata. */
+export function spellField<T extends HirDataField>(field: T, written: ValueType | undefined): T {
+  const spelled = respelled(field.type, written);
+  if (spelled.includes("usize")) FIELD_SPELLINGS.set(field, spelled);
+  return field;
+}
+
+/** The field's declared display spelling, when it differs from its canonical type. */
+export function spelledFieldType(field: HirDataField): ValueType | undefined {
+  return FIELD_SPELLINGS.get(field);
 }
 
 /**
@@ -77,6 +99,31 @@ export function spelledType(expression: HirExpression, depth = 0): ValueType {
   if (explicit !== undefined) return respelled(type, explicit);
   if (depth > MAX_DEPTH) return type;
   return respelled(type, spellingHint(expression, depth + 1));
+}
+
+/** A canonical member type printed through the expression that supplied it. */
+export function spelledValueType(
+  canonical: ValueType,
+  value: HirExpression | undefined,
+): ValueType {
+  return value ? respelled(canonical, spelledType(value)) : canonical;
+}
+
+/** One canonical type paired with the spelling a diagnostic should show. */
+export interface SpelledValueType {
+  readonly type: ValueType;
+  readonly spelling: ValueType;
+}
+
+export function spelledValue(type: ValueType, value: HirExpression | undefined): SpelledValueType {
+  return { type, spelling: spelledValueType(type, value) };
+}
+
+/** Unique display spellings of the types supplied by checked values. */
+export function uniqueSpelledTypes(
+  members: readonly { readonly type: ValueType; readonly value?: HirExpression }[],
+): ValueType[] {
+  return [...new Set(members.map(({ type, value }) => spelledValueType(type, value)))];
 }
 
 /** The type text whose numeric words an expression's printed type takes. */

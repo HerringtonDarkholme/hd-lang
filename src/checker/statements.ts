@@ -509,6 +509,11 @@ export abstract class StatementChecker extends CheckerContext {
     const output: HirStatement[] = [
       { kind: "binding", local: tupleLocal, value, span: statement.span },
     ];
+    const sourceElements =
+      statement.value.kind === "tuple" && !statement.value.spread
+        ? statement.value.elements
+        : undefined;
+    const checkedElements = value.kind === "tuple" ? value.elements : undefined;
     // Each name of a multi-name binding infers its own element's access
     // (04-type-system.md#r-types.bind.let-pattern-mut).
     const bindingTypes = statement.bindings.map((binding, index) => {
@@ -526,6 +531,8 @@ export abstract class StatementChecker extends CheckerContext {
     });
     for (const [index, binding] of statement.bindings.entries()) {
       if (binding.name === "_") continue;
+      const sourceElement = sourceElements?.[index];
+      const checkedElement = checkedElements?.[index];
       if (this.moduleBody) {
         const global: HirGlobal = {
           name: binding.name,
@@ -535,6 +542,7 @@ export abstract class StatementChecker extends CheckerContext {
           span: binding.span,
         };
         this.globals.set(binding.name, global);
+        spellBinding(global, checkedElement);
         output.push({
           kind: "global-binding",
           global,
@@ -565,6 +573,28 @@ export abstract class StatementChecker extends CheckerContext {
       };
       this.locals.push(local);
       this.currentScope().set(binding.name, local);
+      spellBinding(local, checkedElement);
+      const defaultedLiteral =
+        sourceElement?.kind === "integer"
+          ? isDefaultedLiteral(checkedElement)
+            ? sourceElement
+            : undefined
+          : sourceElement &&
+              checkedElement &&
+              ["list", "map", "tuple", "data", "range"].includes(sourceElement.kind) &&
+              /\bu32\b/.test(checkedElement.type)
+            ? firstBareLiteral(sourceElement)
+            : undefined;
+      if (defaultedLiteral)
+        recordDefaultedLocal(local, {
+          name: binding.name,
+          literal: literalText(defaultedLiteral),
+          span: defaultedLiteral.span,
+          ...(defaultedLiteral !== sourceElement ? { kind: "structure" as const } : {}),
+          statement: statement.span,
+          initializer: sourceElement!.span,
+          letMut: binding.mutableAccess === true,
+        });
       output.push({
         kind: "binding",
         local,
@@ -689,9 +719,10 @@ export abstract class StatementChecker extends CheckerContext {
     expression: HirExpression,
     expected: ValueType,
     span: SourceSpan,
+    expectedSpelling?: ValueType,
   ): HirExpression {
     return this.withLiteralHint([[expression, expected]], () =>
-      super.requireCoercion(expression, expected, span),
+      super.requireCoercion(expression, expected, span, expectedSpelling),
     );
   }
 

@@ -22,7 +22,7 @@ import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 import { standardCoreTypeAlias } from "./standard-core.ts";
 import { registeredPackageOwnership } from "./package-ownership.ts";
-import { spellAs } from "./spelling.ts";
+import { respelled, spellAs, spelledFieldType } from "./spelling.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
 
@@ -315,19 +315,22 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       : mutableInner(receiver.type) !== undefined || genericTypeName(field.type)
         ? declaredType
         : readonlyType(declaredType);
-    return {
-      kind: "member",
-      receiver,
-      dataIndex: declaration.index,
-      fieldIndex: field.index,
-      erasedFieldType: erasedFieldType(field.type),
-      erasedTypeSubstitutions: orderedTypeSubstitutions(
-        declaration.genericParameters,
-        substitutions,
-      ),
-      type,
-      span,
-    };
+    return spellAs<HirExpression>(
+      {
+        kind: "member",
+        receiver,
+        dataIndex: declaration.index,
+        fieldIndex: field.index,
+        erasedFieldType: erasedFieldType(field.type),
+        erasedTypeSubstitutions: orderedTypeSubstitutions(
+          declaration.genericParameters,
+          substitutions,
+        ),
+        type,
+        span,
+      },
+      respelled(type, substituteGenericType(spelledFieldType(field) ?? field.type, substitutions)),
+    );
   }
 
   /** Reads the embedded fields of a promoted member's path, outermost first. */

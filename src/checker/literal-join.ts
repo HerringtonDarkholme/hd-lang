@@ -133,6 +133,9 @@ export interface DefaultedBinding {
 
 const DEFAULTED_LOCALS = new WeakMap<HirLocal, DefaultedBinding>();
 
+/** Diagnostics whose checked value proved whether a local literal supplied its type. */
+const RESOLVED_LOCAL_HINTS = new WeakSet<Diagnostic>();
+
 export function recordDefaultedLocal(local: HirLocal, binding: DefaultedBinding): void {
   DEFAULTED_LOCALS.set(local, binding);
 }
@@ -154,6 +157,18 @@ export function defaultedLocal(value: HirExpression): DefaultedBinding | undefin
       .map((body) => finalValueOf(body))
       .map((final) => (final ? defaultedLocal(final) : undefined))
       .find(Boolean);
+  if (value.kind === "match")
+    return value.arms
+      .map((arm) => finalValueOf(arm.body))
+      .map((final) => (final ? defaultedLocal(final) : undefined))
+      .find(Boolean);
+  if (value.kind === "permission-weaken") return defaultedLocal(value.operand);
+  if (value.kind === "unary" && value.operator !== "cast") return defaultedLocal(value.operand);
+  if (value.kind === "binary")
+    return (
+      (value.left.type === value.type ? defaultedLocal(value.left) : undefined) ??
+      (value.right.type === value.type ? defaultedLocal(value.right) : undefined)
+    );
   return value.kind === "local" ? DEFAULTED_LOCALS.get(value.local) : undefined;
 }
 
@@ -304,7 +319,10 @@ export function withDefaultedLocalHint(
   const hint = pairs
     .map(([value, other]) => defaultedLocalHint(value, readonlyType(other)))
     .find((found) => found !== undefined);
-  if (!hint || diagnostic.severity === "warning") return diagnostic;
+  if (!hint || diagnostic.severity === "warning") {
+    RESOLVED_LOCAL_HINTS.add(diagnostic);
+    return diagnostic;
+  }
   // The hint's edit replaces a conversion fix-it, which would point away from the literal.
   return {
     ...diagnostic,
@@ -450,7 +468,12 @@ export function fallbackLiteralHint(
   locals: readonly HirLocal[],
   anywhere = false,
 ): Diagnostic {
-  if (diagnostic.severity === "warning" || diagnostic.notes?.length) return diagnostic;
+  if (
+    diagnostic.severity === "warning" ||
+    diagnostic.notes?.length ||
+    RESOLVED_LOCAL_HINTS.has(diagnostic)
+  )
+    return diagnostic;
   if (!/\b(u32|usize)\b/.test(diagnostic.message)) return diagnostic;
   const { start, end } = diagnostic.span;
   const names = new Set<string>();
