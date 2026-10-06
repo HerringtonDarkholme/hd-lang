@@ -1,0 +1,14 @@
+# test: an enum is a closed set, so a match that names every variant is exhaustive without a wildcard
+# Spec 08: data.kind.enum; Enum Declarations: data.enum.closed; Unsupported Aggregate Extensions: data.unsupported.non-exhaustive.
+pub enum PaymentState:
+    Pending
+    Authorized(amount_cents: i64)
+    Captured(amount_cents: i64)
+    Refunded
+
+fn settled_cents(state: PaymentState) -> i64:
+    match state:
+        .Pending => 0
+        .Authorized(_) => 0
+        .Captured(amount_cents) => amount_cents
+        .Refunded => 0

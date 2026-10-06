@@ -1,0 +1,47 @@
+# test: Option and Result values and patterns take both the qualified and the contextual spellings
+# Spec 08 Option And Result: data.prelude.option, data.prelude.result, data.prelude.values.
+use std.testing.assert_equal
+
+enum ParseError:
+    Empty
+    NotANumber(text: string)
+
+fn nickname(name: string) -> string?:
+    if name == "Margaret": Option.Some("Peggy") else: .None
+
+fn port(text: string) -> Result[i32, ParseError]:
+    if text == "":
+        return Result.Err(ParseError.Empty)
+    if text == "8080":
+        return .Ok(8080)
+    .Err(.NotANumber(text))
+
+fn describe(result: Result[i32, ParseError]) -> string:
+    match result:
+        Result.Ok(value) => "port $value"
+        .Err(ParseError.Empty) => "empty"
+        .Err(.NotANumber(text)) => "bad: $text"
+
+fn or_default(value: Option[string], fallback: string) -> string:
+    match value:
+        Option.Some(text) => text
+        .None => fallback
+
+fn greeting(name: string) -> string:
+    match nickname(name):
+        .Some(short) => short
+        Option.None => name
+
+tests:
+    it("T? is Option[T]"):
+        let explicit: Option[string] = nickname("Margaret")
+        let sugared: string? = Option.None
+        assert_equal(greeting("Margaret"), "Peggy", reason="Some through the qualified spelling")
+        assert_equal(greeting("Ada"), "Ada", reason="None matched by Option.None")
+        assert_equal(or_default(explicit, "?"), "Peggy", reason="string? and Option[string] are one type")
+        assert_equal(or_default(sugared, "none"), "none", reason="Option.None fills a string?")
+
+    it("Result values and patterns"):
+        assert_equal(describe(port("8080")), "port 8080", reason="Ok")
+        assert_equal(describe(port("")), "empty", reason="qualified Err")
+        assert_equal(describe(port("http")), "bad: http", reason="contextual Err")

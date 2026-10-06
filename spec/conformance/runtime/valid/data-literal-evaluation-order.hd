@@ -1,0 +1,22 @@
+# test: explicit field expressions run in source order, then omitted defaults in declaration order
+# Spec 08 Data Literals: data.literal.eval-explicit, data.literal.eval-defaults; Field Defaults: data.default.scope.
+use std.testing.assert_equal
+
+let trace = +0
+
+fn step(n: i32) -> i32:
+    trace = trace * 10 + n
+    n
+
+data Invoice:
+    id: i32
+    currency: i32 = step(3)
+    customer: i32
+    total: i32 = step(4)
+
+tests:
+    it("explicit fields in source order, then defaults in declaration order"):
+        invoice := Invoice { customer: step(1), id: step(2) }
+        assert_equal(trace, 1234, reason="customer, id, then currency and total defaults")
+        assert_equal(invoice.id, 2, reason="id holds its explicit value")
+        assert_equal(invoice.total, 4, reason="total holds its default")

@@ -1,0 +1,5 @@
+# test: a field default does not bind the other fields of the value being built
+# Spec 08 Field Defaults: data.default.no-field-binding.
+data Account:
+    email: string
+    display_name: string = email  # diagnostic: unknown-name

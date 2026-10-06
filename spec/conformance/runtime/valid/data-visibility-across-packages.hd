@@ -1,0 +1,20 @@
+# fixture-package-role: root-application
+# test: another module builds a data type by literal only when every field is public, and uses a factory otherwise
+# Spec 08 Field Visibility: data.vis.literal, data.vis.factory, data.vis.embedded-public.
+use std.testing.assert_equal
+use dep.models.{User}
+use dep.members.{Outer, Inner, make_outer}
+
+fn inner_note(outer: Outer) -> string:
+    let part: Inner = outer.Inner
+    part.note
+
+tests:
+    it("a literal of a type whose fields are all public"):
+        user := User { name: "Ada" }
+        assert_equal(user.name, "Ada", reason="User has only public fields")
+
+    it("a factory builds a value with private fields"):
+        outer := make_outer()
+        assert_equal(inner_note(outer), "note", reason="the embedded field is public")
+        assert_equal(outer.note, "note", reason="the part's public field is promoted")

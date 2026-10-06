@@ -1,0 +1,13 @@
+# test: the contextual shorthand .Variant is never a function value, even for a one-payload variant
+# Spec 08 Variant Constructors As Function Values: data.enum.fn-value.shorthand.
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(error: FsError)
+
+fn wrap_all(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
+    [for error in errors => wrap(error)]
+
+fn sync(errors: List[FsError]) -> List[SyncError]:
+    wrap_all(errors, .Fs)  # diagnostic: missing-contextual-enum-type

@@ -1,0 +1,5 @@
+# test: every named field writes its type; a default alone does not declare one
+# Spec 08 Fields: data.field.typed.
+data Subscriber:
+    email: string
+    plan = "free"  # diagnostic: syntax-error

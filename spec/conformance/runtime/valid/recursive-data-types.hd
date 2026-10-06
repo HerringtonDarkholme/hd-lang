@@ -1,0 +1,42 @@
+# test: data types may be directly and mutually recursive, with an optional or list base case
+# Spec 08 Recursive Data Types: data.recursive.direct, data.recursive.mutual.
+use std.testing.assert_equal
+
+data Comment:
+    body: string
+    replies: List[Comment]
+
+data Department:
+    name: string
+    head: Employee?
+
+data Employee:
+    name: string
+    department: Department
+
+fn count(comment: Comment) -> i32:
+    let total = +1
+    for reply in comment.replies:
+        total = total + count(reply)
+    total
+
+fn head_name(employee: Employee) -> string:
+    match employee.department.head:
+        .Some(head) => head.name
+        .None => "vacant"
+
+tests:
+    it("a directly recursive comment thread"):
+        thread := Comment {
+            body: "release notes?",
+            replies: [Comment { body: "tomorrow", replies: [Comment { body: "thanks", replies: [] }] }],
+        }
+        assert_equal(count(thread), 3, reason="root, reply, and nested reply")
+
+    it("mutually recursive department and employee"):
+        support := Department { name: "support", head: .None }
+        ada := Employee { name: "Ada", department: support }
+        lab := Department { name: "lab", head: .Some(ada) }
+        grace := Employee { name: "Grace", department: lab }
+        assert_equal(head_name(grace), "Ada", reason="lab's head")
+        assert_equal(head_name(ada), "vacant", reason="support has no head")

@@ -1,0 +1,13 @@
+# test: two data types with the same fields are different types
+# Spec 08 Data Declarations: data.decl.nominal.
+data CustomerId:
+    value: i64
+
+data OrderId:
+    value: i64
+
+fn find_order(id: OrderId) -> i64:
+    id.value
+
+fn lookup(customer: CustomerId) -> i64:
+    find_order(customer)  # diagnostic: type-mismatch

@@ -1,0 +1,20 @@
+# test: a .Variant line at statement indentation after a same-line if starts a new statement
+# Spec 01 Leading-Dot Continuation: lex.dot.statement-indent, lex.dot.contextual-statement.
+use std.testing.assert_equal
+
+enum LookupError:
+    Missing
+
+fn find_port(service: string) -> Result[i32, LookupError]:
+    if service == "": return .Err(LookupError.Missing)
+    .Ok(8080)
+
+fn describe(result: Result[i32, LookupError]) -> string:
+    match result:
+        .Ok(port) => "port $port"
+        .Err(_) => "missing"
+
+tests:
+    it("the tail value is its own statement"):
+        assert_equal(describe(find_port("api")), "port 8080", reason="the if has no else, so it is a statement")
+        assert_equal(describe(find_port("")), "missing", reason="the early return")

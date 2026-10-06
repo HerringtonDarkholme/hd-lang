@@ -1,0 +1,7 @@
+# test: a recursive optional field with no default is still required in a literal
+# Spec 08 Recursive Data Types: data.recursive.required-fields.
+data Category:
+    name: string
+    parent: Category?
+
+root := Category { name: "books" }  # diagnostic: missing-required-field

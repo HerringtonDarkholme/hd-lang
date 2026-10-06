@@ -1,0 +1,6 @@
+# test: a variant cannot carry an indented field block; its payload goes in parentheses
+# Spec 08 Variant Payloads: data.enum.payload.no-field-blocks.
+enum Shape:
+    Circle:  # diagnostic: syntax-error
+        radius: i32
+    Square(side: i32)

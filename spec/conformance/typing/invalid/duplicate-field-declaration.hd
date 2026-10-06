@@ -1,0 +1,6 @@
+# test: a data type that declares one field name twice is an error
+# Spec 08 Fields: data.field.unique.
+data Invoice:
+    number: string
+    total_cents: i64
+    number: i64  # diagnostic: duplicate-field

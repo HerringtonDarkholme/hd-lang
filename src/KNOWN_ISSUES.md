@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,619 cases: 2,607 selected in `test/portable/cases.tsv` and 12 known
-failures. The selected cases are 2,253 language tier, 301 stdlib tier, and 53
-CLI tier; the known failures are 1 language tier, 1 stdlib tier, and 10
+2,637 cases: 2,624 selected in `test/portable/cases.tsv` and 13 known
+failures. The selected cases are 2,270 language tier, 301 stdlib tier, and 53
+CLI tier; the known failures are 2 language tier, 1 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -21,6 +21,7 @@ CLI tier.
 | CLI-DOC | 8 | `hd doc` prints one item; it writes no pages and takes no flags |
 | CLI-PAGES-HIDDEN | 2 | `hd new --pages` stays hidden until `hd doc` can build the site |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
+| F-614 | 1 | a `.Variant` line right after a same-line `if` suite is joined to it |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
 ## Findings
@@ -44,6 +45,11 @@ Correctness and diagnostics:
   lowered match arm that copies its bindings out, so after the `let` an
   existential binding has lost its bounds and the arm's type equalities no
   longer hold. A `match` arm keeps both.
+- **F-614**: a `.Variant` line at statement indentation directly after a
+  same-line `if cond: return x` continues that line as a member call, so
+  the `if` becomes a value without `else` (`type-mismatch`). By
+  `lex.dot.statement-indent` it starts a new statement;
+  `runtime/valid/contextual-variant-after-same-line-if.hd` shows it.
 
 Runtime cost:
 

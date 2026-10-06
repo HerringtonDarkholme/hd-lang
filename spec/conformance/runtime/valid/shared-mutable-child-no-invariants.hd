@@ -1,0 +1,25 @@
+# test: two values may share one mutable child, and a field store checks only the field's type
+# Spec 08 Field Access: data.access.graph, data.access.assignment.
+use std.testing.assert_equal
+
+data Budget:
+    limit_cents: i64
+    spent_cents: i64
+
+data Project:
+    name: string
+    budget: mut Budget
+
+tests:
+    it("a mutation through one owner is seen through the other"):
+        let mut shared = Budget { limit_cents: 10000, spent_cents: 0 }
+        let mut website = Project { name: "website", budget: shared }
+        let mut mobile = Project { name: "mobile", budget: shared }
+        website.budget.spent_cents = 7000
+        mobile.budget.spent_cents = mobile.budget.spent_cents + 5000
+        assert_equal(website.budget.spent_cents, 12000, reason="both projects reach one budget")
+
+    it("a store may break a cross-field invariant"):
+        let mut budget = Budget { limit_cents: 100, spent_cents: 0 }
+        budget.spent_cents = 500
+        assert_equal(budget.spent_cents > budget.limit_cents, true, reason="no validation beyond the type")

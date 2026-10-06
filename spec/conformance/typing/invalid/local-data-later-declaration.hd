@@ -1,0 +1,11 @@
+# test: a local data type cannot refer to a local type declared after it
+# Spec 08 Recursive Data Types: data.recursive.local.
+fn route_length() -> i32:
+    data Leg:
+        from: Stop  # diagnostic: unknown-type
+        next: Leg?
+
+    data Stop:
+        name: string
+
+    1

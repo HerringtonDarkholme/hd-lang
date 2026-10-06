@@ -1,4 +1,5 @@
 # test: data patterns destructure nested fields and test literals
+# Spec 08 Data Patterns: data.pattern.form, data.pattern.subset, data.pattern.fields.
 
 use std.testing.assert_equal
 

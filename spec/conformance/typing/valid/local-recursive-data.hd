@@ -1,0 +1,15 @@
+# test: a local data type may refer to itself and to local types declared before it
+# Spec 08 Recursive Data Types: data.recursive.local, data.recursive.direct.
+fn route_length() -> i32:
+    data Stop:
+        name: string
+
+    data Leg:
+        from: Stop
+        next: Leg?
+
+    last := Leg { from: Stop { name: "Utrecht" }, next: .None }
+    first := Leg { from: Stop { name: "Amsterdam" }, next: .Some(last) }
+    match first.next:
+        .Some(_) => 2
+        .None => 1
