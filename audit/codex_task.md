@@ -65,6 +65,10 @@ When the queue is empty, report that and wait.
 ## Don't Touch
 
 - `spec/` (including fixture file names), unless a job says so.
+- `usize` work (another agent is making it a distinct type): `src/types.ts`,
+  `src/numeric.ts`, `src/checker/spelling.ts`, `src/checker/literal-join.ts`,
+  `src/checker/numeric-family.ts`, `lib/std/num.hd`, and `usize`/`u32`
+  sites in `lib/std`.
 
 ## Jobs
 
