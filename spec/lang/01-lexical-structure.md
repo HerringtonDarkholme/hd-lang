@@ -22,6 +22,12 @@ An implementation processes a source file in this order:
 r[lex.process.trivia] Comments and whitespace separate tokens but otherwise
 do not appear in the parser token stream. Layout tokens are the exception.
 
+```hd
+# a comment, gone before parsing
+fn demo() -> i32:
+    +1
+```
+
 ### Source Encoding
 
 1. r[lex.encoding.utf8] Source files must be valid UTF-8.
@@ -30,6 +36,11 @@ do not appear in the parser token stream. Layout tokens are the exception.
 4. r[lex.encoding.other-bom] No other byte-order mark is removed.
 5. r[lex.encoding.stray-bom] A `U+FEFF` outside a comment or literal at any other position is a compile-time lexical error. Error: `unexpected-bom`.
 6. r[lex.encoding.scalars] Unicode scalar values are valid in identifiers, under the identifier rules below, and in comments, string literals, and character literals.
+
+```hd
+fn café() -> string:
+    "with accents"
+```
 
 See also: [Identifiers](#identifiers).
 
@@ -44,6 +55,12 @@ the layout tokens emitted inside delimiters.
 2. r[lex.line.crlf] A carriage-return followed by a line-feed is treated as one line ending.
 3. r[lex.line.bare-cr] A bare carriage return is a lexical error.
 4. r[lex.line.no-backslash] hd-lang has no explicit backslash line-continuation syntax.
+
+```hd
+fn demo() -> i32:
+    x := +1
+    x
+```
 
 ### Implicit Continuation
 
@@ -252,6 +269,12 @@ fn run(fallback: i32) -> void:
 3. r[lex.header.resume-closure] After a closure body it resumes only past the closing delimiter, as in `(if check(fn(x): ...` followed by a line that starts with `):`.
 4. r[lex.header.no-indented-end] Outside brackets, and in the statements of a nested suite, a header cannot end in an indented suite. The line after that suite cannot continue it.
 
+```hd
+fn demo(flag: bool) -> i32:
+    (if flag: +1
+     else: +2)
+```
+
 See also: [Statements](02-grammar.md#statements).
 
 ### Suite-Introducing Colons
@@ -261,6 +284,11 @@ See also: [Statements](02-grammar.md#statements).
 3. r[lex.colon.ordinary] Ordinary colons in maps, data fields, named types, and arguments do not open a suite.
 4. r[lex.colon.trailing-block] Trailing-block call colons occur only at delimiter depth zero. Even there, the call must be the complete statement or the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`.
 5. r[lex.colon.trailing-block.not-headers] They are not recognized in `if`, `while`, `for`, or `match` headers or inside brackets.
+
+```hd
+fn demo() -> void:
+    _ := {"a": +1}   # an ordinary colon, no suite
+```
 
 See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
 
@@ -276,16 +304,35 @@ See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
 8. r[lex.suite-end.else-example] Thus `x := if c: 1 else: 2` is one conditional expression. The line boundary after `2` closes the `else` suite and then any enclosing same-line suite, innermost first.
 9. r[lex.suite-end.no-spelling] `SUITE_END` has no source spelling. Parser-aware layout processing identifies the boundary from the expected suite and enclosing delimiter structure.
 
+```hd
+fn demo(flag: bool) -> i32:
+    x := if flag: +1 else: +2
+    x
+```
+
 ### Delimiter Matching
 
 1. r[lex.delim.match] A closing delimiter must match the most recent unclosed delimiter.
 2. r[lex.delim.unmatched] A closing delimiter with no open delimiter, or one that closes a different kind of delimiter, is an error. Error: `unmatched-delimiter`.
 3. r[lex.delim.unclosed] An opening delimiter that is still unclosed at the end of the file is an error. Error: `unclosed-delimiter`.
 
+```text
+fn total() -> i32:
+    +1
+]   # error: unmatched-delimiter
+```
+
 ## Whitespace And Indentation
 
 1. r[lex.space.meaning] Spaces between tokens have no meaning except when they occur at the beginning of a logical line.
 2. r[lex.indent.structure] Leading indentation determines block structure.
+
+```hd
+fn demo() -> i32:
+    x := +1
+    y := +2
+    x + y
+```
 
 ### Indentation Levels
 
@@ -298,6 +345,12 @@ See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
 7. r[lex.indent.eof] At end of file, the lexer emits any remaining `DEDENT` tokens.
 8. r[lex.indent.eof-newline] If the final non-empty logical line has no physical line ending, the lexer emits its terminating `NEWLINE` before those `DEDENT` tokens.
 9. r[lex.indent.blank] Blank lines and comment-only lines do not affect the indentation stack and do not emit `NEWLINE` tokens.
+
+```text
+fn f() -> i32:
+    x := +1
+   y := +2   # error: invalid-dedent
+```
 
 ### Block Headers
 
@@ -318,6 +371,11 @@ fn test() -> void $ Console: println("hi")
 1. r[lex.tab.invalid] A horizontal tab character used as source whitespace is an error. Error: `tab-whitespace`.
 2. r[lex.tab.content] They may occur only as literal content represented by the `\t` escape or as raw characters inside comments. Error: `tab-whitespace`.
 3. r[lex.tab.spaces] Indentation therefore consists only of ASCII space characters.
+
+```hd
+fn demo() -> string:
+    "a\tb"   # a tab as literal content, through its escape
+```
 
 > **Note.** Visual tab-width configuration therefore cannot change block
 > structure.
@@ -414,10 +472,20 @@ See also: [Bang And Dot Tokens](02-grammar.md#bang-and-dot-tokens).
 2. r[lex.ident.identity] This security diagnostic does not change name identity: two different NFC identifier strings remain different names.
 3. r[lex.ident.ascii] Standard-library APIs, language keywords, and compiler-generated source names use ASCII.
 
+```hd
+fn naïve() -> i32:
+    +1
+```
+
 ### Reserved Words And Built-In Names
 
 1. r[lex.ident.reserved] An identifier that exactly matches a reserved word is not an identifier token.
 2. r[lex.ident.builtin-types] Built-in type names such as `i32`, `string`, `List`, and `Map` are ordinary names rather than lexically distinct tokens.
+
+```text
+fn done() -> void:
+    let match = +1   # error: syntax-error
+```
 
 See also: [Keywords And Reserved Words](#keywords-and-reserved-words), which
 lists the complete reserved-word set.
@@ -729,6 +797,14 @@ dollar_text = ? a dollar sign followed by neither "{" nor a character that can s
 4. r[lex.multiline.line-feed] Each source line ending contributes one line-feed scalar to the value.
 5. r[lex.multiline.end] The literal continues until an unescaped `"""` delimiter.
 
+```hd
+fn demo() -> string:
+    """
+    line one
+    line two
+    """
+```
+
 #### Interpolation
 
 r[lex.interp.forms] Interpreted single-line and multiline strings use
@@ -930,6 +1006,10 @@ keyword = ? a reserved word listed in Keywords And Reserved Words ? ;
 
 1. r[lex.unsupported.hex-float] Hexadecimal floating-point notation is not part of the language.
 2. r[lex.unsupported.diagnose] Implementations must diagnose it rather than assign implementation-defined behavior.
+
+```text
+value := 0x1.8p3   # error: syntax-error
+```
 
 > **Note.** A future extension may add hexadecimal floating-point notation
 > with new grammar.
