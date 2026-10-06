@@ -143,4 +143,9 @@ painful problems in the commit message.
 
 ## Questions
 
-(none)
+- K10, Line Drift example (spec/lang/14-annotations.md#annot.line.drift):
+  the prototype warns `derivation-line-drift` even when two derivation
+  blocks of one package have identical member lines (two blocks with the
+  same `cache = pass`, over std.serde's Serialize and Deserialize, or over
+  two local template traits). The rule warns only when the lines differ.
+  The example keeps the spec's reading; today it compiles with a warning.

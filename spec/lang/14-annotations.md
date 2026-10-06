@@ -1084,6 +1084,21 @@ so omitting one, as `Audit = pass` above, is always this error.
 2. r[annot.line.drift.derive] A block beside a `@derive` of another trait from the same package gets the same warning when the block has any member line. Warning: `derivation-line-drift`.
 3. r[annot.line.drift.legal] Different member lines stay legal: configuration may differ per direction, such as encoding and decoding.
 
+```hd
+use std.serde.{Deserialize, Serialize}
+use std.structure.Structure
+
+data Session:
+    id: i64
+    cache: i64 = 0
+
+impl Serialize for Session by Structure:
+    cache = pass
+
+impl Deserialize for Session by Structure:
+    cache = pass   # the lines agree: no warning
+```
+
 > **Why.** Most blocks of one library should agree, so a difference is
 > worth a second look. Some differences are deliberate, as serde's
 > `skip_serializing` shows.
@@ -1274,11 +1289,54 @@ traversed as an enum with one variant.
 6. r[annot.walk.rest] For a [rest member](#r-annot.tuple.rest), generated `walk` calls `w.rest(h, items)` in place of `w.member`, with the rest element's list as `items`.
 7. r[annot.walk.rest.default] `Walker`'s default `rest` calls `self.member(h, items)`. So a walker that does not implement `rest` sees the rest member as one `List[T]` member.
 
+```hd
+@derive(Debug)
+data Point:
+    x: i32
+    y: i32
+
+fn show(p: Point) -> string:
+    debug(p)   # Point { x: 1, y: 2 }: the walk visits members in declaration order
+```
+
 #### Describe
 
 1. r[annot.describe.order] Generated `describe` calls `d.variant(v)` for every variant in declaration order, each followed by `d.member(h)` for that variant's members in declaration order.
 2. r[annot.describe.no-value] `describe` holds no value.
 3. r[annot.describe.error] The first `.Err` ends the traversal and is returned, as for `walk`.
+
+```hd
+use std.structure.{Describer, Field, Structure, Variant}
+
+data NameList:
+    pub names: mut List[string]
+
+impl[T] Describer[T] for NameList:
+    type Error = never
+    fn variant(mut self, v: Variant[T]) -> Result[void, never]:
+        self.names.push(v.info.name)
+        .Ok(())
+    fn member[F](mut self, h: Field[T, F]) -> Result[void, never]:
+        self.names.push(h.info.name)
+        .Ok(())
+
+trait Fields:
+    fn fields() -> List[string]
+
+impl[T] Fields for T by Structure:
+    fn fields() -> List[string]:
+        let mut out = NameList { names: [] }
+        _ := T::describe(out)
+        out.names
+
+@derive(Fields)
+enum Shape:
+    Dot
+    Pair(i32, i32)
+
+fn demo() -> List[string]:
+    Shape::fields()   # ["Dot", "Pair", "_0", "_1"]
+```
 
 #### Build
 
@@ -1291,6 +1349,18 @@ traversed as an enum with one variant.
 7. r[annot.build.foreign-key] A key that does not name one of the chosen variant's members is a checked runtime panic with category `structure-variant-mismatch`.
 8. r[annot.build.shared] `build` never reads shared constructor data: the chosen variant's `->` expression fixes it.
 
+```hd
+use std.ops.Default
+
+@derive(Default)
+data Config:
+    retries: i32
+    name: string
+
+fn demo() -> Config:
+    Config::default()   # Config { retries: 0, name: "" }: built member by member
+```
+
 ### Members And Variants
 
 1. r[annot.member.info] Each member has a `Member` value: its name, its zero-based position within its variant, its facts, its doc comment, and the `embedded` and `positional` flags.
@@ -1301,6 +1371,40 @@ traversed as an enum with one variant.
 6. r[annot.variant.data-facts] That variant's `facts` is empty: a template reads the type-level facts once, through `T::facts()`.
 7. r[annot.variant.shared] `shared` holds the variant's shared constructor data as `(name, value)` pairs, built once at compile time. An unnamed shared parameter is named `_0`, `_1`, and so on.
 8. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
+
+```hd
+use std.structure.{Describer, Field, Structure, Variant}
+
+data Info:
+    pub lines: mut List[string]
+
+impl[T] Describer[T] for Info:
+    type Error = never
+    fn variant(mut self, v: Variant[T]) -> Result[void, never]:
+        self.lines.push("variant ${v.info.index}: ${v.info.name}")
+        .Ok(())
+    fn member[F](mut self, h: Field[T, F]) -> Result[void, never]:
+        self.lines.push("member ${h.info.position}: ${h.info.name}")
+        .Ok(())
+
+trait Report:
+    fn report() -> List[string]
+
+impl[T] Report for T by Structure:
+    fn report() -> List[string]:
+        let mut out = Info { lines: [] }
+        _ := T::describe(out)
+        out.lines
+
+@derive(Report)
+enum Shape:
+    Dot
+    Pair(i32, i32)
+
+fn demo() -> List[string]:
+    Shape::report()
+    # ["variant 0: Dot", "variant 1: Pair", "member 0: _0", "member 1: _1"]
+```
 
 > **Note.** An embedded member's value is the part itself, not a copy, as
 > [`data.part.access`](08-data-and-enums.md#r-data.part.access) states.
@@ -1527,6 +1631,15 @@ impl[S] Source[S] for Strict:  # variant, next, and member elided
 3. r[annot.bound.recursive] Recursion is checked coinductively: while checking the members of `Tree[T]`, its own derived implementation is assumed to hold.
 4. r[annot.bound.more] When a member needs more than `T < Trait`, as a `Map[T, V]` member needs `T < Hash`, the error suggests a derivation block whose header states the bounds. Error: `member-not-derivable`.
 
+```hd
+@derive(Eq, Debug)
+data Box[T]:
+    value: T
+
+fn same(a: Box[i32], b: Box[i32]) -> bool:
+    a == b   # the derived implementation has T < Eq, and i32 meets it
+```
+
 > **Note.** A derived bound names the trait, as `T < Encode`. When a
 > walker's strengthened bound asks for more, that bound is the obligation
 > checked at the opt-in, and the diagnostic names it.
@@ -1539,6 +1652,17 @@ See also: [`trait.derive.bounds`](09-traits.md#r-trait.derive.bounds),
 1. r[annot.limit.in-place] There is no in-place traversal: generated code never assigns a member of an existing value. A derived merge returns a new value.
 2. r[annot.limit.interfaces] A package interface carries each template's body, the walker, describer, and source bodies it names, and the functions its facts call.
 3. r[annot.limit.specialize] Each (target, walker) pair is one specialization of the generated traversal.
+
+```hd
+use std.ops.Default
+
+@derive(Default)
+data Cart:
+    items: List[string]
+
+fn demo() -> Cart:
+    Cart::default()   # a new value: a traversal never edits an existing one
+```
 
 > **Note.** A template declares no compile-time constants of its own, and
 > shared constructor data has no typed handles. A wrapper walker cannot
