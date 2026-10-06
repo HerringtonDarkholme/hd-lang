@@ -1,0 +1,269 @@
+# std.http: the host capability trait `Http`, its helpers `send!` and
+# `get!`, the data `Request` and `Response`, `Method`, `HttpError`, and the
+# deterministic provider `ScriptedHttp` (spec/std/http.md). The default
+# profile binds a host `Http` that checks the command's `--cap Http=` grant
+# (src/commands/http-host.ts).
+use std.time.Duration
+use std.format.DebugWriter
+use std.error.Error
+
+pub enum Method:
+    Get
+    Head
+    Post
+    Put
+    Patch
+    Delete
+    Options
+    Other(name: string)
+
+# A request (r-std-http.types.decl). Only `url` has no default
+# (r-std-http.request.defaults).
+pub data Request:
+    pub method: Method = Method.Get
+    pub url: string
+    pub headers: List[(string, string)] = []
+    pub body: List[u8] = []
+    pub timeout: Duration? = .None
+
+pub data Response:
+    pub status: u16
+    pub headers: List[(string, string)]
+    pub body: List[u8]
+
+impl Response:
+    # The first value of the header `name`, ignoring ASCII case
+    # (r-std-http.response.header).
+    pub fn header(self, name: string) -> string?:
+        for (key, value) in self.headers:
+            if ascii_case_equal(key, name):
+                return .Some(value)
+        .None
+
+    # The body as UTF-8, with U+FFFD for each invalid sequence
+    # (r-std-http.response.text).
+    pub fn text(self) -> string:
+        match string::from_utf8(self.body):
+            .Ok(text) => text
+            .Err(_) => lossy_text(self.body)
+
+pub enum HttpError:
+    NotGranted(host: string)
+    InvalidUrl(url: string)
+    Dns(host: string)
+    Connect(message: string)
+    Tls(message: string)
+    Timeout
+    TooManyRedirects(url: string)
+    Other(message: string)
+
+# The host capability to send a request (r-std-http.trait.decl).
+pub trait Http:
+    fn send!(mut self, request: Request) -> Result[Response, HttpError]
+
+# Sends `request` through the covering `Http` provider
+# (r-std-http.helper.send).
+pub fn send!(request: Request) -> Result[Response, HttpError] $ Http:
+    let mut client = $.use(Http)
+    client.send!(request)
+
+# Sends a `Get` of `url` (r-std-http.helper.get).
+pub fn get!(url: string) -> Result[Response, HttpError] $ Http:
+    send!(Request { url: url })
+
+# The deterministic `Http` (spec/std/http.md#scripted-http): it answers a
+# URL by its exact text, and records every request it receives.
+pub data ScriptedHttp:
+    responses: Map[string, Response]
+    requests: mut List[Request]
+
+impl ScriptedHttp:
+    pub fn new(responses: Map[string, Response]) -> mut ScriptedHttp:
+        ScriptedHttp { responses: responses, requests: [] }
+
+    # Every request received, in order (r-std-http.scripted.sent).
+    pub fn sent(self) -> List[Request]:
+        self.requests
+
+impl Http for ScriptedHttp:
+    fn send!(mut self, request: Request) -> Result[Response, HttpError]:
+        self.requests.push(request)
+        match self.responses.get(request.url):
+            .Some(response) => .Ok(response)
+            .None => .Err(.Connect("ScriptedHttp has no response for ${request.url}"))
+
+fn ascii_case_equal(left: string, right: string) -> bool:
+    a := left.to_utf8()
+    b := right.to_utf8()
+    if a.len() != b.len():
+        return false
+    let index: usize = 0
+    while index < a.len():
+        if ascii_lower(a[index]) != ascii_lower(b[index]):
+            return false
+        index = index + 1
+    true
+
+fn ascii_lower(byte: u8) -> u8:
+    if byte >= 65 && byte <= 90:
+        byte + 32
+    else:
+        byte
+
+# Decodes `bytes` as UTF-8, with one U+FFFD for each maximal invalid
+# subpart, as the WHATWG decoder does.
+fn lossy_text(bytes: List[u8]) -> string:
+    let out: mut List[u8] = []
+    size := bytes.len()
+    let index: usize = 0
+    while index < size:
+        lead := bytes[index]
+        let width: usize = 0
+        let low: u8 = 128
+        let high: u8 = 191
+        if lead < 128:
+            width = 1
+        else if lead >= 194 && lead <= 223:
+            width = 2
+        else if lead >= 224 && lead <= 239:
+            width = 3
+            if lead == 224:
+                low = 160
+            if lead == 237:
+                high = 159
+        else if lead >= 240 && lead <= 244:
+            width = 4
+            if lead == 240:
+                low = 144
+            if lead == 244:
+                high = 143
+        if width == 0:
+            push_replacement(out)
+            index = index + 1
+        else:
+            let at: usize = 1
+            let valid = true
+            while valid && at < width:
+                if index + at >= size:
+                    valid = false
+                else:
+                    next := bytes[index + at]
+                    bottom := if at == 1: low else: 128
+                    top := if at == 1: high else: 191
+                    if next < bottom || next > top:
+                        valid = false
+                    else:
+                        at = at + 1
+            if valid:
+                let copied: usize = 0
+                while copied < width:
+                    out.push(bytes[index + copied])
+                    copied = copied + 1
+                index = index + width
+            else:
+                push_replacement(out)
+                index = index + at
+    match string::from_utf8(out):
+        .Ok(text) => text
+        .Err(_) => ""
+
+fn push_replacement(out: mut List[u8]) -> void:
+    out.push(239)
+    out.push(191)
+    out.push(189)
+
+impl Eq for Method:
+    fn eq(self, other: Method) -> bool:
+        method_name(self) == method_name(other)
+
+# The method's name on the wire.
+fn method_name(method: Method) -> string:
+    match method:
+        .Get => "GET"
+        .Head => "HEAD"
+        .Post => "POST"
+        .Put => "PUT"
+        .Patch => "PATCH"
+        .Delete => "DELETE"
+        .Options => "OPTIONS"
+        .Other(name) => name
+
+impl Eq for Request:
+    fn eq(self, other: Request) -> bool:
+        self.method == other.method && self.url == other.url && self.headers == other.headers && self.body == other.body && self.timeout == other.timeout
+
+impl Eq for Response:
+    fn eq(self, other: Response) -> bool:
+        self.status == other.status && self.headers == other.headers && self.body == other.body
+
+impl Eq for HttpError:
+    fn eq(self, other: HttpError) -> bool:
+        match (self, other):
+            (.NotGranted(left), .NotGranted(right)) => left == right
+            (.InvalidUrl(left), .InvalidUrl(right)) => left == right
+            (.Dns(left), .Dns(right)) => left == right
+            (.Connect(left), .Connect(right)) => left == right
+            (.Tls(left), .Tls(right)) => left == right
+            (.Timeout, .Timeout) => true
+            (.TooManyRedirects(left), .TooManyRedirects(right)) => left == right
+            (.Other(left), .Other(right)) => left == right
+            _ => false
+
+# The text of each variant; `NotGranted` names the flag that grants the
+# host (r-std-http.error.not-granted.text).
+impl Display for HttpError:
+    fn to_string(self) -> string:
+        match self:
+            .NotGranted(host) => "http access to ${host} is not granted; run with --cap Http=${host}"
+            .InvalidUrl(url) => "invalid URL: ${url}"
+            .Dns(host) => "cannot resolve host ${host}"
+            .Connect(message) => message
+            .Tls(message) => "TLS failed: ${message}"
+            .Timeout => "the request timed out"
+            .TooManyRedirects(url) => "too many redirects; the last went to ${url}"
+            .Other(message) => message
+
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for HttpError
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.source): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for Method:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Get => out.write("Method.Get")
+            .Head => out.write("Method.Head")
+            .Post => out.write("Method.Post")
+            .Put => out.write("Method.Put")
+            .Patch => out.write("Method.Patch")
+            .Delete => out.write("Method.Delete")
+            .Options => out.write("Method.Options")
+            .Other(name) => out.debug_tuple("Method.Other").named_field("name", name).finish()
+
+impl Debug for Request:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Request").field("method", self.method).field("url", self.url).field("headers", self.headers).field("body", self.body).field("timeout", self.timeout).finish()
+
+impl Debug for Response:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Response").field("status", self.status).field("headers", self.headers).field("body", self.body).finish()
+
+impl Debug for HttpError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .NotGranted(host) => out.debug_tuple("HttpError.NotGranted").named_field("host", host).finish()
+            .InvalidUrl(url) => out.debug_tuple("HttpError.InvalidUrl").named_field("url", url).finish()
+            .Dns(host) => out.debug_tuple("HttpError.Dns").named_field("host", host).finish()
+            .Connect(message) => out.debug_tuple("HttpError.Connect").named_field("message", message).finish()
+            .Tls(message) => out.debug_tuple("HttpError.Tls").named_field("message", message).finish()
+            .Timeout => out.write("HttpError.Timeout")
+            .TooManyRedirects(url) => out.debug_tuple("HttpError.TooManyRedirects").named_field("url", url).finish()
+            .Other(message) => out.debug_tuple("HttpError.Other").named_field("message", message).finish()
+
+impl Debug for ScriptedHttp:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ScriptedHttp").field("responses", self.responses).field("requests", self.requests).finish()

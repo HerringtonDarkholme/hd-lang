@@ -77,8 +77,11 @@ test("hd help COMMAND lists only that command's flags", async () => {
   assert.match(build, /^ {2}-p, --package NAME +act on the workspace member NAME only/m);
 
   const run = (await hd(["help", "run"])).stdout;
-  assert.match(run, /^usage: hd run \[--release\] \[-p NAME\] \[NAME\] \[-- ARGS\]$/m);
-  assert.deepEqual(flagsOf(run), ["--release", "--package", "--format"]);
+  assert.match(
+    run,
+    /^usage: hd run \[--release\] \[-p NAME\] \[--cap NAME=VALUE\] \[NAME\] \[-- ARGS\]$/m,
+  );
+  assert.deepEqual(flagsOf(run), ["--release", "--package", "--cap", "--format"]);
 
   const tested = (await hd(["help", "test"])).stdout;
   assert.match(

@@ -284,3 +284,4 @@ says that the check covered syntax only.
 | 2026-10-06 | probe 6: file import | type | `load!("no-such-file.csv")` where `Path` is expected | `type-mismatch: expected Path, found string` | yes | `load!(Path("no-such-file.csv"))` | kimi |
 | 2026-10-06 | probe 6: file import | api | `println("$error")` shows only the top message | no error; the cause chain needs `report_of` | no | `println(report_of(error))` prints the `caused by:` chain | kimi |
 | 2026-10-06 | probe 6: seed task | semantic | `write_text!` in a task's `pub fn main()` | `bang-call-outside-suspension: a bang call requires a suspending driver context` | yes | `pub fn main!()` in `tasks/seed.hd` | kimi |
+| 2026-10-06 | N3: std.http sample | type | `"${response.header("content-type")}"`, interpolating a `string?` | `unsatisfied-trait-bound: type 'string?' does not implement Display, required by string interpolation` | yes | `${response.header("content-type").unwrap_or("none")}` | opus |

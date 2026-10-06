@@ -3,7 +3,8 @@
 // `hd run`, and a task bind for each trait of the profile that the entry
 // row names. `Console` stays a built-in of every run (host-functions.ts);
 // this file answers `ConsoleInput`, `Args`, `Env`, `FsRead`, and
-// `FsWrite`, and `Clock` and `Random` through web-host.ts. Each answer is a boundary value, which the
+// `FsWrite`, `Clock` and `Random` through web-host.ts, and `Http` through
+// http-host.ts. Each answer is a boundary value, which the
 // adapter checks against the method's declared result
 // (spec/lang/10-modules.md#host-results).
 
@@ -25,6 +26,8 @@ import { resolve } from "node:path";
 
 import type { HostBoundaryValue, HostSuspensionCall, HostSuspensionOutcome } from "../compiler.ts";
 import { wait, WEB_HOST_ANSWERS } from "../web-host.ts";
+import { UNLIMITED, type CapabilityGrants } from "./capabilities.ts";
+import { sendRequest } from "./http-host.ts";
 
 /** What the default profile reads from the `hd` command that runs the program. */
 export interface DefaultProfileHost {
@@ -38,6 +41,8 @@ export interface DefaultProfileHost {
   readonly workingDirectory: string;
   /** Standard input: the next line, `undefined` at its end, or `null` when it cannot be read. */
   readonly readLine: () => string | undefined | null;
+  /** The program's capability grants (cli.cap.*); a trait it lacks has no limit. */
+  readonly grants?: CapabilityGrants;
 }
 
 /**
@@ -54,6 +59,7 @@ export const DEFAULT_PROFILE_TRAITS: readonly { readonly module: string; readonl
     { module: "std.random", name: "Random" },
     { module: "std.fs", name: "FsRead" },
     { module: "std.fs", name: "FsWrite" },
+    { module: "std.http", name: "Http" },
   ];
 
 type Answer = (call: HostSuspensionCall, host: DefaultProfileHost) => HostBoundaryValue | void;
@@ -208,6 +214,8 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
       ),
     );
   },
+  "std.http.Http.send": (call, host) =>
+    sendRequest(call.arguments[0]!, host.grants?.get("Http") ?? UNLIMITED),
 };
 
 /**

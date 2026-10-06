@@ -20,6 +20,7 @@ export const STANDARD_MODULES = [
   "format",
   "function",
   "hash",
+  "http",
   "host",
   "collections",
   "console",

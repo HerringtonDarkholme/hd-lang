@@ -13,6 +13,7 @@ import { SOURCE_ROOT, TASK_ROOT, TEST_ROOT } from "../package.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
 import { runSelected } from "../test-runner.ts";
+import type { CapabilityGrants } from "./capabilities.ts";
 import { defaultProfileAnswer, inputLines, type DefaultProfileHost } from "./default-profile.ts";
 import {
   combinedStatus,
@@ -87,6 +88,8 @@ export interface FileArgs extends SourceArgs {
   readonly profile?: RuntimeProfileName;
   /** The program's arguments, after `--` (spec/cli/command-line.md#r-cli.args.pass). */
   readonly programArguments?: readonly string[];
+  /** The grants of the `--cap` flags (spec/cli/command-line.md#r-cli.cap.flag). */
+  readonly grants?: CapabilityGrants;
 }
 
 /**
@@ -120,7 +123,10 @@ export async function fileCommand(args: FileArgs, io: CommandIo): Promise<number
  * (spec/cli/command-line.md#host-capabilities).
  */
 function defaultHost(
-  environment: CommandEnvironment & { readonly programArguments?: readonly string[] },
+  environment: CommandEnvironment & {
+    readonly programArguments?: readonly string[];
+    readonly grants?: CapabilityGrants;
+  },
   program: string,
   directory: string,
 ): RunHost {
@@ -129,6 +135,7 @@ function defaultHost(
     arguments: environment.programArguments ?? [],
     variables: variablesOf(environment),
     workingDirectory: directory,
+    ...(environment.grants ? { grants: environment.grants } : {}),
     ...(environment.readInput ? { readInput: environment.readInput } : {}),
   };
 }
@@ -163,6 +170,8 @@ export interface RunArgs extends CommandEnvironment, MemberSelection {
   readonly profile?: RuntimeProfileName;
   /** The program's arguments, after `--` (spec/cli/command-line.md#r-cli.args.pass). */
   readonly programArguments?: readonly string[];
+  /** The grants of the `--cap` flags (spec/cli/command-line.md#r-cli.cap.flag). */
+  readonly grants?: CapabilityGrants;
 }
 
 /**

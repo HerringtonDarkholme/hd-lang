@@ -2802,3 +2802,5 @@ cli/typeid-single-file	cli
 typing/invalid/trait-qualified-supertrait-call.hd	type
 typing/invalid/trait-qualified-supertrait-reference.hd	type
 typing/valid/trait-qualified-declaring-trait.hd	type
+runtime/valid/http-scripted-provider.hd	runtime
+runtime/valid/http-scripted-unknown-url.hd	runtime

@@ -23,6 +23,7 @@ const UNIT_TEST_FAKES: Readonly<
   FsRead: { provider: "MemoryFs::new()", module: "std.fs" },
   FsWrite: { provider: "MemoryFs::new()", module: "std.fs" },
   Process: { provider: "ScriptedProcess::new(outputs)", module: "std.process" },
+  Http: { provider: "ScriptedHttp::new(responses)", module: "std.http" },
 };
 
 export interface TestTierNames {

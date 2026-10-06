@@ -59,6 +59,17 @@ const PACKAGE: FlagSpec = {
 };
 
 /** How a command finds its package (spec/cli/command-line.md#package-mode). */
+/**
+ * `--cap NAME=VALUE`: one trait's capability grant for this command
+ * (spec/cli/command-line.md#r-cli.cap.flag); commands/capabilities.ts reads it.
+ */
+const CAP: FlagSpec = {
+  name: "--cap",
+  value: "NAME=VALUE",
+  repeat: true,
+  help: "grant the capability NAME: true, false, or a comma-separated list, as in Http=api.example.com",
+};
+
 const PACKAGE_NOTE =
   "The package is the one whose hd.toml is nearest above the current directory; at a workspace root, every member.";
 
@@ -98,7 +109,7 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 0,
     maxOperands: 1,
     summary: "run the package's executable, or the executable or task named NAME",
-    flags: [RELEASE, PACKAGE],
+    flags: [RELEASE, PACKAGE, CAP],
     notes: [
       PACKAGE_NOTE,
       "Without NAME, the package must have exactly one executable: src/main.hd, or",
@@ -291,7 +302,7 @@ const COMMANDS: readonly CommandSpec[] = [
     minOperands: 1,
     maxOperands: 1,
     summary: "run FILE as a single-file program",
-    flags: [],
+    flags: [CAP],
     hidden: true,
   },
   {

@@ -5,6 +5,7 @@
 import { pathToFileURL } from "node:url";
 
 import { parseCommandLine, UsageError, type ParsedCommand } from "./cli-args.ts";
+import { capabilityFlags, type CapabilityGrants } from "./commands/capabilities.ts";
 import {
   addCommand,
   buildCommand,
@@ -101,6 +102,15 @@ export async function main(
   const [first, second] = parsed.operands;
   const { format } = parsed;
   const options = { ...flags(parsed, environment.runner), ...environment };
+  let grants: CapabilityGrants;
+  try {
+    const shown = parsed.command.name === "file" ? "hd FILE" : `hd ${parsed.command.name}`;
+    grants = capabilityFlags(parsed.repeated.get("--cap") ?? [], shown);
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    io.err(error.message);
+    return EXIT_HD_FAILURE;
+  }
   switch (parsed.command.name) {
     case "repl":
       return replCommand({ input: process.stdin, output: process.stdout }, environment);
@@ -156,9 +166,12 @@ export async function main(
     case "build":
       return buildCommand({ ...options, file: first }, io);
     case "run":
-      return runCommand({ ...options, name: first, programArguments: parsed.programArguments }, io);
+      return runCommand(
+        { ...options, name: first, programArguments: parsed.programArguments, grants },
+        io,
+      );
     case "file":
-      return fileCommand({ ...options, programArguments: parsed.programArguments }, io);
+      return fileCommand({ ...options, programArguments: parsed.programArguments, grants }, io);
     case "test":
       return testCommand({ ...options, path: first }, io);
     default:

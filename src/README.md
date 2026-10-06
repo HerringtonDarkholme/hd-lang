@@ -65,9 +65,9 @@ in-process conformance adapter calls the same `main` with a buffering sink
 ([`../test/portable/README.md`](../test/portable/README.md)).
 
 ```text
-hd FILE  [-- ARGS]
+hd FILE  [--cap NAME=VALUE] [-- ARGS]
 hd build [--wat] [--release] [FILE]
-hd run   [--release] [NAME] [-- ARGS]
+hd run   [--release] [--cap NAME=VALUE] [NAME] [-- ARGS]
 hd test  [--update] [--filter PATTERN] [--seed N] [--cases N] [--shrink N] [FILE]
 hd check [--tests] [--all] [FILE]
 hd new   [--app] [--lib] [--vcs none] [PATH]
@@ -83,6 +83,12 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `--` are the program's arguments ([`cli.args.separator`](../spec/cli/command-line.md#r-cli.args.separator));
   only `hd run` and `hd FILE` take them, and a further word before `--`
   is an error that suggests `--`. No host capability reads them yet.
+- `--cap NAME=VALUE` sets one trait's capability grant
+  ([`cli.cap.flag`](../spec/cli/command-line.md#r-cli.cap.flag)), and may
+  be repeated. `commands/capabilities.ts` reads it; only `Http` is
+  checked so far, by `commands/http-host.ts` on each request and redirect
+  hop. `Http=false` refuses each request with `NotGranted` instead of
+  refusing to start, and another trait's flag is a usage error (CAPS).
 - A usage error prints to stderr and exits 101 ([`cli.exit.hd-failure`](../spec/cli/command-line.md#r-cli.exit.hd-failure)).
 - `hd debug parse` and `hd debug hir` print internal compiler output.
   `hd parse FILE` stays as a hidden spelling of `hd debug parse`, because
@@ -1550,6 +1556,7 @@ What it provides:
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; the host trait `Process` with `ProcessOutput`, and the deterministic `ScriptedProcess` |
+| `std.http` | the host trait `Http` with `send!` and `get!`, `Request`, `Response` with `text` and `header`, `Method`, `HttpError`, and the deterministic `ScriptedHttp`; the default profile binds `Http` to a synchronous client on a worker thread (`commands/http-host.ts`) |
 | `std.random` | the host trait `Random`, which the default profile binds to the operating system's random source |
 | `std.resource` | `ResourceError[E]` |
 | `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits, bodiless `@intrinsic` methods in numeric-family blocks such as `impl[N < Num] Add for N` (`string`'s `Add` is hd), and the index traits' implementations for `List`, `Map`, and `string`; the four range types, `Iterable` for `Range` and `RangeFrom` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type, generic over the integer type, as `impl[N < Integer] Index[Range[N]] for string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
