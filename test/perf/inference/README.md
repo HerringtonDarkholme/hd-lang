@@ -10,6 +10,7 @@ Two runners time them:
 
 ```sh
 pnpm run perf:check [--case NAME]... [--update] [--json FILE]
+pnpm run perf:check --merge RUN1 --merge RUN2 [--percentile 90] --baseline FILE
 node --experimental-strip-types test/perf/inference/run.ts [--case NAME] [--timeout SECONDS] [--emit]
 ```
 
@@ -62,14 +63,19 @@ A score cannot catch a slowdown that hits the reference program as much as
 the case, such as a checker that is twice as slow everywhere. The growth
 rule still catches anything that becomes super-linear.
 
-### Laptop Baseline, GitHub Runner
+### Baseline Runner
 
-`baseline.json` is recorded on a laptop (Apple M-series). On the first CI
-run, the reference program took 450 ms against 170 ms locally, and the
-scores came out 0.63x to 1.09x of the baseline. So on CI a case must slow
-down by up to 2x, not 1.5x, before the slowdown rule fails it. The same run
-showed growth ratios of near-linear cases about 1.5x higher than locally,
-which is why a known case may grow to 2x its recorded ratio.
+Record `baseline.json` on the same `ubuntu-latest` GitHub runners that apply
+the gate. The manual **Record performance baseline** workflow makes five
+independent update runs and keeps the nearest-rank 90th percentile of every
+case's small score, large score, and growth ratio. With five samples this is
+the highest observation, so an ordinarily slow runner remains below the
+1.5x slowdown limit. The artifact's `recorded` object identifies its platform,
+run count, and percentile.
+
+The workflow writes each run to a separate file. It invokes `gate.ts` with
+repeated `--merge FILE` options to produce the artifact; merging rejects
+different Node versions, platforms, scales, or result codes.
 
 ### Sizes
 
@@ -79,15 +85,17 @@ on main, that puts it at a third of the larger size.
 
 ### Updating the Baseline
 
-After a change that makes the checker faster, or a deliberate trade, record
-the new numbers on an idle machine and commit `baseline.json`:
+After a change that makes the checker faster, a deliberate performance
+trade, or a diagnostic change in a case:
 
-```sh
-pnpm run perf:check --update
-```
+1. Open GitHub Actions and run **Record performance baseline** on `main`.
+2. Download its `inference-perf-baseline` artifact.
+3. Replace `test/perf/inference/baseline.json` with the artifact's file.
+4. Run `pnpm run perf:check` locally as a sanity check, then commit the file.
 
-The baseline also records each case's result. Re-record after a compiler
-change that changes a case's diagnostics.
+The workflow never pushes or commits. Do not replace the baseline with a
+local `--update` run: local measurements remain useful for investigation,
+but they do not represent the machines that enforce the gate.
 
 ## Known Super-Linear Cases on Main
 

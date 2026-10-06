@@ -1,0 +1,54 @@
+name: Record performance baseline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    name: Record five runs and merge p90
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Record five independent runs
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p test/perf/inference/runs perf-artifact
+          for run in 1 2 3 4 5; do
+            pnpm run perf:check --update \
+              --baseline "test/perf/inference/runs/baseline-${run}.json" \
+              --json "test/perf/inference/runs/report-${run}.json"
+          done
+          pnpm run perf:check \
+            --merge test/perf/inference/runs/baseline-1.json \
+            --merge test/perf/inference/runs/baseline-2.json \
+            --merge test/perf/inference/runs/baseline-3.json \
+            --merge test/perf/inference/runs/baseline-4.json \
+            --merge test/perf/inference/runs/baseline-5.json \
+            --percentile 90 \
+            --baseline perf-artifact/baseline.json
+
+      - name: Upload merged baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: inference-perf-baseline
+          path: perf-artifact/baseline.json
+          if-no-files-found: error

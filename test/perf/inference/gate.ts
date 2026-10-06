@@ -2,6 +2,7 @@
 //
 // Usage: node --experimental-strip-types test/perf/inference/gate.ts
 //   [--case NAME]... [--update] [--baseline FILE] [--json FILE]
+//   --merge FILE --merge FILE... [--percentile N] --baseline FILE
 //
 // Each case runs in its own process at a smaller and a larger scale, with
 // the reference program (gen.ts REFERENCE) timed in the same rounds. A case
@@ -22,6 +23,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { CASES } from "./gen.ts";
+import { mergedBaseline, type Baseline, type BaselineCase } from "./baseline-merge.ts";
 import { formatMs, measureInChild } from "./spawn.ts";
 
 interface GateCase {
@@ -63,34 +65,54 @@ const LOW_SCORE_FLOOR = 0.1;
 const REFERENCE_SCALE = 10;
 const TIMEOUT_SECONDS = 90;
 
-interface BaselineCase {
-  readonly scales: readonly [number, number];
-  readonly scores: readonly [number, number];
-  readonly ratio: number;
-  readonly codes: readonly string[];
-}
-interface Baseline {
-  readonly note: string;
-  readonly recorded: { readonly date: string; readonly node: string; readonly platform: string };
-  readonly referenceMs: number;
-  readonly cases: Record<string, BaselineCase>;
-}
-
 const args = process.argv.slice(2);
 const selected: string[] = [];
+const mergePaths: string[] = [];
 let update = false;
 let baselinePath = resolve(import.meta.dirname, "baseline.json");
 let jsonPath: string | undefined;
+let mergePercentile = 90;
+let percentileSet = false;
 for (let index = 0; index < args.length; index += 1) {
   const option = args[index];
   if (option === "--case") selected.push(args[++index]!);
   else if (option === "--update") update = true;
   else if (option === "--baseline") baselinePath = resolve(args[++index]!);
   else if (option === "--json") jsonPath = args[++index];
-  else {
+  else if (option === "--merge") mergePaths.push(resolve(args[++index]!));
+  else if (option === "--percentile") {
+    mergePercentile = Number(args[++index]);
+    percentileSet = true;
+  } else {
     console.error(`unknown option ${option}`);
     process.exit(2);
   }
+}
+if (mergePaths.length > 0) {
+  if (update || selected.length > 0 || jsonPath) {
+    console.error("--merge cannot be combined with --case, --update, or --json");
+    process.exit(2);
+  }
+  if (!Number.isFinite(mergePercentile) || mergePercentile <= 0 || mergePercentile > 100) {
+    console.error("--percentile must be greater than 0 and at most 100");
+    process.exit(2);
+  }
+  try {
+    const inputs = mergePaths.map((path) => JSON.parse(readFileSync(path, "utf8")) as Baseline);
+    writeFileSync(
+      baselinePath,
+      `${JSON.stringify(mergedBaseline(inputs, mergePercentile, GATE), null, 2)}\n`,
+    );
+    console.log(`merged ${inputs.length} baselines at p${mergePercentile} into ${baselinePath}`);
+    process.exit(0);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(2);
+  }
+}
+if (percentileSet) {
+  console.error("--percentile requires --merge");
+  process.exit(2);
 }
 for (const name of selected)
   if (!GATE.some((entry) => entry.name === name)) {
