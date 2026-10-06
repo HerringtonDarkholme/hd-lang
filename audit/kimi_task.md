@@ -94,24 +94,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K16-fix. Repair guide/WORKING_WITH_DATA.md (Do First)
-
-Review of your K16 commits (7f64622c..99480d48) found three problems:
-
-1. **Section 1 (JSON config) is missing.** Commit 7f64622c, "section 1:
-   JSON config", added only the title and intro paragraph. Write the
-   JSON config section: a config loader with `@derive(Serialize,
-   Deserialize)`, `from_json`, a typed error on a missing key, and a test.
-   It must run with hd.
-2. **The title and intro paragraph appear twice** at the top of the file.
-   Keep one.
-3. **No blank line before each `## ` heading.** Every heading directly
-   follows the previous paragraph or code fence. Add one blank line
-   before each heading.
-
-Before committing, open the file and read it top to bottom. Check that
-each commit's diff contains what its message says.
-
 ### K19. A Human Guide To The `hd` Command (Do First)
 
 Owner, 2026-10-06: "the cli reference is for spec, not for human read".

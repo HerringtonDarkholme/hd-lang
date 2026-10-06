@@ -6,14 +6,55 @@ config, tests that live in the documentation, concurrent work with a
 timeout, file reads and writes, and pulling fields out of log lines. Each
 program below runs as written; the tests pass with `hd test FILE` (or in
 package mode, `hd test`).
-# Working With Data
 
-This page covers five everyday jobs that the
-[Language Tour](LANGUAGE_TOUR.md) does not: reading JSON into typed
-config, tests that live in the documentation, concurrent work with a
-timeout, file reads and writes, and pulling fields out of log lines. Each
-program below runs as written; the tests pass with `hd test FILE` (or in
-package mode, `hd test`).
+## Reading Configuration As JSON
+
+A service's config file is the first thing that breaks in production, and
+the first thing a reviewer reads. hd reads it as typed data: the fields
+are typed, a missing one is a named error with its path, and an extra one
+is ignored, so a newer config still loads with an older binary. The type
+declares its consent with `@derive(Serialize, Deserialize)`; nothing else
+is needed. The exact rules are in
+[Typed JSON](../spec/std/json.md#typed-json) and
+[Serde](../spec/std/serde.md):
+
+```hd
+use std.json.{decode, JsonError}
+use std.serde.{Deserialize, Serialize}
+use std.testing.assert_equal
+
+@derive(Serialize, Deserialize)
+data Limits:
+    retries: i32
+    timeout_ms: i32
+
+@derive(Serialize, Deserialize)
+data Config:
+    name: string
+    limits: Limits
+
+fn load(text: string) -> Result[Config, JsonError]:
+    decode::[Config](text)
+
+tests:
+    it("reads a nested config"):
+        text := "{\"name\": \"shop\", \"limits\": {\"retries\": 3, \"timeout_ms\": 250}}"
+        match load(text):
+            .Ok(config) =>
+                assert_equal(config.name, "shop", reason="the name")
+                assert_equal(config.limits.timeout_ms, 250, reason="the nested field")
+            .Err(error) => panic("parse failed: $error")
+
+    it("a missing key names its path"):
+        match load("{\"name\": \"shop\", \"limits\": {\"retries\": 3}}"):
+            .Ok(_) => panic("expected an error")
+            .Err(error) => assert_equal("$error", "missing field at $.limits.timeout_ms", reason="the path")
+```
+
+A key that is present wins over the declared default; a key that is
+missing with no default is an error. For the compact text of a value,
+`encode` writes it; `decode` reads it back.
+
 ## Documentation That Runs As Tests
 
 A code block in a doc comment that no one runs drifts out of date. A
@@ -41,6 +82,7 @@ pub fn total(prices: List[i32]) -> i32:
 
 A doc test is its own program: it imports what it uses, from the package
 under `pkg` or from `std`. Run it with `hd test` in the package.
+
 ## Concurrent Work With A Timeout
 
 A dashboard needs three lookups, and a user will not wait forever. `all!`
@@ -95,6 +137,7 @@ tests:
             $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
                 assert_equal(load_with_timeout!(), "fake-user", reason="the lookup wins")
 ```
+
 ## Reading And Writing Files
 
 Importing a CSV, writing a report: the file system is a capability, so a
@@ -125,6 +168,7 @@ Paths are `Path` values, so `"reports/$name.txt"` is one argument, not
 string surgery on separators. Integration tests get the real file system
 and a fresh temporary directory per case; see
 [Temporary Directories](../spec/std/testing.md#temporary-directories).
+
 ## Scanning Logs With Regex
 
 Operations read logs: count the server errors by status, or find the
