@@ -2597,6 +2597,7 @@ runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde
 runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args
 runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors
 runtime/valid/json-typed-members.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.embedded
+runtime/valid/json-typed-missing-key-ignores-default.hd	runtime	accept	std/json.md#r-std-json.derive.from-json.no-default
 typing/invalid/serde-derive-member-not-deserialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error
 typing/invalid/boundary-result-needs-deserialize.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.consent.in
 typing/invalid/boundary-nested-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.consent.error

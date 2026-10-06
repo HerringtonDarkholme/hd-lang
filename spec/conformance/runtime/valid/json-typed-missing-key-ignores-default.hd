@@ -1,0 +1,23 @@
+# test: a member's declared default is a value for code, not a wire rule: a missing key is still read, and is a MissingField when its type does not read null
+# Spec std/json Derived Deserialize: std-json.derive.from-json.no-default, std-json.derive.from-json.missing.
+# Spec std/serde Derived Consent: std-serde.derive.deserialize.order.
+# Spec 14 Build: annot.build.member.
+use std.json.{decode, JsonError}
+use std.serde.{Serialize, Deserialize}
+use std.testing.assert_equal
+
+@derive(Serialize, Deserialize)
+data ServerConfig:
+    host: string
+    port: u16 = 8080
+    banner: string? = .Some("welcome")
+
+tests:
+    it("a missing key for a member with a default is a MissingField"):
+        assert_equal(decode::[ServerConfig]("{\"host\":\"db1\"}").map(fn(found): found.port), .Err(JsonError.MissingField("$.port")), reason="port declares 8080")
+
+    it("a missing optional member reads null, not its default"):
+        assert_equal(decode::[ServerConfig]("{\"host\":\"db1\",\"port\":5432}").map(fn(found): found.banner), .Ok(.None), reason="banner declares welcome")
+
+    it("a present key is read, whatever the default"):
+        assert_equal(decode::[ServerConfig]("{\"host\":\"db1\",\"port\":5432,\"banner\":\"hi\"}").map(fn(found): found.port), .Ok(5432), reason="port read")

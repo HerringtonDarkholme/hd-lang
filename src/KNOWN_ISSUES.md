@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,655 cases: 2,640 selected in `test/portable/cases.tsv` and 15 known
-failures. The selected cases are 2,286 language tier, 301 stdlib tier, and 53
-CLI tier; the known failures are 4 language tier, 1 stdlib tier, and 10
+2,667 cases: 2,651 selected in `test/portable/cases.tsv` and 16 known
+failures. The selected cases are 2,291 language tier, 307 stdlib tier, and 53
+CLI tier; the known failures are 4 language tier, 2 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -23,6 +23,7 @@ CLI tier.
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | F-614 | 1 | a `.Variant` line right after a same-line `if` suite is joined to it |
 | F-615 | 2 | an `if` or `match` with an expected type joins its branches by least common type |
+| F-616 | 1 | a derived `build` fills a member that declares a default without reading it |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
 ## Findings
@@ -61,6 +62,15 @@ Correctness and diagnostics:
   `src/checker/expression-control.ts`.
   `typing/invalid/match-arm-misses-expected-type.hd` and
   `typing/invalid/if-branch-misses-expected-type.hd` show it.
+- **F-616**: a derived `build` sets each member that declares a default
+  from that default and never calls `s.member` for it, in every template.
+  That is right only for `Default`
+  (`std-ops.default.derive.member-bound.declared`). By `annot.build.member`
+  a derived `Deserialize` reads the member, so by
+  `std-json.derive.from-json.no-default` a missing key is a `MissingField`
+  and a present key is read. The cause is the declared-default branch of
+  the build generator in `src/checker/typed-derivation.ts`.
+  `runtime/valid/json-typed-missing-key-ignores-default.hd` shows it.
 
 Runtime cost:
 
