@@ -1,7 +1,9 @@
 # test: Termination.report maps void, ExitCode, and Result to an exit code
 # Spec 10 Exit Status: module.entry.termination, module.entry.termination.exit-code, module.entry.termination.ok, module.entry.termination.err-code, module.testing.pass.
 # Spec 10 Exit Status: void reports 0, ExitCode reports itself, .Ok reports its value's
-# code, and .Err prints the error and reports 1. A test body may return an ExitCode.
+# code, and .Err prints the error and reports 1. A test body may return an ExitCode
+# when it is an explicit closure (Spec 05: expr.try.test.explicit-closure); a
+# trailing block's result type is void (expr.try.test.fixed-result).
 use std.process.{ExitCode, Termination}
 use std.testing.assert_equal
 
@@ -20,5 +22,4 @@ tests:
         let result: Result[void, string] = .Err("expected failure")
         assert_equal(code_of(result), 1, reason=".Err reports 1")
 
-    it("a test body may return ExitCode(0)"):
-        ExitCode(0)
+    it("a test body may return ExitCode(0)", body=fn!() -> ExitCode: ExitCode(0))
