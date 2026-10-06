@@ -143,7 +143,11 @@ exceeds 3.7 KB.
 Most promising fixes, in order:
 1. The `StringBuilder`/concat growth path (string-build is ~1100x Node;
    the probe points at copying per push, so look at the builder's buffer
-   growth in `lib/std` and its emitted calls).
+   growth in `lib/std` and its emitted calls). Fixed by task P1e: `join`
+   appended each part to the text so far, copying it again every time.
+   It now joins by halves, and `replace` and `repeat` stopped appending
+   too. string-build fell from 5,160 ms to 20 ms (Node 6.7 ms) on the
+   same laptop; `test/std.test.ts` bounds 200,000 parts at 2 s.
 2. Range-loop iteration through boxed `Iterator` closures (sum is 19x
    Node with no allocation; a `for` over `1..N` should lower to a counter
    loop).

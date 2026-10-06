@@ -38,10 +38,16 @@ tests:
         assert_equal("a\n\nb".lines(), ["a", "", "b"], reason="an inner empty line stays")
         assert_equal("ab".repeat(3), "ababab", reason="repeat")
         assert_equal("ab".repeat(0), "", reason="zero times")
+        assert_equal("ab".repeat(1), "ab", reason="once")
+        assert_equal("ab".repeat(7), "ababababababab", reason="seven times")
+        assert_equal("".repeat(5), "", reason="an empty string")
 
     it("join and StringBuilder"):
         assert_equal(join(["a", "b", "c"], ", "), "a, b, c", reason="join")
         assert_equal(join([], ", "), "", reason="join of nothing")
+        assert_equal(join(["a"], ", "), "a", reason="join of one part")
+        assert_equal(join(["a", "", "c", "d", "e"], "-"), "a--c-d-e", reason="join of five parts")
+        assert_equal(["x", "y"].join(""), "xy", reason="join with no separator")
         let builder: mut StringBuilder = StringBuilder::new()
         builder.push("x")
         builder.push("y")

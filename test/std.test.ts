@@ -3,7 +3,7 @@ import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
-import { analyze } from "../src/compiler.ts";
+import { analyze, instantiate } from "../src/compiler.ts";
 import { standardModulesOf, withStandardLibrary } from "../src/checker/standard-library.ts";
 import { parse } from "../src/parser/index.ts";
 import { STANDARD_MODULES, standardSource } from "../src/checker/standard-sources.ts";
@@ -122,4 +122,29 @@ test("a joined module declares every inherent method on a built-in type", () => 
       : [],
   );
   assert.ok(methods.includes("unwrap_or") && methods.includes("is_none"), methods.join(" "));
+});
+
+test("building a string from 200,000 parts takes linear-ish time", async () => {
+  // Appending each part to the text so far copies that text again, so the
+  // quadratic join took about 5 s for 100,000 parts; the bound is generous
+  // (audit/compiler/perf-audit.md, Runtime Microbenchmarks And Wasm Size).
+  const source = `use std.text.{StringBuilder, join}
+
+pub fn main() -> void:
+    let mut out = StringBuilder::new()
+    let parts: mut List[string] = []
+    for i in 0..200_000:
+        out.push("part-$i;")
+        parts.push("ab")
+    if out.build().len() != 2_288_890: panic("build")
+    joined := join(parts, ",")
+    if joined.len() != 599_999: panic("join")
+    if joined.replace(",", "").len() != 400_000: panic("replace")
+    if "ab".repeat(200_000).len() != 400_000: panic("repeat")
+`;
+  const { instance } = await instantiate(source, { release: true });
+  const start = performance.now();
+  (instance.exports.main as () => void)();
+  const elapsed = performance.now() - start;
+  assert.ok(elapsed < 2000, `took ${elapsed.toFixed(0)} ms`);
 });

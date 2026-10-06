@@ -287,25 +287,30 @@ impl string:
     # inserts `replacement` at every scalar boundary.
     pub fn replace(self, old: string, replacement: string) -> string:
         size := bytes_len(self)
+        # The pieces are joined once at the end, since appending each to
+        # the text so far would copy that text again every time.
+        let pieces: mut List[string] = []
         if bytes_len(old) == 0:
-            let replaced = replacement
+            pieces.push(replacement)
             let start: usize = 0
             while start < size:
                 end := scalar_end(self, start)
-                replaced = replaced + bytes_slice(self, start, end) + replacement
+                pieces.push(bytes_slice(self, start, end))
+                pieces.push(replacement)
                 start = end
-            return replaced
-        let replaced = ""
+            return join(pieces, "")
         let start: usize = 0
         let searching = true
         while searching:
             match byte_find(self, old, start):
                 .Some(found) =>
-                    replaced = replaced + bytes_slice(self, start, found) + replacement
+                    pieces.push(bytes_slice(self, start, found))
+                    pieces.push(replacement)
                     start = found + bytes_len(old)
                 .None =>
                     searching = false
-        replaced + bytes_slice(self, start, size)
+        pieces.push(bytes_slice(self, start, size))
+        join(pieces, "")
 
     # Removes the Unicode White_Space property at both ends.
     pub fn trim(self) -> string:
@@ -362,12 +367,18 @@ impl string:
             index = index + 1
         found
 
+    # Doubles a run of copies and adds the runs that the bits of `count`
+    # name, so the bytes copied stay proportional to the result's length.
     pub fn repeat(self, count: usize) -> string:
         let repeated = ""
-        let index: usize = 0
-        while index < count:
-            repeated = repeated + self
-            index = index + 1
+        let run = self
+        let remaining = count
+        while remaining > 0:
+            if remaining % 2 == 1:
+                repeated = repeated + run
+            remaining = remaining / 2
+            if remaining > 0:
+                run = run + run
         repeated
 
     # The text before and after the first `separator`, or `.None` when it
@@ -460,14 +471,19 @@ impl char:
         if u32(value) < radix: .Some(u32(value)) else: .None
 
 pub fn join(parts: List[string], separator: string) -> string:
-    let joined = ""
-    let index: usize = 0
-    for part in parts:
-        if index > 0:
-            joined = joined + separator
-        joined = joined + part
-        index = index + 1
-    joined
+    if parts.len() == 0:
+        return ""
+    join_range(parts, separator, 0, parts.len())
+
+# The parts from `start` up to `end`, which is above `start`, joined by
+# halves. Appending each part to the joined text so far copies that text
+# again for every part, a quadratic cost; joining halves copies each byte
+# at most twice per level, and there are about log2(n) levels.
+fn join_range(parts: List[string], separator: string, start: usize, end: usize) -> string:
+    if end - start == 1:
+        return parts[start]
+    middle := start + (end - start) / 2
+    join_range(parts, separator, start, middle) + separator + join_range(parts, separator, middle, end)
 
 impl List[string]:
     # The parts in order with `separator` between each two
