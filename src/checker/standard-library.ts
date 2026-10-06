@@ -304,6 +304,14 @@ export function standardPublicNames(module: string): readonly string[] | undefin
   return isStandardModule(module) ? declaredModule(module).publicNames : undefined;
 }
 
+/** Whether `lib/std/<module>.hd` declares a trait named `name`. */
+export function standardDeclaresTrait(module: string, name: string): boolean {
+  return (
+    isStandardModule(module) &&
+    declaredModule(module).program.traits.some((trait) => trait.name === name)
+  );
+}
+
 function standardModule(name: StandardModule): ParsedModule {
   const cached = parsedModules.get(name);
   if (cached) return cached;

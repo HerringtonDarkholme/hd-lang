@@ -947,8 +947,10 @@ else`, `break`, `break value`, and `continue`;
   module's binding is `top-level-read-before-initialization`. Linked
   modules share one top-level namespace. Each module's scope hides the
   other modules' top-level names that it does not import, so a bare one is
-  `unknown-name`, `unknown-type`, or `unknown-trait` with a `use` hint;
-  only names bound by a std use, which joins once, stay shared
+  `unknown-name`, `unknown-type`, or `unknown-trait` with a `use` hint.
+  The names a std use binds stay in their module too: the use line joins
+  once, and a module that binds a name to another std declaration than an
+  earlier module does joins it under a hidden spelling
   (`../website/playground/README.md#packages-and-modules`);
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation

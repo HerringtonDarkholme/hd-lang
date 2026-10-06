@@ -7,6 +7,14 @@ import type {
   Program,
   UseDecl,
 } from "./ast.ts";
+import { PRELUDE_NAMES } from "./checker/prelude-names.ts";
+import {
+  isStandardUse,
+  joinedText,
+  standardForeign,
+  standardSpellings,
+  wrapTestModule,
+} from "./package-join.ts";
 import type { ParseOptions } from "./parser/base.ts";
 import type { Diagnostic, SourcePosition, SourceSpan } from "./diagnostics.ts";
 import { physicalDiagnostic, sourceDocument } from "./diagnostics.ts";
@@ -29,9 +37,11 @@ import { nominalGenericParts } from "./types.ts";
 // declares joins under a hidden spelling, and the scope maps the module's
 // own spellings, its renamed (`as`) uses, and its module namespace uses
 // (`use pkg.user.types`) to the joined spellings. The scope also lists the
-// other linked modules' top-level names that the module neither declares
-// nor imports, so that naming one is an error, as it would be if the
-// modules were compiled apart (03-names-and-scopes.md#r-names.module.declarations).
+// other linked modules' top-level names, and the names their std uses bind,
+// that the module neither declares nor imports, so that naming one is an
+// error, as it would be if the modules were compiled apart
+// (03-names-and-scopes.md#r-names.module.other-module). Std use lines join
+// once (package-join.ts).
 // The checker applies the scopes before anything else (checker/module-paths.ts).
 //
 // A `*_test.hd` file is a test module. It joins as a `tests:` block, so the
@@ -493,19 +503,6 @@ function entryUseMessage(
 ): string | undefined {
   if (!programs.includes(target.path) || module.path === target.path) return undefined;
   return `'${target.path}' is an executable's entry module, which is its own program and no module can use`;
-}
-
-// Wraps a unit test module's text as a `tests:` block by re-indenting its
-// lines and deleting top-level `pub`. Integration test modules never pass
-// through here: they join as ordinary top-level source from their own AST.
-function wrapTestModule(text: string, deleted: Map<number, number>): string {
-  const lines = text.split("\n").map((lineText, index) => {
-    const pub = /^pub\s+(?=(?:fn|data|enum|trait|type|use)\b)/.exec(lineText);
-    if (!pub) return lineText;
-    deleted.set(index, pub[0].length);
-    return lineText.slice(pub[0].length);
-  });
-  return `tests:\n${lines.join("\n").replace(/^(?=.)/gm, "    ")}`;
 }
 
 function fileStart(): SourceSpan {
@@ -1041,7 +1038,7 @@ export function linkPackage(
 
   const { order, groups } = initializationOrder(reachable, edges);
 
-  const joinedName = joinedNames(order, entryModule, report);
+  const { joinedName, standardName } = joinedNames(order, entryModule, report);
   const foreignOf = foreignNamesOf(order, importedNames, resolvedUses);
 
   const segments: LinkSegment[] = [];
@@ -1050,7 +1047,8 @@ export function linkPackage(
     return { modules: order, diagnostics, locate, initGroups: [], dependencySources };
 
   // Join the modules. Package uses are dropped and a standard use keeps only
-  // the names no earlier module imported; every other line stays in place.
+  // the names no earlier module imported under the same spelling; every
+  // other line stays in place.
   const importedStd = new Set<string>();
   let source = "";
   let line = 1;
@@ -1077,6 +1075,10 @@ export function linkPackage(
       imports.push(joined); // every joined name the module imports
       if (joined !== local) names[local] = joined;
     }
+    // A std name another module binds differently joins under a hidden spelling.
+    for (const { names: used } of (module.program?.uses ?? []).filter(isStandardUse))
+      for (const local of used.map(({ name, alias }) => alias ?? name))
+        if (standardName(module, local) !== local) names[local] = standardName(module, local);
     for (const use of resolvedUses.get(module) ?? []) {
       if (use.namespace === undefined) continue;
       namespaces[use.namespace] = keyOf(use.target);
@@ -1108,7 +1110,8 @@ export function linkPackage(
     // The start line precedes the group's text, matching the old marker
     // line: the parser opens the group at the first statement after it.
     if (multi !== undefined) initGroups.push({ line: line - 1, multi });
-    let text = joinedText(module, sources[module.path]!, importedStd);
+    const spelling = (local: string): string => standardName(module, local);
+    let text = joinedText(module.program!, sources[module.path]!, importedStd, spelling);
     if (!text.endsWith("\n")) text += "\n";
     const lineCount = text.split("\n").length - 1;
     // A unit test module joins as a `tests:` block; its top-level `pub` is
@@ -1150,10 +1153,12 @@ export function linkPackage(
 }
 
 /**
- * For each linked module, the top-level names of the other linked modules
- * (`order`) that it must not name (03-names-and-scopes.md#r-names.module.declarations):
- * those it neither declares nor binds through a use. A std use joins once
- * for every module, so its names stay visible (checker/module-paths.ts).
+ * For each linked module, the names of the other linked modules (`order`)
+ * that it must not name (03-names-and-scopes.md#r-names.module.other-module):
+ * their top-level names, and the names their std uses bind
+ * (r-names.module.use-own-module), that it neither declares nor binds
+ * through a use. A std use still joins once for every module; only its
+ * names stay in their module. A prelude name is in every module's scope.
  */
 function foreignNamesOf(
   order: readonly PackageModule[],
@@ -1161,9 +1166,16 @@ function foreignNamesOf(
   resolvedUses: ReadonlyMap<PackageModule, readonly ResolvedUse[]>,
 ): (module: PackageModule) => Pick<ModuleScope, "foreign"> {
   const declarers = new Map<string, PackageModule[]>();
-  for (const module of order)
+  const standard = new Map<string, ForeignName>();
+  for (const module of order) {
     for (const name of module.program ? topLevelNames(module.program).keys() : [])
       declarers.set(name, [...(declarers.get(name) ?? []), module]);
+    for (const use of module.program?.uses ?? [])
+      if (isStandardUse(use))
+        for (const { name, alias } of use.names)
+          if (!PRELUDE_NAMES.has(alias ?? name) && !standard.has(alias ?? name))
+            standard.set(alias ?? name, standardForeign(use.module, name, alias));
+  }
   return (module) => {
     const program = module.program;
     if (!program) return {};
@@ -1185,6 +1197,7 @@ function foreignNamesOf(
       const trait = target.program!.traits.some((declaration) => declaration.name === name);
       foreign[name] = { ...(trait ? { trait } : {}), hint: foreignHint(module, target, name) };
     }
+    for (const [name, found] of standard) if (!visible.has(name)) foreign[name] ??= found;
     return Object.keys(foreign).length > 0 ? { foreign } : {};
   };
 }
@@ -1297,59 +1310,6 @@ export function linkedParseOptions(linked: LinkedPackage): ParseOptions {
   };
 }
 
-function isStandardUse(declaration: UseDecl): boolean {
-  return declaration.module.split(".")[0] === "std";
-}
-
-// A module's text in the joined source: package uses are dropped, and a
-// standard use keeps only the names that no earlier module imported
-// (`importedStd`, which this adds to). Every other line stays in place.
-function joinedText(module: PackageModule, source: string, importedStd: Set<string>): string {
-  let text = source;
-  const edits: { readonly start: number; readonly end: number; readonly text: string }[] = [];
-  const moduleStd = new Set<string>();
-  // A module's documentation is its file's first block, so in the joined
-  // source it would attach to nothing: its lines stay, blank
-  // (spec/lang/01-lexical-structure.md#r-lex.doc.module).
-  const moduleDoc = module.program!.moduleDoc?.span;
-  if (moduleDoc) {
-    const { offset: start } = moduleDoc.start;
-    const end = moduleDoc.end.offset;
-    edits.push({ start, end, text: text.slice(start, end).replace(/[^\n]/g, "") });
-  }
-  for (const declaration of module.program!.uses) {
-    // A `pub use` span starts at `use`; the edit covers the `pub` too.
-    const end = declaration.span.end.offset;
-    let start = declaration.span.start.offset;
-    if (declaration.public) start = text.lastIndexOf("pub", start);
-    const newlines = text.slice(start, end).replace(/[^\n]/g, "");
-    if (!isStandardUse(declaration)) {
-      edits.push({ start, end, text: newlines });
-      continue;
-    }
-    const kept = declaration.names.filter(({ name, alias }) => {
-      const key = `${alias ?? name}=${declaration.module}.${name}`;
-      moduleStd.add(key);
-      return !importedStd.has(key);
-    });
-    if (kept.length === declaration.names.length) continue;
-    const names = kept.map(({ name, alias }) => (alias ? `${name} as ${alias}` : name));
-    const pub = declaration.public ? "pub " : "";
-    edits.push({
-      start,
-      end,
-      text:
-        kept.length === 0
-          ? newlines
-          : `${pub}use ${declaration.module}.{${names.join(", ")}}${newlines}`,
-    });
-  }
-  for (const key of moduleStd) importedStd.add(key);
-  for (const edit of edits.toReversed())
-    text = text.slice(0, edit.start) + edit.text + text.slice(edit.end);
-  return text;
-}
-
 // Initialization order (spec/lang/10-modules.md#initialization-order): modules
 // that use each other form one group; a group is ready once every group it
 // uses is done, and ready groups go by their least identity. Test modules
@@ -1399,14 +1359,18 @@ function byIdentity(left: PackageModule, right: PackageModule): number {
 // module keeps its own names through its scope (`ModuleScope`): a
 // declaration whose name another linked module also declares, or imports
 // from std, joins under a hidden spelling, except in the entry module.
-// Standard uses join once for every module, so two modules must not bind
-// one name to different std declarations.
+// Standard uses join once for every module; a module that binds a local
+// name to another std declaration than an earlier module does binds it
+// under a hidden spelling (`standardName`, package-join.ts).
 function joinedNames(
   order: readonly PackageModule[],
   entryModule: PackageModule | undefined,
   report: (path: string, code: string, message: string, span?: SourceSpan) => void,
-): (declared: Declared) => string {
-  const standardBinders = new Map<string, { module: PackageModule; std: string }[]>();
+): {
+  readonly joinedName: (declared: Declared) => string;
+  readonly standardName: (module: PackageModule, local: string) => string;
+} {
+  const standardBinders = new Map<string, PackageModule[]>();
   const declarers = new Map<string, PackageModule[]>();
   for (const module of order) {
     const program = module.program;
@@ -1421,40 +1385,34 @@ function joinedNames(
         "only the entry module may declare 'main' in a linked package",
         main.span,
       );
-    for (const declaration of program.uses) {
-      if (!isStandardUse(declaration)) continue;
-      for (const { name, alias } of declaration.names) {
-        const local = alias ?? name;
-        const std = `${declaration.module}.${name}`;
-        const binders = standardBinders.get(local) ?? [];
-        const other = binders.find((binder) => binder.module !== module && binder.std !== std);
-        if (other)
-          report(
-            module.path,
-            "package-name-collision",
-            `'${local}' names a different declaration in module '${shown(other.module)}'; linked modules share their std uses, so these must agree`,
-            declaration.span,
-          );
-        standardBinders.set(local, [...binders, { module, std }]);
-      }
-    }
+    for (const declaration of program.uses)
+      if (isStandardUse(declaration))
+        for (const { name, alias } of declaration.names)
+          standardBinders.set(alias ?? name, [
+            ...(standardBinders.get(alias ?? name) ?? []),
+            module,
+          ]);
   }
   const spellings = new Set(declarers.keys());
   const hiddenNames = new Map<string, string>();
-  return ({ module, name }: Declared): string => {
+  const hidden = (module: PackageModule, name: string): string => {
+    const key = `${module.path}\0${name}`;
+    let found = hiddenNames.get(key);
+    if (found === undefined) {
+      const base = hiddenPackageName(hiddenBase(module), name);
+      found = base;
+      for (let index = 2; spellings.has(found); index += 1) found = `${base}_${index}`;
+      spellings.add(found);
+      hiddenNames.set(key, found);
+    }
+    return found;
+  };
+  const joinedName = ({ module, name }: Declared): string => {
     const shared =
       (declarers.get(name) ?? []).some((other) => other !== module) ||
-      (standardBinders.get(name) ?? []).some((binder) => binder.module !== module);
+      (standardBinders.get(name) ?? []).some((binder) => binder !== module);
     if (!shared || (module === entryModule && !standardBinders.has(name))) return name;
-    const key = `${module.path}\0${name}`;
-    let hidden = hiddenNames.get(key);
-    if (hidden === undefined) {
-      const base = hiddenPackageName(hiddenBase(module), name);
-      hidden = base;
-      for (let index = 2; spellings.has(hidden); index += 1) hidden = `${base}_${index}`;
-      spellings.add(hidden);
-      hiddenNames.set(key, hidden);
-    }
-    return hidden;
+    return hidden(module, name);
   };
+  return { joinedName, standardName: standardSpellings(order, hidden) };
 }

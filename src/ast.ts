@@ -584,9 +584,11 @@ export interface ModuleScope {
   /** The joined spelling of each package declaration a use of the module imports. */
   readonly imports?: readonly string[];
   /**
-   * The top-level names of other linked modules that this module neither
-   * declares nor imports, which it must not name
-   * (spec/lang/03-names-and-scopes.md#r-names.module.declarations).
+   * The names that other linked modules declare at top level or bind
+   * through a std use, and that this module neither declares nor imports,
+   * which it must not name
+   * (spec/lang/03-names-and-scopes.md#r-names.module.other-module,
+   * spec/lang/03-names-and-scopes.md#r-names.module.use-own-module).
    */
   readonly foreign?: Readonly<Record<string, ForeignName>>;
 }
@@ -595,6 +597,12 @@ export interface ModuleScope {
 export interface ForeignName {
   /** Set when the name is a trait, whose unknown use in a type is `unknown-trait`. */
   readonly trait?: true;
+  /**
+   * The std declaration that another module's std use binds the name to, as
+   * `{ module: "text", name: "join" }`; the checker asks std whether it is a
+   * trait.
+   */
+  readonly standard?: { readonly module: string; readonly name: string };
   /** Where the name is declared and how to reach it, as `module 'cart' declares it; ...`. */
   readonly hint: string;
 }

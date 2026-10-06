@@ -210,12 +210,8 @@ The linker's own diagnostic codes are `invalid-module-path`,
 
 Not supported yet:
 
-- Linked modules share their standard-library uses, so two modules cannot
-  bind one name to different std declarations (`package-name-collision`),
-  and only the entry module may declare `main`. Test case names are shared
-  too, so two modules cannot name a test case alike (`duplicate-test-name`).
-- A name that one module imports from std is visible in every linked
-  module, since the linker joins the std uses once.
+- Only the entry module may declare `main`. Test case names are shared,
+  so two modules cannot name a test case alike (`duplicate-test-name`).
 - There are no dependencies (`dep.<name>`) and no `hd.toml` manifest.
 
 ## Other Limits

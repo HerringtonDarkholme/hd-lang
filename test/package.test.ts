@@ -535,6 +535,81 @@ test("another module's top-level names are in scope only through a use", () => {
   );
 });
 
+test("a std use binds its names only in its own module", async () => {
+  // The conformance fixtures sibling-module-std-name-*.hd cover a bare
+  // value name. These are the other forms and the hints
+  // (03-names-and-scopes.md#r-names.module.use-own-module).
+  const check = (files: Record<string, string>): string[] => {
+    const linked = linkPackage(files, "src/main.hd");
+    assert.deepEqual(linked.diagnostics, []);
+    const { diagnostics } = analyze(linked.source!, { parse: linkedParseOptions(linked) });
+    return diagnostics
+      .filter(({ severity }) => severity !== "warning")
+      .map((diagnostic) => {
+        const { path, span, code } = linked.locate(diagnostic);
+        return `${path}:${span.start.line}:${code}: ${diagnostic.message}`;
+      });
+  };
+  const words = [
+    "use std.text.{join}",
+    "use std.text",
+    "use std.ops.{Default}",
+    "use std.cmp.{Ordering}",
+    "",
+    "pub fn words() -> List[string]:",
+    '    ["ship", "it"]',
+    "",
+  ].join("\n");
+  const main = (uses: string): string =>
+    [
+      "use pkg.words.{words}",
+      uses,
+      "",
+      "fn fresh[T < Default]() -> T:",
+      "    T::default()",
+      "",
+      "pub fn main() -> void $ Console:",
+      '    println(join(words(), " "))',
+      '    println(text.join(words(), "-"))',
+      "    println(Ordering.Less == Ordering.Less)",
+      "",
+    ].join("\n");
+  // A name, a namespace, and a trait that another module imports from std
+  // are unknown here; a prelude name, as Ordering, is in every module.
+  assert.deepEqual(check({ "src/words.hd": words, "src/main.hd": main("") }), [
+    "src/main.hd:4:unknown-trait: unknown trait 'Default': import it with `use std.ops.{Default}`",
+    "src/main.hd:8:unknown-name: unknown name 'join': import it with `use std.text.{join}`",
+    "src/main.hd:9:unknown-name: unknown name 'text': import it with `use std.text`",
+  ]);
+  const own = "use std.text.{join}\nuse std.text\nuse std.ops.{Default}";
+  assert.deepEqual(check({ "src/words.hd": words, "src/main.hd": main(own) }), []);
+  // Two modules may bind one local name to different std declarations.
+  assert.deepEqual(
+    await runPackage({
+      "src/main.hd": [
+        "use pkg.a.{a}",
+        "use std.cmp.{max as pick}",
+        "use std.cmp as order",
+        "",
+        "pub fn main() -> void $ Console:",
+        "    println(pick(+1, +2))",
+        "    println(a())",
+        "    println(order.min(+3, +4))",
+        "",
+      ].join("\n"),
+      "src/a.hd": [
+        "use std.cmp.{min as pick}",
+        "use std.text as order",
+        "",
+        "pub fn a() -> string:",
+        '    order.join(["x", "y"], "${pick(+1, +2)}")',
+        "",
+      ].join("\n"),
+    }),
+    ["2", "x1y", "3"],
+  );
+});
+
 test("folders that depend on each other in a loop are rejected", () => {
   const files = {
     "src/lib.hd": "pub use pkg.shop.{Cart}\n",
@@ -597,14 +672,6 @@ test("shared names and bad paths are rejected", () => {
       "src/a.hd": "pub data User: pass\n",
     }),
     ["src/main.hd:1:duplicate-module-name"],
-  );
-  // Linked modules share their std uses, so these must agree.
-  assert.deepEqual(
-    codes({
-      "src/main.hd": "use pkg.a.{a}\nuse std.cmp.{max as pick}\npub fn main() -> void: pass\n",
-      "src/a.hd": "use std.cmp.{min as pick}\npub fn a() -> i32: pick(1, 2)\n",
-    }),
-    ["src/main.hd:2:package-name-collision"],
   );
   assert.deepEqual(
     codes({ "src/main.hd": "pub fn main() -> void: pass\n", "src/Main.hd": "pass\n" }),

@@ -120,11 +120,6 @@ Compiler structure:
   `private-member`. `Type::f` with no available trait candidate reports
   `unknown-associated-function`, not `unknown-method`
   (`trait.assoc-call.type.none`).
-- **Std uses across modules**: a linked package joins its std uses once,
-  so a name that one module imports from std, as `join` from
-  `use std.text.{join}`, resolves by bare name in every other linked
-  module without a use (`names.use.introduces`). Package declarations no
-  longer leak this way (task P1a2).
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.

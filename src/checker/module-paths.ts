@@ -6,7 +6,7 @@ import {
   type ModuleBindings,
   type PathScope,
 } from "./standard-bindings.ts";
-import { standardTypeSpelling } from "./standard-library.ts";
+import { standardDeclaresTrait, standardTypeSpelling } from "./standard-library.ts";
 import { declares, isStandardModulePath } from "./standard-uses.ts";
 
 // Module paths (spec/lang/05-expressions.md#names): a qualified name selects
@@ -24,10 +24,11 @@ import { declares, isStandardModulePath } from "./standard-uses.ts";
 // (`Program.packageScopes`, src/package.ts): the module's own spellings and
 // renamed uses map to their joined spellings, and its namespace uses of
 // package modules resolve through the linker's member tables. A bare name
-// that only another module declares is an error, `unknown-name` for a value
-// and `unknown-type` or `unknown-trait` in a type, whose message says how to
-// import it (03-names-and-scopes.md#r-names.module.declarations,
-// 10-modules.md#r-module.vis.private-default).
+// that only another module declares, or binds through a std use, is an
+// error, `unknown-name` for a value and `unknown-type` or `unknown-trait` in
+// a type, whose message says how to import it
+// (03-names-and-scopes.md#r-names.module.other-module,
+// 03-names-and-scopes.md#r-names.module.use-own-module).
 //
 // A std namespace use, as `use std.cmp`, stays in the program, and a path
 // through it to a type becomes the type's joined spelling. A path to a std
@@ -122,13 +123,27 @@ export function withModulePaths(program: Program): {
       for (const [local, identity] of Object.entries(scope.namespaces))
         namespaces.set(local, packageKey(identity));
       const names = new Map(Object.entries(scope.names));
+      // A std namespace use joined under a hidden spelling, as
+      // `use std.{cmp as __pkg_a_order}`, keeps the name the module wrote.
+      for (const [local, joined] of names) {
+        const key = standard.get(joined);
+        if (key !== undefined) namespaces.set(local, key);
+      }
       const foreign = scope.foreign ?? {};
-      for (const name of Object.keys(foreign)) names.set(name, `${FOREIGN}${name}`);
+      // Another module's std namespace use, as `use std.text`, binds
+      // nothing here (03-names-and-scopes.md#r-names.module.use-own-module).
+      for (const name of Object.keys(foreign)) {
+        names.set(name, `${FOREIGN}${name}`);
+        namespaces.delete(name);
+      }
       const reporting: PathScope = {
         resolve: paths.resolve,
         foreign(name, span, position) {
-          const { trait, hint } = foreign[name]!;
-          const kind = position === "value" ? "name" : trait ? "trait" : "type";
+          const { trait, standard, hint } = foreign[name]!;
+          const isTrait =
+            trait ??
+            (standard !== undefined && standardDeclaresTrait(standard.module, standard.name));
+          const kind = position === "value" ? "name" : isTrait ? "trait" : "type";
           report(`unknown-${kind}`, `unknown ${kind} '${name}': ${hint}`, span);
         },
       };
