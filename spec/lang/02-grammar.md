@@ -290,7 +290,7 @@ fn sum(p: Point, pair: (i32, i32)) -> i32:
 
 ### Statements Ending At A Newline
 
-1. r[grammar.stmt.closed] A statement that ends at `NEWLINE` takes a `closed_expression`, which cannot end in a suite, because layout emits no `NEWLINE` after a suite's `SUITE_END` or `DEDENT`.
+1. r[grammar.stmt.closed] A statement that ends at `NEWLINE` takes a `closed_expression`, which cannot end in a suite. Layout emits no `NEWLINE` after a suite's `SUITE_END` or `DEDENT`.
 2. r[grammar.stmt.closed.suite-alternatives] Only the `suite_statement` alternatives may end in a suite.
 3. r[grammar.stmt.closed.examples] Thus `y := if c: 1 else: 2` is a statement, but `_ := y := if c: 1 else: 2` and `return y := if c: 1 else: 2` are syntax errors. Error: `syntax-error`.
 4. r[grammar.stmt.closed.parenthesized] Parenthesizing the inner binding makes them valid.
@@ -343,7 +343,7 @@ fn split(ready: bool) -> void:
 ### Expressions Followed By Another Token
 
 1. r[grammar.continued.positions] Where another token follows an expression inside brackets, the grammar uses `continued_expression`.
-2. r[grammar.continued.position-list] Those positions are the header of a control-flow expression written directly inside brackets, a comprehension clause, a map key, a spread before `...`, and a parameter decorator.
+2. r[grammar.continued.position-list] Those positions are the header of a control-flow expression written directly inside brackets, a comprehension clause, and a map key. They are also a spread before `...` and a parameter decorator.
 3. r[grammar.continued.no-same-line-suite] A `continued_expression` cannot end in a same-line suite, because layout would extend that suite over the following token.
 4. r[grammar.continued.layout] Layout ends a same-line suite only at a line boundary outside brackets, at a comma or closing delimiter at its depth, or before `else`.
 5. r[grammar.continued.indented-suite] A `continued_expression` may end in an indented suite, except a closure body.
@@ -351,7 +351,7 @@ fn split(ready: bool) -> void:
 7. r[grammar.closed.outside-brackets] Outside brackets, an expression followed by another token cannot end in any suite.
 8. r[grammar.closed.header-positions] A control-flow header in a statement and a match guard therefore take a `closed_expression`.
 9. r[grammar.closed.bracketed-suite] A suite may still appear inside brackets within the header, as in `if check(fn(x): ...):`.
-10. r[grammar.closed.indented-header] But a statement `if fn() -> bool:`, followed by the closure's indented body and then a line beginning `: 1 else: 2`, is a syntax error, because its header ends in an indented suite. Error: `syntax-error`.
+10. r[grammar.closed.indented-header] But a statement `if fn() -> bool:`, followed by the closure's indented body and then a line beginning `: 1 else: 2`, is a syntax error. Its header ends in an indented suite. Error: `syntax-error`.
 11. r[grammar.closed.nested-statements] The statements of a suite nested inside brackets follow the same rule, because they are statements too.
 
 ```text
@@ -367,7 +367,7 @@ See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logi
 
 1. r[grammar.stmt.semantic] Whether a statement may appear in a particular value-producing block is a semantic rule.
 2. r[grammar.stmt.break] In particular, `break` is valid only inside a loop, and `break` with a value is valid only in a loop with an `else` suite.
-3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values); other postfix expressions are rejected semantically.
+3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values). Other postfix expressions are rejected semantically.
 4. r[grammar.stmt.copy-assign] The copy assignment `place ...= value` is valid only when the place is an embedded field.
 5. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
 
@@ -658,9 +658,9 @@ fn label[T < Named + Tagged](value: T) -> string: value.name()  # error: old-bou
 
 ### Associated Type Bindings In Bounds
 
-1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings: `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
+1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings. So `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
 2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
-3. r[grammar.generic.binding.positions-key] Bindings are valid in `trait_bounds`, in `supertrait_bounds`, as in `trait Summable < Add[Out = Self]`, in a `named_type`, as in the trait value type `Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
+3. r[grammar.generic.binding.positions-key] Bindings are valid in `trait_bounds`, and in `supertrait_bounds` as in `trait Summable < Add[Out = Self]`. They are also valid in a `named_type`, as in the trait value type `Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
 4. r[grammar.generic.binding.trait-type-only] The trait of an implementation header is a `trait_type`, and the qualifier of a trait-qualified call or a method reference is an `expression_trait_type`. Neither takes a binding in its arguments. A binding there is an error. Error: `syntax-error`.
 5. r[grammar.generic.binding.named-type] Only a trait value type gives a binding in a `named_type` a meaning; [Binding Positions](09-traits.md#binding-positions) rejects one elsewhere.
 
@@ -849,7 +849,7 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 4. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
 5. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
 6. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
-7. r[grammar.type.row-owner] Inside a type, such as a parameter type, a field type, or a type argument, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type.
+7. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
 8. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
 
 ### Tuple Rest Types
@@ -1090,7 +1090,7 @@ fn invalid() -> void:
 
 > **Why.** A range sits below `||`, as in Rust, so arithmetic and
 > comparisons in a bound need no parentheses. Leaving out a bound always
-> means "from the start" or "to the end", so `text[1..]` reads the same in
+> means "from the start" or "to the end". So `text[1..]` reads the same in
 > any position, and `text[..]` is the whole string.
 
 ### Multi-Name Bindings
@@ -1149,7 +1149,7 @@ fn demo(names: List[string]) -> Box[string]:
 ```
 
 1. r[grammar.expr.type-arguments.marker] In an expression, an explicit type-argument list follows `::`: a generic function takes `first::[string](names)`, a method `parser.parse::[User](text)`, and a reference `Json::decode::[User]`.
-2. r[grammar.expr.type-arguments.type-name] A type name in an expression also takes its type arguments after `::`, in a data expression such as `Box::[i32] { value: 1 }` and in a qualified call such as `Add::[i32]::add(price, 5)`.
+2. r[grammar.expr.type-arguments.type-name] A type name in an expression also takes its type arguments after `::`. This holds in a data expression such as `Box::[i32] { value: 1 }` and in a qualified call such as `Add::[i32]::add(price, 5)`.
 3. r[grammar.expr.type-arguments.in-types] In a type, type arguments follow the name directly, as in `List[i32]`, with no `::`.
 4. r[grammar.expr.index-only] `[` directly after a completed operand always begins an indexing suffix, never type arguments, so `handlers[i](event)` indexes `handlers` and calls the element.
 5. r[grammar.expr.type-arguments.unmarked] A data expression or qualified call whose type name takes brackets without `::`, as in `Box[i32] { value: 1 }` or `Add[i32]::add(price, 5)`, is an error. Error: `syntax-error`.
@@ -1163,7 +1163,7 @@ fn boxed() -> Box[i32]:
 ```
 
 > **Why.** Each form has one reading that a parser can see. Brackets after
-> an expression always index, and `::[` always gives type arguments, so
+> an expression always index, and `::[` always gives type arguments. So
 > neither a reader nor a tool needs name resolution to tell them apart.
 > Rust marks expression type arguments the same way, as in
 > `parse::<i32>()`.
@@ -1171,7 +1171,7 @@ fn boxed() -> Box[i32]:
 ### Method Type Arguments
 
 1. r[grammar.expr.method-type-arguments.valid] An explicit method type-argument list is valid only when the selected member is generic and the expression proceeds to an ordinary call.
-2. r[grammar.expr.method-type-arguments.bang] A bang call writes the `!` on the name and the list after it, as the declaration `fn fetch![T](...)` does: the calls are `fetch!::[User](key)`, `parser.load!::[User](text)`, and `Store::load!::[User](key)`.
+2. r[grammar.expr.method-type-arguments.bang] A bang call writes the `!` on the name and the list after it, as the declaration `fn fetch![T](...)` does. The calls are `fetch!::[User](key)`, `parser.load!::[User](text)`, and `Store::load!::[User](key)`.
 
 ```text
 data Identity: pass
@@ -1309,7 +1309,7 @@ data_field_item = identifier, ":", [ "..." ], expression
 #### Copies In Data Expressions
 
 1. r[grammar.primary.field-copy] A `...` after a field label copies the value into an embedded field.
-2. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression, whether it begins a copy-update spread or follows a field label, always means "copy the named members of this value".
+2. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression always means "copy the named members of this value". This holds whether it begins a copy-update spread or follows a field label.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -1362,7 +1362,7 @@ fn describe(text: string) -> string:
         _ => "other"
 ```
 
-1. r[grammar.primary.prefix-after-dot] A prefixed string directly after `.` is an error, whether a module path stands before the dot, as in `marks.tag"item"`, or a value, as in `value.tag"item"`. Error: `qualified-string-prefix`.
+1. r[grammar.primary.prefix-after-dot] A prefixed string directly after `.` is an error. This holds whether a module path stands before the dot, as in `marks.tag"item"`, or a value, as in `value.tag"item"`. Error: `qualified-string-prefix`.
 
 ```text
 use pkg.marks
@@ -1391,7 +1391,7 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 1. r[grammar.primary.resolution] Name resolution distinguishes a data expression from a map expression and an enum variant selection from ordinary field access.
 2. r[grammar.primary.function-type-argument] Each function type argument is a type or the inference placeholder `_`.
 3. r[grammar.primary.placeholder] The placeholder is not part of ordinary `type_arguments` and therefore cannot occur in a type such as `List[_]`.
-4. r[grammar.primary.qualified-type-arguments] In a qualified call such as `Type::name::[T](...)`, `Trait::name::[T](...)`, or `Type::name!::[T](...)`, type arguments of the qualifying type or trait stay before the member's `::`, as in `Add::[Money]::add`.
+4. r[grammar.primary.qualified-type-arguments] In a qualified call such as `Type::name::[T](...)`, `Trait::name::[T](...)`, or `Type::name!::[T](...)`, type arguments of the qualifying type or trait stay before the member's `::`. One example is `Add::[Money]::add`.
 5. r[grammar.primary.member-type-arguments] Method-level type arguments follow the member name, as in the dot call `parser.parse::[User](text)`.
 6. r[grammar.primary.member-type-arguments.rules] That list is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).
 
@@ -1399,7 +1399,7 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 
 1. r[grammar.primary.list-spread] A list element ending in `...` is a spread that expands a list's elements in place.
 2. r[grammar.primary.ellipsis-positions] The two positions of `...` never overlap.
-3. r[grammar.primary.prefix-copies] A prefix `...` always copies: it copies the named members of a value in a copy-update spread and after an embedded field label, and `...=` stores a copy into an embedded field.
+3. r[grammar.primary.prefix-copies] A prefix `...` always copies. It copies the named members of a value in a copy-update spread and after an embedded field label. `...=` stores a copy into an embedded field.
 4. r[grammar.primary.suffix-spreads] A suffix `...` always spreads: it expands the elements or entries of its operand in arguments, list elements, and provider-context entries, as in `$.with(ctx...)`.
 5. r[grammar.primary.tuple-spread] The last element of a tuple expression may also be a suffix spread, as in `(1, 2, xs...)`. A spread alone keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread before another element are errors. Error: `syntax-error`.
 6. r[grammar.primary.prefix-elsewhere] A prefix `...` anywhere else, including before a provider-context entry, is an error. Error: `syntax-error`.
@@ -1418,7 +1418,7 @@ See also: [List And Map Expressions](05-expressions.md#list-and-map-expressions)
 
 1. r[grammar.primary.method-reference] A `::` member without an argument clause, such as `User::domain`, `Json::decode::[User]`, or `user::domain`, is a `method_reference`.
 2. r[grammar.primary.method-reference.meaning] [Method References](07-functions.md#method-references) gives its meaning; with an argument clause, the same form is a call.
-3. r[grammar.primary.method-reference.no-bang] A reference with type arguments directly followed by `!(` is not a bang call of that reference: `Identity::echo::[i32]!(42)` is an error, and the call is `Identity::echo!::[i32](42)`. Error: `syntax-error`.
+3. r[grammar.primary.method-reference.no-bang] A reference with type arguments directly followed by `!(` is not a bang call of that reference. So `Identity::echo::[i32]!(42)` is an error, and the call is `Identity::echo!::[i32](42)`. Error: `syntax-error`.
 
 ### Calls And Arguments
 
@@ -1804,7 +1804,7 @@ derive_decorator = "derive", "(", qualified_name,
 ```
 
 1. r[grammar.annot.item-targets] Decorator lines may precede a data type, enum, function, trait, newtype, or implementation declaration.
-2. r[grammar.annot.member-targets] Decorator lines may also precede a data field, an enum variant, and a method of a trait or implementation, as `data_member`, `enum_variant`, `trait_member`, and `impl_member` show.
+2. r[grammar.annot.member-targets] Decorator lines may also precede a data field, an enum variant, and a method of a trait or implementation. The `data_member`, `enum_variant`, `trait_member`, and `impl_member` productions show this.
 3. r[grammar.annot.alias-no-decorator] Any decorator before a transparent alias is an error. Error: `syntax-error`.
 4. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
 
