@@ -272,7 +272,7 @@ post := Post {
 ### Embedded Field Names
 
 1. r[data.embed.member] A bare type-name member embeds another data type, possibly with type arguments. The embedded field's name, and its key in a data literal, is the type's final name without type arguments: `Box[T]` is the field `Box`.
-2. r[data.embed.data-only] An embedded field must name a data type, a generic data type such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error: an enum, a newtype, a trait value type, `Any`, a builtin or collection type, a function type, or a type parameter. Error: `embedded-non-data`.
+2. r[data.embed.data-only] An embedded field must name a data type, a generic data type such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error. That covers an enum, a newtype, a trait value type, `Any`, a builtin or collection type, a function type, and a type parameter. Error: `embedded-non-data`.
 3. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
 
 ```text
@@ -339,7 +339,7 @@ data Edge:
 ```
 
 > **Note.** For the error revamp: `embedding-too-deep` is reported at the
-> declaration of every data type that reaches a part at depth 4, and its
+> declaration of every data type that reaches a part at depth 4. Its
 > message shows the chain, as in `C > P1 > P2 > P3 > P4`. The
 > `embedding-cycle` message shows the cycle path, as in `Node > Edge > Node`.
 
@@ -353,7 +353,7 @@ data Edge:
 An embedded field holds a **part** of the outer value: a value of the
 embedded type that the outer value receives as its own copy.
 
-1. r[data.part.construct] A part copy is a copy-update: `E: ...e` in a data literal, and `x.E ...= e` on a `mut` value, store the copy-update `T { ...e }`, where `E` is the embedded field's name and `T` its type. The `...` applies to the whole field expression.
+1. r[data.part.construct] A part copy is a copy-update. `E: ...e` in a data literal, and `x.E ...= e` on a `mut` value, store the copy-update `T { ...e }`. Here `E` is the embedded field's name and `T` its type. The `...` applies to the whole field expression.
 2. r[data.part.copy-update] A copy-update literal, as in `Post { ...post, title: "t" }`, copies each embedded part `p` of its spread source that it does not replace, as `T { ...p }`. This is the one exception to a shallow copy-update: a copy never shares a part with its original.
 
 ```text
@@ -410,7 +410,7 @@ See also: [Primary Expressions](02-grammar.md#primary-expressions).
 > **Note.** A promoted member is its explicit path, as
 > [`names.promoted.path`](03-names-and-scopes.md#r-names.promoted.path)
 > states, so it has the access the receiver grants. A binding of the part
-> is an alias whose view follows the binding rules: `let mut stamps =
+> is an alias whose view follows the binding rules. `let mut stamps =
 > post.Timestamps` on a `mut Post` binds a `mut Timestamps`, and a mutation
 > through either name is observed through the other.
 
@@ -439,7 +439,7 @@ fn invalid(post: Post) -> void:
 
 #### Part Ownership
 
-1. r[data.part.aliases-untracked] A part is owned by its outer value only in that a part is copied whenever it is filled, so no two outer values receive the same part. The language does not track or prevent later aliases. A read of the part, or a `mut self` method of the embedded type that stores `self` elsewhere, keeps a reference, and changes through it are observed in the outer value.
+1. r[data.part.aliases-untracked] A part is owned by its outer value only in one sense: a part is copied whenever it is filled. So no two outer values receive the same part. The language does not track or prevent later aliases. A read of the part, or a `mut self` method of the embedded type that stores `self` elsewhere, keeps a reference. Changes through it are observed in the outer value.
 2. r[data.part.unobservable] An implementation may lay a part out inline or as a separate object referenced only by its outer value. It may also omit the copy of a value that nothing else can reference, such as a fresh literal. Neither choice is observable.
 
 ### Mutable Edges
@@ -900,7 +900,7 @@ See also: [Members And Variants](14-annotations.md#members-and-variants).
 2. r[data.unsupported.non-exhaustive] Enums have no non-exhaustive form, so adding a variant to a public enum is a breaking change for its users.
 
 > **Note.** A library that needs to grow a set of error kinds can wrap a
-> private enum in a data type with a private field and expose accessor
+> private enum in a data type with a private field. It then exposes accessor
 > methods.
 
 See also: [Variant Payloads](#variant-payloads), where
