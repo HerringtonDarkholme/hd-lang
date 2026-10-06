@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { analyze, compileToWasm, instantiate } from "../src/compiler.ts";
+import { withoutSiteLines } from "../src/emitter/index.ts";
 import { conformance } from "./fixture.ts";
 
 test("named functions reify as monomorphic function values", async () => {
@@ -354,10 +355,11 @@ fn main() -> i32 $ Clock + Backup:
         _ := $.use(Clock)
         42
 `;
-  const compilation = await compileToWasm(source);
-  assert.match(compilation.wat, /\(local \$l0 \(ref null \$trait0\)\)/);
-  assert.match(compilation.wat, /\(local\.set \$l0 \(block \(result \(ref null \$trait0\)\)/);
-  assert.match(compilation.wat, /\(local\.set \$tmp0 \(local\.get \$provider0\)\)/);
+  // The emitted code, without the panic sites' debug-location lines.
+  const wat = withoutSiteLines((await compileToWasm(source)).wat);
+  assert.match(wat, /\(local \$l0 \(ref null \$trait0\)\)/);
+  assert.match(wat, /\(local\.set \$l0 \(block \(result \(ref null \$trait0\)\)/);
+  assert.match(wat, /\(local\.set \$tmp0 \(local\.get \$provider0\)\)/);
 });
 
 test("concrete requirement rows normalize + lists as sets", () => {

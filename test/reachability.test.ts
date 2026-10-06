@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, compileToWat, instantiate, type ReplayEvent } from "../src/compiler.ts";
+import { withoutSiteLines } from "../src/emitter/index.ts";
 import { RuntimePanicError } from "../src/runtime-panic.ts";
 import {
   calledTraitMethods,
@@ -158,8 +159,11 @@ fn main() -> i32:
     let device: Device = Box {}
     device.read()
 `;
-  const baseline = compileToWat(source("")).wat;
-  const withDefault = compileToWat(source("\n    fn unused(self) -> i32: 99")).wat;
+  // The emitted code: the extra line moves the panic sites' source positions only.
+  const baseline = withoutSiteLines(compileToWat(source("")).wat);
+  const withDefault = withoutSiteLines(
+    compileToWat(source("\n    fn unused(self) -> i32: 99")).wat,
+  );
   assert.equal(Buffer.byteLength(withDefault), Buffer.byteLength(baseline));
   assert.equal(withDefault, baseline);
 });

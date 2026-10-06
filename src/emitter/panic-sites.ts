@@ -35,6 +35,15 @@ export interface OpenSite {
   readonly outer: string | undefined;
 }
 
+/**
+ * `wat` without its panic sites' debug-location lines: the emitted code
+ * alone, as emitting without sites gives it. Source positions move with an
+ * edit that changes no code, so a comparison of code reads this.
+ */
+export function withoutSiteLines(wat: string): string {
+  return wat.replace(/;;@ s\d+:\d+:\d+\n[ \t]*/g, "");
+}
+
 export class PanicSiteTable {
   readonly sites: PanicSite[] = [];
   private readonly ids = new Map<string, number>();

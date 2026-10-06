@@ -10,7 +10,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { analyze, compileToWat, instantiate } from "../src/compiler.ts";
-import { emitWat } from "../src/emitter/index.ts";
+import { emitWat, withoutSiteLines } from "../src/emitter/index.ts";
 import { RuntimePanicError } from "../src/runtime-panic.ts";
 import { assembleWat } from "../src/wasm.ts";
 import { runHd } from "./hd-in-process.ts";
@@ -95,14 +95,16 @@ test("code the compiler writes for an expression names the call that ran it", as
   });
 });
 
+const FALLBACK = [
+  "pub fn main() -> void $ Console:",
+  "    let balance = 100",
+  "    balance = balance - 150",
+  '    println("$balance")',
+  "",
+].join("\n");
+
 test("an overflow at a usize default type names the binding and the fix", async () => {
-  const source = [
-    "pub fn main() -> void $ Console:",
-    "    let balance = 100",
-    "    balance = balance - 150",
-    '    println("$balance")',
-    "",
-  ].join("\n");
+  const source = FALLBACK;
   await withFile(source, async (file) => {
     const result = await runHd([file]);
     assert.equal(result.status, 1);
@@ -189,4 +191,13 @@ test("a release build keeps panic sites, and they add no module bytes", async ()
   assert.match(compileToWat(source).wat, /;;@ s\d+:2:5\n/);
   assert.deepEqual(located.bytes, plain.bytes);
   assert.ok(located.siteMap && located.siteMap.offsets.length > 0);
+});
+
+test("without its debug-location lines, the WAT is the code emitted without sites", () => {
+  for (const source of [KINDS.replace("KIND", "0"), FALLBACK]) {
+    const { hir } = analyze(source);
+    const annotated = compileToWat(source).wat;
+    assert.match(annotated, /;;@ s\d+:/);
+    assert.equal(withoutSiteLines(annotated), emitWat(hir!));
+  }
 });
