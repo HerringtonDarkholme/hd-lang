@@ -85,7 +85,7 @@ fn total(view: ListView[i32]) -> i32:
 13. r[std-collections.view.writes] An element write to the list, as `items[i] = v`, shows through every view of it, so a later read of the view gives the new value.
 14. r[std-collections.view.invalidate] Changing the list's length invalidates every view of it, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for an iterator.
 15. r[std-collections.view.invalidate.anywhere] A length change invalidates a view wherever it happens, so appending past a view's end invalidates it too.
-16. r[std-collections.view.invalid-use] The next use of an invalidated view is a checked runtime panic: a `len`, index, or `to_list` call, an `iter()` call, or the next `next` call of an iterator taken from it. Panic: `iterator-invalidated`.
+16. r[std-collections.view.invalid-use] The next use of an invalidated view is a checked runtime panic. Such a use is a `len`, index, or `to_list` call, an `iter()` call, or the next `next` call of an iterator taken from it. Panic: `iterator-invalidated`.
 
 ```text
 use std.collections.ListView
@@ -332,7 +332,7 @@ fn grow(queue: mut Deque[i32]) -> void:
 
 > **Note.** `lib/std` builds a deque as a ring buffer over a `List[T?]`.
 > A push into a full buffer first copies the elements into a buffer
-> twice its size, so each push and pop takes amortized constant time,
+> twice its size. So each push and pop takes amortized constant time,
 > and `get` takes constant time.
 
 > **Why.** `get` returns an optional, as Rust's `VecDeque::get` does: a
