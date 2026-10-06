@@ -1,4 +1,5 @@
 # test: a scripted Process provider answers each program, and run! returns .Err(.NotFound) for an unknown one
+# Spec 10 Processes: module.process.declares, module.process.ok-output, module.process.mut, module.process.import.names.
 # expect: test
 use std.process.{Process, ProcessError, ProcessOutput}
 use std.testing.assert_equal

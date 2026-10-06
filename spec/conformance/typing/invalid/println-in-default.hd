@@ -1,4 +1,5 @@
 # test: println inherits block_on's ban in a default expression, transitively through a requirement-free helper
+# Spec 10 Console: module.console.println-block-on.contexts.
 # Spec 10 Console: module.console.println-block-on (MHP-1 follow-up).
 
 data QuietConsole: pass

@@ -1,4 +1,5 @@
 # test: println panics with explicit-panic when the covering provider's write_line! returns .Err(ConsoleError.Closed)
+# Spec 10 Console: module.console.println-error.category, module.console.error.closed, module.console.println-std, module.console.println-panics.
 # Spec 10 Console: module.console.println-error, .println-error.category, and .error.closed.
 
 data ClosedConsole:

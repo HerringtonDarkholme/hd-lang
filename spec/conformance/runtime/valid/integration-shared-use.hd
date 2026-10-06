@@ -1,4 +1,5 @@
 # test: an integration test program is a root file, so tests/checkout.hd reaches the shared test module tests/common/mod.hd as self.common
+# Spec 10 Test Modules: module.test.integration.self-shared.
 # Spec 10 Test Modules: module.test.integration.shared, module.relative.test-root.current (Batch 47 TASK-MODULE, SELF-CURRENT, ROOTS).
 # fixture-package-tree: integration-shared/tests/checkout.hd
 use self.common.{expected}

@@ -1,4 +1,5 @@
 # test: string length, index, iteration, and slice use byte offsets
+# Spec 10 String Methods: module.string.utf8, module.string.byte-offsets, module.string.chars, module.string.char-indices, module.string.bytes, module.string.slice.
 # Spec 04 Strings, 05 String Indexing, 10 String Methods (Strings STR1-STR6).
 # expect: test
 use std.testing.{assert, assert_equal}

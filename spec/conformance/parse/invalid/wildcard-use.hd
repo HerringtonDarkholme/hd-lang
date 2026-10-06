@@ -1,3 +1,4 @@
 # test: wildcard use declarations are not supported
+# Spec 10 Use Forms: module.use.no-wildcard.
 # Spec 10 Use Forms: "Grouped uses may have a trailing comma. Wildcard uses are not supported."
 use std.testing.*  # diagnostic: syntax-error

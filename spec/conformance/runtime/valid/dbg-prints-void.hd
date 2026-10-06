@@ -1,4 +1,5 @@
 # test: dbg prints its arguments and returns nothing, so a program's standard output is unchanged
+# Spec 10 Prelude Functions and Debug Printing: module.prelude.dbg, module.dbg.not-behavior.
 # Spec 10 Debug Printing: module.dbg.body.print, module.dbg.body.site, module.dbg.tuple-argument, cli.dbg.run.
 # expect-stdout: 1300
 # expect-stdout: true
