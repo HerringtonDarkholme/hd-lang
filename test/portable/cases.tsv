@@ -2530,6 +2530,8 @@ typing/valid/temp-dir-integration.hd	type
 typing/invalid/script-test-init-requirement.hd	type
 cli/test-integration-env	cli
 cli/test-tasks	cli
+cli/test-snapshot-file	cli
+cli/test-timeout	cli
 runtime/valid/dbg-prints-void.hd	runtime
 runtime/valid/dbg-without-requirement.hd	runtime
 typing/invalid/dbg-void-binding.hd	type

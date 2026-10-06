@@ -135,3 +135,35 @@ test("the serial retry path runs one case with one job", async () => {
   assert.equal(retry.code, 0);
   assert.ok(passPaths(retry.output).has("parse/valid/expressions.hd"));
 });
+
+// Every conformance case runs or is a known failure, so none is skipped
+// without a reason (test/portable/README.md).
+test("every conformance case is selected or a known failure, not both", async () => {
+  const rows = async (path: string): Promise<string[]> =>
+    (await readFile(resolve(root, path), "utf8"))
+      .split("\n")
+      .slice(1)
+      .filter((line) => line.trim() !== "")
+      .map((line) => line.split("\t")[0]!);
+  const cases = [
+    ...(await rows("spec/conformance/cases.tsv")),
+    ...(await rows("spec/conformance/cli-cases.tsv")).map((name) => `cli/${name}`),
+  ];
+  const selected = new Set(await rows("test/portable/cases.tsv"));
+  const known = new Set(await rows("test/portable/KNOWN_FAILURES.tsv"));
+  assert.deepEqual(
+    cases.filter((path) => !selected.has(path) && !known.has(path)),
+    [],
+    "add each case to test/portable/cases.tsv, or to KNOWN_FAILURES.tsv with its finding",
+  );
+  assert.deepEqual(
+    cases.filter((path) => selected.has(path) && known.has(path)),
+    [],
+  );
+  const all = new Set(cases);
+  assert.deepEqual(
+    [...selected, ...known].filter((path) => !all.has(path)),
+    [],
+    "a selected or known-failure path that names no conformance case",
+  );
+});

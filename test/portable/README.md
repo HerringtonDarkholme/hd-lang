@@ -42,7 +42,9 @@ tier runs. The summary line counts passes per tier.
 
 `cases.tsv` lists a CLI case as `cli/NAME`, with the phase column `cli`. A
 CLI case the prototype fails stays out of `cases.tsv` and has a row in
-`KNOWN_FAILURES.tsv`, as a language fixture does.
+`KNOWN_FAILURES.tsv`, as a language fixture does. Every case of the
+conformance index and of `cli-cases.tsv` is in exactly one of the two files;
+`test/run-portable.test.ts` checks it, so no case goes unselected silently.
 
 ```sh
 pnpm run test:portable --tier language
