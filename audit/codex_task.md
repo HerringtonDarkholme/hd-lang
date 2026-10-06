@@ -94,21 +94,6 @@ after each step, and report the table. No behavior change: the type and
 runtime phases must stay identical. Delete F3 from perf-audit.md when it
 is fixed.
 
-### BR. Microbenchmarks And Wasm Size
-
-Measure, don't optimize. Add `test/perf/micro/` with a few small
-programs written the same way in hd, Python and Node (for example: sum of
-1..10M, string building of 100k parts, a map with 100k inserts and
-lookups, recursive fib(30), sorting 100k items), and a script
-(`node --experimental-strip-types test/perf/micro/run.ts`) that builds
-the hd ones with `hd build --release`, runs each three times, and prints
-a table of median times and the hd Wasm size of each program. Python
-and Node are optional on the machine: skip a column if the tool is
-missing. Then write the findings into `audit/compiler/perf-audit.md` as
-a short new section: where hd stands (rough multiples), the biggest Wasm
-size contributors (the std splice: which std modules a tiny program
-pulls in and their size), and the two or three most promising fixes.
-No compiler changes in this job.
 ## Questions
 
 (none)
