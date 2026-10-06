@@ -1241,7 +1241,7 @@ fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void
 3. r[module.testing.assert-panic] A failed assertion causes a runtime panic, inside a test case or not. Panic: `assertion-failed`.
 4. r[module.testing.shows-reason] A failed `assert` or `assert_equal` shows its `reason`.
 5. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
-6. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type. An argument type without `Eq` is an error. Error: `missing-eq`.
+6. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type. An argument type without `Eq` is an error. Error: `unsatisfied-trait-bound`.
 7. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
@@ -1254,7 +1254,7 @@ data Error:
 tests:
     it("result equality needs Eq"):
         let actual: Result[i32, Error] = .Ok(1)
-        assert_equal(actual, .Ok(1), reason="values match")  # error: missing-eq
+        assert_equal(actual, .Ok(1), reason="values match")  # error: unsatisfied-trait-bound
 ```
 
 ### Test Cases
@@ -1866,7 +1866,8 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 4. r[module.entry.err-render-chain] When `E` implements `std.error.Error`, including the erased `Error`, the host prints the error's `Display` text. Then it prints each cause that the standard-library `chain` yields after it.
 5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
 6. r[module.entry.err-render-display] Otherwise the host renders the error with `Display.to_string`.
-7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
+7. r[module.entry.err-stderr] When an entry point returns `.Err(e)`, the host writes the `Display` text and `caused by: ` lines of `e` to standard error, then exits with status 1.
+8. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
 
 ```text
 pub data HiddenError: pass

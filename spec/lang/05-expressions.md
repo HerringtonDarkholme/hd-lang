@@ -748,7 +748,7 @@ fn demo(shelf: Shelf) -> usize:
 1. r[expr.index.order] `receiver[index]` evaluates the receiver, then the index, and invokes the receiver type's indexing behavior.
 2. r[expr.index.expected] For a `List` or `string` receiver, the index is checked with `usize` as its expected type, so an integer literal index is a `usize`.
 3. r[expr.index.expected.range] For such a receiver, an index that is a range expression gives each of its bounds `usize` as the expected type. So `items[1..3]` slices with a `Range[usize]`.
-4. r[expr.index.negative-literal] A negated literal index or slice bound, as in `items[-1]` or `items[-1..]`, negates an unsigned value. It is an error. Error: `unsigned-negation`.
+4. r[expr.index.negative-literal] A negated literal index or slice bound, as in `items[-1]` or `items[-1..]`, negates an unsigned value. It is an error. Error: `type-mismatch`.
 
 ```hd
 fn demo(items: List[i32]) -> i32:
@@ -768,7 +768,7 @@ fn previous(items: List[i32], i: usize) -> i32:
     items[i - 1]  # in a debug or test build, panics with integer-overflow when i is 0
 
 fn invalid(items: List[i32], i: i32) -> void:
-    a := items[-1]  # error: unsigned-negation
+    a := items[-1]  # error: type-mismatch
     b := items[i]   # error: type-mismatch
 ```
 
@@ -878,7 +878,7 @@ fn panics(text: string, items: List[i32]) -> void:
 
 ```text
 fn invalid(items: List[i32], start: i32) -> void:
-    a := items[-1..]      # error: unsigned-negation
+    a := items[-1..]      # error: type-mismatch
     b := items[start..]   # error: type-mismatch
 ```
 
@@ -1484,8 +1484,8 @@ fn demo() -> i32:
 5. r[expr.arith.cast] Signed/unsigned and integer/floating mixing requires an explicit cast.
 6. r[expr.arith.int.checked] For compatible integer operands, `+`, `-`, and `*` produce the common integer type. They are checked in a debug or test build and wrap in a release build, by [`types.arith.checked`](04-type-system.md#r-types.arith.checked).
 7. r[expr.arith.int.divide] `/` truncates toward zero, `%` produces the corresponding remainder, and a zero divisor panics.
-8. r[expr.arith.unary-plus] Unary `+` accepts all numeric types, preserves its operand's type and value, and evaluates the operand once.
-9. r[expr.arith.unary-minus] Unary `-` accepts signed integers and floating-point values, but not unsigned integers. Negating an unsigned operand is an error. Error: `unsigned-negation`.
+8. r[expr.arith.unary-plus] Unary `+` accepts all numeric types, preserves its operand's type and value, and evaluates the operand once. Any other operand is an error. Error: `type-mismatch`.
+9. r[expr.arith.unary-minus] Unary `-` accepts signed integers and floating-point values, but not unsigned integers. Negating an unsigned operand is an error. Error: `type-mismatch`.
 
 ```text
 fn sum(a: bool, b: bool) -> bool: a + b                     # error: type-mismatch
@@ -1539,16 +1539,16 @@ fn scale(x: i64, n: i32) -> i64:
 2. r[expr.power.int.literal] An unsuffixed integer literal in exponent position has type `u32`.
 3. r[expr.power.int.signed] A signed integer exponent is an error. Error: `type-mismatch`.
 4. r[expr.power.negated-literal] A negated literal is signed: in `2 ** -1` the literal `1` is the operand of unary `-`, not the exponent itself. So `-1` has a signed type, and the expression is a compile-time error. Error: `type-mismatch`.
-5. r[expr.power.negated-literal.not-other] That error is not `unsigned-negation` and not a runtime panic.
+5. r[expr.power.negated-literal.not-other] That error is not a runtime panic.
 6. r[expr.power.checked] Integer exponentiation uses checked multiplication in the base's result type.
 7. r[expr.power.float.same-type] For a floating-point base, the exponent must have the base's type, as for a [binary numeric operator](04-type-system.md#binary-numeric-operators). A floating-point literal exponent takes that type. Error: `type-mismatch`.
 8. r[expr.power.float.pow] Floating `**` computes IEEE 754-2019 `pow` as specified in clause 9.2, including its special cases, and rounds the result correctly to the destination format.
-9. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `mixed-numeric-types`.
+9. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `type-mismatch`.
 
 ```text
 fn power(exponent: i32) -> i32: 2 ** exponent  # error: type-mismatch
 fn inverse() -> i32: 2 ** -1                   # error: type-mismatch
-fn main() -> f64: 2 ** 2.0                     # error: mixed-numeric-types
+fn main() -> f64: 2 ** 2.0                     # error: type-mismatch
 ```
 
 ### Floating-Point Arithmetic
@@ -1583,16 +1583,16 @@ fn demo(a: bool, b: bool) -> bool:
 5. r[expr.eq.no-identity-fallback] Equality never silently falls back to reference identity.
 6. r[expr.eq.float] Floating-point equality follows IEEE 754, so NaN is unequal even to itself, although floating-point types implement `Eq`.
 7. r[expr.eq.std.intrinsic] The `Eq` implementations of the number types, `char`, and `bool` are [intrinsic methods](09-traits.md#intrinsic-methods). The one for `string` is not.
-8. r[expr.eq.functions] Function and closure values do not implement `Eq`; applying `==` or `!=` to them is an error. Error: `unsupported-equality`.
+8. r[expr.eq.functions] Function and closure values do not implement `Eq`; applying `==` or `!=` to them is an error. Error: `type-mismatch`.
 9. r[expr.eq.contextual-operand] In `==` and `!=`, a contextual variant operand, such as `.None`, `.Ok(1)`, or `.Some(x)`, takes the other operand's type as its expected type. This holds on either side.
 10. r[expr.eq.contextual-both] When both operands are contextual variants, neither has an expected type, so `.None == .None` is an error. Error: `missing-contextual-enum-type`.
 11. r[expr.eq.readonly-view] `==` and `!=` with one `mut T` operand and one `T` operand compare at `T`, because the readonly view is enough. So `d == Date { year: 2026 }` with `d: Date` is valid, though the literal is a fresh `mut Date`.
-12. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `missing-eq`.
+12. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `type-mismatch`.
 13. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it. The fix-it inserts `@derive(Eq)` on its own line before the enum's declaration.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
-    left == right  # error: unsupported-equality
+    left == right  # error: type-mismatch
 ```
 
 ```text

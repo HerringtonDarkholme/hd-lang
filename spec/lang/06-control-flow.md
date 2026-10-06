@@ -955,7 +955,7 @@ defer:   # error: defer-outside-cleanup-scope
 
 1. r[flow.defer.void] A `defer` suite must produce `void`.
 2. r[flow.defer.restricted] It cannot bang-call, otherwise suspend, propagate with `?`, or transfer control with `return`, `break`, or `continue`.
-3. r[flow.defer.suspend] A bang call or other suspending operation in the suite is an error. Error: `suspending-defer`.
+3. r[flow.defer.suspend] A bang call or other suspending operation in the suite is an error. Error: `suspension-forbidden-context`.
 4. r[flow.defer.control] Propagation with `?`, or a `return`, `break`, or `continue` that would leave the suite, is an error. Error: `defer-control-flow`.
 5. r[flow.defer.block-on] Direct or transitive use of `std.task.block_on` is an error. Error: `suspension-forbidden-context`.
 
@@ -968,7 +968,7 @@ fn cleanup!() -> void:
 
 fn invalid!() -> void:
     defer:
-        cleanup!()  # error: suspending-defer
+        cleanup!()  # error: suspension-forbidden-context
     pass
 
 fn run() -> i32:

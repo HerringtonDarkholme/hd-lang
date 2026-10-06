@@ -2534,7 +2534,7 @@ traits such as `Database` are not injected merely because they appear on
 
 The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. Its result type implements `std.process.Termination`: `void`, `std.process.ExitCode`, or `Result[T, E]` with `E < Display`; the generated host adapter maps an `.Err` result to a failed invocation.
 
-On `.Err`, an error type that implements `std.error.Error` prints its message and then each cause as `caused by: ...`; any other error prints its `Display` text. The process then exits with status 1. A program that picks its own code returns an `ExitCode`, a `u8` where 0 means success, as in `main() -> Result[ExitCode, CliError]` returning `.Ok(ExitCode(2))`.
+On `.Err`, the host writes the error to standard error. An error type that implements `std.error.Error` prints its message and then each cause as `caused by: ...`; any other error prints its `Display` text. The process then exits with status 1. A program that picks its own code returns an `ExitCode`, a `u8` where 0 means success, as in `main() -> Result[ExitCode, CliError]` returning `.Ok(ExitCode(2))`.
 
 `pub` controls hd-lang module visibility, not Wasm export visibility. Other public functions are not automatically exported from the compiled component. Tools, workflows, and library-facing Wasm functions become host-visible only through explicit registration, which generates the required boundary adapter. The exact registration API is designed separately for each integration.
 

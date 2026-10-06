@@ -1764,7 +1764,7 @@ describes the reference strategy.
 
 ### Identity On Type Parameters
 
-1. r[types.generic.identity] Identity comparison `is` on a type parameter is permitted only with the sealed `T < AnyRef` bound. Without it, the comparison is an error. Error: `identity-needs-reference-bound`.
+1. r[types.generic.identity] Identity comparison `is` on a type parameter is permitted only with the sealed `T < AnyRef` bound. Without it, the comparison is an error. Error: `identity-requires-references`.
 2. r[types.generic.identity.primitive] An unconstrained type parameter may be primitive after substitution and therefore cannot be used with `is`.
 
 ```hd

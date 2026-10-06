@@ -40,12 +40,12 @@ data User:
 2. r[data.field.typed] Every field has an explicit type.
 3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is an error. Error: `mutable-field-modifier`.
 4. r[data.field.mut-type] `friend: mut User` declares a field whose type grants mutable access through that reference.
-5. r[data.field.embedded-no-mut] An embedded field is written without `mut`: `Base` embeds `Base`, and `mut Base` is an error. Error: `mutable-embedded-field`.
+5. r[data.field.embedded-no-mut] An embedded field is written without `mut`: `Base` embeds `Base`, and `mut Base` is an error. Error: `mutable-field-modifier`.
 
 ```text
 data User:
     mut name: string    # error: mutable-field-modifier
-    mut Base            # error: mutable-embedded-field
+    mut Base            # error: mutable-field-modifier
     friend: mut User    # valid: the type grants mutable access
 ```
 

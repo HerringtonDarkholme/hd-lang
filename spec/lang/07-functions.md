@@ -698,7 +698,7 @@ doubled := apply_all(counts, fn(count): count * 2)
 3. r[fn.closure.result-inferred] A nonrecursive closure may infer its result type from its body.
 4. r[fn.closure.result-inferred.common] The inferred result is the [least common type](04-type-system.md#least-common-type) of the body's final value and every `return` operand. When they have no common type, the closure is an error. Error: `no-common-type`.
 5. r[fn.closure.result-expected] An expected function type may instead supply the result type.
-6. r[fn.closure.recursive-result] A recursive local closure must always write its result type explicitly, even if an expected function type could supply it. Error: `recursive-closure-needs-result-type`.
+6. r[fn.closure.recursive-result] A recursive local closure must always write its result type explicitly, even if an expected function type could supply it. Error: `recursive-function-needs-result-type`.
 
 ```text
 fn run() -> i32:
@@ -1024,7 +1024,7 @@ This section defines recursive functions and closures.
 
 ```text
 fn sum_to(limit: i32) -> i32:
-    sum := fn(n: i32):  # error: recursive-closure-needs-result-type
+    sum := fn(n: i32):  # error: recursive-function-needs-result-type
         if n == 0: 0
         else: n + sum(n - 1)
     sum(limit)

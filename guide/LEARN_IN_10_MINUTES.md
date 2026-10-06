@@ -296,7 +296,7 @@ variant. A `match` must cover every variant, so adding a variant to `Shape`
 below makes the compiler point at each `match` that needs a new arm
 (`nonexhaustive-match`). Avoid a `_` arm when you want that to-do list. Comparing two values with `==`
 needs `@derive(Eq)` on the enum, as written on `Shape` below; `match` does not.
-Without it, `==` is rejected: `missing-eq: type 'Shape' does not implement Eq`.
+Without it, `==` is rejected: `type-mismatch: type 'Shape' does not implement Eq`.
 
 ```hd
 @derive(Eq)
