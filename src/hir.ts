@@ -385,6 +385,11 @@ export interface HirFunction {
    */
   readonly developmentEntry?: boolean;
   /**
+   * The generated function that renders an entry point's `.Err` result,
+   * which the entry wrapper calls (checker/entry-error.ts).
+   */
+  readonly entryErrorRenderer?: boolean;
+  /**
    * A `lib/std` primitive: the emitter supplies the body, from its runtime
    * or through the generic host-function import (src/README.md, Compiler/library
    * boundary). The checked `body` is a placeholder.

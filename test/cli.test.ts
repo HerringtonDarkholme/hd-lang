@@ -194,8 +194,11 @@ test("hd run and hd test judge suspending results by Termination", async () => {
       "pub fn main!() -> Result[void, string]:",
       '    .Err("boom")',
     ]);
+    // The report is the error's Display text, on standard error
+    // (spec/lang/10-modules.md#r-module.entry.err-stderr).
     const erred = await failure([err]);
-    assert.match(erred.stdout + erred.stderr, /main returned Err/);
+    assert.equal(erred.code, 1);
+    assert.equal(erred.stderr, "boom\n");
 
     const code = await program("code.hd", [
       "pub fn main!() -> Result[ExitCode, string]:",

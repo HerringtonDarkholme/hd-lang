@@ -70,6 +70,13 @@ pub fn report_of(error: Error) -> ErrorReport:
         index = index + 1
     ErrorReport { message: error.to_string(), causes: causes }
 
+# The report the host writes to standard error when an entry point returns
+# `.Err(error)` and the error's type implements `Error`
+# (spec/lang/10-modules.md#r-module.entry.err-render-chain). The checker
+# calls it from the entry renderer (checker/entry-error.ts).
+fn entry_report(error: Error) -> string:
+    report_of(error).to_string()
+
 # The error that `context` wraps around an `.Err`: its text is the message,
 # and its cause is the wrapped error (r-std-error.context.type).
 pub data ContextError:

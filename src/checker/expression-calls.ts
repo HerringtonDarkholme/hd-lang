@@ -3,6 +3,8 @@ import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
 import { CheckFailure, type Signature } from "./context.ts";
 import { CHECK_EQUAL } from "./standard-library.ts";
+import { ENTRY_ERROR_REPORT, STD_ENTRY_REPORT } from "./entry-error.ts";
+import { numericType } from "../numeric.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import {
   functionParts,
@@ -1039,7 +1041,11 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const actual = { ...checkedActual, type: readonlyType(checkedActual.type) };
       const shownActual = displayType(actual.type);
       if (!this.equalityStrategy(actual.type))
-        this.fail("missing-eq", `type '${shownActual}' does not implement Eq`, actual.span);
+        this.fail(
+          "unsatisfied-trait-bound",
+          `type '${shownActual}' does not implement Eq, required by assert_equal`,
+          actual.span,
+        );
       // spec/lang/10-modules.md#r-module.testing.assert-equal-debug
       const debugMessage = `type '${shownActual}' does not implement Debug, required by assert_equal`;
       if (!this.implementsTrait(actual.type, "Debug"))
@@ -1136,6 +1142,12 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const value = this.checkExpression(expression.arguments[0]!);
       return { ...value, type: mutableType(readonlyType(value.type)) };
     }
+    if (
+      expression.callee.name === ENTRY_ERROR_REPORT &&
+      this.declaration.compilerGenerated === true &&
+      expression.arguments.length === 1
+    )
+      return this.checkEntryErrorReport(expression.arguments[0]!, expression.span);
     const structure = this.checkStructureFactIntrinsic(expression);
     if (structure) return structure;
     if (expression.callee.name === "panic") {
@@ -1161,6 +1173,40 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       return this.checkInternalEnumLiteral(expression, expression.callee.name, expected);
     }
     return undefined;
+  }
+
+  // The text the host writes for an entry point's `.Err(error)`
+  // (checker/entry-error.ts): `std.error`'s report with its cause chain when
+  // the error's type implements `Error`, else its `Display` text. An error
+  // type with neither is already an entry-result error, so it renders as "".
+  private checkEntryErrorReport(error: Expression, span: SourceSpan): HirExpression {
+    const errorType = readonlyType(this.checkExpression(error).type);
+    const chain = this.signatures.get(STD_ENTRY_REPORT);
+    const chainParameter = chain?.parameters[0];
+    const chainTrait = chainParameter === undefined ? undefined : traitTypeName(chainParameter);
+    if (
+      chain &&
+      chainTrait !== undefined &&
+      (errorType === readonlyType(chainParameter!) || this.implementsTrait(errorType, chainTrait))
+    )
+      return this.checkExpression({
+        kind: "call",
+        callee: { kind: "name", name: STD_ENTRY_REPORT, span },
+        arguments: [error],
+        span,
+      });
+    const display =
+      ["bool", "char", "string"].includes(errorType) ||
+      numericType(errorType) !== undefined ||
+      this.implementsTrait(errorType, "Display");
+    if (display)
+      return this.checkExpression({
+        kind: "call",
+        callee: { kind: "member", receiver: error, name: "to_string", span },
+        arguments: [],
+        span,
+      });
+    return this.checkExpression({ kind: "string", value: "", span });
   }
 
   // A checked `assert_equal` or `snapshot` runs `std.testing`'s hd

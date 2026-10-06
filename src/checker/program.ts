@@ -45,6 +45,7 @@ import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
 import { withTypedDerivation, withTypedDerivationSupport } from "./typed-derivation.ts";
 
 import { withErrorDerivation } from "./error-derivation.ts";
+import { withEntryErrorRenderer } from "./entry-error.ts";
 import { setHashableKeyTypes } from "./map-keys.ts";
 import { sourceSpanKey, type Diagnostic, type SourceSpan } from "../diagnostics.ts";
 import { testTierNames, withTestTierNotes } from "./test-tier-notes.ts";
@@ -122,7 +123,13 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
     return { diagnostics: [...derived.diagnostics] };
   // Literal marker facts are checked on the declarations that survive
   // derivation, matching the original phase order.
-  const result = checkWithDebugPrinters(withSuffixMarkers(derived.program), options, prepared);
+  // An entry point that returns a `Result` gets the renderer of its `.Err`
+  // report (spec/lang/10-modules.md#r-module.entry.err-stderr).
+  const result = checkWithDebugPrinters(
+    withEntryErrorRenderer(withSuffixMarkers(derived.program)),
+    options,
+    prepared,
+  );
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/lang/14-annotations.md#r-annot.walker.obligation.error).
   const sameSpan = (span: SourceSpan, diagnostic: Diagnostic): boolean =>

@@ -635,6 +635,9 @@ export async function execute(
   // `hd test` keeps a test case's `dbg` lines and shows them only when it
   // fails; `hd run` writes them to standard error (spec/cli/command-line.md#debug-output).
   let debugLines: string[] = [];
+  // Set once the program wrote an entry point's `.Err` report, which then
+  // stands for the failure (spec/lang/10-modules.md#r-module.entry.err-stderr).
+  let entryErrorReported = false;
   const showDebugLines = (): void => {
     for (const line of debugLines) io.err(line);
     debugLines = [];
@@ -659,6 +662,10 @@ export async function execute(
       // console output goes to stderr there.
       console: (text) => (test?.format === "json" ? io.err(text) : io.out(text)),
       consoleError: (text) => io.err(text),
+      entryError: (report) => {
+        entryErrorReported = true;
+        io.err(report);
+      },
       debugOutput: test ? (line) => debugLines.push(line) : (line) => io.err(line),
       debugLocation: loaded.compileOptions.debugLocation,
       pending:
@@ -802,7 +809,7 @@ export async function execute(
     if (outcome.kind === "exit") return outcome.code;
     if (outcome.kind === "failed") {
       showDebugLines();
-      reporter.entryError(outcome.subject, outcome.outcome);
+      if (!entryErrorReported) reporter.entryError(outcome.subject, outcome.outcome);
       failedLine();
       return 1;
     }

@@ -397,7 +397,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           );
         if (comparison && functionParts(left.type)) {
           this.fail(
-            "unsupported-equality",
+            "type-mismatch",
             `function values do not support operator '${expression.operator}'`,
             expression.span,
           );
@@ -421,7 +421,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           // (05-expressions.md#r-expr.eq.enum-hint.fix).
           if (enumeration)
             this.fail(
-              "missing-eq",
+              "type-mismatch",
               `type '${displayType(left.type)}' does not implement Eq; add '@derive(Eq)' to '${displayType(enumeration.name)}'`,
               expression.span,
               deriveEqFix(enumeration, expression.span),
@@ -431,7 +431,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type)
           ) {
             this.fail(
-              "missing-eq",
+              "type-mismatch",
               `type '${displayType(left.type)}' does not implement Eq`,
               expression.span,
             );
@@ -457,7 +457,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             genericTypeName(left.type)
           )
             this.fail(
-              "missing-partial-ord",
+              "type-mismatch",
               `type '${displayType(left.type)}' does not implement PartialOrd`,
               expression.span,
             );
@@ -478,7 +478,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           expression.operator !== "!="
         ) {
           this.fail(
-            "missing-partial-ord",
+            "type-mismatch",
             `type 'bool' does not implement PartialOrd, required by operator '${expression.operator}'`,
             expression.span,
           );
@@ -611,7 +611,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const generic = genericTypeName(identityType);
     if (generic && !(this.signature.referenceParameters ?? []).includes(generic)) {
       this.fail(
-        "identity-needs-reference-bound",
+        "identity-requires-references",
         `generic parameter '${generic}' requires an AnyRef bound for identity comparison`,
         expression.span,
       );
@@ -686,14 +686,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       if (expression.operator === "-" && numericType(operand.type)?.family === "unsigned")
         this.withLiteralHint([[operand, "i32"]], () =>
           this.fail(
-            "unsigned-negation",
-            `unary '-' does not accept the unsigned type '${displayType(operand.type)}'`,
+            "type-mismatch",
+            `unsigned values cannot be negated: unary '-' does not accept '${displayType(operand.type)}'`,
             expression.span,
           ),
         );
       if (!numericType(operand.type)) {
-        const code =
-          expression.operator === "+" ? "nonnumeric-unary-plus" : "invalid-unary-operand";
+        const code = expression.operator === "+" ? "type-mismatch" : "invalid-unary-operand";
         this.fail(
           code,
           `operator '${expression.operator}' requires a numeric operand`,
@@ -736,8 +735,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       isIntegerType(left.type) !== isIntegerType(right.type)
     )
       this.fail(
-        "mixed-numeric-types",
-        "integer and floating-point power operands cannot be mixed",
+        "type-mismatch",
+        `integer and floating-point power operands don't mix: ${shownLeft} and ${shownRight}; convert one`,
         expression.span,
       );
     this.rejectMixedWidths(left, right, "operator operands");

@@ -5,6 +5,7 @@ import { DiagnosticError, physicalSpan, sourceDocument } from "./diagnostics.ts"
 import { check, type CheckOptions } from "./checker/index.ts";
 import { emitWat, isRuntimePrimitive } from "./emitter/index.ts";
 import {
+  hostStringImports,
   HOST_FUNCTIONS,
   HOST_PROVIDERS,
   UNRECORDED_PROVIDERS,
@@ -269,6 +270,7 @@ type HostImport = (...arguments_: unknown[]) => unknown;
 interface InstantiateOptions {
   readonly console?: (text: string, provider: unknown) => void;
   readonly consoleError?: (text: string, provider: unknown) => void;
+  readonly entryError?: (report: string, provider: unknown) => void; // else consoleError
   readonly trace?: (functionIndex: number, event: SuspensionTraceEvent) => void;
   readonly pending?: (functionIndex: number, pollCount: number) => boolean;
   readonly record?: (event: ReplayEvent) => void;
@@ -1457,14 +1459,8 @@ export async function instantiate(
       );
     }
   }
-  // The generic host-function boundary (host-functions.ts): a `string`
-  // crosses as a handle whose UTF-8 bytes the Wasm side copies one by one.
-  hostImports.host_string_new = (length) => ({ bytes: new Uint8Array(Number(length)) });
-  hostImports.host_string_set = (handle, index, byte) => {
-    (handle as HostString).bytes[Number(index)] = Number(byte);
-  };
-  hostImports.host_string_length = (handle) => (handle as HostString).bytes.length;
-  hostImports.host_string_get = (handle, index) => (handle as HostString).bytes[Number(index)];
+  // The generic host-function boundary, and an entry `.Err` report (host-functions.ts).
+  Object.assign(hostImports, hostStringImports(options.entryError ?? options.consoleError));
   // A host function may panic, as `lib/std`'s panic primitive does.
   for (const [name, host] of Object.entries(
     hostFunctionImports(compilation.hir, options, textDecoder),

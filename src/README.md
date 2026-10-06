@@ -415,7 +415,7 @@ order, then declaration order. The summary object counts `errors`,
 Fixes are suggested only where the diagnostic's own message names the
 replacement: `old-struct-declaration`, `old-import-declaration`,
 `old-export-declaration`, `unexpected-bom`, and `missing-let`
-(`diagnostic-report.ts`), and `missing-eq` for `==` on an enum, which
+(`diagnostic-report.ts`), and `type-mismatch` for `==` on an enum without `Eq`, which
 inserts `@derive(Eq)` above an enum of the same file. In a package build, a
 fix-it moves with its diagnostic into its file, and is dropped when an edit
 lies in another file (`package.ts`, `locate`). A producer may also attach a `fix` or `related`
@@ -1023,9 +1023,14 @@ else`, `break`, `break value`, and `continue`;
   `ExitCode`, `void` (whose `self` is a null `anyref`), and `Result[T, E]`;
   `main` and `main!` may return `void`, `ExitCode`, or a `Result` over them
   (a program's own `Termination` type is reported as not yet supported), and
-  `hd run` exits with the code, reporting an `.Err` as `main returned Err`
-  with code 1. Printing the error's `Display` text and cause chain is not
-  implemented;
+  `hd run` exits with the code. For an `.Err` it writes the error's report
+  to standard error and exits with 1 (module.entry.err-stderr): the checker
+  adds a generated renderer for a `main` whose written result is a `Result`
+  (`checker/entry-error.ts`), which gives the `Display` text, or
+  `std.error`'s report with its `caused by: ` lines for an `Error` type, and
+  the entry wrapper hands the text to the host through the `entry_error`
+  import. A `Result` reached only through a type alias still reports
+  `main returned Err`;
 - typed derivation (spec/lang/14-annotations.md#typed-derivation, Typed
   Derivation M1-M29), lowered before checking by `checker/typed-derivation.ts`:
   decorators on data, enum, newtype, field, variant, payload, and function
@@ -1241,7 +1246,7 @@ else`, `break`, `break value`, and `continue`;
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
   `Eq` implementations, with mandatory reasons and
-  `missing-eq` at unsupported types. The checker checks the call and lowers
+  `unsatisfied-trait-bound` at types without `Eq`. The checker checks the call and lowers
   it to a call of `check_equal`, hd code in `lib/std/testing.hd`, whose
   failure panics with `assertion-failed`, the reason, and both values'
   `debug` text through the `panic` host function

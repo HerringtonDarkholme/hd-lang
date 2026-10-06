@@ -315,7 +315,7 @@ test("== on an enum without Eq names @derive(Eq), with a fix-it in the enum's fi
     await writeFile(file, source);
     const json = await hd(["check", "--format", "json", file]);
     const [diagnostic] = jsonLines(json.stdout);
-    assert.equal(diagnostic!.code, "missing-eq");
+    assert.equal(diagnostic!.code, "type-mismatch");
     assert.equal(
       diagnostic!.message,
       "type 'Color' does not implement Eq; add '@derive(Eq)' to 'Color'",

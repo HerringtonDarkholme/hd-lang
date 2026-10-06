@@ -62,7 +62,7 @@ test("floating power uses the host IEEE pow primitive", async () => {
   assert.equal((instance.exports.main as CallableFunction)(), 3);
   assert.equal(
     analyze(conformance("typing/invalid/power-mixed-numeric-types")).diagnostics[0]?.code,
-    "mixed-numeric-types",
+    "type-mismatch",
   );
 });
 

@@ -886,11 +886,11 @@ class Parser extends LetParser {
       const { doc: fieldDoc, metadata } = this.parseMemberPrefix();
       if (this.matchText("mut")) {
         const candidate = this.current();
-        const code =
-          this.peek(1).text === ":" ? "mutable-field-modifier" : "mutable-embedded-field";
         this.fail(
-          code,
-          "data fields express mutable access in their type rather than with a field modifier",
+          "mutable-field-modifier",
+          this.peek(1).text === ":"
+            ? "data fields express mutable access in their type rather than with a field modifier"
+            : "an embedded field takes no 'mut': access to an embedded part follows its container",
           candidate.span,
         );
       }

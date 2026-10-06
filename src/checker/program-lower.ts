@@ -3,6 +3,7 @@ import type { FunctionDecl, Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirFunction, HirGenericBound, HirGlobal, HirTraitImplementation } from "../hir.ts";
 import { FunctionChecker } from "./checker.ts";
+import { ENTRY_ERROR_RENDERER } from "./entry-error.ts";
 import { type CheckResult, type Signature } from "./context.ts";
 import { checkModuleInitialization } from "./module-initialization.ts";
 import { implementationVisibleFrom } from "./program-implementations.ts";
@@ -225,9 +226,11 @@ export function lowerCheckedProgram(
           ? declaration.public
             ? { ...checked.function, entry: true }
             : { ...checked.function, developmentEntry: true }
-          : declaration.bodiless
-            ? { ...checked.function, intrinsicMethod: true }
-            : checked.function,
+          : declaration.name === ENTRY_ERROR_RENDERER && declaration.compilerGenerated === true
+            ? { ...checked.function, entryErrorRenderer: true }
+            : declaration.bodiless
+              ? { ...checked.function, intrinsicMethod: true }
+              : checked.function,
       );
   });
   declarations.forEach((declaration) => {

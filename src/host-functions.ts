@@ -260,3 +260,30 @@ export const HOST_PROVIDERS: Readonly<
  * (future-work/OPEN_ISSUES.md, Mutable Host Providers).
  */
 export const UNRECORDED_PROVIDERS: ReadonlySet<string> = new Set(["Console"]);
+
+interface StringHandle {
+  readonly bytes: Uint8Array;
+}
+
+/**
+ * The generic host-function boundary: a `string` crosses as a handle whose
+ * UTF-8 bytes the Wasm side copies one by one. Through it, `entry_error`
+ * takes the report of an entry point's `.Err`, which the host writes to
+ * standard error (spec/lang/10-modules.md#r-module.entry.err-stderr;
+ * emitter/context.ts, emitEntryReport).
+ */
+export function hostStringImports(
+  writeEntryError: ((report: string, provider: unknown) => void) | undefined,
+): Record<string, (...arguments_: unknown[]) => unknown> {
+  const decoder = new TextDecoder();
+  return {
+    host_string_new: (length) => ({ bytes: new Uint8Array(Number(length)) }),
+    host_string_set: (handle, index, byte) => {
+      (handle as StringHandle).bytes[Number(index)] = Number(byte);
+    },
+    host_string_length: (handle) => (handle as StringHandle).bytes.length,
+    host_string_get: (handle, index) => (handle as StringHandle).bytes[Number(index)],
+    entry_error: (handle) =>
+      writeEntryError?.(decoder.decode((handle as StringHandle).bytes), undefined),
+  };
+}

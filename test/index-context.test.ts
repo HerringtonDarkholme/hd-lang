@@ -93,7 +93,7 @@ fn run(numbers: mut List[i32]) -> void:
 fn invalid(numbers: mut List[i32]) -> void:
     put(numbers, -1, 9)
 `);
-  assert.equal(rejected.diagnostics[0]?.code, "unsigned-negation");
+  assert.equal(rejected.diagnostics[0]?.code, "type-mismatch");
 });
 
 test("trait-bound inference is generic and forwards caller bounds", () => {

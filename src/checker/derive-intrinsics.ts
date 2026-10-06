@@ -65,9 +65,7 @@ export const DERIVE_CHECKED_TRAITS: ReadonlySet<string> = new Set([
 /** The trait errors a derived field line reports as `derive-field-missing-trait`. */
 const DERIVED_FIELD_CODES: ReadonlySet<string> = new Set([
   "unsatisfied-trait-bound",
-  "missing-eq",
-  "missing-partial-ord",
-  "unsupported-equality",
+  "type-mismatch",
 ]);
 
 /**

@@ -144,12 +144,15 @@ export function emitHostFunctionImports(program: HirProgram): {
 } {
   const functions = hostFunctions(program);
   const panicDetail = program.hasPanicDetail;
+  // An entry point's `.Err` report (checker/entry-error.ts) crosses as a string.
+  const entryError = program.functions.some((declaration) => declaration.entryErrorRenderer);
   const imports = functions.map(
     (declaration) =>
       `  (import "hd" "host:${declaration.intrinsic}" (func ${hostImportName(declaration.intrinsic!)} ${hostSignature(declaration)}))`,
   );
   const boundary =
     panicDetail ||
+    entryError ||
     functions.some(
       (declaration) =>
         declaration.result === "string" ||
@@ -166,5 +169,7 @@ export function emitHostFunctionImports(program: HirProgram): {
     imports.push(
       `  (import "hd" "panic_with_message" (func $hd.panic_with_message (param i32 externref)))`,
     );
+  if (entryError)
+    imports.push(`  (import "hd" "entry_error" (func $hd.entry_error (param externref)))`);
   return { imports: imports.join("\n"), boundary };
 }

@@ -94,7 +94,11 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
     switch (expression.kind) {
       case "suspend-call": {
         if (this.deferDepth > 0) {
-          this.fail("suspending-defer", "a defer suite cannot make a bang call", expression.span);
+          this.fail(
+            "suspension-forbidden-context",
+            "a defer suite cannot make a bang call",
+            expression.span,
+          );
         }
         if (!this.declaration.suspending) {
           this.fail(

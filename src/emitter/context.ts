@@ -143,6 +143,8 @@ export class EmitterContext {
   protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();
   protected readonly providerKeys = new Map<string, number>();
   private readonly stringKernel: ReadonlyMap<string, number>;
+  /** The index of the generated renderer of an entry `.Err` (checker/entry-error.ts). */
+  protected readonly entryErrorRenderer: number | undefined;
 
   constructor(
     data: readonly HirData[],
@@ -157,6 +159,9 @@ export class EmitterContext {
     functions: readonly HirFunction[] = [],
     traitMethods: ReadonlySet<string> = new Set(),
   ) {
+    this.entryErrorRenderer = functions.find(
+      (declaration) => declaration.entryErrorRenderer === true,
+    )?.index;
     this.stringKernel = new Map(
       functions
         .filter((declaration) => STRING_KERNEL_NAMES.has(declaration.name))
@@ -450,7 +455,7 @@ export class EmitterContext {
       .map((argument) => ` ${argument}`)
       .join("")})`;
     const locals: string[] = [];
-    const report = this.emitEntryReport(call, declaration.result, locals);
+    const report = this.emitEntryReport(call, declaration.result, locals, true);
     return [
       `(func (export ${exportName("main")})${providers.length ? " " + providers.join(" ") : ""} (result i32)`,
       ...locals.map((local) => `  ${local}`),
@@ -690,8 +695,15 @@ export class EmitterContext {
 
   // `report()` of an entry result: 0 for `void`, the `u8` of `ExitCode`, and
   // for a `Result` its `.Ok` value's code or -1 for `.Err`. The checker admits
-  // no other result (termination.ts runnableEntryResult).
-  protected emitEntryReport(value: string, type: ValueType, locals: string[]): string {
+  // no other result (termination.ts runnableEntryResult). An entry point's
+  // `.Err` first hands its rendered report to the host, which writes it to
+  // standard error (spec/lang/10-modules.md#r-module.entry.err-stderr).
+  protected emitEntryReport(
+    value: string,
+    type: ValueType,
+    locals: string[],
+    entry = false,
+  ): string {
     const parts = resultParts(readonlyType(type));
     if (parts) {
       const local = `$report${locals.length}`;
@@ -702,7 +714,12 @@ export class EmitterContext {
       );
       const ok =
         parts.ok === "void" ? "(i32.const 0)" : this.emitEntryReport(payload, parts.ok, locals);
-      return `(block (result i32) (local.set ${local} ${value}) (if (result i32) (i32.eqz (struct.get $hd.variant $hd.variant-tag (local.get ${local}))) (then ${ok}) (else (i32.const -1))))`;
+      const renderer = entry ? this.entryErrorRenderer : undefined;
+      const failed =
+        renderer === undefined
+          ? "(i32.const -1)"
+          : `(call $hd.entry_error (call $hd.string_to_host (call ${functionName(renderer)} (local.get ${local})))) (i32.const -1)`;
+      return `(block (result i32) (local.set ${local} ${value}) (if (result i32) (i32.eqz (struct.get $hd.variant $hd.variant-tag (local.get ${local}))) (then ${ok}) (else ${failed})))`;
     }
     const data = this.dataByName.get(readonlyType(type));
     if (!data) return `(block (result i32) (drop ${value}) (i32.const 0))`;

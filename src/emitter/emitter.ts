@@ -776,7 +776,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
       declaration.result !== "void" &&
       declaration.result !== "never";
     const locals: string[] = [];
-    const body = reported ? this.emitEntryReport(drive, declaration.result, locals) : drive;
+    const body = reported
+      ? this.emitEntryReport(drive, declaration.result, locals, declaration.entry === true)
+      : drive;
     return [
       `(func $entry${index} (export ${JSON.stringify(entryExport)})${providerParameters.length ? " " + providerParameters.join(" ") : ""}${reported ? " (result i32)" : result}`,
       ...locals.map((local) => `  ${local}`),
