@@ -1,7 +1,7 @@
 import { arityCode } from "../diagnostics.ts";
 import { traitValueBindings } from "./associated-bindings.ts";
 import type { Expression } from "../ast.ts";
-import type { HirExpression, ValueType } from "../hir.ts";
+import type { HirExpression, HirTrait, ValueType } from "../hir.ts";
 import { CheckFailure, type Signature } from "./context.ts";
 import { CHECK_EQUAL } from "./standard-library.ts";
 import { ENTRY_ERROR_REPORT, STD_ENTRY_REPORT } from "./entry-error.ts";
@@ -40,7 +40,7 @@ import {
   traitTypeName,
 } from "./shared.ts";
 import { implementationsFor } from "./implementation-index.ts";
-import type { QualifiedCallExpression } from "./trait-calls.ts";
+import type { QualifiedCallExpression, QualifiedTrait } from "./trait-calls.ts";
 import { IterationChecker } from "./iteration.ts";
 import { loopNameHint } from "./cannot-infer.ts";
 import { supertraitPathBindings } from "./trait-paths.ts";
@@ -353,11 +353,30 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     return undefined;
   }
 
+  /**
+   * `receiver.name(...)` through a type parameter's bound or a trait value.
+   * A trait-qualified call passes `qualified`, which keeps only that trait
+   * instantiation's method (09-traits.md#r-trait.qualified.receiver).
+   */
   protected checkDynamicMemberCall(
     expression: MemberCallExpression,
     receiver: HirExpression,
+    qualified?: QualifiedTrait,
   ): HirExpression | undefined {
     const methodName = expression.callee.name;
+    const traitMethods = (
+      trait: HirTrait,
+      traitArguments: readonly ValueType[],
+    ): ReturnType<typeof this.findTraitMethods> =>
+      this.findTraitMethods(trait, methodName).filter(
+        (selected) =>
+          !qualified ||
+          (selected.trait.index === qualified.traitIndex &&
+            (qualified.traitArguments.length === 0 ||
+              this.resolveTraitPath(trait, traitArguments, selected.path).arguments.every(
+                (argument, index) => argument === qualified.traitArguments[index],
+              ))),
+      );
     const receiverGeneric = genericTypeName(readonlyType(receiver.type));
     const receiverBounds = receiverGeneric
       ? this.signature.genericBounds
@@ -369,8 +388,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           .filter(({ bound }) => bound.parameter === receiverGeneric)
       : [];
     const matchingBounds = receiverBounds.filter(
-      ({ trait }) => this.findTraitMethods(trait, methodName).length > 0,
+      ({ bound, trait }) => traitMethods(trait, bound.traitArguments).length > 0,
     );
+    // Bounds that reach the one named trait instantiation reach one method.
+    if (qualified) matchingBounds.splice(1);
     if (matchingBounds.length > 1) {
       this.fail(
         "ambiguous-method",
@@ -400,7 +421,14 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     const dynamicTraitName = traitTypeName(dispatchReceiver.type);
     const dynamicTrait = dynamicTraitName && this.traitTypes.get(dynamicTraitName);
     if (dynamicTrait) {
-      const methodCandidates = this.findTraitMethods(dynamicTrait, methodName);
+      const traitKey = readonlyType(dispatchReceiver.type).slice("trait:".length);
+      const traitArguments = splitTypeBindings(
+        nominalGenericParts(traitKey)?.arguments ?? [],
+      ).positional;
+      const methodCandidates = traitMethods(dynamicTrait, traitArguments);
+      // A trait value whose trait does not reach the named trait may still
+      // implement it, which its implementations decide.
+      if (qualified && methodCandidates.length === 0) return undefined;
       if (methodCandidates.length > 1)
         this.fail(
           "ambiguous-method",
@@ -418,10 +446,6 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (method.receiverMutable && mutableInner(dispatchReceiver.type) === undefined) {
         this.failReadonlyMethodReceiver(method.name, expression.callee.receiver, receiver);
       }
-      const traitKey = readonlyType(dispatchReceiver.type).slice("trait:".length);
-      const traitArguments = splitTypeBindings(
-        nominalGenericParts(traitKey)?.arguments ?? [],
-      ).positional;
       // Through a trait value that binds associated types, each projection
       // in a signature is its bound type (09-traits.md#r-trait.dyn.binding.signatures).
       const valueBindings = receiverBound
@@ -1419,6 +1443,13 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         argumentNames: expression.argumentNames?.slice(1),
         argumentSpreads: expression.argumentSpreads?.slice(1),
       };
+      // A bound on a type parameter, or a trait value, proves the receiver
+      // implements the trait (09-traits.md#r-trait.qualified.receiver).
+      const dynamic = this.checkDynamicMemberCall(memberExpression, receiver, {
+        traitIndex: trait.index,
+        traitArguments,
+      });
+      if (dynamic) return dynamic;
       return this.checkImplementedMemberCall(
         memberExpression,
         receiver,

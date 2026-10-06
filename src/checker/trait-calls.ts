@@ -25,6 +25,12 @@ export interface QualifiedCallExpression extends Extract<Expression, { kind: "ca
   readonly callee: Extract<Expression, { kind: "qualified-name" }>;
 }
 
+/** The trait instantiation a call `Trait::method(receiver, ...)` names. */
+export interface QualifiedTrait {
+  readonly traitIndex: number;
+  readonly traitArguments: readonly ValueType[];
+}
+
 /** An implementation that supplies an associated function for a type. */
 type AssociatedCandidate = ReturnType<TraitCallChecker["associatedCandidates"]>[number];
 

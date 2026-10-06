@@ -2810,3 +2810,4 @@ cli/cap-total-deny	cli
 cli/cap-flag-overrides-table	cli
 cli/cap-partial-deny	cli
 cli/cap-env-notice	cli
+typing/valid/trait-qualified-call-generic-receiver.hd	type
