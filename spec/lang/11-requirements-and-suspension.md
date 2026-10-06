@@ -85,9 +85,9 @@ requirement clause:
 
 1. r[req.row.omitted.empty-pub] A public function, a public inherent method, a trait method, or a method of a trait implementation without a requirement clause has the empty row.
 2. r[req.row.omitted.empty.body] The body of such a callable may use only requirements satisfied by a `$.with` block in that body.
-3. r[req.row.omitted.inferred-private] A non-public function, a non-public inherent method, or a local `fn` declaration without a requirement clause has an inferred row, computed by the same rule as a closure's below.
+3. r[req.row.omitted.inferred-private] A non-public function, a non-public inherent method, or a local `fn` declaration without a requirement clause has an inferred row. It is computed by the same rule as a closure's below.
 4. r[req.row.omitted.cycle] Inferred rows of functions that call each other in a cycle are the least rows that satisfy every member of the cycle.
-5. r[req.row.omitted.closure-row] When a closure omits its requirement clause, the compiler infers the least row containing every requirement its body uses outside the `$.with` blocks of that body.
+5. r[req.row.omitted.closure-row] When a closure omits its requirement clause, the compiler infers a row for it. The row is the least one containing every requirement its body uses outside the `$.with` blocks of that body.
 6. r[req.row.omitted.outer-scope] A `$.with` block around a closure or local `fn` declaration never satisfies that callable's requirements, so each key its body uses goes into its row.
 7. r[req.row.omitted.parameter-calls] Calls through function parameters contribute their normalized rows.
 8. r[req.row.omitted.expected-parameter] If an expected function type contains a row parameter, the inferred concrete row is unified with that parameter.
@@ -154,7 +154,7 @@ pub fn invalid() -> void:
 3. r[req.row.least.absent-key] When the matched row lacks `K`, the pattern still matches, and `R` is the whole matched row.
 4. r[req.row.least.removal] This least-solution rule is also how a callee removes a key from a callback row.
 5. r[req.row.least.one-unknown] A row pattern may list at most one row parameter that is still unknown when the pattern is solved.
-6. r[req.row.least.fixed] A parameter's row pattern fixes a row parameter when that parameter is the only one in the pattern not already fixed; patterns are solved one at a time in that order.
+6. r[req.row.least.fixed] A parameter's row pattern fixes a row parameter when that parameter is the only one in the pattern not already fixed. Patterns are solved one at a time in that order.
 7. r[req.row.least.ambiguous] A declaration is an error when a row pattern in a parameter type lists two or more row parameters that no other parameter's pattern fixes. Error: `ambiguous-row-pattern`.
 8. r[req.row.least.ambiguous.reported] The error is reported on the parameter whose type holds that pattern.
 
@@ -177,7 +177,7 @@ In `both`, `first` fixes `R1`, so `R2` is the one unknown in the pattern of
 
 > **Why.** A callback that needs fewer keys than its pattern allows is
 > always safe to call where the pattern's keys are provided. A pattern with
-> one unknown has one least solution; Koka and Links state the same limit in
+> one unknown has one least solution. Koka and Links state the same limit in
 > their syntax, where a row ends in at most one variable.
 
 See also: [Requirement Polymorphism](#requirement-polymorphism).
@@ -202,7 +202,7 @@ fn routes() -> List[fn() -> string $ Db + Clock]:
 ```
 
 1. r[req.row.subsume] A function value fits an expected function type when the expected row entails every key of the value's row and the two types otherwise match.
-2. r[req.row.subsume.sites] Row subsumption applies wherever a function value is checked against an expected function type, including an argument, an assignment, a declared binding, a return value, a field, and a list element.
+2. r[req.row.subsume.sites] Row subsumption applies wherever a function value is checked against an expected function type. That includes an argument, an assignment, a declared binding, a return value, a field, and a list element.
 3. r[req.row.subsume.missing] A function value whose row lists a key the expected row does not entail does not fit. Error: `type-mismatch`.
 4. r[req.row.subsume.adapt] The compiler may adapt such a value, so that a call through the wider type passes the value only the providers of its own row.
 5. r[req.row.subsume.closure] A closure whose inferred row is narrower than an expected row therefore fits that row without taking it.
@@ -278,7 +278,7 @@ fn serve_one(admin: bool) -> string $ Db + Clock:
 10. r[req.row.union.literal.diagnostics] A diagnostic prints an inferred union row as the elements' rows are written, in element order, with each key or alias once.
 11. r[req.row.union.literal.diagnostics.expanded] A `missing-requirement` or `type-mismatch` diagnostic on that row also lists its expanded keys and names the missing key, as [`req.row.alias.diagnostics.expanded`](#r-req.row.alias.diagnostics.expanded) states.
 12. r[req.row.union.sites] The other least-common-type sites take the union the same way. They are the branches of a value-producing `if` and the arms of a value-producing `match`. They also include the final value and `return` operands of a closure or non-public function whose result type is inferred.
-13. r[req.row.union.sites.type] At each such site, the inferred type is the least common type of the values' types after each function type's row is widened to the union of their rows. Each value then fits that type by row subsumption.
+13. r[req.row.union.sites.type] At each such site, the inferred type is the least common type of the values' types. Before that, each function type's row is widened to the union of their rows. Each value then fits that type by row subsumption.
 14. r[req.row.union.sites.direct] At every site, only function values take the union. A value that holds function values keeps its own type, so `if admin: [orders] else: [health]` has no common type. Error: `no-common-type`.
 
 ```text
@@ -383,7 +383,7 @@ fn wrap(callback: Fn[(), void, $ Db]) -> Job[$ Db]:
 ```
 
 1. r[req.row.slot] A **row slot** is a place in a type or a type argument list that takes a requirement row.
-2. r[req.row.slot.list] The row slots are the brackets of `$.Context[...]` and the row argument of `Fn` and `SuspendFn`. They also include an argument for a row parameter of an alias, and an explicit type argument for a row parameter of a function or method.
+2. r[req.row.slot.list] The row slots are the brackets of `$.Context[...]` and the row argument of `Fn` and `SuspendFn`. They also include an argument for a row parameter of an alias. An explicit type argument for a row parameter of a function or method is one too.
 3. r[req.row.slot.dollar] Every row in a row slot is written after `$`, including one key and a row alias, as in `Job[$ Db]`, `$.Context[$ AppRow]`, and `Fn[(), void, $ AppRow]`.
 4. r[req.row.slot.empty] The empty row in a row slot is `$()`.
 5. r[req.row.slot.bare] A bare key or a bare row alias in a row slot is an error whose fix-it adds `$`. Error: `generic-kind-mismatch`.
@@ -429,11 +429,11 @@ fn get_order() -> string $ AppRow + Clock:
 3. r[req.row.alias.expand] A row alias written in a row stands for its keys, so `$ AppRow + Clock` is the row `$ Db + Cache + Log + Clock`.
 4. r[req.row.alias.expand.first] Expansion comes before normalization, entailment, least-row solving, row subsumption, and the check for [generic key collisions](#generic-key-collisions).
 5. r[req.row.alias.nested] A row alias may name another row alias, and expansion flattens every level into one set.
-6. r[req.row.alias.dollar.missing] A right side without `$` that joins keys with `+`, as in `type AppRow = Db + Cache`, or that names one row alias, as in `type Web = AppRow`, is an error whose fix-it adds `$`. Error: `generic-kind-mismatch`.
+6. r[req.row.alias.dollar.missing] A right side that joins keys with `+` without `$`, as in `type AppRow = Db + Cache`, is an error. So is one that names one row alias without `$`, as in `type Web = AppRow`. The fix-it adds `$`. Error: `generic-kind-mismatch`.
 7. r[req.row.alias.duplicate] A key reached twice, directly or through aliases, occurs once in the row, as [`req.row.set.duplicate`](#r-req.row.set.duplicate) states, and is not diagnosed.
 8. r[req.row.alias.in-rows] A row alias is written only in a row after `$`: in a requirement clause, or in a [row slot](#row-slots), as in `$.Context[$ AppRow]`.
 9. r[req.row.alias.type-or-key] A row alias is row-kinded. Using one as a value type, a bound, a type-kinded argument, or a single key, as in `$.use(AppRow)` or `AppRow=value`, is an error. Error: `generic-kind-mismatch`.
-10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used: `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
+10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used. So `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
 11. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = $ Store[Item = User] + Log`. An ordinary alias of one bound trait, as in `type UserStore = Store[Item = User]`, is that bound key in a row.
 12. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
 13. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
@@ -531,7 +531,7 @@ See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-alias
 2. r[req.key.no-effect-syntax] The language does not introduce a separate effect-declaration syntax.
 3. r[req.key.in-scope] A requirement key is an ordinary trait name, so its trait must be [in scope](03-names-and-scopes.md#r-names.module.scope) where the key is written, as in `$.with(Mailer=mailer)`. Error: `unknown-trait`.
 3. r[req.key.inspectable] A trait that is `std.inspect.Inspectable` or has it as a direct or transitive supertrait is never a requirement key.
-4. r[req.key.inspectable.error] Writing one as a key, in a requirement clause, a provider scope, or any other place a key is named, is an error reported on the key. Error: `inspectable-requirement`.
+4. r[req.key.inspectable.error] Writing one as a key is an error reported on the key. That covers a requirement clause, a provider scope, and any other place a key is named. Error: `inspectable-requirement`.
 5. r[req.key.inspectable.bound] Such a trait remains valid as a bound and as a value type.
 6. r[req.key.dynamically-safe] A requirement key must name a [dynamically safe](09-traits.md#dynamic-safety) trait, since its provider is a trait value. A key that names any other trait is an error, reported on the requirement row. Error: `trait-not-dynamically-safe`.
 
@@ -584,8 +584,8 @@ fn wrong(id: string) -> User $ Store[Item = Post]:
 ```
 
 1. r[req.key.binding] A requirement key may bind associated types after its positional arguments, as in `$ Store[Item = User]`.
-2. r[req.key.binding.names] The rules of [Binding Names](09-traits.md#binding-names) apply to a key's bindings, so a binding may name a supertrait's associated type, and an unknown or ambiguous name is an error.
-3. r[req.key.binding.identity] Two keys are the same key when they name the same trait instantiation and bind the same associated types to the same types, in any order.
+2. r[req.key.binding.names] The rules of [Binding Names](09-traits.md#binding-names) apply to a key's bindings. So a binding may name a supertrait's associated type, and an unknown or ambiguous name is an error.
+3. r[req.key.binding.identity] Two keys are the same key when they name the same trait instantiation and bind the same associated types to the same types. Order does not matter.
 4. r[req.key.binding.identity.example] So `Store[Item = User]` and `Store[Item = Post]` are two keys, as `Repo[User]` and `Repo[Post]` are.
 5. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
 6. r[req.key.binding.value] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `Store[Item = User]` and its `load` returns `User`.
@@ -658,7 +658,7 @@ fn demo!() -> Result[User?, DbError] $ Cache:
 1. r[req.with.block] `$.with` binds providers for one lexical trailing block.
 2. r[req.with.evaluated] Each provider expression is evaluated before entering the block.
 3. r[req.with.type] Each provider expression must have a type implementing its named requirement trait.
-4. r[req.with.type.binding] For a [bound key](#bound-requirement-keys), the provider's implementation must also bind each associated type to the type the key states, as a value converting to that trait value type must ([`trait.dyn.binding.convert`](09-traits.md#r-trait.dyn.binding.convert)). A provider whose implementation binds another type is an error. Error: `type-mismatch`.
+4. r[req.with.type.binding] For a [bound key](#bound-requirement-keys), the provider's implementation must also bind each associated type to the type the key states. A value converting to that trait value type must do the same ([`trait.dyn.binding.convert`](09-traits.md#r-trait.dyn.binding.convert)). A provider whose implementation binds another type is an error. Error: `type-mismatch`.
 5. r[req.with.nested] Nested scopes may replace an outer provider for the same key within the nested block.
 6. r[req.with.nearest] A call receives, for each key of its row, the nearest provider in effect at the call.
 7. r[req.with.nearest.which] The nearest provider is that of the innermost enclosing `$.with` that binds the key, or else the one the caller received.
@@ -692,10 +692,11 @@ fn run() -> string:
 > **Why.** One rule finds every provider: the nearest scope that binds the
 > key, as for nested `$.with` scopes.
 >
-> [`req.with.nearest.forced`](#r-req.with.nearest.forced) is intended: a
+> [`req.with.nearest.forced`](#r-req.with.nearest.forced) is intended. A
 > callback that keeps a key in its row asks its call site to supply that key.
 > Zhang and Myers (POPL 2019) name the unintended case *accidental handling*.
-> They prevent it with lexically scoped handlers. hd keeps one dynamic rule,
+> They prevent it with lexically scoped handlers. The language keeps one
+> dynamic rule,
 > and a closure gets lexical scope by an explicit capture
 > ([Lexical And Dynamic Providers](#lexical-and-dynamic-providers)).
 
@@ -747,8 +748,8 @@ See also: [Omitted Requirement Clauses](#omitted-requirement-clauses),
 
 ### Generic Key Collisions
 
-1. r[req.with.collision.compared] At each `$.with`, the compiler compares every newly bound key with every other new key and with every declared-row or lexical key visible in the block.
-2. r[req.with.collision.closure] Inside a closure, the visible keys are only those a lookup in the closure body can select: the closure's declared or inferred row, and the keys of `$.with` blocks inside the closure.
+1. r[req.with.collision.compared] At each `$.with`, the compiler compares every newly bound key with every other new key. It also compares each with every declared-row or lexical key visible in the block.
+2. r[req.with.collision.closure] Inside a closure, the visible keys are only those a lookup in the closure body can select. Those are the closure's declared or inferred row, and the keys of `$.with` blocks inside the closure.
 3. r[req.with.collision.closure.outer] The keys of a `$.with` block around the closure are therefore not compared.
 4. r[req.with.collision] Two distinct generic key expressions that can become identical under any valid type-argument substitution are an error. Error: `generic-requirement-key-collision`.
 5. r[req.with.collision.context] The same check applies among entries of a `$.context` expression.
@@ -905,7 +906,7 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 
 ### Installing
 
-1. r[req.mut.install-mutable] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must have type `mut T` for a type `T` implementing `K`. A readonly expression is an error. Error: `mutable-upgrade`.
+1. r[req.mut.install-mutable] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must have a `mut` type. Its type must be `mut T` for a type `T` implementing `K`. A readonly expression is an error. Error: `mutable-upgrade`.
 2. r[req.mut.install-readonly-trait] For any other trait, the expression may have either access, and the provider is installed with readonly access.
 
 ```text
@@ -1024,8 +1025,8 @@ A bang call ends in the `suspension_call_suffix` of
 [Expressions](02-grammar.md#expressions): `!`, optional type arguments, and an argument clause.
 
 1. r[req.bang.suffix] This suffix is part of `postfix_suffix` at ordinary call precedence.
-2. r[req.bang.not-negation] It follows a completed operand, so it never collides with prefix logical `!` at the start of an operand: `!fetch!(id)` is a legal negation of a bang call's `bool` result.
-3. r[req.bang.driver-contexts] A bang call is valid only in a **driver context**, which is exactly one of: a suspending function or closure body, or the host executor driving `main!`. A test body is a suspending closure.
+2. r[req.bang.not-negation] It follows a completed operand, so it never collides with prefix logical `!` at the start of an operand. `!fetch!(id)` is a legal negation of a bang call's `bool` result.
+3. r[req.bang.driver-contexts] A bang call is valid only in a **driver context**. A driver context is exactly one of: a suspending function or closure body, or the host executor driving `main!`. A test body is a suspending closure.
 4. r[req.bang.top-level] Module top level is not a driver context. A bang call outside a driver context is an error. Error: `bang-call-outside-suspension`.
 5. r[req.bang.active] A driver is **active** while its executor is evaluating or polling that driver context on the current program-instance call stack.
 6. r[req.bang.pending-not-active] A pending invocation retained by the host between polls is unfinished but not active.
@@ -1046,7 +1047,7 @@ fn main() -> i32: work!()  # error: bang-call-outside-suspension
 5. r[req.drive.block-on.forbidden-contexts] `block_on` is forbidden in a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
 6. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.no-block-on).
 7. r[req.drive.block-on.transitive] This ban is transitive through the statically known call graph.
-8. r[req.drive.block-on.unprovable] If a call through a function value or dynamic trait method prevents the compiler from proving that `block_on` is unreachable, the call is rejected in one of these contexts.
+8. r[req.drive.block-on.unprovable] A call through a function value or dynamic trait method may prevent the compiler from proving that `block_on` is unreachable. Such a call is rejected in one of these contexts.
 9. r[req.drive.block-on.error] Every direct or transitive violation is an error. Error: `suspension-forbidden-context`.
 10. r[req.drive.block-on.under-driver] A `block_on` call while another suspension driver is active is valid, as in `main!` or a test body, whether reached directly or through non-suspending helpers.
 11. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
@@ -1069,7 +1070,7 @@ fn main() -> void:
 
 1. r[req.entry.driver] The host executor is the driver for `main!`.
 2. r[req.entry.waker-driven] This entry driver is waker-driven.
-3. r[req.entry.pending] When a poll returns `Pending` because a host provider operation is pending, the driver returns control to the host and polls again only after a waker for that suspension is invoked.
+3. r[req.entry.pending] When a poll returns `Pending` because a host provider operation is pending, the driver returns control to the host. It polls again only after a waker for that suspension is invoked.
 4. r[req.entry.busy-poll] A driver that keeps polling a pending host operation without returning to the host is not conforming.
 
 ### Host Waits
@@ -1242,7 +1243,7 @@ combinators cancel their children.
 
 1. r[req.cancel.synchronous] `cancel(mut self)` is synchronous and must not suspend.
 2. r[req.cancel.steps] It marks the suspension cancelled, synchronously propagates cancellation to an unfinished child, and asks unfinished external operations to abort through their provider/runtime contracts.
-3. r[req.cancel.defer] After an unfinished child has completed its own cancellation cleanup, registered `defer` suites in the suspension's unfinished frames run synchronously in last-in, first-out order, from the innermost frame outward.
+3. r[req.cancel.defer] After an unfinished child has completed its own cancellation cleanup, registered `defer` suites in the suspension's unfinished frames run synchronously. They run in last-in, first-out order, from the innermost frame outward.
 4. r[req.cancel.cooperative] Cancellation is cooperative at suspension boundaries for language code.
 5. r[req.cancel.external-abort] A runtime must not leave a known active HTTP request or equivalent external operation running when its provider supports abort.
 6. r[req.cancel.no-ownership] Cancellation runs already registered synchronous `defer` suites, but it does not establish ownership or stop aliases from escaping.
@@ -1312,8 +1313,8 @@ fn explicit!() -> (i32, i32):
 > [Cooperative Scheduling](#cooperative-scheduling).
 
 > **Why.** A written signature for `all!` would need a type-level map over
-> a tuple, from `Suspend[X_i]` to `X_i`. hd has no higher-kinded types, so
-> one written typing rule replaces the signature.
+> a tuple, from `Suspend[X_i]` to `X_i`. The language has no higher-kinded
+> types, so one written typing rule replaces the signature.
 
 > **Note.** The `retry!` combinator of `std.task` is a plain library loop
 > over a `fn!` attempt, not an intrinsic, so the stdlib tier specifies it
@@ -1392,7 +1393,7 @@ providers come from, and what a program instance's behavior depends on.
 
 1. r[req.determinism.inputs] A program instance is deterministic in its inputs.
 2. r[req.determinism.same-program] Two builds are **the same compiled program** when the compiler's outputs for them are byte-identical.
-3. r[req.determinism.depends] Its observable behavior depends only on which compiled program it runs, its runtime profile, its entry arguments, and the ordered sequence of host-call results and waker and cancellation deliveries it receives.
+3. r[req.determinism.depends] Its observable behavior depends only on which compiled program it runs, its runtime profile, and its entry arguments. It also depends on the ordered sequence of host-call results and waker and cancellation deliveries it receives.
 4. r[req.determinism.no-other-source] Code between host calls has no other source of nondeterminism.
 5. r[req.determinism.replay] A runtime may therefore reproduce an instance by supplying the same inputs in the same order.
 6. r[req.determinism.limits] Failures caused by host stack or memory limits are outside this guarantee.
