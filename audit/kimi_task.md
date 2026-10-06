@@ -90,16 +90,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K15. Guide Coverage Report (Read-Only)
-
-For each spec chapter in `spec/lang/` and each std module in `spec/std/`,
-list the user-facing features that `guide/` never shows or mentions. A
-feature is a section heading or a named construct, not a single rule.
-Write the list to `audit/guide-coverage-2026-10-06.md` as one table per
-chapter, with columns: feature, spec link, guide mention (none / brief /
-full). Put a ranking of the ten gaps a new user would hit first at the
-top. Don't edit the guide. Commit only the report.
-
 ## Questions
 
 (none)
