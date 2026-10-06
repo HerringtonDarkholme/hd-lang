@@ -85,7 +85,7 @@ pub trait FsWrite:
 1. r[std-fs.suspends] File system access is I/O, so every method of `FsRead` and `FsWrite` is a bang method.
 
 > **Why.** Reading and writing are separate traits, so a row says which
-> one a function needs, and a program that only reads gains no authority
+> one a function needs. A program that only reads gains no authority
 > to change files.
 
 ## File Helpers
