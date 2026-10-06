@@ -1,5 +1,5 @@
 # test: run! reports a refused start as .Err, and a non-zero exit status as an ordinary .Ok
-# Spec Modules, Processes: module.process.nonzero-ok, module.process.permission-denied, module.process.other, module.process.error-traits.
+# Spec Modules, Processes: module.process.nonzero-ok, module.process.os-denied, module.process.other, module.process.error-traits.
 # expect: test
 use std.process.{Process, ProcessError, ProcessOutput}
 use std.testing.assert_equal

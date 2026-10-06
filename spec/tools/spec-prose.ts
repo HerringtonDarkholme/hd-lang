@@ -72,6 +72,9 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/cli.md": "std-cli",
   "std/regex.md": "std-regex",
   "std/process.md": "std-process",
+  "std/http.md": "std-http",
+  "std/net.md": "std-net",
+  "std/sys.md": "std-sys",
   "cli/command-line.md": "cli",
 };
 

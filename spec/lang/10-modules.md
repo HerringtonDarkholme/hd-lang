@@ -1069,6 +1069,7 @@ pub data ProcessOutput:
 pub enum ProcessError:
     NotFound
     PermissionDenied
+    NotGranted
     Other(message: string)
 
 pub trait Process:
@@ -1080,11 +1081,12 @@ pub trait Process:
 3. r[module.process.ok-output] When the program starts, `run!` returns `.Ok` of a `ProcessOutput`. It holds the text the program wrote to standard output and to standard error, and the status it exited with.
 4. r[module.process.nonzero-ok] A non-zero exit status is still an ordinary `.Ok` result; the caller reads it from `status`.
 5. r[module.process.not-found] `run!` returns `.Err(ProcessError.NotFound)` when its provider has no program named `program`.
-6. r[module.process.permission-denied] It returns `.Err(ProcessError.PermissionDenied)` when the program exists but the host does not allow starting it.
-7. r[module.process.other] It returns `.Err(ProcessError.Other(message))` when the program cannot start for any other reason, with a message that says why.
-8. r[module.process.error-traits] `ProcessError` implements `Eq`, `Debug`, `Display`, and [`Error`](09-traits.md#error-trait).
-9. r[module.process.mut] `run!` takes `mut self`, so `Process` is a mutable requirement trait, as `Console` is, and a provider may record what it runs.
-10. r[module.process.import.names] `Process`, `ProcessOutput`, and `ProcessError` are not prelude names; code imports them from `std.process`.
+6. r[module.process.os-denied] It returns `.Err(ProcessError.PermissionDenied)` when the program exists but the operating system does not allow starting it.
+7. r[module.process.not-granted] It returns `.Err(ProcessError.NotGranted)` when its provider refuses `program` because the program's run-time grant does not cover it.
+8. r[module.process.other] It returns `.Err(ProcessError.Other(message))` when the program cannot start for any other reason, with a message that says why.
+9. r[module.process.error-traits] `ProcessError` implements `Eq`, `Debug`, `Display`, and [`Error`](09-traits.md#error-trait).
+10. r[module.process.mut] `run!` takes `mut self`, so `Process` is a mutable requirement trait, as `Console` is, and a provider may record what it runs.
+11. r[module.process.import.names] `Process`, `ProcessOutput`, and `ProcessError` are not prelude names; code imports them from `std.process`.
 
 A scripted provider answers each program from a table:
 
@@ -1110,6 +1112,8 @@ fn version!() -> string $ Process:
 > **Note.** Which programs a provider starts is the provider's choice. The
 > test runner binds one whose programs are the package's executables
 > ([`cli.test.process`](../cli/command-line.md#r-cli.test.process)).
+> The run-time grant that `NotGranted` reports is CLI tier
+> ([Capability Grants](../cli/command-line.md#capability-grants)).
 
 > **Note.** The `Display` text of each `ProcessError` variant and the
 > stdlib provider `ScriptedProcess` are stdlib tier:
@@ -2169,6 +2173,11 @@ fn demo() -> i32:
 ```sh
 hd build --release src/main.hd   # the official compiler targets Wasm
 ```
+
+> **Note.** hd has no `extern` declaration and no FFI capability. A Wasm
+> module can call only its imports, so a custom host trait that an
+> embedder binds is hd's foreign function interface, by
+> [`module.register.application`](#r-module.register.application).
 
 ### Closable Handles
 

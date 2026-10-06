@@ -1,0 +1,5 @@
+[package]
+name = "greeter"
+
+[capabilities]
+Console = false

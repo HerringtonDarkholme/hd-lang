@@ -1,0 +1,21 @@
+use std.fs.{FsWrite, write_text}
+use std.path.Path
+
+fn make_out!() -> string $ FsWrite:
+    match $.use(FsWrite).create_dir_all!(Path("out")):
+        .Ok(_) => "made"
+        .Err(_) => "failed"
+
+fn attempt!(path: string) -> string $ FsWrite:
+    match write_text!(Path(path), "report"):
+        .Ok(_) => "written"
+        .Err(.NotGranted(_)) => "not granted"
+        .Err(_) => "failed"
+
+pub fn main!() -> void $ Console + FsWrite:
+    made := make_out!()
+    inside := attempt!("out/report.txt")
+    outside := attempt!("top.txt")
+    println("out: ${made}")
+    println("out/report.txt: ${inside}")
+    println("top.txt: ${outside}")

@@ -1,0 +1,25 @@
+# test: MapSys answers each Sys method from its key, reads cpu_count as a count, and reports a missing key as Unsupported
+# Spec std/sys Map Sys: std-sys.map.new, std-sys.map.cpu-count, std-sys.map.missing, std-sys.error.not-granted.text.
+# expect: test
+use std.sys.{MapSys, Sys, SysError}
+use std.testing.assert_equal
+
+fn platform() -> string $ Sys:
+    match $.use(Sys).os():
+        .Ok(name) => name
+        .Err(_) => "unknown"
+
+tests:
+    it("reads the mapped system"):
+        $.with(Sys=MapSys::new({"os": "linux", "cpu_count": "8"})):
+            assert_equal(platform(), "linux", reason="the mapped os")
+            assert_equal($.use(Sys).cpu_count(), .Ok(8), reason="parsed as a count")
+            assert_equal($.use(Sys).hostname(), .Err(SysError.Unsupported("hostname")), reason="not in the map")
+
+    it("a value that is no count is Unsupported"):
+        $.with(Sys=MapSys::new({"cpu_count": "many"})):
+            assert_equal($.use(Sys).cpu_count(), .Err(SysError.Unsupported("cpu_count")), reason="not a decimal u32")
+            assert_equal($.use(Sys).arch(), .Err(SysError.Unsupported("arch")), reason="no key")
+
+    it("a refused read names the flag"):
+        assert_equal(SysError.NotGranted("hostname").to_string(), "sys access to hostname is not granted; run with --cap Sys=hostname", reason="the fix in one rerun")

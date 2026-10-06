@@ -1,0 +1,37 @@
+# test: a unit test binds its own Net provider, and NetError names the flag for a refused address
+# Spec std/net Net Providers: std-net.provider.none, std-net.trait.decl, std-net.lookup, std-net.error.not-granted.text.
+# expect: test
+use std.net.{Net, NetError, TcpListener, TcpStream, UdpSocket}
+use std.testing.assert_equal
+
+data NoNetwork: pass
+
+impl Net for NoNetwork:
+    fn lookup!(mut self, host: string) -> Result[List[string], NetError]:
+        .Err(.Dns(host))
+    fn connect!(mut self, host: string, port: u16) -> Result[mut TcpStream, NetError]:
+        .Err(.Refused("${host}:${port}"))
+    fn listen!(mut self, host: string, port: u16) -> Result[mut TcpListener, NetError]:
+        .Err(.Refused("${host}:${port}"))
+    fn bind_udp!(mut self, host: string, port: u16) -> Result[mut UdpSocket, NetError]:
+        .Err(.Refused("${host}:${port}"))
+
+fn addresses!(host: string) -> List[string] $ Net:
+    match $.use(Net).lookup!(host):
+        .Ok(found) => found
+        .Err(_) => []
+
+fn reach!(host: string, port: u16) -> bool $ Net:
+    match $.use(Net).connect!(host, port):
+        .Ok(_) => true
+        .Err(error) => error != NetError.Refused("${host}:${port}")
+
+tests:
+    it("finds no address without a network"):
+        let mut net = NoNetwork {}
+        $.with(Net=net):
+            assert_equal(addresses!("example.com").len(), 0, reason="no lookup answers")
+            assert_equal(reach!("example.com", 80), false, reason="the connection is refused")
+
+    it("a refused address names the flag"):
+        assert_equal(NetError.NotGranted("db.internal:5432").to_string(), "net access to db.internal:5432 is not granted; run with --cap Net=db.internal:5432", reason="the fix in one rerun")

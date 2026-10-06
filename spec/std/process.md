@@ -31,6 +31,7 @@ fn explain(error: ProcessError) -> string:
 | --- | --- | --- |
 | r[std-process.error.display.not-found] Not found | `NotFound` | `program not found` |
 | r[std-process.error.display.permission] Permission | `PermissionDenied` | `permission denied` |
+| r[std-process.error.display.not-granted] Not granted | `NotGranted` | `program not granted; run with --cap Process=PROGRAM` |
 | r[std-process.error.display.other] Other | `Other(message)` | `message`, as written |
 
 1. r[std-process.error.debug-text] Its `Debug` writes the qualified variant, and for `Other` the `message` argument, as `ProcessError.Other(message="x")`, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).

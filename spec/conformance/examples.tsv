@@ -804,6 +804,17 @@ std/path.md	2	accept	runtime/valid/path-operations.hd
 std/process.md	1	accept	runtime/valid/process-error-display.hd
 std/process.md	2	accept	runtime/valid/process-exit-data-eq.hd
 std/process.md	3	accept	runtime/valid/scripted-process.hd
+std/http.md	1	type-fragment	-
+std/http.md	2	type-fragment	-
+std/http.md	3	accept	runtime/valid/http-scripted-provider.hd
+std/http.md	4	accept	runtime/valid/http-scripted-provider.hd
+std/http.md	5	accept	runtime/valid/http-scripted-unknown-url.hd
+std/net.md	1	type-fragment	-
+std/net.md	2	type-fragment	-
+std/net.md	3	type-fragment	-
+std/net.md	4	accept	runtime/valid/net-own-provider.hd
+std/sys.md	1	type-fragment	-
+std/sys.md	2	accept	runtime/valid/map-sys.hd
 std/random.md	1	type-fragment	-
 std/random.md	2	accept	typing/valid/random-trait.hd
 std/random.md	3	accept	runtime/valid/seeded-random.hd

@@ -42,6 +42,10 @@ pub trait Env:
 3. r[std-host.env.names] `names` returns the name of every set variable, each once.
 4. r[std-host.env.helper] `std.host` declares `pub fn env(name: string) -> string? $ Env`, which returns `get(name)` of the `Env` provider that covers the call.
 
+> **Note.** Under an `Env` grant, the default profile's `get` returns
+> `.None` for a variable outside the grant, and `names` leaves it out
+> ([Environment Grant](../cli/command-line.md#environment-grant)).
+
 ## Plain Reads
 
 1. r[std-host.plain-reads] Every method of `Args` and `Env`, and both helpers, are plain calls, not bang calls.

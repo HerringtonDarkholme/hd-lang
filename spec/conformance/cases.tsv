@@ -2742,3 +2742,9 @@ typing/invalid/trait-qualified-supertrait-call.hd	type	reject:unknown-method	lan
 typing/invalid/trait-qualified-supertrait-reference.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.qualified.declaring
 typing/valid/trait-qualified-declaring-trait.hd	type	accept	lang/09-traits.md#r-trait.qualified.declaring
 typing/valid/trait-qualified-call-generic-receiver.hd	type	accept	lang/09-traits.md#r-trait.qualified.receiver
+runtime/valid/http-scripted-provider.hd	runtime	accept	std/http.md#scripted-http
+runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.unknown
+runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
+runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
+runtime/valid/process-not-granted.hd	runtime	accept	lang/10-modules.md#r-module.process.not-granted
+runtime/valid/not-granted-display.hd	runtime	accept	std/fs.md#r-std-fs.error.not-granted.text

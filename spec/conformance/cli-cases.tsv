@@ -81,3 +81,7 @@ exe-unselected-main-used	cli.exe.unselected-main
 typeid-package-name	cli.run.default.one,cli.exit.program
 typeid-single-file	cli.file.run,cli.exit.program
 test-err-report	cli.exit.test-failure,cli.json.test.result,cli.json.test.result.fields
+cap-total-deny	cli.cap.value.false,cli.cap.total.needs,cli.cap.total.refuse,cli.cap.total.status,cli.cap.order.deny,cli.cap.source.package
+cap-flag-overrides-table	cli.cap.order.flag,cli.cap.order.table,cli.cap.flag,cli.cap.scope.path,cli.cap.scope.path.relative,cli.cap.partial.refuse
+cap-partial-deny	cli.cap.value.list,cli.cap.partial.refuse,cli.cap.scope.path,cli.cap.order.default
+cap-env-notice	cli.cap.env.get,cli.cap.env.notice,cli.cap.env.notice.text,cli.cap.source.flags-only,cli.cap.order.default

@@ -1,0 +1,12 @@
+use std.host.{Env, env}
+
+fn seen(name: string) -> string $ Env:
+    match env(name):
+        .Some(_) => "visible"
+        .None => "hidden"
+
+pub fn main() -> void $ Console + Env:
+    first := seen("PATH")
+    second := seen("PATH")
+    println("PATH: ${first}")
+    println("PATH again: ${second}")

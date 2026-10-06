@@ -4,6 +4,9 @@ std.testing.Choices	std/testing.md#property-tests
 std.testing.snapshot_file	std/testing.md#snapshot-files
 std.testing.hd_run	std/testing.md#running-executables
 std.process.ScriptedProcess	std/process.md#scripted-process
+std.http	std/http.md#sending
+std.net	std/net.md#net-trait
+std.sys	std/sys.md#system-reads
 std.testing.RunOutput	std/testing.md#running-executables
 std.testing.temp_dir	std/testing.md#temporary-directories
 std.testing.arbitrary	std/testing.md#derived-arbitrary

@@ -21,3 +21,13 @@ cli/dev-dependency-cyclic-unit	hd test reports unknown-module "dep.fixtures has 
 cli/dev-dependency-cyclic-integration	hd test exits 101 with unknown-module "dep.fixtures has no dependency named shop": a path requirement back to the root package is not linked, so the dev dependency cannot build (module.test.cyclic-dev-allowed)	F-623
 typing/valid/trait-qualified-call-generic-receiver.hd	check reports unknown-method "type 'T' has no supported method 'id'": a trait-qualified call does not resolve a type-parameter receiver through its bounds (trait.qualified.receiver)	F-624
 cli/test-err-report	hd test writes "test ... returned Err" to standard error and prints neither the error nor its cause chain; JSON gives only "returned Err" (module.testing.err-print)	F-625
+runtime/valid/http-scripted-provider.hd	the prototype has no capability grants yet (task N3): lib/std has no std.http, so `use std.http` is an unknown module (std-http.scripted.new)	CAPS
+runtime/valid/http-scripted-unknown-url.hd	the prototype has no capability grants yet (task N3): lib/std has no std.http, so `use std.http` is an unknown module (std-http.scripted.unknown)	CAPS
+runtime/valid/map-sys.hd	the prototype has no capability grants yet (task N3): lib/std has no std.sys, so `use std.sys` is an unknown module (std-sys.map.new)	CAPS
+runtime/valid/net-own-provider.hd	the prototype has no capability grants yet (task N3): lib/std has no std.net, so `use std.net` is an unknown module (std-net.provider.none)	CAPS
+runtime/valid/process-not-granted.hd	the prototype has no capability grants yet (task N3): ProcessError has no NotGranted variant (module.process.not-granted)	CAPS
+runtime/valid/not-granted-display.hd	the prototype has no capability grants yet (task N3): FsError and ProcessError have no NotGranted variant (std-fs.error.not-granted.text)	CAPS
+cli/cap-total-deny	the prototype has no capability grants yet (task N3): `[capabilities]` is not read, so `hd run` prints hello and exits 0 where cli.cap.total.refuse wants 101	CAPS
+cli/cap-flag-overrides-table	the prototype has no capability grants yet (task N3): `[capabilities]` and `--cap` are not read, and FsError has no NotGranted (cli.cap.order.flag)	CAPS
+cli/cap-partial-deny	the prototype has no capability grants yet (task N3): `[capabilities]` is not read, and FsError has no NotGranted, so top.txt is written (cli.cap.partial.refuse)	CAPS
+cli/cap-env-notice	the prototype has no capability grants yet (task N3): `--cap` is an unknown flag, and the Env provider has no grant or notice (cli.cap.env.notice)	CAPS

@@ -1,0 +1,14 @@
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+fn show!(path: string) -> string $ FsRead:
+    match read_text!(Path(path)):
+        .Ok(text) => text
+        .Err(.NotGranted(_)) => "not granted"
+        .Err(_) => "unreadable"
+
+pub fn main!() -> void $ Console + FsRead:
+    first := show!("data/a.txt")
+    second := show!("other/b.txt")
+    println("data/a.txt: ${first}")
+    println("other/b.txt: ${second}")

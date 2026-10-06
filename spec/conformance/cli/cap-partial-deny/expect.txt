@@ -1,0 +1,10 @@
+# FsWrite is partially denied: the table grants out/ alone. A write under
+# out/ succeeds, and a write outside it returns NotGranted, never a panic,
+# so the program goes on and exits 0. Console has no table entry, so it
+# keeps no limit.
+run: hd run
+stdout: out: made
+stdout: out/report.txt: written
+stdout: top.txt: not granted
+file: out/report.txt
+no-file: top.txt

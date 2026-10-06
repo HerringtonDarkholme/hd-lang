@@ -184,6 +184,9 @@ file of its own.
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
 | [`process.md`](process.md) | `std.process` | `std-process` | the `Display` text of `ProcessError`; `Eq` and `Debug` for `ExitCode` and `ProcessOutput`; the provider `ScriptedProcess` |
+| [`http.md`](http.md) | `std.http` | `std-http` | the host trait `Http`, `send!` and `get!`, `Request`, `Response`, `Method`, `HttpError`, the provider `ScriptedHttp`, and the playground's `Http` |
+| [`net.md`](net.md) | `std.net` | `std-net` | the host trait `Net` for DNS lookup, TCP, and UDP; the handles `TcpStream`, `TcpListener`, and `UdpSocket`; `Datagram` and `NetError` |
+| [`sys.md`](sys.md) | `std.sys` | `std-sys` | the host trait `Sys`, `SysError`, and the provider `MapSys` |
 | [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random`, the provider `SeededRandom`, and the seeded generator `Rng` with `rng` |
 | [`option.md`](option.md) | `std.option` | `std-option` | the methods `and_then`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of `T?` |
 | [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect` of `Result[T, E]` |

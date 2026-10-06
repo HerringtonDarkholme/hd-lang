@@ -1,0 +1,9 @@
+# The table grants FsRead under data/ alone, so a read of other/b.txt is
+# refused with NotGranted and the program goes on. A --cap flag replaces
+# the table's value for its trait, so the second run reads other/ alone.
+run: hd run
+stdout: data/a.txt: from data
+stdout: other/b.txt: not granted
+run: hd run --cap FsRead=other/
+stdout: data/a.txt: not granted
+stdout: other/b.txt: from other

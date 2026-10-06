@@ -257,12 +257,18 @@ profile**, which binds these traits:
 | `Clock` | `std.time` | the system's wall clock and monotonic clock; `sleep!` waits in real time |
 | `Random` | `std.random` | the operating system's random source |
 | `FsRead`, `FsWrite` | `std.fs` | the file system, with relative paths from the program's [working directory](#working-directory) |
+| `Process` | `std.process` | starts a host program, which the operating system finds by its name, in the program's working directory |
+| `Http` | `std.http` | sends each request from the host |
+| `Net` | `std.net` | the host's DNS resolver, and its TCP and UDP sockets |
+| `Sys` | `std.sys` | the host's operating system, architecture, host name, and processor count |
 
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
 3. r[cli.host.default-profile.row] The entry module's row still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-row`](#r-cli.host.entry-row).
 4. r[cli.host.default-profile.other] A row key outside the default profile is an error, as [`module.entry.row.host`](../lang/10-modules.md#r-module.entry.row.host) states. Error: `nonhost-entry-requirement`.
 5. r[cli.host.default-profile.console-closed] Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write the line. One such case is a pipe whose reader has closed it.
 6. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
+7. r[cli.host.default-profile.granted] Each provider of the default profile touches only the resources that its program's [capability grant](#capability-grants) covers.
+8. r[cli.host.process.env] A program that the default profile's `Process` provider starts inherits the whole environment of the `hd` process, whatever the `Env` grant covers.
 
 ```sh
 cat src/main.hd
@@ -276,12 +282,210 @@ hd run        # the default profile binds Console: prints hello
 > as Rust's `println!` does; `hd FILE | head -1` stops the program
 > instead of writing into nothing.
 
-> **Note.** `Process` and an HTTP client are not in the default profile.
-> They come later, as host extensions.
+> **Why.** A row can't name a path or a host, since those are run-time
+> values. So control has two levels. The row says at compile time which
+> traits a function may use. The [capability grant](#capability-grants)
+> says at run time which resources those traits may touch.
 
-> **Why.** The row already states what the program needs, so no flag or
-> manifest table repeats it. Deno asks for `--allow-read`; in hd the row
-> is that permission.
+> **Note.** A program that `Process` starts runs with the operating
+> system's authority of `hd`, and no grant limits what it does. A
+> `Process` grant names the programs that may start, as Deno warns of its
+> own subprocesses.
+
+### Capability Grants
+
+A **capability grant** says, for each host capability trait, which
+resources a program may touch at run time:
+
+```toml
+# hd.toml
+[capabilities]
+FsRead = ["data/"]
+Http = ["api.example.com"]
+Process = false
+```
+
+```sh
+hd run                            # reads under data/, calls api.example.com, starts no program
+hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
+```
+
+| Key | Trait | Scope entries |
+| --- | --- | --- |
+| `FsRead`, `FsWrite` | `std.fs.FsRead`, `std.fs.FsWrite` | paths |
+| `Http` | `std.http.Http` | hosts, each with an optional `:port` |
+| `Net` | `std.net.Net` | `host:port` addresses, or hosts for every port |
+| `Env` | `std.host.Env` | variable names, or a prefix followed by `*` |
+| `Process` | `std.process.Process` | program names |
+| `Sys` | `std.sys.Sys` | method names of `Sys` |
+| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.host.Args` | none: only `true` or `false` |
+
+1. r[cli.cap.table] The `[capabilities]` table of `hd.toml` sets the grant of each host capability trait that it names.
+2. r[cli.cap.table.keys] Its keys are the trait names of the table above, and any other key is an error.
+3. r[cli.cap.value.true] The value `true` grants the trait with no limit on its resources.
+4. r[cli.cap.value.false] The value `false` denies the trait totally, by [Total Deny](#total-deny).
+5. r[cli.cap.value.list] A list of scope entries grants the trait only the resources that those entries cover, by [Grant Scopes](#grant-scopes).
+6. r[cli.cap.value.empty] An empty list covers no resource, so every call of the trait is refused by [Partial Deny](#partial-deny).
+7. r[cli.cap.value.unscoped] A list is an error for a trait whose row in the table above has no scope entries.
+8. r[cli.cap.flag] `--cap NAME=VALUE` sets the grant of the trait `NAME` for one command.
+9. r[cli.cap.flag.value] `VALUE` is `true`, `false`, or a list of scope entries separated by commas.
+10. r[cli.cap.flag.commands] `hd FILE`, `hd run`, `hd test`, and `hd` with no FILE take `--cap` any number of times, before the `--` of the program arguments.
+11. r[cli.cap.flag.unknown] A `--cap` flag whose `NAME` is not in the table above is an error.
+12. r[cli.cap.flag.unscoped] A `--cap` flag that gives a list to a trait without scope entries is an error.
+13. r[cli.cap.no-prompt] `hd` never asks whether to grant a resource, so a call outside its grant fails at once.
+
+> **Why.** `hd.toml` holds what a program always needs, reviewed in a
+> diff. A flag changes one run, such as an agent's sandbox or a CI job.
+> A prompt would stall an agent, and would make one command behave two
+> ways.
+
+#### Grant Precedence
+
+For each trait, the first row of this table that applies gives the
+trait's grant:
+
+| Rule | When | The trait's grant |
+| --- | --- | --- |
+| r[cli.cap.order.deny] Deny wins | the table or any `--cap` flag gives the trait `false` | a total deny |
+| r[cli.cap.order.flag] Flags | otherwise, when one or more `--cap` flags name the trait | no limit when a flag gives `true`, else every entry that the flags list |
+| r[cli.cap.order.table] Table | otherwise, when the table names the trait | the table's value |
+| r[cli.cap.order.default] Default | otherwise | no limit, so a partial table or a flag restricts only the traits it names |
+
+```sh
+# hd.toml holds: [capabilities] FsRead = ["data/"] and Process = false
+hd run --cap FsRead=out/         # FsRead covers out/ alone: the flag replaces the table's value
+hd run --cap Process=true        # Process stays denied: false always wins
+hd run --cap Http=example.com    # Http covers example.com; Console and the rest keep no limit
+```
+
+Where a program's grant comes from:
+
+| Program | Its grant comes from |
+| --- | --- |
+| an executable or a task under `hd run`, or `hd FILE` for a FILE in a package | the package's `[capabilities]` table, and the command's `--cap` flags |
+| `hd FILE` outside any package, and `hd` with no FILE | the command's `--cap` flags alone |
+| a program that [`hd_run!`](../std/testing.md#running-executables) starts | the package's `[capabilities]` table, with no flags |
+| an integration test case, or a doc test | the [test grant](#r-cli.test.env.grant) |
+| a unit test case | none, since it gets no host provider |
+
+1. r[cli.cap.source.package] `hd run`, and `hd FILE` for a FILE in a package, apply the package's `[capabilities]` table and the command's flags.
+2. r[cli.cap.source.flags-only] `hd FILE` outside any package, and `hd` with no FILE, apply only the command's flags, so the REPL takes its grant from them.
+3. r[cli.cap.source.hd-run] A program that `hd_run!` starts gets the package's `[capabilities]` table, as `hd run NAME` would, with no flags.
+4. r[cli.cap.build] `hd build` writes no grant into its output. Another host that runs the module applies its own policy.
+
+> **Why.** With no table and no flag, every trait has no limit, so a
+> program runs as it always did. A table or a flag narrows only what it
+> names. So `--cap Http=api.example.com` never takes the console away
+> from a program.
+
+#### Grant Scopes
+
+Each scope entry names resources of one trait:
+
+```toml
+[capabilities]
+FsRead = ["data/", "config.toml"]
+FsWrite = ["out/"]
+Http = ["api.github.com", "*.example.com", "localhost:8080"]
+Net = ["db.internal:5432"]
+Env = ["HOME", "APP_*"]
+Process = ["git"]
+Sys = ["os", "arch"]
+```
+
+1. r[cli.cap.scope.path] An `FsRead` or `FsWrite` entry covers the file it names, or every path under the directory it names.
+2. r[cli.cap.scope.path.resolved] `hd` resolves `..` and symbolic links in the entry and in the accessed path before it compares them, so no path escapes a granted directory.
+3. r[cli.cap.scope.path.relative] A relative path in the table is relative to the package directory, and one in a flag to the command's working directory.
+4. r[cli.cap.scope.write-not-read] An `FsWrite` entry grants no read.
+5. r[cli.cap.scope.rename] `rename!` needs an `FsWrite` entry that covers each of its two paths.
+6. r[cli.cap.scope.host] An `Http` entry covers a request whose URL host matches the entry's host, and whose port equals the entry's port when the entry gives one.
+7. r[cli.cap.scope.host.forms] An entry's host is a name, an IPv4 address, or a bracketed IPv6 address. The entry `*.example.com` matches every name that ends in `.example.com`.
+8. r[cli.cap.scope.redirect] `hd` checks each redirect target of an `Http` request as a new request.
+9. r[cli.cap.scope.net] A `Net` entry covers the address of a connect, listen, bind, or send by the host match of an `Http` entry. An entry without a port covers every port.
+10. r[cli.cap.scope.net.lookup] A `Net` entry covers a DNS lookup of a host that its host matches.
+11. r[cli.cap.scope.env] An `Env` entry covers the variable it names. An entry that ends in `*` covers every name that starts with the text before the `*`.
+12. r[cli.cap.scope.process] A `Process` entry covers a `run!` call whose `program` argument equals it, as written, before the host looks the program up.
+13. r[cli.cap.scope.sys] A `Sys` entry covers the method of `Sys` that it names: `os`, `arch`, `hostname`, or `cpu_count`.
+
+> **Note.** In an integration test, `run!` names an executable or a task
+> of the package ([`cli.test.process`](#r-cli.test.process)), so a
+> `Process` entry there names one of them.
+
+#### Total Deny
+
+A trait whose grant is `false` is **totally denied**. A program that can
+reach it never starts:
+
+```sh
+# hd.toml holds: [capabilities] Console = false
+hd run; echo $?
+# hd: the program needs Console, which Console = false in hd.toml denies
+# 101
+```
+
+1. r[cli.cap.total.needs] A Wasm module's needs are the host capability traits whose methods its import list names.
+2. r[cli.cap.total.refuse] When a need of a module is totally denied, `hd` refuses to start it, before its module initialization and before `main`.
+3. r[cli.cap.total.message] The refusal names the trait, and the setting that denied it: the `hd.toml` key or the `--cap` flag.
+4. r[cli.cap.total.status] A refused command exits with status 101, since no program ran, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
+5. r[cli.cap.total.any-module] The check reads only the module's import list, so it holds alike for a program built from source and for a prebuilt Wasm module.
+6. r[cli.cap.total.test] `hd test` refuses an integration test module or a doc test with a totally denied need in the same way, with status 101.
+7. r[cli.cap.total.check] `hd check` may report a total deny before any run, but the startup refusal is the rule that decides.
+
+> **Why.** `hd run` also runs prebuilt Wasm, whose source `hd` never
+> sees. Every host capability call is an import, and dead code is
+> removed, so the import list is exactly what the module can reach. A
+> refusal at startup comes before any side effect.
+
+#### Partial Deny
+
+A trait whose grant is a list is **partially denied**: a call outside the
+list fails, and the program goes on:
+
+```hd
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console + FsRead:
+    match read_text!(Path("secrets/key.txt")):   # FsRead = ["data/"] does not cover it
+        .Ok(text) => println(text)
+        .Err(.NotGranted(_)) => println("not granted")
+        .Err(_) => println("unreadable")
+```
+
+| Trait | A refused call returns |
+| --- | --- |
+| `FsRead`, `FsWrite` | `.Err(FsError.NotGranted(path))` |
+| `Http` | `.Err(HttpError.NotGranted(host))` |
+| `Net` | `.Err(NetError.NotGranted(address))` |
+| `Process` | `.Err(ProcessError.NotGranted)` |
+| `Sys` | `.Err(SysError.NotGranted(name))` |
+| `Env` | `.None` from `get`, by [Environment Grant](#environment-grant) |
+
+1. r[cli.cap.partial.refuse] A call whose resource lies outside its trait's grant returns the value of the table above, and never panics.
+2. r[cli.cap.partial.not-os] `NotGranted` reports a refusal by the grant, and `PermissionDenied` stays the operating system's refusal.
+
+> **Why.** The resource is known only at run time, and a program that
+> probes an optional file must be able to recover. `NotGranted` and
+> `PermissionDenied` have different fixes, so an agent must tell them
+> apart, as Deno 2 split `NotCapable` from `PermissionDenied`.
+
+#### Environment Grant
+
+`Env.get` returns an optional, so a refused read is `.None`, and `hd`
+names the fix on standard error:
+
+```sh
+hd --cap Env=HOME notes.hd
+# hd: env PATH is set but not granted; run with --cap Env=PATH
+```
+
+1. r[cli.cap.env.get] When the `Env` grant is a list, `get(name)` returns `.None` for a name that no entry covers, even when the variable is set.
+2. r[cli.cap.env.notice] When such a variable is set on the host, `hd` writes one line to standard error, once per name in a run.
+3. r[cli.cap.env.notice.text] The line is `hd: env NAME is set but not granted; run with --cap Env=NAME`, with the variable's name for `NAME`.
+4. r[cli.cap.env.names] `names` returns only the set variables that an entry covers.
+
+> **Why.** A silent `.None` would send an agent hunting for a variable
+> that is set. The notice names the flag, so one rerun fixes it.
 
 ## Building And Checking
 
@@ -358,10 +562,10 @@ The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 The kind of a test case decides what `hd test` gives it, never where its
 file lies:
 
-| Test case | Host providers | Working directory | Program arguments | Standard input |
-| --- | --- | --- | --- | --- |
-| a [unit test case](../lang/10-modules.md#r-module.testing.unit-row.anywhere), in `src`, `tasks`, or a single file | `TestRunner` alone | not reachable | not reachable | not reachable |
-| an integration test case, or a doc test | the default profile, `TestRunner`, and `Process` | the package directory | none | closed |
+| Test case | Host providers | Capability grant | Working directory | Program arguments | Standard input |
+| --- | --- | --- | --- | --- | --- |
+| a [unit test case](../lang/10-modules.md#r-module.testing.unit-row.anywhere), in `src`, `tasks`, or a single file | `TestRunner` alone | none | not reachable | not reachable | not reachable |
+| an integration test case, or a doc test | the default profile, `TestRunner`, and the test runner's `Process` | the test grant | the package directory | none | closed |
 
 1. r[cli.test.env.unit] `hd test` binds `TestRunner` alone for a unit test case, in a package or outside one, by [`module.testing.unit-row.places`](../lang/10-modules.md#r-module.testing.unit-row.places).
 2. r[cli.test.env.integration] For an integration test case or a doc test, `hd test` binds the traits of the [default profile](#host-capabilities) that the body's row names. It binds them as `hd run` does, except as this list says.
@@ -371,10 +575,26 @@ file lies:
 6. r[cli.test.env.stdin] Its standard input is closed, so every `read_line!` returns `.Ok(.None)`, as at the end of input.
 7. r[cli.test.env.temp-dir] `hd test` gives each test case its own fresh, empty temporary directory, which [`temp_dir`](../std/testing.md#temporary-directories) returns. No other test case shares it, in the same run or in another run at the same time.
 8. r[cli.test.env.temp-dir.removed] `hd test` removes that directory and everything in it once the test case ends, whether it passed or failed.
+9. r[cli.test.env.grant] An integration test case or a doc test gets the **test grant**, which [Grant Precedence](#grant-precedence) builds from `[test.capabilities]` and the flags of `hd test`.
+10. r[cli.test.env.grant.table] `[test.capabilities]` in `hd.toml` takes the keys and values of `[capabilities]`, and `[capabilities]` itself does not apply to a test case.
+11. r[cli.test.env.grant.fs-read] When neither the table nor a flag names `FsRead`, it covers the package directory and the test case's temporary directory.
+12. r[cli.test.env.grant.fs-write] When neither the table nor a flag names `FsWrite`, it covers the test case's temporary directory.
+13. r[cli.test.env.grant.fs-added] When they give `FsRead` or `FsWrite` a list, the entries of the two rules above are added to it.
 
 ```sh
 hd test                    # tests/report.hd reads fixtures/orders.csv from the package
 cd src && hd test          # the same: the working directory is still the package directory
+```
+
+```toml
+# hd.toml
+[test.capabilities]
+Http = ["localhost"]
+```
+
+```sh
+hd test                    # Http reaches localhost alone; FsRead covers the package and the temporary directory
+hd test --cap Http=true    # this run reaches every host
 ```
 
 > **Note.** A `$.with` provider scope inside an integration test case
@@ -386,6 +606,10 @@ cd src && hd test          # the same: the working directory is still the packag
 > standard input, and the package directory make its result independent
 > of how and where `hd test` ran. A directory of its own lets two test
 > cases write files without meeting, as Go's `t.TempDir` does.
+
+> **Why.** A fixed test grant reads the package and writes only the test
+> case's own directory, with no setup per test. A unit test case runs on
+> fakes alone, so it needs no grant.
 
 ### Testing Tasks
 

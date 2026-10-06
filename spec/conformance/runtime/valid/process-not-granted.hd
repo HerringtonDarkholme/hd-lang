@@ -1,0 +1,31 @@
+# test: run! reports a program outside the run-time grant as NotGranted, apart from the operating system's PermissionDenied
+# Spec Modules, Processes: module.process.not-granted, module.process.os-denied.
+# expect: test
+use std.process.{Process, ProcessError, ProcessOutput}
+use std.testing.assert_equal
+
+data GrantedProcess: pass
+
+impl Process for GrantedProcess:
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
+        match program:
+            "git" => .Ok(ProcessOutput { stdout: "ran", stderr: "", status: 0 })
+            "locked" => .Err(.PermissionDenied)
+            _ => .Err(.NotGranted)
+
+fn start!(program: string) -> Result[ProcessOutput, ProcessError] $ Process:
+    $.use(Process).run!(program, [], "")
+
+tests:
+    it("a program outside the grant is NotGranted"):
+        let mut process = GrantedProcess {}
+        $.with(Process=process):
+            match start!("curl"):
+                .Err(error) => assert_equal(error == ProcessError.NotGranted, true, reason="the grant refused it")
+                .Ok(_) => assert_equal(true, false, reason="curl is not granted")
+            match start!("locked"):
+                .Err(error) => assert_equal(error == ProcessError.NotGranted, false, reason="the operating system refused it")
+                .Ok(_) => assert_equal(true, false, reason="locked never starts")
+            match start!("git"):
+                .Ok(output) => assert_equal(output.stdout, "ran", reason="git is granted")
+                .Err(_) => assert_equal(true, false, reason="git starts")

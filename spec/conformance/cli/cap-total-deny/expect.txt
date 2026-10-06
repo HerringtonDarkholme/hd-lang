@@ -1,0 +1,9 @@
+# The module imports Console, which the table denies totally, so hd refuses
+# to start it: status 101, and the program prints nothing. A flag that
+# grants Console does not lift the table's false, since a deny always wins.
+run: hd run
+exit: 101
+stdout-json: []
+run: hd run --cap Console=true
+exit: 101
+stdout-json: []

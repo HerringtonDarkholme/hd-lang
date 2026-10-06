@@ -1,0 +1,14 @@
+# test: the NotGranted variants of FsError and ProcessError display the cap flag that grants the resource
+# Spec std/fs File System Errors: std-fs.error.not-granted.text, std-process.error.display.not-granted.
+# expect: test
+use std.fs.FsError
+use std.path.Path
+use std.process.ProcessError
+use std.testing.assert_equal
+
+tests:
+    it("a refused path names both file system flags"):
+        assert_equal(FsError.NotGranted(Path("data/x.csv")).to_string(), "access to data/x.csv is not granted; run with --cap FsRead=data/x.csv or --cap FsWrite=data/x.csv", reason="the fix in one rerun")
+
+    it("a refused program names the Process flag"):
+        assert_equal(ProcessError.NotGranted.to_string(), "program not granted; run with --cap Process=PROGRAM", reason="the caller adds the name")

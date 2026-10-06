@@ -1,0 +1,38 @@
+# test: ScriptedHttp answers a URL by its exact text, whatever the method, and records every request in order
+# Spec std/http Scripted Http: std-http.scripted.new, std-http.scripted.send, std-http.scripted.sent, std-http.send.status, std-http.helper.get, std-http.response.text.
+# expect: test
+use std.http.{Http, HttpError, Method, Request, Response, ScriptedHttp, get, send}
+use std.testing.assert_equal
+
+fn status!(url: string) -> u16 $ Http:
+    match get!(url):
+        .Ok(response) => response.status
+        .Err(_) => 0
+
+fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
+    response := get!("https://api.github.com/repos/${repo}/releases/latest")?
+    if response.status != 200:
+        return .Err(.Other("status ${response.status}"))
+    .Ok(response.text())
+
+tests:
+    it("reads the scripted status"):
+        let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 204, headers: [], body: [] }})
+        $.with(Http=http):
+            assert_equal(status!("https://example.com/"), 204, reason="scripted")
+        assert_equal(http.sent().len(), 1, reason="one request")
+
+    it("a 404 is an ordinary response"):
+        let mut http = ScriptedHttp::new({"https://api.github.com/repos/hd/hd/releases/latest": Response { status: 404, headers: [], body: [] }})
+        $.with(Http=http):
+            assert_equal(latest_release!("hd/hd"), .Err(HttpError.Other("status 404")), reason="the status is data")
+
+    it("answers whatever the method, and records each request"):
+        let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 200, headers: [], body: [104, 105] }})
+        posted := Request { method: Method.Post, url: "https://example.com/", body: [1] }
+        $.with(Http=http):
+            match send!(posted):
+                .Ok(response) => assert_equal(response.text(), "hi", reason="the scripted body")
+                .Err(_) => assert_equal(true, false, reason="a scripted URL answers")
+            assert_equal(status!("https://example.com/"), 200, reason="a GET too")
+        assert_equal(http.sent(), [posted, Request { url: "https://example.com/" }], reason="in order")

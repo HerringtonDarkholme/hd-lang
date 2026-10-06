@@ -1,0 +1,11 @@
+# PATH is set wherever the runner runs. Outside a package, the grant comes
+# from the flags alone. With Env granted HOME only, env("PATH") is .None,
+# and hd writes one notice line, once per name in a run. With no flag, Env
+# has no limit.
+run: hd --cap Env=HOME main.hd
+stdout: PATH: hidden
+stdout: PATH again: hidden
+stderr: hd: env PATH is set but not granted; run with --cap Env=PATH
+run: hd main.hd
+stdout: PATH: visible
+stdout: PATH again: visible

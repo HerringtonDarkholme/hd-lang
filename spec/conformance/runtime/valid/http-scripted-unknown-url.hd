@@ -1,0 +1,23 @@
+# test: ScriptedHttp answers an unknown URL with a Connect error that names it, and still records the request
+# Spec std/http Scripted Http: std-http.scripted.unknown, std-http.scripted.sent, std-http.error.not-granted.text.
+# expect: test
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.testing.assert_equal
+
+fn ping!(url: string) -> string $ Http:
+    match get!(url):
+        .Ok(response) => "status ${response.status}"
+        .Err(.NotGranted(host)) => "the playground grants no ${host}"
+        .Err(.Connect(_)) => "the browser refused the request"
+        .Err(error) => "${error}"
+
+tests:
+    it("an unknown URL is a Connect error that names it"):
+        let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 200, headers: [], body: [] }})
+        $.with(Http=http):
+            assert_equal(get!("https://example.com/missing"), .Err(HttpError.Connect("ScriptedHttp has no response for https://example.com/missing")), reason="names the URL")
+            assert_equal(ping!("https://example.com/other"), "the browser refused the request", reason="a Connect error")
+        assert_equal(http.sent(), [Request { url: "https://example.com/missing" }, Request { url: "https://example.com/other" }], reason="unanswered requests count")
+
+    it("a refused host names the flag"):
+        assert_equal(HttpError.NotGranted("api.example.com").to_string(), "http access to api.example.com is not granted; run with --cap Http=api.example.com", reason="the fix in one rerun")

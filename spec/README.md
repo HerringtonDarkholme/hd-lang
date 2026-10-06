@@ -188,6 +188,7 @@ The stdlib chapters' terms are in the
 | **cache directory** | The one directory per user where `hd` keeps every fetched dependency version, read-only. See [Cache](cli/command-line.md#cache). |
 | **call place** | A call `v()` whose callee's type implements `Update`, so `v() = x` and `v() op= x` store through it. See [Callable Values](lang/05-expressions.md#callable-values). |
 | **callable value** | A value whose type implements `Apply`, read by calling it with no arguments, as in `count()`. See [Callable Values](lang/05-expressions.md#callable-values). |
+| **capability grant** | What a program's host capability traits may touch at run time: for each trait, no limit, a total deny, or a list of scope entries. See [Capability Grants](cli/command-line.md#capability-grants). |
 | **coherence slot** | One `(trait, concrete target)` pair over the resolved package graph. See [Terminology](lang/14-annotations.md#terminology). |
 | **compatibility line** | The versions of a package that must stay compatible: one major number, or `0.MINOR` below 1.0. See [`module.version.line`](lang/10-modules.md#r-module.version.line). |
 | **compound assignment** | A statement `place op= value`, such as `total += x`, that combines an operator with a store. See [Compound Assignment](lang/05-expressions.md#compound-assignment). |
@@ -258,6 +259,7 @@ The stdlib chapters' terms are in the
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](lang/05-expressions.md#operator-traits). |
 | **package mode** | How a command works when the nearest `hd.toml` at or above its start directory declares a package. See [`cli.mode.package.nearest`](cli/command-line.md#r-cli.mode.package.nearest). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](lang/08-data-and-enums.md#parts-and-copies). |
+| **partially denied** | A trait whose grant is a list of scope entries; a call outside them returns a `NotGranted` error. See [Partial Deny](cli/command-line.md#partial-deny). |
 | **path requirement** | A manifest value `{ path = "DIR" }` through which a package depends on the local package in `DIR`. See [`module.path-dep.form`](lang/10-modules.md#r-module.path-dep.form). |
 | **pipe expression** | `value \|> step`, which passes a value to a step. See [Pipe Expressions](lang/05-expressions.md#pipe-expressions). |
 | **place expression** | An expression that identifies a storage location, which may be read or, when permissions allow, assigned. See [`expr.category.place`](lang/05-expressions.md#r-expr.category.place). |
@@ -301,6 +303,8 @@ The stdlib chapters' terms are in the
 | **take part** | The members of a type that lookup considers: its own fields and inherent methods, whatever their visibility, and its promoted members. See [`names.take-part.definition`](lang/03-names-and-scopes.md#r-names.take-part.definition). |
 | **task** | A development program of a package, a file `tasks/NAME.hd` that `hd run NAME` runs and the package never ships. See [Tasks](cli/command-line.md#tasks). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](lang/14-annotations.md#templates). |
+| **test grant** | The capability grant of an integration test case or a doc test, built from `[test.capabilities]`, the flags of `hd test`, and fixed file system entries. See [`cli.test.env.grant`](cli/command-line.md#r-cli.test.env.grant). |
+| **totally denied** | A trait whose grant is `false`; a module that imports it never starts. See [Total Deny](cli/command-line.md#total-deny). |
 | **tuple template** | A trait's derivation for every tuple type, written `impl[T < Tuple] Trait for T by Structure:` in the trait's module. See [Tuple Templates](lang/14-annotations.md#tuple-templates). |
 | **test case** | One test, registered by a call of the prelude function `it` in test position, by one row of an `it_each` call, or by an `it_prop` or `it_prop_with` call. See [Test Cases](lang/10-modules.md#test-cases). |
 | **test code** | A package's `tests:` blocks, test modules, integration test modules, and doc tests, compiled only by a test build. See [`module.test.code`](lang/10-modules.md#r-module.test.code). |

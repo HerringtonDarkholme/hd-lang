@@ -21,6 +21,7 @@ Every file system operation reports one error enum:
 pub enum FsError:
     NotFound(path: Path)
     PermissionDenied(path: Path)
+    NotGranted(path: Path)
     AlreadyExists(path: Path)
     NotADirectory(path: Path)
     IsADirectory(path: Path)
@@ -43,6 +44,12 @@ pub data Entry:
 3. r[std-fs.error.other] `Other` holds a failure that no other variant names, with the host's message.
 4. r[std-fs.error.traits] `FsError`, `EntryKind`, and `Entry` implement `Eq`, and `FsError` implements `Display`.
 5. r[std-fs.entry.size] An `Entry`'s `size` is the file's length in bytes.
+6. r[std-fs.error.not-granted] `NotGranted(path)` reports that the program's capability grant does not cover `path`, by [Partial Deny](../cli/command-line.md#partial-deny).
+7. r[std-fs.error.permission-denied] `PermissionDenied(path)` reports that the operating system refused the access.
+8. r[std-fs.error.not-granted.text] The `Display` text of `NotGranted(path)` is `access to PATH is not granted; run with --cap FsRead=PATH or --cap FsWrite=PATH`, with the path for `PATH`.
+
+> **Why.** `NotGranted` and `PermissionDenied` have different fixes: a
+> flag or an `hd.toml` entry for the first, file modes for the second.
 
 ## Reading
 
