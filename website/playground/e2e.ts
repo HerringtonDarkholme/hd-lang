@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 
-import type { Browser, Page } from "playwright-core";
+import type { Browser, Locator, Page } from "playwright-core";
 
 import { classify } from "../../src/highlight.ts";
 import { encodeBase64Url } from "./src/share.ts";
@@ -108,6 +108,10 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     assert.match((await page.locator(".stdout").textContent()) ?? "", /average of 10 over 2: 5/);
     await page.context().close();
   });
+
+  await step("Clock and Random run in the browser; FsRead stops before running", () =>
+    hostCapabilities(openPage, code, outcome),
+  );
 
   await step("the multi-file example runs; tabs add, rename, and share", async () => {
     const page = await openPage();
@@ -333,4 +337,42 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     if (screenshots) await light.screenshot({ path: join(screenshots, "desktop-light.png") });
     await light.context().close();
   });
+}
+
+/**
+ * The default profile's traits a browser provides, `Clock` and `Random`,
+ * run; a `main` that needs another stops before it runs.
+ */
+async function hostCapabilities(
+  openPage: (hash?: string) => Promise<Page>,
+  code: (source: string) => string,
+  outcome: (page: Page) => Locator,
+): Promise<void> {
+  const source = [
+    "use std.time.{Clock, ms, now, sleep}",
+    "use std.random.{Random, rng}",
+    "",
+    "pub fn main!() -> void $ Console + Clock + Random:",
+    "    println(now().unix_milliseconds() > 0)",
+    "    sleep!(ms(5))",
+    "    let mut draws = rng()",
+    "    println(draws.int(0..10) < 10)",
+    "",
+  ].join("\n");
+  const page = await openPage(code(source));
+  await page.click("#run");
+  await page.locator(".outcome.passed").waitFor();
+  assert.equal(await page.locator(".stdout").textContent(), "true\ntrue\n");
+  const files = code(
+    'use std.fs.{FsRead, read_text}\nuse std.path.Path\n\npub fn main!() -> void $ Console + FsRead:\n    _ := read_text!(Path("notes.txt"))\n',
+  );
+  await page.evaluate((hash) => (location.hash = hash), files);
+  await page.getByText("Loaded the shared project").waitFor();
+  await page.click("#run");
+  await page.locator(".outcome.failed").waitFor();
+  assert.match(
+    (await outcome(page).textContent()) ?? "",
+    /main needs FsRead, which the playground does not provide/,
+  );
+  await page.context().close();
 }

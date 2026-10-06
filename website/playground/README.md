@@ -106,8 +106,9 @@ Web Worker, so a long compile or an endless loop never blocks the page.
 Stopping a run terminates the worker. `src/runner.ts` holds the pipeline:
 link, `analyze`, then `instantiate` and run the entry export or the test
 cases with `runSelected` from [`src/test-runner.ts`](../../src/test-runner.ts),
-the runner `hd run` and `hd test` use, and a `Console` provider, the default
-runtime profile. It also reports the module
+the runner `hd run` and `hd test` use. It binds `Console`, and the
+`Clock` and `Random` providers of [`src/web-host.ts`](../../src/web-host.ts),
+the ones `hd run` uses. It also reports the module
 a run compiled, and `watProject` compiles a project's module without running
 it, for the WAT view. Without `main`, it feeds the
 entry module's top-level inputs (`splitInputs` in
@@ -219,9 +220,12 @@ Not supported yet:
 The playground runs what the prototype compiler supports; see
 [`../../src/README.md`](../../src/README.md). Beyond that:
 
-- Only the default runtime profile is provided, which binds `Console`. The
-  conformance runner's runtime profiles and scenarios are not exposed. A program that needs another host capability, such as
-  `std.host.Args`, is `nonhost-entry-requirement`.
+- Of the default runtime profile, only the traits a browser can provide are
+  bound: `Console`, `Clock`, and `Random`, also in the REPL panel. A `main`
+  whose row names another, such as `FsRead` or `Args`, checks, but Run stops
+  before running it with "main needs FsRead, which the playground does not
+  provide". The conformance runner's runtime profiles and scenarios are not
+  exposed.
 - `println` and a direct `console.write_line!(...)` call run on the host
   console and on a program-defined provider such as
   `std.console.BufferConsole`. `println` drives its `write_line!` with

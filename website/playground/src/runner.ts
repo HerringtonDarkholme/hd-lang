@@ -8,9 +8,16 @@
 // `watProject` gives the WebAssembly text of the module a project compiles
 // to, for the playground's WAT view.
 
-import { analyze, compileToWasm, instantiate } from "../../../src/compiler.ts";
+import { DEFAULT_PROFILE_TRAITS } from "../../../src/checker/standard-library.ts";
+import {
+  analyze,
+  compileToWasm,
+  instantiate,
+  type HostSuspensionCall,
+} from "../../../src/compiler.ts";
 import type { Diagnostic, SourceSpan } from "../../../src/diagnostics.ts";
 import { emitWat } from "../../../src/emitter/index.ts";
+import type { HirFunction, HirTrait } from "../../../src/hir.ts";
 import { linkPackage, type LinkedPackage, type PackageDiagnostic } from "../../../src/package.ts";
 import { parse } from "../../../src/parser/index.ts";
 import {
@@ -18,11 +25,13 @@ import {
   parseReplMessage,
   ReplSession,
   splitInputs,
+  type ReplHost,
   type ReplMessage,
   type SourceInput,
 } from "../../../src/repl.ts";
 import { RuntimePanicError } from "../../../src/runtime-panic.ts";
 import { runSelected } from "../../../src/test-runner.ts";
+import { WEB_HOST_TRAITS, webHostAnswer } from "../../../src/web-host.ts";
 import type { Project } from "./project.ts";
 
 /** `run` runs `main` or the top-level code, `check` type-checks, `test` runs the test cases. */
@@ -101,6 +110,41 @@ const joinedParse = (linked: LinkedPackage) => ({
   initGroupStarts: linked.initGroups,
 });
 
+/**
+ * The host a playground run binds: of the default profile
+ * (spec/cli/command-line.md#r-cli.host.default-profile), the traits a browser
+ * can provide, `Clock` and `Random`, with the same answers as `hd run`.
+ * `Console` is built in. The REPL panel's session binds it too.
+ */
+export const PLAYGROUND_HOST: ReplHost = { traits: WEB_HOST_TRAITS, invoke: webHostAnswer };
+
+/** The default profile's traits the playground does not provide, by qualified name. */
+const UNPROVIDED_TRAITS: ReadonlySet<string> = new Set(
+  DEFAULT_PROFILE_TRAITS.map(([module, name]) => `std.${module}.${name}`).filter(
+    (name) =>
+      name !== "std.console.Console" &&
+      !WEB_HOST_TRAITS.some((trait) => `${trait.module}.${trait.name}` === name),
+  ),
+);
+
+const shortName = (qualified: string): string => qualified.slice(qualified.lastIndexOf(".") + 1);
+
+/** The traits `entry`'s row names that the playground does not provide, such as `FsRead`. */
+function unprovidedTraits(traits: readonly HirTrait[], entry: HirFunction): string[] {
+  return entry.requirements.flatMap((requirement) => {
+    const standardName = traits.find(({ name }) => name === requirement)?.standardName;
+    return standardName && UNPROVIDED_TRAITS.has(standardName) ? [shortName(standardName)] : [];
+  });
+}
+
+/** A call on a trait no playground provider answers, which the entry check let through. */
+function unprovidedCall(call: HostSuspensionCall): never {
+  throw new RuntimePanicError(
+    "host-contract",
+    `the playground does not provide ${shortName(call.standardName ?? call.providerKey)}; run the program with hd run`,
+  );
+}
+
 const hasErrors = (diagnostics: readonly RunDiagnostic[]): boolean =>
   diagnostics.some(({ severity }) => severity === "error");
 
@@ -170,7 +214,18 @@ export async function runProject(
       },
       providerConfigurationId: "playground",
       parse: joinedParse(linked),
+      hostSuspensionInvoke: (call: HostSuspensionCall) =>
+        webHostAnswer(call) ?? unprovidedCall(call),
     };
+    // A trait the browser cannot provide stops the run before it starts.
+    const checked = analysis.hir.functions.find((declaration) => declaration.entry === true);
+    const missing = checked && mode === "run" ? unprovidedTraits(analysis.hir.traits, checked) : [];
+    if (checked && missing.length > 0)
+      return finish(
+        "failure",
+        diagnostics,
+        `${checked.name} needs ${missing.join(" and ")}, which the playground does not provide; run it with hd run`,
+      );
     const { instance, compilation } = await instantiate(source, options);
     onModule({ wat: compilation.wat, origin: "program", count: 1 });
     // `hd run` and `hd test` judge outcomes with the same runner: exit codes,
@@ -315,7 +370,7 @@ async function evaluateTopLevel(
   finishRun: Finish,
   onModule: (module: CompiledModule) => void,
 ): Promise<RunResult> {
-  const session = new ReplSession();
+  const session = new ReplSession({}, undefined, PLAYGROUND_HOST);
   const finish: Finish = (status, diagnostics, summary) => {
     const compiled = session.compiledModule();
     if (compiled) onModule({ wat: compiled.wat, origin: "top-level", count: compiled.count });

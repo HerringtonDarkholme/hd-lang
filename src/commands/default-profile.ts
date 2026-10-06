@@ -2,12 +2,11 @@
 // (spec/cli/command-line.md#r-cli.host.default-profile): what `hd FILE`,
 // `hd run`, and a task bind for each trait of the profile that the entry
 // row names. `Console` stays a built-in of every run (host-functions.ts);
-// this file answers `ConsoleInput`, `Args`, `Env`, `Clock`, `Random`,
-// `FsRead`, and `FsWrite`. Each answer is a boundary value, which the
+// this file answers `ConsoleInput`, `Args`, `Env`, `FsRead`, and
+// `FsWrite`, and `Clock` and `Random` through web-host.ts. Each answer is a boundary value, which the
 // adapter checks against the method's declared result
 // (spec/lang/10-modules.md#host-results).
 
-import { randomBytes } from "node:crypto";
 import {
   appendFileSync,
   lstatSync,
@@ -25,7 +24,7 @@ import {
 import { resolve } from "node:path";
 
 import type { HostBoundaryValue, HostSuspensionCall, HostSuspensionOutcome } from "../compiler.ts";
-import { RuntimePanicError } from "../runtime-panic.ts";
+import { wait, WEB_HOST_ANSWERS } from "../web-host.ts";
 
 /** What the default profile reads from the `hd` command that runs the program. */
 export interface DefaultProfileHost {
@@ -113,12 +112,6 @@ function bytesOf(value: unknown): Uint8Array {
   return Uint8Array.from(value as readonly number[]);
 }
 
-/** Waits `milliseconds` in real time, blocking the thread, as a CLI program may. */
-function wait(milliseconds: number): void {
-  if (milliseconds <= 0) return;
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
-}
-
 const ANSWERS: Readonly<Record<string, Answer>> = {
   "std.host.Args.program": (_call, host) => host.program,
   "std.host.Args.list": (_call, host) => [...host.arguments],
@@ -135,24 +128,8 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
       ? ({ tag: "err", value: { tag: "Closed" } } as HostBoundaryValue)
       : ok(optional(line));
   },
-  // The wall clock, and a monotonic clock whose origin is the start of the
-  // `hd` process (spec/std/time.md#r-std-time.instant.decl).
-  "std.time.Clock.now": () => ({ millis: BigInt(Date.now()) }) as HostBoundaryValue,
-  "std.time.Clock.monotonic": () =>
-    ({ millis: BigInt(Math.floor(performance.now())) }) as HostBoundaryValue,
-  "std.time.Clock.sleep": (call) => {
-    const milliseconds = (call.arguments[0] as { readonly millis: bigint }).millis;
-    // A negative duration panics on every provider (std-time.clock.sleep.negative).
-    if (milliseconds < 0n)
-      throw new RuntimePanicError(
-        "explicit-panic",
-        `sleep! with a negative duration of ${milliseconds} milliseconds`,
-      );
-    wait(Number(milliseconds));
-  },
-  // The operating system's random source.
-  "std.random.Random.next_u64": () => randomBytes(8).readBigUInt64BE(0),
-  "std.random.Random.fill": (call) => [...randomBytes(Number(call.arguments[0]))],
+  // `Clock` and `Random` need only web-platform APIs; the playground shares them.
+  ...WEB_HOST_ANSWERS,
   "std.fs.FsRead.read_bytes": (call, host) => {
     const path = String(call.arguments[0]);
     return fsResult(path, () => [...readFileSync(resolve(host.workingDirectory, path))]);

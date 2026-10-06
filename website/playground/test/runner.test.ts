@@ -142,6 +142,51 @@ test("unbounded recursion is a stack-exhausted panic", async () => {
   assert.match(result.summary, /^stack-exhausted: the call stack ran out; .* in main$/);
 });
 
+// The default profile's traits a browser can provide
+// (spec/cli/command-line.md#r-cli.host.default-profile).
+test("a program whose row names Clock and Random runs as with hd run", async () => {
+  const source = [
+    "use std.time.{Clock, ms, now, sleep}",
+    "use std.random.{Random, rng}",
+    "",
+    "pub fn main!() -> void $ Console + Clock + Random:",
+    "    println(now().unix_milliseconds() > 0)",
+    "    sleep!(ms(1))",
+    "    let mut draws = rng()",
+    "    println(draws.int(0..10) < 10)",
+  ].join("\n");
+  const result = await runner.runProject(single(source), "run");
+  assert.equal(result.status, "ok", result.summary);
+  assert.deepEqual(result.stdout, ["true", "true"]);
+  // Top-level code binds them too, as the REPL does.
+  const topLevel = await runner.runProject(
+    single("use std.time.now\n\nnow().unix_milliseconds() > 0\n"),
+    "run",
+  );
+  assert.equal(topLevel.status, "ok", topLevel.summary);
+  assert.deepEqual(topLevel.stdout, ["true : bool"]);
+});
+
+test("a trait the playground does not provide stops the run before it starts", async () => {
+  const source = [
+    "use std.fs.{FsRead, read_text}",
+    "use std.path.Path",
+    "",
+    "pub fn main!() -> void $ Console + FsRead:",
+    '    println("before")',
+    '    _ := read_text!(Path("notes.txt"))',
+  ].join("\n");
+  const result = await runner.runProject(single(source), "run");
+  assert.equal(result.status, "failure");
+  assert.deepEqual(result.stdout, []);
+  assert.equal(
+    result.summary,
+    "main needs FsRead, which the playground does not provide; run it with hd run",
+  );
+  // Checking it is still fine.
+  assert.equal((await runner.runProject(single(source), "check")).status, "ok");
+});
+
 test("a two-file project with a package use compiles and runs", async () => {
   const project = {
     files: {

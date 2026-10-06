@@ -10,6 +10,7 @@
 import { respond, ReplSession, type ReplReply } from "../../../src/repl.ts";
 import type { Project } from "./project.ts";
 import {
+  PLAYGROUND_HOST,
   runProject,
   watFromRun,
   watProject,
@@ -52,7 +53,7 @@ interface WorkerScope {
 }
 
 const scope = self as unknown as WorkerScope;
-let session = new ReplSession();
+let session = new ReplSession({}, undefined, PLAYGROUND_HOST);
 /** What the WAT view shows for the project the last run or test compiled. */
 let lastRun: { readonly key: string; readonly wat: WatResult } | undefined;
 
@@ -83,7 +84,7 @@ scope.onmessage = async ({ data: request }) => {
     const reply = await respond(session, request.input);
     scope.postMessage({ kind: "repl", id: request.id, reply });
   } else {
-    session = new ReplSession();
+    session = new ReplSession({}, undefined, PLAYGROUND_HOST);
     let count = 0;
     for (const input of request.inputs) if ((await session.evaluate(input)).accepted) count += 1;
     scope.postMessage({ kind: "restored", id: request.id, count });
