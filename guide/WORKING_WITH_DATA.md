@@ -283,3 +283,47 @@ hd = "0.2.0"   # the minimum toolchain that builds this package
 
 `hd fetch` fetches every selected version the cache lacks, as CI does
 before a build. Read next: [Dependencies](../spec/cli/command-line.md#dependencies).
+
+## Deeper Collections
+
+`List` and `Map` cover most days. Three more shapes cover the rest: `Set`
+for distinct values, `sorted` and `group_by` for ordering and bucketing,
+and the adapters on any iterator — `filter`, `map`, `fold`. The exact
+rules are in [Collections](../spec/std/collections.md) and
+[Iterators](../spec/std/iter.md):
+
+```hd
+use std.collections.Set
+use std.testing.{assert_equal, it}
+
+data Item:
+    name: string
+    price: i32
+    tags: List[string]
+
+fn sample() -> List[Item]:
+    [Item { name: "apple", price: 3, tags: ["fruit", "fresh"] },
+     Item { name: "bread", price: 5, tags: ["bakery"] },
+     Item { name: "cheese", price: 8, tags: ["dairy", "fresh"] }]
+
+tests:
+    it("groups by tag and sorts by price"):
+        items := sample()
+        by_tag := items.group_by(fn(item: Item) -> string: item.tags[0])
+        assert_equal(by_tag.get("fruit").map(fn(list): list.len()), .Some(1), reason="one fruit")
+        cheap := items.sorted_by_key(fn(item: Item) -> i32: item.price)
+        assert_equal(cheap[0].name, "apple", reason="cheapest first")
+
+    it("collects each tag once"):
+        let seen: mut Set[string] = Set::new()
+        let kept: mut List[string] = []
+        for item in sample():
+            for tag in item.tags:
+                if seen.insert(tag):
+                    kept.push(tag)
+        assert_equal(kept, ["fruit", "fresh", "bakery", "dairy"], reason="in insertion order")
+```
+
+A `Set` keeps each value once, in the order it first appeared. `Deque`
+and `Heap` serve a queue and a priority queue; see
+[Collections](../spec/std/collections.md).
