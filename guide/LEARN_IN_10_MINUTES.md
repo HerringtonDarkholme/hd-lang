@@ -75,7 +75,8 @@ function, even through a range or a list. When none needs one, it is
 Write `1.0`, not `1`, for a float. Other primitives are `bool`, `char`,
 and `string`. A string is UTF-8 bytes, as in Go: `len()` counts
 bytes, and a loop over its characters is `for c in s.chars()`. Lengths
-and indices are `usize`, an alias of `u32`, so an index is never negative.
+and indices are `usize`, an unsigned type distinct from `u32`, so an
+index is never negative; `usize(n)` converts a `u32` to it.
 
 ```hd
 let big: i64 = 9000

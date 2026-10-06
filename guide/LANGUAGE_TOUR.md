@@ -262,7 +262,8 @@ name := "Ada"          # string
 
 A string is immutable UTF-8 bytes, as in Go. `len()` counts bytes and
 `s[i]` reads one byte as a `u8`, both in constant time. Lengths, indices,
-and byte offsets are `usize`, the prelude's name for `u32`. A string is not
+and byte offsets are `usize`, an unsigned type of its own, 32 bits on
+Wasm, as Rust's `usize` is: `usize(n)` and `u32(size)` convert. A string is not
 iterable, so say what you walk: `chars()` yields each `char`,
 `char_indices()` yields `(byte offset, char)` pairs like Go's `range`, and
 `bytes()` yields each `u8`. `slice(start, end)` takes byte offsets, and so
