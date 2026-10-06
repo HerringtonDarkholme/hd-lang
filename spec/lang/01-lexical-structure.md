@@ -15,7 +15,7 @@ An implementation processes a source file in this order:
 1. r[lex.process.decode] Decode source bytes as UTF-8 and remove one optional initial byte-order mark.
 2. r[lex.process.lines] Divide source text into physical lines.
 3. r[lex.process.tokens] Recognize comments, whitespace, literals, identifiers, and operators.
-4. r[lex.process.join] Join physical lines that continue inside `()`, `[]`, or `{}`, and leading-dot continuation lines, into logical lines, except for an indentation suite nested in that continuation.
+4. r[lex.process.join] Join physical lines that continue inside `()`, `[]`, or `{}`, and leading-dot continuation lines, into logical lines. An indentation suite nested in that continuation is the exception.
 5. r[lex.process.layout] Emit `NEWLINE`, `INDENT`, `DEDENT`, and same-line `SUITE_END` layout tokens from logical lines and nested suites.
 6. r[lex.process.parse] Parse the resulting token stream.
 
@@ -100,9 +100,9 @@ word := line
 5. r[lex.dot.no-layout] Such a leading-dot line emits no `NEWLINE`, `INDENT`, or `DEDENT`.
 6. r[lex.dot.blank-lines] Blank lines and comment-only lines before it do not matter.
 7. r[lex.dot.joined] The joined text is read as if it were written on one physical line.
-8. r[lex.dot.open-suite] A leading-dot line is an error when a same-line suite is still open at the end of the logical line it would continue, as after `f := fn(x): x`. Error: `syntax-error`.
+8. r[lex.dot.open-suite] A leading-dot line is an error when a same-line suite is still open at the end of the logical line it would continue. One case is the line after `f := fn(x): x`. Error: `syntax-error`.
 9. r[lex.dot.closed-suite] A same-line suite that closed earlier on the line, such as one inside `apply(xs, fn(x): x)`, does not prevent the continuation.
-10. r[lex.dot.statement-indent] A leading-dot line indented no deeper than the first line of the statement it would continue starts a new statement, whatever the indentation of the physical line before it.
+10. r[lex.dot.statement-indent] A leading-dot line indented no deeper than the first line of the statement it would continue starts a new statement. This holds whatever the indentation of the physical line before it.
 11. r[lex.dot.contextual-statement] So a `.Variant` line at statement indentation, such as `.Ok(Step { ... })` after a `:=` line, is a contextual-variant expression statement or tail value. A match arm starts the same way.
 12. r[lex.dot.suite-line] So does the first line of an indented suite, whose header ends in `:`.
 13. r[lex.dot.where] The rule applies at delimiter depth zero and on the body lines of a suite nested inside delimiters. Elsewhere inside delimiters every line already continues.
@@ -159,8 +159,8 @@ fn label(raw: string) -> usize:
 ```
 
 1. r[lex.pipe.continue] A physical line whose first token is `|>` continues the previous logical line under the conditions of a leading-dot line.
-2. r[lex.pipe.conditions] It must be indented farther than the first physical line of the logical line it continues, and that logical line must not end in `:` or `=>`.
-3. r[lex.pipe.layout] Like a leading-dot line, it emits no layout tokens, ignores blank and comment-only lines before it, and is read as if joined to the previous line.
+2. r[lex.pipe.conditions] It must be indented farther than the first physical line of the logical line it continues. That logical line must not end in `:` or `=>`.
+3. r[lex.pipe.layout] Like a leading-dot line, it emits no layout tokens and ignores blank and comment-only lines before it. It is read as if joined to the previous line.
 4. r[lex.pipe.open-suite] A leading-`|>` line is an error when a same-line suite is still open at the end of the logical line it would continue. Error: `syntax-error`.
 5. r[lex.pipe.no-dot-line] A leading-dot line is an error when the logical line it would continue contains `|>` at that line's own delimiter depth. Error: `syntax-error`.
 6. r[lex.pipe.dot-before] A leading-dot line before the first `|>` of its logical line is valid. It continues the value that the chain pipes, as `.len()` does in `values`, `.len()`, `|> twice` on three lines.
@@ -181,10 +181,10 @@ fn size(raw: string) -> usize:
 
 1. r[lex.nested.no-layout] Comments and line endings inside an implicit continuation normally do not emit `NEWLINE`, `INDENT`, or `DEDENT`.
 2. r[lex.nested.suite] The exception is a suite introduced by a grammar position that expects `:` followed by `suite_body`.
-3. r[lex.nested.layout] When that suite starts on the next physical line, layout processing emits its `NEWLINE`, `INDENT`, body layout, and closing `DEDENT`, even if surrounding delimiters are still open.
+3. r[lex.nested.layout] When that suite starts on the next physical line, layout processing emits its `NEWLINE`, `INDENT`, body layout, and closing `DEDENT`. This holds even if surrounding delimiters are still open.
 4. r[lex.nested.resume] After the suite closes, implicit continuation resumes.
 5. r[lex.nested.reference] The indentation reference for such a nested suite is the indentation of the physical line containing its suite header.
-6. r[lex.nested.body-depth] Its first body line must be indented farther than that reference, and farther than the first physical line of the logical line that contains the header. Otherwise it is an error. Error: `unexpected-indentation`.
+6. r[lex.nested.body-depth] Its first body line must be indented farther than that reference. It must also be indented farther than the first physical line of the logical line that contains the header. Otherwise it is an error. Error: `unexpected-indentation`.
 7. r[lex.nested.body-left] A header on a continuation line therefore cannot place its body to the left of, or level with, the statement that contains it. For example, in `x := run(` followed by a less indented `fn(v):`, the body must still be deeper than `x := run(`.
 8. r[lex.nested.closer] Except after a closure body, a closing delimiter at the nested suite's delimiter depth ends the last body line. Layout processing emits `NEWLINE` and all pending `DEDENT` tokens before emitting the closing delimiter.
 
@@ -241,7 +241,7 @@ fn run(fallback: i32) -> void:
     fallback)  # error: syntax-error
 ```
 
-> **Why.** Because a line at body indentation belongs to the body, a later
+> **Why.** A line at body indentation belongs to the body. So a later
 > argument written on it is caught rather than silently becoming the
 > closure's result.
 
@@ -250,7 +250,7 @@ fn run(fallback: i32) -> void:
 1. r[lex.closure.statement] A closure written as a statement in a nested suite's body ends like any other statement.
 2. r[lex.header.resume] Inside brackets, a header may resume on the line after a nested suite that is not a closure body, such as an `if` expression.
 3. r[lex.header.resume-closure] After a closure body it resumes only past the closing delimiter, as in `(if check(fn(x): ...` followed by a line that starts with `):`.
-4. r[lex.header.no-indented-end] Outside brackets, and in the statements of a nested suite, a header cannot end in an indented suite: the line after that suite cannot continue it.
+4. r[lex.header.no-indented-end] Outside brackets, and in the statements of a nested suite, a header cannot end in an indented suite. The line after that suite cannot continue it.
 
 See also: [Statements](02-grammar.md#statements).
 
@@ -259,7 +259,7 @@ See also: [Statements](02-grammar.md#statements).
 1. r[lex.colon.cooperate] Layout recognition and parsing therefore cooperate at a suite-introducing colon.
 2. r[lex.colon.implementation] A lexer may implement this with parser feedback or with equivalent parser-state tracking.
 3. r[lex.colon.ordinary] Ordinary colons in maps, data fields, named types, and arguments do not open a suite.
-4. r[lex.colon.trailing-block] Trailing-block call colons occur only at delimiter depth zero, when the call is the complete statement or the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`.
+4. r[lex.colon.trailing-block] Trailing-block call colons occur only at delimiter depth zero. Even there, the call must be the complete statement or the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`.
 5. r[lex.colon.trailing-block.not-headers] They are not recognized in `if`, `while`, `for`, or `match` headers or inside brackets.
 
 See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
@@ -270,7 +270,7 @@ See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
 2. r[lex.suite-end.line] At a logical line boundary, layout closes every same-line suite opened on that logical line. It emits one `SUITE_END` per suite, from innermost to outermost.
 3. r[lex.suite-end.newline] At delimiter depth zero the outermost `SUITE_END` replaces that line's `NEWLINE`; it does not precede a second terminator.
 4. r[lex.suite-end.continuation] In an implicit continuation, the equivalent boundary is a comma or closing delimiter that returns control to the enclosing expression. The same innermost-first sequence is emitted before that token.
-5. r[lex.suite-end.comma] A comma at the delimiter depth where a same-line suite opened always closes that suite, including at depth zero, so the suite body cannot contain such a comma.
+5. r[lex.suite-end.comma] A comma at the delimiter depth where a same-line suite opened always closes that suite, including at depth zero. So the suite body cannot contain such a comma.
 6. r[lex.suite-end.example] For example, the body of `fn(name): name.len()` ends immediately before that closure's closing `)`.
 7. r[lex.suite-end.else] `else` is also a boundary for the immediately preceding same-line `if`, `for`, or `while` suite. Layout emits that suite's `SUITE_END` before `else` and keeps the enclosing conditional or loop open, as the conditional and loop productions require.
 8. r[lex.suite-end.else-example] Thus `x := if c: 1 else: 2` is one conditional expression. The line boundary after `2` closes the `else` suite and then any enclosing same-line suite, innermost first.
@@ -626,7 +626,7 @@ literal_suffix = XID_START, { identifier_continue } ;
 2. r[lex.suffix.name] A literal suffix begins with a Unicode `XID_Start` character and takes every following `identifier_continue` character.
 3. r[lex.suffix.decimal] Only a decimal integer or floating-point literal takes a suffix, as in `5s`, `1.5kb`, and `5_000ms`. A letter after a radix literal follows the integer rules, so `0xffB` is `0xffb` and `0x1fs` is an error. Error: `syntax-error`.
 4. r[lex.suffix.exponent] An `e` or `E` after the digits begins an exponent when digits follow it, after an optional sign, and otherwise a suffix. So `1e3ms` is `1e3` with the suffix `ms`, and `5em` is `5` with the suffix `em`.
-5. r[lex.literal-fn.reserved-glued] A reserved word written directly after a numeric literal or directly before a string literal, where a suffix or prefix would go, is an error, as in `5else` and `return"done"`. Error: `syntax-error`.
+5. r[lex.literal-fn.reserved-glued] A reserved word written directly after a numeric literal or directly before a string literal is an error. That is the position where a suffix or prefix would go, as in `5else` and `return"done"`. Error: `syntax-error`.
 6. r[lex.literal-fn.meaning] A literal suffix or string prefix is resolved as a name, and the literal is a call, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
 
 ```text
@@ -640,7 +640,7 @@ mask := 0xff'B  # error: unterminated-string
 
 > **Note.** The other near misses need no rule of their own. `5_ms` ends
 > its digits in a separator ([`lex.sep.misplaced`](#r-lex.sep.misplaced)),
-> `"abc"u` is a string followed by a name, and a `'` after digits begins a
+> and `"abc"u` is a string followed by a name. A `'` after digits begins a
 > character literal, so `5'ms` is unterminated.
 
 > **Why.** Hexadecimal digits include letters such as `B`, so a letter
@@ -785,7 +785,7 @@ quoted := r"say \"hi\""
 2. r[lex.prefix.name] The prefix is an identifier, and a contextual word may be a prefix.
 3. r[lex.prefix.raw-text] The text is raw: backslashes and escape-looking text stay as written, and no escape sequence is processed.
 4. r[lex.prefix.backslash] A backslash keeps the following quote from ending the literal, and keeps a following `$` from beginning an interpolation. The backslash stays in the text, so a prefixed string cannot end in an odd number of backslashes.
-5. r[lex.prefix.lines] A prefixed string follows the line rules of an unprefixed one: a single-line form holds no line ending, and a multiline form keeps its line endings and indentation as written.
+5. r[lex.prefix.lines] A prefixed string follows the line rules of an unprefixed one. A single-line form holds no line ending, and a multiline form keeps its line endings and indentation as written.
 6. r[lex.prefix.interpolation] A prefixed string interpolates with the forms of [Interpolation](#interpolation): `$name`, `$self`, and `${expression}`.
 7. r[lex.prefix.bare-only] A prefix is one bare identifier and is never module-qualified, as a literal suffix is not.
 8. r[lex.suffix.bare] A literal suffix is always a bare identifier and is never module-qualified.
@@ -879,8 +879,8 @@ punctuation tokens:
 13. r[lex.op.range.not-dot] `..` is not the member-access `.`, so a line that starts with `..` is no [leading-dot continuation](#leading-dot-continuation).
 
 See also: [Expressions](05-expressions.md), which defines operator
-precedence and semantics, including prefix `!` as logical not;
-[Requirements and Suspension](11-requirements-and-suspension.md), which
+precedence and semantics, including prefix `!` as logical not.
+[Requirements and Suspension](11-requirements-and-suspension.md)
 specifies `$` and suspension-related uses of `!`.
 
 ## Lexical Token Grammar
