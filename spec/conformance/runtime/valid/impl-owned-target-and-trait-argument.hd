@@ -1,0 +1,27 @@
+# test: the package of Money implements a std trait for Money, and Add[Money] for the std type i32
+# Spec 09 Implementation Ownership: trait.own.rule, trait.own.target, trait.own.argument, trait.own.argument.example.
+use std.ops.Add
+use std.testing.assert_equal
+
+data Money:
+    cents: i32
+
+impl Display for Money:
+    fn to_string(self) -> string:
+        "${self.cents}c"
+
+impl Add[Money] for i32:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: self + rhs.cents }
+
+tests:
+    it("the owner of the target implements a foreign trait"):
+        price := Money { cents: 250 }
+        assert_equal(price.to_string(), "250c", reason="Display for Money")
+
+    it("the owner of a trait argument implements a foreign trait for a foreign type"):
+        let tip: i32 = 50
+        price := Money { cents: 250 }
+        assert_equal((tip + price).cents, 300, reason="the operator uses Add[Money] for i32")
+        assert_equal(Add::[Money]::add(tip, price).cents, 300, reason="the qualified call")

@@ -1,2 +1,3 @@
+# Spec 09 Traits: trait.vis.trait-methods, trait.vis.no-pub.
 pub trait Display:
     pub fn to_string(self) -> string  # diagnostic: trait-method-visibility

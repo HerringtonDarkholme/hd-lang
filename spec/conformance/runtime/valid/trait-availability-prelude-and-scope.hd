@@ -1,0 +1,38 @@
+# test: prelude traits, module traits, and traits declared in an enclosing scope are available to dot calls
+# Spec 09 Trait Availability: trait.avail.concrete, trait.avail.module, trait.avail.scope, trait.avail.prelude.
+use std.testing.assert_equal
+
+trait Labeled:
+    fn label(self) -> string
+
+data Order:
+    id: i32
+
+impl Display for Order:
+    fn to_string(self) -> string:
+        "order ${self.id}"
+
+impl Labeled for Order:
+    fn label(self) -> string:
+        "#${self.id}"
+
+fn shout(order: Order) -> string:
+    trait Loud:
+        fn loud(self) -> string
+
+    impl Loud for Order:
+        fn loud(self) -> string:
+            "ORDER ${self.id}"
+
+    order.loud()
+
+fn label_of(value: Labeled) -> string:
+    value.label()
+
+tests:
+    it("each kind of available trait reaches its method"):
+        order := Order { id: 7 }
+        assert_equal(order.to_string(), "order 7", reason="Display comes from the prelude")
+        assert_equal(order.label(), "#7", reason="Labeled is declared in this module")
+        assert_equal(shout(order), "ORDER 7", reason="Loud is visible in the enclosing scope")
+        assert_equal(label_of(order), "#7", reason="a trait value dispatches label")

@@ -1,0 +1,32 @@
+# test: T::f goes through T's bound, and a trait-qualified call takes named arguments in normal order
+# Spec 09 Associated Function Calls: trait.assoc-call.parameter, trait.assoc-call.parameter.static; Trait-Qualified Calls: trait.qualified.arguments.
+use std.testing.assert_equal
+
+trait Factory:
+    fn create() -> Self
+
+trait Scale:
+    fn scale(self, factor: i32, offset: i32) -> i32
+
+data Invoice:
+    total: i32
+
+impl Factory for Invoice:
+    fn create() -> Invoice:
+        Invoice { total: 100 }
+
+impl Scale for Invoice:
+    fn scale(self, factor: i32, offset: i32) -> i32:
+        self.total * factor + offset
+
+fn fresh[T < Factory]() -> T:
+    T::create()
+
+tests:
+    it("T::create goes through the bound"):
+        assert_equal(fresh::[Invoice]().total, 100, reason="the bound's evidence supplies create")
+
+    it("a trait-qualified call keeps normal argument order"):
+        invoice := Invoice { total: 10 }
+        assert_equal(Scale::scale(invoice, 3, offset=+2), 32, reason="positional then named")
+        assert_equal(Scale::scale(invoice, offset=+1, factor=+2), 21, reason="named in any order")

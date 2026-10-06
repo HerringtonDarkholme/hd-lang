@@ -1,0 +1,18 @@
+# test: hand-written Eq and Hash need not agree; the compiler does not verify them
+# Spec 09 Hashing: trait.hash.module, trait.hash.map-key, trait.hash.unverified; Comparison Traits: trait.cmp.laws.
+use std.hash.{Hash, Hasher}
+
+data Coupon:
+    code: string
+    uses: i32
+
+impl Eq for Coupon:
+    fn eq(self, other: Coupon) -> bool:
+        self.code == other.code
+
+impl Hash for Coupon:
+    fn hash(self, state: mut Hasher) -> void:
+        self.uses.hash(state)
+
+fn redeemed(counts: Map[Coupon, i32], coupon: Coupon) -> i32?:
+    counts.get(coupon)

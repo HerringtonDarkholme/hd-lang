@@ -1,0 +1,8 @@
+# test: a child trait cannot redeclare a supertrait's associated function
+# Spec 09 Supertrait Member Names: trait.super.no-redeclare, trait.super.no-redeclare.kinds.
+trait Factory:
+    fn create() -> Self
+
+trait SeededFactory < Factory:
+    fn create() -> Self  # diagnostic: duplicate-trait-member
+    fn seed(self) -> i32

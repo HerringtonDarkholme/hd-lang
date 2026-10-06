@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-06 the suite has
-2,670 cases: 2,655 selected in `test/portable/cases.tsv` and 15 known
-failures. The selected cases are 2,293 language tier, 308 stdlib tier, and 54
-CLI tier; the known failures are 4 language tier, 1 stdlib tier, and 10
+2,719 cases: 2,700 selected in `test/portable/cases.tsv` and 19 known
+failures. The selected cases are 2,338 language tier, 308 stdlib tier, and 54
+CLI tier; the known failures are 8 language tier, 1 stdlib tier, and 10
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -23,6 +23,10 @@ CLI tier.
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | F-614 | 1 | a `.Variant` line right after a same-line `if` suite is joined to it |
 | F-615 | 2 | an `if` or `match` with an expected type joins its branches by least common type |
+| F-617 | 1 | `Trait::f()` for an associated function does not infer `Self` |
+| F-618 | 1 | a trait value of a generic trait does not satisfy a bound on its own instantiation |
+| F-619 | 1 | `T < mut Any` accepts a readonly argument |
+| F-620 | 1 | a `TypeId` prints a non-prelude declaration without its qualified name |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 
 ## Findings
@@ -59,6 +63,28 @@ Correctness and diagnostics:
   `src/checker/expression-control.ts`.
   `typing/invalid/match-arm-misses-expected-type.hd` and
   `typing/invalid/if-branch-misses-expected-type.hd` show it.
+- **F-617**: `Trait::f()` for an associated function is
+  `associated-function-needs-target`, a code the spec does not list. By
+  `trait.assoc-call.trait`, the call infers `Self` from its arguments and
+  expected type. The rejection is in `src/checker/expression-calls.ts`.
+  `runtime/valid/trait-associated-call-infers-self.hd` shows it.
+- **F-618**: a dynamic trait value of a generic trait, such as
+  `Repository[User]`, does not satisfy the bound `R < Repository[User]`,
+  against `trait.dyn.bound.instantiation`. `forwardingPlan` in
+  `src/checker/assignability.ts` forwards only bounds without trait
+  arguments. `runtime/valid/trait-value-satisfies-instantiated-bound.hd`
+  shows it.
+- **F-619**: `T < mut Any` accepts a readonly argument, against
+  `trait.bound.mut-any`. `src/checker/program-signatures.ts` drops an
+  `Any` bound, and its `mut` with it.
+  `typing/invalid/mut-any-bound-readonly-argument.hd` shows it.
+- **F-620**: a `TypeId` spells every nominal declaration by its bare name,
+  so `TypeId::of::[Error]()` prints `Error`, not `std.error.Error`
+  (`trait.typeid.name.qualified`). The key comes from `inspectKey` in
+  `src/checker/inspectable.ts`, which is also the runtime identity, so
+  two same-named declarations of different modules may share one
+  (`trait.identity.modules`). `runtime/valid/typeid-qualified-trait-name.hd`
+  shows the name.
 
 Runtime cost:
 

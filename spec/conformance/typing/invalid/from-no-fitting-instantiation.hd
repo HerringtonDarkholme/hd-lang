@@ -1,0 +1,24 @@
+# test: X::from with an argument that fits no From instantiation of X is a type mismatch
+# Spec 09 Conversion Implementations: trait.from.instantiations, trait.from.candidates, trait.from.no-fit.
+use std.convert.From
+
+enum FsError:
+    NotFound(path: string)
+
+enum HttpError:
+    Timeout(url: string)
+
+enum SyncError:
+    Fs(error: FsError)
+    Http(error: HttpError)
+
+impl From[FsError] for SyncError:
+    fn from(value: FsError) -> SyncError:
+        SyncError.Fs(value)
+
+impl From[HttpError] for SyncError:
+    fn from(value: HttpError) -> SyncError:
+        SyncError.Http(value)
+
+fn convert(path: string) -> SyncError:
+    SyncError::from(path)  # diagnostic: type-mismatch

@@ -1,0 +1,55 @@
+# test: Result[T, Error] holds any Error, ? reaches it by assignability, and the default cause is .None
+# Spec 09 Error Trait: trait.error.module, trait.error.import, trait.error.cause; Erased Errors: trait.error.erased, trait.error.result.
+use std.error.Error
+use std.testing.{assert, assert_equal}
+
+enum FsError:
+    NotFound(path: string)
+
+impl Display for FsError:
+    fn to_string(self) -> string:
+        match self:
+            FsError.NotFound(path) => "not found: " + path
+
+impl Error for FsError
+
+enum ParseError:
+    BadLine(line: i32)
+
+impl Display for ParseError:
+    fn to_string(self) -> string:
+        match self:
+            ParseError.BadLine(line) => "bad line ${line}"
+
+impl Error for ParseError
+
+fn read(path: string) -> Result[string, FsError]:
+    if path == "app.conf":
+        return .Ok("port = 80")
+    .Err(FsError.NotFound(path))
+
+fn parse(text: string) -> Result[i32, ParseError]:
+    if text == "port = 80":
+        return .Ok(80)
+    .Err(ParseError.BadLine(1))
+
+fn load_port(path: string) -> Result[i32, Error]:
+    text := read(path)?
+    port := parse(text)?
+    .Ok(port)
+
+fn message(result: Result[i32, Error]) -> string:
+    match result:
+        .Ok(port) => "port ${port}"
+        .Err(error) => error.to_string()
+
+tests:
+    it("each domain error reaches the erased result"):
+        assert_equal(message(load_port("app.conf")), "port 80", reason="no error")
+        assert_equal(message(load_port("other.conf")), "not found: other.conf", reason="an FsError")
+
+    it("the default cause is .None"):
+        let error: Error = ParseError.BadLine(3)
+        match error.cause():
+            .Some(_) => assert(false, reason="no cause was given")
+            .None => assert(true, reason="the default cause")

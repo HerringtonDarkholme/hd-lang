@@ -1,0 +1,21 @@
+# test: Error satisfies the entry point's Display requirement, so main may return Result[void, Error]
+# Spec 09 Erased Errors: trait.error.entry-point.
+use std.error.Error
+
+enum StartError:
+    MissingConfig
+
+impl Display for StartError:
+    fn to_string(self) -> string:
+        "missing config"
+
+impl Error for StartError
+
+fn start(ready: bool) -> Result[void, StartError]:
+    if ready:
+        return .Ok(())
+    .Err(StartError.MissingConfig)
+
+pub fn main() -> Result[void, Error]:
+    start(true)?
+    .Ok(())

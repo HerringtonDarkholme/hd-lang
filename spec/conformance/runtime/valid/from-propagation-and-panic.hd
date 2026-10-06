@@ -1,0 +1,37 @@
+# test: ? converts an error once through the enclosing error type's From implementation, and a from body may panic
+# Spec 09 Conversion Trait: trait.from.module, trait.from.propagation; Pure Conversions: trait.from.pure, trait.from.panic.
+use std.convert.From
+use std.testing.assert_equal
+
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(path: string)
+
+impl From[FsError] for SyncError:
+    fn from(value: FsError) -> SyncError:
+        match value:
+            FsError.NotFound(path) =>
+                if path == "":
+                    panic("an empty path is a bug")
+                SyncError.Fs(path)
+
+fn read(path: string) -> Result[string, FsError]:
+    if path == "config.toml":
+        return .Ok("theme = dark")
+    .Err(FsError.NotFound(path))
+
+fn sync(path: string) -> Result[string, SyncError]:
+    text := read(path)?
+    .Ok("synced " + text)
+
+fn describe(result: Result[string, SyncError]) -> string:
+    match result:
+        .Ok(text) => text
+        .Err(SyncError.Fs(path)) => "missing " + path
+
+tests:
+    it("? converts the error once through From"):
+        assert_equal(describe(sync("config.toml")), "synced theme = dark", reason="the success passes through")
+        assert_equal(describe(sync("cache.db")), "missing cache.db", reason="FsError became SyncError")

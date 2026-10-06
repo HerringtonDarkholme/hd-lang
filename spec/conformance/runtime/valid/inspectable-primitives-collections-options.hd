@@ -1,0 +1,52 @@
+# test: primitives, string, lists, maps, tuples, and optionals of inspectable types erase to Inspectable and come back exactly
+# Spec 09 Inspectable Types: trait.inspectable.primitive, trait.inspectable.collections, trait.inspectable.option, trait.inspectable.exact.
+# Spec 09 Recovering A Concrete Type: trait.downcast.val, trait.downcast.exact, trait.downcast.optional; Ordinary Rules: trait.downcast.val-ordinary.
+use std.inspect.{Inspectable, downcast_val}
+use std.testing.assert_equal
+
+data Sku:
+    code: string
+
+fn stock_of(value: Inspectable) -> i32:
+    match value.downcast::[Map[string, i32]]():
+        .Some(stock) => stock["apple"]
+        .None => -1
+
+fn pair_of(value: Inspectable) -> string:
+    match downcast_val::[(i32, string)](value):
+        .Some(pair) => "${pair._0}:${pair._1}"
+        .None => "none"
+
+fn weight_of(value: Inspectable) -> f64:
+    match downcast_val::[f64](value):
+        .Some(weight) => weight
+        .None => 0.0
+
+fn sku_of(value: Inspectable) -> string:
+    match value.downcast::[Sku?]():
+        .Some(found) =>
+            match found:
+                .Some(sku) => sku.code
+                .None => "no sku"
+        .None => "not an optional sku"
+
+tests:
+    it("a map and a tuple come back with their exact types"):
+        let stock: Map[string, i32] = {"apple": 12}
+        assert_equal(stock_of(stock), 12, reason="Map[string, i32]")
+        let other: Map[string, i64] = {"apple": 12}
+        assert_equal(stock_of(other), -1, reason="Map[string, i64] is another type")
+        let pair: (i32, string) = (7, "bolts")
+        assert_equal(pair_of(pair), "7:bolts", reason="a tuple of inspectable elements")
+
+    it("a primitive comes back by value"):
+        let weight: f64 = 2.5
+        assert_equal(weight_of(weight), 2.5, reason="f64")
+        assert_equal(weight_of("2.5"), 0.0, reason="a string is not an f64")
+
+    it("an optional is inspectable when its payload is"):
+        let present: Sku? = Sku { code: "A-1" }
+        let absent: Sku? = .None
+        assert_equal(sku_of(present), "A-1", reason="Sku? gives Sku??")
+        assert_equal(sku_of(absent), "no sku", reason="an erased .None keeps its type")
+        assert_equal(sku_of(Sku { code: "B-2" }), "not an optional sku", reason="Sku is not Sku?")

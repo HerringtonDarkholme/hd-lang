@@ -1,0 +1,29 @@
+# test: Trait::f for an associated function infers Self from the expected type
+# Spec 09 Associated Function Calls: trait.assoc-call.trait.
+use std.testing.assert_equal
+
+trait Factory:
+    fn create() -> Self
+
+data Invoice:
+    total: i32
+
+impl Factory for Invoice:
+    fn create() -> Invoice:
+        Invoice { total: 100 }
+
+data Receipt:
+    number: i32
+
+impl Factory for Receipt:
+    fn create() -> Receipt:
+        Receipt { number: 1 }
+
+fn first_receipt() -> Receipt:
+    Factory::create()
+
+tests:
+    it("the expected type selects the implementation"):
+        let invoice: Invoice = Factory::create()
+        assert_equal(invoice.total, 100, reason="Self is Invoice")
+        assert_equal(first_receipt().number, 1, reason="Self is Receipt from the result type")

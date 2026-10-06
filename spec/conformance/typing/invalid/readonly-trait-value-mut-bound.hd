@@ -1,0 +1,11 @@
+# test: a readonly trait value never satisfies a mut bound
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.mut; Generic Bounds: trait.bound.unsatisfied.cases.
+trait Counter:
+    fn bump(mut self) -> void
+
+fn bump_twice[C < mut Counter](counter: C) -> void:
+    counter.bump()
+    counter.bump()
+
+fn record(counter: Counter) -> void:
+    bump_twice(counter)  # diagnostic: unsatisfied-trait-bound

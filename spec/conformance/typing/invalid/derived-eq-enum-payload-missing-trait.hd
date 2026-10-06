@@ -1,0 +1,9 @@
+# test: an enum payload field that a derived Eq compares must implement Eq
+# Spec 09 Derived Implementations: trait.derive.check, trait.derive.field-missing-trait, trait.derive.field-missing-trait.template.
+data Socket:
+    port: i32
+
+@derive(Eq)
+enum Endpoint:
+    Local(path: string)
+    Remote(socket: Socket)  # diagnostic: derive-field-missing-trait

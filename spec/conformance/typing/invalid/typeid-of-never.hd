@@ -1,0 +1,9 @@
+# test: never is not inspectable, so a panic cannot be passed where an Inspectable bound is required
+# Spec 09 Types That Are Not Inspectable: trait.inspectable.not.never.
+use std.inspect.{Inspectable, TypeId}
+
+fn kind_of[T < Inspectable](value: T) -> TypeId:
+    TypeId::of::[T]()
+
+fn unreachable_kind() -> TypeId:
+    kind_of(panic("no value"))  # diagnostic: unsatisfied-trait-bound

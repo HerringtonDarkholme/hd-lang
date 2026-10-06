@@ -1,0 +1,9 @@
+# test: a type applied to a function type is not inspectable
+# Spec 09 Types That Are Not Inspectable: trait.inspectable.not.argument, trait.inspectable.not.function.
+use std.inspect.TypeId
+
+data Job[T]:
+    run: T
+
+fn job_kind() -> TypeId:
+    TypeId::of::[Job[fn() -> i32]]()  # diagnostic: unsatisfied-trait-bound

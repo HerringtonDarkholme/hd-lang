@@ -1,0 +1,7 @@
+# test: a transparent alias of a standard type gives its package no ownership
+# Spec 09 Implementation Ownership: trait.own.aliases, trait.own.std, trait.own.orphan.
+type Tags = List[string]
+
+impl Display for Tags:  # diagnostic: orphan-impl
+    fn to_string(self) -> string:
+        "tags"

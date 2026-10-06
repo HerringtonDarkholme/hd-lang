@@ -1,0 +1,21 @@
+# test: a trait value satisfies no bound beyond its trait and supertraits, whatever its concrete type implements
+# Spec 09 Trait Values As Bounds: trait.dyn.bound, trait.dyn.bound.no-impl.
+trait Named:
+    fn name(self) -> string
+
+data Tag:
+    text: string
+
+impl Named for Tag:
+    fn name(self) -> string:
+        self.text
+
+impl Eq for Tag:
+    fn eq(self, other: Tag) -> bool:
+        self.text == other.text
+
+fn same[T < Eq](left: T, right: T) -> bool:
+    left == right
+
+fn compare(left: Named, right: Named) -> bool:
+    same(left, right)  # diagnostic: unsatisfied-trait-bound

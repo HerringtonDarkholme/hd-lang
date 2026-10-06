@@ -1,0 +1,25 @@
+# test: a derived Eq compares every member, and its bound on a type parameter holds when the argument implements Eq
+# Spec 09 Derived Implementations: trait.derive.arguments, trait.derive.generate, trait.derive.cmp-every-member, trait.derive.bounds, trait.derive.owner.
+use std.testing.assert
+
+@derive(Eq)
+data Address:
+    street: string
+    city: string
+    zip: i32
+
+@derive(Eq)
+data Labeled[T]:
+    label: string
+    value: T
+
+tests:
+    it("values differing in any one member are unequal"):
+        home := Address { street: "1 Main", city: "Springfield", zip: 12345 }
+        assert(home == Address { street: "1 Main", city: "Springfield", zip: 12345 }, reason="every member equal")
+        assert(home != Address { street: "2 Main", city: "Springfield", zip: 12345 }, reason="the first member differs")
+        assert(home != Address { street: "1 Main", city: "Springfield", zip: 54321 }, reason="the last member differs")
+
+    it("a generic derivation compares the parameter's field"):
+        assert(Labeled { label: "home", value: 1 } == Labeled { label: "home", value: 1 }, reason="T = i32")
+        assert(Labeled { label: "home", value: "a" } != Labeled { label: "home", value: "b" }, reason="T = string")

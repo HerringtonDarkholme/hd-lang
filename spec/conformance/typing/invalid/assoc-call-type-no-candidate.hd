@@ -1,0 +1,18 @@
+# test: Type::f with no inherent member and no trait member named f is an unknown method
+# Spec 09 Associated Function Calls: trait.assoc-call.type, trait.assoc-call.type.traits, trait.assoc-call.type.none.
+trait Factory:
+    fn create() -> Self
+
+data Invoice:
+    total: i32
+
+impl Invoice:
+    fn empty() -> Invoice:
+        Invoice { total: 0 }
+
+impl Factory for Invoice:
+    fn create() -> Invoice:
+        Invoice { total: 100 }
+
+fn draft() -> Invoice:
+    Invoice::draft()  # diagnostic: unknown-method

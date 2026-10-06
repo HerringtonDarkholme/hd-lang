@@ -1,0 +1,11 @@
+# test: an implementation parameter that appears in neither the trait arguments nor the target is unconstrained
+# Spec 09 Overlap: trait.overlap.generic, trait.overlap.constrained-head.
+trait Summary:
+    fn summary(self) -> string
+
+data Report:
+    title: string
+
+impl[T < Display] Summary for Report:  # diagnostic: unconstrained-impl-parameter
+    fn summary(self) -> string:
+        self.title

@@ -1,5 +1,5 @@
 # test: bounded blanket impl
-# Spec 09 Traits: trait.target.arguments, trait.dyn.convert.
+# Spec 09 Traits: trait.overlap.generic, trait.target.arguments, trait.dyn.convert.
 
 use std.testing.assert_equal
 

@@ -1,0 +1,11 @@
+# test: downcast yields a readonly value, so its fields cannot be assigned
+# Spec 09 Ordinary Rules For Recovery: trait.downcast.readonly.
+use std.inspect.Inspectable
+
+data Counter:
+    count: i32
+
+fn reset(value: Inspectable) -> void:
+    match value.downcast::[Counter]():
+        .Some(counter) => counter.count = 0  # diagnostic: readonly-root
+        .None => pass

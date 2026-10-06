@@ -1,0 +1,16 @@
+# test: an implementation of a trait that extends a sealed trait must not write the sealed trait's member
+# Spec 09 Compiler-Supplied Implementations: trait.sealed.member-names, trait.sealed.member-names.impl, trait.sealed.member-names.error.
+use std.inspect.{Inspectable, TypeId}
+
+trait Plugin < Inspectable:
+    fn name(self) -> string
+
+data Exporter:
+    format: string
+
+impl Plugin for Exporter:
+    fn name(self) -> string:
+        "export " + self.format
+
+    fn runtime_type(self) -> TypeId:  # diagnostic: sealed-trait-implementation
+        TypeId::of::[string]()

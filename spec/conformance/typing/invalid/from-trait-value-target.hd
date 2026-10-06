@@ -1,0 +1,11 @@
+# test: a trait value type is never a From target
+# Spec 09 Conversion Implementations: trait.from.coherence, trait.from.trait-value.
+use std.convert.From
+use std.error.Error
+
+enum FsError:
+    NotFound(path: string)
+
+impl From[FsError] for Error:  # diagnostic: trait-value-impl-target
+    fn from(value: FsError) -> Error:
+        panic("unreachable")

@@ -1,0 +1,9 @@
+# test: a child trait cannot redeclare a supertrait's associated type
+# Spec 09 Supertrait Member Names: trait.super.no-redeclare, trait.super.no-redeclare.kinds, trait.super.no-redeclare.report.
+trait Feed:
+    type Item
+    fn next(mut self) -> Self::Item?
+
+trait PriceFeed < Feed:
+    type Item  # diagnostic: duplicate-trait-member
+    fn currency(self) -> string

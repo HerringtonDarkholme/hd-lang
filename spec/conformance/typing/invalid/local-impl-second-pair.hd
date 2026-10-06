@@ -1,0 +1,19 @@
+# test: a nested scope cannot add a second implementation of a local pair
+# Spec 09 Local Implementations: trait.impl.local.checks, trait.impl.local.no-second; Overlap: trait.overlap.error.
+trait Priced:
+    fn price(self) -> i32
+
+fn receipt(rush: bool) -> i32:
+    data Line:
+        unit: i32
+
+    impl Priced for Line:
+        fn price(self) -> i32:
+            self.unit
+
+    if rush:
+        impl Priced for Line:  # diagnostic: overlapping-impl
+            fn price(self) -> i32:
+                self.unit * 2
+
+    Line { unit: 20 }.price()

@@ -1,0 +1,6 @@
+# test: Any is not inspectable as a value type, so erasing to it stays one-way
+# Spec 09 Types That Are Not Inspectable: trait.inspectable.dynamic-values, trait.inspectable.one-way; Ordinary Rules For Recovery: trait.downcast.bound.examples.
+use std.inspect.TypeId
+
+fn erased_kind() -> TypeId:
+    TypeId::of::[Any]()  # diagnostic: unsatisfied-trait-bound

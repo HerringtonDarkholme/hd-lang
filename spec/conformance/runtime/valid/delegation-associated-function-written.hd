@@ -1,0 +1,37 @@
+# test: a delegating implementation writes the associated function, or takes the trait's default, while methods still forward
+# Spec 09 Delegated Associated Items: trait.by.assoc-fn; Generated Methods: trait.by.generated.
+use std.testing.assert_equal
+
+trait Named:
+    fn name(self) -> string
+    fn kind() -> string
+    fn scope() -> string:
+        "global"
+
+data Logger:
+    label: string
+
+impl Named for Logger:
+    fn name(self) -> string:
+        self.label
+
+    fn kind() -> string:
+        "logger"
+
+data Service:
+    Logger
+    port: i32
+
+impl Named for Service by Logger:
+    fn kind() -> string:
+        "service"
+
+tests:
+    it("the written associated function and the default are the service's own"):
+        assert_equal(Service::kind(), "service", reason="written in the body")
+        assert_equal(Service::scope(), "global", reason="the trait default")
+        assert_equal(Logger::kind(), "logger", reason="the part keeps its own")
+
+    it("methods forward to the part"):
+        service := Service { Logger: ...Logger { label: "api" }, port: 8080 }
+        assert_equal(service.name(), "api", reason="generated forwarding method")

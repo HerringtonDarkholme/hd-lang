@@ -1,0 +1,11 @@
+# test: one projection bound in two bounds of the same parameter is a duplicate binding, even to the same type
+# Spec 09 Binding Names: trait.binding.name-reach, trait.binding.once, trait.binding.once.error.
+trait Feed:
+    type Item
+    fn next(mut self) -> Self::Item?
+
+trait NamedFeed < Feed:
+    fn name(self) -> string
+
+fn drain[T, F < Feed[Item = T] & NamedFeed[Item = T]](feed: mut F) -> T?:  # diagnostic: duplicate-associated-binding
+    feed.next()

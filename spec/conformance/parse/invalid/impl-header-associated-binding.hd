@@ -1,0 +1,12 @@
+# test: the trait of an impl header does not accept an associated type binding
+# Spec 09 Binding Positions: trait.binding.rejected-trait-type.
+trait Feed:
+    type Item
+    fn next(mut self) -> Self::Item?
+
+data Ticker:
+    count: i32
+
+impl Feed[Item = i32] for Ticker:  # diagnostic: syntax-error
+    fn next(mut self) -> i32?:
+        .None

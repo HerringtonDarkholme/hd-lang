@@ -1,0 +1,34 @@
+# test: trait value types with the same bindings in another order are one type, and a matching implementation converts
+# Spec 09 Bound Associated Types: trait.dyn.binding.complete, trait.dyn.binding.convert, trait.dyn.binding.identity.
+use std.testing.assert_equal
+
+trait Lookup:
+    type Key
+    type Value
+    fn find(self, key: Self::Key) -> Self::Value?
+
+data PhoneBook:
+    names: List[string]
+    numbers: List[i32]
+
+impl Lookup for PhoneBook:
+    type Key = string
+    type Value = i32
+    fn find(self, key: string) -> i32?:
+        for index in 0..self.names.len():
+            if self.names[index] == key:
+                return .Some(self.numbers[index])
+        .None
+
+fn find_number(book: Lookup[Key = string, Value = i32], name: string) -> i32?:
+    book.find(name)
+
+fn forward(book: Lookup[Value = i32, Key = string], name: string) -> i32?:
+    find_number(book, name)
+
+tests:
+    it("binding order does not change the trait value type"):
+        book := PhoneBook { names: ["ada", "alan"], numbers: [100, 200] }
+        let erased: Lookup[Value = i32, Key = string] = book
+        assert_equal(forward(erased, "alan"), .Some(200), reason="passed to the other spelling")
+        assert_equal(forward(book, "eve"), .None, reason="a concrete value converts")

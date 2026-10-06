@@ -1,0 +1,10 @@
+# test: T::f is ambiguous when two traits among T's bounds declare f
+# Spec 09 Associated Function Calls: trait.assoc-call.parameter, trait.assoc-call.parameter.one.
+trait Factory:
+    fn create() -> Self
+
+trait Seeded:
+    fn create() -> Self
+
+fn fresh[T < Factory & Seeded]() -> T:
+    T::create()  # diagnostic: ambiguous-method

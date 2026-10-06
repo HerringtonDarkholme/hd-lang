@@ -1,0 +1,10 @@
+# test: T < mut Any requires mutable-root access, so a readonly argument fails it
+# Spec 09 Generic Bounds: trait.bound.mut-any, trait.bound.unsatisfied.cases.
+data Settings:
+    theme: string
+
+fn keep_mut[T < mut Any](value: T) -> void:
+    pass
+
+fn store(settings: Settings) -> void:
+    keep_mut(settings)  # diagnostic: unsatisfied-trait-bound

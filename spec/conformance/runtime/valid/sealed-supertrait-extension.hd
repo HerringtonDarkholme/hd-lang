@@ -1,0 +1,46 @@
+# test: a trait extending Inspectable is implemented with its own members only, and its values keep their recorded type when widened
+# Spec 09 Extending A Sealed Trait: trait.sealed.extend, trait.sealed.extend.members; Compiler-Supplied Implementations: trait.sealed.supplied, trait.sealed.behaves.
+# Spec 09 Supertrait Widening: trait.dyn.widen, trait.dyn.recover; Erasure To Inspectable: trait.erase.child-impl, trait.erase.widen, trait.erase.keeps.
+use std.inspect.{Inspectable, TypeId}
+use std.testing.{assert, assert_equal}
+
+trait Plugin < Inspectable:
+    fn name(self) -> string
+
+data Exporter:
+    format: string
+
+impl Plugin for Exporter:
+    fn name(self) -> string:
+        "export " + self.format
+
+data Importer:
+    source: string
+
+impl Plugin for Importer:
+    fn name(self) -> string:
+        "import " + self.source
+
+fn as_inspectable(plugin: Plugin) -> Inspectable:
+    plugin
+
+fn format_of(value: Inspectable) -> string:
+    match value.downcast::[Exporter]():
+        .Some(exporter) => exporter.format
+        .None => "none"
+
+tests:
+    it("the child trait's own members dispatch"):
+        let plugins: List[Plugin] = [Exporter { format: "csv" }, Importer { source: "s3" }]
+        assert_equal(plugins[0].name(), "export csv", reason="Exporter's name")
+        assert_equal(plugins[1].name(), "import s3", reason="Importer's name")
+
+    it("the supplied Inspectable part reports the concrete type"):
+        let plugin: Plugin = Exporter { format: "json" }
+        assert(plugin.runtime_type() == TypeId::of::[Exporter](), reason="the recorded type is Exporter")
+
+    it("widening to Inspectable keeps the recorded type"):
+        widened := as_inspectable(Exporter { format: "xml" })
+        assert(widened.runtime_type() == TypeId::of::[Exporter](), reason="nothing is wrapped twice")
+        assert_equal(format_of(widened), "xml", reason="the widened value downcasts to Exporter")
+        assert_equal(format_of(as_inspectable(Importer { source: "ftp" })), "none", reason="an Importer is not an Exporter")
