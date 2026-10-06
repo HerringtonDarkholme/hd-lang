@@ -846,7 +846,7 @@ impl[T < Display] Printable for Box[T]:
 ```
 
 1. r[trait.overlap.generic] Implementations may be generic and state their bounds inline in the generic parameter list.
-2. r[trait.overlap.constrained-head] Every type parameter of a generic implementation must be constrained: it appears in the implemented trait's arguments or in the target type, or an associated-type binding fixes it. A parameter that appears only in another bound is an error. One case is `T` in `impl[T < Display, I < Holder[T]] Summary for Feed[I]`. Error: `unconstrained-impl-parameter`.
+2. r[trait.overlap.constrained-head] Every type parameter of a generic implementation must be constrained. That means it appears in the implemented trait's arguments or in the target type, or an associated-type binding fixes it. A parameter that appears only in another bound is an error. One case is `T` in `impl[T < Display, I < Holder[T]] Summary for Feed[I]`. Error: `unconstrained-impl-parameter`.
 3. r[trait.overlap.constrained-binding] An associated-type binding in the bound of a constrained parameter constrains the parameter it names, as `T` in `impl[T < Display, I < Store[Item = T]] Summary for Feed[I]`.
 4. r[trait.overlap.definition] Two implementations overlap when they implement the same trait and their full heads unify.
 5. r[trait.overlap.unify] Heads unify when, after each implementation's parameters are renamed apart, one substitution makes both their trait arguments and their complete target types equal.
