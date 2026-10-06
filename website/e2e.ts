@@ -356,9 +356,9 @@ try {
     const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
     assert.equal(await background(), "rgb(255, 255, 255)");
     await page.click(".theme-toggle");
-    assert.equal(await background(), "rgb(20, 23, 29)");
+    assert.equal(await background(), "rgb(17, 19, 24)");
     await page.reload();
-    assert.equal(await background(), "rgb(20, 23, 29)", "the choice persists");
+    assert.equal(await background(), "rgb(17, 19, 24)", "the choice persists");
     if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "home-phone-dark.png") });
     await page.context().close();
   });
@@ -459,7 +459,7 @@ try {
         .evaluate((node) => getComputedStyle(node).backgroundColor);
       assert.equal(
         background,
-        colorScheme === "dark" ? "rgb(24, 27, 34)" : "rgb(246, 246, 250)",
+        colorScheme === "dark" ? "rgb(27, 30, 39)" : "rgb(246, 246, 249)",
         `${colorScheme}: the editor uses the site's code background`,
       );
       await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
@@ -571,7 +571,9 @@ try {
     const frame = page.frameLocator("#playground-frame");
     await frame.getByText("Compiler ready").waitFor({ timeout: FIRST_REPLY_MS });
     const app = `${PAGES_BASE}${PLAYGROUND_APP_DIR}/${hash}`;
-    assert.equal(await page.locator("#playground-open").getAttribute("href"), app);
+    // The page has no title bar; the framed app's Full screen link carries the code.
+    assert.equal(await page.locator(".sidebar").isVisible(), false);
+    assert.equal(await frame.locator("#fullscreen").getAttribute("href"), `${origin}${app}`);
     await frame.locator("#run").click();
     await frame.locator(".outcome.passed").waitFor();
     assert.equal(await frame.locator(".stdout").textContent(), "from the site\n");

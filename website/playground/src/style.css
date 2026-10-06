@@ -1,30 +1,31 @@
 :root {
+  /* The site's "Refined" palette and faces (website/assets/style.css). */
   color-scheme: light dark;
-  --bg: light-dark(#f6f7f9, #14171d);
-  --panel-bg: light-dark(#ffffff, #1b1f27);
-  --editor-bg: light-dark(#ffffff, #181b22);
-  --fg: light-dark(#1d2330, #e3e6ed);
-  --muted: light-dark(#6b7385, #8b93a5);
-  --border: light-dark(#d9dde5, #2c323d);
-  --accent: light-dark(#5b3fd6, #a796ff);
-  --accent-fg: light-dark(#ffffff, #120d2b);
-  --active-line: light-dark(#f1f4fb, #20242d);
+  --bg: light-dark(#f5f5f8, #191c23);
+  --panel-bg: light-dark(#ffffff, #111318);
+  --editor-bg: light-dark(#ffffff, #111318);
+  --fg: light-dark(#1c1c24, #e6e7ec);
+  --muted: light-dark(#5f6271, #9ba1ae);
+  --border: light-dark(#e7e7ee, #262a34);
+  --accent: light-dark(#5a3fd1, #a594ff);
+  --accent-fg: light-dark(#ffffff, #14102c);
+  --active-line: light-dark(#f4f3fa, #181b22);
   --selection: light-dark(#ddd3ff, #3a2f6b);
-  --ok: light-dark(#1b7f4b, #5fcf8e);
-  --error: light-dark(#c0392b, #ff7b6e);
-  --warning: light-dark(#9a6700, #e3b341);
-  --tok-keyword: light-dark(#8a3ab9, #d19bff);
-  --tok-literal: light-dark(#b35900, #ffb070);
-  --tok-type: light-dark(#0b7285, #5ed3e6);
-  --tok-function: light-dark(#2f5bd3, #82aaff);
-  --tok-number: light-dark(#b35900, #ffb070);
-  --tok-string: light-dark(#2b7a0b, #9fdc7c);
-  --tok-interpolation: light-dark(#0f5f3a, #d6f5a6);
-  --tok-comment: light-dark(#7a8193, #7d8599);
-  --tok-operator: light-dark(#4a5162, #b7bfd0);
+  --ok: light-dark(#1f7a3a, #5fcf80);
+  --error: light-dark(#c4302b, #ff7b72);
+  --warning: light-dark(#9a6700, #d29922);
+  --tok-keyword: light-dark(#7b2fb0, #cf9bff);
+  --tok-literal: light-dark(#a8530a, #f5b56f);
+  --tok-type: light-dark(#0a6b7c, #67d0e0);
+  --tok-function: light-dark(#2156b8, #86b4ff);
+  --tok-number: light-dark(#a8530a, #f5b56f);
+  --tok-string: light-dark(#2a7322, #96d486);
+  --tok-interpolation: light-dark(#14561a, #c0f0b0);
+  --tok-comment: light-dark(#737987, #838b9a);
+  --tok-operator: light-dark(#525866, #aab1bd);
   --tok-name: light-dark(#a3366e, #f59ac8);
-  --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 /* The site's theme toggle sets data-theme; without it the system setting wins. */
@@ -49,9 +50,10 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--editor-bg);
   color: var(--fg);
   font: 14px/1.4 var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -64,7 +66,7 @@ input {
 button,
 select {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--panel-bg);
   padding: 5px 11px;
   cursor: pointer;
@@ -88,6 +90,9 @@ button:disabled {
 }
 
 button.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-fg);
@@ -101,44 +106,64 @@ button.quiet {
   padding: 2px 8px;
 }
 
+/* One row: Run, Check, Test, Examples, Share, the status, and Full screen. */
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px 16px;
-  padding: 8px 16px;
-  background: var(--panel-bg);
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
 }
 
-.brand {
-  color: var(--fg);
-  font-weight: 700;
-  font-size: 17px;
-  text-decoration: none;
-  font-family: var(--mono);
-}
-
-.brand span {
-  color: var(--muted);
+.toolbar button,
+.toolbar select {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
   font-weight: 500;
-  font-family: var(--sans);
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.toolbar button.primary {
+  font-weight: 600;
+}
+
+.separator {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--border);
 }
 
 #examples {
-  max-width: 15em;
+  width: 15em;
+  min-width: 0;
 }
 
 .status {
-  margin-left: auto;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12.5px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fullscreen {
+  flex: none;
+  margin-left: 6px;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.fullscreen:hover {
+  text-decoration: underline;
 }
 
 .workspace {
@@ -163,6 +188,9 @@ button.quiet {
 .tabs {
   display: flex;
   align-items: stretch;
+  gap: 2px;
+  min-height: 36px;
+  padding: 0 8px;
   overflow-x: auto;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
@@ -171,12 +199,12 @@ button.quiet {
 .tab {
   display: flex;
   align-items: center;
-  border-right: 1px solid var(--border);
+  color: var(--muted);
   white-space: nowrap;
 }
 
 .tab.active {
-  background: var(--editor-bg);
+  color: var(--fg);
   box-shadow: inset 0 -2px 0 var(--accent);
 }
 
@@ -242,6 +270,12 @@ button.quiet {
   font-size: 14px;
 }
 
+/* JetBrains Mono would draw -> and => as arrows; hd code shows them as typed. */
+.cm-editor,
+.output {
+  font-variant-ligatures: none;
+}
+
 .editor .cm-editor.cm-focused {
   outline: none;
 }
@@ -253,13 +287,13 @@ button.quiet {
 .output-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 5px 8px 5px 14px;
+  align-items: stretch;
+  min-height: 36px;
+  padding: 0 8px;
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
   color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 13px;
 }
 
 .output {
@@ -392,7 +426,7 @@ button.quiet {
 @media (max-width: 800px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(300px, 3fr) minmax(180px, 2fr);
+    grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
   }
 
   .editor-pane {
@@ -400,9 +434,32 @@ button.quiet {
     border-bottom: 1px solid var(--border);
   }
 
+  .toolbar {
+    gap: 4px;
+    padding: 6px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .toolbar button,
+  .toolbar select {
+    padding: 0 9px;
+  }
+
+  #examples {
+    width: 7.5em;
+  }
+
+  .separator,
+  .fullscreen {
+    display: none;
+  }
+}
+
+/* A phone has no room for the status beside the buttons. */
+@media (max-width: 520px) {
   .status {
-    margin-left: 0;
-    width: 100%;
+    display: none;
   }
 }
 
@@ -417,20 +474,18 @@ button.quiet {
   gap: 2px;
 }
 
+.views {
+  align-items: stretch;
+}
+
 .output-header .view {
   border: none;
   border-radius: 0;
   background: transparent;
-  padding: 2px 8px 3px;
+  padding: 0 10px;
   color: var(--muted);
   font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
   box-shadow: inset 0 -2px 0 transparent;
-}
-
-.output-header .view:first-child {
-  padding-left: 0;
 }
 
 .output-header .view:hover {
@@ -439,7 +494,7 @@ button.quiet {
 
 .output-header .view[aria-selected="true"] {
   color: var(--fg);
-  font-weight: 600;
+  font-weight: 500;
   box-shadow: inset 0 -2px 0 var(--accent);
 }
 

@@ -1,25 +1,8 @@
-# hd-lang in Y Minutes
+# Language Tour
 
 This is a draft language tour. It introduces hd-lang through small examples,
 then briefly explains the design behind each feature. Syntax examples are
 concrete enough to discuss while still allowing unsettled choices to evolve.
-
-## Contents
-
-1. [Hello hd-lang](#hello-hd-lang)
-2. [Values and Types](#values-and-types)
-3. [Control Flow and Expressions](#control-flow-and-expressions)
-4. [Data Types](#data-types)
-5. [Enums](#enums)
-6. [Functions](#functions)
-7. [Traits and Methods](#traits-and-methods)
-8. [Type System](#type-system)
-9. [Modules, Packages, and Use Declarations](#modules-packages-and-use-declarations)
-10. [Program Entry Points](#program-entry-points)
-11. [Tests](#tests)
-12. [Requirements and Suspension](#requirements-and-suspension)
-13. [Using Annotations](#using-annotations)
-14. [Runtime and Library Features](#runtime-and-library-features)
 
 ## Hello hd-lang
 

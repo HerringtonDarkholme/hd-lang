@@ -21,7 +21,8 @@ interface HomeInput {
   readonly pageUrl: (output: string) => string;
 }
 
-const ARROW = '<span aria-hidden="true">→</span>';
+const PLAY_ICON =
+  '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 2.5v11l9-5.5z"/></svg>';
 
 /** The hero sample's punchline: the README function's signature. */
 const HERO_MARK = /^fn \w+!\(.*\$ /;
@@ -63,7 +64,7 @@ function heroSample(readme: string): string {
 function codeWindow(title: string, code: string, action: string): string {
   const marks = code.split("\n").filter((line) => HERO_MARK.test(line));
   return `<figure class="code-window">
-<figcaption class="code-window-bar"><span class="code-window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="code-window-title">${escapeHtml(title)}</span>${action}</figcaption>
+<figcaption class="code-window-bar"><span class="code-window-title">${escapeHtml(title)}</span>${action}</figcaption>
 ${markedCode(code, marks)}
 </figure>`;
 }
@@ -75,21 +76,19 @@ export function renderHome(input: HomeInput): string {
 
   const hero = `<section class="hero" aria-labelledby="hero-title">
 <div class="hero-text">
-<p class="hero-eyebrow">hd-lang</p>
 <h1 id="hero-title">${md.renderInline(slogan, env)}</h1>
 <p class="hero-pitch">${md.renderInline(pitch, env)}</p>
 <div class="hero-actions">
 <a class="button button-primary" href="${pageUrl("tour/index.html")}">Take the tour</a>
 <a class="button" href="${pageUrl("playground.html")}">Open the playground</a>
-<a class="button" href="${pageUrl("guide/learn-in-10-minutes.html")}">Learn in 10 minutes</a>
-<a class="button button-quiet" href="${pageUrl("spec/index.html")}">Read the spec</a>
 </div>
+<p class="hero-links"><a href="${pageUrl("guide/learn-in-10-minutes.html")}">Learn in 10 minutes</a><a href="${pageUrl("spec/index.html")}">Read the spec</a></p>
 </div>
 <div class="hero-code">
 ${codeWindow(
   "welcome.hd",
   heroSample(input.readme),
-  `<a class="code-window-action" href="${escapeHtml(env.playgroundUrl(welcome))}">Run it ${ARROW}</a>`,
+  `<a class="code-window-action" href="${escapeHtml(env.playgroundUrl(welcome))}">${PLAY_ICON} Run</a>`,
 )}
 </div>
 </section>`;

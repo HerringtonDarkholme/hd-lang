@@ -305,8 +305,13 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
 
   await step("dark mode and a phone-width layout", async () => {
     const page = await openPage("", "dark");
+    // A first visit opens the home page's welcome example.
+    assert.equal(
+      await page.locator(".cm-line").first().textContent(),
+      "# Effects you can review. Tests without mocks.",
+    );
     const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    assert.equal(background, "rgb(20, 23, 29)");
+    assert.equal(background, "rgb(17, 19, 24)");
     await page.setViewportSize({ width: 375, height: 740 });
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

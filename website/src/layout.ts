@@ -1,4 +1,4 @@
-import { escapeHtml, type Heading } from "./markdown.ts";
+import { escapeHtml, inlineCode, type Heading } from "./markdown.ts";
 import {
   navSections,
   PAGES,
@@ -16,8 +16,10 @@ import {
  * - `home`: no sidebar on wide screens; the body lays out its own sections.
  * - `split`: two columns, prose on the left and a sticky `aside` on the
  *   right, such as a live editor; they stack on narrow screens.
+ * - `app`: no sidebar on wide screens; the body fills the viewport under the
+ *   top bar, as the playground does.
  */
-export type PageShape = "docs" | "wide" | "home" | "split";
+export type PageShape = "docs" | "wide" | "home" | "split" | "app";
 
 interface LayoutInput {
   /** Site base path, beginning and ending with `/`. */
@@ -49,6 +51,13 @@ interface LayoutInput {
 
 /** The site asset that runs the REPL panel; website/build.ts bundles it. */
 export const REPL_SCRIPT = "assets/repl.js";
+
+/**
+ * The site's faces, Inter and JetBrains Mono, as an HTML attribute value.
+ * style.css falls back to system fonts when they do not load.
+ */
+const FONTS_URL =
+  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap";
 
 /** The localStorage key of the theme toggle; site.js writes it. */
 const THEME_KEY = "hd-theme";
@@ -85,28 +94,24 @@ function primaryLinks(input: LayoutInput): string {
 /** Sections with more pages than this start closed unless they hold the current page. */
 const OPEN_SECTION_LIMIT = 20;
 
+/** Pages the top bar links to, left out of the sidebar's sections. */
+const TOP_BAR_ONLY: ReadonlySet<string> = new Set(["index.html"]);
+
 function sidebar(input: LayoutInput): string {
   const item = (href: string, label: string, active: boolean): string =>
-    `<li><a href="${href}"${active ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a></li>`;
+    `<li><a href="${href}"${active ? ' aria-current="page"' : ""}>${inlineCode(label)}</a></li>`;
   const sections = input.nav
     ? [input.nav]
     : navSections().map((section) => {
-        const current = section.pages.some((entry) => entry.output === input.output);
-        const open = current || section.pages.length <= OPEN_SECTION_LIMIT;
-        const items = section.pages
+        const pages = section.pages.filter((entry) => !TOP_BAR_ONLY.has(entry.output));
+        const current = pages.some((entry) => entry.output === input.output);
+        const open = current || pages.length <= OPEN_SECTION_LIMIT;
+        const items = pages
           .map((entry) =>
             item(link(input.base, entry.output), entry.navTitle, entry.output === input.output),
           )
           .join("");
-        const playground =
-          section.title === "Start"
-            ? item(
-                link(input.base, PLAYGROUND_PAGE),
-                "Playground",
-                input.output === PLAYGROUND_PAGE,
-              )
-            : "";
-        return `<details class="nav-section"${open ? " open" : ""}><summary>${escapeHtml(section.title)}</summary><ul>${items}${playground}</ul></details>`;
+        return `<details class="nav-section"${open ? " open" : ""}><summary>${escapeHtml(section.title)}</summary><ul>${items}</ul></details>`;
       });
   return `<nav class="sidebar" id="sidebar" aria-label="Site">
 <div class="sidebar-primary">${primaryLinks(input)}<a href="${REPOSITORY_URL}">GitHub</a></div>
@@ -133,7 +138,7 @@ function pager(input: LayoutInput): string {
   if (index < 0) return "";
   const neighbor = (entry: PageSource | undefined, rel: "prev" | "next"): string =>
     entry
-      ? `<a class="pager-${rel}" rel="${rel}" href="${link(input.base, entry.output)}"><span>${rel === "prev" ? "Previous" : "Next"}</span>${escapeHtml(entry.navTitle)}</a>`
+      ? `<a class="pager-${rel}" rel="${rel}" href="${link(input.base, entry.output)}"><span>${rel === "prev" ? "Previous" : "Next"}</span>${inlineCode(entry.navTitle)}</a>`
       : "<span></span>";
   return `<nav class="pager" aria-label="Pages">${neighbor(PAGES[index - 1], "prev")}${neighbor(PAGES[index + 1], "next")}</nav>`;
 }
@@ -144,6 +149,10 @@ function main(input: LayoutInput, shape: PageShape): string {
     : "";
   if (shape === "home")
     return `<main id="content" class="content content-home">
+${input.body}
+</main>`;
+  if (shape === "app")
+    return `<main id="content" class="content content-app">
 ${input.body}
 </main>`;
   if (shape === "split")
@@ -158,9 +167,11 @@ ${input.aside ?? ""}
 </aside>
 </div>
 </main>`;
+  const section = PAGES.find((entry) => entry.output === input.output)?.section;
+  const breadcrumb = section ? `<p class="breadcrumb">${escapeHtml(section)}</p>\n` : "";
   return `<main id="content" class="content">
 <article class="${shape === "wide" ? "wide" : "prose"}">
-${input.body}
+${breadcrumb}${input.body}
 </article>
 ${sourceLink}
 ${pager(input)}
@@ -181,6 +192,9 @@ export function renderLayout(input: LayoutInput): string {
 <meta name="description" content="${escapeHtml(input.description)}">
 <meta name="color-scheme" content="light dark">
 <script>try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="${FONTS_URL}">
 <link rel="stylesheet" href="${base}assets/style.css">
 <link rel="icon" href="${base}assets/favicon.svg" type="image/svg+xml">
 <script src="${base}assets/site.js" defer></script>${[

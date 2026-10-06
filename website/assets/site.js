@@ -212,13 +212,11 @@ function decodeCode(hash) {
 
 function setupPlayground() {
   const frame = document.getElementById("playground-frame");
-  const open = document.getElementById("playground-open");
   const sync = () => {
     const hash = window.location.hash.startsWith("#code=") ? window.location.hash : "";
     if (frame) {
       const target = frame.dataset.src + hash;
       if (frame.getAttribute("src") !== target) frame.setAttribute("src", target);
-      if (open) open.href = target;
       return;
     }
     const wrap = document.getElementById("playground-code-wrap");

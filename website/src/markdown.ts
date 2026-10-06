@@ -52,6 +52,11 @@ export function escapeHtml(text: string): string {
     .replaceAll('"', "&quot;");
 }
 
+/** Escapes `text` and renders each backtick span in it as inline code. */
+export function inlineCode(text: string): string {
+  return escapeHtml(text).replaceAll(/`([^`]+)`/g, "<code>$1</code>");
+}
+
 const parsesCache = new Map<string, boolean>();
 
 /**

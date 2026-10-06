@@ -37,12 +37,12 @@ const single = (id: string, title: string, source: string): Example => ({
 });
 
 export const EXAMPLES: readonly Example[] = [
-  single("hello", "Hello, world", hello),
   single(
     "effects-in-signature",
     "Effects you can review: fake mail and clock in a test",
     effectsInSignature,
   ),
+  single("hello", "Hello, world", hello),
   single("missing-provider", "Forget a provider and it won't compile", missingProvider),
   single("least-authority", "Least authority: main limits what is reachable", leastAuthority),
   single("derive", "@derive(Arbitrary): a property test that finds a bug", derive),
@@ -71,3 +71,9 @@ export const EXAMPLES: readonly Example[] = [
     },
   },
 ];
+
+/**
+ * The project a first visit opens: the home page's welcome example, the same
+ * program its code window runs (website/src/home.ts).
+ */
+export const DEFAULT_EXAMPLE: Example = EXAMPLES[0]!;

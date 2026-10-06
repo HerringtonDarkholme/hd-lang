@@ -8,7 +8,7 @@ import { EditorView } from "@codemirror/view";
 
 import { CompilerClient } from "./compiler-client.ts";
 import { editorExtensions, offsetOf, withDiagnostics } from "./editor.ts";
-import { EXAMPLES } from "./examples.ts";
+import { DEFAULT_EXAMPLE, EXAMPLES } from "./examples.ts";
 import { OutputPanel } from "./output.ts";
 import { asProject, DEFAULT_MAIN, orderedPaths, pathProblem, type Project } from "./project.ts";
 import type { RunDiagnostic, RunMode } from "./runner.ts";
@@ -31,6 +31,7 @@ const watViewButton = byId<HTMLButtonElement>("view-wat");
 const clearButton = byId<HTMLButtonElement>("clear");
 const watCopyButton = byId<HTMLButtonElement>("wat-copy");
 const watDownloadButton = byId<HTMLButtonElement>("wat-download");
+const fullscreenLink = byId<HTMLAnchorElement>("fullscreen");
 
 const states = new Map<string, EditorState>();
 let entry = DEFAULT_MAIN;
@@ -455,5 +456,26 @@ document.addEventListener("keydown", (event) => {
   void execute(event.shiftKey ? "check" : "run");
 });
 
-if (!loadFromHash()) load(stored() ?? EXAMPLES[0]!.project);
+/** Whether the site's playground page shows this app in a frame. */
+function framed(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
+// In the site's frame, Full screen opens this app on its own page with the
+// current URL, so a shared #code= hash goes along.
+if (framed()) {
+  fullscreenLink.hidden = false;
+  const syncFullscreen = (): void => {
+    fullscreenLink.href = location.href;
+  };
+  syncFullscreen();
+  window.addEventListener("hashchange", syncFullscreen);
+  fullscreenLink.addEventListener("click", syncFullscreen);
+}
+
+if (!loadFromHash()) load(stored() ?? DEFAULT_EXAMPLE.project);
 setStatus("Loading the compiler…");

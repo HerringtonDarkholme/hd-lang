@@ -121,7 +121,7 @@ function firstParagraph(markdown: string): string {
 
 function playgroundBody(base: string, available: boolean): string {
   if (available)
-    return `<div class="playground-bar"><h1>Playground</h1><a id="playground-open" href="${base}${PLAYGROUND_APP_DIR}/">Open full screen</a></div>
+    return `<h1 class="visually-hidden">Playground</h1>
 <div class="playground-frame"><iframe id="playground-frame" src="${base}${PLAYGROUND_APP_DIR}/" data-src="${base}${PLAYGROUND_APP_DIR}/" title="hd-lang playground"></iframe></div>`;
   return `<div class="prose"><h1>Playground</h1>
 <p class="notice">The playground is not part of this build. <code>pnpm run website:build</code> builds it and serves it here.</p>
@@ -253,7 +253,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       description: "Write and run hd-lang code in the browser.",
       body: playgroundBody(base, playground),
       headings: [],
-      shape: "wide",
+      shape: playground ? "app" : "wide",
       repl: playground,
     }),
   );

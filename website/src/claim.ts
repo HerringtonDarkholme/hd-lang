@@ -3,7 +3,7 @@
 // that runs the full example. The landing page uses it, and a tour page can
 // reuse claimCard() or markedCode() as is.
 
-import { escapeHtml, highlightHd } from "./markdown.ts";
+import { escapeHtml, highlightHd, inlineCode } from "./markdown.ts";
 
 /** A snippet longer than this is a tutorial, not a claim. */
 export const CLAIM_MAX_LINES = 8;
@@ -54,11 +54,6 @@ export function markedCode(code: string, marks: readonly string[], className = "
     .join("\n");
   const classes = ["code", "hd", "marked-code", className].filter(Boolean).join(" ");
   return `<pre class="${classes}"><code class="language-hd">${html}</code></pre>`;
-}
-
-/** Escapes `text` and renders each backtick span in it as inline code. */
-function inlineCode(text: string): string {
-  return escapeHtml(text).replaceAll(/`([^`]+)`/g, "<code>$1</code>");
 }
 
 export function claimCard(claim: Claim, headingLevel: 2 | 3 = 3): string {

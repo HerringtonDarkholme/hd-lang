@@ -16,23 +16,41 @@
         if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
       } catch {}
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    />
     <link rel="stylesheet" href="./assets/main.css" />
     <script type="module" src="./assets/main.js"></script>
   </head>
   <body>
     <header class="toolbar">
-      <a class="brand" href="../" title="hd-lang home">hd <span>playground</span></a>
-      <div class="actions">
-        <button id="run" class="primary" type="button" title="Run (Ctrl/⌘+Enter)">▶ Run</button>
-        <button id="check" type="button" title="Type-check only (Ctrl/⌘+Shift+Enter)">Check</button>
-        <button id="test" type="button" title="Run the test cases">Test</button>
-        <button id="stop" type="button" hidden>■ Stop</button>
-        <select id="examples" aria-label="Examples">
-          <option value="">Examples…</option>
-        </select>
-        <button id="share" type="button" title="Copy a link to this project">Share</button>
-      </div>
+      <button id="run" class="primary" type="button" title="Run (Ctrl/⌘+Enter)">
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+          <path fill="currentColor" d="M4 2.5v11l9-5.5z" />
+        </svg>
+        Run
+      </button>
+      <button id="check" type="button" title="Type-check only (Ctrl/⌘+Shift+Enter)">Check</button>
+      <button id="test" type="button" title="Run the test cases">Test</button>
+      <button id="stop" type="button" hidden>■ Stop</button>
+      <span class="separator" aria-hidden="true"></span>
+      <select id="examples" aria-label="Examples">
+        <option value="">Examples…</option>
+      </select>
+      <button id="share" type="button" title="Copy a link to this project">Share</button>
       <span id="status" class="status" role="status" aria-live="polite"></span>
+      <a
+        id="fullscreen"
+        class="fullscreen"
+        href="./"
+        target="_top"
+        title="Open the playground on its own page"
+        hidden
+        >Full screen</a
+      >
     </header>
     <main class="workspace">
       <section class="editor-pane" aria-label="Editor">
