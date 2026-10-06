@@ -1,4 +1,3 @@
-import { standardImportHint } from "./standard-uses.ts";
 import { traitValueBindings } from "./associated-bindings.ts";
 import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
@@ -1344,10 +1343,12 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           expression.callee.span,
         );
       if (traitMethod.associated)
-        this.fail(
-          "associated-function-needs-target",
-          `associated function '${displayType(trait.name)}.${traitMethod.name}' must be qualified by an implementing type`,
-          expression.callee.span,
+        return this.checkTraitAssociatedCall(
+          expression,
+          trait,
+          traitArguments,
+          traitMethod,
+          expected,
         );
       if (expression.arguments.length === 0)
         this.fail(
@@ -1413,88 +1414,11 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       expression.arguments.length > 0
     )
       return this.checkReceiverFirstCall(expression, ownerType, expected);
-    const associatedCandidates = this.associatedCandidates(ownerType, expression.callee);
-    const signatureOf = (candidate: (typeof associatedCandidates)[number]): Signature =>
-      [...this.signatures.values()].find(
-        (signature) => signature.index === candidate.mapping.functionIndex,
-      )!;
-    const callAssociated = (candidate: (typeof associatedCandidates)[number]): HirExpression =>
-      this.checkDeclaredCall(
-        {
-          ...expression,
-          callee: {
-            kind: "name",
-            name: signatureOf(candidate).name,
-            span: expression.callee.span,
-          },
-        },
-        expected,
-        candidate.substitutions,
-      );
-    // 09 Conversion Trait and Method Resolution: among instantiations of one
-    // generic trait, `Type::from(value)` selects the one whose parameters the
-    // arguments fit.
-    if (
-      associatedCandidates.length > 1 &&
-      associatedCandidates.every(
-        (candidate) =>
-          candidate.candidateTrait.index === associatedCandidates[0]!.candidateTrait.index,
-      )
-    ) {
-      const trials = associatedCandidates.map((candidate) => {
-        try {
-          const call = speculate(this, () => {
-            const call = callAssociated(candidate);
-            if (expected) this.requireCoercion(call, expected, expression.span);
-            return call;
-          });
-          return { candidate, call };
-        } catch (error) {
-          if (!(error instanceof CheckFailure)) throw error;
-          return { candidate, call: undefined };
-        }
-      });
-      let fitting = trials.filter((entry) => entry.call !== undefined);
-      const kept = keepLiteralDefaults(
-        fitting,
-        expression,
-        0,
-        ({ candidate }) =>
-          `${candidate.candidateTrait.name}[${candidate.traitArguments.map((argument) => displayType(substituteGenericType(argument, candidate.substitutions))).join(", ")}]`,
-      );
-      if (typeof kept === "string") this.fail("type-mismatch", kept, expression.span);
-      fitting = kept;
-      if (fitting.length === 0)
-        this.fail(
-          "type-mismatch",
-          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${displayType(associatedCandidates[0]!.candidateTrait.name)}' implemented by '${displayType(ownerType)}'; available: ${associatedCandidates.map((candidate) => `${displayType(candidate.candidateTrait.name)}[${candidate.traitArguments.map((argument) => displayType(substituteGenericType(argument, candidate.substitutions))).join(", ")}]`).join(", ")}`,
-          expression.span,
-        );
-      if (fitting.length === 1)
-        associatedCandidates.splice(0, associatedCandidates.length, fitting[0]!.candidate);
-    }
-    if (associatedCandidates.length > 1)
-      this.fail(
-        "ambiguous-method",
-        `associated function '${expression.callee.name}' is supplied by multiple traits for '${displayType(ownerType)}'`,
-        expression.callee.span,
-      );
-    const associated = associatedCandidates[0];
-    if (!associated) {
-      const ownerBase = nominalGenericParts(ownerType)?.name ?? ownerType;
-      if (!this.dataTypes.has(ownerBase) && !this.enumTypes.has(ownerBase))
-        this.fail(
-          "unknown-type",
-          `unknown associated-function owner '${displayType(ownerType)}'${standardImportHint(ownerBase, "type")}`,
-          expression.callee.span,
-        );
-      this.fail(
-        "unknown-method",
-        `type '${displayType(ownerType)}' has no associated function '${expression.callee.name}'`,
-        expression.callee.span,
-      );
-    }
-    // The target's arguments solve the implementation's own parameters.
-    return callAssociated(associated);
+    return this.checkTypeAssociatedCall(
+      expression,
+      ownerType,
+      this.associatedCandidates(ownerType, expression.callee),
+      expected,
+    );
   }
 }

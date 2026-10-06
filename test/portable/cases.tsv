@@ -2702,6 +2702,7 @@ runtime/valid/local-inherent-and-trait-impls.hd	runtime
 typing/invalid/local-impl-second-pair.hd	type
 typing/valid/hash-unverified-against-eq.hd	type
 runtime/valid/typeid-mut-names.hd	runtime
+runtime/valid/trait-associated-call-infers-self.hd	runtime
 runtime/valid/mut-trait-value-satisfies-mut-bound.hd	runtime
 typing/invalid/use-module-and-root-declaration.hd	type
 runtime/valid/use-module-member-beside-root-declaration.hd	runtime

@@ -7,20 +7,26 @@ import type {
   HirTraitMethodFunction,
   ValueType,
 } from "../hir.ts";
-import { nominalGenericType, displayType } from "../types.ts";
+import { displayType, nominalGenericParts, nominalGenericType, readonlyType } from "../types.ts";
+import { keepLiteralDefaults, speculate } from "./call-speculation.ts";
 import {
   containsGenericType,
+  genericTypeName,
   matchImplementationTarget,
   orderedTypeSubstitutions,
   substituteGenericType,
 } from "./shared.ts";
 
-import type { Signature } from "./context.ts";
+import { CheckFailure, type Signature } from "./context.ts";
+import { standardImportHint } from "./standard-uses.ts";
 import { DebugPrintChecker } from "./debug-print-calls.ts";
 
 export interface QualifiedCallExpression extends Extract<Expression, { kind: "call" }> {
   readonly callee: Extract<Expression, { kind: "qualified-name" }>;
 }
+
+/** An implementation that supplies an associated function for a type. */
+type AssociatedCandidate = ReturnType<TraitCallChecker["associatedCandidates"]>[number];
 
 interface ResolvedTraitMethod {
   readonly method: HirTraitMethod;
@@ -96,21 +102,195 @@ export abstract class TraitCallChecker extends DebugPrintChecker {
     return [...direct, ...inherited];
   }
 
+  /**
+   * `Type::f(args)` among the implementations `candidates` that supply the
+   * associated function `f` for `ownerType` (09-traits.md#associated-function-calls).
+   */
+  protected checkTypeAssociatedCall(
+    expression: QualifiedCallExpression,
+    ownerType: ValueType,
+    candidates: readonly AssociatedCandidate[],
+    expected: ValueType | undefined,
+  ): HirExpression {
+    const associatedCandidates = [...candidates];
+    const signatureOf = (candidate: AssociatedCandidate): Signature =>
+      [...this.signatures.values()].find(
+        (signature) => signature.index === candidate.mapping.functionIndex,
+      )!;
+    const callAssociated = (candidate: AssociatedCandidate): HirExpression =>
+      this.checkDeclaredCall(
+        {
+          ...expression,
+          callee: {
+            kind: "name",
+            name: signatureOf(candidate).name,
+            span: expression.callee.span,
+          },
+        },
+        expected,
+        candidate.substitutions,
+      );
+    // 09 Conversion Trait and Method Resolution: among instantiations of one
+    // generic trait, `Type::from(value)` selects the one whose parameters the
+    // arguments fit.
+    if (
+      associatedCandidates.length > 1 &&
+      associatedCandidates.every(
+        (candidate) =>
+          candidate.candidateTrait.index === associatedCandidates[0]!.candidateTrait.index,
+      )
+    ) {
+      const trials = associatedCandidates.map((candidate) => {
+        try {
+          const call = speculate(this, () => {
+            const call = callAssociated(candidate);
+            if (expected) this.requireCoercion(call, expected, expression.span);
+            return call;
+          });
+          return { candidate, call };
+        } catch (error) {
+          if (!(error instanceof CheckFailure)) throw error;
+          return { candidate, call: undefined };
+        }
+      });
+      let fitting = trials.filter((entry) => entry.call !== undefined);
+      const kept = keepLiteralDefaults(
+        fitting,
+        expression,
+        0,
+        ({ candidate }) =>
+          `${candidate.candidateTrait.name}[${candidate.traitArguments.map((argument) => displayType(substituteGenericType(argument, candidate.substitutions))).join(", ")}]`,
+      );
+      if (typeof kept === "string") this.fail("type-mismatch", kept, expression.span);
+      fitting = kept;
+      if (fitting.length === 0)
+        this.fail(
+          "type-mismatch",
+          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${displayType(associatedCandidates[0]!.candidateTrait.name)}' implemented by '${displayType(ownerType)}'; available: ${associatedCandidates.map((candidate) => `${displayType(candidate.candidateTrait.name)}[${candidate.traitArguments.map((argument) => displayType(substituteGenericType(argument, candidate.substitutions))).join(", ")}]`).join(", ")}`,
+          expression.span,
+        );
+      if (fitting.length === 1)
+        associatedCandidates.splice(0, associatedCandidates.length, fitting[0]!.candidate);
+    }
+    if (associatedCandidates.length > 1)
+      this.fail(
+        "ambiguous-method",
+        `associated function '${expression.callee.name}' is supplied by multiple traits for '${displayType(ownerType)}'`,
+        expression.callee.span,
+      );
+    const associated = associatedCandidates[0];
+    if (!associated) {
+      const ownerBase = nominalGenericParts(ownerType)?.name ?? ownerType;
+      if (!this.dataTypes.has(ownerBase) && !this.enumTypes.has(ownerBase))
+        this.fail(
+          "unknown-type",
+          `unknown associated-function owner '${displayType(ownerType)}'${standardImportHint(ownerBase, "type")}`,
+          expression.callee.span,
+        );
+      this.fail(
+        "unknown-method",
+        `type '${displayType(ownerType)}' has no associated function '${expression.callee.name}'`,
+        expression.callee.span,
+      );
+    }
+    // The target's arguments solve the implementation's own parameters.
+    return callAssociated(associated);
+  }
+
+  /**
+   * `Trait::f(args)` for an associated function `f`: `Self` is inferred like
+   * a generic argument of the call, from the arguments and the expected
+   * type, and the call is `Self`'s implementation of `f` for that trait
+   * (09-traits.md#r-trait.assoc-call.trait).
+   */
+  protected checkTraitAssociatedCall(
+    expression: QualifiedCallExpression,
+    trait: HirTrait,
+    traitArguments: readonly ValueType[],
+    method: HirTraitMethod,
+    expected: ValueType | undefined,
+  ): HirExpression {
+    const name = `${trait.name}::${method.name}`;
+    const substitutions = new Map(
+      trait.genericParameters.map((parameter, index) => [parameter, traitArguments[index]!]),
+    );
+    const signature: Signature = {
+      name,
+      index: -1,
+      suspending: method.suspending,
+      // Explicit type arguments fill the method's own parameters first.
+      genericParameters: [...method.genericParameters, "Self"],
+      genericBounds: [],
+      rowParameters: [],
+      parameters: method.parameters.map((parameter) =>
+        substituteGenericType(parameter, substitutions),
+      ),
+      parameterNames: method.parameterNames,
+      defaultFunctionNames: method.parameters.map(() => undefined),
+      variadic: method.variadic,
+      result: substituteGenericType(method.result, substitutions),
+      requirements: [],
+      span: method.span,
+    };
+    let inferred: ValueType | undefined;
+    try {
+      inferred = speculate(this, () =>
+        this.checkSignatureArguments(
+          expression,
+          signature,
+          expected,
+          `associated function '${displayType(name)}'`,
+        ).substitutions.get("Self"),
+      );
+    } catch (error) {
+      if (!(error instanceof CheckFailure)) throw error;
+    }
+    const self = inferred === undefined ? undefined : readonlyType(inferred);
+    if (self === undefined || (containsGenericType(self) && !genericTypeName(self)))
+      this.fail(
+        "cannot-infer-type",
+        `could not infer Self of '${displayType(name)}'; write Type::${method.name}() or T::${method.name}()`,
+        expression.span,
+      );
+    const generic = genericTypeName(self);
+    if (generic && this.signature.genericParameters.includes(generic))
+      return this.checkBoundAssociatedCall(
+        { ...expression, callee: { ...expression.callee, owner: generic } },
+        generic,
+        trait.index,
+      );
+    const candidates = this.associatedCandidates(self, expression.callee).filter(
+      (candidate) =>
+        candidate.candidateTrait.index === trait.index &&
+        candidate.traitArguments.every(
+          (argument, index) =>
+            substituteGenericType(argument, candidate.substitutions) === traitArguments[index],
+        ),
+    );
+    if (candidates.length === 0)
+      this.fail(
+        "unsatisfied-trait-bound",
+        `type '${displayType(self)}' does not implement ${displayType(trait.name)}, required by '${displayType(name)}'`,
+        expression.span,
+      );
+    return this.checkTypeAssociatedCall(expression, self, candidates, expected);
+  }
+
   // `T::f(...)` on a type parameter calls the associated function through
-  // the bound that supplies it (09-traits.md#associated-function-calls).
+  // the bound that supplies it (09-traits.md#associated-function-calls);
+  // `Trait::f(...)` whose `Self` is `T` keeps only `onlyTrait`'s `f`.
   protected checkBoundAssociatedCall(
     expression: QualifiedCallExpression,
     owner: string,
+    onlyTrait?: number,
   ): HirExpression {
     const name = expression.callee.name;
     const candidates = this.signature.genericBounds.flatMap((bound, boundIndex) => {
       if (bound.parameter !== owner) return [];
       const trait = this.traitTypes.get(bound.traitName)!;
-      return this.findTraitMethods(trait, name, [], new Set(), true).map((selected) => ({
-        bound,
-        boundIndex,
-        selected,
-      }));
+      return this.findTraitMethods(trait, name, [], new Set(), true)
+        .filter((selected) => onlyTrait === undefined || selected.trait.index === onlyTrait)
+        .map((selected) => ({ bound, boundIndex, selected }));
     });
     if (candidates.length > 1)
       this.fail(

@@ -848,7 +848,9 @@ else`, `break`, `break value`, and `continue`;
   on a generic target, as `Box::[Point]::name()`, the target's arguments
   solve the implementation's parameters, which the call's arguments need
   not mention; `T::function()` on a type parameter calls through the
-  bound's dictionary;
+  bound's dictionary; `Trait::function()` infers `Self` from the arguments
+  and the expected type, then calls that type's implementation, or the
+  bound's when `Self` is a type parameter (`cannot-infer-type` without one);
 - method references (`checker/method-references.ts`): `Type::method`,
   `Trait::method`, and `T::method` are checked as the closure that calls the
   member, receiver first, with type arguments written after the name or
