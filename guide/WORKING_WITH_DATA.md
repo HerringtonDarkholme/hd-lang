@@ -248,3 +248,38 @@ The first run fails until you record the snapshot with `hd test
 change is re-recorded with another `--update`, and the diff is the review.
 Tests that need deterministic randomness or arguments bind `SeededRandom`
 or `MapArgs` the same way as `MemoryFs`.
+
+## Publishing A Package
+
+A package others fetch needs a version and a hash everyone can check. A
+version is a git tag: `v2.3.0` at the repository root, `lint/v2.3.0` for
+a package in the `lint` subdirectory. A manifest never states its own
+version. `hd.sum`, committed beside the manifest, records the hash of
+each selected tree, and a fetched tree that differs is rejected. The
+exact rules are in [Versions](../spec/lang/10-modules.md#versions) and
+[Integrity](../spec/lang/10-modules.md#integrity):
+
+```sh
+git tag v2.3.0        # version 2.3.0 at the repository root
+git tag lint/v2.3.0   # version 2.3.0 of the package in lint/
+```
+
+A requirement is a minimum, and the build selects the largest minimum
+named anywhere in the graph — minimal version selection, with no lockfile:
+
+```toml
+[dependencies]
+json = "github.com/acme/json@2.1.0"   # a minimum: 2.3.0 may be selected
+```
+
+A manifest can also state the minimum toolchain that builds it, and a
+root manifest can pin one exactly:
+
+```toml
+[package]
+name = "shop"
+hd = "0.2.0"   # the minimum toolchain that builds this package
+```
+
+`hd fetch` fetches every selected version the cache lacks, as CI does
+before a build. Read next: [Dependencies](../spec/cli/command-line.md#dependencies).
