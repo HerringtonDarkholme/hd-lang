@@ -119,13 +119,14 @@ toolchain helps make it correct.
 | Script | Measures | Target |
 |---|---|---|
 | `proptest-perf` | a fixed property-test suite of user-style code (derived `Arbitrary` generators, `it_prop`, shrinking): cases per second, time to shrink a known failure | e.g. ≥ 100k cases/s for simple generators; shrink ≤ 1 s |
-| `test-throughput` | a generated user test suite (unit, integration, doc tests): tests per second in `hd test` | budget per suite size |
+| `unit-test-perf` | a generated suite of unit tests (`tests:` blocks and `*_test.hd`, no host capabilities): time for `hd test` per 1,000 tests, warm, plus per-test overhead | e.g. ≤ 1 ms of overhead per test; 1,000 unit tests ≤ 1 s |
+| `integration-test-perf` | a generated `tests/` suite (default profile, `temp_dir()`, real file system) and doc tests: time per test and setup cost per test program | e.g. ≤ 20 ms setup per test program; total sublinear in programs when they share a build |
 | `runtime` | microbenchmarks of user-style programs with warm-up and spread, geomean vs Node | ≤ 1.5x; no case > 3x |
 | `allocations` | allocations per iteration in counted loops and iterator chains of user programs | 0 for counted loops; ≤ 1 for chains |
 | `size-startup-heap` | release Wasm size of user programs, instantiate to first output, peak heap | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node |
 
-`proptest-perf` and `test-throughput` matter for the program's
-correctness: the more cases an agent can afford per test run, the more
+`proptest-perf`, `unit-test-perf` and `integration-test-perf` matter for
+the program's correctness: the more cases an agent can afford per test run, the more
 bugs its tests catch.
 
 ### Prerequisite: compiler correctness (a gate, not a pillar)
