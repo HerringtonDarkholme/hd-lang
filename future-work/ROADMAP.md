@@ -28,9 +28,9 @@ action at a distance.
    GADTs, serde, then traits and modules. A fixture the prototype fails
    gets a prototype fix or a tagged
    [known failure](../test/portable/KNOWN_FAILURES.tsv) row.
-3. **Error-code revamp,** task #101
-   ([codes waiting for it](OPEN_ISSUES.md#codes-waiting-for-the-code-revamp)),
-   settled before the new compiler fixes its codes.
+3. **Error-code revamp,** task #101, done (owner, 2026-10-06): the new
+   compiler takes its codes from the
+   [Diagnostics](../spec/README.md#diagnostics) table.
 4. **Core decisions** (owner decisions, 2026-10-06). The parked items that
    shape the new compiler's core are ruled on. NonEscapable comes after
    v1. Serializable closures are not in v1. Suspension lowering reserves
