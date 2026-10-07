@@ -76,17 +76,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### C2d. Spike 0c: Wrap Up Now (30 Minutes)
-
-You have a harness and `out/results.json` from 13:37. Stop extending it.
-Render the report into `future-work/compiler/spike-0c-results.md`: one
-table and one decision line per experiment; "no data" for any experiment
-not yet run. Skip T1 to T5 and every Cranelift level or allocator
-comparison (owner: Wasm first; V8 through Node is the primary engine,
-wasmtime with defaults only where a decision rule names it). Perf is
-eyeballed: report and recommend, don't tune. Commit the harness
-without `out/` and `target/`, plus the report, and push.
-
 ### S1. Spec: Error Codes For Rules That Say "Invalid" Without One
 
 The chapter 01 and 02 fixture pass (2026-10-07) found rules that reject
