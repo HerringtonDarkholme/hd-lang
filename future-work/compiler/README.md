@@ -27,4 +27,5 @@ The design documents of the new compiler, in reading order.
 - [lowering-catalog.md](lowering-catalog.md): the lowering of every data type and syntax form, with code speed and size per entry, the numbering rules and the named optimization passes, merged from [representation-runtime.md](representation-runtime.md) and [representation-compile.md](representation-compile.md).
 - [runtime-and-host.md](runtime-and-host.md): the runtime, host interface and embedding (§16 to §17).
 - [engines-and-test-runner.md](engines-and-test-runner.md): execution engines, tiers and the test runner (§18 to §19).
+- [skeleton-findings.md](skeleton-findings.md): what the walking skeleton (a tiny subset through every stage to Wasm GC on V8) found about the design, 2026-10-07.
 - [live-execution.md](live-execution.md): live execution: the REPL session model, redefinition, the execution journal, replay and resume (design, not decided).

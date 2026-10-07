@@ -269,12 +269,11 @@ impl P<'_> {
         self.bump();
         loop {
             match self.peek() {
-                Peek::Lay(Layout::Newline) => self.bump(),
+                Peek::Lay(Layout::Newline | Layout::SuiteEnd) => self.bump(),
                 Peek::Lay(Layout::Dedent) => {
                     self.bump();
                     break;
                 }
-                Peek::Lay(Layout::SuiteEnd) => self.bump(),
                 Peek::Eof => break,
                 Peek::Lay(Layout::Indent) => {
                     self.errors.push("unexpected indent".into());
@@ -370,8 +369,7 @@ impl P<'_> {
     fn expr(&mut self, min: u8) {
         let mark = self.mark();
         self.unary();
-        loop {
-            let Peek::Tok(kind) = self.peek() else { break };
+        while let Peek::Tok(kind) = self.peek() {
             let Some((prec, node)) = Self::binop(kind) else { break };
             if prec <= min {
                 break;
