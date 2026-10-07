@@ -1105,7 +1105,7 @@ pub struct BodyMemo {                           // per body; owned by BodyCx, le
 #[repr(C)]
 pub struct MemoEntry {                          // 12 bytes
     answer: CanonAnswerRef,                     // u32: evidence and learned bindings over placeholders
-    children: u32,                              // range in the children arena: the proof DAG (7.4)
+    children: u32,                              // range in the children arena of entry indices (not goals): the proof DAG (7.4)
     height: u8,                                 // intrinsic height (7.3); 255: a cycle
     kind: u8,                                   // Holds | Fails | Stalled | Overflow | AtLeast
     heads: u16,                                 // heads matched in the probe (7.4); saturating
@@ -1114,6 +1114,33 @@ pub struct MemoEntry {                          // 12 bytes
 
 - **First writer wins** in the global memo. Two threads that compute one
   key compute the same entry (rule TS-1), so either write is correct.
+- **Hits take no lock (systems review, finding 9).** A memo hit used to
+  lock a shard, and rule TS-5's walk did one locked lookup per node of
+  the proof DAG. So:
+  1. **Children are entry indices.** `MemoEntry.children` is a range of
+     `u32` entry indices into the append-only `entries` arena, not
+     canonical goals to look up again. A global entry's children are
+     global entries, since a goal that names no parameter or local type
+     asks only such goals. A body memo entry marks each child as body or
+     global with the high bit. The TS-5 walk then follows indices and
+     reads published, immutable entries with no lock and no hashing.
+  2. **A per-worker read-through table** of 4,096 direct-mapped slots,
+     `(hash, entry index)`, sits in front of the shards, as for the
+     interners ([data-structures.md §3.3](data-structures.md#33-interners)).
+     A published entry never changes, so a slot is never stale within a
+     run. The table is cleared when a new memo starts (a new run).
+  3. **The selection table** that codegen shares across programs
+     ([codegen.md §13.2](codegen.md#132-collection)) gets the same
+     per-worker table.
+
+  | Operation (cold 10k-line check, review's estimates) | Count | Before | After |
+  | --- | --- | --- | --- |
+  | memo lookups | about 50,000 | a shard lock each: 20 to 150 ns | an estimated 80% per-worker hits at 5 to 10 ns; the rest locked |
+  | TS-5 walk nodes | about 150,000 | a locked lookup each | an index load each: 2 to 5 ns |
+  | total, with interning (data-structures.md §3.3) | about 400,000 locked operations | 10 to 60 ms of CPU | about 2 to 10 ms of CPU |
+
+  Slice 3 measures the hit cost at 1 and 8 threads; the 100 ns hit
+  target (§13) is gated at 1 thread and reported at 8.
 - **Not persisted** in the first release. A persisted memo would need its
   own key (the hashes of every impl table it read), and a warm check
   rechecks only edited modules, whose goals take microseconds.

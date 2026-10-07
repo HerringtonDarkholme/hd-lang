@@ -292,7 +292,31 @@ struct Local<C> { cols: C /* AppendVecs */, len: AtomicU32 }
    the empty list, the empty row and common `Option[prim]` types are
    built at compile time into `static` columns of owner 0, so a fresh
    process allocates nothing for them (the `startup` target) and their
-   IDs are constants, such as `Ty::I32`.
+   IDs are constants, such as `Ty::I32`. A lookup tries this static table
+   (a perfect hash) before it touches a shard.
+6. **Per-worker read-through table (systems review, finding 9).** Hits
+   took the shard lock too, and the hottest keys (`i32`, `string`,
+   `Option[i32]`) land on fixed shards, so 8 workers passed a few cache
+   lines back and forth. So each worker keeps a direct-mapped table of
+   4,096 slots, `(hash: u32, id: u32)`, in front of the shards. A lookup
+   probes its slot and compares content with the item at `id`, with no
+   lock. On a miss it takes the shard path above and fills the slot. An
+   interned item never changes, so a slot is never stale and needs no
+   invalidation. The table is 32 KB per worker per interner and lives as
+   long as the worker.
+
+**Cost of interning** (a cold 10k-line check with std; the review's
+estimates of the call counts):
+
+| Path | Calls | Cost per call | Total |
+| --- | --- | --- | --- |
+| shard lock on every lookup (before) | about 200,000 | 20 to 40 ns uncontended; 60 to 150 ns when another core wrote the line | 4 to 30 ms of CPU |
+| static table hit | an estimated 30% | about 5 ns | under 0.3 ms |
+| per-worker table hit | an estimated 50 to 60% | 5 to 10 ns | about 1 ms |
+| shard path on a miss | an estimated 10 to 20% | 20 to 150 ns | 0.4 to 6 ms |
+
+Slice 3 counts lock acquisitions and contended waits per run and sets the
+table size from the hit rate.
 
 **Strings.** The string interner's columns are `bytes: AppendVec<u8>`
 and `span: AppendVec<(u32 /*offset*/, u32 /*len*/)>`. A `Symbol` resolves
@@ -1831,7 +1855,7 @@ result slots (§6.1).
 ```rust
 #[repr(C, align(16))]
 pub struct TaskNode {                      // 48 bytes
-    kind: TaskKind,                        // 12 B: tag u8 + two u32 payloads (an ID and an ItemIdx)
+    kind: TaskKind,                        // 12 B: tag u8 + a u32 ID payload + a spare u32 (tasks are per module or coarser, never per item)
     waiting_on: AtomicU32,                 // unfinished dependencies
     state: AtomicU8,                       // Waiting | Ready | Running | Done | Cancelled
     _pad: [u8; 3],
@@ -1867,7 +1891,7 @@ const _: () = assert!(core::mem::size_of::<TaskNode>() == 48);
     decrement. So a task never becomes Ready while its edges are still
     being added. Whoever takes `waiting_on` to 0 makes the task Ready.
   - Critical sections are a few instructions, and a 10k-line package has
-    about 2,000 tasks, so contention is not measurable. A lock-free
+    about 600 tasks, so contention is not measurable. A lock-free
     protocol comes back only if a profile shows this lock, with an
     interleaving model test (loom) for it.
 - **Result slots** are per-kind `Box<[OnceLock<T>]>` indexed by the
@@ -1877,15 +1901,16 @@ const _: () = assert!(core::mem::size_of::<TaskNode>() == 48);
 
 **Lifetime.** One graph per run, freed at the end.
 
-**Growth.** `AppendVec`s; a 10k-line package makes about 2,000 tasks
-cold and a few hundred warm.
+**Growth.** `AppendVec`s; a 10k-line package makes about 600 tasks cold
+(about six per module, plus folder and package tasks; scheduler.md §6.2
+granularity rule) and a few warm.
 
 **Determinism.** Task IDs and executor order never reach output (§6.5).
 The serial executor's tie-break is `created`.
 
 **Wire form.** None.
 
-**Memory.** 48 bytes per task plus 8 per edge: about 150 KB cold for 10k
+**Memory.** 48 bytes per task plus 8 per edge: about 50 KB cold for 10k
 lines.
 
 **Accessors.** `graph.add(kind, deps) -> TaskId`, `graph.slot::<K>(id)`.

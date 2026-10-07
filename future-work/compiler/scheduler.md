@@ -11,7 +11,7 @@ pub enum TaskKind {
     Skim(FileId), Parse(FileId), FolderGraph(PackageId),
     FolderIface(FolderId), HeaderCheck(FolderId),
     ModulePrep(ModuleId), Body(ModuleId), ModuleFinish(ModuleId),  // Body: all of a module's bodies, as one batched parallel iterator (granularity rule below)
-    TestOverlay(ModuleId), Coherence(DefId), InitOrder(FolderId), PackageResult(PackageId),
+    TestOverlay(ModuleId), Coherence(PackageId), InitOrder(FolderId), PackageResult(PackageId),  // Coherence: one task over the traits whose key changed
     Ext(ExtTask),                       // D2's tasks, behind a trait object
 }
 struct TaskNode {
@@ -92,16 +92,19 @@ pub struct SteppingScheduler { .. }                     // browser: run_for(max_
 - **Granularity: items are the logical unit, not the scheduling unit**
   (orchestrator, 2026-10-07, after the owner asked about steal
   thrashing). One rayon task per body would cost about 0.2 to 1 µs of
-  spawn, steal and completion work on bodies that check in tens of µs
-  (`lib/std` averages about 500 bytes per body), scatter a module's
+  spawn, steal and completion work on bodies that check in a few to tens
+  of µs (measured on `lib/std` by the systems review: mean 240 bytes and
+  37 tokens per body, median 118 bytes and 19 tokens), scatter a module's
   bodies across cores away from its shared scope tables, and stretch the
   per-module joins (M3, `ModuleFinish`). So:
   1. The task graph is per module: parse, interface, body check and
      finish tasks per module, never one graph node per item.
   2. Inside a module's body task, the bodies run as one rayon parallel
      iterator, which splits only when another worker steals (half the
-     remaining range, not one item). Bodies are ordered by the skim
-     token count, the cost estimate, with a minimum split size of about
+     remaining range, not one item). Bodies are ordered by their byte
+     length from skim's `BodyRange`, the cost estimate (skim keeps no
+     tokens, and the measured bytes-per-token ratio is steady), with a
+     minimum split size of about
      0.5 to 1 ms of estimated work; a very large body runs alone, and a
      small module runs as one sequential task.
   3. Worker arenas reset per batch, not per item.
@@ -130,15 +133,44 @@ pub struct SteppingScheduler { .. }                     // browser: run_for(max_
   dependence without threads (§8.1).
 - **Stepping (mine).** The browser runs the serial scheduler in slices:
   `run_for(steps)` returns to JavaScript between slices, so the worker can
-  receive a "source changed" message and cancel the run. A step is one
-  whole task, and a task cannot yield inside itself (Codex re-review
-  N-B5). So one solver-heavy body can hold the worker for as long as its
-  fuel allows. The playground therefore bounds staleness from outside:
-  when an edit arrives and the current run has not returned to
-  JavaScript within 200 ms, the page terminates the compiler worker and
-  starts a fresh one on the new source. Entries already written back to
-  IndexedDB survive (cache.md §5.8); only the cancelled run's new entries
-  are lost. No intra-body yield is promised.
+  receive a "source changed" message and cancel the run. A body cannot
+  yield inside itself (Codex re-review N-B5), so one solver-heavy body
+  can hold the worker for as long as its fuel allows.
+- **A step is one body, not one task (systems review, finding 7).** The
+  granularity rule above makes a module's bodies one task. That is right
+  for threads, but a playground program is usually one module, so one
+  step would be the whole body check: an estimated 15 to 75 ms in Wasm
+  for 1,000 lines, and over 200 ms for a 3,000-line paste. So the serial
+  and stepping executors run a module's body batch as a loop with a
+  cursor, one body per step:
+  1. `Body(m)` keeps the index of the next body in its task state. A
+     step checks one body, advances the cursor, and returns to the
+     executor, which may end the slice there.
+  2. M1's omitted-result walk keeps its depth-first stack in the task
+     state, so it resumes the same way, one function per step.
+  3. M3's worklist and row sweep yield every 4,096 items, the fuel
+     check's interval.
+  4. The batch is a scheduling unit for threads only. Under the pool
+     scheduler, `Body(m)` still runs as one parallel iterator. The
+     stepping loop visits bodies in the same order the serial executor
+     does, and checking order never reaches output (§6.5).
+  So the longest uninterruptible step is the largest body, bounded by its
+  fuel, not the largest module. A slice runs steps until about 8 ms have
+  passed, then returns to JavaScript; one return costs tens of µs, so a
+  1,000-line program pays well under 1 ms for about 100 returns.
+- **Staleness.** When an edit arrives, the run is cancelled at the next
+  return to JavaScript. The page terminates the compiler worker only if
+  the run is stale **and** has not returned for 200 ms, which now means
+  one body near its fuel limit, not a large module. A restart reloads
+  `hd_web` and the IndexedDB entries and rebuilds the interners, an
+  estimated 50 to 300 ms, so it stays the rare case. Entries already
+  written back to IndexedDB survive (cache.md §5.8); only the cancelled
+  run's new entries are lost.
+
+| Program | Longest step, one task per module | Longest step, one body per step |
+| --- | --- | --- |
+| 1,000 lines, one module (estimates, Wasm at 1.5 to 2.5x native) | 15 to 75 ms | the largest body: under 2 ms for a p99 body (1,750 bytes), more only near the fuel limit |
+| 3,000-line paste | 50 to 200 ms or more; crosses the 200 ms kill | the same as above |
 
 ### 6.3 Priority
 
