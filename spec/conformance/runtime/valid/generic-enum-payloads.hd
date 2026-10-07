@@ -1,5 +1,5 @@
 # test: generic enum payloads
-# Spec 08 Generic And Recursive Enums: data.enum.generic, data.enum.generic.result.
+# Spec 08 Generic And Recursive Enums: data.enum.generic, data.enum.generic.instance.
 
 use std.testing.assert_equal
 

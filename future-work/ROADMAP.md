@@ -25,7 +25,7 @@ action at a distance.
    caching checked std, and the specializing iterator design.
 2. **Conformance coverage.** Fixtures cite only about a third of the spec's
    rules. New fixtures serve both compilers. Thinnest first: data and enums,
-   GADTs, serde, then traits and modules. A fixture the prototype fails
+   serde, then traits and modules. A fixture the prototype fails
    gets a prototype fix or a tagged
    [known failure](../test/portable/KNOWN_FAILURES.tsv) row.
 3. **Error-code revamp,** task #101, done (owner, 2026-10-06): the new

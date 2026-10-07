@@ -1,9 +1,0 @@
-# test: a variant construction whose generic argument nothing determines is an error
-# Spec 13 Construction: gadt.construct.ambiguous (error-code proposal F2).
-
-enum Expr[T]:
-    Empty -> Expr[T]
-    IntLit(value: i64) -> Expr[i64]
-
-fn demo() -> void:
-    e := Expr.Empty  # diagnostic: cannot-infer-type

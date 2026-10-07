@@ -631,14 +631,6 @@ lang/11-requirements-and-suspension.md	52	accept	typing/valid/requirements-and-s
 lang/11-requirements-and-suspension.md	53	accept	typing/valid/row-extension-entailment.hd
 lang/11-requirements-and-suspension.md	54	accept	typing/valid/row-extension-absent-key.hd
 lang/12-variadic-generics.md	1	accept	runtime/valid/tuple-bound-vararg-call.hd
-lang/13-gadts.md	1	accept	typing/valid/gadts.hd
-lang/13-gadts.md	2	mixed	typing/invalid/variant-result-owner.hd
-lang/13-gadts.md	3	accept	typing/valid/gadts.hd
-lang/13-gadts.md	4	accept	typing/valid/gadts.hd
-lang/13-gadts.md	5	accept	typing/valid/gadts.hd
-lang/13-gadts.md	6	mixed	typing/invalid/impossible-gadt-pattern.hd
-lang/13-gadts.md	7	accept	typing/valid/gadts.hd
-lang/13-gadts.md	8	accept	runtime/valid/gadt-existential-evidence.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

@@ -37,15 +37,13 @@ r[types.forms.set] The type forms are:
 | Mutable-access types | `mut T` |
 
 1. r[types.suspend] `Suspend[T]` is the dynamic one-shot computation protocol.
-2. r[types.gadt-equalities] GADT refinements are arm-local type equalities rather than additional runtime type forms.
 
 ```hd
 fn demo() -> (List[i32], string?):
     ([+1, +2], .Some("a"))   # a tuple of a list and an optional
 ```
 
-See also: [Requirements and Suspension](11-requirements-and-suspension.md),
-[Generalized Algebraic Data Types](13-gadts.md).
+See also: [Requirements and Suspension](11-requirements-and-suspension.md).
 
 ### The `never` Type
 
@@ -1864,25 +1862,6 @@ impl[U] Box[U]:
     pub fn new(value: U) -> Box[U]:
         Box { value: value }
 ```
-
-### GADT Results
-
-1. r[types.variance.gadt] Each declaration parameter whose argument position in an explicit GADT variant result is not exactly that parameter is invariant.
-2. r[types.variance.gadt.example] For example, `IsMutUser -> Witness[mut User]` makes `T` invariant in `Witness[T]`, so declaring `Witness[+T]` is rejected.
-
-```hd
-enum Witness[T]:
-    IsI32 -> Witness[i32]
-
-fn demo(w: Witness[i32]) -> void:
-    pass
-```
-
-> **Why.** This prevents a variance conversion from making an arm-local GADT
-> equality upgrade a readonly value or reinterpret a value's runtime
-> representation.
-
-See also: [Generalized Algebraic Data Types](13-gadts.md).
 
 ### Polarity
 

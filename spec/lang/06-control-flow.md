@@ -590,7 +590,7 @@ match expr:
 8. r[flow.match.payload.name-mismatch.example] For example, binding `else_value` in the `then_value` position emits `variant-binding-name-mismatch`.
 9. r[flow.match.literal] A literal pattern requires an equal value.
 10. r[flow.match.variant.shorthand] An enum variant pattern may use `.Variant` when its subject or enclosing payload position fixes one enum type; otherwise it uses the qualified `Enum.Variant` form.
-11. r[flow.match.variant.shorthand-rules] The shorthand has the same exhaustiveness and GADT refinement rules as the qualified form.
+11. r[flow.match.variant.shorthand-exhaustive] The shorthand has the same exhaustiveness rules as the qualified form.
 
 ```text
 enum Flag:
@@ -675,9 +675,6 @@ fn invalid(user: User) -> string:
     match user:
         User { name, name: alias } => alias  # error: duplicate-data-pattern-field
 ```
-
-See also: [Generalized Algebraic Data Types](13-gadts.md), which defines GADT
-pattern refinement.
 
 ### Spread Patterns
 

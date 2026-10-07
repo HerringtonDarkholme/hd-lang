@@ -1,9 +1,0 @@
-# test: a variant constructor takes no explicit generic arguments
-# Spec 13 Construction: gadt.construct.no-explicit (error-code proposal F2).
-
-enum Expr[T]:
-    Lit(value: T)
-    IntLit(value: i64) -> Expr[i64]
-
-fn demo() -> Expr[i64]:
-    Expr.Lit::[i64](1)  # diagnostic: argument-count

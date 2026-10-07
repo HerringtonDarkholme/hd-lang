@@ -503,8 +503,8 @@ enum_decl = "enum", identifier, [ type_params ],
             [ enum_parameter_clause ], ":",
             NEWLINE, INDENT, enum_variant, { enum_variant }, DEDENT ;
 
-enum_variant = { decorator_line }, identifier, [ generic_params ], [ variant_parameter_clause ],
-               [ "->", variant_result ], NEWLINE ;
+enum_variant = { decorator_line }, identifier, [ variant_parameter_clause ],
+               [ "->", variant_shared_data ], NEWLINE ;
 
 enum_parameter_clause = "(", [ enum_parameter_list ], ")" ;
 enum_parameter_list = enum_parameter, { ",", enum_parameter }, [ "," ] ;
@@ -513,14 +513,19 @@ variant_parameter_clause = "(", [ data_parameter_list ], ")" ;
 data_parameter_list = data_parameter, { ",", data_parameter }, [ "," ] ;
 data_parameter = { parameter_decorator }, [ identifier, ":" ], type ;
 
-variant_result = named_type, [ argument_clause ] ;
+variant_shared_data = identifier, argument_clause ;
 ```
 
 1. r[grammar.enum.variant-result] The optional variant result initializes constructor data shared by every variant, as in `NotFound -> StatusCode(404)`.
-2. r[grammar.enum.variant-result.refine] The optional variant result may refine the enclosing enum type as specified by the GADT rules.
-3. r[grammar.enum.defaults] Only shared enum constructor parameters may declare defaults.
-4. r[grammar.enum.defaults.rules] Their ordering and requirement-free constraints follow function-parameter defaults.
-5. r[grammar.enum.payload-decorator] A variant payload parameter may carry parameter decorators, as in `Moved(to: string, @rename("why") reason: string)`. They attach [facts](14-annotations.md#facts) to that payload member.
+2. r[grammar.enum.no-result-type] After `->`, a variant names its enum and gives an argument clause. A result type there, as in `IntLit(value: i64) -> Expr[i64]`, is an error. Error: `variant-result-type-removed`.
+3. r[grammar.enum.no-type-params] Type parameters after a variant's name, as in `If[T](cond: Expr[bool])`, are an error. Error: `variant-result-type-removed`.
+4. r[grammar.enum.defaults] Only shared enum constructor parameters may declare defaults.
+5. r[grammar.enum.defaults.rules] Their ordering and requirement-free constraints follow function-parameter defaults.
+6. r[grammar.enum.payload-decorator] A variant payload parameter may carry parameter decorators, as in `Moved(to: string, @rename("why") reason: string)`. They attach [facts](14-annotations.md#facts) to that payload member.
+
+> **Why.** A variant result type and variant type parameters were the GADT
+> forms, which hd removed. A typed request and its response pair through a
+> trait with an associated type instead.
 
 ### Traits And Implementations
 
@@ -727,7 +732,7 @@ fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
 
 1. r[grammar.generic.default] A `type_default` may end a generic parameter of a data type, enum, trait, `type` declaration, function, or method, after any bound.
 2. r[grammar.generic.default.binding] A binding sits inside a bound trait's brackets, while a default follows them at the level of the parameter list. `I < Supplier[Item = T] = Constant` has both.
-3. r[grammar.generic.default.positions] The generic parameters of an implementation and of an enum variant use `generic_params`, which has no default. A default there is an error. Error: `syntax-error`.
+3. r[grammar.generic.default.impl] The generic parameters of an implementation use `generic_params`, which has no default. A default there is an error. Error: `syntax-error`.
 4. r[grammar.generic.default.semantic] Default order, the names a default may use, and when it applies are semantic rules of [Type-Argument Defaults](04-type-system.md#type-argument-defaults).
 
 ```text

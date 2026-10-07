@@ -1157,7 +1157,7 @@ uses a zero-based tuple-style member, such as `StatusCode.NotFound._0`.
 Variant-specific payloads remain available through pattern matching. An enum
 value never changes once built.
 
-Enums can be generic algebraic data types:
+Enums can be generic:
 
 ```text
 enum Maybe[T]:
@@ -1173,57 +1173,31 @@ enum Tree[T]:
     Branch(left: Tree[T], right: Tree[T])
 ```
 
-For more precise modeling, a GADT variant can declare an explicit result type so pattern matching can recover more specific type information:
+Every variant builds the enum with the enum's own type arguments. hd has no
+GADTs: a variant cannot declare its own result type. A small expression
+language is an ordinary enum:
 
 ```text
-enum Expr[T]:
-    IntLit(value: i64) -> Expr[i64]
-    BoolLit(value: bool) -> Expr[bool]
-    Add(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
-    Sub(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
-    Scale(value: Expr[i64], factor: i64) -> Expr[i64]
-    If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]
+enum Expr:
+    IntLit(value: i64)
+    Add(left: Expr, right: Expr)
+    Sub(left: Expr, right: Expr)
+    Scale(value: Expr, factor: i64)
 ```
 
-A GADT-style variant can also refine the enum type while passing data to an enum-level constructor:
-
-```text
-enum Box[T](contents: T):
-    IntBox(n: i64) -> Box[i64](0)
-    BoolBox(b: bool) -> Box[bool](false)
-```
-
-When a variant omits an explicit result type, it returns the enclosing enum with the enum's type arguments. When matching a GADT-style enum, the matched variant refines the enum type parameter inside that arm:
-
-```text
-fn eval[T](expr: Expr[T]) -> T:
-    match expr:
-        Expr.IntLit(value) => value
-        Expr.BoolLit(value) => value
-        Expr.Add(left, right) => eval(left) + eval(right)
-        Expr.Sub(left, right) => eval(left) - eval(right)
-        Expr.Scale(value, factor) => eval(value) * factor
-        Expr.If(cond, then_value, else_value) =>
-            if eval(cond):
-                eval(then_value)
-            else:
-                eval(else_value)
-```
-
-In the `Expr.IntLit` arm, `T` is known to be `i64`, so returning `value: i64` is valid. In the `Expr.BoolLit` arm, `T` is known to be `bool`. The compiler uses those refinements for arm-local type checking and still checks that the whole `match` returns the function's declared `T`.
+To pair a typed request with its response type, use a trait with an
+associated type, as in `trait Request: type Response`.
 
 Enum payload patterns follow the same positional/named convention as function calls and enum constructor calls. Positional patterns come first. Only `field=pattern` counts as a named pattern, and named patterns come after positional patterns. Bare identifiers bind new names, while literals match exact values:
 
 ```text
-fn eval_i64(expr: Expr[i64]) -> i64:
+fn eval(expr: Expr) -> i64:
     match expr:
-        Expr.Add(l, r) => eval_i64(l) + eval_i64(r)
-        Expr.Sub(left=l, right=r) => eval_i64(l) - eval_i64(r)
-        Expr.Scale(value, factor=2) => eval_i64(value) * 2
-        Expr.Scale(value, factor) => eval_i64(value) * factor
+        Expr.Add(l, r) => eval(l) + eval(r)
+        Expr.Sub(left=l, right=r) => eval(l) - eval(r)
+        Expr.Scale(value, factor=2) => eval(value) * 2
+        Expr.Scale(value, factor) => eval(value) * factor
         Expr.IntLit(value) => value
-        Expr.If(cond, then_value, else_value) =>
-            if eval(cond): eval_i64(then_value) else: eval_i64(else_value)
 ```
 
 In `Expr.Add(l, r)`, `l` and `r` are positional patterns that bind new names; they do not need to match the payload field names `left` and `right`. In `Expr.Sub(left=l, right=r)`, `left=` and `right=` select payload fields by name, while `l` and `r` are still new binding patterns. `Expr.Scale(value, factor=2)` matches only a scale expression whose `factor` payload equals `2`. A positional pattern cannot appear after a named pattern. If the payload itself is an expression, match the nested variant explicitly, such as `right=Expr.IntLit(2)`.

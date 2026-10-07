@@ -37,7 +37,6 @@ const SPEC_CHAPTERS: readonly [file: string, title: string][] = [
   ["10-modules", "Modules"],
   ["11-requirements-and-suspension", "Requirements and Suspension"],
   ["12-variadic-generics", "Variadic Generics"],
-  ["13-gadts", "GADTs"],
   ["14-annotations", "Annotations"],
 ];
 
@@ -97,8 +96,10 @@ export const PAGES: readonly PageSource[] = [
   page("guide/COMMANDS.md", "guide/commands.html", "The `hd` Command", "Guide"),
   page("guide/USE_SCENARIOS.md", "guide/use-scenarios.html", "Use Scenarios", "Guide"),
   page("spec/README.md", "spec/index.html", "Specification", "Reference"),
-  ...SPEC_CHAPTERS.map(([file, title], index) =>
-    page(`spec/lang/${file}.md`, `spec/${file}.html`, `${index + 1}. ${title}`, "Reference"),
+  // The number comes from the file name, so a removed chapter (13, GADTs)
+  // renumbers nothing and every URL stays.
+  ...SPEC_CHAPTERS.map(([file, title]) =>
+    page(`spec/lang/${file}.md`, `spec/${file}.html`, `${Number(file.slice(0, 2))}. ${title}`, "Reference"),
   ),
   {
     ...page("spec/GLOSSARY.md", "spec/glossary.html", "Glossary", "Reference"),

@@ -975,9 +975,8 @@ impl Encode for Order by Structure:
 7. r[annot.block.lines] A block may carry [member lines](#member-lines), which edit the `Structure` that this derivation sees.
 8. r[annot.block.local] A derivation block's member lines are local to it. Another derivation for the same type sees only the declaration facts.
 9. r[annot.block.header] A block may state generic parameters and bounds in its header, as in `impl[T < Hash] Encode for Bag[T] by Structure:`. The derived implementation then has exactly those bounds.
-10. r[annot.block.gadt] The target of a derivation, by `@derive` or by a block, must not be a GADT enum. Such a derivation is an error, reported at the opt-in. Error: `gadt-derivation`.
-11. r[annot.block.newtype] The target of a derivation block must not be a newtype. A newtype derives only through its base type, with `@derive`, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
-12. r[annot.block.newtype.error] A derivation block whose target is a newtype is an error, reported on the block. Error: `misplaced-derivation`.
+10. r[annot.block.newtype] The target of a derivation block must not be a newtype. A newtype derives only through its base type, with `@derive`, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
+11. r[annot.block.newtype.error] A derivation block whose target is a newtype is an error, reported on the block. Error: `misplaced-derivation`.
 
 ```text
 use std.structure.Structure

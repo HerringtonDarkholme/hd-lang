@@ -1,0 +1,5 @@
+# test: type parameters on a variant, the removed GADT form, are an error
+# Spec 02 Enums: grammar.enum.no-type-params.
+enum Expr[T]:
+    Lit(value: T)
+    Pair[U](left: U, right: U)  # diagnostic: variant-result-type-removed

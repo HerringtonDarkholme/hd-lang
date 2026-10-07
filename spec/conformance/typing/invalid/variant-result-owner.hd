@@ -1,7 +1,7 @@
-# test: a variant result must name the enclosing enum
-# Spec 13 Variant Result Types: gadt.result.owner; Type-Checking Requirements: gadt.check.owner.
-enum Other[T]:
-    Value(T)
+# test: the shared data constructor after `->` must name the enclosing enum
+# Spec 08 Shared Enum Constructor Data: data.shared.owner.
+enum Other(i32):
+    Value -> Other(1)
 
-enum Expr[T]:
-    Broken(value: T) -> Other[T]  # diagnostic: variant-result-owner
+enum Status(i32):
+    Broken -> Other(2)  # diagnostic: variant-result-owner

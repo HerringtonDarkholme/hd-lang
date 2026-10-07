@@ -1,6 +1,6 @@
 # test: every value of one variant has the same shared data
 # Spec 08 Shared Fields: data.shared.value-read; Variant Constructors As Function Values: data.enum.fn-value.payload-free.
-# Spec 13 Variant Result Types: gadt.result.declare, gadt.result.shared-data.
+# Spec 08 Shared Enum Constructor Data: data.shared.constructor, data.shared.per-variant.
 
 use std.testing.assert_equal
 

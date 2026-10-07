@@ -782,8 +782,7 @@ fn main() -> void:
 In the second example, nothing determines `R`. An expected type such as
 `let lefts: List[Either[i32, string]]` would solve it.
 
-See also: [Function Types And Values](07-functions.md#function-types-and-values),
-[Generalized Algebraic Data Types](13-gadts.md).
+See also: [Function Types And Values](07-functions.md#function-types-and-values).
 
 ## Shared Enum Constructor Data
 
@@ -803,11 +802,12 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 1. r[data.shared.declare] An enum may declare data shared by all variants.
 2. r[data.shared.parameters] Constructor parameters may be unnamed or named.
 3. r[data.shared.constructor] Each variant with shared enum data must provide its enum constructor expression after `->`. A variant without one is an error. Error: `missing-required-field`.
-4. r[data.shared.arguments] The constructor call follows ordinary positional/named argument ordering and must initialize each shared parameter without a default. Error: `missing-required-field`.
-5. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
-6. r[data.shared.compile-time] Each variant's constructor expression is evaluated once, at compile time, as a [fact expression](14-annotations.md#r-annot.fact.eval) is, and it must be requirement-free.
-7. r[data.shared.no-payload] The variant's payload parameters are not in scope in its constructor expression.
-8. r[data.shared.not-stored] Shared data is stored once per variant and never in an enum value, so it adds nothing to a value's size.
+4. r[data.shared.owner] The name after `->` must be the enclosing enum. Any other name is an error. Error: `variant-result-owner`.
+5. r[data.shared.arguments] The constructor call follows ordinary positional/named argument ordering and must initialize each shared parameter without a default. Error: `missing-required-field`.
+6. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
+7. r[data.shared.compile-time] Each variant's constructor expression is evaluated once, at compile time, as a [fact expression](14-annotations.md#r-annot.fact.eval) is, and it must be requirement-free.
+8. r[data.shared.no-payload] The variant's payload parameters are not in scope in its constructor expression.
+9. r[data.shared.not-stored] Shared data is stored once per variant and never in an enum value, so it adds nothing to a value's size.
 
 > **Why.** Shared data describes a variant, like a Java or Kotlin enum
 > constant's constructor arguments. Data that differs from value to value
@@ -870,10 +870,13 @@ enum Tree[T]:
 ```
 
 1. r[data.enum.generic] Enums may be generic and recursive.
-2. r[data.enum.generic.result] Without an explicit GADT result clause, every variant constructs the enclosing enum instantiated with the declaration's type arguments.
+2. r[data.enum.generic.instance] Every variant constructs the enclosing enum instantiated with the declaration's type arguments.
 
-See also: [Generalized Algebraic Data Types](13-gadts.md), which defines
-explicit refined results and variant-local generic parameters.
+> **Why.** hd has no generalized algebraic data types. A typed request and
+> its response pair through a trait with an associated type, and a typed
+> interpreter uses a runtime value enum or a trait.
+
+See also: [Variant result types](02-grammar.md#r-grammar.enum.no-result-type).
 
 ## Matching Enums
 
@@ -974,22 +977,6 @@ Ownership, alias-escape prevention, automatic finalization, and asynchronous
 or fallible cleanup policy remain deferred in
 [Open Issues](../../future-work/OPEN_ISSUES.md).
 
-## Generalized Algebraic Data Types
-
-1. r[data.gadt.declare] Variants may declare explicit refined result types and variant-local generic parameters.
-2. r[data.gadt.refine] Matching such a variant refines the subject type within that arm.
-
-```hd
-enum Expr[T]:
-    Int(value: i64) -> Expr[i64]
-
-fn eval(e: Expr[i64]) -> i64:
-    match e:
-        Expr.Int(value) => value
-```
-
-See also: [Generalized Algebraic Data Types](13-gadts.md).
-
 ## Typed Derivation Of Data And Enums
 
 Data types and enums derive library traits with `@derive` or a derivation
@@ -998,8 +985,7 @@ block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 1. r[data.derive.members] For typed derivation, a data type's members are its fields in declaration order, embedded fields included. An enum's members are each variant's payload parameters.
 2. r[data.derive.payload-names] An unnamed payload parameter is the member `_0`, `_1`, and so on, by position.
 3. r[data.derive.shared] Shared constructor data is not a member. A derivation reads it from the variant's information, and `build` never reads it.
-4. r[data.derive.gadt] A GADT enum cannot be derived through a template. Error: `gadt-derivation`.
-5. r[data.derive.newtype] A newtype derives through its base type, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
+4. r[data.derive.newtype] A newtype derives through its base type, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
 
 ```hd
 @derive(Eq, Debug)

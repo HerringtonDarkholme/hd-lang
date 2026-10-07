@@ -165,7 +165,6 @@ typing/warnings/unreachable-code.hd	type	warn:unreachable-code	lang/06-control-f
 typing/warnings/unused-local-binding.hd	type	warn:unused-local-binding	lang/06-control-flow.md#blocks-and-completion
 typing/invalid/duplicate-field.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#construction-and-access
 typing/valid/requirements-and-suspension.hd	type	accept	lang/11-requirements-and-suspension.md
-typing/valid/gadts.hd	type	accept	lang/13-gadts.md
 typing/valid/annotations.hd	type	accept	lang/14-annotations.md#member-metadata
 typing/valid/data-decorator.hd	type	accept	lang/14-annotations.md#prefix-decorators
 typing/valid/embedded-field-decorator.hd	type	accept	lang/14-annotations.md#prefix-decorators
@@ -179,7 +178,6 @@ typing/invalid/some-pattern-nonoptional.hd	type	reject:missing-contextual-enum-t
 parse/valid/decorators.hd	parse	accept	lang/02-grammar.md#annotations
 typing/invalid/missing-requirement.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-rows
 typing/invalid/bang-call-outside-suspension.hd	type	reject:bang-call-outside-suspension	lang/11-requirements-and-suspension.md#suspending-functions
-typing/invalid/impossible-gadt-pattern.hd	type	reject:impossible-gadt-pattern	lang/13-gadts.md#pattern-refinement
 typing/invalid/unknown-annotation-member.hd	type	reject:unknown-annotation-member	lang/14-annotations.md#member-metadata
 typing/invalid/partial-generic-arguments.hd	type	reject:partial-generic-arguments	lang/04-type-system.md#type-argument-defaults
 typing/valid/generic-argument-placeholder.hd	type	accept	lang/07-functions.md#generic-functions
@@ -189,8 +187,6 @@ typing/invalid/reassign-parameter.hd	type	reject:non-reassignable-parameter-bind
 typing/valid/parameter-decorator.hd	type	accept	lang/14-annotations.md#prefix-decorators
 typing/valid/retention-metadata.hd	type	accept	lang/14-annotations.md#member-metadata
 parse/invalid/local-decorator.hd	parse	reject:decorator-not-top-level	lang/14-annotations.md#r-annot.decorator.no-locals
-typing/invalid/covariant-gadt-result.hd	type	reject:invalid-variance	lang/04-type-system.md#variance
-typing/valid/invariant-gadt-result.hd	type	accept	lang/04-type-system.md#variance
 typing/invalid/variance-representation-change.hd	type	reject:variance-representation-change	lang/04-type-system.md#variance
 typing/valid/variance-permission-weakening.hd	type	accept	lang/04-type-system.md#variance
 typing/invalid/transitive-uninitialized-binding.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
@@ -253,7 +249,7 @@ typing/invalid/supertrait-cycle.hd	type	reject:supertrait-cycle	lang/09-traits.m
 typing/invalid/missing-trait-method.hd	type	reject:missing-trait-method	lang/09-traits.md#trait-implementations
 typing/invalid/trait-method-signature.hd	type	reject:trait-method-signature	lang/09-traits.md#trait-implementations
 typing/invalid/duplicate-inherent-member.hd	type	reject:duplicate-inherent-member	lang/09-traits.md#inherent-implementations
-typing/invalid/variant-result-owner.hd	type	reject:variant-result-owner	lang/13-gadts.md
+typing/invalid/variant-result-owner.hd	type	reject:variant-result-owner	lang/08-data-and-enums.md#r-data.shared.owner
 typing/invalid/duplicate-trait-member.hd	type	reject:duplicate-trait-member	lang/09-traits.md#trait-declarations
 typing/valid/resource-disposed-result.hd	type	accept	lang/10-modules.md#wasm-boundary
 typing/invalid/suspension-forbidden-context.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#suspending-functions
@@ -1118,7 +1114,6 @@ typing/invalid/omitted-member-without-default.hd	type	reject:omitted-member-with
 typing/invalid/derive-member-not-derivable.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.walker.obligation.error
 typing/invalid/generic-member-call.hd	type	reject:generic-member-call	lang/14-annotations.md#r-annot.walker.generic-member-call
 typing/invalid/newtype-derivation-self.hd	type	reject:newtype-derivation-self	lang/09-traits.md#r-trait.derive.newtype.self-error
-typing/invalid/gadt-derivation.hd	type	reject:gadt-derivation	lang/14-annotations.md#r-annot.block.gadt
 typing/warnings/derivation-line-drift.hd	type	warn:derivation-line-drift	lang/14-annotations.md#r-annot.line.drift
 typing/valid/type-level-fact-without-template.hd	type	accept	lang/14-annotations.md#r-annot.fact.type-level-decorator
 runtime/panic/structure-variant-mismatch.hd	runtime	panic:structure-variant-mismatch	lang/14-annotations.md#r-annot.handle.get.variant
@@ -1490,7 +1485,7 @@ typing/invalid/bound-reference-associated-function.hd	type	reject:unknown-method
 typing/valid/from-iterator-imported.hd	type	accept	std/iter.md#r-std-iter.prelude.from-iterator
 typing/invalid/from-iterator-not-prelude.hd	type	reject:unknown-trait	std/iter.md#r-std-iter.prelude.from-iterator
 parse/valid/type-argument-defaults.hd	parse	accept	lang/02-grammar.md#type-argument-default-syntax
-parse/invalid/impl-generic-default.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.generic.default.positions
+parse/invalid/impl-generic-default.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.generic.default.impl
 typing/valid/type-default-calls.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/type-default-declarations.hd	type	accept	lang/04-type-system.md#type-argument-defaults
 typing/valid/type-default-function-value.hd	type	accept	lang/07-functions.md#r-fn.type.generic.default
@@ -1853,7 +1848,6 @@ typing/invalid/race-empty-list-literal.hd	type	reject:argument-count	lang/11-req
 runtime/panic/race-empty-at-run-time.hd	runtime	panic:explicit-panic	lang/11-requirements-and-suspension.md#r-req.combinator.race-empty-run
 runtime/valid/script-empty-run.hd	runtime	accept	lang/10-modules.md#r-module.init.script-empty
 typing/invalid/unconstrained-impl-parameter.hd	type	reject:unconstrained-impl-parameter	lang/09-traits.md#r-trait.overlap.constrained-head
-runtime/valid/gadt-existential-evidence.hd	runtime	accept	lang/13-gadts.md#r-gadt.runtime.evidence
 typing/invalid/supertrait-impl-bounds.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.super.impl-bounds
 typing/valid/bound-implies-supertrait.hd	type	accept	lang/09-traits.md#r-trait.bound.supertraits
 typing/valid/requirement-key-any-trait.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.key.any-trait
@@ -2559,22 +2553,6 @@ runtime/valid/option-result-prelude-spellings.hd	runtime	accept	lang/08-data-and
 runtime/valid/data-visibility-across-packages.hd	runtime	accept	lang/08-data-and-enums.md#field-visibility
 typing/invalid/contextual-variant-as-function-value.hd	type	reject:missing-contextual-enum-type	lang/08-data-and-enums.md#r-data.enum.fn-value.shorthand
 runtime/valid/contextual-variant-after-same-line-if.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.dot.statement-indent
-runtime/valid/gadt-typed-expression-eval.hd	runtime	accept	lang/13-gadts.md#pattern-refinement
-runtime/valid/gadt-typed-config-keys.hd	runtime	accept	lang/13-gadts.md#r-gadt.refine.exhaustive
-runtime/valid/gadt-nested-patterns-simplify.hd	runtime	accept	lang/13-gadts.md#r-gadt.unify.nested
-runtime/valid/gadt-shared-constructor-data.hd	runtime	accept	lang/13-gadts.md#shared-constructor-data
-runtime/valid/gadt-existential-job.hd	runtime	accept	lang/13-gadts.md#existential-parameters
-typing/valid/gadt-construct-expected-type.hd	type	accept	lang/13-gadts.md#r-gadt.construct.infer
-typing/invalid/gadt-shared-data-refined-type.hd	type	reject:type-mismatch	lang/13-gadts.md#r-gadt.shared.assignable
-typing/invalid/gadt-refinement-arm-local.hd	type	reject:type-mismatch	lang/13-gadts.md#r-gadt.refine.arm-local
-typing/invalid/gadt-refinement-gone-after-match.hd	type	reject:type-mismatch	lang/13-gadts.md#r-gadt.refine.scope
-typing/invalid/gadt-construct-declared-result.hd	type	reject:type-mismatch	lang/13-gadts.md#r-gadt.check.construct
-typing/invalid/gadt-impossible-pattern-converting-type.hd	type	reject:impossible-gadt-pattern	lang/13-gadts.md#r-gadt.unify.nominal
-typing/invalid/gadt-nested-impossible-pattern.hd	type	reject:impossible-gadt-pattern	lang/13-gadts.md#r-gadt.unify.contradiction
-typing/invalid/gadt-match-missing-inhabitable-variant.hd	type	reject:nonexhaustive-match	lang/13-gadts.md#r-gadt.refine.exhaustive
-typing/invalid/gadt-variant-result-undeclared-parameter.hd	type	reject:unknown-type	lang/13-gadts.md#r-gadt.check.well-formed
-parse/invalid/gadt-named-pattern-before-positional.hd	parse	reject:pattern-order	lang/13-gadts.md#r-gadt.pattern.order
-parse/invalid/gadt-named-argument-before-positional.hd	parse	reject:argument-order	lang/13-gadts.md#r-gadt.construct.order
 typing/invalid/match-arm-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.result.least-common
 typing/invalid/if-branch-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.if.value.least-common
 runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
@@ -2709,10 +2687,6 @@ parse/invalid/variant-payload-default.hd	parse	reject:syntax-error	lang/08-data-
 typing/invalid/shared-enum-payload-field-access.hd	type	reject:unknown-data-field	lang/08-data-and-enums.md#r-data.shared.payload-fields
 typing/invalid/data-literal-private-field-other-module.hd	type	reject:private-member	lang/08-data-and-enums.md#r-data.vis.literal
 typing/invalid/copy-update-private-field-other-module.hd	type	reject:private-member	lang/08-data-and-enums.md#r-data.vis.private-fields
-typing/invalid/gadt-constructor-explicit-type-arguments.hd	type	reject:argument-count	lang/13-gadts.md#r-gadt.construct.no-explicit
-typing/invalid/gadt-ambiguous-construction.hd	type	reject:cannot-infer-type	lang/13-gadts.md#r-gadt.construct.ambiguous
-typing/invalid/gadt-existential-escape.hd	type	reject:type-mismatch	lang/13-gadts.md#r-gadt.existential.no-escape
-typing/invalid/gadt-erased-parameter-not-inspectable.hd	type	reject:unsatisfied-trait-bound	lang/13-gadts.md#r-gadt.erasure.no-descriptor
 typing/invalid/entry-point-parameters.hd	type	reject:entry-point-parameters	lang/10-modules.md#r-module.entry.parameters
 typing/invalid/generic-entry-point.hd	type	reject:entry-point-parameters	lang/10-modules.md#r-module.entry.parameters
 typing/invalid/unary-minus-string.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.no-impl
@@ -2756,3 +2730,5 @@ runtime/valid/error-chain-method.hd	runtime	accept	std/error.md#r-std-error.chai
 typing/invalid/parameter-bare-trait.hd	type	reject:trait-used-as-type	lang/04-type-system.md#r-types.trait.value.dyn-required
 typing/valid/supertrait-binding-diamond-merge.hd	type	accept	lang/09-traits.md#r-trait.binding.super.merge
 typing/invalid/supertrait-binding-conflict.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#r-trait.binding.super.conflict
+parse/invalid/variant-result-type-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-result-type
+parse/invalid/variant-type-parameters-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-type-params

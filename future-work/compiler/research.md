@@ -933,10 +933,8 @@ needs no inference, because `!` is in the name. Confidence: high.
 
 ### GADTs, Tuples And Templates
 
-- **GADTs:** first-order nominal unification per arm, with arm-local
-  equalities that never escape ([refinement](../../spec/lang/13-gadts.md#refinement-algorithm)).
-  Cost is linear in the pattern. Store equalities in the body's trail and
-  pop them at the arm's end.
+- **GADTs:** removed from the language (owner, 2026-10-07), so no arm-local
+  equalities.
 - **Exhaustiveness:** Maranget's usefulness algorithm, as rustc and OCaml
   use. It can blow up on wide nested patterns, so it needs a size limit with
   a diagnostic.
@@ -1223,18 +1221,14 @@ then fold identical bodies.**
    are never boxed at all. This narrows the earlier i31ref decision; it
    does not contradict it.
 4. **Dictionaries exist only where the spec needs runtime evidence:** trait
-   values carry a vtable struct, and a GADT variant with a bounded
-   existential stores its evidence in the value
-   ([`gadt.runtime.evidence`](../../spec/lang/13-gadts.md#r-gadt.runtime.evidence)).
-   Both are Swift-style witness tables built once per (type, trait) pair as
-   immutable globals.
+   values carry a vtable struct, a Swift-style witness table built once
+   per (type, trait) pair as an immutable global. (GADT existentials, which
+   also stored evidence, were removed on 2026-10-07.)
 5. **Polymorphic recursion** (a generic call that instantiates itself at a
    growing type) has no finite instantiation. Stop at an instantiation
    depth limit with its own diagnostic, as rustc does. Part 1 lists this
    limit without a code ([Hard Limits](#hard-limits)).
-6. **GADTs** need nothing special: refinements are compile-time facts and
-   values keep their ordinary tag
-   ([`gadt.runtime.tag`](../../spec/lang/13-gadts.md#r-gadt.runtime.tag)).
+6. **GADTs** are removed (owner, 2026-10-07).
    **Variadic generics** are gone; `Args < Tuple` instantiates like any
    other type, and `all!` gets one frame type per tuple of child types.
 

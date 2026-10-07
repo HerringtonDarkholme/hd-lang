@@ -474,10 +474,10 @@ describe("grammar blocks", () => {
     assert.match(chapter, /<span class="eb-terminal">&quot;trait&quot;<\/span>/);
     assert.match(chapter, /<span class="eb-operator">\|<\/span>/);
 
-    const gadts = await readFile(join(outDir, "spec/13-gadts.html"), "utf8");
+    const annotations = await readFile(join(outDir, "spec/14-annotations.html"), "utf8");
     assert.match(
-      gadts,
-      /<a class="eb-reference" href="\/hd-lang\/spec\/02-grammar\.html#rule-decorator_line">decorator_line<\/a>/,
+      annotations,
+      /<a class="eb-reference" href="\/hd-lang\/spec\/02-grammar\.html#rule-impl_member">impl_member<\/a>/,
     );
 
     // Every rule link on every page names an anchor that exists in its target.

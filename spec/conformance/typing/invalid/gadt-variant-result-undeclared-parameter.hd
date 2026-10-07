@@ -1,5 +1,0 @@
-# test: a variant result may name only declaration and variant-local generic parameters
-# Spec 13 Type-Checking Requirements: gadt.check.well-formed; Variant Result Types: gadt.result.refine.
-enum Query[T]:
-    Count(table: string) -> Query[i64]
-    Empty -> Query[U]  # diagnostic: unknown-type

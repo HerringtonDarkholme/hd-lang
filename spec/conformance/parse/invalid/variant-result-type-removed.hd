@@ -1,0 +1,5 @@
+# test: a variant result type, the removed GADT form, is an error
+# Spec 02 Enums: grammar.enum.no-result-type.
+enum Expr[T]:
+    Lit(value: T)
+    IntLit(value: i64) -> Expr[i64]  # diagnostic: variant-result-type-removed
