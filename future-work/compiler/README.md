@@ -24,3 +24,4 @@ The design documents of the new compiler, in reading order.
 - [wasm-layout.md](wasm-layout.md): Wasm GC layout and emission (§15).
 - [runtime-and-host.md](runtime-and-host.md): the runtime, host interface and embedding (§16 to §17).
 - [engines-and-test-runner.md](engines-and-test-runner.md): execution engines, tiers and the test runner (§18 to §19).
+- [live-execution.md](live-execution.md): live execution: the REPL session model, redefinition, the execution journal, replay and resume (design, not decided).
