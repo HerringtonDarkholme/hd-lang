@@ -158,106 +158,81 @@ impl Ck<'_, '_> {
             .intern(self.cx.src.text(self.cx.src.first(n)))
     }
 
-    /// The lines of a block. With `want_tail`, a last expression line is
-    /// the block's value.
+    /// The statements of a block. With `want_tail`, a last expression
+    /// statement is the block's value.
     fn lines(&mut self, block: NodeRef<'_>, want_tail: bool) -> StageResult<Option<Ref>> {
         self.locals.push(HashMap::new());
-        let lines: Vec<NodeRef<'_>> = block.children().collect();
+        let stmts: Vec<NodeRef<'_>> = block.children().collect();
         let mut tail = None;
-        let mut i = 0;
-        while i < lines.len() {
-            let line = lines[i];
-            let last = i + 1 == lines.len();
-            match line.kind() {
-                SyntaxKind::Statement => {
-                    let head = line.children().next();
-                    match head.map(NodeRef::kind) {
-                        Some(SyntaxKind::IfExpr) => {
-                            let mut j = i + 1;
-                            while j < lines.len() && self.is_else(lines[j]) {
-                                j += 1;
-                            }
-                            self.if_chain(&lines[i..j])?;
-                            i = j;
-                            continue;
-                        }
-                        Some(SyntaxKind::WhileExpr) => self.while_loop(line)?,
-                        Some(SyntaxKind::ExprStmt) if last && want_tail => {
-                            let e = head.and_then(|h| h.children().next());
-                            let Some(e) = e else {
-                                return unsupported("an empty expression line");
-                            };
-                            let (r, t) = self.expr(e)?;
-                            self.expect(t, self.sig.ret, e, "result");
-                            tail = Some(r);
-                        }
-                        Some(_) => self.stmt(line)?,
-                        None => {
-                            if self.is_else(line) {
-                                self.err(Code::SyntaxError, line, "`else` without `if`");
-                            }
-                        }
+        for (i, s) in stmts.iter().copied().enumerate() {
+            let last = i + 1 == stmts.len();
+            if s.kind() == SyntaxKind::ExprStmt {
+                let Some(e) = s.children().next() else {
+                    return unsupported("an empty expression statement");
+                };
+                match e.kind() {
+                    SyntaxKind::IfExpr => self.if_expr(e)?,
+                    SyntaxKind::WhileExpr => self.while_loop(e)?,
+                    SyntaxKind::BindingExpr => self.binding(e)?,
+                    _ if last && want_tail => {
+                        let (r, t) = self.expr(e)?;
+                        self.expect(t, self.sig.ret, e, "result");
+                        tail = Some(r);
+                    }
+                    _ => {
+                        self.expr(e)?;
                     }
                 }
-                other => return unsupported(format!("{other:?} in a body")),
+                continue;
             }
-            i += 1;
+            self.stmt(s)?;
         }
         self.locals.pop();
         Ok(tail)
     }
 
-    fn is_else(&self, line: NodeRef<'_>) -> bool {
-        line.kind() == SyntaxKind::Statement
-            && self.cx.src.tkind(self.cx.src.first(line)) == Some(TokenKind::KwElse)
-    }
-
-    /// `if c:` then any `else if c:` lines and one `else:` line.
-    fn if_chain(&mut self, lines: &[NodeRef<'_>]) -> StageResult<()> {
-        let Some((&first, rest)) = lines.split_first() else {
-            return Ok(());
-        };
-        let mut kids = first.children();
-        let cond_head = kids.next().filter(|k| k.kind() == SyntaxKind::IfExpr);
-        let Some(cond) = cond_head.and_then(|h| h.children().next()) else {
+    /// `if c: ... else if c: ... else: ...` as a statement.
+    fn if_expr(&mut self, e: NodeRef<'_>) -> StageResult<()> {
+        let Some(cond) = e.children().next() else {
             return unsupported("an `if` without a condition");
         };
-        let Some(then_node) = Src::child(first, SyntaxKind::Block) else {
-            return unsupported("an `if` without an indented block");
+        let Some(then_node) = Src::child(e, SyntaxKind::Block) else {
+            return unsupported("an `if` without a block");
         };
         let (c, ct) = self.expr(cond)?;
         self.expect(ct, Ty::BOOL, cond, "condition");
         let tb = self.b.open_block();
         self.lines(then_node, false)?;
         let then = self.b.close_block(tb, None, Ty::VOID, then_node.index());
-        let els = if let Some((&next, more)) = rest.split_first() {
+        let els = if let Some(clause) = Src::child(e, SyntaxKind::ElseClause) {
             let eb = self.b.open_block();
-            if next.children().next().map(NodeRef::kind) == Some(SyntaxKind::IfExpr) {
-                let mut chain = vec![next];
-                chain.extend_from_slice(more);
-                self.if_chain(&chain)?;
+            if let Some(nested) = Src::child(clause, SyntaxKind::IfExpr) {
+                self.if_expr(nested)?;
             } else {
-                let Some(blk) = Src::child(next, SyntaxKind::Block) else {
-                    return unsupported("an `else` without an indented block");
+                let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
+                    return unsupported("an `else` without a block");
                 };
                 self.lines(blk, false)?;
             }
-            self.b.close_block(eb, None, Ty::VOID, next.index())
+            self.b.close_block(eb, None, Ty::VOID, clause.index())
         } else {
             Ref(NONE)
         };
         let rec = self.b.refs_record(&[then, els]);
-        self.b.emit(Tag::If, c.0, rec, Ty::VOID, first.index());
+        self.b.emit(Tag::If, c.0, rec, Ty::VOID, e.index());
         Ok(())
     }
 
     /// `while c: body` is `Loop { Block { if c { body } else { break } } }`.
-    fn while_loop(&mut self, line: NodeRef<'_>) -> StageResult<()> {
-        let Some(cond) = line.children().next().and_then(|w| w.children().next()) else {
+    fn while_loop(&mut self, e: NodeRef<'_>) -> StageResult<()> {
+        if Src::child(e, SyntaxKind::ElseClause).is_some() {
+            return unsupported("a `while` with an `else` suite");
+        }
+        let Some(cond) = e.children().next() else {
             return unsupported("a `while` without a condition");
         };
-        let Some(body) = Src::child(line, SyntaxKind::Block) else {
-            return unsupported("a `while` without an indented block");
+        let Some(body) = Src::child(e, SyntaxKind::Block) else {
+            return unsupported("a `while` without a block");
         };
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
@@ -270,36 +245,60 @@ impl Ck<'_, '_> {
         self.loops.pop();
         let eb = self.b.open_block();
         self.b
-            .emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, line.index());
-        let els = self.b.close_block(eb, None, Ty::VOID, line.index());
+            .emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, e.index());
+        let els = self.b.close_block(eb, None, Ty::VOID, e.index());
         let rec = self.b.refs_record(&[then, els]);
-        self.b.emit(Tag::If, c.0, rec, Ty::VOID, line.index());
-        let lbody = self.b.close_block(lb, None, Ty::VOID, line.index());
-        self.b.close_loop(lp, lbody, Ty::VOID, line.index());
+        self.b.emit(Tag::If, c.0, rec, Ty::VOID, e.index());
+        let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
+        self.b.close_loop(lp, lbody, Ty::VOID, e.index());
         Ok(())
     }
 
-    fn stmt(&mut self, line: NodeRef<'_>) -> StageResult<()> {
+    /// `name := value` (or `let name = value`): a new local.
+    fn bind(&mut self, pat: NodeRef<'_>, e: NodeRef<'_>, at: NodeRef<'_>) -> StageResult<()> {
+        if pat.kind() != SyntaxKind::BindingPattern
+            || self.cx.src.tkind(self.cx.src.first(pat)) == Some(TokenKind::KwMut)
+        {
+            return unsupported("this binding pattern");
+        }
+        let name = self.sym(pat);
+        let (r, t) = self.expr(e)?;
+        let l = self.b.local(t, name, local_flags::ASSIGNED, pat.index());
+        self.locals.last_mut().expect("scope").insert(name, l);
+        self.b.set(l, r, at.index());
+        Ok(())
+    }
+
+    fn binding(&mut self, e: NodeRef<'_>) -> StageResult<()> {
         self.charge()?;
-        let Some(s) = line.children().next() else {
-            return Ok(());
+        let kids: Vec<NodeRef<'_>> = e.children().collect();
+        let [pat, rhs] = kids.as_slice() else {
+            return unsupported("this binding form");
         };
+        if rhs.kind() == SyntaxKind::BindingExpr {
+            return unsupported("a binding chain");
+        }
+        self.bind(*pat, *rhs, e)
+    }
+
+    fn stmt(&mut self, s: NodeRef<'_>) -> StageResult<()> {
+        self.charge()?;
         let kids: Vec<NodeRef<'_>> = s.children().collect();
         match s.kind() {
             SyntaxKind::LetStmt => {
                 let [pat, e] = kids.as_slice() else {
-                    return unsupported("this binding form");
+                    return unsupported("this `let` form");
                 };
-                let name = self.sym(*pat);
-                let (r, t) = self.expr(*e)?;
-                let l = self.b.local(t, name, local_flags::ASSIGNED, pat.index());
-                self.locals.last_mut().expect("scope").insert(name, l);
-                self.b.set(l, r, s.index());
+                self.bind(*pat, *e, s)?;
             }
             SyntaxKind::AssignmentStmt => {
                 let [lhs, rhs] = kids.as_slice() else {
                     return unsupported("this assignment form");
                 };
+                let op = hd_base::TokenIdx::from_raw(self.cx.src.last(*lhs).raw() + 1);
+                if self.cx.src.tkind(op) != Some(TokenKind::Eq) {
+                    return unsupported("compound assignment");
+                }
                 if lhs.kind() != SyntaxKind::NameExpr {
                     return unsupported("assignment to a non-local");
                 }
@@ -324,11 +323,10 @@ impl Ck<'_, '_> {
                 };
                 self.b.emit(Tag::Return, r.0, NONE, Ty::NEVER, s.index());
             }
-            SyntaxKind::ExprStmt => {
-                let Some(e) = kids.first() else { return Ok(()) };
-                self.expr(*e)?;
-            }
             SyntaxKind::BreakStmt | SyntaxKind::ContinueStmt => {
+                if !kids.is_empty() {
+                    return unsupported("`break` with a value");
+                }
                 let Some(lp) = self.loops.last().copied() else {
                     return unsupported("`break` outside a loop");
                 };
@@ -393,9 +391,9 @@ impl Ck<'_, '_> {
                     _ => return unsupported("this unary operator"),
                 }
             }
-            SyntaxKind::TupleExpr => match kids.as_slice() {
+            SyntaxKind::ParenExpr => match kids.as_slice() {
                 [e] => self.expr(*e)?,
-                _ => return unsupported("tuples"),
+                _ => return unsupported("a parenthesized expression shape"),
             },
             SyntaxKind::NameExpr => {
                 let s = self.sym(n);

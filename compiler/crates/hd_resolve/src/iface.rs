@@ -491,7 +491,9 @@ impl Lower<'_, '_> {
                         .pool
                         .intern_ty(&TyData::Param(ParamRef { owner, index })),
                 ));
-                let bound = Src::child(g, SyntaxKind::NamedType).and_then(|b| self.trait_ref(b));
+                let bound = Src::child(g, SyntaxKind::BoundList)
+                    .and_then(|l| Src::child(l, SyntaxKind::NamedType))
+                    .and_then(|b| self.trait_ref(b));
                 generics.push(Generic { name, bound });
             }
         }
@@ -508,11 +510,11 @@ impl Lower<'_, '_> {
                 let Some(t) = self.src.first_ident(p) else {
                     continue;
                 };
-                let ty = self.ty(Src::child(p, SyntaxKind::NamedType), &gtys, self_ty);
+                let ty = self.ty(Src::type_child(p), &gtys, self_ty);
                 params.push((self.names.syms.intern(self.src.text(t)), ty));
             }
         }
-        let ret = self.ty(Src::child(f, SyntaxKind::NamedType), &gtys, self_ty);
+        let ret = self.ty(Src::type_child(f), &gtys, self_ty);
         FnSig {
             generics,
             params,
@@ -564,7 +566,7 @@ pub fn lower_items(
                     let Some(t) = src.first_ident(f) else {
                         continue;
                     };
-                    let ty = low.ty(Src::child(f, SyntaxKind::NamedType), &[], None);
+                    let ty = low.ty(Src::type_child(f), &[], None);
                     fields.push(Field {
                         name: names.syms.intern(src.text(t)),
                         ty,

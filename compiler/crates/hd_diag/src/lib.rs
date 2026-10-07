@@ -36,6 +36,7 @@ pub enum Code {
     TrailingBlockPosition,
     TraitMethodVisibility,
     VariantResultTypeRemoved,
+    NestingTooDeep,
     // name and type phase (spec/lang chapters 3, 4, 7, 8, 9, 10)
     UnknownName,
     UnknownType,
@@ -56,6 +57,12 @@ pub enum Code {
 }
 
 impl Code {
+    /// A lexical or grammar diagnostic, reported by `hd_syntax`.
+    #[must_use]
+    pub const fn is_syntax(self) -> bool {
+        (self as u16) <= Self::NestingTooDeep as u16
+    }
+
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -87,6 +94,7 @@ impl Code {
             Self::TrailingBlockPosition => "trailing-block-position",
             Self::TraitMethodVisibility => "trait-method-visibility",
             Self::VariantResultTypeRemoved => "variant-result-type-removed",
+            Self::NestingTooDeep => "nesting-too-deep",
             Self::UnknownName => "unknown-name",
             Self::UnknownType => "unknown-type",
             Self::UnknownTrait => "unknown-trait",
@@ -131,6 +139,7 @@ impl Code {
             "trailing-block-position" => Self::TrailingBlockPosition,
             "trait-method-visibility" => Self::TraitMethodVisibility,
             "variant-result-type-removed" => Self::VariantResultTypeRemoved,
+            "nesting-too-deep" => Self::NestingTooDeep,
             "unknown-name" => Self::UnknownName,
             "unknown-type" => Self::UnknownType,
             "unknown-trait" => Self::UnknownTrait,

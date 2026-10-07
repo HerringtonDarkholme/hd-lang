@@ -1,12 +1,1 @@
 path	expected
-parse/invalid/closure-line-between-header-and-body.hd	syntax-error
-parse/valid/type-forms-and-row-owners.hd	accept
-parse/invalid/pub-before-impl.hd	syntax-error
-parse/invalid/binding-before-positional-argument.hd	syntax-error
-parse/invalid/map-key-same-line-conditional.hd	syntax-error
-parse/valid/trailing-doc-comments-are-commentary.hd	accept
-parse/invalid/range-glued-to-spread.hd	syntax-error
-parse/invalid/float-bare-leading-point.hd	invalid-token
-parse/invalid/character-multiple-scalars.hd	invalid-token
-parse/invalid/placeholder-in-ordinary-type.hd	syntax-error
-parse/invalid/function-type-mutable-permission.hd	syntax-error

@@ -65,7 +65,14 @@ impl<'a> Src<'a> {
     }
     #[must_use]
     pub fn is_pub(&self, n: NodeRef<'_>) -> bool {
-        self.tkind(self.first(n)) == Some(TokenKind::KwPub)
+        n.direct_token(&self.parse.tokens, TokenKind::KwPub)
+            .is_some()
+    }
+    /// The first child that is a type (a parameter's, field's or result's).
+    #[must_use]
+    pub fn type_child(n: NodeRef<'a>) -> Option<NodeRef<'a>> {
+        n.children()
+            .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow)
     }
     #[must_use]
     pub fn child(n: NodeRef<'a>, kind: SyntaxKind) -> Option<NodeRef<'a>> {

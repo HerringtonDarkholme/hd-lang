@@ -69,6 +69,12 @@ pub enum TokenKind {
     ShrEq,
     DotDot,
     DotDotEq,
+    /// An interpolated string up to and including its first `${`.
+    StrHead,
+    /// From an interpolation's `}` up to and including the next `${`.
+    StrMid,
+    /// From the last interpolation's `}` through the closing quote.
+    StrTail,
     KwSelfType,
     KwBreak,
     KwContinue,
@@ -114,6 +120,24 @@ impl TokenKind {
     #[must_use]
     pub const fn is_close_delimiter(self) -> bool {
         matches!(self, Self::RParen | Self::RBracket | Self::RBrace)
+    }
+
+    /// Opens a nesting level for layout: a bracket or an interpolation.
+    #[must_use]
+    pub const fn opens(self) -> bool {
+        matches!(
+            self,
+            Self::LParen | Self::LBracket | Self::LBrace | Self::StrHead
+        )
+    }
+
+    /// Closes a nesting level for layout.
+    #[must_use]
+    pub const fn closes(self) -> bool {
+        matches!(
+            self,
+            Self::RParen | Self::RBracket | Self::RBrace | Self::StrTail
+        )
     }
 }
 
@@ -227,7 +251,9 @@ impl TokenBuf {
         while self.line_first.len() <= token / 32 {
             self.line_first.push(0);
         }
-        if self.line_tok[line].get().is_none() {
+        if self.line_tok[line].get().is_none()
+            && self.line_flags[line].0 & LineFlags::CONTINUES_STRING == 0
+        {
             self.line_tok[line] = TokenIdx::from_raw(to_u32(token));
             self.line_first[token / 32] |= 1 << (token % 32);
         }
@@ -250,6 +276,8 @@ pub fn lex(source: &[u8]) -> Lexed {
     };
     let mut lexer = Lexer::new(text);
     lexer.run();
+    lexer.match_delimiters();
+    lexer.module_doc();
     Lexed {
         tokens: lexer.tokens,
         diagnostics: lexer.diagnostics,
@@ -263,7 +291,12 @@ struct Lexer<'s> {
     line: usize,
     tokens: TokenBuf,
     diagnostics: Vec<Diagnostic>,
+    /// Open string frames: a newline inside one continues the string's line.
+    string_depth: u32,
 }
+
+/// Interpolations nested deeper than this are text (`nesting-too-deep`).
+const MAX_STRING_DEPTH: u32 = 64;
 
 impl<'s> Lexer<'s> {
     fn new(source: &'s str) -> Self {
@@ -289,6 +322,7 @@ impl<'s> Lexer<'s> {
             line: 0,
             tokens,
             diagnostics: Vec::new(),
+            string_depth: 0,
         }
     }
 
@@ -297,33 +331,116 @@ impl<'s> Lexer<'s> {
             self.pos = 3;
         }
         while self.pos < self.bytes.len() {
-            match self.bytes[self.pos] {
-                b' ' => self.pos += 1,
-                b'\t' => {
-                    self.error(Code::TabWhitespace, self.pos, self.pos + 1);
-                    self.pos += 1;
-                }
-                b'\n' => {
-                    self.pos += 1;
-                    self.line += 1;
-                }
-                b'\r' if self.peek_byte(1) == Some(b'\n') => {
-                    self.pos += 2;
-                    self.line += 1;
-                }
-                b'\r' => {
-                    self.error(Code::InvalidToken, self.pos, self.pos + 1);
-                    self.pos += 1;
-                    self.line += 1;
-                }
-                b'#' => self.comment(),
-                b'`' => self.raw_identifier(),
-                b'"' => self.string(self.pos, false),
-                b'\'' => self.character(),
-                b'0'..=b'9' => self.number(),
-                byte if is_ident_start_byte(byte, self.source, self.pos) => self.identifier(),
-                _ => self.punctuation_or_error(),
+            self.step();
+        }
+    }
+
+    /// One token, comment, or run of trivia in code mode.
+    fn step(&mut self) {
+        match self.bytes[self.pos] {
+            b' ' => self.pos += 1,
+            b'\t' => {
+                self.error(Code::TabWhitespace, self.pos, self.pos + 1);
+                self.pos += 1;
             }
+            b'\n' => {
+                self.pos += 1;
+                self.new_line();
+            }
+            b'\r' if self.peek_byte(1) == Some(b'\n') => {
+                self.pos += 2;
+                self.new_line();
+            }
+            b'\r' => {
+                self.error(Code::InvalidToken, self.pos, self.pos + 1);
+                self.pos += 1;
+                self.new_line();
+            }
+            b'#' => self.comment(),
+            b'`' => self.raw_identifier(),
+            b'"' => self.string(self.pos, false),
+            b'\'' => self.character(),
+            b'0'..=b'9' => self.number(),
+            byte if is_ident_start_byte(byte, self.source, self.pos) => self.identifier(),
+            _ => self.punctuation_or_error(),
+        }
+    }
+
+    /// Crosses a line ending; inside a string frame the new line continues it.
+    fn new_line(&mut self) {
+        self.line += 1;
+        if self.string_depth > 0
+            && let Some(flags) = self.tokens.line_flags.get_mut(self.line)
+        {
+            flags.0 |= LineFlags::CONTINUES_STRING;
+        }
+    }
+
+    /// `lex.doc.module`: the file's first documentation block, before any
+    /// token and followed by a blank line, documents the module.
+    fn module_doc(&mut self) {
+        let first_token = self.tokens.start.first().map_or(u32::MAX, |&start| start);
+        let Some(begin) = self
+            .tokens
+            .com_kind
+            .iter()
+            .position(|kind| *kind == CommentKind::Doc)
+        else {
+            return;
+        };
+        let mut end = begin;
+        while end < self.tokens.com_kind.len()
+            && self.tokens.com_kind[end] == CommentKind::Doc
+            && self.tokens.com_start[end] < first_token
+        {
+            let line = self.tokens.line_of(self.tokens.com_start[end]);
+            let adjacent =
+                end == begin || self.tokens.line_of(self.tokens.com_start[end - 1]) + 1 == line;
+            if !adjacent {
+                break;
+            }
+            end += 1;
+        }
+        if end == begin {
+            return;
+        }
+        let last_line = self.tokens.line_of(self.tokens.com_start[end - 1]);
+        if last_line + 1 < self.tokens.line_start.len()
+            && line_is_blank(self.bytes, last_line + 1, &self.tokens.line_start)
+        {
+            for kind in &mut self.tokens.com_kind[begin..end] {
+                *kind = CommentKind::ModuleDoc;
+            }
+        }
+    }
+
+    /// `lex.delim.match`: each closer matches the most recent opener.
+    fn match_delimiters(&mut self) {
+        let mut stack = Vec::<(TokenKind, usize)>::new();
+        for index in 0..self.tokens.len() {
+            let kind = self.tokens.kind[index];
+            if kind.is_open_delimiter() {
+                stack.push((kind, index));
+            } else if kind.is_close_delimiter() {
+                let matches = stack.last().is_some_and(|&(open, _)| {
+                    matches!(
+                        (open, kind),
+                        (TokenKind::LParen, TokenKind::RParen)
+                            | (TokenKind::LBracket, TokenKind::RBracket)
+                            | (TokenKind::LBrace, TokenKind::RBrace)
+                    )
+                });
+                if matches {
+                    stack.pop();
+                } else {
+                    let (lo, hi) = (self.tokens.start[index], self.tokens.end[index]);
+                    self.error(Code::UnmatchedDelimiter, lo as usize, hi as usize);
+                }
+            }
+        }
+        for (_, index) in stack {
+            let (lo, hi) = (self.tokens.start[index], self.tokens.end[index]);
+            self.error(Code::UnclosedDelimiter, lo as usize, hi as usize);
         }
     }
 
@@ -333,15 +450,9 @@ impl<'s> Lexer<'s> {
         while self.pos < self.bytes.len() && !matches!(self.bytes[self.pos], b'\n' | b'\r') {
             self.pos += 1;
         }
-        let module_doc = doc
-            && self.tokens.kind.is_empty()
-            && self.line + 1 < self.tokens.line_start.len()
-            && line_is_blank(self.bytes, self.line + 1, &self.tokens.line_start);
         self.tokens.com_start.push(to_u32(start));
         self.tokens.com_end.push(to_u32(self.pos));
-        self.tokens.com_kind.push(if module_doc {
-            CommentKind::ModuleDoc
-        } else if doc {
+        self.tokens.com_kind.push(if doc {
             CommentKind::Doc
         } else {
             CommentKind::Plain
@@ -379,11 +490,15 @@ impl<'s> Lexer<'s> {
     fn identifier(&mut self) {
         let start = self.pos;
         self.consume_identifier_chars();
-        if self.peek_byte(0) == Some(b'"') {
-            self.string(start, true);
-            return;
-        }
         let text = &self.source[start..self.pos];
+        if self.peek_byte(0) == Some(b'"') {
+            if keyword(text).is_none() {
+                self.string(start, true);
+                return;
+            }
+            // lex.literal-fn.reserved-glued: a reserved word in prefix position.
+            self.error(Code::SyntaxError, start, self.pos);
+        }
         let kind = keyword(text).unwrap_or_else(|| {
             if text == "_" {
                 TokenKind::Placeholder
@@ -503,7 +618,12 @@ impl<'s> Lexer<'s> {
                 .next()
                 .is_some_and(is_xid_start)
             {
+                let suffix = self.pos;
                 self.consume_identifier_chars();
+                if keyword(&self.source[suffix..self.pos]).is_some() {
+                    // lex.literal-fn.reserved-glued: a reserved word as a suffix.
+                    self.error(Code::SyntaxError, start, self.pos);
+                }
             }
         } else if self.pos == start + 2 {
             self.error(Code::SyntaxError, start, self.pos);
@@ -550,7 +670,10 @@ impl<'s> Lexer<'s> {
         let multiline = self.bytes.get(self.pos..self.pos.saturating_add(3)) == Some(b"\"\"\"");
         let delimiter = if multiline { 3 } else { 1 };
         self.pos += delimiter;
-        let start_line = self.line;
+        self.string_depth += 1;
+        let mut piece_start = start;
+        let mut piece_line = self.line;
+        let mut interpolated = false;
         let mut escaped = false;
         let mut closed = false;
         while self.pos < self.bytes.len() {
@@ -565,17 +688,43 @@ impl<'s> Lexer<'s> {
             if !multiline && matches!(byte, b'\n' | b'\r') {
                 break;
             }
-            if byte == b'\n' {
-                self.line += 1;
-            } else if byte == b'\r' && self.peek_byte(1) == Some(b'\n') {
-                self.line += 1;
-                self.pos += 1;
-            }
             if byte == b'\t' {
                 self.error(Code::TabWhitespace, self.pos, self.pos + 1);
             }
-            if byte == b'$' && self.peek_byte(1) == Some(b'{') && !escaped {
-                self.interpolation();
+            if byte == b'$' && !escaped {
+                if self.peek_byte(1) == Some(b'{') && self.string_depth <= MAX_STRING_DEPTH {
+                    let kind = if interpolated {
+                        TokenKind::StrMid
+                    } else {
+                        TokenKind::StrHead
+                    };
+                    self.pos += 2;
+                    self.tokens.push(kind, piece_start, self.pos, piece_line);
+                    interpolated = true;
+                    if !self.interpolation() {
+                        break;
+                    }
+                    piece_start = self.pos;
+                    piece_line = self.line;
+                    self.pos += 1;
+                    continue;
+                }
+                if self.peek_byte(1) == Some(b'{') {
+                    self.error(Code::NestingTooDeep, self.pos, self.pos + 2);
+                }
+                self.dollar_name();
+                continue;
+            }
+            if byte == b'\n' {
+                self.pos += 1;
+                self.new_line();
+                escaped = false;
+                continue;
+            }
+            if byte == b'\r' && self.peek_byte(1) == Some(b'\n') {
+                self.pos += 2;
+                self.new_line();
+                escaped = false;
                 continue;
             }
             if !prefixed && byte == b'\\' && !escaped {
@@ -592,112 +741,60 @@ impl<'s> Lexer<'s> {
             }
             self.pos += 1;
         }
+        self.string_depth -= 1;
         if !closed {
             self.error(Code::UnterminatedString, start, self.pos);
         }
-        if self.line > start_line {
-            for line in (start_line + 1)
-                ..=self
-                    .line
-                    .min(self.tokens.line_flags.len().saturating_sub(1))
-            {
-                self.tokens.line_flags[line].0 |= LineFlags::CONTINUES_STRING;
-            }
-        }
-        self.tokens.push(
-            if closed {
-                TokenKind::String
-            } else {
-                TokenKind::Error
-            },
-            start,
-            self.pos,
-            start_line,
-        );
+        let kind = if interpolated {
+            TokenKind::StrTail
+        } else if closed {
+            TokenKind::String
+        } else {
+            TokenKind::Error
+        };
+        self.tokens.push(kind, piece_start, self.pos, piece_line);
     }
 
-    fn interpolation(&mut self) {
-        self.pos += 2;
-        let mut braces = 1_u32;
-        while self.pos < self.bytes.len() && braces > 0 {
-            match self.bytes[self.pos] {
-                b'{' => {
-                    braces += 1;
-                    self.pos += 1;
-                }
-                b'}' => {
-                    braces -= 1;
-                    self.pos += 1;
-                }
-                b'"' => self.interpolation_string(),
-                b'\'' => self.interpolation_character(),
-                b'\n' => {
-                    self.line += 1;
-                    self.pos += 1;
-                }
-                b'\r' if self.peek_byte(1) == Some(b'\n') => {
-                    self.line += 1;
-                    self.pos += 2;
-                }
-                b'\t' => {
-                    self.error(Code::TabWhitespace, self.pos, self.pos + 1);
-                    self.pos += 1;
-                }
-                _ => self.pos += char_len(self.source, self.pos),
-            }
-        }
-    }
-
-    fn interpolation_string(&mut self) {
-        let multiline = self.bytes.get(self.pos..self.pos.saturating_add(3)) == Some(b"\"\"\"");
-        let delimiter = if multiline { 3 } else { 1 };
-        self.pos += delimiter;
-        let mut escaped = false;
-        while self.pos < self.bytes.len() {
-            if !escaped
-                && self.bytes.get(self.pos..self.pos + delimiter) == Some(&b"\"\"\""[..delimiter])
-            {
-                self.pos += delimiter;
-                return;
-            }
-            let byte = self.bytes[self.pos];
-            if !multiline && matches!(byte, b'\n' | b'\r') {
-                return;
-            }
-            if byte == b'\n' {
-                self.line += 1;
-            } else if byte == b'\r' && self.peek_byte(1) == Some(b'\n') {
-                self.line += 1;
-                self.pos += 1;
-            } else if byte == b'\t' {
-                self.error(Code::TabWhitespace, self.pos, self.pos + 1);
-            }
-            escaped = byte == b'\\' && !escaped;
-            self.pos += 1;
-        }
-    }
-
-    fn interpolation_character(&mut self) {
+    /// `$name` in a string: a reserved word other than `self` is an error
+    /// (`lex.interp.reserved-dollar`); any other `$` is text.
+    fn dollar_name(&mut self) {
+        let dollar = self.pos;
         self.pos += 1;
-        let mut escaped = false;
-        while self.pos < self.bytes.len() {
-            let byte = self.bytes[self.pos];
-            if matches!(byte, b'\n' | b'\r') {
-                return;
-            }
-            self.pos += 1;
-            if byte == b'\'' && !escaped {
-                return;
-            }
-            escaped = byte == b'\\' && !escaped;
+        let Some(byte) = self.peek_byte(0) else {
+            return;
+        };
+        if !is_ident_start_byte(byte, self.source, self.pos) {
+            return;
         }
+        let name = self.pos;
+        self.consume_identifier_chars();
+        let text = &self.source[name..self.pos];
+        if text != "self" && keyword(text).is_some() {
+            self.error(Code::SyntaxError, dollar, self.pos);
+        }
+    }
+
+    /// Lexes code tokens inside `${...}` up to the matching `}`, which is
+    /// left unconsumed. False at end of input.
+    fn interpolation(&mut self) -> bool {
+        let mut braces = 0_u32;
+        while self.pos < self.bytes.len() {
+            match self.bytes[self.pos] {
+                b'{' => braces += 1,
+                b'}' if braces == 0 => return true,
+                b'}' => braces -= 1,
+                _ => {}
+            }
+            self.step();
+        }
+        false
     }
 
     fn character(&mut self) {
         let start = self.pos;
         self.pos += 1;
-        let mut escaped = false;
         let mut closed = false;
+        let mut scalars = 0_u32;
         while self.pos < self.bytes.len() {
             let byte = self.bytes[self.pos];
             if matches!(byte, b'\n' | b'\r') {
@@ -706,12 +803,13 @@ impl<'s> Lexer<'s> {
             if byte == b'\t' {
                 self.error(Code::TabWhitespace, self.pos, self.pos + 1);
             }
-            if byte == b'\'' && !escaped {
+            if byte == b'\'' {
                 self.pos += 1;
                 closed = true;
                 break;
             }
-            if byte == b'\\' && !escaped {
+            scalars += 1;
+            if byte == b'\\' {
                 if !valid_escape(self.bytes, self.pos) {
                     self.error(
                         Code::InvalidEscape,
@@ -719,14 +817,29 @@ impl<'s> Lexer<'s> {
                         (self.pos + 2).min(self.bytes.len()),
                     );
                 }
-                escaped = true;
-            } else {
-                escaped = false;
+                self.pos += 1;
+                if self.peek_byte(0) == Some(b'u') && self.peek_byte(1) == Some(b'{') {
+                    while self.pos < self.bytes.len()
+                        && !matches!(self.bytes[self.pos], b'}' | b'\'' | b'\n' | b'\r')
+                    {
+                        self.pos += 1;
+                    }
+                    if self.peek_byte(0) == Some(b'}') {
+                        self.pos += 1;
+                    }
+                    continue;
+                }
+                if self.pos >= self.bytes.len() || matches!(self.bytes[self.pos], b'\n' | b'\r') {
+                    break;
+                }
             }
             self.pos += char_len(self.source, self.pos);
         }
         if !closed {
             self.error(Code::UnterminatedString, start, self.pos);
+        } else if scalars != 1 {
+            // lex.char.one-scalar
+            self.error(Code::InvalidToken, start, self.pos);
         }
         self.tokens
             .push(TokenKind::Char, start, self.pos, self.line);
@@ -1011,7 +1124,18 @@ mod tests {
         assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
         assert_eq!(
             lexed.tokens.kind,
-            [TokenKind::String, TokenKind::String, TokenKind::String]
+            [
+                TokenKind::String,
+                TokenKind::String,
+                TokenKind::StrHead,
+                TokenKind::Ident,
+                TokenKind::LParen,
+                TokenKind::StrHead,
+                TokenKind::Ident,
+                TokenKind::StrTail,
+                TokenKind::RParen,
+                TokenKind::StrTail
+            ]
         );
         assert_eq!(lexed.tokens.reconstruct(source), source);
         assert_ne!(

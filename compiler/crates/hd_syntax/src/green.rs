@@ -9,8 +9,10 @@ use crate::{Layout, TokenBuf, TokenKind};
 #[repr(u16)]
 pub enum SyntaxKind {
     Root,
-    // Items and item parts.
+    // Items and their parts.
     UseDecl,
+    UseGroup,
+    UseItem,
     FnDecl,
     DataDecl,
     EnumDecl,
@@ -21,19 +23,24 @@ pub enum SyntaxKind {
     Decorator,
     ParameterList,
     Parameter,
+    DefaultValue,
     GenericParameterList,
     GenericParameter,
+    BoundList,
+    TypeDefault,
     TypeArgumentList,
+    AssociatedTypeBinding,
     ArgumentList,
     Argument,
     NamedArgument,
     DataField,
+    EmbeddedField,
     EnumVariant,
+    VariantSharedData,
     AssociatedTypeDecl,
     Derivation,
     // Statements and suites.
     Block,
-    Statement,
     LetStmt,
     DiscardStmt,
     AssignmentStmt,
@@ -42,12 +49,12 @@ pub enum SyntaxKind {
     ContinueStmt,
     DeferStmt,
     ExprStmt,
+    ElseClause,
     MatchArm,
-    // Expressions. Binary operators retain their precise token; these nodes
-    // record the precedence level without inflating the tree with token kinds.
-    Expression,
+    MatchGuard,
+    // Expressions. A binary node keeps its operator token; the kind records
+    // the precedence level.
     BindingExpr,
-    ConditionalExpr,
     RangeExpr,
     LogicalOrExpr,
     LogicalAndExpr,
@@ -61,43 +68,62 @@ pub enum SyntaxKind {
     MultiplicativeExpr,
     UnaryExpr,
     PowerExpr,
-    PostfixExpr,
     CallExpr,
     IndexExpr,
     FieldExpr,
+    TryExpr,
+    SuspendExpr,
+    PathExpr,
+    TypeArgsExpr,
+    TrailingCallExpr,
     LiteralExpr,
     NameExpr,
+    VariantExpr,
+    PlaceholderExpr,
+    ParenExpr,
     TupleExpr,
     ListExpr,
     MapExpr,
+    MapEntry,
     DataExpr,
+    DataFieldInit,
+    SpreadExpr,
     ClosureExpr,
     IfExpr,
     ForExpr,
     WhileExpr,
     MatchExpr,
     ComprehensionExpr,
+    ComprehensionFor,
+    ComprehensionIf,
     ContextExpr,
+    ContextEntry,
     StringExpr,
     Interpolation,
     // Patterns.
-    Pattern,
+    WildcardPattern,
     BindingPattern,
     LiteralPattern,
     VariantPattern,
+    PatternArgumentList,
+    NamedPattern,
     DataPattern,
+    DataPatternField,
     TuplePattern,
     SpreadPattern,
     RangePattern,
     // Types.
-    Type,
     NamedType,
     DynType,
     MutType,
     OptionalType,
     TupleType,
+    ParenType,
     FunctionType,
     ProjectionType,
+    ContextType,
+    RestType,
+    InferType,
     RequirementRow,
     Error,
     SkippedBody,
@@ -166,8 +192,8 @@ impl GreenTree {
     #[must_use]
     pub fn debug_tree(&self, tokens: &TokenBuf, source: &str) -> String {
         let mut output = String::new();
+        let parents = self.parent_links();
         for index in 0..self.len() {
-            let parents = self.parent_links();
             let mut depth = 0;
             let mut at = parents[index];
             while let Some(parent) = at.get() {
@@ -390,6 +416,8 @@ macro_rules! ast_nodes {
 ast_nodes! {
     SourceFile => Root,
     UseDecl => UseDecl,
+    UseGroup => UseGroup,
+    UseItem => UseItem,
     FnDecl => FnDecl,
     DataDecl => DataDecl,
     EnumDecl => EnumDecl,
@@ -400,18 +428,23 @@ ast_nodes! {
     Decorator => Decorator,
     ParameterList => ParameterList,
     Parameter => Parameter,
+    DefaultValue => DefaultValue,
     GenericParameterList => GenericParameterList,
     GenericParameter => GenericParameter,
+    BoundList => BoundList,
+    TypeDefault => TypeDefault,
     TypeArgumentList => TypeArgumentList,
+    AssociatedTypeBinding => AssociatedTypeBinding,
     ArgumentList => ArgumentList,
     Argument => Argument,
     NamedArgument => NamedArgument,
     DataField => DataField,
+    EmbeddedField => EmbeddedField,
     EnumVariant => EnumVariant,
+    VariantSharedData => VariantSharedData,
     AssociatedTypeDecl => AssociatedTypeDecl,
     Derivation => Derivation,
     Block => Block,
-    Statement => Statement,
     LetStmt => LetStmt,
     DiscardStmt => DiscardStmt,
     AssignmentStmt => AssignmentStmt,
@@ -420,35 +453,14 @@ ast_nodes! {
     ContinueStmt => ContinueStmt,
     DeferStmt => DeferStmt,
     ExprStmt => ExprStmt,
+    ElseClause => ElseClause,
     MatchArm => MatchArm,
-    Expression => Expression,
+    MatchGuard => MatchGuard,
     BindingExpr => BindingExpr,
-    ConditionalExpr => ConditionalExpr,
     RangeExpr => RangeExpr,
     LogicalOrExpr => LogicalOrExpr,
     LogicalAndExpr => LogicalAndExpr,
     ComparisonExpr => ComparisonExpr,
-    Pattern => Pattern,
-    BindingPattern => BindingPattern,
-    LiteralPattern => LiteralPattern,
-    VariantPattern => VariantPattern,
-    DataPattern => DataPattern,
-    TuplePattern => TuplePattern,
-    SpreadPattern => SpreadPattern,
-    RangePattern => RangePattern,
-    Type => Type,
-    NamedType => NamedType,
-    DynType => DynType,
-    MutType => MutType,
-    OptionalType => OptionalType,
-    FunctionType => FunctionType,
-    TupleType => TupleType,
-    ProjectionType => ProjectionType,
-    RequirementRow => RequirementRow,
-    IfExpr => IfExpr,
-    ForExpr => ForExpr,
-    WhileExpr => WhileExpr,
-    MatchExpr => MatchExpr,
     PipeExpr => PipeExpr,
     BitwiseOrExpr => BitwiseOrExpr,
     BitwiseXorExpr => BitwiseXorExpr,
@@ -458,65 +470,414 @@ ast_nodes! {
     MultiplicativeExpr => MultiplicativeExpr,
     UnaryExpr => UnaryExpr,
     PowerExpr => PowerExpr,
-    PostfixExpr => PostfixExpr,
     CallExpr => CallExpr,
     IndexExpr => IndexExpr,
     FieldExpr => FieldExpr,
+    TryExpr => TryExpr,
+    SuspendExpr => SuspendExpr,
+    PathExpr => PathExpr,
+    TypeArgsExpr => TypeArgsExpr,
+    TrailingCallExpr => TrailingCallExpr,
     LiteralExpr => LiteralExpr,
     NameExpr => NameExpr,
+    VariantExpr => VariantExpr,
+    PlaceholderExpr => PlaceholderExpr,
+    ParenExpr => ParenExpr,
     TupleExpr => TupleExpr,
     ListExpr => ListExpr,
     MapExpr => MapExpr,
+    MapEntry => MapEntry,
     DataExpr => DataExpr,
+    DataFieldInit => DataFieldInit,
+    SpreadExpr => SpreadExpr,
     ClosureExpr => ClosureExpr,
+    IfExpr => IfExpr,
+    ForExpr => ForExpr,
+    WhileExpr => WhileExpr,
+    MatchExpr => MatchExpr,
     ComprehensionExpr => ComprehensionExpr,
+    ComprehensionFor => ComprehensionFor,
+    ComprehensionIf => ComprehensionIf,
     ContextExpr => ContextExpr,
+    ContextEntry => ContextEntry,
     StringExpr => StringExpr,
     Interpolation => Interpolation,
+    WildcardPattern => WildcardPattern,
+    BindingPattern => BindingPattern,
+    LiteralPattern => LiteralPattern,
+    VariantPattern => VariantPattern,
+    PatternArgumentList => PatternArgumentList,
+    NamedPattern => NamedPattern,
+    DataPattern => DataPattern,
+    DataPatternField => DataPatternField,
+    TuplePattern => TuplePattern,
+    SpreadPattern => SpreadPattern,
+    RangePattern => RangePattern,
+    NamedType => NamedType,
+    DynType => DynType,
+    MutType => MutType,
+    OptionalType => OptionalType,
+    TupleType => TupleType,
+    ParenType => ParenType,
+    FunctionType => FunctionType,
+    ProjectionType => ProjectionType,
+    ContextType => ContextType,
+    RestType => RestType,
+    InferType => InferType,
+    RequirementRow => RequirementRow,
     ErrorNode => Error,
     SkippedBody => SkippedBody,
 }
 
-impl FnDecl<'_> {
+/// Direct tokens of a node: its span minus its children's spans.
+pub struct DirectTokens<'t> {
+    next: u32,
+    end: u32,
+    children: ChildIter<'t>,
+    child: Option<(u32, u32)>,
+}
+
+impl Iterator for DirectTokens<'_> {
+    type Item = TokenIdx;
+
+    fn next(&mut self) -> Option<TokenIdx> {
+        while let Some((lo, hi)) = self.child {
+            if self.next < lo {
+                break;
+            }
+            if self.next <= hi {
+                self.next = hi + 1;
+            }
+            self.child = next_span(&mut self.children);
+        }
+        if self.next > self.end {
+            return None;
+        }
+        let token = self.next;
+        self.next += 1;
+        Some(TokenIdx::from_raw(token))
+    }
+}
+
+fn next_span(children: &mut ChildIter<'_>) -> Option<(u32, u32)> {
+    for child in children.by_ref() {
+        let (lo, hi) = child.tree.span_tokens(child.index);
+        if lo.get().is_some() && hi.get().is_some() {
+            return Some((lo.raw(), hi.raw()));
+        }
+    }
+    None
+}
+
+impl<'t> NodeRef<'t> {
+    /// The tokens this node holds itself, outside its children.
+    #[must_use]
+    pub fn direct_tokens(self) -> DirectTokens<'t> {
+        let (lo, hi) = self.tree.span_tokens(self.index);
+        let (next, end) = if lo.get().is_some() && hi.get().is_some() {
+            (lo.raw(), hi.raw())
+        } else {
+            (1, 0)
+        };
+        let mut children = ChildIter {
+            tree: self.tree,
+            next: self.index.idx() + 1,
+            end: self.index.idx() + self.tree.subtree_len[self.index.idx()] as usize,
+        };
+        let child = next_span(&mut children);
+        DirectTokens {
+            next,
+            end,
+            children,
+            child,
+        }
+    }
+
+    /// The first direct token of `kind`.
+    #[must_use]
+    pub fn direct_token(self, tokens: &TokenBuf, kind: TokenKind) -> Option<TokenIdx> {
+        self.direct_tokens()
+            .find(|&token| tokens.kind(token) == kind)
+    }
+
+    /// The first direct identifier token (plain or raw).
+    #[must_use]
+    pub fn name(self, tokens: &TokenBuf) -> Option<TokenIdx> {
+        self.direct_tokens()
+            .find(|&token| matches!(tokens.kind(token), TokenKind::Ident | TokenKind::RawIdent))
+    }
+
+    /// The first child of `kind`.
+    #[must_use]
+    pub fn child(self, kind: SyntaxKind) -> Option<NodeRef<'t>> {
+        self.children().find(|child| child.kind() == kind)
+    }
+
+    /// The first token of the node's span.
+    #[must_use]
+    pub fn first_token(self) -> TokenIdx {
+        self.tree.span_tokens(self.index).0
+    }
+
+    /// The last token of the node's span.
+    #[must_use]
+    pub fn last_token(self) -> TokenIdx {
+        self.tree.span_tokens(self.index).1
+    }
+}
+
+impl SyntaxKind {
+    /// The kinds of the `type` production.
+    #[must_use]
+    pub fn is_type(self) -> bool {
+        matches!(
+            self,
+            Self::NamedType
+                | Self::DynType
+                | Self::MutType
+                | Self::OptionalType
+                | Self::TupleType
+                | Self::ParenType
+                | Self::FunctionType
+                | Self::ProjectionType
+                | Self::ContextType
+                | Self::RestType
+                | Self::InferType
+                | Self::RequirementRow
+        )
+    }
+
+    /// The kinds of the `statement` production inside a block.
+    #[must_use]
+    pub fn is_statement(self) -> bool {
+        matches!(
+            self,
+            Self::LetStmt
+                | Self::DiscardStmt
+                | Self::AssignmentStmt
+                | Self::ReturnStmt
+                | Self::BreakStmt
+                | Self::ContinueStmt
+                | Self::DeferStmt
+                | Self::ExprStmt
+        )
+    }
+}
+
+/// Any named declaration: function, data, enum, trait, type, or impl.
+#[derive(Clone, Copy)]
+pub struct Decl<'t>(NodeRef<'t>);
+
+impl<'t> Decl<'t> {
+    #[must_use]
+    pub fn cast(node: NodeRef<'t>) -> Option<Self> {
+        matches!(
+            node.kind(),
+            SyntaxKind::FnDecl
+                | SyntaxKind::DataDecl
+                | SyntaxKind::EnumDecl
+                | SyntaxKind::TraitDecl
+                | SyntaxKind::TypeDecl
+                | SyntaxKind::ImplDecl
+        )
+        .then_some(Self(node))
+    }
+
+    #[must_use]
+    pub fn node(self) -> NodeRef<'t> {
+        self.0
+    }
+
+    /// The declared name (none for an implementation).
+    #[must_use]
+    pub fn name(self, tokens: &TokenBuf) -> Option<TokenIdx> {
+        if self.0.kind() == SyntaxKind::ImplDecl {
+            return None;
+        }
+        self.0.name(tokens)
+    }
+
+    /// `pub` stands before the declaration keyword.
+    #[must_use]
+    pub fn is_pub(self, tokens: &TokenBuf) -> bool {
+        self.0.direct_token(tokens, TokenKind::KwPub).is_some()
+    }
+
+    pub fn decorators(self) -> impl Iterator<Item = Decorator<'t>> {
+        self.0.children().filter_map(Decorator::cast)
+    }
+
+    /// The suite or member block.
+    #[must_use]
+    pub fn body(self) -> Option<Block<'t>> {
+        self.0.children().find_map(Block::cast)
+    }
+}
+
+impl<'t> FnDecl<'t> {
     #[must_use]
     pub fn name_token(self, tokens: &TokenBuf) -> Option<TokenIdx> {
-        let (first, last) = self.0.tree.span_tokens(self.0.index);
-        let mut saw_fn = false;
-        for raw in first.raw()..=last.raw() {
-            let token = TokenIdx::from_raw(raw);
-            match tokens.kind(token) {
-                TokenKind::KwFn => saw_fn = true,
-                TokenKind::Ident | TokenKind::RawIdent if saw_fn => return Some(token),
-                _ => {}
-            }
+        self.0.name(tokens)
+    }
+
+    #[must_use]
+    pub fn generics(self) -> Option<GenericParameterList<'t>> {
+        self.0.children().find_map(GenericParameterList::cast)
+    }
+
+    #[must_use]
+    pub fn params(self) -> Option<ParameterList<'t>> {
+        self.0.children().find_map(ParameterList::cast)
+    }
+
+    /// The written result type (after `->`).
+    #[must_use]
+    pub fn result(self) -> Option<NodeRef<'t>> {
+        self.0
+            .children()
+            .find(|child| child.kind().is_type() && child.kind() != SyntaxKind::RequirementRow)
+    }
+
+    #[must_use]
+    pub fn row(self) -> Option<RequirementRow<'t>> {
+        self.0.children().find_map(RequirementRow::cast)
+    }
+
+    #[must_use]
+    pub fn body(self) -> Option<Block<'t>> {
+        self.0.children().find_map(Block::cast)
+    }
+}
+
+impl<'t> Parameter<'t> {
+    /// The parameter's type.
+    #[must_use]
+    pub fn ty(self) -> Option<NodeRef<'t>> {
+        self.0.children().find(|child| child.kind().is_type())
+    }
+
+    #[must_use]
+    pub fn default(self) -> Option<DefaultValue<'t>> {
+        self.0.children().find_map(DefaultValue::cast)
+    }
+}
+
+impl<'t> GenericParameter<'t> {
+    #[must_use]
+    pub fn bounds(self) -> Option<BoundList<'t>> {
+        self.0.children().find_map(BoundList::cast)
+    }
+
+    #[must_use]
+    pub fn default(self) -> Option<TypeDefault<'t>> {
+        self.0.children().find_map(TypeDefault::cast)
+    }
+}
+
+impl<'t> BoundList<'t> {
+    pub fn traits(self) -> impl Iterator<Item = NamedType<'t>> {
+        self.0.children().filter_map(NamedType::cast)
+    }
+}
+
+impl<'t> DataField<'t> {
+    #[must_use]
+    pub fn ty(self) -> Option<NodeRef<'t>> {
+        self.0.children().find(|child| child.kind().is_type())
+    }
+}
+
+impl<'t> Block<'t> {
+    /// The block's statements and local declarations, in order.
+    pub fn items(self) -> impl Iterator<Item = NodeRef<'t>> {
+        self.0.children()
+    }
+}
+
+impl<'t> IfExpr<'t> {
+    #[must_use]
+    pub fn condition(self) -> Option<NodeRef<'t>> {
+        self.0.children().next()
+    }
+
+    #[must_use]
+    pub fn then_block(self) -> Option<Block<'t>> {
+        self.0.children().find_map(Block::cast)
+    }
+
+    #[must_use]
+    pub fn else_clause(self) -> Option<ElseClause<'t>> {
+        self.0.children().find_map(ElseClause::cast)
+    }
+}
+
+impl<'t> ImplDecl<'t> {
+    /// The trait (for `impl Trait for T`) and the target type.
+    #[must_use]
+    pub fn header_types(self) -> (Option<NodeRef<'t>>, Option<NodeRef<'t>>) {
+        let mut types = self.0.children().filter(|child| child.kind().is_type());
+        let first = types.next();
+        let second = types.next();
+        match second {
+            Some(target) => (first, Some(target)),
+            None => (None, first),
         }
-        None
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Event {
-    Start(SyntaxKind),
+    Start {
+        kind: SyntaxKind,
+        forward_parent: u32,
+        open: bool,
+    },
     Token(TokenIdx),
     Finish,
+    Tombstone,
 }
 
 pub(crate) fn build(
-    events: &[Event],
+    events: &mut [Event],
     layouts: &[(TokenIdx, Layout)],
     errors: &[(NodeIdx, Code)],
 ) -> GreenTree {
     let mut tree = GreenTree::default();
     let mut stack = Vec::<usize>::new();
-    for event in events {
-        match *event {
-            Event::Start(kind) => {
-                stack.push(tree.kind.len());
-                tree.kind.push(kind);
-                tree.first_token.push(TokenIdx::NONE);
-                tree.last_token.push(TokenIdx::NONE);
-                tree.subtree_len.push(0);
+    let mut parents = Vec::<SyntaxKind>::new();
+    for index in 0..events.len() {
+        match core::mem::replace(&mut events[index], Event::Tombstone) {
+            Event::Start {
+                kind,
+                forward_parent,
+                open: true,
+            } => {
+                parents.push(kind);
+                let mut at = index;
+                let mut forward = forward_parent;
+                while forward != 0 {
+                    at += forward as usize;
+                    match core::mem::replace(&mut events[at], Event::Tombstone) {
+                        Event::Start {
+                            kind,
+                            forward_parent,
+                            ..
+                        } => {
+                            parents.push(kind);
+                            forward = forward_parent;
+                        }
+                        _ => break,
+                    }
+                }
+                for kind in parents.drain(..).rev() {
+                    stack.push(tree.kind.len());
+                    tree.kind.push(kind);
+                    tree.first_token.push(TokenIdx::NONE);
+                    tree.last_token.push(TokenIdx::NONE);
+                    tree.subtree_len.push(0);
+                }
             }
+            Event::Start { .. } | Event::Tombstone => {}
             Event::Token(token) => {
                 if let Some(&current) = stack.last() {
                     if tree.first_token[current].get().is_none() {
@@ -526,7 +887,7 @@ pub(crate) fn build(
                 }
             }
             Event::Finish => {
-                let index = stack.pop().expect("balanced parser events");
+                let Some(index) = stack.pop() else { continue };
                 tree.subtree_len[index] = as_u32(tree.kind.len() - index);
                 if let Some(&parent) = stack.last() {
                     if tree.first_token[parent].get().is_none() {
@@ -539,7 +900,9 @@ pub(crate) fn build(
             }
         }
     }
-    assert!(stack.is_empty(), "balanced parser events");
+    while let Some(index) = stack.pop() {
+        tree.subtree_len[index] = as_u32(tree.kind.len() - index);
+    }
     for &(at, kind) in layouts {
         tree.layout_at.push(at);
         tree.layout_kind.push(kind);
