@@ -4,6 +4,8 @@
 use std.encoding.hex_encode
 
 # The 32-byte SHA-256 digest of `bytes` (r-std-digest.sha256).
+## The 32-byte SHA-256 digest of `bytes`, as FIPS 180-4 defines it.
+## See [std-digest.sha256](../../spec/std/digest.md#r-std-digest.sha256).
 pub fn sha256(bytes: List[u8]) -> List[u8]:
     rounds := round_constants()
     let state: mut List[u32] = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
@@ -63,6 +65,8 @@ pub fn sha256(bytes: List[u8]) -> List[u8]:
     digest
 
 # The digest as 64 lowercase hex digits (r-std-digest.sha256-hex).
+## The SHA-256 digest of `bytes` as lowercase hex text.
+## See [std-digest.sha256-hex](../../spec/std/digest.md#r-std-digest.sha256-hex).
 pub fn sha256_hex(bytes: List[u8]) -> string:
     hex_encode(sha256(bytes))
 
