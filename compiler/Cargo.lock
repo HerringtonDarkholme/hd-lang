@@ -25,6 +25,24 @@ name = "hd_base"
 version = "0.0.0"
 
 [[package]]
+name = "hd_cache"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_iface",
+]
+
+[[package]]
+name = "hd_check"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_iface",
+ "hd_syntax",
+ "hd_tir",
+]
+
+[[package]]
 name = "hd_cli"
 version = "0.0.0"
 dependencies = [
@@ -39,11 +57,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "hd_driver"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_cache",
+ "hd_check",
+ "hd_iface",
+ "hd_mono",
+ "hd_sched",
+ "hd_syntax",
+ "hd_tir",
+ "hd_wasm",
+]
+
+[[package]]
+name = "hd_iface"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+]
+
+[[package]]
 name = "hd_intern"
 version = "0.0.0"
 dependencies = [
  "hd_base",
 ]
+
+[[package]]
+name = "hd_mono"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_iface",
+ "hd_tir",
+]
+
+[[package]]
+name = "hd_sched"
+version = "0.0.0"
 
 [[package]]
 name = "hd_syntax"
@@ -57,12 +110,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "hd_walk"
+name = "hd_tir"
 version = "0.0.0"
 dependencies = [
  "hd_base",
+ "hd_iface",
  "hd_intern",
- "hd_syntax",
+]
+
+[[package]]
+name = "hd_wasm"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_iface",
+ "hd_mono",
+ "hd_tir",
  "wasm-encoder",
 ]
 

@@ -1,33 +1,39 @@
-//! The driver: one run over a source set, through every stage, as tasks of
-//! the serial scheduler, with every stage boundary through the cache.
+//! `hd_driver`: one run over a source set, through every stage, as tasks of
+//! the serial scheduler, with every stage boundary through the cache. It is
+//! the only crate that sees every stage; `source` and `node` hold its file
+//! system and process access.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use hd_base::Hash128;
-use hd_syntax::subset::{SubsetParse, parse_subset};
-use hd_syntax::{SyntaxKind, skim};
-
-use crate::check::check_fn;
-use crate::iface::{
-    Cst, FolderIface, HeaderItem, Scope, build_iface, decode_iface, decode_item, encode_item,
-    folder_of_module, item_path, load_items, lower_headers, module_scope,
+use hd_cache::{FileApi, check_key, code_key, iface_key, prog_key, toolchain_key};
+use hd_check::{Cst, Scope, check_module_bodies, lower_headers, module_scope};
+use hd_iface::{
+    FolderIface, HeaderItem, KeyHasher, Reader, build_iface, decode_iface, decode_item, encode_item,
+    folder_of_module, item_path, put_hash, put_str, put_u32,
 };
-use crate::mono::{Instance, collect};
-use crate::sched::{ExtTask, TaskGraph, TaskId, TaskKind};
-use crate::tir::{Tables, TirBody, read_body, read_tables, tir_hash, write_body, write_tables};
-use crate::wasm::{Code, emit, link};
-use crate::world::{DefId, KeyHasher, Reader, World, put_hash, put_str, put_u32};
+use hd_mono::{Instance, collect, instance_key};
+use hd_sched::{ExtTask, TaskGraph, TaskId, TaskKind};
+use hd_syntax::skim;
+use hd_syntax::subset::{SubsetParse, parse_subset};
+use hd_tir::world::{DefId, World, load_items};
+use hd_tir::{Tables, TirBody, read_body, read_tables, tir_hash, write_body, write_tables};
+use hd_wasm::{Code, emit, link};
 
-// ------------------------------------------------------------------ cache
+pub mod bench;
+pub mod node;
+pub mod source;
 
-/// The in-memory `CacheStore` (cache.md §5): entries by (kind, key), bytes
-/// only, except code entries, which hold symbolic code (no run IDs).
-#[derive(Default)]
-pub struct MemStore {
-    entries: HashMap<(&'static str, u128), Vec<u8>>,
-    code: HashMap<u128, Code>,
-}
+pub use hd_cache::MemStore;
+pub use hd_check::A1Rule;
+pub use source::{Program, SourceFile, load_program, module_path};
+
+const COMPILER: &str = "hd 0";
+const TARGET: &str = "wasm32-gc";
+const PIPELINE: &str = "dev";
+const ROLE: &str = "lib";
 
 #[derive(Default, Debug, Clone)]
 pub struct Counters {
@@ -37,6 +43,8 @@ pub struct Counters {
     pub modules_checked: Vec<String>,
     pub ifaces_built: Vec<String>,
     pub parsed: Vec<String>,
+    /// Modules whose TIR was decoded from their `check` entry.
+    pub tir_decoded: Vec<String>,
     pub emitted: usize,
     pub stage_time: BTreeMap<&'static str, Duration>,
     pub deep_hashes: BTreeMap<String, Hash128>,
@@ -44,33 +52,24 @@ pub struct Counters {
 }
 
 impl Counters {
+    #[must_use]
     pub fn hit(&self, kind: &str) -> usize {
         self.hits.get(kind).copied().unwrap_or(0)
     }
+    #[must_use]
     pub fn miss(&self, kind: &str) -> usize {
         self.misses.get(kind).copied().unwrap_or(0)
     }
+    #[must_use]
     pub fn ran(&self, task: &str) -> usize {
         self.tasks.get(task).copied().unwrap_or(0)
     }
 }
 
-impl MemStore {
-    fn get(&self, c: &mut Counters, kind: &'static str, key: Hash128) -> Option<Vec<u8>> {
-        let v = self.entries.get(&(kind, key.0)).cloned();
-        *if v.is_some() { c.hits.entry(kind) } else { c.misses.entry(kind) }.or_default() += 1;
-        v
-    }
-    fn put(&mut self, kind: &'static str, key: Hash128, bytes: Vec<u8>) {
-        self.entries.insert((kind, key.0), bytes);
-    }
-}
-
-// ----------------------------------------------------------------- session
-
-pub struct SourceFile {
-    pub path: String,
-    pub text: String,
+/// Options that change what a stage writes; each is part of the toolchain key.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Options {
+    pub a1_rule: A1Rule,
 }
 
 pub struct RunResult {
@@ -91,11 +90,22 @@ struct FileSlot {
 struct Prep {
     scope: Scope,
     headers: Vec<HeaderItem>,
-    bodies: Vec<(String, crate::check::Checked)>,
+    errors: Vec<String>,
+    bodies: Vec<(String, hd_check::Checked)>,
+}
+
+/// A module's `check` entry, read only as far as `prog_key` needs: the rest
+/// (private headers and TIR) is decoded at `Collect`, and only on a miss.
+struct PendingEntry {
+    bytes: Arc<[u8]>,
+    rest: usize,
 }
 
 struct Run<'s> {
     store: &'s mut MemStore,
+    opts: Options,
+    toolchain: Hash128,
+    package: Hash128,
     c: Counters,
     w: World,
     files: Vec<FileSlot>,
@@ -105,35 +115,39 @@ struct Run<'s> {
     ifaces: HashMap<String, FolderIface>,
     iface_tasks: HashMap<String, TaskId>,
     prep: HashMap<u32, Prep>,
+    pending: BTreeMap<String, PendingEntry>,
     tir: HashMap<DefId, TirBody>,
+    tir_hashes: HashMap<DefId, Hash128>,
     tir_content: BTreeMap<String, Hash128>,
     diagnostics: Vec<String>,
     package_result: Option<TaskId>,
     entry: String,
     instances: Vec<(Hash128, Instance)>,
+    callee_reps: HashMap<Hash128, Hash128>,
     codes: Vec<Option<(Hash128, Code)>>,
     data_types: Vec<String>,
     imports: Vec<u32>,
-    link_task: Option<TaskId>,
     prog_key: Hash128,
     wasm: Option<Vec<u8>>,
 }
 
-fn toolchain_key() -> Hash128 {
-    KeyHasher::new("tc").str("hd_walk 0").str("wasm32-gc").finish()
-}
-fn package_key() -> Hash128 {
-    KeyHasher::new("root").str("pkg").finish()
-}
-
-pub fn module_path(file: &str) -> String {
-    format!("pkg.{}", file.trim_end_matches(".hd").replace('/', "."))
+/// One run with default options.
+pub fn run(store: &mut MemStore, sources: &[SourceFile], entry_module: &str) -> RunResult {
+    run_with(store, sources, entry_module, Options::default())
 }
 
 /// One run: a fresh `World` (fresh run IDs) over a shared store.
-pub fn run(store: &mut MemStore, sources: &[SourceFile], entry_module: &str) -> RunResult {
+pub fn run_with(
+    store: &mut MemStore,
+    sources: &[SourceFile],
+    entry_module: &str,
+    opts: Options,
+) -> RunResult {
     let mut r = Run {
         store,
+        opts,
+        toolchain: toolchain_key(COMPILER, TARGET, &format!("{:?}", opts.a1_rule)),
+        package: KeyHasher::new("root").str("pkg").finish(),
         c: Counters::default(),
         w: World::default(),
         files: Vec::new(),
@@ -143,16 +157,18 @@ pub fn run(store: &mut MemStore, sources: &[SourceFile], entry_module: &str) -> 
         ifaces: HashMap::new(),
         iface_tasks: HashMap::new(),
         prep: HashMap::new(),
+        pending: BTreeMap::new(),
         tir: HashMap::new(),
+        tir_hashes: HashMap::new(),
         tir_content: BTreeMap::new(),
         diagnostics: Vec::new(),
         package_result: None,
         entry: entry_module.to_owned(),
         instances: Vec::new(),
+        callee_reps: HashMap::new(),
         codes: Vec::new(),
         data_types: Vec::new(),
         imports: Vec::new(),
-        link_task: None,
         prog_key: Hash128(0),
         wasm: None,
     };
@@ -180,6 +196,28 @@ pub fn run(store: &mut MemStore, sources: &[SourceFile], entry_module: &str) -> 
     RunResult { wasm: r.wasm, diagnostics: r.diagnostics, counters: r.c }
 }
 
+/// Depth-first visit for the folder order; a revisit in progress is a
+/// `folder-cycle`.
+fn visit(
+    f: &str,
+    uses: &HashMap<String, BTreeSet<String>>,
+    order: &mut Vec<String>,
+    visiting: &mut BTreeSet<String>,
+    diags: &mut Vec<String>,
+) {
+    if order.iter().any(|o| o == f) {
+        return;
+    }
+    if !visiting.insert(f.to_owned()) {
+        diags.push(format!("folder-cycle at {f}"));
+        return;
+    }
+    for u in uses.get(f).into_iter().flatten() {
+        visit(u, uses, order, visiting, diags);
+    }
+    order.push(f.to_owned());
+}
+
 impl Run<'_> {
     fn exec(&mut self, id: TaskId, kind: TaskKind, g: &mut TaskGraph) {
         match kind {
@@ -197,22 +235,23 @@ impl Run<'_> {
         }
     }
 
+    fn lookup(&mut self, kind: &'static str, key: Hash128) -> Option<Arc<[u8]>> {
+        let v = self.store.get(kind, key);
+        *if v.is_some() { self.c.hits.entry(kind) } else { self.c.misses.entry(kind) }.or_default() += 1;
+        v
+    }
+
     fn skim(&mut self, f: usize) {
         let src = &self.sources[f].text;
         let sk = skim(src.as_bytes());
         let slot = &mut self.files[f];
         slot.source_hash = sk.source_hash;
         slot.api_text_hash = sk.api_text_hash;
-        for (lo, hi) in sk.uses {
-            let text = &src[lo as usize..hi as usize];
-            if let Some(rest) = text.strip_prefix("use ") {
-                let path = rest.split(".{").next().unwrap_or(rest).trim().to_owned();
-                slot.uses.push(path);
-            }
-        }
+        slot.uses = source::use_paths(src, &sk);
     }
 
-    /// Lazy full parse ("full parse if needed", M1): only on a miss.
+    /// Lazy full parse ("full parse if needed", M1): only on a miss, as a
+    /// `Parse` task the missing task creates (walking skeleton, SK-4).
     fn parse(&mut self, f: usize) {
         if self.files[f].parse.is_none() {
             let t0 = Instant::now();
@@ -243,25 +282,6 @@ impl Run<'_> {
         // would be `folder-cycle`).
         let mut order: Vec<String> = Vec::new();
         let mut visiting = BTreeSet::new();
-        fn visit(
-            f: &str,
-            uses: &HashMap<String, BTreeSet<String>>,
-            order: &mut Vec<String>,
-            visiting: &mut BTreeSet<String>,
-            diags: &mut Vec<String>,
-        ) {
-            if order.iter().any(|o| o == f) {
-                return;
-            }
-            if !visiting.insert(f.to_owned()) {
-                diags.push(format!("folder-cycle at {f}"));
-                return;
-            }
-            for u in uses.get(f).into_iter().flatten() {
-                visit(u, uses, order, visiting, diags);
-            }
-            order.push(f.to_owned());
-        }
         for f in &folders {
             visit(f, &self.folder_uses, &mut order, &mut visiting, &mut self.diagnostics);
         }
@@ -295,20 +315,25 @@ impl Run<'_> {
 
     fn folder_iface(&mut self, fi: usize) {
         let folder = self.folders[fi].clone();
-        let mut files: Vec<usize> = (0..self.files.len()).filter(|&i| self.files[i].folder == folder).collect();
+        let mut files: Vec<usize> =
+            (0..self.files.len()).filter(|&i| self.files[i].folder == folder).collect();
         files.sort_by(|a, b| self.files[*a].module.cmp(&self.files[*b].module));
-        // iface_key (cache.md §5.3)
-        let mut k = KeyHasher::new("iface").hash(toolchain_key()).hash(package_key()).str(&folder);
-        for &f in &files {
-            k = k.str(&self.files[f].module).str("lib").hash(self.files[f].api_text_hash);
-        }
         let mut reach = self.closure(&folder);
         reach.remove(&folder);
-        for d in &reach {
-            k = k.str(d).hash(self.ifaces[d].deep_hash);
-        }
-        let key = k.finish();
-        let iface = if let Some(blob) = self.store.get(&mut self.c, "iface", key) {
+        let key = {
+            let apis: Vec<FileApi<'_>> = files
+                .iter()
+                .map(|&f| FileApi {
+                    module: &self.files[f].module,
+                    role: ROLE,
+                    api_text_hash: self.files[f].api_text_hash,
+                })
+                .collect();
+            let reach: Vec<(&str, Hash128)> =
+                reach.iter().map(|d| (d.as_str(), self.ifaces[d].deep_hash)).collect();
+            iface_key(self.toolchain, self.package, &folder, &apis, &reach)
+        };
+        let iface = if let Some(blob) = self.lookup("iface", key) {
             decode_iface(&blob)
         } else {
             let mut items = Vec::new();
@@ -324,7 +349,7 @@ impl Run<'_> {
                 self.diagnostics.extend(errs);
                 items.extend(hs.into_iter().filter(|h| h.public));
             }
-            let iface = build_iface(&folder, items, &self.ifaces);
+            let iface = build_iface(&folder, &items, &self.ifaces);
             self.store.put("iface", key, iface.blob.clone());
             self.c.ifaces_built.push(folder.clone());
             iface
@@ -336,25 +361,21 @@ impl Run<'_> {
 
     fn check_key(&self, m: usize) -> Hash128 {
         let f = &self.files[m];
-        let mut k = KeyHasher::new("check")
-            .hash(toolchain_key())
-            .hash(package_key())
-            .str(&f.module)
-            .str("lib")
-            .hash(f.source_hash);
-        for c in self.closure(&f.folder) {
-            k = k.str(&c).hash(self.ifaces[&c].deep_hash);
-        }
-        k.finish()
+        let closure = self.closure(&f.folder);
+        let closure: Vec<(&str, Hash128)> =
+            closure.iter().map(|c| (c.as_str(), self.ifaces[c].deep_hash)).collect();
+        check_key(self.toolchain, self.package, &f.module, ROLE, f.source_hash, &closure)
     }
 
+    /// `ModulePrep(m)`: the `check` key lookup is its first step; only on a
+    /// miss does it parse and create `Body(m)` and `ModuleFinish(m)`
+    /// (scheduler.md §6.1; walking skeleton, SK-4).
     fn module_prep(&mut self, id: TaskId, m: u32, g: &mut TaskGraph) {
         let mi = m as usize;
         let key = self.check_key(mi);
         self.c.check_keys.insert(self.files[mi].module.clone(), key);
-        // "compute key, look up, skip or run" is the first step (§6.1).
-        if let Some(entry) = self.store.get(&mut self.c, "check", key) {
-            self.read_check_entry(mi, &entry);
+        if let Some(entry) = self.lookup("check", key) {
+            self.read_check_entry(mi, entry);
             return;
         }
         self.parse(mi);
@@ -364,10 +385,10 @@ impl Run<'_> {
         let cst = Cst { src, p };
         let scope = module_scope(&cst, &module, &self.ifaces);
         let (headers, errs) = lower_headers(&cst, &module, &scope);
-        self.diagnostics.extend(scope.errors.iter().cloned());
-        self.diagnostics.extend(errs);
+        let mut errors = scope.errors.clone();
+        errors.extend(errs);
         load_items(&mut self.w, &headers, None);
-        self.prep.insert(m, Prep { scope, headers, bodies: Vec::new() });
+        self.prep.insert(m, Prep { scope, headers, errors, bodies: Vec::new() });
         let body = g.add(TaskKind::Body(m), &[id]);
         let finish = g.add(TaskKind::ModuleFinish(m), &[body]);
         g.edge(finish, self.package_result.expect("package result"));
@@ -380,125 +401,107 @@ impl Run<'_> {
         let p = self.files[mi].parse.as_ref().expect("parsed");
         let cst = Cst { src, p };
         let prep = self.prep.get_mut(&m).expect("prep");
-        // The bodies of the module, in source order: functions, impl methods.
-        let impl_paths: Vec<String> = prep
-            .headers
-            .iter()
-            .filter(|h| matches!(h.item, crate::iface::CItem::Impl { .. }))
-            .map(|h| h.path.clone())
-            .collect();
-        let mut next_impl = 0;
-        for item in cst.root().children() {
-            match item.kind() {
-                SyntaxKind::FnDecl => {
-                    let path = item_path(&module, cst.first_ident(item));
-                    let def = self.w.def(&path);
-                    let ck = check_fn(&mut self.w, &cst, &prep.scope, def, item);
-                    prep.bodies.push((path, ck));
-                }
-                SyntaxKind::ImplDecl => {
-                    let impl_path = impl_paths.get(next_impl).cloned();
-                    next_impl += 1;
-                    let Some(impl_path) = impl_path else { continue };
-                    for f in item.children().filter(|c| c.kind() == SyntaxKind::FnDecl) {
-                        let path = format!("{impl_path}.{}", cst.first_ident(f));
-                        let def = self.w.def(&path);
-                        let ck = check_fn(&mut self.w, &cst, &prep.scope, def, f);
-                        prep.bodies.push((path, ck));
-                    }
-                }
-                _ => {}
-            }
-        }
+        prep.bodies =
+            check_module_bodies(&mut self.w, &cst, &module, &prep.scope, &prep.headers, self.opts.a1_rule);
     }
 
+    /// Writes the `check` entry. Sections, in order: diagnostics; the meta
+    /// section (the module's TIR content hash, which `prog_key` reads);
+    /// headers (private signatures and private data layouts, by stable path:
+    /// walking skeleton, SK-1); TIR, one record per body.
     fn module_finish(&mut self, m: u32) {
         let mi = m as usize;
         let prep = self.prep.remove(&m).expect("prep");
         let module = self.files[mi].module.clone();
         self.c.modules_checked.push(module.clone());
-        let mut errors = Vec::new();
+        let mut errors = prep.errors.clone();
         for (path, ck) in &prep.bodies {
             for e in &ck.errors {
                 errors.push(format!("{module}: {path}: {e}"));
             }
         }
-        // The check entry: diagnostics, private headers, TIR sections.
+        let has_tir = errors.is_empty();
+        let mut tir = Vec::new();
+        let mut content = KeyHasher::new("tir-content");
+        let nbodies = if has_tir { prep.bodies.len() } else { 0 };
+        put_u32(&mut tir, u32::try_from(nbodies).expect("n"));
+        for (path, ck) in prep.bodies.iter().take(nbodies) {
+            let mut tables = Tables::default();
+            let mut bytes = Vec::new();
+            let mut spans = Vec::new();
+            write_body(&self.w, &mut tables, &ck.body, &mut bytes, &mut spans);
+            let h = tir_hash(&bytes, &tables);
+            put_str(&mut tir, path);
+            put_hash(&mut tir, h);
+            write_tables(&tables, &mut tir);
+            put_u32(&mut tir, u32::try_from(bytes.len()).expect("n"));
+            tir.extend_from_slice(&bytes);
+            put_u32(&mut tir, u32::try_from(spans.len()).expect("n"));
+            tir.extend_from_slice(&spans);
+            content = content.str(path).hash(h);
+            for (p, ih) in &ck.deps {
+                content = content.str(p).hash(*ih);
+            }
+        }
         let mut entry = Vec::new();
         put_u32(&mut entry, u32::try_from(errors.len()).expect("n"));
         for e in &errors {
             put_str(&mut entry, e);
         }
-        put_u32(&mut entry, u32::try_from(prep.headers.len()).expect("n"));
-        for h in &prep.headers {
+        put_hash(&mut entry, content.finish());
+        let private: Vec<&HeaderItem> = prep.headers.iter().filter(|h| !h.public).collect();
+        put_u32(&mut entry, u32::try_from(private.len()).expect("n"));
+        for h in private {
             encode_item(&mut entry, h);
         }
-        let has_tir = errors.is_empty();
-        put_u32(&mut entry, u32::from(has_tir) * u32::try_from(prep.bodies.len()).expect("n"));
-        if has_tir {
-            for (path, ck) in &prep.bodies {
-                let mut tables = Tables::default();
-                let mut bytes = Vec::new();
-                let mut spans = Vec::new();
-                write_body(&self.w, &mut tables, &ck.body, &mut bytes, &mut spans);
-                let h = tir_hash(&bytes, &tables);
-                put_str(&mut entry, path);
-                write_tables(&tables, &mut entry);
-                put_u32(&mut entry, u32::try_from(bytes.len()).expect("n"));
-                entry.extend_from_slice(&bytes);
-                put_u32(&mut entry, u32::try_from(spans.len()).expect("n"));
-                entry.extend_from_slice(&spans);
-                put_hash(&mut entry, h);
-                put_u32(&mut entry, u32::try_from(ck.deps.len()).expect("n"));
-                for (p, ih) in &ck.deps {
-                    put_str(&mut entry, p);
-                    put_hash(&mut entry, *ih);
-                }
-            }
-        }
+        entry.extend_from_slice(&tir);
         let key = self.c.check_keys[&module];
-        self.store.put("check", key, entry.clone());
+        let entry = self.store.put("check", key, entry);
         // D2 reads TIR from the entry, never from the checker's memory.
-        self.read_check_entry(mi, &entry);
+        self.read_check_entry(mi, entry);
     }
 
-    fn read_check_entry(&mut self, mi: usize, entry: &[u8]) {
+    /// Reads diagnostics and the meta section only; the rest waits for
+    /// `Collect` (walking skeleton, SK-N16).
+    fn read_check_entry(&mut self, mi: usize, bytes: Arc<[u8]>) {
         let module = self.files[mi].module.clone();
-        let mut r = Reader::new(entry);
+        let mut r = Reader::new(&bytes);
         let ne = r.u32();
         for _ in 0..ne {
             let e = r.str();
             self.diagnostics.push(e);
         }
-        let nh = r.u32();
-        let headers: Vec<HeaderItem> = (0..nh).map(|_| decode_item(&mut r)).collect();
-        load_items(&mut self.w, &headers, None);
-        let nb = r.u32();
-        let mut content = KeyHasher::new("tir-content");
-        for _ in 0..nb {
-            let path = r.str();
-            let rows = read_tables(&mut self.w, &mut r);
-            let n = r.u32() as usize;
-            let body_bytes = r.bytes[r.pos..r.pos + n].to_vec();
-            r.pos += n;
-            let ns = r.u32() as usize;
-            r.pos += ns; // spans: locations only
-            let h = r.hash();
-            let mut deps = Vec::new();
-            for _ in 0..r.u32() {
-                deps.push((r.str(), r.hash()));
+        self.tir_content.insert(module.clone(), r.hash());
+        let rest = r.pos;
+        self.pending.insert(module, PendingEntry { bytes, rest });
+    }
+
+    /// Decodes the headers and TIR sections of every module's entry.
+    fn decode_pending(&mut self) {
+        for (module, p) in std::mem::take(&mut self.pending) {
+            let mut r = Reader::new(&p.bytes);
+            r.pos = p.rest;
+            let nh = r.u32();
+            let headers: Vec<HeaderItem> = (0..nh).map(|_| decode_item(&mut r)).collect();
+            load_items(&mut self.w, &headers, None);
+            let nb = r.u32();
+            for _ in 0..nb {
+                let path = r.str();
+                let h = r.hash();
+                let rows = read_tables(&mut self.w, &mut r);
+                let n = r.u32() as usize;
+                let mut br = Reader::new(&r.bytes[r.pos..r.pos + n]);
+                let mut body = read_body(&mut self.w, &rows, &mut br);
+                r.pos += n;
+                let ns = r.u32() as usize;
+                r.pos += ns; // spans: locations only
+                let def = self.w.def(&path);
+                body.item = Some(def);
+                self.tir.insert(def, body);
+                self.tir_hashes.insert(def, h);
             }
-            let mut br = Reader::new(&body_bytes);
-            let mut body = read_body(&mut self.w, &rows, &mut br);
-            let def = self.w.def(&path);
-            body.item = Some(def);
-            self.tir.insert(def, body);
-            content = content.str(&path).hash(h);
-            for (p, ih) in deps {
-                content = content.str(&p).hash(ih);
-            }
+            self.c.tir_decoded.push(module);
         }
-        self.tir_content.insert(module, content.finish());
     }
 
     fn package_result(&mut self, g: &mut TaskGraph) {
@@ -508,19 +511,28 @@ impl Run<'_> {
     }
 
     fn collect(&mut self, g: &mut TaskGraph) {
-        // prog_key (codegen.md §11.3): TIR content of the reachable modules.
-        let mut k = KeyHasher::new("prog").hash(toolchain_key()).str("dev").str(&self.entry);
-        for (m, h) in &self.tir_content {
-            k = k.str(m).hash(*h);
-        }
-        self.prog_key = k.finish();
-        if let Some(wasm) = self.store.get(&mut self.c, "link", self.prog_key) {
-            self.wasm = Some(wasm);
+        // prog_key (codegen.md §11.3): TIR content of the modules.
+        let modules: Vec<(&str, Hash128)> =
+            self.tir_content.iter().map(|(m, h)| (m.as_str(), *h)).collect();
+        self.prog_key = prog_key(self.toolchain, PIPELINE, &self.entry, &modules);
+        if let Some(wasm) = self.lookup("link", self.prog_key) {
+            self.wasm = Some(wasm.to_vec());
             return;
         }
-        let root = self.w.lookup(&item_path(&self.entry, "main")).expect("main");
-        let set = collect(&mut self.w, &self.tir, root);
+        self.decode_pending();
+        let Some(root) = self.w.lookup(&item_path(&self.entry, "main")) else {
+            self.diagnostics.push(format!("no-main: `{}` has no `fn main`", self.entry));
+            return;
+        };
+        let set = match collect(&mut self.w, &self.tir, root) {
+            Ok(set) => set,
+            Err(e) => {
+                self.diagnostics.push(format!("collect: {e}"));
+                return;
+            }
+        };
         self.instances = set.instances;
+        self.callee_reps = set.callee_reps;
         self.data_types = set.types.into_iter().collect();
         self.imports = set.imports.into_iter().collect();
         self.codes = vec![None; self.instances.len()];
@@ -531,26 +543,19 @@ impl Run<'_> {
         for e in emits {
             g.edge(e, link);
         }
-        self.link_task = Some(link);
     }
 
     fn emit(&mut self, i: usize) {
         let (ikey, inst) = self.instances[i].clone();
-        let body = &self.tir[&inst.item];
-        // Code key (§13.8): instance key, the item's TIR content, pipeline.
-        let mut tables = Tables::default();
-        let mut bytes = Vec::new();
-        write_body(&self.w, &mut tables, body, &mut bytes, &mut Vec::new());
-        let ck = KeyHasher::new("code").str("dev").hash(ikey).hash(tir_hash(&bytes, &tables)).finish();
-        let code = if let Some(c) = self.store.code.get(&ck.0).cloned() {
-            *self.c.hits.entry("code").or_default() += 1;
-            c
+        // Code key (§13.8): the stored TIR hash, no re-serialization.
+        let ck = code_key(PIPELINE, ikey, self.tir_hashes[&inst.item], self.callee_reps[&ikey]);
+        let code = if let Some(bytes) = self.lookup("code", ck) {
+            Code::decode(&bytes)
         } else {
-            *self.c.misses.entry("code").or_default() += 1;
             self.c.emitted += 1;
-            let body = self.tir[&inst.item].clone();
-            let c = emit(&mut self.w, &self.tir, &body, &inst);
-            self.store.code.insert(ck.0, c.clone());
+            let body = &self.tir[&inst.item];
+            let c = emit(&mut self.w, &self.tir, body, &inst);
+            self.store.put("code", ck, c.encode());
             c
         };
         self.codes[i] = Some((ikey, code));
@@ -558,8 +563,9 @@ impl Run<'_> {
 
     fn link(&mut self) {
         let root = self.w.lookup(&item_path(&self.entry, "main")).expect("main");
-        let root_key = crate::mono::instance_key(&self.w, &Instance { item: root, ty_args: vec![] });
-        let codes: Vec<(Hash128, Code)> = self.codes.iter().map(|c| c.clone().expect("emitted")).collect();
+        let root_key = instance_key(&self.w, &Instance { item: root, ty_args: vec![] });
+        let codes: Vec<(Hash128, Code)> =
+            self.codes.iter_mut().map(|c| c.take().expect("emitted")).collect();
         let wasm = link(&self.w, &codes, root_key, &self.data_types, &self.imports);
         self.store.put("link", self.prog_key, wasm.clone());
         self.wasm = Some(wasm);

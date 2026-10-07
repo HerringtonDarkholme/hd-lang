@@ -1,0 +1,13 @@
+[package]
+name = "hd_iface"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Folder interfaces, their blobs and hashes, and the canonical bytes keys use"
+
+[dependencies]
+hd_base = { path = "../hd_base" }
+
+[lints]
+workspace = true

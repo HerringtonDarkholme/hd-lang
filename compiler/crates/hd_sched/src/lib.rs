@@ -1,4 +1,5 @@
-//! The task graph and the serial executor (scheduler.md §6.1, §6.2).
+//! `hd_sched`: the task graph and the serial executor (scheduler.md §6.1,
+//! §6.2).
 
 use std::collections::VecDeque;
 
@@ -24,6 +25,7 @@ pub enum ExtTask {
 }
 
 impl TaskKind {
+    #[must_use]
     pub fn name(self) -> &'static str {
         match self {
             TaskKind::Skim(_) => "Skim",
@@ -93,9 +95,11 @@ impl TaskGraph {
         self.nodes[from.0].successors.push(to);
         self.nodes[to.0].waiting_on += 1;
     }
+    #[must_use]
     pub fn len(&self) -> usize {
         self.nodes.len()
     }
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
@@ -118,5 +122,28 @@ impl TaskGraph {
         }
         let stuck = self.nodes.iter().filter(|n| n.state != State::Done).count();
         assert!(stuck == 0, "{stuck} tasks never became ready (a cycle or a missing edge)");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ExtTask, TaskGraph, TaskKind};
+
+    #[test]
+    fn tasks_added_while_running_wait_for_their_edges() {
+        let mut g = TaskGraph::default();
+        let first = g.add(TaskKind::FolderGraph, &[]);
+        g.add(TaskKind::PackageResult, &[first]);
+        let mut order = Vec::new();
+        g.run(&mut |_, kind, g| {
+            order.push(kind.name());
+            if kind == TaskKind::PackageResult {
+                // Link is created first, then the Emit it waits for.
+                let link = g.add(TaskKind::Ext(ExtTask::Link), &[]);
+                let emit = g.add(TaskKind::Ext(ExtTask::Emit(0)), &[]);
+                g.edge(emit, link);
+            }
+        });
+        assert_eq!(order, ["FolderGraph", "PackageResult", "Emit", "Link"]);
     }
 }

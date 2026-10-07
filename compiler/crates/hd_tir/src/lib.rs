@@ -1,15 +1,23 @@
-//! TIR (checking-and-tir.md §4.13.11): one typed IR per body, in columns.
-//! The skeleton implements the tags its subset needs, with the catalog's
-//! operand shapes, and the wire form with remapping and the TIR hash.
+//! `hd_tir`: the run's type and item tables (`world`) and TIR
+//! (checking-and-tir.md §4.13.11): one typed IR per body, in columns, with
+//! the tags the subset needs and the catalog's operand shapes; the wire form
+//! with remapping and the TIR hash; a printer and a verifier stub.
+
+use std::collections::HashMap;
 
 use hd_base::{Hash128, Symbol};
+use hd_iface::{CTy, KeyHasher, Reader, put_str, put_u32};
 
-use crate::world::{CTy, DefId, KeyHasher, Reader, Ty, World, put_str, put_u32};
+pub mod print;
+pub mod verify;
+pub mod world;
+
+use crate::world::{DefId, Ty, World};
 
 pub const NONE: u32 = u32::MAX;
 pub const CONST_BIT: u32 = 1 << 31;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum TirTag {
     LocalGet,
@@ -28,8 +36,9 @@ pub enum TirTag {
 const _: () = assert!(core::mem::size_of::<TirTag>() == 1);
 
 impl TirTag {
-    fn from_u8(v: u8) -> Self {
-        use TirTag::*;
+    #[must_use]
+    pub fn from_u8(v: u8) -> Self {
+        use TirTag::{LocalGet, LocalSet, Prim, Call, Intrinsic, NewData, Field, Block, If, Loop, Break, Return};
         [LocalGet, LocalSet, Prim, Call, Intrinsic, NewData, Field, Block, If, Loop, Break, Return]
             [v as usize]
     }
@@ -54,8 +63,9 @@ pub enum PrimOp {
     Or,
 }
 impl PrimOp {
+    #[must_use]
     pub fn from_u32(v: u32) -> Self {
-        use PrimOp::*;
+        use PrimOp::{Add, Sub, Mul, Div, Rem, Eq, Ne, Lt, Le, Gt, Ge, Neg, And, Or};
         [Add, Sub, Mul, Div, Rem, Eq, Ne, Lt, Le, Gt, Ge, Neg, And, Or][v as usize]
     }
 }
@@ -108,6 +118,7 @@ impl TirBody {
         self.extra.extend_from_slice(items);
         start
     }
+    #[must_use]
     pub fn get_list(&self, at: u32) -> &[u32] {
         let n = self.extra[at as usize] as usize;
         &self.extra[at as usize + 1..at as usize + 1 + n]
@@ -119,6 +130,7 @@ impl TirBody {
         self.local_flags.push(flags);
         id
     }
+    #[must_use]
     pub fn tag(&self, i: u32) -> TirTag {
         self.tags[i as usize]
     }
@@ -133,32 +145,39 @@ pub struct Tables {
     pub paths: Vec<String>,
     pub types: Vec<CTy>,
     pub consts: Vec<(u32, u64)>, // (type row, bits)
+    path_rows: HashMap<DefId, u32>,
+    type_rows: HashMap<Ty, u32>,
+    const_rows: HashMap<(u32, u64), u32>,
 }
 impl Tables {
     fn path(&mut self, w: &World, d: DefId) -> u32 {
-        let p = w.path(d);
-        if let Some(i) = self.paths.iter().position(|x| x == p) {
-            return u32::try_from(i).expect("row");
+        if let Some(&r) = self.path_rows.get(&d) {
+            return r;
         }
-        self.paths.push(p.to_owned());
-        u32::try_from(self.paths.len() - 1).expect("row")
+        let r = u32::try_from(self.paths.len()).expect("row");
+        self.paths.push(w.path(d).to_owned());
+        self.path_rows.insert(d, r);
+        r
     }
     fn ty(&mut self, w: &World, t: Ty) -> u32 {
-        let c = w.canon(t);
-        if let Some(i) = self.types.iter().position(|x| *x == c) {
-            return u32::try_from(i).expect("row");
+        if let Some(&r) = self.type_rows.get(&t) {
+            return r;
         }
-        self.types.push(c);
-        u32::try_from(self.types.len() - 1).expect("row")
+        let r = u32::try_from(self.types.len()).expect("row");
+        self.types.push(w.canon(t));
+        self.type_rows.insert(t, r);
+        r
     }
     fn konst(&mut self, w: &World, c: u32) -> u32 {
         let (t, bits) = w.const_value(c);
         let row = (self.ty(w, t), bits);
-        if let Some(i) = self.consts.iter().position(|x| *x == row) {
-            return u32::try_from(i).expect("row");
+        if let Some(&r) = self.const_rows.get(&row) {
+            return r;
         }
+        let r = u32::try_from(self.consts.len()).expect("row");
         self.consts.push(row);
-        u32::try_from(self.consts.len() - 1).expect("row")
+        self.const_rows.insert(row, r);
+        r
     }
 }
 
@@ -170,6 +189,10 @@ fn remap_ref(w: &World, t: &mut Tables, r: u32) -> u32 {
 
 /// Writes one body's columns with ID words remapped to entry rows. Returns
 /// the bytes that the TIR hash covers; spans go to a separate, unhashed list.
+#[expect(
+    clippy::match_same_arms,
+    reason = "one arm per operand shape of the catalog, even where two shapes remap alike"
+)]
 pub fn write_body(w: &World, t: &mut Tables, b: &TirBody, out: &mut Vec<u8>, spans: &mut Vec<u8>) {
     put_u32(out, u32::try_from(b.tags.len()).expect("n"));
     // `extra` is rebuilt record by record, remapped.
@@ -291,6 +314,7 @@ fn unmap_ref(rows: &RunRows, r: u32) -> u32 {
     if r != NONE && r & CONST_BIT != 0 { rows.consts[(r & !CONST_BIT) as usize] | CONST_BIT } else { r }
 }
 
+#[expect(clippy::many_single_char_names, reason = "w, r, b, a: world, reader, body, operand")]
 pub fn read_body(w: &mut World, rows: &RunRows, r: &mut Reader<'_>) -> TirBody {
     let mut b = TirBody::default();
     let n = r.u32();
@@ -362,6 +386,7 @@ pub fn read_body(w: &mut World, rows: &RunRows, r: &mut Reader<'_>) -> TirBody {
 
 /// The TIR hash: the remapped columns with types and paths by content, and
 /// no spans.
+#[must_use]
 pub fn tir_hash(body_bytes: &[u8], tables: &Tables) -> Hash128 {
     let mut t = Vec::new();
     write_tables(tables, &mut t);

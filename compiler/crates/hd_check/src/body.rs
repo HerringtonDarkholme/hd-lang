@@ -5,12 +5,13 @@ use std::collections::{BTreeMap, HashMap};
 use hd_base::Hash128;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 
-use crate::iface::{Cst, Scope};
-use crate::tir::{
+use crate::A1Rule;
+use crate::resolve::{Cst, Scope};
+use hd_tir::{
     CALLEE_ITEM, CALLEE_TRAIT_METHOD, CHOICE_BOUND, CHOICE_IMPL, CONST_BIT, INTRINSIC_PRINTLN_I32,
     Inst, LOCAL_PARAM, NONE, PrimOp, TirBody, TirTag,
 };
-use crate::world::{DefId, DefKind, FnSig, Ty, TyKind, World};
+use hd_tir::world::{DefId, DefKind, FnSig, Ty, TyKind, World};
 
 pub struct Checked {
     pub body: TirBody,
@@ -33,7 +34,14 @@ struct Ck<'a, 'w> {
     deps: BTreeMap<String, Hash128>,
 }
 
-pub fn check_fn(w: &mut World, cst: &Cst<'_>, scope: &Scope, def: DefId, f: NodeRef<'_>) -> Checked {
+pub fn check_fn(
+    w: &mut World,
+    cst: &Cst<'_>,
+    scope: &Scope,
+    def: DefId,
+    f: NodeRef<'_>,
+    rule: A1Rule,
+) -> Checked {
     let sig: FnSig = match w.defs.get(&def) {
         Some(DefKind::Fn(s) | DefKind::ImplMethod { sig: s, .. }) => s.clone(),
         _ => panic!("check_fn on a non-function"),
@@ -65,7 +73,7 @@ pub fn check_fn(w: &mut World, cst: &Cst<'_>, scope: &Scope, def: DefId, f: Node
     let ret_void = matches!(ck.w.kind(sig.ret), TyKind::Void);
     let root = ck.block(body, !ret_void);
     ck.b.sub_root.push(root);
-    ck.b.rep_exact = rep_summary(ck.w, &ck.b, &sig);
+    ck.b.rep_exact = rep_summary(ck.w, &ck.b, &sig, rule);
     Checked { body: ck.b, errors: ck.errors, deps: ck.deps.into_iter().collect() }
 }
 
@@ -201,7 +209,12 @@ impl Ck<'_, '_> {
         self.w.konst(ty, bits) | CONST_BIT
     }
 
-    fn expr(&mut self, n: NodeRef<'_>, _expected: Option<Ty>) -> (u32, Ty) {
+    #[expect(
+        clippy::only_used_in_recursion,
+        reason = "the expected-type hint is threaded for bidirectional checking; the subset does not read it yet"
+    )]
+    #[expect(clippy::many_single_char_names, reason = "n, r, t, l: node, operand, type, local")]
+    fn expr(&mut self, n: NodeRef<'_>, expected: Option<Ty>) -> (u32, Ty) {
         let i32_ = self.ty(TyKind::I32);
         let bool_ = self.ty(TyKind::Bool);
         let kids: Vec<_> = n.children().collect();
@@ -217,28 +230,27 @@ impl Ck<'_, '_> {
                             self.errors.push(format!("bad literal `{text}`"));
                             0
                         });
-                        #[allow(clippy::cast_sign_loss)]
-                        (self.konst(i32_, (v as i32) as u32 as u64), i32_)
+                        // The low 32 bits: an i32 constant's bit pattern.
+                        let bits = u32::try_from(v & 0xffff_ffff).expect("32 bits");
+                        (self.konst(i32_, u64::from(bits)), i32_)
                     }
                 }
             }
             SyntaxKind::UnaryExpr => {
                 let op = self.cst.tkind(self.cst.first(n));
-                let (r, t) = self.expr(kids[0], _expected);
+                let (r, t) = self.expr(kids[0], expected);
                 if op == TokenKind::Plus {
                     return (r, t);
                 }
                 if r & CONST_BIT != 0 && r != NONE {
                     let (ct, bits) = self.w.const_value(r & !CONST_BIT);
-                    #[allow(clippy::cast_possible_truncation)]
-                    let neg = (bits as u32 as i32).wrapping_neg();
-                    #[allow(clippy::cast_sign_loss)]
-                    return (self.konst(ct, neg as u32 as u64), t);
+                    let neg = u32::try_from(bits).expect("i32 bits").cast_signed().wrapping_neg();
+                    return (self.konst(ct, u64::from(neg.cast_unsigned())), t);
                 }
                 let list = self.b.list(&[r]);
                 (self.emit(TirTag::Prim, PrimOp::Neg as u32, list, t, n), t)
             }
-            SyntaxKind::TupleExpr => self.expr(kids[0], _expected),
+            SyntaxKind::TupleExpr => self.expr(kids[0], expected),
             SyntaxKind::NameExpr => {
                 let name = self.cst.text(self.cst.first(n));
                 if let Some(l) = self.find_local(name) {
@@ -439,32 +451,26 @@ impl Ck<'_, '_> {
         let (recv, rt) = self.expr(recv_node, None);
         // Candidate traits: the bound of a parameter, or every trait with an
         // impl for the receiver's type.
-        let (trait_, choice, choice_val) = match *self.w.kind(rt) {
-            TyKind::Param(i) => match self.bounds.get(i as usize).copied().flatten() {
-                Some(tr) => (tr, CHOICE_BOUND, i),
-                None => {
-                    self.errors.push(format!("no-method `{mname}` on an unbounded parameter"));
-                    return (NONE, self.ty(TyKind::Never));
-                }
-            },
-            _ => {
-                let mut found = None;
-                let mut traits: Vec<DefId> = self.w.impls.keys().copied().collect();
-                traits.sort();
-                for tr in traits {
-                    let has = matches!(self.w.defs.get(&tr), Some(DefKind::Trait(ms)) if ms.iter().any(|(m, _)| self.w.text(*m) == mname));
-                    if has
-                        && let Some(imp) = self.find_impl(tr, rt) {
-                            found = Some((tr, CHOICE_IMPL, imp.0));
-                        }
-                }
-                let Some(f) = found else {
-                    self.errors.push(format!("no-method `{mname}` on {}", self.w.display(rt)));
-                    return (NONE, self.ty(TyKind::Never));
-                };
-                self.dep(DefId(f.2));
-                f
+        let (trait_, choice, choice_val) = if let TyKind::Param(i) = *self.w.kind(rt) { if let Some(tr) = self.bounds.get(i as usize).copied().flatten() { (tr, CHOICE_BOUND, i) } else {
+            self.errors.push(format!("no-method `{mname}` on an unbounded parameter"));
+            return (NONE, self.ty(TyKind::Never));
+        } } else {
+            let mut found = None;
+            let mut traits: Vec<DefId> = self.w.impls.keys().copied().collect();
+            traits.sort();
+            for tr in traits {
+                let has = matches!(self.w.defs.get(&tr), Some(DefKind::Trait(ms)) if ms.iter().any(|(m, _)| self.w.text(*m) == mname));
+                if has
+                    && let Some(imp) = self.find_impl(tr, rt) {
+                        found = Some((tr, CHOICE_IMPL, imp.0));
+                    }
             }
+            let Some(f) = found else {
+                self.errors.push(format!("no-method `{mname}` on {}", self.w.display(rt)));
+                return (NONE, self.ty(TyKind::Never));
+            };
+            self.dep(DefId(f.2));
+            f
         };
         self.dep(trait_);
         let Some(DefKind::Trait(ms)) = self.w.defs.get(&trait_).cloned() else {
@@ -480,7 +486,7 @@ impl Ck<'_, '_> {
         for (want, (_, got)) in rest.iter().zip(&args) {
             self.expect_ty(*got, *want, "argument");
         }
-        let ret = self.w.subst(sig.ret, &[], Some(rt));
+        let out_ty = self.w.subst(sig.ret, &[], Some(rt));
         let rec = [
             CALLEE_TRAIT_METHOD,
             trait_.0,
@@ -493,29 +499,37 @@ impl Ck<'_, '_> {
         let mut refs = vec![recv];
         refs.extend(args.iter().map(|x| x.0));
         let b = self.b.list(&refs);
-        (self.emit(TirTag::Call, a, b, ret, n), ret)
+        (self.emit(TirTag::Call, a, b, out_ty, n), out_ty)
     }
 }
 
-/// The representation summary (codegen.md §13.2, A1), from the body's own
-/// TIR: a type parameter needs its exact representation when the body makes
-/// a trait call on it. Without the `a1-literal` feature, the skeleton adds a
-/// fix: a bounded parameter is always exact, since passing it to a bounded
-/// callee needs the exact type there too (skeleton-findings.md).
-fn rep_summary(w: &World, b: &TirBody, sig: &FnSig) -> Vec<u8> {
-    let mut exact: Vec<u8> = sig
-        .generics
-        .iter()
-        .map(|(_, bound)| u8::from(bound.is_some() && !cfg!(feature = "a1-literal")))
-        .collect();
-    for i in 0..b.tags.len() {
-        if b.tags[i] == TirTag::Call {
-            let rec = b.get_list(b.data[i][0]);
-            if rec[0] == CALLEE_TRAIT_METHOD
-                && let TyKind::Param(p) = *w.kind(Ty(rec[3])) {
-                    exact[p as usize] = 1;
+/// The representation summary (codegen.md §13.2, A1): per type parameter,
+/// 1 when instances need the exact representation, 0 when the parameter may
+/// share the `REF` class.
+///
+/// `A1Rule::Bounded` (walking skeleton, SK-2): a parameter with a bound is
+/// always exact, and only an unbounded parameter may share `REF`. The summary
+/// is then a property of the signature, which the interface hash covers.
+///
+/// `A1Rule::Literal`: the rule as first written, read from the body alone:
+/// exact only when the body makes a trait call on the parameter. It is unsound
+/// when a bounded parameter is passed on to a bounded callee; a test keeps
+/// that reproduction.
+fn rep_summary(w: &World, b: &TirBody, sig: &FnSig, rule: A1Rule) -> Vec<u8> {
+    match rule {
+        A1Rule::Bounded => sig.generics.iter().map(|(_, bound)| u8::from(bound.is_some())).collect(),
+        A1Rule::Literal => {
+            let mut exact = vec![0; sig.generics.len()];
+            for i in 0..b.tags.len() {
+                if b.tags[i] == TirTag::Call {
+                    let rec = b.get_list(b.data[i][0]);
+                    if rec[0] == CALLEE_TRAIT_METHOD
+                        && let TyKind::Param(p) = *w.kind(Ty(rec[3])) {
+                            exact[p as usize] = 1;
+                        }
                 }
+            }
+            exact
         }
     }
-    exact
 }

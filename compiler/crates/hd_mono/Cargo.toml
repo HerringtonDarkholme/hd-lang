@@ -1,0 +1,15 @@
+[package]
+name = "hd_mono"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Monomorphizing collection over TIR"
+
+[dependencies]
+hd_base = { path = "../hd_base" }
+hd_iface = { path = "../hd_iface" }
+hd_tir = { path = "../hd_tir" }
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+[package]
+name = "hd_sched"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "The task graph and the serial executor"
+
+[dependencies]
+
+[lints]
+workspace = true

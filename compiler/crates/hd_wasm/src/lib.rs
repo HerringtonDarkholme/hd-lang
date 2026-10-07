@@ -1,6 +1,7 @@
-//! Wasm GC emission (codegen.md §12, wasm-layout.md §15) and link (§13.10).
-//! `Emit` writes a code entry per instance with symbolic relocations (callees
-//! by instance key, struct types by stable path); `Link` assigns indices.
+//! `hd_wasm`: Wasm GC emission (codegen.md §12, wasm-layout.md §15) and link
+//! (§13.10). `Emit` writes a code entry per instance with symbolic
+//! relocations (callees by instance key, struct types by stable path); `Link`
+//! assigns indices. It reads TIR and collection output only, never syntax.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -11,9 +12,10 @@ use wasm_encoder::{
     StorageType, StructType, SubType, TypeSection, ValType,
 };
 
-use crate::mono::{Instance, classify, instance_key, resolve_method};
-use crate::tir::{CALLEE_ITEM, CONST_BIT, NONE, PrimOp, TirBody, TirTag};
-use crate::world::{DefId, DefKind, Ty, TyKind, World};
+use hd_iface::{Reader, put_hash, put_str, put_u32};
+use hd_mono::{Instance, classify, instance_key, resolve_method};
+use hd_tir::world::{DefId, DefKind, Ty, TyKind, World};
+use hd_tir::{CALLEE_ITEM, CONST_BIT, LOCAL_PARAM, NONE, PrimOp, TirBody, TirTag};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum VT {
@@ -61,6 +63,86 @@ pub struct Code {
     pub results: Vec<VT>,
     pub body: Vec<u8>,
     pub relocs: Vec<(u32, Reloc)>,
+}
+
+impl VT {
+    fn encode(&self, out: &mut Vec<u8>) {
+        match self {
+            VT::I32 => out.push(0),
+            VT::Eq => out.push(1),
+            VT::Ref(p) => {
+                out.push(2);
+                put_str(out, p);
+            }
+        }
+    }
+    fn decode(r: &mut Reader<'_>) -> VT {
+        match r.u8() {
+            0 => VT::I32,
+            1 => VT::Eq,
+            _ => VT::Ref(r.str()),
+        }
+    }
+}
+
+impl Code {
+    /// The code entry's bytes (codegen.md §13.8): ID-free, so a store keeps
+    /// them as plain bytes.
+    #[must_use]
+    pub fn encode(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        for list in [&self.params, &self.results] {
+            put_u32(&mut out, u32::try_from(list.len()).expect("n"));
+            for v in list {
+                v.encode(&mut out);
+            }
+        }
+        put_u32(&mut out, u32::try_from(self.body.len()).expect("n"));
+        out.extend_from_slice(&self.body);
+        put_u32(&mut out, u32::try_from(self.relocs.len()).expect("n"));
+        for (at, r) in &self.relocs {
+            put_u32(&mut out, *at);
+            match r {
+                Reloc::Func(k) => {
+                    out.push(0);
+                    put_hash(&mut out, *k);
+                }
+                Reloc::Import(i) => {
+                    out.push(1);
+                    put_u32(&mut out, *i);
+                }
+                Reloc::Type(p) => {
+                    out.push(2);
+                    put_str(&mut out, p);
+                }
+            }
+        }
+        out
+    }
+    #[must_use]
+    pub fn decode(bytes: &[u8]) -> Code {
+        let mut r = Reader::new(bytes);
+        let n = r.u32();
+        let params = (0..n).map(|_| VT::decode(&mut r)).collect();
+        let n = r.u32();
+        let results = (0..n).map(|_| VT::decode(&mut r)).collect();
+        let n = r.u32() as usize;
+        let body = r.bytes[r.pos..r.pos + n].to_vec();
+        r.pos += n;
+        let n = r.u32();
+        let relocs = (0..n)
+            .map(|_| {
+                let at = r.u32();
+                let reloc = match r.u8() {
+                    0 => Reloc::Func(r.hash()),
+                    1 => Reloc::Import(r.u32()),
+                    _ => Reloc::Type(r.str()),
+                };
+                (at, reloc)
+            })
+            .collect();
+        Code { params, results, body, relocs }
+    }
 }
 
 fn padded(out: &mut Vec<u8>, v: u32) {
@@ -251,9 +333,9 @@ impl Em<'_> {
                 let rec = self.b.get_list(a).to_vec();
                 let callee = if rec[0] == CALLEE_ITEM {
                     let targs: Vec<Ty> = rec[2..].iter().map(|&t| self.sub(Ty(t))).collect();
-                    Instance { item: crate::world::DefId(rec[1]), ty_args: targs }
+                    Instance { item: DefId(rec[1]), ty_args: targs }
                 } else {
-                    resolve_method(self.w, &rec, self.args)
+                    resolve_method(self.w, &rec, self.args).expect("collection resolved every method")
                 };
                 let callee = classify(self.w, self.bodies, callee);
                 self.out.push(W::Call(instance_key(self.w, &callee)));
@@ -333,6 +415,7 @@ impl Em<'_> {
 }
 
 /// `Emit(inst)`: walks the generic TIR under the substitution.
+#[expect(clippy::implicit_hasher, reason = "the run's tables use the std hasher only")]
 pub fn emit(w: &mut World, bodies: &HashMap<DefId, TirBody>, b: &TirBody, inst: &Instance) -> Code {
     let mut params = Vec::new();
     let mut local_map = Vec::new();
@@ -340,7 +423,7 @@ pub fn emit(w: &mut World, bodies: &HashMap<DefId, TirBody>, b: &TirBody, inst: 
     for l in 0..b.local_ty.len() {
         let t = w.subst(b.local_ty[l], &inst.ty_args, None);
         let vt = layout(w, t).unwrap_or(VT::I32);
-        if b.local_flags[l] & crate::tir::LOCAL_PARAM != 0 {
+        if b.local_flags[l] & LOCAL_PARAM != 0 {
             local_map.push(u32::try_from(params.len()).expect("p"));
             params.push(vt);
         } else {
@@ -393,6 +476,7 @@ pub const IMPORTS: [(&str, &str); 1] = [("hd", "println_i32")];
 
 /// `Link(P)`: index assignment, type section, relocation patching. Inputs are
 /// sorted by instance key, so the bytes are deterministic.
+#[must_use]
 pub fn link(
     w: &World,
     codes: &[(Hash128, Code)],

@@ -2,9 +2,9 @@
 //! incremental behavior through task and cache counters, deterministic bytes.
 
 use std::path::PathBuf;
-use std::process::Command;
 
-use hd_walk::driver::{MemStore, RunResult, SourceFile, run};
+use hd_driver::node::run_wasm;
+use hd_driver::{A1Rule, MemStore, Options, RunResult, SourceFile, run, run_with};
 
 const GEO: &str = "\
 pub data Point:
@@ -125,10 +125,8 @@ fn build(store: &mut MemStore, files: &[SourceFile]) -> RunResult {
 
 fn run_node(name: &str, wasm: &[u8]) -> String {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
-    let path = dir.join(format!("walk-{name}.wasm"));
-    std::fs::write(&path, wasm).expect("write wasm");
-    let host = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("host/run.mjs");
-    let out = Command::new("node").arg(host).arg(&path).output().expect("run node");
+    let path = dir.join(format!("skeleton-{name}.wasm"));
+    let out = run_wasm(wasm, &path).expect("run node");
     assert!(
         out.status.success(),
         "node failed: {}",
@@ -187,6 +185,8 @@ fn incremental() {
     let warm = build(&mut store, &base);
     assert!(warm.counters.modules_checked.is_empty());
     assert_eq!(warm.counters.hit("link"), 1);
+    assert!(warm.counters.tir_decoded.is_empty(), "a prog_key hit decodes no TIR (SK-N16)");
+    assert_eq!(warm.counters.ran("Parse"), 0, "a check hit parses nothing (SK-4)");
     assert_eq!(warm.wasm.as_deref(), Some(cold_wasm.as_slice()));
 
     // 1. Private body edit in B (geo): only B's module is rechecked.
@@ -237,4 +237,50 @@ fn incremental() {
     let r = run(&mut store, &program(DATA_MAIN, Some(&sig)), "pkg.app.main");
     assert!(r.counters.modules_checked.contains(&"pkg.app.main".to_owned()));
     assert!(r.diagnostics.iter().any(|d| d.contains("arity")), "{:?}", r.diagnostics);
+}
+
+/// SK-2: the A1 summary as first written (exact only on a trait call in the
+/// body) fails at collection when a bounded parameter is passed on to a
+/// bounded callee; the bounded rule (a bound makes a parameter exact) runs.
+#[test]
+fn a1_rule_bounded_parameter_is_exact() {
+    let files = program(TRAIT_MAIN, Some(GEO));
+    let mut store = MemStore::default();
+    let literal = run_with(&mut store, &files, "pkg.app.main", Options { a1_rule: A1Rule::Literal });
+    assert!(literal.wasm.is_none());
+    assert!(
+        literal.diagnostics.iter().any(|d| d.contains("select: no impl")),
+        "{:?}",
+        literal.diagnostics
+    );
+    // Same store: the rule is part of the toolchain key, so nothing is reused.
+    let bounded = build(&mut store, &files);
+    assert_eq!(bounded.counters.hit("check"), 0);
+    assert_eq!(run_node("a1-bounded", &bounded.wasm.expect("wasm")), "12\n13\n101\n7\n");
+}
+
+/// SK-3: a callee's representation summary is part of its callers' code
+/// keys. Bounding `first` turns `first[REF]` into `first[Point]`; `main`'s
+/// TIR is unchanged, but its code must be re-emitted to call the new symbol.
+#[test]
+fn callee_representation_change_re_emits_caller() {
+    let main = "\
+use pkg.geo.shapes.{Point, make, first}
+
+fn main():
+    p := first(make(5, 6), make(7, 8))
+    println(p.y)
+";
+    let mut store = MemStore::default();
+    let cold = build(&mut store, &program(main, Some(GEO)));
+    assert_eq!(run_node("rep-before", &cold.wasm.expect("wasm")), "6\n");
+    let bounded =
+        GEO.replace("pub fn first[T](a: T, b: T) -> T:", "pub fn first[T < Shape](a: T, b: T) -> T:");
+    let r = build(&mut store, &program(main, Some(&bounded)));
+    let c = &r.counters;
+    // `make` hits; `first[Point]` is a new instance; `main` misses because
+    // its callee's summary changed, though its own TIR did not.
+    assert_eq!(c.hit("code"), 1, "{c:#?}");
+    assert_eq!(c.emitted, 2, "{c:#?}");
+    assert_eq!(run_node("rep-after", &r.wasm.expect("wasm")), "6\n");
 }

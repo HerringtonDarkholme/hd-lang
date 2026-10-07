@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use hd_base::{Hash128, Symbol};
+use hd_iface::{CItem, CSig, CTy, HeaderItem, KeyHasher, encode_item};
 use hd_intern::Interner;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -27,54 +28,6 @@ pub enum TyKind {
     /// The `REF` class: a type argument erased to "one non-null reference"
     /// in a move-only generic instance (codegen.md §13.2, A1).
     ClassRef,
-}
-
-/// The content form of a type: stable paths, no IDs. Interfaces, entries and
-/// keys use it (`canon(T)`, codegen.md §13.3).
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CTy {
-    Void,
-    Never,
-    Bool,
-    I32,
-    Param(u32),
-    SelfTy,
-    Adt(String),
-    ClassRef,
-}
-
-impl CTy {
-    pub fn encode(&self, out: &mut Vec<u8>) {
-        match self {
-            CTy::Void => out.push(0),
-            CTy::Never => out.push(1),
-            CTy::Bool => out.push(2),
-            CTy::I32 => out.push(3),
-            CTy::Param(i) => {
-                out.push(4);
-                out.extend_from_slice(&i.to_le_bytes());
-            }
-            CTy::SelfTy => out.push(5),
-            CTy::Adt(path) => {
-                out.push(6);
-                put_str(out, path);
-            }
-            CTy::ClassRef => out.push(7),
-        }
-    }
-    pub fn decode(r: &mut Reader<'_>) -> CTy {
-        match r.u8() {
-            0 => CTy::Void,
-            1 => CTy::Never,
-            2 => CTy::Bool,
-            3 => CTy::I32,
-            4 => CTy::Param(r.u32()),
-            5 => CTy::SelfTy,
-            6 => CTy::Adt(r.str()),
-            7 => CTy::ClassRef,
-            t => panic!("bad type tag {t}"),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -121,9 +74,11 @@ impl World {
         self.path_ids.insert(path.to_owned(), id);
         id
     }
+    #[must_use]
     pub fn lookup(&self, path: &str) -> Option<DefId> {
         self.path_ids.get(path).copied()
     }
+    #[must_use]
     pub fn path(&self, id: DefId) -> &str {
         &self.paths[id.0 as usize]
     }
@@ -136,6 +91,7 @@ impl World {
         self.ty_ids.insert(kind, t);
         t
     }
+    #[must_use]
     pub fn kind(&self, t: Ty) -> &TyKind {
         &self.tys[t.0 as usize]
     }
@@ -149,16 +105,19 @@ impl World {
         self.const_ids.insert((ty, bits), c);
         c
     }
+    #[must_use]
     pub fn const_value(&self, c: u32) -> (Ty, u64) {
         self.consts[c as usize]
     }
     pub fn sym(&mut self, s: &str) -> Symbol {
         self.syms.intern(s)
     }
+    #[must_use]
     pub fn text(&self, s: Symbol) -> &str {
         self.syms.resolve(s).unwrap_or("?")
     }
 
+    #[must_use]
     pub fn canon(&self, t: Ty) -> CTy {
         match self.kind(t) {
             TyKind::Void => CTy::Void,
@@ -192,6 +151,7 @@ impl World {
             _ => t,
         }
     }
+    #[must_use]
     pub fn display(&self, t: Ty) -> String {
         match self.kind(t) {
             TyKind::Void => "void".into(),
@@ -206,80 +166,93 @@ impl World {
     }
 }
 
-// ---- canonical bytes and hashing (cache.md §5.3: H(kind tag, fields...)) ----
+// ------------------------------------------------------------ world loading
 
-pub fn put_str(out: &mut Vec<u8>, s: &str) {
-    out.extend_from_slice(&u32::try_from(s.len()).expect("len").to_le_bytes());
-    out.extend_from_slice(s.as_bytes());
-}
-pub fn put_u32(out: &mut Vec<u8>, v: u32) {
-    out.extend_from_slice(&v.to_le_bytes());
-}
-pub fn put_hash(out: &mut Vec<u8>, h: Hash128) {
-    out.extend_from_slice(&h.0.to_le_bytes());
-}
-
-pub struct Reader<'a> {
-    pub bytes: &'a [u8],
-    pub pos: usize,
-}
-impl<'a> Reader<'a> {
-    pub fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, pos: 0 }
-    }
-    pub fn u8(&mut self) -> u8 {
-        let v = self.bytes[self.pos];
-        self.pos += 1;
-        v
-    }
-    pub fn u32(&mut self) -> u32 {
-        let v = u32::from_le_bytes(self.bytes[self.pos..self.pos + 4].try_into().expect("u32"));
-        self.pos += 4;
-        v
-    }
-    pub fn u64(&mut self) -> u64 {
-        let v = u64::from_le_bytes(self.bytes[self.pos..self.pos + 8].try_into().expect("u64"));
-        self.pos += 8;
-        v
-    }
-    pub fn hash(&mut self) -> Hash128 {
-        let v = u128::from_le_bytes(self.bytes[self.pos..self.pos + 16].try_into().expect("h"));
-        self.pos += 16;
-        Hash128(v)
-    }
-    pub fn str(&mut self) -> String {
-        let n = self.u32() as usize;
-        let s = std::str::from_utf8(&self.bytes[self.pos..self.pos + n]).expect("utf8").to_owned();
-        self.pos += n;
-        s
-    }
-    pub fn done(&self) -> bool {
-        self.pos >= self.bytes.len()
+fn lower_sig(w: &mut World, s: &CSig, self_ty: Option<&CTy>) -> FnSig {
+    let fix = |c: &CTy| match (c, self_ty) {
+        (CTy::SelfTy, Some(t)) => t.clone(),
+        _ => c.clone(),
+    };
+    FnSig {
+        generics: s
+            .generics
+            .iter()
+            .map(|(g, b)| (w.sym(g), b.as_ref().map(|b| w.def(b))))
+            .collect(),
+        params: s.params.iter().map(|(p, t)| (w.sym(p), w.intern_canon(&fix(t)))).collect(),
+        ret: w.intern_canon(&fix(&s.ret)),
     }
 }
 
-/// `H(tag, fields...)`: the hasher every key uses.
-pub struct KeyHasher(Vec<u8>);
-impl KeyHasher {
-    pub fn new(tag: &str) -> Self {
-        let mut v = Vec::new();
-        put_str(&mut v, tag);
-        Self(v)
+/// Loads header items into the run's tables. Traits before impls, since an
+/// impl method's signature is its trait method's with `Self` replaced.
+pub fn load_items(w: &mut World, items: &[HeaderItem], hashes: Option<&[Hash128]>) {
+    let mut traits: HashMap<String, Vec<(String, CSig)>> = HashMap::new();
+    for (i, h) in items.iter().enumerate() {
+        let id = w.def(&h.path);
+        if let Some(hs) = hashes {
+            w.item_hash.insert(id, hs[i]);
+        } else {
+            let mut b = Vec::new();
+            encode_item(&mut b, h);
+            w.item_hash.insert(id, KeyHasher::new("item").bytes(&b).finish());
+        }
+        match &h.item {
+            CItem::Fn(s) => {
+                let sig = lower_sig(w, s, None);
+                w.defs.insert(id, DefKind::Fn(sig));
+            }
+            CItem::Data(fs) => {
+                let fields = fs.iter().map(|(f, t)| (w.sym(f), w.intern_canon(t))).collect();
+                w.defs.insert(id, DefKind::Data(fields));
+            }
+            CItem::Trait(ms) => {
+                traits.insert(h.path.clone(), ms.clone());
+                let methods = ms.iter().map(|(m, s)| (w.sym(m), lower_sig(w, s, None))).collect();
+                w.defs.insert(id, DefKind::Trait(methods));
+            }
+            CItem::Impl { .. } => {}
+        }
     }
-    pub fn str(mut self, s: &str) -> Self {
-        put_str(&mut self.0, s);
-        self
-    }
-    pub fn hash(mut self, h: Hash128) -> Self {
-        put_hash(&mut self.0, h);
-        self
-    }
-    pub fn bytes(mut self, b: &[u8]) -> Self {
-        put_u32(&mut self.0, u32::try_from(b.len()).expect("len"));
-        self.0.extend_from_slice(b);
-        self
-    }
-    pub fn finish(self) -> Hash128 {
-        hd_base::hash128(&self.0)
+    for h in items {
+        let CItem::Impl { trait_, target, methods } = &h.item else { continue };
+        let id = w.def(&h.path);
+        let tid = w.def(trait_);
+        let target_ty = w.intern_canon(target);
+        let trait_methods: Vec<(String, CSig)> = traits.get(trait_).cloned().unwrap_or_else(|| {
+            match w.defs.get(&tid) {
+                Some(DefKind::Trait(ms)) => ms
+                    .iter()
+                    .map(|(m, _)| (w.text(*m).to_owned(), CSig { generics: vec![], params: vec![], ret: CTy::Void }))
+                    .collect(),
+                _ => Vec::new(),
+            }
+        });
+        let mut ms = Vec::new();
+        for m in methods {
+            let mid = w.def(&format!("{}.{m}", h.path));
+            let index = trait_methods.iter().position(|(n, _)| n == m).unwrap_or(0);
+            // The method's signature: the trait's, with Self as the target.
+            let sig = match w.defs.get(&tid) {
+                Some(DefKind::Trait(tms)) => tms.get(index).map(|(_, s)| s.clone()),
+                _ => None,
+            };
+            let mut sig = sig.unwrap_or(FnSig { generics: vec![], params: vec![], ret: target_ty });
+            for p in &mut sig.params {
+                p.1 = w.subst(p.1, &[], Some(target_ty));
+            }
+            sig.ret = w.subst(sig.ret, &[], Some(target_ty));
+            let sym = w.sym(m);
+            w.defs.insert(
+                mid,
+                DefKind::ImplMethod { impl_: id, index: u32::try_from(index).expect("i"), sig },
+            );
+            ms.push((sym, mid));
+        }
+        w.defs.insert(id, DefKind::Impl { trait_: tid, target: target_ty, methods: ms });
+        let list = w.impls.entry(tid).or_default();
+        if !list.contains(&id) {
+            list.push(id);
+        }
     }
 }
