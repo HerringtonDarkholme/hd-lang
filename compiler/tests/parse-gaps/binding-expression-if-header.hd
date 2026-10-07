@@ -1,0 +1,6 @@
+# 02-grammar.md rule: r[grammar.closed.header-positions].
+# From spec/conformance/typing/valid/names-and-scopes.hd.
+fn nonempty(input: string) -> bool:
+    if (size := input.len()) > 0:
+        true
+    false

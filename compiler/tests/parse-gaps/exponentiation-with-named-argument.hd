@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (binary_expression and named_argument).
+# From spec/conformance/runtime/valid/unsigned-exponent.hd.
+fn check() -> void:
+    assert_equal(2 ** 3, 8, reason="power")

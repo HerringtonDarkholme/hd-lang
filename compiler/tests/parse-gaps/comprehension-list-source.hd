@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (comprehension_expression production).
+# From spec/conformance/runtime/valid/comprehensions.hd.
+fn pairs() -> List[i32]:
+    [for n in [+1, +2] if n > 0 => n]

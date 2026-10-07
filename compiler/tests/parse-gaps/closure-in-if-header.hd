@@ -1,0 +1,6 @@
+# 02-grammar.md rule: r[grammar.closed.header-positions].
+# From spec/conformance/runtime/valid/header-and-bracket-expression-positions.hd.
+fn positive(value: i32) -> bool:
+    if check(fn(x: i32) -> bool: x > 0, value):
+        true
+    false

@@ -1,0 +1,5 @@
+# 03-names-and-scopes.md rule: r[names.bind.no-redeclare].
+# From spec/conformance/runtime/valid/binding-chain-with-suite.hd.
+fn choose(flag: bool) -> i32:
+    a := b := if flag: +1 else: +2
+    a + b

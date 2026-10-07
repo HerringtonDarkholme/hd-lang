@@ -1,0 +1,4 @@
+# 06-control-flow.md rule: r[flow.for.comprehension].
+# From spec/conformance/runtime/valid/comprehension-forms.hd.
+fn evens(nums: List[i32]) -> List[i32]:
+    [for n in nums if n < 5 if n % 2 == 0 => n]

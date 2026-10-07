@@ -1,0 +1,6 @@
+# 01-lexical-structure.md rule: r[lex.closure.end-token].
+# From spec/conformance/runtime/valid/iterator-flat-map.hd.
+fn collect() -> List[i32]:
+    [1].map(fn(n: i32) -> List[i32]:
+        [n]
+    )

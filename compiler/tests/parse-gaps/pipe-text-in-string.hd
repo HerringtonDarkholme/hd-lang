@@ -1,0 +1,5 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (string_expression production).
+# From spec/conformance/runtime/valid/pipe-bare-method-step.hd.
+tests:
+    it("x |> f means f(x)"):
+        pass

@@ -1,0 +1,4 @@
+# 07-functions.md rule: r[fn.type.parts].
+# From spec/conformance/runtime/valid/generic-requirement-key-substitution.hd.
+enum Work[T]:
+    Run(callback: fn() -> i32 $ Repo[T])

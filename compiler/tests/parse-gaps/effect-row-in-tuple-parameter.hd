@@ -1,0 +1,3 @@
+# 11-requirements-and-suspension.md rule: r[req.row.callable.same-clause].
+# From spec/conformance/typing/valid/generic-method-dynamically-safe.hd.
+fn show[T](pair: (fn() -> void $ Console, T)) -> i32: +0

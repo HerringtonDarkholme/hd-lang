@@ -1,0 +1,5 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (data_expression and conditional_expression).
+# From spec/conformance/typing/valid/empty-literal-field-context.hd.
+fn crawl(fresh: bool) -> Crawl:
+    let mut value = Crawl { visits: if fresh: {} else: {}, queue: [] }
+    value

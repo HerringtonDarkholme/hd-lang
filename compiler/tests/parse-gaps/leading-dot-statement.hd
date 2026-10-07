@@ -1,0 +1,5 @@
+# 01-lexical-structure.md rule: r[lex.dot.statement-indent].
+# From spec/conformance/runtime/valid/contextual-variant-after-same-line-if.hd.
+fn port(flag: bool) -> i32?:
+    if flag: +1 else: +0
+    .Some(8080)

@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.generic.binding.positions-key].
+# From spec/conformance/typing/valid/associated-type-bindings.hd.
+impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
+    fn to_string(self) -> string: "feed"
