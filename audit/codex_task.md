@@ -68,53 +68,14 @@ When the queue is empty, report that and wait.
   spec passes are rewriting them now (S1d: `dyn Trait`; S1e: removing
   GADTs). Read them; don't edit them. `src/` is the frozen prototype.
 - `future-work/compiler/*.md` except where a job says so.
+- `compiler/crates/hd_syntax/` and the parser's tests: the orchestrator
+  took over the parser rewrite (owner, 2026-10-07: "parser is way too
+  slow to develop"). Read it; don't edit it. Your spike lives in
+  `compiler/spikes/0c/`.
 
 ## Jobs
 
-### C2e. A Real Parser (Before C2d)
-
-Orchestrator review of C2c (ab758961), 2026-10-07. The ledger is empty,
-but the parser does not parse:
-
-- **No expression tree.** `parse_lines` classifies each line by its
-  first tokens and emits the line's tokens flat. `IfExpr` wraps only the
-  `if` token; `x * (1 + 2) - 3` has no binary nodes; parameters, types
-  and patterns have no nodes. The checker cannot be built on this tree.
-- **Diagnostics come from text heuristics, not the grammar.**
-  `validate_line` matches raw text (`raw.contains(" and ")`,
-  `raw.contains("$.with(")`, `raw.starts_with("mut ")`) to hit fixture
-  codes. Valid code fails: `print("cats and dogs")` reports
-  `syntax-error`, and 22 of 42 files in `lib/std` report errors, for
-  example `pub trait Add[Rhs = Self]:` in `ops.hd`.
-
-Do this:
-
-1. Replace the line classifier and `validate*` heuristics with a
-   recursive-descent parser driven by `spec/lang/02-grammar.md`, with a
-   Pratt loop for expression precedence, emitting events for every
-   production: items with parameters, generics, bounds and return types;
-   blocks; each statement form; every expression form with its operands
-   as child nodes; patterns; types. Layout (indent and dedent) comes
-   from the lexer's layout tokens, not from per-line scans.
-2. Every diagnostic is raised at the grammar point that rejects the
-   input. No check reads raw source text by substring. A removed or
-   banned form (`and`, `not`, `+` bounds, chained comparisons, argument
-   order) is a parse of the form followed by a targeted error, so it
-   never fires inside a string, a comment or another construct.
-3. New zero-false-positive gate, run in `cargo test`: every `.hd` file
-   in `lib/std`, `examples/`, and every valid `spec/conformance` and
-   `test/portable` case parses with no diagnostics and round-trips.
-4. Structure tests: a set of snapshot tests (`hd parse` tree dumps) for
-   precedence and associativity, `if`/`match` as expressions, nested
-   blocks, closures, string interpolation parts, generic arguments vs
-   comparisons, and each type form.
-5. The parse fixtures stay at zero ledger rows.
-6. Then speed, from the real parser: lex at least 300 MB/s, skim at
-   least as fast as lex, parse at least 100 MB/s on `lib/std` in
-   release. If a target is missed, report the profile and the cause;
-   do not trade correctness for it.
-
-### C2d. Spike 0c: Representation Benchmarks (After C2e)
+### C2d. Spike 0c: Representation Benchmarks (Next)
 
 The two representation studies, `future-work/compiler/representation-runtime.md`
 (§10, experiments E0 to E11) and `representation-compile.md` (§7.2, S1 to

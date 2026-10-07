@@ -22,6 +22,15 @@ updated for answer 13: no drive summary in any slice.
 D2's slices 6 to 10 follow in §22, refining [Q16](research.md#build-order-1).
 Each slice's exit test also includes its rows of §9.2.
 
+**Performance is eyeballed, not gated, during the first implementation
+(owner, 2026-10-07).** "Drop the perf gate for now and just go ahead,
+impl the architecture, and eyeball the perf." Every throughput, latency
+and size target in this file, in §9.2 and in goals.md is reported at
+each slice exit, not enforced. When a number is atrociously bad, the
+slice stops to decide whether it is an implementation slip (fix the
+code) or an architecture issue (reopen the design doc that owns it)
+before going on.
+
 ### 9.1 Status Of The Pillar 1 And 2 Targets
 
 No target below is established. Each figure in this design is an
