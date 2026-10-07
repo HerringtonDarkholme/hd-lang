@@ -189,10 +189,6 @@ fn remap_ref(w: &World, t: &mut Tables, r: u32) -> u32 {
 
 /// Writes one body's columns with ID words remapped to entry rows. Returns
 /// the bytes that the TIR hash covers; spans go to a separate, unhashed list.
-#[expect(
-    clippy::match_same_arms,
-    reason = "one arm per operand shape of the catalog, even where two shapes remap alike"
-)]
 pub fn write_body(w: &World, t: &mut Tables, b: &TirBody, out: &mut Vec<u8>, spans: &mut Vec<u8>) {
     put_u32(out, u32::try_from(b.tags.len()).expect("n"));
     // `extra` is rebuilt record by record, remapped.
@@ -314,7 +310,6 @@ fn unmap_ref(rows: &RunRows, r: u32) -> u32 {
     if r != NONE && r & CONST_BIT != 0 { rows.consts[(r & !CONST_BIT) as usize] | CONST_BIT } else { r }
 }
 
-#[expect(clippy::many_single_char_names, reason = "w, r, b, a: world, reader, body, operand")]
 pub fn read_body(w: &mut World, rows: &RunRows, r: &mut Reader<'_>) -> TirBody {
     let mut b = TirBody::default();
     let n = r.u32();

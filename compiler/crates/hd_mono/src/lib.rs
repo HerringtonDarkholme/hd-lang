@@ -67,7 +67,6 @@ pub fn resolve_method(w: &mut World, rec: &[u32], args: &[Ty]) -> Result<Instanc
 
 /// A1 at collection: a move-only type argument with a one-reference layout is
 /// replaced by its class `REF`.
-#[expect(clippy::implicit_hasher, reason = "the run's tables use the std hasher only")]
 pub fn classify(w: &mut World, bodies: &HashMap<DefId, TirBody>, mut inst: Instance) -> Instance {
     let Some(b) = bodies.get(&inst.item) else { return inst };
     for (i, t) in inst.ty_args.iter_mut().enumerate() {
@@ -79,7 +78,6 @@ pub fn classify(w: &mut World, bodies: &HashMap<DefId, TirBody>, mut inst: Insta
     inst
 }
 
-#[expect(clippy::implicit_hasher, reason = "the run's tables use the std hasher only")]
 pub fn collect(
     w: &mut World,
     bodies: &HashMap<DefId, TirBody>,

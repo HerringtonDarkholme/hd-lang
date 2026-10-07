@@ -213,7 +213,6 @@ impl Ck<'_, '_> {
         clippy::only_used_in_recursion,
         reason = "the expected-type hint is threaded for bidirectional checking; the subset does not read it yet"
     )]
-    #[expect(clippy::many_single_char_names, reason = "n, r, t, l: node, operand, type, local")]
     fn expr(&mut self, n: NodeRef<'_>, expected: Option<Ty>) -> (u32, Ty) {
         let i32_ = self.ty(TyKind::I32);
         let bool_ = self.ty(TyKind::Bool);

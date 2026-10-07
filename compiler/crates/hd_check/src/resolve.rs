@@ -109,7 +109,6 @@ pub fn use_decls(cst: &Cst<'_>) -> Vec<(String, Vec<String>)> {
 /// Builds the module scope: own items, then imports resolved against the
 /// frozen interfaces of the used folders.
 #[must_use]
-#[expect(clippy::implicit_hasher, reason = "the run's tables use the std hasher only")]
 pub fn module_scope(
     cst: &Cst<'_>,
     module: &str,

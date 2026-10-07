@@ -295,7 +295,6 @@ impl FolderIface {
 /// The blob: `deep_hash` first (it needs the dependencies' deep hashes, so it
 /// is stored, not recomputed by a reader), then every interface item.
 #[must_use]
-#[expect(clippy::implicit_hasher, reason = "the run's tables use the std hasher only")]
 pub fn build_iface(
     folder: &str,
     items: &[HeaderItem],

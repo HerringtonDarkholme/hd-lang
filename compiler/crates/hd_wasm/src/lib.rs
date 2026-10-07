@@ -415,7 +415,6 @@ impl Em<'_> {
 }
 
 /// `Emit(inst)`: walks the generic TIR under the substitution.
-#[expect(clippy::implicit_hasher, reason = "the run's tables use the std hasher only")]
 pub fn emit(w: &mut World, bodies: &HashMap<DefId, TirBody>, b: &TirBody, inst: &Instance) -> Code {
     let mut params = Vec::new();
     let mut local_map = Vec::new();
