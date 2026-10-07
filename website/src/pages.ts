@@ -99,7 +99,12 @@ export const PAGES: readonly PageSource[] = [
   // The number comes from the file name, so a removed chapter (13, GADTs)
   // renumbers nothing and every URL stays.
   ...SPEC_CHAPTERS.map(([file, title]) =>
-    page(`spec/lang/${file}.md`, `spec/${file}.html`, `${Number(file.slice(0, 2))}. ${title}`, "Reference"),
+    page(
+      `spec/lang/${file}.md`,
+      `spec/${file}.html`,
+      `${Number(file.slice(0, 2))}. ${title}`,
+      "Reference",
+    ),
   ),
   {
     ...page("spec/GLOSSARY.md", "spec/glossary.html", "Glossary", "Reference"),
