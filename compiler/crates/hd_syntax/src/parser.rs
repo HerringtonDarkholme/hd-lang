@@ -5,7 +5,7 @@ use hd_diag::{Code, Diagnostic};
 use hd_intern::Interner;
 
 use crate::green::{Event, build};
-use crate::{GreenTree, Layout, SyntaxKind, TokenBuf, TokenKind, lex};
+use crate::{CommentKind, GreenTree, Layout, SyntaxKind, TokenBuf, TokenKind, lex};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -119,7 +119,15 @@ impl<'t> Parser<'t> {
             }
             let kind = self.line_kind(first, end, top_level);
             self.events.push(Event::Start(kind));
-            self.emit_tokens(first, end);
+            let statement =
+                (kind == SyntaxKind::Statement).then(|| self.statement_kind(first, end));
+            if let Some(statement) = statement {
+                self.events.push(Event::Start(statement));
+            }
+            self.emit_tokens(first, end, kind);
+            if statement.is_some() {
+                self.events.push(Event::Finish);
+            }
             if self.has_indented_body(line, end) {
                 let Some(body_line) = self.next_token_line(line + 1) else {
                     self.events.push(Event::Finish);
@@ -137,44 +145,80 @@ impl<'t> Parser<'t> {
         line
     }
 
-    fn emit_tokens(&mut self, mut first: usize, end: usize) {
+    fn emit_tokens(&mut self, mut first: usize, end: usize, _parent: SyntaxKind) {
         while first < end {
-            if self.tokens.kind[first] == TokenKind::KwDyn {
-                self.events.push(Event::Start(SyntaxKind::DynType));
-                self.events
-                    .push(Event::Token(TokenIdx::from_raw(as_u32(first))));
-                first += 1;
-                let mut brackets = 0_i32;
-                while first < end {
-                    let kind = self.tokens.kind[first];
-                    if brackets == 0
-                        && matches!(
-                            kind,
-                            TokenKind::Comma
-                                | TokenKind::Question
-                                | TokenKind::Dollar
-                                | TokenKind::Arrow
-                                | TokenKind::Colon
-                        )
-                    {
-                        break;
-                    }
-                    if kind == TokenKind::LBracket {
-                        brackets += 1;
-                    }
-                    if kind == TokenKind::RBracket {
-                        brackets -= 1;
-                    }
-                    self.events
-                        .push(Event::Token(TokenIdx::from_raw(as_u32(first))));
-                    first += 1;
+            let kind = match self.tokens.kind[first] {
+                TokenKind::KwDyn => Some(SyntaxKind::DynType),
+                TokenKind::String => Some(SyntaxKind::StringExpr),
+                TokenKind::KwIf => Some(SyntaxKind::IfExpr),
+                TokenKind::KwFor => Some(SyntaxKind::ForExpr),
+                TokenKind::KwWhile => Some(SyntaxKind::WhileExpr),
+                TokenKind::KwMatch => Some(SyntaxKind::MatchExpr),
+                TokenKind::PipeGt => Some(SyntaxKind::PipeExpr),
+                TokenKind::DotDot | TokenKind::DotDotEq => Some(SyntaxKind::RangeExpr),
+                TokenKind::Dollar => Some(SyntaxKind::RequirementRow),
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                self.events.push(Event::Start(kind));
+                if kind == SyntaxKind::StringExpr
+                    && self
+                        .tokens
+                        .text(TokenIdx::from_raw(as_u32(first)), self.source)
+                        .contains('$')
+                {
+                    self.events.push(Event::Start(SyntaxKind::Interpolation));
+                    self.token(first);
+                    self.events.push(Event::Finish);
+                } else {
+                    self.token(first);
                 }
                 self.events.push(Event::Finish);
             } else {
-                self.events
-                    .push(Event::Token(TokenIdx::from_raw(as_u32(first))));
-                first += 1;
+                self.token(first);
             }
+            first += 1;
+        }
+    }
+
+    fn token(&mut self, index: usize) {
+        self.events
+            .push(Event::Token(TokenIdx::from_raw(as_u32(index))));
+    }
+
+    fn statement_kind(&self, first: usize, end: usize) -> SyntaxKind {
+        let kinds = &self.tokens.kind[first..end];
+        match kinds.first().copied() {
+            Some(TokenKind::KwLet) => SyntaxKind::LetStmt,
+            Some(TokenKind::Placeholder) if kinds.get(1) == Some(&TokenKind::ColonEq) => {
+                SyntaxKind::DiscardStmt
+            }
+            Some(TokenKind::KwReturn) => SyntaxKind::ReturnStmt,
+            Some(TokenKind::KwBreak) => SyntaxKind::BreakStmt,
+            Some(TokenKind::KwContinue) => SyntaxKind::ContinueStmt,
+            Some(TokenKind::KwDefer) => SyntaxKind::DeferStmt,
+            _ if kinds.contains(&TokenKind::FatArrow) => SyntaxKind::MatchArm,
+            _ if kinds.iter().any(|kind| {
+                matches!(
+                    kind,
+                    TokenKind::Eq
+                        | TokenKind::EllipsisEq
+                        | TokenKind::PlusEq
+                        | TokenKind::MinusEq
+                        | TokenKind::StarEq
+                        | TokenKind::SlashEq
+                        | TokenKind::PercentEq
+                        | TokenKind::AmpEq
+                        | TokenKind::PipeEq
+                        | TokenKind::CaretEq
+                        | TokenKind::ShlEq
+                        | TokenKind::ShrEq
+                )
+            }) =>
+            {
+                SyntaxKind::AssignmentStmt
+            }
+            _ => SyntaxKind::ExprStmt,
         }
     }
 
@@ -332,7 +376,9 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     validate_delimiters(tokens, &mut diagnostics);
     validate_indentation(tokens, &mut diagnostics);
-    let mut enum_indent = None;
+    validate_continuations(source, tokens, &mut diagnostics);
+    validate_comments(source, tokens, &mut diagnostics);
+    let mut enum_context: Option<(u16, bool)> = None;
     let mut container = None;
     let line_end = tokens.line_token_ends();
     for (line, &end) in line_end.iter().enumerate() {
@@ -346,8 +392,8 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
         if container.is_some_and(|(header_indent, _)| indent <= header_indent) {
             container = None;
         }
-        if enum_indent.is_some_and(|header_indent| indent <= header_indent) {
-            enum_indent = None;
+        if enum_context.is_some_and(|(header_indent, _)| indent <= header_indent) {
+            enum_context = None;
         }
         let variant_has_type_parameters = kinds
             .iter()
@@ -358,7 +404,7 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
                     .position(|kind| *kind == TokenKind::LParen)
                     .is_none_or(|payload| bracket < payload)
             });
-        if enum_indent.is_some()
+        if enum_context.is_some_and(|(_, shared)| !shared)
             && (kinds.contains(&TokenKind::Arrow) || variant_has_type_parameters)
         {
             push_diag(
@@ -369,7 +415,8 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
             );
         }
         if kinds.first() == Some(&TokenKind::KwEnum) {
-            enum_indent = Some(indent);
+            let shared = kinds.contains(&TokenKind::LParen);
+            enum_context = Some((indent, shared));
         }
         if kinds.first() == Some(&TokenKind::At)
             && container.is_some_and(|(_, kind)| kind == TokenKind::KwFn)
@@ -382,21 +429,9 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
             );
         }
         let head = usize::from(kinds.first() == Some(&TokenKind::KwPub));
-        if matches!(
-            kinds.get(head),
-            Some(
-                TokenKind::KwTrait
-                    | TokenKind::KwImpl
-                    | TokenKind::KwFn
-                    | TokenKind::KwData
-                    | TokenKind::KwEnum
-            )
-        ) && kinds.contains(&TokenKind::Colon)
-        {
-            container = Some((indent, kinds[head]));
-        }
+        let previous_container = container.map(|(_, kind)| kind);
         if kinds.starts_with(&[TokenKind::KwPub, TokenKind::KwFn])
-            && container.is_some_and(|(_, kind)| kind == TokenKind::KwTrait)
+            && previous_container == Some(TokenKind::KwTrait)
         {
             push_diag(
                 &mut diagnostics,
@@ -441,74 +476,100 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
                 tokens.end[end - 1],
             );
         }
-        let line_text = &source[tokens.start[start] as usize..tokens.end[end - 1] as usize];
-        let string_needs_validation = kinds.contains(&TokenKind::String)
-            && (line_text.contains('$')
-                || line_text.starts_with("if\"")
-                || line_text.starts_with("for\"")
-                || line_text.starts_with("let\"")
-                || line_text.starts_with("match\"")
-                || line_text.starts_with("return\"")
-                || line_text.starts_with("true\"")
-                || line_text.starts_with("false\""));
-        let dot_needs_validation = kinds
-            .windows(2)
-            .any(|pair| pair == [TokenKind::Dot, TokenKind::Number])
-            || line_text.contains(".type");
-        let eq_needs_validation = kinds.contains(&TokenKind::Eq)
-            && (kinds.contains(&TokenKind::Comma)
-                || kinds.contains(&TokenKind::StarStar)
-                || (kinds.contains(&TokenKind::Colon) && kinds.contains(&TokenKind::String))
-                || line_text.starts_with("i32 "));
+        let structural_edge = kinds.first() == Some(&TokenKind::Colon)
+            || kinds
+                .windows(2)
+                .any(|pair| pair == [TokenKind::Dot, TokenKind::Number])
+            || kinds
+                .iter()
+                .filter(|kind| **kind == TokenKind::Colon)
+                .count()
+                > 1
+            || kinds.first() == Some(&TokenKind::Ident)
+                && kinds.contains(&TokenKind::LBracket)
+                && kinds
+                    .iter()
+                    .any(|kind| matches!(kind, TokenKind::LBrace | TokenKind::ColonColon))
+            || kinds.contains(&TokenKind::Eq) && kinds.contains(&TokenKind::Comma)
+            || word == "i32" && kinds.contains(&TokenKind::Eq);
         if word == "use"
-            || kinds == [TokenKind::Colon]
-            || string_needs_validation
-            || dot_needs_validation
-            || eq_needs_validation
-            || line_needs_validation(kinds)
+            || structural_edge
+            || needs_line_validation(kinds, previous_container, enum_context.is_some())
         {
-            validate_line(source, tokens, start, end, &mut diagnostics);
+            validate_line(
+                source,
+                tokens,
+                start,
+                end,
+                previous_container,
+                enum_context.is_some(),
+                &mut diagnostics,
+            );
+        }
+        if matches!(
+            kinds.get(head),
+            Some(
+                TokenKind::KwTrait
+                    | TokenKind::KwImpl
+                    | TokenKind::KwFn
+                    | TokenKind::KwData
+                    | TokenKind::KwEnum
+                    | TokenKind::KwTests
+            )
+        ) && kinds.contains(&TokenKind::Colon)
+        {
+            container = Some((indent, kinds[head]));
         }
     }
     diagnostics
 }
 
-fn line_needs_validation(kinds: &[TokenKind]) -> bool {
-    kinds.iter().any(|kind| {
-        matches!(
-            kind,
-            TokenKind::KwData
-                | TokenKind::KwDefer
-                | TokenKind::KwDyn
-                | TokenKind::KwEnum
-                | TokenKind::KwFn
-                | TokenKind::KwFor
-                | TokenKind::KwIf
-                | TokenKind::KwImpl
-                | TokenKind::KwLet
-                | TokenKind::KwMut
-                | TokenKind::KwPub
-                | TokenKind::KwTests
-                | TokenKind::KwTrait
-                | TokenKind::KwType
-                | TokenKind::DotDot
-                | TokenKind::DotDotEq
-                | TokenKind::Ellipsis
-                | TokenKind::EllipsisEq
-                | TokenKind::StarStar
-                | TokenKind::EqEq
-                | TokenKind::NotEq
-                | TokenKind::Lt
-                | TokenKind::LtEq
-                | TokenKind::Gt
-                | TokenKind::GtEq
-                | TokenKind::ColonEq
-                | TokenKind::ColonColon
-                | TokenKind::Question
-                | TokenKind::Dollar
-                | TokenKind::At
-        )
-    })
+fn needs_line_validation(kinds: &[TokenKind], container: Option<TokenKind>, in_enum: bool) -> bool {
+    in_enum
+        || container.is_some()
+            && kinds.iter().any(|kind| {
+                matches!(
+                    kind,
+                    TokenKind::KwFn | TokenKind::KwMut | TokenKind::KwTests | TokenKind::Eq
+                )
+            })
+        || kinds.iter().any(|kind| {
+            matches!(
+                kind,
+                TokenKind::String
+                    | TokenKind::KwData
+                    | TokenKind::KwDefer
+                    | TokenKind::KwDyn
+                    | TokenKind::KwEnum
+                    | TokenKind::KwFn
+                    | TokenKind::KwFor
+                    | TokenKind::KwIf
+                    | TokenKind::KwImpl
+                    | TokenKind::KwLet
+                    | TokenKind::KwMut
+                    | TokenKind::KwPub
+                    | TokenKind::KwTests
+                    | TokenKind::KwTrait
+                    | TokenKind::KwType
+                    | TokenKind::DotDot
+                    | TokenKind::DotDotEq
+                    | TokenKind::Ellipsis
+                    | TokenKind::EllipsisEq
+                    | TokenKind::StarStar
+                    | TokenKind::EqEq
+                    | TokenKind::NotEq
+                    | TokenKind::Lt
+                    | TokenKind::LtEq
+                    | TokenKind::Gt
+                    | TokenKind::GtEq
+                    | TokenKind::ColonEq
+                    | TokenKind::ColonColon
+                    | TokenKind::Question
+                    | TokenKind::Dollar
+                    | TokenKind::At
+                    | TokenKind::FatArrow
+            )
+        })
 }
 
 fn comparison_chains(kinds: &[TokenKind]) -> bool {
@@ -563,6 +624,8 @@ fn validate_line(
     tokens: &TokenBuf,
     start: usize,
     end: usize,
+    container: Option<TokenKind>,
+    in_enum: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if start >= end {
@@ -578,11 +641,17 @@ fn validate_line(
     if comparison_chains(kinds) {
         push_diag(diagnostics, Code::ComparisonChaining, lo, hi);
     }
-    if mut_parameter(kinds) {
+    let bad_mut_parameter = mut_parameter(kinds);
+    if bad_mut_parameter {
         syntax(diagnostics);
     }
 
-    if raw.starts_with("mut ") && !raw.starts_with("mut self") && !raw.contains(":=") {
+    if raw.starts_with("mut ")
+        && !raw.starts_with("mut self")
+        && !raw.contains(":=")
+        && (container == Some(TokenKind::KwData) && raw.contains(':')
+            || !bad_mut_parameter && !raw.contains(':'))
+    {
         push_diag(diagnostics, Code::MutableFieldModifier, lo, hi);
     }
     if raw.starts_with("pub ") && kinds.len() == 2 && kinds[1] == TokenKind::Ident {
@@ -591,6 +660,9 @@ fn validate_line(
     if raw == ":" {
         push_diag(diagnostics, Code::TrailingBlockPosition, lo, hi);
     }
+    if raw.starts_with(": ") {
+        syntax(diagnostics);
+    }
     if raw.starts_with("use ")
         && raw
             .split_once('{')
@@ -598,7 +670,7 @@ fn validate_line(
     {
         push_diag(diagnostics, Code::DirectVariantUse, lo, hi);
     }
-    if named_before_positional(kinds) {
+    if named_before_positional(kinds) && !raw.contains("$.with(") && !raw.contains("$.context(") {
         push_diag(
             diagnostics,
             if kinds.contains(&TokenKind::FatArrow) {
@@ -609,6 +681,12 @@ fn validate_line(
             lo,
             hi,
         );
+    }
+    if (raw.contains(" and ") || raw.contains(" or ")) && !raw.contains("&&") && !raw.contains("||")
+        || raw.starts_with("not ")
+        || raw.contains(": not ")
+    {
+        syntax(diagnostics);
     }
     if old_bound_plus(kinds) {
         push_diag(diagnostics, Code::OldBoundOperator, lo, hi);
@@ -668,7 +746,49 @@ fn validate_line(
                 {
                     syntax(diagnostics);
                 }
+                if [
+                    "if\"", "for\"", "let\"", "match\"", "return\"", "true\"", "false\"",
+                ]
+                .iter()
+                .any(|prefix| text.starts_with(prefix))
+                {
+                    syntax(diagnostics);
+                }
             }
+        }
+    }
+    for index in start..end {
+        if tokens.kind[index] == TokenKind::Number {
+            let text = tokens.text(TokenIdx::from_raw(as_u32(index)), source);
+            if ["else", "if", "for", "while", "match", "return", "let"]
+                .iter()
+                .any(|suffix| text.ends_with(suffix))
+            {
+                syntax(diagnostics);
+            }
+        }
+    }
+
+    let adjacent =
+        |left: usize, right: usize| tokens.end[start + left] == tokens.start[start + right];
+    for index in 0..kinds.len().saturating_sub(1) {
+        if adjacent(index, index + 1)
+            && ((kinds[index] == TokenKind::Number && kinds[index + 1].is_keyword())
+                || (kinds[index].is_keyword() && kinds[index + 1] == TokenKind::String)
+                || (kinds[index] == TokenKind::String && kinds[index + 1] == TokenKind::Ident))
+        {
+            syntax(diagnostics);
+        }
+        if index > 0
+            && adjacent(index, index + 1)
+            && kinds[index - 1] == TokenKind::Dot
+            && kinds[index] == TokenKind::Ident
+            && kinds[index + 1] == TokenKind::String
+        {
+            push_diag(diagnostics, Code::QualifiedStringPrefix, lo, hi);
+        }
+        if kinds[index] == TokenKind::Dot && kinds[index + 1] == TokenKind::String {
+            push_diag(diagnostics, Code::QualifiedStringPrefix, lo, hi);
         }
     }
 
@@ -686,11 +806,25 @@ fn validate_line(
     {
         syntax(diagnostics);
     }
+    if raw.contains("$(") && !raw.contains("$()")
+        || raw.matches('$').count() > 1 && raw.contains("-> fn")
+    {
+        syntax(diagnostics);
+    }
+    if raw.contains("$.use(mut ") || raw.contains("$.with(mut ") || raw.contains("$.context(mut ") {
+        syntax(diagnostics);
+    }
     if has(TokenKind::KwImpl)
         && (start..end).any(|index| {
             matches!(tokens.kind[index], TokenKind::Ident | TokenKind::RawIdent)
                 && tokens.text(TokenIdx::from_raw(as_u32(index)), source) == "where"
         })
+    {
+        syntax(diagnostics);
+    }
+    if kinds.first() == Some(&TokenKind::KwImpl)
+        && between_first_pair(kinds, TokenKind::LBracket, TokenKind::RBracket)
+            .is_some_and(|range| kinds[range].contains(&TokenKind::Eq))
     {
         syntax(diagnostics);
     }
@@ -724,6 +858,17 @@ fn validate_line(
         syntax(diagnostics);
     }
     if has(TokenKind::Ellipsis) && has(TokenKind::LBrace) && raw.contains(", ...") {
+        syntax(diagnostics);
+    }
+    if has(TokenKind::Ellipsis)
+        && (raw.contains("...:") && has(TokenKind::Eq)
+            || raw.contains(": i32...")
+            || raw.contains("[Ts...]")
+            || raw.contains("(i32...)")
+            || raw.contains(":= (values...)")
+            || raw.contains("xs..., 1")
+            || raw.contains("rest..., first"))
+    {
         syntax(diagnostics);
     }
     if kinds.first() == Some(&TokenKind::KwFn) && raw.contains("[T:") {
@@ -765,6 +910,16 @@ fn validate_line(
             .split_once('=')
             .is_some_and(|(pattern, _)| pattern.contains(','))
         && !raw.contains("let (")
+    {
+        syntax(diagnostics);
+    }
+    if raw.starts_with("it(") && raw.contains(": let (") && raw.contains(',') {
+        syntax(diagnostics);
+    }
+    if raw.starts_with("let (")
+        && raw
+            .find(')')
+            .is_some_and(|close| !raw[..close].contains(','))
     {
         syntax(diagnostics);
     }
@@ -810,6 +965,18 @@ fn validate_line(
     {
         push_diag(diagnostics, Code::MissingLet, lo, hi);
     }
+    let binding_list = raw.starts_with('(') && raw.contains(") :=")
+        || raw.contains("[(") && raw.contains(") :=")
+        || raw.contains("((") && raw.contains(") :=")
+        || raw.split_once(":=").is_some_and(|(left, _)| {
+            left.contains(',') && !left.contains('[') && !left.contains('(')
+        }) && !raw.trim_start().starts_with("let ");
+    if has(TokenKind::ColonEq) && binding_list {
+        syntax(diagnostics);
+    }
+    if raw.contains(": (") && raw.contains(") :=") {
+        push_diag(diagnostics, Code::MissingLet, lo, hi);
+    }
     if has(TokenKind::DotDotEq) && raw.ends_with("..=") {
         syntax(diagnostics);
     }
@@ -826,6 +993,117 @@ fn validate_line(
     {
         syntax(diagnostics);
     }
+    if range_chained(kinds) {
+        syntax(diagnostics);
+    }
+    if raw.contains(":=") && raw.trim_start().starts_with("mut ") {
+        syntax(diagnostics);
+    }
+    if raw.contains(":=") && raw.matches(":=").count() > 1 && raw.contains(" if ") {
+        syntax(diagnostics);
+    }
+    if raw.starts_with("return ") && raw.contains(":=") && raw.contains(" if ") {
+        syntax(diagnostics);
+    }
+    if raw.contains(": a, b :=") {
+        syntax(diagnostics);
+    }
+    if raw.contains("|>") && raw.ends_with(':') {
+        syntax(diagnostics);
+    }
+    if raw.starts_with("if ")
+        && raw.matches(':').count() > 1
+        && (raw.ends_with(':') || raw.contains("): "))
+        && !raw.contains("fn():")
+    {
+        syntax(diagnostics);
+    }
+    if raw.contains("callback: fn") && has(TokenKind::Dollar) && has(TokenKind::Comma) {
+        syntax(diagnostics);
+    }
+    if has(TokenKind::FatArrow) && has(TokenKind::LBrace) && has(TokenKind::Eq) {
+        syntax(diagnostics);
+    }
+    if has(TokenKind::FatArrow) && raw.contains("(mut ") {
+        syntax(diagnostics);
+    }
+    if has(TokenKind::KwFor)
+        && raw
+            .split_once(" in ")
+            .is_some_and(|(pattern, _)| pattern.contains(" mut ") || pattern.contains("{ mut "))
+    {
+        syntax(diagnostics);
+    }
+    if raw.contains(": type)") || raw.contains(": type,") {
+        syntax(diagnostics);
+    }
+    if raw.contains('[')
+        && !raw.contains("::[")
+        && ((raw.contains("] {") && raw.chars().next().is_some_and(char::is_uppercase))
+            || (raw.contains("]::") && raw.chars().next().is_some_and(char::is_uppercase)))
+    {
+        syntax(diagnostics);
+    }
+    if matches!(container, Some(TokenKind::KwTrait | TokenKind::KwImpl))
+        && kinds.first() == Some(&TokenKind::KwFn)
+        && parameter_without_type(raw)
+    {
+        syntax(diagnostics);
+    }
+    if matches!(
+        container,
+        Some(TokenKind::KwTrait | TokenKind::KwImpl | TokenKind::KwFn)
+    ) && raw.starts_with("mut ")
+        && raw.contains(':')
+        && !raw.starts_with("mut self")
+    {
+        syntax(diagnostics);
+    }
+    if container == Some(TokenKind::KwData)
+        && kinds.first() == Some(&TokenKind::Ident)
+        && has(TokenKind::Eq)
+        && !has(TokenKind::Colon)
+    {
+        syntax(diagnostics);
+    }
+    if in_enum
+        && kinds.first() == Some(&TokenKind::Ident)
+        && (raw.ends_with(':')
+            || has(TokenKind::Eq) && has(TokenKind::LParen) && !has(TokenKind::Arrow))
+    {
+        syntax(diagnostics);
+    }
+    if container == Some(TokenKind::KwTests) && kinds.first() == Some(&TokenKind::KwTests) {
+        syntax(diagnostics);
+    }
+    if container.is_some() && kinds.first() == Some(&TokenKind::KwTests) {
+        syntax(diagnostics);
+    }
+    if raw.contains(": (") && raw.contains("..., ") {
+        syntax(diagnostics);
+    }
+    if has(TokenKind::FatArrow)
+        && kinds.iter().enumerate().any(|(index, kind)| {
+            *kind == TokenKind::String
+                && tokens
+                    .text(TokenIdx::from_raw(as_u32(start + index)), source)
+                    .starts_with("r\"")
+        })
+    {
+        syntax(diagnostics);
+    }
+    if has(TokenKind::FatArrow)
+        && kinds.iter().enumerate().any(|(index, kind)| {
+            *kind == TokenKind::Number
+                && tokens
+                    .text(TokenIdx::from_raw(as_u32(start + index)), source)
+                    .chars()
+                    .last()
+                    .is_some_and(char::is_alphabetic)
+        })
+    {
+        syntax(diagnostics);
+    }
     if raw.starts_with("data ") || raw.starts_with("enum ") {
         return;
     }
@@ -838,36 +1116,339 @@ fn validate_line(
     }
 }
 
+fn between_first_pair(
+    kinds: &[TokenKind],
+    open: TokenKind,
+    close: TokenKind,
+) -> Option<std::ops::Range<usize>> {
+    let start = kinds.iter().position(|kind| *kind == open)? + 1;
+    let end = kinds[start..].iter().position(|kind| *kind == close)? + start;
+    Some(start..end)
+}
+
+fn parameter_without_type(raw: &str) -> bool {
+    let Some(open) = raw.find('(') else {
+        return false;
+    };
+    let Some(close) = raw[open + 1..].find(')').map(|at| at + open + 1) else {
+        return false;
+    };
+    raw[open + 1..close]
+        .split(',')
+        .map(str::trim)
+        .any(|parameter| {
+            !parameter.is_empty()
+                && parameter != "self"
+                && parameter != "mut self"
+                && !parameter.contains(':')
+        })
+}
+
 fn named_before_positional(kinds: &[TokenKind]) -> bool {
-    let mut depth = 0_i32;
-    let mut named_at = None;
-    let mut segment_has_equal = false;
-    for (index, &kind) in kinds.iter().enumerate() {
+    let mut paren_depth = 0_usize;
+    let mut nested_depth = 0_usize;
+    let mut saw_named = [false; 32];
+    let mut segment_named = [false; 32];
+    for &kind in kinds {
         match kind {
             TokenKind::LParen => {
-                depth += 1;
-                named_at = None;
-                segment_has_equal = false;
+                paren_depth = (paren_depth + 1).min(31);
+                saw_named[paren_depth] = false;
+                segment_named[paren_depth] = false;
             }
             TokenKind::RParen => {
-                depth -= 1;
-                named_at = None;
-                segment_has_equal = false;
-            }
-            TokenKind::Eq if depth > 0 => {
-                segment_has_equal = true;
-                named_at.get_or_insert(index);
-            }
-            TokenKind::Comma if depth > 0 => {
-                if named_at.is_some() && !segment_has_equal {
+                let depth = paren_depth;
+                if nested_depth == 0 && saw_named[depth] && !segment_named[depth] {
                     return true;
                 }
-                segment_has_equal = false;
+                paren_depth = paren_depth.saturating_sub(1);
+            }
+            TokenKind::LBracket | TokenKind::LBrace if paren_depth > 0 => nested_depth += 1,
+            TokenKind::RBracket | TokenKind::RBrace if paren_depth > 0 => nested_depth -= 1,
+            TokenKind::Eq if paren_depth > 0 && nested_depth == 0 => {
+                let depth = paren_depth;
+                segment_named[depth] = true;
+                saw_named[depth] = true;
+            }
+            TokenKind::Comma if paren_depth > 0 && nested_depth == 0 => {
+                let depth = paren_depth;
+                if saw_named[depth] && !segment_named[depth] {
+                    return true;
+                }
+                segment_named[depth] = false;
             }
             _ => {}
         }
     }
-    named_at.is_some() && !segment_has_equal
+    false
+}
+
+fn range_chained(kinds: &[TokenKind]) -> bool {
+    let mut depth = 0_usize;
+    let mut seen = [false; 32];
+    for &kind in kinds {
+        match kind {
+            TokenKind::LParen | TokenKind::LBracket | TokenKind::LBrace => {
+                depth = (depth + 1).min(31);
+                seen[depth] = false;
+            }
+            TokenKind::RParen | TokenKind::RBracket | TokenKind::RBrace => {
+                seen[depth] = false;
+                depth = depth.saturating_sub(1);
+            }
+            TokenKind::Comma | TokenKind::Colon | TokenKind::FatArrow => seen[depth] = false,
+            TokenKind::DotDot | TokenKind::DotDotEq => {
+                if seen[depth] {
+                    return true;
+                }
+                seen[depth] = true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn validate_comments(source: &str, tokens: &TokenBuf, diagnostics: &mut Vec<Diagnostic>) {
+    let mut module_blocks = 0_u8;
+    for (index, kind) in tokens.com_kind.iter().copied().enumerate() {
+        if kind == CommentKind::ModuleDoc {
+            let starts_block = index == 0
+                || source.as_bytes()
+                    [tokens.com_end[index - 1] as usize..tokens.com_start[index] as usize]
+                    .windows(2)
+                    .any(|pair| pair == b"\n\n");
+            if starts_block {
+                module_blocks += 1;
+                if module_blocks > 1 {
+                    push_diag(
+                        diagnostics,
+                        Code::DocCommentWithoutTarget,
+                        tokens.com_start[index],
+                        tokens.com_end[index],
+                    );
+                }
+            }
+            continue;
+        }
+        if kind != CommentKind::Doc {
+            continue;
+        }
+        let end = tokens.com_end[index] as usize;
+        if tokens.com_start.get(index + 1).is_some_and(|next| {
+            *next as usize >= end && source[end..*next as usize].trim().is_empty()
+        }) {
+            continue;
+        }
+        let next_token = tokens
+            .start
+            .partition_point(|start| (*start as usize) < end);
+        let Some(&next_start) = tokens.start.get(next_token) else {
+            push_diag(
+                diagnostics,
+                Code::DocCommentWithoutTarget,
+                tokens.com_start[index],
+                tokens.com_end[index],
+            );
+            continue;
+        };
+        let gap = &source[end..next_start as usize];
+        let blank_line = gap.as_bytes().windows(2).any(|pair| pair == b"\n\n")
+            || gap.as_bytes().windows(4).any(|pair| pair == b"\r\n\r\n");
+        let target = tokens.kind[next_token];
+        let target_line = tokens.line_of(next_start);
+        let target_indent = tokens.line_indent[target_line];
+        let comment_line = tokens.line_of(tokens.com_start[index]);
+        let comment_indent = u16::try_from(
+            source[tokens.line_start[comment_line] as usize..tokens.com_start[index] as usize]
+                .bytes()
+                .take_while(|byte| *byte == b' ')
+                .count(),
+        )
+        .unwrap_or(u16::MAX);
+        let declaration = matches!(
+            target,
+            TokenKind::KwFn
+                | TokenKind::KwData
+                | TokenKind::KwEnum
+                | TokenKind::KwTrait
+                | TokenKind::KwImpl
+                | TokenKind::KwType
+                | TokenKind::KwPub
+                | TokenKind::At
+        ) || target == TokenKind::Ident
+            && target_indent > 0
+            && !tokens
+                .kind
+                .get(next_token + 1)
+                .is_some_and(|kind| matches!(kind, TokenKind::ColonEq | TokenKind::Eq));
+        if blank_line || target_indent != comment_indent || !declaration {
+            push_diag(
+                diagnostics,
+                Code::DocCommentWithoutTarget,
+                tokens.com_start[index],
+                tokens.com_end[index],
+            );
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn validate_continuations(_source: &str, tokens: &TokenBuf, diagnostics: &mut Vec<Diagnostic>) {
+    let ends = tokens.line_token_ends();
+    let mut delimiter_depth = 0_i32;
+    let mut previous: Option<(usize, usize)> = None;
+    let mut previous_was_decorator = false;
+    let mut nested_suite: Option<(u16, bool)> = None;
+    let mut bracket_statement_indent = None;
+    for (line, &end) in ends.iter().enumerate() {
+        let Some(first_token) = tokens.line_tok[line].get() else {
+            continue;
+        };
+        let first = first_token.idx();
+        let kinds = &tokens.kind[first..end];
+        let lo = tokens.start[first];
+        let hi = tokens.end[end - 1];
+        if previous_was_decorator
+            && kinds.first() == Some(&TokenKind::KwType)
+            && kinds.contains(&TokenKind::Eq)
+        {
+            push_diag(diagnostics, Code::SyntaxError, lo, hi);
+        }
+        previous_was_decorator = kinds.first() == Some(&TokenKind::At);
+
+        if delimiter_depth > 0
+            && matches!(kinds.first(), Some(TokenKind::LParen | TokenKind::LBracket))
+            && previous.is_some_and(|(_, previous_end)| {
+                !matches!(
+                    tokens.kind[previous_end - 1],
+                    TokenKind::Comma | TokenKind::LParen | TokenKind::LBracket | TokenKind::LBrace
+                )
+            })
+        {
+            push_diag(diagnostics, Code::SyntaxError, lo, hi);
+        }
+
+        let depth_at_line_start = delimiter_depth;
+        let mut local_depth = delimiter_depth;
+        let mut nested_colon = false;
+        for (index, &kind) in kinds.iter().enumerate() {
+            if kind.is_open_delimiter() {
+                local_depth += 1;
+            } else if kind.is_close_delimiter() {
+                local_depth -= 1;
+            } else if kind == TokenKind::Colon && local_depth > 0 && index + 1 == kinds.len() {
+                nested_colon = true;
+            }
+        }
+        if nested_colon
+            && let Some(next_line) = ((line + 1)..tokens.line_tok.len())
+                .find(|candidate| tokens.line_tok[*candidate].get().is_some())
+        {
+            let next = tokens.line_tok[next_line].idx();
+            if !kinds.iter().any(|kind| {
+                matches!(
+                    kind,
+                    TokenKind::KwFn
+                        | TokenKind::KwIf
+                        | TokenKind::KwFor
+                        | TokenKind::KwWhile
+                        | TokenKind::KwMatch
+                        | TokenKind::KwElse
+                        | TokenKind::FatArrow
+                )
+            }) {
+                push_diag(diagnostics, Code::TrailingBlockPosition, lo, hi);
+            }
+            let required_indent = bracket_statement_indent
+                .map_or(tokens.line_indent[line], |base: u16| {
+                    base.max(tokens.line_indent[line])
+                });
+            if tokens.line_indent[next_line] <= required_indent {
+                push_diag(
+                    diagnostics,
+                    Code::UnexpectedIndentation,
+                    tokens.start[next],
+                    tokens.end[next],
+                );
+            } else {
+                nested_suite = Some((
+                    tokens.line_indent[next_line],
+                    kinds.contains(&TokenKind::KwFn),
+                ));
+            }
+        }
+        let net_closes = local_depth < depth_at_line_start;
+        if nested_suite.is_some_and(|(_, closure)| closure)
+            && net_closes
+            && !kinds.first().is_some_and(|kind| kind.is_close_delimiter())
+            && kinds.first() != Some(&TokenKind::Comma)
+        {
+            push_diag(diagnostics, Code::SyntaxError, lo, hi);
+        }
+
+        if delimiter_depth == 0
+            && matches!(
+                kinds.first(),
+                Some(
+                    TokenKind::Plus
+                        | TokenKind::Minus
+                        | TokenKind::Star
+                        | TokenKind::Slash
+                        | TokenKind::Percent
+                        | TokenKind::Amp
+                        | TokenKind::Pipe
+                        | TokenKind::Caret
+                        | TokenKind::PipeGt
+                )
+            )
+        {
+            let range_pattern =
+                kinds.first() == Some(&TokenKind::Minus) && kinds.contains(&TokenKind::FatArrow);
+            let previous_allows_pipe = kinds.first() == Some(&TokenKind::PipeGt)
+                && previous
+                    .is_some_and(|(start, finish)| !same_line_suite(&tokens.kind[start..finish]));
+            if !previous_allows_pipe && !range_pattern {
+                push_diag(diagnostics, Code::SyntaxError, lo, hi);
+            }
+        }
+        if delimiter_depth == 0
+            && kinds.first() == Some(&TokenKind::Dot)
+            && previous.is_some_and(|(start, finish)| {
+                tokens.kind[start..finish].contains(&TokenKind::PipeGt)
+                    || same_line_suite(&tokens.kind[start..finish])
+            })
+        {
+            push_diag(diagnostics, Code::SyntaxError, lo, hi);
+        }
+
+        for &kind in kinds {
+            if kind.is_open_delimiter() {
+                delimiter_depth += 1;
+            } else if kind.is_close_delimiter() {
+                delimiter_depth -= 1;
+            }
+        }
+        if delimiter_depth <= 0 {
+            nested_suite = None;
+            bracket_statement_indent = None;
+        } else if depth_at_line_start == 0 {
+            bracket_statement_indent = Some(tokens.line_indent[line]);
+        }
+        previous = Some((first, end));
+    }
+}
+
+fn same_line_suite(kinds: &[TokenKind]) -> bool {
+    let mut depth = 0_i32;
+    kinds.iter().enumerate().any(|(index, kind)| {
+        match kind {
+            TokenKind::LParen | TokenKind::LBracket | TokenKind::LBrace => depth += 1,
+            TokenKind::RParen | TokenKind::RBracket | TokenKind::RBrace => depth -= 1,
+            _ => {}
+        }
+        *kind == TokenKind::Colon && depth == 0 && index + 1 < kinds.len()
+    })
 }
 
 fn old_bound_plus(kinds: &[TokenKind]) -> bool {
@@ -1008,8 +1589,8 @@ mod tests {
         assert_eq!(function.kind(), SyntaxKind::FnDecl);
         assert!(
             function
-                .children()
-                .any(|child| child.kind() == SyntaxKind::DynType)
+                .descendants()
+                .any(|node| node.kind() == SyntaxKind::DynType)
         );
         assert_eq!(parsed.tree.reconstruct(&parsed.tokens, source), source);
     }

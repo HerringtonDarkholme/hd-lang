@@ -91,29 +91,6 @@ S7), each give the exact program, metric and decision rule. Run them all.
   experiment, the decision each rule gives, and the machine and load.
   Commit the harness and the results; push.
 
-### C2c. A Complete Parser (Before C3)
-
-Owner, 2026-10-07: "the parser isn't full and the parse speed is slow".
-C2's parser is structural: it accepts 98 of 99 valid parse cases but
-matches only 96 of 172 invalid ones. Slice 1's exit test is all of them.
-
-- Every grammar production in `spec/lang/02-grammar.md` (and the forms
-  the other chapters add) gets a green-tree node kind and a typed view:
-  items, statements, expressions (with precedence), patterns, types
-  (`dyn`, `mut`, optionals, tuples, functions), annotations, `tests:`
-  blocks, `with`, pipes, string interpolation.
-- Every `spec/conformance/parse/` case passes with its expected
-  diagnostic code. `compiler/KNOWN_FAILURES.tsv` shrinks to zero, apart
-  from rows tagged as waiting on S1e (GADT removal). Error recovery must
-  still report every independent error once.
-- Then speed (C2a item 4): profile and reach lexing at least 300 MB/s,
-  skimming at least as fast as lexing, and parsing at least 100 MB/s on
-  `lib/std` in release. Report all three in the commit message.
-- Answer to your Questions: prioritize all diagnostic families; zero
-  ledger rows is the exit. The `test:ui` Backspace failure is specific to
-  your environment (it passes 85/85 in every merge run today); don't
-  chase it.
-
 ### C3. Research: Known Issues Of Prior Back Ends, Wasm And Runtimes
 
 Documents only. Continue `future-work/compiler/prior-art-issues.md` with

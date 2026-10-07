@@ -9,6 +9,7 @@ use crate::{Layout, TokenBuf, TokenKind};
 #[repr(u16)]
 pub enum SyntaxKind {
     Root,
+    // Items and item parts.
     UseDecl,
     FnDecl,
     DataDecl,
@@ -18,9 +19,86 @@ pub enum SyntaxKind {
     TypeDecl,
     TestsBlock,
     Decorator,
+    ParameterList,
+    Parameter,
+    GenericParameterList,
+    GenericParameter,
+    TypeArgumentList,
+    ArgumentList,
+    Argument,
+    NamedArgument,
+    DataField,
+    EnumVariant,
+    AssociatedTypeDecl,
+    Derivation,
+    // Statements and suites.
     Block,
     Statement,
+    LetStmt,
+    DiscardStmt,
+    AssignmentStmt,
+    ReturnStmt,
+    BreakStmt,
+    ContinueStmt,
+    DeferStmt,
+    ExprStmt,
+    MatchArm,
+    // Expressions. Binary operators retain their precise token; these nodes
+    // record the precedence level without inflating the tree with token kinds.
+    Expression,
+    BindingExpr,
+    ConditionalExpr,
+    RangeExpr,
+    LogicalOrExpr,
+    LogicalAndExpr,
+    ComparisonExpr,
+    PipeExpr,
+    BitwiseOrExpr,
+    BitwiseXorExpr,
+    BitwiseAndExpr,
+    ShiftExpr,
+    AdditiveExpr,
+    MultiplicativeExpr,
+    UnaryExpr,
+    PowerExpr,
+    PostfixExpr,
+    CallExpr,
+    IndexExpr,
+    FieldExpr,
+    LiteralExpr,
+    NameExpr,
+    TupleExpr,
+    ListExpr,
+    MapExpr,
+    DataExpr,
+    ClosureExpr,
+    IfExpr,
+    ForExpr,
+    WhileExpr,
+    MatchExpr,
+    ComprehensionExpr,
+    ContextExpr,
+    StringExpr,
+    Interpolation,
+    // Patterns.
+    Pattern,
+    BindingPattern,
+    LiteralPattern,
+    VariantPattern,
+    DataPattern,
+    TuplePattern,
+    SpreadPattern,
+    RangePattern,
+    // Types.
+    Type,
+    NamedType,
     DynType,
+    MutType,
+    OptionalType,
+    TupleType,
+    FunctionType,
+    ProjectionType,
+    RequirementRow,
     Error,
     SkippedBody,
 }
@@ -237,6 +315,15 @@ impl<'t> NodeRef<'t> {
             end,
         }
     }
+
+    pub fn descendants(self) -> impl Iterator<Item = NodeRef<'t>> {
+        let start = self.index.idx() + 1;
+        let end = self.index.idx() + self.tree.subtree_len[self.index.idx()] as usize;
+        (start..end).map(|index| NodeRef {
+            tree: self.tree,
+            index: NodeIdx::from_raw(as_u32(index)),
+        })
+    }
 }
 
 struct ChildIter<'t> {
@@ -261,20 +348,136 @@ impl<'t> Iterator for ChildIter<'t> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct FnDecl<'t>(NodeRef<'t>);
+pub trait AstNode<'t>: Copy {
+    const KIND: SyntaxKind;
 
-impl<'t> FnDecl<'t> {
-    #[must_use]
-    pub fn cast(node: NodeRef<'t>) -> Option<Self> {
-        (node.kind() == SyntaxKind::FnDecl).then_some(Self(node))
-    }
+    fn cast(node: NodeRef<'t>) -> Option<Self>;
 
-    #[must_use]
-    pub fn node(self) -> NodeRef<'t> {
-        self.0
-    }
+    fn node(self) -> NodeRef<'t>;
+}
 
+macro_rules! ast_nodes {
+    ($( $name:ident => $kind:ident ),+ $(,)?) => {$ (
+        #[derive(Clone, Copy)]
+        pub struct $name<'t>(NodeRef<'t>);
+
+        impl<'t> AstNode<'t> for $name<'t> {
+            const KIND: SyntaxKind = SyntaxKind::$kind;
+
+            fn cast(node: NodeRef<'t>) -> Option<Self> {
+                (node.kind() == Self::KIND).then_some(Self(node))
+            }
+
+            fn node(self) -> NodeRef<'t> {
+                self.0
+            }
+        }
+
+        impl<'t> $name<'t> {
+            #[must_use]
+            pub fn cast(node: NodeRef<'t>) -> Option<Self> {
+                <Self as AstNode>::cast(node)
+            }
+
+            #[must_use]
+            pub fn node(self) -> NodeRef<'t> {
+                self.0
+            }
+        }
+    )+ };
+}
+
+ast_nodes! {
+    SourceFile => Root,
+    UseDecl => UseDecl,
+    FnDecl => FnDecl,
+    DataDecl => DataDecl,
+    EnumDecl => EnumDecl,
+    TraitDecl => TraitDecl,
+    ImplDecl => ImplDecl,
+    TypeDecl => TypeDecl,
+    TestsBlock => TestsBlock,
+    Decorator => Decorator,
+    ParameterList => ParameterList,
+    Parameter => Parameter,
+    GenericParameterList => GenericParameterList,
+    GenericParameter => GenericParameter,
+    TypeArgumentList => TypeArgumentList,
+    ArgumentList => ArgumentList,
+    Argument => Argument,
+    NamedArgument => NamedArgument,
+    DataField => DataField,
+    EnumVariant => EnumVariant,
+    AssociatedTypeDecl => AssociatedTypeDecl,
+    Derivation => Derivation,
+    Block => Block,
+    Statement => Statement,
+    LetStmt => LetStmt,
+    DiscardStmt => DiscardStmt,
+    AssignmentStmt => AssignmentStmt,
+    ReturnStmt => ReturnStmt,
+    BreakStmt => BreakStmt,
+    ContinueStmt => ContinueStmt,
+    DeferStmt => DeferStmt,
+    ExprStmt => ExprStmt,
+    MatchArm => MatchArm,
+    Expression => Expression,
+    BindingExpr => BindingExpr,
+    ConditionalExpr => ConditionalExpr,
+    RangeExpr => RangeExpr,
+    LogicalOrExpr => LogicalOrExpr,
+    LogicalAndExpr => LogicalAndExpr,
+    ComparisonExpr => ComparisonExpr,
+    Pattern => Pattern,
+    BindingPattern => BindingPattern,
+    LiteralPattern => LiteralPattern,
+    VariantPattern => VariantPattern,
+    DataPattern => DataPattern,
+    TuplePattern => TuplePattern,
+    SpreadPattern => SpreadPattern,
+    RangePattern => RangePattern,
+    Type => Type,
+    NamedType => NamedType,
+    DynType => DynType,
+    MutType => MutType,
+    OptionalType => OptionalType,
+    FunctionType => FunctionType,
+    TupleType => TupleType,
+    ProjectionType => ProjectionType,
+    RequirementRow => RequirementRow,
+    IfExpr => IfExpr,
+    ForExpr => ForExpr,
+    WhileExpr => WhileExpr,
+    MatchExpr => MatchExpr,
+    PipeExpr => PipeExpr,
+    BitwiseOrExpr => BitwiseOrExpr,
+    BitwiseXorExpr => BitwiseXorExpr,
+    BitwiseAndExpr => BitwiseAndExpr,
+    ShiftExpr => ShiftExpr,
+    AdditiveExpr => AdditiveExpr,
+    MultiplicativeExpr => MultiplicativeExpr,
+    UnaryExpr => UnaryExpr,
+    PowerExpr => PowerExpr,
+    PostfixExpr => PostfixExpr,
+    CallExpr => CallExpr,
+    IndexExpr => IndexExpr,
+    FieldExpr => FieldExpr,
+    LiteralExpr => LiteralExpr,
+    NameExpr => NameExpr,
+    TupleExpr => TupleExpr,
+    ListExpr => ListExpr,
+    MapExpr => MapExpr,
+    DataExpr => DataExpr,
+    ClosureExpr => ClosureExpr,
+    ComprehensionExpr => ComprehensionExpr,
+    ContextExpr => ContextExpr,
+    StringExpr => StringExpr,
+    Interpolation => Interpolation,
+    ErrorNode => Error,
+    SkippedBody => SkippedBody,
+}
+
+impl FnDecl<'_> {
     #[must_use]
     pub fn name_token(self, tokens: &TokenBuf) -> Option<TokenIdx> {
         let (first, last) = self.0.tree.span_tokens(self.0.index);
