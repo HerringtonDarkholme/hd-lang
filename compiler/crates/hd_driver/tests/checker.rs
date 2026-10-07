@@ -200,6 +200,29 @@ fn top_level_statements_are_checked_in_order() {
     );
 }
 
+/// `$.with` covers its keys in its block, and each provider must
+/// implement its key (`req.with.type`).
+#[test]
+fn with_blocks_provide_requirements() {
+    let out = program(
+        "use std.console.BufferConsole\n\nfn show() -> void:\n    console := BufferConsole.new()\n    $.with(Console = console):\n        println(1)\n\nfn main() -> void $ Console:\n    show()\n",
+    );
+    assert!(
+        codes(&out).iter().all(|c| *c == Code::Unsupported),
+        "{}",
+        out.render()
+    );
+    assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
+    let out = program(
+        "fn show() -> void:\n    $.with(Console = 5):\n        println(1)\n\nfn main() -> void $ Console:\n    show()\n",
+    );
+    assert!(
+        codes(&out).contains(&Code::UnsatisfiedTraitBound),
+        "{}",
+        out.render()
+    );
+}
+
 /// Pipes and comprehensions check (an Emit stub may stop the build).
 #[test]
 fn pipes_and_comprehensions_check() {

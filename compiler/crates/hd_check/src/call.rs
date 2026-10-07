@@ -1495,6 +1495,13 @@ impl Ck<'_, '_> {
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
+        // A receiver whose type an earlier error left unknown adds nothing.
+        if matches!(self.strip_mut(rt), Ty::NEVER | Ty::POISON) {
+            for e in &args.positional {
+                self.expr(*e, None)?;
+            }
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
         // A field holding a function: `(x.f)(...)` is written `x.f(...)` only
         // when no method of that name exists.
         let hit = self.resolve_method(rt, name)?;

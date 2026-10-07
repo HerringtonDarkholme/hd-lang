@@ -533,6 +533,9 @@ impl Ck<'_, '_> {
                     .collect::<Vec<_>>(),
             ),
         };
+        if matches!(self.strip_mut(tref.self_ty), Ty::NEVER) {
+            return Ok(Some(hd_types::solver::Evidence::Poison));
+        }
         if let Some(b) = self.builtin_holds(tref) {
             return Ok(Some(b));
         }
@@ -1079,16 +1082,25 @@ impl Ck<'_, '_> {
         }
         // Bounds that waited for inference.
         let pending = std::mem::take(&mut self.pending);
-        for (tref, _) in pending {
+        for (tref, at) in pending {
             let tref = TraitRef {
                 trait_: tref.trait_,
                 self_ty: self.zonk(tref.self_ty),
                 args: self.zonk_list(tref.args),
             };
-            if !pool.has_poison(tref.self_ty) && self.builtin_holds(tref).is_none() {
-                // A still-open bound adds nothing the body needs: its
-                // evidence is chosen again per instance at collection.
-                let _ = self.solve(tref)?;
+            if pool.has_poison(tref.self_ty) || self.builtin_holds(tref).is_some() {
+                continue;
+            }
+            // Its evidence is chosen again per instance at collection; a
+            // bound that fails once the defaults are in is an error.
+            if let Answer::Fails(_) = self.solve(tref)? {
+                let msg = format!(
+                    "unsatisfied-trait-bound: {} does not implement {}",
+                    self.show(tref.self_ty),
+                    self.cx.names.path(tref.trait_)
+                );
+                let node = self.cx.src.parse.tree.node(at);
+                self.err(Code::UnsatisfiedTraitBound, node, &msg);
             }
         }
         for i in 0..n {
@@ -1146,6 +1158,15 @@ impl Ck<'_, '_> {
                     let at = a as usize + 1;
                     let t = Ty(self.b.body_mut().extra[at]);
                     self.b.body_mut().extra[at] = self.zonk(t).0;
+                    continue;
+                }
+                Tag::With => {
+                    let len = self.b.body_mut().extra[a as usize] as usize;
+                    for k in 0..len / 2 {
+                        let at = a as usize + 1 + 2 * k;
+                        let t = Ty(self.b.body_mut().extra[at]);
+                        self.b.body_mut().extra[at] = self.zonk(t).0;
+                    }
                     continue;
                 }
                 Tag::ItemRef => bw as usize + 1,

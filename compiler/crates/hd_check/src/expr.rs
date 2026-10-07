@@ -168,7 +168,7 @@ impl Ck<'_, '_> {
             SyntaxKind::ComprehensionExpr => self.comprehension(n, &kids, want)?,
             SyntaxKind::TryExpr => self.try_expr(n, &kids)?,
             SyntaxKind::RangeExpr => self.range_expr(n, &kids, want)?,
-            SyntaxKind::ContextExpr => self.context_expr(n)?,
+            SyntaxKind::ContextExpr => self.context_expr(n, want)?,
             SyntaxKind::BindingExpr => {
                 let [pat, rhs] = kids.as_slice() else {
                     return unsupported("this binding form");
@@ -1469,7 +1469,56 @@ impl Ck<'_, '_> {
 
     /// `$.use(K)`: the covering provider of `K`, which the body's row must
     /// name (spec/lang/11-requirements-and-suspension.md).
-    fn context_expr(&mut self, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+    /// `$.with(K = p, ...): block` (`req.with`): each provider is
+    /// evaluated, must implement its key, and covers the key in the block.
+    fn with_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+        let pool = self.cx.names.pool;
+        let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
+            return unsupported("a `$.with` without providers");
+        };
+        let mut pairs = Vec::new();
+        let mut keys = Vec::new();
+        for entry in al
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::ContextEntry)
+        {
+            let kids: Vec<NodeRef<'_>> = entry.children().collect();
+            let [kn, vn] = kids.as_slice() else {
+                return unsupported("a `$.with` spread of a context");
+            };
+            let key = self.ty_node(*kn)?;
+            let TyData::TraitValue { def, args, .. } = pool.get(key) else {
+                return unsupported("a `$.with` key that is not a trait");
+            };
+            let (r, t) = self.expr(*vn, None)?;
+            let tref = hd_types::solver::TraitRef {
+                trait_: def,
+                self_ty: self.strip_mut(t),
+                args,
+            };
+            self.require_ref(tref, *vn)?;
+            pairs.push(Ref(key.0));
+            pairs.push(r);
+            keys.push(key);
+        }
+        let Some(body) = Src::child(n, SyntaxKind::Block) else {
+            return unsupported("a `$.with` without a block");
+        };
+        let row = pool.row(&hd_types::RowData {
+            keys,
+            params: vec![],
+        });
+        self.rows.push(row);
+        let bm = self.b.open_block();
+        let r = self.block_value(body, want);
+        self.rows.pop();
+        let (tail, ty) = r?;
+        let blk = self.b.close_block(bm, tail, ty, body.index());
+        let rec = self.b.refs_record(&pairs);
+        Ok((self.b.emit(Tag::With, rec, blk.0, ty, n.index()), ty))
+    }
+
+    fn context_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
         let toks: Vec<String> = self
             .cx
@@ -1478,8 +1527,11 @@ impl Ck<'_, '_> {
             .take(4)
             .map(|t| self.cx.src.text(t).to_owned())
             .collect();
+        if toks.get(2).map(String::as_str) == Some("with") {
+            return self.with_expr(n, want);
+        }
         if toks.get(2).map(String::as_str) != Some("use") {
-            return unsupported("`$.with`, `$.context` and context types");
+            return unsupported("`$.context` and context types");
         }
         let Some(kn) = n.children().find(|c| c.kind().is_type()) else {
             return unsupported("`$.use` without a key");
