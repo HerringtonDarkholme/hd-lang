@@ -9,16 +9,22 @@ use std.structure.{Structure, Walker, Source, Variant, VariantInfo, Field, Membe
 
 # A value that consents to be written by every format
 # (r-annot.serde.definition).
+## A type that can write itself to a `Serializer`; the compiler knows it for the boundary rule.
+## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
 pub trait Serialize:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]
 
 # A value that consents to be built by every format
 # (r-annot.serde.definition).
+## A type that can read itself from a `Deserializer`; the compiler knows it for the boundary rule.
+## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
 pub trait Deserialize:
     fn deserialize[R < Deserializer](input: mut R) -> Result[Self, R::Error]
 
 # A format's writer: one call per value of the data model
 # (r-std-serde.model.one-value).
+## The format side of writing: it receives a value's parts, or fails with an error of its own type.
+## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
 pub trait Serializer:
     type Error
     fn null(mut self) -> Result[void, Self::Error]
@@ -37,6 +43,8 @@ pub trait Serializer:
     fn end_variant(mut self) -> Result[void, Self::Error]
 
 # What a self-describing format holds next (r-std-serde.read.peek).
+## The kind of a single value a `Deserializer` offers.
+## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
 pub enum ValueKind:
     Null
     Bool
@@ -49,6 +57,8 @@ pub enum ValueKind:
 
 # A format's reader: it pulls one value of the data model at a time
 # (r-std-serde.read.one-value).
+## The format side of reading: it offers a value's parts, or fails with an error of its own type.
+## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
 pub trait Deserializer:
     type Error
     fn peek(mut self) -> Result[ValueKind, Self::Error]
