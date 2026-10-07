@@ -10,6 +10,7 @@ description = "The run's type and item tables, and TIR with its wire form, print
 hd_base = { path = "../hd_base" }
 hd_intern = { path = "../hd_intern" }
 hd_iface = { path = "../hd_iface" }
+hd_types = { path = "../hd_types" }
 
 [lints]
 workspace = true

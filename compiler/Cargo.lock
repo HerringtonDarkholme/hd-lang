@@ -125,6 +125,7 @@ dependencies = [
  "hd_base",
  "hd_iface",
  "hd_intern",
+ "hd_types",
 ]
 
 [[package]]

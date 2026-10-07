@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use hd_base::{Hash128, Symbol};
 use hd_iface::{CTy, KeyHasher, Reader, put_str, put_u32};
 
+pub mod ir;
 pub mod print;
 pub mod verify;
 pub mod world;
