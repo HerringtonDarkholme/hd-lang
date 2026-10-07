@@ -12,11 +12,15 @@ use std.format.DebugWriter
 # type `Facts`. The written result is `Any` because the modules that use
 # `std.annotation`, such as `std.ops`, do not declare `std.structure`.
 @intrinsic("facts_of")
+## The facts attached to the module-level function `f`; a compiler intrinsic.
+## See [annot.facts-of.declared](../../spec/lang/14-annotations.md#r-annot.facts-of.declared).
 pub fn facts_of[F](f: F) -> Any:
     panic("intrinsic")
 
 # The kinds of target a decorator value attaches to (r-annot.target.kind.fn
 # and the rows after it); a newtype is `.Newtype` (Decorators D10).
+## The kind of declaration a fact value may be attached to.
+## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
 pub enum Target:
     Fn
     Data
@@ -33,7 +37,11 @@ pub enum Target:
 # (r-annot.target.limit). The compiler recognizes this type by its qualified
 # name, and it limits itself to data types and enums (r-annot.target.bootstrap).
 @annotate(.Data, .Enum)
+## The fact that limits a fact type's values to targets of the listed kinds.
+## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
 pub data Annotate:
+    ## The target kinds the fact type allows.
+    ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
     pub kinds: List[Target]
 
 # `T`, when written as in `@annotate::[F](.Field)` or
@@ -43,6 +51,8 @@ pub data Annotate:
 # reads it and checks each value (src/checker/typed-facts.ts). When omitted,
 # it takes the default `Any`, and the fact type is untyped
 # (r-annot.typed-fact.untyped).
+## The `@annotate` decorator: it attaches an `Annotate` fact listing the target `kinds`.
+## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
 pub fn annotate[T = Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 
