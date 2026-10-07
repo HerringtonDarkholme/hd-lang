@@ -345,6 +345,34 @@ impl Ck<'_, '_> {
             Some(a) => (self.coerce(r, t, a, rhs, "binding"), a),
             None => (r, t),
         };
+        // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive,
+        // types.bind.let-mut-tuple).
+        if pat.kind() == SyntaxKind::BindingPattern
+            && pat
+                .direct_tokens()
+                .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
+        {
+            let lit = matches!(
+                self.infer.kind_of(pool, t),
+                Some(VarKind::IntLit | VarKind::FloatLit)
+            );
+            match pool.get(self.strip_mut(t)) {
+                _ if lit => self.err(
+                    Code::MutOnPrimitive,
+                    pat,
+                    "mut-on-primitive: `let mut` on a primitive value",
+                ),
+                TyData::Prim(_) => self.err(
+                    Code::MutOnPrimitive,
+                    pat,
+                    "mut-on-primitive: `let mut` on a primitive value",
+                ),
+                TyData::Tuple { .. } => {
+                    self.err(Code::MutOnTuple, pat, "mut-on-tuple: `let mut` on a tuple");
+                }
+                _ => {}
+            }
+        }
         // A plain name: a new local.
         if pat.kind() == SyntaxKind::BindingPattern && els.is_none() {
             let name_tok = pat.direct_tokens().find(|t| {

@@ -327,6 +327,18 @@ fn checker_errors_are_reported() {
             "fn main() -> void $ Console:\n    xs := []\n    println(1)\n",
             Code::CannotInferType,
         ),
+        (
+            "fn main() -> void $ Console:\n    let mut n = 0\n    println(n)\n",
+            Code::MutOnPrimitive,
+        ),
+        (
+            "fn main() -> void $ Console:\n    let n: mut i32 = 0\n    println(n)\n",
+            Code::MutOnPrimitive,
+        ),
+        (
+            "fn main() -> void $ Console:\n    let mut pair = (1, 2)\n    println(pair._0)\n",
+            Code::MutOnTuple,
+        ),
     ];
     for (src, code) in cases {
         let out = program(src);

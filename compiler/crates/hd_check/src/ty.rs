@@ -213,6 +213,14 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::MutType => {
                 let t = first(self, n)?;
+                if matches!(pool.get(t), TyData::Prim(_)) {
+                    self.err(
+                        hd_diag::Code::MutOnPrimitive,
+                        n,
+                        "mut-on-primitive: a primitive type has no `mut` form",
+                    );
+                    return Ok(t);
+                }
                 pool.intern_ty(&TyData::Mut(t))
             }
             SyntaxKind::ParenType => first(self, n)?,

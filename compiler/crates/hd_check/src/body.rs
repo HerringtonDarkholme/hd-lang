@@ -656,7 +656,22 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Option<Ref>, Ty)> {
         self.scopes.push(HashMap::new());
-        let r = self.lines(block, want);
+        // A suite with `defer` is a cleanup scope (`flow.defer.scopes`):
+        // a `Scope` over its statements, whose suites are its `Defer`s.
+        let r = if block.children().any(|c| c.kind() == SyntaxKind::DeferStmt) {
+            let sm = self.b.open_scope();
+            let inner = self.b.open_block();
+            match self.lines(block, want) {
+                Ok((tail, ty)) => {
+                    let body = self.b.close_block(inner, tail, ty, block.index());
+                    let scope = self.b.close_scope(sm, body, ty, block.index());
+                    Ok((if tail.is_some() { Some(scope) } else { None }, ty))
+                }
+                Err(e) => Err(e),
+            }
+        } else {
+            self.lines(block, want)
+        };
         self.scopes.pop();
         r
     }
