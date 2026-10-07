@@ -206,7 +206,7 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 | vtables, capture-free closures, payloadless variant singletons, member handles | immutable | a constant expression (`struct.new` and `ref.func` are constant in Wasm GC) |
 | short string literals (16 bytes or less) | immutable | a constant expression (`array.new_fixed`) |
 | other string literals | mutable, nullable | lazily: the first use runs `array.new_data` |
-| fact values, metadata, shared enum data | immutable | one global per allocation of the value graph, in allocation order, each a constant expression over earlier ones (codegen.md §12.3); no fact has a getter |
+| fact values, metadata, shared enum data | mutable, nullable | lazily: a getter runs the fact's body on the first read (codegen.md §12.3) |
 | runtime state: panic category and site, the wake table, the forbidden-context counter | mutable | constants |
 
 - **Init order.** The `hd.init` export calls each reachable group's init

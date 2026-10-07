@@ -30,7 +30,6 @@ so `obj/` needs a spec change, which the owner accepted (open question
 | `tir` | a module's TIR, per-item TIR hashes and dependency lists (§4.13.11) | `ModuleFinish` | D2 |
 | `check-test` | the test overlay's diagnostics and test registrations | `TestOverlay` | `hd check --tests`, `hd test` |
 | `hdr` | one folder's stage-B header diagnostics ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)) | `HeaderCheck` | output |
-| `fact` | one fact's compile-time value, or its `fact-evaluation-failed` diagnostic ([codegen.md §12.3](codegen.md#123-facts-defaults-derives-and-tests)) | `EvalFact` | `Emit`, `Link` |
 | `coh` | one trait's overlap diagnostics | `Coherence` | output |
 | `init` | one folder's statement order and its diagnostics | `InitOrder` | output, D2 |
 | `pkgres` | the package's sorted diagnostics and summary counts | `PackageResult` | the warm fast path |

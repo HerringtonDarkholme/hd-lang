@@ -10,7 +10,7 @@ items 18 to 20 and 22, and the owner's answers of the day: collection
 selects impls by a head match plus `Bind` steps, with no proof
 (§13.2); vtables follow the trait record's shape (§13.5); tuple traits
 are template instances (§13.6); defaults run per call and facts are
-evaluated at compile time (§12.3); `Result` uses `multi` layouts, and
+lazily initialized globals (§12.3, owner, 2026-10-07); `Result` uses `multi` layouts, and
 bounded inlining and scalar replacement are first-release (§12.6);
 polymorphic recursion is an error (§13.4).
 
@@ -84,7 +84,6 @@ D2's tasks are `TaskKind::Ext` tasks (§6.1):
 ```rust
 pub enum ExtTask {
     Collect(ProgramId),          // after the tir entry of every module the program can reach
-    EvalFact(FactSlot),          // created by Collect, one per fact the program reads (§12.3)
     Emit(InstanceSlot),          // created by Collect, one per code-entry miss
     Link(ProgramId),             // after every Emit of its program
     Precompile(ProgramId, Tier), // native only
@@ -220,91 +219,21 @@ cancel function (§14.6).
   nothing. Emission increments the forbidden-context counter around a
   `DefaultCall` whose body makes a call, so an indirect `block_on` or
   `println` there panics (suspension.md §14.9).
-- **Facts are evaluated at compile time.** A fact, a metadata
-  expression, and a variant's shared-data constructor with its defaults
-  are evaluated once, at compile time
-  ([`annot.fact.eval`](../../spec/lang/14-annotations.md#r-annot.fact.eval),
-  [`annot.metadata.eval`](../../spec/lang/14-annotations.md#r-annot.metadata.eval),
-  [`data.shared.compile-time`](../../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)).
-  The value becomes a constant global (wasm-layout.md §15.4); no fact
-  has a run-time getter. The design (mine):
-  1. **Where it runs.** `Collect` records every fact the program reads:
-     through `facts_of`, `T::facts()`, a member handle's `info.facts`, or
-     a shared-data access. Each one is an `EvalFact(fact)` task (§11.3),
-     run in parallel after `Collect` and before `Emit` needs the value.
-     `hd check` does not evaluate facts, as it does not collect
-     (open question 23.1-8). Evaluation is **demand-driven**: a fact
-     that no built program reads is never evaluated, so its panic is
-     not reported. That needs a spec note (open question 23.1-9, needs
-     owner approval). A fact expression that reads another fact through
-     `facts_of` depends on that fact's `EvalFact` task and sees its
-     value, objects included; a cycle of such reads is
-     `fact-evaluation-failed` with the reason "fact cycle".
-  2. **How.** A TIR interpreter in `hd_mono` walks the fact body's
-     generic TIR under a substitution, as emission does, with values in
-     an arena of its own. A body that is a tree of constants and
-     constructors is folded without the interpreter.
-  3. **What it may call.** Any hd function, method, trait method
-     (chosen by `select`, §13.2), closure and default body whose TIR
-     is reachable, and the pure intrinsics: arithmetic, `Array`
-     operations, string building, `TypeId`. Facts are requirement-free,
-     so no provider exists and no `CallHost` is reachable. A suspension
-     point, a host call, or a call that reaches `block_on` or `println`
-     stops the evaluation.
-  4. **Budget.** 10,000,000 interpreted instructions and 64 MiB of heap
-     per fact, counted in language units, so the outcome is the same on
-     every run (checking-and-tir.md §4.15). The limits are semantic and
-     join `toolchain_key`.
-  5. **Result: a value graph (Codex re-review N6, N-S2).** Interning
-     would erase identity: two equal data objects that a fact keeps
-     apart must stay two objects, and one object reached twice must
-     stay one. So the result is serialized as a graph, not as pool
-     constants:
-     - **Leaves** are identity-free values that hold no allocation:
-       scalars, strings, enums, tuples and capture-free function values
-       (`ItemConst`). Only these are interned in the pool, by value. An
-       enum or tuple that holds an allocation is a value record that
-       names the allocation by number; it may be copied freely, but
-       the allocation may not (wasm-layout.md §15.2, representation
-       equivalence).
-     - **Allocations** are the data objects, lists, maps and arrays the
-       evaluation created. Each gets an allocation number in the
-       interpreter's allocation order, which is deterministic. A
-       record holds its type and its fields, each a leaf or an
-       allocation number. Equal records are never merged.
-     - **Roots** are the fact's value. An allocation of another fact,
-       read through `facts_of`, is named as `(fact, number)`, so it is
-       the same object in both.
-     Link emits one immutable global per allocation, in allocation
-     order, each a constant `struct.new` or `array.new_fixed` over
-     earlier globals and leaves. Two facts never share an allocation
-     unless one read the other.
-  6. **The compile-time value domain (needs owner approval, open
-     question 23.1-10).** A value with captures cannot be rebuilt by a
-     constant expression without also rebuilding its environment, and
-     a cycle cannot be built by constant `struct.new` at all. So the
-     first release accepts leaves and an acyclic graph of fresh
-     allocations. A closure with captures, a suspension, a handle, or
-     a cyclic graph is `fact-evaluation-failed`, with the reason
-     named. The interpreter finds a cycle while serializing, by a
-     visited mark per allocation.
-  7. **Failure.** A panic, an exhausted budget, a forbidden call, a
-     fact cycle, or a value outside the domain is
-     `fact-evaluation-failed`. It is reported on the fact expression
-     with the reason and, for a panic, the interpreter's backtrace. It
-     is a build error.
-  8. **Cache.** A `fact` entry holds the serialized graph, under
-     `H("fact", toolchain_key, fact stable path, sorted [(module path,
-     tir key)] of the modules reachable from the fact's module in the
-     use graph)`. The key is coarse and sound, as `prog_key` is. The
-     graph's content hash joins `link_key` (§13.10).
-  9. **No code specializes on a fact's value (Codex re-review N-A2).**
-     Emitted code reads a fact only through `global.get` of its root
-     global, a `Global` relocation. Constant folding, dead-branch
-     elimination and inlining stop at that read, so no code key needs
-     the value hash, and a changed fact only relinks. A test edits a
-     fact's private helper in another module, flips a boolean fact, and
-     checks that the consumer's branch follows without re-emission.
+- **Facts are lazily initialized globals (owner, 2026-10-07).** A fact,
+  a metadata expression, and a variant's shared-data constructor with
+  its defaults are ordinary bodies, run once on first read
+  ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy),
+  [`annot.metadata.eval-as-fact`](../../spec/lang/14-annotations.md#r-annot.metadata.eval-as-fact),
+  [`data.shared.eval-as-fact`](../../spec/lang/08-data-and-enums.md#r-data.shared.eval-as-fact)).
+  Each read (`facts_of`, `T::facts()`, a member handle's `info.facts`, a
+  shared-data access) is a getter: a mutable global plus an "initialized"
+  flag, filled by the body's instance on the first read. The getter runs
+  the body inside the forbidden-context counter (suspension.md §14.9), and
+  a panic in it is reported as `fact-evaluation-failed` with the original
+  category. A fact that nothing reads is never collected, so it is never
+  emitted. There is no compile-time evaluator, no evaluation budget, no
+  `fact` cache entry and no value-graph serialization; a changed fact
+  body changes only its own instance's code key.
 - **Derives.** Derive instances, including the generated `walk`,
   `describe` and `build`, are ordinary bodies (§4.13.9). With the
   walker's type known at each instance, every `w.member(h, value)` call is
@@ -417,7 +346,7 @@ differ only where the spec or a first-release feature says so.
 | counted loops (§12.5) | yes | yes | first release |
 | `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values (§15.1); decision B, extended to `Result` (owner, 2026-10-07) | yes | yes | first release |
 | capture-free closures as constants | yes | yes | first release |
-| constant folding and dead branches during the walk; never on a fact's value (§12.3) | yes | yes | first release |
+| constant folding and dead branches during the walk (a fact's value is a run-time read, §12.3) | yes | yes | first release |
 | trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | yes | yes | first release (mine) |
 | bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters | yes | yes | first release (owner, 2026-10-07) |
 | scalar replacement: a non-escaping closure, cell or small data value after inlining becomes locals; an escape analysis in the analysis passes of §12.1, before emission | yes | yes | first release (owner, 2026-10-07) |
@@ -508,7 +437,7 @@ A worklist walk, as rustc's collector does:
 7. For each `Closure`, push the closure body with the parent's
    arguments.
 8. Record every `CallHost` as an import, every type whose layout an
-   operation needs, and every fact the instance reads (§12.3).
+   operation needs, and every fact getter the instance calls (§12.3).
 9. Repeat until the worklist is empty.
 
 **`select` (Codex re-review N7).** At an instance every type is
@@ -798,8 +727,8 @@ and N-S3).** The first release folds exact duplicates only:
    as (offset, kind, stable span))`. The signature comes first: an
    `i32 -> i32` identity and an `i64 -> i64` identity have equal
    instructions and must not fold. Function targets are instance keys,
-   global targets are global symbols (a vtable, a fact, a string
-   literal), so two bodies that reference different globals never fold.
+   global targets are global symbols (a vtable, a fact's storage, a
+   string literal), so two bodies that reference different globals never fold.
    Site records are in the key because a panic's reported location is
    program output. Statement lines (`lines`) are not: they only feed
    backtraces, which name the representative and its aliases.
@@ -926,8 +855,8 @@ only if the `dead-code` metric fails after folding.
 3. **Types.** The canonical types the functions, globals and exports name
    (§15.3).
 4. **Globals.** Constants (vtables, closures without captures, payloadless
-   variant singletons, facts, member handles, short string literals),
-   module storage, then the runtime's globals (§15.4).
+   variant singletons, member handles, short string literals), module
+   storage and fact storage, then the runtime's globals (§15.4).
 5. **Data.** One passive segment per distinct string literal, by first
    reference in function order.
 6. **Elements.** One declarative segment for every function used with
@@ -948,8 +877,7 @@ only if the `dead-code` metric fails after folding.
 
 ```text
 link_key = prog_key (§11.3), and on a prog_key miss
-           H("link", toolchain_key, tier, profile, root description, sorted code keys,
-             sorted [(fact stable path, value hash)] of the facts the program reads)
+           H("link", toolchain_key, tier, profile, root description, sorted code keys)
 ```
 
 A program is written under both keys, so the next warm run hits the

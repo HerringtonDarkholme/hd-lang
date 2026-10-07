@@ -219,8 +219,8 @@ ranges, `Option` and tuples.
 - **Facts and defaults.** A fact or default expression is checked once, in
   its declaring module, as a requirement-free body of its own (body kind
   `Fact` or `Default`). A call that omits an argument emits a
-  `DefaultCall` of that body per call (§4.13.11). A fact's value comes
-  from the compile-time evaluator
+  `DefaultCall` of that body per call (§4.13.11). A fact's value is
+  computed at run time, on first read, by a lazily initialized global
   ([codegen.md §12.3](codegen.md#123-facts-defaults-derives-and-tests)).
 - **Test overlay.** The `tests:` block and the doc tests of module `m` are
   checked by a `TestOverlay(m)` task under `hd check --tests` and
@@ -809,7 +809,6 @@ marked "proposed" are for the spec pass (answer 5).
 | exhaustiveness | matrix cells, within the body's fuel | shares body fuel | `match-too-complex` (proposed) |
 | embedding depth | nested `data` embedding | the spec's | `embedding-too-deep` (spec) |
 | instantiation depth | nesting depth of an instance's type arguments; length of the request chain from a root; also row keys grown by polymorphic recursion in M3 | 32; 256 | `instantiation-too-deep` (proposed; §13.4); a build error, and in M3 a check error (owner, 2026-10-07) |
-| fact evaluation | interpreted TIR instructions and heap bytes per fact | 10,000,000 steps; 64 MiB | `fact-evaluation-failed` (proposed; [codegen.md §12.3](codegen.md#123-facts-defaults-derives-and-tests)) |
 | memory | process bytes | **none by default** (owner, 2026-10-07); opt in with `--max-memory` or `HD_MAX_MEMORY` | `memory-limit` (proposed), naming the stage |
 
 **The opt-in memory cap.** By the owner's decision there is no default

@@ -177,8 +177,8 @@ These cannot form a cycle:
 - **Enum construction.** The payloads are evaluated first, so they exist
   before the enum value. `data.enum.immutable` then fixes them.
 - **Tuples and strings.** Immutable, so the same argument holds.
-- **Shared constructor data.** It is evaluated once at compile time and is
-  readonly ([`data.shared.compile-time`](../../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)).
+- **Shared constructor data.** It is evaluated once, as a fact is, and is
+  readonly ([`data.shared.eval-as-fact`](../../spec/lang/08-data-and-enums.md#r-data.shared.eval-as-fact)).
 - **Copy-update, defaults and data literals.** Each builds a new object
   from values that already exist. A later assignment is path 1.
 - **Embedded parts.** A type that embeds itself is `embedding-cycle`, and

@@ -108,8 +108,8 @@ interface and cache entries (§7.5).
     and [`annot.fact.no-block-on`](../../spec/lang/14-annotations.md#r-annot.fact.block-on.direct)
     with its `unprovable` rule predate answer 13: direct-only, with a
     run-time panic for an indirect call. For facts, the indirect case is
-    now the build error `fact-evaluation-failed`, since facts run at
-    compile time (codegen.md §12.3).
+    the runtime panic `fact-evaluation-failed`, since facts are run-time
+    values (owner, 2026-10-07; codegen.md §12.3).
 12. **`println` in the ban.** Answer 13 bans a direct `println` as well
     as `block_on`, but no spec rule names `println` (type-checking.md
     §16.2 item 2).
@@ -210,7 +210,11 @@ editing D1 in place:
    uses the `multi` layout `(i32 tag, T', E')` and allocates nothing.
    No known program compares `Result`s by identity.
 
-8. **Does `hd check` evaluate facts?** (new, 2026-10-07, from Codex
+8. **Does `hd check` evaluate facts?** **Answered (owner,
+   2026-10-07): no command evaluates facts at compile time; facts are
+   run-time values**
+   ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy)).
+   The rest of this item is the superseded analysis. (From Codex
    finding 4.) Facts, metadata and shared enum data are evaluated once
    at compile time by an interpreter over TIR (codegen.md §12.3). A
    failing fact is `fact-evaluation-failed`. Evaluating needs the TIR of
@@ -222,8 +226,10 @@ editing D1 in place:
    in `hd check` too, makes a check's result depend on other modules'
    bodies, which its cache key does not cover.
 
-9. **Must an unread fact that panics fail the build?** (new,
-   2026-10-07, from Codex re-review N-C2 and question 3.) The spec says
+9. **Must an unread fact that panics fail the build?** **Answered
+   (owner, 2026-10-07): an unread fact is never evaluated**
+   ([`annot.fact.eval.unread`](../../spec/lang/14-annotations.md#r-annot.fact.eval.unread)).
+   The rest is superseded. (From Codex re-review N-C2 and question 3.) The spec says
    a fact "is evaluated once, at compile time", and a panic during
    evaluation is a build error. It does not say whether a fact that no
    program reads is evaluated. **Recommendation:** demand-driven. Only
@@ -233,10 +239,12 @@ editing D1 in place:
    is rare and contrived. Eager evaluation of every attached fact in the
    program's modules is the alternative; it costs interpreter time for
    facts nobody reads.
-10. **Which values can a compile-time value hold?** (new, 2026-10-07,
-   from Codex re-review N6, N-C2 and question 4.)
-   [`annot.metadata.any-value`](../../spec/lang/14-annotations.md#r-annot.metadata.any-value)
-   says "any compile-time value" without defining the term.
+10. **Which values can a compile-time value hold?** **Answered (owner,
+   2026-10-07): a fact may hold anything a global can**
+   ([`annot.fact.value`](../../spec/lang/14-annotations.md#r-annot.fact.value)).
+   The rest is superseded. (From Codex re-review N6, N-C2 and question
+   4.) The old rule said "any compile-time value" without defining the
+   term.
    **Recommendation:** define it as identity-free values (primitives,
    strings, enums, tuples, capture-free function values) plus an
    acyclic graph of data, list, map and array objects allocated during

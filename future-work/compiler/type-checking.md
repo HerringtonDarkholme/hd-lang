@@ -445,13 +445,13 @@ where they are declared, and never at the call:
 | --- | --- | --- |
 | a parameter default | a function of the earlier parameters and the declaration's generics, with the parameter's type as its result | at each call that omits it, after every explicit argument, in declaration order ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)) |
 | a data field default | a function of the declaration's generics only; it sees the declaration's lexical scope, not other fields | at each construction that omits it, in field order ([`data.default.eval`](../../spec/lang/08-data-and-enums.md#r-data.default.eval)) |
-| a fact, a metadata expression, a variant's shared-data constructor and its defaults | a body with no parameters | once, at compile time ([`annot.fact.eval`](../../spec/lang/14-annotations.md#r-annot.fact.eval), [`data.shared.compile-time`](../../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)) |
+| a fact, a metadata expression, a variant's shared-data constructor and its defaults | a body with no parameters | once, at run time, on first read ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy), [`data.shared.eval-as-fact`](../../spec/lang/08-data-and-enums.md#r-data.shared.eval-as-fact)) |
 
 All of them are restricted contexts (section 5.8) and must be
 requirement-free. The checker states which body a call's default is and
 passes the earlier argument values (section 2.4 step 3). It never
 decides how a default or a fact is evaluated: a per-call default
-instruction and the compile-time evaluator are the backend lane's
+instruction and a fact's lazily initialized global are the backend lane's
 (review finding 4; section 17). A dependent's check reads only a fact's
 type, never its value.
 

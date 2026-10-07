@@ -49,8 +49,9 @@ gets two specified writes: the provider patch and the row sweep (§3.4,
 §3.9.2, §3.9.5; type-checking.md §17 items 1 and 2). Tuple templates
 and numeric families are impl rows; only sealed traits are `Builtin`
 (§3.17). The schema gains the `TraitValue` choice and the `Providers`
-record (§3.25), and the entry table the `hdr` and `fact` kinds
-(§3.20.4).
+record (§3.25), and the entry table the `hdr` kind
+(§3.20.4). The `fact` kind is gone: facts are run-time values (owner,
+2026-10-07).
 
 **Third pass (backend lane, 2026-10-07), from
 [codex-rereview-response-frontend.md](codex-rereview-response-frontend.md#changes-for-the-backend-lane)
@@ -666,7 +667,7 @@ intern time.
 | `Bool`, `Unit` | the value | none; pre-seeded | |
 | `Char` | the scalar | none | |
 | `Str` | offset | `[byte offset, length]` into `bytes` | |
-| `Aggregate` | offset | `[ty, count, value Index × count]` | identity-free values only (tuples, enums); a fact's data, list and map objects are allocation records of its value graph, never `Aggregate`s (codegen.md §12.3) |
+| `Aggregate` | offset | `[ty, count, value Index × count]` | identity-free values only (tuples, enums) |
 | `ItemConst` | offset | `[DefId, type args TyList]`: a function or a payloadless variant as a value | |
 
 - **Constant encoding fixed.** D1's `IntSmall` put the value in `data` and
@@ -1797,7 +1798,6 @@ const _: () = assert!(core::mem::size_of::<ManifestRecord>() == 88);
 | `tir` | `bodies` (per body: item path, kind, inline summary bit, column ranges, TIR hash, dependency range: 48 B); `tags`, `data`, `ty`, `span_lo`, `span_hi`, `extra`; `local_*`, `sub_*`, `label_inst`, `cap_*`; side tables; `deps` (path row, item interface hash) | about 210 B per line |
 | `check-test` | `diags`, `registrations` (name text, body path) | small |
 | `hdr` | `diags` of one folder's stage-B header checks (cache.md §5.2) | small |
-| `fact` | one evaluated fact value as a `types` constant row, or its failure diagnostic (codegen.md §12.3) | small |
 | `coh`, `init`, `pkgres` | `diags` plus a few rows | small |
 | `depfiles` | manifest-like records without stat fields | 56 B per file |
 | `code` | §3.22 | about 40 B per line per instance |
