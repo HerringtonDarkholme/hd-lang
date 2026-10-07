@@ -71,6 +71,51 @@ two features.
   - `hd fmt`;
   - a pathology fuzzer.
 
+### Pillar 2 Features (owner: "add all", 2026-10-06; deprioritized, triage later)
+
+- **Share work instead of repeating it:**
+  - a cache keyed by file content, not path, so worktrees on one commit
+    share everything;
+  - std and dependencies checked once per machine;
+  - a shared cache of compiled machine code (wasmtime-cache or
+    V8-code-cache style);
+  - copy-on-write builds (hardlinks or reflinks from the cache);
+  - dependency fetches shared across worktrees, with an offline mirror;
+  - a remote cache later (CI warms it);
+  - **test results cached by content** (Bazel style): a test whose inputs
+    already passed anywhere on the machine is skipped;
+  - diagnostics cached by content;
+  - one program database per commit content;
+  - `hd prepare`, which pre-warms a new worktree from the base commit's
+    cache.
+- **Don't oversubscribe:**
+  - a cross-process jobserver (a shared pool of CPU tokens);
+  - priority classes (interactive checks before background suites);
+  - per-test-run caps (`--jobs`, heap, time).
+- **Keep each process small and cheap to start:**
+  - arenas per module, bodies dropped after codegen, cache files mapped
+    into memory, interning per run;
+  - lazy std loading;
+  - no daemon per agent (an optional machine-wide daemon);
+  - **a fork server** (Android zygote style): a warm process forks per
+    command, and children share std's pages copy-on-write;
+  - read-only cache files mapped into memory, so the OS shares their
+    pages across processes;
+  - compressed cache entries.
+- **Batch and split work:**
+  - `hd check --roots a b c` (several worktrees in one process);
+  - test sharding (`--shard i/n`);
+  - background work (lint, program database, docs) throttled when the
+    machine is loaded.
+- **Lighter isolation per agent:** **hd's sandbox as a container
+  substitute**, made of capability grants plus resource limits plus
+  Wasm/native confinement, so agent-written hd code runs without a
+  container or VM per agent.
+- **Visibility:**
+  - `hd stats` / per-command JSON reporting CPU-seconds, peak RSS and
+    cache hits, so an orchestrator can size its parallelism;
+  - cache quotas and `hd cache gc`.
+
 ### Pillar 3 Features (owner: "add all, triage later", 2026-10-06)
 
 - **Correct programs:**
