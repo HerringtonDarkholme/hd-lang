@@ -91,6 +91,20 @@ tree), §4.5 (header extraction and the API text hash), §4.6 (item index),
   (`cargo fuzz` or a property test) runs a fixed budget with no panic.
 - Record parse throughput in the commit message.
 
+### C2a. Review Fixes For C1 (b224b04c)
+
+Review of C1 (tests and clippy pass; 7 tests):
+
+1. Non-blocking. A non-UTF-8 corpus file silently skips the round-trip
+   check. Assert every corpus file is UTF-8, or compare bytes.
+2. Non-blocking. `hd_syntax` has 4 unit tests. Add focused tests for
+   `"""` strings, raw strings, nested `${...}` interpolation, number
+   forms, bracket continuation, comment-only lines and tabs, and the
+   error token for an unterminated string.
+3. Non-blocking. Skim runs at 46.7 MB/s, slower than lexing alone
+   (116.3 MB/s). Skim should cost no more than lexing. Profile it and
+   fix, or explain the cost in the commit message.
+
 ### C3. Research: Known Issues Of Prior Back Ends, Wasm And Runtimes
 
 Documents only. Continue `future-work/compiler/prior-art-issues.md` with
