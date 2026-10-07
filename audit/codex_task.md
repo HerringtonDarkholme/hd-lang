@@ -83,6 +83,37 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### Q8. Parse-Gap Repros From The Valid Fixtures
+
+The same as Q5 (`compiler/tests/parse-gaps/`), for every valid case in
+`spec/conformance/` and `test/portable/` that the new full parser
+rejects (`hd parse FILE` reports a diagnostic on a valid file). One
+construct per repro file; extend the README table with a column for how
+many fixtures each construct blocks, sorted by that count. Don't edit
+`compiler/crates/`. Timebox 30 minutes; push.
+
+### Q9. Diagnostic Codes Generated From The Spec
+
+Reconciliation item 7: `hd_diag`'s code enum is written by hand and
+holds only the 28 syntax codes. Write a generator under `spec/tools/`
+that reads every diagnostic code the spec defines (the chapters'
+diagnostics tables, the same source `spec check` uses) and writes
+`compiler/crates/hd_diag/src/codes.rs` (generated; a header says so):
+the enum, `as_str`, `from_str`, and the phase each code belongs to.
+Add a `spec check` step that fails when the generated file is stale.
+This one generated file is the only `compiler/crates/` file you may
+write; keep the existing enum's public names compiling. `cargo test`
+green, `cargo fmt --check` clean. Timebox 45 minutes; push.
+
+### D2. Reconcile After Each Orchestrator Milestone (Standing)
+
+Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
+rerun the reconciliation of `future-work/compiler/reconciliation.md`
+against the new code: update its top-10 and table (mark fixed rows
+fixed, add new gaps), apply design-doc corrections the code proves
+right, and update `footprint.md` counts. Docs only. Timebox 45 minutes
+per milestone; push.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
