@@ -743,7 +743,7 @@ constructor.
 13. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is invalid in an implementation head.
 14. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
 15. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
-16. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[Display]`.
+16. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[dyn Display]`.
 17. r[trait.target.no-mut] A target must not be written with an outer `mut`: `impl Marker for mut Counter` is an error. Error: `mutable-impl-target`.
 18. r[trait.target.permission] Permission belongs to method receivers (`self` and `mut self`) and to bounds (`T < mut Trait`), not to implementations.
 19. r[trait.target.both-views] One implementation for `X` serves both the readonly view `X` and the mutable view `mut X`. Lookup through either view considers the same implementations.
@@ -1520,6 +1520,7 @@ fn first[T, I < NamedSupplier[Item = T]](source: I) -> T:
 4. r[trait.binding.name-reach.ambiguous-type] When two different associated type declarations reachable that way have the name, the binding is ambiguous. An ambiguous binding is an error. Error: `ambiguous-associated-type`.
 5. r[trait.binding.once] Each projection may be bound at most once in one generic parameter list.
 6. r[trait.binding.once.error] A second binding of the same parameter's associated type, in the same bound or another bound, is an error. This holds even when both bindings name the same type. Error: `duplicate-associated-binding`.
+7. r[trait.binding.once.elaborated] These two rules count written bindings only. A binding that arrives through a supertrait follows [`trait.binding.super.merge`](#r-trait.binding.super.merge) instead.
 
 ```text
 trait Supplier:
@@ -1583,6 +1584,33 @@ fn double[T < Summable](value: T) -> T:
 3. r[trait.binding.super.projection] For a type parameter `T < C`, and for `Self` inside `C`, the projection is known to equal `U`. So `value + value` above has type `T`.
 4. r[trait.binding.super.mismatch] An `impl C for X` whose implementation of `S[A]` binds `Out` to another type is an error. Error: `missing-supertrait-implementation`.
 5. r[trait.binding.super.names] The rules of [Binding Names](#binding-names) apply to a supertrait list as to a generic parameter list.
+6. r[trait.binding.super.merge] When two supertrait paths of a trait bind the same associated type to the same type, the bindings merge into one.
+7. r[trait.binding.super.conflict] When the two paths bind it to different types, the trait declaration is an error. The diagnostic is reported at the declaring trait and names both paths. Error: `duplicate-associated-binding`.
+8. r[trait.binding.super.conflict.bound] The bounds of one generic parameter follow the same two rules, as in `T < Numbers & Words`. A conflict there is reported on that parameter's bound list. Error: `duplicate-associated-binding`.
+
+```text
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Counts < Source[Item = i32]:
+    fn count(self) -> i32
+
+trait Sums < Source[Item = i32]:
+    fn sum(self) -> i32
+
+trait Stats < Counts & Sums  # valid: both paths bind Item = i32
+
+trait Numbers < Source[Item = i32]
+
+trait Words < Source[Item = string]
+
+trait Both < Numbers & Words  # error: duplicate-associated-binding
+```
+
+> **Why.** Equal bindings say the same thing twice, as a diamond often
+> does. Different ones would make `i32` and `string` equal inside every
+> body that names the trait.
 
 ```text
 use std.ops.Add
@@ -1844,9 +1872,9 @@ See also: [Runtime Type Identity](#runtime-type-identity).
 2. r[trait.any.all] Every value type, including an optional type, implements `Any` automatically.
 3. r[trait.any.never] `never` implements `Any` as well, by [`types.any.never`](04-type-system.md#r-types.any.never).
 4. r[trait.any.erases] As a value type, `Any` erases the concrete type and exposes no type-specific methods.
-5. r[trait.any.optional] An optional value erases to `Any` like any other enum value.
-6. r[trait.any.none] A bare `.None` still needs an expected optional type. `let value: Any = .None` is an error, while `let value: Any? = .None` is valid. Error: `missing-contextual-enum-type`.
-7. r[trait.any.mut] `mut Any` preserves mutable access to an erased composite value.
+5. r[trait.any.optional] An optional value erases to `dyn Any` like any other enum value.
+6. r[trait.any.none] A bare `.None` still needs an expected optional type. `let value: dyn Any = .None` is an error, while `let value: dyn Any? = .None` is valid. Error: `missing-contextual-enum-type`.
+7. r[trait.any.mut] `mut dyn Any` preserves mutable access to an erased composite value.
 
 ```text
 let invalid: dyn Any = .None  # error: missing-contextual-enum-type
@@ -2038,7 +2066,7 @@ trait Inspectable:
 impl TypeId:
     pub fn of[T < Inspectable]() -> TypeId
 
-pub fn downcast_val[T < Inspectable](value: Inspectable) -> T?
+pub fn downcast_val[T < Inspectable](value: dyn Inspectable) -> T?
 ```
 
 1. r[trait.rtti.module] The standard module `std.inspect` lets a program erase a value so that its concrete type can be recovered later.
@@ -2098,7 +2126,7 @@ The rules have these consequences:
 | r[trait.identity.arguments] Arguments | `Box[User]` and `Box[Post]` | different |
 | r[trait.identity.outer-mut] Outer `mut` | `User` and `mut User` | the same: the outer permission belongs to the view, not the type, and is carried by the signatures of `downcast` and `downcast_mut` |
 | r[trait.identity.inner-permission] Inner `mut` | `List[User]` and `List[mut User]`; `(User, i32)` and `(mut User, i32)` | different: an inner permission is part of the type, so an erased `List[User]` never downcasts to `List[mut User]`, whose elements would be mutable |
-| r[trait.identity.no-conversion] No conversion | `i32` and `i64`; `User` and `User?`; `List[FsError]` and `List[Error]` | different: no numeric conversion, optional injection, or variance applies |
+| r[trait.identity.no-conversion] No conversion | `i32` and `i64`; `User` and `User?`; `List[FsError]` and `List[dyn Error]` | different: no numeric conversion, optional injection, or variance applies |
 | r[trait.identity.modules] Modules | two declarations named `User` in different modules | different |
 
 See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-aliases-and-newtypes).
@@ -2160,7 +2188,7 @@ The compiler supplies `Inspectable` for exactly the **inspectable types**:
 2. r[trait.inspectable.option] The declared case includes `Option` and `Result`, so `T?` is inspectable when `T` is.
 3. r[trait.inspectable.fields] What the fields hold does not matter. A data type with a function-typed field, and a newtype over a function type, are inspectable, because identity is the declaration.
 4. r[trait.inspectable.argument-only] As a type argument only, any trait value type and `Any` also count as inspectable, and they match exactly.
-5. r[trait.inspectable.argument-examples] `List[Display]`, `Result[void, FsError]`, and `Map[string, Any]` are inspectable.
+5. r[trait.inspectable.argument-examples] `List[dyn Display]`, `Result[void, FsError]`, and `Map[string, dyn Any]` are inspectable.
 
 ```hd
 use std.inspect.TypeId
@@ -2195,21 +2223,21 @@ fn erase() -> void:
 
 ### Erasure To `Inspectable`
 
-A value is erased to `Inspectable` by an expected type, like any other
+A value is erased to `dyn Inspectable` by an expected type, like any other
 dynamic trait value.
 
-1. r[trait.erase.expected] A value is erased to `Inspectable` by an expected type, like any other dynamic trait value: [`types.assign.trait-value`](04-type-system.md#r-types.assign.trait-value) constructs an `Inspectable` value from an inspectable type.
+1. r[trait.erase.expected] A value is erased to `dyn Inspectable` by an expected type, like any other dynamic trait value: [`types.assign.trait-value`](04-type-system.md#r-types.assign.trait-value) constructs an `Inspectable` value from an inspectable type.
 2. r[trait.erase.no-cast] There is no cast operator.
 3. r[trait.erase.child-impl] A trait that extends `Inspectable` still needs its own explicit implementation; only its `Inspectable` part is supplied. Converting a value without one is an error. Error: `type-mismatch`.
 4. r[trait.erase.recorded] The recorded type is the static type of the value at the erasure site, without its outer `mut`.
 5. r[trait.erase.parameter] For a value of a type parameter `T < Inspectable`, the recorded type is the type `T` is instantiated with, which the bound supplies at run time.
 6. r[trait.erase.built] A value built from `T`, such as a `Box[T]`, records `Box` applied to that type. `T` instantiated with `mut User` therefore records `Box[mut User]`.
 7. r[trait.erase.weakened] A `mut List[mut User]` weakened to `List[User]` before erasure records `List[User]`.
-8. r[trait.erase.bound-required] Erasing a value of a type parameter requires an `Inspectable` bound on it. A value of a type parameter without the bound is not assignable to `Inspectable`, which is an error. Error: `type-mismatch`.
+8. r[trait.erase.bound-required] Erasing a value of a type parameter requires an `Inspectable` bound on it. A value of a type parameter without the bound is not assignable to `dyn Inspectable`, which is an error. Error: `type-mismatch`.
 9. r[trait.erase.widen] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening, by [`types.assign.supertrait`](04-type-system.md#r-types.assign.supertrait).
 10. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
-11. r[trait.erase.mut] `mut Inspectable` keeps mutable access to an erased composite root.
-12. r[trait.erase.mut.source] Erasing to `mut Inspectable` requires mutable access to the source. Erasing a readonly value to `mut Inspectable` is an error. Error: `mutable-upgrade`.
+11. r[trait.erase.mut] `mut dyn Inspectable` keeps mutable access to an erased composite root.
+12. r[trait.erase.mut.source] Erasing to `mut dyn Inspectable` requires mutable access to the source. Erasing a readonly value to `mut dyn Inspectable` is an error. Error: `mutable-upgrade`.
 
 ```text
 use std.inspect.{Inspectable, TypeId}
@@ -2251,7 +2279,7 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 2. r[trait.downcast.mut] `value.downcast_mut::[T]()` does the same through a mutable receiver and returns `mut T?`.
 3. r[trait.downcast.val] `downcast_val::[T](value)` does the same for any inspectable `T`, including the value types that `AnyRef` excludes, such as scalars, `string`, tuples, and enums.
 4. r[trait.downcast.val.readonly] The result of `downcast_val` is readonly.
-5. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[Error]`.
+5. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[dyn Error]`.
 6. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
 7. r[trait.downcast.optional] An erased `User?` is therefore recovered as `User?` with `downcast_val`, giving a `User??`, and never as `User`.
 8. r[trait.downcast.same-reference] A recovered reference value is the same reference that was erased, so `is` holds between them.
@@ -2283,7 +2311,7 @@ fn number(value: dyn Inspectable) -> i32:
 2. r[trait.downcast.val-ordinary] `downcast_val` is an ordinary generic function.
 3. r[trait.downcast.no-special] No rule is specific to these three; the ordinary rules give the results below.
 4. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`.
-5. r[trait.downcast.pass-on] A generic function passes a target on through its own bound, as in `fn get[T < AnyRef & Inspectable](value: Inspectable) -> T?`.
+5. r[trait.downcast.pass-on] A generic function passes a target on through its own bound, as in `fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?`.
 6. r[trait.downcast.readonly] `downcast` yields a readonly `T`.
 7. r[trait.downcast.mut-receiver] `downcast_mut` has a `mut self` receiver, so calling it through a readonly view is an error. Error: `mutable-receiver-required`.
 8. r[trait.downcast.target] The target `T` is written, or inferred from the expected type, at the call.
@@ -2301,7 +2329,7 @@ fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
 > **Note.** A concrete receiver uses its own compiler-supplied
 > implementation, so `user.downcast::[User]()` with `user: User` is valid and
 > always returns `.Some`. A trait value target such as
-> `error.downcast::[Error]()` satisfies the bounds and always returns `.None`,
+> `error.downcast::[dyn Error]()` satisfies the bounds and always returns `.None`,
 > because a recorded type is never a trait value type. Tools may warn about
 > both.
 
@@ -2309,7 +2337,7 @@ fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
 
 1. r[trait.limit.no-trait-tests] **No trait tests.** A test compares two runtime identities. Nothing asks whether a value implements a trait, and a dynamic value of one trait is never converted to an unrelated trait.
 2. r[trait.limit.no-requirement-keys] **No inspectable requirement keys.** A trait that is `Inspectable` or has it as a supertrait is never a requirement key. A provider view therefore cannot be tested to recover a concrete provider.
-3. r[trait.limit.signatures] **Visible in signatures.** Only a value of an inspectable type can be erased to `Inspectable`. A value of an unbounded type parameter, of `Any`, or of a trait value type whose trait does not extend `Inspectable` cannot.
+3. r[trait.limit.signatures] **Visible in signatures.** Only a value of an inspectable type can be erased to `dyn Inspectable`. A value of an unbounded type parameter, of `Any`, or of a trait value type whose trait does not extend `Inspectable` cannot.
 4. r[trait.limit.signatures.branch] A function can therefore branch on a value's type only when a parameter type names `Inspectable` or a trait extending it. A parameter bounded by one of them also qualifies.
 5. r[trait.limit.deterministic] **Deterministic.** `runtime_type`, the `TypeId` operations, and `downcast` are pure functions of the build and the value, and call no provider.
 

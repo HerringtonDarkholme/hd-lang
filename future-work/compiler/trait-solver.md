@@ -1351,6 +1351,9 @@ The checker reads both at a call through a `dyn` value: a cheap test, no
 solver goal.
 
 **An unbound associated type (Codex re-review, authors' question 2).**
+Decided (owner, 2026-10-07): the type itself stays an error, as
+`trait.dyn.binding.complete` says; the per-member recommendation below
+was not taken.
 Today [`trait.dyn.binding.complete`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete)
 requires a `dyn` type to bind every associated type. With the gate gone,
 this design recommends, as an owner question, the per-member rule

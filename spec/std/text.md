@@ -186,7 +186,7 @@ The standard library declares one prefix, in `std.text`:
 
 | Rule | Declaration | Meaning |
 | --- | --- | --- |
-| r[std-text.prefix.std.r] Raw text | `@str_prefix pub fn r(t: Template[Display]) -> string` | the pieces joined with the values' `Display` text, with no escape processed |
+| r[std-text.prefix.std.r] Raw text | `@str_prefix pub fn r(t: Template[dyn Display]) -> string` | the pieces joined with the values' `Display` text, with no escape processed |
 
 1. r[std-text.prefix.std.r-meaning] So `r"\d+ $n"` is the text `\d+ ` followed by the `Display` text of `n`, and `r"a\"b"` keeps its backslash.
 2. r[std-text.prefix.std.only-r] `r` is the only standard prefix. `std` declares no `b`, so `b"..."` names nothing until a bytes type exists.

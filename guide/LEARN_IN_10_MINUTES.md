@@ -357,7 +357,7 @@ fn sync(path: string) -> Result[string, SyncError]:
     .Ok(config)
 ```
 
-`std.error.Error` is the standard error trait. `Result[T, Error]` holds any
+`std.error.Error` is the standard error trait. `Result[T, dyn Error]` holds any
 error that implements it, much like `anyhow` in Rust.
 
 ```hd

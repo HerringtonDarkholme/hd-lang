@@ -101,7 +101,7 @@ export const FEATURES: readonly Feature[] = [
     blurb: "`?` returns the error early, and `.context` says what the program was doing.",
     contrast: "No exceptions: the signature says what can fail.",
     example: "errors",
-    ranges: [{ from: "fn start(config: string) -> Result[string, Error]:", lines: 2 }],
+    ranges: [{ from: "fn start(config: string) -> Result[string, dyn Error]:", lines: 2 }],
     marks: ['n := port(config).context("starting the server")?  # ← early return, with context'],
     output: {
       caption: 'report for "port = eighty"',

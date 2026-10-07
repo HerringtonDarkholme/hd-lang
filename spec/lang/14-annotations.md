@@ -251,7 +251,7 @@ written only with `@value` on the parameter.
 
 1. r[annot.metadata.places] A field's or variant's metadata is written with `@value` lines on it and with member lines of a trait-less derivation block for its type.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
-3. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[Any]`.
+3. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[dyn Any]`.
 4. r[annot.metadata.any-value] Any compile-time value may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
 5. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct).
 6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
@@ -288,7 +288,7 @@ let email_metadata: List[dyn Any] = [
 ]
 ```
 
-Different concrete metadata types coexist in one `List[Any]`. A member
+Different concrete metadata types coexist in one `List[dyn Any]`. A member
 line may name such a list directly, as `email = email_metadata`, since its
 right side is [any list-typed expression](#r-annot.line.right-typed).
 
@@ -528,9 +528,9 @@ fn later!(id: i64) -> i64:
     id
 ```
 
-The generic `wrap` has the monomorphic type `fn(i64) -> List[Any]`, where
+The generic `wrap` has the monomorphic type `fn(i64) -> List[dyn Any]`, where
 `Any` is one fixed type, so its line is
-`let f: Handler[fn(i64) -> List[Any]] = handler()`. Likewise
+`let f: Handler[fn(i64) -> List[dyn Any]] = handler()`. Likewise
 `fn ms[M < Integer, R](n: M) -> R` has the type `fn(Integer) -> Any`.
 `later` is a `fn!`, so `Handler[fn!(i64) -> i64]` does not match
 `handler`'s result.
@@ -1020,7 +1020,7 @@ to write shared metadata, as
 3. r[annot.line.right-typed] The right side must be an expression of a list type, or `pass` after a member name and `=`. A named list, as in `name = shared_list`, needs no spread.
 4. r[annot.line.right.error] Any other line is an error. That includes `f += pass`, `Self = pass`, and `pass` for a whole variant, such as `Busy = pass`. Error: `invalid-member-line`.
 5. r[annot.line.right.not-list] A right side whose type is not a list type, such as `name = 5`, is this error rather than a type mismatch. Error: `invalid-member-line`.
-6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). An element of a typed fact type gets its expected type by [`annot.typed-fact.check`](#r-annot.typed-fact.check). A `Self` line's list is contextually typed as `List[Any]`.
+6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). An element of a typed fact type gets its expected type by [`annot.typed-fact.check`](#r-annot.typed-fact.check). A `Self` line's list is contextually typed as `List[dyn Any]`.
 7. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Error: `duplicate-fact`.
 8. r[annot.line.unchanged] A member without a line keeps its declaration facts.
 9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block or a trait-less derivation block, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.

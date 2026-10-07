@@ -66,7 +66,10 @@ The same pass applied two owner decisions recorded in
 
 ## Needs Owner
 
-1. **A `dyn` type with an unbound associated type (authors' question 2).**
+1. **Decided (owner, 2026-10-07): keep the rule.** A `dyn` type must bind
+   every associated type; [`trait.dyn.binding.complete`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete)
+   is unchanged. The question as it was asked:
+   **A `dyn` type with an unbound associated type (authors' question 2).**
    Today [`trait.dyn.binding.complete`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete)
    makes `dyn Supplier` without `Item = ...` an error.
    **Recommendation:** fold this into S1d with the per-member rule.
@@ -79,7 +82,11 @@ The same pass applied two owner decisions recorded in
    the rule as it is (Rust). That needs no language change but leaves
    one per-type gate after the owner dropped the per-trait one. The
    solver's work is the same either way.
-2. **Conflicting bindings found by elaboration (N-T3).**
+2. **Decided (owner, 2026-10-07): as recommended**, applied in S1d as
+   [`trait.binding.super.merge`](../../spec/lang/09-traits.md#r-trait.binding.super.merge)
+   and [`trait.binding.super.conflict`](../../spec/lang/09-traits.md#r-trait.binding.super.conflict).
+   The question as it was asked:
+   **Conflicting bindings found by elaboration (N-T3).**
    [`trait.binding.once`](../../spec/lang/09-traits.md#r-trait.binding.once)
    rejects a second *written* binding of one projection. Bindings that
    arrive through supertraits, as in `T < A & B` where `A < Supplier[Item

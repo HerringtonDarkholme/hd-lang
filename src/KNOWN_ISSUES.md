@@ -10,10 +10,10 @@ git history keeps the audit evidence behind each finding.
 
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
-finding below or with an applied decision. On 2026-10-06 the suite has
-2,835 cases: 2,813 selected in `test/portable/cases.tsv` and 22 known
-failures. The selected cases are 2,430 language tier, 311 stdlib tier, and 72
-CLI tier; the known failures are 5 language tier, 3 stdlib tier, and 14
+finding below or with an applied decision. On 2026-10-07 the suite has
+2,852 cases: 2,788 selected in `test/portable/cases.tsv` and 64 known
+failures. The selected cases are 2,400 language tier, 312 stdlib tier, and 76
+CLI tier; the known failures are 41 language tier, 4 stdlib tier, and 19
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -28,6 +28,10 @@ CLI tier.
 | F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
 | F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
+| S1A | 5 | indirect `block_on` and `println` panic at run time instead of a transitive ban; no instantiation depth limit; impl-head projections accepted |
+| S1B | 4 | `hd fmt` and two JSON report fields are missing |
+| S1C | 1 | a template helper gets no public signature rules |
+| S1D | 32 | `dyn Trait` is parsed as the bare trait: bare trait types are accepted, the per-trait dynamic-safety gate is kept, `impl dyn Tr:` folds into `Tr`'s default methods, and supertrait bindings are not merged or checked for conflicts |
 
 ## Findings
 
@@ -140,6 +144,7 @@ Compiler structure:
 | Tag | Decision and gap |
 | --- | --- |
 | CAPS | Task N2 (owner, 2026-10-06): host capability grants. `[capabilities]`, `[test.capabilities]` and `--cap`; total deny refused at startup; `NotGranted` in `FsError`, `ProcessError`, `HttpError`, `NetError`, and `SysError`; the `Env` notice; `Process`, `Http`, `Net`, and `Sys` in the default profile; `std.http`, `std.net`, and `std.sys`. The prototype implements `std.http` with `ScriptedHttp` and `Http` in the default profile; the tables, `--cap` on `hd FILE`, `hd run`, `hd test`, and `hd`, with Grant Precedence (src/commands/capabilities.ts); path, host, and `Env` scopes with the notice; the test grant; and the startup refusal, read from the module's import list. `Process` is in the default profile behind its grant, the playground binds `Http` to its own origin, and the REPL refuses an input that needs a totally denied trait. Not yet: `std.net` and `std.sys`, which go to the new compiler. A path check resolves links with `realpath` before the call, so a link that changes between check and use escapes it. |
+| S1D | Spec pass S1d (owner, 2026-10-07): `dyn Trait` value types, per-member availability on `dyn` values, `impl dyn Tr:` blocks, and Error's helpers on `dyn Error`. The parser accepts `dyn T` and reads it as `T`; it folds an `impl dyn Tr:` block declared beside `Tr` into `Tr`'s default methods. Not yet: `trait-used-as-type`, `dyn-member-unavailable`, `trait.dyn.bound.available`, keys on any trait, receiver and module checks for `impl dyn`, `template-names-binding`, and the merge or conflict of supertrait bindings (`trait.binding.super.merge`, `trait.binding.super.conflict`). |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds the whole profile (src/commands/default-profile.ts). `lib/std` declares the other items but `Backoff` and `retry_with!`. |
 
 ## Gaps No Fixture Reaches

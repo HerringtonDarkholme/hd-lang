@@ -353,7 +353,7 @@ The expression forms in which literals meet typed parts:
 10. r[types.literal.local.form.closure-return.statements] The return paths of one closure, and the values of one loop, join although they are in different statements of its body. A value that leaves its own statement takes no part.
 11. r[types.literal.local.form.function-return.statements] The return paths of a non-public function whose result type is omitted join the same way, across the statements of its body.
 12. r[types.literal.local.form.join-open] A literal class that reaches such a join stays open until the join, and takes its default type there when the join meets no type.
-13. r[types.literal.local.erased] A literal converted to `Any` or to a trait value type has its class's default type. So `let x: Any = 42` holds a `usize`.
+13. r[types.literal.local.erased] A literal converted to `dyn Any` or to another trait value type has its class's default type. So `let x: dyn Any = 42` holds a `usize`.
 14. r[types.literal.local.instantiation] Two or more instantiations of one generic trait may fit a call only because a literal argument could take several widths. Then the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
 
 ```text
@@ -731,7 +731,7 @@ fn demo(items: List[i32]) -> i32?:
 ### Optional Identity And Variance
 
 1. r[types.option.ordinary] Optionals follow the ordinary enum rules in every other respect.
-2. r[types.option.any] An optional value may be erased to `Any` like any other enum value.
+2. r[types.option.any] An optional value may be erased to `dyn Any` like any other enum value.
 3. r[types.option.value] An optional is an enum, so it is a value without identity and implements `AnyVal`, whatever its payload type.
 4. r[types.option.identity-error] `is` with an optional operand is an error, as for every enum. Error: `identity-requires-references`.
 5. r[types.option.invariant] `Option` declares its parameter unmarked, so an optional is invariant in its contained type, as every unmarked parameter is.
@@ -975,7 +975,7 @@ r[types.assign] An expression of type `S` is assignable to a location of type `T
 6. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
 7. r[types.assign.row-subsumption] `S` and `T` are function types, and `T`'s row entails every key of `S`'s row. Then `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 8. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
-9. r[types.assign.trait-value.mut] `S` is `mut U`, `T` is `mut Trait`, and `U` meets `types.assign.trait-value` for `Trait`. This builds a mutable dynamic trait value, as in `let edit: mut Display = mutable_user`.
+9. r[types.assign.trait-value.mut] `S` is `mut U`, `T` is `mut dyn Trait`, and `U` meets `types.assign.trait-value` for `Trait`. This builds a mutable dynamic trait value, as in `let edit: mut dyn Display = mutable_user`.
 
 ```text
 data User:
@@ -1510,7 +1510,7 @@ arguments' types may differ only in `mut`:
 4. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
 5. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error. Examples are `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `List[mut User]` and a `List[User]`, and a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
 6. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
-7. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
+7. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[dyn Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
 8. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
@@ -1982,7 +1982,7 @@ fn demo(box: Box[mut User]) -> Box[User]:
 2. r[types.variance.repr.contravariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `T -> S` conversion for each contravariant argument.
 3. r[types.variance.repr.weakening] Permission weakening `mut U -> U` is representation-preserving.
 4. r[types.variance.repr.excluded] These conversions are not representation-preserving:
-   - construction of a trait value such as `i32 -> Display` or `User -> Display`;
+   - construction of a trait value such as `i32 -> dyn Display` or `User -> dyn Display`;
    - child-dynamic-trait to supertrait widening;
    - optional injection `U -> U?`.
 5. r[types.variance.no-insertion] Variance never inserts element wrappers, metadata rewrapping, boxing, copies, or per-access conversions. A variance conversion that would need one is an error. Error: `variance-representation-change`.
@@ -2066,7 +2066,7 @@ fn audit(record: dyn Versioned) -> bool:
     record.newer_than(record)  # error: dyn-member-unavailable
 ```
 
-> **Why.** One concrete trait instantiation, such as `Repository[User]`, fixes
+> **Why.** One concrete trait instantiation, such as `dyn Repository[User]`, fixes
 > the trait declaration's generic parameters before dispatch. A member is
 > judged where it is called, so a trait with one unusual member still works
 > as a `dyn` type.
@@ -2269,10 +2269,10 @@ arguments uses a narrower join, permission weakening only
 
 ### No Implicit Erasure
 
-1. r[types.lct.no-any] The compiler never falls back to `Any` merely to make heterogeneous values type-check.
+1. r[types.lct.no-any] The compiler never falls back to `dyn Any` merely to make heterogeneous values type-check.
 2. r[types.lct.no-trait-value] Unconstrained inference also does not introduce a dynamic trait-value conversion.
 3. r[types.lct.no-supertrait-widening] It also never widens a dynamic trait value to a supertrait value, so values of two child traits of one supertrait have no common type.
-4. r[types.lct.expected-trait] An expected type such as `List[Display]` or `Map[K, Display]` may request that conversion explicitly.
+4. r[types.lct.expected-trait] An expected type such as `List[dyn Display]` or `Map[K, dyn Display]` may request that conversion explicitly.
 5. r[types.lct.contextual] A contextual variant, `.None` included, takes its type only from an expected type, never from the other values.
 6. r[types.lct.contextual.error] `[1, .None]` or `if c: 1 else: .None` without an expected type is an error. Error: `missing-contextual-enum-type`.
 7. r[types.lct.contextual.expected] `let values: List[i32?] = [1, .None]` supplies the type.
@@ -2301,7 +2301,7 @@ fn mix(shown: Shown, tagged: Tagged) -> void:
 ```
 
 In the second function, `Shown` and `Tagged` are traits that both extend
-`Named`; `let items: List[Named] = [shown, tagged]` is valid.
+`Named`; `let items: List[dyn Named] = [shown, tagged]` is valid.
 
 ## Type Inference Boundaries
 

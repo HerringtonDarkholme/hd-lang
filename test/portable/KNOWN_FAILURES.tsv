@@ -61,3 +61,5 @@ typing/invalid/dyn-inherent-nonlocal.hd	the prototype reports trait-value-impl-t
 typing/invalid/template-names-binding.hd	the prototype accepts a template body that names a top-level binding (module.package.template-helper.no-binding)	S1D
 typing/invalid/error-find-concrete-receiver.hd	the prototype folds impl dyn Error into Error's default methods, so a concrete error has find (std-error.dyn-receiver)	S1D
 typing/invalid/parameter-bare-trait.hd	the prototype reads a bare trait name as its trait value type and accepts it (types.trait.value.dyn-required)	S1D
+typing/valid/supertrait-binding-diamond-merge.hd	the prototype does not reduce T::Item to i32 through two supertrait paths that both bind it, so i32 + T::Item is a type-mismatch (trait.binding.super.merge)	S1D
+typing/invalid/supertrait-binding-conflict.hd	the prototype accepts a trait whose supertrait paths bind one associated type to i32 and to string (trait.binding.super.conflict)	S1D

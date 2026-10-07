@@ -2754,3 +2754,5 @@ typing/invalid/template-names-binding.hd	type	reject:template-names-binding	lang
 typing/invalid/error-find-concrete-receiver.hd	type	reject:unknown-method	std/error.md#r-std-error.dyn-receiver
 runtime/valid/error-chain-method.hd	runtime	accept	std/error.md#r-std-error.chain.method
 typing/invalid/parameter-bare-trait.hd	type	reject:trait-used-as-type	lang/04-type-system.md#r-types.trait.value.dyn-required
+typing/valid/supertrait-binding-diamond-merge.hd	type	accept	lang/09-traits.md#r-trait.binding.super.merge
+typing/invalid/supertrait-binding-conflict.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#r-trait.binding.super.conflict

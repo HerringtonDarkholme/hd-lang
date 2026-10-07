@@ -147,7 +147,7 @@ fn summary() -> string:
 > **Note.** A report holds only text. It keeps no error value, so code
 > cannot downcast it back to the error it came from.
 
-> **Why.** An erased `Error` never crosses a registered boundary
+> **Why.** An erased `dyn Error` never crosses a registered boundary
 > ([`module.boundary.erased-error`](../lang/10-modules.md#r-module.boundary.erased-error)).
 > A report keeps the message and the causes apart, so a receiver can show
 > the first line alone or the whole chain.
@@ -193,7 +193,7 @@ fn summary() -> string:
 > `ContextError { message: "loading config", cause: "not found: app.toml" }`.
 > Like all `debug` text, that layout is not portable.
 
-> **Why.** The wrapped error is an erased `Error`, which has no `Debug`.
+> **Why.** The wrapped error is an erased `dyn Error`, which has no `Debug`.
 > Its `Display` text is the one description every cause has, so a test
 > that compares a `ContextError` can still show both parts.
 
@@ -237,7 +237,7 @@ fn width(text: string) -> Result[i32, dyn Error]:
 4. r[std-error.std-types.resource] `ResourceError[E]` implements `Display` when `E < Display`. `Operation(error)` displays as `error` does, and `Disposed` as `resource disposed`.
 5. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
 
-> **Why.** An application error type is the erased `Error` in most
+> **Why.** An application error type is the erased `dyn Error` in most
 > scripts. A std error that cannot reach it forces a wrapper type at
 > every call, which Rust's `std::io::Error` and Go's `error` never need.
 

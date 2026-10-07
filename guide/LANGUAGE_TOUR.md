@@ -396,7 +396,7 @@ impl Encode for Order by Structure:
 Shared metadata that every derivation sees can also be written away from the
 declaration, in a trait-less block such as `impl User by Structure:` with the
 same member lines; see [Using Annotations](#using-annotations).
-Facts and member metadata are `List[Any]` values evaluated once at compile
+Facts and member metadata are `List[dyn Any]` values evaluated once at compile
 time, so they must be requirement-free and may not reach `block_on`.
 `@derive` before a function, trait, or implementation is an error. A
 newtype has no derivation block: it derives only through its base type.
@@ -1688,8 +1688,8 @@ fn cmp[T < Display](left: T, right: T) -> bool:
 fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)     # max(small, large) is a type-mismatch
 
-fn same(user: User, label: Display) -> bool:
-    cmp::[Display](user, label)  # cmp(user, label) is no-common-type
+fn same(user: User, label: dyn Display) -> bool:
+    cmp::[dyn Display](user, label)  # cmp(user, label) is no-common-type
 ```
 
 A generic parameter may declare a default after its bound. The default
@@ -2124,7 +2124,7 @@ They must also preserve representation. Function types declare variance too:
 they are contravariant in each parameter, covariant in the result, and
 invariant in the requirement row. Because only permission changes preserve
 representation, `fn() -> mut User` converts to `fn() -> User`, but
-`fn() -> i32` does not convert to `fn() -> Display`.
+`fn() -> i32` does not convert to `fn() -> dyn Display`.
 
 hd has no variadic generics. Code that works over any number of arguments of
 any types uses an ordinary tuple: a vararg whose type is bounded by `Tuple`
@@ -2248,7 +2248,7 @@ fn accept_mutable[T < mut Any](value: T) -> void:
     pass
 ```
 
-`mut Trait` is likewise a mutable dynamic trait view. `mut Any` preserves mutable access to an erased composite value, but provides no type-specific operation by itself. `mut List[User]` satisfies `mut Any`; `List[mut User]` does not, because its root is readonly.
+`mut dyn Trait` is likewise a mutable dynamic trait view. `mut dyn Any` preserves mutable access to an erased composite value, but provides no type-specific operation by itself. `mut List[User]` satisfies `mut Any`; `List[mut User]` does not, because its root is readonly.
 
 There is no implicit nullability. `T` and `T?` are different types, and only optional values can be `.None`:
 
@@ -2260,7 +2260,7 @@ let maybe_value: dyn Any? = .None
 let erased: dyn Any = nickname   # an optional erases to Any like any enum value
 ```
 
-An optional is an ordinary enum value, so `T?` erases to `Any` and `is` compares optionals like other enum values. A bare `.None` still needs an expected optional type.
+An optional is an ordinary enum value, so `T?` erases to `dyn Any` and `is` compares optionals like other enum values. A bare `.None` still needs an expected optional type.
 
 Data embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer data a subtype of the embedded data.
 
@@ -2502,7 +2502,7 @@ for the empty tuple type `()`, whose one value is `()`.
 
 `Console.write_line!` takes `mut self`, so `$.use(Console)` gives mutable
 access. A `:=` binding would expose only a readonly view, so code that keeps
-the console in a local writes `let console: mut Console`. `println` needs
+the console in a local writes `let console: mut dyn Console`. `println` needs
 only `$ Console`. It is ordinary `std` code that drives the provider's
 `write_line!` with `block_on`, so a recording provider receives each line,
 and it panics when the write fails. It also has `block_on`'s rules: it
@@ -2536,7 +2536,7 @@ fn lookup_users!(request: LookupRequest) -> Result[List[User], LookupError] $ Da
     ...
 ```
 
-Mutable types, trait values, closures, and live runtime handles cannot appear anywhere in an exported parameter or result. So an error type that holds an erased `Error` cannot cross either; convert it with `std.error`'s `report_of` to an `ErrorReport` first. Requirement keys such as `Database` are host bindings and do not cross as serialized function arguments. Export registration checks the complete signature and generates the boundary conversion.
+Mutable types, trait values, closures, and live runtime handles cannot appear anywhere in an exported parameter or result. So an error type that holds an erased `dyn Error` cannot cross either; convert it with `std.error`'s `report_of` to an `ErrorReport` first. Requirement keys such as `Database` are host bindings and do not cross as serialized function arguments. Export registration checks the complete signature and generates the boundary conversion.
 
 Maps iterate in insertion order. Replacing an existing key keeps its position;
 removing and reinserting it moves it to the end. Map equality and boundary
@@ -2584,7 +2584,7 @@ a failed assertion. Test instances do not share top-level mutable state.
 show both values; derive both, as `DbError` does.
 
 A test body has a fixed result. Without `?` it is `void`. With `?` it is
-`Result[void, Error]`, where `Error` is the erased `std.error.Error`, so the
+`Result[void, dyn Error]`, where `Error` is the erased `std.error.Error`, so the
 body ends in `.Ok(())`. `?` converts any error type that implements `Error`,
 but not a plain `string`. An `.Err` fails the test, and the runner prints it
 with its cause chain:
@@ -3295,7 +3295,7 @@ one. For a generic type it declares the type's own parameters, without
 bounds, as `impl[T] Box[T] by Structure:`. Decorators and trait-less
 blocks are module-level, so local declarations cannot carry member metadata.
 
-Metadata is contextually typed as `List[Any]`, so any value may be
+Metadata is contextually typed as `List[dyn Any]`, so any value may be
 attached, and metadata values and reusable lists are ordinary values:
 
 ```text

@@ -1320,7 +1320,7 @@ fn sync(path: string) -> Result[string, SyncError]:
 
 These rules refine the steps:
 
-1. r[expr.try.convert.assignable.covers] The assignability step covers an identical type, permission weakening, and variance. It also covers construction of a dynamic trait value such as the erased `Error`, supertrait widening of a dynamic value, and optional injection.
+1. r[expr.try.convert.assignable.covers] The assignability step covers an identical type, permission weakening, and variance. It also covers construction of a dynamic trait value such as the erased `dyn Error`, supertrait widening of a dynamic value, and optional injection.
 2. r[expr.try.convert.strip-mut] In the conversion step, an outer `mut` on `E` is removed before the implementation is chosen.
 3. r[expr.try.convert.no-import] The code using `?` does not need to import `From`.
 4. r[expr.try.convert.message] The message of the third step's error should name `E` and `F`. It should suggest an implementation of `From[E]` for `F` or an explicit mapping of the error.
@@ -1388,9 +1388,9 @@ tests:
 ```
 
 1. r[expr.try.test.fixed-result] When a trailing block is the body of an [`it` call](10-modules.md#test-cases), its result type is fixed rather than inferred.
-2. r[expr.try.test.with-try] If the block contains a `?` outside any nested closure, its result type is `Result[void, Error]`, where `Error` is the erased `std.error.Error`.
+2. r[expr.try.test.with-try] If the block contains a `?` outside any nested closure, its result type is `Result[void, dyn Error]`, where `dyn Error` is the erased `std.error.Error`.
 3. r[expr.try.test.without-try] Otherwise its result type is `void`.
-4. r[expr.try.test.converts] `?` in such a block converts by the ordinary rules, so an error type that implements `Error` propagates into the erased `Error`. An error type that does not is an error. Error: `invalid-result-propagation`.
+4. r[expr.try.test.converts] `?` in such a block converts by the ordinary rules, so an error type that implements `Error` propagates into the erased `dyn Error`. An error type that does not is an error. Error: `invalid-result-propagation`.
 5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body. So a block that uses `?` usually ends in `.Ok(())`.
 6. r[expr.try.test.explicit-closure] A body passed as an explicit closure keeps its written or inferred result type. That type must implement `std.process.Termination`, the bound on `it`. Error: `unsatisfied-trait-bound`.
 7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
@@ -1419,7 +1419,7 @@ tests:
         .Ok(())
 ```
 
-> **Why.** A fixed `Result[void, Error]` lets one test body use `?` on
+> **Why.** A fixed `Result[void, dyn Error]` lets one test body use `?` on
 > several error types, as Zig's inferred `anyerror!void` test bodies do.
 
 > **Note.** The body closures of `it_each`, `it_prop`, and `it_prop_with`
@@ -2211,7 +2211,7 @@ fn demo(flag: bool) -> i32:
 
 1. r[expr.unsupported.custom-operators] hd-lang has no user-defined operator symbols, and no overloading of the operators that [`expr.op.not-overloaded`](#r-expr.op.not-overloaded) lists.
 2. r[expr.unsupported.chaining] hd-lang has no comparison chaining.
-3. r[expr.unsupported.any-fallback] hd-lang has no fallback conversion of heterogeneous literals to `Any`.
+3. r[expr.unsupported.any-fallback] hd-lang has no fallback conversion of heterogeneous literals to `dyn Any`.
 4. r[expr.unsupported.try-mapping] Postfix `?` has no mapping clause.
 5. r[expr.unsupported.try-mapping.explicit] A site that needs a different error conversion maps the `Result` explicitly before `?`. One way is a function that takes a single-payload variant constructor as its mapper.
 

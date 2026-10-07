@@ -1,0 +1,12 @@
+# test: two supertrait paths that bind the same associated type to different types are an error at the declaring trait
+# Spec 09 Supertrait Bindings: trait.binding.super.conflict.
+
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Numbers < Source[Item = i32]
+
+trait Words < Source[Item = string]
+
+trait Both < Numbers & Words  # diagnostic: duplicate-associated-binding

@@ -1,0 +1,17 @@
+# test: two supertrait paths that bind the same associated type to the same type merge
+# Spec 09 Supertrait Bindings: trait.binding.super.merge; Binding Names: trait.binding.once.elaborated.
+
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Counts < Source[Item = i32]:
+    fn count(self) -> i32
+
+trait Sums < Source[Item = i32]:
+    fn sum(self) -> i32
+
+trait Stats < Counts & Sums
+
+fn total[T < Stats](stats: T, extra: T::Item) -> i32:
+    stats.count() + stats.sum() + extra
