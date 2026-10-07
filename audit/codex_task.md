@@ -83,6 +83,39 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### D2d. Reconcile M4a
+
+M4a landed (037cd289): every `lib/std` body checks to verified TIR
+(Body 37/37); rows, exhaustiveness, init order. Run D2 for it, and record
+in the owning design docs (citing "M4a gap n"), each with the intended
+rule:
+
+1. TIR's `TraitMethod` callee has no trait-arguments field; M4a puts the
+   trait's arguments ahead of the method's own in `targs`. State the
+   encoding in checking-and-tir.md's catalog.
+2. Header lowering leaves `Self::Out` and seeded bounds' projections
+   (`P::Error` for `P < Walker[Self]`) without trait arguments; the
+   checker fills them. Say where they belong (type-checking.md, headers).
+3. `NewVariant`, `Payload`, `SwitchTag` name a variant by index, not
+   `DefId`; IDs in `ProviderGet`, `ItemRef`, `GlobalGet`, `GlobalSet`,
+   `DefaultCall`, `With` live in `extra` records because the wire codec
+   remaps only `extra` words. Record both.
+4. Two spec special forms the design never mentions: typed
+   `h.fact::[D]()` and `Structure` holding for a template's target.
+   Give each a design home.
+5. Top-level bindings have no item kind in interfaces, so other modules
+   cannot use them (resolution-and-interfaces.md).
+6. Body-less intrinsic impls (`impl[N < Num] Add for N`) have no TIR
+   body; collection maps them (codegen.md).
+7. Known gaps to list in reconciliation.md: mutability not checked
+   (`mut` transparent in unify: mutable-receiver-required,
+   readonly-argument-to-mutable-parameter, mutable-upgrade,
+   redundant-let-mut missing), closure rows not inferred, dispatch not
+   in init facts, no `SuspRow` side records.
+
+Update `reconciliation.md` and `footprint.md`. Docs only; timebox 45
+minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
