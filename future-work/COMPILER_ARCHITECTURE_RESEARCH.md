@@ -1,11 +1,15 @@
 # New Compiler: Architecture Research
 
-Status: Research, not decided. Part 1 of 2: the front half, 2026-10-06.
+Status: Research, not decided. Both parts are done: Part 1, the front half,
+and Part 2, the back half, 2026-10-06.
 
 This document surveys prior art for the front half of the new compiler:
 the implementation language, the incremental model, parallel checking, the
 parser and CST, the checker's structure, the program-database hook, and a
-crate layout with a build order. Part 2 covers the back half.
+crate layout with a build order. [Part 2](#part-2-the-back-half) covers the
+back half: the IR and monomorphization, suspension, Wasm GC codegen, engines,
+the host interface, runtime pieces, hot reload, the native backend, and the
+back-half crates.
 
 Fixed inputs, not reopened here:
 
@@ -38,6 +42,17 @@ high (I would bet on it), medium (likely, with a named risk), or low (a lean).
 | 8 | Program database hook: stable string symbol IDs and per-module fact records written into the module cache entry from day 1; the queryable store comes later. | medium |
 | 9 | Browser: the same core compiled to `wasm32-unknown-unknown`, single-threaded by default, behind four host interfaces (files, cache store, scheduler, capability host). | medium-high |
 | 10 | Build order: syntax first against the parse fixtures, then **lib/std as the first real program**, then the typing fixtures by chapter, with the cache and threads wired in from the second slice. | medium |
+| 11 | Back-half IR: a **structured, typed MIR** (Wasm wants structured control flow; hd source has no `goto`). Generic MIR is stored in the module cache entry. | medium-high |
+| 12 | "Code per value layout" means **monomorphization per concrete type, then folding identical bodies**; dictionaries only for trait values and GADT evidence; polymorphic recursion stops at an instantiation depth limit. | medium-high |
+| 13 | Instances live in a **content-addressed codegen cache** keyed by MIR hash and type arguments; a per-program link step patches relocations. | medium |
+| 14 | Suspension: **state machines with lazily materialized frames** (C#-style; no allocation on the ready path), hook points as MIR instructions that normal builds drop, and a poll-and-wake entry driver. | high (state machines), medium (lazy frames) |
+| 15 | Wasm GC values: exact struct types, `Option` as a nullable reference or a scalar pair, `Result` returned as values, enums as tagged subtype hierarchies, per-layout lists, UTF-8 strings as `(array i8)`, panics as traps with a site table, no Wasm exceptions. | medium-high |
+| 16 | **No Binaryen.** Emit binary with `wasm-encoder`; the optimizing tier is our own MIR passes; `wasm-opt` stays a Later option. | high |
+| 17 | **wasmtime with Cranelift** for both tiers (Winch lacks GC); precompiled-module and per-function caches through `CacheStore`; epochs for time limits, a `ResourceLimiter` for the heap. | medium |
+| 18 | Host interface: a **hand-rolled core-Wasm ABI** shaped after WASI 0.3, structured values through one exchange buffer, start-and-poll async on both engines, JS glue generated from one description. The Component Model waits for GC support. | medium-high |
+| 19 | Native backend after v1: the MIR, layouts, state machines and host ABI carry over; Cranelift user stack maps; a first collector through MMTk. | low-medium |
+| 20 | Back-half build order: slices 6 to 10, ending with the portable runtime cases passing on wasmtime and in a headless browser. | medium |
+| 21 | Versus Vx: keep 32-bit IDs in memory and 128-bit stable hashes at boundaries; deduplicate instances by hash; a checked, hand-written zero-copy format. | medium |
 
 ## Running In The Browser
 
@@ -723,25 +738,856 @@ Runtime and CLI cases (903 and 51) need the back half and wait for Part 2.
    but the CLI spec does not define it
    ([metrics README](../test/metrics/README.md#pillar-1-metrics)).
    Recommendation: specify it.
+7. **`host_wait!` and the Component Model.** The spec rule
+   [`req.host-wait.leaf`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)
+   names the Component Model async ABI, and HOST_CAPABILITIES' boundary
+   table names the Component Model as the official runtime. Neither works
+   for a Wasm GC program until the canonical ABI gets a GC option (Q12).
+   Recommendation: reword the rule so the wait operation's ABI is an
+   implementation detail, use hd's own core imports in v1, and keep the
+   Component Model mapping for a later `--target wasi`.
+8. **What "code per value layout" means.** Recommendation: monomorphize per
+   concrete type and fold identical bodies, in debug and release alike, and
+   make polymorphic recursion an error at an instantiation depth limit
+   (Q8). The alternative is Go-style sharing per layout with dictionaries,
+   whose indirect calls wasmtime does not inline.
+9. **`block_on` waiting on the host in a browser.** It needs JSPI, which
+   only Chrome ships today, or cross-origin isolation. Recommendation: use
+   JSPI where present, and otherwise panic with `host-contract` and a
+   message naming the missing feature (Q9).
+10. **The `disk` metric and the `hd` binary.** wasmtime with Cranelift has
+    no published size, and `hd` will likely pass 10 MB. Recommendation:
+    count only per-worktree artifacts in `disk`, since one binary serves
+    every worktree, and set a separate binary budget after slice 6
+    measures it (Q12).
+11. **Panic categories for resource limits.** `--max-heap` and the time
+    limit are v1, but the stable categories have no entry for either.
+    Recommendation: add two, such as `heap-exhausted` and `time-limit`.
+12. **Browser baseline.** Recommendation: require Wasm GC only (Chrome
+    119, Firefox 122, Safari 18.2, the baseline wasm_of_ocaml documents),
+    and make JSPI, JS string builtins, exceptions and stack switching
+    optional or unused.
 
-## Part 2: The Back Half (pending)
+## Part 2: The Back Half
 
-Placeholder for the next researcher: lowering and the IR boundary between
-tiers, Wasm GC emission and value layouts, monomorphization limits, the
-suspension state machines, the host and embedding interface with its
-wasmtime and JS implementations, and the CLI's binary size.
+Part 2 continues the numbering: Q8 to Q16 answer the brief's questions 1
+to 9, and a last section compares the whole design with the Vx proposal.
+Part 1's choices are inputs here: Rust, the per-module cache, the task
+graph, the data-oriented core, and the four portability interfaces.
 
-Findings from Part 1 for Part 2:
+Measured costs of the frozen prototype that Part 2 explains:
 
-- Wasmtime 47 (2026-07-20) enables Wasm GC and exceptions by default. Its
-  collector is a new semi-space copying collector without read or write
-  barriers, tuned for many small instances
+| Cost | Value | Cause, read from `src/` and `lib/std` |
+| --- | --- | --- |
+| `sum` loop vs Node | 11x in the [baseline](../audit/compiler/baseline-2026-10-06.md#62-runtime-microbenchmarks); 17x in the M1c metrics run (reported to this research, not in the repo) | the range loop runs the iterator protocol with boxed `i32` cells and an `Option` struct per step ([Prototype Baselines](NEW_COMPILER_ARCHITECTURE.md#prototype-baselines-to-beat-2026-10-06)) |
+| counted loop allocations | 80 B per iteration (M1c run) | the same boxes |
+| JSON vs Node | 3 to 4% (M1c run) | `List[u8]` stores one boxed `anyref` per byte (F-505), `encode` builds a whole `Json` tree before writing text, and trait calls go through rebuilt dictionaries (F-502) |
+| `list_dir!` per call | 52 µs (M1c run) | structured values cross as node trees, and strings cross one host call per byte (F-558) |
+| Binaryen | 14.6 MB of the playground worker | used only to parse WAT, validate and write the binary; `src/wasm.ts` runs no optimization pass |
+
+The last row matters most for the browser: the prototype pays for Binaryen
+and gets none of its optimizations.
+
+## Q8: Mid-Level IR And Monomorphization By Layout
+
+**Question.** What does "code per value layout" mean for hd? How are trait
+dictionaries passed, how is code size bounded, where do instantiations live
+in the per-module cache, and is the IR SSA or structured?
+
+### Prior Art
+
+| System | Strategy | Evidence |
+| --- | --- | --- |
+| Go 1.18+ | **GC-shape stenciling**: one copy per shape (same underlying type, or any pointer); a dictionary is the hidden first argument, holding type descriptors, sub-dictionaries and itabs; the linker deduplicates instantiations by name ([design](https://github.com/golang/proposal/blob/master/design/generics-implementation-dictionaries-go1.18.md)) | generic code with interface type arguments ran about 2x slower than monomorphized code; "more often than not, makes Generic code slower" ([PlanetScale](https://planetscale.com/blog/generics-can-make-your-go-code-slower)) |
+| .NET | reference-type instantiations share one canonical body (`__Canon`); value-type instantiations get their own; a hidden context argument finds a lazily filled dictionary ([BOTR](https://github.com/dotnet/runtime/blob/main/docs/design/coreclr/botr/shared-generics.md)) | ships everywhere; the JIT sees exact types for value types |
+| Swift | every generic has an unspecialized body taking witness tables; the optimizer specializes where the body is visible; across modules only `@inlinable` bodies specialize ([Swift forums](https://forums.swift.org/t/brave-new-world-best-practices-for-cross-module-optimization/66869)) | unspecialized paths can be about two orders of magnitude slower ([Pestov, Compiling Swift Generics](https://download.swift.org/docs/assets/generics.pdf)) |
+| Rust MIR | full monomorphization per type; `-Zpolymorphize` (share code that ignores a parameter) was removed in December 2024 as buggy and of little use ([PR #133883](https://github.com/rust-lang/rust/pull/133883)) | fastest code; compile time and size are the cost |
+| OCaml | uniform representation: one body for all types; ints tagged, everything else boxed | small code; boxing costs in numeric code |
+| MLton | whole-program monomorphization and defunctorization ([MLton](http://mlton.org/Monomorphise)) | fast code from a whole-program compiler |
+
+Two facts decide the choice for hd:
+
+- **Shared code needs indirect calls, and wasmtime does not undo them.** V8
+  speculatively inlines `call_ref` and `call_indirect` from runtime
+  feedback since Chrome 137, worth 1.59x on Dart microbenchmarks
+  ([V8](https://v8.dev/blog/wasm-speculative-optimizations)). Cranelift
+  compiles ahead of time without feedback, and its own inliner is off by
+  default ([Fitzgerald](https://fitzgen.com/2025/11/19/inliner.html)). v1
+  runs on wasmtime, so dictionary calls stay indirect calls there.
+- **hd builds are whole programs.** Only reachable items are compiled (a
+  Day 1 decision), and every Wasm module is linked from one entry. MLton
+  and Rust's final link step show that a whole-program build can afford
+  per-type code.
+
+### What "Per Value Layout" Should Mean
+
+**Recommendation (confidence medium-high): monomorphize per concrete type,
+then fold identical bodies.**
+
+1. **Instantiate per type.** The reachability walk from the entry collects
+   `(item, type arguments)` pairs, as rustc's collector does. Each instance
+   is compiled with exact Wasm types, so a field read needs no cast and a
+   trait call is a direct call.
+2. **Fold by layout after emission** (identical code folding, as linkers'
+   ICF and LLVM's MergeFunctions do). `List[Point].push` and
+   `List[User].push` emit the same bytes when both elements are references
+   and no trait call differs, so they fold into one function. This gives
+   the .NET sharing for references without a dictionary. The fold key is a
+   hash of the emitted body with its relocations, so folding is
+   deterministic. The application of ICF to this problem is mine.
+3. **Layout classes** decide the Wasm value type of each type argument:
+
+   | Layout class | hd types | Wasm |
+   | --- | --- | --- |
+   | `i32` | `bool`, `char`, all integers of 32 bits or less, `usize` on Wasm32, payloadless enums | `i32` |
+   | `i64` | `i64`, `u64` | `i64` |
+   | `f32`, `f64` | floats | `f32`, `f64` |
+   | `ref T` | `data`, enums with payloads, `string`, lists, maps, closures, frames | `(ref $T)` or `(ref null $T)`, exact type |
+   | `pair` | `Option` of a scalar, small `Result`s | two or three Wasm values in locals, parameters and multi-value results; two fields in a struct |
+   | `erased` | trait values, `Any`, a GADT existential payload | `anyref` plus a vtable; scalars as `i31ref` or a box |
+
+   `i31ref` is the owner's first step and stays in the erased positions,
+   where a scalar must become a reference. In monomorphized code, scalars
+   are never boxed at all. This narrows the earlier i31ref decision; it
+   does not contradict it.
+4. **Dictionaries exist only where the spec needs runtime evidence:** trait
+   values carry a vtable struct, and a GADT variant with a bounded
+   existential stores its evidence in the value
+   ([`gadt.runtime.evidence`](../spec/lang/13-gadts.md#r-gadt.runtime.evidence)).
+   Both are Swift-style witness tables built once per (type, trait) pair as
+   immutable globals.
+5. **Polymorphic recursion** (a generic call that instantiates itself at a
+   growing type) has no finite instantiation. Stop at an instantiation
+   depth limit with its own diagnostic, as rustc does. Part 1 lists this
+   limit without a code ([Hard Limits](#hard-limits)).
+6. **GADTs** need nothing special: refinements are compile-time facts and
+   values keep their ordinary tag
+   ([`gadt.runtime.tag`](../spec/lang/13-gadts.md#r-gadt.runtime.tag)).
+   **Variadic generics** are gone; `Args < Tuple` instantiates like any
+   other type, and `all!` gets one frame type per tuple of child types.
+
+**Bounding code size.**
+
+- Only reachable instances are emitted, and identical ones fold.
+- Requirement rows are not type arguments for layout. A row-polymorphic
+  function takes its providers as one context reference, so rows never
+  multiply instances (mine; the prototype's F-550 and F-551 show what the
+  alternative costs).
+- A per-item instance budget, with its own diagnostic, is the fallback if
+  the `dead-code` metric (10 KB per 1,000 lines) fails in practice. I would
+  not add it before a measurement says so.
+- Debug and release use the same instantiation strategy. The
+  `release-check-cost` metric wants debug within 1.3x of release; a debug
+  tier with shared generics would miss it on any generic-heavy test.
+
+### The IR
+
+| Option | Used by | Fit for hd |
+| --- | --- | --- |
+| SSA CFG, then a relooper or stackifier to rebuild Wasm blocks | LLVM (CFGStackify), Binaryen's Relooper, Cranelift as a *consumer* of Wasm | needs control-flow recovery; [Ramsey's "Beyond Relooper"](https://dl.acm.org/doi/10.1145/3547621) shows a dominator-tree method that always succeeds on reducible graphs |
+| structured, typed tree IR with explicit locals | Binaryen IR, dart2wasm, Kotlin/Wasm, Scala.js | emits Wasm blocks directly; optimizations are tree rewrites |
+| structured IR with SSA-like single assignment per local | MoonBit's multi-level IR (reported, unverified detail) | both |
+
+hd source has no `goto`. Loops, `break`, `continue`, `match` and `?` map to
+Wasm `block`, `loop`, `br`, `br_if` and `br_table`. The only unstructured
+graph is the suspension state machine, which is a `loop` around a
+`br_table` on the state ([Q9](#q9-suspension-lowering)).
+
+**Recommendation (confidence medium-high): a structured MIR.**
+
+- A typed tree of blocks, loops and branches over numbered locals, one
+  arena per body, in Part 1's flat-array style. Each local is assigned in
+  one place where that is cheap; otherwise it is a plain mutable local.
+- Generic MIR is lowered once per module from checked bodies, before
+  instantiation. Instantiation substitutes types and picks layouts.
+- The native backend (Q15) lowers the same MIR to Cranelift IR, which takes
+  structured input as easily as a CFG, since a tree is a CFG.
+
+### Where Instances Live In The Cache
+
+Go compiles an instantiation in every package that needs it and lets the
+linker drop duplicates. Rust (with `-Zshare-generics` in debug) reuses an
+upstream crate's copy. Swift specializes in the caller.
+
+**Recommendation (confidence medium):**
+
+1. The **module cache entry** from Part 1 stores the module's generic MIR,
+   serialized with stable paths, beside its diagnostics and facts.
+2. A second **codegen cache**, content-addressed through the same
+   `CacheStore`, maps an instance key to the instance's emitted Wasm body
+   with symbolic relocations. The key hashes the item's MIR hash, the
+   canonical type arguments, the MIR hashes of the items it inlines, the
+   tier and the compiler build ID.
+3. A per-program **link step** walks reachability, fetches or emits
+   instances in parallel, folds identical ones, assigns function and type
+   indices, and patches relocations. LLVM's Wasm objects use padded 5-byte
+   LEBs at relocation sites so patching never moves code
+   ([tool conventions](https://github.com/WebAssembly/tool-conventions/blob/main/Linking.md));
+   the cached bodies can do the same, and a release build can re-encode
+   compactly.
+
+A private body edit then changes one MIR hash and re-emits only that
+item's instances; `main`, the tests and other worktrees share every other
+cached instance. Cranelift adds its own per-function cache below this
+(Q11).
+
+### Risks
+
+- **Compile time of full monomorphization.** rustc's cost is mostly LLVM.
+  Here each instance is one walk of a small MIR tree into `wasm-encoder`,
+  and instances are cached. Measure with `cold-check`-style build timing in
+  slice 7.
+- **Folding hides names.** A folded function has one name in backtraces.
+  Keep a list of folded names per body in the symbol table, as linkers do
+  with ICF.
+- **Exact types make many Wasm types.** Each instance of a generic `data`
+  is its own struct type. Type sections grow; V8 and wasmtime canonicalize
+  equal types, so the cost is size only. Watch `dead-code`.
+
+**What would change it.** If the `dead-code` or build-time metrics fail on
+generic-heavy programs even after folding, add .NET-style sharing for
+reference-only instances with a context argument, in the debug tier first.
+
+## Q9: Suspension Lowering
+
+**Question.** State machines, Wasm stack switching, JSPI or CPS? It must
+work on wasmtime and on V8 in a browser, keep the ready path free of
+allocation, support `all!`, `race!` and cancellation, reserve hook points,
+and let host calls suspend.
+
+### What The Spec Already Fixes
+
+The spec describes a poll-based, cold, one-shot protocol: a plain call
+builds a cold suspension that captures arguments and providers; a bang call
+drives it; `cancel` is synchronous and runs registered `defer` suites; and
+`fn name!` "is source sugar for a compiler-generated cold state machine"
+([Compilation Strategy](../spec/lang/11-requirements-and-suspension.md#compilation-strategy)).
+The representation may differ only if it keeps those behaviors
+([`req.lowering.representation`](../spec/lang/11-requirements-and-suspension.md#r-req.lowering.representation)).
+
+### Prior Art
+
+| Mechanism | Who ships it | Status, mid-2026 | Cost model |
+| --- | --- | --- | --- |
+| State machine, frames nested by value | Rust `async` | stable | no allocation; recursion needs a `Box` |
+| State machine, frame boxed on the first real wait | C# `async` | stable | the state machine is a struct; it moves to the heap only when an awaited task is not complete ([Toub](https://devblogs.microsoft.com/dotnet/how-async-await-really-works/)) |
+| CPS state machine, one continuation object per call | Kotlin coroutines ([KEEP](https://github.com/Kotlin/KEEP/blob/master/proposals/coroutines.md)) | stable, including Kotlin/Wasm | an allocation per suspending call |
+| Wasm stack switching (`cont.new`, `resume`, `suspend`) | proposal at phase 3 | wasmtime: tier 3, x86_64 Linux only, off by default ([wasmtime](https://docs.wasmtime.dev/stability-wasm-proposals.html)); V8: wasm_of_ocaml's README names Chrome 148+ (flag status unverified); not shipped in any engine by default ([tracking](https://github.com/theSherwood/temen/issues/1651)) | a stack per task |
+| JSPI | phase 4 (April 2025) | Chrome 137+; Firefox intends 153; Safari 27 beta ([OpenReplay](https://blog.openreplay.com/jspi-javascript-wasm-bridge/)); not a wasmtime feature | suspends the whole Wasm stack at a Promise-returning import |
+| CPS in JS | wasm_of_ocaml's fallback for effects | works everywhere | "slower, larger" ([README](https://github.com/ocsigen/js_of_ocaml/blob/master/README_wasm_of_ocaml.md)) |
+| Component Model async, stackless "callback" ABI | WASI 0.3 | wasmtime on by default | the export returns an exit, yield or wait code, and the runtime calls a callback later; it needs linear memory ([Concurrency.md](https://github.com/WebAssembly/component-model/blob/main/design/mvp/Concurrency.md)) |
+
+Stack switching is the only option that is not available on both v1
+engines, and JSPI is browser-only. State machines are the only mechanism
+that runs today on wasmtime, V8, Firefox and Safari alike.
+
+### Recommendation
+
+**State machines, with lazily materialized frames.** Confidence: high for
+state machines, medium for the lazy frame.
+
+1. **One function per suspending body**, `f$run(frame, args...)`. With a
+   null frame it starts at state 0 with its arguments in locals. With a
+   frame it reloads the live locals and jumps to the saved state through a
+   `br_table` inside a `loop`. Code grows linearly: one resume point and
+   one save sequence per suspension point. (The prototype grows about N^3,
+   F-552.)
+2. **The ready path allocates nothing** (C#'s design, mapped to Wasm by
+   me). A bang call `g!(x)` calls `g$run(null, x)` directly. If `g`
+   finishes, the result comes back as a plain Wasm result. Only when a
+   callee returns Pending does the caller allocate its own frame, store
+   its live locals and the child's frame, and return Pending in turn. So an
+   await that completes at once costs one direct call and one test, which
+   fits the 100 ns budget with room to spare.
+3. **A cold call allocates.** `g(x)` without a bang must capture arguments
+   and providers, so it builds a frame at once. That is the spec's
+   semantics, not overhead.
+4. **Frames are GC structs** that extend one `$Suspend[T]` struct per
+   result layout. The base holds the state and a vtable with `poll` and
+   `cancel`, so a stored `mut Suspend[T]` is polled through one
+   `call_ref`. Wasm GC cannot nest a struct inside another by value, so
+   Rust's nested frames are not available; the lazy frame recovers most of
+   their benefit.
+5. **Cancellation** reads the state and runs that state's registered
+   `defer` suites, innermost frame first, after cancelling the child, as
+   [`req.cancel.defer`](../spec/lang/11-requirements-and-suspension.md#r-req.cancel.defer)
+   orders. The emitter generates one cleanup table per suspending body.
+6. **`all!` and `race!`** are intrinsic frames holding their children.
+   `all!` polls children in argument order and records results in the
+   tuple frame; `race!` cancels losers synchronously. Two ready children
+   cost their two cold frames and no frame for `all!` itself when it is
+   bang-called, which meets 1M tasks per second by a wide margin. A later
+   optimization (mine): when `all!(a(x), b(y))` names cold calls directly,
+   start them with null frames too.
+7. **Hook points live in the MIR, not in the binary.** Each suspension
+   point, frame creation and completion carries a `Hook(kind, site)` MIR
+   instruction. The normal emitter drops it, so it costs nothing at run
+   time; a trace or replay build emits a call to a hook import. This is
+   how I read the owner's "no-op hook points": reserved in the IR, absent
+   from release code. Cranelift's inliner is off by default, so an empty
+   function call would not be free on wasmtime.
+8. **The entry driver** is a pair of exports, `hd_poll_main` and
+   `hd_wake(id)`. The host calls `hd_poll_main`; on Pending it returns to
+   its event loop; a host completion calls `hd_wake` and polls again. Wakes
+   are coalesced, as
+   [`req.waker.coalesced`](../spec/lang/11-requirements-and-suspension.md#r-req.waker.coalesced)
+   says. This is the stackless callback ABI of WASI 0.3 in hd's own core
+   imports, so a later move to the Component Model is a re-encoding, not a
+   redesign (Q12).
+
+### The `block_on` Problem
+
+`block_on` drives a suspension synchronously from non-suspending code
+([`req.drive.block-on`](../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on)).
+When its argument waits on the host, the Wasm stack must stay intact while
+the host does I/O:
+
+| Host | How `block_on` waits |
+| --- | --- |
+| wasmtime in `hd` | a host import runs the Rust event loop until the wake arrives, on the same native thread; the Wasm stack just sits below it |
+| a browser with JSPI | the import returns a Promise and JSPI suspends the stack (Chrome 137+ today) |
+| a browser without JSPI | only `Atomics.wait` in a Worker with a helper Worker, which needs cross-origin isolation, as the prototype's synchronous fetch does |
+
+This is an [open question](#open-questions-for-the-owner): my
+recommendation is JSPI where present, and otherwise a `host-contract`
+panic that names the missing feature, so the playground keeps Part 1's "no
+COOP/COEP" choice.
+
+### Risks
+
+- **Two kinds of call per suspending function** (bang and cold) and a save
+  sequence per suspension point add code. Count it in `dead-code`.
+- **Deep chains of Pending** allocate one frame per level on the first real
+  wait. That is Kotlin's steady-state cost, paid only once per wait.
+- **Stack switching may ship on both engines** within v1's life. It would
+  not replace state machines, because the spec's cold suspensions and
+  synchronous cancellation map to frames directly. It could later serve
+  `block_on` in browsers without JSPI.
+
+**What would change it.** Only an owner change to the suspension protocol,
+such as making suspensions multi-shot, would reopen this.
+
+## Q10: Wasm GC Codegen
+
+**Question.** How should values look in Wasm GC, what do other GC-language
+toolchains do, which choices need Binaryen, and should the compiler emit
+binary directly?
+
+### Prior Art
+
+| Toolchain | Optimizer | Notes |
+| --- | --- | --- |
+| dart2wasm | Binaryen `wasm-opt` | classes as struct subtypes with a class-id field; uses `wasm:js-string` with a polyfill ([flutter/engine #51488](https://github.com/flutter/engine/pull/51488)) |
+| Kotlin/Wasm | Binaryen | JS string builtins; coroutines as CPS state machines |
+| J2Wasm (Java) | Binaryen | `wasm-opt` made benchmarks 1.9x faster on average ([V8](https://v8.dev/blog/wasm-gc-porting)) |
+| wasm_of_ocaml | Binaryen, required on the PATH | effects through JSPI by default, CPS as fallback, stack switching optional ([README](https://github.com/ocsigen/js_of_ocaml/blob/master/README_wasm_of_ocaml.md)) |
+| Scala.js Wasm backend | its own IR optimizer, no Binaryen | 15% faster than its JS output, geomean; code twice the JS size ([Scala.js 1.19](https://www.scala-js.org/news/2025/04/21/announcing-scalajs-1.19.0/)) |
+| MoonBit | its own whole-program, multi-level IR optimizer | emits Wasm features `wasm-opt` did not accept ([forum](https://discuss.moonbitlang.com/t/support-for-binaryens-wasm-opt/209)); JS string builtins in the browser |
+| Guile Hoot | its own Scheme toolchain | no Binaryen (unverified detail) |
+| Go `wasm` | no Wasm GC: its own GC in linear memory | goroutines by rewriting functions for resumption (unverified detail); large binaries ([Go wiki](https://go.dev/wiki/WebAssembly)) |
+
+What Binaryen buys a GC language, per V8's porting guide: whole-program type
+refinement, GUFA (type-aware content flow), escape analysis that moves
+allocations to locals, devirtualization, cast removal, and type merging
+([V8](https://v8.dev/blog/wasm-gc-porting)). Most of these exist to recover
+types a uniform front end erased. Per-type monomorphization (Q8) emits
+exact types, direct calls and no casts in the first place, which is why
+Scala.js and MoonBit get by without it.
+
+### Representation
+
+**Recommendation (confidence medium-high):**
+
+| hd value | Wasm GC representation | Why |
+| --- | --- | --- |
+| `data` | an immutable or mutable struct per type, exact `(ref $T)` | shared reference semantics ([`data.ref.shared`](../spec/lang/08-data-and-enums.md#r-data.ref.shared)) |
+| payloadless enum | `i32` | no allocation |
+| `Option` of a reference | `(ref null $T)`, null is `.None` | v1 decision; nested `T??` keeps an outer tagged pair, since [`types.option.nest`](../spec/lang/04-type-system.md#r-types.option.nest) must tell `.None` from `.Some(.None)` |
+| `Option` of a scalar | a `pair` (`i32` tag plus the value) in locals and results; two fields in a struct | v1 decision |
+| `Result[T, E]` | a `pair` or triple in returns; a struct only when stored | every `?` and every serde call returns one (mine: the same treatment as `Option`) |
+| enum with payloads | an abstract base struct with an `i32` tag and the shared fields, one subtype per variant; `match` is a `br_table` on the tag, then a `ref.cast` the engine knows succeeds | the dart2wasm class-id pattern; the owner's per-enum choice stays open for small enums |
+| closure | a struct per capture shape, subtype of one base per signature holding a typed `funcref`; a capture-free closure is a global constant | v1 decision; a `mut` capture becomes a field, with no cell when only the closure writes it after capture |
+| `string` | an immutable `(array i8)` | see Q13 |
+| `List[T]` | a struct with a length and a `(ref (array (mut T')))` where `T'` is the element's layout: `i8` for `u8`, `i32`, `f64`, or a reference | fixes F-505; JSON's `List[u8]` becomes a byte array |
+| trait value | a struct of `anyref` plus a vtable reference | erased position; scalars as `i31ref` |
+| panic | record the category and site in globals, then `unreachable` | panics are not catchable and poison the instance ([`flow.panic.poison`](../spec/lang/06-control-flow.md#r-flow.panic.poison)) |
+
+**No Wasm exceptions in v1.** hd has no exceptions, `?` is result-based, and
+a panic ends the instance. Exceptions are on in wasmtime 47, but nothing in
+v1 needs them. They become useful only if a later feature catches panics
+per test without re-instantiating.
+
+### Binaryen Or Not
+
+| Option | Browser cost | Native cost | Gain |
+| --- | --- | --- | --- |
+| Binaryen in-process, as today | 14.6 MB worker today | links C++ | its passes, if enabled |
+| our own MIR optimizations | none extra | none extra | inlining, counted loops, scalar replacement, iterator fusion, done where types are known |
+| `wasm-opt` as an optional external native tool for `hd build --release --opt` | none | user installs it | J2Wasm saw 1.9x; for monomorphized code the gain is unmeasured |
+
+**Recommendation (confidence high):** emit binary directly with
+`wasm-encoder` ([docs](https://docs.rs/wasm-encoder)), validate in debug
+builds of the compiler with `wasmparser`, and print WAT for the playground's
+view with `wasmprinter`. All three are small Rust crates. Do the
+optimizations that matter (Q11) in the MIR. Leave `wasm-opt` as the Later
+feature it already is in the triage. Dropping Binaryen alone frees most of
+the playground's 14.6 MB.
+
+### Risks
+
+- **Without GUFA-style analysis, some casts remain** in erased positions
+  (trait values, `Any`). They are rare by construction; count them in a
+  compiler statistic.
+- **Exact struct types per instance** inflate the type section. Measure
+  the tiny program against the 2 KB budget early (slice 6).
+
+## Q11: Engines And Tiers
+
+**Question.** How mature is wasmtime's GC against V8? Is Winch the dev
+tier? How do startup caches, fuel, epochs and heap limits work, and where
+does the optimizing tier fit?
+
+### wasmtime
+
+- **GC is on by default since Wasmtime 47** (2026-07-20), with a
+  Cheney-style semi-space copying collector. The team "mainly focused …
+  on the correctness of our collector … and less so on its performance",
+  and says its throughput and latency "won't match" V8 or SpiderMonkey
   ([Bytecode Alliance](https://bytecodealliance.org/articles/wasmtime-gc)).
-- The `disk` metric caps the toolchain at 10 MB. A minimal wasmtime C API
-  without a compiler is about 0.7 MB
-  ([minimal embedding](https://docs.wasmtime.dev/examples-minimal.html)). The
-  size with Cranelift included is unmeasured here and may conflict with that
-  cap.
+  The other collectors are deferred reference counting (no cycles) and a
+  null collector that never frees
+  ([Collector](https://docs.wasmtime.dev/api/wasmtime/enum.Collector.html)).
+  I found no published benchmark of wasmtime GC against V8.
+- **Winch cannot be the dev tier.** Winch supports none of `gc`,
+  `function-references`, `exception-handling` or `tail-call`
+  ([proposal status](https://docs.wasmtime.dev/stability-wasm-proposals.html)).
+  Every hd program uses GC, so the dev tier is **Cranelift at its lowest
+  optimization level**.
+- **Compile caches.** `Module::serialize` and `deserialize` store
+  precompiled code
+  ([pre-compiling](https://docs.wasmtime.dev/examples-pre-compiling-wasm.html)),
+  and `Config::enable_incremental_compilation` caches Cranelift's output
+  per function through a `CacheStore` trait
+  ([Config](https://docs.rs/wasmtime/latest/wasmtime/struct.Config.html)).
+  Both plug into Part 1's `CacheStore`. An edited test module then
+  recompiles only changed functions, because the codegen cache (Q8) keeps
+  unchanged instances byte-identical.
+- **Interruption.** Epoch interruption is "up to 2-3x" faster than fuel;
+  fuel is for deterministic yielding
+  ([Config](https://docs.wasmtime.dev/api/wasmtime/struct.Config.html)).
+- **Heap limits.** `gc_heap_reservation` and a `ResourceLimiter` bound
+  "linear memory + GC heap" (same source).
+
+### V8 In The Browser
+
+V8 starts every function in Liftoff and tiers hot ones up to TurboFan
+([dynamic tiering](https://v8.dev/blog/wasm-dynamic-tiering)). Chrome caches
+optimized code for modules loaded with `compileStreaming`
+([code caching](https://v8.dev/blog/wasm-code-caching)). TurboFan inlines
+indirect calls speculatively. Playground programs are small, so Liftoff
+start-up matters more than peak speed.
+
+### Recommendation
+
+Confidence: medium (wasmtime's GC throughput is the open risk).
+
+1. **wasmtime for `hd run` and `hd test`**, Cranelift only. Debug builds
+   use a low Cranelift opt level; release uses `Speed`. Measure the
+   compile time of both in slice 6.
+2. **Precompiled code in the cache**, keyed by the Wasm hash and the
+   wasmtime config, plus the per-function Cranelift cache.
+3. **Time limits by epoch**, ticked by a host timer thread. Fuel only for
+   the later deterministic simulation mode, where a reproducible yield
+   point is the point.
+4. **`--max-heap` through `gc_heap_reservation` plus a `ResourceLimiter`.**
+   The spec has no panic category for heap or time exhaustion yet (an
+   [open question](#open-questions-for-the-owner)).
+5. **The optimizing tier is ours.** Inlining small functions, counted
+   range loops, scalar replacement of non-escaping closures and frames, and
+   iterator fusion run on the MIR. Cranelift `Speed` does local work below
+   that. This is the IR boundary the triage reserves, and the same MIR
+   feeds the native backend later.
+6. **A null collector for short test instances** is a cheap experiment
+   (mine): a unit test that allocates under a fixed budget never pays for a
+   collection. Measure before adopting.
+
+### Risks
+
+- **wasmtime GC throughput.** The `runtime` target is 1.5x Node, and
+  Node's GC is generational. A semi-space collector copies every live
+  object on each collection. Allocation-heavy cases (`map`, `sort`) may
+  miss the target on wasmtime while passing on V8. Mitigation: fewer
+  allocations by design (Q8, Q10), and the native backend with its own GC
+  (Q15) right after v1.
+- **Cranelift compile time on large tests.** Mitigated by the two caches.
+
+**What would change it.** If wasmtime's GC misses `runtime` or
+`long-run-memory` by a wide margin, an option is running `hd test` on V8
+through a bundled engine. That costs the binary size and the start-up time
+that led to wasmtime, so I would rather bring the native backend forward.
+
+## Q12: Host Interface And Embedding
+
+**Question.** Hand-rolled core-Wasm imports or the Component Model? How are
+startup refusal, async host calls on both engines, the JS host, and the
+cost of structured values handled? How big is wasmtime with Cranelift?
+
+### The Component Model Today
+
+- **No GC types in the canonical ABI.** Both the stackful and the stackless
+  async ABIs pass values through linear memory
+  ([Concurrency.md](https://github.com/WebAssembly/component-model/blob/main/design/mvp/Concurrency.md)).
+  A GC option is a pre-proposal
+  ([issue #525](https://github.com/WebAssembly/component-model/issues/525)).
+  Wasmtime names GC integration its "next big milestone"
+  ([Bytecode Alliance](https://bytecodealliance.org/articles/wasmtime-gc)),
+  and Component Model 1.0 is planned without it
+  ([roadmap, 2026-06-08](https://bytecodealliance.org/articles/the-road-to-component-model-1-0)).
+- **No native browser support.** Browsers run components through `jco`,
+  which transpiles them to core Wasm and JS (same source).
+
+So an hd program built on Wasm GC cannot be a component today without
+copying every string and list through a linear memory. That is fine for a
+later `--target wasi` export, but not as v1's internal ABI.
+
+### Recommendation
+
+**A small hand-rolled core-Wasm ABI, shaped after WASI 0.3.** Confidence:
+medium-high.
+
+1. **One import per host method**, named `hd:<trait>/<method>`, as the
+   prototype already does. Startup refusal keeps reading the import list
+   ([`cli.cap.total.needs`](../spec/cli/command-line.md#r-cli.cap.total.needs)),
+   and dead-code removal keeps that list exact.
+2. **Scalars cross as Wasm values.** A `println` of a string is one call.
+3. **Structured values cross as bytes in one exchange buffer.** The module
+   exports a small linear memory. Generated code writes the argument's
+   bytes into it with Wasm loops (fast in compiled code), and the host
+   reads the whole buffer in one go; results come back the same way. Wasm
+   GC has no bulk copy between arrays and memory, so the copy is a loop on
+   both engines. The encoder for each boundary type is generated like a
+   derive template. This replaces F-558's call per byte, and should bring
+   `list_dir!` from 52 µs under the 5 µs budget (an estimate, to be
+   measured).
+4. **Async host calls are start-and-poll.** A host method that can wait
+   returns either its result at once or a pending handle. `host_wait!`
+   registers the current waker against the handle and returns Pending; the
+   driver (Q9) returns to the host. The host completes the operation,
+   calls `hd_wake`, and polls again.
+   - **wasmtime:** Wasm calls stay synchronous Rust calls. Host operations
+     run on a single-threaded async reactor in the `hd` process (tokio's
+     current-thread runtime is one choice). No fibers and no
+     `func_wrap_async` are needed, except for `block_on` (Q9).
+   - **Browser:** the JS host starts a Promise, keeps it in a handle
+     table, and on settle calls `hd_wake` and polls. No `Atomics.wait`, no
+     `SharedArrayBuffer`. Cancellation calls `AbortController.abort()`,
+     which gives `send!` the real cancellation the prototype lacks.
+5. **One ABI description, two hosts.** A Rust crate describes every import
+   (name, trait, parameter codecs, whether it can wait). The wasmtime host
+   implements it in Rust; a build step generates the JS glue for the
+   browser from the same description. Grants are checked in both hosts'
+   providers, as HOST_CAPABILITIES requires.
+6. **Components later.** The import set mirrors WASI 0.3 interfaces where
+   they exist (`wasi:filesystem`, `wasi:http`), so a `--target wasi`
+   adapter can map them once the GC ABI lands.
+
+**This contradicts two texts.** [HOST_CAPABILITIES](HOST_CAPABILITIES.md#boundary-abi)
+labels its second column "Official runtime (Component Model)", and the spec
+says `host_wait!` "maps an opaque host wait operation to the WebAssembly
+Component Model async ABI as used by WASI 0.3"
+([`req.host-wait.leaf`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)).
+Neither is reachable for a Wasm GC program in v1. See the
+[open questions](#open-questions-for-the-owner).
+
+### Size Of `hd` With wasmtime
+
+| Build | Size | Source |
+| --- | --- | --- |
+| wasmtime runtime only, `--release --no-default-features` | 2.1 MB | [minimal embedding](https://docs.wasmtime.dev/examples-minimal.html) |
+| the same with LTO | 1.2 MB | same |
+| with nightly `build-std` and `panic_immediate_abort` | 0.7 MB | same |
+| with Cranelift | not published: "no effort has yet been put into minimizing the code size of Cranelift" | same |
+| the `wasmtime` CLI | "~30 MB+" | a third-party tutorial ([wasmruntime.com](https://wasmruntime.com/en/tutorials/wasmtime)), unverified |
+
+Part 1's handoff note gave "about 0.7 MB" for a minimal wasmtime; that is
+only the nightly, `panic_immediate_abort` build. The stable minimal build is
+2.1 MB. With Cranelift, plus the compiler itself and the embedded std, `hd`
+is likely above 10 MB. Two ways out: measure the real binary in slice 6,
+and read the `disk` metric as per-worktree artifacts, since one `hd` binary
+serves every worktree. That is an
+[open question](#open-questions-for-the-owner).
+
+### Risks
+
+- **The exchange buffer adds a linear memory** to every module that crosses
+  structured values. It is a few pages; modules that cross only scalars
+  have none.
+- **Two host implementations drift.** Mitigation: generated JS glue and
+  cross-backend conformance on every change.
+
+## Q13: Runtime Pieces
+
+Strings, maps, serde, panics, backtraces and debug checks, more briefly.
+
+### Strings
+
+The spec fixes the representation: valid UTF-8 bytes, `len()` in bytes in
+constant time, and "at every Wasm host boundary, a string crosses as its
+UTF-8 bytes with no conversion"
+([`types.string.host-bytes`](../spec/lang/04-type-system.md#r-types.string.host-bytes)).
+JS string builtins are UTF-16 and exist only in browsers (Chrome, Firefox,
+and Safari since 26.2, [WebKit](https://webkit.org/blog/18178/webkit-features-for-safari-26-6/)),
+not in wasmtime. They cannot carry hd's semantics. A UTF-8 text-encoding
+builtin is only an open design issue
+([design #1583](https://github.com/WebAssembly/design/issues/1583)).
+
+**Recommendation (high):** one representation on both engines, an
+immutable `(array i8)`. Substrings copy, as Java has since 7u6; the
+prototype's struct of array, start and length costs an extra indirection on
+every access. A `StringBuilder` is a growable `(array (mut i8))` with a
+length, copied once at the end, and `join` sums lengths first, which fixes
+the O(L log n) join of the [baseline](../audit/compiler/baseline-2026-10-06.md#81-string-join-is-ol-log-n).
+In the browser, `TextDecoder` and `TextEncoder` convert at the boundary.
+
+### Maps And Hashing
+
+Monomorphized `Hash` and `Eq` calls are direct, so a map needs no stored
+function references (the prototype keeps `key-eq` and `key-hash` funcrefs
+in every map). **Recommendation (medium):** an open-addressing table over
+per-layout key and value arrays, with a fast non-cryptographic hasher.
+Whether iteration order is insertion order is a stdlib question, not a
+compiler one.
+
+### Serde And JSON
+
+The 3 to 4% has three causes, each with a fix:
+
+| Cause | Fix |
+| --- | --- |
+| one boxed `anyref` per byte in `List[u8]` | per-layout lists (Q10): a byte array |
+| `encode` builds a `Json` tree, then renders it | a streaming `JsonWriter` that implements `Serializer` and writes bytes directly; decode reads bytes into the target type through `Deserializer` without a tree. This is a stdlib change |
+| trait calls through dictionaries and `Result` structs | `W < Serializer` is monomorphized, so every call is direct and inlinable; `Result[void, E]` returns as a pair |
+
+With those, the encoder is a byte loop over direct calls, which is what
+`serde_json` is. Reaching 0.5x of Node's native `JSON` is plausible but
+unmeasured. Confidence: medium.
+
+### Panics And Backtraces
+
+- **Category and site.** Every panic stub stores its category and a site
+  ID in globals before `unreachable`. Engine traps map to categories too:
+  an integer division by zero trap is `integer-division-by-zero`, and a
+  stack overflow (wasmtime's trap code, V8's `RangeError`) is
+  `stack-exhausted`. `List` indexing still checks against the length,
+  because the backing array's capacity is larger; a string index can rely
+  on the engine's array bounds check, which then maps to
+  `index-out-of-bounds` by its code offset.
+- **Locations from code offsets, not text.** wasmtime returns a
+  `WasmBacktrace` whose frames carry function indices and module offsets;
+  V8's `Error.stack` has `wasm-function[i]:0xOFF` frames, which the
+  prototype already parses. One site table, from code offset to source
+  span, serves both. Keep it in a custom section or a side file next to
+  the build.
+- **Symbolized release backtraces.** Always emit the `name` section; it is
+  small and both engines use it in traces. Emit DWARF only on request, for
+  native debuggers. For browser devtools, emit a source map with the
+  `sourceMappingURL` section, as the prototype already does through
+  Binaryen.
+
+### Debug-Tier Checks
+
+- **Overflow.** Wasm has no overflow flag. For 32-bit types, compute in
+  `i64` and compare; for 64-bit, use the sign-xor test. Each costs two to
+  four instructions. `release-check-cost` (debug ≤ 1.3x release) is the
+  check.
+- **Bounds.** Explicit for lists; free for strings and arrays, from the
+  engine.
+- **Closed handles and deadlocked suspension** (v1 items): a closed flag in
+  each handle struct; a driver that polls with no pending host operation
+  and no wake reports the deadlock.
+
+## Q14: Hot Reload (Later, Brief)
+
+| System | Mechanism |
+| --- | --- |
+| Erlang | two versions of a module live at once; a fully qualified call switches to the new one |
+| Dart | the VM swaps function bodies and keeps state; on the web, hot reload works with DDC's JS output but "is not supported" for dart2wasm, which offers hot restart only ([Flutter issue](https://github.com/flutter/flutter/issues/190777)) |
+| Zig | incremental compilation patches the binary in place |
+| JVM | HotSwap replaces method bodies; a schema change restarts |
+
+Dart's own Wasm backend has no hot reload, which says the problem is not
+solved on Wasm. One fact helps: Wasm GC types are canonicalized
+structurally across modules, so a new module that declares the same rec
+groups can read and write the old module's objects.
+
+**What the dev tier should reserve now** (mine, from the Dart and JVM
+model the triage names):
+
+- Dev-tier calls between user functions go through one `funcref` table, so
+  a new module can overwrite entries.
+- Type declarations are emitted in a canonical, deterministic order, so
+  the same `data` layout gives the same Wasm types in the next build.
+- Module state (globals) is exported, never private, in the dev tier.
+
+The cost is one `call_indirect` per call in the dev tier, which also feeds
+`release-check-cost`. Reserve the table in the emitter, but turn it on only
+when hot reload is built, after a measurement.
+
+## Q15: Native Backend With Its Own GC (After v1, Brief)
+
+- **Precise roots.** Cranelift's user stack maps let the front end mark
+  values that hold GC references; `cranelift-frontend` spills them at
+  safepoints and the stack map tells a moving collector where to update
+  them ([Bytecode Alliance](https://bytecodealliance.org/articles/new-stack-maps-for-wasmtime)).
+  wasmtime itself has used them since version 25.
+- **Collector options:**
+
+  | Collector | Moving | Notes |
+  | --- | --- | --- |
+  | Immix / Sticky Immix via MMTk (Rust) | opportunistic | MMTk is a Rust GC framework; Julia ships it as an alternative collector; "not yet ready for production use" per its status page ([MMTk](https://www.mmtk.io/status), [mmtk-julia](https://github.com/mmtk/mmtk-julia)) |
+  | generational copying | yes | simple and fast allocation; needs write barriers |
+  | OCaml 5 | minor heap copying, major mark-sweep | one minor heap per domain |
+  | Go | no; concurrent tri-color mark-sweep | low pause, no compaction |
+
+  **Recommendation (low-medium):** start with a non-moving or sticky-Immix
+  collector through MMTk, since hd instances run on one thread
+  ([`req.schedule.one-thread`](../spec/lang/11-requirements-and-suspension.md#r-req.schedule.one-thread))
+  and need no concurrent collector. Keep stack maps from day one so a
+  moving collector stays possible.
+- **Async I/O.** The same start-and-poll host ABI (Q12) over epoll or
+  kqueue through a Rust reactor; io_uring later on Linux.
+- **What carries over unchanged:** the MIR, monomorphization, layout
+  classes (a `ref` becomes a pointer), the suspension state machines and
+  frames, the host ABI description and its Rust providers, and the
+  conformance suite. What is new: object layout in memory, write barriers,
+  stack maps, and a linker for native executables.
+
+## Q16: Back-Half Crates And Build Order
+
+### Crates
+
+Continuing Part 1's [layered crates](#proposed-crates):
+
+| Crate | Holds | Depends on | Browser |
+| --- | --- | --- | --- |
+| `hd_mir` | the structured MIR, lowering from checked bodies, the suspension transform, MIR serialization into the module cache entry | `hd_check` | yes |
+| `hd_opt` | MIR passes: counted loops, inlining, scalar replacement, iterator fusion (release tier) | `hd_mir` | yes |
+| `hd_mono` | reachability, instantiation, layout classes, the instance key | `hd_mir` | yes |
+| `hd_host_abi` | the import list: names, traits, codecs, wait flags; generates the JS glue | `hd_base` | yes |
+| `hd_wasm` | Wasm GC emission with `wasm-encoder`, the codegen cache, the linker, folding, name section, site table, source map | `hd_mono`, `hd_host_abi` | yes |
+| `hd_run` | the `Runner` interface: instantiate, poll, wake, limits, backtrace to sites | `hd_wasm` | interface only |
+| `hd_run_wasmtime` | wasmtime embedding, providers, grants, the reactor, epoch timer, compile caches | `hd_run`, wasmtime | no |
+| `hd_web` (extended) | the JS host: providers, grants, the wake loop, `TextDecoder` boundary | `hd_run`, generated glue | only there |
+| `hd_cli` | `run`, `test`, `build`, `hd FILE.wasm` | all native crates | no |
+
+wasmtime sits only in `hd_run_wasmtime`, so no front-half or back-half
+crate rebuilds it, and the browser build never sees it.
+
+### Build Order
+
+Part 1 ended at slice 5. The back half adds:
+
+6. **Slice 6, scalars end to end.** MIR, monomorphization and emission for
+   integers, floats, bools, functions and `println`, run on wasmtime.
+   Exit: the scalar cases of `runtime/valid` pass; `size-startup-heap`'s
+   tiny program is under 2 KB; `hd` binary size and Cranelift compile time
+   are measured and recorded.
+7. **Slice 7, data and the std runtime.** `data`, enums, closures, strings,
+   lists, maps, `Option` and `Result` layouts, panics with categories and
+   sites. Exit: `runtime/valid` and the 99 `runtime/panic` cases chapter by
+   chapter, with a known-failures list; `runtime` and `allocations` run.
+8. **Slice 8, suspension and the host.** State machines, `all!`, `race!`,
+   cancellation, the reactor, capabilities and startup refusal, `hd test`.
+   Exit: the suspension and capability cases, the CLI cases of
+   [`cli-cases.tsv`](../spec/conformance/cli-cases.tsv), and
+   `suspension-overhead` and `host-call-overhead`.
+9. **Slice 9, the same Wasm in the browser.** `hd_web` builds and runs a
+   program on V8 through the generated JS host. A browser adapter runs the
+   portable runtime cases in a headless browser, as the playground's
+   [e2e test](../website/playground/e2e.ts) drives a page today.
+   Exit: the runtime cases pass on wasmtime and in the browser with the
+   same known-failures list, which is the Day 1 cross-backend rule.
+10. **Slice 10, the optimizing passes.** `hd_opt` against the pillar 3
+    metrics: `runtime`, `serde-throughput`, `text-throughput`, `dead-code`.
+
+## Comparison With Vx
+
+The owner asked for a comparison with the
+[Vx architecture summary](https://github.com/vx-lang/Vx/blob/main/docs/architecture_executive_summary.md):
+a Rust compiler with flat HIR and type streams, 256-bit hashed global IDs
+(module hash, symbol hash, generic context, flags), eight phases from
+parallel parsing to zero-copy `.vxm` metadata, a frozen `GlobalSession`
+with private per-worker state, and a cross-thread merge per epoch. It is a
+proposal without measurements, and it does not cover incremental
+compilation, backends, GC or Wasm.
+
+**Where it agrees.** Rust, data-oriented flat arrays, parallel parsing,
+frozen shared tables during body checking (Part 1's Q3), a deterministic
+hash for identity, and zero-copy metadata (Part 1's interface blobs). Its
+phases 1 to 3 are Part 1's task graph with generics deferred, which is
+what Q8 does too: bodies record instantiation requests, and the link step
+instantiates.
+
+**(a) 256-bit hashed IDs everywhere, or 32-bit IDs in memory.**
+
+- Size: a 32-byte ID is eight times a `u32`. Type and HIR streams are
+  mostly references, so every cache line holds an eighth as many. That
+  works against the `resources` target (10k lines in 50 MB).
+- Collisions: Vx calls words 0 and 1 "a composite 128-bit cryptographic
+  hash", but they hash different inputs (module path, then symbol name).
+  Two symbols of one module collide when their 64-bit name hashes do, so
+  the strength inside a module is 64 bits, not 128. rustc's `DefPathHash`
+  has the same split (crate ID plus a 64-bit local hash) and therefore
+  checks every crate exhaustively for collisions and aborts on one
+  ([rustc docs](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_span/def_id/struct.DefPathHash.html)).
+- Determinism: hashed IDs do not depend on thread order, which is their
+  real advantage. Part 1 reaches the same result by never printing,
+  sorting or hashing an interned ID.
+- **Recommendation (medium-high):** keep Part 1's 32-bit interned IDs in
+  memory, and use a 128-bit stable hash of the stable path only at the
+  boundaries: interface blobs, cache keys, instance keys and program
+  database symbols. Check collisions per module when an interface is
+  written, as rustc does. This is rustc's `DefId` plus `DefPathHash`.
+
+**(b) Per-worker interning and a merge, or a sharded interner.**
+
+- Body checking creates mostly types that die with the body, and Part 1
+  already frees them with the body's arena. Only instantiation requests
+  outlive a body, and under Q8 they are recorded in the MIR by stable type
+  descriptions, not interned on the spot.
+- **Recommendation (medium):** Vx's model for bodies (private state,
+  nothing shared to merge), and Part 1's sharded table only for the one
+  shared structure left: the instance table of the link step. An epoch
+  merge with a SIMD index-patching pass solves a problem this design does
+  not have.
+
+**(c) Deduplicating monomorphized instances by hash.**
+
+- Vx routes instances to their origin module's bucket and deduplicates
+  with sort and dedup. hd links whole programs, so an instance belongs to
+  no module; it belongs to the content-addressed codegen cache (Q8), keyed
+  by a hash of the item's MIR and its type arguments.
+- **Recommendation (medium-high):** dedup twice by hash, once by instance
+  key before emission and once by emitted body for layout folding. Both
+  keys are stable across runs, so the cache is shared by `main`, tests and
+  worktrees, which per-origin buckets would not give.
+
+**(d) Zero-copy metadata.**
+
+- `bytemuck` casts only plain-old-data slices: no `Vec`, no strings, no
+  offsets. `rkyv` archives nested data with relative offsets and can
+  validate untrusted bytes with `bytecheck` ([rkyv](https://rkyv.org/)).
+  Both need aligned buffers.
+- In the browser, IndexedDB returns an `ArrayBuffer` that is copied once
+  into linear memory, then read in place. The embedded std blob is an
+  aligned `include_bytes!`. Wasm, x86-64 and ARM64 are all little-endian,
+  so one format serves every build.
+- **Recommendation (medium):** Part 1's own indexed format (flat tables of
+  `u32` offsets, `bytemuck`-cast where the data is plain) for interface
+  blobs and MIR, validated on load, since cache files can be truncated or
+  written by another compiler build. `rkyv` is the fallback if writing the
+  format by hand costs too much. The compiler build ID is already in every
+  cache key, so a format change never reads stale bytes.
 
 ## Sources
 
@@ -798,3 +1644,43 @@ Findings from Part 1 for Part 2:
 - SCIP: <https://sourcegraph.com/blog/announcing-scip>
 - Wasmtime GC: <https://bytecodealliance.org/articles/wasmtime-gc>
 - Wasmtime minimal embedding: <https://docs.wasmtime.dev/examples-minimal.html>
+- Go generics implementation (GC shapes, dictionaries): <https://github.com/golang/proposal/blob/master/design/generics-implementation-dictionaries-go1.18.md>
+- Generics can make your Go code slower: <https://planetscale.com/blog/generics-can-make-your-go-code-slower>
+- .NET shared generics: <https://github.com/dotnet/runtime/blob/main/docs/design/coreclr/botr/shared-generics.md>
+- Swift cross-module optimization: <https://forums.swift.org/t/brave-new-world-best-practices-for-cross-module-optimization/66869>
+- Compiling Swift Generics: <https://download.swift.org/docs/assets/generics.pdf>
+- Rust, remove polymorphization: <https://github.com/rust-lang/rust/pull/133883>
+- MLton monomorphisation: <http://mlton.org/Monomorphise>
+- V8 speculative Wasm optimizations: <https://v8.dev/blog/wasm-speculative-optimizations>
+- A function inliner for Wasmtime and Cranelift: <https://fitzgen.com/2025/11/19/inliner.html>
+- Beyond Relooper: <https://dl.acm.org/doi/10.1145/3547621>
+- Wasm linking conventions: <https://github.com/WebAssembly/tool-conventions/blob/main/Linking.md>
+- How async/await really works in C#: <https://devblogs.microsoft.com/dotnet/how-async-await-really-works/>
+- Kotlin coroutines design: <https://github.com/Kotlin/KEEP/blob/master/proposals/coroutines.md>
+- Wasmtime proposal status: <https://docs.wasmtime.dev/stability-wasm-proposals.html>
+- Stack switching and JSPI status: <https://github.com/theSherwood/temen/issues/1651>
+- JSPI explained: <https://blog.openreplay.com/jspi-javascript-wasm-bridge/>
+- wasm_of_ocaml README: <https://github.com/ocsigen/js_of_ocaml/blob/master/README_wasm_of_ocaml.md>
+- Component Model concurrency: <https://github.com/WebAssembly/component-model/blob/main/design/mvp/Concurrency.md>
+- Wasm GC in the canonical ABI, pre-proposal: <https://github.com/WebAssembly/component-model/issues/525>
+- The road to Component Model 1.0: <https://bytecodealliance.org/articles/the-road-to-component-model-1-0>
+- V8, porting GC languages to WasmGC: <https://v8.dev/blog/wasm-gc-porting>
+- dart2wasm and JS string builtins: <https://github.com/flutter/engine/pull/51488>
+- Scala.js 1.19: <https://www.scala-js.org/news/2025/04/21/announcing-scalajs-1.19.0/>
+- MoonBit and wasm-opt: <https://discuss.moonbitlang.com/t/support-for-binaryens-wasm-opt/209>
+- wasm-encoder: <https://docs.rs/wasm-encoder>
+- Wasmtime collectors: <https://docs.wasmtime.dev/api/wasmtime/enum.Collector.html>
+- Wasmtime `Config`: <https://docs.rs/wasmtime/latest/wasmtime/struct.Config.html>
+- Wasmtime pre-compiling: <https://docs.wasmtime.dev/examples-pre-compiling-wasm.html>
+- V8 dynamic tiering: <https://v8.dev/blog/wasm-dynamic-tiering>
+- V8 Wasm code caching: <https://v8.dev/blog/wasm-code-caching>
+- Wasmtime tutorial (CLI size claim): <https://wasmruntime.com/en/tutorials/wasmtime>
+- Safari 26.6 WebKit features: <https://webkit.org/blog/18178/webkit-features-for-safari-26-6/>
+- JS text encoding builtins issue: <https://github.com/WebAssembly/design/issues/1583>
+- Flutter `run --wasm` and hot reload: <https://github.com/flutter/flutter/issues/190777>
+- New stack maps for Wasmtime and Cranelift: <https://bytecodealliance.org/articles/new-stack-maps-for-wasmtime>
+- MMTk status: <https://www.mmtk.io/status>
+- MMTk Julia binding: <https://github.com/mmtk/mmtk-julia>
+- Vx architecture summary: <https://github.com/vx-lang/Vx/blob/main/docs/architecture_executive_summary.md>
+- rustc `DefPathHash`: <https://doc.rust-lang.org/nightly/nightly-rustc/rustc_span/def_id/struct.DefPathHash.html>
+- rkyv: <https://rkyv.org/>
