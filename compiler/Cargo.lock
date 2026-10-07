@@ -38,6 +38,7 @@ version = "0.0.0"
 dependencies = [
  "hd_base",
  "hd_iface",
+ "hd_resolve",
  "hd_syntax",
  "hd_tir",
 ]
@@ -70,6 +71,14 @@ dependencies = [
  "hd_syntax",
  "hd_tir",
  "hd_wasm",
+]
+
+[[package]]
+name = "hd_fmt"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_syntax",
 ]
 
 [[package]]
@@ -112,12 +121,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "hd_resolve"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_project",
+ "hd_types",
+]
+
+[[package]]
 name = "hd_run"
 version = "0.0.0"
 dependencies = [
  "hd_base",
  "hd_cache",
  "hd_wasm",
+]
+
+[[package]]
+name = "hd_run_wasmtime"
+version = "0.0.0"
+dependencies = [
+ "hd_cache",
+ "hd_run",
 ]
 
 [[package]]

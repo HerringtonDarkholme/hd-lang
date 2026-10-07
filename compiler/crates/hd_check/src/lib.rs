@@ -4,6 +4,7 @@
 
 pub mod body;
 pub mod resolve;
+pub mod stages;
 
 use hd_iface::{CItem, HeaderItem, item_path};
 use hd_syntax::SyntaxKind;
