@@ -94,40 +94,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K20. Doc Summaries For lib/std (Comment Lines Only)
-
-**Resume note (2026-10-06):** your worktree has uncommitted K20 work in
-`lib/std/collections.hd`, 110 added `##` lines, saved before you stopped.
-Review found the first summary wrong. `List.pop` was described as
-`Heap.pop` ("Removes a largest element by `Ord` … On an empty heap") and
-cited `std-collections.heap.pop`. Before committing, re-check **every**
-summary in that file: the item it sits above, the spec rule it cites, and
-that the rule describes that same item. Then continue with the other
-modules.
-
-
-The owner decided (future-work/HD_DOC.md) that `lib/std` gets `##` doc
-comments. Today it has none; every comment is `#`. For every `pub`
-declaration in `lib/std/*.hd`, add a `##` summary above it:
-
-- One or two sentences on what it does, for a user, in the guide's plain
-  style.
-- End with the spec rule it implements, as a Markdown link, e.g.
-  `## See [std-json.decode](../../spec/std/json.md#r-std-json.decode).`
-  Find the rule with `grep -rn 'r\[std-' spec/std/`.
-- Keep any existing `#` comment that explains the implementation, below
-  the `##` summary.
-
-**This job is the one exception to "Don't Touch lib/":** you may add `##`
-lines and nothing else. Before each commit, run `git diff -U0 lib/std`.
-Every added line must start with `##` (after indentation), and no other
-line may change. Then run `node --experimental-strip-types
-test/run-portable.ts --tier std` (all must pass) and `pnpm run
-format:check`.
-
-Commit one std module per commit, largest public surface first:
-collections, text, json, fs, time, testing, then the rest.
-
 ### K21. Usability Probe 7: The New Guide Pages (Read-Only)
 
 Your K16/K17 pages (`guide/WORKING_WITH_DATA.md`) and K19
