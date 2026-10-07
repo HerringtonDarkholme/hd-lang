@@ -84,6 +84,18 @@ Detailed design: [README.md](README.md)
   style, `trait.dyn.binding.complete` unchanged). When two supertrait paths
   bind the same associated type, equal bindings merge and different ones
   are `duplicate-associated-binding` at the declaring trait.
+- **Tiers** ([tiering.md](tiering.md)): a dev pipeline (almost no hd
+  passes; Cranelift `None` with the single-pass allocator if spike T1
+  confirms) and an optimized pipeline (bounded inlining, scalar
+  replacement, closure specialization, devirtualization, then Cranelift
+  `Speed`). Those optimizations run in the optimized pipeline only,
+  reversing "the same in debug and release". `release-check-cost` splits
+  into `check-cost` (optimized pipeline, checks on vs off, at most 1.3x)
+  and `dev-speed` (dev vs optimized in one profile, at most 4x geomean, no
+  case over 10x). `--release` selects the optimized pipeline everywhere:
+  on `hd build`, `hd run` and `hd FILE` it also selects the wrapping
+  release profile; on `hd test` it keeps checks (tests are always
+  checked). Binaryen in release builds is decided after spike T2.
 - **Strings are Go-style shared slices** (owner, 2026-10-07): a string is
   `(array, start, len)`, and `slice` / `s[a..b]` stay O(1) and share bytes
   as the spec already says (`module.string.slice.shared`). The known cost:

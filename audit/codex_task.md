@@ -86,6 +86,12 @@ S7), each give the exact program, metric and decision rule. Run them all.
   compile time at both opt levels, Liftoff and TurboFan compile time,
   instantiation time. Plus each experiment's own metric, on wasmtime and
   V8 separately, p50 and p95.
+- Also run `future-work/compiler/tiering.md`'s experiments T1 to T5
+  (Cranelift `None`/`Speed` x backtracking/single-pass allocators and
+  wasmtime's inliner; `wasm-opt` levels on hd release output, never
+  `-tnh`; the share of functions a test run executes; trivial inlining in
+  dev; separate passes vs one fused walk), with the decision rules given
+  there.
 - Write the results into `future-work/compiler/spike-0c-results.md`
   (create it; you may edit this one design file): one table per
   experiment, the decision each rule gives, and the machine and load.
