@@ -83,19 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q9. Diagnostic Codes Generated From The Spec
-
-Reconciliation item 7: `hd_diag`'s code enum is written by hand and
-holds only the 28 syntax codes. Write a generator under `spec/tools/`
-that reads every diagnostic code the spec defines (the chapters'
-diagnostics tables, the same source `spec check` uses) and writes
-`compiler/crates/hd_diag/src/codes.rs` (generated; a header says so):
-the enum, `as_str`, `from_str`, and the phase each code belongs to.
-Add a `spec check` step that fails when the generated file is stale.
-This one generated file is the only `compiler/crates/` file you may
-write; keep the existing enum's public names compiling. `cargo test`
-green, `cargo fmt --check` clean. Timebox 45 minutes; push.
-
 ### D2a. Reconcile M1 (Now)
 
 M1 landed as 07c74892. Run D2 for it, and record these M1 findings in
