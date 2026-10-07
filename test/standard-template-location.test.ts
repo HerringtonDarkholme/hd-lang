@@ -5,8 +5,14 @@ import test from "node:test";
 
 import { analyze } from "../src/compiler.ts";
 import { physicalSpan, sourceDocument } from "../src/diagnostics.ts";
+import { stdLocation } from "./std-location.ts";
 
 test("standard template diagnostics retain their physical source", (t) => {
+  const expected = stdLocation(
+    "cmp.hd",
+    "match Structure::walk(self, w):\n            .Ok(_) => true",
+    "match",
+  );
   const original = fs.readFileSync;
   const replacement = ((path: fs.PathOrFileDescriptor, ...arguments_: unknown[]) => {
     const source = Reflect.apply(original, fs, [path, ...arguments_]);
@@ -24,10 +30,7 @@ test("standard template diagnostics retain their physical source", (t) => {
     assert.equal(diagnostic.message, "match arms have no common type: string, bool");
     assert.equal(sourceDocument(diagnostic.span)?.file, "lib/std/cmp.hd");
     const start = physicalSpan(diagnostic.span).start;
-    assert.deepEqual(
-      { offset: start.offset, line: start.line, column: start.column },
-      { offset: 8814, line: 267, column: 9 },
-    );
+    assert.deepEqual({ offset: start.offset, line: start.line, column: start.column }, expected);
   } finally {
     mocked.mock.restore();
     syncBuiltinESMExports();
