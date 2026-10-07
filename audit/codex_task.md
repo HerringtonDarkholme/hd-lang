@@ -141,6 +141,42 @@ its size estimate. Order by dependency and by how many conformance cases
 each unblocks. Tables and short lists; docs only. Timebox 45 minutes;
 push.
 
+### Q16. compiler/README.md: How The New Compiler Fits Together
+
+A newcomer's map in `compiler/README.md` (replace or extend what is
+there): the crate graph with one line per crate and its design doc; the
+pipeline stages in order with the task kinds; how to run things
+(`hd run`, `hd build`, `hd FILE.hd`; the `hd_driver` examples `stages`,
+`bench`, `tir`; the `hd_syntax` example `parse_check`); where the tests
+live and how to update snapshots (`HD_BLESS=1`, `HD_UPDATE_GOLDEN=1`);
+the pre-commit hook; the disk cache location and how to clear it; and
+links to `future-work/compiler/footprint.md`, `reconciliation.md`,
+`work-estimate.md`. Check every command you list actually runs at the
+commit you start from, and every link resolves (`bash spec/check.sh`).
+Docs only. Timebox 30 minutes; push.
+
+### Q17. Spec Clarifications The New Parser Raised
+
+The M2 parser found layout cases the spec leaves unclear. For each,
+find the governing rules in `spec/lang/01-lexical-structure.md` and
+`02-grammar.md`, decide what the spec should say (keep what the TS
+prototype and the new parser agree on when the spec is silent; flag
+real conflicts in the commit message instead of deciding), and write it
+as numbered rules with IDs per `spec/STYLE.md`, each with one example:
+
+1. An `else:` on the line after a same-line `if` body (the new parser
+   accepts it).
+2. An indented non-closure suite inside brackets whose `else` line sits
+   between the header and body columns (the new parser reports
+   `invalid-dedent`).
+3. Error recovery: which independent errors after the first one in a
+   statement, or after an unclosed delimiter, an implementation must
+   still report.
+
+One fixture per new rule (parse phase) and a `compiler/KNOWN_FAILURES.tsv`
+row if the new parser disagrees. `bash spec/check.sh` and
+`cargo test -p hd_syntax` green. Timebox 45 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
