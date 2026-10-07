@@ -1,0 +1,38 @@
+# test: type declarations make a transparent alias, a nominal newtype, or a requirement row alias
+# Spec 02 Type Declarations: grammar.type-decl.alias, grammar.type-decl.newtype, grammar.type-decl.row-alias.dollar.
+# expect-stdout: 12
+# expect-stdout: Ada
+# expect-stdout: true false
+# expect-stdout: 0
+trait Clock:
+    fn now(self) -> i32
+
+trait Logger:
+    fn note(self, text: string) -> string
+
+type Grid = List[List[i32]]
+
+@derive(Eq)
+type Meters(i32)
+
+type Name = string
+
+type Services = $ Clock + Logger
+
+type OnlyClock = $ Clock
+
+type Silent = $()
+
+fn cells(grid: Grid) -> usize: grid[0].len() + grid[1].len() + 8
+
+fn timed(callback: fn() -> i32 $ Services) -> i32 $ Services: callback()
+
+fn quiet(callback: fn() -> i32 $ Silent) -> i32: callback()
+
+pub fn main() -> void $ Console:
+    let grid: Grid = [[+1, +2], [+3, +4]]
+    println(cells(grid))
+    let who: Name = "Ada"
+    println(who)
+    println("${Meters(+7) == Meters(+7)} ${Meters(+7) == Meters(+8)}")
+    println(quiet(fn() -> i32: 0) * 0)

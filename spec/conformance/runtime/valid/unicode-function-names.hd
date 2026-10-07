@@ -1,0 +1,15 @@
+# test: a function may be named with any XID_Start and XID_Continue characters, and a call reaches it by that name
+# Spec 01 Identifiers: lex.ident.form, lex.ident.xid, lex.encoding.scalars.
+# expect-stdout: 10
+# expect-stdout: 10
+# expect-stdout: 7
+fn 差(a: i32, b: i32) -> i32: b - a
+
+fn Δ(a: i32, b: i32) -> i32: b - a
+
+fn größe_in_zoll(cm: i32) -> i32: cm / 2
+
+pub fn main() -> void $ Console:
+    println(差(+2, +12))
+    println(Δ(+2, +12))
+    println(größe_in_zoll(+15))

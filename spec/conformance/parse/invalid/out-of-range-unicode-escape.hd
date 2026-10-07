@@ -1,3 +1,4 @@
 # test: a Unicode escape above U+10FFFF is rejected; the maximum scalar value is valid
+# Spec 01 Escape Sequences: lex.escape.unicode.
 maximum := "\u{10FFFF}"
 beyond := "\u{110000}"  # diagnostic: invalid-escape

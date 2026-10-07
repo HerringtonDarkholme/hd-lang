@@ -1,0 +1,30 @@
+# test: bang calls, type-argument lists, qualified calls, and method references each parse to one reading without name resolution
+# Spec 02 Bang And Dot Tokens: grammar.expr.bang-suffix, grammar.expr.prefix-not, grammar.expr.not-equal, grammar.expr.member-identifier.
+# Spec 02 Type Arguments In Expressions: grammar.expr.type-arguments.marker, grammar.expr.type-arguments.type-name, grammar.expr.type-arguments.in-types, grammar.expr.index-only.
+# Spec 02 Method Type Arguments: grammar.expr.method-type-arguments.bang, grammar.expr.method-type-arguments.valid, grammar.primary.qualified-type-arguments, grammar.primary.member-type-arguments, grammar.primary.member-type-arguments.rules, grammar.primary.function-type-argument, grammar.primary.placeholder, grammar.primary.method-reference.
+# Spec 02 Primary Expressions: grammar.scope.syntax.
+
+fn run!(id: i32) -> bool:
+    ok := !fetch!(id)
+    first := fetch!::[User](key)
+    second := parser.load!::[User](text)
+    third := Store::load!::[User](key)
+    nested := !(fetch!(id) && other!(id))
+    same := f!=g
+    names := tuple._0._1
+    ok
+
+fn types(names: List[string], handlers: List[fn(i32) -> i32], event: i32, i: usize) -> void:
+    head := first::[string](names)
+    boxed := Box::[string] { value: head }
+    pair := Box::[List[i32]] { value: [1] }
+    parsed := parser.parse::[User](text)
+    decode := Json::decode::[User]
+    method := User::domain
+    bound := user::domain
+    qualified := Add::[i32]::add(price, 5)
+    placeholder := convert::[i32, _](value)
+    handled := handlers[i](event)
+    compared := a < b && c > d
+    indexed := handlers[0] < handlers[1]
+    let typed: List[fn() -> i32] = other

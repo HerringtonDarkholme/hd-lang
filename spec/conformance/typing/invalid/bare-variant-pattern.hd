@@ -1,3 +1,4 @@
+# Spec 02 Patterns: grammar.pattern.bare-variant.
 enum State:
     Ready
 

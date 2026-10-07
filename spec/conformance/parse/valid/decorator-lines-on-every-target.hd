@@ -1,0 +1,56 @@
+# test: decorator lines precede data types, enums, functions, traits, implementations, newtypes, members, and parameters, each on its own line
+# Spec 02 Annotations: grammar.annot.item-targets, grammar.annot.member-targets, grammar.annot.derive-traits.
+# Spec 02 Functions: grammar.fn.decorator-param-targets, grammar.fn.decorator.lines, grammar.fn.receiver.
+# Spec 02 Enums: grammar.enum.payload-decorator.
+# Spec 02 Traits And Implementations: grammar.impl.inherent, grammar.impl.trait.
+
+@derive(Eq, Hash,)
+@Validation
+pub data Key:
+    @max_len(8)
+    @doc_fact("the code")
+    pub code: string
+    @flatten()
+    Stamp
+
+@derive(Debug)
+enum Event:
+    @variant_doc("start")
+    Started
+    @variant_doc("move")
+    Moved(to: string, @rename("why") reason: string)
+
+@Tool
+@Describe("fetch")
+pub fn fetch(
+    @label("who")
+    id: i32,
+    @label("flag") @other(1)
+    verbose: bool = false,
+    values...: List[i32],
+) -> Key:
+    Key { code: "x" }
+
+@Marker
+trait Handler:
+    @route("handle")
+    fn handle(self) -> i32
+
+@Marker
+impl Handler for Key:
+    @route("key")
+    fn handle(self) -> i32: 1
+
+@Marker
+impl Key:
+    @helper
+    pub fn id(self) -> i32: 2
+
+    @helper
+    fn tag(mut self, @label("value") value: i32) -> i32: value
+
+@Sealed
+type Meters(i32)
+
+@Plain
+pub trait Empty

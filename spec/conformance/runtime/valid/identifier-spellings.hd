@@ -1,0 +1,39 @@
+# test: identifiers are case-sensitive Unicode names, may begin with an underscore, and may look like keywords without being them
+# Spec 01 Identifiers: lex.ident.form, lex.ident.case, lex.ident.nfc, lex.ident.placeholder, lex.ident.underscore, lex.ident.xid, lex.ident.identity, lex.ident.reserved, lex.ident.builtin-types.
+# expect-stdout: 1 2 3
+# expect-stdout: 12
+# expect-stdout: 30 50
+# expect-stdout: 9
+# expect-stdout: kw 5
+# expect-stdout: cell 1 2
+data Cell:
+    string: string
+    i32: i32
+
+fn double(n: i32) -> i32: n * 2
+
+fn tally(and: i32, or: i32, not: i32) -> i32: and + or + not
+
+pub fn main() -> void $ Console:
+    total := +1
+    Total := +2
+    TOTAL := +3
+    println("$total $Total $TOTAL")
+    _hidden := +5
+    __ := +7
+    println(_hidden + __)
+    naïve := +30
+    名前 := +50
+    println("$naïve $名前")
+    a := +4
+    а := +5
+    println(a + а)
+    iff := "kw"
+    elsewhere := +5
+    selfish := +1
+    datum := +0
+    nil := +0
+    println("$iff ${elsewhere + selfish + datum + nil - 1}")
+    cell := Cell { string: "cell", i32: +1 }
+    println("${cell.string} ${cell.i32} ${double(cell.i32)}")
+    _ := tally(and = +1, or = +2, not = +3)

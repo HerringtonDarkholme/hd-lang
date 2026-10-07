@@ -1,0 +1,30 @@
+# test: a same-line suite body holds one statement, parenthesizes a nested conditional, continues with else if, and may hold a loop or a destructuring let
+# Spec 02 Same-Line Suite Bodies: grammar.inline.statement, grammar.inline.closed-by-layout, grammar.inline.nested-if, grammar.inline.else-if, grammar.inline.loops, grammar.inline.let-pattern.
+# expect-stdout: 2 3 1
+# expect-stdout: zero
+# expect-stdout: negative
+# expect-stdout: 6
+# expect-stdout: 9 4
+fn pick(a: bool, b: bool) -> i32:
+    v := if a: (if b: +1 else: +2) else: +3
+    v
+
+fn sign_name(n: i32) -> string:
+    let name = ""
+    if n == 0: name = "zero" else if n < 0: name = "negative" else: name = "positive"
+    name
+
+fn pair() -> (i32, i32): (4, 5)
+
+pub fn main() -> void $ Console:
+    println("${pick(true, false)} ${pick(false, true)} ${pick(true, true)}")
+    println(sign_name(+0))
+    println(sign_name(-5))
+    let total = +0
+    for n in +1..4: total = total + n
+    println(total)
+    let seen = +0
+    let ok = true
+    if ok: let (low, high) = pair()
+    while seen < 9: seen = seen + 9
+    println("$seen ${pair()._0}")

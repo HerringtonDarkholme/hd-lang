@@ -1,0 +1,3 @@
+# test: an underscore cannot end an integer literal
+# Spec 01 Digit Separators: lex.sep.placement, lex.sep.misplaced.
+count := 1_  # diagnostic: invalid-token

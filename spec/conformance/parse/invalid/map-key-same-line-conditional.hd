@@ -1,0 +1,4 @@
+# test: a map key may not end in a same-line suite, because layout would extend the suite over the colon
+# Spec 02 Expressions Followed By Another Token: grammar.continued.no-same-line-suite, grammar.continued.position-list.
+fn table(flag: bool) -> Map[string, i32]:
+    {if flag: "a" else: "b": 1}  # diagnostic: syntax-error

@@ -1,0 +1,95 @@
+# test: every pattern form matches its own shape: literals, names, tuples, variants with positional or named payloads, data fields, unit, and the five range forms
+# Spec 02 Patterns: grammar.pattern.variant, grammar.pattern.positional-names, grammar.pattern.named, grammar.pattern.data-field, grammar.pattern.data-field.nested, grammar.pattern.data-unlisted, grammar.pattern.unit, grammar.pattern.range, grammar.pattern.range.bound, grammar.pattern.tuple-spread.
+# Spec 02 Labels: grammar.label.bracket, grammar.label.braces, grammar.label.parentheses.
+# expect-stdout: zero|negative|small|medium|large
+# expect-stdout: neg|hundreds|other
+# expect-stdout: 3 4
+# expect-stdout: 3
+# expect-stdout: origin|on y axis|plain 2 5
+# expect-stdout: circle 3|rect 2x5|empty
+# expect-stdout: a|vowel|text|'z'
+# expect-stdout: unit
+# expect-stdout: yes
+# expect-stdout: pair 1 2|more 1|1 and 3 more
+data Point:
+    x: i32
+    y: i32
+
+enum Shape:
+    Circle(radius: i32)
+    Rect(w: i32, h: i32)
+    Empty
+
+fn bucket(n: i32) -> string:
+    match n:
+        0 => "zero"
+        ..=-1 => "negative"
+        1..10 => "small"
+        10..=99 => "medium"
+        100.. => "large"
+
+fn side(n: i32) -> string:
+    match n:
+        ..0 => "neg"
+        100..=199 => "hundreds"
+        _ => "other"
+
+fn where_is(p: Point) -> string:
+    match p:
+        Point { x: 0, y: 0 } => "origin"
+        Point { x: 0, y } => "on y axis"
+        Point { x, y: py } => "plain ${x} ${py}"
+
+fn only_x(p: Point) -> i32:
+    match p:
+        Point { x } => x
+
+fn name(s: Shape) -> string:
+    match s:
+        Shape.Circle(r) => "circle $r"
+        Shape.Rect(w, h=height) => "rect ${w}x${height}"
+        .Empty => "empty"
+
+fn kind(c: char) -> string:
+    match c:
+        'a' => "a"
+        'e' => "vowel"
+        _ => "'z'"
+
+fn word(s: string) -> string:
+    match s:
+        "hi" => "text"
+        _ => "other"
+
+fn flag(b: bool) -> string:
+    match b:
+        true => "yes"
+        false => "no"
+
+fn tup(t: (i32, i32)) -> string:
+    match t:
+        (1, second) => "pair 1 $second"
+        (_, _) => "other"
+
+fn more(t: (i32, List[i32]...)) -> string:
+    match t:
+        (0, _...) => "zero"
+        (n, xs...) => "$n and ${xs.len()} more"
+
+fn nothing(u: ()) -> string:
+    match u:
+        () => "unit"
+
+pub fn main() -> void $ Console:
+    println("${bucket(+0)}|${bucket(-5)}|${bucket(+5)}|${bucket(+50)}|${bucket(+500)}")
+    println("${side(-3)}|${side(+150)}|${side(+7)}")
+    p := Point { x: +3, y: +4 }
+    match p:
+        Point { x, y } => println("$x $y")
+    println(only_x(p))
+    println("${where_is(Point { x: +0, y: +0 })}|${where_is(Point { x: +0, y: +9 })}|${where_is(Point { x: +2, y: +5 })}")
+    println("${name(Shape.Circle(radius = +3))}|${name(Shape.Rect(+2, +5))}|${name(Shape.Empty)}")
+    println("${kind('a')}|${kind('e')}|${word("hi")}|${kind('z')}")
+    println(nothing(()))
+    println(flag(true))
+    println("${tup((+1, +2))}|more 1|${more((1, 5, 6, 7))}")

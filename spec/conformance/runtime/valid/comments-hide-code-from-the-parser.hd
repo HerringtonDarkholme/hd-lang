@@ -1,0 +1,21 @@
+# test: a comment runs to the end of its line and hides keywords, operators, and quotes from the parser
+# Spec 01 Comments: lex.comment.line, lex.comment.extent, lex.comment.no-block, lex.comment.character, lex.process.trivia.
+# expect-stdout: total=6
+# expect-stdout: a # b
+# expect-stdout: /* kept */
+# expect-stdout: #
+# expect-stdout: 5
+fn tally(items: List[i32]) -> i32:
+    # fn if else match and := => < $ " ' ` are only text here
+    let total = +0    # a trailing comment: total = total + 99
+    for item in items:    # a comment after a header colon
+        total = total + item    # /* a comment, not a block comment start */
+    total
+
+pub fn main() -> void $ Console:
+    println("total=${tally([1, 2, 3])}")    # an unclosed " in a comment is harmless
+    println("a # b")    # a '#' inside a string literal starts no comment
+    println("/* kept */")    # block comment markers are ordinary string text
+    println('#')    # nor does a '#' character literal
+    # a comment line between statements ends nothing
+    println(2 + 3)    # héllo wörld 你好 😀: comment characters are any scalar values

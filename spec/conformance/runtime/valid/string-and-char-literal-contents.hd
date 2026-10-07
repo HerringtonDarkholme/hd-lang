@@ -1,0 +1,15 @@
+# test: string and character literals hold any Unicode scalar value, and each quote kind may hold the other quote unescaped
+# Spec 01 String And Character Literals: lex.string.quotes, lex.char.quotes, lex.string.classes, lex.string.text-runs, lex.char.one-scalar, lex.string.scalars, lex.string.single-line, lex.interp.braces, lex.encoding.scalars.
+# expect-stdout: Ada says "hi" and it's {fine}
+# expect-stdout: 你好, мир, 😀
+# expect-stdout: ' " 世 😀
+# expect-stdout: true
+# expect-stdout: true
+fn first_char(initial: char, rest: string) -> string: "$initial$rest"
+
+pub fn main() -> void $ Console:
+    println("Ada says \"hi\" and it's {fine}")
+    println("你好, мир, 😀")
+    println("${'\''} ${'"'} ${'世'} ${'😀'}")
+    println('😀' == '\u{1F600}' && "😀" == "\u{1F600}")
+    println(first_char('Z', "ed") == "Zed" && 'a' < 'b' && "" == "")

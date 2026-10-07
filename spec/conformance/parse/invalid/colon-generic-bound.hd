@@ -1,4 +1,5 @@
 # test: generic parameter bounds use <, not :
+# Spec 02 Traits And Implementations: grammar.decl.bound-vs-colon.
 
 trait Show:
     fn show(self) -> string

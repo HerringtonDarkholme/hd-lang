@@ -1,2 +1,3 @@
+# Spec 01 Operators And Delimiters: lex.punct.semicolon, lex.punct.semicolon-reserved.
 
 name := "Ada";  # diagnostic: reserved-semicolon

@@ -1,4 +1,5 @@
 # test: bracketed control flow and closures may end a header line in a colon
+# Spec 01 Suites Inside Delimiters: lex.nested.suite, lex.nested.layout, lex.nested.resume, lex.header.resume.
 # expect: parse
 
 fn run(xs: List[i32], c: bool) -> void:

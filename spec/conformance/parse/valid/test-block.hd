@@ -1,3 +1,4 @@
+# Spec 02 Test Blocks: grammar.tests.block, grammar.tests.registration.
 use std.testing.{assert_equal}
 
 fn add(a: i32, b: i32) -> i32: a + b

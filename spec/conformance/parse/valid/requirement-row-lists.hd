@@ -1,4 +1,6 @@
 # test: requirement rows are comma lists, bare at a header end and parenthesized inside types
+# Spec 02 Row Operators: grammar.type.row.plus-only, grammar.type.row.extension.
+# Spec 02 Requirement Clauses: grammar.type.row.plus-keys, grammar.type.row.single, grammar.type.row.empty, grammar.type.row.one-form, grammar.type.header.trait-method, grammar.type.row-owner.grouped, grammar.generic.row-marker, grammar.row.parameter.marked, grammar.row.parameter.extension.
 # expect: parse
 
 trait Clock

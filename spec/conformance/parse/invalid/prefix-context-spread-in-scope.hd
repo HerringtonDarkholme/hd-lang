@@ -1,4 +1,5 @@
 # test: a provider-context spread is a suffix spread; a prefix ... means copy, so $.with(...ctx) is a syntax error
+# Spec 02 Prefix And Suffix Ellipsis: grammar.primary.prefix-elsewhere.
 trait Tag:
     fn name(self) -> string
 

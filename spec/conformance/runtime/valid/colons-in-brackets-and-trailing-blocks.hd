@@ -1,0 +1,35 @@
+# test: colons in maps, data fields, and type annotations open no suite, while a trailing-block colon is accepted only at depth zero
+# Spec 01 Suite-Introducing Colons: lex.colon.cooperate, lex.colon.ordinary, lex.colon.trailing-block, lex.block.header.
+# expect-stdout: 2 entries, ada
+# expect-stdout: 2
+# expect-stdout: retry 3 times
+# expect-stdout: ran 6
+# expect-stdout: transaction body
+data Account:
+    owner: string
+    limit: i32
+
+fn repeat(times: i32, body: fn() -> void) -> void:
+    for i in 0..times: body()
+
+fn transaction(body: fn() -> void) -> void $ Console:
+    println("transaction body")
+    body()
+
+fn measure(body: fn() -> i32) -> i32: body() * 2
+
+pub fn main() -> void $ Console:
+    accounts := {"ada": Account { owner: "ada", limit: +5 }, "grace": Account { owner: "grace", limit: +9 }}
+    println("${accounts.len()} entries, ${accounts["ada"].owner}")
+    actions := {"inc": fn(x: i32) -> i32: x + 1, "dec": fn(x: i32) -> i32: x - 1}
+    println(actions["inc"](+1))
+    let count = +0
+    repeat(3):
+        count = count + 1
+    println("retry ${count} times")
+    let total = +0
+    total = measure:
+        3
+    println("ran ${total}")
+    transaction:
+        pass

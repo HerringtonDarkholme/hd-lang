@@ -1,3 +1,4 @@
 # test: copy update spread not first
+# Spec 02 Prefix And Suffix Ellipsis: grammar.primary.prefix-elsewhere.
 
 copy := User { name: "Ada", ...source }  # diagnostic: syntax-error

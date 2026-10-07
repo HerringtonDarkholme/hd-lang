@@ -1,2 +1,3 @@
+# Spec 02 Use Declarations: grammar.use.old-export, grammar.use.no-import-export.
 
 export pkg.user.types.{User}  # diagnostic: old-export-declaration

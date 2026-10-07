@@ -1,0 +1,28 @@
+# test: a float literal needs digits around a decimal point, or an exponent, and a range bound stays an integer
+# Spec 01 Floating-Point Literals: lex.float.forms, lex.float.point, lex.float.sep, lex.op.range.integer, lex.int.sign.
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: 3 items
+# expect-stdout: below one
+fn is_close(a: f64, b: f64) -> bool: (if a > b: a - b else: b - a) < 0.0000001
+
+fn describe(x: f64) -> string:
+    if x < 1.0:
+        "below one"
+    else:
+        "one or more"
+
+pub fn main() -> void $ Console:
+    println(1.5 == 1.50)
+    println(1e3 == 1000.0 && 2E+2 == 200.0 && 1E0 == 1.0)
+    println(is_close(1.5e-6, 0.0000015))
+    println(1_0.2_5 == 10.25 && 1_0.2_5e1_0 == 10.25e10)
+    println(-2.5 + 2.5 == 0.0)
+    let count = +0
+    for i in 0..3:
+        count = count + 1
+    println("${count} items")
+    println(describe(0.5))

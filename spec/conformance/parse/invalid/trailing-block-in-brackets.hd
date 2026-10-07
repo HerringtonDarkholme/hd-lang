@@ -1,3 +1,4 @@
+# Spec 02 Trailing Blocks: grammar.call.trailing-block.not-header, grammar.call.trailing-block.accepted. Spec 01: lex.colon.trailing-block, lex.colon.trailing-block.not-headers.
 fn run(callback: fn() -> i32) -> i32: callback()
 
 values := [run:  # diagnostic: trailing-block-position

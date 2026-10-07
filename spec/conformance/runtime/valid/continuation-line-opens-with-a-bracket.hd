@@ -1,0 +1,38 @@
+# test: inside brackets a line that starts with a bracket or a bang begins a new operand after the separator
+# Spec 01 Implicit Continuation: lex.continue.new-operand, lex.continue.suffix-line, lex.continue.delimiters.
+# expect-stdout: 3 pairs, sum 21
+# expect-stdout: 3 rows, 3 cells
+# expect-stdout: 2 maps
+# expect-stdout: true
+data Point:
+    x: i32
+    y: i32
+
+pub fn main() -> void $ Console:
+    pairs := [
+        (+1, +2),
+        (+3, +4),
+        (+5, +6)
+    ]
+    let sum = +0
+    for (a, b) in pairs:
+        sum = sum + a + b
+    println("${pairs.len()} pairs, sum ${sum}")
+    let rows: List[List[i32]] = [
+        [+1, +2],
+        [+3],
+        []
+    ]
+    cells := rows[0].len() + rows[1].len() + rows[2].len()
+    println("${rows.len()} rows, ${cells} cells")
+    maps := [
+        {"a": +1},
+        {"b": +2}
+    ]
+    println("${maps.len()} maps")
+    flags := [
+        true,
+        !false,
+        !(1 > 2)
+    ]
+    println(flags[0] && flags[1] && flags[2])

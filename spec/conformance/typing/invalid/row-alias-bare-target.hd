@@ -1,4 +1,5 @@
 # test: a row alias whose right side joins keys without $ is rejected, and the fix-it adds $
+# Spec 02 Type Declarations: grammar.type-decl.row-alias.bare.
 
 trait Db
 

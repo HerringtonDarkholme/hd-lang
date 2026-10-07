@@ -1,0 +1,38 @@
+# test: a prefixed string keeps its text raw, may interpolate, and calls the prefix function of the same bare name
+# Spec 01 Prefixed Strings: lex.prefix.form, lex.prefix.name, lex.prefix.raw-text, lex.prefix.backslash, lex.prefix.lines, lex.prefix.interpolation, lex.suffix.bare, lex.prefix.bare-only, lex.literal-fn.meaning.
+# expect-stdout: \\d+\\s
+# expect-stdout: say \\"hi\\"
+# expect-stdout: first\\n
+# expect-stdout: second
+# expect-stdout: <id=|7|!>
+# expect-stdout: ^\\d+$
+# expect-stdout: <\\$7|0|\\${x}>
+# expect-stdout: ends with $
+# expect-stdout: [raw] [x]
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn raw(t: Template[string]) -> string: t.raw_parts[0]
+
+@str_prefix
+fn tag(t: Template[i32]) -> string:
+    if t.values.len() == 0:
+        "<${t.raw_parts[0]}|0>"
+    else:
+        "<${t.raw_parts[0]}|${t.values[0]}|${t.raw_parts[1]}>"
+
+@str_prefix
+fn use(t: Template[string]) -> string: t.raw_parts[0]
+
+pub fn main() -> void $ Console:
+    println(raw"\d+\s")
+    println(raw"say \"hi\"")
+    println(raw"""first\n
+second""")
+    id := +7
+    println(tag"id=$id!")
+    println(raw"^\d+$")
+    println(tag"\$7${id - id}\${x}")
+    println(use"ends with $")
+    x := "x"
+    println("[raw] [" + x + "]")

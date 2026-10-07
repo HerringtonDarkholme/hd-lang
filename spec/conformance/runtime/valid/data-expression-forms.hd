@@ -1,0 +1,42 @@
+# test: a data expression names its fields with colons, accepts shorthand, spreads a value to copy its members, and is told apart from a map by the name before the brace
+# Spec 02 Primary Expressions: grammar.primary.field-shorthand, grammar.primary.field-shorthand.mixed, grammar.primary.field-copy, grammar.primary.prefix-copy-meaning, grammar.primary.prefix-copies, grammar.primary.resolution, grammar.label.braces.
+# expect-stdout: 3 4
+# expect-stdout: 3 0
+# expect-stdout: 8 4
+# expect-stdout: 5 9 Ada
+# expect-stdout: 1
+# expect-stdout: 5 5
+data Point:
+    x: i32
+    y: i32
+
+data Stamp:
+    pub created: i32
+    pub updated: i32
+
+data Note:
+    Stamp
+    title: string
+
+fn build(x: i32, y: i32) -> Point:
+    Point { x, y }
+
+fn move_right(p: Point) -> Point:
+    Point { ...p, x: p.x + 5 }
+
+pub fn main() -> void $ Console:
+    p := build(+3, +4)
+    println("${p.x} ${p.y}")
+    x := +3
+    mixed := Point { x, y: 0 }
+    println("${mixed.x} ${mixed.y}")
+    moved := move_right(p)
+    println("${moved.x} ${moved.y}")
+    y := +9
+    spread_first := Point { ...mixed, x: +5, y }
+    stamp := Stamp { created: +1, updated: +2 }
+    note := Note { Stamp: ...stamp, title: "Ada" }
+    println("${spread_first.x} ${spread_first.y} ${note.title}")
+    println(note.created)
+    table := {"x": +5}
+    println("${table.get("x").unwrap_or(+0)} ${spread_first.x}")

@@ -1,4 +1,5 @@
 # test: a tuple type whose only element is a rest element keeps the trailing comma
+# Spec 02 Tuple Rest Types: grammar.type.rest, grammar.type.rest.elsewhere.
 
 fn first(values: (i32...)) -> i32:  # diagnostic: syntax-error
     0

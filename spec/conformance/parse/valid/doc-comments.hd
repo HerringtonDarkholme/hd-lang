@@ -1,3 +1,4 @@
+# Spec 01 Documentation Comments: lex.doc.form, lex.doc.attach, lex.doc.members.
 ## A user record.
 data User:
     ## A stable identifier.

@@ -1,4 +1,5 @@
 # test: dedent to unused column
+# Spec 01 Indentation Levels: lex.indent.unknown-column.
 
 fn f() -> i32:
     1

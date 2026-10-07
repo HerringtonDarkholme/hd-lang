@@ -1,0 +1,5 @@
+# test: a backtick with no closing backtick on its line is an error
+# Spec 01 Raw Identifiers: lex.raw.invalid.
+fn run() -> i32:
+    `match := 1  # diagnostic: invalid-token
+    0

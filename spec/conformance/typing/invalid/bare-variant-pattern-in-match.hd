@@ -1,4 +1,5 @@
 # test: match checking rejects bare enum variant patterns
+# Spec 02 Patterns: grammar.pattern.bare-variant.
 
 enum Flag:
     On(value: i32)

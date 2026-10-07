@@ -1,0 +1,20 @@
+# test: defer registers cleanup that runs when the scope ends, and a discard evaluates an expression and drops its value
+# Spec 02 Discard And Defer Statements: grammar.stmt.defer, grammar.stmt.discard.
+# expect-stdout: open ledger
+# expect-stdout: posting 3
+# expect-stdout: close ledger
+fn post(amount: i32, log: mut List[string]) -> i32:
+    log.push("posting $amount")
+    amount
+
+fn run_ledger(log: mut List[string]) -> void:
+    log.push("open ledger")
+    defer:
+        log.push("close ledger")
+    _ := post(+3, log)
+
+pub fn main() -> void $ Console:
+    let log: mut List[string] = []
+    run_ledger(log)
+    for line in log:
+        println(line)

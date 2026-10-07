@@ -1,0 +1,8 @@
+# test: associated type bindings follow every positional type argument in a bound
+# Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.order.
+trait Pairing[Other]:
+    type Item
+    fn pair(self, other: Other) -> Self::Item
+
+fn first[T, U, P < Pairing[Item = T, U]](source: P, other: U) -> T:  # diagnostic: syntax-error
+    source.pair(other)

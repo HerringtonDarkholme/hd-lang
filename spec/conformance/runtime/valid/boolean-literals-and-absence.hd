@@ -1,0 +1,26 @@
+# test: true and false are literals, nil is an ordinary name, and absence is the variant .None
+# Spec 01 Boolean Literals: lex.bool.literals, lex.bool.none, lex.bool.no-nil.
+# expect-stdout: open
+# expect-stdout: closed
+# expect-stdout: none
+# expect-stdout: some 4
+# expect-stdout: not nil: 3
+fn status(open: bool) -> string:
+    if open:
+        "open"
+    else:
+        "closed"
+
+fn describe(value: i32?) -> string:
+    match value:
+        .Some(n) => "some ${n}"
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    println(status(true))
+    println(status(false))
+    let empty: i32? = .None
+    println(describe(empty))
+    println(describe(.Some(4)))
+    nil := +3
+    println("not nil: $nil")

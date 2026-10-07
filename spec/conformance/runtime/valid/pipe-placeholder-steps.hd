@@ -1,0 +1,20 @@
+# test: in a pipe step the placeholder marks where the piped value goes, and the grammar accepts it as any primary expression
+# Spec 02 Primary Expressions: grammar.primary.pipe-placeholder, grammar.expr.pipe, grammar.expr.pipe.step.
+# expect-stdout: *hi*
+# expect-stdout: 13
+# expect-stdout: 8
+# expect-stdout: [ada
+fn wrap(text: string, mark: string) -> string: "$mark$text$mark"
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+fn double(n: i32) -> i32: n * 2
+
+fn demo(text: string) -> string:
+    text |> wrap(_, "*")
+
+pub fn main() -> void $ Console:
+    println(demo("hi"))
+    println(+3 |> add(+10, _))
+    println(+3 |> double |> add(+2, _))
+    println("ada" |> wrap(_, "[").slice(0, 4))

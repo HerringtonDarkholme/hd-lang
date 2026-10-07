@@ -1,3 +1,4 @@
+# Spec 02 Patterns: grammar.pattern.named-last.
 enum Pair:
     Values(left: i32, right: i32)
 

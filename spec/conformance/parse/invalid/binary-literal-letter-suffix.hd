@@ -1,3 +1,4 @@
 # test: a letter directly after a binary literal is a syntax error, not an invalid token
+# Spec 01 Digit Separators: lex.int.outside-radix.
 
 value := 0b1z  # diagnostic: syntax-error

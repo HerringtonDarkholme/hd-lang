@@ -1,0 +1,53 @@
+# test: the lexer takes the longest operator at each position, so glued operators split the way the specification lists
+# Spec 01 Operators And Delimiters: lex.op.longest, lex.op.longest.examples, lex.op.pipe, lex.op.inequality, lex.op.compound-assign, lex.op.compound-assign.examples, lex.op.range, lex.op.range.integer.
+# expect-stdout: 512
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: 8
+# expect-stdout: 96
+# expect-stdout: 11 1 2
+# expect-stdout: 2 1
+# expect-stdout: 12
+# expect-stdout: 6 10 5
+fn double(n: i32) -> i32: n * 2
+
+pub fn main() -> void $ Console:
+    println(2 ** 3 ** 2)
+    f := +3
+    g := +4
+    println(f!=g)
+    println(true&&!false||false)
+    let shifted = +4
+    shifted<<=1
+    println(shifted)
+    let a = +100
+    let b = +4
+    a-=b
+    println(a)
+    let c = +7
+    c+=4
+    let d = +3
+    d-=2
+    let e = +12
+    e%=5
+    println("$c $d $e")
+    let m = +7
+    m*=2
+    m/=7
+    let n = +1
+    n|=2
+    n&=3
+    n^=1
+    n>>=1
+    println("$m $n")
+    println(3 |> double |> double)
+    let up_to = +0
+    for i in +0..4:
+        up_to = up_to + i
+    let through = +0
+    for i in +0..=4:
+        through = through + i
+    let middle = +0
+    for i in +2..4:
+        middle = middle + i
+    println("$up_to $through $middle")

@@ -1,0 +1,19 @@
+# test: one line may close several nested blocks, each dedent landing on an active level
+# Spec 01 Indentation Levels: lex.indent.lesser, lex.indent.equal, lex.indent.greater, lex.indent.first.
+# expect-stdout: a1
+# expect-stdout: b2
+# expect-stdout: c3
+# expect-stdout: back at level 1
+# expect-stdout: done
+fn nest(flag: bool) -> void $ Console:
+    if flag:
+        println("a1")
+        if flag:
+            println("b2")
+            if flag:
+                println("c3")
+    println("back at level 1")
+
+pub fn main() -> void $ Console:
+    nest(true)
+    println("done")

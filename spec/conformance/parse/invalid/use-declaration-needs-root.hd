@@ -1,3 +1,4 @@
 # test: use begins a use declaration only before a use root
+# Spec 02 Use Declarations: grammar.use.needs-root.
 
 use helpers.format  # diagnostic: syntax-error

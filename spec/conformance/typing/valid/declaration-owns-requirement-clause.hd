@@ -1,4 +1,5 @@
 # test: a requirement clause before a declaration's ':' belongs to the declaration, not its function-typed result
+# Spec 02 Header Requirement Clauses: grammar.type.header.owner, grammar.type.header.result, grammar.type.header.parenthesized-result, grammar.type.header.applies, grammar.type.row.one-form.examples.
 # expect: accept
 
 trait Log

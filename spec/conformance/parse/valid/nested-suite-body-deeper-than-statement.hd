@@ -1,4 +1,5 @@
 # test: a nested suite whose header sits left of its statement is valid when the body is deeper than that statement
+# Spec 01 Suites Inside Delimiters: lex.nested.reference, lex.nested.body-depth, lex.nested.body-left.
 # expect: parse
 
 fn run(callback: fn(i32) -> i32) -> i32: callback(1)

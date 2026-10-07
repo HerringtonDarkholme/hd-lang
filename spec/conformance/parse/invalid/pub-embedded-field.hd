@@ -1,4 +1,5 @@
 # test: an embedded field takes no pub marker; embedded fields are always public
+# Spec 02 Data Types: grammar.data.embedded.no-pub, grammar.data.embedded.
 pub data Base:
     id: string
 

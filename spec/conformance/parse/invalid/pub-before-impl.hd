@@ -1,0 +1,7 @@
+# test: pub is not accepted before an impl declaration
+# Spec 02 Declarations: grammar.decl.impl-no-pub.
+data Dog:
+    name: string
+
+pub impl Dog:  # diagnostic: syntax-error
+    fn name_length(self) -> usize: self.name.len()

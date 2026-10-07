@@ -1,3 +1,4 @@
+# Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.trait-type-only.
 trait Supplier:
     type Item
     fn get(self) -> Self::Item

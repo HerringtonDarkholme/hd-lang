@@ -1,0 +1,57 @@
+# test: let destructures any pattern, mut belongs to the one name it precedes, and let-else runs its block when the pattern does not match
+# Spec 02 Let Statements: grammar.stmt.let-pattern, grammar.stmt.let-pattern.tuple, grammar.stmt.let-pattern.mut, grammar.data.mut-type, grammar.stmt.let-mut.per-name, grammar.stmt.let-pattern.semantic, grammar.stmt.short-binding.one-name.
+# Spec 02 Let-Else Statements: grammar.stmt.let-else, grammar.stmt.let-else.same-line, grammar.stmt.let-else.closed, grammar.stmt.let-else.semantic.
+# expect-stdout: 3 4 1 8
+# expect-stdout: 50
+# expect-stdout: -9
+# expect-stdout: 30
+# expect-stdout: -1
+# expect-stdout: 20
+# expect-stdout: box 2
+data Point:
+    x: i32
+    y: i32
+
+data Tally:
+    tags: mut List[string]
+    name: string
+
+enum Slot:
+    Empty
+    Held(item: i32, qty: i32)
+
+fn find(id: i32) -> i32?:
+    if id == 0:
+        .None
+    else:
+        .Some(id * 10)
+
+fn pair_sum(id: i32) -> i32?:
+    let .Some(first) = find(id) else: return .None
+    let .Some(second) = find(id + 1) else:
+        return .None
+    .Some(first + second)
+
+fn choose(flag: bool) -> i32:
+    let .Some(value) = (if flag: find(+0) else: find(+3)) else: return -1
+    value
+
+fn qty_of(slot: Slot) -> i32:
+    let Slot.Held(item, qty = amount) = slot else: return 0
+    item + amount
+
+pub fn main() -> void $ Console:
+    p := Point { x: +3, y: +4 }
+    let Point { x, y: py } = p
+    let (low, _) = (+1, +2)
+    let (mut log, base) = (["start"], 6)
+    log.push("end")
+    println("$x $py $low ${log.len() + base}")
+    println(pair_sum(+2).unwrap_or(-9))
+    println(pair_sum(+0).unwrap_or(-9))
+    println(choose(false))
+    println(choose(true))
+    println(qty_of(Slot.Held(item = +15, qty = +5)))
+    let Tally { mut tags, name } = Tally { tags: ["a"], name: "box" }
+    tags.push("b")
+    println("${name} ${tags.len()}")

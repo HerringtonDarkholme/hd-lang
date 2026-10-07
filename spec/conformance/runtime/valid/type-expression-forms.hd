@@ -1,0 +1,85 @@
+# test: every type form parses to its own reading: optionals, grouped function types, tuples, trait value types, and mutable types
+# Spec 01 Reserved Words: lex.keyword.dyn.
+# Spec 02 Modifiers, Optionality, And Grouping: grammar.type.mut, grammar.type.optional, grammar.type.optional.function, grammar.type.group, grammar.type.dyn, grammar.type.dyn.optional, grammar.type.dyn.mut, grammar.type.mut.semantic.
+# expect-stdout: 5 none
+# expect-stdout: some 2, some none, none
+# expect-stdout: 11
+# expect-stdout: 8 -1
+# expect-stdout: 2 4
+# expect-stdout: shown: four
+# expect-stdout: nothing
+# expect-stdout: 1 2
+# expect-stdout: 6
+trait Counter:
+    fn next(mut self) -> i32
+
+data Ticker:
+    n: i32
+
+impl Counter for Ticker:
+    fn next(mut self) -> i32:
+        self.n = self.n + 1
+        self.n
+
+fn find(flag: bool) -> i32?:
+    if flag:
+        .Some(5)
+    else:
+        .None
+
+fn layered(depth: i32) -> i32??:
+    if depth == 0:
+        .None
+    else if depth == 1:
+        .Some(.None)
+    else:
+        .Some(.Some(depth))
+
+fn describe(value: i32?) -> string:
+    match value:
+        .Some(n) => "$n"
+        .None => "none"
+
+fn depth_name(value: i32??) -> string:
+    match value:
+        .Some(.Some(n)) => "some $n"
+        .Some(.None) => "some none"
+        .None => "none"
+
+fn lift(f: fn(i32) -> i32, keep: bool) -> (fn(i32) -> i32)?:
+    if keep:
+        .Some(f)
+    else:
+        .None
+
+fn apply_lifted(f: fn(i32) -> i32, keep: bool) -> i32:
+    match lift(f, keep):
+        .Some(g) => g(+4)
+        .None => -1
+
+fn adder(a: i32) -> fn(i32) -> fn(i32) -> i32:
+    fn(b: i32) -> fn(i32) -> i32:
+        fn(c: i32) -> i32: a + b + c
+
+fn halves(pair: (i32, string)) -> (string, i32): (pair._1, pair._0 / 2)
+
+fn show(value: dyn Display?) -> string:
+    match value:
+        .Some(shown) => "shown: ${shown}"
+        .None => "nothing"
+
+fn tick(counter: mut dyn Counter) -> i32: counter.next()
+
+fn first_of(pair: (i32, i32)) -> i32: pair._0
+
+pub fn main() -> void $ Console:
+    println("${describe(find(true))} ${describe(find(false))}")
+    println("${depth_name(layered(2))}, ${depth_name(layered(1))}, ${depth_name(layered(0))}")
+    println(adder(+1)(+2)(+8))
+    println("${apply_lifted(fn(x: i32) -> i32: x * 2, true)} ${apply_lifted(fn(x: i32) -> i32: x + 1, false)}")
+    println("${halves((+4, "x"))._1} ${halves((+8, "y"))._1}")
+    println(show(.Some("four")))
+    println(show(.None))
+    let ticker: mut Ticker = Ticker { n: 0 }
+    println("${tick(ticker)} ${tick(ticker)}")
+    println(first_of((+6, +7)))

@@ -1,0 +1,18 @@
+# test: a carriage return followed by a line feed is one line ending, in code and inside a multiline string
+# Spec 01 Line Endings: lex.line.crlf, lex.line.physical, lex.multiline.line-feed.
+# expect-stdout: shift: night
+# expect-stdout: first
+# expect-stdout: second
+# expect-stdout: true
+fn shift_name(hour: i32) -> string:
+    if hour >= 20:
+        "night"
+    else:
+        "day"
+
+pub fn main() -> void $ Console:
+    println("shift: ${shift_name(22)}")
+    text := """first
+second"""
+    println(text)
+    println(text == "first\nsecond")

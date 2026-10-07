@@ -1,0 +1,20 @@
+# test: a multiline string keeps its indentation and line endings, accepts escapes, and ends only at an unescaped triple quote
+# Spec 01 Multiline Strings: lex.multiline.form, lex.multiline.escapes, lex.multiline.verbatim, lex.multiline.line-feed, lex.multiline.end.
+# expect-stdout: Dear Ada,
+# expect-stdout:     your order #7 shipped.
+# expect-stdout: "quoted" and ""two"" stay, tab:\tend
+# expect-stdout: true
+# expect-stdout: true
+fn letter(name: string, order: i32) -> string:
+    """Dear $name,
+    your order #${order} shipped.
+"quoted" and ""two"" stay, tab:\tend"""
+
+pub fn main() -> void $ Console:
+    text := letter("Ada", +7)
+    println(text)
+    println(text == "Dear Ada,\n    your order #7 shipped.\n\"quoted\" and \"\"two\"\" stay, tab:\tend")
+    blank := """
+
+"""
+    println(blank == "\n\n")

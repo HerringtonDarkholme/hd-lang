@@ -1,0 +1,66 @@
+# test: every operator and delimiter token of the lexical grammar appears once in a position where the parser accepts it
+# Spec 01 Operators And Delimiters: lex.punct.tokens, lex.op.token-list-assign, lex.op.range, lex.op.compound-assign, lex.op.pipe.
+
+@derive(Eq)
+data Cell:
+    left: i32
+    right: i32
+
+trait Source:
+    fn pull!(self) -> i32?
+
+fn tokens(a: i32, b: i32, c: bool, xs: List[i32], t: (i32, i32)) -> i32?:
+    _ := a + b
+    _ := a - b
+    _ := a * b
+    _ := a / b
+    _ := a % b
+    _ := a ** 2
+    _ := a & b
+    _ := a | b
+    _ := a ^ b
+    _ := ~a
+    _ := a << 2
+    _ := a >> 2
+    _ := c && c
+    _ := c || c
+    _ := !c
+    _ := a |> double
+    _ := a == b
+    _ := a != b
+    _ := a < b
+    _ := a <= b
+    _ := a > b
+    _ := a >= b
+    value := a
+    let total = a
+    total = a
+    total += b
+    total -= b
+    total *= b
+    total /= b
+    total %= b
+    total &= b
+    total |= b
+    total ^= b
+    total <<= 1
+    total >>= 1
+    _ := xs[0..2]
+    _ := xs[0..=2]
+    _ := xs[..]
+    _ := [xs..., a]
+    _ := (a, xs...)
+    _ := Cell { left: a, right: b }
+    _ := Cell { ...Cell { left: a, right: b }, left: b }
+    _ := {"k": a}
+    _ := fn(x: i32) -> i32: x
+    _ := t._0
+    _ := maybe()?
+    match a:
+        0 => value
+        _ => total
+    .Some(total)
+
+fn double(n: i32) -> i32: n * 2
+
+fn maybe() -> i32?: .None

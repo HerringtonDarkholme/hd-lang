@@ -1,3 +1,4 @@
+# Spec 02 Data Types: grammar.data.no-mut-modifier, grammar.data.embedded.
 # Spec 08 Fields: data.field.embedded-no-mut.
 data Base:
     id: string

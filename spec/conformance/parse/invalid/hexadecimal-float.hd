@@ -1,0 +1,3 @@
+# test: hexadecimal floating-point notation is diagnosed rather than given a meaning
+# Spec 01 Unsupported Lexical Extensions: lex.unsupported.hex-float, lex.unsupported.diagnose, lex.float.no-hex.
+value := 0x1.8p3  # diagnostic: syntax-error

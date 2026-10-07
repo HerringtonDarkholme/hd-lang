@@ -1,0 +1,30 @@
+# test: positional arguments come first, named arguments follow, closures omit parameter types only where the expected type supplies them, and a standalone closure annotates its type
+# Spec 02 Calls And Arguments: grammar.call.positional-first.
+# Spec 02 Closures: grammar.closure.parameter-types, grammar.closure.annotations.
+# Spec 02 Functions: grammar.fn.semantic, grammar.fn.receiver.
+# expect-stdout: 12 20 4
+# expect-stdout: 6 9
+# expect-stdout: 8
+# expect-stdout: 21
+# expect-stdout: 4
+fn area(width: i32, height: i32 = 1, scale: i32 = 1) -> i32: width * height * scale
+
+fn apply(f: fn(i32) -> i32, value: i32) -> i32: f(value)
+
+fn combine(f: fn(i32, i32) -> i32, a: i32, b: i32) -> i32: f(a, b)
+
+data Counter:
+    start: i32
+
+impl Counter:
+    fn plus(self, step: i32 = 1) -> i32: self.start + step
+    fn scaled(self, by: i32, offset: i32 = 0) -> i32: self.start * by + offset
+
+pub fn main() -> void $ Console:
+    println("${area(2, 3, scale=2)} ${area(width=4, height=5)} ${area(4,)}")
+    println("${apply(fn(x): x + 1, +5)} ${combine(fn(a, b): a * b, +3, +3)}")
+    triple := fn(x: i32) -> i32: x * 3
+    println(apply(triple, +1) + apply(fn(x): x + 2, +3))
+    counter := Counter { start: +5 }
+    println(counter.scaled(+3, offset=0) + counter.plus())
+    println(counter.plus(step=-1))

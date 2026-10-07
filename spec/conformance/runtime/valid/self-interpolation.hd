@@ -1,4 +1,5 @@
 # test: "$self" interpolates the receiver
+# Spec 01 Interpolation: lex.interp.self.
 # expect: test
 
 use std.testing.assert_equal

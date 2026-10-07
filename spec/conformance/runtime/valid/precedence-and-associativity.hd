@@ -1,0 +1,31 @@
+# test: operators bind in the order the grammar lists them, so each expression below has exactly one reading
+# Spec 02 Precedence And Associativity: grammar.expr.binding, grammar.expr.power, grammar.expr.power.unary, grammar.expr.pipe, grammar.expr.pipe.step, grammar.expr.prefix-not, grammar.expr.range.precedence.
+# expect-stdout: 14 3 -4 512
+# expect-stdout: 8 true 1 true
+# expect-stdout: 7 4 true 4
+# expect-stdout: true true
+# expect-stdout: true 4
+# expect-stdout: n is 4
+# expect-stdout: sum 6
+fn double(n: i32) -> i32: n * 2
+
+fn inc(n: i32) -> i32: n + 1
+
+pub fn main() -> void $ Console:
+    one := +1
+    a := +2
+    b := +3
+    c := +4
+    six := +6
+    ten := +10
+    println("${a + b * c} ${ten - c - b} ${-a ** 2} ${a ** 3 ** 2}")
+    println("${one << 2 + 1} ${six & b == a} ${one | a ^ six & b} ${true || false && false}")
+    println("${b |> double |> inc} ${one | a |> inc} ${b |> double == six} ${one + one |> double}")
+    println("${!true == false} ${!(one > a) && !false}")
+    println("${2.0 ** -1.0 == 0.5} ${a ** 2}")
+    if (n := double(a)) > b:
+        println("n is $n")
+    let sum = +0
+    for i in +0..a + one:
+        sum = sum + i + one
+    println("sum $sum")

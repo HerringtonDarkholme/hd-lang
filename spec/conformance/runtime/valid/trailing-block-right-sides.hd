@@ -1,0 +1,35 @@
+# test: a call whose last parameter is a function may take an indented block as a statement or as the whole right side of a binding, assignment, discard, or return
+# Spec 02 Trailing Blocks: grammar.call.trailing-block, grammar.call.trailing-block.no-arguments, grammar.call.trailing-block.accepted, grammar.call.trailing-block.eligible, grammar.call.trailing-block.next-line.
+# Spec 02 Suite Statements: grammar.stmt.suite.trailing-block.
+# Spec 01 Suite-Introducing Colons: lex.colon.trailing-block.
+# expect-stdout: block ran
+# expect-stdout: retry
+# expect-stdout: retry
+# expect-stdout: 10 12 14 16
+fn run(body: fn() -> void $ Console) -> void $ Console: body()
+
+fn measure(body: fn() -> i32) -> i32: body() * 2
+
+fn twice(times: i32, body: fn() -> void $ Console) -> void $ Console:
+    for _ in +1..times + 1:
+        body()
+
+fn sample() -> i32:
+    return measure:
+        8
+
+pub fn main() -> void $ Console:
+    run:
+        println("block ran")
+    twice(2):
+        println("retry")
+    x := measure:
+        5
+    let y = measure:
+        6
+    let z = +0
+    z = measure:
+        7
+    _ := measure:
+        9
+    println("$x $y $z ${sample()}")

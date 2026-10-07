@@ -1,0 +1,20 @@
+# test: a comma at the depth where a same-line suite opened ends the suite, even when the body is a single name
+# Spec 01 Same-Line Suites: lex.suite-end.comma, lex.suite-end.continuation, lex.suite-end.example.
+# Spec 02 Same-Line Suite Bodies: grammar.inline.closed-by-layout, grammar.inline.no-comma.
+# expect-stdout: 1 1
+# expect-stdout: 3
+# expect-stdout: 7
+fn apply(f: fn(i32) -> i32, keep: bool) -> i32:
+    if keep:
+        f(+1)
+    else:
+        f(+0)
+
+fn pick(first: fn(i32) -> i32, second: fn(i32) -> i32, x: i32) -> i32: first(x) + second(x)
+
+pub fn main() -> void $ Console:
+    ratio := apply(fn(x: i32) -> i32: x, true)
+    println("$ratio ${apply(fn(x: i32) -> i32: x, true)}")
+    println(pick(fn(a: i32) -> i32: a, fn(b: i32) -> i32: b + b, +1))
+    pairs := [fn(a: i32) -> i32: a, fn(b: i32) -> i32: b + 3]
+    println(pairs[0](+3) + pairs[1](+1))

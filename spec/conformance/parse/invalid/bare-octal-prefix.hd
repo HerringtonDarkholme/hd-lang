@@ -1,0 +1,3 @@
+# test: a radix prefix with no digit of its radix after it is an error
+# Spec 01 Digit Separators: lex.int.bare-prefix.
+mask := 0o  # diagnostic: syntax-error

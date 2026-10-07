@@ -1,0 +1,37 @@
+# test: keywords, operators, and quotes inside string literals and comments are text, never tokens
+# Spec 01 Comments: lex.comment.line, lex.comment.extent.
+# Spec 01 String And Character Literals: lex.string.classes, lex.string.single-line, lex.interp.dollar-text, lex.interp.braces, lex.interp.escaped-dollar, lex.multiline.verbatim.
+# Spec 01 Prefixed Strings: lex.prefix.raw-text.
+# expect-stdout: cats and dogs
+# expect-stdout: not a keyword: if x: y else: z
+# expect-stdout: fn main(): pass => x := 1 -> a :: b ... 1..=2
+# expect-stdout: a < b > c && d || e == f != g
+# expect-stdout: costs $5 or $ or ${name}
+# expect-stdout: # not a comment
+# expect-stdout: #!/bin/sh
+# expect-stdout: [ x ] ( y ) { z }
+# expect-stdout: `fn` stays text
+# expect-stdout: "triple" quotes
+# expect-stdout: '#' '$' '"' '{'
+# expect-stdout: ok
+use std.ops.str_prefix
+use std.ops.Template
+
+@str_prefix
+fn raw(t: Template[string]) -> string: t.raw_parts[0]
+
+pub fn main() -> void $ Console:
+    println("cats and dogs")    # "and" is text here, and in this comment: and or not is in
+    println("not a keyword: if x: y else: z")    # fn if else match while for := => < > $ " ' ` all inert
+    println("fn main(): pass => x := 1 -> a :: b ... 1..=2")
+    println("a < b > c && d || e == f != g")
+    println("costs $5 or $ or \${name}")
+    println("# not a comment")
+    println(raw"#!/bin/sh")
+    println("[ x ] ( y ) { z }")
+    println("`fn` stays text")
+    println("\"triple\" quotes")    # a comment with a """ inside it
+    println("'#' '$' '\"' '{'")
+    text := """# also not a comment
+fn x(): pass"""
+    println(if text == "# also not a comment\nfn x(): pass": "ok" else: "broken")

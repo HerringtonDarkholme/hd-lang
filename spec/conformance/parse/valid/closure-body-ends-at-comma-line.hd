@@ -1,4 +1,6 @@
 # test: an indented closure body inside brackets ends at a line that starts with ',' or a closing delimiter
+# Spec 01 Headers After A Nested Suite: lex.closure.statement. Spec 02: grammar.closed.nested-statements.
+# Spec 01 Closures Inside Delimiters: lex.closure.end, lex.closure.end-line, lex.closure.end-token, lex.closure.body-line, lex.nested.suite.
 # expect: parse
 
 fn choice(first: fn(i32) -> void, second: fn(i32) -> void) -> void:

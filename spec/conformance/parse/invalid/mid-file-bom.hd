@@ -1,2 +1,3 @@
+# Spec 01 Source Encoding: lex.encoding.stray-bom.
 first := 1
 ﻿second := 2  # diagnostic: unexpected-bom

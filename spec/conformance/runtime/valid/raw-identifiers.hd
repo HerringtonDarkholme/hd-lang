@@ -1,4 +1,5 @@
 # test: raw identifiers are ordinary names at run time
+# Spec 01 Raw Identifiers: lex.raw.form, lex.raw.token, lex.raw.name, lex.raw.reserved.
 # expect: test
 
 use std.testing.assert_equal

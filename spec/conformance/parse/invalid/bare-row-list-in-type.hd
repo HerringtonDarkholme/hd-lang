@@ -1,4 +1,5 @@
 # test: several keys inside a type must be parenthesized; a bare comma separates parameters
+# Spec 02 Requirement Clauses: grammar.type.row.in-type.comma.
 
 trait Clock
 

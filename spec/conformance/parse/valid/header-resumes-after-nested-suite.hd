@@ -1,4 +1,5 @@
 # test: inside brackets, a header resumes after an indented closure in its condition
+# Spec 01 Headers After A Nested Suite: lex.header.resume-closure.
 # expect: parse
 
 fn check(predicate: fn(i32) -> bool) -> bool: predicate(1)

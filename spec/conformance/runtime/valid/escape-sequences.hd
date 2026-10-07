@@ -1,0 +1,17 @@
+# test: every escape sequence denotes its scalar value, in strings and in character literals
+# Spec 01 Escape Sequences: lex.escape.simple, lex.escape.unicode, lex.multiline.escapes.
+# expect-stdout: back\\slash "dq" 'sq'
+# expect-stdout: col1\\tcol2
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: AAA 😀 ô
+# expect-stdout: true
+pub fn main() -> void $ Console:
+    println("back\\slash \"dq\" \'sq\'")
+    println("col1\\tcol2")
+    println("a\tb".len() == 3 && "a\nb".len() == 3 && "a\rb".len() == 3)
+    println("\0".len() == 1 && '\0' == '\u{0}' && '\n' == '\u{A}' && '\r' == '\u{d}' && '\t' == '\u{9}')
+    println('\\' == '\u{5C}' && '\'' == '\u{27}' && '"' == '\u{22}' && "\"" == "\u{22}")
+    println("\u{41}\u{041}\u{000041} \u{1F600} \u{f4}")
+    println("\u{10FFFF}".len() == 4 && "\u{7F}".len() == 1 && """a\tb""" == "a\tb")

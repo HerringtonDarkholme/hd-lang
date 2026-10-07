@@ -1,0 +1,56 @@
+# test: a binding, an assignment, a discard, and a return may take an if, match, or closure that owns its own suite
+# Spec 02 Suite Statements: grammar.stmt.suite, grammar.stmt.suite.end, grammar.stmt.suite.right-side, grammar.stmt.suite.in-delimiters, grammar.stmt.closed, grammar.stmt.closed.parenthesized, grammar.stmt.discard.suite.
+# Spec 02 Statements: grammar.stmt.discard.
+# expect-stdout: B
+# expect-stdout: many
+# expect-stdout: 11 value 11
+# expect-stdout: 20
+# expect-stdout: 5 7
+# expect-stdout: small
+fn grade(score: i32) -> string:
+    return if score >= 90:
+        "A"
+    else if score >= 80:
+        "B"
+    else:
+        "C"
+
+fn label(n: i32) -> string:
+    text := match n:
+        0 => "zero"
+        _ => "many"
+    text
+
+fn clamp(flag: bool) -> i32:
+    return (r := if flag: +5 else: +6)
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+pub fn main() -> void $ Console:
+    println(grade(+85))
+    println(label(+7))
+    let bump = fn(x: i32) -> i32: x + 1
+    let report = fn(x: i32) -> string:
+        "value ${x}"
+    let value = +10
+    value = if value > 5:
+        bump(value)
+    else:
+        +0
+    println("${value} ${report(value).slice(0, 5)} ${bump(+10)}")
+    _ := match value:
+        11 => +1
+        _ => +2
+    _ := if value > 5:
+        add(+1, +1)
+    else:
+        add(+2, +2)
+    doubled := value * 2 - 2
+    println(doubled)
+    pair := add(clamp(true), (if value > 100:
+        +1
+    else:
+        +2))
+    println("${clamp(true)} $pair")
+    size := if value < 5: "tiny" else: "small"
+    println(size)

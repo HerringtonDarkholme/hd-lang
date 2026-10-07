@@ -1,0 +1,65 @@
+# test: use declarations take each root, a group with aliases and a trailing comma, and a pub marker, while the contextual words stay ordinary names elsewhere
+# Spec 02 Use Declarations: grammar.use.contextual-words, grammar.use.self-root, grammar.use.needs-root, grammar.use.no-import-export.
+# Spec 01 Contextual Words: lex.contextual.fixed, lex.contextual.use-root, lex.contextual.as, lex.contextual.use, lex.contextual.context, lex.contextual.derive, lex.contextual.by-header, lex.contextual.elsewhere.
+use std.testing.assert
+use std.testing.assert_equal as equal
+use std.testing.{assert_equal, assert as check,}
+use pkg.models.user
+use pkg.models.{User, Email as Address}
+use dep.money.cents
+use dep.money.{cents as pennies}
+use self.sibling
+use self.sibling.{helper}
+use super.shared.{Email}
+use super.super.deep
+pub use pkg.models.{User}
+
+fn use(value: i32) -> i32: value + 1
+
+fn with() -> void: pass
+
+fn derive() -> void: pass
+
+fn context() -> void: pass
+
+fn by() -> void: pass
+
+fn super() -> void: pass
+
+fn pkg() -> void: pass
+
+data Resource:
+    as: i32
+    std: i32
+    dep: i32
+
+data Logger: pass
+
+data Service:
+    Logger
+    port: i32
+
+trait Describe:
+    fn describe(self) -> string
+
+impl Describe for Service by Logger
+
+impl Service by Structure
+
+fn run(resource: Resource) -> i32:
+    super := resource
+    pkg := super.as
+    resource.use(pkg)
+
+fn scoped() -> void $ Clock + Logger:
+    _ := $.use(Clock, Logger)
+    _ := $.with(Clock = clock):
+        pass
+    ctx := $.context(Clock = clock)
+    _ := ctx
+    let typed: $.Context[$ Clock] = ctx
+    pass
+
+@derive(Eq)
+data Plain:
+    value: i32

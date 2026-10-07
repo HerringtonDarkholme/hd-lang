@@ -1,0 +1,8 @@
+# test: a tab appears only as the \t escape in a literal or as a raw character in a comment
+# Spec 01 Tabs: lex.tab.content, lex.tab.spaces.
+# expect-stdout: qty\tprice
+# expect-stdout: 2\t350
+pub fn main() -> void $ Console:
+    # a raw tab follows this colon:	 and this comment still ends at the line end
+    println("qty\tprice")    # tab	here
+    println("2\t350")

@@ -1,4 +1,5 @@
 # test: generic parameters of data, enums, traits, type declarations, functions and methods accept a default after the bound
+# Spec 02 Type-Argument Default Syntax: grammar.generic.row-marker.default, grammar.generic.bound.and, grammar.generic.bound.and.positions.
 # Spec 02 Type-Argument Default Syntax: grammar.generic.default, grammar.generic.default.binding (Type-Argument Defaults TD1, TD7).
 
 trait Supplier:

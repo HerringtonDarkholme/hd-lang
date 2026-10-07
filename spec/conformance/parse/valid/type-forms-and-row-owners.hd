@@ -1,0 +1,51 @@
+# test: the parser accepts every type form, with a default type parameter naming Self, tuple rest types, bindings in trait value types, and row clauses owned by the innermost function type
+# Spec 02 Types: grammar.type.rest, grammar.type.dyn, grammar.type.dyn.mut, grammar.type.dyn.optional, grammar.type.row-owner, grammar.type.row-owner.grouped, grammar.type.row.key-binding, grammar.type.row.key-binding.everywhere, grammar.type.optional, grammar.type.optional.function, grammar.type.group, grammar.generic.binding.positions-key, grammar.type.row.one-form, grammar.generic.default.
+# Spec 02 Types: the unit tuple type, a one-element tuple type, and an associated type projection.
+
+pub trait Add[Rhs = Self]:
+    type Out
+    fn add(self, other: Rhs) -> Self::Out
+
+pub trait Sub[Rhs = Self, Out = Self]:
+    fn sub(self, other: Rhs) -> Out
+
+pub trait Ord < Eq & PartialOrd:
+    fn cmp(self, other: Self) -> i32
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Store:
+    type Item
+    fn load(self) -> Self::Item
+
+trait Log
+
+trait Clock
+
+data User: pass
+
+fn total(pair: (i32, List[i32]...), callback: fn(i32, List[i32]...) -> i32) -> i32:
+    callback(pair...)
+
+fn only(values: (List[i32]...,)) -> usize: values._0.len()
+
+fn feeds(feed: dyn Supplier[Item = i32], cache: mut dyn Supplier[Item = i32], maybe: dyn Display?) -> void: pass
+
+fn unit(none: (), single: (i32,), nested: ((i32, i32), (string,))) -> (): ()
+
+fn project[I < Supplier](source: I) -> I::Item: source.get()
+
+fn inner_owner(lookup: fn(i32) -> fn() -> i32 $ Store[Item = User]) -> void: pass
+
+fn outer_owner(lookup: fn(i32) -> (fn() -> i32) $ Clock) -> void: pass
+
+fn field_and_argument(items: List[fn() -> i32 $ Log + Clock], pairs: Map[string, fn() -> i32 $ Log]) -> void: pass
+
+fn contexts(ctx: $.Context[$ Store[Item = User]], both: $.Context[$ Log + Clock]) -> void: pass
+
+fn make() -> (fn() -> i32 $ Log) $ Clock:
+    fn() -> i32 $ Log: 1
+
+fn optionals(a: i32?, b: i32??, c: (fn() -> i32)?, d: List[i32?]?, e: mut List[string]) -> fn() -> i32?: fn() -> i32?: .None

@@ -1,4 +1,6 @@
 # test: after an indented closure body inside brackets, the next line must start with ',' or a closing delimiter
+# Spec 02 Expressions Followed By Another Token: grammar.continued.no-closure.
+# Spec 01 Closures Inside Delimiters: lex.closure.closer-on-body, lex.closure.body-line.
 
 fn choice(first: fn(i32) -> void, second: i32) -> void:
     first(second)

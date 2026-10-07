@@ -1,4 +1,5 @@
 # test: requirement rows union, reorder, and re-add keys as unordered sets
+# Spec 02 Requirements And Provider Contexts: grammar.row.sets, grammar.type.row.plus-keys.
 # expect: test
 use std.testing.assert_equal
 

@@ -1,0 +1,18 @@
+# test: a let in a same-line if body does not take the following else, because layout ends the if suite before else
+# Spec 02 Let-Else Statements: grammar.stmt.let-else.not-inline, grammar.stmt.let-else, grammar.stmt.let-else.same-line.
+# Spec 01 Same-Line Suites: lex.suite-end.else.
+# expect-stdout: ran
+# expect-stdout: skipped
+# expect-stdout: 7
+fn gate(ok: bool, pair: (i32, i32)) -> string:
+    if ok: let (a, b) = pair else: return "skipped"
+    "ran"
+
+fn first_or_zero(value: i32?) -> i32:
+    let .Some(found) = value else: return 0
+    found
+
+pub fn main() -> void $ Console:
+    println(gate(true, (+1, +2)))
+    println(gate(false, (+1, +2)))
+    println(first_or_zero(.Some(+7)))

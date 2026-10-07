@@ -1,0 +1,10 @@
+# test: an interpolated expression is tokenized as code, so spaces just inside the braces mean nothing
+# Spec 01 Interpolation: lex.interp.expression, lex.interp.scanning, lex.space.meaning.
+# expect-stdout: seen 3 of 5
+# expect-stdout: nested "quoted" text
+# expect-stdout: map has 2
+pub fn main() -> void $ Console:
+    seen := 3
+    println("seen ${  seen  } of ${ 2 + 3 }")
+    println("nested ${ "\"quoted\"" } text")
+    println("map has ${ {"a": 1, "b": 2}.len() }")

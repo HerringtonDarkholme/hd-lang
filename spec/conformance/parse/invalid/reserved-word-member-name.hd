@@ -1,4 +1,5 @@
 # test: a reserved word after '.' needs backticks
+# Spec 01 Reserved Words: lex.ident.reserved, lex.raw.reserved.
 
 data Token:
     `type`: string

@@ -1,3 +1,4 @@
 # test: double numeric separator
+# Spec 01 Digit Separators: lex.sep.placement, lex.sep.misplaced.
 
 value := 1__0  # diagnostic: invalid-token

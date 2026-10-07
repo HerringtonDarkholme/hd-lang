@@ -1,4 +1,5 @@
 # test: a function-typed result with its own row must be parenthesized
+# Spec 02 Header Requirement Clauses: grammar.type.header.two-clauses.
 
 trait Log
 

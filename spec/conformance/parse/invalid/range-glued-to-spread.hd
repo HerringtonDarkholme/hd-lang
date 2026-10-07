@@ -1,0 +1,3 @@
+# test: by longest match a...b is a spread token between two names, never a range
+# Spec 01 Operators And Delimiters: lex.op.range.longest, lex.op.longest.examples.
+span := low...high  # diagnostic: syntax-error

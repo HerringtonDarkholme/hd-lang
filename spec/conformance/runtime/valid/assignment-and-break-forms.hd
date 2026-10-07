@@ -1,0 +1,52 @@
+# test: assignment targets a local, a field, or an index, compound assignment takes the same targets, a copy assignment stores an embedded part, and break carries a value out of a loop with else
+# Spec 02 Semantic Statement Rules: grammar.stmt.semantic, grammar.stmt.break, grammar.stmt.assign-place, grammar.stmt.copy-assign, grammar.stmt.compound-assign.
+# expect-stdout: 5 7
+# expect-stdout: 9 1
+# expect-stdout: 8 3
+# expect-stdout: 20 3
+# expect-stdout: 40
+# expect-stdout: 0
+data Timestamps:
+    pub created: i32
+    pub updated: i32
+
+data Post:
+    Timestamps
+    id: string
+
+data Gauge:
+    level: i32
+
+fn first_over(nums: List[i32], limit: i32) -> i32:
+    found := for n in nums:
+        if n > limit:
+            break n * 10
+    else:
+        0
+    found
+
+fn adjust(gauge: mut Gauge, items: mut List[i32]) -> void:
+    gauge.level = gauge.level + 4
+    gauge.level *= 2
+    items[0] = 9
+    items[1] -= 1
+
+fn restamp(post: mut Post, stamps: Timestamps) -> void:
+    post.Timestamps ...= stamps
+
+pub fn main() -> void $ Console:
+    let count = +3
+    count = count + 2
+    let other = +5
+    other += 2
+    println("$count $other")
+    let gauge: mut Gauge = Gauge { level: 0 }
+    let items: mut List[i32] = [+1, +2]
+    adjust(gauge, items)
+    println("${items[0]} ${items[1]}")
+    println("${gauge.level} ${gauge.level / 2 - 1}")
+    let post: mut Post = Post { Timestamps: ...Timestamps { created: +1, updated: +1 }, id: "p" }
+    restamp(post, Timestamps { created: +20, updated: +3 })
+    println("${post.created} ${post.updated}")
+    println(first_over([+1, +2, +4, +5], +3))
+    println(first_over([+1], +3))

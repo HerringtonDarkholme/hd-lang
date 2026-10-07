@@ -1,0 +1,5 @@
+# test: a backtick around text that is not an identifier is an error
+# Spec 01 Raw Identifiers: lex.raw.invalid.
+fn run() -> i32:
+    `two words` := 1  # diagnostic: invalid-token
+    0

@@ -1,3 +1,4 @@
 # test: a radix literal takes no suffix
+# Spec 01 Literal Suffixes: lex.suffix.decimal.
 # Spec 01 Literal Suffixes: a letter outside the radix is an error.
 mask := 0b101s  # diagnostic: syntax-error

@@ -1,0 +1,17 @@
+# test: a bang directly before a parenthesis or a type-argument list calls a suspending function, a bang at the start of an operand negates, and != stays one token
+# Spec 02 Bang And Dot Tokens: grammar.expr.bang-suffix, grammar.expr.prefix-not, grammar.expr.not-equal.
+# Spec 02 Method Type Arguments: grammar.expr.method-type-arguments.bang, grammar.expr.method-type-arguments.valid.
+# Spec 01 Operators And Delimiters: lex.op.bang-call, lex.op.inequality.
+# expect-stdout: true 7 true false
+fn is_ready!(value: i32) -> bool: value > 0
+
+fn convert![T](value: T) -> T: value
+
+pub fn main!() -> Result[void, ConsoleError] $ Console:
+    let mut console = $.use(Console)
+    negated := !is_ready!(+0)
+    typed := convert!::[i32](+7)
+    left := is_ready!(+1)
+    right := is_ready!(+0)
+    differs := left!=right
+    console.write_line!("$negated $typed $differs ${!left}")

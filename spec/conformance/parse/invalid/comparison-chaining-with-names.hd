@@ -1,3 +1,4 @@
 # test: parser rejects comparison chaining
+# Spec 02 Precedence And Associativity: grammar.expr.no-comparison-chain.
 
 value := 0 < other < 10  # diagnostic: comparison-chaining

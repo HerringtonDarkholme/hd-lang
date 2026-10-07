@@ -1,1 +1,2 @@
+# Spec 01 Digit Separators: lex.sep.placement, lex.sep.misplaced.
 count := 1__0  # diagnostic: invalid-token

@@ -1,4 +1,6 @@
 # test: outside brackets, an if header cannot end in an indented closure body
+# Spec 02 Expressions Followed By Another Token: grammar.closed.indented-header, grammar.closed.header-positions.
+# Spec 01 Headers After A Nested Suite: lex.header.no-indented-end.
 
 fn pick() -> i32:
     if fn() -> bool:  # diagnostic: syntax-error

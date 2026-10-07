@@ -1,4 +1,5 @@
 # test: the trailing requirement clause makes the declaration, not its result, require the key
+# Spec 02 Header Requirement Clauses: grammar.type.header.owner, grammar.type.header.applies.
 
 fn make() -> fn() -> i32 $ Console:
     _ := $.use(Console)

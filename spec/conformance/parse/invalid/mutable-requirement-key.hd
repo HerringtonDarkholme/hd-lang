@@ -1,4 +1,5 @@
 # test: requirements / mutable providers / a row key has no mut prefix
+# Spec 02 Requirement Clauses: grammar.type.row.no-mut-key.
 # Spec 11 Mutable Providers: requirement syntax never writes mut.
 
 trait Counter:

@@ -1,0 +1,36 @@
+# test: a raw identifier names a field, a parameter, a label, a method, and a binding even when the text is a reserved or contextual word
+# Spec 01 Raw Identifiers: lex.raw.form, lex.raw.reserved, lex.raw.token, lex.raw.name, lex.raw.text, lex.raw.not-reserved, lex.raw.interpolation.
+# expect-stdout: kw word 7
+# expect-stdout: hi
+# expect-stdout: 8
+# expect-stdout: same
+# expect-stdout: 42
+# expect-stdout: type
+data Token:
+    `type`: string
+    `data`: i32
+    text: string
+
+impl Token:
+    fn `match`(self, `in`: string) -> bool: self.`type` == `in`
+
+fn `use`(`for`: i32) -> i32: `for` + 1
+
+fn label(token: Token, `if`: bool) -> string:
+    if `if`:
+        token.`type`
+    else:
+        token.text
+
+pub fn main() -> void $ Console:
+    token := Token { `type`: "word", `data`: 7, text: "hi" }
+    println("kw ${token.`type`} ${token.`data`}")
+    println(label(token, `if` = false))
+    println(`use`(7))
+    name := "same"
+    println(`name`)
+    `_hidden` := 42
+    println(`_hidden`)
+    `type` := "type"
+    println("${`type`}")
+    _ := token.`match`("word")

@@ -1,4 +1,5 @@
 # test: only a line starting with '.name' continues the previous line; a leading operator does not
+# Spec 01 Leading-Dot Continuation: lex.continue.no-other-operator.
 
 fn total(a: i32, b: i32) -> i32:
     sum := a

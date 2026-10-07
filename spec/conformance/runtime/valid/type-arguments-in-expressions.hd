@@ -1,0 +1,46 @@
+# test: explicit type arguments follow :: in expressions, brackets after an operand always index, and comparisons beside both stay comparisons
+# Spec 02 Type Arguments In Expressions: grammar.expr.type-arguments.marker, grammar.expr.type-arguments.type-name, grammar.expr.type-arguments.in-types, grammar.expr.index-only.
+# Spec 02 Method Type Arguments: grammar.expr.method-type-arguments.valid, grammar.primary.member-type-arguments, grammar.primary.qualified-type-arguments, grammar.primary.function-type-argument, grammar.primary.placeholder.
+# expect-stdout: Ada
+# expect-stdout: Ada 2
+# expect-stdout: 7
+# expect-stdout: 11
+# expect-stdout: 10
+# expect-stdout: true false
+# expect-stdout: 9
+data Box[T]:
+    value: T
+
+data Parser: pass
+
+data Price:
+    cents: i32
+
+trait Scale[T]:
+    fn scale(self, factor: T) -> T
+
+impl Parser:
+    fn echo[Value](self, value: Value) -> Value: value
+
+impl Scale[i32] for Price:
+    fn scale(self, factor: i32) -> i32: self.cents * factor
+
+fn first[T](items: List[T]) -> T: items[0]
+
+fn convert[A, B](value: A, change: fn(A) -> B) -> B: change(value)
+
+fn smaller[T < Ord](items: List[T], low: usize, high: usize) -> bool: items[low] < items[high] && low < high
+
+pub fn main() -> void $ Console:
+    names := ["Ada", "Grace"]
+    head := first::[string](names)
+    println(head)
+    boxed := Box::[string] { value: head }
+    println("${boxed.value} ${names.len()}")
+    println(Parser {}.echo::[i32](+7))
+    println(convert::[i32, _](+5, fn(n: i32) -> i32: n + 6))
+    handlers := [fn(e: i32) -> i32: e + 1, fn(e: i32) -> i32: e * 2]
+    index := 1
+    println(handlers[index](+5))
+    println("${smaller::[i32]([+1, +2], 0, 1)} ${smaller([+3, +2], 0, 1)}")
+    println(Scale::[i32]::scale(Price { cents: +3 }, +3))

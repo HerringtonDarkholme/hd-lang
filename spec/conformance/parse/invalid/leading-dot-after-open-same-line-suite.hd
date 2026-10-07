@@ -1,4 +1,5 @@
 # test: a leading-dot line cannot continue a line whose same-line suite is still open
+# Spec 01 Leading-Dot Continuation: lex.dot.open-suite.
 
 fn sizer() -> fn(string) -> usize:
     f := fn(name: string) -> i32: name

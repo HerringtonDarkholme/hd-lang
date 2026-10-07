@@ -1,4 +1,5 @@
 # test: documentation comments attach to AST declarations and members
+# Spec 01 Documentation Comments: lex.doc.form, lex.doc.attach, lex.doc.members.
 
 ## A point.
 ## Stored in two dimensions.

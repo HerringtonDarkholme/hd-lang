@@ -1,3 +1,4 @@
 # test: a separator touching the decimal point is a misplaced separator
+# Spec 01 Floating-Point Literals: lex.float.sep-misplaced.
 
 value := 1_.5  # diagnostic: invalid-token

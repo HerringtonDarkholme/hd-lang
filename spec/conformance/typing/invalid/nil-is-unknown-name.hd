@@ -1,3 +1,4 @@
 # test: nil is no longer a keyword or literal; it is an unknown name
+# Spec 01 Boolean Literals: lex.bool.no-nil.
 
 let value: i32? = nil  # diagnostic: unknown-name

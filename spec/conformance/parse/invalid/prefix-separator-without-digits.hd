@@ -1,0 +1,3 @@
+# test: a separator directly after a radix prefix still needs a digit after it, so 0x_ forms no token
+# Spec 01 Digit Separators: lex.sep.misplaced, lex.sep.prefix, lex.sep.placement.
+mask := 0x_  # diagnostic: invalid-token

@@ -1,0 +1,11 @@
+# test: a file may end without a line ending, and the open blocks close at the end of the file
+# Spec 01 Indentation Levels: lex.indent.eof, lex.indent.eof-newline.
+# expect-stdout: outer
+# expect-stdout: inner
+# expect-stdout: last line has no line ending
+pub fn main() -> void $ Console:
+    println("outer")
+    if true:
+        println("inner")
+        if true:
+            println("last line has no line ending")

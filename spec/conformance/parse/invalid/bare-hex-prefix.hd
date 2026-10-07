@@ -1,3 +1,4 @@
 # test: a radix prefix followed by nothing of its radix is a syntax error
+# Spec 01 Digit Separators: lex.int.bare-prefix.
 
 value := 0x  # diagnostic: syntax-error

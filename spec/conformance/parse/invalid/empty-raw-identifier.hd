@@ -1,4 +1,5 @@
 # test: an empty pair of backticks forms no token
+# Spec 01 Raw Identifiers: lex.raw.invalid.
 
 fn main() -> i32:
     `` := 1  # diagnostic: invalid-token

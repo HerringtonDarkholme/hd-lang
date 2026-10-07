@@ -1,4 +1,5 @@
 # test: inside brackets a line starting with '[' begins a new element, so the missing comma is an error
+# Spec 01 Implicit Continuation: lex.continue.no-suffix, lex.continue.suffix-line, lex.continue.missing-separator.
 
 fn pick(first: List[i32]) -> List[List[i32]]:
     [

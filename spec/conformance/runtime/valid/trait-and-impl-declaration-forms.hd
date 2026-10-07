@@ -1,0 +1,61 @@
+# test: traits declare markers, bodyless and default methods, supertraits, and associated types, and impl blocks cover inherent, trait, bodyless, delegating, and generic forms
+# Spec 02 Traits And Implementations: grammar.impl.inherent, grammar.impl.trait, grammar.impl.bodyless, grammar.impl.delegation-field, grammar.impl.pub-method, grammar.impl.inline-bounds, grammar.trait.marker, grammar.trait.method-end, grammar.trait.method-kind, grammar.trait.supertrait, grammar.trait.associated-type, grammar.generic.bound.and.positions, grammar.generic.bound.and.examples.
+# expect-stdout: Rex!
+# expect-stdout: dog animal
+# expect-stdout: Rex eats bone
+# expect-stdout: Rex
+# expect-stdout: crate of Rex
+# expect-stdout: Max
+trait Tame
+
+trait Named:
+    fn name(self) -> string
+    fn kind() -> string:
+        "animal"
+    fn shout(self) -> string:
+        self.name() + "!"
+
+trait Animal < Named & Tame:
+    type Food
+    fn eat(self, meal: Self::Food) -> string
+
+trait Show:
+    fn show(self) -> string
+
+data Dog:
+    name: string
+
+impl Tame for Dog
+
+impl Dog:
+    pub fn renamed(self, name: string) -> Dog: Dog { name: name }
+
+impl Named for Dog:
+    fn name(self) -> string: self.name
+    fn kind() -> string: "dog"
+
+impl Animal for Dog:
+    type Food = string
+    fn eat(self, meal: string) -> string: "${self.name} eats $meal"
+
+data Kennel:
+    Dog
+    capacity: i32
+
+impl Named for Kennel by Dog
+
+data Crate[T]:
+    item: T
+
+impl[T < Named] Show for Crate[T]:
+    fn show(self) -> string: "crate of ${self.item.name()}"
+
+pub fn main() -> void $ Console:
+    rex := Dog { name: "Rex" }
+    println(rex.shout())
+    println("${Dog::kind()} ${Kennel::kind()}")
+    println(rex.eat("bone"))
+    kennel := Kennel { Dog: ...rex, capacity: +4 }
+    println(kennel.name())
+    println(Crate { item: rex }.show())
+    println(rex.renamed("Max").name)

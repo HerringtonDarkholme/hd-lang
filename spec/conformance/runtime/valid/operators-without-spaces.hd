@@ -1,0 +1,25 @@
+# test: operators written without spaces split by longest match, so a sign after another operator is a separate prefix operator
+# Spec 01 Operators And Delimiters: lex.op.longest, lex.op.inequality, lex.op.compound-assign.examples.
+# Spec 02 Expressions: grammar.expr.not-equal, grammar.expr.prefix-not, grammar.expr.power.unary.
+# expect-stdout: false true false true false true
+# expect-stdout: 10 4 10 28 3
+# expect-stdout: -3 -3 false true
+# expect-stdout: -21 -2 true
+# expect-stdout: 1
+# expect-stdout: true false
+fn smaller(items: List[i32], limit: usize) -> bool: items.len()<limit
+
+pub fn main() -> void $ Console:
+    a := +7
+    b := +3
+    println("${a<b} ${a>b} ${a<=b} ${a>=b} ${a==b} ${a!=b}")
+    println("${a--b} ${a+-b} ${a- -b} ${a<<2} ${a>>1}")
+    x:=-b
+    let y = +0
+    y=-b
+    println("$x $y ${a<-1} ${a!=-b}")
+    println("${a*-b} ${a/-b} ${!(a<b)}")
+    let z = +7
+    z%=3
+    println(z)
+    println("${smaller([+1], 2)} ${smaller([+1, +2], 2)}")

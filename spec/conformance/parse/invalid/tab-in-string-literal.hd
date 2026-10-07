@@ -1,4 +1,5 @@
 # test: a raw tab inside a string literal
+# Spec 01 Tabs: lex.tab.content.
 
 fn label() -> string:
     "a	b"  # diagnostic: tab-whitespace

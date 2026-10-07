@@ -1,3 +1,4 @@
+# Spec 02 Data Types: grammar.data.no-mut-modifier.
 # Spec 08 Fields: data.field.no-mut-modifier.
 data User:
     mut name: string  # diagnostic: mutable-field-modifier

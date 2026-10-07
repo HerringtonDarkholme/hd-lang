@@ -1,3 +1,4 @@
 # test: a rest element must be the last element of a tuple type
+# Spec 02 Tuple Rest Types: grammar.type.rest.elsewhere.
 
 fn early(values: (List[i32]..., i32)) -> i32: 0  # diagnostic: syntax-error

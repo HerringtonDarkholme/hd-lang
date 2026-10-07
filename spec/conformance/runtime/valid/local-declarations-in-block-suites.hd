@@ -1,0 +1,31 @@
+# test: a block suite may declare its own data types, enums, traits, implementations, aliases, and functions, with a pass body where nothing happens
+# Spec 02 Source Files And Suites: grammar.suite.same-line, grammar.suite.indented, grammar.suite.nonempty, grammar.suite.local-declarations, grammar.suite.use-top-level, grammar.suite.methods.
+# expect-stdout: R2C7 steady
+# expect-stdout: tense 3
+# expect-stdout: 14
+use std.testing.assert
+
+pub fn main() -> void $ Console:
+    data Seat:
+        row: i32
+        col: i32
+    enum Mood:
+        Steady
+        Tense(level: i32)
+    trait Label:
+        fn label(self) -> string
+    impl Label for Seat:
+        fn label(self) -> string: "R${self.row}C${self.col}"
+    type Tag = string
+    fn mood_name(m: Mood) -> Tag:
+        match m:
+            .Steady => "steady"
+            .Tense(level) => "tense ${level}"
+    fn nothing() -> void:
+        pass
+    fn twice(n: i32) -> i32: n * 2
+    nothing()
+    seat := Seat { row: +2, col: +7 }
+    println("${seat.label()} ${mood_name(Mood.Steady)}")
+    println(mood_name(Mood.Tense(level = +3)))
+    println(twice(+7))

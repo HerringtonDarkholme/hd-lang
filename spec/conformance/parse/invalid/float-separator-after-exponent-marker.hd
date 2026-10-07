@@ -1,3 +1,4 @@
 # test: a separator after the exponent marker is a misplaced separator
+# Spec 01 Floating-Point Literals: lex.float.sep-misplaced.
 
 value := 1e_5  # diagnostic: invalid-token

@@ -1,4 +1,5 @@
 # test: else closes a same-line for or while suite
+# Spec 01 Same-Line Suites: lex.suite-end.else.
 # expect: parse
 
 fn run(xs: List[i32], c: bool) -> void:

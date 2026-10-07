@@ -1,3 +1,4 @@
 # test: the reserved word type is not a type
+# Spec 01 Reserved Words: lex.ident.reserved.
 
 fn describe(x: type) -> void: pass  # diagnostic: syntax-error

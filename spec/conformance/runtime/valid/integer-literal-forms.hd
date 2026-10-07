@@ -1,0 +1,25 @@
+# test: decimal, binary, octal, and hexadecimal literals denote the same numbers, with separators and leading zeros that change nothing
+# Spec 01 Integer Literals: lex.int.forms, lex.int.sign, lex.int.radix-type, lex.int.hex-case, lex.int.leading-zero, lex.sep.digits, lex.sep.prefix, lex.sep.value.
+# expect-stdout: 255
+# expect-stdout: true
+# expect-stdout: 171
+# expect-stdout: 171
+# expect-stdout: -16
+# expect-stdout: 17
+# expect-stdout: 1000000
+# expect-stdout: 15 15 15
+# expect-stdout: 255
+# expect-stdout: 64
+fn byte_of(value: u8) -> u8: value
+
+pub fn main() -> void $ Console:
+    println(255)
+    println(255 == 0xFF && 255 == 0b1111_1111 && 255 == 0o377)
+    println(0xab)
+    println(0xAB)
+    println(-0x10)
+    println(007 + 010)
+    println(1_000_000)
+    println("${0x_F} ${0b_1111} ${0o_17}")
+    println(byte_of(0xFF))
+    println(byte_of(0b0100_0000))

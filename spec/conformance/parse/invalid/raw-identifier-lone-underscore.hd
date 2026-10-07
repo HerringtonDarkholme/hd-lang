@@ -1,0 +1,5 @@
+# test: the text of a raw identifier follows the identifier rules, so a lone underscore is not allowed
+# Spec 01 Raw Identifiers: lex.raw.text, lex.raw.invalid, lex.ident.underscore.
+fn run() -> i32:
+    `_` := 1  # diagnostic: invalid-token
+    0

@@ -1,0 +1,58 @@
+# test: every comma-separated list accepts a trailing comma, in declarations, types, expressions, and patterns
+# Spec 02 Generic Parameters And Bounds: grammar.generic.binding.
+# Spec 02 Patterns: grammar.pattern.variant, grammar.pattern.positional-names.
+# expect-stdout: 6 3 2
+# expect-stdout: 5 a
+# expect-stdout: 3 1 4
+# expect-stdout: 2
+# expect-stdout: 9
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Constant:
+    value: i32
+
+impl Supplier for Constant:
+    type Item = i32
+    fn get(self) -> i32: self.value
+
+data Pair[A, B,]:
+    first: A
+    second: B
+
+enum Shape:
+    Rect(
+        w: i32,
+        h: i32,
+    )
+
+fn area[T, I < Supplier[Item = T,],](
+    source: I,
+    scale: i32 = 1,
+) -> i32: scale * 2
+
+fn pair_sum(pair: (i32, i32,),) -> i32: pair._0 + pair._1
+
+fn apply(f: fn(i32, i32,) -> i32, a: i32, b: i32,) -> i32: f(a, b,)
+
+pub fn main() -> void $ Console:
+    items := [
+        +1,
+        +2,
+        +3,
+    ]
+    println("${apply(fn(x: i32, y: i32,) -> i32: x + y, +2, +4,)} ${items[2]} ${items[1]}")
+    pair := Pair::[i32, string,] {
+        first: +5,
+        second: "a",
+    }
+    println("${pair.first} ${pair.second}")
+    let (a, b, c,) = (+3, +1, +4,)
+    println("$a $b $c")
+    match Shape.Rect(w = +2, h = +9,):
+        Shape.Rect(w, h,) => println(w)
+    table := {
+        "k": +9,
+    }
+    println(table.get("k").unwrap_or(+0))

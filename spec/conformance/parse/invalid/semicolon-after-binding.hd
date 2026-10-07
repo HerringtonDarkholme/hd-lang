@@ -1,3 +1,4 @@
 # test: semicolon after binding
+# Spec 01 Operators And Delimiters: lex.punct.semicolon, lex.punct.semicolon-reserved.
 
 value := 1;  # diagnostic: reserved-semicolon

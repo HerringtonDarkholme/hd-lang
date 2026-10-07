@@ -1,0 +1,46 @@
+# test: a string interpolates a name, the receiver, or any expression, and leaves braces, escaped dollars, and bare dollars as text
+# Spec 01 Interpolation: lex.interp.forms, lex.interp.name, lex.interp.self, lex.interp.expression, lex.interp.name-extent, lex.interp.escaped-dollar, lex.interp.braces, lex.interp.scanning, lex.interp.dollar-text.
+# expect-stdout: Hello, Ada!
+# expect-stdout: wrong vs Ada.len and not $name
+# expect-stdout: invoice 42: 3 lines, total 6
+# expect-stdout: {braces} stay, ${nested "quotes"} too
+# expect-stdout: Ada has 2 items: [a, b]
+# expect-stdout: cart of Ada
+# expect-stdout: nested "quoted" text
+# expect-stdout: map has 2
+# expect-stdout: doubled 8
+# expect-stdout: price $5, cost $
+data Cart:
+    owner: string
+    items: List[string]
+
+impl Display for Cart:
+    fn to_string(self) -> string: self.owner
+
+impl Cart:
+    fn label(self) -> string: "cart of $self"
+
+    fn summary(self) -> string:
+        "${self.owner} has ${self.items.len()} items: [${self.items[0]}, ${self.items[1]}]"
+
+fn total(lines: List[i32]) -> i32:
+    let sum = +0
+    for line in lines:
+        sum = sum + line
+    sum
+
+pub fn main() -> void $ Console:
+    name := "Ada"
+    name_1 := "wrong"
+    println("Hello, $name!")
+    println("$name_1 vs $name.len and not \$name")
+    lines := [+1, +2, +3]
+    println("invoice ${40 + 2}: ${lines.len()} lines, total ${total(lines)}")
+    println("{braces} stay, \${nested \"quotes\"} too")
+    cart := Cart { owner: "Ada", items: ["a", "b"] }
+    println(cart.summary())
+    println(cart.label())
+    println("nested ${"\"quoted\""} text")
+    println("map has ${{"a": 1, "b": 2}.len()}")
+    println("doubled ${(fn(x: i32): x * 2)(4)}")
+    println("price $5, cost $")

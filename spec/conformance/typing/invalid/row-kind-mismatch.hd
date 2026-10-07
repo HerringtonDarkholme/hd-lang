@@ -1,3 +1,4 @@
+# Spec 02 Row Type Arguments: grammar.type.row-argument.kind.
 data Box[T]:
     value: T
 

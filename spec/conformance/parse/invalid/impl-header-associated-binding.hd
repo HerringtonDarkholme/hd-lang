@@ -1,4 +1,5 @@
 # test: the trait of an impl header does not accept an associated type binding
+# Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.trait-type-only.
 # Spec 09 Binding Positions: trait.binding.rejected-trait-type.
 trait Feed:
     type Item

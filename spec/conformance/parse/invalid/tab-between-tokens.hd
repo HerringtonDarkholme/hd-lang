@@ -1,4 +1,5 @@
 # test: a tab between tokens in the middle of a line
+# Spec 01 Tabs: lex.tab.invalid.
 
 fn total() -> i32:
     value :=	1  # diagnostic: tab-whitespace

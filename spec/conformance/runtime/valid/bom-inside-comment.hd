@@ -1,0 +1,6 @@
+# test: a U+FEFF inside a comment or a string literal is ordinary content
+# Spec 01 Source Encoding: lex.encoding.stray-bom, lex.encoding.scalars.
+# expect-stdout: ok
+# comment with ﻿ inside
+pub fn main() -> void $ Console:
+    println("ok")    # trailing ﻿ comment

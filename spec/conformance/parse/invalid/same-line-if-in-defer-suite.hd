@@ -1,4 +1,5 @@
 # test: a same-line defer suite cannot hold a same-line if
+# Spec 02 Same-Line Suite Bodies: grammar.inline.no-if.
 
 fn release(flag: bool) -> void:
     defer: if flag: pass  # diagnostic: syntax-error

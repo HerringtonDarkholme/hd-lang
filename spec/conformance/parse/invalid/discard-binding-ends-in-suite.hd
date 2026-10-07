@@ -1,3 +1,4 @@
 # test: a discarded nested binding cannot end in a same-line suite
+# Spec 02 Statements Ending At A Newline: grammar.stmt.closed, grammar.stmt.closed.suite-alternatives, grammar.stmt.closed.examples.
 flag := true
 _ := y := if flag: 1 else: 2  # diagnostic: syntax-error

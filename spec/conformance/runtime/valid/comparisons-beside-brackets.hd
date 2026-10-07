@@ -1,0 +1,27 @@
+# test: a less-than or greater-than sign beside brackets, calls, and indexes is a comparison, because type arguments in expressions need ::[
+# Spec 02 Type Arguments In Expressions: grammar.expr.index-only, grammar.expr.type-arguments.in-types.
+# expect-stdout: true false
+# expect-stdout: 2 0
+# expect-stdout: true
+# expect-stdout: 1 0
+fn pick(x: bool, y: bool) -> string: "$x $y"
+
+fn count(flag: bool, other: bool) -> i32:
+    if flag && !other:
+        1
+    else:
+        0
+
+fn bounded[T < Ord](items: List[T], i: usize, j: usize) -> bool: items[i] < items[j]
+
+pub fn main() -> void $ Console:
+    a := +1
+    b := +2
+    c := +5
+    d := +4
+    println(pick(a < b, c < d))
+    println("${count(a < b, c < d) + 1} ${count(a > b, c > d)}")
+    xs := [+3, +9, +4]
+    println(bounded(xs, 0, 1) && xs[1] > xs[2] && xs.len() < 4)
+    let widths: List[List[i32]] = [[+1], []]
+    println("${widths[0].len() + 0} ${widths[1].len() + 0}")

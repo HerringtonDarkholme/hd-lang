@@ -1,4 +1,5 @@
 # test: a data pattern labels a field with ':', not '='
+# Spec 02 Labels: grammar.label.data-pattern-equals, grammar.label.braces.
 
 data Point:
     x: i32

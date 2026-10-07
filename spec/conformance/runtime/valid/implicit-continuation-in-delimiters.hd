@@ -1,0 +1,50 @@
+# test: a data literal, a call, and nested lists continue across lines inside brackets, with comments and blank lines between items
+# Spec 01 Implicit Continuation: lex.line.logical, lex.continue.delimiters, lex.nested.no-layout, lex.delim.match, lex.continue.suffix-line.
+# expect-stdout: user_123 <ada@example.com> 3 roles
+# expect-stdout: 42
+# expect-stdout: 11
+# expect-stdout: 6
+data User:
+    id: string
+    email: string
+    roles: List[string]
+
+fn larger(first: i32, second: i32) -> i32:
+    if first > second:
+        first
+    else:
+        second
+
+fn first_of[T](items: List[T]) -> T: items[0]
+
+pub fn main() -> void $ Console:
+    user := User {
+        id: "user_123",
+        # a comment inside the braces starts no layout
+
+        email: "ada@example.com",
+        roles: [
+            "admin",
+            "editor",    # a trailing comma and a comment
+            "viewer",
+        ],
+    }
+    println("${user.id} <${user.email}> ${user.roles.len()} roles")
+    best := larger(
+        +40,
+        +42,
+    )
+    println(best)
+    grid := [
+        [+1, +2, +3],
+        [+4, +5, +6],
+    ]
+    println(
+        grid[0][2] + grid[1][
+            2
+        ] + larger({"a": +1,
+            "b": +2}.get("b").unwrap_or(+0), +0)
+    )
+    println(first_of::[i32](
+        [+6, +7],
+    ))

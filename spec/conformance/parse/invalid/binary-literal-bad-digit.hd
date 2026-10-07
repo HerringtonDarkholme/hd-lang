@@ -1,3 +1,4 @@
 # test: binary literal bad digit
+# Spec 01 Digit Separators: lex.int.outside-radix.
 
 value := 0b102  # diagnostic: syntax-error

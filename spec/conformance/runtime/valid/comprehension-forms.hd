@@ -1,0 +1,33 @@
+# test: a comprehension starts with for, then runs later for and if clauses from left to right, and a for takes the same patterns as let
+# Spec 02 Comprehensions: grammar.comprehension.first-for, grammar.comprehension.order, grammar.comprehension.no-let.
+# Spec 02 Control-Flow Expressions: grammar.flow.for-in-brackets, grammar.flow.for-pattern.
+# Spec 02 Expressions Followed By Another Token: grammar.continued.positions, grammar.continued.position-list.
+# expect-stdout: 8 12 2
+# expect-stdout: 1x2 1y2 3x4 3y4
+# expect-stdout: 2 4
+# expect-stdout: a=1 c=3
+# expect-stdout: 3 7
+# expect-stdout: 20
+# expect-stdout: 12 3
+data Point:
+    x: i32
+    y: i32
+
+pub fn main() -> void $ Console:
+    nums := [+1, +2, +3, +4, +5, +6]
+    doubled := [for n in nums if n % 2 == 0 && n > 2 => n * 2]
+    println("${doubled[0]} ${doubled[1]} ${doubled.len()}")
+    pairs := [for (a, b) in [(+1, +2), (+3, +4)] for tag in ["x", "y"] => "${a}${tag}${b}"]
+    println("${pairs[0]} ${pairs[1]} ${pairs[2]} ${pairs[3]}")
+    evens := [for n in nums if n < 5 if n % 2 == 0 => n]
+    println("${evens[0]} ${evens[1]}")
+    rows := [("a", +1), ("b", +2), ("c", +3)]
+    kept := [for (name, score) in rows if score != 2 => "${name}=${score}"]
+    println("${kept[0]} ${kept[1]}")
+    points := [Point { x: +1, y: +2 }, Point { x: +3, y: +4 }]
+    sums := [for Point { x, y } in points => x + y]
+    println("${sums[0]} ${sums[1]}")
+    inverted := {for (name, score) in rows if score > 1 => name: score * 10}
+    println(inverted.get("b").unwrap_or(+0))
+    stepped := [for n in nums if (m := n * 2) > 6 => m + n]
+    println("${stepped[0]} ${stepped.len()}")

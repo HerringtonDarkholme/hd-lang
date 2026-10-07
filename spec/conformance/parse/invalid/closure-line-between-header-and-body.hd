@@ -1,0 +1,10 @@
+# test: inside brackets, a line indented between a closure header and its body is a syntax error
+# Spec 01 Closures Inside Delimiters: lex.closure.between, lex.indent.unknown-column.
+fn choice(first: fn(i32) -> void, second: fn(i32) -> void) -> void:
+    first(1)
+    second(2)
+
+fn run() -> void:
+    choice(fn(a):
+            println(a)
+        , fn(b): println(b))  # diagnostic: syntax-error

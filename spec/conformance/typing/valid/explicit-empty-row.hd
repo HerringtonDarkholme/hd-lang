@@ -1,4 +1,5 @@
 # test: requirements / normalization / explicit empty row
+# Spec 02 Requirement Clauses: grammar.type.row.empty.
 # expect: accept
 
 fn invoke(callback: fn() -> void $()) -> void: callback()

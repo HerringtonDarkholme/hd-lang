@@ -1,0 +1,77 @@
+# test: generic parameters take bounds joined by &, associated type bindings, defaults, variance, and row markers, beside plain comparisons
+# Spec 02 Row Operators: grammar.type.row.plus-rows-only.
+# Spec 02 Generic Parameters And Bounds: grammar.generic.bound.and, grammar.generic.bound.and.positions, grammar.generic.bound.and.examples, grammar.generic.bound.and.types-only, grammar.generic.binding, grammar.generic.default, grammar.generic.default.binding, grammar.generic.default.semantic, grammar.generic.variance, grammar.generic.row-marker, grammar.generic.row-marker.default.
+# expect-stdout: 9
+# expect-stdout: true false
+# expect-stdout: 7 7
+# expect-stdout: 12
+# expect-stdout: 5
+# expect-stdout: 3
+# expect-stdout: 2
+# expect-stdout: 10
+# expect-stdout: 3 5
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Combine[Rhs = Self]:
+    type Out
+    fn combine(self, other: Rhs) -> Self::Out
+
+data Money:
+    cents: i32
+
+data Constant:
+    value: i32
+
+data Pair[A, B = A]:
+    first: A
+    second: B
+
+data Source[+T]:
+    value: T
+
+data Sink[-T]:
+    take: fn(T) -> bool
+
+impl Supplier for Constant:
+    type Item = i32
+    fn get(self) -> i32: self.value
+
+impl Combine for Money:
+    type Out = Money
+    fn combine(self, other: Money) -> Money: Money { cents: self.cents + other.cents }
+
+impl Combine[i32] for Money:
+    type Out = i32
+    fn combine(self, other: i32) -> i32: self.cents + other
+
+fn larger[T < Ord & Display](a: T, b: T, pool: List[T]) -> T:
+    if a < b && pool.len() > 0:
+        b
+    else:
+        a
+
+fn smaller[T < Ord](a: T, b: T) -> bool: a < b
+
+fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
+    source.get()
+
+fn run[$R = $()](job: fn() -> i32 $ R) -> i32 $ R: job()
+
+fn count_keys[K < Eq & Hash, V](map: Map[K, V]) -> usize: map.len()
+
+pub fn main() -> void $ Console:
+    println(larger(+4, +9, [+1]))
+    println("${smaller(+1, +2)} ${smaller(+3, +2)}")
+    pair := Pair::[i32] { first: +7, second: +7 }
+    println("${pair.first} ${pair.second}")
+    total := Money { cents: +5 }.combine(Money { cents: +3 }).cents + Money { cents: +1 }.combine(+3)
+    println(total)
+    println(pick(Constant { value: +5 }))
+    println(run(fn() -> i32: 3))
+    println(count_keys({"a": 1, "b": 2}))
+    println(6 & 3 | 8)
+    sink := Sink { take: fn(n: i32) -> bool: n > 0 }
+    source := Source { value: +3 }
+    println("${source.value} ${count_keys({1: 1, 2: 2, 3: 3, 4: 4, 5: 5}) + 0}")

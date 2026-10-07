@@ -1,3 +1,4 @@
 # test: positional after named argument
+# Spec 02 Calls And Arguments: grammar.call.positional-first.
 
 value := resize(width=640, 480)  # diagnostic: argument-order

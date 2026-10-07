@@ -1,0 +1,52 @@
+# test: if and match are expressions that nest in each other, in arm bodies, in bindings, and inside parentheses, and each tail value is the value of its block
+# Spec 02 Control-Flow Expressions: grammar.flow.if-else, grammar.flow.semantic, grammar.flow.for-in-brackets.
+# Spec 02 Suite Statements: grammar.stmt.suite.right-side, grammar.stmt.suite.in-delimiters.
+# Spec 02 Same-Line Suite Bodies: grammar.inline.else-if, grammar.inline.nested-if.
+# expect-stdout: negative zero odd even big even
+# expect-stdout: Fizz Buzz FizzBuzz 7
+# expect-stdout: -3
+# expect-stdout: 6
+# expect-stdout: low high
+fn classify(n: i32) -> string:
+    if n < 0:
+        "negative"
+    else if n == 0:
+        "zero"
+    else:
+        match n % 2:
+            0 =>
+                if n > 100:
+                    "big even"
+                else:
+                    "even"
+            _ => "odd"
+
+fn fizz(n: i32) -> string:
+    text := match (n % 3, n % 5):
+        (0, 0) => "FizzBuzz"
+        (0, _) => "Fizz"
+        (_, 0) => "Buzz"
+        _ => "$n"
+    text
+
+fn alternating(n: i32) -> i32:
+    let total = +0
+    let i = +1
+    while i <= n:
+        total = total + (if i % 2 == 0: i else: -i)
+        i = i + 1
+    total
+
+fn level(n: i32) -> string:
+    label := if n < 10: "low" else if n < 100: "mid" else: "high"
+    label
+
+pub fn main() -> void $ Console:
+    println("${classify(-5)} ${classify(0)} ${classify(7)} ${classify(8)} ${classify(200)}")
+    println("${fizz(3)} ${fizz(5)} ${fizz(15)} ${fizz(7)}")
+    println(alternating(+5))
+    nested := (if alternating(+4) > 0: (match alternating(+2):
+        1 => +6
+        _ => +0) else: +1)
+    println(nested)
+    println("${level(+3)} ${level(+300)}")

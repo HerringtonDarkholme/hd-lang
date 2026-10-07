@@ -1,0 +1,35 @@
+# test: a decimal or float literal followed directly by a name calls the suffix function of that name, and an exponent wins over a suffix starting with e
+# Spec 01 Literal Suffixes: lex.suffix.form, lex.suffix.name, lex.suffix.decimal, lex.suffix.exponent, lex.literal-fn.meaning, lex.suffix.bare.
+# expect-stdout: 5000
+# expect-stdout: 1500
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: 15
+# expect-stdout: 4091 true
+# expect-stdout: 360
+use std.num.Num
+use std.ops.num_suffix
+
+@num_suffix
+fn s(count: i64) -> i64: count * 1000
+
+@num_suffix
+fn ms[N < Num](count: N) -> N: count
+
+@num_suffix
+fn kb(size: f64) -> f64: size * 1024.0
+
+@num_suffix
+fn em(count: i64) -> i64: count * 3
+
+@num_suffix
+fn 度(count: i64) -> i64: count * 360
+
+pub fn main() -> void $ Console:
+    println(5s)
+    println(1_500ms)
+    println(1.5kb == 1536.0)
+    println(1e3ms == 1000.0)
+    println(5em)
+    println("${0xffB} ${0xffB == 0xffb}")
+    println(1度)

@@ -1,0 +1,41 @@
+# test: a trailing ... spreads a list, a call's arguments, or a tuple's rest element, while a leading ... always copies members
+# Spec 02 Prefix And Suffix Ellipsis: grammar.primary.list-spread, grammar.primary.ellipsis-positions, grammar.primary.suffix-spreads, grammar.primary.prefix-copies.
+# Spec 02 Functions: grammar.fn.vararg-name.
+# Spec 02 Patterns: grammar.pattern.tuple-spread.
+# expect-stdout: 5 6 0
+# expect-stdout: 1 2 3 4
+# expect-stdout: 12
+# expect-stdout: 3
+# expect-stdout: 2 5
+# expect-stdout: 1 0
+data Point:
+    x: i32
+    y: i32
+
+fn total(values...: List[i32]) -> i32:
+    let sum = +0
+    for value in values:
+        sum = sum + value
+    sum
+
+fn joined(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
+
+fn tail_count(t: (usize, List[i32]...)) -> usize:
+    let (_, xs...) = t
+    xs.len()
+
+fn pair_up(a: i32, b: i32) -> (i32, i32): (a, b)
+
+pub fn main() -> void $ Console:
+    nums := [+1, +2, +3]
+    println("${total(+2, +3)} ${total(nums...)} ${total()}")
+    wider := [nums..., +4]
+    println("${wider[0]} ${wider[1]} ${wider[2]} ${wider[3]}")
+    let rest: (usize, List[i32]...) = (1, 5)
+    println(joined(10, rest...))
+    println(tail_count((1, 2, 3, 4)))
+    let (a, b) = pair_up(+2, +5)
+    println("$a $b")
+    base := Point { x: +1, y: +2 }
+    copied := Point { ...base, y: +0 }
+    println("${copied.x} ${copied.y}")

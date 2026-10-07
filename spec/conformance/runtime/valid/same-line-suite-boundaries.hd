@@ -1,0 +1,29 @@
+# test: a same-line suite ends at the line end, at a comma or closing delimiter of its depth, and before else
+# Spec 01 Same-Line Suites: lex.suite-end.line, lex.suite-end.newline, lex.suite-end.continuation, lex.suite-end.comma, lex.suite-end.example, lex.suite-end.else, lex.suite-end.else-example, lex.block.body.
+# expect-stdout: 2 4 6
+# expect-stdout: 11 12
+# expect-stdout: small
+# expect-stdout: 6
+# expect-stdout: done after 3
+# expect-stdout: 10
+fn map_all(items: List[i32], f: fn(i32) -> i32) -> List[i32]:
+    let out: mut List[i32] = []
+    for item in items: out.push(f(item))
+    out
+
+fn size_name(n: i32) -> string:
+    label := if n < 10: "small" else: "large"
+    label
+
+pub fn main() -> void $ Console:
+    doubled := map_all([+1, +2, +3], fn(x): x * 2)
+    println("${doubled[0]} ${doubled[1]} ${doubled[2]}")
+    adders := [fn(x: i32) -> i32: x + 10, fn(x: i32) -> i32: x + 11]
+    println("${adders[0](+1)} ${adders[1](+1)}")
+    println(size_name(+3))
+    let sum = +0
+    for i in +1..4: sum = sum + i
+    println(sum)
+    let steps = +0
+    while steps < 3: steps = steps + 1 else: println("done after $steps")
+    println(sum + 4)

@@ -1,0 +1,62 @@
+# test: a deeper line that starts with a member suffix continues the previous line, whatever blank or comment lines come before it
+# Spec 01 Leading-Dot Continuation: lex.dot.continue, lex.dot.first-token, lex.dot.deeper, lex.dot.no-layout, lex.dot.blank-lines, lex.dot.joined, lex.dot.closed-suite, lex.dot.where, lex.dot.no-opener, lex.dot.suite-line.
+# expect-stdout: 14
+# expect-stdout: 3
+# expect-stdout: 8
+# expect-stdout: 6
+# expect-stdout: ok 1
+# expect-stdout: zero
+data Meter:
+    value: i32
+
+impl Meter:
+    fn add(self, amount: i32) -> Meter: Meter { value: self.value + amount }
+    fn double(self) -> Meter: Meter { value: self.value * 2 }
+    fn read(self) -> i32: self.value
+
+fn mapped(items: List[i32], f: fn(i32) -> i32) -> List[i32]:
+    let out: mut List[i32] = []
+    for item in items:
+        out.push(f(item))
+    out
+
+fn classify(n: i32) -> Result[i32, string]:
+    match n:
+        0 =>
+            .Err("zero")
+        _ =>
+            .Ok(n)
+
+fn gate(open: bool) -> Result[i32, string]:
+    if open:
+        .Ok(1)
+    else:
+        .Err("closed")
+
+pub fn main() -> void $ Console:
+    total := Meter { value: +3 }
+        .add(+4)
+
+        # comment and blank lines before a leading-dot line do not end the chain
+
+        .double()
+        .read()
+    println(total)
+    count := mapped([+1, +2, +3], fn(x): x * 2)
+        .len()
+    println(count)
+    nested := mapped([+1], fn(x):
+        doubled := Meter { value: x + 3 }
+            .double()
+            .read()
+        doubled
+    )
+        .len()
+    println(mapped([+4], fn(x): x + x)[0])
+    println(nested + 5)
+    match gate(true):
+        .Ok(n) => println("ok ${n}")
+        .Err(why) => println(why)
+    match classify(0):
+        .Ok(n) => println("ok ${n}")
+        .Err(why) => println(why)

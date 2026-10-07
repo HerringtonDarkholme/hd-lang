@@ -1,4 +1,5 @@
 # test: supertraits follow <; a colon after the trait name opens its body
+# Spec 02 Traits And Implementations: grammar.decl.bound-vs-colon, grammar.trait.supertrait.
 
 trait Named:
     fn name(self) -> string

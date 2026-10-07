@@ -1,0 +1,40 @@
+# test: data types declare defaults, embedded parts, mutable field types, and an empty body, and enums declare shared constructor data
+# Spec 02 Data Types: grammar.data.default, grammar.data.mut-type, grammar.data.embedded.
+# Spec 02 Enums: grammar.enum.variant-result, grammar.enum.defaults, grammar.enum.defaults.rules.
+# expect-stdout: Oslo 00000 gold
+# expect-stdout: 2 notes
+# expect-stdout: 200 false
+# expect-stdout: 503 true
+# expect-stdout: 404
+pub data Address:
+    pub city: string
+    pub zip: string = "00000"
+
+data Empty: pass
+
+data Customer:
+    Address
+    name: string
+    tier: string = "gold"
+    notes: mut List[string]
+
+enum Reply(code: i32, retry: bool = false):
+    Done -> Reply(200)
+    Busy -> Reply(503, retry=true)
+    Failed(reason: string) -> Reply(500)
+
+enum StatusCode(i32):
+    Ok -> StatusCode(200)
+    NotFound -> StatusCode(404)
+
+fn describe(reply: Reply) -> string:
+    "${reply.code} ${reply.retry}"
+
+pub fn main() -> void $ Console:
+    customer := Customer { Address: ...Address { city: "Oslo" }, name: "Ada", notes: ["a", "b"] }
+    println("${customer.city} ${customer.zip} ${customer.tier}")
+    println("${customer.notes.len()} notes")
+    println(describe(Reply.Done))
+    println(describe(Reply.Busy))
+    println(StatusCode.NotFound._0)
+    _ := Empty {}

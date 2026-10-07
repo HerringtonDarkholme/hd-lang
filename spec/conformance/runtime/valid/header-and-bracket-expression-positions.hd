@@ -1,0 +1,32 @@
+# test: a closure may sit inside a header's brackets, a guard takes a closed expression, and control flow inside brackets may end in an indented suite
+# Spec 02 Expressions Followed By Another Token: grammar.continued.layout, grammar.continued.indented-suite, grammar.closed.outside-brackets, grammar.closed.header-positions, grammar.closed.bracketed-suite.
+# expect-stdout: positive
+# expect-stdout: big 12
+# expect-stdout: 2 1
+# expect-stdout: a 5
+# expect-stdout: 9
+fn check(predicate: fn(i32) -> bool, value: i32) -> bool: predicate(value)
+
+fn classify(value: i32?) -> string:
+    match value:
+        .Some(n) if n > 10 => "big ${n}"
+        .Some(n) if check(fn(x: i32) -> bool: x > 3, n) => "mid ${n}"
+        .Some(n) => "small ${n}"
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    if check(fn(x: i32) -> bool: x > 0, +4):
+        println("positive")
+    println(classify(.Some(+12)))
+    flag := true
+    picked := [+2, if flag:
+        +1
+    else:
+        +3]
+    println("${picked[0]} ${picked[1]}")
+    table := {(if flag: "a" else: "b"): +5}
+    println("a ${table.get("a").unwrap_or(+0)}")
+    wrapped := (match flag:
+        true => +9
+        false => +0)
+    println(wrapped)
