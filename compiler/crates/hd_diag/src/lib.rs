@@ -2,6 +2,9 @@
 
 use hd_base::Span;
 
+pub mod buf;
+pub use buf::{CauseKind, DiagBuf, FixEdit, FixSafety, RootKey};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Code {

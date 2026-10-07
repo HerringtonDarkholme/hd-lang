@@ -4,6 +4,9 @@ use std::collections::HashMap;
 
 use hd_base::Symbol;
 
+pub mod paths;
+pub use paths::{ImplSeg, PathKind, PathTable, ShardedInterner, StablePath};
+
 #[derive(Clone, Debug, Default)]
 pub struct Interner {
     by_text: HashMap<String, Symbol>,
