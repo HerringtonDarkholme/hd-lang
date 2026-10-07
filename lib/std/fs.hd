@@ -6,6 +6,8 @@ use std.path.Path
 use std.format.DebugWriter
 use std.error.Error
 
+## Every file system operation reports one of these errors: `NotFound`, `PermissionDenied`, `AlreadyExists`, `NotADirectory`, `IsADirectory`, `InvalidUtf8`, or `Other`.
+## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
 pub enum FsError:
     NotFound(path: Path)
     PermissionDenied(path: Path)
@@ -16,14 +18,24 @@ pub enum FsError:
     InvalidUtf8(path: Path)
     Other(message: string)
 
+## Whether a file system entry is a file, a directory, or a symlink.
+## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
 pub enum EntryKind:
     File
     Directory
     Symlink
 
+## The data that describes one file system entry.
+## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
 pub data Entry:
+    ## The entry's path.
+    ## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
     pub path: Path
+    ## The entry's kind.
+    ## See [std-fs.error.decl](../../spec/std/fs.md#r-std-fs.error.decl).
     pub kind: EntryKind
+    ## The file's length in bytes.
+    ## See [std-fs.entry.size](../../spec/std/fs.md#r-std-fs.entry.size).
     pub size: u64
 
 impl Eq for FsError:
@@ -62,12 +74,16 @@ impl Eq for Entry:
     fn eq(self, other: Entry) -> bool:
         self.path == other.path && self.kind == other.kind && self.size == other.size
 
+## The host capability to read from the file system: `read_bytes!`, `read_text!`, `list_dir!`, and `stat!`.
+## See [std-fs.read.decl](../../spec/std/fs.md#r-std-fs.read.decl).
 pub trait FsRead:
     fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]
     fn read_text!(self, path: Path) -> Result[string, FsError]
     fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]
     fn stat!(self, path: Path) -> Result[Entry?, FsError]
 
+## The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, and `rename!`.
+## See [std-fs.write.decl](../../spec/std/fs.md#r-std-fs.write.decl).
 pub trait FsWrite:
     fn write_bytes!(mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]
     fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]
@@ -78,11 +94,15 @@ pub trait FsWrite:
 
 # Reads a file through the covering `FsRead` provider
 # (spec/std/fs.md#r-std-fs.helper.read-text).
+## Returns the whole content of the file at `path` as a string.
+## See [std-fs.helper.read-text](../../spec/std/fs.md#r-std-fs.helper.read-text).
 pub fn read_text!(path: Path) -> Result[string, FsError] $ FsRead:
     $.use(FsRead).read_text!(path)
 
 # Writes a file through the covering `FsWrite` provider
 # (spec/std/fs.md#r-std-fs.helper.write-text).
+## Creates the file at `path`, or replaces its whole content.
+## See [std-fs.helper.write-text](../../spec/std/fs.md#r-std-fs.helper.write-text).
 pub fn write_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite:
     let mut files = $.use(FsWrite)
     files.write_text!(path, text)
@@ -91,11 +111,15 @@ pub fn write_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite:
 # file's key is its path's text, as written. A directory is a key that
 # `create_dir_all!` made, or the text before a `/` in another key
 # (r-std-fs.memory.dirs).
+## The deterministic `FsRead` and `FsWrite` provider: a file system in memory for unit tests.
+## See [std-fs.memory.decl](../../spec/std/fs.md#r-std-fs.memory.decl).
 pub data MemoryFs:
     files: mut Map[string, List[u8]]
     dirs: mut List[string]
 
 impl MemoryFs:
+    ## Returns an empty in-memory file system.
+    ## See [std-fs.memory.decl](../../spec/std/fs.md#r-std-fs.memory.decl).
     pub fn new() -> mut MemoryFs:
         MemoryFs { files: {}, dirs: [] }
 
