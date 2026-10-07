@@ -5,6 +5,8 @@ use std.format.DebugWriter
 
 # Holds its text as written, without checks or normalization
 # (r-std-path.text).
+## A file system path: text the path operations read by `/` components.
+## See [std-path.decl](../../spec/std/path.md#r-std-path.decl).
 pub type Path(string)
 
 impl Eq for Path:
@@ -23,6 +25,8 @@ impl Path:
     # `part` replaces the path when it starts with `/`; otherwise it follows
     # the path, after a `/` unless the path is empty or ends in one
     # (r-std-path.join).
+    ## The path with `part` joined on by `/`; an absolute `part` replaces the whole path.
+    ## See [std-path.join](../../spec/std/path.md#r-std-path.join).
     pub fn join(self, part: string) -> Path:
         text := string(self)
         if part.starts_with("/") || text == "" || text.ends_with("/"):
@@ -31,6 +35,8 @@ impl Path:
 
     # Everything before the last component, `.Some("")` for a lone relative
     # component, and `.None` for `""` and `/` (r-std-path.parent).
+    ## The path without its last component, in `.Some`, or `.None` when it has none.
+    ## See [std-path.parent](../../spec/std/path.md#r-std-path.parent).
     pub fn parent(self) -> Path?:
         parts := components(string(self))
         if parts.len() == 0:
@@ -40,6 +46,8 @@ impl Path:
 
     # The last component, unless the path has none or it is `.` or `..`
     # (r-std-path.file-name).
+    ## The path's last component, in `.Some`, or `.None` when it has none.
+    ## See [std-path.file-name](../../spec/std/path.md#r-std-path.file-name).
     pub fn file_name(self) -> string?:
         match components(string(self)).last():
             .Some(name) =>
@@ -48,6 +56,8 @@ impl Path:
 
     # The text after the last `.` of the file name, none when the name has no
     # `.` or only a leading one (r-std-path.extension).
+    ## The text after the last dot of the file name, in `.Some`, or `.None`.
+    ## See [std-path.extension](../../spec/std/path.md#r-std-path.extension).
     pub fn extension(self) -> string?:
         match self.file_name():
             .Some(name) =>
