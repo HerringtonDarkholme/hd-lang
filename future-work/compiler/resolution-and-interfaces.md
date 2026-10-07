@@ -172,7 +172,7 @@ header      magic "HDIF", format version, toolchain key, folder stable path,
 sections    (kind, offset, length, Hash128) per section
 strings     length-prefixed UTF-8, sorted, deduplicated
 paths       StablePath records over string offsets
-types       TypeRecord { tag: u8, flags: u8, a: u32, b: u32, c: u32 }
+types       the InternPool's tag, data and extra columns, with blob-local operands
 items       ItemRecord, in (module path, source order)
 exports     (module, name) -> item, sorted by bytes, for binary search
 impls       ImplRecord: head, bounds, owner module, by-clause, api or heads-only
@@ -184,7 +184,9 @@ mentions    (folder stable path, deep hash) of every other folder named
 diags       header diagnostics with stable spans (outside every api hash)
 ```
 
-- Records are fixed-width, little-endian and 4-byte aligned, with `u32`
+- Every section's row layout is in
+  [data-structures.md §3.16](data-structures.md#316-the-folder-interface-in-memory-and-as-a-blob).
+- Records are fixed-width, little-endian and 8-byte aligned, with `u32`
   offsets into the blob. A reader casts `&[u8]` to record slices after
   checking bounds and alignment once per section. Natively the blob is
   memory-mapped from the cache. In the browser it is a byte array. Std's
@@ -251,6 +253,10 @@ pub struct ImplTable {                    // per module, frozen with its folder;
 }
 pub enum HeadKey { Ctor(DefId), Prim(Prim), Tuple(u16), Fn, Param }   // fast reject
 ```
+
+The columns' final form, sorted by the trait's path hash so candidate
+order is content order, is
+[data-structures.md §3.17](data-structures.md#317-impl-tables).
 
 To solve `Target: Trait[Args]`, look in the tables of at most
 `2 + len(Args)` modules: the trait's, the target constructor's, and each

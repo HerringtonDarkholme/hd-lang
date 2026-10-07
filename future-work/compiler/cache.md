@@ -104,7 +104,10 @@ obj/
 ```
 
 - **Entry header:** magic, kind, layout version, the key itself, payload
-  length, and an xxh3-64 checksum of the payload. A reader checks all of
+  length, and an xxh3-64 checksum of the payload. Every kind shares one
+  sectioned container and carries its own string, path and type tables,
+  so no run ID reaches disk
+  ([data-structures.md §3.20](data-structures.md#320-cache-entries-and-the-manifest)). A reader checks all of
   them. A mismatch, such as a truncated or corrupt file, counts as a miss,
   and the file is deleted.
 - **Publish:** write to `$HD_CACHE/tmp/<random>`, flush, rename to the
@@ -130,7 +133,7 @@ pub struct Manifest {            // build/.hd/manifest, one per package per work
     pub files: Vec<ManifestFile>, // sorted by path
 }
 pub struct ManifestFile {
-    pub path: RelPath, pub size: u64, pub mtime_ns: i128, pub inode: u64,
+    pub path: RelPath, pub size: u64, pub mtime_ns: i64, pub inode: u64,   // 80-byte record (§3.20.3)
     pub source_hash: Hash128, pub api_text_hash: Hash128,
     pub uses: Vec<ModulePath>,   // for the folder graph and --affected, without reading the file
     pub role: FileRole,

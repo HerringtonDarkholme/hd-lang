@@ -11,16 +11,17 @@ one pass, pulled on demand by the parser.
 
 ```rust
 pub struct TokenBuf {
-    pub kinds: Vec<TokenKind>,     // u8; significant tokens only
-    pub starts: Vec<u32>,          // byte offsets
-    pub ends: Vec<u32>,
+    pub kind: Vec<TokenKind>,      // u8; significant tokens only
+    pub start: Vec<u32>,           // byte offsets
+    pub end: Vec<u32>,
     pub line_first: BitVec,        // the token is the first on its physical line
-    pub indent: Vec<u16>,          // that line's column (meaningful for first tokens)
-    pub depth: Vec<u16>,           // bracket depth before the token
-    pub comments: Vec<(u32, u32, CommentKind)>,  // Plain | Doc | ModuleDoc
-    pub line_starts: Vec<u32>,
+    // per physical line: start, first token, indent, flags; comments; decoded values
 }
 ```
+
+The full layout is [data-structures.md §3.11](data-structures.md#311-tokens-and-line-tables).
+Indentation is a per-line column, and the layout cursor tracks bracket
+depth itself, so a token is 9 bytes.
 
 - **Lossless without trivia tokens.** Whitespace is the gap between
   tokens. Comments are a side list. Tokens, gaps and the original text
@@ -46,7 +47,8 @@ pub struct TokenBuf {
 - **No early decoding.** Identifier and literal tokens are spans. Escapes,
   numeric values and NFC checks run only when the parser or the checker
   asks for the value, into a small pool of decoded exceptions.
-- **Complexity.** O(n) time, about 13 bytes per significant token.
+- **Complexity.** O(n) time, 9 bytes per significant token plus 11 per
+  line.
   Lexing and parsing throughput are measured separately (the Carbon
   lesson), so a regression points at its phase.
 
@@ -198,6 +200,8 @@ pub struct GreenTree {
 pub struct NodeRef<'t> { tree: &'t GreenTree, idx: NodeIdx }
 ```
 
+- The full layout, the wire format and the generated JavaScript decoder
+  are in [data-structures.md §3.13](data-structures.md#313-the-green-tree-its-wire-format-and-the-js-decoder).
 - Preorder with subtree sizes: a child walk is a loop, and skipping a
   subtree is one addition. Parent links are built on demand for fix-its
   and the formatter.

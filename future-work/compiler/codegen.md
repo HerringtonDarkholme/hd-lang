@@ -336,6 +336,9 @@ pub struct InstanceSet {
 }
 ```
 
+Its columns, deduplicated by run IDs and sorted by instance key, are in
+[data-structures.md §3.22](data-structures.md#322-codegen-the-instance-table-and-code-entries).
+
 A worklist walk, as rustc's collector does:
 
 1. Push the roots with no type arguments.
@@ -485,6 +488,10 @@ pub enum Reloc {
     Site { at: u32, local: u32 },             // a site number, renumbered globally at link
 }
 ```
+
+On disk a relocation is `(at, kind, target)` with `target` indexing the
+entry's deduplicated target table
+([data-structures.md §3.22](data-structures.md#322-codegen-the-instance-table-and-code-entries)).
 
 ```text
 code_key = H("code", toolchain_key, tier, instance_key,

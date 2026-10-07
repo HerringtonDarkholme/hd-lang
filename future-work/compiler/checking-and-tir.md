@@ -2,7 +2,19 @@
 
 Part of the [compiler design](README.md).
 
-The detailed type-checking design is in progress in type-checking.md (frontend lane); this file keeps the D1 summary and the TIR definition.
+The detailed type-checking design is [type-checking.md](type-checking.md)
+(frontend lane); this file keeps the D1 summary and the TIR definition.
+
+**Changes in this pass** (backend lane, 2026-10-07). TIR's encoding is
+rewritten as columns with exact sizes, constants as `Ref`s with no
+column, a capture table, a sub-body table, side tables and a wire form
+with ID remapping (§4.13.11, and
+[data-structures.md §3.18](data-structures.md#318-tir)). The items of
+[type-checking.md §17](type-checking.md#17-changes-needed-in-compilerdesignmd)
+that touch this file are applied: item 2 in §4.13.1; item 3 in §4.13.2;
+item 4 in §4.13.3 and §4.13.10; item 5 in §4.13.4; item 6 in §4.13.6;
+items 7, 8 and 9 in §4.13.11; item 10 in §4.15. Item 1 is in
+[data-structures.md §3.4](data-structures.md#34-types).
 
 ### 4.13 Body Checking
 
@@ -13,6 +25,12 @@ The detailed type-checking design is in progress in type-checking.md (frontend l
 | M1 | `ModulePrep(m)` | serial within the module | full parse if needed; module scope; lower private headers; the module's local impl tables; infer the results of private callables with omitted result types |
 | M2 | `Body(m, i)` | parallel across all bodies of all modules | check one body against frozen tables |
 | M3 | `ModuleFinish(m)` | serial within the module | solve inferred rows, run deferred row checks, write the init summary, sort diagnostics, build `ModuleResult` |
+
+**Each body is checked exactly once per run** (type-checking.md rule
+TC-4). A body that M1 checks for its result type is final; M2 does not
+check it again. M1 checks the module's top-level statements first,
+because unannotated top-level bindings get their types there
+([type-checking.md §1.7](type-checking.md#17-body-tasks-and-the-exactly-once-rule)).
 
 **Omitted result types (M1).** A private function without a result type
 must be checked before its callers. M1 checks these functions in source
@@ -49,10 +67,16 @@ TIR (§3.9.5).
   defaults, and solve bounds through the trait solver
   ([Inference From Several Arguments](../../spec/lang/04-type-system.md#inference-from-several-arguments),
   [Inference Through A Bound](../../spec/lang/04-type-system.md#inference-through-a-bound)).
-  A variable still unsolved at the end is an ambiguity error.
+  A variable still unsolved at the end is `cannot-infer-type` when no
+  solution exists and `ambiguous-type` when several do. The permission
+  join, the instantiation choice and its trial bound are in
+  [type-checking.md §2.4 and §3.4](type-checking.md#24-calls-and-use-site-type-arguments).
 - **Tables.** Union-find over `InferVar` with path halving and rank, a
   binding per root, and the first span that decided it, for blame. Literal
-  widths follow [Literal Inference](goals.md#literal-inference).
+  widths follow [Literal Inference](goals.md#literal-inference): literal
+  classes in union-find, the family rule for methods on open literals,
+  and no statement retry
+  ([type-checking.md §3.6](type-checking.md#36-literal-widths)).
 - **Speculation without copies.** Trying a candidate pushes bindings on a
   trail, and failure pops back to a mark. No checker state is cloned (the
   prototype's F-626).
@@ -68,18 +92,31 @@ design:
 - **Coercions** (implicit `Option` wrapping, readonly views, function row
   subsumption) become explicit TIR instructions, so D2 never re-derives
   them.
-- **Mutability and access** checks run on TIR places after inference
-  ([Mutable Paths](../../spec/lang/04-type-system.md#mutable-paths)).
+- **Mutability and access** checks run during checking, on the
+  checker's own access types and local flags, never over TIR
+  ([Mutable Paths](../../spec/lang/04-type-system.md#mutable-paths);
+  [type-checking.md §8](type-checking.md#8-mutability-access-and-initialization)).
 - **Typed holes.** `_` and `todo()` record the expected type and the
   in-scope names whose types fit, for the hole diagnostic.
-- **Definite initialization** of locals and the `let-else` rules are a
-  forward dataflow pass over the body's TIR.
+- **Definite initialization** of locals and the `let-else` rules are
+  computed while checking, syntax-directed over structured control flow,
+  with the bits on the trail. They read no TIR, so checking does not
+  depend on emission (type-checking.md rule TC-3).
 
 #### 4.13.4 Rows
 
-- A row is `(RowId, Option<RowParamRef>, Option<RowVar>)`. Keys are kept
+- A row is one pool item: sorted keys, declared row parameters, and, in
+  the body-local pool only, pending private rows `RowVar(f)` minus a key
+  set
+  ([data-structures.md §3.4](data-structures.md#34-types)). Keys are kept
   sorted by `Ty` value for in-run set operations, so union and membership
   are linear merges ([Row Sets](../../spec/lang/11-requirements-and-suspension.md#row-sets)).
+- Bodies record `Uses`, `Includes` (with its `minus` keys) and `Entails`
+  facts, which M3 solves
+  ([type-checking.md §5.5](type-checking.md#55-private-rows-and-the-m3-fixpoint)).
+  A row pattern whose keys mention a type parameter cannot be matched
+  against a pending row in M2; that is `cannot-infer-type` with a fix-it
+  that writes the callee's `$` clause (type-checking.md §5.6).
 - Printing and hashing re-sort keys by stable content, never by `Ty` value
   (the tsgo lesson).
 - Entailment is membership after alias expansion
@@ -108,6 +145,10 @@ design:
   ([Refinement Algorithm](../../spec/lang/13-gadts.md#refinement-algorithm)).
 - The equalities this yields on the scrutinee's type parameters are pushed
   on the trail and popped at the arm's end, so they never escape the arm.
+  The pop is **scoped**: it undoes the arm's equalities and keeps
+  ordinary bindings, and the escape check scans the bindings above the
+  arm's mark
+  ([type-checking.md §6.1](type-checking.md#61-arm-local-equalities)).
 - A variant whose result cannot unify is impossible. Exhaustiveness skips
   it.
 - Existential parameters get fresh rigid variables per arm.
@@ -160,8 +201,9 @@ initialization group that spans several modules of a folder, through a use
 loop, needs the bodies of all of them. That is a body-derived fact across
 modules, which the research did not list.
 
-**Design (mine).** M3 writes an **init summary** per module: for each
-function and top-level statement, the top-level bindings it reads
+**Design (mine).** M3 writes an **init summary** per module, from the
+`InitFacts` the checker records while it checks (never from TIR): for
+each function and top-level statement, the top-level bindings it reads
 directly, the same-folder functions it calls, and the trait methods it
 dispatches ([`module.init.definite.dispatch`](../../spec/lang/10-modules.md#r-module.init.definite.dispatch)).
 An `InitOrder(F)` task runs only for a folder whose use graph has a
@@ -189,37 +231,71 @@ body that contains it, in the same columns.
 
 ##### Encoding
 
+The structure's design card (lifetime, growth, memory, accessors) is
+[data-structures.md §3.18](data-structures.md#318-tir). This is the
+encoding.
+
 ```rust
-pub struct Tir {
+pub struct TirBody {                    // one body in the module result; the worker's TirColumns has the same fields as Vecs
     pub item: DefId,
-    pub kind: BodyKind,                 // Fn | Init(group) | TestCase(n) | Fact | Default
-    // instructions (§3.9.3)
-    pub tags: Vec<TirTag>,              // u8
-    pub data: Vec<[u32; 2]>,            // operands; meaning set by the tag
-    pub ty: Vec<Ty>,                    // result type; `void` or `never` for statements
-    pub syn: Vec<NodeIdx>,              // the syntax node, for spans and sites
-    pub extra: Vec<u32>,
-    // locals: user bindings, pattern bindings, parameters (columns)
-    pub local_ty: Vec<Ty>, pub local_name: Vec<Symbol>, pub local_syn: Vec<NodeIdx>, pub local_flags: Vec<u8>,
-    // sub-bodies: index 0 is the body itself, then one per closure
-    pub sub_root: Vec<Inst>,            // the root Block
-    pub sub_params: Vec<(u32, u32)>,    // parameter locals
-    pub consts: Vec<Index>,             // constants that a Ref names
-    pub side: TirSide,                  // await facts, origins of generated code, hole candidates
+    pub kind: BodyKind,                 // u8: Fn | Init | TestCase | Fact | Default | DeriveInstance
+    // instructions (§3.9.3), by Inst
+    pub tags:  Col<TirTag>,             // 1 B
+    pub data:  Col<[u32; 2]>,           // 8 B; operands, meaning set by the tag
+    pub ty:    Col<Ty>,                 // 4 B; result type; `void` or `never` for statements
+    pub syn:   Col<NodeIdx>,            // 4 B; the syntax node, for spans and sites
+    pub extra: Col<u32>,                // operand lists and records, each `{start, len}` or a fixed record
+    // locals: parameters, user bindings, pattern bindings, by LocalId (shared with the checker, data-structures.md §3.19)
+    pub local_ty: Col<Ty>, pub local_name: Col<Symbol>, pub local_syn: Col<NodeIdx>,
+    pub local_flags: Col<LocalFlags>,   // u8: READ | ASSIGNED | MUTATED | CAPTURED | CAPTURED_ASSIGNED | PARAM
+    // sub-bodies, by SubId: 0 is the body itself, then one per closure in creation order
+    pub sub_root:   Col<Inst>,          // the root Block
+    pub sub_params: Col<Range32>,       // a range of `extra` holding parameter LocalIds
+    pub sub_parent: Col<SubId>,         // NONE for 0
+    pub sub_flags:  Col<u8>,            // SUSPENDS | HAS_ROW
+    // captures, by CaptureId; one closure's captures are contiguous
+    pub cap_local: Col<LocalId>,        // the outer local
+    pub cap_mode:  Col<CaptureMode>,    // u8: Copy | Move | Shared; written once, at finish
+    // side tables, each sorted by Inst
+    pub susp:   Col<SuspRow>,           // 16 B: inst, scope chain Range32 in extra, hook site
+    pub origin: Col<(Inst, u32)>,       // generated code -> origin record in extra
+    pub hole:   Col<(Inst, Range32)>,   // typed-hole candidates (DefIds and LocalIds) in extra
 }
-pub struct Inst(u32);
-pub struct Ref(u32);                    // below 2^31: an instruction's value; else consts[ref - 2^31]
-pub struct LocalId(u32);
+#[derive(Copy, Clone)] pub struct Inst(u32);
+#[derive(Copy, Clone)] pub struct Ref(u32);   // bit 31 clear: an Inst's value; set: a global pool constant (bits 0..30)
+pub struct LocalId(u32); pub struct SubId(u32); pub struct CaptureId(u32);
+#[repr(u8)] pub enum TirTag { /* generated from tir.ir */ }
+
+const _: () = assert!(core::mem::size_of::<TirTag>() == 1);
+const _: () = assert!(core::mem::size_of::<[u32; 2]>() == 8);
+const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
 ```
 
 - **Values are instructions.** An instruction's result is its value, used
   by later instructions through a `Ref`. Mutable user bindings are locals
   read with `LocalGet` and written with `LocalSet`.
+- **Constants are `Ref`s, not instructions (mine).** A global constant's
+  pool `Index` uses at most 31 bits (data-structures.md §3.9.2), so a
+  `Ref` with bit 31 set names it directly. D1's `consts` column and the
+  `Const` tag are gone: one form for constants, no instruction per
+  literal. A literal's span, which only diagnostics need, is known to
+  the checker when it reports.
 - **Blocks list instructions.** A `Block` holds a `{start, len}` range in
   `extra` of the instructions it runs, in order. Every instruction is in
   exactly one block. The order of a block's list is evaluation order.
-- **Types** are pool indices (§3.9.2). While a body is checked they may be
-  body-local; the final sweep makes them global.
+- **Types** are pool indices (data-structures.md §3.9.2). While a body is
+  checked they may be body-local; the final sweep makes them global.
+- **Records in `extra`** have fixed word counts, generated and asserted
+  from `tir.ir`: a callee record is 2 to 5 words plus its type-argument
+  list, a coercion record 2 words, a provider list `{start, len}`.
+- **Capture modes** depend on statements after the closure, so they are
+  a column written once at `finish`, from the checker's `Solution`
+  (type-checking.md §17 item 8; mine in this form). The checker decides
+  the modes (rule TC-1); the builder only stores them. No instruction
+  word is patched.
+- **Sizes.** 17 bytes per instruction plus about 7 bytes of `extra`;
+  13 per local; 17 per sub-body; 5 per capture. About 180 bytes per
+  source line.
 
 ##### Instruction Catalog
 
@@ -230,7 +306,6 @@ Notation: `a` and `b` are the two data words; `[...]` is a record in
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
-| `Const` | a: pool `Index` | the constant's type |
 | `LocalGet` | a: local | the local's type, as a readonly view when the binding is readonly |
 | `LocalSet` | a: local, b: value | `void`; the value's type equals the local's |
 | `GlobalGet` | a: `DefId` of a top-level binding | the binding's type |
@@ -253,13 +328,43 @@ Notation: `a` and `b` are the two data words; `[...]` is a record in
 | `Intrinsic` | a: intrinsic, b: `[type arguments, arguments]` | the intrinsic's declared result |
 | `Default` | a: `DefId` of the parameter or field, b: `[type arguments]` | the parameter's or field's type |
 | `Interp` | b: `[parts]`, each a literal constant or a value with its `Display` callee | `string` |
-| `Coerce` | a: `[kind, trait or impl]`, b: value | the target type in `ty`. Kinds: option wrap, readonly view, row subsumption, to trait value, to `Any`, suspending function to constructor, `never` to any |
+| `Coerce` | a: value, b: `[kind, evidence or NONE]` | the target type in `ty`; the kinds are in the table below |
+
+**Coercion kinds** (type-checking.md §4.2 and §17 item 7). Each changes
+the type, so each is an explicit instruction and invariant 4 holds.
+
+| Kind | From → to | Evidence word | Run-time meaning for D2 |
+| --- | --- | --- | --- |
+| `Never` | `never` → any | none | unreachable |
+| `Weaken` | `mut T` → `T` | none | none: a static view change |
+| `Variance` | `C[A]` → `C[B]` by declared variance, readonly outer type | none | none ([Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance)) |
+| `WrapSome` | `T` → `T?`, one layer | none | build `.Some` |
+| `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none | an adapter that passes only `R1`'s providers |
+| `ToTraitValue` | `S` → `Tr`, `mut S` → `mut Tr` | the impl choice | box with its dispatch table |
+| `ToAny` | `S` → `Any` | none | box with its type id |
+| `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
+| `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
+
+D1's "readonly view" kind is `Weaken`, since the spec's marked form is
+`mut T` (data-structures.md §3.4).
 
 A **callee record** is one of `Item(DefId, type arguments)`,
-`TraitMethod(trait, method, self type, type arguments, choice)` where the
-choice is the impl's `DefId` or the index of the bound in scope, and
+`TraitMethod(trait, method, self type, type arguments, choice)`, and
 `Evidence(value, bound, method)` for a call through a GADT existential's
-stored evidence. **Arguments** are listed in parameter order; their
+stored evidence. The **choice** is one word, a 2-bit kind and a 30-bit
+value:
+
+| Choice | Value | Meaning |
+| --- | --- | --- |
+| `Impl` | the impl's `DefId` | a written, derived or template impl |
+| `Bound` | the bound's index in the parameter environment | dispatch through a bound in scope; static in every instance |
+| `Builtin` | a `BuiltinImpl` number | a compiler-supplied impl: tuple `Eq`, `Ord`, `Hash` and `Debug` at every arity, the `Tuple` marker, and numeric-family members (type-checking.md §17 item 7) |
+
+A `Builtin` callee has no TIR body. Collection maps `(BuiltinImpl,
+concrete self type)` to a body that D2 generates per arity or per
+primitive (§13.6), named by the stable path `std.builtin.<trait>` plus
+the canonical self type in its instance key. This is the solver's
+`Evidence::Builtin` (type-checking.md §1.6) written into TIR. **Arguments** are listed in parameter order; their
 instructions were emitted earlier in source order, which is how named
 arguments keep their evaluation order. **Providers** are one `Ref` per
 key of the callee's row in key order, one context `Ref` for a
@@ -294,7 +399,7 @@ it (§14.2).
 | `Field` | a: base, b: field index (parts included) | the field's type, with the base's access |
 | `FieldSet` | a: base, b: `[field, value]` | `void`; the base is mutable |
 | `TupleGet` | a: base, b: index | the element's type |
-| `Closure` | a: sub-body, b: `[captures]`: (outer local, mode) | the closure's function type. Mode is `Copy` (no side writes it after the capture), `Move` (only the closure uses it afterward) or `Shared` (both may) |
+| `Closure` | a: sub-body, b: captures as a `CaptureId` range | the closure's function type. Each capture's mode, in the `cap_mode` column, is `Copy` (no side writes it after the capture), `Move` (only the closure uses it afterward) or `Shared` (both may) |
 
 **Providers**
 
@@ -369,46 +474,64 @@ instructions. Shared arms appear once.
 ##### The Builder API
 
 ```rust
-impl<'w> TirBuilder<'w> {
-    pub fn new(item: DefId, kind: BodyKind, cols: &'w mut TirColumns) -> Self;  // the worker's reused columns
-
+/// What the checker calls. `TirBuilder` implements it; a discarding sink
+/// implements it too if the no-emit mode is accepted (type-checking.md §16 question 5).
+pub trait TirSink {
     // values (each returns the new instruction's value)
-    pub fn konst(&mut self, c: Index, syn: NodeIdx) -> Ref;
-    pub fn local(&mut self, ty: Ty, name: Symbol, flags: LocalFlags, syn: NodeIdx) -> LocalId;
-    pub fn get(&mut self, l: LocalId, syn: NodeIdx) -> Ref;
-    pub fn set(&mut self, l: LocalId, v: Ref, syn: NodeIdx);
-    pub fn prim(&mut self, op: PrimOp, args: &[Ref], ty: Ty, syn: NodeIdx) -> Ref;
-    pub fn call(&mut self, callee: Callee, args: &[Ref], prov: Providers, ty: Ty, syn: NodeIdx) -> Ref;
-    pub fn await_(&mut self, target: AwaitTarget, ty: Ty, syn: NodeIdx) -> Ref;  // records the scope chain
-    pub fn coerce(&mut self, kind: Coercion, v: Ref, to: Ty, syn: NodeIdx) -> Ref;
-    pub fn emit(&mut self, tag: TirTag, a: u32, b: &[u32], ty: Ty, syn: NodeIdx) -> Ref;  // generated per tag
+    fn konst(&mut self, c: Index) -> Ref;                          // no instruction: a constant Ref
+    fn local(&mut self, ty: Ty, name: Symbol, flags: LocalFlags, syn: NodeIdx) -> LocalId;
+    fn get(&mut self, l: LocalId, syn: NodeIdx) -> Ref;
+    fn set(&mut self, l: LocalId, v: Ref, syn: NodeIdx);
+    fn prim(&mut self, op: PrimOp, args: &[Ref], ty: Ty, syn: NodeIdx) -> Ref;
+    fn call(&mut self, callee: Callee, args: &[Ref], prov: Providers, ty: Ty, syn: NodeIdx) -> Ref;
+    fn await_(&mut self, target: AwaitTarget, ty: Ty, syn: NodeIdx) -> Ref;  // records the scope chain
+    fn coerce(&mut self, kind: Coercion, v: Ref, to: Ty, syn: NodeIdx) -> Ref;  // Coercion carries its evidence
+    fn emit(&mut self, op: TirOp<'_>, ty: Ty, syn: NodeIdx) -> Ref;  // TirOp: generated, one variant per tag
 
     // structure: each open_* takes a scratch checkpoint, each close_* flushes it (§3.9.5)
-    pub fn open_block(&mut self) -> BlockMark;
-    pub fn close_block(&mut self, m: BlockMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Ref;
-    pub fn open_scope(&mut self) -> ScopeMark;
-    pub fn defer(&mut self, suite: Ref /* a closed Block */, syn: NodeIdx);
-    pub fn close_scope(&mut self, m: ScopeMark, body: Ref, syn: NodeIdx) -> Ref;
-    pub fn open_loop(&mut self) -> LoopMark;   // Break and Continue name its LoopMark
-    pub fn sub_body(&mut self, params: &[LocalId]) -> SubMark;  // a closure's body
+    fn open_block(&mut self) -> BlockMark;
+    fn close_block(&mut self, m: BlockMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Ref;
+    fn open_scope(&mut self) -> ScopeMark;
+    fn defer(&mut self, suite: Ref /* a closed Block */, syn: NodeIdx);
+    fn close_scope(&mut self, m: ScopeMark, body: Ref, syn: NodeIdx) -> Ref;
+    fn open_loop(&mut self) -> LoopMark;       // Break and Continue name its LoopMark
+    fn open_sub(&mut self, params: &[LocalId]) -> SubMark;    // a closure's body
+    fn capture(&mut self, sub: SubMark, outer: LocalId) -> CaptureId;  // first use of an outer local inside it
+    fn close_sub(&mut self, m: SubMark, root: Ref, fn_ty: Ty, syn: NodeIdx) -> Ref;  // emits the Closure
 
     // speculation (§3.9.5)
-    pub fn checkpoint(&self) -> Checkpoint;
-    pub fn rollback(&mut self, c: Checkpoint);
+    fn checkpoint(&self) -> TirCheckpoint;
+    fn rollback(&mut self, c: TirCheckpoint);
+}
 
-    // end of the body: the final type sweep, then the verifier in debug builds
+impl<'w> TirBuilder<'w> {
+    pub fn new(item: DefId, kind: BodyKind, cols: &'w mut TirColumns) -> Self;  // the worker's reused columns
+    /// End of the body: the final type sweep, the capture modes, then the verifier in debug builds.
     pub fn finish(self, solution: &Solution) -> TirBody;
+}
+pub struct Solution<'a> {
+    pub infer: &'a dyn InferRead,               // resolves every `ty` to a global type
+    pub capture_modes: &'a [CaptureMode],       // by CaptureId, decided by the checker
 }
 ```
 
 - The builder is the only writer of TIR. `emit` and the per-tag helpers
-  are generated from `tir.ir` (§3.9.6), so every encoding goes through the
-  schema.
+  are generated from `tir.ir` (data-structures.md §3.25), so every
+  encoding goes through the schema.
+- **The checker is generic over `TirSink`** (type-checking.md §17 item
+  9), as `Checker<B: TirSink>`. This costs one generic parameter and
+  lets the no-emit mode exist without a second code path, if the owner
+  accepts it.
+- **Captures.** A closure's captures are collected on the scratch stack
+  while its body is checked, since nested closures interleave, and
+  flushed contiguously into the capture columns at `close_sub`.
 - Types may be inference variables while a body is built. `coerce` is
   called where bidirectional checking finds a coercion, so coercions are
   never re-derived later.
-- `finish` resolves every `ty` to a global type, rejects leftovers, and
-  in debug builds runs the verifier.
+- `finish` resolves every `ty` to a global type, rejects leftovers,
+  writes `cap_mode` from the solution, copies the body's ranges into one
+  exact-size `TirBody`, truncates the worker columns, and in debug builds
+  runs the verifier.
 
 ##### Invariants
 
@@ -435,16 +558,21 @@ The verifier checks each of these:
    and none is `Pending` after M3.
 9. `CallHost` occurs only in std's provider bodies; an `Intrinsic` only
    where it is declared.
-10. A `Closure`'s captures name locals of its enclosing sub-bodies.
+10. A `Closure`'s captures name locals of its enclosing sub-bodies, and
+    after `finish` every capture has a mode.
 11. Every switch in a decision tree has a case for each value of its
     type, or a default.
+12. A constant `Ref` names a global pool constant whose type equals the
+    type its position expects; no constant is body-local.
+13. A `Builtin` choice names a `BuiltinImpl` whose trait is the callee's
+    trait.
 
 ##### Lifetime And The `tir` Entry
 
 - A body's TIR lives in its worker's columns until the body finishes, then
   moves into the module result. `ModuleFinish` fills pending providers,
-  serializes every body of the module into the `tir` entry (column
-  copies, §3.9.8), and frees them. A check never keeps TIR, and a later
+  serializes every body of the module into the `tir` entry, and frees
+  them. A check never keeps TIR, and a later
   build reads the entry instead of rechecking (§3.10.2).
 - The entry's key is `H("tir", check_key(m))`. It also stores, per item,
   a **TIR hash** (the hash of that item's serialized columns, closures
@@ -452,6 +580,29 @@ The verifier checks each of these:
   TIR names, each with its per-item interface hash. Instance keys use both
   (§13.8).
 - Types stay generic (`Param`). D2 never materializes an instance as TIR.
+
+**The wire form** (the `tir` entry's sections,
+[data-structures.md §3.20.4](data-structures.md#3204-entry-sections-by-kind)):
+
+| Section | Content |
+| --- | --- |
+| `strings`, `paths`, `types` | the entry's own tables; every `Symbol`, `DefId` and `Ty` in the module's TIR is a row here (data-structures.md §3.20.2) |
+| `bodies` | per body, 48 bytes: item path row, kind, the start of its range in each column below, TIR hash, dependency range |
+| `tags`, `data`, `extra` | the instruction columns of every body, concatenated in body order; ID words remapped to entry rows by the generated codec, other words copied |
+| `ty` | type rows |
+| `span_lo`, `span_hi` | byte offsets in the module's file, from `syn`, so emission never needs the syntax tree |
+| `local_*`, `sub_*`, `cap_*`, `susp`, `origin`, `hole` | the other columns, concatenated, IDs remapped |
+| `deps` | per body: (path row, item interface hash), sorted by path bytes |
+
+- **Remap, not copy.** Pool indices, `DefId`s and `Symbol`s are run IDs
+  and cannot be written (data-structures.md §3.20.2). The schema marks
+  every ID-typed operand, and the generated writer remaps exactly those
+  words. D1's "column copies" holds for the rest.
+- **The TIR hash** of an item is computed over its remapped rows, with
+  referenced types and paths hashed by content. It is therefore the same
+  on every run and thread count.
+- **Reading.** Emission maps the entry and casts each section. It interns
+  a type row into the pool on first use, as an interface reader does.
 
 ### 4.14 Diagnostics
 
@@ -510,7 +661,7 @@ marked "proposed" are for the spec pass (answer 5).
 | file size | bytes | 16 MiB | `file-too-large` (proposed) |
 | nesting depth | brackets, blocks, closures and interpolations open at once | 256 | `nesting-too-deep` (proposed) |
 | trait resolution depth | nested subgoals | 64 | `trait-resolution-depth` (spec) |
-| body fuel | candidates, subgoals, unification steps, matrix cells; memo hits at their stored cost | 2,000,000 steps per body | `item-too-complex` (proposed), naming the item |
+| body fuel | candidates, subgoals, unification steps, matrix cells, trials, joins, obligation retries; memo hits at their stored cost ([type-checking.md §11.1](type-checking.md#111-what-counts)) | 2,000,000 steps per body | `item-too-complex` (proposed), naming the item; on exhaustion the body's TIR rolls back to one `Poison` ([type-checking.md §11.2](type-checking.md#112-running-out)) |
 | type size | nodes in one type | 10,000 | `type-too-large` (proposed) |
 | exhaustiveness | matrix cells, within the body's fuel | shares body fuel | `match-too-complex` (proposed) |
 | embedding depth | nested `data` embedding | the spec's | `embedding-too-deep` (spec) |
