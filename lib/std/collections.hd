@@ -14,6 +14,8 @@ impl[T] List[T]:
     # plain hd over it and `list_truncate`, the one shrinking primitive.
     # Removes the last item, or gives `.None` for an empty list
     # (module.method.list-pop).
+    ## Removes and returns the last item, or `.None` for an empty list.
+    ## See [module.method.list-pop](../../spec/lang/10-modules.md#r-module.method.list-pop).
     pub fn pop(mut self) -> T?:
         size := self.len()
         if size == 0:
@@ -24,6 +26,8 @@ impl[T] List[T]:
 
     # Puts `value` at `index` and moves the later items up one place;
     # `index == len()` appends (module.method.list-insert).
+    ## Puts `value` at `index` and moves the later items up one place; `index == len()` appends.
+    ## See [module.method.list-insert](../../spec/lang/10-modules.md#r-module.method.list-insert).
     pub fn insert(mut self, index: usize, value: T) -> void:
         size := self.len()
         if index > size:
@@ -37,6 +41,8 @@ impl[T] List[T]:
 
     # Removes and returns the item at `index`, moving the later items down
     # one place (module.method.list-remove-at).
+    ## Removes and returns the item at `index`, moving the later items down one place.
+    ## See [module.method.list-remove-at](../../spec/lang/10-modules.md#r-module.method.list-remove-at).
     pub fn remove_at(mut self, index: usize) -> T:
         size := self.len()
         if index >= size:
@@ -50,22 +56,30 @@ impl[T] List[T]:
         removed
 
     # Removes every item (module.method.list-clear).
+    ## Removes every item, so `len()` is 0 after it.
+    ## See [module.method.list-clear](../../spec/lang/10-modules.md#r-module.method.list-clear).
     pub fn clear(mut self) -> void:
         list_truncate(self, 0)
 
     # A read-only window on the elements from `start` up to `end`, with no
     # copy (spec/std/collections.md#views).
+    ## A read-only window on the elements from `start` up to `end`, with no copy.
+    ## See [std-collections.view](../../spec/std/collections.md#r-std-collections.view).
     pub fn view(self, start: usize, end: usize) -> ListView[T]:
         if end > self.len() || start > end:
             panic_with("index-out-of-bounds", "")
         ListView::[T] { items: self, start: start, end: end, len: self.len() }
 
+    ## Returns a new list with `transform` applied to each element, in order.
+    ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
     pub fn map[U](self, transform: fn(T) -> U) -> List[U]:
         let mapped: mut List[U] = []
         for item in self:
             mapped.push(transform(item))
         mapped
 
+    ## Returns a new list of the elements for which `keep` is true, in list order.
+    ## See [std-collections.access.filter](../../spec/std/collections.md#r-std-collections.access.filter).
     pub fn filter(self, keep: fn(T) -> bool) -> List[T]:
         let kept: mut List[T] = []
         for item in self:
@@ -74,13 +88,19 @@ impl[T] List[T]:
         kept
 
     # The checked read beside `items[i]` (r-std-collections.access.get).
+    ## Returns `.Some` of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
+    ## See [std-collections.access.get](../../spec/std/collections.md#r-std-collections.access.get).
     pub fn get(self, index: usize) -> T?:
         if index >= self.len(): .None else: .Some(self[index])
 
+    ## True exactly when the list has no elements.
+    ## See [std-collections.access.is-empty](../../spec/std/collections.md#r-std-collections.access.is-empty).
     pub fn is_empty(self) -> bool:
         self.len() == 0
 
     # The first `count` items, or all of them (r-std-collections.access.take).
+    ## Returns a new list of the first `count` elements, or of every element when `count` is at least `len()`.
+    ## See [std-collections.access.take](../../spec/std/collections.md#r-std-collections.access.take).
     pub fn take(self, count: usize) -> List[T]:
         let kept: mut List[T] = []
         let index: usize = 0
@@ -91,6 +111,8 @@ impl[T] List[T]:
 
     # Appends `other`'s items as they were at the call, so
     # `items.extend(items)` doubles the list (r-std-collections.access.extend.self).
+    ## Appends each element of `other` to the list, in order, as `push` does.
+    ## See [std-collections.access.extend](../../spec/std/collections.md#r-std-collections.access.extend).
     pub fn extend(mut self, other: List[T]) -> void:
         size := other.len()
         let index: usize = 0
@@ -98,12 +120,18 @@ impl[T] List[T]:
             self.push(other[index])
             index = index + 1
 
+    ## Returns the first element in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.access.first-last](../../spec/std/collections.md#r-std-collections.access.first-last).
     pub fn first(self) -> T?:
         if self.len() == 0: .None else: .Some(self[0])
 
+    ## Returns the last element in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.access.first-last](../../spec/std/collections.md#r-std-collections.access.first-last).
     pub fn last(self) -> T?:
         if self.len() == 0: .None else: .Some(self[self.len() - 1])
 
+    ## Returns a new list of the elements in reverse order.
+    ## See [std-collections.access.reversed](../../spec/std/collections.md#r-std-collections.access.reversed).
     pub fn reversed(self) -> List[T]:
         let backwards: mut List[T] = []
         let index = self.len()
@@ -113,6 +141,8 @@ impl[T] List[T]:
         backwards
 
     # A stable merge sort: equal items keep their order.
+    ## Returns a new list in ascending order by `compare`. The sort is stable.
+    ## See [std-collections.access.sorted-by](../../spec/std/collections.md#r-std-collections.access.sorted-by).
     pub fn sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]:
         if self.len() <= 1:
             return self.filter(fn(item: T) -> bool: true)
@@ -143,6 +173,8 @@ impl[T] List[T]:
         merged
 
     # Consecutive pieces of `size` items; the last may be shorter.
+    ## Returns the elements in order, in consecutive pieces of `size` elements. Only the last piece may be shorter.
+    ## See [std-collections.list.chunks](../../spec/std/collections.md#r-std-collections.list.chunks).
     pub fn chunks(self, size: usize) -> List[List[T]]:
         if size <= 0:
             panic("chunks: size must be positive")
@@ -158,6 +190,8 @@ impl[T] List[T]:
         pieces
 
     # Pairs items by position, stopping at the shorter list.
+    ## Returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, stopping at the shorter one.
+    ## See [std-collections.access.zip](../../spec/std/collections.md#r-std-collections.access.zip).
     pub fn zip[U](self, other: List[U]) -> List[(T, U)]:
         let pairs: mut List[(T, U)] = []
         let index: usize = 0
@@ -170,6 +204,8 @@ impl[T] List[T]:
     # runs in list order, at most once per element.
 
     # A stable sort by `key(item)`, which is called once per element.
+    ## Returns the elements in ascending order of `key(element)` by `Ord`, calling `key` once per element.
+    ## See [std-collections.helper.sorted-by-key](../../spec/std/collections.md#r-std-collections.helper.sorted-by-key).
     pub fn sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]:
         let keyed: mut List[(K, usize)] = []
         let index: usize = 0
@@ -183,6 +219,8 @@ impl[T] List[T]:
         sorted
 
     # The elements under each key, keys in the order first seen.
+    ## Groups the elements by `key(element)`, each group in list order, keys in first-seen order.
+    ## See [std-collections.helper.group-by](../../spec/std/collections.md#r-std-collections.helper.group-by).
     pub fn group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]:
         let groups: mut Map[K, mut List[T]] = {}
         for item in self:
@@ -196,6 +234,8 @@ impl[T] List[T]:
         result
 
     # The elements `keep` accepts, then the rest, each in order.
+    ## Splits the list into the elements for which `keep` is true and the rest, each in list order.
+    ## See [std-collections.helper.partition](../../spec/std/collections.md#r-std-collections.helper.partition).
     pub fn partition(self, keep: fn(T) -> bool) -> (List[T], List[T]):
         let kept: mut List[T] = []
         let rest: mut List[T] = []
@@ -204,6 +244,8 @@ impl[T] List[T]:
         (kept, rest)
 
     # Stops at the first element that passes.
+    ## True when `test` is true for at least one element, stopping at the first.
+    ## See [std-collections.helper.any-all](../../spec/std/collections.md#r-std-collections.helper.any-all).
     pub fn any(self, test: fn(T) -> bool) -> bool:
         for item in self:
             if test(item):
@@ -211,18 +253,24 @@ impl[T] List[T]:
         false
 
     # Stops at the first element that fails.
+    ## True when `test` is true for every element, stopping at the first false.
+    ## See [std-collections.helper.any-all](../../spec/std/collections.md#r-std-collections.helper.any-all).
     pub fn all(self, test: fn(T) -> bool) -> bool:
         for item in self:
             if !test(item):
                 return false
         true
 
+    ## Returns the first element for which `test` is true, in `.Some`, or `.None`.
+    ## See [std-collections.helper.find](../../spec/std/collections.md#r-std-collections.helper.find).
     pub fn find(self, test: fn(T) -> bool) -> T?:
         for item in self:
             if test(item):
                 return .Some(item)
         .None
 
+    ## Applies `transform` to each element and concatenates the results, in order.
+    ## See [std-collections.helper.flat-map](../../spec/std/collections.md#r-std-collections.helper.flat-map).
     pub fn flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]:
         let flat: mut List[U] = []
         for item in self:
@@ -231,6 +279,8 @@ impl[T] List[T]:
         flat
 
     # Every run of `size` consecutive elements, overlapping, in order.
+    ## Returns every run of `size` consecutive elements, each starting one index later.
+    ## See [std-collections.helper.windows](../../spec/std/collections.md#r-std-collections.helper.windows).
     pub fn windows(self, size: usize) -> List[List[T]]:
         if size <= 0:
             panic("windows: size must be positive")
@@ -242,10 +292,14 @@ impl[T] List[T]:
         runs
 
 impl[T < Eq] List[T]:
+    ## True exactly when the set has an element equal to `value`.
+    ## See [std-collections.set.contains](../../spec/std/collections.md#r-std-collections.set.contains).
     pub fn contains(self, value: T) -> bool:
         self.index_of(value).is_some()
 
     # The index of the first element equal to `value`.
+    ## Returns the index of the first element equal to `value` by `Eq`, in `.Some`, or `.None`.
+    ## See [std-collections.helper.contains](../../spec/std/collections.md#r-std-collections.helper.contains).
     pub fn index_of(self, value: T) -> usize?:
         let index: usize = 0
         for item in self:
@@ -256,6 +310,8 @@ impl[T < Eq] List[T]:
 
 # The total of the elements, in order (r-std-collections.helper.sum).
 impl[T < Num] List[T]:
+    ## Returns the sum of the elements, left to right.
+    ## See [std-collections.helper.sum](../../spec/std/collections.md#r-std-collections.helper.sum).
     pub fn sum(self) -> T:
         let total = T::zero()
         for item in self:
@@ -264,10 +320,14 @@ impl[T < Num] List[T]:
 
 impl[T < Ord] List[T]:
     # A stable sort in ascending order.
+    ## Returns the elements in ascending order by `Ord`.
+    ## See [std-collections.helper.sorted](../../spec/std/collections.md#r-std-collections.helper.sorted).
     pub fn sorted(self) -> List[T]:
         self.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(right))
 
     # The first of the smallest elements.
+    ## Returns the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.min-max.first](../../spec/std/collections.md#r-std-collections.helper.min-max.first).
     pub fn min(self) -> T?:
         let best: T? = .None
         for item in self:
@@ -279,6 +339,8 @@ impl[T < Ord] List[T]:
         best
 
     # The first of the largest elements, as Python's `max` gives.
+    ## Returns the first largest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.min-max.first](../../spec/std/collections.md#r-std-collections.helper.min-max.first).
     pub fn max(self) -> T?:
         let best: T? = .None
         for item in self:
@@ -297,6 +359,8 @@ fn before[T < Ord](left: T, right: T) -> bool:
 
 # How many times each element occurs, keys in the order first seen
 # (spec/std/collections.md#counts).
+## How many times each element occurs, keys in the order first seen.
+## See [std-collections.counts.decl](../../spec/std/collections.md#r-std-collections.counts.decl).
 pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
     let tally: mut Map[T, usize] = {}
     for item in items:
@@ -309,28 +373,38 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
 # (spec/std/collections.md#map-methods). `keys` and `values` copy into new
 # lists, so a later change to the map does not show in them.
 impl[K < Eq & Hash, V] Map[K, V]:
+    ## True when the map has an entry for `key`.
+    ## See [std-collections.map.contains-key](../../spec/std/collections.md#r-std-collections.map.contains-key).
     pub fn contains_key(self, key: K) -> bool:
         match self.get(key):
             .Some(_) => true
             .None => false
 
+    ## A new list of the keys, in insertion order.
+    ## See [std-collections.map.keys](../../spec/std/collections.md#r-std-collections.map.keys).
     pub fn keys(self) -> List[K]:
         let found: mut List[K] = []
         for (key, _) in self:
             found.push(key)
         found
 
+    ## A new list of the values, in insertion order.
+    ## See [std-collections.map.keys](../../spec/std/collections.md#r-std-collections.map.keys).
     pub fn values(self) -> List[V]:
         let found: mut List[V] = []
         for (_, value) in self:
             found.push(value)
         found
 
+    ## The value of `key`, or `fallback` when the map has no entry for it.
+    ## See [std-collections.map.get-or](../../spec/std/collections.md#r-std-collections.map.get-or).
     pub fn get_or(self, key: K, fallback: V) -> V:
         match self.get(key):
             .Some(value) => value
             .None => fallback
 
+    ## True exactly when the map has no entries.
+    ## See [std-collections.map.is-empty](../../spec/std/collections.md#r-std-collections.map.is-empty).
     pub fn is_empty(self) -> bool:
         self.len() == 0
 
@@ -339,6 +413,8 @@ impl[K < Eq & Hash, V] Map[K, V]:
 # element write shows through it. It records the list's length, and any
 # later change of length invalidates it: its next use is
 # the checked panic `iterator-invalidated` (r-std-collections.view.invalid-use).
+## A read-only window on a run of a list's elements. It holds the list, not a copy, so an element write shows through it.
+## See [std-collections.view.type](../../spec/std/collections.md#r-std-collections.view.type).
 pub data ListView[T]:
     items: List[T]
     start: usize
@@ -352,10 +428,14 @@ impl[T < Debug] Debug for ListView[T]:
         out.debug_struct("ListView").field("items", self.items).field("start", self.start).field("end", self.end).field("len", self.len).finish()
 
 impl[T] ListView[T]:
+    ## Returns the number of elements in the view.
+    ## See [std-collections.view.len](../../spec/std/collections.md#r-std-collections.view.len).
     pub fn len(self) -> usize:
         self.check()
         self.end - self.start
 
+    ## Returns a new `mut List[T]` that holds the view's elements in order.
+    ## See [std-collections.view.to-list.mut](../../spec/std/collections.md#r-std-collections.view.to-list.mut).
     pub fn to_list(self) -> mut List[T]:
         self.check()
         let copy: mut List[T] = []
@@ -396,6 +476,8 @@ impl[T] Iterable[T] for ListView[T]:
 # amortized O(1). The prototype has no `List.pop` yet, so a pop clears its slot.
 # `version` counts the pushes and pops, so an iterator taken before one
 # fails fast (r-std-collections.deque.invalidate).
+## A double-ended queue: pushes and pops at both ends, in amortized constant time.
+## See [std-collections.deque.decl](../../spec/std/collections.md#r-std-collections.deque.decl).
 pub data Deque[T]:
     slots: mut List[T?]
     head: usize
@@ -403,22 +485,32 @@ pub data Deque[T]:
     version: i32
 
 impl[T] Deque[T]:
+    ## Returns an empty deque.
+    ## See [std-collections.deque.order](../../spec/std/collections.md#r-std-collections.deque.order).
     pub fn new() -> mut Deque[T]:
         let slots: mut List[T?] = []
         Deque::[T] { slots: slots, head: 0, count: 0, version: 0 }
 
+    ## Returns the number of elements.
+    ## See [std-collections.deque.len](../../spec/std/collections.md#r-std-collections.deque.len).
     pub fn len(self) -> usize:
         self.count
 
+    ## True exactly when the deque has no elements.
+    ## See [std-collections.deque.len](../../spec/std/collections.md#r-std-collections.deque.len).
     pub fn is_empty(self) -> bool:
         self.count == 0
 
+    ## Adds `value` after the back.
+    ## See [std-collections.deque.push](../../spec/std/collections.md#r-std-collections.deque.push).
     pub fn push_back(mut self, value: T) -> void:
         self.reserve_one()
         self.slots[self.slot(self.count)] = .Some(value)
         self.count = self.count + 1
         self.version = self.version + 1
 
+    ## Adds `value` before the front.
+    ## See [std-collections.deque.push](../../spec/std/collections.md#r-std-collections.deque.push).
     pub fn push_front(mut self, value: T) -> void:
         self.reserve_one()
         self.head = self.slot(self.slots.len() - 1)
@@ -426,6 +518,8 @@ impl[T] Deque[T]:
         self.count = self.count + 1
         self.version = self.version + 1
 
+    ## Removes the front element and returns it in `.Some`, or `.None` when the deque is empty.
+    ## See [std-collections.deque.pop](../../spec/std/collections.md#r-std-collections.deque.pop).
     pub fn pop_front(mut self) -> T?:
         if self.count == 0:
             return .None
@@ -436,6 +530,8 @@ impl[T] Deque[T]:
         self.version = self.version + 1
         value
 
+    ## Removes the back element and returns it in `.Some`, or `.None` when the deque is empty.
+    ## See [std-collections.deque.pop](../../spec/std/collections.md#r-std-collections.deque.pop).
     pub fn pop_back(mut self) -> T?:
         if self.count == 0:
             return .None
@@ -446,14 +542,20 @@ impl[T] Deque[T]:
         self.version = self.version + 1
         value
 
+    ## Returns the front element without removing it, or `.None` when the deque is empty.
+    ## See [std-collections.deque.ends](../../spec/std/collections.md#r-std-collections.deque.ends).
     pub fn front(self) -> T?:
         self.get(0)
 
+    ## Returns the back element without removing it, or `.None` when the deque is empty.
+    ## See [std-collections.deque.ends](../../spec/std/collections.md#r-std-collections.deque.ends).
     pub fn back(self) -> T?:
         if self.count == 0: .None else: self.get(self.count - 1)
 
     # The element `index` places from the front; `.None` out of range
     # (r-std-collections.deque.get).
+    ## Returns the element `index` places from the front in `.Some`, so `get(0)` is the front. An `index` that is not less than `len` gives `.None`.
+    ## See [std-collections.deque.get](../../spec/std/collections.md#r-std-collections.deque.get).
     pub fn get(self, index: usize) -> T?:
         if index >= self.count:
             return .None
@@ -518,24 +620,36 @@ impl[T < Debug] Debug for Deque[T]:
 # A set of distinct elements in insertion order
 # (spec/std/collections.md#set), plain hd over a `Map` whose values say
 # nothing.
+## A set holds distinct elements, in the order they were inserted.
+## See [std-collections.set.decl](../../spec/std/collections.md#r-std-collections.set.decl).
 pub data Set[T < Eq & Hash]:
     entries: mut Map[T, bool]
 
 impl[T < Eq & Hash] Set[T]:
+    ## Returns an empty set.
+    ## See [std-collections.set.distinct](../../spec/std/collections.md#r-std-collections.set.distinct).
     pub fn new() -> mut Set[T]:
         let entries: mut Map[T, bool] = {}
         Set::[T] { entries: entries }
 
+    ## Returns the number of elements.
+    ## See [std-collections.set.len](../../spec/std/collections.md#r-std-collections.set.len).
     pub fn len(self) -> usize:
         self.entries.len()
 
+    ## True exactly when the set has no elements.
+    ## See [std-collections.set.len](../../spec/std/collections.md#r-std-collections.set.len).
     pub fn is_empty(self) -> bool:
         self.entries.len() == 0
 
+    ## True exactly when the set has an element equal to `value`.
+    ## See [std-collections.set.contains](../../spec/std/collections.md#r-std-collections.set.contains).
     pub fn contains(self, value: T) -> bool:
         self.entries.get(value).is_some()
 
     # Adds `value`, and is true when it was not already there.
+    ## Adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
+    ## See [std-collections.set.insert](../../spec/std/collections.md#r-std-collections.set.insert).
     pub fn insert(mut self, value: T) -> bool:
         if self.contains(value):
             return false
@@ -543,6 +657,8 @@ impl[T < Eq & Hash] Set[T]:
         true
 
     # Removes `value`, and is true when it was there.
+    ## Removes the element equal to `value` and returns `true`. When there is none, it changes nothing and returns `false`.
+    ## See [std-collections.set.remove](../../spec/std/collections.md#r-std-collections.set.remove).
     pub fn remove(mut self, value: T) -> bool:
         self.entries.remove(value).is_some()
 
@@ -573,21 +689,31 @@ impl[T < Eq & Hash & Debug] Debug for Set[T]:
 # `items` holds the `count` elements in heap order from slot 0: each one is
 # at least as large as the two at `2 * i + 1` and `2 * i + 2`. Every later
 # slot is `.None`, since the prototype has no `List.pop` yet.
+## A max-heap: `pop` and `peek` see a largest element.
+## See [std-collections.heap.decl](../../spec/std/collections.md#r-std-collections.heap.decl).
 pub data Heap[T < Ord]:
     items: mut List[T?]
     count: usize
 
 impl[T < Ord] Heap[T]:
+    ## Returns an empty heap.
+    ## See [std-collections.heap.len](../../spec/std/collections.md#r-std-collections.heap.len).
     pub fn new() -> mut Heap[T]:
         let items: mut List[T?] = []
         Heap::[T] { items: items, count: 0 }
 
+    ## Returns the number of elements.
+    ## See [std-collections.heap.len](../../spec/std/collections.md#r-std-collections.heap.len).
     pub fn len(self) -> usize:
         self.count
 
+    ## True exactly when the heap has no elements.
+    ## See [std-collections.heap.len](../../spec/std/collections.md#r-std-collections.heap.len).
     pub fn is_empty(self) -> bool:
         self.count == 0
 
+    ## Adds `value` to the heap.
+    ## See [std-collections.heap.push](../../spec/std/collections.md#r-std-collections.heap.push).
     pub fn push(mut self, value: T) -> void:
         if self.count < self.items.len():
             self.items[self.count] = .Some(value)
@@ -602,8 +728,10 @@ impl[T < Ord] Heap[T]:
             self.swap(parent, child)
             child = parent
 
-    # The largest element, removed (r-std-collections.heap.pop).
+    ## Removes a largest element by `Ord` and returns it in `.Some`. On an empty heap, it returns `.None`.
+    ## See [std-collections.heap.pop](../../spec/std/collections.md#r-std-collections.heap.pop).
     pub fn pop(mut self) -> T?:
+    # The largest element, removed (r-std-collections.heap.pop).
         if self.count == 0:
             return .None
         top := self.items[0]
@@ -624,6 +752,8 @@ impl[T < Ord] Heap[T]:
             self.swap(parent, larger)
             parent = larger
 
+    ## Returns a largest element without removing it, or `.None` when the heap is empty.
+    ## See [std-collections.heap.peek](../../spec/std/collections.md#r-std-collections.heap.peek).
     pub fn peek(self) -> T?:
         if self.count == 0:
             return .None
@@ -631,6 +761,8 @@ impl[T < Ord] Heap[T]:
 
     # A new list of the elements in ascending order; the heap is unchanged
     # (r-std-collections.heap.sorted).
+    ## Returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
+    ## See [std-collections.heap.sorted](../../spec/std/collections.md#r-std-collections.heap.sorted).
     pub fn to_sorted_list(self) -> List[T]:
         let copy: mut List[T] = []
         let index: usize = 0
