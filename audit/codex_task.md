@@ -83,16 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q12. CLI Argument Forms: Implementation Versus Spec
-
-A table in `future-work/compiler/cli-forms.md`: every command and
-argument form in `spec/cli/command-line.md` (rule ID, form, expected
-behaviour) against what `compiler/crates/hd_cli` does today (run the
-release binary on a scratch package for each row; record exit code and
-first output line). Mark each row match / differs / missing. Known
-case: `hd run FILE` (M1 kept it; the spec makes it an error) and `hd
-parse` (removed). Docs only. Timebox 30 minutes; push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
