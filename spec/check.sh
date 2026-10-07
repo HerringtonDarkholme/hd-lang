@@ -93,6 +93,10 @@ node --experimental-strip-types "$spec_dir/check-spec-tiers.ts" "$spec_dir" ||
 # syntax, placement, prefixes, and uniqueness fail.
 node --experimental-strip-types "$spec_dir/check-spec-style.ts" "$spec_dir"
 
+# The compiler's stable diagnostic enum is generated from the normative table.
+node --experimental-strip-types "$spec_dir/tools/diagnostic-codes.ts" --check ||
+    fail "compiler diagnostic codes are stale"
+
 # Fuzzer (spec/tools/fuzz): the import gate. Its smoke run against the
 # compiler is `pnpm run fuzz:smoke`.
 node --experimental-strip-types "$spec_dir/tools/fuzz/check-imports.ts" ||

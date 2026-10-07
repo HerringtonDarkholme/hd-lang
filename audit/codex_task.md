@@ -131,4 +131,8 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 
 ## Questions
 
-(none open; the C1 and C2 questions are answered in C2c)
+- **Q9 integration scope.** May the Q9 commit also replace the hand-written
+  `Code` block in `compiler/crates/hd_diag/src/lib.rs` with `mod codes; pub use
+  codes::{Code, Phase};`? The job permits only generated `codes.rs` under
+  `compiler/crates/`, but without that one-line module hook the generated enum
+  cannot become `hd_diag::Code`.

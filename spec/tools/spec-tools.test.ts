@@ -28,6 +28,7 @@ import {
 } from "./spec-glossary.ts";
 import { failures, rewrite, rewriteSummary } from "./spec-rewrite.ts";
 import { run } from "./spec.ts";
+import { generateDiagnosticCodes } from "./diagnostic-codes.ts";
 
 /** Whether this checkout's history holds `rev`; a shallow clone may not. */
 function hasCommit(rev: string): boolean {
@@ -69,6 +70,17 @@ widget
 1. r[lex.gadget.one] A widget may be round and must sit on the left of the gadget line.
 2. r[lex.gadget.two] A gadget is bad. Error: \`unlisted-code\`.
 `;
+
+test("diagnostic code generation keeps spellings and phases", () => {
+  const cases = `path\tphase\texpectation\tspecification
+parse/invalid/bad.hd\tparse\treject:bad-thing\tlang/01-lexical-structure.md#widgets
+`;
+  const generated = generateDiagnosticCodes(README, cases);
+  assert.match(generated, /BadThing,/);
+  assert.match(generated, /Self::BadThing => Phase::Parse/);
+  assert.match(generated, /Self::NeverNamed => Phase::Type/);
+  assert.match(generated, /Self::from_str\(name\)/);
+});
 
 const STD_ITER = `# std.iter
 
