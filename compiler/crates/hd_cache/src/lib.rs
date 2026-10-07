@@ -8,6 +8,9 @@ use std::sync::Arc;
 use hd_base::Hash128;
 use hd_iface::KeyHasher;
 
+pub mod store;
+pub use store::{CacheStore, DiskStore, EntryKind, MemoryStore};
+
 /// The in-memory store: entries by (kind, key), bytes only.
 #[derive(Default)]
 pub struct MemStore {

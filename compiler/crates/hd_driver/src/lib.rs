@@ -231,7 +231,12 @@ impl Run<'_> {
             TaskKind::Ext(ExtTask::Collect) => self.collect(g),
             TaskKind::Ext(ExtTask::Emit(i)) => self.emit(i as usize),
             TaskKind::Ext(ExtTask::Link) => self.link(),
-            TaskKind::Parse(_) => {}
+            TaskKind::Parse(_)
+            | TaskKind::HeaderCheck(_)
+            | TaskKind::TestOverlay(_)
+            | TaskKind::Coherence
+            | TaskKind::InitOrder(_)
+            | TaskKind::Ext(ExtTask::Precompile | ExtTask::RunCase(_)) => {}
         }
     }
 
