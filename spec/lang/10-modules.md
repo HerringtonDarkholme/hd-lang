@@ -1809,11 +1809,27 @@ use std.json.parse
 5. r[module.package.template-helper] A private item that a [template](14-annotations.md#r-annot.template.form) body names is a **template helper**. It follows the signature rules of a public declaration.
 6. r[module.package.template-helper.result] So a template helper function must declare its result type. Omitting it is an error. Error: `missing-result-type`.
 7. r[module.package.template-helper.row] A template helper function without a requirement clause has the empty row, as [`req.row.omitted.empty-pub`](11-requirements-and-suspension.md#r-req.row.omitted.empty-pub) states for a public function.
-8. r[module.package.template-helper.no-binding] A template body must not name a top-level binding.
+8. r[module.package.template-helper.no-binding] A template body must not name a top-level binding. Naming one is an error. Error: `template-names-binding`.
 
 ```text
 pub answer := 42  # error: syntax-error
 ```
+
+```text
+trait Named:
+    fn title() -> string
+
+prefix := "The "
+
+impl[T] Named for T by Structure:
+    fn title() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        prefix + Structure::name()  # error: template-names-binding
+```
+
+Here `MemberCount` is a `Describer` that counts members, as in
+[Templates](14-annotations.md#templates).
 
 > **Why.** A template is instantiated in the target's module, often in
 > another package. Its helpers therefore reach that package's checking

@@ -1,0 +1,8 @@
+# test: a bare trait name in an optional tuple element is an error; the type is written dyn Factory
+# Spec 09 Dynamic Trait Values: trait.dyn.keyword, trait.dyn.keyword.positions.
+
+trait Factory:
+    fn create() -> Self
+
+fn register(entry: (i32, Factory?)) -> void:  # diagnostic: trait-used-as-type
+    pass

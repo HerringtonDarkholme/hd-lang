@@ -1,0 +1,25 @@
+# test: chain is an inherent method of dyn Error, and the free function chain returns the same list
+# Spec std/error Cause Chain: std-error.chain.method, std-error.chain.decl, std-error.chain.order.
+use std.error.{Error, chain}
+use std.testing.assert_equal
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+
+fn texts(errors: List[dyn Error]) -> List[string]:
+    errors.map(fn(error: dyn Error) -> string: error.to_string())
+
+tests:
+    it("the method lists the error, then its causes"):
+        let failure: dyn Error = SaveError.Write("notes.txt", DiskError { free: 0 })
+        assert_equal(texts(failure.chain()), ["cannot save notes.txt", "disk full"], reason="the chain in order")
+
+    it("the free function agrees with the method"):
+        failure := SaveError.Write("notes.txt", DiskError { free: 0 })
+        assert_equal(texts(chain(failure)), ["cannot save notes.txt", "disk full"], reason="a concrete error converts")

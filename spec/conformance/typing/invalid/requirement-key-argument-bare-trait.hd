@@ -1,0 +1,11 @@
+# test: a bare trait name in a requirement key's type argument is an error; the type is written dyn Factory
+# Spec 09 Dynamic Trait Values: trait.dyn.keyword, trait.dyn.keyword.positions.
+
+trait Source[T]:
+    fn read(self) -> T
+
+trait Factory:
+    fn create() -> Self
+
+fn refresh() -> void $ Source[Factory]:  # diagnostic: trait-used-as-type
+    pass

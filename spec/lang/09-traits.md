@@ -478,17 +478,19 @@ The standard library declares the standard error trait `Error` in
 `std.error`.
 
 1. r[trait.error.module] The standard library declares the standard error trait `Error` in `std.error`.
-2. r[trait.error.supertraits] `Error` is dynamically safe and has `Display` and the sealed `Inspectable` as supertraits, as in `trait Error < Display & Inspectable`.
+2. r[trait.error.supertraits] `Error` has `Display` and the sealed `Inspectable` as supertraits, as in `trait Error < Display & Inspectable`.
 3. r[trait.error.defaults] Every member `Error` declares has a default, so an implementation needs no body.
 4. r[trait.error.complete] `impl Error for FsError` is complete when the enum `FsError` implements `Display`, because the compiler supplies `Inspectable` for it.
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
 6. r[trait.error.value-types] A value type may implement `Error`, as an enum or a newtype over `string` does.
-7. r[trait.error.cause] `Error` declares `fn cause(self) -> Error?`, which returns the error that caused this one. Its default returns `.None`.
-8. r[trait.error.chain-methods] `Error` also declares the default methods `fn root_cause(self) -> Error` and `fn find[T < Error](self) -> T?`.
-9. r[trait.error.std-api] What `root_cause` and `find` return, and the error-chain helpers such as `chain`, are standard-library API.
-10. r[trait.error.derive] A data type or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
-11. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
-12. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
+7. r[trait.error.cause] `Error` declares `fn cause(self) -> dyn Error?`, which returns the error that caused this one. Its default returns `.None`.
+8. r[trait.error.dyn-methods] `std.error` gives `dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
+9. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
+10. r[trait.error.dyn-methods.receiver] They are called on a `dyn Error` value, as in `err.find::[FsError]()`. A concrete error converts to `dyn Error` first, as in `let erased: dyn Error = failure`.
+11. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
+12. r[trait.error.derive] A data type or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
+13. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
+14. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
 
 ```text
 use std.error.Error
@@ -505,8 +507,10 @@ fn local() -> void:
 ```
 
 > **Why.** Most errors are enums, which are values without identity, so
-> `Error` has no `AnyRef` supertrait. `find` still works through an erased
-> `Error`, because a method type parameter may take any type argument.
+> `Error` has no `AnyRef` supertrait. `find` still works on an erased
+> error, because a method type parameter may take any type argument. As
+> inherent methods of `dyn Error`, the chain helpers mean the same thing
+> for every error.
 
 See also: [Sealed Traits](#sealed-traits),
 [Error Derivation](14-annotations.md#error-derivation),
@@ -515,12 +519,13 @@ See also: [Sealed Traits](#sealed-traits),
 
 #### Erased Errors
 
-1. r[trait.error.erased] The dynamic trait value `Error` is the erased application error.
-2. r[trait.error.result] A `Result[T, Error]` holds any error that implements `Error`. `?` reaches it by assignability, constructing the dynamic value.
-3. r[trait.error.entry-point] A dynamic trait value satisfies bounds on its own trait and its supertraits. `Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, Error]` is a valid entry point.
-4. r[trait.error.boundary] Like every dynamic trait value, an erased `Error` is not boundary-safe and never crosses a registered boundary.
-5. r[trait.error.convert-first] Code converts an erased `Error` explicitly to a boundary-safe error type first.
-6. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `Error` can recover its concrete error: `downcast_val::[FsError](error)` recovers an enum error, and the inherited `downcast` method recovers a data error.
+1. r[trait.error.erased] The dynamic trait value `dyn Error` is the erased application error.
+2. r[trait.error.result] A `Result[T, dyn Error]` holds any error that implements `Error`. `?` reaches it by assignability, constructing the dynamic value.
+3. r[trait.error.convert] A concrete error value converts implicitly to `dyn Error` wherever a `dyn Error` is expected, as an argument, a binding, or a result.
+4. r[trait.error.entry-point] A dynamic trait value satisfies bounds on its own trait and its supertraits. `dyn Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, dyn Error]` is a valid entry point.
+5. r[trait.error.boundary] Like every dynamic trait value, an erased `dyn Error` is not boundary-safe and never crosses a registered boundary.
+6. r[trait.error.convert-first] Code converts an erased `dyn Error` explicitly to a boundary-safe error type first.
+7. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `dyn Error` can recover its concrete error: `downcast_val::[FsError](error)` recovers an enum error, and the inherited `downcast` method recovers a data error.
 
 ```text
 use std.error.Error
@@ -1610,14 +1615,14 @@ fn print_display(value: dyn Display) -> void $ Console:
 3. r[trait.dyn.keyword] A trait value type is always written with `dyn`. A bare trait name in a type position is an error whose fix-it inserts `dyn`. Error: `trait-used-as-type`.
 4. r[trait.dyn.keyword.positions] The type positions include parameter, result, field, payload, and local annotation types, type arguments, and associated type bindings.
 5. r[trait.dyn.keyword.bare] A trait stays bare where a trait, not a type, is named: a bound, a supertrait list, an implementation header's trait, a requirement key, and a trait-qualified call.
-6. r[trait.dyn.methods] The available methods of the trait and of its transitive supertraits, and the methods of an [inherent `impl dyn` block](#inherent-methods-on-dyn-types), may be called through the value. The concrete type's inherent methods may not.
+6. r[trait.dyn.value-methods] The available methods of the trait and of its transitive supertraits, and the methods of an [inherent `impl dyn` block](#inherent-methods-on-dyn-types), may be called through the value. The concrete type's inherent methods may not.
 
 ```text
 trait Greet:
     fn greet(self) -> string
 
-fn welcome(guest: Greet) -> string:  # error: trait-used-as-type
-    guest.greet()
+fn demo(g: Greet) -> string:  # error: trait-used-as-type
+    g.greet()
 ```
 
 > **Why.** `dyn` marks where a value is boxed and its calls are dispatched
@@ -1670,14 +1675,14 @@ A method that takes `Self` is unavailable, while the rest of the trait
 works:
 
 ```text
-trait Shape:
-    fn area(self) -> f64
-    fn same(self, other: Self) -> bool
+trait Versioned:
+    fn version(self) -> i32
+    fn newer_than(self, other: Self) -> bool
 
-fn check(shape: dyn Shape) -> f64:
-    if shape.same(shape):  # error: dyn-member-unavailable
-        return 0.0
-    shape.area()
+fn audit(record: dyn Versioned) -> bool:
+    if record.version() > 0:
+        return true
+    record.newer_than(record)  # error: dyn-member-unavailable
 ```
 
 > **Why.** A member is judged where it is called, as in Swift 5.7, so one

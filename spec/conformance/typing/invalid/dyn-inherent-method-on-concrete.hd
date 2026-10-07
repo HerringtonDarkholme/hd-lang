@@ -1,0 +1,18 @@
+# test: an inherent method of a dyn type is not a method of a concrete type that implements the trait
+# Spec 09 Inherent Methods On dyn Types: trait.own.dyn-inherent.receiver, trait.own.dyn-inherent.form.
+
+trait Shape:
+    fn area(self) -> f64
+
+impl dyn Shape:
+    fn double(self) -> f64:
+        self.area() * 2.0
+
+data Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(self) -> f64: self.side * self.side
+
+fn report(shape: dyn Shape, square: Square) -> f64:
+    shape.double() + square.double()  # diagnostic: unknown-method

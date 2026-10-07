@@ -1328,7 +1328,7 @@ These rules refine the steps:
 6. r[expr.try.convert.no-combine] `?` never combines an assignability rule with a conversion, and it never chains conversions.
 7. r[expr.try.convert.no-chain] With `impl From[A] for B` and `impl From[B] for C`, a `?` on `Result[T, A]` in a function returning `Result[U, C]` is an error. Error: `invalid-result-propagation`.
 8. r[expr.try.convert.no-injection] With the same implementations, a `?` on `Result[T, A]` in a function returning `Result[U, B?]` is also an error. The conversion to `B` would need an optional injection after it. Error: `invalid-result-propagation`.
-9. r[expr.try.convert.single-rule] Assignability is itself one rule: an `A` that implements the dynamically safe trait `Tr` does not propagate into `Result[U, Tr?]`.
+9. r[expr.try.convert.single-rule] Assignability is itself one rule: an `A` that implements the trait `Tr` does not propagate into `Result[U, dyn Tr?]`.
 10. r[expr.try.convert.only-try] Only `?` calls a conversion. `return .Err(error)` and every other `.Err` construction use ordinary assignability.
 11. r[expr.try.convert.before-defer] The conversion is part of the propagated value, so it runs before any deferred cleanup.
 12. r[expr.try.convert.pure] A conversion neither suspends nor uses a requirement, because `from` has neither.

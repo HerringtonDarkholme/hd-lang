@@ -29,13 +29,13 @@ enum SaveError:
 
 tests:
     it("finds an error two levels down"):
-        failure := AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
+        let failure: dyn Error = AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
         match failure.find::[FsError]():
             .Some(found) => assert_equal(found.to_string(), "not found: app.toml", reason="the innermost cause")
             .None => assert(false, reason="FsError is in the chain")
 
     it("returns the first match, starting with the error itself"):
-        failure := AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
+        let failure: dyn Error = AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
         assert(failure.find::[AppError]().is_some(), reason="the error itself is first in the chain")
         match failure.find::[ConfigError]():
             .Some(found) => assert_equal(found.to_string(), "cannot load app", reason="one level down")
@@ -43,11 +43,11 @@ tests:
 
     it("returns the same reference for a data error"):
         disk := DiskError { free: 0 }
-        failure := SaveError.Write("notes.txt", disk)
+        let failure: dyn Error = SaveError.Write("notes.txt", disk)
         match failure.find::[DiskError]():
             .Some(found) => assert(found is disk, reason="a data error is not copied")
             .None => assert(false, reason="DiskError is in the chain")
 
     it("returns .None when no error matches"):
-        failure := AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
+        let failure: dyn Error = AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
         assert(failure.find::[DiskError]().is_none(), reason="DiskError is not in the chain")

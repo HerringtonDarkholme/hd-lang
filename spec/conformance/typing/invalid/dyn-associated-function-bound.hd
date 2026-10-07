@@ -1,0 +1,12 @@
+# test: a dyn type whose trait has an associated function does not satisfy a bound on that trait, even when it binds every associated type
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.available; Dynamic Safety: trait.dyn.member.assoc-function.
+
+trait Factory:
+    type Item
+    fn count() -> i32
+
+fn total[F < Factory[Item = i32]]() -> i32:
+    F::count()
+
+fn with_function(factory: dyn Factory[Item = i32]) -> i32:
+    total::[dyn Factory[Item = i32]]()  # diagnostic: unsatisfied-trait-bound

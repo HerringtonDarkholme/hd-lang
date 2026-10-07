@@ -1,0 +1,10 @@
+# test: a method with Self outside the receiver is unavailable on a dyn value; the error is at the call
+# Spec 09 Dynamic Safety: trait.dyn.any-trait, trait.dyn.member.self, trait.dyn.member.unavailable.error.
+trait Versioned:
+    fn version(self) -> i32
+    fn newer_than(self, other: Self) -> bool
+
+fn audit(record: dyn Versioned) -> bool:
+    if record.version() > 0:
+        return true
+    record.newer_than(record)  # diagnostic: dyn-member-unavailable

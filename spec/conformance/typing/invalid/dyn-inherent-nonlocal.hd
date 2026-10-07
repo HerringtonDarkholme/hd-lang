@@ -1,0 +1,9 @@
+# test: an inherent impl dyn block outside the module that declares the trait is an error
+# Spec 09 Inherent Methods On dyn Types: trait.own.dyn-inherent.module. The tree's alpha
+# module declares the trait.
+# fixture-package-tree: dyn-inherent-nonlocal/src/beta.hd
+use pkg.alpha.Shape
+
+impl dyn Shape:  # diagnostic: nonlocal-impl
+    fn double(self) -> f64:
+        self.area() * 2.0

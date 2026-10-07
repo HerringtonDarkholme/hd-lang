@@ -1,0 +1,27 @@
+# test: a template body that names a top-level binding is an error
+# Spec 10 Fully Annotated Declarations: module.package.template-helper.no-binding.
+use std.structure.{Structure, Field, Variant, Describer}
+
+trait Named:
+    fn title() -> string
+
+data MemberCount:
+    count: i32
+
+impl[S] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.count = self.count + 1
+        .Ok(())
+
+prefix := "The "
+
+impl[T] Named for T by Structure:
+    fn title() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        prefix + Structure::name()  # diagnostic: template-names-binding

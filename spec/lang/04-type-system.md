@@ -2056,14 +2056,14 @@ gives the rule.
 8. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
 
 ```text
-trait Shape:
-    fn area(self) -> f64
-    fn same(self, other: Self) -> bool
+trait Versioned:
+    fn version(self) -> i32
+    fn newer_than(self, other: Self) -> bool
 
-fn check(shape: dyn Shape) -> f64:
-    if shape.same(shape):  # error: dyn-member-unavailable
-        return 0.0
-    shape.area()
+fn audit(record: dyn Versioned) -> bool:
+    if record.version() > 0:
+        return true
+    record.newer_than(record)  # error: dyn-member-unavailable
 ```
 
 > **Why.** One concrete trait instantiation, such as `Repository[User]`, fixes

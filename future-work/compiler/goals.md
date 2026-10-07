@@ -55,7 +55,9 @@ Detailed design: [README.md](README.md)
   per-trait dynamic-safety gate is dropped (Swift 5.7 style): every trait
   can be a `dyn` type, and members that cannot work dynamically (`Self`
   parameters, associated functions) are unavailable on the `dyn` value,
-  with the error at the call.
+  with the error at the call. Applied in S1d:
+  [Dynamic Trait Values](../../spec/lang/09-traits.md#dynamic-trait-values),
+  [Inherent Methods On `dyn` Types](../../spec/lang/09-traits.md#inherent-methods-on-dyn-types).
 - Generic methods called through a `dyn` value keep one erased body per
   impl and accept any type argument, with no restriction (owner: "it is
   already dyn, keep it erased, i can accept slower dyn"). The erased body

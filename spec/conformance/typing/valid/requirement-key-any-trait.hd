@@ -1,0 +1,9 @@
+# test: a requirement key may name any trait; a member unavailable on its dyn provider is only unavailable through $.use
+# Spec 11 Requirement Keys: req.key.any-trait; Spec 09 Dynamic Safety: trait.dyn.any-trait, trait.dyn.member.assoc-function.
+
+trait Factory:
+    fn create() -> Self
+    fn name(self) -> string
+
+fn build() -> string $ Factory:
+    $.use(Factory).name()

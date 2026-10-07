@@ -1,5 +1,5 @@
 # test: a trait that is not dynamically safe is still implemented and used as a static bound
-# Spec 09 Dynamic Safety: trait.dyn.safe.self, trait.dyn.static-still.
+# Spec 09 Dynamic Safety: trait.dyn.member.self, trait.dyn.any-trait.
 use std.testing.assert_equal
 
 trait Versioned:

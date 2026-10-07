@@ -1,0 +1,8 @@
+# test: a data field's row may name any trait as a key, including one declared later with an associated function
+# Spec 11 Requirement Keys: req.key.any-trait; Spec 03 Module Scope: names.module.order-free.
+
+data Job:
+    callback: fn() -> void $ Factory
+
+trait Factory:
+    fn create() -> Self

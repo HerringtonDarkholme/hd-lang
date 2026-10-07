@@ -19,11 +19,11 @@ enum SyncError:
 
 tests:
     it("the last error of a two-level chain"):
-        failure := SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 }))
+        let failure: dyn Error = SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 }))
         assert_equal(failure.root_cause().to_string(), "disk full", reason="the innermost cause")
 
     it("an error without a cause"):
-        failure := DiskError { free: 0 }
+        let failure: dyn Error = DiskError { free: 0 }
         assert_equal(failure.root_cause().to_string(), "disk full", reason="its own root cause")
 
     it("through an erased Error"):

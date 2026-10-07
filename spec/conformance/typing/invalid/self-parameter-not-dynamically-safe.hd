@@ -1,7 +1,0 @@
-# test: Self outside the receiver makes a trait not dynamically safe
-# Spec 09 Dynamic Safety: trait.dyn.safe, trait.dyn.safe.one-copy, trait.dyn.safe.self, trait.dyn.safe.error.
-trait Versioned:
-    fn newer_than(self, other: Self) -> bool
-
-fn audit(record: dyn Versioned) -> void:  # diagnostic: trait-not-dynamically-safe
-    pass

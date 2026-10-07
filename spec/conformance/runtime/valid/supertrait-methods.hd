@@ -1,5 +1,5 @@
 # test: supertraits require and expose parent implementations
-# Spec 09 Traits: trait.super.satisfy, trait.dyn.methods-supertraits, trait.dyn.supertrait-methods, trait.dyn.widen.
+# Spec 09 Traits: trait.super.satisfy, trait.dyn.value-methods, trait.dyn.supertrait-methods, trait.dyn.widen.
 
 use std.testing.assert_equal
 

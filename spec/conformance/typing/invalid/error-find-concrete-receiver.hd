@@ -1,0 +1,20 @@
+# test: find is an inherent method of dyn Error, so a concrete error converts to dyn Error before the call
+# Spec std/error Root Cause And Find: std-error.dyn-receiver; Spec 09 Error Trait: trait.error.dyn-methods.receiver.
+use std.error.Error
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+
+fn free_space(failure: SaveError) -> i64?:
+    let erased: dyn Error = failure
+    if erased.find::[DiskError]().is_none():
+        return .None
+    match failure.find::[DiskError]():  # diagnostic: unknown-method
+        .Some(disk) => .Some(disk.free)
+        .None => .None

@@ -1,5 +1,5 @@
 # test: AnyRef-bounded and row-parameter methods keep a requirement key dynamically safe
-# Spec 11 Requirement Keys: req.key.dynamically-safe; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param, trait.dyn.safe.row-parameter.
+# Spec 11 Requirement Keys: req.key.any-trait; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param, trait.dyn.safe.row-parameter.
 
 trait Visitor:
     fn visit[T < AnyRef](self, value: T) -> void

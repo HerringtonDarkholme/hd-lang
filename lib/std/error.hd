@@ -17,7 +17,7 @@ pub trait Error < Display & Inspectable:
 
 # The cause-chain helpers are inherent methods of `dyn Error`
 # (spec/lang/09-traits.md#r-trait.own.dyn-inherent.form): every error value
-# reaches them, and no implementation can override them (r-std-error.chain-methods).
+# reaches them, and no implementation can override them (spec/lang/09-traits.md#r-trait.error.dyn-methods).
 impl dyn Error:
     ## Returns this error first, then its `cause`, then that error's cause, and so on.
     ## See [std-error.chain.method](../../spec/std/error.md#r-std-error.chain.method).

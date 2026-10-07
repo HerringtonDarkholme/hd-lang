@@ -1,6 +1,6 @@
 # test: a method type parameter keeps a trait dynamically safe whatever its bound, in a trait value and in a requirement key
 # Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param, trait.dyn.safe.row-parameter.
-# Spec 04 Dynamic Safety: types.trait.safe.method-type-param; Spec 11: req.key.dynamically-safe.
+# Spec 04 Dynamic Safety: types.trait.safe.method-type-param; Spec 11: req.key.any-trait.
 
 trait Convert:
     fn convert[T](self, value: T) -> string

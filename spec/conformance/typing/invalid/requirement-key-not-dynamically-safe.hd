@@ -1,8 +1,0 @@
-# test: a requirement key must name a dynamically safe trait
-# Spec 11 Requirement Keys: req.key.dynamically-safe (owner decision TY-15, batch 51b, 2026-10-02).
-
-trait Factory:
-    fn create() -> Self
-
-fn build() -> void $ Factory:  # diagnostic: trait-not-dynamically-safe
-    pass

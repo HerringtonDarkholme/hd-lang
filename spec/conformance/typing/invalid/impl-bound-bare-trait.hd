@@ -1,0 +1,15 @@
+# test: a bare trait name in a trait argument in an implementation's parameter bound is an error; the type is written dyn Factory
+# Spec 09 Dynamic Trait Values: trait.dyn.keyword, trait.dyn.keyword.positions.
+
+trait Source[T]:
+    fn read(self) -> T
+
+trait Marker
+
+data Wrap[T]:
+    value: T
+
+impl[T < Source[Factory]] Marker for Wrap[T]  # diagnostic: trait-used-as-type
+
+trait Factory:
+    fn create() -> Self

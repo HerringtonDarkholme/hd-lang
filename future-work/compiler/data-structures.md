@@ -838,7 +838,10 @@ interner costs nothing but its header.
      `call` indexes the body's `PendingCall` list. M3 visits the list in
      order. For each record it appends that call's `(key, provider)`
      pairs at the end of the body's `extra`, then rewrites the 3-word
-     record in place as `Keys { start, len }`. Appending never moves an
+     record in place as `Keys { start, len }`. When the call's caller is
+     a closure, a pair not bound by a `with` takes its provider `Ref`
+     from the closure's context parameter, which every closure takes
+     (N-I2), so it reads the closure's context bundle by key. Appending never moves an
      earlier word, so every other offset stays valid. The body's
      `extra` is re-frozen once, after its last append.
   2. **Row sweep.** M3 first maps each module-tier item, then each

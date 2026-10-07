@@ -336,7 +336,8 @@ pub struct SolveCx<'a> {
     pub env: &'a ParamEnv,          // the item's elaborated environment
     pub infer: &'a dyn InferRead,   // shallow resolution of inference variables
     pub avail: AvailKey,            // which traits are available in this module
-    pub universe: ImplUniverseId,   // the argument-owned impls this context sees (trait-solver.md §3.2)
+    pub universe: ImplUniverseId,   // the argument-owned impls this context sees (trait-solver.md §3.2);
+                                    // a body's after M1, a HeaderCheck(F)'s from closure(F) at task start
     pub local_vis: LocalVis,        // the local impls visible at this point
     pub memo: &'a mut BodyMemo,     // per-body memo and `met` set; owned by BodyCx
 }
@@ -1347,7 +1348,11 @@ callable (section 5.4).
    caller's own provider for `k`, which its written or solved row now
    holds. A closure's solved row is its own keys plus its solved pending
    parts; it is a plain function of the rows of step 1, since no row
-   variable names a closure, so it needs no fixpoint. M3 appends the `(key, provider)` pairs to the body's `extra` and
+   variable names a closure, so it needs no fixpoint. **A closure
+   caller's provider** for `k` is read from the closure's context
+   bundle, through the context parameter that every closure takes
+   (Codex re-review N-I2): the `Ref` is the closure's context parameter
+   with key `k`, never a provider of the enclosing callable. M3 appends the `(key, provider)` pairs to the body's `extra` and
    patches the call's provider word to point at them. The count of pairs
    was unknown in M2, so the patch is one fixed word pointing at an
    appended range, not words written in place.

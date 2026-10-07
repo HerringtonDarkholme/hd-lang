@@ -1,0 +1,24 @@
+# test: the module that declares a trait gives its dyn type inherent methods, callable on dyn values
+# Spec 09 Inherent Methods On dyn Types: trait.own.dyn-inherent.form, trait.own.dyn-inherent.receiver; Dynamic Trait Values: trait.dyn.value-methods.
+
+use std.testing.assert_equal
+
+trait Shape:
+    fn area(self) -> f64
+
+impl dyn Shape:
+    fn double(self) -> f64:
+        self.area() * 2.0
+
+data Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(self) -> f64: self.side * self.side
+
+fn report(shape: dyn Shape) -> f64:
+    shape.double()
+
+tests:
+    it("an inherent method of the dyn type"):
+        assert_equal(report(Square { side: 3.0 }), 18.0, reason="double of the area")

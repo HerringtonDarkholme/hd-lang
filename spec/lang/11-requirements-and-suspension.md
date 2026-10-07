@@ -470,7 +470,7 @@ fn get_order() -> string $ AppRow + Clock:
 7. r[req.row.alias.duplicate] A key reached twice, directly or through aliases, occurs once in the row, as [`req.row.set.duplicate`](#r-req.row.set.duplicate) states, and is not diagnosed.
 8. r[req.row.alias.in-rows] A row alias is written only in a row after `$`: in a requirement clause, or in a [row slot](#row-slots), as in `$.Context[$ AppRow]`.
 9. r[req.row.alias.type-or-key] A row alias is row-kinded. Using one as a value type, a bound, a type-kinded argument, or a single key, as in `$.use(AppRow)` or `AppRow=value`, is an error. Error: `generic-kind-mismatch`.
-10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used. So `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
+10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used. So `x: dyn Store` is a `dyn Db` value, and `$ Store` is the key `Db`.
 11. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = $ Store[Item = User] + Log`. An ordinary alias of one bound trait, as in `type UserStore = Store[Item = User]`, is that bound key in a row.
 12. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
 13. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
@@ -570,7 +570,7 @@ See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-alias
 3. r[req.key.inspectable] A trait that is `std.inspect.Inspectable` or has it as a direct or transitive supertrait is never a requirement key.
 4. r[req.key.inspectable.error] Writing one as a key is an error reported on the key. That covers a requirement clause, a provider scope, and any other place a key is named. Error: `inspectable-requirement`.
 5. r[req.key.inspectable.bound] Such a trait remains valid as a bound and as a value type.
-6. r[req.key.dynamically-safe] A requirement key must name a [dynamically safe](09-traits.md#dynamic-safety) trait, since its provider is a trait value. A key that names any other trait is an error, reported on the requirement row. Error: `trait-not-dynamically-safe`.
+6. r[req.key.any-trait] A requirement key may name any trait. Its provider is a `dyn` value of that trait, so a member that is [unavailable](09-traits.md#dynamic-safety) on that value is unavailable through `$.use` too.
 
 ```text
 use std.inspect.Inspectable
@@ -583,9 +583,10 @@ fn load() -> void $ Storage:  # error: inspectable-requirement
 
 trait Factory:
     fn create() -> Self
+    fn name(self) -> string
 
-fn build() -> void $ Factory:  # error: trait-not-dynamically-safe
-    pass
+fn build() -> string $ Factory:  # valid: create is only unavailable on the provider
+    $.use(Factory).name()
 ```
 
 > **Why.** The rule keeps provider views attenuated: a provider reached
@@ -625,7 +626,7 @@ fn wrong(id: string) -> User $ Store[Item = Post]:
 3. r[req.key.binding.identity] Two keys are the same key when they name the same trait instantiation and bind the same associated types to the same types. Order does not matter.
 4. r[req.key.binding.identity.example] So `Store[Item = User]` and `Store[Item = Post]` are two keys, as `Repo[User]` and `Repo[Post]` are.
 5. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
-6. r[req.key.binding.value] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `Store[Item = User]` and its `load` returns `User`.
+6. r[req.key.binding.value] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `dyn Store[Item = User]` and its `load` returns `User`.
 7. r[req.key.binding.complete] A requirement key must bind every associated type of its trait, including those that its supertraits declare.
 8. r[req.key.binding.complete.error] A key that leaves one unbound, such as `$ Store` for the `Store` above, is an error, as its trait value type is. Error: `trait-not-dynamically-safe`.
 
@@ -671,7 +672,7 @@ trait Clock
 
 ### Provider Values
 
-1. r[req.use.value.ordinary] A provider value returned by `$.use(K)` is an ordinary value of type `K`.
+1. r[req.use.value.ordinary] A provider value returned by `$.use(K)` is an ordinary value of type `dyn K`.
 2. r[req.use.value.access] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: `mut K` for a mutable requirement trait, readonly `K` otherwise.
 3. r[req.use.value.flow] A provider value may flow anywhere an ordinary value of that type may flow, including fields, collections, closure captures, return values, and suspension frames.
 4. r[req.use.value.outlives-scope] A provider value remains usable after its provider scope ends.

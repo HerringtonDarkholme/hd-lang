@@ -1,0 +1,11 @@
+# test: a bare trait name in a trait argument in a data type's parameter bound, against a trait declared later is an error; the type is written dyn Factory
+# Spec 09 Dynamic Trait Values: trait.dyn.keyword, trait.dyn.keyword.positions; Spec 03 Module Scope: names.module.order-free.
+
+data Pipeline[S < Source[Factory]]:  # diagnostic: trait-used-as-type
+    source: S
+
+trait Source[T]:
+    fn read(self) -> T
+
+trait Factory:
+    fn create() -> Self

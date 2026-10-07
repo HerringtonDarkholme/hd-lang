@@ -1,0 +1,11 @@
+# test: a requirement key whose supertrait has an associated function is valid; the provider's other methods work
+# Spec 11 Requirement Keys: req.key.any-trait; Spec 09 Dynamic Safety: trait.dyn.member.unavailable covers supertraits.
+
+trait Factory:
+    fn create() -> Self
+
+trait WidgetFactory < Factory:
+    fn label(self) -> string
+
+fn build() -> string $ WidgetFactory:
+    $.use(WidgetFactory).label()

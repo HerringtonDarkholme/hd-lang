@@ -1,8 +1,0 @@
-# test: a data field's row is checked against a trait declared later in the module
-# Spec 11 Requirement Keys: req.key.dynamically-safe; Spec 03 Module Scope: names.module.order-free.
-
-data Job:
-    callback: fn() -> void $ Factory  # diagnostic: trait-not-dynamically-safe
-
-trait Factory:
-    fn create() -> Self

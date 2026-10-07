@@ -376,9 +376,12 @@ other's answer. So:
 
 - Every solving context carries an **`ImplUniverseId`** in `SolveCx`: the
   interned, sorted list of the folders in its closure whose `arg_impls`
-  section is not empty. The driver computes it once per context, after
-  M1 builds the closure bit set. Contexts with equal lists share one id,
-  so most modules of a package share one.
+  section is not empty. The driver computes it once per context. For a
+  module's bodies and its test overlay, that is after M1 builds the
+  closure bit set. A `HeaderCheck(F)` does not wait for M1: its universe
+  comes from `closure(F)` when the task starts
+  ([scheduler.md §6.1](scheduler.md#61-tasks)). Contexts with equal
+  lists share one id, so most modules of a package share one.
 - The contexts are a module's bodies, the module's test overlay (its
   closure includes test-only dependencies), a folder's `HeaderCheck(F)`
   (the folder's closure), and a derive instance (its module's).
@@ -1325,7 +1328,8 @@ of making them. A proof entry and a selection entry never share a key.
 ### 9.1 Which Traits Can Be Values
 
 **Every trait can be a `dyn` type** (owner, 2026-10-07, in
-[goals.md](goals.md#summary); the spec change is pending as S1d). The
+[goals.md](goals.md#summary); applied in S1d as
+[`trait.dyn.any-trait`](../../spec/lang/09-traits.md#r-trait.dyn.any-trait)). The
 per-trait dynamic-safety gate of
 [Dynamic Safety](../../spec/lang/09-traits.md#dynamic-safety) is
 dropped, Swift 5.7 style. A trait value type is written `dyn Tr`
@@ -1368,8 +1372,8 @@ is the one remaining per-type gate. Either way the solver's part is the
 same table; only where the error lands differs.
 
 Requirement keys
-([`req.key.dynamically-safe`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.dynamically-safe))
-follow the same per-member rule once S1d lands.
+([`req.key.any-trait`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.any-trait))
+follow the same per-member rule.
 
 ### 9.2 Vtable Shapes
 

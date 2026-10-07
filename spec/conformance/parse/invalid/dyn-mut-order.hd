@@ -1,0 +1,8 @@
+# test: mut precedes dyn; dyn mut Counter is a syntax error
+# Spec 02 Modifiers, Optionality, And Grouping: grammar.type.dyn.mut.
+
+trait Counter:
+    fn bump(mut self) -> void
+
+fn tick(counter: dyn mut Counter) -> void:  # diagnostic: syntax-error
+    counter.bump()

@@ -1,0 +1,12 @@
+# test: a bare trait name in an associated binding's value is an error; the type is written dyn Factory
+# Spec 09 Dynamic Trait Values: trait.dyn.keyword, trait.dyn.keyword.positions.
+
+trait Store:
+    type Item
+    fn load(self) -> Self::Item
+
+trait Factory:
+    fn create() -> Self
+
+fn open(source: dyn Store[Item = Factory]) -> void:  # diagnostic: trait-used-as-type
+    pass
