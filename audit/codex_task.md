@@ -81,6 +81,33 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### Q5. Parse-Gap Repros From lib/std
+
+The new compiler's full parser rejects 19 of the 36 `lib/std` files
+(`cargo run -p hd_driver --example stages`, footprint.md "SK-6"). For
+each distinct construct that fails, write a minimal `.hd` repro under
+`compiler/tests/parse-gaps/` (one construct per file, a comment naming
+the `02-grammar.md` rule and the std file and line it came from). Add a
+`README.md` there: a table of construct, rule, std files affected,
+count. Don't edit `compiler/crates/`. Timebox 30 minutes; push.
+
+### Q6. Fixtures: Stdlib Modules Under 60%
+
+`pnpm run spec coverage` shows `path` 35%, `task` 39%, `host` 40%,
+`format` 41%, `digest` 43%, `num` 46%, `option` 54%, `collections` 55%,
+`ops` 57%, `console` 59%. Raise each to at least 60% the same way as S4
+(runtime-valid fixtures with expected output, citation lines on existing
+fixtures, KNOWN_FAILURES rows for prototype disagreements). Timebox 45
+minutes; push one commit.
+
+### Q7. Profile The Foundation Commit
+
+Run P1 on b4c14e39 (the architecture foundation): the samples, your
+`compiler/bench/` inputs, and the stage driver on `lib/std`
+(`cargo run --release -p hd_driver --example stages`). The bench is now
+`cargo run --release -p hd_driver --example bench N` (not `hd bench`).
+Same report format as P1. Timebox 30 minutes; push.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
@@ -88,7 +115,7 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 
 - Each time a new compiler commit lands on main (`git log -- compiler/`),
   profile it: `hd run` / `hd build` on the samples and on the generated
-  bench (`hd-walk bench N`, or its successor in `hd_driver`) at 3,000 and
+  bench (`cargo run --release -p hd_driver --example bench N`) at 3,000 and
   30,000 lines, cold, warm, body edit, signature edit, comment edit.
   Use `samply` or `cargo flamegraph` if installed, else `perf`-style
   timers already in the driver's counters.
