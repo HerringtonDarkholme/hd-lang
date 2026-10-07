@@ -259,6 +259,17 @@ the topic.
 | TQ-25 | Does a generic parameter accept a NonEscapable argument by default? | No: a parameter opts in, as Swift's `~Escapable` does, so existing generic code stays valid. |
 | TQ-26 | How does a NonEscapable result, as in `fn first_line(file: File) -> Line`, say which parameters it depends on? | No NonEscapable returns for now; later, depend on every NonEscapable parameter, and name them only when a real API needs it. |
 
+**Parked idea: `@pure` functions (owner, 2026-10-07).** An annotation such
+as `@pure` that bans capturing: the function reads and writes no module
+state and captures nothing, directly or through its callees. It came up
+when shared enum data moved to module initialization: requirement-free
+does not mean pure, because a requirement-free function may still write a
+top-level `let`. The owner wants to discuss it together with capturing in
+NonEscapable (how a closure that captures a NonEscapable value is itself
+non-escapable). Considered and rejected for now: making module writes a
+requirement (it propagates through every caller's written signature).
+Not in the spec; nothing depends on it.
+
 ### Closure Shorthand
 
 **Deferred (Pipe Operator PL10, 2026-09-29).** Closures stay
