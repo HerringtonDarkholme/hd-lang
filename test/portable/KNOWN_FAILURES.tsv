@@ -24,7 +24,7 @@ runtime/valid/net-own-provider.hd	the prototype has no capability grants yet (ta
 runtime/panic/defer-block-on-indirect.hd	check rejects with suspension-forbidden-context: the prototype bans block_on transitively in a defer suite; the spec now panics at run time on an indirect call (req.drive.block-on.indirect, flow.defer.block-on.indirect)	S1A
 typing/valid/defer-indirect-block-on-checks.hd	check rejects with suspension-forbidden-context: the prototype bans block_on transitively in a defer suite; the spec rejects only a direct call (req.drive.block-on.direct, flow.defer.block-on.direct)	S1A
 runtime/panic/println-in-default-indirect.hd	check rejects with suspension-forbidden-context: the prototype bans println transitively in a default; the spec now panics at run time on an indirect call (module.console.println-block-on.indirect)	S1A
-cli/build-instantiation-too-deep	`hd build` exits 0 and writes build/debug/shop.wasm: the prototype has no instantiation depth limit and never reports instantiation-too-deep (types.generic.instantiation-depth.error, cli.build.only-errors)	S1A
+cli/build-instantiation-too-deep	`hd build` exits 0 and writes build/debug/shop.wasm: the prototype has no instantiation depth limit and never reports instantiation-too-deep (types.generic.instantiation-depth.error, cli.build.depth-error)	S1A
 typing/invalid/impl-head-projection.hd	check exits 0: the prototype accepts a projection of an impl parameter in an impl head (trait.overlap.head-projection)	S1A
 cli/json-check-modules-checked	the summary of `hd check --format json` has no `modules_checked` field (cli.json.summary.modules-checked)	S1B
 cli/json-diagnostic-fixes	`fixes` is [] for unlisted-entry, whose fix-it the prototype puts only in the message (cli.exe.main-unlisted); its other fix-its' edits hold `span` and `replacement`, not `file`, `start`, `end`, and `text` (cli.json.fix.edit)	S1B
@@ -65,3 +65,4 @@ typing/valid/supertrait-binding-diamond-merge.hd	the prototype does not reduce T
 typing/invalid/supertrait-binding-conflict.hd	the prototype accepts a trait whose supertrait paths bind one associated type to i32 and to string (trait.binding.super.conflict)	S1D
 parse/invalid/variant-result-type-removed.hd	the prototype still parses and checks GADT variant result types (removed 2026-10-07); parse accepts `-> Expr[i64]` (grammar.enum.no-result-type)	S1E
 parse/invalid/variant-type-parameters-removed.hd	the prototype still parses variant-local type parameters, a removed GADT form; parse accepts `Pair[U](...)` (grammar.enum.no-type-params)	S1E
+runtime/panic/fact-evaluation-panics-on-read.hd	the prototype reports the fact expression's own panic (explicit-panic) instead of fact-evaluation-failed (annot.fact.eval.panic-runtime)	S1E

@@ -1,0 +1,20 @@
+# test: a fact that no code reads is never evaluated, so its panic never happens
+# Spec 14 Facts: annot.fact.eval.unread.
+use std.testing.assert_equal
+
+data Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }
+
+fn no_prefix() -> string:
+    panic("no prefix configured")
+
+@style(prefix=no_prefix())
+data Point:
+    x: i64
+
+tests:
+    it("the unread fact never runs"):
+        assert_equal(Point { x: 2 }.x, 2, reason="building and reading a value never evaluates the type's facts")

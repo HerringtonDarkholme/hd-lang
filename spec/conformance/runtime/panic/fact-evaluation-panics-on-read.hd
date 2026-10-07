@@ -1,0 +1,45 @@
+# test: a fact whose expression panics fails at run time, when a derivation first reads it
+# Spec 14 Facts: annot.fact.eval.lazy, annot.fact.eval.panic-runtime.
+use std.structure.{Structure, Field, Variant, Walker}
+
+data Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }
+
+fn no_prefix() -> string:
+    panic("no prefix configured")
+
+trait Label:
+    fn label(self) -> string
+
+data Counter:
+    count: i32
+
+impl[S] Walker[S] for Counter:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.count = self.count + 1
+        .Ok(())
+
+impl[T] Label for T by Structure:
+    fn label(self) -> string:
+        let mut w = Counter { count: +0 }
+        _ := Structure::walk(self, w)
+        match T::facts().find::[Style]():  # panic: fact-evaluation-failed
+            .Some(found) => found.prefix
+            .None => "none"
+
+@derive(Label)
+@style(prefix=no_prefix())
+data Point:
+    x: i64
+
+tests:
+    it("reading the fact panics"):
+        _ := Point { x: 1 }.label()

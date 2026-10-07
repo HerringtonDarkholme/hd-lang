@@ -805,7 +805,7 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 4. r[data.shared.owner] The name after `->` must be the enclosing enum. Any other name is an error. Error: `variant-result-owner`.
 5. r[data.shared.arguments] The constructor call follows ordinary positional/named argument ordering and must initialize each shared parameter without a default. Error: `missing-required-field`.
 6. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
-7. r[data.shared.compile-time] Each variant's constructor expression is evaluated once, at compile time, as a [fact expression](14-annotations.md#r-annot.fact.eval) is, and it must be requirement-free.
+7. r[data.shared.eval-as-fact] Each variant's constructor expression is evaluated once, as a [fact expression](14-annotations.md#r-annot.fact.eval.lazy) is, and it must be requirement-free.
 8. r[data.shared.no-payload] The variant's payload parameters are not in scope in its constructor expression.
 9. r[data.shared.not-stored] Shared data is stored once per variant and never in an enum value, so it adds nothing to a value's size.
 

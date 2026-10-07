@@ -1072,7 +1072,7 @@ tests:
 
 ### Panic Categories
 
-1. r[flow.panic.stable-categories] Stable panic categories are exactly `assertion-failed`, `explicit-panic`, `heap-exhausted`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `stack-exhausted`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-deadlock`, `suspension-forbidden-context`, `suspension-invalid-state`, `suspension-reentrant-poll`, and `time-limit`.
+1. r[flow.panic.stable-categories] Stable panic categories are exactly `assertion-failed`, `explicit-panic`, `fact-evaluation-failed`, `heap-exhausted`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `stack-exhausted`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-deadlock`, `suspension-forbidden-context`, `suspension-invalid-state`, `suspension-reentrant-poll`, and `time-limit`.
 2. r[flow.panic.explicit] The prelude function `panic(message: string) -> never` explicitly causes an `explicit-panic` failure.
 3. r[flow.panic.never] A panic or other abrupt expression is valid in any value-producing arm without affecting the compatible result type of reachable normal arms.
 

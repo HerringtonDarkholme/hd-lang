@@ -1199,7 +1199,7 @@ typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	lang/10-modules.
 runtime/valid/literal-suffix-call.hd	runtime	accept	lang/05-expressions.md#r-expr.suffix.fn-call
 typing/valid/decorator-targets.hd	type	accept	lang/14-annotations.md#r-annot.decorator.targets
 typing/invalid/block-on-in-fact.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.fact.block-on.direct
-typing/invalid/block-on-in-metadata.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.metadata.eval
+typing/invalid/block-on-in-metadata.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.metadata.eval-as-fact
 typing/invalid/strengthened-missing-bound.hd	type	reject:trait-method-signature	lang/14-annotations.md#r-annot.walker.missing-fixed
 typing/valid/derive-without-structure-use.hd	type	accept	lang/14-annotations.md#r-annot.derive.no-use
 typing/invalid/derive-before-function.hd	type	reject:decorator-not-annotator	lang/14-annotations.md#r-annot.decorator.function-derive
@@ -2732,3 +2732,5 @@ typing/valid/supertrait-binding-diamond-merge.hd	type	accept	lang/09-traits.md#r
 typing/invalid/supertrait-binding-conflict.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#r-trait.binding.super.conflict
 parse/invalid/variant-result-type-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-result-type
 parse/invalid/variant-type-parameters-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-type-params
+runtime/panic/fact-evaluation-panics-on-read.hd	runtime	panic:fact-evaluation-failed	lang/14-annotations.md#r-annot.fact.eval.panic-runtime
+runtime/valid/fact-unread-never-evaluated.hd	runtime	accept	lang/14-annotations.md#r-annot.fact.eval.unread

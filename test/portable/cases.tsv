@@ -2761,3 +2761,4 @@ typing/invalid/optional-identity.hd	type
 parse/invalid/dyn-mut-order.hd	parse
 runtime/valid/dyn-inherent-methods.hd	runtime
 runtime/valid/error-chain-method.hd	runtime
+runtime/valid/fact-unread-never-evaluated.hd	runtime

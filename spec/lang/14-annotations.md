@@ -252,8 +252,8 @@ written only with `@value` on the parameter.
 1. r[annot.metadata.places] A field's or variant's metadata is written with `@value` lines on it and with member lines of a trait-less derivation block for its type.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
 3. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[dyn Any]`.
-4. r[annot.metadata.any-value] Any compile-time value may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
-5. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct).
+4. r[annot.metadata.value] Any value that a global may hold may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
+5. r[annot.metadata.eval-as-fact] Each metadata expression is evaluated as a [fact expression](#r-annot.fact.eval.lazy) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct).
 6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
 
 One member or parameter must not contain two metadata values with the same
@@ -1196,14 +1196,17 @@ fn key_for(style: Style, m: Member) -> string:
 3. r[annot.fact.member-metadata] A member's or variant's declaration facts are its member metadata. Those are the values that its decorators attach, in source order, as the type's trait-less derivation block edits them.
 4. r[annot.fact.payload] A payload member's declaration facts are the values of the decorators before its payload parameter.
 5. r[annot.fact.shared] Declaration facts are seen by every derivation of the type. A derivation block's member lines edit them for that block only.
-6. r[annot.fact.eval] A fact expression is evaluated once, at compile time. It must be requirement-free, as defined for [default values](07-functions.md#default-values).
-7. r[annot.fact.eval.panic] A panic while a fact or metadata expression is evaluated is a build error, reported on the expression. Its message names the fact and the panic category. Error: `fact-evaluation-failed`.
-8. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
-9. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
-10. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
-11. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
-12. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
-13. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
+6. r[annot.fact.eval.lazy] A fact expression is evaluated once, at run time, when the program first reads the fact, like a lazily initialized global.
+7. r[annot.fact.eval.unread] A fact that the program never reads is never evaluated.
+8. r[annot.fact.requirement-free] A fact expression must be requirement-free, as defined for [default values](07-functions.md#default-values).
+9. r[annot.fact.value] A fact may hold any value that a global may hold.
+10. r[annot.fact.eval.panic-runtime] A panic while a fact or metadata expression is evaluated is a runtime panic at the read that started the evaluation. Its report names the fact and the original panic category. Panic: `fact-evaluation-failed`.
+11. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
+12. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
+13. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
+14. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
+15. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
+16. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
 
 ```text
 use std.structure.Structure
@@ -1242,8 +1245,8 @@ data Twice:
     id: i64
 ```
 
-14. r[annot.fact.block-on.direct] A call of `std.task.block_on` or `println` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
-15. r[annot.fact.block-on.indirect] Such a call reached through another call while the expression is evaluated panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
+17. r[annot.fact.block-on.direct] A call of `std.task.block_on` or `println` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
+18. r[annot.fact.block-on.indirect] Such a call reached through another call while the expression is evaluated panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
 
 ```text
 use std.task.block_on
@@ -1268,15 +1271,19 @@ data User:
 
 > **Note.** A fact expression may call a function in another file. The
 > [package interface](10-modules.md#r-module.interface.fact-expressions)
-> records each fact's expression and type, and an implementation computes
-> the value when it builds the program. So checking a dependent never
+> records each fact's expression and type, and the running program
+> computes the value on its first read. So checking a dependent never
 > waits for the bodies a fact expression calls.
 
 > **Note.** The panic of an indirect `block_on` or `println` call happens
-> while the build evaluates the fact. So it is reported as
+> while the program evaluates the fact. So it is reported as
 > `fact-evaluation-failed`, by
-> [`annot.fact.eval.panic`](#r-annot.fact.eval.panic), naming
-> `suspension-forbidden-context`.
+> [`annot.fact.eval.panic-runtime`](#r-annot.fact.eval.panic-runtime),
+> naming `suspension-forbidden-context`.
+
+> **Why.** Facts are runtime values so that the compiler needs no
+> evaluator, no evaluation budget, and no cache of fact values. A fact
+> that no derivation reads costs nothing.
 
 ### Walk, Describe, And Build
 
@@ -1373,7 +1380,7 @@ fn demo() -> Config:
 4. r[annot.variant.info] Each variant has a `VariantInfo` value: its name, its zero-based index, its facts, its doc comment, `of_data`, and `shared`.
 5. r[annot.variant.data] A data type's one variant has `of_data` true, and its name and doc comment are the type's.
 6. r[annot.variant.data-facts] That variant's `facts` is empty: a template reads the type-level facts once, through `T::facts()`.
-7. r[annot.variant.shared] `shared` holds the variant's shared constructor data as `(name, value)` pairs, built once at compile time. An unnamed shared parameter is named `_0`, `_1`, and so on.
+7. r[annot.variant.shared-pairs] `shared` holds the variant's shared constructor data as `(name, value)` pairs. An unnamed shared parameter is named `_0`, `_1`, and so on.
 8. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
 
 ```hd
