@@ -117,11 +117,31 @@ as D1's generated code does (§2.2).
 
 ## 12. Emitting From TIR
 
-### 12.1 One Walk Per Instance
+### 12.1 Analysis, Then One Emission Walk
 
 `Emit(inst)` reads the instance's TIR from its module's mapped `tir`
-entry and walks the root block's list in order, with a stack of open
-blocks. For each instruction it:
+entry. It may first run **bounded analysis passes** over the generic TIR
+under the substitution, then it writes Wasm in one walk (Codex review,
+I4). Some choices need facts about later instructions: whether a value
+escapes in a later branch or through an inlined callback, which values
+are live across a loop's back edge, which are live at a suspension
+point. Deciding those during emission alone could be wrong.
+
+- **Analyses.** Use counts, escape bits per allocation, and live sets
+  per block are side tables in the worker's arena, indexed by `Inst`.
+  Liveness is one backward dataflow over the structured blocks, iterated
+  to a fixed point on loops. It is not a scan per suspension point
+  (§14.2). Inlining decisions and the inlined callees' instructions join
+  the analysed region before any choice is made.
+- **Bounds.** Each pass is linear in the instance's instructions times
+  the loop nesting depth, and runs only when the instance has an
+  allocation, a closure, a loop with a candidate, or a suspension point.
+  A trivial instance skips them.
+- **What this is not.** The fixed decision forbids a monomorphized copy
+  of the IR. Side tables and repeated reads of TIR are allowed.
+
+The emission walk then walks the root block's list in order, with a
+stack of open blocks. For each instruction it:
 
 1. substitutes the instance's type arguments into the instruction's type
    (memoized per instance: each distinct generic type is substituted and
@@ -199,13 +219,21 @@ cancel function (§14.6).
 Requirement rows never become type arguments
 ([`req.poly.one-body`](../../spec/lang/11-requirements-and-suspension.md#r-req.poly.one-body)).
 
+- **One key order (Codex review, D1).** Every place that lists a row's
+  keys positionally uses one comparator: the bytes of `canon(K)` (§13.3).
+  That covers the parameters of a signature, the providers of a call,
+  the key ids of a context, and the rows of the `tir` entry. In-run sets
+  sort keys by `Ty` value for fast merges (§4.13.4), so positional data
+  never relies on that order. TIR stores a call's providers as
+  `(key, provider)` pairs (checking-and-tir.md, callee records), and
+  emission sorts the pairs by this comparator once per call site.
 - **A concrete row** (`$ Console + Clock`) adds one parameter per key,
-  in the order of the keys' stable paths. Each is a trait value of the
+  in that key order. Each is a trait value of the
   key's trait (§15.2). A call passes the providers TIR names for it, so a
   provider costs one Wasm argument per key and no allocation.
 - **A row parameter** (`$R`) adds one **context** parameter (mine). A
   context is an immutable linked list of `(key id, provider)` nodes. Key
-  ids are numbered at link time in stable-path order. Looking up a key
+  ids are numbered at link time in the key order above. Looking up a key
   walks the list and takes the first match, which is how an inner
   `$.with` shadows an outer one.
 - **Extension** (`$.with(Logger=...)` around a call that needs `R +
@@ -272,12 +300,12 @@ differ only where the spec or a first-release feature says so.
 | Rule | Debug | Release | Status |
 | --- | --- | --- | --- |
 | counted loops (§12.5) | yes | yes | first release |
-| `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values (§15.1) | yes | yes | first release |
+| `multi` layouts: `Option`, tuples and trait values as several Wasm values (§15.1); `Result` too if the owner extends decision B (open question 23.1-7) | yes | yes | first release |
 | capture-free closures as constants | yes | yes | first release |
 | constant folding and dead branches during the walk | yes | yes | first release |
 | trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | yes | yes | first release (mine) |
 | bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters | yes | yes | open question 1 |
-| scalar replacement: a non-escaping closure, cell or small data value after inlining becomes locals; an escape analysis over the instance's walk, recorded in the emission state | yes | yes | open question 1 |
+| scalar replacement: a non-escaping closure, cell or small data value after inlining becomes locals; an escape analysis in the analysis passes of §12.1, before emission | yes | yes | open question 1 |
 | overflow checks | checked | wrap | spec |
 | hook points (§14.7) | dropped | dropped | emitted only by hook builds (Later) |
 | debug-only checks: closed handles, deadlock reports with frame lists (§14.8) | yes | no | first release |
@@ -353,7 +381,8 @@ A worklist walk, as rustc's collector does:
    The solver's memo is shared across programs of a run.
 5. For each coercion to a trait value, and each evidence choice of a
    `NewVariant`, record the vtable `(type, trait)` and push every method
-   of the trait at that type, supertraits included.
+   of the trait at that type, supertraits included. A method with its own
+   type parameters is pushed as its erased instance (§13.5).
 6. For each `Closure`, push the closure body with the parent's
    arguments.
 7. Record every `CallHost` as an import, and every type whose layout
@@ -369,14 +398,24 @@ parallel.
 
 ```text
 canon(T)      = structural encoding of a type over stable paths, with no IDs
-                (Prim | Adt(path, args) | Tuple(elems) | Optional(T) | Fn(params, result, row keys, suspends) | ...)
+                (Prim | Adt(path, args) | Tuple(elems) | Optional(T) | Fn(params, result, row keys, suspends)
+                 | Erased(evidence index) (§13.5) | ...)
 
-instance_key  = H("inst", item stable path, sub-body index (closures), tir_hash(item),
+instance_key  = H("inst", item stable path, sub-body index (closures),
                   [canon(arg) for each type argument])
 ```
 
-The instance key names the instance. The code entry key (§13.8) adds what
-the emitted bytes depend on.
+The instance key is the instance's **symbol**: its logical name, which no
+body edit changes. Relocations name it, collection dedups by it, and
+folding and link order sort by it. The code entry key (§13.8) adds what
+the emitted bytes depend on, the item's own TIR hash included. At link,
+each symbol resolves to the code entry selected in this build.
+
+An earlier draft put `tir_hash(item)` in the instance key. Then an edit
+to a callee's body changed the symbol that its callers' cached code
+relocates to, while the callers' code keys still hit. Link found a
+missing or stale symbol (Codex review, finding 2). Keeping the body hash
+out of the symbol fixes that without re-emitting every caller.
 
 ### 13.4 The Instantiation Depth Limit
 
@@ -416,8 +455,41 @@ growing type) has no finite instance set.
   The existential payload is erased to `anyref`. The matching arm's code
   calls through the stored vtables, so it is compiled once, not once per
   hidden type.
+- **Generic methods called through a trait value.**
+  [Dynamic Safety](../../spec/lang/09-traits.md#dynamic-safety) allows a
+  method-level type parameter on a dynamically safe trait when its bounds
+  imply `AnyRef`, and asks for one shared body with the bound evidence
+  passed at each call. Examples are `Registry.lookup[T < Error]` and
+  `Inspectable.downcast[T]`. A vtable slot cannot hold one body per
+  concrete `T`, so these methods use **erased instances**, the
+  dictionary passing that the spec's
+  [Shapes and Generic Code](../../spec/lang/04-type-system.md#shapes-and-generic-code)
+  describes:
+  1. The vtable slot holds the impl method instantiated at its concrete
+     self type, with each method type parameter replaced by
+     `Erased(i)`. A value of type `Erased(i)` has the `erased` layout,
+     `anyref`. Every such `T` is a reference type, so nothing is boxed.
+  2. The erased instance takes one extra parameter per bound of each
+     method type parameter: that bound's vtable at the caller's `T`.
+     `T < Inspectable` passes the type id that vtables carry. Operations on
+     a `T` value inside the body call through these parameters, as GADT
+     arms do.
+  3. A call from an erased instance to another generic item passes
+     `Erased(i)` on as a type argument. The callee gets its own erased
+     instance, which takes the same evidence parameters. This chain is
+     bounded by the program's call graph, so it cannot grow types.
+  4. **The caller** is an ordinary monomorphized instance, so its `T` is
+     concrete. `CallDyn` carries the method's type arguments
+     (checking-and-tir.md, `CallDyn`). Collection solves each bound at the
+     concrete `T`, as for `TraitMethod`, and records the vtable constant.
+     Emission passes the vtables and upcasts the `T` arguments to
+     `anyref`. When the result type mentions `T`, emission adds one
+     `ref.cast` to the concrete type, which cannot fail.
+  5. Collection pushes the erased instance of every generic method when
+     it records a vtable `(type, trait)` (§13.2, step 5).
 - **Everything else is static.** A call through a bound on a type
-  parameter is a direct call in every instance.
+  parameter is a direct call in every instance. Erased instances exist
+  only behind a vtable slot and in their own callees.
 
 ### 13.6 Tuples, Arity And `all!`
 
@@ -494,17 +566,49 @@ entry's deduplicated target table
 ([data-structures.md §3.22](data-structures.md#322-codegen-the-instance-table-and-code-entries)).
 
 ```text
-code_key = H("code", toolchain_key, tier, instance_key,
+code_key = H("code", toolchain_key, tier, instance_key, tir_hash(item),
              sorted [(stable path, per-item interface hash)] of every item its TIR names,
+             sorted [layout_hash(T)] of every type the instance lays out,
+             sorted [(impl stable path, impl interface hash)] of every impl collection
+                    selected for it, for calls and for associated-type projections,
+             sorted [(callee instance_key, inline_summary(callee))] of every direct callee,
              sorted [(stable path, tir_hash)] of every item inlined into it)
+
+layout_hash(T)       = H(canonical Wasm layout descriptor of T, and of every type
+                         reachable through its fields), memoized per type per run
+inline_summary(f)    = H("no-inline") when the trivial-inlining test (§12.6) fails on f's TIR,
+                       else H("inline", tir_hash(f)); stored per item in the `tir` entry
 ```
 
-- The interface hashes carry layouts: a field added to a `data` type in
-  another module changes that type's item hash, so every instance that
-  touches the type re-emits. Function bodies of callees do not affect a
-  caller's bytes, because calls are relocations.
+**The dependency set is what collection and emission read, not what the
+generic TIR names.** Generic TIR does not name the concrete types,
+projected associated types and impls that appear under a substitution
+(Codex review, A4). Collection already finds all of them for this
+instance before `Emit` runs, so the key is computed from collection's
+record of the instance:
+
+- **Type arguments and laid-out types.** `layout_hash` covers a field
+  added to `User` even when `User` reaches the instance only as a type
+  argument of an unchanged generic body.
+- **Selected impls.** A trait call or a projection resolved at the
+  concrete type names the selected impl. Its interface hash covers its
+  method signatures and associated-type bindings.
+- **Callees.** A call is a relocation to the callee's symbol, so a
+  callee's body does not reach the caller's bytes. Its signature does,
+  through its interface hash, and so does the decision whether to inline
+  it. `inline_summary` changes only when a callee's body changes and the
+  callee is or becomes small enough to inline. So a body edit to a large
+  callee re-emits no caller.
+- **Runtime helpers** are generated by the compiler, so `toolchain_key`
+  covers them.
+
+The key completeness tests (§21.4) cover each of these reads. Any new
+read that emission adds must join this list in the same change. Verify
+mode then checks it on every hit (§5.6).
+
 - An edit to one private function re-emits its own instances, plus the
-  instances that inlined it. Every other code entry is shared by `main`,
+  instances that inlined it, plus callers for which it became inlinable
+  or stopped being inlinable. Every other code entry is shared by `main`,
   the tests and other worktrees.
 
 ### 13.9 What Instances Cost

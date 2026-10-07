@@ -20,6 +20,8 @@ Part of the [compiler design](README.md).
 | 23.1-6: a panic in the REPL | the session continues; the input adds no binding (orchestrator's call) |
 | 23.2-7: the 5 ms start target | it counts instantiation to first output, not process start (orchestrator's call) |
 
+The Codex review of 8bb6860d and each finding's verdict: [codex-review-response.md](codex-review-response.md).
+
 ## 10. Open Questions For The Owner
 
 Settled by the owner on 2026-10-07 and used above, not asked again: no
@@ -175,6 +177,17 @@ editing D1 in place:
    does to the session. **Recommendation:** report it and keep the
    session; the panicking input adds no binding, and mutations it made
    before the panic remain. The spec pass adds a rule.
+7. **Extend decision B to `Result`?** (new, 2026-10-07, from Codex
+   finding 1.) Decision B removed the identity of `.Some` and of boxes.
+   `Result` is still an enum whose every `.Ok` and `.Err` has its own
+   identity, so it is laid out as one struct per construction
+   (wasm-layout.md §15.2). That costs one allocation of about 16 to 24
+   bytes per fallible call whose result is not scalar-replaced, which
+   `?`-heavy code pays on every call. **Recommendation:** extend B:
+   `.Ok` and `.Err` have no identity, and `is` on two `Result`s
+   compares tags and then payloads, as for optionals. Then `Result`
+   uses the `multi` layout `(i32 tag, T', E')` and allocates nothing.
+   No known program compares `Result`s by identity.
 
 ### 23.2 Inconsistencies Found In The Inputs
 

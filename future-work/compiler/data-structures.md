@@ -396,9 +396,16 @@ pub struct SpanIdx(u32);   // body-local: an index into the body's span column, 
   file's line table (§3.11).
 - A body stores spans as `NodeIdx` (TIR's `syn` column) or as `SpanIdx`
   into its own `(lo, hi)` columns. The file is implied by the body.
-- In a cache entry a span is a byte range in the entry's own module file,
-  or `(file path index, lo, hi)` into the entry's path table for another
-  file (§3.20.2).
+- In a cache entry whose key includes the file's `source_hash` (`check`,
+  `tir`, `code`), a span into that file is a byte range.
+- **Relative spans (Codex review, A3).** Every other span on disk is
+  `(declaration path row, lo, hi)`, with offsets from the start of that
+  declaration. That covers every span in an `iface`, `coh` or `init`
+  entry, whose keys ignore positions, and a `check` span into another
+  file. Output resolves it through the file's `locs` entry
+  ([cache.md §5.3](cache.md#53-key-composition)). So a blank line added
+  above a declaration changes no semantic key and leaves no stale line
+  number.
 - Doc tests map their spans back to the `##` line that holds them
   ([`cli.test.doc.location`](../../spec/cli/command-line.md#r-cli.test.doc.location)).
 - Offsets are `u32`, so a file is at most 4 GiB. The practical limit is
@@ -696,6 +703,13 @@ storage:
   its fields stays one struct: a task node (§3.21), a relocation
   (§3.22), a manifest record (§3.20.3). Splitting them would add a load
   per field and buy nothing.
+- **Measured, not mandated (Codex review, I5).** Columns win for scans:
+  the call scan over `tags`, the type sweep over `ty`. A mixed-access
+  table, where one step reads a tag, its payload, its type and its span
+  together, may be a small array of structs instead. Slice 3 measures the
+  checker's hot tables both ways and keeps the faster. Per-record sizes
+  come from size asserts. Per-line sizes and nanosecond figures assume
+  typical code and hot cache lines; they are estimates.
 
 **Building blocks** in `hd_base`:
 
@@ -736,20 +750,31 @@ interner costs nothing but its header.
   guarantees (CA-05, §3.10.4).
 - The parser's event vector is the same pattern: recovery truncates the
   events of a failed attempt.
-- **Writes after the fact** are allowed in three places only, each a
+- **Writes after the fact** are allowed in these places only, each a
   fixed-size word or a column written once: the final type sweep
   rewrites `ty`; `finish` fills the capture-mode column from the
   checker's solution (§3.18, type-checking.md §17 item 8); M3 fills the
   provider lists of calls to private callees whose rows were omitted
-  (§4.13.1). None moves an instruction.
+  (§4.13.1); a `close_*` call writes the label row of the loop or block
+  it closes; and a **reserved slot** is filled once. None moves an
+  instruction.
+- **Reserved slots (Codex review, I2).** The checker does not always
+  check in evaluation order. It may postpone an argument, look at a right
+  operand first, or learn an arm's coercion only at the join. A block's
+  list is evaluation order, not append order, so the builder hands out a
+  slot in the open block's list (`reserve`) and the checker fills it
+  later (`fill`). A slot can hold an instruction, a coercion of an arm's
+  tail, or a callee record of a stalled method call. Every slot is filled
+  before `finish`, and the verifier rejects an empty one. Slots live on
+  the scratch stack, so rollback truncates them like everything else.
 
 ```rust
 #[derive(Copy, Clone)]
 pub struct TirCheckpoint {          // the builder's part; the checker adds its own (type-checking.md §3.5)
     insts: u32, extra: u32, scratch: u32, locals: u32, captures: u32,
-    subs: u32, side_susp: u32, side_origin: u32, side_hole: u32, local_pool: u32,
+    subs: u32, labels: u32, side_susp: u32, side_origin: u32, side_hole: u32, local_pool: u32,
 }
-const _: () = assert!(core::mem::size_of::<TirCheckpoint>() == 40);
+const _: () = assert!(core::mem::size_of::<TirCheckpoint>() == 44);
 ```
 
 #### 3.9.6 One Schema, Generated Accessors
@@ -1440,8 +1465,8 @@ exact-size copy per body in the module result:
 | captures: `cap_local`, `cap_mode` | | 5 per capture | emission of closures |
 | side: suspension points, origins, hole candidates | sorted by `Inst` | 12 to 16 per row | suspension lowering, tools |
 
-**Identity.** `Inst`, `LocalId`, `SubId`, `CaptureId` are body-local
-`u32`s. A `Ref` is an `Inst` below 2^31, or a global pool constant with
+**Identity.** `Inst`, `LocalId`, `SubId`, `CaptureId` and `LabelId` are
+body-local `u32`s. A `Ref` is an `Inst` below 2^31, or a global pool constant with
 bit 31 set, so constants need no instruction and no column (mine).
 
 **Lifetime and owner.** The worker's columns, truncated to empty at each
@@ -1601,17 +1626,18 @@ instruction references and `extra` words that are not IDs are copied.
 
 ```rust
 #[repr(C)]
-pub struct ManifestRecord {     // 80 bytes; one per file, sorted by path bytes
+pub struct ManifestRecord {     // 88 bytes; one per file, sorted by path bytes
     path: Range32,              // into the manifest's string area
     size: u64,
     mtime_ns: i64,              // nanoseconds since the epoch; covers years 1678 to 2262
+    ctime_ns: i64,              // change time; no user API can set it (cache.md §5.5)
     inode: u64,
     source_hash: Hash128,
     api_text_hash: Hash128,
     uses: Range32,              // into the use-path area: module paths this file's non-test uses reach
     role: u8, _pad: [u8; 7],
 }
-const _: () = assert!(core::mem::size_of::<ManifestRecord>() == 80);
+const _: () = assert!(core::mem::size_of::<ManifestRecord>() == 88);
 ```
 
 - One file, `build/.hd/manifest`, in the container format of §3.20.1
@@ -1627,7 +1653,7 @@ const _: () = assert!(core::mem::size_of::<ManifestRecord>() == 80);
 | --- | --- | --- |
 | `iface` | §3.16 | 40 B per public line |
 | `check` | `diags`; `init_summary` (per function: read bindings, calls, dispatched methods, as path rows); `row_results` (per private callee: solved keys); `facts` (the program-database records); `module_meta` (counts, `poisoned`) | 2 to 20 KB |
-| `tir` | `bodies` (per body: item path, kind, column ranges, TIR hash, dependency range: 48 B); `tags`, `data`, `ty`, `span_lo`, `span_hi`, `extra`; `local_*`, `sub_*`, `cap_*`; side tables; `deps` (path row, item interface hash) | about 210 B per line |
+| `tir` | `bodies` (per body: item path, kind, inline summary bit, column ranges, TIR hash, dependency range: 48 B); `tags`, `data`, `ty`, `span_lo`, `span_hi`, `extra`; `local_*`, `sub_*`, `label_inst`, `cap_*`; side tables; `deps` (path row, item interface hash) | about 210 B per line |
 | `check-test` | `diags`, `registrations` (name text, body path) | small |
 | `coh`, `init`, `pkgres` | `diags` plus a few rows | small |
 | `depfiles` | manifest-like records without stat fields | 56 B per file |
@@ -1848,7 +1874,12 @@ measures.
 | **Total** | | **about 13 MB** | **about 22 MB** | **about 60 to 80 MB** |
 | **Target** | goals.md | **50 MB** (warm check) | none set | none set |
 
-- **Warm check margin: about 37 MB.** The largest risks are the binary's
+- **Status: an estimate, not a measurement.** The rows are computed from
+  the size asserts and the stated assumptions. Process RSS also holds
+  maps, memo tables, thread stacks and touched pages that only a
+  measurement shows. The `resources` script measures it in slice 4
+  (build-order.md §9.1).
+- **Warm check margin: about 37 MB, by estimate.** The largest risks are the binary's
   pages, which `startup` measures, and the solver memo, which grows with
   distinct goals and is bounded by the program, not by time.
 - **Startup (≤ 10 MB).** Pre-seeded symbols, paths and types are static

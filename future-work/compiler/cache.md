@@ -32,6 +32,7 @@ so `obj/` needs a spec change. That is open question 1.
 | `init` | one folder's statement order and its diagnostics | `InitOrder` | output, D2 |
 | `pkgres` | the package's sorted diagnostics and summary counts | `PackageResult` | the warm fast path |
 | `depfiles` | a fetched dependency's file list with content and api text hashes | first use of the dependency | every later run (§5.5) |
+| `locs` | one file's declaration table: stable path to byte offset and line, keyed by `source_hash` | the parse or skim of a changed file | output, to resolve relative spans (§5.3) |
 | `code`, `link`, `cwasm` | Wasm per instance, per program, and precompiled per engine (§11.2) | D2 | D2 |
 
 **Fact records** (the program-database hook,
@@ -48,7 +49,10 @@ Every key is `H(kind tag, fields...)` over canonical bytes, with xxh3-128.
 
 ```text
 toolchain_key = H("tc", compiler build id, std pack hash, target ("wasm32-gc"),
-                  host profile table hash, cache layout version, hash algorithm id)
+                  host profile table hash, cache layout version, hash algorithm id,
+                  semantic limits hash)
+
+manifest_key  = H("manifest", normalized semantic project configuration, manifest diagnostics hash)
 
 iface_key(F)  = H("iface", toolchain_key, package key, folder path,
                   sorted [(module path, role, api_text_hash) for each file of F],
@@ -70,16 +74,42 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
                   file, sorted dependency keys, command mode)
 ```
 
-- **Package key.** `root` for the package being built, never its path.
+- **Package key.** `H("root", manifest_key)` for the package being built,
+  never its path.
   A fetched dependency is `HOST_PATH@VERSION` plus its tree hash. A path
   dependency is its workspace-relative path plus its own file hashes.
+- **The semantic project configuration (Codex review, A1).**
+  `manifest_key` hashes what the manifest changes about checking and
+  building: the package name, the resolved dependency bindings (name to
+  package key), the executables and their roles, the required toolchain
+  version, and the hash of the manifest's diagnostics. Fields that change
+  nothing, such as the description, are left out. The root package key
+  holds it, so it reaches every `iface`, `check` and `fast_key` key, and
+  through `tir` keys the `prog_key` and code keys. A rename changes the
+  printed `TypeId` names, so it must miss. A semantic manifest edit is
+  rare, so rechecking everything after one costs little.
+- **Manifest errors come first.** `hd check` step 1 (§7.1) reports a
+  manifest error and stops before any cache lookup. So no cached success
+  can hide a broken manifest.
+- **Semantic limits (Codex review, A2).** The effective values of the
+  limits in §4.15 that decide acceptance (body fuel, resolution depth,
+  type size, nesting, instantiation depth) are hashed into
+  `toolchain_key`. Today they are fixed defaults. If a flag or variable
+  ever sets one, the effective value enters the key whatever its source.
+  Thread count, output options and the opt-in memory cap are not
+  semantic and stay out.
+- **Interrupted work is never cached.** A task stopped by cancellation or
+  by the memory cap writes no entry. Only a completed computation,
+  including one that ran out of fuel, is published.
 - **Command mode** is the set of options that change what is checked:
   `--tests`, `--all`, a FILE scope. Output options (`--format`,
   `--max-errors`) are not in keys, since entries hold structured
   diagnostics and rendering happens at output.
 - **What a key never contains** (lesson 9): absolute paths, the working
-  directory, the `hd` binary's location, mtimes, user names, environment
-  variables, thread counts, run IDs. The path-independence test checks one
+  directory, the `hd` binary's location, mtimes, user names, thread
+  counts, run IDs, and environment variables that do not change the
+  result. An input that changes the result is hashed by its effective
+  value, whatever supplied it. The path-independence test checks one
   package from two checkout paths and compares every key byte for byte.
 - **What changing an input reaches** (lesson 1 and TypeScript #64552): the
   std version, the target and the host profile table are in
@@ -92,6 +122,26 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
   interface handles its key names. It cannot reach the file system or
   another module's source, so it cannot read an input its key misses
   ([Q2](research.md#recommendation-1)).
+- **Suggestions too (Codex review, A7).** Diagnostic help searches only
+  keyed inputs: std (in `toolchain_key`) and the folders the module's
+  key names. A "did you mean" or "add `use`" suggestion for a trait in a
+  folder outside the key is not offered in the first release. A
+  package-wide suggestion index with its own hash in the key is a later
+  option. [type-checking.md §10.5](type-checking.md#105-fix-its-for-common-mistakes)
+  follows this rule.
+- **Locations are not semantic (Codex review, A3).** `iface_key` and
+  `coh_key` ignore source positions, so a whitespace edit or a longer
+  body above a declaration keeps them. Entries under such keys therefore
+  store no absolute position. A span in an `iface`, `coh` or `init`
+  entry, and a span in a `check` entry that points into another file,
+  is relative: a declaration's stable path plus an offset within that
+  declaration
+  ([data-structures.md §3.7](data-structures.md#37-spans-and-files)).
+  Output resolves it through the current file's declaration table,
+  which the `locs` entry holds per file, keyed by the file's
+  `source_hash`. Any file whose bytes changed is parsed in this run, so
+  its `locs` entry exists. rustc's incremental mode keeps spans relative
+  to their item for the same reason.
 
 ### 5.4 Entry Format And Atomic Publish
 
@@ -110,8 +160,10 @@ obj/
   ([data-structures.md §3.20](data-structures.md#320-cache-entries-and-the-manifest)). A reader checks all of
   them. A mismatch, such as a truncated or corrupt file, counts as a miss,
   and the file is deleted.
-- **Publish:** write to `$HD_CACHE/tmp/<random>`, flush, rename to the
-  final path. On a platform where rename does not replace, an existing
+- **Publish:** write to `$HD_CACHE/tmp/<random>`, close, rename to the
+  final path. There is no `fsync`: a crash can lose a recent entry, and a
+  torn one fails its checksum and is a miss. A cache entry is never the
+  only copy of anything, so durability is not worth a sync per entry. On a platform where rename does not replace, an existing
   final file wins. Entries are immutable, and two writers of one key write
   the same bytes, so a lost race costs only the duplicate work.
 - **No locks on reads.** Readers open and map files. Writers never modify
@@ -133,7 +185,7 @@ pub struct Manifest {            // build/.hd/manifest, one per package per work
     pub files: Vec<ManifestFile>, // sorted by path
 }
 pub struct ManifestFile {
-    pub path: RelPath, pub size: u64, pub mtime_ns: i64, pub inode: u64,   // 80-byte record (§3.20.3)
+    pub path: RelPath, pub size: u64, pub mtime_ns: i64, pub ctime_ns: i64, pub inode: u64,   // 88-byte record (§3.20.3)
     pub source_hash: Hash128, pub api_text_hash: Hash128,
     pub uses: Vec<ModulePath>,   // for the folder graph and --affected, without reading the file
     pub role: FileRole,
@@ -145,17 +197,38 @@ pub struct ManifestFile {
    walk finds but the manifest lacks is new (Gleam #4320).
 2. **Stat** every file. The research's `io-per-check` target expects
    stats proportional to the file count.
-3. **Trust** a record when size, mtime and inode are equal, and the mtime
-   is earlier than `written_at`. A file whose mtime is at or after
-   `written_at` is "racily clean" and is hashed anyway (git's rule). This
-   covers same-second writes on file systems with coarse timestamps.
-4. **Hash** every other file. A restored file with an old mtime has a
-   different inode or size, or its content hash decides.
-5. **Write** the manifest atomically at the end of the run if anything
+3. **Trust** a record when size, mtime, change time (`ctime`) and inode
+   are all equal, and both times are earlier than `written_at`. A file
+   with a time at or after `written_at` is "racily clean" and is hashed
+   anyway (git's rule).
+   - **Why `ctime`** (Codex review, finding 9). An in-place rewrite of
+     the same length, followed by restoring the old mtime, keeps size,
+     inode and mtime. No API lets a user set `ctime`: every write and
+     every `utimes` call sets it to the current time. So that edit
+     changes `ctime`, and the file is hashed. Git's index records `ctime`
+     for the same reason. On Windows, NTFS's change time plays the same
+     role, read for a whole directory per call.
+   - **`written_at` comes from the file system.** It is the mtime that
+     the file system stamps on a probe file created at the start of the
+     run, before any source is read. It therefore has the same clock and
+     granularity as the files it is compared with. An edit made while the
+     run reads files has a later time, and is hashed next run.
+   - **Stat, read, stat.** When a file is read and hashed, its metadata is
+     taken before and after the read. If they differ, the file changed
+     while it was read: its record is not written, so the next run hashes
+     it again.
+4. **Hash** every other file.
+5. **Where stat cannot decide.** A file system without a change time
+   (FAT, some network mounts) gets no trusted records: every file is
+   hashed every run. Hashing 350 KB costs well under a millisecond; the
+   cost is opening the files. A clock set backwards can still fool the
+   rule, as it fools git. `HD_CACHE_VERIFY=1` hashes every file, so CI
+   never depends on stat.
+6. **Write** the manifest atomically at the end of the run if anything
    changed. A concurrent run in the same worktree may overwrite it; that
    is safe, because every record is verified by stat, and a mismatch means
    re-hashing.
-6. **Dependencies are not stat'ed.** A fetched version is read-only and
+7. **Dependencies are not stat'ed.** A fetched version is read-only and
    verified by its tree hash ([`cli.cache.hash`](../../spec/cli/command-line.md#r-cli.cache.hash)).
    Its file hashes and use lists are a `depfiles` entry keyed by the tree
    hash, computed once per machine.
@@ -182,7 +255,10 @@ the cap, `hd cache gc` runs it on demand, and the cap is configurable.
 - **Automatic eviction.** When the total passes the cap, the run that
   noticed it scans `obj/` after its output is flushed, deletes entries in
   order of oldest use until the total is at most 90% of the cap, and
-  writes the exact total back. A full scan also runs at least once a day
+  writes the exact total back. On `hd check`, `hd test` and `hd run` the
+  work is bounded to about 20 ms per run; a larger eviction continues in
+  later runs or in `hd cache gc`. An agent's command does not wait on a
+  full scan. A full scan also runs at least once a day
   (`obj/gc`), which corrects drift in `size`.
 - **`hd cache gc`** runs the same scan and eviction now, and prints the
   bytes before and after.

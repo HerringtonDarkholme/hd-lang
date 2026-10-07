@@ -38,12 +38,14 @@ $F_f       = (sub final $Suspend_L (struct ... saved locals ... (field $child (m
 Emission builds the state machine from TIR's explicit suspension points;
 TIR itself is not changed (§3.10.1):
 
-1. **Liveness.** For each suspension point, a backward scan of the body
-   finds the locals and values live across it, plus the locals that the
-   `defer` suites of the enclosing `Scope`s read (the point's side record
-   names those scopes). These become frame fields, one field per such
-   value. The scan is layout-independent, so it runs once per body per
-   run and is memoized.
+1. **Liveness.** One backward dataflow over the body's structured
+   blocks, iterated to a fixed point on loops (§12.1), gives the live
+   set at every suspension point at once. It is not a scan per point,
+   which would cost points times instructions. A point's frame fields
+   are its live locals and values, plus the locals that the `defer`
+   suites of the enclosing `Scope`s read (the point's side record names
+   those scopes). The analysis is layout-independent, so it runs once per
+   body per run and is memoized.
 2. **Blocks containing a suspension point** are flattened into a
    dispatch loop (mine): `loop $dispatch { block_n ... block_1 {
    br_table pc } ... case code ... }`. Each basic block of a flattened

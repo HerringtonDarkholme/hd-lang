@@ -136,6 +136,21 @@ Parse(f) ──────┼──────────────┼─�
 
 The second row is the `recheck-precision` target: one module.
 
+**What is counted, and the exceptions** (Codex review, P6). The count is
+module `check` entries computed, the JSON summary's `modules_checked`.
+Other necessary work is not hidden by it, and is reported separately:
+
+- an edit to a top-level statement in a multi-module init group also
+  reruns that folder's `InitOrder`;
+- a private helper named by an exported template, and a body that a fact
+  depends on, can change what dependents check. Their contracts are open
+  in the frontend lane (Codex findings 4 and 6). Until they close, such
+  an edit is outside the one-module target;
+- `hd build` and `hd test` also re-emit the changed instances (§13.8).
+
+The target holds for an edit that changes no exported semantic
+information. Work that correctness needs is never skipped to meet it.
+
 ## 2. Crate Graph
 
 ### 2.1 Crates

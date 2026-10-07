@@ -6,8 +6,21 @@ Part of the [compiler design](README.md).
 
 ### 8.1 The Determinism Matrix
 
-Each case runs over the product of these dimensions. All stdout, stderr,
-JSON lines, cache keys and entry bytes must be identical.
+Each case runs over the product of these dimensions. Two kinds of output
+are compared differently (Codex review, D4):
+
+- **Semantic output must be identical** in every cell: diagnostics,
+  fix-its, exit status, test outcomes, written `.wasm` files, and every
+  cache key.
+- **Entry bytes** must be identical for equal keys. Two runs may write
+  different sets of entries (a warm run writes fewer), so only entries
+  present under the same key are compared.
+- **Operational fields** are compared against the expectation for the
+  cell's cache state, not across states: `modules_checked`, hit and miss
+  counts, timings. A cold run computes every module, and a warm run with
+  no edit computes none.
+- The opt-in memory cap is the one non-deterministic outcome (§4.15). The
+  matrix runs without it.
 
 | Dimension | Values | Catches |
 | --- | --- | --- |
@@ -43,6 +56,11 @@ byte. The edit vocabulary:
 | edit a top-level statement read in a multi-module init group | that module and the folder's init order |
 | edit a doc comment or a comment | nothing |
 | delete a file, then restore it with its old mtime | the right modules both times |
+| rewrite a file in place with the same length (one identifier or literal changed), then restore its old mtime | that module: `ctime` differs (§5.5) |
+| insert blank lines before a declaration that has a header or overlap diagnostic; lengthen a body above a later header | no semantic recheck; every printed line is the new one (§5.3) |
+| rename the package, or change a manifest field that selects executables | everything; a manifest error stops before any cache lookup (§5.3) |
+| update a dependency without editing local files, then `hd test --affected` | the tests of programs that reach the dependency (§7.4) |
+| edit two modules, run `hd test --filter` for one, then `--affected` | the other module's programs still run (§7.4) |
 | move `x.hd` to `x/mod.hd` | the folder's and its dependents' modules |
 | touch without change; rewrite within the same second | nothing; the change is found |
 | change a dependency version in `hd.toml`; change the std version | dependents of that package; everything |
@@ -98,10 +116,24 @@ Program generators are portable tools under `test/`.
 
 - The edit-script fuzzer (§8.2) also builds: after each edit, an
   incremental `hd build` and a clean one must write identical bytes.
-- **Key completeness tests**, one per dependency kind of `code_key`: a
-  field added to a type in another module, a callee's signature changed,
-  an inlined callee's body changed, an impl added that changes nothing
-  (coherence forbids changing a selection), a tier switch. Each must miss
-  exactly the instances that touch it.
+- **Key completeness tests**, one per dependency kind of `code_key`
+  (§13.8): a field added to a type in another module; a field added to a
+  type that reaches an unchanged generic body only as a type argument; an
+  associated-type binding changed in the selected impl; a callee's
+  signature changed; an inlined callee's body changed; a callee becoming
+  small enough to inline; an impl added that changes nothing (coherence
+  forbids changing a selection); a tier switch. Each must miss exactly
+  the instances that touch it.
+- **A non-inlined callee's body edit** (Codex review, finding 2): the
+  caller's code key hits, the callee re-emits, and link resolves the
+  caller's relocation to the new callee entry. The program's output
+  changes accordingly.
+- **Provider order** (Codex review, D1): a function needing two
+  providers, run with the interners ID-shifted so the keys' `Ty` order
+  reverses. The bytes are identical, and each provider is still called
+  in its own slot at run time.
+- **Dynamic generic methods** (Codex review, finding 5): a trait value
+  whose method has its own type parameter, called at two concrete types,
+  and `Inspectable.downcast` through a trait value.
 - Verify mode (§5.6) recomputes `tir`, `code` and `link` entries on hits.
 - `wasmparser` validates every linked module in CI.

@@ -153,12 +153,19 @@ unit tests in at most 1 s warm):
 | `hd.init` of a small test program | 1 to 50 µs |
 | call, poll, `TestRunner` calls | 1 to 5 µs |
 | report into the result slot | under 1 µs |
-| total per case | about 0.1 ms at most, before the test's own work |
+| total per case | about 0.1 ms, before the test's own work (an estimate, not a bound) |
 
 Warm `hd test` on 1,000 unit tests in 100 modules: process start and the
 warm check fast path (about 30 ms), 100 mapped `cwasm` loads (about 1 ms
 each, in parallel), and 1,000 cases over 8 workers. That is well under a
-second. `test-latency` (edit, then `hd test --filter one` in at most
+second **if** each case's init is small. A fresh instance repeats all
+reachable initialization and constant-global allocation. At 2 ms of
+init per case, 1,000 cases cost 2 CPU-s and at least 250 ms of wall
+time on 8 workers. **Status: not established** (Codex review, P8). The
+`unit-test-perf` benchmark fixes its module count, init work per module
+and body work per test, and slice 8 measures store creation, constant
+globals, `hd.init`, teardown and pool reset separately. It also counts
+the executable builds that `hd test` needs first. `test-latency` (edit, then `hd test --filter one` in at most
 300 ms) pays one module's check, the instances whose code keys changed,
 one link, Cranelift for the changed functions, and one case.
 
@@ -177,11 +184,14 @@ cases run in one instance (a first-release feature):
 - **A failure** poisons the instance too. Shrinking runs on the host,
   over the recorded draws. Each shrink attempt replays in an instance;
   passing attempts reuse it, and a failing attempt costs a fresh one.
-- **Parallel cases (mine).** When workers are idle, one property's
-  cases may be split across them, each worker with its own instance and
-  its own range of case numbers. The reported failure is the failing case
-  with the smallest number, and shrinking is serial, so the outcome does
-  not depend on the split.
+- **One property runs on one worker.** Its cases share one instance, so a
+  case can see state that earlier cases left. Splitting the cases across
+  workers would change that history and so the outcome (Codex review,
+  D3). Workers run different properties in parallel instead. Within a
+  property, the instance sequence is a function of the seed and the
+  outcomes alone: a pass keeps the instance, a discard or failure takes a
+  fresh one. So the result does not depend on `--jobs`. The
+  `proptest-perf` target is per worker, so it does not need the split.
 - **Regression file.** Saved streams replay first, and a new failure's
   shrunk stream is written to `__regressions__/`
   ([`std-testing.prop.regression-file`](../../spec/std/testing.md#r-std-testing.prop.regression-file)).

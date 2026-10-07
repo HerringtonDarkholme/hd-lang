@@ -15,8 +15,8 @@ struct or an array element.
 | `i32` | `i32` | `bool`, `char`, integers of 32 bits or less, `usize`, payloadless enums |
 | `i64` | `i64` | `i64`, `u64` |
 | `f32`, `f64` | `f32`, `f64` | floats |
-| `ref` | `(ref $T)` or `(ref null $T)` | data, enums with payloads, `string`, lists, maps, closures, frames |
-| `multi` | 2 to 4 Wasm values | `Option` of a scalar, `Result`, tuples, trait values (§15.2) |
+| `ref` | `(ref $T)` or `(ref null $T)` | data, enums with payloads (`Result` included), `string`, lists, maps, closures, frames |
+| `multi` | 2 to 4 Wasm values | `Option` of a scalar, tuples, trait values (§15.2) |
 | `erased` | `anyref` | the payload of a trait value, `Any`, an existential payload |
 | `void` | none | `void`, `()`, and `never` |
 
@@ -40,7 +40,7 @@ it becomes several fields, or several arrays.
 | `T?`, `T` a non-nullable reference | `(ref null $T)`; null is `.None` | same |
 | `T?`, `T` a scalar | `(i32 tag, T)` | two fields |
 | `T??` and `Option` of a `multi` | a tag plus the inner layout | the same fields |
-| `Result[T, E]` | `(i32 tag, T', E')` | the same fields, flattened |
+| `Result[T, E]` | a flat enum: one struct `{tag, T', E'}` per construction (see "Identity" below) | `(ref $Result_T_E)` |
 | tuple | its elements' values | its elements' fields, flattened |
 | trait value, `Any` | `(anyref, (ref $VT))` | two fields |
 | closure | `(ref $Fn_sig)`: a base struct holding the code as a typed function reference; one subtype per capture shape | same |
@@ -62,7 +62,62 @@ one load and compare.
 16 bits or less become `i31ref`. Wider scalars are boxed in
 `$Box_i32`, `$Box_i64`, `$Box_f32` or `$Box_f64`. This is where the owner's
 "at least `i31ref`" lands: in monomorphized code no scalar is boxed at
-all.
+all. A string is already a reference and is erased as itself. A tuple is
+boxed in one immutable struct.
+
+**Identity (owner decision B, 2026-10-07).** The Codex review (finding 1)
+showed that the rows above broke the spec's allocation identity: the spec
+gives each `.Some(...)` and each primitive-to-`Any` box its own identity
+(`expr.is.some`, `expr.is.box`, `expr.is.box.distinct`). The owner chose
+to change the language instead of the layouts. `.Some` and boxes have no
+identity, and `is` on optionals compares payloads. The spec pass applies
+it; the rule list is in
+[codex-review-response.md](codex-review-response.md#spec-changes-for-the-spec-pass).
+The other option was to keep the spec and allocate one object per `.Some`
+and per box wherever identity could be observed. That costs one 16 to
+24 byte allocation per `.Some` that crosses a call, which `T?`-heavy code
+pays on every lookup. B was chosen because it costs nothing and an
+optional's identity has no known use.
+
+So the layouts follow these rules:
+
+1. **`T?`.** `.Some(x)` is `x` itself for a reference `T` and `(1, x)`
+   for a scalar `T`. Nothing is allocated.
+2. **Boxes.** A primitive, string or tuple converted to a trait value or
+   `Any` is erased as above. Equal small scalars give equal `i31ref`s, and
+   two boxes of one value are two objects. The proposed spec change makes
+   `is` on such values unspecified, as it already is for function values.
+3. **`Result` keeps its identity.** Decision B covers only `.Some` and
+   boxes. `Result` is an ordinary enum, so each `.Ok` and `.Err`
+   construction has its own identity
+   ([`types.sealed.anyref`](../../spec/lang/04-type-system.md#r-types.sealed.anyref)).
+   It therefore uses the flat enum layout: one struct per construction.
+   Scalar replacement may remove that struct only inside one instance,
+   when the value never reaches `is`, a field, a generic `AnyRef`
+   parameter, an erasure or a call (§12.6). Whether to extend B to
+   `Result` is a pending owner question (open question 23.1-7). If the owner
+   says yes, `Result` returns to the `multi` layout `(i32 tag, T', E')`.
+4. **Other enums** keep the flat or subtype layout above. Each payload
+   variant is one struct per construction, so their identity was never
+   at risk.
+
+**Emitting `is`.** The TIR `Is` instruction
+([checking-and-tir.md](checking-and-tir.md#instruction-catalog)) lowers by
+the operands' layout:
+
+| Operand layout | Wasm |
+| --- | --- |
+| `ref` (data, enums, lists, maps, closures, frames) | `ref.eq` |
+| `T?` with a reference `T` | `ref.eq` on the nullable references: null equals null |
+| `T??` with a reference `T`, `T?` with a trait-value `T` | both tags equal, then `is` on the payloads when present |
+| trait value, `Any` | `ref.eq` on the payloads, then the type ids equal |
+
+The type-id test in the last row is needed even for references. A
+payload-free variant of a flat enum erases to the same `i31ref` tag as
+another enum's variant, but the two values are different. `is` on `i32?`
+or `(A, B)?` has no row: under B such an optional has no identity, and
+the proposed spec change makes `is` on it an
+`identity-requires-references` error (see the rule list).
 
 **Arrays.** `Array[T]` is the one compiler-known collection: `(array (mut
 T'))` with `T'` the element layout of the table. An array of a `multi`
@@ -173,7 +228,16 @@ generated for that program, std included (§16.1). The tiny program
 | code: the entry wrapper, the copy loop to the exchange buffer, std's `println` and its panic on a closed pipe | 300 B |
 | data: `hello` | 10 B |
 | `name`, `hd.sites`, `hd.lines`, `hd.runtime` | 300 B |
-| total | about 800 B |
+| total | about 800 B (an estimate, not an accounting) |
+
+**Status: not established.** The table guesses part sizes; it is not a
+byte count of a real module. It may miss the path from `println` to the
+`Console` provider, a `block_on` or suspension helper that path keeps,
+vtable and provider types, the failure path, and the exchange-memory
+exports. Slice 6 starts with a spike that emits the real hello-world
+closure, release metadata included. It reports bytes per section and,
+separately, instantiation to first output. The 2 KB target stands until
+that spike measures it.
 
 What keeps it small:
 

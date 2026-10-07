@@ -90,12 +90,18 @@ Priority only affects speed, never output.
 2. **Local counters.** Inference variables, closure indices and generated
    names are numbered per body or per item, never per session (rustc's
    leaked allocation IDs).
-3. **Streaming in order (mine).** Diagnostics are grouped by module.
-   A release cursor walks modules in content order and prints a module's
-   diagnostics once it and every module before it are finished. An agent
-   sees the first errors early, and the bytes are the same as a run that
-   prints at the end. Folder, coherence and init diagnostics belong to the
-   module of their primary span.
-4. **Cycle diagnostics** name the cycle's first member in source or path
+3. **Print at the end (first release).** Diagnostics are grouped by
+   module and printed, sorted, after every task that can produce one has
+   finished. Folder, coherence and init diagnostics belong to the module
+   of their primary span, and those tasks can finish after the module's
+   own bodies. A per-module release cursor would need a barrier on every
+   such producer (Codex review, D2). A warm check targets 50 ms, so
+   printing at the end costs an agent nothing it would notice. Streaming
+   with complete barriers is a later option.
+4. **Test results do stream.** A release cursor walks cases in content
+   order and prints a case's result once it and every earlier case have
+   finished (§19.3). No later task adds to a finished case, so the cursor
+   needs no other barrier.
+5. **Cycle diagnostics** name the cycle's first member in source or path
    order, whichever thread found it.
-5. **The summary** comes last, with counts over the whole run.
+6. **The summary** comes last, with counts over the whole run.

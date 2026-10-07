@@ -253,6 +253,8 @@ pub struct TirBody {                    // one body in the module result; the wo
     pub sub_params: Col<Range32>,       // a range of `extra` holding parameter LocalIds
     pub sub_parent: Col<SubId>,         // NONE for 0
     pub sub_flags:  Col<u8>,            // SUSPENDS | HAS_ROW
+    // labels, by LabelId: the Loop or Block that a Break or Continue targets, written once at its close
+    pub label_inst: Col<Inst>,
     // captures, by CaptureId; one closure's captures are contiguous
     pub cap_local: Col<LocalId>,        // the outer local
     pub cap_mode:  Col<CaptureMode>,    // u8: Copy | Move | Shared; written once, at finish
@@ -263,7 +265,7 @@ pub struct TirBody {                    // one body in the module result; the wo
 }
 #[derive(Copy, Clone)] pub struct Inst(u32);
 #[derive(Copy, Clone)] pub struct Ref(u32);   // bit 31 clear: an Inst's value; set: a global pool constant (bits 0..30)
-pub struct LocalId(u32); pub struct SubId(u32); pub struct CaptureId(u32);
+pub struct LocalId(u32); pub struct SubId(u32); pub struct CaptureId(u32); pub struct LabelId(u32);
 #[repr(u8)] pub enum TirTag { /* generated from tir.ir */ }
 
 const _: () = assert!(core::mem::size_of::<TirTag>() == 1);
@@ -271,6 +273,15 @@ const _: () = assert!(core::mem::size_of::<[u32; 2]>() == 8);
 const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
 ```
 
+- **Four kinds of reference (Codex review, I1).** The schema types every
+  operand word as one of: a **value** (`Ref`), a **child block** (an
+  `Inst` of a `Block` that this instruction owns), a **label**
+  (`LabelId`), or a **local** (`LocalId`). Metadata words (`DefId`,
+  types, indices) are a fifth, non-reference kind. Def-before-use and
+  visibility (invariant 1) apply to value edges only. A label is
+  allocated when its loop or block opens, before the body, so `Break`
+  and `Continue` never point forward; the label row is written once when
+  the target closes.
 - **Values are instructions.** An instruction's result is its value, used
   by later instructions through a `Ref`. Mutable user bindings are locals
   read with `LocalGet` and written with `LocalSet`.
@@ -302,6 +313,15 @@ const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
 Notation: `a` and `b` are the two data words; `[...]` is a record in
 `extra`. "Join" is the arms' common type by the spec's join rules.
 
+**Coverage (Codex review, I3).** This catalog is not yet proven
+complete. Slice 3's exit includes a coverage table: one row per
+expression and statement form of spec chapters 5 to 14, naming its tag,
+its verifier rule and its emission rule (build-order.md §9). A form with
+no row blocks the checker feature that produces it. Gaps known now:
+`Default` needs the earlier argument values (frontend lane, Codex
+finding 4), and the coercions and evidence choices of
+type-checking.md §17.
+
 **Values, locals and globals**
 
 | Tag | Operands | Type rule |
@@ -323,7 +343,8 @@ Notation: `a` and `b` are the two data words; `[...]` is a record in
 | `And`, `Or` | a: left, b: right `Block` | `bool`; the right block runs only when needed |
 | `Call` | a: `[callee]`, b: `[arguments, providers]` | the callee's result, substituted; `mut Suspend[T]` when the callee suspends and the call is plain (a cold call) |
 | `CallValue` | a: function value, b: `[arguments, context]` | the function type's result |
-| `CallDyn` | a: trait value, b: `[method, arguments]` | the method's result |
+| `CallDyn` | a: trait value, b: `[method, type arguments, arguments, providers]` | the method's result, substituted. The type arguments are the method's own; codegen passes their bound evidence (codegen.md §13.5) |
+| `Is` | a: left, b: right | `bool`. `is` on two `AnyRef` operands; codegen lowers it by layout (wasm-layout.md §15.2) |
 | `CallHost` | a: host method, b: `[arguments]` | the method's result; only in std's provider bodies (§17.1) |
 | `Intrinsic` | a: intrinsic, b: `[type arguments, arguments]` | the intrinsic's declared result |
 | `Default` | a: `DefId` of the parameter or field, b: `[type arguments]` | the parameter's or field's type |
@@ -365,11 +386,16 @@ concrete self type)` to a body that D2 generates per arity or per
 primitive (§13.6), named by the stable path `std.builtin.<trait>` plus
 the canonical self type in its instance key. This is the solver's
 `Evidence::Builtin` (type-checking.md §1.6) written into TIR. **Arguments** are listed in parameter order; their
-instructions were emitted earlier in source order, which is how named
-arguments keep their evaluation order. **Providers** are one `Ref` per
-key of the callee's row in key order, one context `Ref` for a
+instructions appear earlier in the enclosing block's list in source
+order, which is how named arguments keep their evaluation order. When
+the checker postpones an argument, it reserves its slot in the list
+first (data-structures.md §3.9.5). **Providers** are `(key, provider
+Ref)` pairs, one per key of the callee's row, one context `Ref` for a
 row-polymorphic callee, or `Pending(row variable)` until M3 fills it
-(§3.9.5).
+(§3.9.5). Each pair names its key, so no code depends on the in-run
+order of keys. The `tir` writer and codegen order the pairs by
+`canon(K)` bytes, the one key order of codegen.md §12.4 (Codex review,
+D1).
 
 **Suspension and hooks**
 
@@ -420,9 +446,9 @@ it (§14.2).
 | `Loop` | a: body `Block`, b: `[else Block or NONE]` | the join of its `Break` values, or `void` |
 | `ForRange` | a: `[start, end, kind, loop local]`, b: `[body, else]` | as `Loop`; `kind` is half-open, inclusive or from |
 | `ForList`, `ForMap` | a: `[collection, item locals]`, b: `[body, else]` | as `Loop` |
-| `Break` | a: target `Loop` or `Block`, b: value or `NONE` | `never` |
-| `Continue` | a: target `Loop` | `never` |
-| `Return` | a: value | `never` |
+| `Break` | a: target label, b: value or `NONE` | `never` |
+| `Continue` | a: target label of a `Loop` | `never` |
+| `Return` | a: value, or `NONE` for a bare `return` in a `void` body | `never` |
 | `Unreachable` | none | `never`; the default of an exhaustive switch |
 
 An exit (`Break`, `Continue`, `Return`, or falling off a scope) runs the
@@ -494,7 +520,9 @@ pub trait TirSink {
     fn open_scope(&mut self) -> ScopeMark;
     fn defer(&mut self, suite: Ref /* a closed Block */, syn: NodeIdx);
     fn close_scope(&mut self, m: ScopeMark, body: Ref, syn: NodeIdx) -> Ref;
-    fn open_loop(&mut self) -> LoopMark;       // Break and Continue name its LoopMark
+    fn open_loop(&mut self) -> LoopMark;       // allocates the LabelId that Break and Continue name
+    fn reserve(&mut self) -> Slot;             // a position in the open block's list, filled later
+    fn fill(&mut self, slot: Slot, op: SlotFill);  // an instruction, an arm-tail coercion or a callee record; once
     fn open_sub(&mut self, params: &[LocalId]) -> SubMark;    // a closure's body
     fn capture(&mut self, sub: SubMark, outer: LocalId) -> CaptureId;  // first use of an outer local inside it
     fn close_sub(&mut self, m: SubMark, root: Ref, fn_ty: Ty, syn: NodeIdx) -> Ref;  // emits the Closure
@@ -528,6 +556,10 @@ pub struct Solution<'a> {
 - Types may be inference variables while a body is built. `coerce` is
   called where bidirectional checking finds a coercion, so coercions are
   never re-derived later.
+- **Slots.** An arm's tail coercion is decided at the join, after the arm
+  closed. The arm reserves a slot for its tail, and closing the `If` or
+  `Match` fills each arm's slot. `finish` rejects an unfilled slot.
+  [type-checking.md](type-checking.md) says when the checker reserves.
 - `finish` resolves every `ty` to a global type, rejects leftovers,
   writes `cap_mode` from the solution, copies the body's ranges into one
   exact-size `TirBody`, truncates the worker columns, and in debug builds
@@ -537,8 +569,9 @@ pub struct Solution<'a> {
 
 The verifier checks each of these:
 
-1. Every operand precedes its user, and is visible where it is used: in
-   the same block earlier, or in an enclosing block.
+1. Every **value** operand precedes its user, and is visible where it is
+   used: in the same block earlier, or in an enclosing block. Child
+   blocks, labels and locals follow their own rules (5 and 10).
 2. Every instruction is in exactly one block list.
 3. After `finish`, every type is global. `Hole` and `Poison` occur only
    in a module with errors, which D2 does not lower.
@@ -547,7 +580,8 @@ The verifier checks each of these:
    equals the local's type, a `Return` value equals the body's result, a
    `Break` value equals its target's type. Coercions are explicit, so any
    mismatch is a checker bug.
-5. `Break` and `Continue` targets enclose them. `ToArm` is inside its
+5. `Break` and `Continue` labels name a `Loop` or `Block` that encloses
+   them, and each label row is written. `ToArm` is inside its
    `Match`'s decision block. `Defer` is inside its `Scope`.
 6. `Await`, `AwaitValue`, `AwaitAll` and `AwaitRace` occur only in a
    suspending body or closure. No suspension point, `Return`, `Break`,
@@ -566,6 +600,7 @@ The verifier checks each of these:
     type its position expects; no constant is body-local.
 13. A `Builtin` choice names a `BuiltinImpl` whose trait is the callee's
     trait.
+14. No reserved slot is empty after `finish`.
 
 ##### Lifetime And The `tir` Entry
 
@@ -576,9 +611,10 @@ The verifier checks each of these:
   build reads the entry instead of rechecking (§3.10.2).
 - The entry's key is `H("tir", check_key(m))`. It also stores, per item,
   a **TIR hash** (the hash of that item's serialized columns, closures
-  included) and a **dependency list**: the stable paths of the items its
-  TIR names, each with its per-item interface hash. Instance keys use both
-  (§13.8).
+  included), an **inline summary** (whether the item passes the trivial
+  inlining test, codegen.md §13.8), and a **dependency list**: the stable
+  paths of the items its TIR names, each with its per-item interface
+  hash. Code keys use all three (§13.8).
 - Types stay generic (`Param`). D2 never materializes an instance as TIR.
 
 **The wire form** (the `tir` entry's sections,
@@ -587,11 +623,11 @@ The verifier checks each of these:
 | Section | Content |
 | --- | --- |
 | `strings`, `paths`, `types` | the entry's own tables; every `Symbol`, `DefId` and `Ty` in the module's TIR is a row here (data-structures.md §3.20.2) |
-| `bodies` | per body, 48 bytes: item path row, kind, the start of its range in each column below, TIR hash, dependency range |
+| `bodies` | per body, 48 bytes: item path row, kind with the inline-summary bit, the start of its range in each column below, TIR hash, dependency range |
 | `tags`, `data`, `extra` | the instruction columns of every body, concatenated in body order; ID words remapped to entry rows by the generated codec, other words copied |
 | `ty` | type rows |
 | `span_lo`, `span_hi` | byte offsets in the module's file, from `syn`, so emission never needs the syntax tree |
-| `local_*`, `sub_*`, `cap_*`, `susp`, `origin`, `hole` | the other columns, concatenated, IDs remapped |
+| `local_*`, `sub_*`, `label_inst`, `cap_*`, `susp`, `origin`, `hole` | the other columns, concatenated, IDs remapped |
 | `deps` | per body: (path row, item interface hash), sorted by path bytes |
 
 - **Remap, not copy.** Pool indices, `DefId`s and `Symbol`s are run IDs
@@ -627,8 +663,11 @@ no tie falls back to an ID (tsgo #64589). Exact duplicates are dropped.
 - **Re-parse check at emission.** Before a fix-it is marked `Exact`, its
   edits are applied to a copy of the file text, which is re-lexed and
   re-parsed. If the parse gains an error, the fix-it is demoted to
-  `Suggestion`: shown, but never applied. Only the first 20 fix-its per
-  file are verified this way; the rest stay `Suggestion`.
+  `Suggestion`: shown, but never applied. Only 20 fix-its per file are
+  verified this way; the rest stay `Suggestion`. Bodies only collect
+  candidates. `ModuleFinish` sorts a file's candidates by the diagnostic
+  order below, then verifies the first 20, so the choice does not depend
+  on which body finished first (Codex review, D2).
 - **`hd fix`** adds a type check of the result (§7.6).
 - First-release kinds: did-you-mean names, missing `use` lines, `let mut`,
   the folder-cycle move, and the fix-its the spec names. Code-generating
@@ -649,6 +688,9 @@ no tie falls back to an ID (tsgo #64589). Exact duplicates are dropped.
   code and file.
 - **`modules_checked`** in the JSON summary is the number of module
   `check` entries computed in this run, not read from the cache (answer 6).
+  It is an operational field: it differs between a cold and a warm run
+  by design, so the determinism matrix compares it per cache state
+  (testing-the-compiler.md §8.1).
 
 ### 4.15 Limits
 

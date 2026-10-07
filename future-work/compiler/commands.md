@@ -9,8 +9,12 @@ Part of the [compiler design](README.md).
 1. Find the package or workspace ([Package Mode](../../spec/cli/command-line.md#package-mode)).
    Parse `hd.toml`, select dependency versions, verify `hd.sum`, and
    fetch what is missing ([Fetching](../../spec/cli/command-line.md#fetching)).
+   A manifest error is reported here and stops the run, before any cache
+   lookup. Then compute `manifest_key` (§5.3).
 2. Open the session: `toolchain_key`, the embedded std pack (mapped, not
-   decoded), the cache store, the scheduler.
+   decoded), the cache store. The thread pool starts only on a fast-key
+   miss, and no Wasm engine is created by `hd check` at all. `hd
+   --version` and `hd help` return before any of this (Codex review, P4).
 3. Walk and stat the files; diff against the manifest (§5.5).
 4. Compute `fast_key`. On a hit, print the stored `pkgres` and stop.
 5. Build the folder graph from manifest use lists, plus skims of the
@@ -22,7 +26,7 @@ Part of the [compiler design](README.md).
    miss, parse it and run M1 to M3.
 8. Run `Coherence` for traits whose `coh_key` missed, and `InitOrder` for
    folders that need it.
-9. Stream diagnostics in content order; print the summary; write the
+9. Print diagnostics in content order once every task is done (§6.5); print the summary; write the
    `pkgres` entry, the manifest, and possibly run eviction.
 
 Touched: `iface`, `check`, `coh`, `init`, `pkgres`. Dependency bodies are
@@ -62,16 +66,28 @@ research's "dependency bodies skipped" now holds cold as well as warm.
 
 ### 7.4 `hd test --affected`
 
-1. Read `build/.hd/last-test`: the source hash of every module at the last
-   test run, and that run's failing programs.
-2. A module is changed when its source hash differs. Body edits count,
-   because tests run code.
-3. Take the reverse closure of changed modules over the module use graph,
-   built from manifest use lists, test uses included. No file is parsed
-   for this.
-4. Select the test programs whose roots are in the closure, plus the
-   programs that failed last time.
-5. Continue as `hd test` with that plan, and write the new record.
+`build/.hd/last-test` records, per test program, the fingerprint of the
+last run in which **every** case of that program ran and passed. The
+fingerprint is `H(prog_key, test options)`. `prog_key` (§11.3) already
+covers the toolchain, the profile, and the `tir` key of every reachable
+module, and through those keys every source file, dependency, manifest
+setting and deep hash the program can read. The test options are the
+seed and the time limit.
+
+1. Run `hd check --tests` as `hd test` does. This also computes every
+   program's `prog_key`.
+2. Select each program whose fingerprint differs from its record or has
+   no record. A program that failed, or ran only partly under a filter,
+   has no record, so it is selected until it passes in full.
+3. Continue as `hd test` with that plan. After the run, write a record
+   for each program that ran in full and passed, and remove the record of
+   each program that failed.
+
+This replaces one package-wide "last observed sources" record (Codex
+review, A6). That record missed dependency and manifest changes, and a
+filtered run could advance it past a module whose tests never ran.
+Removed modules need no old graph edges: their programs' `prog_key`
+changes.
 
 ### 7.5 `hd run`, `hd build`
 
