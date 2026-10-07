@@ -1,4 +1,8 @@
 # test: imported pub declarations of another module, and this module's own private ones, are in scope
+# Spec 03 Module Scope And Uses: names.module.other-module,
+# names.module.other-module.hint, names.module.scope, names.use.pub,
+# names.use.pub.source, names.use.pub.binding, names.pub.private-default,
+# names.pub.eligible.
 # Spec 03 Module Scope: names.module.scope (task P1a2). The tree's cart
 # module declares Priced, Cart, Cents, total, and the private fee. The
 # parameter fee here names only itself, since cart's fee is not in scope.

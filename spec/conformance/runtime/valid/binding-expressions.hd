@@ -1,4 +1,8 @@
 # test: binding expressions return values and bind in the enclosing scope
+# Spec 03 Bindings: names.pattern.simultaneous, names.tuple.arity,
+# names.bind.expression, names.bind.scope, names.bind.visible,
+# names.bind.initialized, names.definite.required, names.definite.condition,
+# names.definite.proof.
 
 use std.testing.assert_equal
 

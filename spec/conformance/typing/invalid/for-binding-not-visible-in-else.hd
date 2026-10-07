@@ -1,4 +1,6 @@
 # test: a for binding is not visible in the loop's else suite
+# Spec 03 Loop Scopes: names.loop.for-local, names.loop.for-else,
+# names.loop.separate.
 # Spec 03 Loops: "A `for` binding is local to the loop body ... It is not visible in the loop's `else`
 # suite or after the loop."
 fn last(values: List[i32]) -> i32:

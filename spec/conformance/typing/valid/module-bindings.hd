@@ -1,3 +1,7 @@
+# Spec 03 Module and Execution Scope: names.category.module, names.module.file,
+# names.module.declarations, names.module.well-typed,
+# names.exec.scope, names.exec.visible, names.exec.access, names.exec.declarations,
+# names.exec.methods.
 let count = +0
 label := "requests"
 

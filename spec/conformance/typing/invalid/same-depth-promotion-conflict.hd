@@ -1,4 +1,6 @@
 # test: two promoted fields with one name at the same smallest depth conflict at the outer declaration, even two levels down
+# Spec 03 Promotion Conflicts: names.conflict.definition,
+# names.conflict.error.
 data Left:
     pub id: string
 

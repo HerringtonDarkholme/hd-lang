@@ -1,5 +1,7 @@
 # fixture-package-role: root-application
 # test: when no visible field matches, the skipped private own field of the receiver's type is reported
+# Spec 03 Field Lookup: names.field-lookup.private,
+# names.field-lookup.unknown.
 # Spec 08 Field Visibility: data.vis.private, data.vis.type-not-fields; Field Access: data.access.other-module.
 use dep.members.{Outer}
 

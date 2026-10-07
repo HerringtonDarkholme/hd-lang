@@ -1,4 +1,6 @@
 # test: branch scopes shadow
+# Spec 03 Conditional Scopes: names.cond.child, names.cond.no-leak,
+# names.scope.lexical, names.scope.start.
 
 use std.testing.assert_equal
 

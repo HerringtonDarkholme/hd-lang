@@ -1,4 +1,7 @@
 # test: the outer type's trait method is selected; an embedded type implementing the same trait is ignored
+# Spec 03 Method Lookup: names.method-lookup.candidates,
+# names.method-lookup.trait-candidates, names.method-lookup.unavailable,
+# names.method-lookup.one.
 trait Describe:
     fn describe(self) -> string
 

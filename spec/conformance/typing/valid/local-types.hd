@@ -1,3 +1,7 @@
+# Spec 03 Local Declarations: names.category.local-type, names.block-decl.allowed,
+# names.block-decl.impl, names.local-type.name, names.local-type.refs,
+# names.local-type.identity, names.local-impl.extent, names.local-impl.involve,
+# names.self-type.impl, names.self.reserved.
 fn describe(name: string) -> string:
     type Label = string
     data Entry:

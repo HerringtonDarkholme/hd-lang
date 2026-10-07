@@ -1,2 +1,3 @@
+# Spec 03 Module Names: names.module.unique, names.module.no-overloading.
 fn value(input: i32) -> i32: input
 fn value(input: string) -> string: input  # diagnostic: duplicate-module-name

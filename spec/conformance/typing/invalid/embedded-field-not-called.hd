@@ -1,4 +1,7 @@
 # test: an embedded type's function-typed field never answers a method call
+# Spec 03 Member Lookup: names.lookup.method-form,
+# names.lookup.stored-fn, names.method-lookup.unknown,
+# names.method-lookup.hint.field.
 data Base:
     pub run: fn() -> i32
 

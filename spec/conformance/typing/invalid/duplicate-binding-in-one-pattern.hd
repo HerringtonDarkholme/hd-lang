@@ -1,4 +1,6 @@
 # test: one pattern must not bind the same name twice
+# Spec 03 Pattern And Match Scopes: names.pattern.distinct,
+# names.match.duplicate.
 # Spec 03 Matches: "Duplicate bindings within one pattern are a compile-time error."
 fn sum(pair: (i32, i32)) -> i32:
     match pair:

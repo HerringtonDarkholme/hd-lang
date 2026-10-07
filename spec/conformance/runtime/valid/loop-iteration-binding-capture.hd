@@ -1,4 +1,6 @@
 # test: a closure created in a for-loop body captures that iteration's binding
+# Spec 03 Loop And Capture Scopes: names.loop.for-local, names.loop.separate,
+# names.loop.per-iteration, names.capture.resolve, names.capture.definition.
 # Spec 03 Loops: "Each iteration creates the body bindings for that iteration; a closure that escapes
 # an iteration captures that iteration's binding rather than one shared loop variable."
 use std.testing.assert_equal

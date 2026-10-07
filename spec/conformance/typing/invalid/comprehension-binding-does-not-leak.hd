@@ -1,4 +1,6 @@
 # test: names bound in a comprehension are not visible after it
+# Spec 03 Comprehension Scopes: names.comp.scope, names.comp.for,
+# names.comp.no-leak.
 # Spec 03 Comprehensions: "A comprehension introduces one scope that does not leak into the enclosing
 # scope." and "The names `user` and `label` are not visible after the comprehension."
 fn doubled(values: List[i32]) -> i32:

@@ -1,4 +1,6 @@
 # test: pattern bindings in different match arms may reuse the same spelling
+# Spec 03 Match Scopes: names.match.arm-scope, names.match.visible,
+# names.match.reuse.
 # Spec 03 Matches: "Every match arm has an independent child scope. Names bound by an arm's pattern are
 # visible in that arm's optional guard and body only" and "Pattern bindings in different arms may reuse
 # the same spelling."

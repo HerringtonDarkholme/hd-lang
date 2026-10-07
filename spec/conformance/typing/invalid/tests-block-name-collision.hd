@@ -1,5 +1,5 @@
 # test: a tests-block item is a module item, so its name cannot repeat a module name
-# Spec 03 Tests Blocks: names.tests.unique.
+# Spec 03 Tests Blocks: names.tests.module-items, names.tests.unique.
 fn sample() -> i32: 1
 
 tests:

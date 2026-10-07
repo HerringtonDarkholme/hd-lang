@@ -1,3 +1,4 @@
-
+# Spec 03 Prelude Names: names.prelude.source, names.prelude.not-reserved,
+# names.prelude.one-namespace.
 data i32:  # diagnostic: prelude-name-shadow
     value: string

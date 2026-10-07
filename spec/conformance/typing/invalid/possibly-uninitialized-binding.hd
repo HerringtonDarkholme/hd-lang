@@ -1,4 +1,5 @@
-
+# Spec 03 Definite Initialization: names.definite.path, names.definite.merge,
+# names.definite.reject, names.definite.skipped.
 fn invalid(flag: bool) -> string:
     if flag && (name := "Ada") != "":
         pass
