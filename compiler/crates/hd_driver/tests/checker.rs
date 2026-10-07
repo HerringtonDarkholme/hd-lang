@@ -378,6 +378,10 @@ fn checker_errors_are_reported() {
             Code::MutOnPrimitive,
         ),
         (
+            "fn main() -> void $ Console:\n    a := (1, 2)\n    println(a is a)\n",
+            Code::IdentityRequiresReferences,
+        ),
+        (
             "fn main() -> void $ Console:\n    let n: mut i32 = 0\n    println(n)\n",
             Code::MutOnPrimitive,
         ),

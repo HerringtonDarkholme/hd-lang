@@ -37,7 +37,7 @@ use hd_resolve::{FolderIface, Item, ItemData, Lookup, ModOut, Names, Src};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
-use hd_types::solver::{GlobalMemo, ImplTable, ImplUniverses, SkeletonSolver};
+use hd_types::solver::{GlobalMemo, ImplTable, ImplUniverses, TableSolver};
 use hd_types::{InternPool, Ty, TyList};
 use hd_wasm::Code as WasmCode;
 
@@ -1091,7 +1091,7 @@ impl Run<'_> {
         };
         let scope = lowered.scope;
         let universe = self.universes.intern(&closure);
-        let solver = SkeletonSolver;
+        let solver = TableSolver;
         let cx = BodyCx {
             names,
             src,
@@ -1463,7 +1463,7 @@ impl Run<'_> {
         let env = Env { run: self, p };
         let Some(collected) = self.stage(
             Stage::Collect,
-            hd_mono::collect(&self.pool, &env, &SkeletonSolver, root),
+            hd_mono::collect(&self.pool, &env, &TableSolver, root),
         ) else {
             return;
         };

@@ -1,8 +1,8 @@
 //! The trait solver's types and entry points (trait-solver.md §1.3, §2,
 //! §3, §6, §7, §8, §10, §12). The goal, candidate, memo, evidence and
 //! failure records are real definitions; `solve` and `select` are the
-//! skeleton: they answer what needs no impl search and report the rest
-//! as not implemented.
+//! table solver: impl heads matched with their bound plans; projection,
+//! `Instantiations` and `Methods` goals are still not implemented.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
@@ -622,7 +622,7 @@ fn match_list(
 /// open where a head needs structure stalls. Projection, `Instantiations`
 /// and `Methods` goals are not implemented.
 #[derive(Default)]
-pub struct SkeletonSolver;
+pub struct TableSolver;
 
 /// The impl arguments a head match bound, then the plan's bound steps
 /// substituted with them.
@@ -659,7 +659,7 @@ fn plan_goals(pool: &InternPool, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<
         .collect()
 }
 
-impl SkeletonSolver {
+impl TableSolver {
     fn implements(
         cx: &mut SolveCx<'_>,
         tref: TraitRef,
@@ -840,7 +840,7 @@ fn learned_from(pool: &InternPool, head: TyList, goal: TyList) -> Vec<(InferVar,
         .collect()
 }
 
-impl Solver for SkeletonSolver {
+impl Solver for TableSolver {
     fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer> {
         let Goal::Implements { tref, .. } = goal else {
             return Err(NotImplemented::new(
@@ -922,7 +922,7 @@ impl Solver for SkeletonSolver {
 mod tests {
     use super::{
         BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable,
-        ImplUniverses, MemoEntry, MemoKey, MemoKind, ParamEnv, SkeletonSolver, SolveCx, Solver,
+        ImplUniverses, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,
         TraitRef, canonicalize,
     };
     use crate::pool::{InternPool, Prim, Ty, TyData, TyList};
@@ -1007,12 +1007,12 @@ mod tests {
             bindings: vec![],
             mut_: false,
         };
-        let a = SkeletonSolver
+        let a = TableSolver
             .solve(&mut cx, &goal, &mut Fuel::new(10))
             .expect("holds");
         assert!(matches!(a, super::Answer::Holds { .. }));
         assert!(
-            SkeletonSolver
+            TableSolver
                 .select(&p, &tables, ConcreteTraitRef(tref))
                 .is_ok()
         );

@@ -448,6 +448,16 @@ impl Ck<'_, '_> {
             _ => None,
         };
         if op == TokenKind::KwIs {
+            // `expr.is.value-operand`: both operands have identity.
+            for (t, at) in [(at, n), (ct, rn)] {
+                if !self.has_identity(t) {
+                    let msg = format!(
+                        "identity-requires-references: {} has no identity to compare with `is`",
+                        self.show(t)
+                    );
+                    self.err(Code::IdentityRequiresReferences, at, &msg);
+                }
+            }
             return Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, n.index()));
         }
         let Some(prim) = prim else {
@@ -522,6 +532,29 @@ impl Ck<'_, '_> {
         }
         let _ = t;
         Ok(v)
+    }
+
+    /// Whether a type's values have identity (`AnyRef`): data, lists,
+    /// maps, trait values and `AnyRef`-bounded parameters.
+    fn has_identity(&self, t: Ty) -> bool {
+        let pool = self.cx.names.pool;
+        let t = self.strip_mut(t);
+        match pool.get(t) {
+            TyData::Adt { def, .. } => !matches!(
+                self.cx.lookup.item(def).map(|i| &i.data),
+                Some(ItemData::Enum { .. })
+            ),
+            TyData::TraitValue { .. } | TyData::Never | TyData::Poison | TyData::Infer(_) => true,
+            TyData::Param(_) => {
+                let any_ref = self.cx.names.item("std.core", "AnyRef");
+                (0..self.env.clause_self.len()).any(|i| {
+                    self.env.clause_self[i] == t
+                        && (self.env.clause_trait[i] == any_ref
+                            || self.trait_extends(self.env.clause_trait[i], any_ref, 0))
+                })
+            }
+            _ => false,
+        }
     }
 
     pub(crate) fn b_empty_rec(&mut self) -> u32 {
