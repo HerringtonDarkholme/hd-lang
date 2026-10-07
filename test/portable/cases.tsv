@@ -2817,6 +2817,7 @@ parse/valid/bang-and-type-argument-forms.hd	parse
 runtime/valid/type-arguments-in-expressions.hd	runtime
 runtime/valid/data-expression-forms.hd	runtime
 runtime/valid/spread-forms-and-positions.hd	runtime
+runtime/valid/tuple-rest-spread-list.hd	runtime
 runtime/valid/pattern-forms.hd	runtime
 runtime/valid/comprehension-forms.hd	runtime
 runtime/valid/call-and-closure-forms.hd	runtime

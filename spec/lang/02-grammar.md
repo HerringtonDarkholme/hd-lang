@@ -334,6 +334,9 @@ fn choose(flag: bool) -> i32:
 8. r[grammar.inline.let-pattern] A `let` statement may be a same-line suite body, because a pattern's commas stand inside brackets, as in `if ok: let (a, b) = pair` and `if ok: let Point { x, y } = p`.
 9. r[grammar.inline.bare-comma] The bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` are syntax errors. Error: `syntax-error`.
 
+> **Note.** The `late_fee` example starts its `if` in an indented function
+> body, not a same-line suite, so it is valid.
+
 ```text
 fn pair() -> (i32, i32): (1, 2)
 
@@ -1480,7 +1483,7 @@ fn demo() -> i32:
 2. r[grammar.primary.ellipsis-positions] The two positions of `...` never overlap.
 3. r[grammar.primary.prefix-copies] A prefix `...` always copies. It copies the named members of a value in a copy-update spread and after an embedded field label. `...=` stores a copy into an embedded field.
 4. r[grammar.primary.suffix-spreads] A suffix `...` always spreads: it expands the elements or entries of its operand in arguments, list elements, and provider-context entries, as in `$.with(ctx...)`.
-5. r[grammar.primary.tuple-spread] The last element of a tuple expression may also be a suffix spread, as in `(1, 2, xs...)`. A spread alone keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread before another element are errors. Error: `syntax-error`.
+5. r[grammar.primary.tuple-spread] The last element of a tuple expression may also be a suffix spread, as in `(1, 2, [3, 4]...)`. A spread alone keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread before another element are errors. Error: `syntax-error`.
 6. r[grammar.primary.prefix-elsewhere] A prefix `...` anywhere else, including before a provider-context entry, is an error. Error: `syntax-error`.
 
 ```text

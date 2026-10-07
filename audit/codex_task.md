@@ -81,21 +81,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q3. Spec Fixes From The Fixture Passes
-
-Small spec text fixes, one commit, in `spec/lang/02-grammar.md` and
-`05-expressions.md`:
-
-- `grammar.primary.tuple-spread`'s example `(1, 2, xs...)` needs `xs` to
-  be a rest tuple or a `List[T]`; fix the example to type-check.
-- A positional spread combined with other values for the same vararg
-  (`total(nums..., 4)`) is `duplicate-argument`; state it where spreads
-  are defined if no rule does.
-- Check the chapter's `late_fee` example against `grammar.inline.no-if`
-  (an inline body may not start with `if`); fix whichever is wrong.
-
-Add a fixture per change. Timebox 30 minutes; push.
-
 ### Q4. Benchmark Inputs For The New Compiler
 
 Under `compiler/bench/` (yours): five realistic programs in the subset

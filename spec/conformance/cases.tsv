@@ -771,6 +771,7 @@ typing/invalid/reference-bound-unsatisfied.hd	type	reject:unsatisfied-trait-boun
 typing/invalid/generic-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#generic-bounds-and-static-dispatch
 typing/valid/duplicate-trait-bound.hd	type	accept	lang/09-traits.md#generic-bounds-and-static-dispatch
 typing/invalid/positional-spread-without-vararg.hd	type	reject:positional-spread-needs-vararg	lang/05-expressions.md#r-expr.call.spread.list-needs-vararg
+typing/invalid/positional-spread-duplicates-vararg.hd	type	reject:duplicate-argument	lang/05-expressions.md#r-expr.call.spread.vararg-duplicate
 typing/invalid/parameter-default-order.hd	type	reject:default-order	lang/07-functions.md#default-values
 typing/invalid/variant-duplicate-argument.hd	type	reject:duplicate-argument	lang/08-data-and-enums.md#enum-declarations
 typing/invalid/duplicate-argument.hd	type	reject:duplicate-argument	lang/05-expressions.md#calls
@@ -2792,6 +2793,7 @@ parse/valid/bang-and-type-argument-forms.hd	parse	accept	lang/02-grammar.md#r-gr
 runtime/valid/type-arguments-in-expressions.hd	runtime	accept	lang/02-grammar.md#r-grammar.expr.type-arguments.marker
 runtime/valid/data-expression-forms.hd	runtime	accept	lang/02-grammar.md#r-grammar.primary.field-shorthand
 runtime/valid/spread-forms-and-positions.hd	runtime	accept	lang/02-grammar.md#r-grammar.primary.suffix-spreads
+runtime/valid/tuple-rest-spread-list.hd	runtime	accept	lang/02-grammar.md#r-grammar.primary.tuple-spread
 runtime/valid/pattern-forms.hd	runtime	accept	lang/02-grammar.md#r-grammar.pattern.range
 runtime/valid/comprehension-forms.hd	runtime	accept	lang/02-grammar.md#r-grammar.comprehension.order
 runtime/valid/call-and-closure-forms.hd	runtime	accept	lang/02-grammar.md#r-grammar.closure.parameter-types

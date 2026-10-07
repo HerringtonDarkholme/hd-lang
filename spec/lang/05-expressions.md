@@ -1065,7 +1065,7 @@ fn spreads(pair: (i32, i32), items: List[i32], t: (usize, usize, List[i32]...)) 
 ```
 
 1. r[expr.call.spread] An argument ending in `...` is a positional spread.
-2. r[expr.call.spread.one] A call has at most one positional spread; it must be the final positional argument and therefore precedes every named argument. Error: `nonfinal-positional-spread`.
+2. r[expr.call.spread.position] A call has at most one positional spread; except for [`expr.call.spread.vararg-duplicate`](#r-expr.call.spread.vararg-duplicate), it must be the final positional argument and therefore precedes every named argument. Error: `nonfinal-positional-spread`.
 3. r[expr.call.spread.fills] A spread operand of type `X` is evaluated once and fills what `X` describes, as the table below states.
 
 | Rule | Where the spread stands | `X` must be | It fills |
@@ -1074,16 +1074,19 @@ fn spreads(pair: (i32, i32), items: List[i32], t: (usize, usize, List[i32]...)) 
 | r[expr.call.spread.tuple-vararg-tail] After a tuple vararg's arguments | it follows one or more separate arguments of a tuple-typed or `Tuple`-bounded vararg | what a tuple expression's final spread needs | the rest element, as [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr) states |
 | r[expr.call.spread.inputs] Before fixed parameters | any other position | the same type as the tuple of the callee's remaining inputs, which keeps a [rest element](04-type-system.md#rest-elements) | each remaining parameter with one element, in order, and a `List[T]` vararg with the rest element's list |
 
-4. r[expr.call.spread.mismatch] An operand that does not meet the table's requirement is an error. Error: `type-mismatch`.
-5. r[expr.call.spread.list-needs-vararg] A `List[T]` operand where the next positional parameter is not a vararg is an error. Error: `positional-spread-needs-vararg`.
-6. r[expr.call.vararg-by-name.exclusive] A call that passes a vararg by name must not also supply positional values for that vararg.
+4. r[expr.call.spread.vararg-duplicate] A call that supplies a vararg through a positional spread and through any separate positional value supplies it twice. Error: `duplicate-argument`.
+5. r[expr.call.spread.mismatch] An operand that does not meet the table's requirement is an error. Error: `type-mismatch`.
+6. r[expr.call.spread.list-needs-vararg] A `List[T]` operand where the next positional parameter is not a vararg is an error. Error: `positional-spread-needs-vararg`.
+7. r[expr.call.vararg-by-name.exclusive] A call that passes a vararg by name must not also supply positional values for that vararg.
 
 ```text
 fn add(a: i32, b: i32) -> i32: a + b
 fn fixed(value: i32) -> i32: value
+fn collect(values...: List[i32]) -> List[i32]: values
 
 fn triple(values: (i32, i32, i32)) -> i32: add(values...)  # error: type-mismatch
 fn total(values: List[i32]) -> i32: fixed(values...)       # error: positional-spread-needs-vararg
+fn duplicate(nums: List[i32]) -> List[i32]: collect(nums..., 4)  # error: duplicate-argument
 ```
 
 A function with a `List[T]` vararg takes a tuple whose rest element stands

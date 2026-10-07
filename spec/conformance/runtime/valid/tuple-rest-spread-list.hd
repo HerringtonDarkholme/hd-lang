@@ -1,0 +1,9 @@
+# test: the final element of a rest tuple expression may spread a list
+# Spec 02 Prefix And Suffix Ellipsis: grammar.primary.tuple-spread.
+# Spec 05 Tuple Rest Elements: expr.tuple.rest.spread,
+# expr.tuple.rest.spread.list, expr.tuple.rest.value.
+# expect-stdout: 1 2 3 4
+pub fn main() -> void $ Console:
+    tail := [+3, +4]
+    let values: (i32, i32, List[i32]...) = (+1, +2, tail...)
+    println("${values._0} ${values._1} ${values._2[0]} ${values._2[1]}")

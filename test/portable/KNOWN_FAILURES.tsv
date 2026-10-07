@@ -76,5 +76,6 @@ parse/invalid/float-bare-leading-point.hd	the prototype reports syntax-error at 
 parse/invalid/placeholder-in-ordinary-type.hd	parse exits 0 on `List[_]`: the prototype accepts the call-site inference placeholder as an ordinary type argument (types.generic.placeholder.not-type)	S1
 parse/invalid/function-type-mutable-permission.hd	parse exits 0 on `mut (fn() -> i32)`: the prototype accepts access permission on a parenthesized function type (fn.type.no-mut)	S1
 typing/invalid/impl-target-row-extension.hd	check exits 0 on an implementation target whose function row extends a row parameter with another key (trait.target.row-argument.extension)	S1
+typing/invalid/positional-spread-duplicates-vararg.hd	check reports nonfinal-positional-spread on `collect(nums..., +4)`, where supplying the vararg by spread and by another positional value is duplicate-argument (expr.call.spread.vararg-duplicate)	Q3
 cli/dep-one-key-per-line	`hd check` exits 0 when two dependency keys name one host path and compatibility line (module.dep.one-key-per-line)	S1
 cli/toolchain-too-old	`hd check` exits 0 when the root package requires toolchain version 999.0.0 (module.toolchain.graph-minimum)	S1
