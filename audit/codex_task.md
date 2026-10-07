@@ -70,9 +70,9 @@ When the queue is empty, report that and wait.
 
 ## Don't Touch
 
-- **`compiler/` (all Rust):** the orchestrator's lane since 2026-10-07
-  (owner: Codex does spec work; Rust moves in the orchestrator's lane).
-  The one exception is finishing `compiler/spikes/0c/` in C2d.
+- **`compiler/crates/` (all Rust):** the orchestrator's lane since
+  2026-10-07 (owner: Codex does spec work and profiling; the
+  orchestrator writes the code). You may add `compiler/bench/` in P1.
 - `src/`: the frozen prototype. Bug fixes only through a KNOWN_FAILURES
   row, never an edit.
 - `lib/std/`, `guide/`, `website/`: read only, unless a job says so.
@@ -93,6 +93,30 @@ The same for the stdlib modules under 35%: `net` (16%), `http` (20%),
 `sys` (27%), `fs` (29%), `encoding` (30%), `testing` (34%). Host-backed
 modules use the portable runner's fake hosts; read how existing fs and
 http fixtures do it first.
+
+### P1. Profile The New Compiler (After S4; Standing Job)
+
+Owner, 2026-10-07: "you write the code, codex do the profiling. move
+fast". The orchestrator writes `compiler/crates/*`; you measure it.
+
+- Each time a new compiler commit lands on main (`git log -- compiler/`),
+  profile it: `hd run` / `hd build` on the samples and on the generated
+  bench (`hd-walk bench N`, or its successor in `hd_driver`) at 3,000 and
+  30,000 lines, cold, warm, body edit, signature edit, comment edit.
+  Use `samply` or `cargo flamegraph` if installed, else `perf`-style
+  timers already in the driver's counters.
+- Write `audit/compiler/profile-<date>-<short hash>.md`: per-stage time,
+  the top 10 hot functions with their share, allocations if measurable,
+  and for each hotspot one line: **implementation slip** (name the fix)
+  or **architecture issue** (name the design section). Compare with the
+  previous report.
+- Only flag what is atrociously bad (order-of-magnitude, superlinear,
+  or a stage that dominates for no design reason). Perf is eyeballed,
+  not gated, and micro-tuning is out of scope.
+- You may add benchmark inputs or a harness under `compiler/bench/`
+  (new directory). Never edit `compiler/crates/`; the orchestrator
+  applies fixes from your report.
+- Push each report within 30 minutes of starting it.
 
 ### C3. Research: Known Issues Of Prior Back Ends, Wasm And Runtimes (Last)
 
