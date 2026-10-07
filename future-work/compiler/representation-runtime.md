@@ -173,7 +173,7 @@ A third principle follows from finding 3 of the summary:
 | --- | --- | --- | --- |
 | integers, `bool`, `char`, floats | the Wasm scalar; packed `i8`/`i16` in fields and arrays | free | free |
 | `i64` multiplication overflow check (debug) | divide back, about 20 cycles | the one real debug cost | small |
-| erased scalar (`Any`, `dyn`, open values) | `i31ref` up to 16 bits; else a box struct | a box is one allocation of 16 to 24 bytes | a few bytes per site |
+| erased scalar (`Any`, `dyn`, open values) | `i31ref` up to 16 bits, and for any integer whose value fits in 31 signed bits; else a box struct | a box is one allocation of 16 to 24 bytes, only for large integers and floats | a few bytes per site |
 
 **Prior art.** Scala.js on Wasm stores integers in the `i31` range as
 `i31ref` and boxes larger numbers into structs
@@ -182,12 +182,15 @@ wasm_of_ocaml uses `i31ref` for OCaml's tagged integers
 ([Vouillon](https://cambium.inria.fr/seminaires/transparents/20231213.Jerome.Vouillon.pdf)).
 dart2wasm boxes `int` in generic positions (unverified detail).
 
-**What it misses.** `i32` values that fit in 31 bits could use `i31ref`
-too, with a box fallback, as the owner's first step had it. The erased
-path is rare after full monomorphization, so this is not worth the
-`ref.test` on every unbox.
+**Integers that fit (orchestrator, 2026-10-07).** This study first
+dropped the owner's "i32 uses `i31ref` when it fits", reasoning that the
+fast path adds a `ref.test` to every unbox. It doesn't: a box-only
+unbox from `eqref` already needs a `ref.cast`, whose own i31 check comes
+first. So every integer width uses `i31ref` when the value fits in 31
+signed bits and falls back to a box, as Scala.js does.
 
-**Recommendation (high).** Keep. Layout is type-only.
+**Recommendation (high).** Keep, with the fast path. Layout is type-only;
+only the runtime form depends on the value.
 
 ## 3. Data, Parts And Containers
 

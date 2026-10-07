@@ -245,9 +245,11 @@ release, which spike T2 decides.
 - **Boundary:** a scalar host parameter or result is a Wasm parameter or
   result. Floats cross as raw IEEE bits.
 - **Erased** (`dyn`, `Any`, an open value): `bool`, `char` and integers of
-  at most 16 bits are `i31ref`; wider ones are `$Box_i32`, `$Box_i64`,
-  `$Box_f32` or `$Box_f64`, one allocation of 16 to 24 bytes.
-- **Type-only:** yes. The class depends on the width alone.
+  at most 16 bits are `i31ref`. Wider integers are `i31ref` when the value
+  fits in 31 signed bits, else `$Box_i32` or `$Box_i64`, one allocation of
+  16 to 24 bytes. Floats are always `$Box_f32` or `$Box_f64`.
+- **Type-only:** yes. The static layout is `eqref` for every width; only
+  the runtime form (an `i31ref` or a box) depends on the value.
 
 ### `char`
 

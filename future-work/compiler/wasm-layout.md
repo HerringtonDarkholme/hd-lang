@@ -166,8 +166,17 @@ Subtype enums cast once per matching arm, which the engine checks with
 one load and compare.
 
 **Erased scalars.** In an erased position, `bool`, `char` and integers of
-16 bits or less become `i31ref`. Wider scalars are boxed in
-`$Box_i32`, `$Box_i64`, `$Box_f32` or `$Box_f64`. This is where the owner's
+16 bits or less become `i31ref`. Wider integers (`i32`, `u32`, `usize`,
+`i64`, `u64`) become `i31ref` when the value fits in 31 signed bits and
+are boxed in `$Box_i32` or `$Box_i64` otherwise (owner, 2026-10-06,
+reaffirmed 2026-10-07). Erasing checks the range, which is a shift, a
+shift back and a compare, and allocates only on a miss. Unboxing is
+`br_on_cast` to `i31`, then `i31.get_s` and an extend; a miss takes
+`ref.cast` to the box and `struct.get`. A box-only layout would need
+that `ref.cast` on every unbox anyway, so the fast path costs nothing
+extra. Floats are always boxed in `$Box_f32` or `$Box_f64`. The static
+layout is `eqref` for every erased scalar, so layout stays type-only;
+only the runtime form depends on the value. This is where the owner's
 "at least `i31ref`" lands: in monomorphized code no scalar is boxed at
 all. A string is boxed in `$Box_str`, an immutable `{bytes, span}`
 struct, as a tuple is boxed in one immutable struct.

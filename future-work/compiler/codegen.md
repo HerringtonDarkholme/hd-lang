@@ -766,7 +766,7 @@ concrete representation, viewed as `eqref`**:
 | Concrete layout of the value | As an open value |
 | --- | --- |
 | one reference, nullable or not (data, `List`, `Map`, closure, `T?` of a reference, a value layout over the bound, which is already a box) | the same reference, upcast; no allocation. Under A1 a reference `T` reaches a class instance such as `List[REF].push` directly, with no thunk |
-| a scalar | §15.2's erased form: `i31ref` up to 16 bits, else `$Box_i32`, `$Box_i64`, `$Box_f32`, `$Box_f64` |
+| a scalar | §15.2's erased form: `i31ref` for 16-bit-or-smaller scalars and for any integer whose value fits in 31 signed bits, else `$Box_i32` or `$Box_i64`; floats in `$Box_f32` or `$Box_f64` |
 | a `multi` layout (a string view, a scalar's `T?`, `Result`, a value enum, a tuple, a trait value) | one immutable struct of its Wasm values |
 | `void` | `ref.null eq` |
 
