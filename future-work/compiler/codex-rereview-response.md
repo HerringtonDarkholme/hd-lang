@@ -73,6 +73,27 @@ go (codegen.md §13.5.1). The new slot fill log (data-structures.md
 covers each kept declaration's tokens, which N-A3 settles. The link to
 codegen.md §13.5 in trait-solver.md keeps working.
 
+### Frontend Follow-ups Applied (2026-10-07)
+
+The items of
+[codex-rereview-response-frontend.md](codex-rereview-response-frontend.md#changes-for-the-backend-lane)
+under "Changes for the backend lane".
+
+| Item | File | Summary |
+| --- | --- | --- |
+| 1 (N-A1) | [cache.md §5.3](cache.md#53-key-composition) | `argc` and `arg_impls_closure_hash` are gone; the `check`, `hdr` and `test` keys list the transitive dependency closure, which the deep hashes make sound. |
+| 2 (N-D1) | [cache.md §5.3](cache.md#53-key-composition) | `coh_key`'s head hash is `H(canonical head, rank)`, with rank `(package, module path, item index)`. |
+| 3 (N7) | [codegen.md §13.2](codegen.md#132-collection) | `select` is a head match plus the plan's `Bind` steps, returns every impl argument, and keeps a selection table apart from the proof memo. |
+| 4 (N8) | [checking-and-tir.md §4.13.4](checking-and-tir.md#4134-rows) | `CallerRow` gains `Closure(sub_body)`; a closure's row belongs to its function type, and no fact reaches its creator. |
+| 5 (N10, N-I1) | [data-structures.md §3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation), §3.19 | An older slot's fill waits in `deferred_fills` until no trial is open; the durable `Slot` keeps its identity; the fill log is gone. |
+| 6 (N1) | [scheduler.md §6.1](scheduler.md#61-tasks), [design-overview.md §1.3](design-overview.md#13-the-task-graph) | One interned `ImplUniverseId` per solving context, computed after M1 builds the closure bit sets; it adds no edge. |
+| 7 (GADTs) | [data-structures.md §3.4](data-structures.md#34-types), [checking-and-tir.md §4.13.6](checking-and-tir.md#4136-gadt-refinement), [codegen.md §13.5](codegen.md#135-dictionaries-trait-values-and-gadt-evidence) | `Rigid`, `HAS_RIGID`, `Refine`, the `Evidence` callee and `NewVariant` evidence are removed; linked headings stay with a one-line body. |
+| 8 | [testing-the-compiler.md §8](testing-the-compiler.md#8-determinism-and-soundness-tests) | The universe A/B case in both orders, template layout edits, swapped overlapping impls and the trial context-growth cases. |
+| 9 | [README.md](README.md) | Already lists the frontend response file; verified. |
+
+Codegen also no longer claims to read `CallDyn`'s evidence operands or
+the vtable shape's `dyn_bounds` (codegen.md §13.2 step 5, §13.5.1).
+
 ## Frontend Lane
 
 The frontend rows (N1, N7, N8, N10, N-A1, N-A3, N-D1, N-T1 to N-T7 and
