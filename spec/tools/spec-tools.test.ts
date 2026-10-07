@@ -79,7 +79,7 @@ parse/invalid/bad.hd\tparse\treject:bad-thing\tlang/01-lexical-structure.md#widg
   assert.match(generated, /BadThing,/);
   assert.match(generated, /Self::BadThing => Phase::Parse/);
   assert.match(generated, /Self::NeverNamed => Phase::Type/);
-  assert.match(generated, /Self::from_str\(name\)/);
+  assert.match(generated, /pub fn from_name\(name: &str\)/);
 });
 
 const STD_ITER = `# std.iter

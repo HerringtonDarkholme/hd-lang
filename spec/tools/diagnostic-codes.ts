@@ -81,17 +81,12 @@ ${asStr.join("\n")}
     }
 
     #[must_use]
-    pub fn from_str(name: &str) -> Option<Self> {
+    pub fn from_name(name: &str) -> Option<Self> {
         Some(match name {
 ${fromStr.join("\n")}
             "unsupported" => Self::Unsupported,
             _ => return None,
         })
-    }
-
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::from_str(name)
     }
 
     #[must_use]
