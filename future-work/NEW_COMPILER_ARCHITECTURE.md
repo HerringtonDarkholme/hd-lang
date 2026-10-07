@@ -70,6 +70,32 @@ two features.
   - did-you-mean, import and `let mut` hints;
   - `hd fmt`;
   - a pathology fuzzer.
+- **More pillar 1 ideas (owner: "add all", 2026-10-06; triage later):**
+  - **Waiting:**
+    - a syntax-and-names tier (`hd check --fast`, under 10 ms);
+    - scoped `hd check FILE`;
+    - running tests even when unrelated code fails to check (deferred
+      type errors: a broken module panics only if a test reaches it);
+    - background test precompilation in watch mode.
+  - **Tokens:**
+    - diff-aware output ("fixed 3, new 1");
+    - capped, grouped output (`--max-errors`, a summary mode);
+    - quiet passing tests;
+    - structured assert diffs that print only the differing fields;
+    - a repro command on every failure;
+    - canned program-database queries (`hd callers`, `hd needs Http`).
+  - **Retries:**
+    - typed holes (`_` / `todo()` report the expected type and the names
+      in scope that fit);
+    - requirement-propagating fix-its (add `$ Clock` and carry it up
+      through callers with `hd fix`);
+    - code-generating fix-its: missing match arms, `impl` stubs,
+      `@derive(Eq)`, auto-imports;
+    - signature suggestions offered as explicit fix-its. Declarations are
+      still never inferred; the agent accepts the edit.
+    - a worked example for every error code in `hd explain`;
+    - project templates (`hd new --template service|cli|library`);
+    - deterministic tests with the seed printed on failure.
 
 ### Pillar 2 Features (owner: "add all", 2026-10-06; deprioritized, triage later)
 
