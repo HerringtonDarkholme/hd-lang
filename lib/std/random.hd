@@ -8,6 +8,8 @@ use std.ops.Range
 # Draws values from a source of randomness (r-std-random.decl). Both
 # methods take `mut self`, so a seeded provider advances its own state
 # (r-std-random.mut).
+## The host capability to fill bytes from the system random source.
+## See [std-random.decl](../../spec/std/random.md#r-std-random.decl).
 pub trait Random:
     fn next_u64(mut self) -> u64
     fn fill(mut self, count: usize) -> List[u8]
@@ -17,6 +19,8 @@ pub trait Random:
 # is xoshiro128** 1.0 (Blackman and Vigna): four 32-bit words of state, kept
 # in `u64` values masked to 32 bits, so no operation overflows. `new` fills
 # the state with SplitMix32 from the seed.
+## The deterministic `Random` provider: a seeded generator for tests, with no host access.
+## See [std-random.seeded.decl](../../spec/std/random.md#r-std-random.seeded.decl).
 pub data SeededRandom:
     s0: u64
     s1: u64
@@ -24,6 +28,8 @@ pub data SeededRandom:
     s3: u64
 
 impl SeededRandom:
+    ## Returns the provider of `seed`; two providers of one seed answer the same.
+    ## See [std-random.seeded.new](../../spec/std/random.md#r-std-random.seeded.new).
     pub fn new(seed: u64) -> mut SeededRandom:
         let z: u64 = low32(seed ^ (seed >> 32))
         z = low32(z + 0x9E3779B9)
@@ -61,19 +67,27 @@ impl Random for SeededRandom:
 # starts, with the draws scripts need. Its generator is fixed
 # (r-std-random.rng.generator): the xoshiro128** state of `SeededRandom`, so
 # a seed gives the same draws in every implementation.
+## A random generator: seeded, so its draws repeat for one seed.
+## See [std-random.rng.decl](../../spec/std/random.md#r-std-random.rng.decl).
 pub data Rng:
     source: mut SeededRandom
 
 impl Rng:
+    ## Returns the generator of `seed`.
+    ## See [std-random.rng.new](../../spec/std/random.md#r-std-random.rng.new).
     pub fn new(seed: u64) -> mut Rng:
         Rng { source: SeededRandom::new(seed) }
 
+    ## The next random `u64`.
+    ## See [std-random.rng.next-u64](../../spec/std/random.md#r-std-random.rng.next-u64).
     pub fn next_u64(mut self) -> u64:
         self.source.next_u64()
 
     # An integer of `range`, from `start + below(count)`
     # (r-std-random.rng.int.offset). A count of 2^64, the whole `i64` range,
     # is passed as 0.
+    ## A random integer of `range`, each with the same chance.
+    ## See [std-random.rng.int](../../spec/std/random.md#r-std-random.rng.int).
     pub fn int(mut self, range: Range[i64]) -> i64:
         if range.start > range.end || (range.start == range.end && !range.inclusive):
             panic("std.random: empty range")
@@ -87,18 +101,26 @@ impl Rng:
         range.start + i64(offset)
 
     # The top 53 bits of a draw, scaled by 2^-53: exact, and below 1.
+    ## A random float from 0 up to, not including, 1.
+    ## See [std-random.rng.float](../../spec/std/random.md#r-std-random.rng.float).
     pub fn float(mut self) -> f64:
         f64(self.next_u64() >> 11) / 9007199254740992.0
 
+    ## A random `bool`, each value with the same chance.
+    ## See [std-random.rng.bool](../../spec/std/random.md#r-std-random.rng.bool).
     pub fn bool(mut self) -> bool:
         (self.next_u64() >> 63) == 1
 
+    ## One of `items`, each with the same chance, or `.None` for an empty list.
+    ## See [std-random.rng.choose](../../spec/std/random.md#r-std-random.rng.choose).
     pub fn choose[T](mut self, items: List[T]) -> T?:
         if items.len() == 0:
             return .None
         .Some(items[usize(self.below(u64(items.len())))])
 
     # Fisher-Yates from the last position down (r-std-random.rng.shuffle.order).
+    ## Reorders `items` at random, each permutation with the same chance.
+    ## See [std-random.rng.shuffle](../../spec/std/random.md#r-std-random.rng.shuffle).
     pub fn shuffle[T](mut self, items: mut List[T]) -> void:
         let i = items.len()
         while i > 1:
@@ -110,6 +132,8 @@ impl Rng:
 
     # The first `count` steps of Fisher-Yates from the front, on a copy
     # (r-std-random.rng.sample.order).
+    ## `count` of `items`, drawn without replacement in random order.
+    ## See [std-random.rng.sample](../../spec/std/random.md#r-std-random.rng.sample).
     pub fn sample[T](mut self, items: List[T], count: usize) -> List[T]:
         if count > items.len():
             panic("std.random: sample count above the list length")
@@ -141,6 +165,8 @@ impl Rng:
         x % count
 
 # An `Rng` that one draw of the `Random` provider seeds (r-std-random.rng.from-random).
+## Returns a generator seeded from the `Random` provider that covers the call.
+## See [std-random.rng.from-random](../../spec/std/random.md#r-std-random.rng.from-random).
 pub fn rng() -> mut Rng $ Random:
     Rng::new($.use(Random).next_u64())
 
