@@ -7,6 +7,8 @@ use std.time.Duration
 use std.format.DebugWriter
 use std.error.Error
 
+## An HTTP method: a standard one, or `Other(name)`.
+## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
 pub enum Method:
     Get
     Head
@@ -19,21 +21,43 @@ pub enum Method:
 
 # A request (r-std-http.types.decl). Only `url` has no default
 # (r-std-http.request.defaults).
+## An HTTP request; only `url` has no default.
+## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
 pub data Request:
+    ## The request's method; `Get` by default.
+    ## See [std-http.request.defaults](../../spec/std/http.md#r-std-http.request.defaults).
     pub method: Method = Method.Get
+    ## The request's URL, the one field without a default.
+    ## See [std-http.request.defaults](../../spec/std/http.md#r-std-http.request.defaults).
     pub url: string
+    ## The request's headers as name and value pairs; a repeated name keeps every value, in order.
+    ## See [std-http.headers.pairs](../../spec/std/http.md#r-std-http.headers.pairs).
     pub headers: List[(string, string)] = []
+    ## The request's whole body; there is no streaming body.
+    ## See [std-http.bodies](../../spec/std/http.md#r-std-http.bodies).
     pub body: List[u8] = []
+    ## The request's timeout, or the provider's default for `.None`.
+    ## See [std-http.request.defaults](../../spec/std/http.md#r-std-http.request.defaults).
     pub timeout: Duration? = .None
 
+## A whole HTTP response.
+## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
 pub data Response:
+    ## The response's status code.
+    ## See [std-http.types.decl](../../spec/std/http.md#r-std-http.types.decl).
     pub status: u16
+    ## The response's headers as name and value pairs.
+    ## See [std-http.headers.pairs](../../spec/std/http.md#r-std-http.headers.pairs).
     pub headers: List[(string, string)]
+    ## The response's whole body.
+    ## See [std-http.bodies](../../spec/std/http.md#r-std-http.bodies).
     pub body: List[u8]
 
 impl Response:
     # The first value of the header `name`, ignoring ASCII case
     # (r-std-http.response.header).
+    ## The first value whose name equals `name`, ignoring ASCII case.
+    ## See [std-http.response.header](../../spec/std/http.md#r-std-http.response.header).
     pub fn header(self, name: string) -> string?:
         for (key, value) in self.headers:
             if ascii_case_equal(key, name):
@@ -42,11 +66,15 @@ impl Response:
 
     # The body as UTF-8, with U+FFFD for each invalid sequence
     # (r-std-http.response.text).
+    ## The body read as UTF-8 text.
+    ## See [std-http.response.text](../../spec/std/http.md#r-std-http.response.text).
     pub fn text(self) -> string:
         match string::from_utf8(self.body):
             .Ok(text) => text
             .Err(_) => lossy_text(self.body)
 
+## Why a request failed: invalid URL, DNS, connect, TLS, timeout, too many redirects, not granted, or another reason.
+## See [std-http.error.decl](../../spec/std/http.md#r-std-http.error.decl).
 pub enum HttpError:
     NotGranted(host: string)
     InvalidUrl(url: string)
@@ -58,30 +86,42 @@ pub enum HttpError:
     Other(message: string)
 
 # The host capability to send a request (r-std-http.trait.decl).
+## The host capability to send an HTTP request and complete with the whole response.
+## See [std-http.trait.decl](../../spec/std/http.md#r-std-http.trait.decl).
 pub trait Http:
     fn send!(mut self, request: Request) -> Result[Response, HttpError]
 
 # Sends `request` through the covering `Http` provider
 # (r-std-http.helper.send).
+## Sends `request` on the `Http` provider that covers the call.
+## See [std-http.helper.send](../../spec/std/http.md#r-std-http.helper.send).
 pub fn send!(request: Request) -> Result[Response, HttpError] $ Http:
     let mut client = $.use(Http)
     client.send!(request)
 
 # Sends a `Get` of `url` (r-std-http.helper.get).
+## Sends a `Get` of `url` on the `Http` provider that covers the call.
+## See [std-http.helper.get](../../spec/std/http.md#r-std-http.helper.get).
 pub fn get!(url: string) -> Result[Response, HttpError] $ Http:
     send!(Request { url: url })
 
 # The deterministic `Http` (spec/std/http.md#scripted-http): it answers a
 # URL by its exact text, and records every request it receives.
+## The deterministic `Http` provider: it answers each URL from a table and records what it sent, with no host access.
+## See [std-http.scripted.decl](../../spec/std/http.md#r-std-http.scripted.decl).
 pub data ScriptedHttp:
     responses: Map[string, Response]
     requests: mut List[Request]
 
 impl ScriptedHttp:
+    ## Returns the provider that answers each URL with `responses`' entry for it.
+    ## See [std-http.scripted.new](../../spec/std/http.md#r-std-http.scripted.new).
     pub fn new(responses: Map[string, Response]) -> mut ScriptedHttp:
         ScriptedHttp { responses: responses, requests: [] }
 
     # Every request received, in order (r-std-http.scripted.sent).
+    ## The requests the provider sent, in order.
+    ## See [std-http.scripted.sent](../../spec/std/http.md#r-std-http.scripted.sent).
     pub fn sent(self) -> List[Request]:
         self.requests
 
