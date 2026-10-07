@@ -439,3 +439,70 @@ strings, `dyn` and the erased method ABI, init order, coherence, the
 solver memo and `ImplUniverseId`, early cutoff by recorded reads, the
 disk store and atomic publish, threads, the stepping executor, panics and
 sites, and folding. Each of these has its own slice in build-order.md.
+
+## Architecture Skeleton Findings
+
+Update, 2026-10-07. The architecture skeleton laid down every crate the
+design names, the core data structures and the interfaces between
+stages, breadth first. Where the code stands per section is in
+[footprint.md](footprint.md). These are the places where a doc was
+vague, two docs disagreed, or a missing dependency forced a stand-in.
+Each was resolved by following the more specific doc, and work went on.
+
+| ID | Finding | Section | Kind |
+| --- | --- | --- | --- |
+| SK-6 | The full parser reports syntax errors in 19 of 36 `lib/std` files, though slice 1's exit says every std file parses | build-order.md §9, syntax.md §4.4 | implementation (slice 1 gap) |
+| SK-7 | `StableHasher` is not xxh3-128: the workspace has no xxhash crate | data-structures.md §3.2 | dependency, owner approval |
+| SK-8 | `hd_project` reads `[package]` lines by hand: the workspace has no `toml` crate | design-overview.md §2.1 | dependency, owner approval |
+| SK-9 | The pool executor uses std threads and one locked ready queue, not rayon | scheduler.md §6.2 | dependency, owner approval |
+| SK-10 | `hd_run_wasmtime` and `hd_web` have their shapes only: wasmtime and wasm-bindgen are not dependencies | codegen.md §11.4 | dependency, owner approval |
+| SK-11 | The design names no `hd_solver`; the solver lives in `hd_types` | design-overview.md §2.1 | text, followed design-overview.md |
+| SK-12 | `Coherence` is a unit per trait in design-overview.md §1.2, but one task per package run in scheduler.md §6.1 | design-overview.md §1.2, scheduler.md §6.1 | contradiction, followed scheduler.md |
+| SK-13 | One `Scheduler` trait with a `Sync` closure needs an interior-mutable graph; the serial and stepping executors take `&mut TaskGraph` instead, and the pool has its own entry | scheduler.md §6.2, data-structures.md §3.21 | interface detail |
+| SK-14 | live-execution.md names no crate for the journal; it lives in `hd_run`, beside the host calls it records | live-execution.md §4.5, codegen.md §11.4 | text |
+| SK-15 | IDs have no `Ord` (§3.1), so in-run sets of IDs are vectors sorted by raw value; nothing sorted this way reaches output | data-structures.md §3.1, scheduler.md §6.5 | implementation note |
+
+- **SK-6 (implementation, slice 1 gap).** The architecture driver runs
+  `hd_syntax::parse` on every std file. 17 parse clean; 18 report
+  `syntax-error` and one `comparison-chaining`. Either std uses syntax
+  the parser does not carry yet, or std has drifted from the spec. The
+  slice 1 exit test should run over `lib/std`.
+- **SK-7 to SK-10 (dependencies).** Each stand-in keeps the design's
+  interface, so swapping in the named crate changes one file. The
+  owner's rule is to ask before adding a dependency; these are the asks:
+  `xxhash-rust`, `toml`, `rayon`, `wasmtime`, `wasm-bindgen`.
+- **SK-12 (contradiction).** design-overview.md §1.2 has a `Coherence`
+  unit per trait; scheduler.md §6.1 says one `Coherence` task covers the
+  traits whose key changed. The skeleton has one task, per scheduler.md,
+  the more specific doc. design-overview.md's table should say "trait,
+  batched in one task".
+- **SK-13 (interface detail).** scheduler.md §6.2's `Scheduler::run`
+  takes `&TaskGraph` and a `Sync` closure, which needs the
+  `AppendVec`-and-atomics graph of data-structures.md §3.21. The serial
+  and stepping executors mutate the graph through `&mut` instead, which
+  the browser and `--threads 1` need anyway; `pool::run_pool` takes a
+  `Sync` closure and a `Spawner`. One trait over both waits for the
+  atomic graph.
+
+**Stage counts on `lib/std`** (`cargo run -p hd_driver --example
+stages`; 36 files in 3 folders). Folder interfaces, module prep and
+bodies run the walking skeleton's subset pipeline, so they stop at the
+first construct outside the subset.
+
+| Stage | Ok | Not implemented | Blocked | First reason |
+| --- | --- | --- | --- | --- |
+| Discover | 1 | 0 | 0 | |
+| Skim | 36 | 0 | 0 | |
+| Parse | 17 | 19 | 0 | the full parser reports `syntax-error` (SK-6) |
+| FolderGraph | 1 | 0 | 0 | |
+| FolderIface | 0 | 2 | 1 | `std`: the subset parser stops at `@`; `std.prelude`: subset resolution |
+| HeaderCheck | 0 | 3 | 0 | stage-B header validation |
+| ModulePrep | 0 | 0 | 36 | |
+| Body | 0 | 0 | 36 | |
+| ModuleFinish | 0 | 0 | 36 | |
+| TestOverlay | 36 | 0 | 0 | no `tests:` block in std |
+| Coherence | 0 | 1 | 0 | overlap check over 506 impls |
+| InitOrder | 3 | 0 | 0 | no cross-module init group |
+| PackageResult | 1 | 0 | 0 | |
+| Collect | 0 | 1 | 0 | a library package has no program root without a test plan |
+| Emit, Link, Precompile, Run | 0 | 0 | 1 each | |
