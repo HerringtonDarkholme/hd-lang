@@ -1,11 +1,12 @@
-// lookup-latency: how fast an agent gets an answer about one name or code.
+// lookup-latency: how fast an agent gets an answer from the program database.
 //
-// On a 10k-line generated package, 10 timed runs each of
-// `hd doc m040.Item40`, `hd def m040.label40` and `hd explain type-mismatch`,
-// after one untimed warm-up run of each.
-// Target (Pillar 1): p95 ≤ 100 ms for each command.
-// n/a: a command whose `hd help COMMAND` fails. `hd def` and `hd explain`
-// are not in the CLI specification yet.
+// On a 10k-line generated package, 10 timed runs each of two canned
+// queries, after one untimed warm-up run of each: `hd callers
+// m040.label40` (who calls a function) and `hd needs Http` (which code
+// needs a capability; the package has none, which is an answer too).
+// Target (Pillar 1): p95 ≤ 100 ms for each query.
+// n/a: a query whose `hd help COMMAND` fails. Neither command is in the CLI
+// specification yet; the names come from NEW_COMPILER_ARCHITECTURE.md.
 
 import { materialize, runProblem } from "../lib/fixture.ts";
 import { runHd, supportsCommand } from "../lib/hd.ts";
@@ -20,15 +21,15 @@ const WARM_TIMEOUT_MS = 60_000;
 export const lookupLatency: Metric = {
   name: NAME,
   pillar: 1,
-  summary: "hd doc ITEM, hd def NAME, hd explain CODE wall time, p95 of 10 runs each",
+  summary:
+    "canned program-database queries (hd callers, hd needs Http) wall time, p95 of 10 runs each",
   async run(context) {
     const { dir, pkg } = materialize("10k", NAME);
     const module = pkg.modules[Math.min(40, pkg.modules.length - 1)]!;
     const k = Number(module.name.slice(1));
     const lookups = [
-      { command: "doc", args: ["doc", `${module.name}.Item${k}`] },
-      { command: "def", args: ["def", `${module.name}.label${k}`] },
-      { command: "explain", args: ["explain", "type-mismatch"] },
+      { command: "callers", args: ["callers", `${module.name}.label${k}`] },
+      { command: "needs", args: ["needs", "Http"] },
     ];
     const results: TargetResult[] = [];
     for (const lookup of lookups) {

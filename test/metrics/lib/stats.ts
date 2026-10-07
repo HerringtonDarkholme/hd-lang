@@ -16,6 +16,21 @@ export function percentile(values: readonly number[], p: number): number {
 export const p50 = (values: readonly number[]): number => percentile(values, 50);
 export const p95 = (values: readonly number[]): number => percentile(values, 95);
 
+/** The median and the 10th and 90th percentiles of `values`. */
+export function spread(values: readonly number[]): {
+  readonly p10: number;
+  readonly p50: number;
+  readonly p90: number;
+} {
+  return { p10: percentile(values, 10), p50: p50(values), p90: percentile(values, 90) };
+}
+
+/** The geometric mean of positive values; NaN when any is not positive or the list is empty. */
+export function geomean(values: readonly number[]): number {
+  if (values.length === 0 || values.some((value) => !(value > 0))) return Number.NaN;
+  return Math.exp(values.reduce((sum, value) => sum + Math.log(value), 0) / values.length);
+}
+
 /** The share of `items` for which `test` holds, in 0..1; 0 for an empty list. */
 export function share<T>(items: readonly T[], test: (item: T) => boolean): number {
   if (items.length === 0) return 0;

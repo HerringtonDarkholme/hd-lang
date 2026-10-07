@@ -3,19 +3,28 @@
 // outside the `pnpm test` glob.
 
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, linkSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { CASES } from "./pathological/cases.ts";
+import { freedBytes, passedCount, perUnit, pickArtifact, printed } from "./lib/artifact.ts";
 import { formatTable, selectMetrics } from "./run.ts";
 import { findCacheCap, findThreadControl } from "./lib/capability.ts";
 import { loadMistakes, parseMistake } from "./lib/corpus.ts";
 import { applyEdits, fixOf } from "./lib/fixit.ts";
 import { dependentsOf, editBody, editSignature, generatePackage, makeRandom } from "./lib/gen.ts";
 import { parsePsRss, parseTimeReport, splitCommand } from "./lib/hd.ts";
-import { judge } from "./lib/metric.ts";
-import { estimateTokens, growthExponent, p50, p95, percentile } from "./lib/stats.ts";
+import { formatValue, judge } from "./lib/metric.ts";
+import {
+  estimateTokens,
+  geomean,
+  growthExponent,
+  p50,
+  p95,
+  percentile,
+  spread,
+} from "./lib/stats.ts";
 import { makeTempDir, removeTempDir, treeBytes } from "./lib/tmp.ts";
 import { parseStrace } from "./lib/trace.ts";
 import { latencyBound } from "./scripts/concurrency.ts";
@@ -25,6 +34,14 @@ import { newErrors } from "./scripts/fixit-safety.ts";
 import { METRICS } from "./scripts/index.ts";
 import { under } from "./scripts/io-per-check.ts";
 import { growthFrom, replInput, replSteps } from "./scripts/long-session.ts";
+import { conformanceCounts, tsvRows } from "./scripts/conformance.ts";
+import { reachEveryModule, stdModules, stdNamesIn } from "./scripts/dead-code.ts";
+import { applyEdit, difference, newEditState, outcome } from "./scripts/incremental-soundness.ts";
+import { docTestPackage, integrationPackage } from "./scripts/integration-test-perf.ts";
+import { flatGrowth } from "./scripts/long-run-memory.ts";
+import { MICRO_CASES, nodeBody } from "./scripts/runtime.ts";
+import { nodeOnce } from "./scripts/size-startup-heap.ts";
+import { unitPackage } from "./scripts/unit-test-perf.ts";
 
 describe("stats", () => {
   it("takes nearest-rank percentiles", () => {
@@ -201,6 +218,27 @@ describe("runner", () => {
         "fetch-dedup",
       ],
     );
+    assert.deepEqual(
+      selectMetrics(METRICS, [], "3").map((metric) => metric.name),
+      [
+        "proptest-perf",
+        "unit-test-perf",
+        "integration-test-perf",
+        "runtime",
+        "allocations",
+        "size-startup-heap",
+        "host-call-overhead",
+        "suspension-overhead",
+        "serde-throughput",
+        "text-throughput",
+        "dead-code",
+        "long-run-memory",
+      ],
+    );
+    assert.deepEqual(
+      selectMetrics(METRICS, [], "gate").map((metric) => metric.name),
+      ["conformance", "incremental-soundness"],
+    );
     assert.throws(() => selectMetrics(METRICS, ["nope"], undefined), /unknown metric/);
   });
 
@@ -298,5 +336,159 @@ describe("pillar 2 helpers", () => {
       join(root, "bin", "hd.js"),
     ]);
     assert.equal(toolchain.kind, "node_modules");
+  });
+});
+
+describe("pillar 3 helpers", () => {
+  it("takes spreads and geometric means", () => {
+    const values = [5, 1, 4, 2, 3, 9, 8, 7, 6, 10];
+    assert.deepEqual(spread(values), { p10: 1, p50: 5, p90: 9 });
+    assert.equal(geomean([2, 8]), 4);
+    assert.ok(Number.isNaN(geomean([1, 0])));
+    assert.ok(Number.isNaN(geomean([])));
+  });
+
+  it("formats rates and small costs", () => {
+    assert.equal(formatValue(0.5, "us"), "0.50 µs");
+    assert.equal(formatValue(93.4, "ns"), "93 ns");
+    assert.equal(formatValue(2_500_000, "per-s"), "2.5M/s");
+    assert.equal(formatValue(45_000, "per-s"), "45k/s");
+    assert.equal(formatValue(3.25, "MB/s"), "3.3 MB/s");
+    assert.equal(formatValue(80, "B/iter"), "80 B/iter");
+  });
+
+  it("picks the release Wasm file of the package, else a native executable", () => {
+    const files = ["debug/bench.wasm", "release/other.wasm", "release/bench.wasm"];
+    assert.deepEqual(pickArtifact(files, true), { path: "release/bench.wasm", kind: "wasm" });
+    assert.deepEqual(pickArtifact(files, false), { path: "debug/bench.wasm", kind: "wasm" });
+    assert.deepEqual(
+      pickArtifact(["release/bench", "release/bench.d"], true, (path) => path === "release/bench"),
+      { path: "release/bench", kind: "native" },
+    );
+    assert.equal(pickArtifact(["release/bench.d"], true), undefined);
+  });
+
+  it("pairs timings into costs per unit", () => {
+    assert.deepEqual(perUnit([110, 120], [10, 20], 10), [10, 10]);
+  });
+
+  it("reads printed counts and test totals", () => {
+    assert.equal(printed("bytes=45488 total=10", "bytes"), 45488);
+    assert.throws(() => printed("nothing", "bytes"), /no bytes=N/);
+    assert.equal(passedCount("src/a.hd: 5 passed\nsrc/b.hd: 3 passed, 1 failed\n"), 8);
+  });
+
+  it("sums the bytes a GC log freed", () => {
+    const log = [
+      "[1:0x1] 9 ms: pause=0.2 gc=s start_object_size=4000 end_object_size=1000 allocated=4000",
+      "program output",
+      "[1:0x1] 12 ms: pause=0.1 gc=mc start_object_size=3000 end_object_size=2500",
+    ].join("\n");
+    assert.equal(freedBytes(log), 3500);
+    assert.equal(freedBytes("no collections"), 0);
+  });
+
+  it("turns each micro case into a self-timing Node program", () => {
+    const root = join(import.meta.dirname, "..", "..");
+    for (const name of MICRO_CASES) {
+      const source = readFileSync(join(root, "test", "perf", "micro", `${name}.js`), "utf8");
+      assert.match(
+        nodeBody(source),
+        /console\.log\(JSON\.stringify\(\{ ms: measure\(main\) \}\)\);\n$/,
+      );
+      assert.match(nodeOnce(source), /\nmain\(\);\n$/);
+      assert.ok(!nodeBody(source).includes("const times"), name);
+    }
+    assert.throws(() => nodeBody("console.log(1)"), /not a micro case/);
+  });
+
+  it("generates unit, integration and doc test packages of the asked size", () => {
+    const units = unitPackage(100);
+    const cases = [...units.values()].join("\n").match(/^\s*it\(/gm) ?? [];
+    assert.equal(cases.length, 100);
+    assert.ok(units.has("src/m9_test.hd"));
+    const integration = integrationPackage(3);
+    assert.equal([...integration.keys()].filter((path) => path.startsWith("tests/")).length, 3);
+    assert.match(integration.get("tests/export0.hd")!, /temp_dir\(\)/);
+    const docs = docTestPackage(4).get("src/lib.hd")!;
+    assert.equal(docs.match(/^## ```hd$/gm)?.length, 4);
+  });
+
+  it("calls into every module of a generated package", () => {
+    const pkg = generatePackage({ seed: "reach", lines: 1_000 });
+    const main = reachEveryModule(pkg);
+    for (const [k, module] of pkg.modules.entries()) {
+      assert.ok(main.includes(`use pkg.${module.name}.`), module.name);
+      assert.ok(main.includes(`shape${k}(`), module.name);
+    }
+  });
+
+  it("finds std module names among Wasm names, but not runtime helpers", () => {
+    const modules = stdModules(join(import.meta.dirname, "..", ".."));
+    assert.ok(modules.includes("json") && modules.includes("std") && !modules.includes("host"));
+    assert.deepEqual(
+      stdNamesIn(
+        ["hd.host_string_new", "hd.panic", "hd.json_encode", "stdConsoleWrite", "main"],
+        modules,
+      ),
+      ["hd.json_encode", "stdConsoleWrite"],
+    );
+  });
+
+  it("measures flat memory from the samples after warm-up", () => {
+    const mb = 1024 * 1024;
+    const flat = [50, 80, 100, 100, 101, 100, 99, 100, 101, 100, 100, 102].map((v) => v * mb);
+    assert.ok(flatGrowth(flat) <= 2 * mb);
+    const growing = Array.from({ length: 12 }, (_, i) => (100 + i * 5) * mb);
+    assert.equal(flatGrowth(growing), 30 * mb);
+    assert.ok(Number.isNaN(flatGrowth([1, 2, 3])));
+  });
+
+  it("reads a conformance summary and a TSV", () => {
+    const output =
+      "pass  a.hd\nconformance: 90 passed, 10 failed, 100 selected (language: 1 of 1)\nconformance: 3 passed, 1 failed, 4 selected\n3 passed after a serial retry\n";
+    assert.deepEqual(conformanceCounts(output), { passed: 93, selected: 100 });
+    assert.equal(conformanceCounts("nothing"), undefined);
+    assert.deepEqual(tsvRows("path\treason\na\tb\n\nc\td\n"), ["a\tb", "c\td"]);
+  });
+
+  it("applies each edit of a soundness script and undoes breakage", () => {
+    const pkg = generatePackage({ seed: "soundness", lines: 1_000 });
+    const text = pkg.files.get(pkg.modules[1]!.file)!;
+    const state = newEditState();
+    assert.equal(applyEdit("repair", 1, text, state), undefined);
+    const broken = applyEdit("break", 1, text, state)!;
+    assert.match(broken, /x \+ bump \+ true$/m);
+    assert.equal(applyEdit("break", 1, broken, state), undefined);
+    assert.equal(applyEdit("repair", 1, broken, state), text);
+    const failing = applyEdit("break-test", 1, text, state)!;
+    assert.equal(applyEdit("repair-test", 1, failing, state), text);
+    const signed = applyEdit("signature", 1, text, state)!;
+    assert.equal(applyEdit("signature", 1, signed, state), undefined);
+    assert.match(applyEdit("add", 1, text, state)!, /pub fn added1_1\(x: i32\) -> i32:/);
+  });
+
+  it("compares runs by status, diagnostics and test outcomes in any order", () => {
+    const diag = (file: string, line: number) =>
+      JSON.stringify({
+        kind: "diagnostic",
+        code: "c",
+        severity: "error",
+        file,
+        line,
+        column: 1,
+        message: "m",
+      });
+    const test = (name: string, result: string) =>
+      JSON.stringify({ kind: "test", name, outcome: result });
+    const a = outcome(1, [diag("/w/src/a.hd", 2), test("t1", "passed")].join("\n"), "/w");
+    const b = outcome(1, [test("t1", "passed"), diag("/f/src/a.hd", 2)].join("\n"), "/f");
+    assert.equal(difference(a, b), undefined);
+    const c = outcome(1, [test("t1", "failed"), diag("/f/src/a.hd", 2)].join("\n"), "/f");
+    assert.match(
+      difference(a, c) ?? "",
+      /incremental only: test \| t1 \| passed; clean only: test \| t1 \| failed/,
+    );
+    assert.match(difference(outcome(0, "", "/w"), outcome(1, "", "/f")) ?? "", /status 0/);
   });
 });

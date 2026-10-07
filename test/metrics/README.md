@@ -27,6 +27,8 @@ pnpm run metrics -- --pillar 1                    # one pillar
 pnpm run metrics -- --list                        # list the metrics
 pnpm run metrics -- --hd "/path/to/hd" --only cold-check
 pnpm run metrics -- --pillar 2 --suite --max      # with the slow and large runs
+pnpm run metrics -- --pillar gate --suite         # the correctness gate, with conformance
+pnpm run metrics -- --only long-run-memory --long # the 10-minute soak
 ```
 
 - `--hd COMMAND` is the `hd` under test. The default is
@@ -34,9 +36,10 @@ pnpm run metrics -- --pillar 2 --suite --max      # with the slow and large runs
   command that names an existing file is made absolute, so relative paths
   work from the repository root. `HD_METRICS_COMMAND` also sets it.
 - `--keep-temp` keeps the temporary directories, for debugging a script.
-- `--suite` runs `suite-cpu`, which takes minutes; without it, that line
-  is `n/a` with "run with --suite".
+- `--suite` runs `suite-cpu` and the `conformance` pass rate, which take
+  minutes; without it, those lines are `n/a` with "run with --suite".
 - `--max` adds the largest scale: 64 concurrent checks in `concurrency`.
+- `--long` runs `long-run-memory` for 10 minutes instead of 60 s.
 
 The runner prints one line per target as it is judged, then a summary
 table, then the counts. It exits 1 when any target fails, and 2 on a usage
@@ -69,7 +72,7 @@ target, so a slow `hd` fails fast instead of holding the run for minutes.
 | `errors-per-run` | two files of 10 independent mistakes, one with 2 syntax errors among them | all 10 reported, each once | never |
 | `diag-location` | the mistake corpus: the reporting diagnostic's line against the marked line | ≥ 95% | never |
 | `fixit-safety` | the mistake corpus: errors after applying each offered fix-it | 100% add no new error code | no `fix` field, or no fix-it offered |
-| `lookup-latency` | 10k-line package: `hd doc ITEM`, `hd def NAME`, `hd explain CODE`, 10 runs each after a warm-up | p95 ≤ 100 ms each | a command whose `hd help COMMAND` fails |
+| `lookup-latency` | 10k-line package: canned program-database queries `hd callers NAME` and `hd needs Http`, 10 runs each after a warm-up | p95 ≤ 100 ms each | a query whose `hd help COMMAND` fails |
 | `fmt` | `hd fmt` on a copy of the 10k-line package, then a second `hd fmt` | ≤ 200 ms; the second run changes nothing | no `hd fmt` |
 | `release-check-cost` | a checked-arithmetic loop run with `hd run` and `hd run --release` at two sizes; each profile's time is large minus small | debug ≤ 1.3x release | `hd help run` names no `--release` |
 
@@ -156,6 +159,80 @@ Notes on the choices:
   variable in a help text, set to a byte count. These names are this
   harness's convention; the CLI specification names none yet.
 
+## Pillar 3 Metrics
+
+| Script | Measures | Target | n/a when |
+| --- | --- | --- | --- |
+| `proptest-perf` | `hd test` of 3 `it_prop` properties over derived `Arbitrary` types, at 100 and 2,100 `cases`; a failing property with `shrink=500` against `shrink=0` | ≥ 100k cases/s; shrink ≤ 1 s | never |
+| `unit-test-perf` | warm `hd test` of 100 and 1,000 generated unit tests, half in `tests:` blocks, half in `_test.hd` modules | 1,000 tests ≤ 1 s; ≤ 1 ms per test | never |
+| `integration-test-perf` | warm `hd test` with 0, 2 and 10 `tests/` programs that use `temp_dir()` and the real file system; 2 and 10 doc tests | ≤ 20 ms setup per program and per doc test; total sublinear in programs | never |
+| `runtime` | the test/perf/micro cases minus a no-work program, 7 runs after a warm-up, median, p10 and p90; Node runs each case's `main` self-timed | geomean ≤ 1.5x Node; each case ≤ 3x | never |
+| `allocations` | V8 bytes allocated per iteration of a counted loop and an iterator chain, from 1,000 to 1,000,000 iterations | 0 allocations (< 1 B/iter); ≤ 1 allocation (≤ 32 B/iter) | programs that do not run on Node |
+| `size-startup-heap` | release Wasm size of a tiny program and of the micro cases; start to first output; peak RSS of two micro cases beyond a no-work program, against Node | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node | size: no `.wasm` written; heap: no `/usr/bin/time` |
+| `host-call-overhead` | a loop of `println`, `read_text!` or `FsRead.list_dir!` minus the same loop without the call | ≤ 1 µs; ≤ 10 µs; ≤ 5 µs | never |
+| `suspension-overhead` | a loop of `echo!(i)`, `all!` or `race!` of two ready tasks minus a loop of plain calls | ≤ 100 ns per await; ≥ 1M tasks/s | never |
+| `serde-throughput` | `std.json.encode` and `decode` of a 45 KB list of derived records, at 2 and 32 repeats, against Node's `JSON` | ≥ 0.5x Node's MB/s | never |
+| `text-throughput` | `StringBuilder` building, `split` and `Regex.find_all` over `word-I` text, at two sizes, against Node | ≥ 0.5x Node's MB/s | never |
+| `dead-code` | release size of the 1k and 10k generated packages with an executable that calls every module; a std-free program with and without unused `use` of 5 std modules | ≤ 10 KB per 1,000 lines; no unused std | never |
+| `long-run-memory` | RSS of a simulated JSON service, sampled 30 times over 60 s (10 min with `--long`) | growth after the first quarter ≤ 10 MB | never |
+
+Notes on the choices:
+
+- **Programs.** [`lib/artifact.ts`](lib/artifact.ts) writes each program
+  as `src/main.hd` of a package named `bench` and builds it with
+  `hd build --release` (plain `hd build` without `--release`). A `.wasm`
+  file the build wrote runs as `hd FILE.wasm`
+  ([`cli.wasm.run`](../../spec/cli/command-line.md#r-cli.wasm.run)), an
+  executable file runs directly, and with neither the program runs with
+  `hd run`. Every result line's note says which.
+- **Differences, not totals.** A process run includes start-up and
+  instantiation. Each measurement takes the difference of two programs
+  that differ only in the work: a size, a repeat count, or the call under
+  test. Runs interleave after a warm-up run of each, and the value is the
+  median of the paired differences.
+- **Node comparisons** are self-timing JavaScript programs, as in
+  test/perf/micro: each warms up 3 times and times 7 runs in its own
+  process. So Node is measured warm, and hd by process differences; the
+  ratio favors Node by its JIT warm-up. Python, when installed, is a note
+  in `runtime`.
+- **Heap.** No portable heap counter exists, so `size-startup-heap` and
+  `long-run-memory` use RSS, from `/usr/bin/time` or `ps`. A Node growth
+  under 1 MB counts as 1 MB.
+- **Allocations** come from V8. A module preloaded through `NODE_OPTIONS`
+  turns on `--trace-gc-nvp` and writes `v8.getHeapStatistics()` at exit;
+  the bytes a run allocated are the heap in use at exit plus what every
+  collection freed. A count needs an object size, so the bounds are bytes.
+- **Bounds this harness proposes.** The architecture gives examples, or no
+  number, for these: the Fs (10 µs) and serde-boundary (5 µs) call budgets,
+  100 ns per await and 1M tasks/s, 10 KB per 1,000 lines, 32 B for one
+  allocation, the 20 ms doc test budget, and 10 MB of long-run growth. The
+  owner may change them.
+- **Unused std** is judged two ways: unused `use` declarations must not
+  change the program's size, and the std-free program's Wasm import and
+  export names must hold no std module name as a word (the spec/std/ file
+  names, less words a runtime uses for its own helpers, such as `host`).
+- **Property regressions.** A failing property saves its stream
+  ([`std-testing.prop.regression-replay`](../../spec/std/testing.md#r-std-testing.prop.regression-replay)),
+  so `proptest-perf` runs every `hd test` in a fresh copy of its package.
+  It passes `--seed 7` when `hd help test` names `--seed`.
+
+## Correctness Gate
+
+| Script | Measures | Target | n/a when |
+| --- | --- | --- | --- |
+| `conformance` | `test/run-portable.ts --suite conformance --compiler HD`: passed / selected cases; and the rows of `test/portable/KNOWN_FAILURES.tsv` | 100%; 0 known failures | pass rate: without `--suite` |
+| `incremental-soundness` | a seeded script of 16 edits to the small package: after each, `hd check --tests --format json` in the working copy, with its own cache, against a fresh copy with an empty cache; `hd test --format json` too every 4th edit | 100% match | no compilation cache: a 4-edit sample still runs |
+
+- **Conformance** selects the cases of `test/portable/cases.tsv`, so the
+  listed known failures are excluded from the pass rate, and a case that
+  fails only by the time limit reruns once, as the runner does.
+- **Soundness edits** are a private body edit, a public signature edit, a
+  type error put into a body or taken out, a broken test expectation or its
+  repair, and a new public function. Two runs match when they exit alike and
+  report the same diagnostics (code, severity, file, line, column, message)
+  and test outcomes, in any order. Without an incremental mode, a mismatch
+  still fails: it shows nondeterminism.
+
 ## Mistake Corpus
 
 [`mistakes/`](mistakes) holds 72 programs, one per distinct mistake in
@@ -223,7 +300,8 @@ To print one program: `node --experimental-strip-types test/metrics/pathological
 | --- | --- |
 | `run.ts` | the runner |
 | `scripts/` | one file per metric, and `index.ts`, the list the runner reads |
-| `lib/hd.ts` | running `hd`: command parsing, timeouts, CPU time and peak RSS, JSON lines, paced sessions sampled with `ps` |
+| `lib/hd.ts` | running `hd`: command parsing, timeouts, CPU time and peak RSS, time to first output, JSON lines, paced sessions and long runs sampled with `ps` |
+| `lib/artifact.ts` | user programs: release builds, how a built program runs, interleaved timings and their differences, self-timing Node programs, the V8 heap probe |
 | `lib/gen.ts` | the seeded package generator: small, 10k and 50k lines |
 | `lib/fixture.ts` | generated packages in temporary directories, an added executable, timed series |
 | `lib/stats.ts` | percentiles, growth exponents, token estimates |
@@ -255,7 +333,7 @@ gains a defaulted parameter so its callers still type-check.
 
 ## Adding A Metric
 
-Pillar 3 and the correctness gate add their scripts the same way:
+A new metric is added the same way:
 
 1. Write `scripts/NAME.ts` exporting a `Metric`: its name, its pillar, a
    one-line summary, and `run(context)`, which returns one `TargetResult`

@@ -80,6 +80,8 @@ export interface RunResult {
   readonly stdout: string;
   readonly stderr: string;
   readonly wallMs: number;
+  /** Wall time from the start to the first byte of standard output; undefined with no output. */
+  readonly firstOutputMs?: number;
   /** User plus system CPU time; undefined when not measured. */
   readonly cpuMs?: number;
   /** Peak resident set size in bytes; undefined when not measured. */
@@ -149,7 +151,11 @@ export function runProcess(argv: readonly string[], options: RunOptions): Promis
     if (child.pid !== undefined) live.add(child.pid);
     const out: Buffer[] = [];
     const err: Buffer[] = [];
-    child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
+    let firstOutputMs: number | undefined;
+    child.stdout.on("data", (chunk: Buffer) => {
+      firstOutputMs ??= performance.now() - start;
+      out.push(chunk);
+    });
     child.stderr.on("data", (chunk: Buffer) => err.push(chunk));
     child.stdin.on("error", () => {});
     child.stdin.end(options.input ?? "");
@@ -181,6 +187,7 @@ export function runProcess(argv: readonly string[], options: RunOptions): Promis
         stdout: Buffer.concat(out).toString("utf8"),
         stderr: Buffer.concat(err).toString("utf8"),
         wallMs,
+        ...(firstOutputMs === undefined ? {} : { firstOutputMs }),
         ...usage,
         timedOut,
       });
@@ -254,6 +261,79 @@ export function groupRssBytes(pgid: number): Promise<number | undefined> {
     execFile("ps", ["-A", "-o", "pgid=,rss="], { timeout: 10_000 }, (error, stdout) =>
       done(error ? undefined : parsePsRss(stdout, pgid)),
     );
+  });
+}
+
+export interface SampledRun {
+  /** The resident set size of the process group at each sample, with its time in ms. */
+  readonly samples: readonly { readonly atMs: number; readonly rssBytes: number | undefined }[];
+  readonly stdout: string;
+  readonly stderr: string;
+  /** The exit status when the process ended before the duration; undefined when it was stopped. */
+  readonly exited?: number | null;
+}
+
+/**
+ * Runs a long-lived process for `durationMs`, samples the RSS of its
+ * process group every `intervalMs` with `ps`, then kills the group. A
+ * process that exits early ends the run, with `exited` set.
+ */
+export function runSampled(
+  argv: readonly string[],
+  options: {
+    readonly cwd: string;
+    readonly durationMs: number;
+    readonly intervalMs: number;
+    readonly env?: Readonly<Record<string, string>>;
+  },
+): Promise<SampledRun> {
+  return new Promise((done, fail) => {
+    const start = performance.now();
+    const child = spawn(argv[0]!, argv.slice(1), {
+      cwd: options.cwd,
+      env: { ...process.env, NO_COLOR: "1", ...options.env },
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const pid = child.pid;
+    if (pid !== undefined) live.add(pid);
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
+    const samples: { atMs: number; rssBytes: number | undefined }[] = [];
+    let stopped = false;
+    let sampling = false;
+    const sampler = setInterval(() => {
+      if (sampling || pid === undefined) return;
+      sampling = true;
+      const atMs = performance.now() - start;
+      void groupRssBytes(pid).then((rssBytes) => {
+        sampling = false;
+        if (!stopped) samples.push({ atMs, rssBytes });
+      });
+    }, options.intervalMs);
+    const stop = setTimeout(() => {
+      stopped = true;
+      try {
+        process.kill(-pid!, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
+    }, options.durationMs);
+    child.on("error", (error) => {
+      clearInterval(sampler);
+      clearTimeout(stop);
+      fail(error);
+    });
+    child.on("close", (status) => {
+      clearInterval(sampler);
+      clearTimeout(stop);
+      if (pid !== undefined) live.delete(pid);
+      const early = !stopped;
+      stopped = true;
+      done({ samples, stdout, stderr, ...(early ? { exited: status } : {}) });
+    });
   });
 }
 
