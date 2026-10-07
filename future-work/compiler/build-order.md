@@ -86,8 +86,8 @@ established until this matrix measures it.
 
 **The engine pin.** The first release pins one wasmtime minor line in
 `Cargo.lock`: the newest stable release when slice 0 starts, which on
-2026-10-07 is the 49 line (the documentation's main branch reports
-`51.0.0-dev`). Slice 0 records the exact patch release. The pin moves
+2026-10-07 is the 49 line by wasmtime's monthly release cadence (the
+documentation's main branch reports `51.0.0-dev`). Slice 0 records the exact patch release. The pin moves
 deliberately, at most once a quarter, in a change of its own that
 reruns slice 0's spikes, the engine-limit tests (runtime-and-host.md
 §17.8) and the `cwasm` compatibility test (engines-and-test-runner.md

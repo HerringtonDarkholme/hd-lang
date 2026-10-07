@@ -569,7 +569,7 @@ growing type) has no finite instance set.
   recursion: M3 reports the same code at check time
   ([type-checking.md §5.5](type-checking.md#55-private-rows-and-the-m3-fixpoint)).
 
-### 13.5 Dictionaries: Trait Values And Type Witnesses
+### 13.5 Dictionaries: Trait Values And GADT Evidence
 
 - **Vtables follow the trait record's shape** (trait-solver.md §9.2,
   change 19). The shape is computed once per trait at interface time:

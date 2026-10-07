@@ -153,7 +153,7 @@ design:
 - `Suspend[T]` values, `all!` and `race!` are typed as the spec says;
   their lowering is D2's.
 
-#### 4.13.6 GADT Refinement (Retired)
+#### 4.13.6 GADT Refinement
 
 GADTs are removed from the language (owner, 2026-10-07; the spec removal
 is S1e). Pattern refinement, existential variant parameters, the
