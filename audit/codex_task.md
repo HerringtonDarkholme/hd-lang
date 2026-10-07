@@ -149,6 +149,31 @@ for it, and record (citing "M4b gap n") with the intended rule:
 Update `reconciliation.md` and `footprint.md`. Docs only; timebox 45
 minutes; push.
 
+### Q14. Hello-World Size Breakdown
+
+`hello` builds to 4.8 KB (the target is 2 KB, `size-startup-heap`).
+Build `compiler/samples/hello` with the release `hd build`, then write
+`audit/compiler/size-hello-<short hash>.md`: bytes per section, then
+every function and data segment with its size and **why it is
+reachable** (the call chain from `main`, e.g. `println` → std number
+formatting → ...), and the name section's share. End with a ranked list
+of the five biggest contributors, each marked implementation slip or
+design issue, with the design section involved. Use a small script under
+`compiler/bench/` (wasm-tools or a hand parser) so it can be rerun.
+Report only; don't edit `compiler/crates/`. Timebox 30 minutes; push.
+
+### Q15. Phase-2 Job Briefs From The Work Estimate
+
+From `future-work/compiler/work-estimate.md`'s ordered job list, write
+`future-work/compiler/phase2-jobs.md`: one section per phase-2 job
+("make it work": the checker and emitter long tail, chapter by chapter),
+each with: scope in one line; the TS files it uses as a checklist (not
+to port); the spec chapters and design sections; the conformance cases
+it should turn green (directories or case lists); its exit test; and
+its size estimate. Order by dependency and by how many conformance cases
+each unblocks. Tables and short lists; docs only. Timebox 45 minutes;
+push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
