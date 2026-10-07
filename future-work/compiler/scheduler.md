@@ -89,6 +89,27 @@ pub struct SteppingScheduler { .. }                     // browser: run_for(max_
   worker keeps its own bump arena for body tasks. The default thread
   count is `min(cores, 8)`, changed by `--jobs` or `HD_JOBS`
   (open-questions.md, answered).
+- **Granularity: items are the logical unit, not the scheduling unit**
+  (orchestrator, 2026-10-07, after the owner asked about steal
+  thrashing). One rayon task per body would cost about 0.2 to 1 µs of
+  spawn, steal and completion work on bodies that check in tens of µs
+  (`lib/std` averages about 500 bytes per body), scatter a module's
+  bodies across cores away from its shared scope tables, and stretch the
+  per-module joins (M3, `ModuleFinish`). So:
+  1. The task graph is per module: parse, interface, body check and
+     finish tasks per module, never one graph node per item.
+  2. Inside a module's body task, the bodies run as one rayon parallel
+     iterator, which splits only when another worker steals (half the
+     remaining range, not one item). Bodies are ordered by the skim
+     token count, the cost estimate, with a minimum split size of about
+     0.5 to 1 ms of estimated work; a very large body runs alone, and a
+     small module runs as one sequential task.
+  3. Worker arenas reset per batch, not per item.
+  4. Codegen follows the same rule: instances are emitted in batches per
+     module group, never spawned one by one.
+  Determinism, fuel, cache keys and TIR stay per item; only scheduling
+  coarsens. `parallel-speedup` (at least 0.6x per core up to 8 cores)
+  and the scheduler overhead are measured in slice 4.
 - **Serial.** One ready queue ordered by priority, then creation order.
   It is the `--threads 1` mode and the browser's base. Its `Shuffled` mode
   picks among ready tasks by a seeded random choice, which finds order
