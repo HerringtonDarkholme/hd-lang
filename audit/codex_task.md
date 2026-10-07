@@ -107,20 +107,6 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
   applies fixes from your report.
 - Push each report within 30 minutes of starting it.
 
-### C3. Research: Known Issues Of Prior Back Ends, Wasm And Runtimes (Last)
-
-Documents only. Continue `future-work/compiler/prior-art-issues.md` with
-"Part B: Back Ends, Wasm And Runtimes" (replace its placeholder), in the
-style of Part A: per implementation, its choices, its documented problems
-with links, and whether our design (`codegen.md`, `wasm-layout.md`,
-`suspension.md`, `runtime-and-host.md`, `engines-and-test-runner.md`)
-avoids, inherits or ignores each. Cover MoonBit, dart2wasm, Kotlin/Wasm,
-wasm_of_ocaml, the Scala.js Wasm backend, Guile Hoot, AssemblyScript,
-Grain, Go's Wasm target, rustc_codegen_cranelift, Koka/Effekt/OCaml 5
-effect compilation, and wasmtime's GC. Add a ranked "Lessons for hd"
-list and a "Changes suggested" list for the design files (don't edit
-those files). Run `bash spec/check.sh` (it checks links) before pushing.
-
 ## Questions
 
 (none open; the C1 and C2 questions are answered in C2c)

@@ -1,13 +1,13 @@
 # New Compiler: Known Issues Of Prior Implementations
 
-Status: Research, not decided. Part A of 2: front ends, 2026-10-06.
+Status: Research, not decided. Parts A and B, 2026-10-07.
 
 This document surveys the newest front ends, type checkers and incremental
 engines, and above all their documented problems. It checks each problem
 against the recommendations in
 [research.md](research.md) and
-says whether we avoid it, inherit it, or ignore it. Part B (back ends, Wasm
-and runtimes) comes later.
+says whether we avoid it, inherit it, or ignore it. Part B applies the same
+test to back ends, Wasm implementations and runtimes.
 
 Fixed inputs, from the owner's decisions of 2026-10-06: the compiler is
 written in Rust; the incremental model is a per-module on-disk cache with no
@@ -662,9 +662,295 @@ Concrete edits for the owner to approve. I have not made them.
 15. **Open questions, new:** (a) the default heap cap and whether the
     spec names a diagnostic code for it; (b) the default cache size cap.
 
-## Part B: Back Ends, Wasm And Runtimes (pending)
+## Part B: Back Ends, Wasm And Runtimes
 
-To be written by the next research task.
+This is a deliberately narrow pass over failures and constraints that can
+change hd's first Wasm-GC implementation. It does not rank benchmark wins:
+engine and optimizer measurements belong to spike 0c. Sources are primary
+project documentation, issue trackers and advisories. A limitation is not a
+compiler defect unless the source says it is one.
+
+### Ranked Lessons For hd
+
+| # | Lesson | Evidence | Action |
+| --- | --- | --- | --- |
+| 1 | A timeout or cancellation point is a state boundary, not an arbitrary instruction boundary. An engine that yielded in the middle of table growth, memory copies and GC array copies exposed invalid intermediate state and stale raw pointers. | [Wasmtime advisory GHSA-2hw9-mc66-jc2q](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-2hw9-mc66-jc2q) | **Add:** charge before a bulk operation and yield only before or after it; cancellation must never publish a half-initialized hd value. |
+| 2 | Wasm-GC references are not a portable host ABI. They are opaque to JavaScript, and host-side roots have lifetime and allocation costs. | [Hoot ABI](https://gitlab.com/spritely/guile-hoot/-/blob/main/design/ABI.md), [Wasmtime `Rooted`](https://docs.wasmtime.dev/api/wasmtime/struct.Rooted.html), Kotlin's [`JsReference`](https://kotlinlang.org/docs/wasm-js-interop.html) | **Keep:** hd crosses scalars or the exchange buffer, never a guest GC reference. Add a test that the public import/export surface contains no GC reference type. |
+| 3 | Guest heap limits do not bound host resources. Handles, copied strings and lists, buffered I/O and owned roots can exhaust host memory independently. | [Wasmtime resource-exhaustion advisory](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-852m-cvvp-9p4w), [Wasmtime C-API root leak](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-vvp9-h8p2-xwfc) | **Change:** count handles and host-call copy work as well as bytes; poison or discard a store after an engine OOM until Wasmtime's OOM contract is complete. |
+| 4 | "Wasm" is not one deployment profile. A module can require Wasm GC, a particular exception encoding, tail calls, JSPI, a JavaScript host, WASI or private imports. | [Kotlin configuration](https://kotlinlang.org/docs/wasm-configuration.html), [Scala.js requirements](https://www.scala-js.org/doc/project/webassembly.html), [MoonBit FFI](https://docs.moonbitlang.com/en/latest/language/ffi.html) | **Add:** one versioned feature/import profile, checked before instantiation and included in every engine and precompile cache key. |
+| 5 | Host interop and support modules can dominate both speed and size even when generated Wasm is good. | [Scala.js performance and size](https://www.scala-js.org/doc/project/webassembly.html), [Hoot host modules](https://gitlab.com/spritely/guile-hoot/-/blob/main/README.md), [Grain browser loader](https://github.com/grain-lang/grain-web-example) | **Change:** size and startup metrics include generated JS glue, auxiliary modules and all transitive Wasm, not only the main module. |
+| 6 | Fast development code and optimized release code are different products. A low-level codegen IR can stay fast by keeping a stronger optimizer above or beside it. | [Cranelift's rustc goals](https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/rustc.md) | **Keep:** hd's dev and optimized pipelines are separate. Do not make release quality a prerequisite for the first dev backend. |
+| 7 | General effect handlers pay for continuation machinery that ordinary suspension need not pay. Tail-resumptive operations can compile as direct calls; general operations capture a continuation. | [Koka evidence passing](https://github.com/koka-lang/koka/blob/dev/doc/spec/tour.kk.md), [OCaml 5 effects](https://ocaml.org/manual/5.1/effects.html) | **Keep:** ready `await` stays a direct path and a frame appears only on suspension. Do not generalize the implementation to multi-shot effects. |
+| 8 | GC choice remains an engine policy with observable latency and capacity tradeoffs. Copying GC uses half the heap; deferred reference counting leaks cycles; a null collector never frees. | [Wasmtime collector API](https://docs.wasmtime.dev/api/wasmtime/enum.Collector.html) | **Keep:** V8 through Node is the primary execution engine. Treat wasmtime collector selection as measured configuration, not language semantics. |
+
+### MoonBit
+
+**Choice.** MoonBit has separate Wasm, Wasm-GC, JavaScript, C and
+experimental LLVM back ends. Plain Wasm and C use compiler-managed reference
+counting; Wasm-GC and JavaScript reuse the host collector. Its Wasm FFI maps
+foreign values to `externref`, while some standard packages depend on
+MoonBit-specific host imports
+([FFI documentation](https://docs.moonbitlang.com/en/latest/language/ffi.html)).
+
+**Documented problem.** Portability depends on the import set, and plain-Wasm
+FFI authors must maintain MoonBit reference counts correctly or cause memory
+errors or leaks. The documentation also says the default FFI ownership is
+being changed from owned to borrowed.
+
+**Verdict for hd.** **Avoids** the ownership problem by exposing no guest GC
+object at the ABI and **inherits** the import-profile problem. The generated
+ABI table is the right design, but its exact profile must be versioned.
+
+### dart2wasm
+
+**Choice.** dart2wasm targets Wasm GC with JavaScript glue and currently runs
+in JavaScript environments, not general engines such as wasmtime; deferred
+loading is experimental
+([Dart Wasm documentation](https://dart.dev/web/wasm)).
+
+**Documented problems.** A large application exceeded V8's operand limit for
+one generated `array.new_fixed`
+([dart-lang/sdk#55396](https://github.com/dart-lang/sdk/issues/55396)). Another
+large dynamic-dispatch surface produced an invalid `ref.cast` module even at
+`-O0`, before `wasm-opt`
+([dart-lang/sdk#63301](https://github.com/dart-lang/sdk/issues/63301)). Moving
+to the final Wasm-GC encodings was explicitly breaking: old encodings stopped
+working when engines switched
+([dart-lang/sdk#53517](https://github.com/dart-lang/sdk/issues/53517)).
+
+**Verdict for hd.** **Avoids** one-instruction giant constants through pooled
+data and explicit loops, but **inherits** scale-only type-section and cast
+risks. Keep `wasmparser` validation and add large nominal-hierarchy and large
+literal cases; pin the accepted Wasm feature encoding in the engine profile.
+
+### Kotlin/Wasm
+
+**Choice.** Kotlin has distinct `wasmJs` and `wasmWasi` targets. Browser output
+requires Wasm GC and exception handling; the two targets even default to
+different exception proposal versions
+([configuration](https://kotlinlang.org/docs/wasm-configuration.html)).
+
+**Documented problems.** JavaScript interop supports a restricted type set,
+opaque `JsReference` handles and ES modules only; arrays and dynamic values do
+not cross directly
+([interop differences](https://kotlinlang.org/docs/wasm-js-interop.html)).
+Array bounds failures trap unless an optional check changes them into Kotlin
+exceptions, so an engine choice can otherwise leak into language behavior.
+
+**Verdict for hd.** **Avoids** the semantic split because checked versus
+wrapping behavior is selected before emission and is engine-independent.
+**Inherits** the need for separate browser and standalone import profiles;
+their modules may share code, but they must not pretend to be interchangeable.
+
+### wasm_of_ocaml
+
+**Choice.** wasm_of_ocaml forked js_of_ocaml and translated OCaml bytecode to
+WebAssembly. The work was later merged back into js_of_ocaml and the separate
+repository was archived
+([project README](https://github.com/ocaml-wasm/wasm_of_ocaml)).
+
+**Documented problem.** The independent back end no longer has its own
+maintenance path. This is a lifecycle fact, not evidence of a correctness
+failure, but it shows the cost of keeping a parallel compiler fork alive.
+
+**Verdict for hd.** **Avoids** the fork by sharing checked TIR, layouts and
+reachability across targets. A future native target should add an emitter,
+not clone the compiler pipeline.
+
+### Scala.js Wasm
+
+**Choice.** The stable Wasm backend preserves Scala.js semantics and emits an
+ES module for a JavaScript host. It requires Wasm 3.0; async/await additionally
+requires JSPI
+([backend documentation](https://www.scala-js.org/doc/project/webassembly.html)).
+
+**Documented problems.** It cannot yet emit multiple modules, silently ignores
+`@JSExport` methods, can be significantly slower when JS interop dominates,
+and produces about twice the full-link code size of the JS backend.
+
+**Verdict for hd.** **Avoids** export ambiguity with one generated ABI and
+**inherits** the interop and glue costs. One linked program is acceptable for
+v1, but the size budget must include glue and engine compile time.
+
+### Guile Hoot
+
+**Choice.** Hoot uses Wasm GC and tail calls. To support delimited
+continuations it transforms all calls to tail calls and keeps explicit return
+state; browser reflection also loads auxiliary Wasm modules
+([ABI](https://gitlab.com/spritely/guile-hoot/-/blob/main/design/ABI.md),
+[README](https://gitlab.com/spritely/guile-hoot/-/blob/main/README.md)).
+
+**Documented problems.** Wasm-GC values are opaque to JavaScript and require
+explicit conversion. The ABI lists weak vectors, regular expressions, random
+states and first-class threads as unsupported, and notes that Wasm GC objects
+do not have multithreaded support.
+
+**Verdict for hd.** **Avoids** the all-calls continuation transform because
+hd lowers only suspending bodies to state machines. It also **avoids** GC-ref
+interop through its exchange buffer. Keep threads off until both the language
+and the selected engines define GC-object threading.
+
+### AssemblyScript
+
+**Choice.** AssemblyScript stores managed objects in linear memory. Its
+default runtime combines TLSF allocation with incremental GC; `minimal`
+requires the host to call `__collect` at safe points and `stub` never frees
+([runtime documentation](https://www.assemblyscript.org/runtime.html)).
+
+**Documented problem.** A host that keeps an unpinned pointer across an
+allocation can observe premature collection and undefined behavior. The
+smaller runtimes move lifetime correctness into host policy or deliberately
+leak until the instance dies.
+
+**Verdict for hd.** **Avoids** manual heap pointers and collector variants by
+using Wasm GC. The analogous danger remains host roots, which the scalar and
+buffer ABI deliberately excludes.
+
+### Grain
+
+**Choice.** Grain compiles through Binaryen
+([compiler README](https://github.com/grain-lang/grain)). In the documented
+browser setup, a JavaScript runner locates and fetches the entry module plus
+transitive program and stdlib Wasm dependencies
+([browser example](https://github.com/grain-lang/grain-web-example)).
+
+**Documented problem.** Deployment is a module graph, not one artifact: the
+host must find compatible copies of `another.wasm`, `pervasives.wasm` and
+other dependencies before the program starts. The reviewed primary sources do
+not publish a backend failure postmortem, so no stronger defect claim is made.
+
+**Verdict for hd.** **Avoids** loader/version skew by linking one program
+module. **Inherits** the general risk that support bytes are hidden from a
+main-module size number.
+
+### Go Wasm
+
+**Choice.** Go supports JS-hosted Wasm and WASI. Go 1.24 added reusable WASI
+reactors with an explicit `_initialize` call and exported functions
+([Go Wasm exports](https://go.dev/blog/wasmexport)).
+
+**Documented problems.** Execution is single-threaded. A background goroutine
+stops making progress after an exported function returns until the host calls
+the module again. Pointer-rich values cannot cross the 64-bit-Go/32-bit-Wasm
+boundary directly, and host calls block all goroutines
+([WASI limitations](https://go.dev/blog/wasi)).
+
+**Verdict for hd.** **Avoids** an implicit scheduler: `poll`, `wake` and the
+one-entry-at-a-time rule state exactly when work advances. **Inherits**
+single-threaded execution intentionally. Add a startup-order assertion that
+`hd.init` completes before any callable export.
+
+### rustc_codegen_cranelift
+
+**Choice.** cg_clif is a near drop-in rustc backend aimed first at faster
+debug compilation. Its platform matrix is narrower than LLVM's
+([project README](https://github.com/rust-lang/rustc_codegen_cranelift)).
+Cranelift's own design describes a fast base IR and a possible stronger
+optimizer in a separate IR above it
+([rustc design note](https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/rustc.md)).
+
+**Documented problem.** The design explicitly does not expect the basic path
+to compete with LLVM release optimization, and cg_clif's target support is
+uneven. Cranelift's APIs are also not stable
+([Cranelift status](https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/README.md)).
+
+**Verdict for hd.** **Avoids** promising one pipeline for both goals: hd's
+optimized passes precede Wasm emission while its dev path stays small. It
+**inherits** Wasmtime/Cranelift version and target coupling, so those versions
+belong in precompile keys.
+
+### Koka, Effekt And OCaml 5 Effects
+
+**Choices.** Koka uses generalized evidence passing and directly calls
+tail-resumptive operations; only general operations yield, capture and later
+resume a continuation
+([Koka tour](https://github.com/koka-lang/koka/blob/dev/doc/spec/tour.kk.md)).
+Effekt translates to capability-passing style and then Core, with backend-
+specific lowerings; its LLVM and JIT routes are documented as work in progress
+([implementation](https://github.com/effekt-lang/effekt-website/blob/main/docs/implementation.md)).
+OCaml 5 implements handlers with runtime-managed stack fibers and restricts
+captured continuations to one resumption
+([OCaml manual](https://ocaml.org/manual/5.1/effects.html)).
+
+**Documented problems.** Koka has an open report of multi-megabyte tiny
+binaries, including a Wasm build failure on one platform
+([koka#277](https://github.com/koka-lang/koka/issues/277)). Effekt's native
+back ends remain research work. In OCaml, failing to resume or discontinue a
+continuation leaks the fiber and resources; finalizers are more expensive than
+capture, and effect safety is not statically enforced.
+
+**Verdict for hd.** **Avoids** general handler machinery and multi-shot
+continuations. Its lazy suspension frame is the same valuable split as Koka's
+direct tail-resumptive path. Cancellation's mandatory child abort and `defer`
+unwind avoid OCaml's abandoned-continuation leak only if every host handle is
+owned by exactly one frame and tested on every exit.
+
+### Wasmtime GC And Embedding
+
+**Choice.** Wasmtime exposes copying, deferred-reference-counting and null
+collectors. The copying collector has throughput but stop-the-world latency
+and half-heap utilization; DRC cannot collect cycles; null GC never frees
+([collector API](https://docs.wasmtime.dev/api/wasmtime/enum.Collector.html)).
+Host references are either cheap LIFO-scoped roots or independently allocated
+owned roots
+([root API](https://docs.wasmtime.dev/api/wasmtime/struct.Rooted.html)).
+
+**Documented problems.** The 2026 bulk-operation advisory showed that
+mid-operation fuel/epoch callbacks could expose nulls in non-null tables, use
+stale memory pointers or corrupt the GC heap. A separate advisory found
+unbounded host resources and guest-sized copies in WASI. A pooled-GC metadata
+cache bug could abort the host
+([wasmtime#13417](https://github.com/bytecodealliance/wasmtime/issues/13417)),
+and complete allocation-failure recovery remains tracked work
+([wasmtime#12069](https://github.com/bytecodealliance/wasmtime/issues/12069)).
+
+**Verdict for hd.** **Inherits** these engine risks. Store isolation, an
+aggregate guest limit and host-buffer bytes are good starts, but handle count,
+copy-work fuel, root lifetime, poisoned-store behavior and atomic timeout
+boundaries are not yet complete. Node/V8 should remain the primary engine;
+wasmtime conformance is valuable but must not define language semantics.
+
+### Changes Suggested To The Back-End Design
+
+Concrete edits for the owner to approve. I have not made them.
+
+1. **`suspension.md` §14.6, cancellation:** state that generated code may
+   observe cancellation only between state-machine steps. A bulk primitive
+   charges its full work before entry and either completes atomically or traps;
+   it never yields with a partially initialized hd value reachable.
+2. **`runtime-and-host.md` §17.8, limits:** add a per-store handle-count limit
+   and host-call work fuel proportional to bytes copied or decoded. Count
+   owned GC roots, pending results and provider buffers against host resources,
+   independently of the guest heap limit.
+3. **`runtime-and-host.md` §17.8, engine failure:** after engine OOM, an epoch
+   callback that mutates the store, or an interrupted non-hd bulk operation,
+   poison and discard the store. Do not map such a failure to a resumable hd
+   panic until the pinned engine documents that recovery as safe.
+4. **`runtime-and-host.md` §§16.4 and 17.1:** give the ABI a versioned engine
+   profile containing required Wasm proposals, exception encoding, import
+   modules and host kind. Validate it before `hd.init`; include its hash in
+   link, browser and precompile keys.
+5. **`wasm-layout.md` §§15.2 and 15.7:** make "no GC references in public
+   imports or exports" an emission invariant and validator test. Only scalars,
+   handles and exchange-buffer lengths may cross the host ABI.
+6. **`engines-and-test-runner.md` §18:** add a startup matrix that validates
+   every emitted module on pinned Node/V8 and, where a decision rule names it,
+   default wasmtime. Exercise the exact feature profile, host imports and
+   exception behavior; do not compare Cranelift optimization levels or
+   allocators.
+7. **`engines-and-test-runner.md` §§18.1 and 18.3:** add collector cases for a
+   cycle, a long-lived set near half the copying heap, pooled-store reuse,
+   scoped and owned host roots, and allocation failure. Collector choice stays
+   outside language semantics.
+8. **`codegen.md` §12.8 and metrics:** report the main Wasm, generated JS,
+   auxiliary runtime modules and transitive program modules separately and in
+   total. Apply startup and download budgets to the total.
+9. **`runtime-and-host.md` §17.9:** specify startup as validate profile,
+   instantiate, bind providers, run `hd.init`, then expose callable entries.
+   A host callback before the instance reaches Ready is a host-contract error.
+10. **`suspension.md` §14:** record the non-goal: v1 suspension is a one-shot
+    compiler state machine, not a general algebraic-effect or multi-shot
+    continuation facility. Preserve the allocation-free ready path.
 
 ## Sources
 
