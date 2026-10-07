@@ -26,7 +26,7 @@ so `obj/` needs a spec change, which the owner accepted (open question
 | Kind | Content | Written by | Read by |
 | --- | --- | --- | --- |
 | `iface` | a folder interface blob (§4.11); its header carries `api_hash`, `deep_hash`, `heads_hash` | `FolderIface` | dependents' key computation, resolution, coherence, `hd doc` |
-| `check` | one module, in sections: diagnostics, init summary, row results, fact records, the read list (§5.3), the file's declaration table (`locs`), and, only when the module has no error, its TIR with per-item TIR hashes and dependency lists (§4.13.11) | `ModuleFinish` | output, `InitOrder`, D2 |
+| `check` | one module, in sections: diagnostics, init summary, row results, fact records, the read list (§5.3), the file's declaration table (`locs`), headers, and, only when the module has no error, its TIR with per-item TIR hashes and dependency lists (§4.13.11) | `ModuleFinish` | output, `InitOrder`, D2 |
 | `check-test` | the test overlay's diagnostics, test registrations and TIR | `TestOverlay` | `hd check --tests`, `hd test` |
 | `graph` | every package-wide part in one entry: each folder's stage-B header diagnostics ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)), each trait's overlap diagnostics, each folder's statement order and its diagnostics | `HeaderCheck`, `Coherence` and `InitOrder`, gathered at `PackageResult` | output, D2 |
 | `pkgres` | the package's sorted diagnostics and summary counts | `PackageResult` | the warm fast path |
@@ -47,6 +47,11 @@ invalidation, never a smaller one:
   declaration table from `source_hash(m)`, which the key holds. A reader
   maps the entry and touches only the sections it needs. Other files call
   the TIR sections "the `tir` entry".
+- **The headers section (walking skeleton, SK-1).** It holds the
+  module's private signatures and private data and enum layouts, by
+  stable path. The folder interface holds only public items, and on a
+  `check` hit M1 does not run. D2 still needs every callee's result type
+  and every data type's fields, so it reads them from this section.
 - **An entry without TIR.** A module with errors, or one checked in the
   no-emit mode (type-checking.md §1.7), is published without TIR
   sections, and its header flag `HAS_TIR` is clear. A build that finds
@@ -107,6 +112,13 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
                   file, sorted dependency keys, command mode)
 ```
 
+- **Code keys hold the callees' representation summaries (walking
+  skeleton, SK-3).** A callee's A1 summary picks the symbol its caller
+  relocates to and whether the caller casts the result. So the caller's
+  code key holds it, through each callee's instance key after A1
+  classification ([codegen.md §13.8](codegen.md#138-code-entries)). A
+  change to a callee's summary then re-emits its callers, even when
+  their own TIR is unchanged.
 - **Dependency closures.** `closure(m)` is m's own folder plus every
   folder reachable from it through the folder graph's use edges. It is
   the transitive closure, not only the folders m names. `closure(F)` is

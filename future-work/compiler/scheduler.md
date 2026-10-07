@@ -70,8 +70,17 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
     task, through the `FolderIface` chain, so universes add no edge.
 - **Cache checks are tasks too.** A key can be computed only when the
   deep hashes it names are known, so "compute key, look up, skip or run"
-  is the first step of each `FolderIface` and `ModuleFinish` path. A hit
+  is the first step of each `FolderIface` and `ModulePrep` task. A hit
   marks the subtree below it done without creating it.
+- **The check lookup is `ModulePrep`'s first step (walking skeleton,
+  SK-4).** `check_key(m)` needs only the closure's deep hashes and
+  `source_hash(m)`. So `ModulePrep(m)` looks it up before anything else,
+  and creates `Body(m)` and `ModuleFinish(m)` only on a miss. A lookup at
+  `ModuleFinish` would come after the work it could save.
+- **`Parse(f)` is created on demand.** A hit needs no parse. The task
+  that misses, `FolderIface(F)` or `ModulePrep(m)`, creates `Parse(f)`
+  for each file it reads, and a file parsed once in a run is not parsed
+  again. `Parse(f)` is not a static predecessor of `ModulePrep`.
 
 ### 6.2 Executors
 

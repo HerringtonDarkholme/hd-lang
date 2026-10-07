@@ -8,6 +8,11 @@ The point was to test whether the design holds together, not to build
 the compiler. This file lists what the design said, what the skeleton
 built, and every place the design did not fit.
 
+Update, 2026-10-07: `hd_walk` is split into the design's crates, `hd run`
+works, and SK-1 to SK-4 are fixed in code and in the design. See
+[Follow-Up](#follow-up-what-was-fixed). SK-5 is an owner question; the
+current behavior is kept.
+
 ## Summary
 
 The design holds together. Every stage was built from the design's own
@@ -24,10 +29,60 @@ change, and all of them are small:
 | SK-2 | The A1 representation summary, read from the item's own body only, is unsound for a bounded parameter passed on to a bounded callee | codegen.md §13.2 | architecture |
 | SK-3 | A caller's code depends on its callees' representation summaries, which no code key holds | codegen.md §13.2, §13.8 | architecture |
 | SK-4 | The check-key lookup belongs before `ModulePrep`, not on the `ModuleFinish` path; `Parse(f)` is a demand task, not a static predecessor | scheduler.md §6.1, design-overview.md §1.3 | architecture (text) |
-| SK-5 | A comment-only edit rechecks its module, because `check_key` holds `source_hash(m)` and the entry holds spans | cache.md §5.3, checking-and-tir.md §4.13.11 | architecture (owner choice) |
+| SK-5 | A comment-only edit rechecks its module, because `check_key` holds `source_hash(m)` and the entry holds spans | cache.md §5.3, checking-and-tir.md §4.13.11 | owner question, current behavior kept |
 
 The rest are implementation notes. Nothing measured was atrociously
 slow; see [Timings](#timings).
+
+## Follow-Up: What Was Fixed
+
+The skeleton's code now lives in the design's crates. Each depends only
+on the crates below it:
+
+| Crate | Holds | Depends on |
+| --- | --- | --- |
+| `hd_iface` | canonical bytes and `KeyHasher`, header items, interface blobs, `api_hash`, deep hashes | `hd_base` |
+| `hd_tir` | the run's tables (`World`), TIR, wire form, TIR hash, printer, verifier stub | `hd_iface` |
+| `hd_check` | typed views, resolution, header lowering, body checking to TIR | `hd_syntax`, `hd_iface`, `hd_tir` |
+| `hd_mono` | collection, `select`, A1 classification, instance keys | `hd_tir` |
+| `hd_wasm` | emission, the code entry codec, link | `hd_tir`, `hd_mono` (no syntax, no checker) |
+| `hd_sched` | `TaskKind`, the task graph, the serial executor | none |
+| `hd_cache` | the memory store and the key rules of cache.md §5.3 | `hd_iface` |
+| `hd_driver` | the run, counters, source loading, the Node runner, the bench | all of the above |
+
+`hd run FILE.hd`, `hd run DIR`, `hd build FILE -o OUT.wasm` and
+`hd bench N` are in `hd_cli`. A file is a module and its directory is its
+folder. The JS host is `compiler/host/run.mjs`; the samples are in
+`compiler/samples`.
+
+| Finding | Code | Design text |
+| --- | --- | --- |
+| SK-1 | the `check` entry has a meta section (the TIR content hash) and a headers section of private signatures and private layouts (`hd_driver`, `module_finish`) | cache.md §5.2; data-structures.md §3.20.4 |
+| SK-2 | `A1Rule::Bounded`: a bounded parameter is always exact (`hd_check::body::rep_summary`). The old rule is `A1Rule::Literal`, a toolchain-key option; test `a1_rule_bounded_parameter_is_exact` shows it fails and the new one runs | codegen.md §13.2 |
+| SK-3 | the code key holds each callee's path and summary (`hd_cache::code_key`, `hd_mono::collect`). Test `callee_representation_change_re_emits_caller` bounds `first`; without the fix the link fails on a stale `first[REF]` | cache.md §5.3; codegen.md §13.8 |
+| SK-4 | already so in code: the `check` lookup is `ModulePrep`'s first step, and `Parse(f)` runs on demand. The incremental test asserts a warm run parses nothing | scheduler.md §6.1 |
+| SK-5 | owner question, current behavior kept: a comment edit rechecks its module | none |
+| SK-N8 | `FolderIface::by_path`, a map from stable path to item | none |
+| SK-N16 | a `check` hit reads diagnostics and the meta section only; headers and TIR are decoded at `Collect`, and only on a `prog_key` miss | none |
+| `ModuleFinish`, `Emit` slips | the wire tables find rows through maps; `Emit` takes the TIR hash stored in the entry instead of re-serializing the body | none |
+
+Tests: 8 in `hd_driver/tests/skeleton.rs`, 3 in `hd_cli/tests/run.rs`
+(the samples on V8 through `hd run`, `hd build`, an error), and unit
+tests in `hd_iface`, `hd_tir`, `hd_sched` and `hd_cache`.
+
+Bench after the fixes, release build, same machine (before in
+[Timings](#timings)):
+
+| Bench run | 3,000 lines | 30,000 lines |
+| --- | --- | --- |
+| cold | 7.6 ms (was 8.4) | 70 ms (was 89) |
+| warm, no edit | 0.56 ms (was 1.7) | 5.1 ms (was 16) |
+| private body edit in every function of B | 6.7 ms (was 5.7) | 48 ms (was 60) |
+| comment edit in B | 4.3 ms (was 4.1) | 29 ms (was 38) |
+
+At 30,000 lines, `FolderIface` fell from 13 ms to 0.9 ms (SK-N8), and
+the warm run is now mostly `Skim` (4 ms). Collection now includes the
+TIR decode that `ModulePrep` used to do on a hit.
 
 ## What Was Built
 
@@ -322,7 +377,7 @@ toolchain key, a package key, `(module, role, api_text_hash)` lists and
 closure deep-hash lists. Each run uses a fresh `World`, so no run ID can
 cross a boundary unnoticed.
 
-- **SK-5 (architecture issue, owner choice).** The brief expected "a
+- **SK-5 (owner question, current behavior kept).** The brief expected "a
   comment-only edit reuses everything except locations". The design gets
   close but not there: the interface and every other module hit, and
   `prog_key` hits, so nothing is collected, emitted or linked. The edited
