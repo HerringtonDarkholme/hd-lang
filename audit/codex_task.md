@@ -64,12 +64,79 @@ When the queue is empty, report that and wait.
 
 ## Don't Touch
 
-- `spec/` (including fixture file names), unless a job says so.
-- Module name scopes (another agent is changing them): `src/checker/module-paths.ts`,
-  `src/checker/package-ownership.ts`, `src/checker/member-visibility.ts`,
-  `src/package.ts` module scopes and linking.
+- `spec/`, `lib/std/`, `guide/`, `website/` and `src/`: the orchestrator's
+  spec passes are rewriting them now (S1d: `dyn Trait`; S1e: removing
+  GADTs). Read them; don't edit them. `src/` is the frozen prototype.
+- `future-work/compiler/*.md` except where a job says so.
 
 ## Jobs
+
+### C1. New Compiler, Slice 1a: Workspace, Lexer, Layout, Skim Mode
+
+The new compiler is written in Rust (owner decision). The design is in
+`future-work/compiler/`: start with `README.md`, `design-overview.md`
+(§1 pipeline, §2 crate graph), `syntax.md` (§4.1 lexer, §4.2 layout, §4.3
+skim mode and the header pass), `data-structures.md` (§3.1 IDs, §3.3
+interners, §3.7 spans, §3.8 diagnostics, §3.9 encoding, §3.11 tokens,
+§3.12 layout cursor, §3.14 skeleton) and `build-order.md` (slice 1). The
+language is in `spec/lang/01-lexical-structure.md` and `02-grammar.md`.
+Recent owner decisions in `goals.md`: trait value types are written
+`dyn Trait` (`dyn` is a keyword); GADTs are removed (no variant `->`
+result types).
+
+- Create a Cargo workspace at `compiler/` with the crates `hd_base`,
+  `hd_intern`, `hd_diag` and `hd_syntax` as `design-overview.md` §2 names
+  them (adjust names only if the design says otherwise). Rust stable;
+  `rust-toolchain.toml` pinning the current stable; `cargo fmt` and
+  `cargo clippy -D warnings` clean.
+- `hd_syntax`: the lexer (token columns as `data-structures.md` §3.11),
+  the layout cursor (§3.12, `syntax.md` §4.2), and skim mode with the
+  header skeleton (§4.3, §3.14). Data-oriented: flat columns, `u32`
+  indices, no `Box` trees.
+- Tests: every `.hd` file under `spec/conformance/` and `lib/std/` lexes
+  without panic and its tokens plus trivia reproduce the file byte for
+  byte; skim mode finds the same body ranges as a reference you derive
+  from the layout tokens; a `cargo test` run.
+- CI: add a job to `.github/workflows/test.yml` that runs `cargo fmt
+  --check`, `cargo clippy -- -D warnings` and `cargo test` in `compiler/`,
+  and `cargo build -p hd_syntax --target wasm32-unknown-unknown`. Don't
+  change the existing JS jobs. Don't trigger workflows by hand.
+- Record lexing and skimming throughput (MB/s) on `lib/std` in the commit
+  message. No footprint numbers are needed for `compiler/` work.
+
+### C2. New Compiler, Slice 1b: Parser, Green Tree, `hd parse`
+
+After C1. Same design files, plus `syntax.md` §4.4 (parser and green
+tree), §4.5 (header extraction and the API text hash), §4.6 (item index),
+`data-structures.md` §3.13 (green tree and its wire format) and
+`live-execution.md` (how a REPL input is parsed).
+
+- The hand-written resilient recursive-descent parser building the
+  lossless flat green tree, typed views generated or written per the
+  design, `dyn Trait` in type position, and a small `hd` binary (or a
+  `hd_cli` crate) with `hd parse FILE` printing the tree or the
+  diagnostics.
+- Exit test (`build-order.md` slice 1): the parse-phase cases of
+  `spec/conformance` pass (accept/reject and the diagnostic codes the
+  fixtures expect; list any you cannot match under Questions); every
+  fixture and std file round-trips byte for byte through the green tree;
+  skim and full-parse skeletons agree on every file; a fuzz target
+  (`cargo fuzz` or a property test) runs a fixed budget with no panic.
+- Record parse throughput in the commit message.
+
+### C3. Research: Known Issues Of Prior Back Ends, Wasm And Runtimes
+
+Documents only. Continue `future-work/compiler/prior-art-issues.md` with
+"Part B: Back Ends, Wasm And Runtimes" (replace its placeholder), in the
+style of Part A: per implementation, its choices, its documented problems
+with links, and whether our design (`codegen.md`, `wasm-layout.md`,
+`suspension.md`, `runtime-and-host.md`, `engines-and-test-runner.md`)
+avoids, inherits or ignores each. Cover MoonBit, dart2wasm, Kotlin/Wasm,
+wasm_of_ocaml, the Scala.js Wasm backend, Guile Hoot, AssemblyScript,
+Grain, Go's Wasm target, rustc_codegen_cranelift, Koka/Effekt/OCaml 5
+effect compilation, and wasmtime's GC. Add a ranked "Lessons for hd"
+list and a "Changes suggested" list for the design files (don't edit
+those files). Run `bash spec/check.sh` (it checks links) before pushing.
 
 ## Questions
 
