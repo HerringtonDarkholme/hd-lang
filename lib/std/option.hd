@@ -2,36 +2,50 @@
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 
 impl[T] T?:
+    ## `.Some` of `transform(value)` for a `.Some`, and `.None` for a `.None`.
+    ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
     pub fn map[U](self, transform: fn(T) -> U) -> U?:
         match self:
             .Some(value) => .Some(transform(value))
             .None => .None
 
+    ## For a `.Some`, `transform(value)`; for a `.None`, `.None`.
+    ## See [std-option.and-then](../../spec/std/option.md#r-std-option.and-then).
     pub fn and_then[U](self, transform: fn(T) -> U?) -> U?:
         match self:
             .Some(value) => transform(value)
             .None => .None
 
+    ## The value of a `.Some`, and `fallback` for a `.None`.
+    ## See [std-option.unwrap-or](../../spec/std/option.md#r-std-option.unwrap-or).
     pub fn unwrap_or(self, fallback: T) -> T:
         match self:
             .Some(value) => value
             .None => fallback
 
+    ## `.Ok` of the value for a `.Some`, and `.Err` of `error` for a `.None`.
+    ## See [std-option.ok-or](../../spec/std/option.md#r-std-option.ok-or).
     pub fn ok_or[E](self, error: E) -> Result[T, E]:
         match self:
             .Some(value) => .Ok(value)
             .None => .Err(error)
 
+    ## True for a `.Some`.
+    ## See [std-option.is-some](../../spec/std/option.md#r-std-option.is-some).
     pub fn is_some(self) -> bool:
         match self:
             .Some(_) => true
             .None => false
 
+    ## True for a `.None`.
+    ## See [std-option.is-none](../../spec/std/option.md#r-std-option.is-none).
     pub fn is_none(self) -> bool:
         match self:
             .Some(_) => false
             .None => true
 
+    ## The value of a `.Some`; for a `.None` it panics, showing `message`.
+    ## See [std-option.expect](../../spec/std/option.md#r-std-option.expect).
     pub fn expect(self, message: string) -> T:
         match self:
             .Some(value) => value
