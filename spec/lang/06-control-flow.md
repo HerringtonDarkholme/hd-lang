@@ -516,6 +516,8 @@ fn grade(score: i32) -> string:
 6. r[flow.match.duplicate.covered] An arm already covered by an earlier unguarded arm is unreachable.
 7. r[flow.match.unreachable] Duplicate unguarded literals, duplicate fully covered variants, arms after an unguarded catch-all, and other statically provable unreachable arms are errors. Error: `unreachable-match-arm`.
 8. r[flow.match.unreachable.arm] The `unreachable-match-arm` error is reported on the unreachable arm.
+9. r[flow.match.limit] An implementation may limit the work of checking one match's coverage and reachability. The limit is implementation-defined.
+10. r[flow.match.limit.error] A match whose check exceeds that limit is an error, reported on the match. Error: `match-too-complex`.
 
 ```text
 enum Status:
@@ -957,7 +959,8 @@ defer:   # error: defer-outside-cleanup-scope
 2. r[flow.defer.restricted] It cannot bang-call, otherwise suspend, propagate with `?`, or transfer control with `return`, `break`, or `continue`.
 3. r[flow.defer.suspend] A bang call or other suspending operation in the suite is an error. Error: `suspension-forbidden-context`.
 4. r[flow.defer.control] Propagation with `?`, or a `return`, `break`, or `continue` that would leave the suite, is an error. Error: `defer-control-flow`.
-5. r[flow.defer.block-on] Direct or transitive use of `std.task.block_on` is an error. Error: `suspension-forbidden-context`.
+5. r[flow.defer.block-on.direct] A call of `std.task.block_on` or `println` written directly in the suite is an error. Error: `suspension-forbidden-context`.
+6. r[flow.defer.block-on.indirect] Such a call reached through another call while the suite runs panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
 
 ```text
 defer:  # error: defer-outside-cleanup-scope
@@ -1024,8 +1027,10 @@ This section defines runtime panics.
 
 1. r[flow.panic.def] A runtime panic is an abrupt, unrecoverable failure of the current program instance.
 2. r[flow.panic.not-result] It is distinct from a recoverable `Result` error and is not catchable by core hd-lang source code.
-3. r[flow.panic.sources] Integer overflow, division errors, invalid shifts, out-of-bounds indexing, and invalidated built-in iterators panic when their owning chapters require a checked runtime failure. Integer overflow and invalid shifts panic in a debug or test build only. Exhausting the call stack also panics, by [`flow.panic.stack-exhausted`](#r-flow.panic.stack-exhausted).
+3. r[flow.panic.sources] Integer overflow, division errors, invalid shifts, out-of-bounds indexing, and invalidated built-in iterators panic when their owning chapters require a checked runtime failure. Integer overflow and invalid shifts panic in a debug or test build only. Exhausting the call stack, the heap, or a time limit also panics, by the rules below.
 4. r[flow.panic.stack-exhausted] Exhausting the call stack panics. The report gives a source location when one is available, as [`flow.panic.report`](#r-flow.panic.report) says. Panic: `stack-exhausted`.
+5. r[flow.panic.heap-exhausted] An allocation that the heap cannot satisfy, within any heap limit the host sets, panics. Panic: `heap-exhausted`.
+6. r[flow.panic.time-limit] A program instance that runs past a time limit the host sets panics. Panic: `time-limit`.
 
 ```hd
 fn demo(a: i32, b: i32) -> i32:
@@ -1070,7 +1075,7 @@ tests:
 
 ### Panic Categories
 
-1. r[flow.panic.stable-categories] Stable panic categories are exactly `assertion-failed`, `explicit-panic`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-reentrant-poll`, `suspension-invalid-state`, and `stack-exhausted`.
+1. r[flow.panic.stable-categories] Stable panic categories are exactly `assertion-failed`, `explicit-panic`, `heap-exhausted`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `stack-exhausted`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-deadlock`, `suspension-forbidden-context`, `suspension-invalid-state`, `suspension-reentrant-poll`, and `time-limit`.
 2. r[flow.panic.explicit] The prelude function `panic(message: string) -> never` explicitly causes an `explicit-panic` failure.
 3. r[flow.panic.never] A panic or other abrupt expression is valid in any value-producing arm without affecting the compatible result type of reachable normal arms.
 

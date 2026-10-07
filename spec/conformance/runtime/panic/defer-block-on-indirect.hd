@@ -1,0 +1,17 @@
+# test: block_on reached through a helper while a defer suite runs panics; the check accepts it
+use std.task.block_on
+
+fn ready!() -> i32:
+    42
+
+fn wait_now() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    block_on(pending)  # panic: suspension-forbidden-context
+
+fn cleanup() -> void:
+    defer:
+        _ := wait_now()
+    pass
+
+pub fn main() -> void:
+    cleanup()

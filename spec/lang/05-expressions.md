@@ -1675,8 +1675,8 @@ fn demo(a: List[i32], b: List[i32]) -> bool:
 
 1. r[expr.is.heap] Data values, stored enum payloads, lists, maps, and other heap composites have allocation identity; access permission (`mut`) does not change it.
 2. r[expr.is.conversion] Converting such a value to a trait value or `Any` preserves the underlying identity.
-3. r[expr.is.function-unspecified] Function values implement `AnyRef`, but the identity of each one is unspecified. This covers named functions, generic instantiations, one-payload variant constructors, and closures.
-4. r[expr.is.function-sharing] An implementation may share one function value between evaluations or allocate a new one at each evaluation.
+3. r[expr.is.function-unspecified] A function value has no identity that a program can rely on. This covers named functions, generic instantiations, one-payload variant constructors, and closures.
+4. r[expr.is.function-sharing] An implementation may share one function value between evaluations or allocate a new one at each evaluation. Only `is` in generic code can observe the choice, and its result there is unspecified.
 5. r[expr.is.box] A conversion of a primitive or tuple value to a dynamic trait value or `Any` allocates one fresh immutable box.
 6. r[expr.is.box.identity] The resulting trait or `Any` value has that box's identity, and aliases of the converted value share it.
 7. r[expr.is.box.distinct] Repeating the conversion allocates a distinct box even when the source values compare equal.
@@ -1701,7 +1701,7 @@ fn demo() -> bool:
 3. r[expr.is.compatible] Both operands must otherwise have compatible composite reference types. Two such types are compatible when, after removing `mut` at every level, they are equal. They are also compatible when one is a trait value or `Any` type that the other converts to.
 4. r[expr.is.permissions] Permissions never affect identity, so `List[User]` and `mut List[mut User]` are compatible.
 5. r[expr.is.incompatible] Two composite reference operands that are not compatible, such as `List[User]` and `List[Order]`, are an error. Error: `incompatible-identity-operands`.
-6. r[expr.is.function] A direct `is` with an operand whose static type is a function type is an error. Error: `unsupported-function-identity`.
+6. r[expr.is.function.operand] An `is` with an operand whose static type is a function type is an error, as for a value type. Error: `identity-requires-references`.
 7. r[expr.is.function.generic] Generic code over `T < AnyRef` may still compare function values with `is`, and the result is unspecified.
 
 ```text
@@ -1722,7 +1722,7 @@ fn tuples(left: (i32, i32), right: (i32, i32)) -> bool:
 fn aliases() -> bool:
     callback := fn() -> i32: 1
     alias := callback
-    callback is alias  # error: unsupported-function-identity
+    callback is alias  # error: identity-requires-references
 ```
 
 > **Note.** Use `!(a is b)` for distinct identities. Code that must later
@@ -1811,7 +1811,7 @@ pub trait Neg:
 16. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
 17. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
 18. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
-19. r[expr.op.left-literal.join] A literal left operand with a non-primitive right operand takes its width by [`types.literal.local.join`](04-type-system.md#r-types.literal.local.join). An implementation alone never names a width, so with only `impl Mul[Money] for i64`, write `i64(3) * price`.
+19. r[expr.op.left-literal.join] A literal left operand with a non-primitive right operand takes its width by [`types.literal.local.class.meet`](04-type-system.md#r-types.literal.local.class.meet). An implementation alone never names a width, so with only `impl Mul[Money] for i64`, write `i64(3) * price`.
 20. r[expr.op.left-literal.no-fit] With only `impl Mul[i64] for Money`, no width of `3` lets `3 * price` type-check, so it is an error; write `price * 3`. Error: `type-mismatch`.
 23. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
 24. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
@@ -2089,7 +2089,7 @@ pub data RangeFull: pass
 9. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
 10. r[expr.range.element-type] The range's element type `T` is the bounds' common type, or the one bound's type for `a..`, `..b`, and `..=b`. `RangeFull` has no bound and no element type.
 11. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
-12. r[expr.range.literal-bounds] With no expected type, literal bounds are one [literal group](04-type-system.md#r-types.literal.local.group): `0..3` is a `Range[usize]`, and `-3..3` is a `Range[i32]`.
+12. r[expr.range.literal-bounds] With no expected type, literal bounds are one [literal class](04-type-system.md#r-types.literal.local.class): `0..3` is a `Range[usize]`, and `-3..3` is a `Range[i32]`.
 
 ```text
 fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:

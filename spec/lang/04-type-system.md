@@ -245,7 +245,7 @@ y := -1  # i32
 
 ### Integer Literals
 
-1. r[types.literal.int-local] An integer literal in any supported radix with no expected type takes its width from its expression, by [`types.literal.local.join`](#r-types.literal.local.join). Otherwise it takes its [default type](#r-types.literal.local.default). Both hold in every value range.
+1. r[types.literal.int-local] An integer literal in any supported radix with no expected type takes its width from its expression, by [`types.literal.local.class.meet`](#r-types.literal.local.class.meet). Otherwise it takes its [default type](#r-types.literal.local.default). Both hold in every value range.
 2. r[types.literal.int-no-widen] An integer literal does not automatically choose a wider type.
 3. r[types.literal.int-range] When an integer literal has an expected integer type, the compiler checks the literal against that type's range. A literal outside it is an error. Error: `integer-literal-range`.
 
@@ -273,7 +273,7 @@ fn demo() -> i8:
 
 ### Floating-Point Literals
 
-1. r[types.literal.float-local] A floating-point literal with no expected type takes its width from its expression, by [`types.literal.local.join`](#r-types.literal.local.join), or else `f64`. It must be representable as a finite value of the type it takes.
+1. r[types.literal.float-local] A floating-point literal with no expected type takes its width from its expression, by [`types.literal.local.class.meet`](#r-types.literal.local.class.meet), or else `f64`. It must be representable as a finite value of the type it takes.
 2. r[types.literal.float-expected] When an expected `f32` or `f64` type is available, the literal is converted directly to that type.
 3. r[types.literal.float-finite] The converted literal must be representable as a finite value under that type's IEEE 754 rounding rules. Error: `float-literal-range`.
 
@@ -304,11 +304,11 @@ fn total(price: i64, items: List[string]) -> i64:
 
 1. r[types.literal.local.expected] An unsuffixed numeric literal with an expected type takes that type, by [Integer Literals](#integer-literals) and [Floating-Point Literals](#floating-point-literals).
 2. r[types.literal.local.signed] A **signed literal** is an integer literal written directly after unary `-` or `+`, as in `-1` or `+5`.
-3. r[types.literal.local.group] The unsuffixed literals of one expression that have no expected type form its **literal group**.
-4. r[types.literal.local.default] A literal group's **default type** is `i32` for integers when a member is a signed literal, and `usize` otherwise. For floating-point literals it is `f64`.
-5. r[types.literal.local.join] Within one statement, suppose the outermost expression fails to check with its literals at their default types. When exactly one width among the types those literals meet makes it check, the literals take that width.
-6. r[types.literal.local.join.signed] When two or more of those widths make it check and one of the literals is signed, the literals take `i32`.
-7. r[types.literal.local.join.none] Otherwise the statement is an error, and the error is the one the default types give.
+3. r[types.literal.local.class] Unsuffixed literals with no expected type that meet one another, directly or through a type not yet known, form one **literal class**.
+4. r[types.literal.local.default] A literal class's **default type** is `i32` for integers when a member is a signed literal, and `usize` otherwise. For floating-point literals it is `f64`.
+5. r[types.literal.local.class.meet] When a literal class meets a type in one of the forms below, every literal of the class takes that type.
+6. r[types.literal.local.class.open] A literal class that meets no type by the end of its statement takes its default type.
+7. r[types.literal.local.class.once] A literal class's type is decided once, when it meets a type or takes its default. A statement that fails to check is an error and is not checked again with other widths.
 8. r[types.literal.local.statement] Nothing crosses a statement. A binding takes the type of its initializer, and no later statement changes it.
 9. r[types.literal.local.block] A block of two or more statements inside an expression is not part of it. A branch, arm, or closure body that is one expression is part of it.
 
@@ -321,6 +321,16 @@ fn run(items: List[string]) -> i32:
     if i < items.len():
         return 0
     take(i)                 # error: type-mismatch
+```
+
+Two literal classes in one statement take their widths apart:
+
+```hd
+fn pick[T](first: T, second: T) -> T:
+    first
+
+fn widths(big: i64, small: i32) -> (i64, i32):
+    (pick(1, big), pick(2, small))   # 1 is an i64, and 2 is an i32
 ```
 
 The expression forms in which literals meet typed parts:
@@ -341,8 +351,10 @@ The expression forms in which literals meet typed parts:
 | r[types.literal.local.form.expected] Expected types | a default argument, a returned value, an assigned value, or a typed field | `fn pay(amount: i64 = 5)` | the expected type |
 
 10. r[types.literal.local.form.closure-return.statements] The return paths of one closure, and the values of one loop, join although they are in different statements of its body. A value that leaves its own statement takes no part.
-11. r[types.literal.local.erased] A literal converted to `Any`, or to a trait value type, has the default type of its group, as in `let x: Any = 42`, which holds a `usize`.
-12. r[types.literal.local.instantiation] Two or more instantiations of one generic trait may fit a call only because a literal argument could take several widths. Then the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
+11. r[types.literal.local.form.function-return.statements] The return paths of a non-public function whose result type is omitted join the same way, across the statements of its body.
+12. r[types.literal.local.form.join-open] A literal class that reaches such a join stays open until the join, and takes its default type there when the join meets no type.
+13. r[types.literal.local.erased] A literal converted to `Any` or to a trait value type has its class's default type. So `let x: Any = 42` holds a `usize`.
+14. r[types.literal.local.instantiation] Two or more instantiations of one generic trait may fit a call only because a literal argument could take several widths. Then the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
 
 ```text
 use std.ops.Add
@@ -365,7 +377,7 @@ fn charge(price: Money) -> Money:
     price.add(5)                 # error: type-mismatch
 ```
 
-13. r[types.literal.local.hint] When a binding whose type is a literal's default type meets another type, the diagnostic should point at that literal and suggest the fix there.
+15. r[types.literal.local.hint] When a binding whose type is a literal's default type meets another type, the diagnostic should point at that literal and suggest the fix there.
 
 > **Note.** The suggested fix is a sign for `i32`, as `let total = +0`
 > or `{"tea": +3}`, and an annotation for another width, as
@@ -386,11 +398,6 @@ fn charge(price: Money) -> Money:
 > **Note.** `let mut i = 0` is still an error, by
 > [`types.bind.let-mut-primitive`](#r-types.bind.let-mut-primitive): a
 > number is primitive at every width.
-
-> **Note.** A checker may meet [`types.literal.local.join`](#r-types.literal.local.join)
-> with at most one retry per statement. It checks the statement with the
-> default types, and only when that fails, once more for each width that
-> the failure names.
 
 > **Note.** A type that only an implementation names is not one the
 > literals meet. So `10.halve()`, with only `impl Halve for i64`, is an
@@ -1762,12 +1769,27 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
    - `is` on a type parameter requires `T < AnyRef`;
    - variance conversions must be representation-preserving.
 3. r[types.generic.interfaces] Package interfaces therefore carry the bodies of generic functions needed by downstream compilation.
+4. r[types.generic.instantiation-depth] An implementation may limit how deeply generic instantiations nest, where each instantiation is reached from the one that calls it. The limit is implementation-defined.
+5. r[types.generic.instantiation-depth.error] A program whose instantiations exceed that limit is an error, reported on the call that would exceed it. Error: `instantiation-too-deep`.
+6. r[types.generic.polymorphic-recursion] So polymorphic recursion, in which a generic function calls itself with ever larger type arguments, is always an error under any limit.
+7. r[types.limit.type-size] An implementation may limit the size of one type, counted in the types it is built from. The limit is implementation-defined.
+8. r[types.limit.type-size.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
 
 ```hd
 fn first[T](items: List[T]) -> T?:
     if items.len() == 0: .None
     else: .Some(items[0])   # shared or specialized: unobservable either way
 ```
+
+```text
+fn nest[T](value: T, depth: i32) -> i32:
+    if depth == 0: return depth
+    nest((value, value), depth - 1)  # error: instantiation-too-deep
+```
+
+> **Why.** Each instantiation chain then ends, so an implementation may
+> compile generic code per concrete type with no fallback path. The fix
+> is a trait value or a non-generic helper.
 
 See also: [Implementation Model](#implementation-model-non-normative), which
 describes the reference strategy.
@@ -2359,57 +2381,29 @@ See also: [Trait Values And `Any`](#trait-values-and-any).
 
 ### Shapes and Generic Code
 
-A **shape** is the machine representation a value occupies in generic code.
-The reference strategy has one shape for each distinct value layout, plus
-one shared reference shape:
+Generic code behaves as if each instantiation were written out for its
+concrete type arguments. How an implementation compiles it is not
+observable, and this specification prescribes no strategy. An
+implementation may emit a body per concrete type, share bodies between
+types, or pass bounds in any form.
 
-| Shape | Types | Generic bodies |
-| --- | --- | --- |
-| a value layout | each scalar type, such as `bool`, `i32`, or `f64`, and each tuple type | one specialized body per distinct layout |
-| reference | every other type, including strings, optionals, data, enums, collections, closures, and trait values | one body, shared |
+A few rules limit what generic code can observe, so that each strategy
+stays possible:
 
-This model states no tuple layout. A tuple has a value layout, and the
-implementation chooses it.
-
-Generic code over reference types shares one body. Each distinct value
-layout that a generic function is instantiated with gets its own
-specialized body. Packages ship their sources, and package interfaces carry
-generic function bodies, as
-[`types.generic.interfaces`](#r-types.generic.interfaces) requires. So the
-package that instantiates a value layout may compile its body.
-
-A value with a value layout stays unboxed everywhere: in locals, fields,
-parameters, generic code, and containers. A `List[i32]` is a packed `i32`
-array, and a generic function over it reads and writes unboxed `i32`
-elements. A list of tuples stores each element in its tuple's value layout.
-
-Boxing remains in two places only:
-
-| Case | Why it boxes |
+| Rule | What it keeps unobservable |
 | --- | --- |
-| conversion to a trait value or `Any` | the result has its own identity, as [Value Categories](#value-categories) says |
-| an unbounded set of value layouts | the fallback below |
+| [`types.generic.sharing`](#r-types.generic.sharing) | whether instantiations share a body |
+| [`types.generic.identity`](#r-types.generic.identity) | identity on a type that might be a value type |
+| [`types.generic.polymorphic-recursion`](#r-types.generic.polymorphic-recursion) | the number of instantiations, which is always finite |
+| [Dynamic Safety](09-traits.md#dynamic-safety) | the body behind a trait value's method, which is one per implementation |
 
-When the set of value layouts reachable from one generic function is
-unbounded, the implementation falls back to the reference shape with boxed
-values. An example is polymorphic recursion such as `f[T]` calling
-`f[(T, T)]`. This fallback is unobservable, because values without identity
-cannot be distinguished by storage.
-
-Trait bounds are passed as dictionaries of the selected operations;
-associated types are represented through those dictionaries. A dictionary for
-a statically known implementation is a constant, not a per-call allocation.
-
-A method called through a trait value has exactly one body at run time, as
-the one-copy rule of [Dynamic Safety](09-traits.md#dynamic-safety) requires.
 The dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
-therefore limits method-level type parameters of dynamically safe traits to
-reference types. All reference types share the reference shape. A row parameter
-passes its providers as one bundle, so it keeps one body.
+limits method-level type parameters of dynamically safe traits to
+reference types. A row parameter passes its providers as one bundle.
 
-> **Why.** One rule is easy to remember: reference types share code, and a
-> value keeps its layout everywhere. Both .NET generics over value types and
-> Go's GC-shape stenciling work the same way.
+A value with a value layout may stay unboxed in locals, fields,
+parameters, generic code, and containers. A program cannot tell a packed
+`List[i32]` from a boxed one.
 
 See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across-packages).
 
@@ -2442,7 +2436,7 @@ See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across
   table for the implementation. For `Inspectable` and the traits that
   extend it, the table also holds one interned descriptor of the recorded
   type. A `downcast` is then a descriptor comparison followed by a cast or an
-  unboxing, and a `T < Inspectable` dictionary is that descriptor.
+  unboxing, and a `T < Inspectable` bound needs only that descriptor.
 
 ### Suspension Frames
 

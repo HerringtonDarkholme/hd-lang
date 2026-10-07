@@ -1,5 +1,5 @@
 # test: literals take their width from the typed parts of their own expression: ranges, lists, enums, and generic data
-# Spec 04 Open Literal Width: types.literal.local.join and its expression forms.
+# Spec 04 Open Literal Width: types.literal.local.class.meet and its expression forms.
 use std.testing.assert
 
 data Pair[T]:

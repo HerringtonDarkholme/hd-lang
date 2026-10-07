@@ -36,11 +36,16 @@ fn demo() -> i32:
 4. r[lex.encoding.other-bom] No other byte-order mark is removed.
 5. r[lex.encoding.stray-bom] A `U+FEFF` outside a comment or literal at any other position is a compile-time lexical error. Error: `unexpected-bom`.
 6. r[lex.encoding.scalars] Unicode scalar values are valid in identifiers, under the identifier rules below, and in comments, string literals, and character literals.
+7. r[lex.limit.file-size] An implementation may limit the size of a source file in bytes. The limit is implementation-defined.
+8. r[lex.limit.file-size.error] A source file over that limit is an error. Error: `file-too-large`.
 
 ```hd
 fn café() -> string:
     "with accents"
 ```
+
+> **Why.** A limit bounds the time and memory that checking any input
+> can take. Each limit has its own code, so a report names the limit.
 
 See also: [Identifiers](#identifiers).
 

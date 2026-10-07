@@ -1,5 +1,5 @@
 # test: a binding takes its literal's default type, so a method only i64 and i32 provide is missing on it
-# Spec 04 Open Literal Width: types.literal.local.statement, types.literal.local.join.
+# Spec 04 Open Literal Width: types.literal.local.statement, types.literal.local.class.meet.
 trait ScaleBy:
     fn scale(self, by: i64) -> Self
 

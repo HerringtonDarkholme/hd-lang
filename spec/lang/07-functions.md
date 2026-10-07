@@ -27,6 +27,8 @@ fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
 
 1. r[fn.decl.suspending] A name ending in `!` declares a suspending function.
 2. r[fn.decl.requirements] A trailing `$` clause declares requirements.
+3. r[fn.limit.complexity] An implementation may limit the work of checking one item, such as a function body. The limit is implementation-defined.
+4. r[fn.limit.complexity.error] An item whose check exceeds that limit is an error, reported on the item. Error: `item-too-complex`.
 
 ### Parameter And Result Types
 

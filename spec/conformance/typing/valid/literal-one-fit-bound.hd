@@ -1,5 +1,5 @@
 # test: a literal argument whose bound exactly one integer type satisfies takes that type
-# Spec 04 One Fitting Candidate: types.literal.local.join, types.literal.local.join (ONE-FIT).
+# Spec 04 One Fitting Candidate: types.literal.local.class.meet, types.literal.local.class.meet (ONE-FIT).
 
 trait Scale:
     fn scale(self) -> Self

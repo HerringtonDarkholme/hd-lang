@@ -2,4 +2,4 @@
 fn inc(value: i32) -> i32: value + 1
 
 fn same() -> bool:
-    inc is inc  # diagnostic: unsupported-function-identity
+    inc is inc  # diagnostic: identity-requires-references

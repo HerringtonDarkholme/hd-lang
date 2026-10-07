@@ -995,10 +995,11 @@ pub enum ConsoleError:
 13. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
 14. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
 15. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
-16. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its behavior under an active driver.
+16. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, the error and the panic there, and its behavior under an active driver.
 17. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
-18. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
-19. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
+18. r[module.console.println-block-on.direct] A `println` call written directly in a `defer` suite, a default expression, or a fact expression is an error. Error: `suspension-forbidden-context`.
+19. r[module.console.println-block-on.indirect] A `println` call reached through another call while one of those contexts runs panics. Panic: `suspension-forbidden-context`.
+20. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
 
 ```text
 pub fn main() -> void:
@@ -1818,17 +1819,18 @@ A package interface must contain:
 | generic kinds, variance, and bounds |
 | requirement rows |
 | associated types |
-| every ordinary and local implementation head needed for coherence |
-| the bodies of pack code, which downstream compilation specializes |
+| every module-level implementation head, for coherence |
+| each fact's expression and its type |
 
 1. r[module.interface.contents] A package interface must contain every item in the table.
 2. r[module.interface.generic-bodies] An interface may also carry ordinary generic bodies to enable inlining, but downstream compilation must not require them.
-3. r[module.interface.dictionaries] An implementation compiles each ordinary generic function in its defining package, and a downstream use supplies only its dictionaries.
-4. r[module.interface.fact-values] A package interface records each [fact](14-annotations.md#r-annot.fact.eval) of its declarations by the fact's value.
-5. r[module.interface.determined-facts] A package interface is therefore determined by the package's declarations and their fact values. It depends on no function body except through those values.
-6. r[module.interface.early-facts] A downstream package can be compiled as soon as the interfaces of its dependencies are known. It need not wait for their function bodies to be checked or compiled, except the bodies their fact expressions call.
-7. r[module.interface.coherence] Coherence is checked at link time over the complete set of resolved interface files.
-8. r[module.interface.link-reject] Linking may therefore reject a graph even when each package compiled independently.
+3. r[module.interface.generic-compilation] How generic code is compiled across packages is not observable, as [`types.generic.unobservable`](04-type-system.md#r-types.generic.unobservable) says. An interface fixes no strategy for it.
+4. r[module.interface.fact-expressions] A package interface records each [fact](14-annotations.md#r-annot.fact.eval) of its declarations by the fact's expression and type, not by its value.
+5. r[module.interface.fact-build] The value of a fact is computed when the program is built, not when an interface is made.
+6. r[module.interface.syntax-only] A package interface's signatures and facts therefore come from the package's declarations alone. They depend on no checked function body.
+7. r[module.interface.early] A downstream package can be checked as soon as the interfaces of its dependencies are known. It need not wait for their function bodies to be checked or compiled.
+8. r[module.interface.coherence] Coherence is checked at link time over the complete set of resolved interface files.
+9. r[module.interface.link-reject] Linking may therefore reject a graph even when each package compiled independently.
 
 ```hd
 pub fn total(items: List[i32]) -> usize:
@@ -2164,11 +2166,11 @@ fn demo() -> i32:
 1. r[module.host.wasm] The official compiler targets Wasm only.
 2. r[module.host.runtime] The official runtime uses Wasm GC for managed language values and a WASI-compatible host boundary.
 3. r[module.host.providers] Authority-bearing providers originate at that boundary.
-4. r[module.host.component-model] The only normative host boundary is the WebAssembly Component Model, and strings cross it as canonical-ABI strings.
+4. r[module.host.boundary-abi] How values, strings included, cross the host boundary is an implementation detail, not part of the language.
 5. r[module.host.tooling-hooks] Hooks that a toolchain adds for development, testing, or tracing are implementation tooling, not a language boundary.
 6. r[module.host.requirements] Every host facility is injected through an ordinary requirement trait.
 7. r[module.host.capability-set] The eventual standard capability-trait set is runtime and library work.
-8. r[module.host.abi] The exact component-model ABI and registration APIs are runtime and library specification work.
+8. r[module.host.abi] The exact host ABI and the registration APIs are runtime and library specification work.
 
 ```sh
 hd build --release src/main.hd   # the official compiler targets Wasm

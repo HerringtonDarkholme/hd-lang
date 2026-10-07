@@ -1,0 +1,14 @@
+# test: an implementation head may not project one of its type parameters
+trait Store:
+    type Item
+    fn first(self) -> Self::Item
+
+trait Summary:
+    fn summary(self) -> string
+
+data Feed[I]:
+    items: I
+
+impl[I < Store] Summary for Feed[I::Item]:  # diagnostic: unconstrained-impl-parameter
+    fn summary(self) -> string:
+        "items"

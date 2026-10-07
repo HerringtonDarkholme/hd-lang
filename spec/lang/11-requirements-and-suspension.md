@@ -1134,26 +1134,38 @@ fn main() -> i32: work!()  # error: bang-call-outside-suspension
 3. r[req.drive.not-method] This is the same postfix bang suffix used for a direct `fn!` call; it is not a method lookup.
 4. r[req.drive.block-on] Non-suspending code imports `use std.task.block_on` and calls the standard function `block_on[T](s: mut Suspend[T]) -> T`, which owns the driver loop until the suspension completes or panics.
 5. r[req.drive.block-on.forbidden-contexts] `block_on` is forbidden in a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
-6. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.no-block-on).
-7. r[req.drive.block-on.transitive] This ban is transitive through the statically known call graph.
-8. r[req.drive.block-on.unprovable] Some calls through a function value or dynamic trait method keep the compiler from proving that `block_on` is unreachable. Such a call is rejected in one of these contexts.
-9. r[req.drive.block-on.error] Every direct or transitive violation is an error. Error: `suspension-forbidden-context`.
-10. r[req.drive.block-on.under-driver] A `block_on` call while another suspension driver is active is valid, as in `main!` or a test body, whether reached directly or through non-suspending helpers.
-11. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
+6. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.block-on.direct).
+7. r[req.drive.block-on.direct] A `block_on` call written directly in a forbidden context is an error. A call inside a closure or local function declared there is not direct. Error: `suspension-forbidden-context`.
+8. r[req.drive.block-on.direct.syntax] The check of a direct call reads only the forbidden context's own source, never the body of a function it calls.
+9. r[req.drive.block-on.indirect] A `block_on` call reached through a call while a forbidden context runs panics when it is reached. Panic: `suspension-forbidden-context`.
+10. r[req.drive.block-on.indirect.nested] A forbidden context runs from its start to its end, including every call it makes, even while another driver is active.
+11. r[req.drive.block-on.println] A `println` call follows the same rules: a direct call in a forbidden context is an error, and an indirect one panics, by [`module.console.println-block-on`](10-modules.md#r-module.console.println-block-on).
+12. r[req.drive.block-on.under-driver] Outside a forbidden context, a `block_on` call is valid while another driver is active, as in `main!` or a test body. That holds whether it is reached directly or through non-suspending helpers.
+13. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
+14. r[req.drive.block-on.deadlock] When an inner `block_on` call's argument is pending and no host operation, timer, or wake can resume it, the call panics. Panic: `suspension-deadlock`.
 
 ```text
 use std.task.block_on
 fn ready!() -> i32: 42
+
+fn finish(pending: mut Suspend[i32]) -> i32:
+    block_on(pending)  # panics with suspension-forbidden-context when a defer suite calls it
+
 fn main() -> void:
     let pending: mut Suspend[i32] = ready()
     defer:
         _ := block_on(pending)  # error: suspension-forbidden-context
 ```
 
+> **Why.** A direct call is found from the source of the context alone,
+> so checking never reads another function's body. An indirect call is
+> caught when it runs, as Rust's tokio panics on a nested `block_on`.
+
 > **Note.** The outer driver makes no progress while an inner `block_on`
 > call runs. An inner suspension that can progress only when the outer
-> driver runs never completes, so that `block_on` call hangs. No panic
-> reports it.
+> driver runs never completes. When nothing else can wake it, the call
+> panics with `suspension-deadlock`; while a host operation or timer is
+> pending, it waits.
 
 ### Entry Driver
 
@@ -1161,6 +1173,7 @@ fn main() -> void:
 2. r[req.entry.waker-driven] This entry driver is waker-driven.
 3. r[req.entry.pending] When a poll returns `Pending` because a host provider operation is pending, the driver returns control to the host. It polls again only after a waker for that suspension is invoked.
 4. r[req.entry.busy-poll] A driver that keeps polling a pending host operation without returning to the host is not conforming.
+5. r[req.entry.deadlock] When the entry suspension is pending and no host operation, timer, or wake can resume it, the program panics instead of waiting. Panic: `suspension-deadlock`.
 
 ```hd
 pub fn main!() -> void:
@@ -1169,8 +1182,9 @@ pub fn main!() -> void:
 
 ### Host Waits
 
-1. r[req.host-wait.leaf] The runtime-provided leaf `std.task.host_wait![T](operation: std.task.HostWait[T]) -> T` maps an opaque host wait operation to the WebAssembly Component Model async ABI as used by WASI 0.3 host interfaces.
-2. r[req.host-wait.source] User code obtains `HostWait[T]` values only from host providers; the type has no public constructor.
+1. r[req.host-wait.wait] The runtime-provided leaf `std.task.host_wait![T](operation: std.task.HostWait[T]) -> T` suspends until an opaque host wait operation completes, then returns its result.
+2. r[req.host-wait.abi] How a host wait operation crosses the host boundary is an implementation detail, not part of the language.
+3. r[req.host-wait.source] User code obtains `HostWait[T]` values only from host providers; the type has no public constructor.
 
 ```hd
 fn fetch!(key: string) -> string: "value of $key"

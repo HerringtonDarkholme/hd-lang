@@ -1,5 +1,5 @@
 # test: a signed literal anywhere in a literal group makes the whole group i32
-# Spec 04 Open Literal Width: types.literal.local.signed, types.literal.local.group, types.literal.local.default.
+# Spec 04 Open Literal Width: types.literal.local.signed, types.literal.local.class, types.literal.local.default.
 
 fn negative():
     let x = -1

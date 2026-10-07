@@ -1,4 +1,4 @@
-# test: a defer suite may not reach block_on transitively; a plain helper is fine
+# test: the check rejects only a direct block_on in a defer suite; a call that reaches one through a helper type-checks
 use std.task.block_on
 
 fn ready!() -> i32:
@@ -11,9 +11,9 @@ fn drive() -> i32:
 fn plain() -> i32:
     1
 
-fn cleanup_transitive() -> void:
+fn cleanup_indirect() -> void:
     defer:
-        _ := drive()  # diagnostic: suspension-forbidden-context
+        _ := drive()
     pass
 
 fn cleanup_plain() -> void:

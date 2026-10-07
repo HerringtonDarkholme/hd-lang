@@ -1,0 +1,6 @@
+# test: `is` on function-typed fields is rejected as for a value type
+data Handler:
+    run: fn() -> i32
+
+fn same(left: Handler, right: Handler) -> bool:
+    left.run is right.run  # diagnostic: identity-requires-references

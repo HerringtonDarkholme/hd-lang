@@ -253,7 +253,7 @@ written only with `@value` on the parameter.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
 3. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[Any]`.
 4. r[annot.metadata.any-value] Any compile-time value may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
-5. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.no-block-on).
+5. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct).
 6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
 
 One member or parameter must not contain two metadata values with the same
@@ -1242,9 +1242,8 @@ data Twice:
     id: i64
 ```
 
-13. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph. [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension) rules the same for a default expression.
-14. r[annot.fact.no-block-on.unprovable] Some calls through a function value or a dynamic trait method keep the compiler from proving `block_on` unreachable. Such a call is rejected in a fact or metadata expression.
-15. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
+13. r[annot.fact.block-on.direct] A call of `std.task.block_on` or `println` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
+14. r[annot.fact.block-on.indirect] Such a call reached through another call while the expression is evaluated panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
 
 ```text
 use std.task.block_on
@@ -1255,11 +1254,10 @@ data Style:
 fn ready!() -> string:
     "p_"
 
-fn loaded_style() -> Style:
-    let pending: mut Suspend[string] = ready()
-    Style { prefix: block_on(pending) }
+fn style_of(prefix: string) -> Style:
+    Style { prefix: prefix }
 
-@loaded_style()  # error: suspension-forbidden-context
+@style_of(block_on(ready()))  # error: suspension-forbidden-context
 data User:
     id: i64
 ```
@@ -1268,11 +1266,11 @@ data User:
 > a derived trait stays dynamically safe, and two libraries' facts never
 > collide.
 
-> **Note.** A fact expression may call a function in another file. An
-> implementation evaluates facts after it checks function bodies, and the
-> [package interface](10-modules.md#r-module.interface.fact-values) records
-> each fact's value. So a changed body that yields the same value leaves
-> the interface unchanged.
+> **Note.** A fact expression may call a function in another file. The
+> [package interface](10-modules.md#r-module.interface.fact-expressions)
+> records each fact's expression and type, and an implementation computes
+> the value when it builds the program. So checking a dependent never
+> waits for the bodies a fact expression calls.
 
 ### Walk, Describe, And Build
 

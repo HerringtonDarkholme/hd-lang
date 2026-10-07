@@ -1,3 +1,3 @@
 # test: one function-typed operand is enough to reject a direct `is`
 fn same(callback: fn() -> i32, other: Any) -> bool:
-    callback is other  # diagnostic: unsupported-function-identity
+    callback is other  # diagnostic: identity-requires-references

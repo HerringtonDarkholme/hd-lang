@@ -1,4 +1,4 @@
-# test: a member metadata expression may not reach block_on
+# test: a member metadata expression may not call block_on directly
 use std.task.block_on
 
 data Rename:
@@ -7,10 +7,9 @@ data Rename:
 fn ready!() -> string:
     "mail"
 
-fn loaded_rename() -> Rename:
-    let pending: mut Suspend[string] = ready()
-    Rename { name: block_on(pending) }
+fn rename_to(name: string) -> Rename:
+    Rename { name: name }
 
 data User:
-    @loaded_rename()  # diagnostic: suspension-forbidden-context
+    @rename_to(block_on(ready()))  # diagnostic: suspension-forbidden-context
     email: string

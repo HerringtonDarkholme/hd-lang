@@ -107,7 +107,6 @@ typing/invalid/break-value-without-else.hd	type
 typing/valid/reimport-prelude-name.hd	type
 typing/invalid/prelude-shadow-renamed-use.hd	type
 typing/invalid/suspension-forbidden-context.hd	type
-typing/invalid/defer-block-on.hd	type
 typing/valid/row-extension-entailment.hd	type
 typing/valid/provider-capturing-closure.hd	type
 typing/valid/distinct-requirement-keys.hd	type
@@ -503,7 +502,6 @@ runtime/valid/cancellation-loop-and-branch-scopes.hd	runtime
 runtime/valid/cancellation-provider-scope-cleanup.hd	runtime
 runtime/valid/cancel-cold-and-completed-suspension.hd	runtime
 runtime/panic/defer-cancels-active-ancestor.hd	runtime
-typing/invalid/defer-transitive-block-on-plain-twin.hd	type
 typing/invalid/defer-bang-call-cold-twin.hd	type
 runtime/valid/nested-provider-restoration.hd	runtime
 runtime/valid/row-extension-restores-provider.hd	runtime
@@ -1084,7 +1082,6 @@ typing/valid/trait-less-block-generic-rename.hd	type
 typing/invalid/member-line-not-list.hd	type
 typing/valid/per-trait-self-line-foreign-fact.hd	type
 typing/invalid/println-in-defer.hd	type
-typing/invalid/println-in-default.hd	type
 typing/invalid/test-module-tests-block.hd	type
 typing/invalid/integration-test-tests-block.hd	type
 runtime/valid/test-module-top-level-cases.hd	runtime
@@ -2815,3 +2812,5 @@ cli/test-err-report	cli
 cli/wasm-run-built	cli
 cli/wasm-cap-flags-only	cli
 cli/wasm-invalid	cli
+typing/invalid/function-field-identity.hd	type
+typing/valid/literal-classes-separate-widths.hd	type

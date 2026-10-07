@@ -1,0 +1,6 @@
+# test: two literal classes in one statement take their widths apart, with no retry of the statement
+fn pick[T](first: T, second: T) -> T:
+    first
+
+fn widths(big: i64, small: i32) -> (i64, i32):
+    (pick(1, big), pick(2, small))

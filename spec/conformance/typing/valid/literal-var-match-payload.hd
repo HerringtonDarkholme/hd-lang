@@ -1,5 +1,5 @@
 # test: a match subject's literal takes the width the arms need
-# Spec 04 Open Literal Width: types.literal.local.form.arm, types.literal.local.join.
+# Spec 04 Open Literal Width: types.literal.local.form.arm, types.literal.local.class.meet.
 fn take(value: u8) -> u8:
     value
 

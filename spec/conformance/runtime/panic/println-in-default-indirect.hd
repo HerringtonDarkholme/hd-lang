@@ -1,0 +1,20 @@
+# test: println reached through a requirement-free helper while a default expression runs panics
+# Spec 10 Console: module.console.println-block-on.indirect.
+
+data QuietConsole: pass
+
+impl Console for QuietConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        .Ok(())
+
+fn announce() -> i32:
+    let console: mut QuietConsole = QuietConsole {}
+    $.with(Console=console):
+        println("default")  # panic: suspension-forbidden-context
+    1
+
+fn count(start: i32 = announce()) -> i32:
+    start
+
+pub fn main() -> void:
+    _ := count()

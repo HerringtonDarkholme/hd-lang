@@ -2,4 +2,4 @@
 fn aliases() -> bool:
     callback := fn() -> i32: 1
     alias := callback
-    callback is alias  # diagnostic: unsupported-function-identity
+    callback is alias  # diagnostic: identity-requires-references

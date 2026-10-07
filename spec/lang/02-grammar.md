@@ -41,6 +41,8 @@ top_level_statement = suite_statement
 4. r[grammar.suite.local-declarations] Named declarations and implementations may also occur in executable block suites.
 5. r[grammar.suite.use-top-level] Use declarations remain top-level items.
 6. r[grammar.suite.methods] Methods occur inside trait and implementation declarations through their dedicated grammar productions.
+7. r[grammar.limit.nesting] An implementation may limit how deeply brackets, suites, closures, and string interpolations nest within one another. The limit is implementation-defined.
+8. r[grammar.limit.nesting.error] Source that nests deeper than that limit is an error, reported on the first construct past it. Error: `nesting-too-deep`.
 
 ## Test Blocks
 

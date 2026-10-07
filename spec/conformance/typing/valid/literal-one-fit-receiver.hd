@@ -1,5 +1,5 @@
 # test: an implementation alone never names a literal receiver's width, so an annotation gives it
-# Spec 04 Open Literal Width: types.literal.local.join, types.literal.local.form.receiver.
+# Spec 04 Open Literal Width: types.literal.local.class.meet, types.literal.local.form.receiver.
 trait Halve:
     fn halve(self) -> Self
 

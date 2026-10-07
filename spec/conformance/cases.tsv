@@ -273,7 +273,7 @@ typing/invalid/nondisplay-entry-error.hd	type	reject:unsatisfied-trait-bound	lan
 typing/valid/defer-cleanup.hd	type	accept	lang/06-control-flow.md#deferred-cleanup
 typing/invalid/top-level-defer.hd	type	reject:defer-outside-cleanup-scope	lang/06-control-flow.md#deferred-cleanup
 typing/invalid/defer-suspends.hd	type	reject:suspension-forbidden-context	lang/06-control-flow.md#deferred-cleanup
-typing/invalid/defer-block-on.hd	type	reject:suspension-forbidden-context	lang/06-control-flow.md#deferred-cleanup
+runtime/panic/defer-block-on-indirect.hd	runtime	panic:suspension-forbidden-context	lang/06-control-flow.md#r-flow.defer.block-on.indirect
 runtime/valid/defer-order.hd	runtime	accept	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/cancellation-runs-defer.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation
 runtime/valid/generic-data-embedding.hd	runtime	accept	lang/08-data-and-enums.md#data-embedding
@@ -626,7 +626,7 @@ runtime/valid/dynamic-suspending-method.hd	runtime	accept	lang/11-requirements-a
 typing/invalid/println-without-console.hd	type	reject:missing-requirement	lang/10-modules.md#prelude
 runtime/valid/multi-provider-use-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#provider-access
 runtime/valid/block-on-inside-driver.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.inner-only
-typing/invalid/block-on-in-defer.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#suspendt-protocol
+typing/invalid/block-on-in-defer.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.direct
 runtime/valid/block-on-stored-suspension.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/assert-equal-lists-in-main.hd	runtime	panic:assertion-failed	lang/10-modules.md#standard-testing
 typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#standard-testing
@@ -678,7 +678,7 @@ runtime/valid/cancellation-loop-and-branch-scopes.hd	runtime	accept	lang/06-cont
 runtime/valid/cancellation-provider-scope-cleanup.hd	runtime	accept	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/cancel-cold-and-completed-suspension.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/defer-cancels-active-ancestor.hd	runtime	panic:suspension-reentrant-poll	lang/11-requirements-and-suspension.md#suspendt-protocol
-typing/invalid/defer-transitive-block-on-plain-twin.hd	type	reject:suspension-forbidden-context	lang/06-control-flow.md#deferred-cleanup
+typing/valid/defer-indirect-block-on-checks.hd	type	accept	lang/06-control-flow.md#r-flow.defer.block-on.direct
 typing/invalid/defer-bang-call-cold-twin.hd	type	reject:suspension-forbidden-context	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/nested-provider-restoration.hd	runtime	accept	lang/11-requirements-and-suspension.md#provider-scopes
 runtime/valid/row-extension-restores-provider.hd	runtime	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
@@ -1090,9 +1090,9 @@ runtime/valid/spelled-function-type-values.hd	runtime	accept	lang/07-functions.m
 typing/invalid/function-type-non-tuple-inputs.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.type.ctor.inputs-tuple
 typing/valid/function-type-variance.hd	type	accept	lang/07-functions.md#r-fn.type.declared-variance
 typing/invalid/function-result-representation-change.hd	type	reject:variance-representation-change	lang/07-functions.md#r-fn.type.variance-repr.excluded
-typing/invalid/closure-identity.hd	type	reject:unsupported-function-identity	lang/05-expressions.md#r-expr.is.function
-typing/invalid/named-function-identity.hd	type	reject:unsupported-function-identity	lang/05-expressions.md#r-expr.is.function
-typing/invalid/function-identity-against-any.hd	type	reject:unsupported-function-identity	lang/05-expressions.md#r-expr.is.function
+typing/invalid/closure-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
+typing/invalid/named-function-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
+typing/invalid/function-identity-against-any.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
 typing/valid/generic-function-identity.hd	type	accept	lang/05-expressions.md#r-expr.is.function.generic
 typing/valid/function-type-impl-target.hd	type	accept	lang/09-traits.md#r-trait.target.function-type.valid
 typing/valid/function-type-tuple-impl.hd	type	accept	lang/09-traits.md#implementation-targets
@@ -1211,7 +1211,7 @@ typing/invalid/literal-suffix-requirement.hd	type	reject:missing-requirement	lan
 typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.testing.it-function
 runtime/valid/literal-suffix-call.hd	runtime	accept	lang/05-expressions.md#r-expr.suffix.fn-call
 typing/valid/decorator-targets.hd	type	accept	lang/14-annotations.md#r-annot.decorator.targets
-typing/invalid/block-on-in-fact.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.fact.no-block-on
+typing/invalid/block-on-in-fact.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.fact.block-on.direct
 typing/invalid/block-on-in-metadata.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.metadata.eval
 typing/invalid/strengthened-missing-bound.hd	type	reject:trait-method-signature	lang/14-annotations.md#r-annot.walker.missing-fixed
 typing/valid/derive-without-structure-use.hd	type	accept	lang/14-annotations.md#r-annot.derive.no-use
@@ -1242,7 +1242,7 @@ typing/valid/per-trait-self-line-foreign-fact.hd	type	accept	lang/14-annotations
 runtime/valid/println-under-main-driver.hd	runtime	accept	lang/10-modules.md#r-module.console.println-block-on.under-driver
 runtime/valid/println-in-test-body.hd	runtime	accept	lang/10-modules.md#r-module.console.println-block-on.under-driver
 typing/invalid/println-in-defer.hd	type	reject:suspension-forbidden-context	lang/10-modules.md#r-module.console.println-block-on
-typing/invalid/println-in-default.hd	type	reject:suspension-forbidden-context	lang/10-modules.md#r-module.console.println-block-on
+runtime/panic/println-in-default-indirect.hd	runtime	panic:suspension-forbidden-context	lang/10-modules.md#r-module.console.println-block-on.indirect
 typing/invalid/test-module-tests-block.hd	type	reject:misplaced-tests-block	lang/10-modules.md#r-module.test.no-tests-block
 typing/invalid/integration-test-tests-block.hd	type	reject:misplaced-tests-block	lang/10-modules.md#r-module.test.no-tests-block
 runtime/valid/test-module-top-level-cases.hd	runtime	accept	lang/10-modules.md#r-module.test.module
@@ -2195,7 +2195,7 @@ typing/invalid/literal-first-use-other-body.hd	type	reject:type-mismatch	lang/04
 typing/invalid/literal-first-use-conflict.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.local.statement
 typing/valid/literal-first-use-generic-wait.hd	type	accept	lang/04-type-system.md#r-types.literal.local.default
 typing/valid/literal-first-use-generic-join.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.argument
-typing/invalid/literal-first-use-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.literal.local.join.none
+typing/invalid/literal-first-use-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.literal.local.class.once
 typing/valid/literal-first-use-closure.hd	type	accept	lang/04-type-system.md#r-types.literal.local.statement
 typing/invalid/literal-first-use-closure-conflict.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.local.statement
 typing/invalid/literal-first-use-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.local.form.element
@@ -2212,7 +2212,7 @@ typing/valid/literal-var-data-pattern.hd	type	accept	lang/04-type-system.md#r-ty
 typing/invalid/literal-var-structure-conflict.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.local.statement
 typing/valid/literal-var-fallback.hd	type	accept	lang/04-type-system.md#r-types.literal.local.default
 typing/valid/literal-var-flow-types.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.element
-runtime/valid/literal-var-flow.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.join
+runtime/valid/literal-var-flow.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.class.meet
 runtime/panic/literal-var-fallback-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.literal.local.default
 typing/valid/literal-var-method-fallback.hd	type	accept	lang/04-type-system.md#r-types.literal.local.default
 typing/invalid/literal-var-method-missing.hd	type	reject:unknown-method	lang/04-type-system.md#r-types.literal.local.default
@@ -2223,12 +2223,12 @@ typing/valid/literal-var-list-adopts.hd	type	accept	lang/04-type-system.md#r-typ
 runtime/valid/literal-var-instantiation-wait.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.instantiation
 typing/valid/sign-fallback-unsigned.hd	type	accept	lang/04-type-system.md#r-types.literal.local.default
 typing/valid/sign-fallback-signed.hd	type	accept	lang/04-type-system.md#r-types.literal.local.signed
-typing/valid/sign-fallback-separate-groups.hd	type	accept	lang/04-type-system.md#r-types.literal.local.group
+typing/valid/sign-fallback-separate-groups.hd	type	accept	lang/04-type-system.md#r-types.literal.local.class
 typing/invalid/sign-fallback-no-instantiation.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.literal-arg.no-fit
-typing/valid/literal-one-fit-bound.hd	type	accept	lang/04-type-system.md#r-types.literal.local.join
+typing/valid/literal-one-fit-bound.hd	type	accept	lang/04-type-system.md#r-types.literal.local.class.meet
 typing/valid/literal-one-fit-receiver.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.receiver
 typing/valid/literal-one-fit-left-operand.hd	type	accept	lang/05-expressions.md#r-expr.op.left-literal.join
-typing/invalid/literal-several-fit-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.literal.local.join.none
+typing/invalid/literal-several-fit-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.literal.local.class.once
 typing/invalid/literal-fallback-hint.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.local.hint
 runtime/valid/literal-fallback-hint-fix.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.hint
 typing/valid/literal-dependent-join.hd	type	accept	lang/04-type-system.md#r-types.literal.local.statement
@@ -2748,3 +2748,7 @@ runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
 runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
 runtime/valid/process-not-granted.hd	runtime	accept	lang/10-modules.md#r-module.process.not-granted
 runtime/valid/not-granted-display.hd	runtime	accept	std/fs.md#r-std-fs.error.not-granted.text
+typing/invalid/polymorphic-recursion.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.polymorphic-recursion
+typing/invalid/impl-head-projection.hd	type	reject:unconstrained-impl-parameter	lang/09-traits.md#r-trait.overlap.head-projection
+typing/invalid/function-field-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
+typing/valid/literal-classes-separate-widths.hd	type	accept	lang/04-type-system.md#r-types.literal.local.class.meet
