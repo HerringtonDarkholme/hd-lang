@@ -83,6 +83,14 @@ and list it under Questions.
   rejected", or keep the `If`. Review of K6 found this twice
   (`annot.fact.no-block-on.unprovable` and `req.drive.block-on.unprovable`).
 
+- **Run the full `pnpm run check` before every push**, even for comment-only
+  changes. K20's `lib/std/structure.hd` summaries moved a line that a test
+  pinned and turned CI red (fixed in ee7888d0).
+- **A `##` block directly precedes its declaration.** An existing `#`
+  comment goes above the `##` lines, never into the body. Review of K20
+  found `Heap.pop`'s comment moved below `pub fn pop` (fixed by moving it
+  back above the doc block).
+
 ## Don't Touch
 
 - `src/`, `lib/`, `test/`, `spec/conformance/` (fixtures and indexes), and

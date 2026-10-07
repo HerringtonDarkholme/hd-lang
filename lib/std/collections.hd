@@ -728,10 +728,10 @@ impl[T < Ord] Heap[T]:
             self.swap(parent, child)
             child = parent
 
+    # The largest element, removed (r-std-collections.heap.pop).
     ## Removes a largest element by `Ord` and returns it in `.Some`. On an empty heap, it returns `.None`.
     ## See [std-collections.heap.pop](../../spec/std/collections.md#r-std-collections.heap.pop).
     pub fn pop(mut self) -> T?:
-    # The largest element, removed (r-std-collections.heap.pop).
         if self.count == 0:
             return .None
         top := self.items[0]
