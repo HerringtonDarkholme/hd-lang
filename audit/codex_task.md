@@ -104,6 +104,11 @@ Review of C1 (tests and clippy pass; 7 tests):
 3. Non-blocking. Skim runs at 46.7 MB/s, slower than lexing alone
    (116.3 MB/s). Skim should cost no more than lexing. Profile it and
    fix, or explain the cost in the commit message.
+4. Speed targets (release build, `lib/std`): lexing at least 300 MB/s,
+   skimming at least as fast as lexing, and (in C2) a full parse to the
+   green tree at least 100 MB/s. Keep the throughput example as a
+   benchmark, report all three numbers in each commit message, and treat
+   a drop of more than 10% as a regression to explain.
 
 ### C3. Research: Known Issues Of Prior Back Ends, Wasm And Runtimes
 
