@@ -48,7 +48,7 @@ impl<T> Default for AppendVec<T> {
 /// Chunk and offset of item `i`: chunk k covers `[2^(k+10) - 2^10, 2^(k+11) - 2^10)`.
 fn locate(i: u32) -> (usize, usize) {
     let biased = u64::from(i) + (1 << BASE_BITS);
-    let k = 63 - biased.leading_zeros() - BASE_BITS;
+    let k = biased.ilog2() - BASE_BITS;
     let start = (1u64 << (k + BASE_BITS)) - (1 << BASE_BITS);
     (k as usize, usize::try_from(u64::from(i) - start).expect("offset"))
 }

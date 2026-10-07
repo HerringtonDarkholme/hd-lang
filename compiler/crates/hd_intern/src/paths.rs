@@ -34,6 +34,8 @@ pub struct ImplSeg {
 
 const SHARDS: usize = 16;
 
+type PathIndex = Mutex<HashMap<(u32, PathKind, Box<str>), PathId>>;
+
 /// The trie. Columns are append-only, so a reader indexes without a lock;
 /// the shards guard only the dedup index.
 pub struct PathTable {
@@ -43,7 +45,7 @@ pub struct PathTable {
     hash: AppendVec<Hash128>,
     def_module: AppendVec<ModuleId>,
     append: Mutex<()>,
-    index: [Mutex<HashMap<(u32, PathKind, Box<str>), PathId>>; SHARDS],
+    index: [PathIndex; SHARDS],
 }
 
 impl Default for PathTable {

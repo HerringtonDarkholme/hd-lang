@@ -96,6 +96,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "hd_project"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_syntax",
+]
+
+[[package]]
 name = "hd_sched"
 version = "0.0.0"
 
@@ -112,6 +120,15 @@ dependencies = [
 
 [[package]]
 name = "hd_tir"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_iface",
+ "hd_intern",
+]
+
+[[package]]
+name = "hd_types"
 version = "0.0.0"
 dependencies = [
  "hd_base",
