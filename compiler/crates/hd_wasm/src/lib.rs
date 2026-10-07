@@ -143,7 +143,12 @@ impl Code {
                 (at, reloc)
             })
             .collect();
-        Code { params, results, body, relocs }
+        Code {
+            params,
+            results,
+            body,
+            relocs,
+        }
     }
 }
 
@@ -335,9 +340,13 @@ impl Em<'_> {
                 let rec = self.b.get_list(a).to_vec();
                 let callee = if rec[0] == CALLEE_ITEM {
                     let targs: Vec<Ty> = rec[2..].iter().map(|&t| self.sub(Ty(t))).collect();
-                    Instance { item: DefId(rec[1]), ty_args: targs }
+                    Instance {
+                        item: DefId(rec[1]),
+                        ty_args: targs,
+                    }
                 } else {
-                    resolve_method(self.w, &rec, self.args).expect("collection resolved every method")
+                    resolve_method(self.w, &rec, self.args)
+                        .expect("collection resolved every method")
                 };
                 let callee = classify(self.w, self.bodies, callee);
                 self.out.push(W::Call(instance_key(self.w, &callee)));
@@ -348,7 +357,9 @@ impl Em<'_> {
                 };
                 let cret = self.w.subst(cret, &callee.ty_args, None);
                 let want = self.sub(self.b.ty[i as usize]);
-                if let (Some(VT::Eq), Some(VT::Ref(p))) = (layout(self.w, cret), layout(self.w, want)) {
+                if let (Some(VT::Eq), Some(VT::Ref(p))) =
+                    (layout(self.w, cret), layout(self.w, want))
+                {
                     self.out.push(W::Cast(p));
                 }
                 self.store(i);
@@ -358,7 +369,9 @@ impl Em<'_> {
                     self.load(r);
                 }
                 let t = self.sub(self.b.ty[i as usize]);
-                let Some(VT::Ref(p)) = layout(self.w, t) else { panic!("data layout") };
+                let Some(VT::Ref(p)) = layout(self.w, t) else {
+                    panic!("data layout")
+                };
                 self.out.push(W::StructNew(p));
                 self.store(i);
             }
@@ -366,12 +379,17 @@ impl Em<'_> {
                 self.load(a);
                 let base_ty = self.b.ty[a as usize];
                 let base_ty = self.sub(base_ty);
-                let TyKind::Adt(d) = *self.w.kind(base_ty) else { panic!("field base") };
+                let TyKind::Adt(d) = *self.w.kind(base_ty) else {
+                    panic!("field base")
+                };
                 let packed = match self.w.defs.get(&d) {
-                    Some(DefKind::Data(fs)) => matches!(self.w.kind(fs[bb as usize].1), TyKind::Bool),
+                    Some(DefKind::Data(fs)) => {
+                        matches!(self.w.kind(fs[bb as usize].1), TyKind::Bool)
+                    }
                     _ => false,
                 };
-                self.out.push(W::StructGet(self.w.path(d).to_owned(), bb, packed));
+                self.out
+                    .push(W::StructGet(self.w.path(d).to_owned(), bb, packed));
                 self.store(i);
             }
             TirTag::If => {
@@ -403,7 +421,11 @@ impl Em<'_> {
                 self.out.push(W::End);
             }
             TirTag::Break => {
-                let pos = self.ctrl.iter().rposition(|c| *c == Some(a)).expect("break target");
+                let pos = self
+                    .ctrl
+                    .iter()
+                    .rposition(|c| *c == Some(a))
+                    .expect("break target");
                 let depth = u32::try_from(self.ctrl.len() - 1 - pos).expect("depth");
                 self.out.push(W::Br(depth));
             }
@@ -468,7 +490,12 @@ pub fn emit(w: &mut World, bodies: &HashMap<DefId, TirBody>, b: &TirBody, inst: 
     }
     em.out.push(W::End);
     let (body, relocs) = encode(&em.locals, &em.out);
-    Code { params, results, body, relocs }
+    Code {
+        params,
+        results,
+        body,
+        relocs,
+    }
 }
 
 // ------------------------------------------------------------------- link
@@ -506,7 +533,9 @@ pub fn link(
         .iter()
         .map(|p| {
             let d = w.lookup(p).expect("data def");
-            let Some(DefKind::Data(fields)) = w.defs.get(&d) else { panic!("data") };
+            let Some(DefKind::Data(fields)) = w.defs.get(&d) else {
+                panic!("data")
+            };
             let fields: Vec<FieldType> = fields
                 .iter()
                 .map(|(_, t)| {
@@ -514,14 +543,19 @@ pub fn link(
                         TyKind::Bool => StorageType::I8,
                         _ => StorageType::Val(val(&layout(w, *t).expect("field layout"))),
                     };
-                    FieldType { element_type, mutable: true }
+                    FieldType {
+                        element_type,
+                        mutable: true,
+                    }
                 })
                 .collect();
             SubType {
                 is_final: true,
                 supertype_idxs: vec![],
                 composite_type: CompositeType {
-                    inner: CompositeInnerType::Struct(StructType { fields: fields.into() }),
+                    inner: CompositeInnerType::Struct(StructType {
+                        fields: fields.into(),
+                    }),
                     shared: false,
                     descriptor: None,
                     describes: None,
@@ -542,7 +576,9 @@ pub fn link(
         }
         let i = ntypes;
         ntypes += 1;
-        types.ty().function(params.iter().map(val), results.iter().map(val));
+        types
+            .ty()
+            .function(params.iter().map(val), results.iter().map(val));
         func_types.insert(key, i);
         i
     };

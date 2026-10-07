@@ -11,8 +11,8 @@ use hd_base::Hash128;
 use hd_cache::{FileApi, check_key, code_key, iface_key, prog_key, toolchain_key};
 use hd_check::{Cst, Scope, check_module_bodies, lower_headers, module_scope};
 use hd_iface::{
-    FolderIface, HeaderItem, KeyHasher, Reader, build_iface, decode_iface, decode_item, encode_item,
-    folder_of_module, item_path, put_hash, put_str, put_u32,
+    FolderIface, HeaderItem, KeyHasher, Reader, build_iface, decode_iface, decode_item,
+    encode_item, folder_of_module, item_path, put_hash, put_str, put_u32,
 };
 use hd_mono::{Instance, collect, instance_key};
 use hd_sched::{ExtTask, TaskGraph, TaskId, TaskKind};
@@ -222,7 +222,11 @@ pub fn run_with(
         r.exec(id, kind, g);
         *r.c.stage_time.entry(kind.name()).or_default() += t0.elapsed();
     });
-    RunResult { wasm: r.wasm, diagnostics: r.diagnostics, counters: r.c }
+    RunResult {
+        wasm: r.wasm,
+        diagnostics: r.diagnostics,
+        counters: r.c,
+    }
 }
 
 /// Depth-first visit for the folder order; a revisit in progress is a
@@ -272,7 +276,12 @@ impl Run<'_> {
             }
             TaskKind::InitOrder(f) => {
                 let folder = &self.folders[f as usize];
-                let facts: Vec<_> = self.files.iter().filter(|x| &x.folder == folder).map(|x| &x.facts).collect();
+                let facts: Vec<_> = self
+                    .files
+                    .iter()
+                    .filter(|x| &x.folder == folder)
+                    .map(|x| &x.facts)
+                    .collect();
                 let r = hd_check::stages::init_order(folder, &facts);
                 self.c.stage("InitOrder", &r);
             }
@@ -283,7 +292,12 @@ impl Run<'_> {
 
     fn lookup(&mut self, kind: &'static str, key: Hash128) -> Option<Arc<[u8]>> {
         let v = self.store.get(kind, key);
-        *if v.is_some() { self.c.hits.entry(kind) } else { self.c.misses.entry(kind) }.or_default() += 1;
+        *if v.is_some() {
+            self.c.hits.entry(kind)
+        } else {
+            self.c.misses.entry(kind)
+        }
+        .or_default() += 1;
         v
     }
 
@@ -312,7 +326,8 @@ impl Run<'_> {
             let t0 = Instant::now();
             let p = parse_subset(&self.sources[f].text);
             for e in &p.errors {
-                self.diagnostics.push(format!("{}: parse: {e}", self.sources[f].path));
+                self.diagnostics
+                    .push(format!("{}: parse: {e}", self.sources[f].path));
             }
             self.files[f].parse = Some(p);
             *self.c.tasks.entry("Parse").or_default() += 1;
@@ -338,16 +353,29 @@ impl Run<'_> {
         let mut order: Vec<String> = Vec::new();
         let mut visiting = BTreeSet::new();
         for f in &folders {
-            visit(f, &self.folder_uses, &mut order, &mut visiting, &mut self.diagnostics);
+            visit(
+                f,
+                &self.folder_uses,
+                &mut order,
+                &mut visiting,
+                &mut self.diagnostics,
+            );
         }
         self.folders = order.clone();
         let mut checks = Vec::new();
         for (i, f) in order.iter().enumerate() {
-            let deps: Vec<TaskId> = self.folder_uses[f].iter().filter_map(|u| self.iface_tasks.get(u).copied()).collect();
+            let deps: Vec<TaskId> = self.folder_uses[f]
+                .iter()
+                .filter_map(|u| self.iface_tasks.get(u).copied())
+                .collect();
             let t = g.add(TaskKind::FolderIface(u32::try_from(i).expect("f")), &deps);
             self.iface_tasks.insert(f.clone(), t);
             // HeaderCheck(F) waits for F's interface and those F's uses reach.
-            let mut hdeps: Vec<TaskId> = self.closure(f).iter().map(|c| self.iface_tasks[c]).collect();
+            let mut hdeps: Vec<TaskId> = self
+                .closure(f)
+                .iter()
+                .map(|c| self.iface_tasks[c])
+                .collect();
             hdeps.push(t);
             checks.push(g.add(TaskKind::HeaderCheck(u32::try_from(i).expect("f")), &hdeps));
             checks.push(g.add(TaskKind::InitOrder(u32::try_from(i).expect("f")), &[t]));
@@ -356,8 +384,11 @@ impl Run<'_> {
         checks.push(g.add(TaskKind::Coherence, &all_ifaces));
         let mut preps = Vec::new();
         for (m, f) in self.files.iter().enumerate() {
-            let deps: Vec<TaskId> =
-                self.closure(&f.folder).iter().map(|c| self.iface_tasks[c]).collect();
+            let deps: Vec<TaskId> = self
+                .closure(&f.folder)
+                .iter()
+                .map(|c| self.iface_tasks[c])
+                .collect();
             preps.push(g.add(TaskKind::ModulePrep(u32::try_from(m).expect("m")), &deps));
         }
         preps.extend(checks);
@@ -379,8 +410,9 @@ impl Run<'_> {
 
     fn folder_iface(&mut self, fi: usize) {
         let folder = self.folders[fi].clone();
-        let mut files: Vec<usize> =
-            (0..self.files.len()).filter(|&i| self.files[i].folder == folder).collect();
+        let mut files: Vec<usize> = (0..self.files.len())
+            .filter(|&i| self.files[i].folder == folder)
+            .collect();
         files.sort_by(|a, b| self.files[*a].module.cmp(&self.files[*b].module));
         let mut reach = self.closure(&folder);
         reach.remove(&folder);
@@ -393,8 +425,10 @@ impl Run<'_> {
                     api_text_hash: self.files[f].api_text_hash,
                 })
                 .collect();
-            let reach: Vec<(&str, Hash128)> =
-                reach.iter().map(|d| (d.as_str(), self.ifaces[d].deep_hash)).collect();
+            let reach: Vec<(&str, Hash128)> = reach
+                .iter()
+                .map(|d| (d.as_str(), self.ifaces[d].deep_hash))
+                .collect();
             iface_key(self.toolchain, self.package, &folder, &apis, &reach)
         };
         let iface = if let Some(blob) = self.lookup("iface", key) {
@@ -426,9 +460,18 @@ impl Run<'_> {
     fn check_key(&self, m: usize) -> Hash128 {
         let f = &self.files[m];
         let closure = self.closure(&f.folder);
-        let closure: Vec<(&str, Hash128)> =
-            closure.iter().map(|c| (c.as_str(), self.ifaces[c].deep_hash)).collect();
-        check_key(self.toolchain, self.package, &f.module, ROLE, f.source_hash, &closure)
+        let closure: Vec<(&str, Hash128)> = closure
+            .iter()
+            .map(|c| (c.as_str(), self.ifaces[c].deep_hash))
+            .collect();
+        check_key(
+            self.toolchain,
+            self.package,
+            &f.module,
+            ROLE,
+            f.source_hash,
+            &closure,
+        )
     }
 
     /// `ModulePrep(m)`: the `check` key lookup is its first step; only on a
@@ -452,7 +495,15 @@ impl Run<'_> {
         let mut errors = scope.errors.clone();
         errors.extend(errs);
         load_items(&mut self.w, &headers, None);
-        self.prep.insert(m, Prep { scope, headers, errors, bodies: Vec::new() });
+        self.prep.insert(
+            m,
+            Prep {
+                scope,
+                headers,
+                errors,
+                bodies: Vec::new(),
+            },
+        );
         let body = g.add(TaskKind::Body(m), &[id]);
         let finish = g.add(TaskKind::ModuleFinish(m), &[body]);
         let overlay = g.add(TaskKind::TestOverlay(m), &[id]);
@@ -467,8 +518,14 @@ impl Run<'_> {
         let p = self.files[mi].parse.as_ref().expect("parsed");
         let cst = Cst { src, p };
         let prep = self.prep.get_mut(&m).expect("prep");
-        prep.bodies =
-            check_module_bodies(&mut self.w, &cst, &module, &prep.scope, &prep.headers, self.opts.a1_rule);
+        prep.bodies = check_module_bodies(
+            &mut self.w,
+            &cst,
+            &module,
+            &prep.scope,
+            &prep.headers,
+            self.opts.a1_rule,
+        );
     }
 
     /// Writes the `check` entry. Sections, in order: diagnostics; the meta
@@ -578,8 +635,11 @@ impl Run<'_> {
 
     fn collect(&mut self, g: &mut TaskGraph) {
         // prog_key (codegen.md §11.3): TIR content of the modules.
-        let modules: Vec<(&str, Hash128)> =
-            self.tir_content.iter().map(|(m, h)| (m.as_str(), *h)).collect();
+        let modules: Vec<(&str, Hash128)> = self
+            .tir_content
+            .iter()
+            .map(|(m, h)| (m.as_str(), *h))
+            .collect();
         self.prog_key = prog_key(self.toolchain, PIPELINE, &self.entry, &modules);
         if let Some(wasm) = self.lookup("link", self.prog_key) {
             self.wasm = Some(wasm.to_vec());
@@ -587,7 +647,8 @@ impl Run<'_> {
         }
         self.decode_pending();
         let Some(root) = self.w.lookup(&item_path(&self.entry, "main")) else {
-            self.diagnostics.push(format!("no-main: `{}` has no `fn main`", self.entry));
+            self.diagnostics
+                .push(format!("no-main: `{}` has no `fn main`", self.entry));
             return;
         };
         let set = match collect(&mut self.w, &self.tir, root) {
@@ -604,7 +665,12 @@ impl Run<'_> {
         self.codes = vec![None; self.instances.len()];
         let link = g.add(TaskKind::Ext(ExtTask::Link), &[]);
         let emits: Vec<TaskId> = (0..self.instances.len())
-            .map(|i| g.add(TaskKind::Ext(ExtTask::Emit(u32::try_from(i).expect("i"))), &[]))
+            .map(|i| {
+                g.add(
+                    TaskKind::Ext(ExtTask::Emit(u32::try_from(i).expect("i"))),
+                    &[],
+                )
+            })
             .collect();
         for e in emits {
             g.edge(e, link);
@@ -614,7 +680,12 @@ impl Run<'_> {
     fn emit(&mut self, i: usize) {
         let (ikey, inst) = self.instances[i].clone();
         // Code key (§13.8): the stored TIR hash, no re-serialization.
-        let ck = code_key(PIPELINE, ikey, self.tir_hashes[&inst.item], self.callee_reps[&ikey]);
+        let ck = code_key(
+            PIPELINE,
+            ikey,
+            self.tir_hashes[&inst.item],
+            self.callee_reps[&ikey],
+        );
         let code = if let Some(bytes) = self.lookup("code", ck) {
             Code::decode(&bytes)
         } else {
@@ -628,10 +699,22 @@ impl Run<'_> {
     }
 
     fn link(&mut self) {
-        let root = self.w.lookup(&item_path(&self.entry, "main")).expect("main");
-        let root_key = instance_key(&self.w, &Instance { item: root, ty_args: vec![] });
-        let codes: Vec<(Hash128, Code)> =
-            self.codes.iter_mut().map(|c| c.take().expect("emitted")).collect();
+        let root = self
+            .w
+            .lookup(&item_path(&self.entry, "main"))
+            .expect("main");
+        let root_key = instance_key(
+            &self.w,
+            &Instance {
+                item: root,
+                ty_args: vec![],
+            },
+        );
+        let codes: Vec<(Hash128, Code)> = self
+            .codes
+            .iter_mut()
+            .map(|c| c.take().expect("emitted"))
+            .collect();
         let wasm = link(&self.w, &codes, root_key, &self.data_types, &self.imports);
         self.store.put("link", self.prog_key, wasm.clone());
         self.wasm = Some(wasm);

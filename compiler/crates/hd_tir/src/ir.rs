@@ -35,7 +35,11 @@ impl Ref {
     }
     #[must_use]
     pub const fn as_inst(self) -> Option<Inst> {
-        if self.0 & Self::CONST_BIT == 0 { Some(Inst(self.0)) } else { None }
+        if self.0 & Self::CONST_BIT == 0 {
+            Some(Inst(self.0))
+        } else {
+            None
+        }
     }
 }
 
@@ -177,16 +181,39 @@ pub enum ChoiceKind {
 /// A callee record in `extra`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Callee {
-    Item { def: DefId, targs: TyList },
-    TraitMethod { trait_: DefId, method: DefId, self_ty: Ty, targs: TyList, choice: (ChoiceKind, u32) },
+    Item {
+        def: DefId,
+        targs: TyList,
+    },
+    TraitMethod {
+        trait_: DefId,
+        method: DefId,
+        self_ty: Ty,
+        targs: TyList,
+        choice: (ChoiceKind, u32),
+    },
 }
 
 impl Callee {
     fn words(&self) -> Vec<u32> {
         match self {
             Callee::Item { def, targs } => vec![0, def.raw(), targs.0],
-            Callee::TraitMethod { trait_, method, self_ty, targs, choice } => {
-                vec![1, trait_.raw(), method.raw(), self_ty.0, targs.0, choice.0 as u32, choice.1]
+            Callee::TraitMethod {
+                trait_,
+                method,
+                self_ty,
+                targs,
+                choice,
+            } => {
+                vec![
+                    1,
+                    trait_.raw(),
+                    method.raw(),
+                    self_ty.0,
+                    targs.0,
+                    choice.0 as u32,
+                    choice.1,
+                ]
             }
         }
     }
@@ -339,7 +366,8 @@ pub trait TirSink {
     fn get(&mut self, l: LocalId, ty: Ty, syn: NodeIdx) -> Ref;
     fn set(&mut self, l: LocalId, v: Ref, syn: NodeIdx);
     fn prim(&mut self, op: u32, args: &[Ref], ty: Ty, syn: NodeIdx) -> Ref;
-    fn call(&mut self, callee: &Callee, args: &[Ref], prov: Providers, ty: Ty, syn: NodeIdx) -> Ref;
+    fn call(&mut self, callee: &Callee, args: &[Ref], prov: Providers, ty: Ty, syn: NodeIdx)
+    -> Ref;
     fn coerce(&mut self, kind: Coercion, evidence: u32, v: Ref, to: Ty, syn: NodeIdx) -> Ref;
     fn emit(&mut self, tag: Tag, a: u32, b: u32, ty: Ty, syn: NodeIdx) -> Ref;
     fn open_block(&mut self) -> BlockMark;
@@ -375,12 +403,19 @@ impl TirBuilder {
         body.sub_params.push(Range32::default());
         body.sub_parent.push(SubId::NONE);
         body.sub_flags.push(0);
-        Self { body, scratch: vec![], open: vec![], open_caps: vec![] }
+        Self {
+            body,
+            scratch: vec![],
+            open: vec![],
+            open_caps: vec![],
+        }
     }
 
     fn record(&mut self, words: &[u32]) -> u32 {
         let at = u32::try_from(self.body.extra.len()).expect("extra");
-        self.body.extra.push(u32::try_from(words.len()).expect("record"));
+        self.body
+            .extra
+            .push(u32::try_from(words.len()).expect("record"));
         self.body.extra.extend_from_slice(words);
         at
     }
@@ -403,12 +438,22 @@ impl TirBuilder {
 
     /// End of the body: the root block's instruction, capture modes, then
     /// the verifier. Unfilled slots are rejected by the verifier.
-    pub fn finish(mut self, root: Ref, capture_modes: &[CaptureMode]) -> Result<Body, Vec<VerifyError>> {
+    pub fn finish(
+        mut self,
+        root: Ref,
+        capture_modes: &[CaptureMode],
+    ) -> Result<Body, Vec<VerifyError>> {
         self.body.sub_root[0] = root.0;
         self.body.cap_mode = capture_modes.to_vec();
-        self.body.cap_mode.resize(self.body.cap_local.len(), CaptureMode::Shared);
+        self.body
+            .cap_mode
+            .resize(self.body.cap_local.len(), CaptureMode::Shared);
         let errs = verify(&self.body);
-        if errs.is_empty() { Ok(self.body) } else { Err(errs) }
+        if errs.is_empty() {
+            Ok(self.body)
+        } else {
+            Err(errs)
+        }
     }
 }
 
@@ -434,7 +479,14 @@ impl TirSink for TirBuilder {
         let r = self.record(&Self::refs(args));
         self.push(Tag::Prim, op, r, ty, syn)
     }
-    fn call(&mut self, callee: &Callee, args: &[Ref], prov: Providers, ty: Ty, syn: NodeIdx) -> Ref {
+    fn call(
+        &mut self,
+        callee: &Callee,
+        args: &[Ref],
+        prov: Providers,
+        ty: Ty,
+        syn: NodeIdx,
+    ) -> Ref {
         let c = self.record(&callee.words());
         let mut w = Self::refs(args);
         w.extend(match prov {
@@ -454,7 +506,8 @@ impl TirSink for TirBuilder {
         self.push(tag, a, b, ty, syn)
     }
     fn open_block(&mut self) -> BlockMark {
-        self.open.push(u32::try_from(self.scratch.len()).expect("scratch"));
+        self.open
+            .push(u32::try_from(self.scratch.len()).expect("scratch"));
         BlockMark(u32::try_from(self.open.len()).expect("open"))
     }
     fn close_block(&mut self, m: BlockMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Ref {
@@ -497,7 +550,10 @@ impl TirSink for TirBuilder {
     }
     fn fill(&mut self, slot: Slot, tag: Tag, a: u32, b: u32, ty: Ty, syn: NodeIdx) -> Ref {
         let i = slot.0 as usize;
-        assert!(self.body.tags[i] == Tag::Hole && self.body.data[i] == [NONE, NONE], "slot filled once");
+        assert!(
+            self.body.tags[i] == Tag::Hole && self.body.data[i] == [NONE, NONE],
+            "slot filled once"
+        );
         self.body.tags[i] = tag;
         self.body.data[i] = [a, b];
         self.body.ty[i] = ty;
@@ -509,13 +565,19 @@ impl TirSink for TirBuilder {
         let words: Vec<u32> = params.iter().map(|l| l.raw()).collect();
         let at = self.record(&words);
         self.body.sub_root.push(NONE);
-        self.body.sub_params.push(Range32::new(at, u32::try_from(params.len()).expect("params")));
+        self.body.sub_params.push(Range32::new(
+            at,
+            u32::try_from(params.len()).expect("params"),
+        ));
         self.body.sub_parent.push(SubId::from_raw(0));
         self.body.sub_flags.push(0);
         SubMark(s, u32::try_from(self.open_caps.len()).expect("caps"))
     }
     fn capture(&mut self, sub: SubMark, outer: LocalId) -> CaptureId {
-        if let Some(i) = self.open_caps[sub.1 as usize..].iter().position(|c| *c == (sub.0, outer)) {
+        if let Some(i) = self.open_caps[sub.1 as usize..]
+            .iter()
+            .position(|c| *c == (sub.0, outer))
+        {
             return CaptureId::from_raw(sub.1 + u32::try_from(i).expect("cap"));
         }
         self.open_caps.push((sub.0, outer));
@@ -523,7 +585,12 @@ impl TirSink for TirBuilder {
     }
     fn close_sub(&mut self, m: SubMark, root: Ref, fn_ty: Ty, syn: NodeIdx) -> Ref {
         self.body.sub_root[m.0.idx()] = root.0;
-        let mine: Vec<LocalId> = self.open_caps.drain(m.1 as usize..).filter(|c| c.0 == m.0).map(|c| c.1).collect();
+        let mine: Vec<LocalId> = self
+            .open_caps
+            .drain(m.1 as usize..)
+            .filter(|c| c.0 == m.0)
+            .map(|c| c.1)
+            .collect();
         let start = u32::try_from(self.body.cap_local.len()).expect("caps");
         self.body.cap_local.extend(&mine);
         let r = self.record(&[start, u32::try_from(mine.len()).expect("caps")]);
@@ -584,7 +651,11 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
     let mut owner = vec![NONE; b.len()];
     for (i, (&tag, &[a, w])) in b.tags.iter().zip(&b.data).enumerate() {
         let i = u32::try_from(i).expect("i");
-        let err = |inv: u8, what: String| VerifyError { invariant: inv, inst: i, what };
+        let err = |inv: u8, what: String| VerifyError {
+            invariant: inv,
+            inst: i,
+            what,
+        };
         if tag == Tag::Hole && a == NONE && w == NONE {
             errs.push(err(14, "reserved slot never filled".into()));
             continue;
@@ -605,8 +676,12 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
                         }
                     }
                 }
-                Op::Label if (word as usize) >= b.label_inst.len() => errs.push(err(5, "unknown label".into())),
-                Op::Local if (word as usize) >= b.local_ty.len() => errs.push(err(1, "unknown local".into())),
+                Op::Label if (word as usize) >= b.label_inst.len() => {
+                    errs.push(err(5, "unknown label".into()))
+                }
+                Op::Local if (word as usize) >= b.local_ty.len() => {
+                    errs.push(err(1, "unknown local".into()))
+                }
                 _ => {}
             }
         }
@@ -624,12 +699,20 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
     }
     for (l, &at) in b.label_inst.iter().enumerate() {
         if at == NONE {
-            errs.push(VerifyError { invariant: 5, inst: NONE, what: format!("label {l} never written") });
+            errs.push(VerifyError {
+                invariant: 5,
+                inst: NONE,
+                what: format!("label {l} never written"),
+            });
         }
     }
     for (c, l) in b.cap_local.iter().enumerate() {
         if l.idx() >= b.local_ty.len() || c >= b.cap_mode.len() {
-            errs.push(VerifyError { invariant: 10, inst: NONE, what: format!("capture {c} names no local or has no mode") });
+            errs.push(VerifyError {
+                invariant: 10,
+                inst: NONE,
+                what: format!("capture {c} names no local or has no mode"),
+            });
         }
     }
     errs
@@ -640,7 +723,18 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
 pub fn print(b: &Body) -> String {
     let mut o = String::new();
     let _ = writeln!(o, "body {} {:?}", b.item.raw(), b.kind);
-    let words = |v: &[u32]| v.iter().map(|w| if *w == NONE { "-".to_owned() } else { w.to_string() }).collect::<Vec<_>>().join(" ");
+    let words = |v: &[u32]| {
+        v.iter()
+            .map(|w| {
+                if *w == NONE {
+                    "-".to_owned()
+                } else {
+                    w.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
     for i in 0..b.local_ty.len() {
         let _ = writeln!(
             o,
@@ -653,7 +747,15 @@ pub fn print(b: &Body) -> String {
     }
     for i in 0..b.sub_root.len() {
         let p = b.sub_params[i];
-        let _ = writeln!(o, "sub {} {} {} {} {}", words(&[b.sub_root[i]]), p.start, p.len, words(&[b.sub_parent[i].raw()]), b.sub_flags[i]);
+        let _ = writeln!(
+            o,
+            "sub {} {} {} {} {}",
+            words(&[b.sub_root[i]]),
+            p.start,
+            p.len,
+            words(&[b.sub_parent[i].raw()]),
+            b.sub_flags[i]
+        );
     }
     let _ = writeln!(o, "labels {}", words(&b.label_inst));
     let caps: Vec<u32> = b.cap_local.iter().map(|l| l.raw()).collect();
@@ -661,12 +763,23 @@ pub fn print(b: &Body) -> String {
     let modes: Vec<u32> = b.cap_mode.iter().map(|m| *m as u32).collect();
     let _ = writeln!(o, "modes {}", words(&modes));
     for s in &b.susp {
-        let _ = writeln!(o, "susp {} {} {} {}", s.inst, s.scopes.start, s.scopes.len, s.hook_site);
+        let _ = writeln!(
+            o,
+            "susp {} {} {} {}",
+            s.inst, s.scopes.start, s.scopes.len, s.hook_site
+        );
     }
     let _ = writeln!(o, "extra {}", words(&b.extra));
     for i in 0..b.len() {
         let [a, w] = b.data[i];
-        let _ = writeln!(o, "%{i} = {} {} : {} @{}", b.tags[i].name(), words(&[a, w]), b.ty[i].0, words(&[b.syn[i].raw()]));
+        let _ = writeln!(
+            o,
+            "%{i} = {} {} : {} @{}",
+            b.tags[i].name(),
+            words(&[a, w]),
+            b.ty[i].0,
+            words(&[b.syn[i].raw()])
+        );
     }
     o
 }
@@ -679,7 +792,11 @@ pub struct ParseError {
 }
 
 fn word(s: &str) -> Result<u32, String> {
-    if s == "-" { Ok(NONE) } else { s.parse().map_err(|_| format!("bad number `{s}`")) }
+    if s == "-" {
+        Ok(NONE)
+    } else {
+        s.parse().map_err(|_| format!("bad number `{s}`"))
+    }
 }
 
 fn kind_of(s: &str) -> Result<BodyKind, String> {
@@ -704,12 +821,21 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
             continue;
         }
         if f[0] == "body" {
-            let item = DefId::from_raw(word(f.get(1).ok_or_else(|| e("missing item".into()))?).map_err(e)?);
-            body = Some(Body::new(item, kind_of(f.get(2).copied().unwrap_or("")).map_err(e)?));
+            let item = DefId::from_raw(
+                word(f.get(1).ok_or_else(|| e("missing item".into()))?).map_err(e)?,
+            );
+            body = Some(Body::new(
+                item,
+                kind_of(f.get(2).copied().unwrap_or("")).map_err(e)?,
+            ));
             continue;
         }
-        let b = body.as_mut().ok_or_else(|| e("missing `body` line".into()))?;
-        let nums = |from: usize| -> Result<Vec<u32>, ParseError> { f[from..].iter().map(|s| word(s).map_err(e)).collect() };
+        let b = body
+            .as_mut()
+            .ok_or_else(|| e("missing `body` line".into()))?;
+        let nums = |from: usize| -> Result<Vec<u32>, ParseError> {
+            f[from..].iter().map(|s| word(s).map_err(e)).collect()
+        };
         match f[0] {
             "local" => {
                 let v = nums(1)?;
@@ -719,7 +845,8 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 b.local_ty.push(Ty(v[0]));
                 b.local_name.push(Symbol::from_raw(v[1]));
                 b.local_syn.push(NodeIdx::from_raw(v[2]));
-                b.local_flags.push(u8::try_from(v[3]).map_err(|_| e("flags".into()))?);
+                b.local_flags
+                    .push(u8::try_from(v[3]).map_err(|_| e("flags".into()))?);
             }
             "sub" => {
                 let v = nums(1)?;
@@ -729,7 +856,8 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 b.sub_root.push(v[0]);
                 b.sub_params.push(Range32::new(v[1], v[2]));
                 b.sub_parent.push(SubId::from_raw(v[3]));
-                b.sub_flags.push(u8::try_from(v[4]).map_err(|_| e("flags".into()))?);
+                b.sub_flags
+                    .push(u8::try_from(v[4]).map_err(|_| e("flags".into()))?);
             }
             "labels" => b.label_inst = nums(1)?,
             "caps" => b.cap_local = nums(1)?.into_iter().map(LocalId::from_raw).collect(),
@@ -749,7 +877,11 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 if v.len() != 4 {
                     return Err(e("susp needs 4 fields".into()));
                 }
-                b.susp.push(SuspRow { inst: v[0], scopes: Range32::new(v[1], v[2]), hook_site: v[3] });
+                b.susp.push(SuspRow {
+                    inst: v[0],
+                    scopes: Range32::new(v[1], v[2]),
+                    hook_site: v[3],
+                });
             }
             "extra" => b.extra = nums(1)?,
             s if s.starts_with('%') => {
@@ -757,21 +889,29 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 if f.len() != 8 || f[1] != "=" || f[5] != ":" || !f[7].starts_with('@') {
                     return Err(e("instruction line shape".into()));
                 }
-                let tag = Tag::from_name(f[2]).ok_or_else(|| e(format!("unknown tag `{}`", f[2])))?;
+                let tag =
+                    Tag::from_name(f[2]).ok_or_else(|| e(format!("unknown tag `{}`", f[2])))?;
                 b.tags.push(tag);
-                b.data.push([word(f[3]).map_err(e)?, word(f[4]).map_err(e)?]);
+                b.data
+                    .push([word(f[3]).map_err(e)?, word(f[4]).map_err(e)?]);
                 b.ty.push(Ty(word(f[6]).map_err(e)?));
                 b.syn.push(NodeIdx::from_raw(word(&f[7][1..]).map_err(e)?));
             }
             other => return Err(e(format!("unknown line `{other}`"))),
         }
     }
-    body.ok_or(ParseError { line: 0, what: "empty text".into() })
+    body.ok_or(ParseError {
+        line: 0,
+        what: "empty text".into(),
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{BodyKind, Callee, CaptureMode, Coercion, Providers, Ref, Tag, TirBuilder, TirSink, parse, print, verify};
+    use super::{
+        BodyKind, Callee, CaptureMode, Coercion, Providers, Ref, Tag, TirBuilder, TirSink, parse,
+        print, verify,
+    };
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
@@ -783,7 +923,10 @@ mod tests {
         let one = b.konst(3);
         let g = b.get(x, Ty::I32, n);
         let sum = b.prim(0, &[g, one], Ty::I32, n);
-        let callee = Callee::Item { def: DefId::from_raw(9), targs: TyList::EMPTY };
+        let callee = Callee::Item {
+            def: DefId::from_raw(9),
+            targs: TyList::EMPTY,
+        };
         let c = b.call(&callee, &[sum], Providers::None, Ty::I32, n);
         let w = b.coerce(Coercion::WrapSome, super::NONE, c, Ty::I32, n);
         let cl = b.open_sub(&[]);
@@ -832,12 +975,22 @@ mod tests {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Init);
         let blk = b.open_block();
         let cp = b.checkpoint();
-        b.emit(Tag::Unreachable, super::NONE, super::NONE, Ty::NEVER, NodeIdx::NONE);
+        b.emit(
+            Tag::Unreachable,
+            super::NONE,
+            super::NONE,
+            Ty::NEVER,
+            NodeIdx::NONE,
+        );
         b.rollback(cp);
         let root = b.close_block(blk, Some(Ref::konst(1)), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
         assert_eq!(Tag::ALL.len(), 59);
-        assert!(Tag::ALL.iter().all(|t| Tag::from_name(t.name()) == Some(*t)));
+        assert!(
+            Tag::ALL
+                .iter()
+                .all(|t| Tag::from_name(t.name()) == Some(*t))
+        );
     }
 }

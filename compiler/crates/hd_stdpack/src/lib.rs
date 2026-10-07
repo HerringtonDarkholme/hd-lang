@@ -17,10 +17,24 @@ pub struct StdPack {
 
 pub fn build_pack(std: &dyn SourceSet) -> StageResult<StdPack> {
     let r = analyze_package("std", std);
-    for s in [Stage::Parse, Stage::FolderIface, Stage::HeaderCheck, Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
+    for s in [
+        Stage::Parse,
+        Stage::FolderIface,
+        Stage::HeaderCheck,
+        Stage::ModulePrep,
+        Stage::Body,
+        Stage::ModuleFinish,
+    ] {
         let t = r.tally(s);
         if t.not_implemented + t.blocked > 0 {
-            return Err(NotImplemented::new(s, format!("std pack: {} of std's units not through {}", t.not_implemented + t.blocked, s.name())));
+            return Err(NotImplemented::new(
+                s,
+                format!(
+                    "std pack: {} of std's units not through {}",
+                    t.not_implemented + t.blocked,
+                    s.name()
+                ),
+            ));
         }
     }
     Err(NotImplemented::new(Stage::PackageResult, "std pack writer"))
@@ -34,7 +48,10 @@ mod tests {
     #[test]
     fn refuses_until_std_checks() {
         let mut s = MemorySources::default();
-        s.insert("option.hd", "@derive(Eq)\npub enum Option[T]:\n    Some(T)\n    None\n");
+        s.insert(
+            "option.hd",
+            "@derive(Eq)\npub enum Option[T]:\n    Some(T)\n    None\n",
+        );
         assert!(build_pack(&s).is_err());
     }
 }

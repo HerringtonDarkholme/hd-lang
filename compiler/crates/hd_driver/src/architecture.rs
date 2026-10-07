@@ -58,7 +58,10 @@ impl PipelineReport {
                 if t.first_reason.is_none() {
                     t.first_reason = Some(e.what.clone());
                 }
-                let short: String = format!("{}: {}", s.name(), e.what).chars().take(90).collect();
+                let short: String = format!("{}: {}", s.name(), e.what)
+                    .chars()
+                    .take(90)
+                    .collect();
                 *self.reasons.entry(short).or_default() += 1;
                 false
             }
@@ -74,11 +77,26 @@ impl PipelineReport {
     #[must_use]
     pub fn render(&self) -> String {
         use std::fmt::Write as _;
-        let mut o = format!("package {}\n{:<14} {:>5} {:>8} {:>8}  first reason\n", self.package, "stage", "ok", "not-impl", "blocked");
+        let mut o = format!(
+            "package {}\n{:<14} {:>5} {:>8} {:>8}  first reason\n",
+            self.package, "stage", "ok", "not-impl", "blocked"
+        );
         for s in Stage::ALL {
             let t = self.tally(s);
-            let reason: String = t.first_reason.unwrap_or_default().chars().take(80).collect();
-            let _ = writeln!(o, "{:<14} {:>5} {:>8} {:>8}  {reason}", s.name(), t.ok, t.not_implemented, t.blocked);
+            let reason: String = t
+                .first_reason
+                .unwrap_or_default()
+                .chars()
+                .take(80)
+                .collect();
+            let _ = writeln!(
+                o,
+                "{:<14} {:>5} {:>8} {:>8}  {reason}",
+                s.name(),
+                t.ok,
+                t.not_implemented,
+                t.blocked
+            );
         }
         o
     }
@@ -90,8 +108,16 @@ pub fn facts_of(module: &str, sk: &HeaderSkeleton) -> ModuleFacts {
     ModuleFacts {
         path: module.to_owned(),
         has_tests_block: sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests),
-        top_level_statements: sk.bodies.iter().filter(|b| b.kind == HeaderKind::Control && b.header_indent == 0).count(),
-        impls: sk.bodies.iter().filter(|b| b.kind == HeaderKind::Impl && b.header_indent == 0).count(),
+        top_level_statements: sk
+            .bodies
+            .iter()
+            .filter(|b| b.kind == HeaderKind::Control && b.header_indent == 0)
+            .count(),
+        impls: sk
+            .bodies
+            .iter()
+            .filter(|b| b.kind == HeaderKind::Impl && b.header_indent == 0)
+            .count(),
     }
 }
 
@@ -122,7 +148,10 @@ struct Analysis {
 pub fn analyze_package(package: &str, sources: &dyn SourceSet) -> PipelineReport {
     let table = ModuleTable::discover(package, sources);
     let mut a = Analysis {
-        r: PipelineReport { package: package.to_owned(), ..PipelineReport::default() },
+        r: PipelineReport {
+            package: package.to_owned(),
+            ..PipelineReport::default()
+        },
         files: Vec::new(),
         graph: FolderGraph::default(),
         iface_ok: vec![false; table.folders.len()],
@@ -138,7 +167,10 @@ pub fn analyze_package(package: &str, sources: &dyn SourceSet) -> PipelineReport
     let mut g = TaskGraph::default();
     let mut skims = Vec::new();
     for (i, path) in a.table.files.iter().enumerate() {
-        let text = sources.read(path).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+        let text = sources
+            .read(path)
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .unwrap_or_default();
         a.files.push(File {
             module: a.table.modules[i].path.clone(),
             text,
@@ -186,16 +218,26 @@ impl Analysis {
             }
             TaskKind::InitOrder(f) => {
                 let folder = &self.table.folders[f as usize];
-                let facts: Vec<&ModuleFacts> = folder.modules.iter().map(|m| &self.files[m.idx()].facts).collect();
+                let facts: Vec<&ModuleFacts> = folder
+                    .modules
+                    .iter()
+                    .map(|m| &self.files[m.idx()].facts)
+                    .collect();
                 let r = init_order(&folder.path, &facts);
                 self.r.record(Stage::InitOrder, &r);
             }
             TaskKind::PackageResult => self.package_result(g),
             TaskKind::Ext(ExtTask::Collect) => {
                 let r: StageResult<()> = if self.has_main {
-                    Err(NotImplemented::new(Stage::Collect, "collect over the full TIR (the subset path serves `hd run`)"))
+                    Err(NotImplemented::new(
+                        Stage::Collect,
+                        "collect over the full TIR (the subset path serves `hd run`)",
+                    ))
                 } else {
-                    Err(NotImplemented::new(Stage::Collect, "no program root: a library package needs a test plan (§13.1)"))
+                    Err(NotImplemented::new(
+                        Stage::Collect,
+                        "no program root: a library package needs a test plan (§13.1)",
+                    ))
                 };
                 self.r.record(Stage::Collect, &r);
                 for s in [Stage::Emit, Stage::Link, Stage::Precompile, Stage::Run] {
@@ -214,8 +256,14 @@ impl Analysis {
         if file.text.lines().any(|l| l.starts_with("fn main(")) {
             self.has_main = true;
         }
-        let r: StageResult<()> =
-            if sk.broken { Err(NotImplemented::new(Stage::Skim, "lexer diagnostics in skim mode")) } else { Ok(()) };
+        let r: StageResult<()> = if sk.broken {
+            Err(NotImplemented::new(
+                Stage::Skim,
+                "lexer diagnostics in skim mode",
+            ))
+        } else {
+            Ok(())
+        };
         file.skim = sk;
         self.r.record(Stage::Skim, &r);
     }
@@ -224,7 +272,10 @@ impl Analysis {
         let p = hd_syntax::parse(self.files[f].text.as_bytes());
         let r: StageResult<()> = match p.diagnostics.first() {
             None => Ok(()),
-            Some(d) => Err(NotImplemented::new(Stage::Parse, format!("full parser reports {}", d.code.as_str()))),
+            Some(d) => Err(NotImplemented::new(
+                Stage::Parse,
+                format!("full parser reports {}", d.code.as_str()),
+            )),
         };
         self.r.record(Stage::Parse, &r);
     }
@@ -235,15 +286,28 @@ impl Analysis {
         let r: StageResult<()> = if self.graph.cycles.is_empty() {
             Ok(())
         } else {
-            Err(NotImplemented::new(Stage::FolderGraph, "folder-cycle reported"))
+            Err(NotImplemented::new(
+                Stage::FolderGraph,
+                "folder-cycle reported",
+            ))
         };
         self.r.record(Stage::FolderGraph, &r);
         let mut checks = Vec::new();
         for &f in &self.graph.order.clone() {
-            let deps: Vec<TaskId> = self.graph.uses[f.idx()].iter().filter_map(|u| self.iface_task[u.idx()]).collect();
-            let t = g.add_with_priority(TaskKind::FolderIface(f.raw()), &deps, self.graph.height[f.idx()]);
+            let deps: Vec<TaskId> = self.graph.uses[f.idx()]
+                .iter()
+                .filter_map(|u| self.iface_task[u.idx()])
+                .collect();
+            let t = g.add_with_priority(
+                TaskKind::FolderIface(f.raw()),
+                &deps,
+                self.graph.height[f.idx()],
+            );
             self.iface_task[f.idx()] = Some(t);
-            let hdeps: Vec<TaskId> = self.graph.closure[f.idx()].iter().filter_map(|c| self.iface_task[c.idx()]).collect();
+            let hdeps: Vec<TaskId> = self.graph.closure[f.idx()]
+                .iter()
+                .filter_map(|c| self.iface_task[c.idx()])
+                .collect();
             checks.push(g.add(TaskKind::HeaderCheck(f.raw()), &hdeps));
             checks.push(g.add(TaskKind::InitOrder(f.raw()), &[t]));
         }
@@ -252,7 +316,10 @@ impl Analysis {
         let mut preps = Vec::new();
         for m in 0..self.table.modules.len() {
             let folder = self.table.modules[m].folder;
-            let deps: Vec<TaskId> = self.graph.closure[folder.idx()].iter().filter_map(|c| self.iface_task[c.idx()]).collect();
+            let deps: Vec<TaskId> = self.graph.closure[folder.idx()]
+                .iter()
+                .filter_map(|c| self.iface_task[c.idx()])
+                .collect();
             preps.push(g.add(TaskKind::ModulePrep(u32::try_from(m).expect("m")), &deps));
         }
         preps.extend(checks);
@@ -280,7 +347,10 @@ impl Analysis {
         for m in &folder.modules {
             let f = m.idx();
             if let Err(e) = self.subset(f) {
-                self.r.record::<()>(Stage::FolderIface, &Err(NotImplemented::new(Stage::FolderIface, e)));
+                self.r.record::<()>(
+                    Stage::FolderIface,
+                    &Err(NotImplemented::new(Stage::FolderIface, e)),
+                );
                 return;
             }
             let file = &self.files[f];
@@ -290,7 +360,10 @@ impl Analysis {
             let (hs, errs) = lower_headers(&cst, &file.module, &scope);
             if let Some(e) = scope.errors.first().or(errs.first()) {
                 let what = format!("subset resolution: {e}");
-                self.r.record::<()>(Stage::FolderIface, &Err(NotImplemented::new(Stage::FolderIface, what)));
+                self.r.record::<()>(
+                    Stage::FolderIface,
+                    &Err(NotImplemented::new(Stage::FolderIface, what)),
+                );
                 return;
             }
             items.extend(hs.into_iter().filter(|h| h.public));
@@ -321,7 +394,10 @@ impl Analysis {
         let (headers, errs) = lower_headers(&cst, &file.module, &scope);
         if let Some(e) = scope.errors.first().or(errs.first()) {
             let what = format!("subset resolution: {e}");
-            self.r.record::<()>(Stage::ModulePrep, &Err(NotImplemented::new(Stage::ModulePrep, what)));
+            self.r.record::<()>(
+                Stage::ModulePrep,
+                &Err(NotImplemented::new(Stage::ModulePrep, what)),
+            );
             return;
         }
         self.prep.insert(m, (scope, headers));
@@ -343,14 +419,30 @@ impl Analysis {
             }
             load_items(&mut w, &headers, None);
             let cst = Cst { src: &file.text, p };
-            check_module_bodies(&mut w, &cst, &file.module, &scope, &headers, A1Rule::default())
+            check_module_bodies(
+                &mut w,
+                &cst,
+                &file.module,
+                &scope,
+                &headers,
+                A1Rule::default(),
+            )
         }));
         let r: StageResult<()> = match outcome {
-            Ok(bodies) => match bodies.iter().find_map(|(path, ck)| ck.errors.first().map(|e| format!("{path}: {e}"))) {
+            Ok(bodies) => match bodies
+                .iter()
+                .find_map(|(path, ck)| ck.errors.first().map(|e| format!("{path}: {e}")))
+            {
                 None => Ok(()),
-                Some(e) => Err(NotImplemented::new(Stage::Body, format!("subset checker: {e}"))),
+                Some(e) => Err(NotImplemented::new(
+                    Stage::Body,
+                    format!("subset checker: {e}"),
+                )),
             },
-            Err(_) => Err(NotImplemented::new(Stage::Body, "subset checker panicked (caught at the task boundary, §6.4)")),
+            Err(_) => Err(NotImplemented::new(
+                Stage::Body,
+                "subset checker panicked (caught at the task boundary, §6.4)",
+            )),
         };
         self.body_ok[mi] = self.r.record(Stage::Body, &r);
     }
@@ -372,7 +464,15 @@ mod tests {
         let mut s = MemorySources::default();
         s.insert("main.hd", "fn main():\n    println(42)\n");
         let r = analyze_package("pkg", &s);
-        for st in [Stage::Skim, Stage::Parse, Stage::FolderGraph, Stage::FolderIface, Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
+        for st in [
+            Stage::Skim,
+            Stage::Parse,
+            Stage::FolderGraph,
+            Stage::FolderIface,
+            Stage::ModulePrep,
+            Stage::Body,
+            Stage::ModuleFinish,
+        ] {
             assert_eq!(r.tally(st).ok, 1, "{}", st.name());
         }
         assert_eq!(r.tally(Stage::HeaderCheck).not_implemented, 1);

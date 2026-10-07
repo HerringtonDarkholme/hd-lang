@@ -33,13 +33,20 @@ pub struct MemorySources {
 
 impl MemorySources {
     pub fn insert(&mut self, path: &str, text: &str) {
-        self.files.insert(path.to_owned(), Arc::from(text.as_bytes()));
+        self.files
+            .insert(path.to_owned(), Arc::from(text.as_bytes()));
     }
 }
 
 impl SourceSet for MemorySources {
     fn list(&self) -> Vec<SourceEntry> {
-        self.files.iter().map(|(p, b)| SourceEntry { path: p.clone(), size: b.len() as u64 }).collect()
+        self.files
+            .iter()
+            .map(|(p, b)| SourceEntry {
+                path: p.clone(),
+                size: b.len() as u64,
+            })
+            .collect()
     }
     fn read(&self, path: &str) -> Option<Arc<[u8]>> {
         self.files.get(path).cloned()
@@ -65,14 +72,21 @@ pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
             line.trim_matches(['[', ']']).clone_into(&mut section);
             continue;
         }
-        let Some((k, v)) = line.split_once('=') else { continue };
+        let Some((k, v)) = line.split_once('=') else {
+            continue;
+        };
         let (k, v) = (k.trim(), v.trim().trim_matches('"'));
         match (section.as_str(), k) {
             ("package" | "", "name") => v.clone_into(&mut m.name),
             ("package" | "", "version") => m.version = Some(v.to_owned()),
             ("dependencies", _) => m.dependencies.push((k.to_owned(), v.to_owned())),
             ("package" | "", _) => {}
-            (other, _) => return Err(NotImplemented::new(Stage::Discover, format!("manifest section [{other}]"))),
+            (other, _) => {
+                return Err(NotImplemented::new(
+                    Stage::Discover,
+                    format!("manifest section [{other}]"),
+                ));
+            }
         }
     }
     Ok(m)
@@ -118,7 +132,10 @@ pub struct ModuleTable {
 /// The module path of a file: `package.` plus its path, `/` as `.`.
 #[must_use]
 pub fn module_path(package: &str, file: &str) -> String {
-    format!("{package}.{}", file.trim_end_matches(".hd").replace('/', "."))
+    format!(
+        "{package}.{}",
+        file.trim_end_matches(".hd").replace('/', ".")
+    )
 }
 
 /// The folder path of a module path: everything before its last segment.
@@ -131,25 +148,45 @@ impl ModuleTable {
     /// Discovery (§4.7): every `.hd` file is a module; its directory is its folder.
     #[must_use]
     pub fn discover(package: &str, sources: &dyn SourceSet) -> Self {
-        let mut t = ModuleTable { package: package.to_owned(), ..Self::default() };
+        let mut t = ModuleTable {
+            package: package.to_owned(),
+            ..Self::default()
+        };
         let mut folders: BTreeMap<String, Vec<ModuleId>> = BTreeMap::new();
         let mut entries = sources.list();
         entries.sort_by(|a, b| a.path.cmp(&b.path));
         for (i, e) in entries.iter().enumerate() {
             let path = module_path(package, &e.path);
             let id = ModuleId::from_raw(u32::try_from(i).expect("modules"));
-            folders.entry(folder_of(&path).to_owned()).or_default().push(id);
+            folders
+                .entry(folder_of(&path).to_owned())
+                .or_default()
+                .push(id);
             t.by_path.insert(path.clone(), id);
             t.files.push(e.path.clone());
-            let role = if e.path.ends_with("_test.hd") { Role::Test } else { Role::Lib };
-            t.modules.push(Module { id, file: FileId::from_raw(id.raw()), path, folder: FolderId::NONE, role });
+            let role = if e.path.ends_with("_test.hd") {
+                Role::Test
+            } else {
+                Role::Lib
+            };
+            t.modules.push(Module {
+                id,
+                file: FileId::from_raw(id.raw()),
+                path,
+                folder: FolderId::NONE,
+                role,
+            });
         }
         for (i, (path, mods)) in folders.into_iter().enumerate() {
             let id = FolderId::from_raw(u32::try_from(i).expect("folders"));
             for &m in &mods {
                 t.modules[m.idx()].folder = id;
             }
-            t.folders.push(Folder { id, path, modules: mods });
+            t.folders.push(Folder {
+                id,
+                path,
+                modules: mods,
+            });
         }
         t
     }
@@ -192,7 +229,9 @@ impl FolderSet {
     }
     #[must_use]
     pub fn contains(&self, f: FolderId) -> bool {
-        self.0.get(f.idx() / 64).is_some_and(|w| w & (1 << (f.idx() % 64)) != 0)
+        self.0
+            .get(f.idx() / 64)
+            .is_some_and(|w| w & (1 << (f.idx() % 64)) != 0)
     }
     pub fn union(&mut self, other: &FolderSet) {
         if other.0.len() > self.0.len() {
@@ -204,7 +243,9 @@ impl FolderSet {
     }
     pub fn iter(&self) -> impl Iterator<Item = FolderId> + '_ {
         self.0.iter().enumerate().flat_map(|(w, &bits)| {
-            (0..64).filter(move |b| bits & (1u64 << b) != 0).map(move |b| FolderId::from_raw(u32::try_from(w * 64 + b).expect("folder")))
+            (0..64)
+                .filter(move |b| bits & (1u64 << b) != 0)
+                .map(move |b| FolderId::from_raw(u32::try_from(w * 64 + b).expect("folder")))
         })
     }
     #[must_use]
@@ -237,7 +278,10 @@ impl FolderGraph {
     #[must_use]
     pub fn build(table: &ModuleTable, module_uses: &[Vec<String>]) -> Self {
         let n = table.folders.len();
-        let mut g = FolderGraph { uses: vec![Vec::new(); n], ..Self::default() };
+        let mut g = FolderGraph {
+            uses: vec![Vec::new(); n],
+            ..Self::default()
+        };
         for (m, uses) in module_uses.iter().enumerate() {
             let from = table.modules[m].folder;
             for u in uses {
@@ -256,7 +300,11 @@ impl FolderGraph {
         let mut state = vec![0u8; n]; // 0 new, 1 visiting, 2 done
         let mut stack_path: Vec<FolderId> = Vec::new();
         for f in 0..n {
-            g.visit(FolderId::from_raw(u32::try_from(f).expect("f")), &mut state, &mut stack_path);
+            g.visit(
+                FolderId::from_raw(u32::try_from(f).expect("f")),
+                &mut state,
+                &mut stack_path,
+            );
         }
         g.closure = vec![FolderSet::with_capacity(n); n];
         g.height = vec![0; n];
@@ -280,7 +328,11 @@ impl FolderGraph {
             1 => {
                 let start = path.iter().position(|&p| p == f).unwrap_or(0);
                 let mut cycle = path[start..].to_vec();
-                let min = cycle.iter().enumerate().min_by_key(|(_, c)| c.raw()).map_or(0, |(i, _)| i);
+                let min = cycle
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, c)| c.raw())
+                    .map_or(0, |(i, _)| i);
                 cycle.rotate_left(min);
                 if !self.cycles.contains(&cycle) {
                     self.cycles.push(cycle);
@@ -312,7 +364,10 @@ pub struct PackageGraph {
 
 pub fn resolve_packages(manifest: &Manifest) -> StageResult<PackageGraph> {
     if manifest.dependencies.is_empty() {
-        Ok(PackageGraph { root: manifest.name.clone(), dependencies: Vec::new() })
+        Ok(PackageGraph {
+            root: manifest.name.clone(),
+            dependencies: Vec::new(),
+        })
     } else {
         Err(NotImplemented::new(Stage::Discover, "package dependencies"))
     }
@@ -329,7 +384,13 @@ mod tests {
         s.insert("a/x.hd", "");
         s.insert("b/y.hd", "");
         let t = ModuleTable::discover("pkg", &s);
-        assert_eq!(t.folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["pkg", "pkg.a", "pkg.b"]);
+        assert_eq!(
+            t.folders
+                .iter()
+                .map(|f| f.path.as_str())
+                .collect::<Vec<_>>(),
+            ["pkg", "pkg.a", "pkg.b"]
+        );
         let main = t.module("pkg.main").expect("main").idx();
         let x = t.module("pkg.a.x").expect("x").idx();
         let mut uses = vec![Vec::new(); 3];
@@ -337,7 +398,11 @@ mod tests {
         uses[x] = vec!["pkg.b.y".to_owned()];
         let g = FolderGraph::build(&t, &uses);
         assert!(g.cycles.is_empty());
-        let names: Vec<&str> = g.order.iter().map(|f| t.folders[f.idx()].path.as_str()).collect();
+        let names: Vec<&str> = g
+            .order
+            .iter()
+            .map(|f| t.folders[f.idx()].path.as_str())
+            .collect();
         assert_eq!(names, ["pkg.b", "pkg.a", "pkg"]);
         assert_eq!(g.closure[0].len(), 3);
         assert_eq!(g.height[0], 2);
@@ -345,12 +410,17 @@ mod tests {
         uses[y] = vec!["pkg.main".to_owned()];
         let g = FolderGraph::build(&t, &uses);
         assert_eq!(g.cycles.len(), 1);
-        assert_eq!(g.cycles[0][0].raw(), 0, "named from the first member in path order");
+        assert_eq!(
+            g.cycles[0][0].raw(),
+            0,
+            "named from the first member in path order"
+        );
     }
 
     #[test]
     fn manifest_package_section() {
-        let m = parse_manifest("[package]\nname = \"shop\"\nversion = \"1.0\"\n").expect("manifest");
+        let m =
+            parse_manifest("[package]\nname = \"shop\"\nversion = \"1.0\"\n").expect("manifest");
         assert_eq!(m.name, "shop");
         assert!(parse_manifest("[workspace]\nx = 1\n").is_err());
     }

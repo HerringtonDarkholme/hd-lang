@@ -3,7 +3,10 @@
 //! part of the `hd` command.
 
 fn main() {
-    let n = std::env::args().nth(1).and_then(|n| n.parse().ok()).unwrap_or(200);
+    let n = std::env::args()
+        .nth(1)
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(200);
     match hd_driver::bench::bench(n) {
         Ok((report, _)) => eprint!("{report}"),
         Err(error) => {

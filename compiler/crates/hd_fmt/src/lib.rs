@@ -17,7 +17,10 @@ pub fn round_trip(source: &str) -> String {
 pub fn format(source: &str) -> StageResult<String> {
     let p = hd_syntax::parse(source.as_bytes());
     if !p.is_ok() {
-        return Err(NotImplemented::new(Stage::Parse, "formatting a file with syntax errors is refused"));
+        return Err(NotImplemented::new(
+            Stage::Parse,
+            "formatting a file with syntax errors is refused",
+        ));
     }
     Err(NotImplemented::new(Stage::Parse, "formatter layout rules"))
 }

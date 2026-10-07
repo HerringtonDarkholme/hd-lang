@@ -93,10 +93,17 @@ impl MemoryStore {
 
 impl CacheStore for MemoryStore {
     fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-        self.entries.lock().expect("entries").get(&(kind, *key)).cloned()
+        self.entries
+            .lock()
+            .expect("entries")
+            .get(&(kind, *key))
+            .cloned()
     }
     fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-        self.entries.lock().expect("entries").insert((kind, *key), Arc::from(bytes));
+        self.entries
+            .lock()
+            .expect("entries")
+            .insert((kind, *key), Arc::from(bytes));
         self.new.lock().expect("new").push((kind, *key));
     }
     fn touch(&self, _: EntryKind, _: &Hash128) {}
@@ -137,7 +144,14 @@ fn checksum(bytes: &[u8]) -> u64 {
 
 /// Frames sections into one entry: header, section table, payloads.
 #[must_use]
-pub fn encode_entry(kind: EntryKind, layout: u16, key: Hash128, toolchain: Hash128, flags: u32, sections: &[(u16, u32, &[u8])]) -> Vec<u8> {
+pub fn encode_entry(
+    kind: EntryKind,
+    layout: u16,
+    key: Hash128,
+    toolchain: Hash128,
+    flags: u32,
+    sections: &[(u16, u32, &[u8])],
+) -> Vec<u8> {
     let mut body = Vec::new();
     let table_len = sections.len() * SECTION_LEN;
     let mut payload = Vec::new();
@@ -159,7 +173,11 @@ pub fn encode_entry(kind: EntryKind, layout: u16, key: Hash128, toolchain: Hash1
     out.extend_from_slice(&toolchain.0.to_le_bytes());
     out.extend_from_slice(&(body.len() as u64).to_le_bytes());
     out.extend_from_slice(&checksum(&body).to_le_bytes());
-    out.extend_from_slice(&u32::try_from(sections.len()).expect("sections").to_le_bytes());
+    out.extend_from_slice(
+        &u32::try_from(sections.len())
+            .expect("sections")
+            .to_le_bytes(),
+    );
     out.extend_from_slice(&flags.to_le_bytes());
     debug_assert_eq!(out.len(), HEADER_LEN);
     out.extend_from_slice(&body);
@@ -177,7 +195,9 @@ pub enum EntryError {
 }
 
 fn le<const N: usize>(b: &[u8], at: usize) -> Result<[u8; N], EntryError> {
-    b.get(at..at + N).and_then(|s| s.try_into().ok()).ok_or(EntryError::Short)
+    b.get(at..at + N)
+        .and_then(|s| s.try_into().ok())
+        .ok_or(EntryError::Short)
 }
 
 /// Checks and splits an entry into its header and section payloads.
@@ -192,7 +212,9 @@ pub fn decode_entry(bytes: &[u8]) -> Result<(EntryHeader, Sections<'_>), EntryEr
         return Err(EntryError::Magic);
     }
     let kind_n = u16::from_le_bytes(le(bytes, 4)?);
-    let kind = *EntryKind::ALL.get(kind_n as usize).ok_or(EntryError::Kind)?;
+    let kind = *EntryKind::ALL
+        .get(kind_n as usize)
+        .ok_or(EntryError::Kind)?;
     let h = EntryHeader {
         kind,
         layout: u16::from_le_bytes(le(bytes, 6)?),
@@ -218,7 +240,9 @@ pub fn decode_entry(bytes: &[u8]) -> Result<(EntryHeader, Sections<'_>), EntryEr
         };
         let off = usize::try_from(s.offset).map_err(|_| EntryError::Section)?;
         let len = u32::from_le_bytes(le(bytes, off)?) as usize;
-        let payload = bytes.get(off + 4..off + 4 + len).ok_or(EntryError::Section)?;
+        let payload = bytes
+            .get(off + 4..off + 4 + len)
+            .ok_or(EntryError::Section)?;
         out.push((s, payload));
     }
     Ok((h, out))
@@ -242,7 +266,10 @@ impl ManifestRecord {
     /// A file is unchanged when its stat fields all match (§5.5).
     #[must_use]
     pub fn same_stat(&self, size: u64, mtime_ns: i64, ctime_ns: i64, inode: u64) -> bool {
-        self.size == size && self.mtime_ns == mtime_ns && self.ctime_ns == ctime_ns && self.inode == inode
+        self.size == size
+            && self.mtime_ns == mtime_ns
+            && self.ctime_ns == ctime_ns
+            && self.inode == inode
     }
 }
 
@@ -295,7 +322,10 @@ pub struct DiskStore {
 impl DiskStore {
     #[must_use]
     pub fn path(&self, kind: EntryKind, key: &Hash128) -> std::path::PathBuf {
-        self.root.join(kind.as_str()).join(format!("{:02x}", shard_of(*key))).join(format!("{:032x}", key.0))
+        self.root
+            .join(kind.as_str())
+            .join(format!("{:02x}", shard_of(*key)))
+            .join(format!("{:032x}", key.0))
     }
 }
 
@@ -319,19 +349,31 @@ impl CacheStore for DiskStore {
 
 /// Verify mode (§5.6): recompute an entry and compare it with the stored one.
 pub fn verify_entry(stored: &[u8], recomputed: &[u8]) -> StageResult<bool> {
-    let (a, sa) = decode_entry(stored).map_err(|e| NotImplemented::new(Stage::PackageResult, format!("verify: {e:?}")))?;
-    let (b, sb) = decode_entry(recomputed).map_err(|e| NotImplemented::new(Stage::PackageResult, format!("verify: {e:?}")))?;
+    let (a, sa) = decode_entry(stored)
+        .map_err(|e| NotImplemented::new(Stage::PackageResult, format!("verify: {e:?}")))?;
+    let (b, sb) = decode_entry(recomputed)
+        .map_err(|e| NotImplemented::new(Stage::PackageResult, format!("verify: {e:?}")))?;
     Ok(a.key == b.key && sa.len() == sb.len() && sa.iter().zip(&sb).all(|(x, y)| x.1 == y.1))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CacheStore, EntryKind, EntryStat, MemoryStore, decode_entry, encode_entry, plan_eviction, shard_of};
+    use super::{
+        CacheStore, EntryKind, EntryStat, MemoryStore, decode_entry, encode_entry, plan_eviction,
+        shard_of,
+    };
     use hd_base::Hash128;
 
     #[test]
     fn entry_round_trip_and_corruption_is_a_miss() {
-        let e = encode_entry(EntryKind::Check, 1, Hash128(9), Hash128(3), 0, &[(1, 2, b"ab"), (2, 0, b"")]);
+        let e = encode_entry(
+            EntryKind::Check,
+            1,
+            Hash128(9),
+            Hash128(3),
+            0,
+            &[(1, 2, b"ab"), (2, 0, b"")],
+        );
         let (h, secs) = decode_entry(&e).expect("decodes");
         assert_eq!(h.kind, EntryKind::Check);
         assert_eq!(h.key, Hash128(9));
@@ -346,14 +388,22 @@ mod tests {
     fn memory_store_drains_new_entries() {
         let s = MemoryStore::default();
         s.put(EntryKind::Iface, &Hash128(1), b"x");
-        assert_eq!(s.get(EntryKind::Iface, &Hash128(1)).as_deref(), Some(&b"x"[..]));
+        assert_eq!(
+            s.get(EntryKind::Iface, &Hash128(1)).as_deref(),
+            Some(&b"x"[..])
+        );
         assert_eq!(s.drain_new().len(), 1);
         assert!(s.drain_new().is_empty());
     }
 
     #[test]
     fn eviction_takes_oldest_until_ninety_percent() {
-        let e = |m: i64, b: u64| EntryStat { kind: EntryKind::Link, key: Hash128(u128::from(m.unsigned_abs())), bytes: b, mtime_s: m };
+        let e = |m: i64, b: u64| EntryStat {
+            kind: EntryKind::Link,
+            key: Hash128(u128::from(m.unsigned_abs())),
+            bytes: b,
+            mtime_s: m,
+        };
         let plan = plan_eviction(&[e(3, 40), e(1, 40), e(2, 40)], 100);
         assert_eq!(plan.iter().map(|x| x.mtime_s).collect::<Vec<_>>(), [1]);
         assert!(plan_eviction(&[e(1, 10)], 100).is_empty());

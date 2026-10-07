@@ -2,7 +2,7 @@
 //! representation (codegen.md §13.2, §13.3; wasm-layout.md §15.1, §15.2;
 //! data-structures.md §3.22).
 
-use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StableHasher, StageResult};
+use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
 /// The A1 class of a move-only type argument (§13.2).
@@ -27,7 +27,9 @@ pub enum ValType {
     F32,
     F64,
     /// `(ref $T)` or `(ref null $T)`.
-    Ref { nullable: bool },
+    Ref {
+        nullable: bool,
+    },
     /// `eqref`: erased storage.
     EqRef,
 }
@@ -58,7 +60,11 @@ pub struct Layout {
 pub const VALUE_BOUND: usize = 4;
 
 fn one(class: LayoutClass, v: ValType) -> Layout {
-    Layout { class, values: vec![v], packed_bits: None }
+    Layout {
+        class,
+        values: vec![v],
+        packed_bits: None,
+    }
 }
 
 /// What layouts need to know about declared types (enum shapes).
@@ -72,17 +78,35 @@ pub trait LayoutEnv {
 pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<Layout> {
     let l = match pool.get(t) {
         TyData::Prim(p) => match p {
-            Prim::Bool | Prim::I8 | Prim::U8 => Layout { packed_bits: Some(8), ..one(LayoutClass::I32, ValType::I32) },
-            Prim::I16 | Prim::U16 => Layout { packed_bits: Some(16), ..one(LayoutClass::I32, ValType::I32) },
+            Prim::Bool | Prim::I8 | Prim::U8 => Layout {
+                packed_bits: Some(8),
+                ..one(LayoutClass::I32, ValType::I32)
+            },
+            Prim::I16 | Prim::U16 => Layout {
+                packed_bits: Some(16),
+                ..one(LayoutClass::I32, ValType::I32)
+            },
             Prim::I32 | Prim::U32 | Prim::Usize | Prim::Char => one(LayoutClass::I32, ValType::I32),
             Prim::I64 | Prim::U64 => one(LayoutClass::I64, ValType::I64),
             Prim::F32 => one(LayoutClass::F32, ValType::F32),
             Prim::F64 => one(LayoutClass::F64, ValType::F64),
             // A view: (ref $bytes, i64 span).
-            Prim::String => Layout { class: LayoutClass::Multi, values: vec![ValType::Ref { nullable: false }, ValType::I64], packed_bits: None },
-            Prim::Void => Layout { class: LayoutClass::Void, values: vec![], packed_bits: None },
+            Prim::String => Layout {
+                class: LayoutClass::Multi,
+                values: vec![ValType::Ref { nullable: false }, ValType::I64],
+                packed_bits: None,
+            },
+            Prim::Void => Layout {
+                class: LayoutClass::Void,
+                values: vec![],
+                packed_bits: None,
+            },
         },
-        TyData::Never => Layout { class: LayoutClass::Void, values: vec![], packed_bits: None },
+        TyData::Never => Layout {
+            class: LayoutClass::Void,
+            values: vec![],
+            packed_bits: None,
+        },
         TyData::Adt { def, args } => match env.enum_variants(def, args) {
             None => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
             Some(vs) if vs.iter().all(Vec::is_empty) => one(LayoutClass::I32, ValType::I32),
@@ -93,7 +117,11 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
                     let mut here: Vec<(ValType, usize)> = Vec::new();
                     for f in v {
                         for val in layout_of(pool, env, *f)?.values {
-                            let val = if matches!(val, ValType::Ref { .. }) { ValType::EqRef } else { val };
+                            let val = if matches!(val, ValType::Ref { .. }) {
+                                ValType::EqRef
+                            } else {
+                                val
+                            };
                             match here.iter_mut().find(|s| s.0 == val) {
                                 Some(s) => s.1 += 1,
                                 None => here.push((val, 1)),
@@ -114,7 +142,11 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
                 if values.len() > VALUE_BOUND {
                     one(LayoutClass::Ref, ValType::Ref { nullable: false })
                 } else {
-                    Layout { class: LayoutClass::Multi, values, packed_bits: None }
+                    Layout {
+                        class: LayoutClass::Multi,
+                        values,
+                        packed_bits: None,
+                    }
                 }
             }
         },
@@ -124,20 +156,39 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
                 values.extend(layout_of(pool, env, e)?.values);
             }
             match values.len() {
-                0 => Layout { class: LayoutClass::Void, values, packed_bits: None },
-                n if n <= VALUE_BOUND => Layout { class: LayoutClass::Multi, values, packed_bits: None },
+                0 => Layout {
+                    class: LayoutClass::Void,
+                    values,
+                    packed_bits: None,
+                },
+                n if n <= VALUE_BOUND => Layout {
+                    class: LayoutClass::Multi,
+                    values,
+                    packed_bits: None,
+                },
                 _ => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
             }
         }
         TyData::Tuple { rest: Some(_), .. } => {
-            return Err(NotImplemented::new(Stage::Emit, "layout of an open tuple (rest element)"));
+            return Err(NotImplemented::new(
+                Stage::Emit,
+                "layout of an open tuple (rest element)",
+            ));
         }
         TyData::Option(inner) => {
             let li = layout_of(pool, env, inner)?;
             match (li.class, li.values.as_slice()) {
-                (LayoutClass::Ref, [ValType::Ref { .. }]) => one(LayoutClass::Ref, ValType::Ref { nullable: true }),
-                (LayoutClass::Multi, [ValType::Ref { .. }, ValType::I64]) if inner == Ty::STRING => {
-                    Layout { class: LayoutClass::Multi, values: vec![ValType::Ref { nullable: true }, ValType::I64], packed_bits: None }
+                (LayoutClass::Ref, [ValType::Ref { .. }]) => {
+                    one(LayoutClass::Ref, ValType::Ref { nullable: true })
+                }
+                (LayoutClass::Multi, [ValType::Ref { .. }, ValType::I64])
+                    if inner == Ty::STRING =>
+                {
+                    Layout {
+                        class: LayoutClass::Multi,
+                        values: vec![ValType::Ref { nullable: true }, ValType::I64],
+                        packed_bits: None,
+                    }
                 }
                 _ => {
                     let mut values = vec![ValType::I32];
@@ -145,19 +196,32 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
                     if values.len() > VALUE_BOUND {
                         one(LayoutClass::Ref, ValType::Ref { nullable: true })
                     } else {
-                        Layout { class: LayoutClass::Multi, values, packed_bits: None }
+                        Layout {
+                            class: LayoutClass::Multi,
+                            values,
+                            packed_bits: None,
+                        }
                     }
                 }
             }
         }
         TyData::Fn { .. } => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
         // (eqref, (ref $VT)).
-        TyData::TraitValue { .. } => {
-            Layout { class: LayoutClass::Multi, values: vec![ValType::EqRef, ValType::Ref { nullable: false }], packed_bits: None }
-        }
+        TyData::TraitValue { .. } => Layout {
+            class: LayoutClass::Multi,
+            values: vec![ValType::EqRef, ValType::Ref { nullable: false }],
+            packed_bits: None,
+        },
         TyData::Mut(inner) => layout_of(pool, env, inner)?,
-        TyData::Param(_) | TyData::Assoc { .. } | TyData::Infer(_) | TyData::Canon(_) | TyData::Poison => {
-            return Err(NotImplemented::new(Stage::Emit, "layout of a non-concrete type (substitution missing)"));
+        TyData::Param(_)
+        | TyData::Assoc { .. }
+        | TyData::Infer(_)
+        | TyData::Canon(_)
+        | TyData::Poison => {
+            return Err(NotImplemented::new(
+                Stage::Emit,
+                "layout of a non-concrete type (substitution missing)",
+            ));
         }
     };
     Ok(l)
@@ -200,7 +264,12 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
             h.u8(4);
             canon(pool, path_hash, i, h);
         }
-        TyData::Fn { params, result, row, suspends } => {
+        TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+        } => {
             h.u8(5);
             canon_list(pool, path_hash, params, h);
             canon(pool, path_hash, result, h);
@@ -227,7 +296,12 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
     }
 }
 
-fn canon_list(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, l: TyList, h: &mut StableHasher) {
+fn canon_list(
+    pool: &InternPool,
+    path_hash: &dyn Fn(DefId) -> Hash128,
+    l: TyList,
+    h: &mut StableHasher,
+) {
     let items = pool.list_items(l);
     h.u32(u32::try_from(items.len()).expect("list"));
     for t in items {
@@ -243,7 +317,13 @@ pub enum KeyArg {
 }
 
 /// `instance_key = H("inst", item path, sub-body, [canon(arg) or class])` (§13.3).
-pub fn instance_key(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, item: DefId, sub: u16, args: &[KeyArg]) -> Hash128 {
+pub fn instance_key(
+    pool: &InternPool,
+    path_hash: &dyn Fn(DefId) -> Hash128,
+    item: DefId,
+    sub: u16,
+    args: &[KeyArg],
+) -> Hash128 {
     let mut h = StableHasher::new("inst");
     h.hash(path_hash(item));
     h.u16(sub);
@@ -281,12 +361,23 @@ pub const MAX_CHAIN: u32 = 256;
 
 impl InstanceTable {
     /// Pushes an instance once; returns its id and whether it was new.
-    pub fn push(&mut self, item: DefId, sub: u16, args: TyList, depth: u8, parent: InstId, key: Hash128) -> StageResult<(InstId, bool)> {
+    pub fn push(
+        &mut self,
+        item: DefId,
+        sub: u16,
+        args: TyList,
+        depth: u8,
+        parent: InstId,
+        key: Hash128,
+    ) -> StageResult<(InstId, bool)> {
         if let Some(&id) = self.index.get(&(item, sub, args)) {
             return Ok((id, false));
         }
         if depth > MAX_DEPTH {
-            return Err(NotImplemented::new(Stage::Collect, "instantiation-too-deep diagnostic"));
+            return Err(NotImplemented::new(
+                Stage::Collect,
+                "instantiation-too-deep diagnostic",
+            ));
         }
         let id = InstId::from_raw(u32::try_from(self.item.len()).expect("instances"));
         self.item.push(item);
@@ -309,7 +400,9 @@ impl InstanceTable {
     /// Content order: by instance key (§6.5), never by id.
     #[must_use]
     pub fn content_order(&self) -> Vec<InstId> {
-        let mut ids: Vec<InstId> = (0..self.len()).map(|i| InstId::from_raw(u32::try_from(i).expect("i"))).collect();
+        let mut ids: Vec<InstId> = (0..self.len())
+            .map(|i| InstId::from_raw(u32::try_from(i).expect("i")))
+            .collect();
         ids.sort_by_key(|i| self.key[i.idx()]);
         ids
     }
@@ -317,7 +410,10 @@ impl InstanceTable {
 
 #[cfg(test)]
 mod tests {
-    use super::{A1Class, InstanceTable, KeyArg, LayoutClass, LayoutEnv, ValType, a1_class, instance_key, layout_of};
+    use super::{
+        A1Class, InstanceTable, KeyArg, LayoutClass, LayoutEnv, ValType, a1_class, instance_key,
+        layout_of,
+    };
     use hd_base::{DefId, Hash128, InstId};
     use hd_types::{InternPool, Ty, TyData, TyList};
 
@@ -335,23 +431,62 @@ mod tests {
     #[test]
     fn layouts_cover_every_concrete_form() {
         let p = InternPool::new();
-        let adt = |d: u32| p.intern_ty(&TyData::Adt { def: DefId::from_raw(d), args: TyList::EMPTY });
+        let adt = |d: u32| {
+            p.intern_ty(&TyData::Adt {
+                def: DefId::from_raw(d),
+                args: TyList::EMPTY,
+            })
+        };
         let data = adt(9);
-        assert_eq!(layout_of(&p, &Env, Ty::I32).expect("i32").class, LayoutClass::I32);
-        assert_eq!(layout_of(&p, &Env, Ty::BOOL).expect("bool").packed_bits, Some(8));
-        assert_eq!(layout_of(&p, &Env, Ty::STRING).expect("str").values.len(), 2);
-        assert_eq!(layout_of(&p, &Env, adt(1)).expect("tag enum").class, LayoutClass::I32);
+        assert_eq!(
+            layout_of(&p, &Env, Ty::I32).expect("i32").class,
+            LayoutClass::I32
+        );
+        assert_eq!(
+            layout_of(&p, &Env, Ty::BOOL).expect("bool").packed_bits,
+            Some(8)
+        );
+        assert_eq!(
+            layout_of(&p, &Env, Ty::STRING).expect("str").values.len(),
+            2
+        );
+        assert_eq!(
+            layout_of(&p, &Env, adt(1)).expect("tag enum").class,
+            LayoutClass::I32
+        );
         let value_enum = layout_of(&p, &Env, adt(2)).expect("value enum");
         assert_eq!(value_enum.class, LayoutClass::Multi);
-        assert_eq!(value_enum.values, [ValType::I32, ValType::I32, ValType::EqRef, ValType::I64]);
+        assert_eq!(
+            value_enum.values,
+            [ValType::I32, ValType::I32, ValType::EqRef, ValType::I64]
+        );
         let opt_data = p.intern_ty(&TyData::Option(data));
-        assert_eq!(layout_of(&p, &Env, opt_data).expect("opt").values, [ValType::Ref { nullable: true }]);
+        assert_eq!(
+            layout_of(&p, &Env, opt_data).expect("opt").values,
+            [ValType::Ref { nullable: true }]
+        );
         let opt_i32 = p.intern_ty(&TyData::Option(Ty::I32));
-        assert_eq!(layout_of(&p, &Env, opt_i32).expect("opt i32").values.len(), 2);
-        let tv = p.intern_ty(&TyData::TraitValue { def: DefId::from_raw(3), args: TyList::EMPTY, bindings: vec![] });
-        assert_eq!(layout_of(&p, &Env, tv).expect("dyn").values[0], ValType::EqRef);
-        let big = p.intern_ty(&TyData::Tuple { elems: p.list(&[Ty::STRING, Ty::STRING, Ty::I32]), rest: None });
-        assert_eq!(layout_of(&p, &Env, big).expect("boxed tuple").class, LayoutClass::Ref);
+        assert_eq!(
+            layout_of(&p, &Env, opt_i32).expect("opt i32").values.len(),
+            2
+        );
+        let tv = p.intern_ty(&TyData::TraitValue {
+            def: DefId::from_raw(3),
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        assert_eq!(
+            layout_of(&p, &Env, tv).expect("dyn").values[0],
+            ValType::EqRef
+        );
+        let big = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[Ty::STRING, Ty::STRING, Ty::I32]),
+            rest: None,
+        });
+        assert_eq!(
+            layout_of(&p, &Env, big).expect("boxed tuple").class,
+            LayoutClass::Ref
+        );
         assert_eq!(a1_class(&p, &Env, data).expect("a1"), A1Class::Ref);
         assert_eq!(a1_class(&p, &Env, opt_data).expect("a1"), A1Class::RefNull);
         assert!(layout_of(&p, &Env, Ty::POISON).is_err());
@@ -368,8 +503,16 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
         let mut t = InstanceTable::default();
-        assert!(t.push(push, 0, TyList::EMPTY, 0, InstId::NONE, a).expect("push").1);
-        assert!(!t.push(push, 0, TyList::EMPTY, 0, InstId::NONE, a).expect("push").1);
+        assert!(
+            t.push(push, 0, TyList::EMPTY, 0, InstId::NONE, a)
+                .expect("push")
+                .1
+        );
+        assert!(
+            !t.push(push, 0, TyList::EMPTY, 0, InstId::NONE, a)
+                .expect("push")
+                .1
+        );
         assert!(t.push(push, 1, TyList::EMPTY, 33, InstId::NONE, c).is_err());
     }
 }

@@ -51,7 +51,11 @@ pub fn crc32(bytes: &[u8]) -> u32 {
     for &b in bytes {
         c ^= u32::from(b);
         for _ in 0..8 {
-            c = if c & 1 != 0 { (c >> 1) ^ 0xEDB8_8320 } else { c >> 1 };
+            c = if c & 1 != 0 {
+                (c >> 1) ^ 0xEDB8_8320
+            } else {
+                c >> 1
+            };
         }
     }
     !c
@@ -101,7 +105,9 @@ pub fn read(b: &[u8]) -> (Vec<Row>, usize) {
     let mut at = 0;
     loop {
         let start = at;
-        let Some(&k) = b.get(at) else { return (rows, start) };
+        let Some(&k) = b.get(at) else {
+            return (rows, start);
+        };
         at += 1;
         let parsed = (|| {
             let kind = *RowKind::ALL.get(k as usize)?;
@@ -110,7 +116,11 @@ pub fn read(b: &[u8]) -> (Vec<Row>, usize) {
             let payload = b.get(at..at + len)?.to_vec();
             at += len;
             let crc = u32::from_le_bytes(b.get(at..at + 4)?.try_into().ok()?);
-            (crc == crc32(&b[start..at])).then_some(Row { kind, index, payload })
+            (crc == crc32(&b[start..at])).then_some(Row {
+                kind,
+                index,
+                payload,
+            })
         })();
         match parsed {
             Some(r) if r.index == rows.len() as u64 => {
@@ -139,9 +149,21 @@ mod tests {
     fn rows_round_trip_and_a_torn_tail_is_cut() {
         let mut j = Vec::new();
         let rows = [
-            Row { kind: RowKind::Header, index: 0, payload: b"fmt1".to_vec() },
-            Row { kind: RowKind::Call, index: 1, payload: vec![7; 300] },
-            Row { kind: RowKind::End, index: 2, payload: vec![] },
+            Row {
+                kind: RowKind::Header,
+                index: 0,
+                payload: b"fmt1".to_vec(),
+            },
+            Row {
+                kind: RowKind::Call,
+                index: 1,
+                payload: vec![7; 300],
+            },
+            Row {
+                kind: RowKind::End,
+                index: 2,
+                payload: vec![],
+            },
         ];
         for r in &rows {
             append(&mut j, r);

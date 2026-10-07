@@ -77,7 +77,10 @@ pub enum JoinKind {
 }
 
 fn is_point(t: Tag) -> bool {
-    matches!(t, Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace)
+    matches!(
+        t,
+        Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
+    )
 }
 
 /// Finds the suspension points and the blocks to flatten. Liveness (the
@@ -88,7 +91,13 @@ pub fn plan_state_machine(body: &Body) -> StageResult<StateMachine> {
         if is_point(*t) {
             let i = u32::try_from(i).expect("inst");
             let state = u32::try_from(sm.points.len()).expect("points") + 1;
-            sm.points.push(SuspendPoint { inst: i, state, resume_case: state, saved: vec![], scopes: vec![] });
+            sm.points.push(SuspendPoint {
+                inst: i,
+                state,
+                resume_case: state,
+                saved: vec![],
+                scopes: vec![],
+            });
         }
     }
     if sm.points.is_empty() {
@@ -102,7 +111,10 @@ pub fn plan_state_machine(body: &Body) -> StageResult<StateMachine> {
             }
         }
     }
-    Err(NotImplemented::new(Stage::Emit, "suspension liveness and frame layout"))
+    Err(NotImplemented::new(
+        Stage::Emit,
+        "suspension liveness and frame layout",
+    ))
 }
 
 #[cfg(test)]
@@ -121,10 +133,19 @@ mod tests {
         assert!(plan_state_machine(&body).expect("plan").points.is_empty());
         let mut b = TirBuilder::new(DefId::from_raw(0), BodyKind::Fn);
         let blk = b.open_block();
-        let v = b.emit(Tag::Unreachable, u32::MAX, u32::MAX, Ty::NEVER, NodeIdx::NONE);
+        let v = b.emit(
+            Tag::Unreachable,
+            u32::MAX,
+            u32::MAX,
+            Ty::NEVER,
+            NodeIdx::NONE,
+        );
         b.emit(Tag::AwaitValue, v.0, u32::MAX, Ty::I32, NodeIdx::NONE);
         let r = b.close_block(blk, None, Ty::VOID, NodeIdx::NONE);
         let body = b.finish(r, &[]).expect("body");
-        assert!(plan_state_machine(&body).is_err(), "liveness is reported as not implemented");
+        assert!(
+            plan_state_machine(&body).is_err(),
+            "liveness is reported as not implemented"
+        );
     }
 }

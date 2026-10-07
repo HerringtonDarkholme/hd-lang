@@ -74,7 +74,6 @@ impl<'a> Cst<'a> {
     }
 }
 
-
 /// The module scope (§4.9): name to stable path.
 #[derive(Default, Clone, Debug)]
 pub struct Scope {
@@ -109,11 +108,7 @@ pub fn use_decls(cst: &Cst<'_>) -> Vec<(String, Vec<String>)> {
 /// Builds the module scope: own items, then imports resolved against the
 /// frozen interfaces of the used folders.
 #[must_use]
-pub fn module_scope(
-    cst: &Cst<'_>,
-    module: &str,
-    ifaces: &HashMap<String, FolderIface>,
-) -> Scope {
+pub fn module_scope(cst: &Cst<'_>, module: &str, ifaces: &HashMap<String, FolderIface>) -> Scope {
     let mut scope = Scope::default();
     for item in cst.root().children() {
         match item.kind() {
@@ -127,7 +122,9 @@ pub fn module_scope(
     for (used, names) in use_decls(cst) {
         let folder = folder_of_module(&used);
         let Some(iface) = ifaces.get(folder) else {
-            scope.errors.push(format!("unknown-import: folder `{folder}`"));
+            scope
+                .errors
+                .push(format!("unknown-import: folder `{folder}`"));
             continue;
         };
         for name in names {
@@ -135,7 +132,9 @@ pub fn module_scope(
             if iface.public_item(&path).is_some() {
                 scope.names.insert(name, path);
             } else {
-                scope.errors.push(format!("unknown-import: `{name}` in `{used}`"));
+                scope
+                    .errors
+                    .push(format!("unknown-import: `{name}` in `{used}`"));
             }
         }
     }
@@ -204,7 +203,11 @@ impl Lower<'_> {
         }
         let ret_node = f.children().find(|c| c.kind() == SyntaxKind::NamedType);
         let ret = self.ty(cst, ret_node);
-        CSig { generics, params, ret }
+        CSig {
+            generics,
+            params,
+            ret,
+        }
     }
 }
 
@@ -212,7 +215,11 @@ impl Lower<'_> {
 /// items are included; the folder interface keeps the public ones and impls.
 #[must_use]
 pub fn lower_headers(cst: &Cst<'_>, module: &str, scope: &Scope) -> (Vec<HeaderItem>, Vec<String>) {
-    let mut low = Lower { scope, generics: Vec::new(), errors: Vec::new() };
+    let mut low = Lower {
+        scope,
+        generics: Vec::new(),
+        errors: Vec::new(),
+    };
     let mut items = Vec::new();
     for item in cst.root().children() {
         let public = cst.is_pub(item);
@@ -255,10 +262,13 @@ pub fn lower_headers(cst: &Cst<'_>, module: &str, scope: &Scope) -> (Vec<HeaderI
             }
             SyntaxKind::ImplDecl => {
                 low.generics.clear();
-                let tys: Vec<_> =
-                    item.children().filter(|c| c.kind() == SyntaxKind::NamedType).collect();
+                let tys: Vec<_> = item
+                    .children()
+                    .filter(|c| c.kind() == SyntaxKind::NamedType)
+                    .collect();
                 if tys.len() != 2 {
-                    low.errors.push("inherent impls are outside the skeleton subset".into());
+                    low.errors
+                        .push("inherent impls are outside the skeleton subset".into());
                     continue;
                 }
                 let trait_name = cst.text(cst.first(tys[0]));
@@ -277,7 +287,11 @@ pub fn lower_headers(cst: &Cst<'_>, module: &str, scope: &Scope) -> (Vec<HeaderI
                 items.push(HeaderItem {
                     path: item_path(module, &format!("impl.{tname}.{target_name}")),
                     public: true,
-                    item: CItem::Impl { trait_, target, methods },
+                    item: CItem::Impl {
+                        trait_,
+                        target,
+                        methods,
+                    },
                 });
             }
             _ => {}

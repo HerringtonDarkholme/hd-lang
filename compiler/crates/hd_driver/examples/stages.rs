@@ -8,14 +8,20 @@ use hd_driver::architecture::analyze_package;
 use hd_project::MemorySources;
 
 fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
     paths.sort();
     for p in paths {
         if p.is_dir() {
             walk(root, &p, out);
         } else if p.extension().is_some_and(|x| x == "hd") {
-            let rel = p.strip_prefix(root).expect("under root").to_string_lossy().replace('\\', "/");
+            let rel = p
+                .strip_prefix(root)
+                .expect("under root")
+                .to_string_lossy()
+                .replace('\\', "/");
             if let Ok(text) = std::fs::read_to_string(&p) {
                 out.insert(&rel, &text);
             }

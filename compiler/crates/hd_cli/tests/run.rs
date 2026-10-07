@@ -13,7 +13,12 @@ fn hd_run(target: &Path) -> String {
         .arg(target)
         .output()
         .expect("run hd");
-    assert!(output.status.success(), "{}: {}", target.display(), String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}: {}",
+        target.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
     String::from_utf8(output.stdout).expect("UTF-8")
 }
 
@@ -54,7 +59,11 @@ fn run_reports_check_errors() {
     std::fs::create_dir_all(&dir).expect("dir");
     let file = dir.join("bad.hd");
     std::fs::write(&file, "fn main():\n    println(missing)\n").expect("write");
-    let output = Command::new(env!("CARGO_BIN_EXE_hd")).arg("run").arg(&file).output().expect("run hd");
+    let output = Command::new(env!("CARGO_BIN_EXE_hd"))
+        .arg("run")
+        .arg(&file)
+        .output()
+        .expect("run hd");
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("unknown-name `missing`"));
 }

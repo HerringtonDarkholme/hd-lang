@@ -58,7 +58,10 @@ impl ModuleScope {
         if let Some(&row) = self.index.get(&name) {
             let r = row as usize;
             if self.binding[r] != b && self.origin[r] != Origin::Own {
-                self.binding[r] = Binding { kind: BindingKind::Ambiguous, value: row };
+                self.binding[r] = Binding {
+                    kind: BindingKind::Ambiguous,
+                    value: row,
+                };
             }
             return;
         }
@@ -97,28 +100,45 @@ pub struct FolderExports {
 /// The orphan rule (§4.12): an impl must live in the module of its trait
 /// or of its self type's head.
 #[must_use]
-pub fn orphan_ok(impl_module: ModuleId, trait_module: Option<ModuleId>, self_head_module: Option<ModuleId>) -> bool {
+pub fn orphan_ok(
+    impl_module: ModuleId,
+    trait_module: Option<ModuleId>,
+    self_head_module: Option<ModuleId>,
+) -> bool {
     trait_module == Some(impl_module) || self_head_module == Some(impl_module)
 }
 
 /// Header validation stage B (§4.10.1; scheduler.md §6.1 `HeaderCheck(F)`):
 /// bounds of written header types, impl supertraits, newtype bases and
 /// delegation targets.
-pub fn header_check(table: &ModuleTable, graph: &FolderGraph, folder: usize) -> StageResult<Vec<String>> {
+pub fn header_check(
+    table: &ModuleTable,
+    graph: &FolderGraph,
+    folder: usize,
+) -> StageResult<Vec<String>> {
     let path = table.folders.get(folder).map_or("", |f| f.path.as_str());
-    let deps = graph.closure.get(folder).map_or(0, hd_project::FolderSet::len);
+    let deps = graph
+        .closure
+        .get(folder)
+        .map_or(0, hd_project::FolderSet::len);
     header_check_folder(path, deps)
 }
 
 /// `header_check` by folder path and closure size, for drivers that keep
 /// their own folder tables.
 pub fn header_check_folder(folder: &str, closure_len: usize) -> StageResult<Vec<String>> {
-    Err(NotImplemented::new(Stage::HeaderCheck, format!("stage-B header validation of {folder} (closure of {closure_len} folders)")))
+    Err(NotImplemented::new(
+        Stage::HeaderCheck,
+        format!("stage-B header validation of {folder} (closure of {closure_len} folders)"),
+    ))
 }
 
 /// Derived impl heads (§4.10): `derive` lines become impl heads in the interface.
 pub fn derive_heads(folder: &str) -> StageResult<Vec<String>> {
-    Err(NotImplemented::new(Stage::FolderIface, format!("derived heads of folder {folder}")))
+    Err(NotImplemented::new(
+        Stage::FolderIface,
+        format!("derived heads of folder {folder}"),
+    ))
 }
 
 #[cfg(test)]
@@ -130,12 +150,44 @@ mod tests {
     fn a_name_from_two_uses_is_ambiguous_but_own_wins() {
         let mut s = ModuleScope::default();
         let x = Symbol::from_raw(1);
-        s.bind(x, Binding { kind: BindingKind::Item, value: 1 }, Origin::Use, 0);
-        s.bind(x, Binding { kind: BindingKind::Item, value: 2 }, Origin::Use, 1);
+        s.bind(
+            x,
+            Binding {
+                kind: BindingKind::Item,
+                value: 1,
+            },
+            Origin::Use,
+            0,
+        );
+        s.bind(
+            x,
+            Binding {
+                kind: BindingKind::Item,
+                value: 2,
+            },
+            Origin::Use,
+            1,
+        );
         assert_eq!(s.lookup(x).expect("bound").kind, BindingKind::Ambiguous);
         let y = Symbol::from_raw(2);
-        s.bind(y, Binding { kind: BindingKind::Item, value: 1 }, Origin::Own, u32::MAX);
-        s.bind(y, Binding { kind: BindingKind::Item, value: 2 }, Origin::Use, 0);
+        s.bind(
+            y,
+            Binding {
+                kind: BindingKind::Item,
+                value: 1,
+            },
+            Origin::Own,
+            u32::MAX,
+        );
+        s.bind(
+            y,
+            Binding {
+                kind: BindingKind::Item,
+                value: 2,
+            },
+            Origin::Use,
+            0,
+        );
         assert_eq!(s.lookup(y).expect("bound").value, 1);
     }
 

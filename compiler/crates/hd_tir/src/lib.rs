@@ -39,9 +39,14 @@ const _: () = assert!(core::mem::size_of::<TirTag>() == 1);
 impl TirTag {
     #[must_use]
     pub fn from_u8(v: u8) -> Self {
-        use TirTag::{LocalGet, LocalSet, Prim, Call, Intrinsic, NewData, Field, Block, If, Loop, Break, Return};
-        [LocalGet, LocalSet, Prim, Call, Intrinsic, NewData, Field, Block, If, Loop, Break, Return]
-            [v as usize]
+        use TirTag::{
+            Block, Break, Call, Field, If, Intrinsic, LocalGet, LocalSet, Loop, NewData, Prim,
+            Return,
+        };
+        [
+            LocalGet, LocalSet, Prim, Call, Intrinsic, NewData, Field, Block, If, Loop, Break,
+            Return,
+        ][v as usize]
     }
 }
 
@@ -66,8 +71,10 @@ pub enum PrimOp {
 impl PrimOp {
     #[must_use]
     pub fn from_u32(v: u32) -> Self {
-        use PrimOp::{Add, Sub, Mul, Div, Rem, Eq, Ne, Lt, Le, Gt, Ge, Neg, And, Or};
-        [Add, Sub, Mul, Div, Rem, Eq, Ne, Lt, Le, Gt, Ge, Neg, And, Or][v as usize]
+        use PrimOp::{Add, And, Div, Eq, Ge, Gt, Le, Lt, Mul, Ne, Neg, Or, Rem, Sub};
+        [
+            Add, Sub, Mul, Div, Rem, Eq, Ne, Lt, Le, Gt, Ge, Neg, And, Or,
+        ][v as usize]
     }
 }
 
@@ -185,7 +192,11 @@ impl Tables {
 /// Which word kinds an operand holds; the generated codec of the design is
 /// this table written by hand.
 fn remap_ref(w: &World, t: &mut Tables, r: u32) -> u32 {
-    if r != NONE && r & CONST_BIT != 0 { t.konst(w, r & !CONST_BIT) | CONST_BIT } else { r }
+    if r != NONE && r & CONST_BIT != 0 {
+        t.konst(w, r & !CONST_BIT) | CONST_BIT
+    } else {
+        r
+    }
 }
 
 /// Writes one body's columns with ID words remapped to entry rows. Returns
@@ -221,7 +232,11 @@ pub fn write_body(w: &World, t: &mut Tables, b: &TirBody, out: &mut Vec<u8>, spa
                     nrec.push(rec[2]);
                     nrec.push(t.ty(w, Ty(rec[3])));
                     nrec.push(rec[4]);
-                    nrec.push(if rec[4] == CHOICE_IMPL { t.path(w, DefId(rec[5])) } else { rec[5] });
+                    nrec.push(if rec[4] == CHOICE_IMPL {
+                        t.path(w, DefId(rec[5]))
+                    } else {
+                        rec[5]
+                    });
                 }
                 let ra = list(&mut extra, nrec);
                 let args = b.get_list(bb).iter().map(|&r| remap_ref(w, t, r)).collect();
@@ -304,11 +319,19 @@ pub fn read_tables(w: &mut World, r: &mut Reader<'_>) -> RunRows {
             w.konst(ty, bits)
         })
         .collect();
-    RunRows { paths, types, consts }
+    RunRows {
+        paths,
+        types,
+        consts,
+    }
 }
 
 fn unmap_ref(rows: &RunRows, r: u32) -> u32 {
-    if r != NONE && r & CONST_BIT != 0 { rows.consts[(r & !CONST_BIT) as usize] | CONST_BIT } else { r }
+    if r != NONE && r & CONST_BIT != 0 {
+        rows.consts[(r & !CONST_BIT) as usize] | CONST_BIT
+    } else {
+        r
+    }
 }
 
 pub fn read_body(w: &mut World, rows: &RunRows, r: &mut Reader<'_>) -> TirBody {
@@ -345,7 +368,11 @@ pub fn read_body(w: &mut World, rows: &RunRows, r: &mut Reader<'_>) -> TirBody {
                     nrec.push(rec[2]);
                     nrec.push(rows.types[rec[3] as usize].0);
                     nrec.push(rec[4]);
-                    nrec.push(if rec[4] == CHOICE_IMPL { rows.paths[rec[5] as usize].0 } else { rec[5] });
+                    nrec.push(if rec[4] == CHOICE_IMPL {
+                        rows.paths[rec[5] as usize].0
+                    } else {
+                        rec[5]
+                    });
                 }
                 let ra = b.list(&nrec);
                 let args: Vec<u32> = get(bb).iter().map(|&x| unmap_ref(rows, x)).collect();

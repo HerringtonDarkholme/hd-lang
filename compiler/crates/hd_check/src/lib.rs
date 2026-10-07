@@ -35,8 +35,10 @@ pub fn check_module_bodies(
     headers: &[HeaderItem],
     rule: A1Rule,
 ) -> Vec<(String, Checked)> {
-    let mut impl_paths =
-        headers.iter().filter(|h| matches!(h.item, CItem::Impl { .. })).map(|h| h.path.clone());
+    let mut impl_paths = headers
+        .iter()
+        .filter(|h| matches!(h.item, CItem::Impl { .. }))
+        .map(|h| h.path.clone());
     let mut out = Vec::new();
     for item in cst.root().children() {
         match item.kind() {
@@ -46,7 +48,9 @@ pub fn check_module_bodies(
                 out.push((path, check_fn(w, cst, scope, def, item, rule)));
             }
             SyntaxKind::ImplDecl => {
-                let Some(impl_path) = impl_paths.next() else { continue };
+                let Some(impl_path) = impl_paths.next() else {
+                    continue;
+                };
                 for f in item.children().filter(|c| c.kind() == SyntaxKind::FnDecl) {
                     let path = format!("{impl_path}.{}", cst.first_ident(f));
                     let def = w.def(&path);

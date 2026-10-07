@@ -126,7 +126,13 @@ impl TaskGraph {
 
     pub fn add_with_priority(&mut self, kind: TaskKind, deps: &[TaskId], priority: u32) -> TaskId {
         let id = TaskId(self.nodes.len());
-        self.nodes.push(TaskNode { kind, waiting_on: 0, successors: Vec::new(), state: State::Waiting, priority });
+        self.nodes.push(TaskNode {
+            kind,
+            waiting_on: 0,
+            successors: Vec::new(),
+            state: State::Waiting,
+            priority,
+        });
         for &d in deps {
             self.edge(d, id);
         }
@@ -176,15 +182,22 @@ impl TaskGraph {
         let at = match order {
             SerialOrder::Fifo => 0,
             SerialOrder::Priority => {
-                let best = self.ready.iter().enumerate().max_by_key(|(_, t)| (self.nodes[t.0].priority, usize::MAX - t.0))?;
+                let best = self
+                    .ready
+                    .iter()
+                    .enumerate()
+                    .max_by_key(|(_, t)| (self.nodes[t.0].priority, usize::MAX - t.0))?;
                 best.0
             }
             SerialOrder::Shuffled(seed) => {
                 if self.ready.is_empty() {
                     return None;
                 }
-                let x = seed ^ (self.nodes.len() as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ (self.ready.len() as u64);
-                usize::try_from(x.wrapping_mul(0xbf58_476d_1ce4_e5b9) >> 33).expect("index") % self.ready.len()
+                let x = seed
+                    ^ (self.nodes.len() as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)
+                    ^ (self.ready.len() as u64);
+                usize::try_from(x.wrapping_mul(0xbf58_476d_1ce4_e5b9) >> 33).expect("index")
+                    % self.ready.len()
             }
         };
         let id = self.ready.remove(at)?;
@@ -218,12 +231,18 @@ impl TaskGraph {
 
     #[must_use]
     pub fn unfinished(&self) -> usize {
-        self.nodes.iter().filter(|n| !matches!(n.state, State::Done | State::Cancelled)).count()
+        self.nodes
+            .iter()
+            .filter(|n| !matches!(n.state, State::Done | State::Cancelled))
+            .count()
     }
 
     /// The serial executor, FIFO over ready tasks.
     pub fn run(&mut self, exec: &mut dyn FnMut(TaskId, TaskKind, &mut TaskGraph)) {
-        SerialScheduler { order: SerialOrder::Fifo }.run(self, exec);
+        SerialScheduler {
+            order: SerialOrder::Fifo,
+        }
+        .run(self, exec);
     }
 }
 
@@ -231,7 +250,11 @@ impl TaskGraph {
 /// caller's thread with `&mut` access to the graph; the pool executor
 /// (feature `threads`) has its own `Sync` entry point.
 pub trait Executor {
-    fn run(&mut self, graph: &mut TaskGraph, exec: &mut dyn FnMut(TaskId, TaskKind, &mut TaskGraph));
+    fn run(
+        &mut self,
+        graph: &mut TaskGraph,
+        exec: &mut dyn FnMut(TaskId, TaskKind, &mut TaskGraph),
+    );
     fn threads(&self) -> usize {
         1
     }
@@ -251,7 +274,10 @@ impl Executor for SerialScheduler {
             g.complete(id);
         }
         let stuck = g.unfinished();
-        assert!(stuck == 0, "{stuck} tasks never became ready (a cycle or a missing edge)");
+        assert!(
+            stuck == 0,
+            "{stuck} tasks never became ready (a cycle or a missing edge)"
+        );
     }
 }
 
@@ -293,14 +319,19 @@ impl SteppingScheduler {
             g.complete(id);
             ran += 1;
         }
-        if g.unfinished() == 0 { Progress::Done } else { Progress::Yielded { ran } }
+        if g.unfinished() == 0 {
+            Progress::Done
+        } else {
+            Progress::Yielded { ran }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        CancelFlag, Executor, ExtTask, Progress, SerialOrder, SerialScheduler, SteppingScheduler, TaskGraph, TaskKind,
+        CancelFlag, Executor, ExtTask, Progress, SerialOrder, SerialScheduler, SteppingScheduler,
+        TaskGraph, TaskKind,
     };
 
     #[test]
@@ -331,7 +362,12 @@ mod tests {
 
     #[test]
     fn every_order_respects_edges() {
-        for order in [SerialOrder::Fifo, SerialOrder::Priority, SerialOrder::Shuffled(7), SerialOrder::Shuffled(8)] {
+        for order in [
+            SerialOrder::Fifo,
+            SerialOrder::Priority,
+            SerialOrder::Shuffled(7),
+            SerialOrder::Shuffled(8),
+        ] {
             let mut g = diamond();
             let mut seen = Vec::new();
             SerialScheduler { order }.run(&mut g, &mut |_, k, _| seen.push(k));
@@ -347,14 +383,23 @@ mod tests {
     fn stepping_yields_and_cancels() {
         let mut g = diamond();
         let cancel = CancelFlag::default();
-        let mut s = SteppingScheduler { order: SerialOrder::Fifo, cancel: cancel.clone() };
+        let mut s = SteppingScheduler {
+            order: SerialOrder::Fifo,
+            cancel: cancel.clone(),
+        };
         let mut noop = |_, _, _: &mut TaskGraph| {};
-        assert_eq!(s.run_for(&mut g, 2, &mut noop), Progress::Yielded { ran: 2 });
+        assert_eq!(
+            s.run_for(&mut g, 2, &mut noop),
+            Progress::Yielded { ran: 2 }
+        );
         cancel.cancel();
         assert_eq!(s.run_for(&mut g, 2, &mut noop), Progress::Cancelled);
         assert_eq!(g.unfinished(), 0);
         let mut g = diamond();
-        let mut s = SteppingScheduler { order: SerialOrder::Fifo, cancel: CancelFlag::default() };
+        let mut s = SteppingScheduler {
+            order: SerialOrder::Fifo,
+            cancel: CancelFlag::default(),
+        };
         assert_eq!(s.run_for(&mut g, 100, &mut noop), Progress::Done);
     }
 }

@@ -59,8 +59,20 @@ pub struct HostTrait {
     pub methods: &'static [HostMethod],
 }
 
-const fn m(name: &'static str, params: &'static [Codec], result: Codec, wait: Wait, resource: Option<ResourceArg>) -> HostMethod {
-    HostMethod { name, params, result, wait, resource }
+const fn m(
+    name: &'static str,
+    params: &'static [Codec],
+    result: Codec,
+    wait: Wait,
+    resource: Option<ResourceArg>,
+) -> HostMethod {
+    HostMethod {
+        name,
+        params,
+        result,
+        wait,
+        resource,
+    }
 }
 
 use Codec::{Buffer as B, Scalar as S, Void as V};
@@ -70,12 +82,24 @@ pub static TABLE: &[HostTrait] = &[
     HostTrait {
         key: "Console",
         std_path: "std.console.Console",
-        methods: &[m("write_line", &[B("string")], B("Result[void, ConsoleError]"), Wait::May, None)],
+        methods: &[m(
+            "write_line",
+            &[B("string")],
+            B("Result[void, ConsoleError]"),
+            Wait::May,
+            None,
+        )],
     },
     HostTrait {
         key: "ConsoleInput",
         std_path: "std.console.ConsoleInput",
-        methods: &[m("read_line", &[], B("Result[string?, ConsoleError]"), Wait::May, None)],
+        methods: &[m(
+            "read_line",
+            &[],
+            B("Result[string?, ConsoleError]"),
+            Wait::May,
+            None,
+        )],
     },
     HostTrait {
         key: "Clock",
@@ -90,28 +114,77 @@ pub static TABLE: &[HostTrait] = &[
         key: "FsRead",
         std_path: "std.fs.FsRead",
         methods: &[
-            m("read_bytes", &[B("Path")], B("Result[List[u8], FsError]"), Wait::May, Some(ResourceArg::Path)),
-            m("read_text", &[B("Path")], B("Result[string, FsError]"), Wait::May, Some(ResourceArg::Path)),
-            m("list_dir", &[B("Path")], B("Result[List[Entry], FsError]"), Wait::May, Some(ResourceArg::Path)),
-            m("stat", &[B("Path")], B("Result[Entry?, FsError]"), Wait::May, Some(ResourceArg::Path)),
+            m(
+                "read_bytes",
+                &[B("Path")],
+                B("Result[List[u8], FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "read_text",
+                &[B("Path")],
+                B("Result[string, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "list_dir",
+                &[B("Path")],
+                B("Result[List[Entry], FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "stat",
+                &[B("Path")],
+                B("Result[Entry?, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
         ],
     },
-    HostTrait { key: "FsWrite", std_path: "std.fs.FsWrite", methods: &[] },
-    HostTrait { key: "Random", std_path: "std.random.Random", methods: &[] },
-    HostTrait { key: "Http", std_path: "std.http.Http", methods: &[] },
-    HostTrait { key: "Process", std_path: "std.process.Process", methods: &[] },
+    HostTrait {
+        key: "FsWrite",
+        std_path: "std.fs.FsWrite",
+        methods: &[],
+    },
+    HostTrait {
+        key: "Random",
+        std_path: "std.random.Random",
+        methods: &[],
+    },
+    HostTrait {
+        key: "Http",
+        std_path: "std.http.Http",
+        methods: &[],
+    },
+    HostTrait {
+        key: "Process",
+        std_path: "std.process.Process",
+        methods: &[],
+    },
     HostTrait {
         key: "Env",
         std_path: "std.host.Env",
         methods: &[
-            m("get", &[B("string")], B("string?"), Wait::Never, Some(ResourceArg::EnvName)),
+            m(
+                "get",
+                &[B("string")],
+                B("string?"),
+                Wait::Never,
+                Some(ResourceArg::EnvName),
+            ),
             m("names", &[], B("List[string]"), Wait::Never, None),
         ],
     },
     HostTrait {
         key: "Args",
         std_path: "std.host.Args",
-        methods: &[m("program", &[], B("string"), Wait::Never, None), m("list", &[], B("List[string]"), Wait::Never, None)],
+        methods: &[
+            m("program", &[], B("string"), Wait::Never, None),
+            m("list", &[], B("List[string]"), Wait::Never, None),
+        ],
     },
 ];
 
@@ -119,7 +192,8 @@ pub static TABLE: &[HostTrait] = &[
 pub const RUNTIME_MODULES: &[&str] = &["hd:rt", "hd:TestRunner", "hd:PropertyRunner", "hd:hook"];
 
 /// The runtime's own imports (§17.2).
-pub const RUNTIME_IMPORTS: &[(&str, &str)] = &[("hd:rt", "block"), ("hd:rt", "abort"), ("hd:rt", "stderr")];
+pub const RUNTIME_IMPORTS: &[(&str, &str)] =
+    &[("hd:rt", "block"), ("hd:rt", "abort"), ("hd:rt", "stderr")];
 
 /// A Wasm import: module and name fields.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -134,10 +208,19 @@ pub struct Import {
 pub fn imports_of(t: &HostTrait, method: &HostMethod) -> Vec<Import> {
     let module = format!("hd:{}", t.key);
     match method.wait {
-        Wait::Never => vec![Import { module, name: method.name.to_owned() }],
+        Wait::Never => vec![Import {
+            module,
+            name: method.name.to_owned(),
+        }],
         Wait::May => vec![
-            Import { module: module.clone(), name: format!("{}.start", method.name) },
-            Import { module, name: format!("{}.finish", method.name) },
+            Import {
+                module: module.clone(),
+                name: format!("{}.start", method.name),
+            },
+            Import {
+                module,
+                name: format!("{}.finish", method.name),
+            },
         ],
     }
 }
@@ -145,9 +228,17 @@ pub fn imports_of(t: &HostTrait, method: &HostMethod) -> Vec<Import> {
 /// `hd FILE.wasm`'s check (§16.4): is this import in the ABI table?
 #[must_use]
 pub fn is_known_import(module: &str, name: &str) -> bool {
-    RUNTIME_IMPORTS.iter().any(|(m, n)| *m == module && *n == name)
+    RUNTIME_IMPORTS
+        .iter()
+        .any(|(m, n)| *m == module && *n == name)
         || (RUNTIME_MODULES.contains(&module) && module != "hd:rt")
-        || TABLE.iter().any(|t| t.methods.iter().any(|m| imports_of(t, m).iter().any(|i| i.module == module && i.name == name)))
+        || TABLE.iter().any(|t| {
+            t.methods.iter().any(|m| {
+                imports_of(t, m)
+                    .iter()
+                    .any(|i| i.module == module && i.name == name)
+            })
+        })
 }
 
 /// An operation handle (§17.2): 20 bits of slot, 11 of generation; never negative.
@@ -195,7 +286,10 @@ mod tests {
         let fs = TABLE.iter().find(|t| t.key == "FsRead").expect("FsRead");
         let i = imports_of(fs, &fs.methods[1]);
         assert_eq!(i.len(), 2);
-        assert_eq!((i[0].module.as_str(), i[0].name.as_str()), ("hd:FsRead", "read_text.start"));
+        assert_eq!(
+            (i[0].module.as_str(), i[0].name.as_str()),
+            ("hd:FsRead", "read_text.start")
+        );
         assert!(is_known_import("hd:Clock", "now"));
         assert!(is_known_import("hd:rt", "block"));
         assert!(!is_known_import("hd:Clock", "now.start"));
@@ -215,11 +309,24 @@ mod tests {
         let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
         for t in TABLE {
             let (module, name) = t.std_path.rsplit_once('.').expect("path");
-            let file = std.join(format!("{}.hd", module.trim_start_matches("std.").replace('.', "/")));
+            let file = std.join(format!(
+                "{}.hd",
+                module.trim_start_matches("std.").replace('.', "/")
+            ));
             let text = std::fs::read_to_string(&file).expect("std file");
-            assert!(text.contains(&format!("pub trait {name}:")), "{} not in {}", t.std_path, file.display());
+            assert!(
+                text.contains(&format!("pub trait {name}:")),
+                "{} not in {}",
+                t.std_path,
+                file.display()
+            );
             for m in t.methods {
-                assert!(text.contains(&format!("fn {}", m.name)), "{}.{} missing", t.key, m.name);
+                assert!(
+                    text.contains(&format!("fn {}", m.name)),
+                    "{}.{} missing",
+                    t.key,
+                    m.name
+                );
             }
         }
     }

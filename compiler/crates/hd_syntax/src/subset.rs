@@ -29,7 +29,11 @@ pub fn parse_subset(source: &str) -> SubsetParse {
     parser.file();
     let errors = parser.errors;
     let tree = build(&parser.events, &parser.layouts, &[] as &[(NodeIdx, Code)]);
-    SubsetParse { tokens: lexed.tokens, tree, errors }
+    SubsetParse {
+        tokens: lexed.tokens,
+        tree,
+        errors,
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -81,7 +85,8 @@ impl P<'_> {
     fn expect(&mut self, kind: TokenKind) {
         if !self.eat(kind) {
             let found = self.peek();
-            self.errors.push(format!("expected {kind:?}, found {found:?}"));
+            self.errors
+                .push(format!("expected {kind:?}, found {found:?}"));
             // Recover by skipping one token so the parser always progresses.
             if found != Peek::Eof {
                 self.bump();
@@ -174,7 +179,8 @@ impl P<'_> {
             }
             other => {
                 self.wrap(mark, SyntaxKind::Error);
-                self.errors.push(format!("unexpected {other:?} at item start"));
+                self.errors
+                    .push(format!("unexpected {other:?} at item start"));
                 self.bump();
             }
         }
@@ -370,7 +376,9 @@ impl P<'_> {
         let mark = self.mark();
         self.unary();
         while let Peek::Tok(kind) = self.peek() {
-            let Some((prec, node)) = Self::binop(kind) else { break };
+            let Some((prec, node)) = Self::binop(kind) else {
+                break;
+            };
             if prec <= min {
                 break;
             }
@@ -465,7 +473,8 @@ impl P<'_> {
             }
             other => {
                 self.start(SyntaxKind::Error);
-                self.errors.push(format!("expected an expression, found {other:?}"));
+                self.errors
+                    .push(format!("expected an expression, found {other:?}"));
                 if other != Peek::Eof {
                     self.bump();
                 }

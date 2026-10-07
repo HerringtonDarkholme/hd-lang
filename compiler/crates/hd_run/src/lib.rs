@@ -65,7 +65,11 @@ pub struct Limits {
 
 impl Default for Limits {
     fn default() -> Self {
-        Self { memory_bytes: 1 << 30, fuel: None, wall_ms: None }
+        Self {
+            memory_bytes: 1 << 30,
+            fuel: None,
+            wall_ms: None,
+        }
     }
 }
 
@@ -107,7 +111,11 @@ pub trait Instance {
 pub trait Engine: Send + Sync {
     type Module: Send + Sync;
     fn load(&self, wasm: &[u8], cache: &dyn CacheStore) -> Result<Self::Module, LoadError>;
-    fn instantiate(&self, m: &Self::Module, host: &HostSetup) -> Result<Box<dyn Instance>, StartError>;
+    fn instantiate(
+        &self,
+        m: &Self::Module,
+        host: &HostSetup,
+    ) -> Result<Box<dyn Instance>, StartError>;
 }
 
 /// The poll/wake driver (§14.4): poll until ready; between polls, wake
@@ -120,7 +128,11 @@ pub fn drive(inst: &mut dyn Instance, max_polls: usize) -> Outcome {
             Poll::Pending => {
                 let batch = inst.completed();
                 if batch.is_empty() {
-                    return Outcome::Panic(PanicReport { category: "deadlock".into(), message: "no pending operation can wake the program".into(), sites: vec![] });
+                    return Outcome::Panic(PanicReport {
+                        category: "deadlock".into(),
+                        message: "no pending operation can wake the program".into(),
+                        sites: vec![],
+                    });
                 }
                 inst.wake(&batch);
             }
@@ -132,15 +144,26 @@ pub fn drive(inst: &mut dyn Instance, max_polls: usize) -> Outcome {
 /// Startup refusal (§17.7): every imported capability key must be granted.
 pub fn check_grants(imported_keys: &[&str], grants: &Grants) -> Result<(), StartError> {
     match imported_keys.iter().find(|k| !grants.allows(k)) {
-        Some(k) => Err(StartError::Refused(format!("capability `{k}` is not granted"))),
+        Some(k) => Err(StartError::Refused(format!(
+            "capability `{k}` is not granted"
+        ))),
         None => Ok(()),
     }
 }
 
 /// Runs a whole program: the engine-independent part of `hd run`.
-pub fn run_program<E: Engine>(engine: &E, wasm: &[u8], cache: &dyn CacheStore, host: &HostSetup) -> StageResult<Outcome> {
-    let m = engine.load(wasm, cache).map_err(|e| NotImplemented::new(hd_base::Stage::Run, format!("load: {e:?}")))?;
-    let mut inst = engine.instantiate(&m, host).map_err(|e| NotImplemented::new(hd_base::Stage::Run, format!("start: {e:?}")))?;
+pub fn run_program<E: Engine>(
+    engine: &E,
+    wasm: &[u8],
+    cache: &dyn CacheStore,
+    host: &HostSetup,
+) -> StageResult<Outcome> {
+    let m = engine
+        .load(wasm, cache)
+        .map_err(|e| NotImplemented::new(hd_base::Stage::Run, format!("load: {e:?}")))?;
+    let mut inst = engine
+        .instantiate(&m, host)
+        .map_err(|e| NotImplemented::new(hd_base::Stage::Run, format!("start: {e:?}")))?;
     match inst.init() {
         Outcome::Exit(0) => Ok(drive(inst.as_mut(), 1 << 20)),
         other => Ok(other),
@@ -162,7 +185,11 @@ mod tests {
         }
         fn poll(&mut self) -> Poll<Outcome> {
             self.polls += 1;
-            if self.polls == 3 { Poll::Ready(Outcome::Exit(0)) } else { Poll::Pending }
+            if self.polls == 3 {
+                Poll::Ready(Outcome::Exit(0))
+            } else {
+                Poll::Pending
+            }
         }
         fn wake(&mut self, h: &[u32]) {
             self.woke.extend_from_slice(h);
@@ -177,14 +204,19 @@ mod tests {
 
     #[test]
     fn driver_wakes_until_ready() {
-        let mut f = Fake { polls: 0, woke: vec![] };
+        let mut f = Fake {
+            polls: 0,
+            woke: vec![],
+        };
         assert_eq!(drive(&mut f, 10), Outcome::Exit(0));
         assert_eq!(f.woke, [1, 2]);
     }
 
     #[test]
     fn ungranted_capability_is_refused() {
-        let g = Grants { keys: vec![("Console".into(), vec![])] };
+        let g = Grants {
+            keys: vec![("Console".into(), vec![])],
+        };
         assert!(check_grants(&["Console"], &g).is_ok());
         assert!(check_grants(&["Console", "FsRead"], &g).is_err());
     }

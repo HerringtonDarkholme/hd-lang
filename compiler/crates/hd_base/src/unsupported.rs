@@ -87,13 +87,21 @@ pub struct NotImplemented {
 impl NotImplemented {
     #[must_use]
     pub fn new(stage: Stage, what: impl Into<String>) -> Self {
-        Self { stage, what: what.into() }
+        Self {
+            stage,
+            what: what.into(),
+        }
     }
 }
 
 impl fmt::Display for NotImplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "stage {} not implemented: {}", self.stage.name(), self.what)
+        write!(
+            f,
+            "stage {} not implemented: {}",
+            self.stage.name(),
+            self.what
+        )
     }
 }
 

@@ -43,9 +43,17 @@ pub enum DefKind {
     Fn(FnSig),
     Data(Vec<(Symbol, Ty)>),
     Trait(Vec<(Symbol, FnSig)>),
-    Impl { trait_: DefId, target: Ty, methods: Vec<(Symbol, DefId)> },
+    Impl {
+        trait_: DefId,
+        target: Ty,
+        methods: Vec<(Symbol, DefId)>,
+    },
     /// A method of an impl: the impl and the trait method's index.
-    ImplMethod { impl_: DefId, index: u32, sig: FnSig },
+    ImplMethod {
+        impl_: DefId,
+        index: u32,
+        sig: FnSig,
+    },
 }
 
 #[derive(Default)]
@@ -179,7 +187,11 @@ fn lower_sig(w: &mut World, s: &CSig, self_ty: Option<&CTy>) -> FnSig {
             .iter()
             .map(|(g, b)| (w.sym(g), b.as_ref().map(|b| w.def(b))))
             .collect(),
-        params: s.params.iter().map(|(p, t)| (w.sym(p), w.intern_canon(&fix(t)))).collect(),
+        params: s
+            .params
+            .iter()
+            .map(|(p, t)| (w.sym(p), w.intern_canon(&fix(t))))
+            .collect(),
         ret: w.intern_canon(&fix(&s.ret)),
     }
 }
@@ -195,7 +207,8 @@ pub fn load_items(w: &mut World, items: &[HeaderItem], hashes: Option<&[Hash128]
         } else {
             let mut b = Vec::new();
             encode_item(&mut b, h);
-            w.item_hash.insert(id, KeyHasher::new("item").bytes(&b).finish());
+            w.item_hash
+                .insert(id, KeyHasher::new("item").bytes(&b).finish());
         }
         match &h.item {
             CItem::Fn(s) => {
@@ -203,31 +216,55 @@ pub fn load_items(w: &mut World, items: &[HeaderItem], hashes: Option<&[Hash128]
                 w.defs.insert(id, DefKind::Fn(sig));
             }
             CItem::Data(fs) => {
-                let fields = fs.iter().map(|(f, t)| (w.sym(f), w.intern_canon(t))).collect();
+                let fields = fs
+                    .iter()
+                    .map(|(f, t)| (w.sym(f), w.intern_canon(t)))
+                    .collect();
                 w.defs.insert(id, DefKind::Data(fields));
             }
             CItem::Trait(ms) => {
                 traits.insert(h.path.clone(), ms.clone());
-                let methods = ms.iter().map(|(m, s)| (w.sym(m), lower_sig(w, s, None))).collect();
+                let methods = ms
+                    .iter()
+                    .map(|(m, s)| (w.sym(m), lower_sig(w, s, None)))
+                    .collect();
                 w.defs.insert(id, DefKind::Trait(methods));
             }
             CItem::Impl { .. } => {}
         }
     }
     for h in items {
-        let CItem::Impl { trait_, target, methods } = &h.item else { continue };
+        let CItem::Impl {
+            trait_,
+            target,
+            methods,
+        } = &h.item
+        else {
+            continue;
+        };
         let id = w.def(&h.path);
         let tid = w.def(trait_);
         let target_ty = w.intern_canon(target);
-        let trait_methods: Vec<(String, CSig)> = traits.get(trait_).cloned().unwrap_or_else(|| {
-            match w.defs.get(&tid) {
-                Some(DefKind::Trait(ms)) => ms
-                    .iter()
-                    .map(|(m, _)| (w.text(*m).to_owned(), CSig { generics: vec![], params: vec![], ret: CTy::Void }))
-                    .collect(),
-                _ => Vec::new(),
-            }
-        });
+        let trait_methods: Vec<(String, CSig)> =
+            traits
+                .get(trait_)
+                .cloned()
+                .unwrap_or_else(|| match w.defs.get(&tid) {
+                    Some(DefKind::Trait(ms)) => ms
+                        .iter()
+                        .map(|(m, _)| {
+                            (
+                                w.text(*m).to_owned(),
+                                CSig {
+                                    generics: vec![],
+                                    params: vec![],
+                                    ret: CTy::Void,
+                                },
+                            )
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                });
         let mut ms = Vec::new();
         for m in methods {
             let mid = w.def(&format!("{}.{m}", h.path));
@@ -237,7 +274,11 @@ pub fn load_items(w: &mut World, items: &[HeaderItem], hashes: Option<&[Hash128]
                 Some(DefKind::Trait(tms)) => tms.get(index).map(|(_, s)| s.clone()),
                 _ => None,
             };
-            let mut sig = sig.unwrap_or(FnSig { generics: vec![], params: vec![], ret: target_ty });
+            let mut sig = sig.unwrap_or(FnSig {
+                generics: vec![],
+                params: vec![],
+                ret: target_ty,
+            });
             for p in &mut sig.params {
                 p.1 = w.subst(p.1, &[], Some(target_ty));
             }
@@ -245,11 +286,22 @@ pub fn load_items(w: &mut World, items: &[HeaderItem], hashes: Option<&[Hash128]
             let sym = w.sym(m);
             w.defs.insert(
                 mid,
-                DefKind::ImplMethod { impl_: id, index: u32::try_from(index).expect("i"), sig },
+                DefKind::ImplMethod {
+                    impl_: id,
+                    index: u32::try_from(index).expect("i"),
+                    sig,
+                },
             );
             ms.push((sym, mid));
         }
-        w.defs.insert(id, DefKind::Impl { trait_: tid, target: target_ty, methods: ms });
+        w.defs.insert(
+            id,
+            DefKind::Impl {
+                trait_: tid,
+                target: target_ty,
+                methods: ms,
+            },
+        );
         let list = w.impls.entry(tid).or_default();
         if !list.contains(&id) {
             list.push(id);

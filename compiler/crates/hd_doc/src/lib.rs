@@ -16,7 +16,10 @@ pub enum DocQuery {
 
 /// Renders an answer from interfaces only, never from bodies.
 pub fn render(_ifaces: &[&FolderIface], q: &DocQuery) -> StageResult<String> {
-    Err(NotImplemented::new(Stage::PackageResult, format!("hd doc rendering for {q:?}")))
+    Err(NotImplemented::new(
+        Stage::PackageResult,
+        format!("hd doc rendering for {q:?}"),
+    ))
 }
 
 #[cfg(test)]

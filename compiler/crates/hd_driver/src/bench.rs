@@ -34,10 +34,18 @@ pub fn sources(n: usize) -> (String, String) {
         );
     }
     let mut app = String::from("use pkg.geo.shapes.{");
-    app.push_str(&(0..n).map(|i| format!("g{i}")).collect::<Vec<_>>().join(", "));
+    app.push_str(
+        &(0..n)
+            .map(|i| format!("g{i}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
     app.push_str("}\n\n");
     for i in 0..n {
-        let _ = write!(app, "fn f{i}(a: i32) -> i32:\n    return g{i}(a, {i}) + 1\n\n");
+        let _ = write!(
+            app,
+            "fn f{i}(a: i32) -> i32:\n    return g{i}(a, {i}) + 1\n\n"
+        );
     }
     app.push_str("fn main():\n    s := +0\n");
     for i in 0..n {
@@ -52,8 +60,14 @@ pub fn bench(n: usize) -> Result<(String, Vec<u8>), String> {
     let (app, geo) = sources(n);
     let files = |geo: &str| {
         vec![
-            SourceFile { path: "app/main.hd".into(), text: app.clone() },
-            SourceFile { path: "geo/shapes.hd".into(), text: geo.to_owned() },
+            SourceFile {
+                path: "app/main.hd".into(),
+                text: app.clone(),
+            },
+            SourceFile {
+                path: "geo/shapes.hd".into(),
+                text: geo.to_owned(),
+            },
         ]
     };
     let mut out = String::new();
@@ -74,7 +88,12 @@ pub fn bench(n: usize) -> Result<(String, Vec<u8>), String> {
     let edited = geo.replace("x = x * 3 + 1", "x = x * 3 + 2");
     let t = Instant::now();
     let r = run(&mut store, &files(&edited), "pkg.app.main");
-    report(&mut out, "private body edit in geo (all bodies)", &r.counters, t.elapsed());
+    report(
+        &mut out,
+        "private body edit in geo (all bodies)",
+        &r.counters,
+        t.elapsed(),
+    );
     let edited = geo.replacen("    return x\n", "    # note\n    return x\n", 1);
     let t = Instant::now();
     let r = run(&mut store, &files(&edited), "pkg.app.main");

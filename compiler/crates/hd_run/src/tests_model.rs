@@ -59,7 +59,9 @@ impl TestPlan {
     #[must_use]
     pub fn new(mut cases: Vec<Case>, filter: Option<&str>) -> Self {
         if let Some(f) = filter {
-            cases.retain(|c| c.name.contains(f) || f.split_once('[').is_some_and(|(n, _)| c.name == n));
+            cases.retain(|c| {
+                c.name.contains(f) || f.split_once('[').is_some_and(|(n, _)| c.name == n)
+            });
         }
         cases.sort_by(|a, b| a.key.cmp(&b.key));
         Self { cases }
@@ -67,7 +69,9 @@ impl TestPlan {
 
     /// `it_each`: row 0 reported a count, so schedule rows 1..count.
     pub fn expand_rows(&mut self, case: &CaseKey, count: u32) {
-        let Some(base) = self.cases.iter().find(|c| &c.key == case).cloned() else { return };
+        let Some(base) = self.cases.iter().find(|c| &c.key == case).cloned() else {
+            return;
+        };
         for row in 1..count {
             let mut c = base.clone();
             c.key.row = row;
@@ -90,7 +94,11 @@ pub struct ReleaseCursor {
 impl ReleaseCursor {
     #[must_use]
     pub fn new(plan: &TestPlan) -> Self {
-        Self { order: plan.cases.iter().map(|c| c.key.clone()).collect(), done: BTreeMap::new(), next: 0 }
+        Self {
+            order: plan.cases.iter().map(|c| c.key.clone()).collect(),
+            done: BTreeMap::new(),
+            next: 0,
+        }
     }
     /// Records a finished case; returns the results now releasable, in order.
     pub fn finish(&mut self, key: CaseKey, r: CaseResult) -> Vec<(CaseKey, CaseResult)> {
@@ -111,7 +119,13 @@ mod tests {
 
     fn case(reg: u32, name: &str) -> Case {
         Case {
-            key: CaseKey { program: ProgramKey::Unit { package: "p".into() }, registration: reg, row: 0 },
+            key: CaseKey {
+                program: ProgramKey::Unit {
+                    package: "p".into(),
+                },
+                registration: reg,
+                row: 0,
+            },
             name: name.into(),
             kind: CaseKind::It,
             module: "p.m".into(),
@@ -126,7 +140,10 @@ mod tests {
         let k = |i: usize| plan.cases[i].key.clone();
         assert!(cur.finish(k(1), CaseResult::Passed { ms: 1 }).is_empty());
         let out = cur.finish(k(0), CaseResult::Passed { ms: 1 });
-        assert_eq!(out.iter().map(|(k, _)| k.registration).collect::<Vec<_>>(), [1, 2]);
+        assert_eq!(
+            out.iter().map(|(k, _)| k.registration).collect::<Vec<_>>(),
+            [1, 2]
+        );
         assert_eq!(cur.finish(k(2), CaseResult::Skipped).len(), 1);
     }
 
@@ -138,6 +155,12 @@ mod tests {
         assert_eq!(plan.cases.len(), 1);
         let key = plan.cases[0].key.clone();
         plan.expand_rows(&key, 3);
-        assert_eq!(plan.cases.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["rows", "rows[1]", "rows[2]"]);
+        assert_eq!(
+            plan.cases
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+            ["rows", "rows[1]", "rows[2]"]
+        );
     }
 }

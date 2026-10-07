@@ -80,7 +80,18 @@ impl Prim {
     }
     #[must_use]
     pub const fn is_integer(self) -> bool {
-        matches!(self, Prim::I8 | Prim::I16 | Prim::I32 | Prim::I64 | Prim::U8 | Prim::U16 | Prim::U32 | Prim::U64 | Prim::Usize)
+        matches!(
+            self,
+            Prim::I8
+                | Prim::I16
+                | Prim::I32
+                | Prim::I64
+                | Prim::U8
+                | Prim::U16
+                | Prim::U32
+                | Prim::U64
+                | Prim::Usize
+        )
     }
     #[must_use]
     pub const fn is_float(self) -> bool {
@@ -116,14 +127,34 @@ pub enum TyData {
     Prim(Prim),
     Never,
     Poison,
-    Adt { def: DefId, args: TyList },
-    Tuple { elems: TyList, rest: Option<Ty> },
+    Adt {
+        def: DefId,
+        args: TyList,
+    },
+    Tuple {
+        elems: TyList,
+        rest: Option<Ty>,
+    },
     Option(Ty),
-    Fn { params: TyList, result: Ty, row: RowId, suspends: bool },
-    TraitValue { def: DefId, args: TyList, bindings: Vec<(DefId, Ty)> },
+    Fn {
+        params: TyList,
+        result: Ty,
+        row: RowId,
+        suspends: bool,
+    },
+    TraitValue {
+        def: DefId,
+        args: TyList,
+        bindings: Vec<(DefId, Ty)>,
+    },
     Param(ParamRef),
     /// An unnormalized projection: the associated item and its trait reference.
-    Assoc { assoc: DefId, trait_: DefId, self_ty: Ty, args: TyList },
+    Assoc {
+        assoc: DefId,
+        trait_: DefId,
+        self_ty: Ty,
+        args: TyList,
+    },
     Mut(Ty),
     Infer(InferVar),
     /// A canonical placeholder of the solver (trait-solver.md §2.2).
@@ -272,7 +303,10 @@ impl InternPool {
         let keys = w[1..=n].iter().map(|&k| Ty(k)).collect();
         let params = w[n + 1..]
             .chunks(2)
-            .map(|c| RowParamRef { owner: DefId::from_raw(c[0]), index: u16::try_from(c[1]).expect("row param") })
+            .map(|c| RowParamRef {
+                owner: DefId::from_raw(c[0]),
+                index: u16::try_from(c[1]).expect("row param"),
+            })
             .collect();
         RowData { keys, params }
     }
@@ -286,18 +320,35 @@ impl InternPool {
             TyData::Never => (T::Never, 0, vec![], 0),
             TyData::Poison => (T::Poison, 0, vec![], meta::HAS_POISON),
             TyData::Adt { def, args } => (T::Adt, def.raw(), vec![args.0], self.list_meta(*args)),
-            TyData::Tuple { elems, rest: None } => (T::Tuple, elems.0, vec![], self.list_meta(*elems)),
-            TyData::Tuple { elems, rest: Some(r) } => {
-                (T::TupleRest, elems.0, vec![r.0], self.list_meta(*elems) | self.meta_of(*r))
+            TyData::Tuple { elems, rest: None } => {
+                (T::Tuple, elems.0, vec![], self.list_meta(*elems))
             }
+            TyData::Tuple {
+                elems,
+                rest: Some(r),
+            } => (
+                T::TupleRest,
+                elems.0,
+                vec![r.0],
+                self.list_meta(*elems) | self.meta_of(*r),
+            ),
             TyData::Option(inner) => (T::Option, inner.0, vec![], self.meta_of(*inner)),
-            TyData::Fn { params, result, row, suspends } => (
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+            } => (
                 T::Fn,
                 params.0,
                 vec![result.0, row.0, u32::from(*suspends)],
                 self.list_meta(*params) | self.meta_of(*result),
             ),
-            TyData::TraitValue { def, args, bindings } => {
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => {
                 let mut w = vec![args.0];
                 let mut m = self.list_meta(*args);
                 let mut b = bindings.clone();
@@ -309,8 +360,18 @@ impl InternPool {
                 }
                 (T::TraitValue, def.raw(), w, m)
             }
-            TyData::Param(p) => (T::Param, p.owner.raw(), vec![u32::from(p.index)], meta::HAS_PARAM),
-            TyData::Assoc { assoc, trait_, self_ty, args } => (
+            TyData::Param(p) => (
+                T::Param,
+                p.owner.raw(),
+                vec![u32::from(p.index)],
+                meta::HAS_PARAM,
+            ),
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => (
                 T::Assoc,
                 assoc.raw(),
                 vec![trait_.raw(), self_ty.0, args.0],
@@ -332,19 +393,37 @@ impl InternPool {
             PoolTag::Prim => TyData::Prim(Prim::ALL[d as usize]),
             PoolTag::Never => TyData::Never,
             PoolTag::Poison => TyData::Poison,
-            PoolTag::Adt => TyData::Adt { def: DefId::from_raw(d), args: TyList(x[0]) },
-            PoolTag::Tuple => TyData::Tuple { elems: TyList(d), rest: None },
-            PoolTag::TupleRest => TyData::Tuple { elems: TyList(d), rest: Some(Ty(x[0])) },
+            PoolTag::Adt => TyData::Adt {
+                def: DefId::from_raw(d),
+                args: TyList(x[0]),
+            },
+            PoolTag::Tuple => TyData::Tuple {
+                elems: TyList(d),
+                rest: None,
+            },
+            PoolTag::TupleRest => TyData::Tuple {
+                elems: TyList(d),
+                rest: Some(Ty(x[0])),
+            },
             PoolTag::Option => TyData::Option(Ty(d)),
-            PoolTag::Fn => TyData::Fn { params: TyList(d), result: Ty(x[0]), row: RowId(x[1]), suspends: x[2] != 0 },
+            PoolTag::Fn => TyData::Fn {
+                params: TyList(d),
+                result: Ty(x[0]),
+                row: RowId(x[1]),
+                suspends: x[2] != 0,
+            },
             PoolTag::TraitValue => TyData::TraitValue {
                 def: DefId::from_raw(d),
                 args: TyList(x[0]),
-                bindings: x[1..].chunks(2).map(|c| (DefId::from_raw(c[0]), Ty(c[1]))).collect(),
+                bindings: x[1..]
+                    .chunks(2)
+                    .map(|c| (DefId::from_raw(c[0]), Ty(c[1])))
+                    .collect(),
             },
-            PoolTag::Param => {
-                TyData::Param(ParamRef { owner: DefId::from_raw(d), index: u16::try_from(x[0]).expect("param") })
-            }
+            PoolTag::Param => TyData::Param(ParamRef {
+                owner: DefId::from_raw(d),
+                index: u16::try_from(x[0]).expect("param"),
+            }),
             PoolTag::Assoc => TyData::Assoc {
                 assoc: DefId::from_raw(d),
                 trait_: DefId::from_raw(x[0]),
@@ -383,7 +462,13 @@ impl InternPool {
     /// sees goes through stable paths instead (§6.5).
     #[must_use]
     pub fn display(&self, t: Ty) -> String {
-        let list = |l: TyList| self.list_items(l).iter().map(|x| self.display(*x)).collect::<Vec<_>>().join(", ");
+        let list = |l: TyList| {
+            self.list_items(l)
+                .iter()
+                .map(|x| self.display(*x))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
         match self.get(t) {
             TyData::Prim(p) => p.name().to_owned(),
             TyData::Never => "never".into(),
@@ -391,15 +476,31 @@ impl InternPool {
             TyData::Adt { def, args } if args == TyList::EMPTY => format!("#{}", def.raw()),
             TyData::Adt { def, args } => format!("#{}[{}]", def.raw(), list(args)),
             TyData::Tuple { elems, rest } => {
-                format!("({}{})", list(elems), rest.map_or(String::new(), |r| format!(", ...{}", self.display(r))))
+                format!(
+                    "({}{})",
+                    list(elems),
+                    rest.map_or(String::new(), |r| format!(", ...{}", self.display(r)))
+                )
             }
             TyData::Option(i) => format!("{}?", self.display(i)),
-            TyData::Fn { params, result, suspends, .. } => {
-                format!("fn{}({}) -> {}", if suspends { "!" } else { "" }, list(params), self.display(result))
+            TyData::Fn {
+                params,
+                result,
+                suspends,
+                ..
+            } => {
+                format!(
+                    "fn{}({}) -> {}",
+                    if suspends { "!" } else { "" },
+                    list(params),
+                    self.display(result)
+                )
             }
             TyData::TraitValue { def, .. } => format!("dyn #{}", def.raw()),
             TyData::Param(p) => format!("T{}@{}", p.index, p.owner.raw()),
-            TyData::Assoc { assoc, self_ty, .. } => format!("<{}>::#{}", self.display(self_ty), assoc.raw()),
+            TyData::Assoc { assoc, self_ty, .. } => {
+                format!("<{}>::#{}", self.display(self_ty), assoc.raw())
+            }
             TyData::Mut(i) => format!("mut {}", self.display(i)),
             TyData::Infer(v) => format!("?{}", v.raw()),
             TyData::Canon(i) => format!("^{i}"),
@@ -427,16 +528,42 @@ mod tests {
         let p = InternPool::new();
         let list = p.list(&[Ty::I32, Ty::STRING]);
         let def = DefId::from_raw(7);
-        let row = p.row(&RowData { keys: vec![Ty::STRING, Ty::I32], params: vec![] });
+        let row = p.row(&RowData {
+            keys: vec![Ty::STRING, Ty::I32],
+            params: vec![],
+        });
         let forms = [
             TyData::Adt { def, args: list },
-            TyData::Tuple { elems: list, rest: None },
-            TyData::Tuple { elems: list, rest: Some(Ty::BOOL) },
+            TyData::Tuple {
+                elems: list,
+                rest: None,
+            },
+            TyData::Tuple {
+                elems: list,
+                rest: Some(Ty::BOOL),
+            },
             TyData::Option(Ty::I32),
-            TyData::Fn { params: list, result: Ty::VOID, row, suspends: true },
-            TyData::TraitValue { def, args: TyList::EMPTY, bindings: vec![(DefId::from_raw(9), Ty::I32)] },
-            TyData::Param(super::ParamRef { owner: def, index: 1 }),
-            TyData::Assoc { assoc: DefId::from_raw(3), trait_: def, self_ty: Ty::I32, args: list },
+            TyData::Fn {
+                params: list,
+                result: Ty::VOID,
+                row,
+                suspends: true,
+            },
+            TyData::TraitValue {
+                def,
+                args: TyList::EMPTY,
+                bindings: vec![(DefId::from_raw(9), Ty::I32)],
+            },
+            TyData::Param(super::ParamRef {
+                owner: def,
+                index: 1,
+            }),
+            TyData::Assoc {
+                assoc: DefId::from_raw(3),
+                trait_: def,
+                self_ty: Ty::I32,
+                args: list,
+            },
             TyData::Mut(Ty::STRING),
             TyData::Infer(hd_base::InferVar::from_raw(0)),
             TyData::Canon(2),

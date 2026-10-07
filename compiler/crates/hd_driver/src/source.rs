@@ -58,10 +58,22 @@ fn hd_files(dir: &Path) -> Result<Vec<PathBuf>, String> {
 }
 
 fn read_folder(root: &Path, rel: &str, out: &mut Vec<SourceFile>) -> Result<(), String> {
-    let dir = if rel.is_empty() { root.to_path_buf() } else { root.join(rel) };
+    let dir = if rel.is_empty() {
+        root.to_path_buf()
+    } else {
+        root.join(rel)
+    };
     for p in hd_files(&dir)? {
-        let name = p.file_name().expect("file name").to_string_lossy().into_owned();
-        let path = if rel.is_empty() { name } else { format!("{rel}/{name}") };
+        let name = p
+            .file_name()
+            .expect("file name")
+            .to_string_lossy()
+            .into_owned();
+        let path = if rel.is_empty() {
+            name
+        } else {
+            format!("{rel}/{name}")
+        };
         let text = fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))?;
         out.push(SourceFile { path, text });
     }
@@ -74,8 +86,15 @@ pub fn load_program(target: &Path) -> Result<Program, String> {
     let (root, entry_file) = if target.is_dir() {
         (target.to_path_buf(), None)
     } else {
-        let root = target.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
-        let name = target.file_name().ok_or("not a file")?.to_string_lossy().into_owned();
+        let root = target
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        let name = target
+            .file_name()
+            .ok_or("not a file")?
+            .to_string_lossy()
+            .into_owned();
         if target.extension().is_none_or(|x| x != "hd") {
             return Err(format!("{}: not an .hd file", target.display()));
         }
@@ -91,7 +110,9 @@ pub fn load_program(target: &Path) -> Result<Program, String> {
         next += 1;
         for u in uses {
             let folder = folder_of_module(&u).to_owned();
-            let Some(rel) = folder.strip_prefix("pkg.") else { continue };
+            let Some(rel) = folder.strip_prefix("pkg.") else {
+                continue;
+            };
             let rel = rel.replace('.', "/");
             if loaded.insert(folder) && root.join(&rel).is_dir() {
                 read_folder(&root, &rel, &mut sources)?;
@@ -104,14 +125,24 @@ pub fn load_program(target: &Path) -> Result<Program, String> {
         None => {
             let mains: Vec<&SourceFile> = sources
                 .iter()
-                .filter(|s| !s.path.contains('/') && s.text.lines().any(|l| l.starts_with("fn main(")))
+                .filter(|s| {
+                    !s.path.contains('/') && s.text.lines().any(|l| l.starts_with("fn main("))
+                })
                 .collect();
             match mains.as_slice() {
                 [one] => one.path.clone(),
                 [] => return Err(format!("{}: no file defines `fn main`", root.display())),
-                _ => return Err(format!("{}: several files define `fn main`", root.display())),
+                _ => {
+                    return Err(format!(
+                        "{}: several files define `fn main`",
+                        root.display()
+                    ));
+                }
             }
         }
     };
-    Ok(Program { sources, entry: module_path(&entry_file) })
+    Ok(Program {
+        sources,
+        entry: module_path(&entry_file),
+    })
 }

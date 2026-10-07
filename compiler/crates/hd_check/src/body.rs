@@ -7,11 +7,11 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 
 use crate::A1Rule;
 use crate::resolve::{Cst, Scope};
+use hd_tir::world::{DefId, DefKind, FnSig, Ty, TyKind, World};
 use hd_tir::{
     CALLEE_ITEM, CALLEE_TRAIT_METHOD, CHOICE_BOUND, CHOICE_IMPL, CONST_BIT, INTRINSIC_PRINTLN_I32,
     Inst, LOCAL_PARAM, NONE, PrimOp, TirBody, TirTag,
 };
-use hd_tir::world::{DefId, DefKind, FnSig, Ty, TyKind, World};
 
 pub struct Checked {
     pub body: TirBody,
@@ -50,7 +50,10 @@ pub fn check_fn(
         w,
         cst,
         scope,
-        b: TirBody { item: Some(def), ..TirBody::default() },
+        b: TirBody {
+            item: Some(def),
+            ..TirBody::default()
+        },
         lists: vec![Vec::new()],
         locals: vec![HashMap::new()],
         bounds: sig.generics.iter().map(|g| g.1).collect(),
@@ -74,7 +77,11 @@ pub fn check_fn(
     let root = ck.block(body, !ret_void);
     ck.b.sub_root.push(root);
     ck.b.rep_exact = rep_summary(ck.w, &ck.b, &sig, rule);
-    Checked { body: ck.b, errors: ck.errors, deps: ck.deps.into_iter().collect() }
+    Checked {
+        body: ck.b,
+        errors: ck.errors,
+        deps: ck.deps.into_iter().collect(),
+    }
 }
 
 impl Ck<'_, '_> {
@@ -111,7 +118,8 @@ impl Ck<'_, '_> {
         let items = self.lists.pop().expect("block");
         let list = self.b.list(&items);
         let void = self.ty(TyKind::Void);
-        self.b.push(TirTag::Block, list, tail, void, self.cst.span(n))
+        self.b
+            .push(TirTag::Block, list, tail, void, self.cst.span(n))
     }
 
     fn stmt(&mut self, s: NodeRef<'_>) {
@@ -175,17 +183,23 @@ impl Ck<'_, '_> {
                 self.emit(TirTag::Break, label, NONE, never, s);
                 let items = self.lists.pop().expect("else");
                 let list = self.b.list(&items);
-                let els = self.b.push(TirTag::Block, list, NONE, void, self.cst.span(s));
+                let els = self
+                    .b
+                    .push(TirTag::Block, list, NONE, void, self.cst.span(s));
                 let rec = self.b.list(&[then.0, els.0]);
                 self.emit(TirTag::If, c, rec, void, s);
                 let items = self.lists.pop().expect("loop body");
                 let list = self.b.list(&items);
-                let body = self.b.push(TirTag::Block, list, NONE, void, self.cst.span(s));
+                let body = self
+                    .b
+                    .push(TirTag::Block, list, NONE, void, self.cst.span(s));
                 let lp = self.emit(TirTag::Loop, body.0, NONE, void, s);
                 self.b.label_inst[label as usize] = Inst(lp);
                 self.loops.pop();
             }
-            other => self.errors.push(format!("statement {other:?} is outside the subset")),
+            other => self
+                .errors
+                .push(format!("statement {other:?} is outside the subset")),
         }
     }
 
@@ -243,7 +257,10 @@ impl Ck<'_, '_> {
                 }
                 if r & CONST_BIT != 0 && r != NONE {
                     let (ct, bits) = self.w.const_value(r & !CONST_BIT);
-                    let neg = u32::try_from(bits).expect("i32 bits").cast_signed().wrapping_neg();
+                    let neg = u32::try_from(bits)
+                        .expect("i32 bits")
+                        .cast_signed()
+                        .wrapping_neg();
                     return (self.konst(ct, u64::from(neg.cast_unsigned())), t);
                 }
                 let list = self.b.list(&[r]);
@@ -281,17 +298,23 @@ impl Ck<'_, '_> {
                     TokenKind::AndAnd => PrimOp::And,
                     _ => PrimOp::Or,
                 };
-                let operand = if matches!(op, PrimOp::And | PrimOp::Or) { bool_ } else { i32_ };
+                let operand = if matches!(op, PrimOp::And | PrimOp::Or) {
+                    bool_
+                } else {
+                    i32_
+                };
                 let (l, lt) = self.expr(kids[0], Some(operand));
                 let (r, rt) = self.expr(kids[1], Some(operand));
                 self.expect_ty(lt, operand, "operand");
                 self.expect_ty(rt, operand, "operand");
-                let result =
-                    if matches!(op, PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem) {
-                        i32_
-                    } else {
-                        bool_
-                    };
+                let result = if matches!(
+                    op,
+                    PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem
+                ) {
+                    i32_
+                } else {
+                    bool_
+                };
                 let list = self.b.list(&[l, r]);
                 (self.emit(TirTag::Prim, op as u32, list, result, n), result)
             }
@@ -299,7 +322,8 @@ impl Ck<'_, '_> {
                 let (base, bt) = self.expr(kids[0], None);
                 let name = self.cst.text(self.cst.last(n)).to_owned();
                 let TyKind::Adt(d) = *self.w.kind(bt) else {
-                    self.errors.push(format!("no-field `{name}` on {}", self.w.display(bt)));
+                    self.errors
+                        .push(format!("no-field `{name}` on {}", self.w.display(bt)));
                     return (NONE, self.ty(TyKind::Never));
                 };
                 self.dep(d);
@@ -312,7 +336,10 @@ impl Ck<'_, '_> {
                     return (NONE, self.ty(TyKind::Never));
                 };
                 let ft = fields[idx].1;
-                (self.emit(TirTag::Field, base, u32::try_from(idx).expect("f"), ft, n), ft)
+                (
+                    self.emit(TirTag::Field, base, u32::try_from(idx).expect("f"), ft, n),
+                    ft,
+                )
             }
             SyntaxKind::DataExpr => {
                 let name = self.cst.text(self.cst.first(n)).to_owned();
@@ -328,7 +355,8 @@ impl Ck<'_, '_> {
                 let mut vals = vec![NONE; fields.len()];
                 for a in kids.iter().skip(1) {
                     let fname = self.cst.text(self.cst.first(*a)).to_owned();
-                    let Some(idx) = fields.iter().position(|(f, _)| self.w.text(*f) == fname) else {
+                    let Some(idx) = fields.iter().position(|(f, _)| self.w.text(*f) == fname)
+                    else {
                         self.errors.push(format!("no-field `{fname}`"));
                         continue;
                     };
@@ -346,7 +374,8 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::CallExpr => self.call(n, &kids),
             other => {
-                self.errors.push(format!("expression {other:?} is outside the subset"));
+                self.errors
+                    .push(format!("expression {other:?} is outside the subset"));
                 (NONE, self.ty(TyKind::Never))
             }
         }
@@ -383,7 +412,10 @@ impl Ck<'_, '_> {
             }
             let refs: Vec<u32> = args.iter().map(|a| a.0).collect();
             let list = self.b.list(&refs);
-            return (self.emit(TirTag::Intrinsic, INTRINSIC_PRINTLN_I32, list, void, n), void);
+            return (
+                self.emit(TirTag::Intrinsic, INTRINSIC_PRINTLN_I32, list, void, n),
+                void,
+            );
         }
         let Some(d) = self.scope.names.get(&name).and_then(|p| self.w.lookup(p)) else {
             self.errors.push(format!("unknown-name `{name}`"));
@@ -397,7 +429,8 @@ impl Ck<'_, '_> {
         let ptys: Vec<Ty> = sig.params.iter().map(|p| p.1).collect();
         let args = self.args(al, &ptys);
         if args.len() != ptys.len() {
-            self.errors.push(format!("arity: `{name}` takes {} arguments", ptys.len()));
+            self.errors
+                .push(format!("arity: `{name}` takes {} arguments", ptys.len()));
         }
         // Use-site type argument inference: first-order matching.
         let mut targs: Vec<Option<Ty>> = vec![None; sig.generics.len()];
@@ -407,7 +440,8 @@ impl Ck<'_, '_> {
                 match slot {
                     None => *slot = Some(*at),
                     Some(prev) if prev != at => {
-                        self.errors.push("type-mismatch: conflicting type arguments".into());
+                        self.errors
+                            .push("type-mismatch: conflicting type arguments".into());
                     }
                     _ => {}
                 }
@@ -419,11 +453,15 @@ impl Ck<'_, '_> {
         for (i, (_, bound)) in sig.generics.iter().enumerate() {
             if let Some(tr) = bound
                 && self.find_impl(*tr, targs[i]).is_none()
-                    && !matches!(self.w.kind(targs[i]), TyKind::Param(_))
-                {
-                    let msg = format!("unsatisfied-bound: {} < {}", self.w.display(targs[i]), self.w.path(*tr));
-                    self.errors.push(msg);
-                }
+                && !matches!(self.w.kind(targs[i]), TyKind::Param(_))
+            {
+                let msg = format!(
+                    "unsatisfied-bound: {} < {}",
+                    self.w.display(targs[i]),
+                    self.w.path(*tr)
+                );
+                self.errors.push(msg);
+            }
         }
         for (p, (_, at)) in ptys.iter().zip(&args) {
             let want = self.w.subst(*p, &targs, None);
@@ -439,9 +477,9 @@ impl Ck<'_, '_> {
     }
 
     fn find_impl(&self, tr: DefId, target: Ty) -> Option<DefId> {
-        self.w.impls.get(&tr)?.iter().copied().find(|i| {
-            matches!(self.w.defs.get(i), Some(DefKind::Impl { target: t, .. }) if *t == target)
-        })
+        self.w.impls.get(&tr)?.iter().copied().find(
+            |i| matches!(self.w.defs.get(i), Some(DefKind::Impl { target: t, .. }) if *t == target),
+        )
     }
 
     fn method_call(&mut self, n: NodeRef<'_>, fe: NodeRef<'_>, al: NodeRef<'_>) -> (u32, Ty) {
@@ -450,22 +488,27 @@ impl Ck<'_, '_> {
         let (recv, rt) = self.expr(recv_node, None);
         // Candidate traits: the bound of a parameter, or every trait with an
         // impl for the receiver's type.
-        let (trait_, choice, choice_val) = if let TyKind::Param(i) = *self.w.kind(rt) { if let Some(tr) = self.bounds.get(i as usize).copied().flatten() { (tr, CHOICE_BOUND, i) } else {
-            self.errors.push(format!("no-method `{mname}` on an unbounded parameter"));
-            return (NONE, self.ty(TyKind::Never));
-        } } else {
+        let (trait_, choice, choice_val) = if let TyKind::Param(i) = *self.w.kind(rt) {
+            if let Some(tr) = self.bounds.get(i as usize).copied().flatten() {
+                (tr, CHOICE_BOUND, i)
+            } else {
+                self.errors
+                    .push(format!("no-method `{mname}` on an unbounded parameter"));
+                return (NONE, self.ty(TyKind::Never));
+            }
+        } else {
             let mut found = None;
             let mut traits: Vec<DefId> = self.w.impls.keys().copied().collect();
             traits.sort();
             for tr in traits {
                 let has = matches!(self.w.defs.get(&tr), Some(DefKind::Trait(ms)) if ms.iter().any(|(m, _)| self.w.text(*m) == mname));
-                if has
-                    && let Some(imp) = self.find_impl(tr, rt) {
-                        found = Some((tr, CHOICE_IMPL, imp.0));
-                    }
+                if has && let Some(imp) = self.find_impl(tr, rt) {
+                    found = Some((tr, CHOICE_IMPL, imp.0));
+                }
             }
             let Some(f) = found else {
-                self.errors.push(format!("no-method `{mname}` on {}", self.w.display(rt)));
+                self.errors
+                    .push(format!("no-method `{mname}` on {}", self.w.display(rt)));
                 return (NONE, self.ty(TyKind::Never));
             };
             self.dep(DefId(f.2));
@@ -480,7 +523,12 @@ impl Ck<'_, '_> {
             return (NONE, self.ty(TyKind::Never));
         };
         let sig = ms[index].1.clone();
-        let rest: Vec<Ty> = sig.params.iter().skip(1).map(|p| self.w.subst(p.1, &[], Some(rt))).collect();
+        let rest: Vec<Ty> = sig
+            .params
+            .iter()
+            .skip(1)
+            .map(|p| self.w.subst(p.1, &[], Some(rt)))
+            .collect();
         let args = self.args(al, &rest);
         for (want, (_, got)) in rest.iter().zip(&args) {
             self.expect_ty(*got, *want, "argument");
@@ -516,16 +564,21 @@ impl Ck<'_, '_> {
 /// that reproduction.
 fn rep_summary(w: &World, b: &TirBody, sig: &FnSig, rule: A1Rule) -> Vec<u8> {
     match rule {
-        A1Rule::Bounded => sig.generics.iter().map(|(_, bound)| u8::from(bound.is_some())).collect(),
+        A1Rule::Bounded => sig
+            .generics
+            .iter()
+            .map(|(_, bound)| u8::from(bound.is_some()))
+            .collect(),
         A1Rule::Literal => {
             let mut exact = vec![0; sig.generics.len()];
             for i in 0..b.tags.len() {
                 if b.tags[i] == TirTag::Call {
                     let rec = b.get_list(b.data[i][0]);
                     if rec[0] == CALLEE_TRAIT_METHOD
-                        && let TyKind::Param(p) = *w.kind(Ty(rec[3])) {
-                            exact[p as usize] = 1;
-                        }
+                        && let TyKind::Param(p) = *w.kind(Ty(rec[3]))
+                    {
+                        exact[p as usize] = 1;
+                    }
                 }
             }
             exact

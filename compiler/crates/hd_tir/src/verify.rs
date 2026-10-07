@@ -33,7 +33,11 @@ pub fn verify_body(b: &TirBody) -> Vec<String> {
             TirTag::Prim | TirTag::Intrinsic | TirTag::NewData => lists.push(bb),
             TirTag::Call => {
                 lists.extend([a, bb]);
-                if list_ok(a) && b.get_list(a).first().is_none_or(|&k| k > CALLEE_TRAIT_METHOD) {
+                if list_ok(a)
+                    && b.get_list(a)
+                        .first()
+                        .is_none_or(|&k| k > CALLEE_TRAIT_METHOD)
+                {
                     errors.push(format!("%{i}: bad callee record"));
                 }
             }
@@ -125,11 +129,17 @@ mod tests {
         b.extra[list + 1] = 99;
         let errors = verify_body(&b);
         assert!(errors.iter().any(|e| e.contains("local 7")), "{errors:?}");
-        assert!(errors.iter().any(|e| e.contains("operand %99")), "{errors:?}");
+        assert!(
+            errors.iter().any(|e| e.contains("operand %99")),
+            "{errors:?}"
+        );
         b.sub_root.clear();
         b.label_inst.push(Inst(0));
         let errors = verify_body(&b);
-        assert!(errors.iter().any(|e| e.contains("no sub-body root")), "{errors:?}");
+        assert!(
+            errors.iter().any(|e| e.contains("no sub-body root")),
+            "{errors:?}"
+        );
         assert!(errors.iter().any(|e| e.contains("label 0")), "{errors:?}");
     }
 }

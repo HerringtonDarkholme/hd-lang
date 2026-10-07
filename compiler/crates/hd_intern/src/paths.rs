@@ -144,7 +144,9 @@ impl PathTable {
             match (prev, k) {
                 (None, _) => {}
                 (Some(PathKind::Package), _) => out.push('/'),
-                (Some(PathKind::Module), PathKind::Item | PathKind::Impl | PathKind::Hidden) => out.push('/'),
+                (Some(PathKind::Module), PathKind::Item | PathKind::Impl | PathKind::Hidden) => {
+                    out.push('/')
+                }
                 _ => out.push('.'),
             }
             let _ = write!(out, "{}", self.segment(q));
@@ -192,7 +194,8 @@ impl Default for ShardedInterner {
 
 impl ShardedInterner {
     pub fn intern(&self, s: &str) -> hd_base::Symbol {
-        let shard = usize::try_from(hd_base::hash128(s.as_bytes()).0 % SHARDS as u128).expect("shard");
+        let shard =
+            usize::try_from(hd_base::hash128(s.as_bytes()).0 % SHARDS as u128).expect("shard");
         let mut idx = self.index[shard].lock().expect("symbol shard");
         if let Some(&id) = idx.get(s) {
             return hd_base::Symbol::from_raw(id);
@@ -234,7 +237,11 @@ mod tests {
         let t2 = PathTable::new();
         t2.intern(PathId::NONE, PathKind::Package, "other");
         let a2 = t2.item("std", "collections.list", "List");
-        assert_eq!(t.hash(p), t2.hash(PathId::from_raw(a2.raw())), "the hash is content, not ID");
+        assert_eq!(
+            t.hash(p),
+            t2.hash(PathId::from_raw(a2.raw())),
+            "the hash is content, not ID"
+        );
     }
 
     #[test]

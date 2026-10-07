@@ -16,7 +16,10 @@ pub struct StableHasher {
 
 impl Default for StableHasher {
     fn default() -> Self {
-        Self { lo: 0xcbf2_9ce4_8422_2325, hi: 0x9e37_79b9_7f4a_7c15 }
+        Self {
+            lo: 0xcbf2_9ce4_8422_2325,
+            hi: 0x9e37_79b9_7f4a_7c15,
+        }
     }
 }
 

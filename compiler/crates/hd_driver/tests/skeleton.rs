@@ -110,16 +110,26 @@ fn main():
 ";
 
 fn program(main: &str, geo: Option<&str>) -> Vec<SourceFile> {
-    let mut v = vec![SourceFile { path: "app/main.hd".into(), text: main.into() }];
+    let mut v = vec![SourceFile {
+        path: "app/main.hd".into(),
+        text: main.into(),
+    }];
     if let Some(g) = geo {
-        v.push(SourceFile { path: "geo/shapes.hd".into(), text: g.into() });
+        v.push(SourceFile {
+            path: "geo/shapes.hd".into(),
+            text: g.into(),
+        });
     }
     v
 }
 
 fn build(store: &mut MemStore, files: &[SourceFile]) -> RunResult {
     let r = run(store, files, "pkg.app.main");
-    assert!(r.diagnostics.is_empty(), "diagnostics: {:#?}", r.diagnostics);
+    assert!(
+        r.diagnostics.is_empty(),
+        "diagnostics: {:#?}",
+        r.diagnostics
+    );
     r
 }
 
@@ -140,7 +150,11 @@ fn end_to_end(name: &str, files: &[SourceFile], expected: &str) {
     let mut store = MemStore::default();
     let r = build(&mut store, files);
     let wasm = r.wasm.expect("wasm");
-    eprintln!("{name}: {} bytes; stage times {:?}", wasm.len(), r.counters.stage_time);
+    eprintln!(
+        "{name}: {} bytes; stage times {:?}",
+        wasm.len(),
+        r.counters.stage_time
+    );
     assert_eq!(run_node(name, &wasm), expected);
     // Byte-identical across two independent runs (fresh store, fresh IDs).
     let mut store2 = MemStore::default();
@@ -155,7 +169,11 @@ fn hello() {
 
 #[test]
 fn arithmetic_and_control() {
-    end_to_end("arith", &program(ARITH, None), "7\n9\n3\n55\n-1\n0\n1\n16\n-10\n");
+    end_to_end(
+        "arith",
+        &program(ARITH, None),
+        "7\n9\n3\n55\n-1\n0\n1\n16\n-10\n",
+    );
 }
 
 #[test]
@@ -185,8 +203,15 @@ fn incremental() {
     let warm = build(&mut store, &base);
     assert!(warm.counters.modules_checked.is_empty());
     assert_eq!(warm.counters.hit("link"), 1);
-    assert!(warm.counters.tir_decoded.is_empty(), "a prog_key hit decodes no TIR (SK-N16)");
-    assert_eq!(warm.counters.ran("Parse"), 0, "a check hit parses nothing (SK-4)");
+    assert!(
+        warm.counters.tir_decoded.is_empty(),
+        "a prog_key hit decodes no TIR (SK-N16)"
+    );
+    assert_eq!(
+        warm.counters.ran("Parse"),
+        0,
+        "a check hit parses nothing (SK-4)"
+    );
     assert_eq!(warm.wasm.as_deref(), Some(cold_wasm.as_slice()));
 
     // 1. Private body edit in B (geo): only B's module is rechecked.
@@ -195,15 +220,25 @@ fn incremental() {
     let c = &r.counters;
     eprintln!("private body edit: {c:#?}");
     assert_eq!(c.modules_checked, vec!["pkg.geo.shapes".to_owned()]);
-    assert!(c.ifaces_built.is_empty(), "interface rebuilt: {:?}", c.ifaces_built);
+    assert!(
+        c.ifaces_built.is_empty(),
+        "interface rebuilt: {:?}",
+        c.ifaces_built
+    );
     assert_eq!(c.hit("check"), 1, "A's check entry reused");
     assert_eq!(c.miss("link"), 1, "TIR changed, so the program relinks");
     assert!(c.hit("code") >= 1, "unchanged instances reuse their code");
     assert_eq!(c.emitted, 1, "only the edited function is re-emitted");
-    assert_eq!(run_node("inc-private", &r.wasm.expect("wasm")), "3\n-4\n7\n30\n");
+    assert_eq!(
+        run_node("inc-private", &r.wasm.expect("wasm")),
+        "3\n-4\n7\n30\n"
+    );
 
     // 2. Comment-only edit in B.
-    let commented = GEO.replace("fn abs(v: i32) -> i32:\n", "# absolute value\nfn abs(v: i32) -> i32:\n    # negate when below zero\n");
+    let commented = GEO.replace(
+        "fn abs(v: i32) -> i32:\n",
+        "# absolute value\nfn abs(v: i32) -> i32:\n    # negate when below zero\n",
+    );
     let r = build(&mut store, &program(DATA_MAIN, Some(&commented)));
     let c = &r.counters;
     eprintln!("comment edit: {c:#?}");
@@ -218,25 +253,45 @@ fn incremental() {
 
     // 3. Public signature edit in B: B's interface and deep hash change; A rechecks.
     let deep_before = cold.counters.deep_hashes["pkg.geo"];
-    let sig = GEO.replace("pub fn manhattan(p: Point) -> i32:", "pub fn manhattan(p: Point, unused: bool) -> i32:");
+    let sig = GEO.replace(
+        "pub fn manhattan(p: Point) -> i32:",
+        "pub fn manhattan(p: Point, unused: bool) -> i32:",
+    );
     let main = DATA_MAIN.replace("manhattan(p)", "manhattan(p, true)");
     let r = build(&mut store, &program(&main, Some(&sig)));
     let c = &r.counters;
     eprintln!("signature edit: {c:#?}");
     // iface_key(A) holds B's deep hash, so A's interface is rebuilt too; A
     // exports nothing that mentions B, so A's deep hash stays the same.
-    assert_eq!(c.ifaces_built, vec!["pkg.geo".to_owned(), "pkg.app".to_owned()]);
+    assert_eq!(
+        c.ifaces_built,
+        vec!["pkg.geo".to_owned(), "pkg.app".to_owned()]
+    );
     assert_ne!(c.deep_hashes["pkg.geo"], deep_before);
-    assert_eq!(c.deep_hashes["pkg.app"], cold.counters.deep_hashes["pkg.app"]);
+    assert_eq!(
+        c.deep_hashes["pkg.app"],
+        cold.counters.deep_hashes["pkg.app"]
+    );
     let mut checked = c.modules_checked.clone();
     checked.sort();
-    assert_eq!(checked, vec!["pkg.app.main".to_owned(), "pkg.geo.shapes".to_owned()]);
+    assert_eq!(
+        checked,
+        vec!["pkg.app.main".to_owned(), "pkg.geo.shapes".to_owned()]
+    );
 
     // 3b. The same signature edit with A's source untouched still rechecks A
     // (its key holds B's deep hash); A then reports the arity error.
     let r = run(&mut store, &program(DATA_MAIN, Some(&sig)), "pkg.app.main");
-    assert!(r.counters.modules_checked.contains(&"pkg.app.main".to_owned()));
-    assert!(r.diagnostics.iter().any(|d| d.contains("arity")), "{:?}", r.diagnostics);
+    assert!(
+        r.counters
+            .modules_checked
+            .contains(&"pkg.app.main".to_owned())
+    );
+    assert!(
+        r.diagnostics.iter().any(|d| d.contains("arity")),
+        "{:?}",
+        r.diagnostics
+    );
 }
 
 /// SK-2: the A1 summary as first written (exact only on a trait call in the
@@ -246,17 +301,30 @@ fn incremental() {
 fn a1_rule_bounded_parameter_is_exact() {
     let files = program(TRAIT_MAIN, Some(GEO));
     let mut store = MemStore::default();
-    let literal = run_with(&mut store, &files, "pkg.app.main", Options { a1_rule: A1Rule::Literal });
+    let literal = run_with(
+        &mut store,
+        &files,
+        "pkg.app.main",
+        Options {
+            a1_rule: A1Rule::Literal,
+        },
+    );
     assert!(literal.wasm.is_none());
     assert!(
-        literal.diagnostics.iter().any(|d| d.contains("select: no impl")),
+        literal
+            .diagnostics
+            .iter()
+            .any(|d| d.contains("select: no impl")),
         "{:?}",
         literal.diagnostics
     );
     // Same store: the rule is part of the toolchain key, so nothing is reused.
     let bounded = build(&mut store, &files);
     assert_eq!(bounded.counters.hit("check"), 0);
-    assert_eq!(run_node("a1-bounded", &bounded.wasm.expect("wasm")), "12\n13\n101\n7\n");
+    assert_eq!(
+        run_node("a1-bounded", &bounded.wasm.expect("wasm")),
+        "12\n13\n101\n7\n"
+    );
 }
 
 /// SK-3: a callee's representation summary is part of its callers' code
@@ -274,8 +342,10 @@ fn main():
     let mut store = MemStore::default();
     let cold = build(&mut store, &program(main, Some(GEO)));
     assert_eq!(run_node("rep-before", &cold.wasm.expect("wasm")), "6\n");
-    let bounded =
-        GEO.replace("pub fn first[T](a: T, b: T) -> T:", "pub fn first[T < Shape](a: T, b: T) -> T:");
+    let bounded = GEO.replace(
+        "pub fn first[T](a: T, b: T) -> T:",
+        "pub fn first[T < Shape](a: T, b: T) -> T:",
+    );
     let r = build(&mut store, &program(main, Some(&bounded)));
     let c = &r.counters;
     // `make` hits; `first[Point]` is a new instance; `main` misses because

@@ -54,7 +54,6 @@ impl CTy {
     }
 }
 
-
 // ---- canonical bytes and hashing (cache.md §5.3: H(kind tag, fields...)) ----
 
 pub fn put_str(out: &mut Vec<u8>, s: &str) {
@@ -99,7 +98,9 @@ impl<'a> Reader<'a> {
     }
     pub fn str(&mut self) -> String {
         let n = self.u32() as usize;
-        let s = std::str::from_utf8(&self.bytes[self.pos..self.pos + n]).expect("utf8").to_owned();
+        let s = std::str::from_utf8(&self.bytes[self.pos..self.pos + n])
+            .expect("utf8")
+            .to_owned();
         self.pos += n;
         s
     }
@@ -154,7 +155,11 @@ pub enum CItem {
     Fn(CSig),
     Data(Vec<(String, CTy)>),
     Trait(Vec<(String, CSig)>),
-    Impl { trait_: String, target: CTy, methods: Vec<String> },
+    Impl {
+        trait_: String,
+        target: CTy,
+        methods: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -208,7 +213,11 @@ fn get_sig(r: &mut Reader<'_>) -> CSig {
         .collect();
     let np = r.u32();
     let params = (0..np).map(|_| (r.str(), CTy::decode(r))).collect();
-    CSig { generics, params, ret: CTy::decode(r) }
+    CSig {
+        generics,
+        params,
+        ret: CTy::decode(r),
+    }
 }
 
 pub fn encode_item(out: &mut Vec<u8>, h: &HeaderItem) {
@@ -235,7 +244,11 @@ pub fn encode_item(out: &mut Vec<u8>, h: &HeaderItem) {
                 put_sig(out, s);
             }
         }
-        CItem::Impl { trait_, target, methods } => {
+        CItem::Impl {
+            trait_,
+            target,
+            methods,
+        } => {
             out.push(3);
             put_str(out, trait_);
             target.encode(out);
@@ -263,7 +276,11 @@ pub fn decode_item(r: &mut Reader<'_>) -> HeaderItem {
             let trait_ = r.str();
             let target = CTy::decode(r);
             let n = r.u32();
-            CItem::Impl { trait_, target, methods: (0..n).map(|_| r.str()).collect() }
+            CItem::Impl {
+                trait_,
+                target,
+                methods: (0..n).map(|_| r.str()).collect(),
+            }
         }
     };
     HeaderItem { path, public, item }
@@ -288,7 +305,10 @@ impl FolderIface {
     /// The public item at `path`, if this interface exports one.
     #[must_use]
     pub fn public_item(&self, path: &str) -> Option<&HeaderItem> {
-        self.by_path.get(path).map(|&i| &self.items[i]).filter(|h| h.public)
+        self.by_path
+            .get(path)
+            .map(|&i| &self.items[i])
+            .filter(|h| h.public)
     }
 }
 
@@ -362,8 +382,20 @@ pub fn decode_iface(blob: &[u8]) -> FolderIface {
         items.push(decode_item(&mut r));
         item_hashes.push(KeyHasher::new("item").bytes(&blob[start..r.pos]).finish());
     }
-    let by_path = items.iter().enumerate().map(|(i, h)| (h.path.clone(), i)).collect();
-    FolderIface { folder, blob: blob.to_vec(), items, item_hashes, by_path, api_hash, deep_hash }
+    let by_path = items
+        .iter()
+        .enumerate()
+        .map(|(i, h)| (h.path.clone(), i))
+        .collect();
+    FolderIface {
+        folder,
+        blob: blob.to_vec(),
+        items,
+        item_hashes,
+        by_path,
+        api_hash,
+        deep_hash,
+    }
 }
 
 #[cfg(test)]
@@ -371,15 +403,25 @@ mod tests {
     use super::*;
 
     fn fn_item(path: &str, public: bool, params: Vec<(String, CTy)>, ret: CTy) -> HeaderItem {
-        let sig = CSig { generics: vec![], params, ret };
-        HeaderItem { path: path.into(), public, item: CItem::Fn(sig) }
+        let sig = CSig {
+            generics: vec![],
+            params,
+            ret,
+        };
+        HeaderItem {
+            path: path.into(),
+            public,
+            item: CItem::Fn(sig),
+        }
     }
 
     #[test]
     fn blob_round_trips_and_indexes_public_items() {
         let x = vec![("x".to_owned(), CTy::I32)];
-        let items =
-            vec![fn_item("pkg.geo.a::f", true, x.clone(), CTy::Bool), fn_item("pkg.geo.a::g", false, x, CTy::Bool)];
+        let items = vec![
+            fn_item("pkg.geo.a::f", true, x.clone(), CTy::Bool),
+            fn_item("pkg.geo.a::g", false, x, CTy::Bool),
+        ];
         let iface = build_iface("pkg.geo", &items, &HashMap::new());
         let again = decode_iface(&iface.blob);
         assert_eq!(again.items, iface.items);
@@ -391,7 +433,13 @@ mod tests {
 
     #[test]
     fn deep_hash_follows_a_mentioned_folder() {
-        let dep = |ret: CTy| build_iface("pkg.b", &[fn_item("pkg.b.m::f", true, vec![], ret)], &HashMap::new());
+        let dep = |ret: CTy| {
+            build_iface(
+                "pkg.b",
+                &[fn_item("pkg.b.m::f", true, vec![], ret)],
+                &HashMap::new(),
+            )
+        };
         let user = |b: FolderIface| {
             let p = vec![("p".to_owned(), CTy::Adt("pkg.b.m::P".into()))];
             let items = vec![fn_item("pkg.a.m::g", true, p, CTy::Void)];

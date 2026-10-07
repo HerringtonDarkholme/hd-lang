@@ -19,7 +19,11 @@ fn operand(w: &World, r: u32) -> String {
 }
 
 fn operands(w: &World, b: &TirBody, at: u32) -> String {
-    b.get_list(at).iter().map(|&r| operand(w, r)).collect::<Vec<_>>().join(", ")
+    b.get_list(at)
+        .iter()
+        .map(|&r| operand(w, r))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Prints a body as text.
@@ -35,7 +39,11 @@ pub fn print_body(w: &World, b: &TirBody) -> String {
             "  local {l} {}: {}{}",
             w.text(b.local_name[l]),
             w.display(*ty),
-            if b.local_flags[l] & crate::LOCAL_PARAM != 0 { " param" } else { "" }
+            if b.local_flags[l] & crate::LOCAL_PARAM != 0 {
+                " param"
+            } else {
+                ""
+            }
         );
     }
     for i in 0..b.tags.len() {
@@ -59,14 +67,24 @@ pub fn print_body(w: &World, b: &TirBody) -> String {
                     } else {
                         format!("bound T{}", rec[5])
                     };
-                    format!("{}#{} at {} by {choice}", w.path(DefId(rec[1])), rec[2], w.display(Ty(rec[3])))
+                    format!(
+                        "{}#{} at {} by {choice}",
+                        w.path(DefId(rec[1])),
+                        rec[2],
+                        w.display(Ty(rec[3]))
+                    )
                 };
                 format!("Call {callee}({})", operands(w, b, bb))
             }
             TirTag::Block => format!("Block [{}] tail {}", operands(w, b, a), operand(w, bb)),
             TirTag::If => {
                 let arms = b.get_list(bb);
-                format!("If {} then %{} else {}", operand(w, a), arms[0], operand(w, arms[1]))
+                format!(
+                    "If {} then %{} else {}",
+                    operand(w, a),
+                    arms[0],
+                    operand(w, arms[1])
+                )
             }
             TirTag::Loop => format!("Loop %{a}"),
             TirTag::Break => format!("Break label {a}"),

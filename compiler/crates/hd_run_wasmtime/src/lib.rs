@@ -27,7 +27,12 @@ pub enum OptLevel {
 
 impl Default for EngineConfig {
     fn default() -> Self {
-        Self { gc: true, pooling: true, epoch_interruption: true, cranelift_opt: OptLevel::None }
+        Self {
+            gc: true,
+            pooling: true,
+            epoch_interruption: true,
+            cranelift_opt: OptLevel::None,
+        }
     }
 }
 
@@ -41,10 +46,14 @@ pub struct Module;
 impl Engine for WasmtimeEngine {
     type Module = Module;
     fn load(&self, _: &[u8], _: &dyn CacheStore) -> Result<Module, LoadError> {
-        Err(LoadError::Engine("wasmtime is not linked in this build".into()))
+        Err(LoadError::Engine(
+            "wasmtime is not linked in this build".into(),
+        ))
     }
     fn instantiate(&self, _: &Module, _: &HostSetup) -> Result<Box<dyn Instance>, StartError> {
-        Err(StartError::Engine("wasmtime is not linked in this build".into()))
+        Err(StartError::Engine(
+            "wasmtime is not linked in this build".into(),
+        ))
     }
 }
 
@@ -56,7 +65,9 @@ mod tests {
 
     #[test]
     fn reports_not_linked() {
-        let e = WasmtimeEngine { config: EngineConfig::default() };
+        let e = WasmtimeEngine {
+            config: EngineConfig::default(),
+        };
         assert!(e.load(b"\0asm", &MemoryStore::default()).is_err());
     }
 }

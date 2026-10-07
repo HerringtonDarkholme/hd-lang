@@ -105,7 +105,10 @@ impl Fuel {
 
     #[must_use]
     pub const fn new(steps: u64) -> Self {
-        Self { left: steps, spent: 0 }
+        Self {
+            left: steps,
+            spent: 0,
+        }
     }
     /// Charges `steps`; false once the budget is gone.
     pub fn charge(&mut self, steps: u64) -> bool {

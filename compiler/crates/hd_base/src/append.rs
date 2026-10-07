@@ -41,7 +41,10 @@ pub struct AppendVec<T> {
 
 impl<T> Default for AppendVec<T> {
     fn default() -> Self {
-        Self { chunks: std::array::from_fn(|_| OnceLock::new()), len: AtomicU32::new(0) }
+        Self {
+            chunks: std::array::from_fn(|_| OnceLock::new()),
+            len: AtomicU32::new(0),
+        }
     }
 }
 
@@ -50,7 +53,10 @@ fn locate(i: u32) -> (usize, usize) {
     let biased = u64::from(i) + (1 << BASE_BITS);
     let k = biased.ilog2() - BASE_BITS;
     let start = (1u64 << (k + BASE_BITS)) - (1 << BASE_BITS);
-    (k as usize, usize::try_from(u64::from(i) - start).expect("offset"))
+    (
+        k as usize,
+        usize::try_from(u64::from(i) - start).expect("offset"),
+    )
 }
 
 impl<T> AppendVec<T> {
@@ -64,9 +70,15 @@ impl<T> AppendVec<T> {
         let i = self.len.load(Ordering::Relaxed);
         let (k, off) = locate(i);
         assert!(k < CHUNKS, "AppendVec over capacity");
-        let chunk = self.chunks[k]
-            .get_or_init(|| (0..(1usize << (k + BASE_BITS as usize))).map(|_| OnceLock::new()).collect());
-        assert!(chunk[off].set(value).is_ok(), "AppendVec slot written twice");
+        let chunk = self.chunks[k].get_or_init(|| {
+            (0..(1usize << (k + BASE_BITS as usize)))
+                .map(|_| OnceLock::new())
+                .collect()
+        });
+        assert!(
+            chunk[off].set(value).is_ok(),
+            "AppendVec slot written twice"
+        );
         self.len.store(i + 1, Ordering::Release);
         i
     }

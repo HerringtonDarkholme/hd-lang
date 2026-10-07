@@ -79,7 +79,9 @@ impl InferTable {
         while let TyData::Infer(v) = pool.get(t) {
             match self.binding[self.root(v.raw()) as usize] {
                 Some(b) => t = b,
-                None => return pool.intern_ty(&TyData::Infer(InferVar::from_raw(self.root(v.raw())))),
+                None => {
+                    return pool.intern_ty(&TyData::Infer(InferVar::from_raw(self.root(v.raw()))));
+                }
             }
         }
         t
@@ -95,11 +97,27 @@ impl InferTable {
         let r = |x: Ty| self.resolve(pool, x);
         let rl = |l| pool.list(&pool.list_items(l).into_iter().map(r).collect::<Vec<_>>());
         let d = match pool.get(t) {
-            TyData::Adt { def, args } => TyData::Adt { def, args: rl(args) },
-            TyData::Tuple { elems, rest } => TyData::Tuple { elems: rl(elems), rest: rest.map(r) },
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: rl(args),
+            },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: rl(elems),
+                rest: rest.map(r),
+            },
             TyData::Option(i) => TyData::Option(r(i)),
             TyData::Mut(i) => TyData::Mut(r(i)),
-            TyData::Fn { params, result, row, suspends } => TyData::Fn { params: rl(params), result: r(result), row, suspends },
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+            } => TyData::Fn {
+                params: rl(params),
+                result: r(result),
+                row,
+                suspends,
+            },
             other => other,
         };
         pool.intern_ty(&d)
@@ -109,12 +127,21 @@ impl InferTable {
         let t = self.shallow(pool, t);
         match pool.get(t) {
             TyData::Infer(w) => self.root(w.raw()) == v,
-            TyData::Adt { args: l, .. } | TyData::Tuple { elems: l, rest: None } => {
-                pool.list_items(l).into_iter().any(|x| self.occurs(pool, v, x))
-            }
+            TyData::Adt { args: l, .. }
+            | TyData::Tuple {
+                elems: l,
+                rest: None,
+            } => pool
+                .list_items(l)
+                .into_iter()
+                .any(|x| self.occurs(pool, v, x)),
             TyData::Option(i) | TyData::Mut(i) => self.occurs(pool, v, i),
             TyData::Fn { params, result, .. } => {
-                self.occurs(pool, v, result) || pool.list_items(params).into_iter().any(|x| self.occurs(pool, v, x))
+                self.occurs(pool, v, result)
+                    || pool
+                        .list_items(params)
+                        .into_iter()
+                        .any(|x| self.occurs(pool, v, x))
             }
             _ => false,
         }
@@ -168,25 +195,57 @@ impl InferTable {
             (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
                 self.unify_lists(pool, a1, a2, a, b)
             }
-            (TyData::Tuple { elems: e1, rest: None }, TyData::Tuple { elems: e2, rest: None }) => {
-                self.unify_lists(pool, e1, e2, a, b)
-            }
-            (TyData::Option(x), TyData::Option(y)) | (TyData::Mut(x), TyData::Mut(y)) => self.unify(pool, x, y),
             (
-                TyData::Fn { params: p1, result: r1, suspends: s1, .. },
-                TyData::Fn { params: p2, result: r2, suspends: s2, .. },
+                TyData::Tuple {
+                    elems: e1,
+                    rest: None,
+                },
+                TyData::Tuple {
+                    elems: e2,
+                    rest: None,
+                },
+            ) => self.unify_lists(pool, e1, e2, a, b),
+            (TyData::Option(x), TyData::Option(y)) | (TyData::Mut(x), TyData::Mut(y)) => {
+                self.unify(pool, x, y)
+            }
+            (
+                TyData::Fn {
+                    params: p1,
+                    result: r1,
+                    suspends: s1,
+                    ..
+                },
+                TyData::Fn {
+                    params: p2,
+                    result: r2,
+                    suspends: s2,
+                    ..
+                },
             ) if s1 == s2 => {
                 self.unify_lists(pool, p1, p2, a, b)?;
                 self.unify(pool, r1, r2)
             }
-            _ => Err(UnifyError::Mismatch { expected: a, found: b }),
+            _ => Err(UnifyError::Mismatch {
+                expected: a,
+                found: b,
+            }),
         }
     }
 
-    fn unify_lists(&mut self, pool: &InternPool, l1: crate::TyList, l2: crate::TyList, a: Ty, b: Ty) -> Result<(), UnifyError> {
+    fn unify_lists(
+        &mut self,
+        pool: &InternPool,
+        l1: crate::TyList,
+        l2: crate::TyList,
+        a: Ty,
+        b: Ty,
+    ) -> Result<(), UnifyError> {
         let (x, y) = (pool.list_items(l1), pool.list_items(l2));
         if x.len() != y.len() {
-            return Err(UnifyError::Mismatch { expected: a, found: b });
+            return Err(UnifyError::Mismatch {
+                expected: a,
+                found: b,
+            });
         }
         for (s, t) in x.into_iter().zip(y) {
             self.unify(pool, s, t)?;
@@ -212,9 +271,15 @@ mod tests {
         assert_eq!(t.resolve(&p, opt_a), opt_i32);
         t.rollback(snap);
         assert_eq!(t.resolve(&p, opt_a), opt_a);
-        assert!(matches!(t.unify(&p, a, opt_a), Err(UnifyError::Occurs { .. })));
+        assert!(matches!(
+            t.unify(&p, a, opt_a),
+            Err(UnifyError::Occurs { .. })
+        ));
         let lit = t.fresh(&p, VarKind::IntLit);
-        assert!(matches!(t.unify(&p, lit, Ty::STRING), Err(UnifyError::Kind { .. })));
+        assert!(matches!(
+            t.unify(&p, lit, Ty::STRING),
+            Err(UnifyError::Kind { .. })
+        ));
         assert!(t.unify(&p, lit, Ty::POISON).is_ok());
     }
 }

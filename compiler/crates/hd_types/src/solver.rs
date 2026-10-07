@@ -7,7 +7,9 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 
-use hd_base::{DefId, FolderId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult, Symbol};
+use hd_base::{
+    DefId, FolderId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult, Symbol,
+};
 
 use crate::pool::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 use crate::unify::VarKind;
@@ -27,10 +29,24 @@ pub struct ConcreteTraitRef(pub TraitRef);
 /// The four goals (§1.2).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Goal {
-    Implements { tref: TraitRef, bindings: Vec<(DefId, Ty)>, mut_: bool },
-    Project { assoc: DefId, tref: TraitRef },
-    Instantiations { self_ty: Ty, trait_: DefId, mut_: bool },
-    Methods { receiver: Ty, name: Symbol },
+    Implements {
+        tref: TraitRef,
+        bindings: Vec<(DefId, Ty)>,
+        mut_: bool,
+    },
+    Project {
+        assoc: DefId,
+        tref: TraitRef,
+    },
+    Instantiations {
+        self_ty: Ty,
+        trait_: DefId,
+        mut_: bool,
+    },
+    Methods {
+        receiver: Ty,
+        name: Symbol,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -184,8 +200,19 @@ pub struct ImplRef {
 /// One step of an impl's bound plan (§3.6).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PlanStep {
-    Bound { param: u8, trait_: DefId, args: TyList, mut_: bool },
-    Bind { param: u8, trait_: DefId, args: TyList, name: Symbol, target: u8 },
+    Bound {
+        param: u8,
+        trait_: DefId,
+        args: TyList,
+        mut_: bool,
+    },
+    Bind {
+        param: u8,
+        trait_: DefId,
+        args: TyList,
+        name: Symbol,
+        target: u8,
+    },
 }
 
 /// The solver's per-module impl table (§3.3), rows sorted by content rank.
@@ -367,11 +394,18 @@ pub struct FailInfo {
 /// A solver answer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Answer {
-    Holds { evidence: Evidence, learned: Vec<(InferVar, Ty)> },
-    Normalized { ty: Ty },
+    Holds {
+        evidence: Evidence,
+        learned: Vec<(InferVar, Ty)>,
+    },
+    Normalized {
+        ty: Ty,
+    },
     Candidates(Vec<Candidate>),
     Fails(Box<FailInfo>),
-    Stalled { on: Vec<InferVar> },
+    Stalled {
+        on: Vec<InferVar>,
+    },
     Overflow,
     OutOfFuel,
 }
@@ -397,16 +431,37 @@ pub struct SolveCx<'a> {
 pub trait Solver: Sync {
     fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer>;
     fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey;
-    fn select(&self, pool: &InternPool, tables: &[(ModuleId, &ImplTable)], tref: ConcreteTraitRef) -> StageResult<Selection>;
-    fn normalize_concrete(&self, pool: &InternPool, base: Ty, trait_: DefId, args: TyList, name: Symbol) -> StageResult<Ty>;
+    fn select(
+        &self,
+        pool: &InternPool,
+        tables: &[(ModuleId, &ImplTable)],
+        tref: ConcreteTraitRef,
+    ) -> StageResult<Selection>;
+    fn normalize_concrete(
+        &self,
+        pool: &InternPool,
+        base: Ty,
+        trait_: DefId,
+        args: TyList,
+        name: Symbol,
+    ) -> StageResult<Ty>;
 }
 
 /// Canonicalizes a goal's self type and arguments (§2.2 steps 1 and 3):
 /// variables become `Canon(i)` in first-occurrence order.
-pub fn canonicalize(pool: &InternPool, kind: GoalKind, tref: TraitRef, mut_: bool) -> (CanonGoal, CanonVars) {
+pub fn canonicalize(
+    pool: &InternPool,
+    kind: GoalKind,
+    tref: TraitRef,
+    mut_: bool,
+) -> (CanonGoal, CanonVars) {
     let mut vars = CanonVars::default();
     let self_ty = canon_ty(pool, tref.self_ty, &mut vars);
-    let args: Vec<Ty> = pool.list_items(tref.args).into_iter().map(|t| canon_ty(pool, t, &mut vars)).collect();
+    let args: Vec<Ty> = pool
+        .list_items(tref.args)
+        .into_iter()
+        .map(|t| canon_ty(pool, t, &mut vars))
+        .collect();
     let goal = CanonGoal {
         kind,
         mut_,
@@ -437,7 +492,10 @@ fn canon_ty(pool: &InternPool, t: Ty, vars: &mut CanonVars) -> Ty {
         TyData::Mut(i) => TyData::Mut(c(i)),
         TyData::Adt { def, args } => {
             let a: Vec<Ty> = pool.list_items(args).into_iter().map(&mut c).collect();
-            TyData::Adt { def, args: pool.list(&a) }
+            TyData::Adt {
+                def,
+                args: pool.list(&a),
+            }
         }
         other => other,
     };
@@ -456,10 +514,16 @@ impl Solver for SkeletonSolver {
             return Ok(Answer::OutOfFuel);
         }
         let Goal::Implements { tref, .. } = goal else {
-            return Err(NotImplemented::new(Stage::Body, "solver goals other than Implements"));
+            return Err(NotImplemented::new(
+                Stage::Body,
+                "solver goals other than Implements",
+            ));
         };
         if cx.pool.has_poison(tref.self_ty) {
-            return Ok(Answer::Holds { evidence: Evidence::Poison, learned: vec![] });
+            return Ok(Answer::Holds {
+                evidence: Evidence::Poison,
+                learned: vec![],
+            });
         }
         for i in 0..cx.env.clause_self.len() {
             if cx.env.clause_self[i] == tref.self_ty
@@ -467,7 +531,10 @@ impl Solver for SkeletonSolver {
                 && let TyData::Param(param) = cx.pool.get(tref.self_ty)
             {
                 let index = u16::try_from(i).expect("clauses");
-                return Ok(Answer::Holds { evidence: Evidence::Bound { param, index }, learned: vec![] });
+                return Ok(Answer::Holds {
+                    evidence: Evidence::Bound { param, index },
+                    learned: vec![],
+                });
             }
         }
         let key = HeadKey::of(cx.pool, tref.self_ty);
@@ -480,8 +547,17 @@ impl Solver for SkeletonSolver {
             }
         }
         match found.as_slice() {
-            [one] => Ok(Answer::Holds { evidence: Evidence::Impl { row: *one, args: TyList::EMPTY }, learned: vec![] }),
-            _ => Err(NotImplemented::new(Stage::Body, "impl search beyond one exact head")),
+            [one] => Ok(Answer::Holds {
+                evidence: Evidence::Impl {
+                    row: *one,
+                    args: TyList::EMPTY,
+                },
+                learned: vec![],
+            }),
+            _ => Err(NotImplemented::new(
+                Stage::Body,
+                "impl search beyond one exact head",
+            )),
         }
     }
 
@@ -494,33 +570,59 @@ impl Solver for SkeletonSolver {
             out.clause_mut.push(b.mut_);
             out.clause_origin.push(u16::try_from(i).expect("bounds"));
         }
-        let key = if bounds.is_empty() { EnvKey::EMPTY } else { EnvKey(u32::try_from(bounds.len()).expect("env")) };
+        let key = if bounds.is_empty() {
+            EnvKey::EMPTY
+        } else {
+            EnvKey(u32::try_from(bounds.len()).expect("env"))
+        };
         out.key = Some(key);
         key
     }
 
-    fn select(&self, pool: &InternPool, tables: &[(ModuleId, &ImplTable)], tref: ConcreteTraitRef) -> StageResult<Selection> {
+    fn select(
+        &self,
+        pool: &InternPool,
+        tables: &[(ModuleId, &ImplTable)],
+        tref: ConcreteTraitRef,
+    ) -> StageResult<Selection> {
         let key = HeadKey::of(pool, tref.0.self_ty);
         for (m, t) in tables {
             for row in t.candidates(tref.0.trait_, key) {
                 if t.head_self[row as usize] == tref.0.self_ty {
-                    return Ok(Selection { impl_row: ImplRef { module: *m, row }, args: TyList::EMPTY });
+                    return Ok(Selection {
+                        impl_row: ImplRef { module: *m, row },
+                        args: TyList::EMPTY,
+                    });
                 }
             }
         }
-        Err(NotImplemented::new(Stage::Collect, "select for generic impl heads"))
+        Err(NotImplemented::new(
+            Stage::Collect,
+            "select for generic impl heads",
+        ))
     }
 
-    fn normalize_concrete(&self, _: &InternPool, _: Ty, _: DefId, _: TyList, _: Symbol) -> StageResult<Ty> {
-        Err(NotImplemented::new(Stage::Collect, "associated type normalization"))
+    fn normalize_concrete(
+        &self,
+        _: &InternPool,
+        _: Ty,
+        _: DefId,
+        _: TyList,
+        _: Symbol,
+    ) -> StageResult<Ty> {
+        Err(NotImplemented::new(
+            Stage::Collect,
+            "associated type normalization",
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable, ImplUniverses,
-        MemoEntry, MemoKey, MemoKind, ParamEnv, SkeletonSolver, SolveCx, Solver, TraitRef, canonicalize,
+        BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable,
+        ImplUniverses, MemoEntry, MemoKey, MemoKind, ParamEnv, SkeletonSolver, SolveCx, Solver,
+        TraitRef, canonicalize,
     };
     use crate::pool::{InternPool, Prim, Ty, TyData, TyList};
     use crate::unify::{InferTable, VarKind};
@@ -546,8 +648,17 @@ mod tests {
         let v3 = t1.fresh(&p, VarKind::General);
         let mut t2 = InferTable::default();
         let v0 = t2.fresh(&p, VarKind::General);
-        let mk = |v| p.intern_ty(&TyData::Adt { def: list, args: p.list(&[v]) });
-        let g = |v| TraitRef { trait_: eq, self_ty: mk(v), args: TyList::EMPTY };
+        let mk = |v| {
+            p.intern_ty(&TyData::Adt {
+                def: list,
+                args: p.list(&[v]),
+            })
+        };
+        let g = |v| TraitRef {
+            trait_: eq,
+            self_ty: mk(v),
+            args: TyList::EMPTY,
+        };
         let (a, _) = canonicalize(&p, GoalKind::Implements, g(v3), false);
         let (b, vars) = canonicalize(&p, GoalKind::Implements, g(v0), false);
         assert_eq!(a, b);
@@ -577,15 +688,47 @@ mod tests {
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
         let u = ImplUniverses::default().intern(&[]);
-        let mut cx = SolveCx { pool: &p, env: &env, universe: u, tables: &tables, body_memo: &mut body, global: &global };
-        let tref = TraitRef { trait_: tr, self_ty: Ty::I32, args: TyList::EMPTY };
-        let goal = Goal::Implements { tref, bindings: vec![], mut_: false };
-        let a = SkeletonSolver.solve(&mut cx, &goal, &mut Fuel::new(10)).expect("holds");
+        let mut cx = SolveCx {
+            pool: &p,
+            env: &env,
+            universe: u,
+            tables: &tables,
+            body_memo: &mut body,
+            global: &global,
+        };
+        let tref = TraitRef {
+            trait_: tr,
+            self_ty: Ty::I32,
+            args: TyList::EMPTY,
+        };
+        let goal = Goal::Implements {
+            tref,
+            bindings: vec![],
+            mut_: false,
+        };
+        let a = SkeletonSolver
+            .solve(&mut cx, &goal, &mut Fuel::new(10))
+            .expect("holds");
         assert!(matches!(a, super::Answer::Holds { .. }));
-        assert!(SkeletonSolver.select(&p, &tables, ConcreteTraitRef(tref)).is_ok());
+        assert!(
+            SkeletonSolver
+                .select(&p, &tables, ConcreteTraitRef(tref))
+                .is_ok()
+        );
         let (cg, _) = canonicalize(&p, GoalKind::Implements, tref, false);
-        let key = MemoKey { goal: cg, env: super::EnvKey::EMPTY, universe: None, avail: 0 };
-        let e = MemoEntry { answer: 1, children: 0, height: 0, kind: MemoKind::Holds, heads: 1 };
+        let key = MemoKey {
+            goal: cg,
+            env: super::EnvKey::EMPTY,
+            universe: None,
+            avail: 0,
+        };
+        let e = MemoEntry {
+            answer: 1,
+            children: 0,
+            height: 0,
+            kind: MemoKind::Holds,
+            heads: 1,
+        };
         global.publish(key, e);
         let e2 = MemoEntry { answer: 2, ..e };
         assert_eq!(global.publish(key, e2).answer, 1, "first writer wins");

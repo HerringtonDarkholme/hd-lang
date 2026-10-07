@@ -32,8 +32,15 @@ impl Spawner<'_> {
 }
 
 /// Runs the graph on `threads` workers; returns it with every task done.
-pub fn run_pool(graph: TaskGraph, threads: usize, exec: &(dyn Fn(TaskId, TaskKind, &Spawner<'_>) + Sync)) -> TaskGraph {
-    let shared = Shared { graph: Mutex::new((graph, 0)), wake: Condvar::new() };
+pub fn run_pool(
+    graph: TaskGraph,
+    threads: usize,
+    exec: &(dyn Fn(TaskId, TaskKind, &Spawner<'_>) + Sync),
+) -> TaskGraph {
+    let shared = Shared {
+        graph: Mutex::new((graph, 0)),
+        wake: Condvar::new(),
+    };
     std::thread::scope(|s| {
         for _ in 0..threads.max(1) {
             s.spawn(|| {
@@ -66,7 +73,10 @@ pub fn run_pool(graph: TaskGraph, threads: usize, exec: &(dyn Fn(TaskId, TaskKin
     });
     let (g, _) = shared.graph.into_inner().expect("graph");
     let stuck = g.unfinished();
-    assert!(stuck == 0, "{stuck} tasks never became ready (a cycle or a missing edge)");
+    assert!(
+        stuck == 0,
+        "{stuck} tasks never became ready (a cycle or a missing edge)"
+    );
     g
 }
 

@@ -28,7 +28,9 @@ fn main() -> ExitCode {
     match (command, &arguments[1..]) {
         ("parse", [file]) => parse_command(Path::new(file)),
         ("run", [target]) => run_command(Path::new(target)),
-        ("build", [target, flag, out]) if flag == "-o" => build_command(Path::new(target), Path::new(out)),
+        ("build", [target, flag, out]) if flag == "-o" => {
+            build_command(Path::new(target), Path::new(out))
+        }
         _ => usage(),
     }
 }

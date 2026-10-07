@@ -72,7 +72,14 @@ impl DiagBuf {
     }
 
     /// Pushes one diagnostic; a second one with the same root is dropped.
-    pub fn push(&mut self, code: Code, severity: Severity, primary: Span, message: &str, root: Option<RootKey>) -> bool {
+    pub fn push(
+        &mut self,
+        code: Code,
+        severity: Severity,
+        primary: Span,
+        message: &str,
+        root: Option<RootKey>,
+    ) -> bool {
         if root.is_some() && self.root.contains(&root) {
             return false;
         }
@@ -102,7 +109,13 @@ impl DiagBuf {
     #[must_use]
     pub fn content_order(&self) -> Vec<usize> {
         let mut order: Vec<usize> = (0..self.len()).collect();
-        order.sort_by_key(|&i| (self.primary[i].file.raw(), self.primary[i].lo, self.code[i].as_str()));
+        order.sort_by_key(|&i| {
+            (
+                self.primary[i].file.raw(),
+                self.primary[i].lo,
+                self.code[i].as_str(),
+            )
+        });
         order
     }
 
@@ -145,7 +158,9 @@ impl DiagBuf {
                 p.file.raw(),
                 p.lo,
                 p.hi,
-                self.get_text(self.message[i]).replace('\\', "\\\\").replace('"', "\\\"")
+                self.get_text(self.message[i])
+                    .replace('\\', "\\\\")
+                    .replace('"', "\\\"")
             );
         }
         out.push(']');
@@ -162,8 +177,16 @@ mod tests {
     #[test]
     fn one_diagnostic_per_root_and_content_order() {
         let mut b = DiagBuf::default();
-        let root = Some(RootKey { item: DefId::from_raw(1), cause: CauseKind::Type, value: 0 });
-        let s = |lo| Span { file: FileId::from_raw(0), lo, hi: lo + 1 };
+        let root = Some(RootKey {
+            item: DefId::from_raw(1),
+            cause: CauseKind::Type,
+            value: 0,
+        });
+        let s = |lo| Span {
+            file: FileId::from_raw(0),
+            lo,
+            hi: lo + 1,
+        };
         assert!(b.push(Code::SyntaxError, Severity::Error, s(9), "late", None));
         assert!(b.push(Code::SyntaxError, Severity::Error, s(2), "early", root));
         assert!(!b.push(Code::SyntaxError, Severity::Error, s(3), "dup", root));

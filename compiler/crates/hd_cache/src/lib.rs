@@ -48,7 +48,11 @@ pub struct FileApi<'a> {
 /// what a stage writes.
 #[must_use]
 pub fn toolchain_key(compiler: &str, target: &str, options: &str) -> Hash128 {
-    KeyHasher::new("tc").str(compiler).str(target).str(options).finish()
+    KeyHasher::new("tc")
+        .str(compiler)
+        .str(target)
+        .str(options)
+        .finish()
 }
 
 /// `iface_key(F) = H("iface", toolchain, package, F, [(module, role,
@@ -61,7 +65,10 @@ pub fn iface_key(
     files: &[FileApi<'_>],
     reach: &[(&str, Hash128)],
 ) -> Hash128 {
-    let mut k = KeyHasher::new("iface").hash(toolchain).hash(package).str(folder);
+    let mut k = KeyHasher::new("iface")
+        .hash(toolchain)
+        .hash(package)
+        .str(folder);
     for f in files {
         k = k.str(f.module).str(f.role).hash(f.api_text_hash);
     }
@@ -82,8 +89,12 @@ pub fn check_key(
     source_hash: Hash128,
     closure: &[(&str, Hash128)],
 ) -> Hash128 {
-    let mut k =
-        KeyHasher::new("check").hash(toolchain).hash(package).str(module).str(role).hash(source_hash);
+    let mut k = KeyHasher::new("check")
+        .hash(toolchain)
+        .hash(package)
+        .str(module)
+        .str(role)
+        .hash(source_hash);
     for (c, h) in closure {
         k = k.str(c).hash(*h);
     }
@@ -99,7 +110,10 @@ pub fn prog_key(
     entry: &str,
     modules: &[(&str, Hash128)],
 ) -> Hash128 {
-    let mut k = KeyHasher::new("prog").hash(toolchain).str(pipeline).str(entry);
+    let mut k = KeyHasher::new("prog")
+        .hash(toolchain)
+        .str(pipeline)
+        .str(entry);
     for (m, h) in modules {
         k = k.str(m).hash(*h);
     }
@@ -110,7 +124,12 @@ pub fn prog_key(
 /// representation summaries)` (codegen.md §13.8; walking skeleton, SK-3).
 #[must_use]
 pub fn code_key(pipeline: &str, instance: Hash128, tir: Hash128, callee_reps: Hash128) -> Hash128 {
-    KeyHasher::new("code").str(pipeline).hash(instance).hash(tir).hash(callee_reps).finish()
+    KeyHasher::new("code")
+        .str(pipeline)
+        .hash(instance)
+        .hash(tir)
+        .hash(callee_reps)
+        .finish()
 }
 
 #[cfg(test)]
@@ -123,15 +142,35 @@ mod tests {
         let a = code_key("dev", Hash128(1), Hash128(2), Hash128(3));
         assert_ne!(a, code_key("dev", Hash128(1), Hash128(2), Hash128(4)));
         assert_ne!(a, code_key("opt", Hash128(1), Hash128(2), Hash128(3)));
-        let c = check_key(tc, Hash128(9), "pkg.main", "lib", Hash128(5), &[("pkg", Hash128(6))]);
-        assert_ne!(c, check_key(tc, Hash128(9), "pkg.main", "lib", Hash128(5), &[("pkg", Hash128(7))]));
+        let c = check_key(
+            tc,
+            Hash128(9),
+            "pkg.main",
+            "lib",
+            Hash128(5),
+            &[("pkg", Hash128(6))],
+        );
+        assert_ne!(
+            c,
+            check_key(
+                tc,
+                Hash128(9),
+                "pkg.main",
+                "lib",
+                Hash128(5),
+                &[("pkg", Hash128(7))]
+            )
+        );
     }
 
     #[test]
     fn store_round_trip() {
         let mut s = MemStore::default();
         s.put("check", Hash128(1), vec![1, 2, 3]);
-        assert_eq!(s.get("check", Hash128(1)).as_deref(), Some(&[1u8, 2, 3][..]));
+        assert_eq!(
+            s.get("check", Hash128(1)).as_deref(),
+            Some(&[1u8, 2, 3][..])
+        );
         assert!(s.get("iface", Hash128(1)).is_none());
     }
 }

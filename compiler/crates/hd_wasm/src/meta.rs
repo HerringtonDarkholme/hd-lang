@@ -56,11 +56,14 @@ impl R<'_> {
         self.take(1).map(|b| b[0])
     }
     fn u32(&mut self) -> Option<u32> {
-        self.take(4).and_then(|b| b.try_into().ok()).map(u32::from_le_bytes)
+        self.take(4)
+            .and_then(|b| b.try_into().ok())
+            .map(u32::from_le_bytes)
     }
     fn str(&mut self) -> Option<String> {
         let n = self.u32()? as usize;
-        self.take(n).and_then(|b| String::from_utf8(b.to_vec()).ok())
+        self.take(n)
+            .and_then(|b| String::from_utf8(b.to_vec()).ok())
     }
 }
 
@@ -71,7 +74,11 @@ impl RuntimeMeta {
         o.extend_from_slice(&self.format.to_le_bytes());
         o.extend_from_slice(&self.compiler.0.to_le_bytes());
         o.push(self.entry as u8);
-        o.extend_from_slice(&u32::try_from(self.tests.len()).expect("tests").to_le_bytes());
+        o.extend_from_slice(
+            &u32::try_from(self.tests.len())
+                .expect("tests")
+                .to_le_bytes(),
+        );
         for t in &self.tests {
             o.extend_from_slice(&t.export.to_le_bytes());
             put_str(&mut o, &t.name);
@@ -95,17 +102,43 @@ impl RuntimeMeta {
         let mut r = R(b, 0);
         let format = u16::from_le_bytes(r.take(2)?.try_into().ok()?);
         let compiler = Hash128(u128::from_le_bytes(r.take(16)?.try_into().ok()?));
-        let entry = [EntryKind::Main, EntryKind::MainBang, EntryKind::Tests, EntryKind::ReplInput].get(r.u8()? as usize).copied()?;
+        let entry = [
+            EntryKind::Main,
+            EntryKind::MainBang,
+            EntryKind::Tests,
+            EntryKind::ReplInput,
+        ]
+        .get(r.u8()? as usize)
+        .copied()?;
         let n = r.u32()?;
         let mut tests = Vec::new();
         for _ in 0..n {
             let export = r.u32()?;
             let name = r.str()?;
-            let kind = [TestKind::It, TestKind::ItEach, TestKind::ItProp, TestKind::DocTest].get(r.u8()? as usize).copied()?;
-            tests.push(TestMeta { export, name, kind, file: r.u32()?, line: r.u32()? });
+            let kind = [
+                TestKind::It,
+                TestKind::ItEach,
+                TestKind::ItProp,
+                TestKind::DocTest,
+            ]
+            .get(r.u8()? as usize)
+            .copied()?;
+            tests.push(TestMeta {
+                export,
+                name,
+                kind,
+                file: r.u32()?,
+                line: r.u32()?,
+            });
         }
         let exchange = if r.u8()? == 1 { Some(r.str()?) } else { None };
-        (r.1 == b.len()).then_some(RuntimeMeta { format, compiler, entry, tests, exchange })
+        (r.1 == b.len()).then_some(RuntimeMeta {
+            format,
+            compiler,
+            entry,
+            tests,
+            exchange,
+        })
     }
 }
 
@@ -113,7 +146,9 @@ impl RuntimeMeta {
 /// is in the ABI table, or is the walking skeleton's `hd` module.
 #[must_use]
 pub fn imports_are_hd(imports: &[(&str, &str)]) -> bool {
-    imports.iter().all(|(m, n)| *m == "hd" || hd_host_abi::is_known_import(m, n))
+    imports
+        .iter()
+        .all(|(m, n)| *m == "hd" || hd_host_abi::is_known_import(m, n))
 }
 
 #[cfg(test)]
@@ -127,7 +162,13 @@ mod tests {
             format: 1,
             compiler: Hash128(5),
             entry: EntryKind::Tests,
-            tests: vec![TestMeta { export: 3, name: "adds".into(), kind: TestKind::ItEach, file: 0, line: 9 }],
+            tests: vec![TestMeta {
+                export: 3,
+                name: "adds".into(),
+                kind: TestKind::ItEach,
+                file: 0,
+                line: 9,
+            }],
             exchange: Some("hd.exchange".into()),
         };
         assert_eq!(RuntimeMeta::decode(&m.encode()), Some(m));
