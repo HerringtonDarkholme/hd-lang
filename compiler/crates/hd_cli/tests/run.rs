@@ -33,7 +33,13 @@ fn hd_run(cache_dir: &Path, target: &Path) -> String {
     String::from_utf8(output.stdout).expect("UTF-8")
 }
 
-const CASES: [(&str, &str); 8] = [
+/// The phase-1 exit program (build-order.md, M4b): `List`, `Map`,
+/// `Option`, `Result`, strings with interpolation, a user trait, a
+/// closure, `match`, `for` and std's own `println`.
+const EXIT: &str = "total 14 of 5\n40\nrect 6\ncircle 12\nfound 4\nmissing\nok 3\n\
+                    err divide by zero\nnum 7\nplus\nword hi\nann 31, cy 40\n31 years\n3\n";
+
+const CASES: [(&str, &str); 9] = [
     ("hello/hello.hd", "42\n"),
     ("hello", "42\n"),
     ("arith", "7\n9\n3\n55\n-1\n0\n1\n16\n-10\n"),
@@ -42,6 +48,7 @@ const CASES: [(&str, &str); 8] = [
     ("trait/main.hd", "12\n13\n101\n7\n"),
     ("fib/main.hd", "6765\n"),
     ("std_types", "42\n"),
+    ("exit", EXIT),
 ];
 
 #[test]

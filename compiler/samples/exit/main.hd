@@ -1,0 +1,82 @@
+trait Shape:
+    fn area(self) -> i32
+    fn name(self) -> string
+
+data Rect:
+    w: i32
+    h: i32
+
+data Circle:
+    r: i32
+
+impl Shape for Rect:
+    fn area(self) -> i32:
+        self.w * self.h
+    fn name(self) -> string:
+        "rect"
+
+impl Shape for Circle:
+    fn area(self) -> i32:
+        3 * self.r * self.r
+    fn name(self) -> string:
+        "circle"
+
+enum Token:
+    Num(i32)
+    Plus
+    Word(string)
+
+fn describe(t: Token) -> string:
+    match t:
+        .Num(n) => "num $n"
+        .Plus => "plus"
+        .Word(w) => "word $w"
+
+fn safe_div(a: i32, b: i32) -> Result[i32, string]:
+    if b == 0:
+        return .Err("divide by zero")
+    .Ok(a / b)
+
+fn find(xs: List[i32], want: i32) -> i32?:
+    for x in xs:
+        if x == want:
+            return .Some(x)
+    .None
+
+fn main() -> void $ Console:
+    xs := [3, 1, 4, 1, 5]
+    total := +0
+    for x in xs:
+        total = total + x
+    println("total $total of ${xs.len()}")
+    scale := 10
+    times := fn(v: i32) -> i32: v * scale
+    println(times(4))
+    r := Rect { w: 2, h: 3 }
+    c := Circle { r: 2 }
+    println("${r.name()} ${r.area()}")
+    println("${c.name()} ${c.area()}")
+    match find(xs, 4):
+        .Some(v) => println("found $v")
+        .None => println("missing")
+    match find(xs, 9):
+        .Some(v) => println("found $v")
+        .None => println("missing")
+    match safe_div(7, 2):
+        .Ok(q) => println("ok $q")
+        .Err(e) => println("err $e")
+    match safe_div(1, 0):
+        .Ok(q) => println("ok $q")
+        .Err(e) => println("err $e")
+    toks := [Token.Num(7), Token.Plus, Token.Word("hi")]
+    for t in toks:
+        println(describe(t))
+    let mut ages: Map[string, i32] = {"ann": 31, "bob": 27}
+    ages["cy"] = 40
+    ann := ages["ann"]
+    cy := ages["cy"]
+    println("ann $ann, cy $cy")
+    pair := (ann, "years")
+    let (n, unit) = pair
+    println("$n $unit")
+    println(ages.len())
