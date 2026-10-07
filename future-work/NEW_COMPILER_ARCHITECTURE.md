@@ -32,7 +32,9 @@ the orchestrator's proposals kept apart. Last restructured 2026-10-06.
   See [Prototype Baselines](#prototype-baselines-to-beat-2026-10-06).
 - Multiple backends: **Wasm** and **Cranelift** first, **LLVM** and **JS**
   at low priority. See [Toolchain-Wide Features](#toolchain-wide-features).
-- A program database instead of a language server. See
+- A program database instead of a language server, after the first
+  release.
+- Pillar 1 features are triaged: day 1, v1, later and dropped. See
   [Pillar 1 features](#pillar-1-features-agent-wait-time-and-retries).
 - NonEscapable comes after the first release.
 - No serializable closures in the first release.
@@ -120,7 +122,7 @@ here (owner, 2026-10-06).
 | `errors-per-run` | a file with N independent mistakes: diagnostics reported in one `hd check` | all N reported, each once |
 | `diag-location` | mistake corpus: share of diagnostics whose line is the mistake's line | ≥ 95% |
 | `fixit-safety` | applying a fix-it (in a temp copy) never adds a new error | 100% |
-| `lookup-latency` | `hd doc ITEM`, `hd def NAME`, `hd explain CODE` wall time | p95 ≤ 100 ms |
+| `lookup-latency` | canned program-database queries (`hd callers`, `hd needs Http`) wall time | p95 ≤ 100 ms |
 | `fmt` | `hd fmt` time on the 10k-line package, and idempotence (if hd has a formatter) | ≤ 200 ms; idempotent |
 | `release-check-cost` | runtime cost of overflow and bounds checks: the same test suite in a debug vs a release build, since agents run tests in debug | debug ≤ 1.3x release |
 
@@ -129,7 +131,7 @@ here (owner, 2026-10-06).
 | Script | Measures | Target |
 |---|---|---|
 | `resources` | CPU-seconds and peak RSS for check, test and build on generated small, 10k- and 50k-line packages, cold and warm | warm check of 10k lines ≤ 0.2 CPU-s and ≤ 50 MB |
-| `long-session` | RSS across 1,000 REPL inputs or watch-mode rechecks | flat (no growth beyond a fixed bound) |
+| `long-session` | RSS across 1,000 REPL inputs or incremental rechecks | flat (no growth beyond a fixed bound) |
 | `startup` | `hd --version` and checking an empty file: wall time, CPU, RSS | ≤ 20 ms, ≤ 10 MB |
 | `concurrency` | N = 1, 4, 16, 64 concurrent `hd check` processes; p95 latency vs N = 1, total CPU vs N | ≤ 1.5x at N = cores; total CPU sublinear in N with a shared cache |
 | `disk` | artifacts plus toolchain size per worktree | ≤ 10 MB |
@@ -182,95 +184,89 @@ bugs its tests catch.
 Owner, 2026-10-06 (candidate features): "just think about features; later,
 if a feature is too hard to implement, removing it is fine." Every item is in
 until its cost says otherwise. Items marked ✓ exist in the prototype or are
-already decided. The owner approved the pillar 1 list ("all these are good")
-and added tiered compilation and module hot reloading. For the other
-pillars the owner said "add all", and triage comes later.
+already decided. Pillar 1 is triaged. For the other pillars the owner said
+"add all", and triage comes later.
 
 ### Pillar 1 Features: Agent Wait Time And Retries
 
-Owner-approved, 2026-10-06. Items under "More ideas" were added on the
-owner's "add all" (2026-10-06); triage later.
+Triaged with the owner, 2026-10-06. **Day 1** items shape the architecture
+and would cost a rewrite to add later. **v1** items ship in the first
+release. **Later** items come after v1, with any hook they need reserved
+now.
 
-- **Waiting:**
-  - incremental checking (must-have);
-  - parallel checking (must-have);
-  - skip dependency bodies, because explicit signatures make them
-    unnecessary;
-  - early cutoff: an unchanged interface hash stops propagation;
-  - std checked in advance and built into the binary, with zero-copy,
-    memory-mappable cache files;
-  - `hd test --affected` (run only the tests the change can reach),
-    `--watch`, run in parallel;
-  - test runs that compile once and start from a snapshot;
-  - `hd watch` / `hd dev`: incremental check, test and rerun on save;
-  - fast debug builds: a lightly optimized debug build with cheap overflow
-    and bounds checks;
-  - no exponential algorithms: bounded impl search (F-626), iterative
-    passes for deep nesting and chains, arenas;
-  - hard limits (recursion, instantiation depth, impl-search steps)
-    instead of hangs, each with its own diagnostic;
-  - a pathology fuzzer that flags superlinear growth.
-- **Tiered compilation** (owner). Dev builds are very fast; release builds
-  are optimized. For example: a fast tier with a cheap Cranelift build or a
-  baseline compiler for `hd run`, `hd test` and `hd dev`, and an optimizing
-  tier (optimized Cranelift, later LLVM) for release. The design is deferred.
-- **Module hot reloading** (owner), for server and frontend programs. In a
-  running program, swap a changed module's code without restarting. The
-  rules for state that crosses a reload are design work for later.
-  Candidate form: hot reload in dev swaps changed functions into the
-  running program.
-- **Tokens read:**
-  - compact diagnostics by default, with details on request (today one
-    diagnostic is 7.4 KB), as JSON;
-  - the program database (below);
-  - `hd doc` Markdown plus the git-distributed source;
-  - `hd doc`, `def` and `explain` answered from the query database;
-    `hd explain CODE` ✓, `hd doc` ✓ (HTML and Markdown);
-  - deterministic output everywhere.
-- **Program database instead of a language server** (owner, 2026-10-06:
-  "program database is better than lsp in agentic world"). The compiler
-  writes queryable facts about the program, for example SQLite in `build/`:
-  declarations, signatures, requirement rows, call edges, implementations,
-  derives and diagnostics. An agent answers structural questions with one
-  query. It falls out of the incremental engine's stored facts. The
-  2026-09-27 on-hold decisions are in git history. A language server for
-  human editors is optional, later.
-- **Retries:**
-  - error recovery, so all independent mistakes show in one run: a lossless
-    CST parser with error recovery, plus checker recovery per item with
-    "poison" types, so one error never hides or multiplies others;
-  - one diagnostic per root cause;
-  - exact-edit fix-its (machine-readable, as exact text edits) and
-    `hd fix`, which applies every safe fix-it in one command;
-  - did-you-mean, import and `let mut` hints;
-  - `hd fmt`, on the same CST;
-  - a notebook-style REPL whose cells rerun when what they depend on
-    changes.
-- **More ideas, waiting:**
-  - a syntax-and-names tier (`hd check --fast`, under 10 ms);
-  - scoped `hd check FILE`;
-  - running tests even when unrelated code fails to check (deferred type
-    errors: a broken module panics only if a test reaches it);
-  - background test precompilation in watch mode.
-- **More ideas, tokens:**
-  - diff-aware output ("fixed 3, new 1");
-  - capped, grouped output (`--max-errors`, a summary mode);
-  - quiet passing tests;
-  - structured assert diffs that print only the differing fields;
-  - a repro command on every failure;
-  - canned program-database queries (`hd callers`, `hd needs Http`).
-- **More ideas, retries:**
-  - typed holes (`_` / `todo()` report the expected type and the names in
-    scope that fit);
-  - requirement-propagating fix-its (add `$ Clock` and carry it up through
-    callers with `hd fix`);
-  - code-generating fix-its: missing match arms, `impl` stubs,
-    `@derive(Eq)`, auto-imports;
-  - signature suggestions offered as explicit fix-its. Declarations are
-    still never inferred; the agent accepts the edit;
-  - a worked example for every error code in `hd explain`;
-  - project templates (`hd new --template service|cli|library`);
-  - deterministic tests with the seed printed on failure.
+**Day 1:**
+
+- incremental checking on a query engine (must-have);
+- parallel checking (must-have);
+- early cutoff: an unchanged interface hash stops propagation;
+- dependency bodies skipped, because explicit signatures make them
+  unnecessary;
+- a lossless CST parser with error recovery;
+- checker recovery per item with "poison" types, so one error never hides
+  or multiplies others;
+- no exponential algorithms (bounded impl search, F-626; iterative passes
+  for deep nesting and chains), and hard limits (recursion, instantiation
+  depth, impl-search steps) instead of hangs, each with its own
+  diagnostic;
+- deterministic output everywhere;
+- the diagnostic format: compact by default with details on request (today
+  one diagnostic is 7.4 KB), JSON, and a field for exact-edit fix-its.
+
+**v1:**
+
+- std checked in advance and built into the binary;
+- a fast debug tier (the first tier of tiered compilation): lightly
+  optimized, with cheap overflow and bounds checks, for `hd run` and
+  `hd test`;
+- one diagnostic per root cause;
+- exact-edit fix-its and `hd fix`, which applies every safe fix-it in one
+  command; did-you-mean, import and `let mut` hints;
+- `hd fmt`, on the same CST;
+- scoped `hd check FILE`;
+- `hd test --affected` (only the tests the change can reach), run in
+  parallel;
+- capped, grouped output (`--max-errors`, a summary mode), quiet passing
+  tests, a repro command on every failure, and the seed printed on a
+  failing test;
+- structured assert diffs that print only the differing fields;
+- typed holes: `_` / `todo()` report the expected type and the names in
+  scope that fit;
+- a pathology fuzzer in CI that flags superlinear growth;
+- `hd doc` ✓ (HTML and Markdown, [HD_DOC.md](HD_DOC.md)).
+
+**Later:**
+
+- **Program database instead of a language server** (owner: "program
+  database is better than lsp in agentic world"). The compiler writes
+  queryable facts, for example SQLite in `build/`: declarations,
+  signatures, requirement rows, call edges, implementations, derives and
+  diagnostics. Canned queries (`hd callers`, `hd needs Http`) sit on it.
+  Day 1 hook: the engine keeps its facts queryable. The schema waits until
+  the engine settles, because it becomes a public API.
+- **The optimizing tier** of tiered compilation (optimized Cranelift, later
+  LLVM). Day 1 hook: the IR boundary between tiers.
+- **Module hot reload** (owner), for server and frontend programs. It needs
+  a design pass after v1. Starting point, as Dart and the JVM ship: swap
+  function bodies only, and restart on a signature or `data` layout
+  change. Open questions: a task suspended in an old body (finish in old
+  code, as Erlang does, or restart); the trigger (`hd run --hot` watching
+  its own sources). Day 1 hook: dev-tier calls go through a table.
+- deferred type errors: a broken item compiles to a panic, so tests that
+  don't reach it still run;
+- code-generating fix-its (missing match arms, `impl` stubs, `@derive(Eq)`,
+  auto-imports), requirement-propagating fix-its (add `$ Clock` and carry
+  it up through callers), and signature suggestions offered as explicit
+  fix-its (declarations are still never inferred);
+- diff-aware output ("fixed 3, new 1"), against the last run's stored
+  result;
+- a notebook-style REPL whose cells rerun when what they depend on
+  changes;
+- a language server for human editors, on the same engine.
+
+**Dropped** (owner, 2026-10-06): `hd explain` and its worked examples;
+`hd watch` / `hd dev`; background test precompilation; tests started from
+a snapshot; the `hd check --fast` syntax-and-names tier (incremental
+checking already covers it); project templates.
 
 ### Pillar 2 Features: Agent Scalability
 
@@ -333,8 +329,7 @@ Owner: "add all, triage later", 2026-10-06. Runtime performance is
   - fast property tests (integrated shrinking, cases run in one instance,
     compiled `Arbitrary` generators), plus a regression file of failing
     seeds that runs first; property tests ✓;
-  - fast unit and integration tests (snapshot start, pooled runner,
-    parallel runs);
+  - fast unit and integration tests (pooled runner, parallel runs);
   - `hd fuzz` (coverage-guided, reusing the derived `Arbitrary`
     generators), `hd test --coverage`, snapshot tests with `--update`;
   - cross-backend conformance and differential testing;
