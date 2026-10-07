@@ -225,8 +225,9 @@ A slot is a real TIR instruction with tag `Slot`, which lives as long as
 the body, and `fill` writes it once
 ([§3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation),
 Codex re-review N-I1). A slot reserved inside a trial is truncated with
-the instructions. A slot reserved before a trial and filled during it
-goes into the builder's `fills` log, and rollback empties it again
+the instructions. A slot reserved before a trial is never filled during
+it: the checker appends the fill to its `deferred_fills` column, which
+rollback truncates, and applies the column once no trial is open
 (section 3.5). A slot still empty at the end of the body is a checker bug,
 which `finish` reports as an internal error.
 
@@ -874,12 +875,14 @@ unchanged. Two writes reach such state, and each now has a class:
 - **Fills of older slots.** A trial may bind a variable that wakes an
   obligation created before the trial, such as a stalled method call
   (section 1.5, case 4). Retrying it may teach bindings, which are
-  trailed, and fill the call's slot. The builder records a fill of a
-  slot reserved before the checkpoint in its `fills` log, whose length
-  is in `TirCheckpoint`; rollback empties each logged slot again
+  trailed, and fill the call's slot. A slot reserved before the
+  checkpoint is not filled during the trial: the checker appends the
+  fill to its `deferred_fills` column, whose length is in its
+  `Checkpoint`; rollback truncates the column, and the column is applied
+  in order once no trial is open
   ([§3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation),
-  Codex re-review N-I1). So a discarded candidate's callee is never left
-  installed. The checker needs no column of its own for this.
+  Codex re-review N10 and N-I1). So a discarded candidate's callee is
+  never installed, and the builder keeps no fill log.
 - **The statement's open literal classes** were a stack. A trial adds
   classes to them, so they are now an append-only column, truncated
   like the others.
