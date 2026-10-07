@@ -586,13 +586,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     right: HirExpression,
   ): HirExpression {
     // Function identity is unspecified, so a direct `is` on a function
-    // value is rejected (05-expressions.md#r-expr.is.function).
+    // value is rejected (05-expressions.md#r-expr.is.function.operand).
     const functionOperand = [left, right].find(
       (operand) => functionParts(readonlyType(operand.type)) !== undefined,
     );
     if (functionOperand)
       this.fail(
-        "unsupported-function-identity",
+        "identity-requires-references",
         `identity of function value of type '${displayType(functionOperand.type)}' is unspecified`,
         expression.span,
       );

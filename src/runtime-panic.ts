@@ -15,6 +15,12 @@ export const RUNTIME_PANIC_NAMES = [
   // Appended to preserve the prototype's existing numeric Wasm panic codes.
   "host-contract",
   "stack-exhausted",
+  // Stable categories the prototype never raises, listed so that
+  // `expect_panic` accepts them (06-control-flow.md#r-flow.panic.stable-categories).
+  "heap-exhausted",
+  "time-limit",
+  "suspension-deadlock",
+  "suspension-forbidden-context",
 ] as const;
 
 export type RuntimePanicName = (typeof RUNTIME_PANIC_NAMES)[number];
