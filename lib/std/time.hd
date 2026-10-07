@@ -15,16 +15,24 @@ use std.error.Error
 use std.ops.{Add, Neg, Sub, num_suffix}
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
 
+## A distance in time, as a count of whole milliseconds, positive or negative.
+## See [std-time.suffix.std.duration](../../spec/std/time.md#r-std-time.suffix.std.duration).
 pub data Duration:
     millis: i64
 
 impl Duration:
+    ## Returns a `Duration` of that many milliseconds.
+    ## See [std-time.suffix.std.duration-api](../../spec/std/time.md#r-std-time.suffix.std.duration-api).
     pub fn milliseconds(count: i64) -> Duration:
         Duration { millis: count }
 
+    ## Returns a `Duration` of that many seconds.
+    ## See [std-time.suffix.std.duration-api](../../spec/std/time.md#r-std-time.suffix.std.duration-api).
     pub fn seconds(count: i64) -> Duration:
         Duration { millis: count * 1000 }
 
+    ## The milliseconds since the origin that the instant holds.
+    ## See [std-time.instant.as-milliseconds](../../spec/std/time.md#r-std-time.instant.as-milliseconds).
     pub fn as_milliseconds(self) -> i64:
         self.millis
 
@@ -122,24 +130,34 @@ impl Ord for Duration:
         self.millis.cmp(other.millis)
 
 @num_suffix
+## The `ms` suffix: a `Duration` of that many milliseconds, as in `250ms`.
+## See [std-time.suffix.std.ms](../../spec/std/time.md#r-std-time.suffix.std.ms).
 pub fn ms(count: i64) -> Duration:
     Duration::milliseconds(count)
 
 @num_suffix
+## The `s` suffix: a `Duration` of that many seconds, as in `5s`.
+## See [std-time.suffix.std.s](../../spec/std/time.md#r-std-time.suffix.std.s).
 pub fn s(count: i64) -> Duration:
     Duration::seconds(count)
 
 @num_suffix
+## The `min` suffix: a `Duration` of that many minutes, as in `90min`.
+## See [std-time.suffix.std.min](../../spec/std/time.md#r-std-time.suffix.std.min).
 pub fn min(count: i64) -> Duration:
     Duration::seconds(count * 60)
 
 @num_suffix
+## The `h` suffix: a `Duration` of that many hours, as in `2h`.
+## See [std-time.suffix.std.h](../../spec/std/time.md#r-std-time.suffix.std.h).
 pub fn h(count: i64) -> Duration:
     Duration::seconds(count * 3600)
 
 # The host capability that reads time and waits (spec/std/time.md#clock).
 # `sleep!` takes `mut self`, so a provider may advance its own time
 # (r-std-time.clock.mut).
+## The host capability to read the clock and to wait: `now`, `monotonic`, and `sleep!`.
+## See [std-time.clock.decl](../../spec/std/time.md#r-std-time.clock.decl).
 pub trait Clock:
     fn now(self) -> Timestamp
     fn monotonic(self) -> Instant
@@ -147,37 +165,53 @@ pub trait Clock:
 
 # The current time of the covering `Clock` provider
 # (spec/std/time.md#r-std-time.helper.now).
+## Returns the current wall-clock time as a `Timestamp`.
+## See [std-time.helper.now](../../spec/std/time.md#r-std-time.helper.now).
 pub fn now() -> Timestamp $ Clock:
     $.use(Clock).now()
 
 # Waits `duration` on the covering `Clock` provider
 # (spec/std/time.md#r-std-time.helper.sleep).
+## Completes once `duration` has passed on the clock.
+## See [std-time.helper.sleep](../../spec/std/time.md#r-std-time.helper.sleep).
 pub fn sleep!(duration: Duration) -> void $ Clock:
     let mut clock = $.use(Clock)
     clock.sleep!(duration)
 
 # Whole milliseconds since the Unix epoch, in UTC (r-std-time.timestamp.decl).
+## A point in UTC time, held as whole milliseconds since the Unix epoch.
+## See [std-time.timestamp.decl](../../spec/std/time.md#r-std-time.timestamp.decl).
 pub data Timestamp:
     millis: i64
 
 impl Timestamp:
+    ## Returns the timestamp that holds `millis` milliseconds since the Unix epoch.
+    ## See [std-time.timestamp.api-milliseconds](../../spec/std/time.md#r-std-time.timestamp.api-milliseconds).
     pub fn from_unix_milliseconds(millis: i64) -> Timestamp:
         Timestamp { millis: millis }
 
     # The inverse of `from_unix_milliseconds` (r-std-time.timestamp.unix-milliseconds).
+    ## The milliseconds since the Unix epoch that the timestamp holds.
+    ## See [std-time.timestamp.unix-milliseconds](../../spec/std/time.md#r-std-time.timestamp.unix-milliseconds).
     pub fn unix_milliseconds(self) -> i64:
         self.millis
 
     # Negative when `earlier` is the later one (r-std-time.timestamp.since).
+    ## The time from `earlier` to the timestamp, negative when `earlier` is the later one.
+    ## See [std-time.timestamp.since](../../spec/std/time.md#r-std-time.timestamp.since).
     pub fn since(self, earlier: Timestamp) -> Duration:
         Duration::milliseconds(self.millis - earlier.millis)
 
     # The UTC calendar date (r-std-time.date.of-timestamp).
+    ## The calendar day of the timestamp in UTC.
+    ## See [std-time.timestamp.api-milliseconds](../../spec/std/time.md#r-std-time.timestamp.api-milliseconds).
     pub fn date(self) -> Date:
         civil_from_days(self.days())
 
     # `YYYY-MM-DDTHH:MM:SSZ`, with `.mmm` before the `Z` when the
     # milliseconds are not zero (r-std-time.rfc3339.text).
+    ## The timestamp as RFC 3339 text in UTC.
+    ## See [std-time.timestamp.api-milliseconds](../../spec/std/time.md#r-std-time.timestamp.api-milliseconds).
     pub fn to_rfc3339(self) -> string:
         civil := civil_from_days(self.days())
         let clock = self.millis % 86400000
@@ -189,6 +223,8 @@ impl Timestamp:
             text = text + "." + zero_padded(clock % 1000, 3)
         text + "Z"
 
+    ## Reads RFC 3339 text into a timestamp.
+    ## See [std-time.rfc3339.parse](../../spec/std/time.md#r-std-time.rfc3339.parse).
     pub fn parse_rfc3339(text: string) -> Result[Timestamp, TimeParseError]:
         parse_rfc3339_codes(rfc3339_codes(text))
 
@@ -234,9 +270,17 @@ impl Ord for Timestamp:
 
 # A calendar date in the proleptic Gregorian calendar, with astronomical
 # year numbering: year 0 is 1 BC (spec/std/time.md#dates).
+## A calendar day in UTC, in the proleptic Gregorian calendar.
+## See [std-time.date.decl](../../spec/std/time.md#r-std-time.date.decl).
 pub data Date:
+    ## The year, with a year 0.
+    ## See [std-time.date.decl](../../spec/std/time.md#r-std-time.date.decl).
     pub year: i32
+    ## The month, from 1 to 12.
+    ## See [std-time.date.decl](../../spec/std/time.md#r-std-time.date.decl).
     pub month: i32
+    ## The day of the month.
+    ## See [std-time.date.decl](../../spec/std/time.md#r-std-time.date.decl).
     pub day: i32
 
 impl Eq for Date:
@@ -248,6 +292,8 @@ impl Debug for Date:
         out.debug_struct("Date").field("year", self.year).field("month", self.month).field("day", self.day).finish()
 
 # Why RFC 3339 text did not parse (spec/std/time.md#time-parse-errors).
+## Why RFC 3339 text failed to parse: the kind, and the byte position.
+## See [std-time.parse-error.declared](../../spec/std/time.md#r-std-time.parse-error.declared).
 pub enum TimeParseError:
     # A character that the grammar does not allow at its place.
     InvalidCharacter(position: usize)
@@ -439,10 +485,14 @@ fn parse_rfc3339_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
 
 # Whole milliseconds since an origin that the provider chooses
 # (r-std-time.instant.decl).
+## A reading of the monotonic clock, for measuring intervals.
+## See [std-time.instant.decl](../../spec/std/time.md#r-std-time.instant.decl).
 pub data Instant:
     millis: i64
 
 impl Instant:
+    ## Returns the instant that holds `millis` milliseconds since the provider's origin.
+    ## See [std-time.instant.api-milliseconds](../../spec/std/time.md#r-std-time.instant.api-milliseconds).
     pub fn from_milliseconds(millis: i64) -> Instant:
         Instant { millis: millis }
 
@@ -450,6 +500,8 @@ impl Instant:
     pub fn as_milliseconds(self) -> i64:
         self.millis
 
+    ## The time from `earlier` to the instant.
+    ## See [std-time.instant.api-milliseconds](../../spec/std/time.md#r-std-time.instant.api-milliseconds).
     pub fn since(self, earlier: Instant) -> Duration:
         Duration::milliseconds(self.millis - earlier.millis)
 
@@ -479,10 +531,14 @@ impl Ord for Instant:
 # The deterministic `Clock` (spec/std/time.md#manual-clock): its current
 # time is its whole state. Virtual time advances only by `sleep!`, which
 # returns at once (r-std-time.manual.sleep).
+## The deterministic `Clock` provider: virtual time that a test advances.
+## See [std-time.manual.decl](../../spec/std/time.md#r-std-time.manual.decl).
 pub data ManualClock:
     current: Timestamp
 
 impl ManualClock:
+    ## Returns a `ManualClock` whose current time starts at `start`.
+    ## See [std-time.manual.decl](../../spec/std/time.md#r-std-time.manual.decl).
     pub fn new(start: Timestamp) -> mut ManualClock:
         ManualClock { current: start }
 
