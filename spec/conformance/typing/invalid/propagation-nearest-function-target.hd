@@ -1,0 +1,4 @@
+# test: propagation uses the nearest function as its target
+# Spec 05 Propagation Targets: expr.try.target.nearest-function.
+fn unwrap(value: i32?) -> i32:
+    value?  # diagnostic: invalid-result-propagation

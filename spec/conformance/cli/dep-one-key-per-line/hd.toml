@@ -1,0 +1,6 @@
+[package]
+name = "shop"
+
+[dependencies]
+money = { path = "money", version = "0.4.0" }
+currency = { path = "money", version = "0.4.2" }

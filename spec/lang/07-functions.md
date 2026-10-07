@@ -443,7 +443,7 @@ fn second() -> i32: apply_list(sum)  # error: type-mismatch
 #### No Access Permission
 
 1. r[fn.type.no-permission] A function value carries no access permission, and calling one never needs mutable access to it.
-2. r[fn.type.no-mut] `mut` applied to a function type, as in `mut (fn() -> i32)` or `mut Fn[(), i32, $()]`, is invalid.
+2. r[fn.type.no-mut] `mut` applied to a function type, as in `mut (fn() -> i32)` or `mut Fn[(), i32, $()]`, is an error. Error: `syntax-error`.
 3. r[fn.type.no-mut.syntax] `mut` written directly before `fn`, in a type or a closure header, is an error. Error: `syntax-error`.
 
 ```text

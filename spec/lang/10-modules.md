@@ -57,13 +57,13 @@ pdf = "github.com/acme/pdf@0.4.1-0.20260912081500-3f2c9e1a7b6d"
 ```
 
 1. r[module.dep.key-name] Each key of `[dependencies]` and `[dev-dependencies]` names one dependency, which source writes as `dep.NAME`. `NAME` is the key with each `-` replaced by `_`, so the key `my-app` is `dep.my_app`.
-2. r[module.dep.key-name.collision] Two keys of one manifest whose `NAME`s are equal, such as `my-app` and `my_app`, are invalid.
+2. r[module.dep.key-name.collision] Two keys of one manifest whose `NAME`s are equal, such as `my-app` and `my_app`, are an error. Error: `invalid-requirement`.
 3. r[module.dep.requirement-form] Each value is a dependency requirement `PATH@VERSION`, or a [path requirement](#r-module.path-dep.form) on a local package. A dependency requirement is a host path, `@`, and a version or pseudo-version without a leading `v`.
 4. r[module.dep.path-manifest-only] A host path appears only in the manifest. Source names a dependency only through its key.
 5. r[module.dep.identity] A resolved package's identity is its host path and its [compatibility line](#r-module.version.line).
 6. r[module.dep.no-self-path] A manifest does not state its own host path. A fetched package's host path is the one that the dependency requirement which fetched it names.
 7. r[module.dep.two-lines] Two compatibility lines of one host path are two dependencies with two keys, as `json` and `json_v1` above.
-8. r[module.dep.one-key-per-line] Two keys of one manifest that name the same host path and compatibility line are invalid, since one package would then have two names.
+8. r[module.dep.one-key-per-line] Two keys of one manifest that name the same host path and compatibility line are an error, since one package would then have two names. Error: `invalid-requirement`.
 9. r[module.dep.no-major-suffix] A host path carries no major-version suffix such as `/v2`.
 
 > **Why.** Go puts `/v2` in the path because its imports repeat the path.
@@ -112,10 +112,10 @@ A package's versions are the git tags of its repository:
 6. r[module.version.order] Versions, pseudo-versions included, are ordered by SemVer 2.0.0 precedence.
 7. r[module.version.line] The **compatibility line** of a version is its major number when the major is at least 1, and `0.MINOR` when the major is 0.
 8. r[module.version.pseudo.release] A tagged version's manifest may require a pseudo-version.
-9. r[module.version.no-bare-path-release] A tagged version's manifest must not hold a path requirement that carries no version. Such a version is rejected when it is fetched, and the toolchain does not tag one.
-10. r[module.version.tag-missing] A dependency requirement whose version is not a pseudo-version, and whose package has no tag for that version, is invalid. So `lint = "github.com/acme/tools/lint@2.4.1"` is invalid when the repository has no tag `lint/v2.4.1`.
+9. r[module.version.no-bare-path-release] A tagged version's manifest must not hold a path requirement that carries no version. Fetching such a version is an error, and the toolchain does not tag one. Error: `invalid-requirement`.
+10. r[module.version.tag-missing] A dependency requirement whose version is not a pseudo-version, and whose package has no tag for that version, is an error. So `lint = "github.com/acme/tools/lint@2.4.1"` is an error when the repository has no tag `lint/v2.4.1`. Error: `unknown-version`.
 11. r[module.version.no-fallback] The toolchain never falls back to an untagged commit or to a nearby version in place of a missing tag.
-12. r[module.version.pseudo-missing] A pseudo-version whose `HASH` names no commit of the package's repository, or whose `TIME` is not that commit's time, is invalid. A missing tag is invalid too.
+12. r[module.version.pseudo-missing] A pseudo-version whose `HASH` names no commit of the package's repository, or whose `TIME` is not that commit's time, is an error. A missing tag is an error too. Error: `unknown-version`.
 13. r[module.version.pseudo-missing.no-fallback] The toolchain never falls back to another commit or version in place of such a pseudo-version.
 
 Pseudo-versions take Go's three forms:
@@ -179,7 +179,7 @@ A committed `hd.sum` file is what makes a fetched dependency trusted.
 
 1. r[module.sum.file] A root package or workspace has an `hd.sum` file beside its manifest. It records a hash of the source tree of each selected version.
 2. r[module.sum.committed] `hd.sum` is kept under version control with the manifest.
-3. r[module.sum.mismatch] A fetched tree whose hash differs from its `hd.sum` entry is rejected. It is never only a warning.
+3. r[module.sum.mismatch] A fetched tree whose hash differs from its `hd.sum` entry is an error. It is never only a warning. Error: `sum-mismatch`.
 4. r[module.sum.only] `hd.sum` is the only integrity source. A build must not require a checksum log, a proxy, or any service besides the repository hosts.
 5. r[module.sum.path] `hd.sum` holds no line for a package that a path requirement reaches, neither for its tree nor for its manifest. Its files are local and are never fetched.
 
@@ -238,7 +238,7 @@ json = "github.com/acme/json@2.1.0"
 6. r[module.workspace.path-version.locally] When the requiring package is built from local files, such a requirement names the package at its path. This covers a build in its workspace or in a checkout of its repository. The requirement's version is not used.
 7. r[module.workspace.path-version.fetched-version] In a fetched version of the requiring package, `path` is ignored, and the requirement is a dependency requirement on `version`.
 8. r[module.workspace.path-version.fetched-host] Its host path comes from the host path by which the requiring package was fetched, as [`module.dep.no-self-path`](#r-module.dep.no-self-path) gives every fetched package its host path.
-9. r[module.path-dep.fetched-outside] In a fetched version, a path requirement whose `DIR` lies outside the repository is invalid, since no host path names that directory.
+9. r[module.path-dep.fetched-outside] In a fetched version, a path requirement whose `DIR` lies outside the repository is an error, since no host path names that directory. Error: `invalid-requirement`.
 
 > **Note.** A package whose path requirements all carry a version is
 > released without a manifest edit, by
@@ -259,7 +259,7 @@ json = "github.com/acme/json@2.1.0"
 A manifest states which toolchain versions can build its package.
 
 1. r[module.toolchain.minimum] A manifest may state a minimum toolchain version, which is also its minimum `std` version.
-2. r[module.toolchain.graph-minimum] A build whose toolchain is older than the minimum of any package in the selected graph is rejected.
+2. r[module.toolchain.graph-minimum] A build whose toolchain is older than the minimum of any package in the selected graph is an error. Error: `toolchain-too-old`.
 3. r[module.toolchain.pin] Only a root manifest may pin one exact toolchain version.
 4. r[module.toolchain.no-editions] There are no language editions.
 

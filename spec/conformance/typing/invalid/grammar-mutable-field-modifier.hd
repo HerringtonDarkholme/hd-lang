@@ -1,0 +1,4 @@
+# test: mut is not a data-member modifier
+# Spec 02 Data Types: grammar.data.no-mut-modifier.
+data User:
+    mut name: string  # diagnostic: mutable-field-modifier

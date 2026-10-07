@@ -1,0 +1,8 @@
+# test: a dynamic trait binding must name a reachable associated type
+# Spec 09 Bound Associated Types: trait.dyn.binding.names.
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn read(source: dyn Supplier[Element = i32]) -> i32:  # diagnostic: unknown-associated-type
+    source.get()

@@ -740,7 +740,7 @@ constructor.
 10. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
 11. r[trait.target.function-type.valid] A function type is an ordinary target under the ownership and overlap rules below, so `impl Marker for fn(i32) -> i32` is valid in the package that declares `Marker`.
 12. r[trait.target.row-argument] A row argument in an implementation head, such as a function type's row, is a row parameter or a concrete row.
-13. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is invalid in an implementation head.
+13. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is an error in an implementation head. Error: `invalid-impl-target`.
 14. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
 15. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
 16. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[dyn Display]`.
@@ -1750,7 +1750,7 @@ fn run() -> i32:
 
 1. r[trait.dyn.binding.form] A trait value type may bind associated types after its positional arguments, as in `dyn Supplier[Item = i32]`.
 2. r[trait.dyn.binding.complete] It must bind every associated type of the trait and of its supertraits. A trait value type that leaves one unbound is an error. Error: `trait-not-dynamically-safe`.
-3. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type, and an ambiguous or unknown name is an error.
+3. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type. An unknown name is an error. Error: `unknown-associated-type`. An ambiguous name is an error. Error: `ambiguous-associated-type`.
 4. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
 5. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type. Any other such conversion is an error. Error: `type-mismatch`.
 6. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type. Order does not matter.

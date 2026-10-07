@@ -1,0 +1,7 @@
+# test: an indirect call cannot read a later top-level binding
+# Spec 03 Initialization Order: names.init.whole-module.
+result := read()  # diagnostic: top-level-read-before-initialization
+value := +1
+
+fn read() -> i32:
+    value

@@ -1,0 +1,4 @@
+# Two keys name one host path and compatibility line (module.dep.one-key-per-line).
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null,"file":"hd.toml","line":null},{"kind":"summary","errors":1,"status":101}]

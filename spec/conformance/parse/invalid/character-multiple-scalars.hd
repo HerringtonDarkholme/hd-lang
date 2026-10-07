@@ -1,0 +1,3 @@
+# test: a character literal decodes to exactly one Unicode scalar
+# Spec 01 String And Character Literals: lex.char.one-scalar.
+value := 'ab'  # diagnostic: invalid-token

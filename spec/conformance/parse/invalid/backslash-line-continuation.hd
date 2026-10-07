@@ -1,0 +1,4 @@
+# test: a backslash does not continue a physical line
+# Spec 01 Line Endings: lex.line.no-backslash.
+value := 1 + \  # diagnostic: invalid-token
+    2

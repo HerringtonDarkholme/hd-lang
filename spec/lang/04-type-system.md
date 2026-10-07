@@ -261,7 +261,7 @@ let ratio: f64 = 1   # error: type-mismatch
 
 1. r[types.literal.negation] Under an expected signed integer type, unary `-` applied directly to an integer literal is range-checked as a unit. The check considers the negated mathematical value.
 2. r[types.literal.negation.minimum] This makes `let minimum: i8 = -128` valid even though positive `128` does not fit in `i8`.
-3. r[types.literal.negation.unsigned] A negated literal is invalid for an unsigned expected type.
+3. r[types.literal.negation.unsigned] A negated literal for an unsigned expected type is an error. Error: `type-mismatch`.
 4. r[types.literal.negation.below-minimum] Values below the signed minimum remain errors.
 
 ```hd
@@ -1489,7 +1489,7 @@ See also: [Function And Closure Scopes](03-names-and-scopes.md#function-and-clos
 2. r[types.generic.explicit] Callers may supply the complete generic argument list explicitly.
 3. r[types.generic.short-list] An explicit list in an expression may omit trailing slots. Each omitted slot is inferred as a `_` slot is, then defaulted.
 4. r[types.generic.placeholder-slot] In a generic function's or method's explicit list, `_` may occupy any slot and requests inference for that argument.
-5. r[types.generic.placeholder.not-type] `_` is not itself a type and is invalid in ordinary type applications.
+5. r[types.generic.placeholder.not-type] `_` is not itself a type. Its use in an ordinary type application is an error. Error: `syntax-error`.
 6. r[types.generic.too-long] A type-argument list with more positional arguments than its declaration has generic parameters is an error, in an expression and in a written type alike. Error: `argument-count`.
 
 ```text

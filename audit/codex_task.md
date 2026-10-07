@@ -76,18 +76,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S1. Spec: Error Codes For Rules That Say "Invalid" Without One
-
-The chapter 01 and 02 fixture pass (2026-10-07) found rules that reject
-input but name no diagnostic, so no fixture can test them:
-`lex.float.no-bare-point` (`.5`, `1.`), `lex.char.one-scalar` (`'ab'`),
-`lex.line.no-backslash`. Find every such rule in `spec/lang/` (grep for
-"invalid", "rejected", "is an error" without a code nearby), give each
-an existing code where one fits or a new one in the chapter's
-diagnostics table, following `spec/STYLE.md`. Add one invalid fixture
-per rule and a KNOWN_FAILURES row where the prototype differs. One
-commit; push.
-
 ### S2. Fixtures: Chapters 03, 07 And 11
 
 `pnpm run spec coverage` reports chapter 03 (names and scopes) at 15%,

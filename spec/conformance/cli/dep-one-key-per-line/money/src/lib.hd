@@ -1,0 +1,2 @@
+# Spec 10 Dependency Requirements: module.dep.one-key-per-line.
+pub fn cents() -> i32: 100

@@ -1887,7 +1887,7 @@ The forms are:
 | r[annot.error.form.from] Conversion marker | `@from` | the only payload parameter of a variant of an error enum, or the only field of an error data type | generates `From` and marks the cause |
 | r[annot.error.form.source] Cause marker | `@source` | one payload parameter of a variant of an error enum, or one field of an error data type | marks the cause |
 
-7. r[annot.error.form.other] Any other `@error` line is invalid, and so is any other `@from` or `@source` line inside an error type.
+7. r[annot.error.form.other] Any other `@error` line is an error, and so is any other `@from` or `@source` line inside an error type. A form on the wrong target is `decorator-target-kind`; an invalid argument or marker argument is `invalid-error-marker`, as the rules below specify.
 8. r[annot.error.form.misplaced] A form written before a target that the table does not list for it is an error, reported on the form. Error: `decorator-target-kind`.
 9. r[annot.error.form.misplaced.examples] So `@error` before a function or a newtype, and a bare `@error` before a data type, are each `decorator-target-kind`. So are `@error("...")` before an enum, and `@from` beside a second payload member.
 10. r[annot.error.form.argument] An `@error` line whose arguments are neither one message nor `transparent` is an error, reported on the line. Error: `invalid-error-marker`.

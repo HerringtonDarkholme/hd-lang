@@ -200,7 +200,7 @@ let count = +0
 2. r[names.init.transitive] At every top-level executable statement, the compiler computes the transitive set of top-level bindings read by every module function or closure referenced by that statement.
 3. r[names.init.references] A function or closure counts as referenced whether it is called directly or passed as a value. It also counts when reached through a trait method, interpolation, iteration, or another implicit call.
 4. r[names.init.required] Every binding in that set must have been initialized by an earlier top-level statement.
-5. r[names.init.whole-module] This is a whole-module value-flow and call-graph check; an indirect read through a later function value is rejected like a direct forward binding reference.
+5. r[names.init.whole-module] This is a whole-module value-flow and call-graph check; an indirect read through a later function value is an error like a direct forward binding reference. Error: `top-level-read-before-initialization`.
 
 ```hd
 start := +1

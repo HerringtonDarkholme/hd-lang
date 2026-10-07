@@ -388,7 +388,7 @@ See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logi
 
 1. r[grammar.stmt.semantic] Whether a statement may appear in a particular value-producing block is a semantic rule.
 2. r[grammar.stmt.break] In particular, `break` is valid only inside a loop, and `break` with a value is valid only in a loop with an `else` suite.
-3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values). Other postfix expressions are rejected semantically.
+3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values). Other postfix expressions are errors. Error: `invalid-assignment-target`.
 4. r[grammar.stmt.copy-assign] The copy assignment `place ...= value` is valid only when the place is an embedded field.
 5. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
 
@@ -477,7 +477,7 @@ data_field = [ "pub" ], identifier, ":", type, [ "=", closed_expression ] ;
 embedded_field = named_type ;
 ```
 
-1. r[grammar.data.no-mut-modifier] `mut` is not a data-member modifier: `mut name: string` and `mut Base` are invalid.
+1. r[grammar.data.no-mut-modifier] `mut` is not a data-member modifier: `mut name: string` and `mut Base` are errors. Error: `mutable-field-modifier`.
 2. r[grammar.data.mut-type] A named field may instead declare a mutable type, as in `friend: mut User`.
 3. r[grammar.data.embedded] An embedded field must denote a data type and must not include `mut`.
 4. r[grammar.data.embedded.no-pub] An embedded field takes no `pub` marker, so `pub Base` in a data body is an error. Error: `syntax-error`.

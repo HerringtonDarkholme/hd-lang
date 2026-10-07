@@ -65,6 +65,7 @@ dep-dev-invalid-add	cli.dep.add.dev,cli.dep.add.check,cli.dep.add.other-table,cl
 dep-dev-remove	cli.dep.remove,cli.dep.dev-selected
 test-every-case	cli.test.every-case,cli.exit.test-failure,cli.test.env.cwd,cli.json.test.result
 dep-key-collision	cli.dep.invalid,cli.json.diagnostic.file
+dep-one-key-per-line	cli.dep.invalid,cli.json.diagnostic.file
 dep-no-library	cli.dep.no-library,cli.json.diagnostic.file
 dep-package-cycle	cli.exit.hd-failure,cli.json.lines.build
 dev-dependency-integration	cli.dep.path,cli.json.test.result
@@ -88,6 +89,7 @@ cap-partial-deny	cli.cap.value.list,cli.cap.partial.refuse,cli.cap.scope.path,cl
 cap-env-notice	cli.cap.env.get,cli.cap.env.notice,cli.cap.env.notice.text,cli.cap.source.flags-only,cli.cap.order.default
 wasm-run-built	cli.wasm.run,cli.wasm.mode,cli.wasm.host,cli.wasm.host.imports,cli.wasm.args,cli.wasm.status,cli.build.output,cli.run.file
 wasm-cap-flags-only	cli.wasm.grant,cli.wasm.total-deny,cli.cap.total.needs,cli.cap.total.refuse,cli.cap.total.status,cli.cap.total.any-module
+toolchain-too-old	cli.manifest.toolchain-keys,cli.json.diagnostic.file
 wasm-invalid	cli.wasm.invalid,cli.wasm.not-hd,cli.wasm.not-hd.detect,cli.exit.hd-failure
 build-library-only	cli.build.library-only,cli.build.directory,cli.profile.release,cli.run.default.one,cli.exit.hd-failure
 build-instantiation-too-deep	cli.build.depth-error,cli.check.no-depth-error,cli.json.lines.build,cli.json.diagnostic.file,cli.exit.hd-failure

@@ -1,0 +1,8 @@
+# test: a requirement key binding must name a reachable associated type
+# Spec 11 Bound Requirement Keys: req.key.binding.names.
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+fn count() -> i32 $ Store[Element = i32]:  # diagnostic: unknown-associated-type
+    0

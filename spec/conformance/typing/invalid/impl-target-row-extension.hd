@@ -1,0 +1,13 @@
+# test: an implementation target cannot extend a row parameter
+# Spec 09 Implementation Targets: trait.target.row-argument.extension.
+use std.function.Fn
+
+trait Marker:
+    fn mark(self) -> void
+
+trait Log:
+    fn write(self, text: string) -> void
+
+impl[$ R] Marker for Fn[(), i32, $ R + Log]:  # diagnostic: invalid-impl-target
+    fn mark(self) -> void:
+        pass

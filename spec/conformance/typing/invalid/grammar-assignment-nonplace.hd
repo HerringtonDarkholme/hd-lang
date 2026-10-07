@@ -1,0 +1,4 @@
+# test: an assignment left side must resolve to a mutable place
+# Spec 02 Semantic Statement Rules: grammar.stmt.assign-place.
+fn set() -> void:
+    (1 + 2) = 3  # diagnostic: invalid-assignment-target

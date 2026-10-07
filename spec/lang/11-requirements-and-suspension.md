@@ -622,7 +622,7 @@ fn wrong(id: string) -> User $ Store[Item = Post]:
 ```
 
 1. r[req.key.binding] A requirement key may bind associated types after its positional arguments, as in `$ Store[Item = User]`.
-2. r[req.key.binding.names] The rules of [Binding Names](09-traits.md#binding-names) apply to a key's bindings. So a binding may name a supertrait's associated type, and an unknown or ambiguous name is an error.
+2. r[req.key.binding.names] The rules of [Binding Names](09-traits.md#binding-names) apply to a key's bindings. So a binding may name a supertrait's associated type. An unknown name is an error. Error: `unknown-associated-type`. An ambiguous name is an error. Error: `ambiguous-associated-type`.
 3. r[req.key.binding.identity] Two keys are the same key when they name the same trait instantiation and bind the same associated types to the same types. Order does not matter.
 4. r[req.key.binding.identity.example] So `Store[Item = User]` and `Store[Item = Post]` are two keys, as `Repo[User]` and `Repo[Post]` are.
 5. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
@@ -1140,7 +1140,7 @@ fn main() -> i32: work!()  # error: bang-call-outside-suspension
 8. r[req.drive.block-on.direct.syntax] The check of a direct call reads only the forbidden context's own source, never the body of a function it calls.
 9. r[req.drive.block-on.indirect] A `block_on` call reached through a call while a forbidden context runs panics when it is reached. Panic: `suspension-forbidden-context`.
 10. r[req.drive.block-on.indirect.nested] A forbidden context runs from its start to its end, including every call it makes, even while another driver is active.
-11. r[req.drive.block-on.println] A `println` call follows the same rules: a direct call in a forbidden context is an error, and an indirect one panics, by [`module.console.println-block-on`](10-modules.md#r-module.console.println-block-on).
+11. r[req.drive.block-on.println] A `println` call follows the same rules: a direct call in a forbidden context is an error, and an indirect one panics, by [`module.console.println-block-on`](10-modules.md#r-module.console.println-block-on). Error: `suspension-forbidden-context`. Panic: `suspension-forbidden-context`.
 12. r[req.drive.block-on.under-driver] Outside a forbidden context, a `block_on` call is valid while another driver is active, as in `main!` or a test body. That holds whether it is reached directly or through non-suspending helpers.
 13. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
 14. r[req.drive.block-on.deadlock] When an inner `block_on` call's argument is pending and no host operation, timer, or wake can resume it, the call panics. Panic: `suspension-deadlock`.

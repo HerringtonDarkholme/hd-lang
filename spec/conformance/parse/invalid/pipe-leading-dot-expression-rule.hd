@@ -1,0 +1,6 @@
+# test: a leading-dot line cannot continue a pipe chain
+# Spec 05 Pipe Layout: expr.pipe.lines.
+fn size(raw: string) -> usize:
+    raw
+        |> _.slice(0, 8)
+        .len()  # diagnostic: syntax-error

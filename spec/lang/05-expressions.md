@@ -1340,7 +1340,7 @@ See also: [Error Trait](09-traits.md#error-trait),
 
 #### Propagation Targets
 
-1. r[expr.try.target.nearest-function] Postfix `?` is invalid when its nearest enclosing named function or closure does not provide the required optional or `Result` return type.
+1. r[expr.try.target.nearest-function] Postfix `?` is an error when its nearest enclosing named function or closure does not provide the required optional or `Result` return type. Error: `invalid-result-propagation`.
 2. r[expr.try.target.module-top-level] Module top-level statements do not provide an implicit propagation target.
 3. r[expr.try.target.test-body] A test body is a closure, so it is the propagation target of its `?`, with the result type [Propagation In Test Blocks](#propagation-in-test-blocks) gives it.
 4. r[expr.try.misuse] Every misuse of `?` is an error. Error: `invalid-result-propagation`.
@@ -2000,7 +2000,7 @@ fn loaded!(n: i32) -> i32:
 1. r[expr.pipe.single-line] A step must not contain an indented suite, such as a multi-line `match`, `if`, or closure body. Error: `multi-line-pipe-step`.
 2. r[expr.pipe.single-line.inline] A same-line closure or conditional inside a step is valid.
 3. r[expr.pipe.no-trailing-block] A step takes no trailing block, because a trailing block call must be a complete statement or right-hand side, as [`fn.trailing.position`](07-functions.md#r-fn.trailing.position) says.
-4. r[expr.pipe.lines] A chain may continue on lines that start with `|>`. A leading-dot line inside a chain is an error, as [Leading-Pipe Continuation](01-lexical-structure.md#leading-pipe-continuation) specifies.
+4. r[expr.pipe.lines] A chain may continue on lines that start with `|>`. A leading-dot line inside a chain is an error, as [Leading-Pipe Continuation](01-lexical-structure.md#leading-pipe-continuation) specifies. Error: `syntax-error`.
 
 ```text
 fn apply(value: i32, f: fn(i32) -> i32) -> i32: f(value)

@@ -1,0 +1,5 @@
+# test: an error marker with an invalid argument is rejected
+# Spec 14 Error Derivation: annot.error.form.other.
+@error(opaque)  # diagnostic: invalid-error-marker
+data Failure:
+    message: string

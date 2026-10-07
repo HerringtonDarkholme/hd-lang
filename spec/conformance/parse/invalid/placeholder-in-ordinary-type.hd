@@ -1,0 +1,4 @@
+# test: the call-site inference placeholder is not an ordinary type
+# Spec 04 Generic Arguments: types.generic.placeholder.not-type.
+fn count(values: List[_]) -> usize:  # diagnostic: syntax-error
+    values.len()

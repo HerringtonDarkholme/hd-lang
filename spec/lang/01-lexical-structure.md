@@ -59,7 +59,7 @@ the layout tokens emitted inside delimiters.
 1. r[lex.line.physical] A physical line ends at a line-feed character or at the end of the file.
 2. r[lex.line.crlf] A carriage-return followed by a line-feed is treated as one line ending.
 3. r[lex.line.bare-cr] A bare carriage return is a lexical error. Error: `invalid-token`.
-4. r[lex.line.no-backslash] hd-lang has no explicit backslash line-continuation syntax.
+4. r[lex.line.no-backslash] hd-lang has no explicit backslash line-continuation syntax. A backslash outside a literal is an error. Error: `invalid-token`.
 
 ```hd
 fn demo() -> i32:
@@ -668,7 +668,7 @@ Thus `1e9`, `1.5e-6`, and `2E+8` are floating-point literals.
 
 1. r[lex.float.forms] Floating-point literals use a decimal fraction, an exponent, or both.
 2. r[lex.float.point] A decimal point requires digits on both sides.
-3. r[lex.float.no-bare-point] `.5` and `1.` are invalid; write `0.5` and `1.0`.
+3. r[lex.float.no-bare-point] `.5` and `1.` are errors; write `0.5` and `1.0`. Error: `invalid-token`.
 4. r[lex.float.sep] Separators may occur between digits in the integer, fractional, and exponent parts.
 5. r[lex.float.sep-misplaced] A separator anywhere else in a floating-point literal, as in `1_.5`, `1.5_`, or `1e+_5`, is an error. Error: `invalid-token`.
 6. r[lex.float.no-hex] Hexadecimal floating-point notation is not supported.
@@ -797,7 +797,7 @@ dollar_text = ? a dollar sign followed by neither "{" nor a character that can s
 | `dollar_text` | a `$` followed by neither `{` nor a character that can start an identifier, as [`lex.interp.dollar-text`](#r-lex.interp.dollar-text) states |
 
 1. r[lex.string.text-runs] `string_text` and `multiline_string_text` are maximal nonempty runs of their corresponding character class between interpolation or escape segments.
-2. r[lex.char.one-scalar] A character literal must decode to exactly one Unicode scalar value.
+2. r[lex.char.one-scalar] A character literal that does not decode to exactly one Unicode scalar value is an error. Error: `invalid-token`.
 3. r[lex.string.scalars] A string literal is a sequence of Unicode scalar values.
 4. r[lex.string.single-line] A single-line literal must not contain an unescaped line ending or an unescaped copy of its own delimiter.
 

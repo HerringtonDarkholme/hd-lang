@@ -1,0 +1,5 @@
+# test: a direct println call is forbidden in a defer suite
+# Spec 11 Driving A Stored Suspension: req.drive.block-on.println.
+fn run() -> void $ Console:
+    defer:
+        println("done")  # diagnostic: suspension-forbidden-context

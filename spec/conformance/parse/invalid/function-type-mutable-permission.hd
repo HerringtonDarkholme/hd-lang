@@ -1,0 +1,4 @@
+# test: mut cannot apply to a parenthesized function type
+# Spec 07 No Access Permission: fn.type.no-mut.
+fn call(callback: mut (fn() -> i32)) -> i32:  # diagnostic: syntax-error
+    callback()

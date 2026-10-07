@@ -1,0 +1,3 @@
+# test: a float literal requires digits before its decimal point
+# Spec 01 Floating-Point Literals: lex.float.no-bare-point.
+value := .5  # diagnostic: invalid-token

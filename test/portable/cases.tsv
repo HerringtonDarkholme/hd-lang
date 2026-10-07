@@ -2821,6 +2821,17 @@ runtime/valid/comprehension-forms.hd	runtime
 runtime/valid/call-and-closure-forms.hd	runtime
 runtime/valid/header-and-bracket-expression-positions.hd	runtime
 runtime/valid/assignment-and-break-forms.hd	runtime
+parse/invalid/backslash-line-continuation.hd	parse
+parse/invalid/character-multiple-scalars.hd	parse
+typing/invalid/grammar-assignment-nonplace.hd	type
+typing/invalid/grammar-mutable-field-modifier.hd	type
+typing/invalid/indirect-top-level-forward-read.hd	type
+typing/invalid/propagation-nearest-function-target.hd	type
+typing/invalid/dyn-unknown-associated-binding.hd	type
+parse/invalid/pipe-leading-dot-expression-rule.hd	parse
+typing/invalid/requirement-key-unknown-binding-rule.hd	type
+typing/invalid/println-direct-forbidden-context-rule.hd	type
+typing/invalid/error-form-other-rule.hd	type
 parse/valid/decorator-lines-on-every-target.hd	parse
 parse/valid/use-declaration-forms.hd	parse
 runtime/valid/local-declarations-in-block-suites.hd	runtime

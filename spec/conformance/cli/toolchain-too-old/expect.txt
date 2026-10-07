@@ -1,0 +1,4 @@
+# The selected toolchain is older than the package minimum (module.toolchain.graph-minimum).
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"toolchain-too-old","severity":"error","message":null,"file":"hd.toml","line":null},{"kind":"summary","errors":1,"status":101}]
