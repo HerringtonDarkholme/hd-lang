@@ -14,11 +14,15 @@ use std.format.DebugWriter
 # The standard raw-text prefix (spec/std/text.md#r-std-text.prefix.std.r):
 # no escape is processed.
 @str_prefix
+## The standard string prefix: raw text with the values' `Display` text interpolated, as in `r"cost $5"`.
+## See [std-text.prefix.std.r](../../spec/std/text.md#r-std-text.prefix.std.r).
 pub fn r(t: Template[Display]) -> string:
     interpolate(t)
 
 # The raw pieces joined with the values' `Display` text, in order
 # (the specification names only `r`).
+## Joins a template's pieces with the `Display` text of each value, which every literal function uses.
+## See [std-text.prefix-helper.interpolate](../../spec/std/text.md#r-std-text.prefix-helper.interpolate).
 pub fn interpolate[T < Display](t: Template[T]) -> string:
     let pieces: mut List[string] = [t.raw_parts[0]]
     let index: usize = 0
@@ -30,7 +34,11 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
 
 # An invalid escape sequence: `position` is the byte offset of its backslash
 # (Literal Suffixes L21, L22; Strings STR10).
+## A template expression that is not well formed, at a byte position.
+## See [std-text.prefix-helper.escape-error](../../spec/std/text.md#r-std-text.prefix-helper.escape-error).
 pub data EscapeError:
+    ## The byte offset of the first character that makes the expression malformed.
+    ## See [std-text.prefix-helper.escape-error](../../spec/std/text.md#r-std-text.prefix-helper.escape-error).
     pub position: usize
 
 impl Eq for EscapeError:
@@ -41,6 +49,8 @@ impl Eq for EscapeError:
 # `EscapeError` at the first invalid one (spec/lang/01-lexical-structure.md#escape-sequences). Every escape is ASCII, so
 # the walk reads bytes and copies each run of plain text whole. The pieces
 # are joined once at the end (see `replace`).
+## Reads one template expression's escapes: `\n`, `\t`, `\r`, `\u{...}`, `\"`, `\$`, `\\`, `\{`, and `\}`.
+## See [std-text.prefix-helper.escapes](../../spec/std/text.md#r-std-text.prefix-helper.escapes).
 pub fn process_escapes(text: string) -> Result[string, EscapeError]:
     size := bytes_len(text)
     let pieces: mut List[string] = []
@@ -130,6 +140,8 @@ fn scalar_value(point: i32) -> bool:
     point >= 0 && point <= 1114111 && (point < 55296 || point > 57343)
 
 # A malformed byte sequence given to `string::from_utf8`.
+## A malformed byte sequence given to `string::from_utf8`.
+## See [std-text.utf8.error.declared](../../spec/std/text.md#r-std-text.utf8.error.declared).
 pub enum Utf8Error:
     # The byte offset where the first invalid sequence starts.
     InvalidSequence(position: usize)
@@ -153,10 +165,14 @@ impl Display for Utf8Error:
 
 impl string:
     # The number of bytes (spec/lang/04-type-system.md#r-types.string.len-bytes).
+    ## Returns the number of bytes in the string.
+    ## See [ilt-in-methods](../../spec/lang/10-modules.md#built-in-methods).
     pub fn len(self) -> usize:
         bytes_len(self)
 
     # The scalar values in order (spec/lang/10-modules.md#r-module.string.chars).
+    ## Iterates the string's characters, one Unicode scalar value at a time.
+    ## See [module.string.chars](../../spec/lang/10-modules.md#r-module.string.chars).
     pub fn chars(self) -> mut Iterator[char]:
         let at: usize = 0
         Iterator::from_fn(fn() -> char?:
@@ -169,6 +185,8 @@ impl string:
 
     # Each scalar value with the byte offset where its encoding starts
     # (spec/lang/10-modules.md#r-module.string.char-indices).
+    ## Iterates `(byte offset, character)` pairs, one per character.
+    ## See [module.string.char-indices](../../spec/lang/10-modules.md#r-module.string.char-indices).
     pub fn char_indices(self) -> mut Iterator[(usize, char)]:
         let at: usize = 0
         Iterator::from_fn(fn() -> (usize, char)?:
@@ -182,6 +200,8 @@ impl string:
         )
 
     # The bytes in order (spec/lang/10-modules.md#r-module.string.bytes).
+    ## Iterates the string's bytes, one `u8` at a time.
+    ## See [module.string.bytes](../../spec/lang/10-modules.md#r-module.string.bytes).
     pub fn bytes(self) -> mut Iterator[u8]:
         let at: usize = 0
         Iterator::from_fn(fn() -> u8?:
@@ -195,12 +215,16 @@ impl string:
     # boundaries with `start <= end`, or it panics with `index-out-of-bounds`
     # (spec/lang/10-modules.md#r-module.string.slice.bad-offset). The result
     # shares the bytes (spec/lang/10-modules.md#r-module.string.slice.shared).
+    ## Returns the characters from byte offset `start` up to `end`, sharing the string's bytes.
+    ## See [module.string.slice](../../spec/lang/10-modules.md#r-module.string.slice).
     pub fn slice(self, start: usize, end: usize) -> string:
         if start > end || !boundary(self, start) || !boundary(self, end):
             panic_with("index-out-of-bounds", "")
         bytes_slice(self, start, end)
 
     # A copy of the bytes.
+    ## Returns the string's bytes as a new list.
+    ## See [std-text.utf8.round-trip](../../spec/std/text.md#r-std-text.utf8.round-trip).
     pub fn to_utf8(self) -> List[u8]:
         let found: mut List[u8] = []
         for byte in self.bytes():
@@ -209,6 +233,8 @@ impl string:
 
     # The string whose UTF-8 encoding is `bytes`, or where they are not
     # valid UTF-8 (spec/lang/04-type-system.md#r-types.string.from-bytes).
+    ## Decodes well-formed UTF-8 bytes into a string, or the first malformed sequence.
+    ## See [std-text.utf8.round-trip](../../spec/std/text.md#r-std-text.utf8.round-trip).
     pub fn from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]:
         let index: usize = 0
         size := bytes.len()
@@ -244,26 +270,38 @@ impl string:
             index = index + width
         .Ok(string_from_bytes(bytes))
 
+    ## True exactly when the string has no characters.
+    ## See [std-text.more.is-empty](../../spec/std/text.md#r-std-text.more.is-empty).
     pub fn is_empty(self) -> bool:
         bytes_len(self) == 0
 
+    ## True when the string begins with `prefix`.
+    ## See [std-text.string.starts-with](../../spec/std/text.md#r-std-text.string.starts-with).
     pub fn starts_with(self, prefix: string) -> bool:
         bytes_len(prefix) <= bytes_len(self) && bytes_match(self, prefix, 0)
 
+    ## True when the string ends with `suffix`.
+    ## See [std-text.more.ends-with](../../spec/std/text.md#r-std-text.more.ends-with).
     pub fn ends_with(self, suffix: string) -> bool:
         bytes_len(suffix) <= bytes_len(self) && bytes_match(self, suffix, bytes_len(self) - bytes_len(suffix))
 
+    ## True when `needle` occurs in the string.
+    ## See [std-text.more.contains](../../spec/std/text.md#r-std-text.more.contains).
     pub fn contains(self, needle: string) -> bool:
         match byte_find(self, needle, 0):
             .Some(_) => true
             .None => false
 
     # The byte offset of the first `needle`; an empty needle is at 0.
+    ## Returns the byte offset of the first occurrence of `needle`, in `.Some`, or `.None`.
+    ## See [std-text.more.find](../../spec/std/text.md#r-std-text.more.find).
     pub fn find(self, needle: string) -> usize?:
         byte_find(self, needle, 0)
 
     # The pieces between separators, keeping empty ones. An empty separator
     # splits into one-scalar strings.
+    ## Splits the string around each occurrence of `separator`, in order.
+    ## See [std-text.string.split](../../spec/std/text.md#r-std-text.string.split).
     pub fn split(self, separator: string) -> List[string]:
         let pieces: mut List[string] = []
         size := bytes_len(self)
@@ -288,6 +326,8 @@ impl string:
 
     # Replaces non-overlapping matches from left to right. An empty `old`
     # inserts `replacement` at every scalar boundary.
+    ## Returns the string with each occurrence of `old` replaced by `replacement`.
+    ## See [std-text.string.replace](../../spec/std/text.md#r-std-text.string.replace).
     pub fn replace(self, old: string, replacement: string) -> string:
         size := bytes_len(self)
         # The pieces are joined once at the end, since appending each to
@@ -316,9 +356,13 @@ impl string:
         join(pieces, "")
 
     # Removes the Unicode White_Space property at both ends.
+    ## Returns the string without whitespace at either end.
+    ## See [std-text.string.trim](../../spec/std/text.md#r-std-text.string.trim).
     pub fn trim(self) -> string:
         self.trim_start().trim_end()
 
+    ## Returns the string without whitespace at its start.
+    ## See [std-text.more.trim-ends](../../spec/std/text.md#r-std-text.more.trim-ends).
     pub fn trim_start(self) -> string:
         size := bytes_len(self)
         let start: usize = 0
@@ -326,6 +370,8 @@ impl string:
             start = scalar_end(self, start)
         bytes_slice(self, start, size)
 
+    ## Returns the string without whitespace at its end.
+    ## See [std-text.more.trim-ends](../../spec/std/text.md#r-std-text.more.trim-ends).
     pub fn trim_end(self) -> string:
         let end = bytes_len(self)
         let trimming = end > 0
@@ -338,15 +384,23 @@ impl string:
                 trimming = false
         bytes_slice(self, 0, end)
 
+    ## Returns the string in lowercase.
+    ## See [std-text.string.lower](../../spec/std/text.md#r-std-text.string.lower).
     pub fn lower(self) -> string:
         host_lower(self)
 
+    ## Returns the string in uppercase.
+    ## See [std-text.more.upper](../../spec/std/text.md#r-std-text.more.upper).
     pub fn upper(self) -> string:
         host_upper(self)
 
+    ## Returns the string without its `prefix` when it starts with it, in `.Some`, or `.None`.
+    ## See [std-text.more.strip](../../spec/std/text.md#r-std-text.more.strip).
     pub fn strip_prefix(self, prefix: string) -> string?:
         if self.starts_with(prefix): .Some(bytes_slice(self, bytes_len(prefix), bytes_len(self))) else: .None
 
+    ## Returns the string without its `suffix` when it ends with it, in `.Some`, or `.None`.
+    ## See [std-text.more.strip](../../spec/std/text.md#r-std-text.more.strip).
     pub fn strip_suffix(self, suffix: string) -> string?:
         if self.ends_with(suffix): .Some(bytes_slice(self, 0, bytes_len(self) - bytes_len(suffix))) else: .None
 
@@ -354,6 +408,8 @@ impl string:
     # rather than starting an empty one. A carriage return directly before
     # a "\n" is removed (r-std-text.string.lines); it is written `\u{d}`
     # for the reason that `simple_escape` gives.
+    ## Splits the string into its lines, without their endings.
+    ## See [std-text.string.lines](../../spec/std/text.md#r-std-text.string.lines).
     pub fn lines(self) -> List[string]:
         pieces := self.split("\n")
         let found: mut List[string] = []
@@ -372,6 +428,8 @@ impl string:
 
     # Doubles a run of copies and adds the runs that the bits of `count`
     # name, so the bytes copied stay proportional to the result's length.
+    ## Joins `count` copies of the string.
+    ## See [std-text.string.repeat](../../spec/std/text.md#r-std-text.string.repeat).
     pub fn repeat(self, count: usize) -> string:
         let repeated = ""
         let run = self
@@ -387,6 +445,8 @@ impl string:
     # The text before and after the first `separator`, or `.None` when it
     # does not occur. An empty separator is found at 0
     # (spec/std/text.md#splitting-and-padding).
+    ## Splits around the first occurrence of `separator`, in `.Some`, or `.None` when there is none.
+    ## See [std-text.split-once](../../spec/std/text.md#r-std-text.split-once).
     pub fn split_once(self, separator: string) -> (string, string)?:
         match byte_find(self, separator, 0):
             .Some(found) => .Some((bytes_slice(self, 0, found), bytes_slice(self, found + bytes_len(separator), bytes_len(self))))
@@ -394,6 +454,8 @@ impl string:
 
     # The runs of scalars between runs of Unicode White_Space, with no
     # empty piece.
+    ## Splits on runs of whitespace, with no empty pieces.
+    ## See [std-text.split-whitespace](../../spec/std/text.md#r-std-text.split-whitespace).
     pub fn split_whitespace(self) -> List[string]:
         let pieces: mut List[string] = []
         size := bytes_len(self)
@@ -410,16 +472,22 @@ impl string:
         pieces
 
     # The spec gives `fill` the default ' ' (r-std-text.pad.fill-default).
+    ## Pads the string on the left with `fill` until it is `width` characters long.
+    ## See [std-text.pad.start](../../spec/std/text.md#r-std-text.pad.start).
     pub fn pad_start(self, width: usize, fill: char = ' ') -> string:
         size := scalar_count(self)
         if width <= size: self else: "$fill".repeat(width - size) + self
 
+    ## Pads the string on the right with `fill` until it is `width` characters long.
+    ## See [std-text.pad.end](../../spec/std/text.md#r-std-text.pad.end).
     pub fn pad_end(self, width: usize, fill: char = ' ') -> string:
         size := scalar_count(self)
         if width <= size: self else: self + "$fill".repeat(width - size)
 
     # Non-overlapping matches from left to right. An empty needle matches
     # at every scalar boundary, so it counts the scalars plus one.
+    ## Returns the number of occurrences of `needle` in the string.
+    ## See [std-text.count](../../spec/std/text.md#r-std-text.count).
     pub fn count(self, needle: string) -> usize:
         if bytes_len(needle) == 0:
             return scalar_count(self) + 1
@@ -439,27 +507,37 @@ impl string:
 # The Unicode properties are those of Unicode 17.0
 # (r-std-text.char.unicode-version).
 impl char:
+    ## True when the character is an ASCII digit `0` to `9`.
+    ## See [std-text.char.ascii-digit](../../spec/std/text.md#r-std-text.char.ascii-digit).
     pub fn is_ascii_digit(self) -> bool:
         point := i32(char_scalar(self))
         point >= 48 && point <= 57
 
     # The Unicode Alphabetic property (r-std-text.char.alphabetic).
+    ## True when the character has the Unicode Alphabetic property.
+    ## See [std-text.char.alphabetic](../../spec/std/text.md#r-std-text.char.alphabetic).
     pub fn is_alphabetic(self) -> bool:
         alphabetic_point(i32(char_scalar(self)))
 
     # Alphabetic, or the general category Nd, Nl, or No
     # (r-std-text.char.alphanumeric).
+    ## True when the character is alphabetic or a digit.
+    ## See [std-text.char.alphanumeric](../../spec/std/text.md#r-std-text.char.alphanumeric).
     pub fn is_alphanumeric(self) -> bool:
         point := i32(char_scalar(self))
         alphabetic_point(point) || in_ranges(numeric_ranges(), point)
 
     # The Unicode White_Space property, the one `trim` removes
     # (r-std-text.char.whitespace).
+    ## True when the character has the Unicode White_Space property.
+    ## See [std-text.char.whitespace](../../spec/std/text.md#r-std-text.char.whitespace).
     pub fn is_whitespace(self) -> bool:
         white_space(i32(char_scalar(self)))
 
     # The value of an ASCII digit or letter in `radix`, as Rust's
     # `char::to_digit` gives it (r-std-text.char.to-digit).
+    ## Reads the character as a digit of `radix` (2 to 36), or `.None` when it is not one.
+    ## See [std-text.char.to-digit](../../spec/std/text.md#r-std-text.char.to-digit).
     pub fn to_digit(self, radix: u32) -> u32?:
         if radix < 2 || radix > 36:
             panic("to_digit: the radix must be 2 to 36")
@@ -473,6 +551,8 @@ impl char:
             value = point - 55
         if u32(value) < radix: .Some(u32(value)) else: .None
 
+## Returns the parts in order with `separator` between each two.
+## See [std-text.join.decl](../../spec/std/text.md#r-std-text.join.decl).
 pub fn join(parts: List[string], separator: string) -> string:
     if parts.len() == 0:
         return ""
@@ -491,19 +571,29 @@ fn join_range(parts: List[string], separator: string, start: usize, end: usize) 
 impl List[string]:
     # The parts in order with `separator` between each two
     # (r-std-text.join.method).
+    ## Joins the list's elements with `separator` between each two.
+    ## See [std-text.join.method](../../spec/std/text.md#r-std-text.join.method).
     pub fn join(self, separator: string) -> string:
         join(self, separator)
 
+## Joins many pieces of text by pushing them, cheaper than repeated concatenation.
+## See [std-text.builder.decl](../../spec/std/text.md#r-std-text.builder.decl).
 pub data StringBuilder:
     parts: mut List[string]
 
 impl StringBuilder:
+    ## Returns an empty builder.
+    ## See [std-text.builder.new](../../spec/std/text.md#r-std-text.builder.new).
     pub fn new() -> mut StringBuilder:
         StringBuilder { parts: [] }
 
+    ## Appends `text`.
+    ## See [std-text.builder.push](../../spec/std/text.md#r-std-text.builder.push).
     pub fn push(mut self, text: string) -> void:
         self.parts.push(text)
 
+    ## Returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
+    ## See [std-text.builder.build](../../spec/std/text.md#r-std-text.builder.build).
     pub fn build(self) -> string:
         join(self.parts, "")
 
