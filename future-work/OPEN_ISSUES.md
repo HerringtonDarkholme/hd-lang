@@ -270,6 +270,22 @@ non-escapable). Considered and rejected for now: making module writes a
 requirement (it propagates through every caller's written signature).
 Not in the spec; nothing depends on it.
 
+**Parked idea: deep immutability (owner, 2026-10-07; related to thread
+safety).** A readonly view `T` does not imply deep immutability
+(`types.view.term`), and freshness freezes only the outer object: a
+field typed `mut Address` still hands out a mutable view through a
+readonly `Customer`, and a readonly field may alias an object someone
+else holds as `mut`. A value is truly immutable only when its whole
+reachable graph is frozen: no `mut` position in its type, transitively;
+every reachable object created fresh in the same construction or already
+proven frozen; no `mut` view ever taken. Today that is value types plus
+literals and constructors built only from values and frozen parts
+(constant tables). Anything more needs a declared property, such as an
+opt-in `Frozen`/`Immutable` marker trait checked at construction. This
+is what sharing values across threads or actors without copying needs
+(compare Rust's `Sync` and Swift's `Sendable`), so discuss it with
+`@pure` and NonEscapable capturing. Not in the spec.
+
 ### Closure Shorthand
 
 **Deferred (Pipe Operator PL10, 2026-09-29).** Closures stay
