@@ -121,7 +121,7 @@ counts as one value toward an enclosing layout's bound.
 | --- | --- | --- |
 | A1, `eqref` storage for type-parameter slots at reference layouts, at collection | adopted; A2 (erased function types) not adopted | E1: adopt unless the wasmtime read penalty is over 1 ns per element or over 5 percent on the `sort` and `map` microbenchmarks with reference elements. S1 records the compile-side gain |
 | the boxing bound | 4 Wasm values after slot sharing, tag included | E2: the largest payload count where parallel arrays win the read-only kernel by more than 10 percent on wasmtime and `push` stays under 256 bytes |
-| string slicing | S1: `(array i8)`, a slice copies its bytes; needs the spec change of [Open Question 1](#1-string-slicing-s1-or-s2) | the owner, with E6's numbers |
+| string slicing | decided (owner, 2026-10-07): Go-style shared views, `(ref $bytes, i64 span)` ([`string`](#string)) | E6 measures the tokenizer and map cases against Node; no decision rests on it |
 | dev Cranelift setting | `None` with the single-pass allocator | spike T1 of [tiering.md](tiering.md#72-spike-0c-additions): falls back to `None` with backtracking, then `Speed`, if it fails a runtime case, saves too little or breaks `dev-speed` |
 | inliner caps | runtime study §9.2 budgets (codegen.md §12.8), as pass parameters | S6 sets the caller cap below the size where Cranelift time per byte doubles; E8 keeps the budgets unless the next level buys 5 percent speed for under 10 percent size |
 | constant globals read directly | direct `global.get`, globals ordered by content key | S2: any perturbation under 95 percent hits moves that global kind behind getters |
@@ -277,36 +277,61 @@ release, which spike T2 decides.
 
 ### `string`
 
-Default S1 (pending the owner and E6):
+Go-style shared views (owner, 2026-10-07): a string is `(array, start,
+len)`, and `slice` and `s[a..b]` are O(1) and share bytes
+([`module.string.slice.shared`](../../spec/lang/10-modules.md#r-module.string.slice.shared)).
+The layout and its table by position are in wasm-layout.md §15.2.
 
 ```wat
-(type $str (array i8))                        ;; immutable, valid UTF-8
-(array.len (local.get $s))                    ;; len(): constant time
-(array.get_u $str (local.get $s) (local.get $i))   ;; s[i]: the engine's bounds check is the index check
-;; s[a..b] under S1: check a <= b <= len and both scalar boundaries, then
-(array.new $str ...) / (array.copy $str $str (local.get $dst) (i32.const 0) (local.get $s) (local.get $a) (local.get $n))
+(type $bytes (array i8))                      ;; immutable, valid UTF-8 in every viewed range
+;; a string: two values (ref $bytes) and i64 span = len << 32 | start
+(i32.wrap_i64 (i64.shr_u (local.get $span) (i64.const 32)))     ;; len()
+;; s[i]: i < len, else index-out-of-bounds; then bytes[start + i]
+(array.get_u $bytes (local.get $b) (i32.add (i32.wrap_i64 (local.get $span)) (local.get $i)))
+;; s[a..b]: a <= b <= len and both scalar boundaries, then a new span; no allocation
+(i64.or (i64.shl (i64.extend_i32_u (i32.sub (local.get $hi) (local.get $lo))) (i64.const 32))
+        (i64.extend_i32_u (i32.add (i32.wrap_i64 (local.get $span)) (local.get $lo))))
 ```
 
-- **Speed:** a string is one reference. A slice allocates and copies:
-  13 ns for 16 bytes on V8 against 3.6 to 6.8 ns for a view; about 0.5 ns
-  per byte. Equality is a length test and a byte loop. Every search reads
-  one byte per step.
-- **Size:** smallest of the candidates: a field is one reference, a
-  `List[string]` one reference array, erasure a free upcast.
-- **Engines:** a string byte read out of range traps; the trap maps to
-  `index-out-of-bounds` by code offset (§15.5). V8's string search is
-  vectorized native code and hd's is not, so `text-throughput` depends on
-  E7.
-- **Boundary:** raw UTF-8 bytes through the exchange buffer, with no
-  conversion ([`types.string.host-bytes`](../../spec/lang/04-type-system.md#r-types.string.host-bytes)),
-  copied by a generated Wasm loop with 8-byte loads (default, E4).
-- **Under S2** (if the owner keeps the sharing rules): three values
-  `(ref $bytes, i32 start, i32 len)`, three fields, three arrays in a
-  `List[string]`, a box in erased positions, and no folding with other
-  references under A1. A small slice then pins its source.
-- **Type-only:** yes, under S1, S2 or S3.
-- **Pending:** the owner, with E6 (S2 wins only if over 20 percent
-  faster on the tokenizer and not slower on the map).
+- **Speed:** a slice allocates nothing: a few ALU instructions and the
+  checks. `len()` is two instructions; a byte read adds one `add` to the
+  start, and a counted loop hoists the unpacking. Equality compares the
+  lengths, returns early when both views share one array and one start
+  (`ref.eq`), and otherwise compares bytes one per step. Every search
+  reads one byte per step.
+- **Size:** 12 bytes per string at rest in a field or a list element
+  (a 4-byte reference plus the `i64`), with no header object. Each string
+  argument or result is two Wasm values.
+- **The candidates** (V8 figures from the runtime study §6.2; "alloc" is
+  one GC allocation of a small struct, about 4 to 7 ns):
+
+  | | `(ref, i64 span)` (chosen) | `(ref, i32, i32)` | one box `{bytes, start, len}` | values in locals, box in fields and arrays |
+  | --- | --- | --- | --- | --- |
+  | slice | free | free | one alloc, 3.6 to 6.8 ns | free in locals; one alloc per store into a field or list |
+  | new string (concat, builder, host) | one array | one array | one array and one box | one array; one box per store |
+  | `len()`, start | 2 and 1 ALU instructions | a local | a field load | as the chosen form in locals, a load in fields |
+  | field, list element | 12 bytes | 12 bytes | 4 bytes plus a 16 to 24 byte box per distinct string | 4 bytes plus the box |
+  | values toward the bound | 2 | 3 | 1 | 1 in fields, 2 in locals |
+  | `enum Token: Num(i64) \| Ident(string) \| Op(char) \| End` | tag, `i64`, ref, `i32`: 4, unboxed | 5: boxed, one alloc per token | 4, unboxed | 4 |
+  | `(string, string)` (a `Map[string, string]` entry) | 4, unboxed | 6: boxed | 2 | 2 |
+  | erased (`dyn`, `Any`) | one box | one box | free upcast | free upcast |
+  | under A1 | its own class | its own class | folds with references | mixed |
+  | one representation per type | yes | yes | yes | no |
+
+- **Engines:** both engines run 64-bit integer operations natively. The
+  explicit length check replaces the engine's array bounds check, which
+  still guards the array.
+- **Boundary:** raw UTF-8 bytes of the viewed range through the exchange
+  buffer, with no conversion
+  ([`types.string.host-bytes`](../../spec/lang/04-type-system.md#r-types.string.host-bytes)),
+  copied by a generated Wasm loop with 8-byte loads (default, E4). A
+  string from the host is a new exact-size array viewed from start 0.
+- **Retention:** a small slice keeps its whole backing array alive, as
+  in Go. A known risk, watched by `long-run-memory`; no mitigation in the
+  first release.
+- **Type-only:** yes.
+- **Pending:** E6 measures the tokenizer and map cases; E7 the per-byte
+  search cost.
 
 ### Bytes: `List[u8]`
 
@@ -388,7 +413,7 @@ Default S1 (pending the owner and E6):
 
 ```wat
 (type $Timestamps (struct (field $created_at (mut i64)) (field $updated_at (mut i64))))
-(type $Post (struct (field $title (mut (ref $str))) (field $Timestamps (ref $Timestamps))))
+(type $Post (struct (field $title (mut (ref $bytes))) (field $title_span (mut i64)) (field $Timestamps (ref $Timestamps))))
 (struct.get $Timestamps $created_at (struct.get $Post $Timestamps (local.get $post)))
 ```
 
@@ -426,9 +451,10 @@ and `eqref` with a cast after the tag test otherwise.
 
 ```wat
 ;; enum Token: Num(i64) | Ident(string) | Op(char) | End
-;; -> (i32 tag, i64 slot0, i32 slot1, (ref null $str) slot2): 4 values
-(func $next (result i32 i64 i32 (ref null $str)) ...)
-;; match: br_table on the tag local; .Ident(name) narrows slot2 with ref.as_non_null
+;; -> (i32 tag, i64 slot0, i32 slot1, (ref null $bytes) slot2): 4 values;
+;;    slot0 holds Num's i64 or Ident's string span, slot1 Op's char
+(func $next (result i32 i64 i32 (ref null $bytes)) ...)
+;; match: br_table on the tag local; .Ident(name) is (ref.as_non_null slot2, slot0)
 ```
 
 - **Speed:** no allocation. A `match` tests a local; a payload read is a
@@ -633,8 +659,11 @@ JavaScript's deterministic `Map`:
   indirect call.
 - **Size:** about 12 methods per `(K, V)`, folding by class under A1 on
   the `V` side and for move-only paths.
-- **Bucketing:** `std-hash.default.map` fixes it to `hash_of` today; see
-  [Open Question 3](#3-the-maps-bucketing-hash).
+- **Bucketing:** an implementation detail since the owner's decision of
+  2026-10-07 ([`std-hash.map.bucket-hash`](../../spec/std/hash.md#r-std-hash.map.bucket-hash));
+  iteration order is deterministic but need not be insertion order, so
+  this compact insertion-ordered table is one valid layout, not a
+  requirement. See [decision 3](#3-the-maps-bucketing-hash).
 - **Boundary:** count, then key and value pairs in iteration order;
   decoding calls the key's `Eq` and `Hash` in Wasm.
 - **Engines:** the hash protocol's indirect calls are free on V8 when monomorphic and real on wasmtime; the `map` case is 5.3x Node today.
@@ -720,7 +749,7 @@ JavaScript's deterministic `Map`:
 ### `TypeId`
 
 ```wat
-(type $TypeId (struct (field $id i64) (field $name (ref $LitFn))))   ;; $LitFn = func () -> (ref $str)
+(type $TypeId (struct (field $id i64) (field $name (ref $LitFn))))   ;; $LitFn = func () -> (ref $bytes) i64: the name as a string view
 (global $tid_Point (ref $TypeId) (struct.new $TypeId (i64.const 0x9f3a...) (ref.func $lit_Point)))
 ;; ==: compare $id; Hash: write_u64($id); Display: call_ref the name getter
 ```
@@ -792,14 +821,15 @@ JavaScript's deterministic `Map`:
 (global $lits_m (ref $LitTab)                                    ;; one immutable table per module
   (struct.new $LitTab (array.new_default $Pool (i32.const N_m))  ;; N_m: m's pooled literals
                       (i32.const base_m)))                       ;; m's index area in segment 0
-(func $lit_m (param $k i32) (result (ref $str))                  ;; one getter per module
-  (block $hit (result (ref $str))
+(func $lit_m (param $k i32) (result (ref $bytes))                ;; one getter per module
+  (block $hit (result (ref $bytes))
     (br_on_non_null $hit
       (array.get $Pool (struct.get $LitTab 0 (global.get $lits_m)) (local.get $k)))
     (call $lit_fill (global.get $lits_m) (local.get $k))))       ;; shared: reads (offset, length) at base_m + 8k,
                                                                  ;; array.new_data from segment 0, stores the slot
-;; a use of m's literal number k:      (call $lit_m (i32.const k))
-;; literals of at most 4 bytes: an immutable global of array.new_fixed
+;; a use of m's literal number k:      (call $lit_m (i32.const k)) (i64.const len_k << 32)
+;; a literal is a view over its pooled array, from start 0; slicing it shares the pooled bytes
+;; literals of at most 4 bytes: an immutable global of array.new_fixed, read the same way
 ```
 
 **One table per module, not one getter per literal** (orchestrator,
@@ -911,7 +941,7 @@ keeps that. None reads a program-wide number (see [Numbering](#numbering)).
 ### Comparison, Equality And Logical Operators
 
 ```wat
-;; primitives: i32.eq, i64.lt_s, f64.eq ...; string ==: length compare, then a byte loop (std)
+;; primitives: i32.eq, i64.lt_s, f64.eq ...; string ==: length compare, a ref.eq-and-start fast path, then a byte loop over both views (std)
 ;; data or enum ==: a direct call of the selected Eq impl, usually inlined
 ;; a and b: (if (result i32) (local.get $a) (then (local.get $b)) (else (i32.const 0)))
 ```
@@ -927,18 +957,19 @@ keeps that. None reads a program-wide number (see [Numbering](#numbering)).
 ```wat
 ;; items[i]: the list's index method, inlined: compare with len, read, (A1) cast
 ;; m[k]: lookup; absent key panics index-out-of-bounds;  m.get(k) returns V?
-;; s[i]: array.get_u; the engine's bounds trap is the check
-;; s[a..b] (S1): bounds and boundary checks, array.new and array.copy
+;; s[i]: compare with the view's len (index-out-of-bounds), then array.get_u at start + i
+;; s[a..b]: bounds and boundary checks, then a new span over the same array; no allocation
 ;; items[a..b]: a new list of the selected elements (a copy, by the spec)
 ```
 
 - **Speed:** a list index is two loads, a compare and a read; a map index
-  is a lookup. Slices allocate (lists always; strings under S1).
+  is a lookup. A list slice allocates a copy (by the spec); a string
+  slice allocates nothing.
 - **Size:** 59 bytes for a list index with its check, 67 with the A1
   cast, when inlined; a call is about 5 bytes when not.
 - **Engines:** V8 hoists more bounds checks out of loops than Cranelift.
 - **Type-only:** yes.
-- **Pending:** string slicing (owner, E6); A1 (E1).
+- **Pending:** A1 (E1).
 
 ### Path Mutation And Compound Assignment
 
@@ -965,9 +996,9 @@ keeps that. None reads a program-wide number (see [Numbering](#numbering)).
 (call $sb_new (i32.const 16))                   ;; capacity: the literal parts' total bytes
 (call $sb_push_lit (... (call $lit_k)))         ;; literal parts: array.copy from the pooled literal
 (call $i32_display (local.get $sb) (local.get $id))
-(call $str_display (local.get $sb) (local.get $name))
-(call $sb_finish (local.get $sb))               ;; one exact-size $str
-;; a + b on strings: array.new of the summed length, two array.copy
+(call $str_display (local.get $sb) (local.get $name_b) (local.get $name_span))  ;; copies the viewed bytes
+(call $sb_finish (local.get $sb))               ;; one exact-size $bytes, viewed from start 0
+;; a + b on strings: array.new of the summed length, two array.copy from the two views
 ```
 
 - **Speed:** one builder, one final string; each `Display` part a direct
@@ -1283,46 +1314,43 @@ with `else` produces a value.
 | map hashing | the map's internal hasher may use a faster mix | not covered | conflicts with `std-hash.default.map`; owner question 3 |
 | `--size-report` | a first-release size guard | not covered | first release, by the orchestrator's call; goals.md still lists it as Later |
 
-## Open Questions For The Owner
+## Owner Decisions (2026-10-07)
+
+The four questions this pass raised are answered.
 
 ### 1. String Slicing: S1 Or S2
 
-The spec says `slice` takes constant time and shares bytes
+**Decided: S2, Go-style shared slices.** A string is a view `(array,
+start, len)`; `slice` and `s[a..b]` stay O(1) and share bytes, as the
+spec already says
 ([`module.string.slice`](../../spec/lang/10-modules.md#r-module.string.slice),
 [`module.string.slice.shared`](../../spec/lang/10-modules.md#r-module.string.slice.shared),
 [`expr.index.slice.string.shared`](../../spec/lang/05-expressions.md#r-expr.index.slice.string.shared)).
-The layout copies.
-
-**Recommendation: S1.** Change the three rules so a slice copies its
-bytes in time linear in the slice's length, as Java does since 7u6. A
-string stays one reference: one array per `List[string]`, free erasure,
-folding under A1, and no small slice pinning a large source. Typical
-slices are short tokens, at about 0.5 ns per byte. The alternative, S2,
-keeps the rules with three values per string, as Go does. E6 gives the
-numbers.
+This pass had recommended S1 (copying slices). The layout is in
+[`string`](#string) and wasm-layout.md §15.2. The known cost: a small
+slice keeps its whole backing array alive.
 
 ### 2. Rebasing The `dead-code` Target
 
-Every design in the compile study lands at 48 to 64 KB per 1,000 lines,
-33 to 42 KB of it code; the toy compiler measures 58 B per line.
-**Recommendation:** after S7, rebase the target to about 40 KB of code
-per 1,000 lines, count metadata (names, sites, lines) separately, and
-keep it as a regression gate.
+**Decided:** the target is re-based after spike S7 measures real section
+sizes. Every design in the compile study lands at 48 to 64 KB per 1,000
+lines, 33 to 42 KB of it code; the toy compiler measures 58 B per line.
 
 ### 3. The Map's Bucketing Hash
 
-[`std-hash.default.map`](../../spec/std/hash.md#r-std-hash.default.map)
-says the built-in `Map` buckets each key by its `hash_of` value, 64-bit
-FNV-1a. With the new `write_u64`, FNV still mixes eight bytes one at a
-time. Bucketing is not observable: iteration follows insertion order.
-**Recommendation:** after E5, if FNV dominates a lookup, change the rule
-to "a fixed, unseeded hash of the bytes the key writes", so the map may
-mix a whole `u64` per write. `hash_of` and `DefaultHasher` stay FNV-1a.
+**Decided:** the bucket hash is an implementation detail
+([`std-hash.map.bucket-hash`](../../spec/std/hash.md#r-std-hash.map.bucket-hash)),
+and iteration order is deterministic but no longer required to be
+insertion order
+([`types.map.order.deterministic`](../../spec/lang/04-type-system.md#r-types.map.order.deterministic)).
+`hash_of` and `DefaultHasher` stay FNV-1a. After E5, the map may mix a
+whole `u64` per write. The compact insertion-ordered table of
+[`Map[K, V]`](#mapk-v) remains a valid layout.
 
 ### 4. No Standard `name` Section In Release Builds
 
-Release builds carry the compact `hd.names` instead of `name`, which
-saves about 120 KB at 10k lines. hd's own backtraces stay symbolized.
-External tools (browser devtools, `wasm-objdump`, native profilers) then
-show unnamed functions for a release module. **Recommendation:** accept
-it; a debug build keeps `name` for those tools.
+**Decided:** release builds carry the compact `hd.names` instead of
+`name`, which saves about 120 KB at 10k lines. hd's own backtraces stay
+symbolized. External tools (browser devtools, `wasm-objdump`, native
+profilers) show unnamed functions for a release module; a dev build keeps
+`name` for them.

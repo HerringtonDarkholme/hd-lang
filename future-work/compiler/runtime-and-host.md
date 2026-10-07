@@ -158,6 +158,10 @@ alone.
   Wasm loop (Wasm GC has no bulk copy between arrays and memory). A
   string crosses with no conversion
   ([`types.string.host-bytes`](../../spec/lang/04-type-system.md#r-types.string.host-bytes)).
+  A string is a view (wasm-layout.md §15.2, Go-style, owner 2026-10-07):
+  Wasm to host copies only the viewed range, `bytes[start .. start +
+  len]`, so a slice crosses at its own size, never its source's. Host to
+  Wasm builds one exact-size array, viewed from start 0.
   The host reads the bytes in one slice. The loop reads and writes 8
   bytes per step (default, decided by E4 of spike 0c; a wasmtime
   host-side bulk fill replaces it only if one exists and is 4x faster).
@@ -179,7 +183,7 @@ type description, so it needs no field names:
 | integers | LEB128; zigzag for signed |
 | floats | raw IEEE 754 little-endian bytes |
 | `bool` | one byte |
-| `string`, `List[u8]` | length, then bytes |
+| `string`, `List[u8]` | length, then bytes (for a string, the viewed range only) |
 | list | count, then elements |
 | map | count, then key and value pairs in iteration order |
 | data | fields in declaration order |

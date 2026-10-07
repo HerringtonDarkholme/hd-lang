@@ -219,7 +219,7 @@ instance.
 | `LocalGet`, `LocalSet` | `local.get`, `local.set`; a `Shared` captured local is a cell, a one-field struct |
 | `Block`, `If`, `Loop` | `block`, `if`, `loop`; `Break` and `Continue` become `br` |
 | `Scope` with `Defer` | the exit ladder below |
-| `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then bytes for strings; each arm once, in nested blocks that leaves branch to |
+| `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then the viewed bytes for strings; each arm once, in nested blocks that leaves branch to |
 | `Call` with an `Item` callee | `call`, relocated to the callee instance |
 | `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl that `select` picks at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
 | `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1). When the vtable is a known constant global after inlining, a direct `call` of the slot's function, which the inliner may then inline (§12.6) |
@@ -227,8 +227,8 @@ instance.
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
 | `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |
-| `Interp` | one builder sized by the literal parts' bytes; literal parts copied from their pooled literal; each `Display` part writes into the builder through its resolved callee; one exact-size string at the end |
-| a string literal | `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less; a literal passed straight to a host call takes the host fast path (wasm-layout.md §15.4) |
+| `Interp` | one builder sized by the literal parts' bytes; literal parts copied from their pooled literal; each `Display` part writes into the builder through its resolved callee; a string part copies its viewed bytes; one exact-size array at the end, viewed from start 0 |
+| a string literal | a view over its pooled array (wasm-layout.md §15.2): `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less, then `i64.const` of its span; a literal passed straight to a host call takes the host fast path (wasm-layout.md §15.4) |
 | an explicit panic, a failed check | a `call` of the category's stub with no site immediate; the call's code offset is the site (wasm-layout.md §15.5) |
 | `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
 | `ForRange`, `ForList`, `ForMap` | counted loops (§12.4) |
@@ -375,7 +375,7 @@ each step, panicking with `iterator-invalidated`
 | division by zero | Wasm traps; the trap maps to `integer-division-by-zero` | same |
 | shift by the width or more | panics `invalid-shift` | same; Wasm masks the count |
 | list index | std's index method compares with the length, `index-out-of-bounds` | same; the backing array is longer than the list |
-| string byte index | the engine's array bounds check; the trap maps by code offset | same |
+| string byte index | compares with the view's length, `index-out-of-bounds`; the array may be longer than the view, so the engine's check is not enough | same |
 | use of a closed handle | panics with the use site | not emitted; the host provider still refuses a closed handle |
 
 The overflow sequences are those of the research
@@ -557,8 +557,8 @@ build will (estimates; spike 0c and the slices measure):
 | `runtime` (geomean at most 1.5x Node, no case over 3x) | `map` above 3x on wasmtime from the hash protocol; chains slow from `call_ref` | `map` near 2x on wasmtime; chains near 1x; the heap pathology removed |
 | `allocations` (0 per counted loop, at most 1 per chain) | 3 to 5 per map lookup | 0 for both |
 | `size-startup-heap` (tiny at most 2 KB) | short literals at 3 bytes per byte | the pool; hello world needs none |
-| `dead-code` | list code per reference type | folded by A1; the target itself is open question 2 of [lowering-catalog.md](lowering-catalog.md#2-rebasing-the-dead-code-target) |
-| `long-run-memory` | slices that pin sources (S2); heap growth pathology | S1 never pins; the heap is sized |
+| `dead-code` | list code per reference type | folded by A1; the target is re-based after spike S7 ([lowering-catalog.md](lowering-catalog.md#2-rebasing-the-dead-code-target)) |
+| `long-run-memory` | slices that pin sources; heap growth pathology | the heap is sized; a small string slice still pins its source (Go-style strings, owner, 2026-10-07): a known risk this metric watches |
 
 ## 13. Monomorphization And Merging
 
@@ -765,9 +765,9 @@ concrete representation, viewed as `eqref`**:
 
 | Concrete layout of the value | As an open value |
 | --- | --- |
-| one reference, nullable or not (data, `List`, `Map`, string, closure, `T?` of a reference, a value layout over the bound, which is already a box) | the same reference, upcast; no allocation. Under A1 a reference `T` reaches a class instance such as `List[REF].push` directly, with no thunk |
+| one reference, nullable or not (data, `List`, `Map`, closure, `T?` of a reference, a value layout over the bound, which is already a box) | the same reference, upcast; no allocation. Under A1 a reference `T` reaches a class instance such as `List[REF].push` directly, with no thunk |
 | a scalar | §15.2's erased form: `i31ref` up to 16 bits, else `$Box_i32`, `$Box_i64`, `$Box_f32`, `$Box_f64` |
-| a `multi` layout (a scalar's `T?`, `Result`, a value enum, a tuple, a trait value) | one immutable struct of its Wasm values |
+| a `multi` layout (a string view, a scalar's `T?`, `Result`, a value enum, a tuple, a trait value) | one immutable struct of its Wasm values |
 | `void` | `ref.null eq` |
 
 Every boxed layout is identity-free (S1c), so boxing is not observable.

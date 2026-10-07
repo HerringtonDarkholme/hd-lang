@@ -15,8 +15,8 @@ struct or an array element.
 | `i32` | `i32` | `bool`, `char`, integers of 32 bits or less, `usize`, payloadless enums |
 | `i64` | `i64` | `i64`, `u64` |
 | `f32`, `f64` | `f32`, `f64` | floats |
-| `ref` | `(ref $T)` or `(ref null $T)` | data, `string`, lists, maps, closures, frames, and the box of a value layout over the bound or of a self-recursive enum |
-| `multi` | 2 Wasm values up to the bound | `Option` of a scalar, `Result`, tuples, value enums, trait values (§15.2) |
+| `ref` | `(ref $T)` or `(ref null $T)` | data, lists, maps, closures, frames, and the box of a value layout over the bound or of a self-recursive enum |
+| `multi` | 2 Wasm values up to the bound | `string` (a view), `Option` of a scalar, `Result`, tuples, value enums, trait values (§15.2) |
 | `erased` | `eqref` | the payload of a trait value, `Any`, an open value in an erased method body (codegen.md §13.5.1) |
 | `void` | none | `void`, `()`, and `never` |
 
@@ -77,11 +77,62 @@ found that. The spec allows either form
 | trait value, `Any` | `(eqref, (ref $VT))`; `eqref`, so `is` can use `ref.eq` on the payload | two fields |
 | closure | `(ref $Fn_sig)`: a base struct holding the code as a typed function reference; one subtype per capture shape | same |
 | capture-free closure | a constant global of the base type, with no environment | same |
-| `string` | `(ref $str)`, `$str = (array i8)`, immutable, valid UTF-8. **Default S1** (a slice copies), pending the owner and E6; under S2, three values `(ref $bytes, i32 start, i32 len)` | same |
+| `string` | a view of two values, `(ref $bytes, i64 span)`: `$bytes = (array i8)`, immutable, valid UTF-8 in the viewed range; `span` packs `len << 32 \| start` (owner, 2026-10-07: Go-style shared slices; "Strings" below) | two fields, `(mut (ref $bytes))` and `(mut i64)`; in an array, a structure of two arrays |
+| `string?` | `(ref null $bytes, i64)`; a null `bytes` is `.None` | two fields |
 | `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T)}`; under A1 every reference `T` shares `$List_eq` over `(array (mut eqref))` | same |
 | `Map[K, V]` | std hd over arrays (§16.1): a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays ([lowering-catalog.md](lowering-catalog.md#mapk-v)) | same |
 | `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))` | same |
 | `mut Suspend[T]` | `(ref $Suspend_L)` (§14.1) | same |
+
+**Strings (owner, 2026-10-07: Go-style shared slices).** A string is a
+view of a byte array: `(array, start, len)`. `slice` and `s[a..b]` are
+O(1) and share bytes, as
+[`module.string.slice.shared`](../../spec/lang/10-modules.md#r-module.string.slice.shared)
+says. Wasm GC has no interior pointers, so the view needs the array, a
+start and a length; Go's two words become hd's `(ref $bytes, i64 span)`,
+with `start` in the low 32 bits and `len` in the high 32 (`usize` is 32
+bits on Wasm32). The layout is the same in every position, as for every
+value layout (§15.1):
+
+| Position | Representation | Bytes at rest |
+| --- | --- | --- |
+| local, parameter, result | two values: `(ref $bytes)`, `i64` | none |
+| field of a `data` struct | two fields, `(mut (ref $bytes))` and `(mut i64)` | 12 (a 4-byte reference on both engines, plus 8) |
+| element of `List[string]`, `Array[string]` | a structure of two arrays, `(array (mut (ref null $bytes)))` and `(array (mut i64))` | 12 per element |
+| enum payload, `Result`, tuple | two slots: the reference slot is shared with other references (`eqref` and a cast after the tag test), the `i64` slot with other `i64` payloads | counts 2 toward the bound |
+| `string?` | `(ref null $bytes, i64)`; null is `.None` | as `string` |
+| erased (`dyn`, `Any`) | `$Box_str`, one immutable `{bytes, span}` struct: one allocation of about 16 to 24 bytes | the box |
+| a pooled literal | a view over its pooled array: start 0, `len` its length (§15.4) | none per use |
+
+- **Operations.** `len()` is `span >> 32`, two ALU instructions.
+  `s[i]` checks `i < len` (the array may be longer than the view, so the
+  engine's bounds check is not enough), then reads `bytes[start + i]`.
+  `s[a..b]` checks `a <= b <= len` and both scalar boundaries, then
+  builds the new span; it allocates nothing. Concatenation and the
+  builder allocate one exact-size array and a span with start 0.
+- **`==` and hashing** read only the viewed bytes. `==` compares the
+  lengths, takes a fast path when both views share one array and one
+  start (`ref.eq`), and otherwise compares bytes. `Hash` writes the
+  viewed bytes, so a slice hashes as an equal fresh string does, and the
+  backing array never shows.
+- **Why two values, not three or a box** (cost numbers in
+  [lowering-catalog.md](lowering-catalog.md#string)). Three values
+  `(ref, i32, i32)` cost the same 12 bytes in a field but count 3 toward
+  the bound of 4, so the catalog's `Token` enum (an `i64`, a `string` and
+  a `char` payload) and a `(string, string)` map entry go over it and
+  allocate a box per value. Packing `start` and `len` into one `i64` keeps
+  both within the bound for one or two ALU instructions per `len()` or
+  `start` read, hoisted in loops. A boxed `{bytes, start, len}` struct in
+  every position allocates on every slice (3.6 to 6.8 ns on V8) and two
+  objects per fresh string. Boxing only in fields and arrays, with values
+  in locals, breaks the one-representation rule: every store of a slice
+  into a field or a list would allocate.
+- **Retention (known risk, no mitigation in the first release).** A small
+  slice keeps its whole backing array alive, as in Go: a 10-byte token
+  from a 10 MB input pins 10 MB. `long-run-memory` watches it. Copying a
+  slice that must outlive its source is the user's fix, as Go's
+  `strings.Clone` is.
+- **Type-only:** yes. The layout depends on nothing but the type.
 
 **Defaultable forms (Codex re-review N3).** A language layout may hold
 a non-null reference: data, lists, strings, closures. Wasm has no default
@@ -118,8 +169,8 @@ one load and compare.
 16 bits or less become `i31ref`. Wider scalars are boxed in
 `$Box_i32`, `$Box_i64`, `$Box_f32` or `$Box_f64`. This is where the owner's
 "at least `i31ref`" lands: in monomorphized code no scalar is boxed at
-all. A string is already a reference and is erased as itself. A tuple is
-boxed in one immutable struct.
+all. A string is boxed in `$Box_str`, an immutable `{bytes, span}`
+struct, as a tuple is boxed in one immutable struct.
 
 **Identity (owner decision B, extended, 2026-10-07).** The Codex review (finding 1)
 showed that the rows above broke the spec's allocation identity: the spec
@@ -261,10 +312,10 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 | Global | Wasm | Initialized by | A reader holds |
 | --- | --- | --- | --- |
 | runtime state: panic category, the wake table, the forbidden-context counter | mutable | constants | `global.get` of a fixed low index |
-| one literal table per source module | immutable `(ref $LitTab)`: a `(ref $Pool)`, an `(array (mut (ref null $str)))` with one slot per pooled literal of the module, and the module's index-area offset | a constant expression (`struct.new`, `array.new_default`) | nothing: only the module's literal getter reads it |
+| one literal table per source module | immutable `(ref $LitTab)`: a `(ref $Pool)`, an `(array (mut (ref null $bytes)))` with one slot per pooled literal of the module, and the module's index-area offset | a constant expression (`struct.new`, `array.new_default`) | nothing: only the module's literal getter reads it |
 | vtables, capture-free closures, payloadless variant singletons, member handles, witnesses, `TypeId` values | immutable | a constant expression (`struct.new` and `ref.func` are constant in Wasm GC) | `global.get`; globals of a kind ordered by content key |
-| string literals of 4 bytes or less (default, decided by E10) | immutable | a constant expression (`array.new_fixed`) | `global.get` |
-| other string literals | a slot of their module's table | lazily: the module's getter runs `array.new_data` on segment 0 at the literal's offset | `i32.const` of the module-local number and a `call` of the module's getter |
+| string literals of 4 bytes or less (default, decided by E10) | immutable | a constant expression (`array.new_fixed`) | `global.get`, then `i64.const` of the literal's span (`len << 32`) |
+| other string literals | a slot of their module's table | lazily: the module's getter runs `array.new_data` on segment 0 at the literal's offset | `i32.const` of the module-local number, a `call` of the module's getter, then `i64.const` of the span: a literal is a view over its pooled array |
 | module storage (top-level bindings) | mutable, nullable or zero | the group's init function | `global.get`, `global.set`; ordered by module path, then binding index |
 | fact values, metadata, shared enum data | mutable, nullable; null is the flag for a one-reference layout, else an `i32` flag | lazily: a getter runs the fact's body on the first read (codegen.md §12.3) | a `call` of the getter |
 
@@ -385,7 +436,7 @@ generated for that program, std included (§16.1). The tiny program
 
 | Part | Estimate |
 | --- | --- |
-| header, type section (`$str`, the import and export signatures) | 70 B |
+| header, type section (`$bytes`, the import and export signatures) | 70 B |
 | imports: `hd:Console` `write_line`, `hd:rt` stderr writer | 50 B |
 | function, memory (the exchange buffer), global, export sections | 80 B |
 | code: the entry wrapper, the copy loop to the exchange buffer, std's `println` and its panic on a closed pipe | 300 B |

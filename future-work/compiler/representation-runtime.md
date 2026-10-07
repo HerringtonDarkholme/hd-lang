@@ -553,6 +553,14 @@ with no allocation, at the cost of three values per string and boxes in
 erased positions. S3 is dominated: it allocates per string creation and
 still pins.
 
+> **Superseded (owner, 2026-10-07).** The owner chose S2, Go-style shared
+> slices, and kept the slice rules. The layout packs `start` and `len`
+> into one `i64`, so a string is two values, `(ref $bytes, i64 span)`,
+> and counts 2 toward the boxing bound, not 3. The decided layout and its
+> costs are in [wasm-layout.md §15.2](wasm-layout.md#152-values) and
+> [lowering-catalog.md](lowering-catalog.md#string). The pinning risk is
+> accepted. This section stays as the study's record.
+
 ### 6.3 Hashing, Equality And A Cached Hash
 
 A cached hash (Java's `String.hash` field) needs a header object, which
@@ -629,10 +637,17 @@ length. Type-only: yes.
 
 ### 7.2 `Map[K, V]` And Hashing
 
-**Spec constraints.** Insertion order, including "remove then reinsert
+> **Update (owner, 2026-10-07).** Iteration order is no longer required
+> to be insertion order. It stays deterministic
+> ([`types.map.order.deterministic`](../../spec/lang/04-type-system.md#r-types.map.order.deterministic)),
+> and the bucket hash is an implementation detail
+> ([`std-hash.map.bucket-hash`](../../spec/std/hash.md#r-std-hash.map.bucket-hash)).
+> The compact insertion-ordered layout below is still a valid choice.
+
+**Spec constraints (as studied).** Insertion order, including "remove then reinsert
 goes last"; expected amortized O(1); lookups use `Eq` and `Hash`; hash
 values stay outside map semantics
-([`types.map.order`](../../spec/lang/04-type-system.md#r-types.map.order),
+(`types.map.order`, since retired,
 [`module.map.complexity`](../../spec/lang/10-modules.md#r-module.map.complexity),
 [`types.map.semantics`](../../spec/lang/04-type-system.md#r-types.map.semantics)).
 So the map may use any hash function internally; only `hash_of` and
