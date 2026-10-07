@@ -10,8 +10,9 @@ Part of the [compiler design](README.md).
 | --- | --- | --- |
 | `wasm_gc`, `wasm_function_references` | on | on |
 | exceptions, threads, stack switching | off | off |
-| compiler | Cranelift, `OptLevel::None` to start (§18.6) | Cranelift, `OptLevel::Speed` |
+| compiler | Cranelift, `OptLevel::Speed` by default, decided by S4 (§18.6) | Cranelift, `OptLevel::Speed` |
 | collector | the default copying collector | same |
+| initial GC heap | `hd run`: from the profile, default 64 MiB, decided by E9; `hd test`: the pooling allocator's small per-slot heaps, sized by `unit-test-perf` (§18.3) | the same, from the profile |
 | `epoch_interruption` | on | on |
 | `consume_fuel` | off (fuel is for simulation, Later) | off |
 | `max_wasm_stack` | the profile's stack limit | same |
@@ -43,12 +44,22 @@ Cranelift, as the research found.
   checksum is checked when the file is loaded, at about 10 GB/s.
 - **Per-function cache.** `Config::enable_incremental_compilation` takes
   a cache store; an adapter maps it onto `CacheStore` as entry kind
-  `cranelift`. A program whose other functions did not change recompiles
-  only the changed ones. Function order in the link is deterministic
-  (§13.10) but not index-stable: an inserted function renumbers later
-  ones. Whether Cranelift's cache keys abstract callee indices, so a
-  shifted index does not miss, is measured in slice 6 after insertions,
-  deletions and type-section changes (Codex re-review N-D2).
+  `cranelift`, and reads and writes it per program through a `clpack`
+  (cache.md §5.4). A program whose other functions did not change
+  recompiles only the changed ones. The key is the function's meaningful
+  CLIF, which abstracts direct call targets
+  ([wasmtime#4155](https://github.com/bytecodealliance/wasmtime/issues/4155))
+  but not global indices, type immediates or constants. So emitted bodies
+  hold no program-wide dense number besides call targets (stable
+  numbering, codegen.md §13.8): no site immediates, getters for lazily
+  initialized globals, and content hashes for key ids and type ids.
+  Without that, one new panic site in a debug build missed the cache for
+  about half the program. S2 of spike 0c measures each remaining index
+  space (types, constant globals, `ref.func`) after insertions; S3
+  measures what a cache hit costs, since wasmtime still translates every
+  function to compute its key. If a hit costs more than 40 percent of a
+  compile, splitting a program into one module per module group is
+  raised as an owner question.
 
 ### 18.3 Instantiation
 
@@ -92,11 +103,22 @@ part of `code_key` and nothing else.
 
 ### 18.6 Measured Choices
 
-Two engine settings are decided by slice 6's measurements, not here:
+These engine settings are decided by measurements, not here:
 
-- the debug tier's Cranelift level: `None` compiles faster, `Speed` keeps
-  `release-check-cost` safer. If debug code at `None` costs more than 1.3x
-  release, debug moves to `Speed` and the compile time is recorded;
+- the debug tier's Cranelift level: **default `Speed`, decided by S4**
+  of spike 0c (lowering pass). Register allocation dominates Cranelift's
+  time at either level, so `None` is expected to save only 10 to 25
+  percent, while its slower code eats the 1.3x `release-check-cost`
+  budget that overflow checks already use. Debug moves to `None` only if
+  it saves at least 25 percent of compile CPU and debug stays within 1.3x
+  release; the single-pass register allocator only if its runtime cost is
+  at most 1.1x and it saves at least 30 percent. Caching, stable
+  numbering, packs and filtered test programs are the latency levers;
+- the initial GC heap of `hd run`: default 64 MiB, decided by E9.
+  wasmtime's copying collector decides growth against the whole heap, so
+  a long-lived set near the semi-space size is re-copied on every
+  collection; one report measured 337 collections and an 8.8x slowdown,
+  fixed by a larger initial heap. `--max-heap` still caps it;
 - a null collector for short test instances (the research's experiment):
   adopted only if it measurably cuts `unit-test-perf`.
 
@@ -113,13 +135,26 @@ Two engine settings are decided by slice 6's measurements, not here:
 3. Each program goes through `Collect`, `Emit`, `Link` and `Precompile`
    as tasks, in parallel across programs. Warm, each program is one
    `prog_key` hit and one `cwasm` hit.
+4. **`--filter` builds only the selected cases** (lowering pass). The
+   filter is matched against the test plan's registration names, which
+   are string literals known after checking, before collection. The
+   program's roots are then the selected `TestCase` bodies plus the
+   module's reachable init groups, and the selection joins the root
+   description, so a filtered program has its own `prog_key` and shares
+   every code entry with the full one. That halves the functions to
+   compile and look up for `test-latency`. A build error that only an
+   unselected case reaches, such as `instantiation-too-deep`, does not
+   appear under that filter; a plain `hd test` still reports it, and a
+   failure's repro command already uses `--filter`, so the case it names
+   reproduces.
 
 ### 19.2 Listing Cases
 
 - Registration names are string literals, so the linker writes each
   program's cases into `hd.runtime` (§16.4): export index, name, kind
   (`it`, `it_each`, `it_prop`, doc test), file and line.
-- `--filter` selects cases from that list before anything runs.
+- `--filter` selects cases from the test plan before anything is built
+  (§19.1), and the built program lists only those cases.
 - **`it_each`** rows are evaluated at run time
   ([`std-testing.it-each.rows-at-run`](../../spec/std/testing.md#r-std-testing.it-each.rows-at-run)).
   The first instance of an `it_each` case runs row 0; its `row(count)`

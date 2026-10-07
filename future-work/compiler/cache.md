@@ -11,7 +11,7 @@ Part of the [compiler design](README.md).
 | interface blobs, check results, TIR, coherence and init results, package results; D2's code | `$HD_CACHE/obj/` | per user, across worktrees and packages | keys are content hashes, so worktrees on one commit share everything |
 | fetched dependency trees | `$HD_CACHE/pkg/` (spec today) | per user | [Cache](../../spec/cli/command-line.md#cache) |
 | staging for atomic writes | `$HD_CACHE/tmp/` | per user | same file system as `obj/`, so rename is atomic |
-| stat manifest, last test record | `build/.hd/` of each package | per worktree | holds paths and mtimes, which must not enter shared keys |
+| stat manifest, last test record, last link record per program (§5.4) | `build/.hd/` of each package | per worktree | holds paths, mtimes and build history, which must not enter shared keys |
 | std interfaces | embedded in the `hd` binary | per binary | no cache read for std ([Q2](research.md#recommendation-1)) |
 
 `$HD_CACHE` resolves as [`cli.cache.directory`](../../spec/cli/command-line.md#r-cli.cache.directory)
@@ -36,6 +36,8 @@ so `obj/` needs a spec change, which the owner accepted (open question
 | `depfiles` | a fetched dependency's file list with content and api text hashes | first use of the dependency | every later run (§5.5) |
 | `locs` | one file's declaration table: stable path to byte offset and line, keyed by `source_hash` | the parse or skim of a changed file | output, to resolve relative spans (§5.3) |
 | `code`, `link`, `cwasm` | Wasm per instance, per program, and precompiled per engine (§11.2) | D2 | D2 |
+| `cranelift` | one compiled function, keyed by wasmtime's per-function cache key (§18.2) | the `CacheStore` adapter of the incremental compilation cache | the same adapter |
+| `codepack`, `clpack` | every `code` entry, or every `cranelift` entry, of one program's last link, with an index by key (lowering pass) | `Link` and the adapter, after a build | the next build of the same program in the same worktree |
 
 **Fact records** (the program-database hook,
 [Q6](research.md#q6-program-database-hook)) are a
@@ -238,6 +240,25 @@ obj/
   run continues uncached. A cache never makes a check fail.
 - **Large entries** (blobs over 64 KiB, D2's code) are memory-mapped.
   Small ones are read whole.
+- **Per-program packs (lowering pass).** A program reads thousands of
+  `code` entries per link and thousands of `cranelift` entries per
+  precompile; one file each costs 15 to 30 µs, so 70 to 140 ms per link
+  on one core at 10k lines. So after a build, `Link` writes a `codepack`
+  entry holding every code entry of the program, and the Cranelift
+  adapter a `clpack` holding every compiled function it served or
+  produced. A pack's key is `H(kind, sorted member keys)`, a pure function
+  of its content, so packs are shared like any entry. The **last link
+  record** in `build/.hd/` names each program's last packs; it is the
+  only place build history lives, and it never enters a key or the
+  output bytes. The next build of the program maps those packs once and
+  takes every member whose key is unchanged; a key a pack lacks is read
+  as a separate entry, so a missing or evicted pack only costs speed.
+  The Cranelift adapter serves `get` from the mapped `clpack` before
+  falling back to single entries, and batches its `insert`s into the new
+  pack. Separate `code` and `cranelift` entries are still written on a
+  miss, so other programs and worktrees share them. Packs count toward
+  the size cap and are evicted like any entry. S3 of spike 0c measures
+  per-entry I/O on macOS and Linux.
 
 ### 5.5 The Stat Manifest And Change Detection
 

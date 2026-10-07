@@ -12,7 +12,8 @@ build.
 
 | Piece | Where | Notes |
 | --- | --- | --- |
-| `List`, `Map`, `Set`, `StringBuilder`, string operations, formatting, `Debug`, `Display`, JSON, iterators, `retry!`, `all_list!` | hd in `lib/std` | over `Array[T]` and string intrinsics |
+| `List`, `Map`, `Set`, `Deque`, `Heap`, `StringBuilder`, string operations, formatting, `Debug`, `Display`, JSON, iterators, `retry!`, `all_list!` | hd in `lib/std` | over `Array[T]` and string intrinsics. `Map` is a compact insertion-ordered table, `Set` wraps `Map[T, void]`, `Heap` a `List[T]`, `Deque` a ring buffer over `Array[T]`: none stores `T?` (wasm-layout.md §15.2; std work) |
+| `Hasher` with `write_u8`, `write_u16`, `write_u32`, `write_u64` and `write_str`, whose default bodies write today's bytes | hd in `lib/std` (`std.hash`), and the trait in the spec's [Hashing](../../spec/lang/09-traits.md#hashing) | a std and spec change (lowering pass, not yet applied): an integer or string key then hashes with no allocation, and devirtualization of a known `Hasher` vtable removes the indirect calls |
 | `Choices`, shrink-free generators, structured assert diffs | hd in `lib/std` (`std.testing`) | the runner shrinks on the host side |
 | `block_on`, the waker type, the wake table | hd in `lib/std` (`std.task`) | over one `hd:rt` import |
 | default-profile provider types (`HostConsole`, `HostFs`, ...) | hd declarations in `lib/std` whose method bodies are intrinsic | an intrinsic body maps to a host import by the ABI table (§17.1); the signature is plain hd |
@@ -157,7 +158,13 @@ alone.
   Wasm loop (Wasm GC has no bulk copy between arrays and memory). A
   string crosses with no conversion
   ([`types.string.host-bytes`](../../spec/lang/04-type-system.md#r-types.string.host-bytes)).
-  The host reads the bytes in one slice.
+  The host reads the bytes in one slice. The loop reads and writes 8
+  bytes per step (default, decided by E4 of spike 0c; a wasmtime
+  host-side bulk fill replaces it only if one exists and is 4x faster).
+  On V8 the copy costs 0.3 to 0.8 ns per byte, about 5 ms for 10 MB.
+- **Literal arguments** take a fast path: a string literal passed
+  straight to a host call is copied from the module's data segment into
+  the buffer with `memory.init`, with no GC array (wasm-layout.md §15.4).
 
 This replaces the prototype's call per byte (F-558). A `list_dir!` with a
 few names is one start call, one copy loop each way, and one finish call.
@@ -270,6 +277,7 @@ type description, so it needs no field names:
 | Limit | Mechanism | Failure |
 | --- | --- | --- |
 | time (`--time-limit`, a test's `timeout`) | epoch interruption: one ticker thread per process increments the engine epoch every millisecond; each store sets its deadline in ticks | the trap maps to `time-limit`; a pending host wait is cut by a reactor timer at the same deadline |
+| initial GC heap size | set from the runtime profile: default 64 MiB for `hd run`, decided by E9 of spike 0c; small pooled heaps for `hd test` (§18.1). wasmtime's copying collector otherwise re-copies a moderate long-lived set on every collection without growing the heap (one report: 337 collections, 8.8x slower) | none; it only sets where growth starts, and `--max-heap` still caps it |
 | GC heap and the exchange buffer (`--max-heap`) | one aggregate budget per store, enforced by a `ResourceLimiter`. A refused linear-memory growth makes `memory.grow` return `-1`, which the writer turns into the `heap-exhausted` panic (§17.3). A GC allocation that fails after a collection traps; the trap maps to `heap-exhausted`. Slice 0a tests both on the pinned wasmtime | `heap-exhausted` |
 | host-side buffers (a read result waiting for `.finish`, a reactor body) | a separate per-store byte budget in the host, checked before the host allocates; the default is the `--max-heap` value | the operation's result is the `heap-exhausted` panic at `.finish` |
 | stack | `Config::max_wasm_stack`, part of the runtime profile | `stack-exhausted` |
