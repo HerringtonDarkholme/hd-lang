@@ -96,6 +96,51 @@ This one generated file is the only `compiler/crates/` file you may
 write; keep the existing enum's public names compiling. `cargo test`
 green, `cargo fmt --check` clean. Timebox 45 minutes; push.
 
+### D2a. Reconcile M1 (Now)
+
+M1 landed as 07c74892. Run D2 for it, and record these M1 findings in
+the owning design docs (each a short rule, citing "M1 finding n"):
+
+1. The TIR hash excludes location columns (any header edit shifted every
+   later body's node indices and re-emitted all of them; checking-and-tir.md
+   §4.13, cache.md §5.3).
+2. `ir::Body` has a per-body constant table behind `Ref::konst`
+   (data-structures.md, the TIR section).
+3. Block ownership: a block owned by an `If` or `Loop` is not also listed
+   in its parent's block list; state one rule and the verifier invariant
+   (checking-and-tir.md).
+4. The solver answers `Fails(NoImpl)` when every candidate head is exact
+   and none matches (trait-solver.md).
+5. `deep_hash(F)` over-invalidates (hashes all used folders, not only
+   those F's interface mentions): record as an open gap with the
+   intended rule (cache.md, resolution-and-interfaces.md).
+6. Every diagnostic carries a real primary span; name which phases emit
+   span-less diagnostics today (folder-cycle, overlapping-impl,
+   missing-entry-point, unsupported) as a gap.
+
+Then update reconciliation.md (mark fixed items fixed) and footprint.md
+(the rows M1 made real: data-structures §3.18, §3.21; scheduler §6.2;
+wasm-layout §15.1, §15.2; cache §5.4; runtime-and-host §17.9; commands
+§7.5, §20.2, §20.3). Docs only; timebox 45 minutes; push.
+
+### Q10. Std Bootstrap Inventory (For M3)
+
+Research only, one doc: `future-work/compiler/std-bootstrap.md`. What
+the new compiler needs so `lib/std` reaches programs, read from
+`lib/std/*.hd`, the spec's prelude and intrinsic rules, and
+`compiler/crates/hd_host_abi`:
+
+- every `@intrinsic` (or equivalent) in lib/std: name, signature, which
+  design section owns its lowering, and whether `hd_host_abi::TABLE`
+  has it;
+- the prelude: which names every program sees, and from which modules;
+- every derive and annotation lib/std uses, with the design section
+  that handles it;
+- the folder graph of lib/std (which folders, their uses, any cycles);
+- a dependency order for M3: which pieces unblock the most.
+
+Tables, not prose. Don't edit code. Timebox 45 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
