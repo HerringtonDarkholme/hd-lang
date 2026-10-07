@@ -72,7 +72,7 @@ byte. The edit vocabulary:
 | lengthen a function body above an impl that has an overlap report | that module only; the trait's `coh` key hits, since the rank is an item index |
 | add or remove `@derive`, edit a template body in another package | the modules that derive the trait |
 | inside a kept template body, move a statement out of an `if` to after it: equal tokens, different indentation | the trait's folder gets a new api text hash; every module that derives the trait rechecks and matches a clean run (Codex re-review N-A3) |
-| re-indent a whole template declaration by one level | that module only; layout tokens are relative, so the api text hash is unchanged |
+| change a template body's indentation width throughout, from four spaces to two | that module only; layout tokens are relative, so the api text hash is unchanged |
 | edit a top-level statement read in a multi-module init group | that module and the folder's init order |
 | edit a doc comment or a comment | that module rechecks under its new source hash; no dependent rechecks (Codex re-review N-C3) |
 | delete a file, then restore it with its old mtime | the right modules both times |
