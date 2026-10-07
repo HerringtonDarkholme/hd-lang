@@ -87,7 +87,7 @@ When the queue is empty, report that and wait.
 
 The same as Q5 (`compiler/tests/parse-gaps/`), for every valid case in
 `spec/conformance/` and `test/portable/` that the new full parser
-rejects (`hd parse FILE` reports a diagnostic on a valid file). One
+rejects (the parse stage reports a diagnostic on a valid file; `hd parse` is gone, so use `hd FILE.hd` or a small cargo example over `hd_syntax::parse`). One
 construct per repro file; extend the README table with a column for how
 many fixtures each construct blocks, sorted by that count. Don't edit
 `compiler/crates/`. Timebox 30 minutes; push.
