@@ -219,8 +219,11 @@ fn incremental() {
     let r = build(&mut store, &program(&main, Some(&sig)));
     let c = &r.counters;
     eprintln!("signature edit: {c:#?}");
-    assert_eq!(c.ifaces_built, vec!["pkg.geo".to_owned()]);
+    // iface_key(A) holds B's deep hash, so A's interface is rebuilt too; A
+    // exports nothing that mentions B, so A's deep hash stays the same.
+    assert_eq!(c.ifaces_built, vec!["pkg.geo".to_owned(), "pkg.app".to_owned()]);
     assert_ne!(c.deep_hashes["pkg.geo"], deep_before);
+    assert_eq!(c.deep_hashes["pkg.app"], cold.counters.deep_hashes["pkg.app"]);
     let mut checked = c.modules_checked.clone();
     checked.sort();
     assert_eq!(checked, vec!["pkg.app.main".to_owned(), "pkg.geo.shapes".to_owned()]);
