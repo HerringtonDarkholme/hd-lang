@@ -3,5 +3,7 @@
 # (module.prelude.from-error); the prelude uses it, so postfix `?` finds it
 # without an import (module.prelude.question-from).
 
+## The general conversion trait: `from(value)` builds a `Self` from a `T`, and postfix `?` finds it without an import.
+## See [trait.from.module](../../spec/lang/09-traits.md#r-trait.from.module).
 pub trait From[T]:
     fn from(value: T) -> Self
