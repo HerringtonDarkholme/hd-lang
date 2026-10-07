@@ -112,6 +112,30 @@ reasoning each in the commit):
 Then remove their exclusions from `crates/hd_syntax/tests/corpus.rs`
 (the only compiler file you may touch here). Timebox 45 minutes; push.
 
+### Q11. TIR Text Corpus: One Case Per Instruction
+
+`hd_tir` has 59 instruction tags with a text printer, a text parser and
+a verifier. Write `compiler/crates/hd_tir/tests/corpus/*.tir`: at least
+one well-formed body per tag (and per terminator), plus one ill-formed
+body per verifier invariant that the verifier must reject. Add one test
+file `compiler/crates/hd_tir/tests/corpus.rs` that, for every `.tir`
+file, checks parse → print → parse is byte-identical and the verifier
+verdict matches the file's `# expect: ok` or `# expect: reject <rule>`
+header. Pass/fail: the test, `cargo fmt --check`, clippy `-D warnings`.
+These test files are the only compiler files you may write. If a tag
+cannot be written in text or the verifier misjudges a case, list it in
+the commit message; don't change `src/`. Timebox 45 minutes; push.
+
+### Q12. CLI Argument Forms: Implementation Versus Spec
+
+A table in `future-work/compiler/cli-forms.md`: every command and
+argument form in `spec/cli/command-line.md` (rule ID, form, expected
+behaviour) against what `compiler/crates/hd_cli` does today (run the
+release binary on a scratch package for each row; record exit code and
+first output line). Mark each row match / differs / missing. Known
+case: `hd run FILE` (M1 kept it; the spec makes it an error) and `hd
+parse` (removed). Docs only. Timebox 30 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
