@@ -431,11 +431,12 @@ after.
 - **plugins and runtime code loading**: parked until now, and needs a
   design pass later (owner, 2026-10-06).
 
-**Third-party, not in the toolchain** (owner, 2026-10-06): an API
-compatibility checker (as Go's `apidiff` and Rust's `cargo-semver-checks`
-are; see [API Compatibility Checking](OPEN_ISSUES.md#api-compatibility-checking-from-the-deleted-packagesmd)),
-`migrate` codemods, and a per-dependency capability audit. They read the
-public surface from `build/doc/md`, and from the program database later.
+**Deferred** (owner, 2026-10-06): an API compatibility checker (see
+[API Compatibility Checking](OPEN_ISSUES.md#api-compatibility-checking-from-the-deleted-packagesmd)),
+`migrate` codemods, and a per-dependency capability audit. Whether each
+becomes an `hd` command or a third-party tool is decided later; either way
+it can read the public surface from `build/doc/md`, and from the program
+database later.
 
 ## Architecture Direction (orchestrator's proposals, not decided)
 

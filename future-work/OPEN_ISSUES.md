@@ -280,8 +280,8 @@ wrap by hand or match on it.
 
 ### API Compatibility Checking (from the deleted PACKAGES.md)
 
-**Deferred.** The checker is a third-party tool, not an `hd` command
-(owner, 2026-10-06). It decides whether two versions on one
+**Deferred.** Whether the checker is an `hd` command or a third-party
+tool is decided later (owner, 2026-10-06). It decides whether two versions on one
 compatibility line are compatible by classifying each difference between
 their interface files. An unclassified difference counts as breaking:
 patch when the signatures are equal, minor when every difference is a
