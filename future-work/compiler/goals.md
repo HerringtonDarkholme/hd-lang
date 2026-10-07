@@ -84,6 +84,17 @@ Detailed design: [README.md](README.md)
   style, `trait.dyn.binding.complete` unchanged). When two supertrait paths
   bind the same associated type, equal bindings merge and different ones
   are `duplicate-associated-binding` at the declaring trait.
+- **Strings are Go-style shared slices** (owner, 2026-10-07): a string is
+  `(array, start, len)`, and `slice` / `s[a..b]` stay O(1) and share bytes
+  as the spec already says (`module.string.slice.shared`). The known cost:
+  a small slice keeps its whole backing array alive.
+- **Map:** the internal bucket hash is an implementation detail, and
+  iteration order is no longer required to be insertion order; it stays
+  deterministic (same program and data, same order). No deliberate
+  Go-style scrambling for now.
+- The `dead-code` target is re-based after spike S7 measures real section
+  sizes. Release builds omit the standard `name` section and keep the
+  compact `hd.names` for backtraces.
 - **GADTs are removed from the language** (chapter 13, its fixtures and
   every refinement rule). Typed request/response APIs use traits with
   associated types; typed interpreters use a runtime value enum or traits.
