@@ -75,7 +75,7 @@ target, so a slow `hd` fails fast instead of holding the run for minutes.
 | `lookup-latency` | 10k-line package: canned program-database queries `hd callers NAME` and `hd needs Http`, 10 runs each after a warm-up | p95 ≤ 100 ms each | a query whose `hd help COMMAND` fails |
 | `fmt` | `hd fmt` on a copy of the 10k-line package, then a second `hd fmt` | ≤ 200 ms; the second run changes nothing | no `hd fmt` |
 | `check-cost` | a checked-arithmetic loop in the optimized pipeline with checks on (a test case run by `hd test --release`) and off (an executable run by `hd run --release`), at two sizes; each time is large minus small | checked ≤ 1.3x unchecked | `hd help test` names no `--release` |
-| `dev-speed` | the `runtime` micro cases as test cases in the test profile, run by `hd test` (dev pipeline) and `hd test --release` (optimized pipeline), at two sizes; each time is large minus small | dev ≤ 4x optimized, geomean; no case > 10x | `hd help test` names no `--release` |
+| `dev-speed` | the `runtime` micro cases as test cases in the test profile, run by `hd test` (dev pipeline) and `hd test --release` (optimized pipeline); each time is the case minus an empty test | dev ≤ 4x optimized, geomean; no case > 10x | `hd help test` names no `--release` |
 
 Notes on the choices:
 
@@ -93,10 +93,10 @@ Notes on the choices:
   ([`cli.profile.test.release`](../../spec/cli/command-line.md#r-cli.profile.test.release)).
   `check-cost` prices the checks with the pipeline fixed; `dev-speed`
   guards how slow dev code may run with the profile fixed. Work under
-  50 ms is within noise and fails. **Follow-up:** the script still
-  measures the old pair under its old name
-  ([`release-check-cost.ts`](scripts/release-check-cost.ts)); it needs
-  splitting into `check-cost.ts` and `dev-speed.ts`.
+  50 ms is within noise and fails. Both report n/a for an
+  implementation whose `hd help test` names no `--release`, such as the
+  frozen prototype, which has one pipeline
+  ([`cli.profile.pipeline.one`](../../spec/cli/command-line.md#r-cli.profile.pipeline.one)).
 - **`recheck-precision`** reads `modules_checked`, a number in the summary
   object of `hd check --format json`: the modules the run type-checked
   rather than reused. The CLI specification has no such field yet; the name

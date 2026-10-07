@@ -7,11 +7,13 @@ import { allocations } from "./allocations.ts";
 import { answerSize } from "./answer-size.ts";
 import { cacheContention } from "./cache-contention.ts";
 import { cacheGrowth } from "./cache-growth.ts";
+import { checkCost } from "./check-cost.ts";
 import { coldCheck } from "./cold-check.ts";
 import { concurrency } from "./concurrency.ts";
 import { conformance } from "./conformance.ts";
 import { deadCode } from "./dead-code.ts";
 import { determinism } from "./determinism.ts";
+import { devSpeed } from "./dev-speed.ts";
 import { diagLocation } from "./diag-location.ts";
 import { disk } from "./disk.ts";
 import { editLatency } from "./edit-latency.ts";
@@ -31,7 +33,6 @@ import { parallelSpeedup } from "./parallel-speedup.ts";
 import { pathological } from "./pathological.ts";
 import { proptestPerf } from "./proptest-perf.ts";
 import { recheckPrecision } from "./recheck-precision.ts";
-import { releaseCheckCost } from "./release-check-cost.ts";
 import { resources } from "./resources.ts";
 import { runtime } from "./runtime.ts";
 import { serdeThroughput } from "./serde-throughput.ts";
@@ -57,7 +58,8 @@ export const METRICS: readonly Metric[] = [
   fixitSafety,
   lookupLatency,
   fmt,
-  releaseCheckCost,
+  checkCost,
+  devSpeed,
   resources,
   longSession,
   startup,

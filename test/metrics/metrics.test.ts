@@ -201,7 +201,7 @@ describe("runner", () => {
       selectMetrics(METRICS, ["fmt,mistakes"], undefined).map((metric) => metric.name),
       ["mistakes", "fmt"],
     );
-    assert.equal(selectMetrics(METRICS, [], "1").length, 14);
+    assert.equal(selectMetrics(METRICS, [], "1").length, 15);
     assert.deepEqual(
       selectMetrics(METRICS, [], "2").map((metric) => metric.name),
       [
