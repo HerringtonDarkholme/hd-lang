@@ -4,27 +4,39 @@
 # (src/commands/default-profile.ts).
 use std.format.DebugWriter
 
+## The host capability to read the process's arguments.
+## See [std-host.args.decl](../../spec/std/host.md#r-std-host.args.decl).
 pub trait Args:
     fn program(self) -> string
     fn list(self) -> List[string]
 
+## The host capability to read the process's environment variables.
+## See [std-host.env.decl](../../spec/std/host.md#r-std-host.env.decl).
 pub trait Env:
     fn get(self, name: string) -> string?
     fn names(self) -> List[string]
 
+## The process's arguments, the program name first.
+## See [std-host.args.helper](../../spec/std/host.md#r-std-host.args.helper).
 pub fn args() -> List[string] $ Args:
     $.use(Args).list()
 
+## The value of the environment variable `name`, in `.Some`, or `.None` when it is not set.
+## See [std-host.env.helper](../../spec/std/host.md#r-std-host.env.helper).
 pub fn env(name: string) -> string? $ Env:
     $.use(Env).get(name)
 
 # The deterministic `Args` (spec/std/host.md#map-providers):
 # it returns the program name and the arguments it was made with.
+## The deterministic `Args` provider: a fixed list of arguments, with no host access.
+## See [std-host.map-args.decl](../../spec/std/host.md#r-std-host.map-args.decl).
 pub data MapArgs:
     program: string
     values: List[string]
 
 impl MapArgs:
+    ## Returns the provider whose arguments are `program` then `values`.
+    ## See [std-host.map-args.new](../../spec/std/host.md#r-std-host.map-args.new).
     pub fn new(program: string, values: List[string]) -> MapArgs:
         MapArgs { program: program, values: values }
 
@@ -37,10 +49,14 @@ impl Args for MapArgs:
 
 # The deterministic `Env`: its map is the whole environment, and `names`
 # lists the map's keys in insertion order (r-std-host.map-env.names).
+## The deterministic `Env` provider: a fixed map of variables, with no host access.
+## See [std-host.map-env.decl](../../spec/std/host.md#r-std-host.map-env.decl).
 pub data MapEnv:
     values: Map[string, string]
 
 impl MapEnv:
+    ## Returns the provider that answers from `values`.
+    ## See [std-host.map-env.new](../../spec/std/host.md#r-std-host.map-env.new).
     pub fn new(values: Map[string, string]) -> MapEnv:
         MapEnv { values: values }
 
