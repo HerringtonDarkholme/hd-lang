@@ -716,3 +716,462 @@ JavaScript's deterministic `Map`:
 - **Engines:** no difference in code; `array.new_data` is not a constant instruction, which is why long literals cannot be constant globals on either engine.
 - **Type-only:** not a type question.
 - **Pending:** E10 (the threshold and eager filling).
+
+## Expressions And Statements
+
+For a syntax form, "type-only" asks whether the emitted code depends only
+on the instance's own TIR, its type arguments and the layouts and impls
+it reads, which the code key lists (codegen.md §13.8). Every form below
+keeps that. None reads a program-wide number (see [Numbering](#numbering)).
+
+### Arithmetic And Overflow Checks
+
+```wat
+;; a + b on i32, debug and test: checked; release: i32.add alone
+(local.set $r (i32.add (local.get $a) (local.get $b)))
+(if (i32.lt_s (i32.and (i32.xor (local.get $a) (local.get $r))
+                       (i32.xor (local.get $b) (local.get $r))) (i32.const 0))
+    (then (call $panic_overflow)))          ;; no site immediate: the call's offset is the site
+;; unsigned: a + b < a; i64 *: divide back; narrowing casts: a range compare
+```
+
+- **Speed:** release is the bare instruction. Debug adds a few ALU
+  operations and a predictable branch; the `i64` multiplication check
+  costs about 20 cycles. `release-check-cost` (debug at most 1.3x)
+  watches the total.
+- **Size:** about 10 to 14 bytes per checked operation in debug. Each
+  check keeps its own `call`, since its code offset names its site.
+- **Engines:** no difference.
+- **Type-only:** yes. The sequence depends on the operand type and the
+  tier.
+
+### Division, Remainder And Shifts
+
+```wat
+;; a / b on i32: a zero divisor traps in the engine; the trap maps to integer-division-by-zero
+(if (i32.and (i32.eq (local.get $a) (i32.const 0x80000000)) (i32.eq (local.get $b) (i32.const -1)))
+    (then (call $panic_overflow)))        ;; debug; release returns INT_MIN, since div_s would trap
+;; x << n: n >= width panics invalid-shift in every tier; Wasm masks the count otherwise
+(if (i32.ge_u (local.get $n) (i32.const 32)) (then (call $panic_shift)))
+```
+
+- **Speed:** one compare and branch per operation.
+- **Size:** about 12 bytes per guarded division, 8 per guarded shift.
+- **Engines:** both trap on a zero divisor; the host maps the trap by code
+  offset.
+- **Type-only:** yes.
+
+### Comparison, Equality And Logical Operators
+
+```wat
+;; primitives: i32.eq, i64.lt_s, f64.eq ...; string ==: length compare, then a byte loop (std)
+;; data or enum ==: a direct call of the selected Eq impl, usually inlined
+;; a and b: (if (result i32) (local.get $a) (then (local.get $b)) (else (i32.const 0)))
+```
+
+- **Speed:** primitives free; strings one byte per step (E7 measures it
+  against Node); user `Eq` a direct call.
+- **Size:** none beyond the instruction or the call.
+- **Engines:** no difference.
+- **Type-only:** yes.
+
+### Indexing And Slicing
+
+```wat
+;; items[i]: the list's index method, inlined: compare with len, read, (A1) cast
+;; m[k]: lookup; absent key panics index-out-of-bounds;  m.get(k) returns V?
+;; s[i]: array.get_u; the engine's bounds trap is the check
+;; s[a..b] (S1): bounds and boundary checks, array.new and array.copy
+;; items[a..b]: a new list of the selected elements (a copy, by the spec)
+```
+
+- **Speed:** a list index is two loads, a compare and a read; a map index
+  is a lookup. Slices allocate (lists always; strings under S1).
+- **Size:** 59 bytes for a list index with its check, 67 with the A1
+  cast, when inlined; a call is about 5 bytes when not.
+- **Engines:** V8 hoists more bounds checks out of loops than Cranelift.
+- **Type-only:** yes.
+- **Pending:** string slicing (owner, E6); A1 (E1).
+
+### Path Mutation And Compound Assignment
+
+```wat
+;; order.items[i].qty += 1
+(local.set $l (struct.get $Order $items (local.get $order)))     ;; evaluate the path once
+... index check on $l, read element, cast (A1) to $Line ...
+(struct.set $Line $qty (local.get $line) (i32.add (struct.get $Line $qty (local.get $line)) (i32.const 1)))
+;; m[k] += v: one lookup for the read and the write through an internal entry slot
+;; a part on the path: one more struct.get; the part is shared, so the write is visible through the outer value
+```
+
+- **Speed:** each path step is one load; the final step is one store. A
+  value-layout element in a list (within the bound) is updated in place in
+  its parallel arrays; a boxed element is replaced by a new box.
+- **Size:** a few bytes per step.
+- **Engines:** no difference.
+- **Type-only:** yes.
+
+### String Interpolation And Concatenation
+
+```wat
+;; "id=$id name=$name": each Display part writes into one builder through its resolved callee
+(call $sb_new (i32.const 16))                   ;; capacity: the literal parts' total bytes
+(call $sb_push_lit (... (call $lit_k)))         ;; literal parts: array.copy from the pooled literal
+(call $i32_display (local.get $sb) (local.get $id))
+(call $str_display (local.get $sb) (local.get $name))
+(call $sb_finish (local.get $sb))               ;; one exact-size $str
+;; a + b on strings: array.new of the summed length, two array.copy
+```
+
+- **Speed:** one builder, one final string; each `Display` part a direct
+  call that writes in place rather than returning a string.
+- **Size:** about 8 bytes per part plus the literal's getter call.
+- **Engines:** no difference.
+- **Boundary:** `println("...")` of a literal alone takes the host fast
+  path (no array built).
+- **Type-only:** yes. The callee per part is the impl `select` picks.
+
+### Pipes, Binding Expressions And Ranges
+
+```wat
+;; x |> f(_, 2)  ==  f(x, 2): the piped value is a local, evaluated first; nothing at run time
+;; (n := xs.len()) > 0: a local
+;; a..b as a value: struct.new $Range; in for and in an inlined slice it is never built
+```
+
+- **Speed, size:** nothing beyond the desugared form.
+- **Type-only:** yes.
+
+### Propagation `?`
+
+```wat
+;; Result: test the tag local; on .Err convert the error (From impl, a direct call) and leave
+(if (local.get $tag) (then
+    (local.set $ret_err (call $From_FsError_SyncError (local.get $err)))
+    (local.set $exit (i32.const 2)) (br $cleanup)))       ;; or br straight to the function's end with no defer
+;; Option of a reference: (br_on_null $none (local.get $v))
+```
+
+- **Speed:** one tag or null test. A conversion runs only on the error
+  path, before any deferred cleanup.
+- **Size:** about 6 to 12 bytes per `?`; more when an error conversion is
+  called.
+- **Engines:** no difference.
+- **Type-only:** yes.
+
+### `if` And `match` As Values
+
+```wat
+(if (result i32 i64) (local.get $c) (then ...) (else ...))   ;; a multi-value block type uses a func type entry
+;; match: br_table on a tag or a dense range; a binary search of ifs past 8 sparse cases;
+;; strings: length, then bytes; each arm once, in nested blocks
+(block $arm2 (block $arm1 (block $arm0 (br_table $arm0 $arm1 $arm2 (local.get $tag))) ...) ...)
+```
+
+- **Speed:** a `br_table` per enum match; a subtype box casts once per
+  matching arm.
+- **Size:** 44 bytes for a 3-arm match on a value enum, 68 on a boxed one.
+- **Engines:** both lower `br_table` to a jump table.
+- **Type-only:** yes. The block's result types come from the layout.
+
+### Loops
+
+```wat
+;; for i in a..b: i = a; end = b; loop: if i >= end break; body; i = i + 1
+;; for x in items: len captured; loop over the backing array; compare len each step (iterator-invalidated)
+;; for (k, v) in m: loop over entries, skipping holes; the same length check
+;; for x in it (an Iterator): call step until .None; specialized when it is a known chain
+;; while c: (block $exit (loop $top (br_if $exit (i32.eqz c)) body (br $top)))
+```
+
+- **Speed:** counted loops allocate nothing in either tier; this is a
+  lowering rule, not an optimization. A loop over a list under A1 casts
+  each element only where the body needs its exact type.
+- **Size:** about 20 to 30 bytes of loop scaffolding.
+- **Engines:** Cranelift does not vectorize; V8 neither for Wasm GC
+  arrays.
+- **Type-only:** yes.
+
+### `break` With A Value, `continue` And Loop `else`
+
+hd has no loop labels: `break` and `continue` target the nearest loop
+([`flow.break`](../../spec/lang/06-control-flow.md#r-flow.break)). A loop
+with `else` produces a value.
+
+```wat
+(block $done (result i32)                 ;; the loop's value
+  (block $exhausted
+    (loop $top ... (br $done (local.get $v)) ... (br $top)))   ;; break v
+  ... else suite ...)                      ;; normal exhaustion
+;; continue: br to the increment (counted loops) or to $top
+;; inside a Scope with defer: the exit ladder stores the value and an exit code first
+```
+
+- **Speed, size:** branches only.
+- **Engines:** no difference.
+- **Type-only:** yes.
+
+### Comprehensions
+
+```wat
+;; [for x in xs if p(x) => f(x)]: the nested loops of the clauses, a push per result
+(local.set $out (call $List_new_with_capacity (struct.get $List $len (local.get $xs))))   ;; no filter: exact capacity
+;; {for u in users => u.id: u}: map inserts in order; a later duplicate replaces the value
+```
+
+- **Speed:** eager loops; one result list or map, grown as it goes, or
+  sized once when the first clause is a list and there is no filter.
+- **Size:** the loops plus a push call per result site.
+- **Engines:** no difference.
+- **Type-only:** yes.
+
+### Method Calls: Static, Bound, `dyn`
+
+```wat
+(call $Cart.total (local.get $cart))                 ;; an inherent or Impl choice
+(call $Point.Display.to_string (local.get $p))      ;; a Bound choice, selected at the instance's types
+(call_ref $Fn_m (local.get $payload) ... (struct.get $VT $m (local.get $vt)))   ;; a dyn call
+;; a dyn call whose vtable is a known constant global: a direct call, then possibly inlined
+```
+
+- **Speed:** static and bound calls are direct and inlinable; a `dyn`
+  call is a load and a `call_ref`, unless devirtualized.
+- **Size:** a direct call is about 3 bytes in release; a `dyn` call about
+  8.
+- **Engines:** V8 inlines monomorphic `call_ref`s; wasmtime never does,
+  so devirtualization is the compiler's job.
+- **Type-only:** yes. The callee is what collection selected, recorded
+  in the code key.
+
+### Closure Calls
+
+```wat
+;; unspecialized: struct.get $code, call_ref with the closure first, cast in the callee
+;; specialized (a closure literal reaching a callee within budget):
+;;   inline the callee; scalar-replace its non-escaping Iterator and environment structs;
+;;   the call_ref target becomes a known closure literal: call its body directly; inline it
+;;   repeat per stage, at most 4 rounds, under the caller's size cap
+```
+
+- **Speed:** unspecialized, one `call_ref` and one cast per call;
+  specialized, none, and no allocation for the chain.
+- **Size:** 50 to 150 bytes per specialized stage at the call site; at
+  most 512 bytes of growth per chain site by default.
+- **Engines:** the pass matters on wasmtime; V8 already inlines
+  monomorphic calls at run time.
+- **Type-only:** yes; specialization makes code, never layouts, and its
+  budget is local to the caller, so the caller's bytes depend only on its
+  own code key's inputs.
+- **Pending:** S6 and E8 (caps), E3 (whether release requires the pass).
+
+### Providers: `$.with`, `$.use` And Rows
+
+```wat
+;; a concrete row: one parameter per key, in canon(K) order; a provider is a dyn pair
+(call $load_user (local.get $id) (local.get $db_payload) (local.get $db_vt))
+;; a row parameter $R: one context parameter, a linked list of (key id, provider)
+(struct.new $Ctx (i64.const 0x51c2...) (local.get $p) (local.get $vt) (local.get $ctx))   ;; key id: a content hash
+```
+
+- **Speed:** a concrete row costs one argument pair per key and no
+  allocation. Extension into row-polymorphic code allocates one node; a
+  lookup walks the list.
+- **Size:** two parameters per key; about 15 bytes per context
+  extension.
+- **Engines:** no difference.
+- **Type-only:** yes. Key ids are `H(canon(K))`, so a new key elsewhere
+  in the program changes no body.
+
+### Bang Calls, `all!`, `race!` And `block_on`
+
+```wat
+;; x := load!(id): call the body with a null frame; Ready continues; Pending saves live locals and returns
+(call $load$body (ref.null $F_load) (local.get $id) ...)   ;; -> (dflt(T), (ref null $F_load))
+(br_on_non_null $pending ...)
+;; all!(a, b): one intrinsic frame per tuple of child result types; race!: a generic intrinsic over T
+```
+
+- **Speed:** the ready path is a direct call and a null test; the
+  pending path allocates one frame per level once. `all!` polls each
+  child; `race!` cancels the losers synchronously.
+- **Size:** the save and reload sequences per suspension point; four
+  functions per suspending instance (suspension.md §14.1).
+- **Engines:** `block_on` uses JSPI in the browser, else a synchronous
+  same-origin XHR, else a `host-contract` panic (§17.6).
+- **Boundary:** a waiting host call is `.start` and `.finish` (§17.2).
+- **Type-only:** yes.
+- **Pending:** E11.
+
+### `defer`
+
+```wat
+;; one exit: the suites run there directly (the common case)
+;; several exits: each stores its value and an exit code, then br $cleanup;
+;; $cleanup runs the registered suites last in, first out, then br_table on the exit code
+```
+
+- **Speed:** a flag store per conditionally registered suite, and a
+  `br_table` at a scope with several exits. A panic runs no suite.
+- **Size:** one cleanup block per scope, plus a few bytes per exit.
+- **Engines:** no difference.
+- **Type-only:** yes.
+
+### Let Patterns And Let-Else
+
+```wat
+;; let .Some(p) = find(id) else: return 0
+(block $matched (result (ref $Point))
+  (br_on_non_null $matched (call $find (local.get $id)))
+  ... else block: diverges ...)
+;; let (a, b) = pair: the pair's values into two locals; nothing allocated
+```
+
+- **Speed, size:** a match of one arm.
+- **Engines:** no difference.
+- **Type-only:** yes.
+
+### `is`
+
+```wat
+(ref.eq (local.get $a) (local.get $b))     ;; data, lists, maps, an AnyRef type parameter's instance
+(ref.eq (local.get $pa) (local.get $pb))   ;; dyn and Any: the eqref payloads
+```
+
+- **Speed, size:** one instruction. Value operands are a compile error,
+  so there is nothing to emit for them.
+- **Type-only:** yes.
+
+### Default Arguments
+
+```wat
+;; f(a) where f(a, b = make()): a direct call of the default body's instance with a,
+;; inside the forbidden-context bracket when the default body makes a call
+(call $f (local.get $a) (call $f$default_b (local.get $a)))
+;; a constant default (= 10) is inlined by the trivial-inlining test
+```
+
+- **Speed:** a call per omitted argument, unless inlined.
+- **Size:** about 5 bytes per call site; the default body once per
+  instance.
+- **Type-only:** yes.
+
+### Module Initialization Across Folders
+
+```wat
+(func (export "hd.init")
+  (call $init_group_std_text) (call $init_group_shop_model) (call $init_group_shop_main))   ;; D1's InitOrder
+;; each group's init runs its statements in order and sets module storage globals
+```
+
+- **Speed:** once per program instance; per test case, since each case
+  gets a fresh instance. Constant globals need no init call.
+- **Size:** one init function per reachable group with statements.
+- **Engines:** no Wasm `start` function on either, so the host can
+  attribute an init trap and bound it by the case's time limit.
+- **Type-only:** not a type question; the order is D1's, a function of
+  the use graph and source order.
+
+### Tests
+
+```wat
+;; one export per registered case; its TestCase body evaluates the registration's run-time
+;; arguments and calls the std registration function, which drives the test body
+(func (export "t3") ...)
+;; --filter: the program's roots are the selected cases plus the module's init groups
+```
+
+- **Speed:** a fresh instance per case, through `InstancePre` and the
+  pooling allocator.
+- **Size:** a filtered program holds only the selected cases' code; it
+  shares every code entry with the full program.
+- **Type-only:** yes.
+
+### Derives
+
+```wat
+;; @derive(Debug, Eq, Hash) on data Point: ordinary instances of the templates;
+;; each member call (w.member(h, value)) is direct and trivially inlined, so no member instance
+;; is emitted on its own; member handles are constant globals
+(call $hasher_write_u32 ...)   ;; with the Hasher change, a field hash writes without allocating
+```
+
+- **Speed:** straight-line code per derived impl. Derived hashing writes
+  through the new fixed-width `Hasher` methods, so it allocates nothing.
+- **Size:** derived code is about 27 percent of a 10k-line program's
+  instances today; skipping always-inlined callees at collection removes
+  the per-member instances.
+- **Type-only:** yes.
+
+### Explicit Panics And Unreachable Code
+
+```wat
+(call $panic_explicit (... message in the exchange buffer ...))   ;; stores the category, then unreachable
+```
+
+- **Speed:** a panic traps; the host reads the category global and the
+  buffer, never calling into the poisoned instance.
+- **Size:** one `call` per site; the stub once per category.
+- **Engines:** wasmtime's `WasmBacktrace` and V8's `Error.stack` both give
+  the caller frame's code offset, which `hd.sites` maps to the site.
+- **Type-only:** yes.
+
+## Inconsistencies Between The Two Studies
+
+| Topic | Runtime study | Compile study | Resolution |
+| --- | --- | --- | --- |
+| debug Cranelift level | debug and release run the same optimizer | `Speed` unless S4 shows `None` saves 25 percent | `Speed` by default; S4 decides; engines-and-test-runner.md §18.1 and §18.6 changed from `None` |
+| literal access | an inlined fast path at the use site, the pool index in it | lazy globals through getters, or append order | getters: an inlined pool index is a dense number in every reader, and append order needs build history, which §15.8 forbids |
+| facts in loops | inline the fast path at reads inside loops | getters | getters, with reads common-subexpression-eliminated in a body |
+| erased storage (A) | a layout rule for every type-parameter slot; a cast at the first exact use | A1 at collection by representation summaries, instance keys by class | both: the layout rule gives one type per class; the summary gives one instance per class for move-only bodies. Classes `REF` and `REF?` stay apart, since `T?` differs between them |
+| `TypeId` hash | a link-time number; `Hash` writes the name bytes | a content hash | a content hash; `Hash` writes the 64-bit id, which is already independent of link order |
+| the boxing bound | box over 4 values everywhere, after slot sharing | reuse the existing bound; one bound only | one bound, 4 by default, after slot sharing; E2 sets it |
+| short literals and vtables | `array.new_fixed` for literals of at most 4 bytes | direct constants "ordered by content", which still shift on insertion | direct by default; S2 decides per global kind |
+| heap sizing | `Config::gc_heap_initial_size` around 64 MiB from the profile | not covered | `hd run` only; `hd test` keeps small pooled heaps, since 64 concurrent instances at 64 MiB each would exhaust memory. E9 and `unit-test-perf` measure it |
+| principle 3 and A1 | one representation per type in every position | `eqref` slots with casts | compatible: principle 3 forbids conversions that allocate or copy; an upcast to `eqref` and a cast back do neither |
+| the `name` section | not covered | `hd.names` in release, `name` only in debug | adopted; release backtraces are symbolized from `hd.names` |
+| map hashing | the map's internal hasher may use a faster mix | not covered | conflicts with `std-hash.default.map`; owner question 3 |
+| `--size-report` | a first-release size guard | not covered | first release, by the orchestrator's call; goals.md still lists it as Later |
+
+## Open Questions For The Owner
+
+### 1. String Slicing: S1 Or S2
+
+The spec says `slice` takes constant time and shares bytes
+([`module.string.slice`](../../spec/lang/10-modules.md#r-module.string.slice),
+[`module.string.slice.shared`](../../spec/lang/10-modules.md#r-module.string.slice.shared),
+[`expr.index.slice.string.shared`](../../spec/lang/05-expressions.md#r-expr.index.slice.string.shared)).
+The layout copies.
+
+**Recommendation: S1.** Change the three rules so a slice copies its
+bytes in time linear in the slice's length, as Java does since 7u6. A
+string stays one reference: one array per `List[string]`, free erasure,
+folding under A1, and no small slice pinning a large source. Typical
+slices are short tokens, at about 0.5 ns per byte. The alternative, S2,
+keeps the rules with three values per string, as Go does. E6 gives the
+numbers.
+
+### 2. Rebasing The `dead-code` Target
+
+Every design in the compile study lands at 48 to 64 KB per 1,000 lines,
+33 to 42 KB of it code; the toy compiler measures 58 B per line.
+**Recommendation:** after S7, rebase the target to about 40 KB of code
+per 1,000 lines, count metadata (names, sites, lines) separately, and
+keep it as a regression gate.
+
+### 3. The Map's Bucketing Hash
+
+[`std-hash.default.map`](../../spec/std/hash.md#r-std-hash.default.map)
+says the built-in `Map` buckets each key by its `hash_of` value, 64-bit
+FNV-1a. With the new `write_u64`, FNV still mixes eight bytes one at a
+time. Bucketing is not observable: iteration follows insertion order.
+**Recommendation:** after E5, if FNV dominates a lookup, change the rule
+to "a fixed, unseeded hash of the bytes the key writes", so the map may
+mix a whole `u64` per write. `hash_of` and `DefaultHasher` stay FNV-1a.
+
+### 4. No Standard `name` Section In Release Builds
+
+Release builds carry the compact `hd.names` instead of `name`, which
+saves about 120 KB at 10k lines. hd's own backtraces stay symbolized.
+External tools (browser devtools, `wasm-objdump`, native profilers) then
+show unnamed functions for a release module. **Recommendation:** accept
+it; a debug build keeps `name` for those tools.
