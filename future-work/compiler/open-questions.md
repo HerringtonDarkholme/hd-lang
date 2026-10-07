@@ -35,7 +35,7 @@ interface and cache entries (§7.5).
 
 1. **Where compiled cache entries live.** `hd clean --cache` refuses a
    cache directory holding anything but `pkg`, `hash` and `tmp`
-   ([`cli.clean.cache.layout`](../../spec/cli/command-line.md#r-cli.clean.cache.layout)).
+   ([`cli.clean.cache.layout`](../../spec/cli/command-line.md#r-cli.clean.cache.foreign)).
    **Recommendation:** put entries in `$HD_CACHE/obj/`, add `obj` to the
    rule's list, and let `hd clean --cache` remove it too, since it holds
    only derived data. The alternative, a per-package `build/cache`,

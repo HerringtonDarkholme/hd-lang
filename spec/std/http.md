@@ -9,7 +9,8 @@ over the language tier:
 - the data types `Request` and `Response`, and the enums `Method` and
   `HttpError`;
 - `ScriptedHttp`, the deterministic provider of `Http`;
-- what the playground binds for `Http`.
+- what the playground binds for `Http`, and how a `block_on` call waits
+  there.
 
 Which provider a command binds, and which hosts its grant covers, is CLI
 tier ([Host Capabilities](../cli/command-line.md#host-capabilities)).
@@ -169,6 +170,35 @@ fn ping!(url: string) -> string $ Http:
 > **Why.** A browser can't tell a CORS refusal from a network failure, so
 > neither can the provider. The playground needs no grant table: the
 > browser's own rule decides.
+
+### Waiting In The Playground
+
+A [`block_on`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on)
+call in the playground may have to wait for the host, as for a response
+to `get!`. How it waits depends on the browser:
+
+| Browser | A `block_on` that waits on the host |
+| --- | --- |
+| has JavaScript Promise Integration | waits for the host operation, as on any other host |
+| lacks it | completes an HTTP request as a synchronous same-origin request, and panics for any other host operation |
+
+1. r[std-http.playground.block-on.jspi] In a browser with JavaScript Promise Integration, a `block_on` call in the playground waits for each host operation it needs.
+2. r[std-http.playground.block-on.sync] In a browser without it, an `Http` request that a `block_on` call waits on is made as a synchronous same-origin request.
+3. r[std-http.playground.block-on.other] In such a browser, a `block_on` call that must wait on any other host operation panics, with a message that names the operation. Panic: `host-contract`.
+
+```hd
+use std.http.{Http, get}
+use std.task.block_on
+
+fn status_of(url: string) -> string $ Http:
+    match block_on(get(url)):   # without Promise Integration: a synchronous request
+        .Ok(response) => "status ${response.status}"
+        .Err(error) => "${error}"
+```
+
+> **Why.** A browser thread cannot block, so only Promise Integration
+> lets Wasm wait for a Promise. Without it, a synchronous request is the
+> one wait a browser still offers, and only for HTTP.
 
 See also: [Capability Grants](../cli/command-line.md#capability-grants),
 [Process](process.md), [Time](time.md#duration).

@@ -1198,12 +1198,13 @@ fn key_for(style: Style, m: Member) -> string:
 4. r[annot.fact.payload] A payload member's declaration facts are the values of the decorators before its payload parameter.
 5. r[annot.fact.shared] Declaration facts are seen by every derivation of the type. A derivation block's member lines edit them for that block only.
 6. r[annot.fact.eval] A fact expression is evaluated once, at compile time. It must be requirement-free, as defined for [default values](07-functions.md#default-values).
-7. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
-8. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
-9. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
-10. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
-11. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
-12. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
+7. r[annot.fact.eval.panic] A panic while a fact or metadata expression is evaluated is a build error, reported on the expression. Its message names the fact and the panic category. Error: `fact-evaluation-failed`.
+8. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
+9. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
+10. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
+11. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
+12. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
+13. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
 
 ```text
 use std.structure.Structure
@@ -1242,8 +1243,8 @@ data Twice:
     id: i64
 ```
 
-13. r[annot.fact.block-on.direct] A call of `std.task.block_on` or `println` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
-14. r[annot.fact.block-on.indirect] Such a call reached through another call while the expression is evaluated panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
+14. r[annot.fact.block-on.direct] A call of `std.task.block_on` or `println` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
+15. r[annot.fact.block-on.indirect] Such a call reached through another call while the expression is evaluated panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
 
 ```text
 use std.task.block_on
@@ -1271,6 +1272,12 @@ data User:
 > records each fact's expression and type, and an implementation computes
 > the value when it builds the program. So checking a dependent never
 > waits for the bodies a fact expression calls.
+
+> **Note.** The panic of an indirect `block_on` or `println` call happens
+> while the build evaluates the fact. So it is reported as
+> `fact-evaluation-failed`, by
+> [`annot.fact.eval.panic`](#r-annot.fact.eval.panic), naming
+> `suspension-forbidden-context`.
 
 ### Walk, Describe, And Build
 

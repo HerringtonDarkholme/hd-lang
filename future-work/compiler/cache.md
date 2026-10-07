@@ -17,7 +17,7 @@ Part of the [compiler design](README.md).
 `$HD_CACHE` resolves as [`cli.cache.directory`](../../spec/cli/command-line.md#r-cli.cache.directory)
 says. The spec's `hd clean --cache` today refuses a cache directory that
 holds anything but `pkg`, `hash` and `tmp`
-([`cli.clean.cache.layout`](../../spec/cli/command-line.md#r-cli.clean.cache.layout)),
+([`cli.clean.cache.layout`](../../spec/cli/command-line.md#r-cli.clean.cache.foreign)),
 so `obj/` needs a spec change, which the owner accepted (open question
 10-1).
 

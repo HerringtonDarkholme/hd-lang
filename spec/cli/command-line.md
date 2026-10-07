@@ -13,6 +13,9 @@ command finds a package and what each command runs:
 - `hd add`, `hd update`, `hd remove`, and `hd fetch`, which manage and fetch
   dependencies;
 - `hd clean`, which removes the build directory or the dependency cache;
+- `hd fmt` and `hd fix`, which rewrite source files;
+- the compiled cache and `hd cache gc`;
+- resource limits on a program and on `hd` itself, and threads;
 - `hd new`, and the REPL.
 
 The language tier defines what a program means: its
@@ -36,6 +39,9 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd add [--dev] NAME PATH@VERSION`, `hd update [NAME]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
 | `hd clean`, `hd clean --cache` | [removes the package's build directory, or the dependency cache](#cleaning) |
+| `hd fmt [--check] [FILE]` | [formats the package's source files](#formatting), or one FILE |
+| `hd fix` | [applies the package's safe fix-its](#fixing) |
+| `hd cache gc` | [evicts compiled entries](#compiled-cache) down to the size cap |
 | `hd help`, `hd --help`, `hd help COMMAND` | prints the command list, or one command's usage and flags |
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list. It names every command of the table above.
@@ -542,10 +548,39 @@ hd test src/billing.hd    # the tests of module billing
 8. r[cli.build.directory] The **build directory** is the directory `build` in the package directory, where `hd` writes its build and cache output.
 9. r[cli.build.output] A whole-package `hd build` writes each executable NAME to `build/debug/NAME.wasm`, or to `build/release/NAME.wasm` with `--release`.
 10. r[cli.build.output.file] `hd build FILE` writes FILE's module to `build/debug/files/STEM.wasm`, or to `build/release/files/STEM.wasm` with `--release`. STEM is FILE's name without its `.hd` extension.
+11. r[cli.build.library-only] A whole-package `hd build` of a package with no executable, such as a library-only package, checks the package and writes no `.wasm` file.
+12. r[cli.build.library-only.cache] It still writes the package's interface and its entries in the [compiled cache](#compiled-cache), so a dependent's next command reuses them.
+13. r[cli.build.only-errors] `hd build`, `hd run`, `hd test`, and `hd FILE` report the errors that only building a program finds: `instantiation-too-deep` and `fact-evaluation-failed`.
+14. r[cli.check.no-build-errors] `hd check` builds no program, so it reports neither of them. A package that `hd check` accepts may still fail `hd build`.
+
+```sh
+hd check     # 0: checking compiles no instantiation and evaluates no fact
+hd build     # 101 with instantiation-too-deep, for polymorphic recursion
+```
 
 > **Why.** The `files` directory keeps a FILE's module apart from the
 > executables, so `hd build src/shop.hd` never overwrites the output of
 > executable `shop`.
+
+> **Why.** Instantiations and fact values need the bodies of other
+> modules and packages. `hd check` checks each module against its
+> dependencies' interfaces alone, so its result never waits on them.
+
+### Check Output
+
+```sh
+hd check --max-errors 5    # the first five errors, then the summary
+hd check --summary         # a count per code and file, in place of each diagnostic
+```
+
+1. r[cli.check.max-errors] `hd check --max-errors N` stops printing diagnostics after the Nth error. N is a whole number of at least 1.
+2. r[cli.check.max-errors.summary] The summary still counts every error and warning, and the exit status is unchanged.
+3. r[cli.check.summary-mode] In text output, `hd check --summary` prints, in place of each diagnostic, one line for each pair of a code and a file, with its count. The summary follows.
+4. r[cli.check.output-options] `--max-errors` and `--summary` change only what is printed. They change no diagnostic, count, or exit status.
+
+> **Why.** An agent with a hundred errors reads the first few, fixes them,
+> and checks again. The counts per code show at a glance whether one
+> mistake caused them all.
 
 ### Test Runs
 
@@ -553,6 +588,7 @@ hd test src/billing.hd    # the tests of module billing
 hd test --filter "sums prices"    # only the test cases whose name holds it
 hd test --filter doc              # only the doc tests
 hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
+hd test --seed 42                 # every property test starts from seed 42
 ```
 
 1. r[cli.test.file-empty] `hd test FILE` is an error when FILE registers no test case.
@@ -576,6 +612,9 @@ hd test --filter text.slugify     # only the doc tests of slugify in src/text.hd
 19. r[cli.test.doc.name.module] A block in a module's [module documentation](../lang/01-lexical-structure.md#r-lex.doc.module) has no `<item>` and no dot. The first such block in `src/text.hd` is `doc text[0]`.
 20. r[cli.test.doc.update] An update run, as `hd test --update` makes, rewrites a failing doc test `snapshot`'s expected text in place, inside its block's `##` lines.
 21. r[cli.test.every-case] In every output mode, `hd test` runs every selected test case of every file and reports each failure. A failing test case does not stop later ones.
+22. r[cli.test.seed] `hd test` derives a property test case's **base seed**, the [`seed`](../std/testing.md#r-std-testing.runner.case.seed) of its first case, from the test case's name. The same name gives the same base seed on every run.
+23. r[cli.test.seed.flag] `hd test --seed N` makes N the base seed of every property test case it runs. N is a whole number.
+24. r[cli.test.seed.report] The report of a failing property test case names its base seed, so a run with `--seed` and that seed draws the same cases.
 
 | Part | Value |
 | --- | --- |
@@ -591,6 +630,24 @@ The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 > **Why.** Naming a FILE asks for its tests, so none is a mistake, while a
 > new package may have none yet. A filter that matches nothing in a named
 > FILE is most often a typo, so it does not pass silently.
+
+### Affected Tests
+
+```sh
+hd test               # every test passes, so each test program's fingerprint is recorded
+hd test --affected    # after an edit to src/billing.hd: only the programs that reach it
+```
+
+1. r[cli.test.program] A **test program** is a program that `hd test` builds to run test cases: one per module with unit test cases or doc tests, and one per integration test module.
+2. r[cli.test.fingerprint] A test program's **fingerprint** changes whenever a change could change its outcome: a source file it reads, a dependency, a manifest setting, the `hd` version, or a test option such as `--seed`.
+3. r[cli.test.affected] `hd test --affected` runs only the test programs whose fingerprint differs from the one recorded when they last passed, or that have no record.
+4. r[cli.test.affected.record] `hd test` records a test program's fingerprint only when every test case of the program ran and passed. A filtered run, or one in which a test case of the program fails, records nothing for it.
+5. r[cli.test.affected.failed] When a test case of a test program fails, `hd test` removes the program's record. So `--affected` runs that program until it passes in full.
+6. r[cli.test.affected.where] The records live in the [build directory](#r-cli.build.directory), so after `hd clean`, `hd test --affected` runs every test program.
+
+> **Why.** An agent edits one module and wants its feedback in seconds.
+> A record is written only for a whole pass, so a test that failed or
+> never ran is never skipped.
 
 ### Test Environments
 
@@ -897,6 +954,22 @@ hd check --format json
 11. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.
 12. r[cli.json.summary.result] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
 13. r[cli.json.summary.result.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, and `ignored`, and `status`, the command's exit status.
+14. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
+15. r[cli.json.diagnostic.fixes] A diagnostic object also has the field `fixes`: a list of the diagnostic's fix-its. It is `[]` when the diagnostic has no fix-it.
+16. r[cli.json.fix.object] A fix-it is an object with the fields `message`, which says what the fix-it does, and `edits`, a list of its edits.
+17. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
+18. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.json.diagnostic.file`](#r-cli.json.diagnostic.file) gives it.
+19. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
+
+```sh
+hd check --format json
+# {"kind":"diagnostic","code":"unknown-name","severity":"error","message":"...","file":"src/cart.hd","line":4,"column":12,
+#  "fixes":[{"message":"replace 'totl' with 'total'","edits":[{"file":"src/cart.hd","start":61,"end":65,"text":"total"}]}]}
+# {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101,"modules_checked":1}
+```
+
+> **Note.** `modules_checked` counts work, not results. A second run
+> with no edit can load every module from the cache, and count 0.
 
 > **Why.** A stream lets an agent act on the first error. The summary
 > makes a clean run explicit, as Cargo's
@@ -908,7 +981,7 @@ hd check --format json
 | Status | Meaning |
 | --- | --- |
 | 0 | the command succeeded |
-| 1 | `hd test`: a test case failed |
+| 1 | `hd test`: a test case failed; `hd fmt --check`: a file is not formatted |
 | 101 | `hd` itself failed, and ran no program |
 | the program's | `hd FILE`, `hd run`: the status of the program |
 
@@ -916,6 +989,7 @@ hd check --format json
 2. r[cli.exit.hd-failure] When `hd` itself fails, it exits with status 101. It fails when it reports an error, rejects its command line or a manifest, or cannot finish for an internal reason.
 3. r[cli.exit.program] Once its program is built, `hd FILE` or `hd run` exits with the program's own status, by [Exit Status](../lang/10-modules.md#exit-status) and [`module.entry.panic`](../lang/10-modules.md#r-module.entry.panic).
 4. r[cli.exit.test-failure] `hd test` exits with status 1 when a test case fails and `hd` reports no error.
+5. r[cli.exit.fmt-check] `hd fmt --check` exits with status 1 when a file is not formatted and `hd` reports no error.
 
 ```sh
 hd check; echo $?     # 0: warnings do not change it
@@ -930,6 +1004,109 @@ hd run; echo $?       # the program's own status
 > **Note.** A command-line usage error, such as an unknown flag, has no
 > diagnostic code. Cargo's and Go's usage errors have none either. It
 > still exits with status 101.
+
+## Rewriting Source
+
+### Formatting
+
+`hd fmt` rewrites source files in the one standard layout, as `gofmt`
+does:
+
+```sh
+hd fmt                  # formats every .hd file of the package in place
+hd fmt src/cart.hd      # formats one file
+hd fmt --check          # writes nothing; lists each file that would change
+```
+
+1. r[cli.fmt.package] In package mode, `hd fmt` formats every `.hd` file under the package's source root, test root, and `tasks`, and writes each changed file in place.
+2. r[cli.fmt.file] `hd fmt FILE` formats FILE alone, in a package or outside one. Outside any package, `hd fmt` without a FILE is an error.
+3. r[cli.fmt.meaning] Formatting changes only the layout of a file. It keeps the file's meaning and every comment.
+4. r[cli.fmt.idempotent] Formatting a formatted file changes nothing.
+5. r[cli.fmt.check] `hd fmt --check` writes no file. It prints the path of each file that formatting would change.
+6. r[cli.fmt.syntax-error] A file with a syntax error is left untouched, and `hd fmt` reports its syntax diagnostics. It still formats the other files.
+7. r[cli.fmt.no-check] `hd fmt` reads no other module and checks no type, so a file with a type error is still formatted.
+
+> **Why.** Formatting around a syntax error could rewrite code that the
+> parser misread, so the file waits until it parses.
+
+### Fixing
+
+`hd fix` applies the fix-its that `hd check` reports, as `cargo fix` does:
+
+```sh
+hd fix    # applies each safe fix-it, rechecks, and lists the changes and what remains
+```
+
+1. r[cli.fix.command] `hd fix` checks the package as `hd check` does, and applies each safe fix-it of the diagnostics it reports.
+2. r[cli.fix.safe] A fix-it is **safe** when applying it adds no syntax error and no new diagnostic. `hd fix` applies no other fix-it.
+3. r[cli.fix.overlap] When the edits of two safe fix-its overlap, `hd fix` applies only the one whose diagnostic comes first in output order.
+4. r[cli.fix.rounds] After it applies fix-its, `hd fix` checks the package again and applies the safe fix-its of the new check. It repeats until a check offers none, or a bounded number of rounds has run.
+5. r[cli.fix.report] `hd fix` prints each change it made, with its file and the code of its diagnostic, then the diagnostics that remain.
+6. r[cli.fix.status] `hd fix` exits with status 0 when no error remains, and with status 101 otherwise.
+
+> **Why.** An agent fixes a typo or a missing `use` in one command.
+> A fix-it that breaks the file or brings a new diagnostic is left for a
+> person to judge.
+
+See also: [Machine Output](#machine-output), whose `fixes` field holds
+the same edits.
+
+## Resource Limits
+
+### Program Limits
+
+```sh
+hd run --max-heap 256M --time-limit 30s   # panics with heap-exhausted or time-limit past either
+hd test --time-limit 5s                   # each test case gets five seconds
+```
+
+1. r[cli.limit.heap] `--max-heap SIZE` limits the heap of the program that the command runs. An allocation past it panics, by [`flow.panic.heap-exhausted`](../lang/06-control-flow.md#r-flow.panic.heap-exhausted).
+2. r[cli.limit.time] `--time-limit DURATION` limits how long the program runs. A program that runs past it panics, by [`flow.panic.time-limit`](../lang/06-control-flow.md#r-flow.panic.time-limit).
+3. r[cli.limit.commands] `hd FILE`, `hd FILE.wasm`, `hd run`, and `hd test` take both flags, before the `--` of the program arguments.
+4. r[cli.limit.none] Neither limit has a default. Without its flag, a program is limited only by its host.
+5. r[cli.limit.test] In `hd test`, each limit applies to each test case on its own, in its own program instance.
+
+| Form | Meaning | Examples |
+| --- | --- | --- |
+| SIZE | a whole number of bytes, or a whole number followed by `K`, `M`, or `G`, for 1024, 1024², or 1024³ bytes | `65536`, `256M`, `2G` |
+| DURATION | a whole number followed by `ms`, `s`, `min`, or `h`, the [duration suffixes](../std/time.md#r-std-time.prelude.time-suffixes) | `500ms`, `30s`, `2min` |
+
+6. r[cli.limit.forms] A SIZE or DURATION value has a form of the table above. Any other value is a usage error.
+
+> **Why.** An agent runs code it has not read. A limit turns a runaway
+> loop or allocation into a panic with a stable category, in place of a
+> hung or killed process.
+
+### Compiler Memory
+
+```sh
+hd check --max-memory 4G        # one memory-limit error, naming the stage, past 4 GiB
+HD_MAX_MEMORY=4G hd test        # the same cap from the environment
+```
+
+1. r[cli.memory.cap] `--max-memory SIZE` caps the memory of the `hd` process itself, as it checks and builds. The environment variable `HD_MAX_MEMORY` sets the cap when no flag does.
+2. r[cli.memory.cap.default] There is no cap by default.
+3. r[cli.memory.cap.error] When `hd` passes the cap, it stops its work and reports one error that names the stage it was in, such as checking bodies. Error: `memory-limit`.
+4. r[cli.memory.cap.program] The cap does not cover the program that a command runs, which `--max-heap` limits.
+
+> **Note.** When the cap is reached depends on how work was scheduled.
+> So the same command may pass in one run and fail in another, which is
+> why the cap is off unless asked for.
+
+### Threads
+
+```sh
+hd test --jobs 1      # one thread
+HD_JOBS=4 hd check    # four threads
+```
+
+1. r[cli.jobs] `--jobs N` sets the number of threads that `hd` uses to check, build, format, and run tests. N is a whole number of at least 1.
+2. r[cli.jobs.env] The environment variable `HD_JOBS` sets that number when no flag does.
+3. r[cli.jobs.default] Without either, `hd` uses the number of processor cores, or 8 when there are more.
+4. r[cli.jobs.result] The number of threads changes no diagnostic, test outcome, or output order.
+
+> **Why.** Many agents often run `hd` at once on one machine. A cap of 8
+> keeps them from starving each other.
 
 ## Workspace Mode
 
@@ -1093,6 +1270,23 @@ echo 'println(1 + 2)' | hd    # prints 3
 12. r[cli.repl.host.args] In a session, `Args` gives an empty program name and no program arguments.
 13. r[cli.repl.host.once] Each input's host calls happen once, when the input runs. A later input never repeats an earlier input's file writes, reads, clock readings, or random draws.
 14. r[cli.repl.value] The REPL shows an expression input's value as [`dbg`](../lang/10-modules.md#debug-values) prints it, then ` : ` and its type, as in `[3, 6] : List[usize]`. So a value of a type without `Display` or `Debug` shows too.
+15. r[cli.repl.panic] When an input panics, the REPL reports the panic, and the session continues with the next input.
+16. r[cli.repl.panic.binding] An input that panics adds no binding to the session.
+17. r[cli.repl.panic.mutations] Changes that the input made before the panic, to values that earlier inputs bound, remain. So do its host calls, by [`cli.repl.host.once`](#r-cli.repl.host.once).
+
+```sh
+hd> let log: mut List[string] = []
+hd> fn record_then_read(entries: mut List[string]) -> string:
+...     entries.push("started")
+...     entries[5]
+hd> line := record_then_read(log)   # panics with index-out-of-bounds; binds no line
+hd> log                             # the push remains
+["started"] : List[string]
+```
+
+> **Note.** The panic ends only the input that raised it, by
+> [`flow.panic.poison`](../lang/06-control-flow.md#r-flow.panic.poison).
+> The values of earlier inputs live on in the session.
 
 ```sh
 hd> use std.time.{now}
@@ -1324,13 +1518,13 @@ See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 
 ```sh
 hd clean           # removes build/ of the package, as cargo clean does
-hd clean --cache   # removes every cached dependency version, as go clean -modcache does
+hd clean --cache   # removes every cached dependency version and compiled entry, as go clean -modcache does
 ```
 
 | Command | Removes |
 | --- | --- |
 | `hd clean` | the [build directory](#r-cli.build.directory) of the package, or of each member in workspace mode |
-| `hd clean --cache` | the fetched versions of the [cache](#cache) |
+| `hd clean --cache` | the fetched versions of the [cache](#cache), and the [compiled cache](#compiled-cache) |
 
 1. r[cli.clean.build] `hd clean` without `--cache` removes the build directory of the package, and prints `removed build`. It removes nothing else: not `hd.toml`, `hd.sum`, source, or the cache.
 2. r[cli.clean.build.none] When the package has no build directory, `hd clean` prints `nothing to clean` and succeeds.
@@ -1338,12 +1532,13 @@ hd clean --cache   # removes every cached dependency version, as go clean -modca
 4. r[cli.clean.build.package-only] Outside any package, `hd clean` without `--cache` is an error whose message suggests `hd new` and `hd clean --cache`.
 5. r[cli.clean.cache] `hd clean --cache` removes the fetched versions from the cache directory of [`cli.cache.directory`](#r-cli.cache.directory), and touches no build directory. It works inside a package, in a workspace, and outside any package, and it reads no manifest.
 6. r[cli.clean.cache.writable] The entries are read-only, by [`cli.cache.read-only`](#r-cli.cache.read-only), so `hd clean --cache` makes each directory writable before it removes it.
-7. r[cli.clean.cache.scope] `hd clean --cache` removes only the entries `pkg`, `hash`, and `tmp` of the cache directory, and the cache directory itself stays. It never follows a symbolic link out of the cache directory.
-8. r[cli.clean.cache.layout] `hd clean --cache` removes nothing and is an error when the resolved cache directory is the file system root, the user's home directory, or not a directory. It is the same error when the directory holds any entry other than `pkg`, `hash`, and `tmp`, since that is no `hd` cache. A relative `HD_CACHE` resolves against the working directory.
-9. r[cli.clean.cache.output] `hd clean --cache` prints `removed HOST_PATH@VERSION` for each version it removes, then `removed N versions from DIR`. A missing or empty cache directory prints `the cache DIR is empty` and succeeds.
-10. r[cli.clean.cache.refetch] `hd clean --cache` changes no `hd.toml` or `hd.sum`. The next command that needs a removed version fetches it again, by [`cli.dep.implicit-fetch`](#r-cli.dep.implicit-fetch).
-11. r[cli.clean.exit] `hd clean` exits with status 0 when it succeeds, also when it removes nothing, and with status 101 when it reports an error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
-12. r[cli.clean.no-question] `hd clean` takes no operand and asks no question.
+7. r[cli.clean.cache.entries] `hd clean --cache` removes only the entries `pkg`, `hash`, `obj`, and `tmp` of the cache directory, and the cache directory itself stays. It never follows a symbolic link out of the cache directory.
+8. r[cli.clean.cache.foreign] `hd clean --cache` removes nothing and is an error when the resolved cache directory is the file system root, the user's home directory, or not a directory. It is the same error when the directory holds any entry other than `pkg`, `hash`, `obj`, and `tmp`, since that is no `hd` cache. A relative `HD_CACHE` resolves against the working directory.
+9. r[cli.clean.cache.compiled] `hd clean --cache` also removes every entry of the [compiled cache](#compiled-cache), whatever its size.
+10. r[cli.clean.cache.output] `hd clean --cache` prints `removed HOST_PATH@VERSION` for each version it removes, then `removed N versions from DIR`. A missing or empty cache directory prints `the cache DIR is empty` and succeeds.
+11. r[cli.clean.cache.refetch] `hd clean --cache` changes no `hd.toml` or `hd.sum`. The next command that needs a removed version fetches it again, by [`cli.dep.implicit-fetch`](#r-cli.dep.implicit-fetch).
+12. r[cli.clean.exit] `hd clean` exits with status 0 when it succeeds, also when it removes nothing, and with status 101 when it reports an error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
+13. r[cli.clean.no-question] `hd clean` takes no operand and asks no question.
 
 ```sh
 HD_CACHE=/ hd clean --cache            # error: the file system root is no hd cache
@@ -1355,6 +1550,32 @@ HD_CACHE=~/Documents hd clean --cache  # error: it holds entries that are not hd
 > `HD_CACHE` from erasing a home directory or a project.
 
 See also: [Cache](#cache), [Build Profiles](#build-profiles).
+
+## Compiled Cache
+
+`hd` keeps what it computes, such as checked modules and compiled code,
+in the cache directory, so a later command reuses it:
+
+```sh
+hd check                         # fills ~/.cache/hd/obj on Linux
+hd check                         # in another worktree of the same commit: reuses those entries
+HD_CACHE_MAX_SIZE=2G hd test     # evicts down to 2 GiB when the cache grows past it
+hd cache gc                      # evicts now, and prints the size before and after
+```
+
+1. r[cli.cache.obj] `hd` stores its **compiled entries** in the directory `obj` of the [cache directory](#r-cli.cache.directory). Every package and worktree of the user shares them.
+2. r[cli.cache.obj.derived] A compiled entry holds only derived data. Removing one changes no command's result, only how long the command takes.
+3. r[cli.cache.obj.cap] The compiled entries have a size cap of 10 GiB. The environment variable `HD_CACHE_MAX_SIZE` sets another cap, as a SIZE of [Program Limits](#program-limits).
+4. r[cli.cache.obj.evict] When a command finds the compiled entries over the cap, it removes the least recently used ones. That eviction may continue over later commands, so a command does not wait for all of it.
+5. r[cli.cache.obj.evict.scope] Eviction removes only compiled entries, never a fetched version.
+6. r[cli.cache.gc] `hd cache gc` runs that eviction now, until the compiled entries are within the cap. It prints their size before and after.
+7. r[cli.cache.gc.anywhere] `hd cache gc` works inside a package, in a workspace, and outside any package, and it reads no manifest.
+
+> **Why.** Keys are content hashes, so worktrees on one commit share
+> every entry. A cap with least-recently-used eviction keeps a long-lived
+> machine from filling its disk, as Go's build cache does.
+
+See also: [Cache](#cache), [Cleaning](#cleaning).
 
 ## Package Tooling
 

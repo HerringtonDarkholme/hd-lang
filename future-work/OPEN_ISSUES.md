@@ -375,8 +375,6 @@ These items remain required but do not currently require new core syntax:
     diagnostic object needs a stable code
     ([`cli.json.diagnostic`](../spec/cli/command-line.md#r-cli.json.diagnostic)),
     and the startup refusal has none;
-- what `hd build` produces for a library-only package (CLI-21); an
-  executable builds to one Wasm file under `build/`;
 - exporter configuration, sampling, storage, and operational privacy policy
   after the observability hook is designed; and
 - which generated artifacts—JSON Schema, OpenAPI, MCP, clients, or

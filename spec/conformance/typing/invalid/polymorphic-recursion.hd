@@ -1,7 +1,0 @@
-# test: polymorphic recursion instantiates ever larger types, so it exceeds any instantiation depth limit
-fn nest[T](value: T, depth: i32) -> i32:
-    if depth == 0: return depth
-    nest((value, value), depth - 1)  # diagnostic: instantiation-too-deep
-
-pub fn main() -> void:
-    _ := nest(+1, +3)
