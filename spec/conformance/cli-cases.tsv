@@ -37,6 +37,7 @@ doc-broken-link	cli.doc.link.broken
 doc-index-module	cli.doc.index-module,cli.doc.files,cli.doc.llms.modules
 json-file-single	cli.json.diagnostic.file,cli.file.check-test
 release-wraps	cli.profile.release,cli.profile.test,cli.exit.test-failure
+release-test-checked	cli.profile.release.file,cli.profile.test.release,cli.profile.release.commands,cli.exit.test-failure
 dep-missing-sum	cli.dep.missing-sum,cli.dep.no-sum-write,cli.dep.remove,cli.json.lines.build,cli.exit.hd-failure
 dep-invalid-add	cli.dep.add.check,cli.dep.invalid,cli.dep.unchanged-on-error,cli.json.commands
 dep-invalid-manifest	cli.dep.invalid,cli.json.diagnostic.file

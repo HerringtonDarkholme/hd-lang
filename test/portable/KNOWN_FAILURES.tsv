@@ -66,3 +66,4 @@ typing/invalid/supertrait-binding-conflict.hd	the prototype accepts a trait whos
 parse/invalid/variant-result-type-removed.hd	the prototype still parses and checks GADT variant result types (removed 2026-10-07); parse accepts `-> Expr[i64]` (grammar.enum.no-result-type)	S1E
 parse/invalid/variant-type-parameters-removed.hd	the prototype still parses variant-local type parameters, a removed GADT form; parse accepts `Pair[U](...)` (grammar.enum.no-type-params)	S1E
 runtime/panic/fact-evaluation-panics-on-read.hd	the prototype reports the fact expression's own panic (explicit-panic) instead of fact-evaluation-failed (annot.fact.eval.panic-runtime)	S1E
+cli/release-test-checked	the prototype takes --release only on hd build and hd run: `hd --release main.hd` exits 101 with unknown flag --release, and `hd test --release main.hd` exits 101 with "--release is not a flag of hd test" (cli.profile.release.file, cli.profile.test.release, cli.profile.release.commands)	TIERS

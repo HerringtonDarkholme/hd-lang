@@ -1,0 +1,6 @@
+# `--release` on `hd FILE` selects the release profile: 2147483647 + 1 wraps to -2147483648.
+run: hd --release main.hd
+stdout: -2147483648
+# `hd test --release` keeps the test profile's checks, so the same addition panics and fails the test case.
+run: hd test --release main.hd
+exit: 1

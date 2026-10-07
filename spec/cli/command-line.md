@@ -30,11 +30,11 @@ says which program a command starts. Its diagnostic codes are in the
 | Command | Effect |
 | --- | --- |
 | `hd` | opens the [REPL](#repl), or runs [standard input](#r-cli.stdin.program) when it is not a terminal |
-| `hd FILE` | runs FILE as a [single file](#single-files) |
+| `hd [--release] FILE` | runs FILE as a [single file](#single-files), in the [build profile](#build-profiles) its flag selects |
 | `hd FILE.wasm` | runs a [prebuilt module](#prebuilt-modules) that `hd build` wrote |
 | `hd run [--release]`, `hd run [--release] NAME` | runs an [executable or a task](#running-a-package) of the package, in the [build profile](#build-profiles) its flag selects |
 | `hd build [--release]` | builds the [package](#building-and-checking), or one FILE, in that profile |
-| `hd check`, `hd test` | work on the [package](#building-and-checking), or on one FILE |
+| `hd check`, `hd test [--release]` | work on the [package](#building-and-checking), or on one FILE; `hd test` is [always checked](#r-cli.profile.test) |
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd add [--dev] NAME PATH@VERSION`, `hd update [NAME]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
@@ -728,18 +728,42 @@ A **build profile** decides whether integer overflow panics or wraps:
 ```sh
 hd run                # debug: overflow panics
 hd run --release      # release: overflow wraps
+hd --release notes.hd # release: overflow wraps
 hd test               # always a checked build
+hd test --release     # still checked, with optimized code
 ```
 
 1. r[cli.profile.default] `hd FILE`, `hd run`, `hd build`, `hd test`, and the REPL use the debug profile, which panics on integer overflow by [`types.arith.checked`](../lang/04-type-system.md#r-types.arith.checked).
 2. r[cli.profile.release] `--release` on `hd build` and `hd run` selects the release profile, which wraps on integer overflow by [`types.arith.release`](../lang/04-type-system.md#r-types.arith.release).
-3. r[cli.profile.test] `hd test` always uses a checked build, the test profile, including for the executables it builds by [`cli.test.builds-executables`](#r-cli.test.builds-executables).
-4. r[cli.profile.flag-only] No other command takes `--release`.
+3. r[cli.profile.release.file] `--release` on `hd FILE` selects the release profile too.
+4. r[cli.profile.test] `hd test` always uses a checked build, the test profile, including for the executables it builds by [`cli.test.builds-executables`](#r-cli.test.builds-executables).
+5. r[cli.profile.test.release] `hd test --release` keeps the test profile, so integer overflow still panics. The flag selects only the pipeline.
+6. r[cli.profile.release.commands] `hd FILE`, `hd run`, `hd build`, and `hd test` take `--release`. No other command takes it.
 
 > **Why.** Cargo has the same two profiles, and checks overflow in one
 > only. Release builds stay fast, since a check costs speed on every
 > arithmetic operation. Tests are always checked, so a property test
 > finds an overflow that a release build would hide.
+
+### Pipelines
+
+A **pipeline** is the way an implementation generates code for a build.
+It is separate from the profile:
+
+```sh
+hd test               # the test profile; code that builds fast
+hd test --release     # the test profile; optimized code, the same results
+```
+
+1. r[cli.profile.pipeline.release] `--release` selects the implementation's optimized pipeline on every command that takes it. Without the flag, a command may use a pipeline that builds faster and runs slower.
+2. r[cli.profile.pipeline.unobservable] The pipeline is unobservable. In one profile, two pipelines give the same output, exit status, panic categories, and panic sites.
+3. r[cli.profile.pipeline.limits] Only speed, memory use, the depth at which the stack runs out, the point at which the heap runs out, and backtrace frames may differ between pipelines.
+4. r[cli.profile.pipeline.one] An implementation may have one pipeline only.
+
+> **Why.** The profile is part of a program's meaning: a release build
+> wraps where a checked build panics. The pipeline is not. So
+> `hd test --release` can test optimized code without dropping the
+> checks, as Zig's `ReleaseSafe` mode does.
 
 ### Debug Output
 
@@ -756,6 +780,8 @@ hd build --release     # error: dbg-in-release
 2. r[cli.dbg.test] `hd test` keeps the `dbg` lines of each test case with that test case's output. It shows them with the failure when the test case fails, and drops them when it passes.
 3. r[cli.dbg.repl] In the REPL, the `dbg` lines of an input print before the input's value line.
 4. r[cli.dbg.release] `hd build --release` and `hd run --release` reject a `dbg` call in the user's own code, by [`module.dbg.release`](../lang/10-modules.md#r-module.dbg.release), and `hd run --release` then runs nothing.
+5. r[cli.dbg.release.file] `hd --release FILE` rejects such a call too, and then runs nothing.
+6. r[cli.dbg.test-release] `hd test --release` accepts a `dbg` call, since it builds in the test profile by [`module.dbg.release.debug-build`](../lang/10-modules.md#r-module.dbg.release.debug-build).
 5. r[cli.dbg.dependency] `hd check` and `hd build` warn once for each fetched dependency that calls `dbg`, by [`module.dbg.dependency.warning`](../lang/10-modules.md#r-module.dbg.dependency.warning).
 
 > **Note.** The browser playground shows `dbg` lines in its output panel,

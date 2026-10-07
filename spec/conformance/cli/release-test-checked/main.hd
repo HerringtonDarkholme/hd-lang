@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+fn next(value: i32) -> i32:
+    value + 1
+
+pub fn main() -> void $ Console:
+    println(next(2147483647))
+
+tests:
+    it("adds one"):
+        assert_equal(next(2147483647), -2147483648, reason="wraps")

@@ -595,7 +595,8 @@ test("hd run --release wraps overflow, plain hd run and hd test panic", async ()
     assert.doesNotMatch(wat.stdout, /\$hd\.add_i32/);
     await usageError(["test", "--release", "src/main.hd"]);
     await usageError(["check", "--release", "src/main.hd"]);
-    // Only hd build and hd run take --release (cli.profile.flag-only).
+    // The prototype takes --release only on hd build and hd run; the spec now
+    // also accepts it on hd FILE and hd test (known failure cli/release-test-checked).
     assert.match(
       (await usageError(["src/main.hd", "--release"])).stderr,
       /^hd FILE: --release is not a flag of hd FILE; hd build and hd run accept it$/m,
