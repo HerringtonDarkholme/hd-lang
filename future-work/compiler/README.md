@@ -19,6 +19,7 @@ The design documents of the new compiler, in reading order.
 - [build-order.md](build-order.md): build order (§9 and §22).
 - [codex-review-response.md](codex-review-response.md) and [codex-review-response-frontend.md](codex-review-response-frontend.md): verdicts on the Codex review of 8bb6860d, backend and frontend rows.
 - [codex-rereview-response.md](codex-rereview-response.md): verdicts on the Codex re-review through 54f249b7, backend rows and owner questions.
+- [codex-rereview-response-frontend.md](codex-rereview-response-frontend.md): frontend verdicts on the Codex re-review through 54f249b7.
 - [open-questions.md](open-questions.md): open questions, inconsistencies and the changes D2 made to D1 (§10 and §23).
 - [codegen.md](codegen.md): the back half overview, emitting from TIR, monomorphization and merging (§11 to §13).
 - [suspension.md](suspension.md): suspension lowering (§14).

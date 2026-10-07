@@ -75,8 +75,9 @@ codegen.md §13.5 in trait-solver.md keeps working.
 
 ## Frontend Lane
 
-The frontend agent adds rows for N1, N7, N8, N10, N-A1, N-A3, N-D1, N-T1
-to N-T7 and question 2.
+The frontend rows (N1, N7, N8, N10, N-A1, N-A3, N-D1, N-T1 to N-T7 and
+question 2) are in
+[codex-rereview-response-frontend.md](codex-rereview-response-frontend.md).
 
 ## Needs Owner
 
