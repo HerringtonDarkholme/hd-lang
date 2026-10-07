@@ -83,14 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q7. Profile The Foundation Commit
-
-Run P1 on b4c14e39 (the architecture foundation): the samples, your
-`compiler/bench/` inputs, and the stage driver on `lib/std`
-(`cargo run --release -p hd_driver --example stages`). The bench is now
-`cargo run --release -p hd_driver --example bench N` (not `hd bench`).
-Same report format as P1. Timebox 30 minutes; push.
-
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move

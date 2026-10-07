@@ -1,0 +1,10 @@
+[package]
+name = "hd-profile-signature"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+hd_driver = { path = "../../crates/hd_driver" }
