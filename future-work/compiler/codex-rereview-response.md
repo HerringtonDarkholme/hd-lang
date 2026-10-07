@@ -35,7 +35,7 @@ frontend agent.
 | N-A2 | accepted-fixed | [codegen.md §12.3](codegen.md#123-facts-defaults-derives-and-tests) item 9, [§12.6](codegen.md#126-tiers-and-optimizations) | Partly hypothetical, since no rule specialized on a fact, but nothing forbade it. Code now reads a fact only through its global; folding and inlining stop there, so a changed fact only relinks. |
 | N-D2 | accepted-fixed | [codegen.md §13.10](codegen.md#1310-the-link-step) step 2, [engines-and-test-runner.md §18.2](engines-and-test-runner.md#182-compile-caches) | True: insertion renumbers later functions. The stability claim is removed; slice 6 measures cache hits after insertions. |
 | N-P1 | partly | [build-order.md §22.1](build-order.md#221-how-the-pillar-3-targets-are-met), [§22.2](build-order.md#222-engine-pin-and-benchmark-matrix) | True that nothing is measured. The design cannot measure; it now names fixtures, machines, states, percentiles and gates, adds packed arrays, a large live heap and erased container mutation to the runtime suite, and reports the witness path's cost from spike 0b. |
-| N-I1 | accepted-fixed | [data-structures.md §3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation) | True: "Slots live on the scratch stack" while the block's scratch is flushed and truncated before the join fills its slot. A slot is now a durable `Slot` instruction, filled in place or as a `Splice` of several instructions, with a fill log for rollback. |
+| N-I1 | accepted-fixed | [data-structures.md §3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation) | True: "Slots live on the scratch stack" while the block's scratch is flushed and truncated before the join fills its slot. A slot is now a durable `Slot` instruction, filled in place or as a `Splice` of several instructions. A fill made inside a trial waits until no trial is open (follow-up item 5 below). |
 | N-I2 | accepted-fixed | [codegen.md §12.2](codegen.md#122-lowering-rules), [§12.4](codegen.md#124-rows-and-providers); [checking-and-tir.md](checking-and-tir.md#instruction-catalog) coercion table | True: TIR said "an adapter", codegen said "nothing", and `Supertrait` had no emission row. One callable ABI (every closure takes a context) makes row subsumption a no-op; `Supertrait` emits one `struct.get`. |
 | N-I3 | accepted-fixed | [data-structures.md §3.3](data-structures.md#33-interners), [§3.17](data-structures.md#317-impl-tables); [checking-and-tir.md](checking-and-tir.md#instruction-catalog) choice word | True: 29-bit and 30-bit payloads cannot hold IDs from owners 16 and 32. Head keys and choices now carry a full 32-bit payload, with assertions and an owner-63 determinism run. |
 | N-B1 | accepted-fixed | [wasm-layout.md §15.3](wasm-layout.md#153-the-type-section) | True: "groups in order of their canonical descriptor bytes" is not a dependency order. Groups follow a topological order of the SCC graph with content ties; members are ordered by nominal key; recursive-shape equivalence is deferred. |
@@ -68,8 +68,8 @@ files, at least in part.
 
 **For the frontend lane, from these fixes.** Codegen no longer reads
 `CallDyn`'s evidence operands or the shape's `dyn_bounds`, so both can
-go (codegen.md §13.5.1). The new slot fill log (data-structures.md
-§3.9.5) covers one half of N10. Token anchors assume the API hash
+go (codegen.md §13.5.1). Durable slots (data-structures.md §3.9.5)
+give N10's deferred fills a stable target. Token anchors assume the API hash
 covers each kept declaration's tokens, which N-A3 settles. The link to
 codegen.md §13.5 in trait-solver.md keeps working.
 
