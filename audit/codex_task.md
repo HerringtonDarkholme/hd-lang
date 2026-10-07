@@ -82,26 +82,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S2. Fixtures: Chapters 03, 07 And 11
-
-`pnpm run spec coverage` reports chapter 03 (names and scopes) at 15%,
-07 (functions) at 22%, 11 (requirements and suspension) at 29%. For
-each, `pnpm run spec coverage --uncovered lang/<file>.md`, then write
-fixtures to reach at least 60% cited, each citation in a fixture that
-really exercises the rule:
-
-- Mostly runtime-valid programs with `# expect-stdout:`, realistic small
-  domains; type-error fixtures where a rule rejects code; one
-  expectation per fixture (`spec/conformance/README.md`).
-- Also add citation lines to existing fixtures that already exercise an
-  uncited rule.
-- Verify with `node --experimental-strip-types test/run-portable.ts
-  --changed`. A prototype disagreement with the spec gets a
-  `test/portable/KNOWN_FAILURES.tsv` row with a reason; never weaken a
-  fixture to pass.
-- Rules not observable from a program: list them in the commit message.
-- Push one commit per chapter.
-
 ### S3. Fixtures: Chapters 06, 04 And 05
 
 The same as S2 for chapter 06 (control flow, 30%), 04 (type system,

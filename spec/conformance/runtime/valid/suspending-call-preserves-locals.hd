@@ -1,4 +1,6 @@
 # test: suspending call preserves locals
+# Spec 11 Lowering: req.lowering.sugar, req.lowering.frame,
+# req.lowering.poll, req.lowering.representation.
 
 use std.testing.assert_equal
 

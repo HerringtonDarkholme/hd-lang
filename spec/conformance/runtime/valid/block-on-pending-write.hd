@@ -1,5 +1,9 @@
 # fixture-runtime-profile: pending-write
 # test: block_on keeps polling a stored suspension through a pending host write, and returns its result
+# Spec 11 Driving And Entry: req.drive.bang, req.drive.once,
+# req.host-wait.wait,
+# req.host-wait.source, req.poll-context.construction,
+# req.poll-context.waker, req.waker.arrange.
 # Spec 11 Suspension: req.drive.block-on (batch 68, PENDING-WRITE-PROFILE; task #219).
 # The stored write_line! call is pending on its first poll and completes on the next.
 use std.task.block_on

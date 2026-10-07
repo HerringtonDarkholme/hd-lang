@@ -1,3 +1,17 @@
+# Spec 11 Requirement Model And Syntax: req.model.one-shot,
+# req.model.not-capability, req.model.errors, req.model.lookup-no-suspend,
+# req.model.suspend-no-errors, req.model.no-provider-choice,
+# req.model.never-reinterpreted, req.row.definition, req.row.parameter,
+# req.row.syntax.signature, req.row.syntax.plus-list,
+# req.row.syntax.single-bare, req.row.syntax.same-form, req.row.syntax.empty,
+# req.row.callable.impl-agrees, req.use.context, req.use.value.ordinary,
+# req.use.value.access, req.use.namespace, req.use.namespace.keys,
+# req.context.row, req.context.create, req.context.spread,
+# req.context.spread.suffix, req.suspend.marker, req.suspend.two-forms,
+# req.suspend.type.equivalent, req.suspend.type.spellings,
+# req.suspend.type.plain-call, req.suspend.type.bang, req.bang.suffix,
+# req.bang.not-negation, req.bang.driver-contexts,
+# req.bang.requirements-not-suspending.
 trait Database:
     fn get_user!(self, id: string) -> Result[User?, DbError]
 

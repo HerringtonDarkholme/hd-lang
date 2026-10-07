@@ -2,7 +2,8 @@
 # expect-stdout: 7
 # test: a closure that captures a provider value from $.use keeps that provider
 # Spec 11 Lexical And Dynamic Providers: req.with.lexical and
-# req.with.lexical.row; Spec 07 Captures: fn.capture.provider-value (batch 14,
+# req.with.lexical.row, req.use.value.outlives-scope;
+# Spec 07 Captures: fn.capture.provider-value (batch 14,
 # PS2). The callee's Clock does not reach the captured value, and the value
 # stays bound after its provider scope ends.
 

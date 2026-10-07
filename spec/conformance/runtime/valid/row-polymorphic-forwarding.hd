@@ -1,4 +1,9 @@
 # test: requirements / row forwarding
+# Spec 11 Row Polymorphism: req.row.parameter, req.row.set.parameter,
+# req.row.entail.parameter, req.row.entail.parameter.concrete,
+# req.poly.extension.form, req.poly.kind.marked, req.poly.naming,
+# req.poly.least, req.poly.least.example, req.poly.body, req.poly.one-body,
+# req.poly.no-subtraction, req.poly.rows-only.
 
 use std.testing.assert_equal
 

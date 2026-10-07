@@ -1,4 +1,6 @@
 # fixture-runtime-scenario: reentrant-poll
+# Spec 11 Checked Protocol: req.check.panics, req.check.runtime-only,
+# req.check.code.reentrant.
 fn ready!() -> i32: 42
 
 pub fn main!() -> void:

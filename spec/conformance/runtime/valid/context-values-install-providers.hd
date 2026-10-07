@@ -1,4 +1,8 @@
 # test: requirements / contexts
+# Spec 11 Context Values: req.context.row, req.context.create,
+# req.context.spread, req.context.spread.suffix, req.context.order,
+# req.context.one-per-key, req.context.grammar.categories,
+# req.context.ordinary-values, req.context.no-handler.
 
 use std.testing.assert_equal
 

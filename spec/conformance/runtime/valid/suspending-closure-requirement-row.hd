@@ -1,4 +1,7 @@
 # test: suspending closure values forward their requirement rows
+# Spec 11 Suspending Closures And Binding: req.suspend.closure.marker,
+# req.suspend.closure.requirements, req.suspend.closure.row-inference,
+# req.bind.construction, req.bind.captured, req.bind.caller.
 
 use std.testing.assert_equal
 

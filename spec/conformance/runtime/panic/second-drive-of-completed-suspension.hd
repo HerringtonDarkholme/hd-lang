@@ -1,4 +1,6 @@
 # test: second drive of completed suspension
+# Spec 11 Suspension Values: req.value.single, req.value.exclusive,
+# req.value.stateful, req.check.code.invalid-state.
 
 fn ready!() -> i32: 42
 fn main!() -> i32:

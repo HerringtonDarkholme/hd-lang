@@ -1,4 +1,8 @@
 # test: stored suspension single drive
+# Spec 11 Suspension Values: req.suspend.cold, req.suspend.bang.point,
+# req.suspend.type.plain-call, req.suspend.type.bang, req.drive.bang,
+# req.drive.once, req.drive.not-method, req.value.cold, req.value.single,
+# req.value.stateful.
 
 use std.testing.assert_equal
 

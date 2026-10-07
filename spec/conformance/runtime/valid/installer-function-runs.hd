@@ -1,4 +1,8 @@
 # test: an installer function installs a bundle of providers around a trailing block
+# Spec 11 Installer Functions: req.poly.extension.form,
+# req.poly.kind.marked, req.poly.naming, req.poly.least,
+# req.poly.body, req.poly.one-body, req.poly.no-subtraction,
+# req.poly.rows-only.
 # expect: test
 use std.testing.assert_equal
 

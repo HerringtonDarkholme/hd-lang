@@ -1,4 +1,6 @@
 # test: cold suspension cancellation is synchronous and idempotent
+# Spec 11 Cancellation Checks: req.check.cancel-idempotent,
+# req.cancel.synchronous, req.cancel.steps.
 
 use std.testing.assert_equal
 

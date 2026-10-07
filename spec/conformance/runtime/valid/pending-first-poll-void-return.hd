@@ -1,5 +1,9 @@
 # fixture-runtime-scenario: pending-first-poll
 # test: a void return after a pending host call completes the frame and runs defer once
+# Spec 11 Entry Driver: req.entry.driver, req.entry.waker-driven,
+# req.entry.pending, req.entry.busy-poll, req.host-wait.wait,
+# req.host-wait.source, req.poll-context.construction,
+# req.poll-context.waker, req.waker.arrange.
 use std.testing.assert_equal
 
 data State:

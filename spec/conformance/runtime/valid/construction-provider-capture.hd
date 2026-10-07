@@ -1,3 +1,5 @@
+# Spec 11 Construction-Time Binding: req.bind.construction,
+# req.bind.captured, req.bind.caller, req.suspend.cold.captures.
 use std.testing.assert_equal
 
 trait Counter:

@@ -1,4 +1,11 @@
 # test: requirement rows union, reorder, and re-add keys as unordered sets
+# Spec 11 Row Sets And Entailment: req.row.set.union, req.row.set.parameter,
+# req.row.set.duplicate, req.row.set.call, req.row.entail.sets,
+# req.row.entail.available, req.row.entail.member, req.row.entail.membership,
+# req.row.entail.concrete, req.row.entail.concrete.parameter,
+# req.row.entail.parameter, req.row.entail.parameter.concrete,
+# req.row.least.solution, req.row.least.examples, req.row.least.removal,
+# req.row.least.one-unknown.
 # Spec 02 Requirements And Provider Contexts: grammar.row.sets, grammar.type.row.plus-keys.
 # expect: test
 use std.testing.assert_equal

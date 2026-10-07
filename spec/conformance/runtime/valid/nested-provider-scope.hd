@@ -1,4 +1,8 @@
 # test: requirements / provider scopes
+# Spec 11 Provider Scopes: req.with.block, req.with.evaluated,
+# req.with.type, req.with.nested, req.with.nearest, req.with.nearest.which,
+# req.with.nearest.not-error, req.use.value.flow,
+# req.use.value.row-meaning.
 
 use std.testing.assert_equal
 
