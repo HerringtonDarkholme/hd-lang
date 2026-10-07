@@ -19,18 +19,27 @@ Part of the [compiler design](README.md).
 4. Compute `fast_key`. On a hit, print the stored `pkgres` and stop.
 5. Build the folder graph from manifest use lists, plus skims of the
    changed files.
-6. Bottom-up over folders: compute `iface_key`; on a hit, read the
-   entry's header for its hashes; on a miss, skim the folder's files and
-   run `FolderIface`.
-7. For each module, compute `check_key`; on a hit, take its result; on a
-   miss, parse it and run M1 to M3.
-8. Run `Coherence` for traits whose `coh_key` missed, and `InitOrder` for
-   folders that need it.
-9. Print diagnostics in content order once every task is done (§6.5); print the summary; write the
-   `pkgres` entry, the manifest, and possibly run eviction.
+6. Bottom-up over folders: compute `iface_key`. When it equals the
+   last-run record's key (§5.5.1), take the folder's hashes from the
+   record, with no open. Otherwise look it up; on a hit, read the entry's
+   header for its hashes; on a miss, skim the folder's files and run
+   `FolderIface`.
+7. For each module, compute `check_key`. When it equals the record's
+   key, the module's result is the previous one and nothing is opened.
+   Otherwise look it up; on a hit, take its result; on a miss, try early
+   cutoff (§5.3.1, once enabled), and else parse it and run M1 to M3.
+8. Run `Coherence` once, over the traits whose `coh_key` changed, and
+   `InitOrder` for folders whose `init_key` changed. Unchanged parts are
+   copied from the previous `graph` entry.
+9. Print diagnostics in content order once every task that can add one
+   is done (§6.5), then the summary. Then the I/O thread finishes
+   publishing: the `check` entries, the `graph` and `pkgres` entries, and
+   the manifest with its last-run record (§5.4, "Print, then publish").
+   Eviction, if a shard is over budget, runs last.
 
-Touched: `iface`, `check`, `coh`, `init`, `pkgres`. Dependency bodies are
-never parsed: with answer 13, interfaces come from syntax alone, so the
+Touched: `iface`, `check`, `graph`, `pkgres`, and the manifest. Reads
+are proportional to what changed (§5.9). Dependency bodies are never
+parsed: with answer 13, interfaces come from syntax alone, so the
 research's "dependency bodies skipped" now holds cold as well as warm.
 
 ### 7.2 `hd check FILE`
@@ -173,7 +182,8 @@ fixture (`fmt(fmt(x)) == fmt(x)`).
 ```
 
 1. The compiler worker loads `hd_web`'s Wasm once; std is embedded.
-2. Before a run the page's IndexedDB entries fill the `MemoryStore`.
+2. When the worker starts, the page's IndexedDB entries fill the
+   `MemoryStore` once (§5.8), not before each run.
 3. Sources cross as UTF-8 bytes per path with a version counter; unchanged
    paths are not re-sent.
 4. Checking uses the stepping scheduler. A newer edit cancels the run

@@ -11,7 +11,7 @@ Part of the [compiler design](README.md).
 | interface blobs, check results, TIR, coherence and init results, package results; D2's code | `$HD_CACHE/obj/` | per user, across worktrees and packages | keys are content hashes, so worktrees on one commit share everything |
 | fetched dependency trees | `$HD_CACHE/pkg/` (spec today) | per user | [Cache](../../spec/cli/command-line.md#cache) |
 | staging for atomic writes | `$HD_CACHE/tmp/` | per user | same file system as `obj/`, so rename is atomic |
-| stat manifest, last test record, last link record per program (§5.4) | `build/.hd/` of each package | per worktree | holds paths, mtimes and build history, which must not enter shared keys |
+| stat manifest with the last-run record (§5.5.1), last test record | `build/.hd/` of each package | per worktree | holds paths, mtimes and build history, which must not enter shared keys |
 | std interfaces | embedded in the `hd` binary | per binary | no cache read for std ([Q2](research.md#recommendation-1)) |
 
 `$HD_CACHE` resolves as [`cli.cache.directory`](../../spec/cli/command-line.md#r-cli.cache.directory)
@@ -26,18 +26,35 @@ so `obj/` needs a spec change, which the owner accepted (open question
 | Kind | Content | Written by | Read by |
 | --- | --- | --- | --- |
 | `iface` | a folder interface blob (§4.11); its header carries `api_hash`, `deep_hash`, `heads_hash` | `FolderIface` | dependents' key computation, resolution, coherence, `hd doc` |
-| `check` | a module's diagnostics, init summary, row results, and fact records | `ModuleFinish` | output, `InitOrder`, D2 |
-| `tir` | a module's TIR, per-item TIR hashes and dependency lists (§4.13.11) | `ModuleFinish` | D2 |
-| `check-test` | the test overlay's diagnostics and test registrations | `TestOverlay` | `hd check --tests`, `hd test` |
-| `hdr` | one folder's stage-B header diagnostics ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)) | `HeaderCheck` | output |
-| `coh` | one trait's overlap diagnostics | `Coherence` | output |
-| `init` | one folder's statement order and its diagnostics | `InitOrder` | output, D2 |
+| `check` | one module, in sections: diagnostics, init summary, row results, fact records, the read list (§5.3), the file's declaration table (`locs`), and, only when the module has no error, its TIR with per-item TIR hashes and dependency lists (§4.13.11) | `ModuleFinish` | output, `InitOrder`, D2 |
+| `check-test` | the test overlay's diagnostics, test registrations and TIR | `TestOverlay` | `hd check --tests`, `hd test` |
+| `graph` | every package-wide part in one entry: each folder's stage-B header diagnostics ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)), each trait's overlap diagnostics, each folder's statement order and its diagnostics | `HeaderCheck`, `Coherence` and `InitOrder`, gathered at `PackageResult` | output, D2 |
 | `pkgres` | the package's sorted diagnostics and summary counts | `PackageResult` | the warm fast path |
 | `depfiles` | a fetched dependency's file list with content and api text hashes | first use of the dependency | every later run (§5.5) |
-| `locs` | one file's declaration table: stable path to byte offset and line, keyed by `source_hash` | the parse or skim of a changed file | output, to resolve relative spans (§5.3) |
-| `code`, `link`, `cwasm` | Wasm per instance, per program, and precompiled per engine (§11.2) | D2 | D2 |
-| `cranelift` | one compiled function, keyed by wasmtime's per-function cache key (§18.2) | the `CacheStore` adapter of the incremental compilation cache | the same adapter |
-| `codepack`, `clpack` | every `code` entry, or every `cranelift` entry, of one program's last link, with an index by key (lowering pass) | `Link` and the adapter, after a build | the next build of the same program in the same worktree |
+| `codepack` | the code entries (§13.8) of one program's instances whose items live in one folder, with an index by code key | `Link` | `Link` of any program that maps it |
+| `clpack` | the compiled functions of one `codepack`, keyed by wasmtime's per-function cache key (§18.2), with an index | the `CacheStore` adapter of wasmtime's incremental compilation cache | the same adapter |
+| `packhint` | the pack keys of the last link of one program, by any worktree | `Link` | `Link`, when this worktree's last-run record has none |
+| `link`, `cwasm` | the program's Wasm, and its precompiled form per engine (§11.2) | D2 | D2 |
+
+**Sections, not files (systems review, finding 1).** A file costs about
+340 µs to publish and 60 to 120 µs to open and read on the owner's Mac
+(the review's measurement, under load). That is more than the work
+inside most small entries. So the unit of an entry is the unit of
+invalidation, never a smaller one:
+
+- `check`, `tir` and `locs` are one entry. All three are functions of
+  `check_key(m)`: the TIR is checked from the same inputs, and the
+  declaration table from `source_hash(m)`, which the key holds. A reader
+  maps the entry and touches only the sections it needs.
+- Coherence, header checks and init order are one `graph` entry per
+  package run, keyed by the sorted keys of its parts (§5.3). A part whose
+  result is empty stores nothing; its key in the list is enough. An edit
+  that changes one part copies the others from the previous `graph`
+  entry, which the last-run record names (§5.5.1).
+- `code` and `cranelift` entries exist only as members of packs. No file
+  holds one function.
+- `iface` (one per folder), `link`, `cwasm` and the packs keep a file
+  each.
 
 **Fact records** (the program-database hook,
 [Q6](research.md#q6-program-database-hook)) are a
@@ -74,6 +91,7 @@ test_key(m)   = H("check-test", check_key(m), source_hash(m),
 
 coh_key(T)    = H("coh", toolchain_key, stable path of T, sorted head hashes of T's impls)
 init_key(F)   = H("init", toolchain_key, folder path, sorted [(module path, init summary hash)])
+graph_key     = H("graph", sorted hdr keys, sorted coh keys, sorted init keys)
 pkgres_key    = H("pkgres", sorted check, test, hdr, coh and init keys, folder graph hash,
                   manifest diagnostics hash, command mode)
 fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash)] of every
@@ -103,10 +121,16 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
   it is redundant, so it is removed.
 - **What the closure list costs.** Before, a folder that m reached only
   through another folder's bodies entered m's key only through API
-  mentions in deep hashes. Now any public API edit in it rechecks m.
-  Public API edits are much rarer than body edits, and the
-  `recheck-precision` metric counts them
+  mentions in deep hashes. Now any public API edit in it misses m's key.
+  Agents add public items and change signatures often, so this is not
+  rare (systems review, finding 3): adding a `pub fn` to a folder that
+  most modules reach misses about 100 keys at 10k lines. Early cutoff by
+  recorded reads (below) turns most of those misses back into reuse. The
+  `recheck-precision` metric counts both
   ([testing-the-compiler.md §8.2](testing-the-compiler.md#82-incremental-soundness)).
+- **Part keys.** `hdr_key`, `coh_key` and `init_key` name parts of the
+  one `graph` entry; no file has them as its name. Coherence runs as one
+  task over the sorted list of traits whose `coh_key` changed.
 - **The solver memo is never persisted** and is never part of a key. It
   lives for one run (trait-solver.md §7.1). A `check` entry is a
   function of its key because the memo's answers are functions of
@@ -136,8 +160,9 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
   package key), the executables and their roles, the required toolchain
   version, and the hash of the manifest's diagnostics. Fields that change
   nothing, such as the description, are left out. The root package key
-  holds it, so it reaches every `iface`, `check` and `fast_key` key, and
-  through `tir` keys the `prog_key` and code keys. A rename changes the
+  holds it, so it reaches every `iface`, `check` and `fast_key` key. The
+  package name is in every stable path, so a rename also changes every
+  TIR hash, and with them the `prog_key` and code keys. A rename changes the
   printed `TypeId` names, so it must miss. A semantic manifest edit is
   rare, so rechecking everything after one costs little.
 - **Manifest errors come first.** `hd check` step 1 (§7.1) reports a
@@ -204,14 +229,72 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
   verify mode checks. rustc's incremental mode keeps spans relative to
   their item for the same reason.
 
+#### 5.3.1 Early Cutoff By Recorded Reads
+
+**Status: designed; enabled after slice 4 measures the hit rate**
+(systems review, finding 3; the owner accepted the review's
+recommendation). Until then each `check` entry writes its read list, and
+slice 4 counts the reuses it would allow without acting on them.
+
+`check_key(m)` names whole folders. So a public edit in a folder misses
+the key of every module whose closure holds it, even modules that never
+name the edited item. Early cutoff asks a second, finer question before
+rechecking: did anything that m actually read change?
+
+1. **The read list.** Each `check` entry stores, in a `reads` section,
+   every input from outside m's own file that its check read:
+   - `(stable path, per-item interface hash)` of every item it named or
+     whose signature it used, from M1's headers and M2's bodies (the TIR
+     already keeps these per body as `deps`);
+   - `(folder path, name, item hash or ABSENT)` for every name lookup
+     into another folder, so a lookup that found nothing is a read too,
+     and adding that name later misses;
+   - `(folder path, heads_hash)` for every folder holding an owner module
+     whose impl table the solver probed;
+   - the context's `ImplUniverseId` folder list, with a hash of each
+     listed folder's `arg_impls` section (computed with the interface);
+   - `(folder path, names hash)` for every folder whose whole namespace a
+     diagnostic's suggestion scanned (§5.3, "Suggestions too").
+   The checker reads other folders only through the interface readers,
+   so the list is collected in one place, deduplicated and sorted.
+2. **The previous key.** The last-run record (§5.5.1) maps each module
+   path to the key of the entry it used last time.
+3. **The test.** On a `check_key(m)` miss, when `source_hash(m)`, the
+   toolchain, the package key and the role all equal those of the
+   previous entry, open that entry and compare every read against the
+   current interfaces. All equal: reuse its result, and record its key as
+   m's entry key in the last-run record. One unequal: recheck m. No new
+   entry is published for a reuse, so a public edit that reaches 100
+   modules costs 100 opens, not 100 publishes.
+4. **Downstream keys use the entry actually used.** `pkgres_key`,
+   `init_key` and D2's `prog_key` take m's reused entry key or its
+   content hashes, so they hit as before.
+
+**Soundness.** Every read that can change m's result must be in the
+list. Verify mode (§5.6) rechecks every reuse and compares the result
+byte for byte. The key-completeness tests (testing-the-compiler.md §8.2 and §21.4)
+gain one case per read kind above: an edit that changes that read must
+make the test fail. This is rustc's red-green marking at module
+granularity. It needs no query system and no daemon.
+
+**Cost** (`ordinary-10k`, a public edit in a folder that every module
+reaches; the review's Mac costs):
+
+| Step | Units | Cost per unit | Total |
+| --- | --- | --- | --- |
+| recheck, today | about 100 modules | 5 to 10 ms of CPU | 0.5 to 1 CPU-s: 60 to 125 ms on 8 cores, about 1 s on one |
+| early cutoff: open the previous entry | about 100 | 60 to 120 µs | 6 to 12 ms |
+| early cutoff: compare reads | about 100 × 50 to 200 reads | a hash compare, under 0.1 µs | under 2 ms |
+| recheck the modules that read the edited item | the few that name it | 5 to 10 ms | a few ms per module |
+| `reads` section on disk | 100 entries | 20 to 24 bytes per read | 1 to 5 KB per entry |
+
 ### 5.4 Entry Format And Atomic Publish
 
 ```text
 obj/
   LAYOUT                      "hd-obj 1 xxh3-128"
-  <kind>/<2 hex>/<32 hex>     one file per key
-  size                        approximate total bytes, for eviction (§5.7)
-  gc                          time of the last full scan
+  <kind>/<2 hex>/<32 hex>     one file per key; the 2 hex digits name the shard
+  stats                       256 approximate shard sizes, for eviction (§5.7)
 ```
 
 - **Entry header:** magic, kind, layout version, the key itself, payload
@@ -240,25 +323,48 @@ obj/
   run continues uncached. A cache never makes a check fail.
 - **Large entries** (blobs over 64 KiB, D2's code) are memory-mapped.
   Small ones are read whole.
-- **Per-program packs (lowering pass).** A program reads thousands of
-  `code` entries per link and thousands of `cranelift` entries per
-  precompile; one file each costs 15 to 30 µs, so 70 to 140 ms per link
-  on one core at 10k lines. So after a build, `Link` writes a `codepack`
-  entry holding every code entry of the program, and the Cranelift
-  adapter a `clpack` holding every compiled function it served or
-  produced. A pack's key is `H(kind, sorted member keys)`, a pure function
-  of its content, so packs are shared like any entry. The **last link
-  record** in `build/.hd/` names each program's last packs; it is the
-  only place build history lives, and it never enters a key or the
-  output bytes. The next build of the program maps those packs once and
-  takes every member whose key is unchanged; a key a pack lacks is read
-  as a separate entry, so a missing or evicted pack only costs speed.
-  The Cranelift adapter serves `get` from the mapped `clpack` before
-  falling back to single entries, and batches its `insert`s into the new
-  pack. Separate `code` and `cranelift` entries are still written on a
-  miss, so other programs and worktrees share them. Packs count toward
-  the size cap and are evicted like any entry. S3 of spike 0c measures
-  per-entry I/O on macOS and Linux.
+- **Packs per program and folder (lowering pass; systems review,
+  finding 1).** A program has thousands of code entries and thousands of
+  compiled functions. One file each would cost about 3.2 s of publishes
+  for a cold 10k-line build and 0.6 to 1.2 s of reads for a warm one, at
+  the Mac's measured rates. So code is stored only in packs:
+  - **Groups.** A program's instances are grouped by the folder that
+    holds their item (std's folders included). `Link` writes one
+    `codepack` per group, and the Cranelift adapter one `clpack` per
+    group, holding the compiled functions of that group's members. A
+    10k-line program has about 30 groups (20 of its own folders and
+    about 10 of std's).
+  - **Keys.** A pack's key is `H(kind, tier, sorted member keys)`, a pure
+    function of its content, so equal groups are shared by every program
+    and worktree.
+  - **Finding packs.** The last-run record (§5.5.1) names, per program,
+    the packs of its last link. A worktree without one reads the
+    program's `packhint` entry, keyed by `H("packhint", toolchain_key,
+    tier, package key, root description)`, which names the packs of
+    that program's last link in any worktree. `Link` maps every named
+    pack once, builds one in-memory index by code key, and takes every
+    member whose key is still wanted. A wanted key that no named pack
+    holds is emitted again; nothing is read as a separate file.
+  - **A hint is not an answer.** `packhint` is the one kind whose
+    content is not a function of its key: the last writer wins. Every
+    member is checked by its own key before use, so a stale, foreign or
+    evicted hint only costs speed. It holds no path.
+  - **What an edit rewrites.** A body edit changes the members of one
+    group, plus the groups of callers that inlined the body, so it
+    publishes one or two new `codepack`s and `clpack`s. The other groups
+    keep their keys.
+  - The Cranelift adapter serves `get` from the mapped `clpack`s and
+    batches its `insert`s into the new pack of each changed group.
+  - Packs count toward the size cap and are evicted like any entry.
+    Spike 0c's S3 measures per-entry I/O on macOS and Linux.
+- **Print, then publish (systems review, finding 8).** Diagnostics are
+  printed as soon as the last task that can add one finishes. Publishing
+  runs on one I/O thread that drains a queue of finished entries. On a
+  cold run it overlaps the checking of later modules. On a warm edit
+  nothing is waiting in the queue when checking ends, so output comes
+  first and the publishes drain after it, before the process exits.
+  Output never waits for a publish. An agent that waits for exit still
+  pays for them, which is why entries are few (§5.9).
 
 ### 5.5 The Stat Manifest And Change Detection
 
@@ -292,10 +398,14 @@ pub struct ManifestFile {
      for the same reason. On Windows, NTFS's change time plays the same
      role, read for a whole directory per call.
    - **`written_at` comes from the file system.** It is the mtime that
-     the file system stamps on a probe file created at the start of the
-     run, before any source is read. It therefore has the same clock and
+     the file system stamps on a probe file, created before the run reads
+     its first source file. It therefore has the same clock and
      granularity as the files it is compared with. An edit made while the
-     run reads files has a later time, and is hashed next run.
+     run reads files has a later time, and is hashed next run. The probe
+     is created only when the run is about to hash a file, which is the
+     only time it can write a new record, so the no-edit fast path pays
+     no create and unlink (about 0.4 ms on the Mac). Its name is random,
+     so two runs in one worktree never share it.
    - **Stat, read, stat.** When a file is read and hashed, its metadata is
      taken before and after the read. If they differ, the file changed
      while it was read: its record is not written, so the next run hashes
@@ -316,6 +426,41 @@ pub struct ManifestFile {
    Its file hashes and use lists are a `depfiles` entry keyed by the tree
    hash, computed once per machine.
 
+#### 5.5.1 The Last-Run Record
+
+(Systems review, finding 5.) Without it, a fast-key miss rebuilds
+`pkgres` from every part: it opens every `iface` entry to learn its deep
+hashes, every `check` entry for its diagnostics, and every coherence,
+header and init part. That is about 200 opens at 10k lines, 12 to 25 ms
+on the Mac, linear in the program and not in the edit. The `io-per-check`
+target asks for reads proportional to what changed.
+
+So the manifest file carries a second section, the **last-run record**,
+written in the same atomic write as the stat records:
+
+| Row | Holds |
+| --- | --- |
+| folder | `iface_key`, `deep_hash`, `heads_hash`, `api_hash` |
+| module | `check_key`, the key of the entry it used (equal, or an older key reused by early cutoff, §5.3.1), its TIR content hash (codegen.md §11.3), and its diagnostics' row range in the previous `pkgres` entry |
+| package | the `graph_key` and every part key in it; the `pkgres` key |
+| program | `prog_key`, the `link` key, and the keys of its packs (§5.4) |
+
+1. On a fast-key miss, the run recomputes keys bottom-up from the
+   manifest and this record. A folder whose files kept their
+   `api_text_hash` and whose dependencies kept their deep hashes keeps
+   its `iface_key`, and its hashes come from the record without an open.
+2. A module whose `check_key` is unchanged takes its diagnostics from
+   the previous `pkgres` entry, one open for all of them, and none when
+   the package had no diagnostics.
+3. Only parts whose key changed are read or computed.
+4. A missing, unreadable or stale record (a toolchain change, another
+   package root) falls back to the full path. The record holds paths and
+   build history, so it stays in the worktree, like the manifest. It
+   never enters a key or the output.
+
+At 10k lines the record is about 8 KB: 100 module rows of about 48
+bytes, 20 folder rows of 64, and the program rows.
+
 ### 5.6 Verify Mode
 
 `HD_CACHE_VERIFY=1` turns every cache hit into a recompute and a byte
@@ -333,18 +478,30 @@ the cap, `hd cache gc` runs it on demand, and the cap is configurable.
 - **Use marks.** A cache hit touches the entry's mtime if it is more than
   an hour old (Go's rule), so the mtime is the last-use time to within an
   hour, at most one write per entry per hour.
-- **Size accounting.** Each run adds the bytes it wrote to `obj/size`,
-  under a short advisory file lock, once at the end of the run.
-- **Automatic eviction.** When the total passes the cap, the run that
-  noticed it scans `obj/` after its output is flushed, deletes entries in
-  order of oldest use until the total is at most 90% of the cap, and
-  writes the exact total back. On `hd check`, `hd test` and `hd run` the
-  work is bounded to about 20 ms per run; a larger eviction continues in
-  later runs or in `hd cache gc`. An agent's command does not wait on a
-  full scan. A full scan also runs at least once a day
-  (`obj/gc`), which corrects drift in `size`.
-- **`hd cache gc`** runs the same scan and eviction now, and prints the
-  bytes before and after.
+- **Approximate LRU, per shard (systems review, finding 6; the owner
+  accepted the review's recommendation).** Exact LRU needs a full scan,
+  and a full scan of a 10 GB cache does not fit in a user command. So
+  eviction follows ccache: the cache is 256 shards, named by the first
+  two hex digits of a key, across every kind directory. Each shard has
+  its own budget, the cap divided by 256 (about 40 MB at 10 GB), and LRU
+  holds within a shard. The cap therefore holds to within one shard's
+  budget.
+- **Size accounting.** `obj/stats` holds 256 approximate shard sizes.
+  Each run adds the bytes it wrote per shard, once at the end of the
+  run, under a short advisory file lock: one read and one write of a
+  2 KB file.
+- **Automatic eviction.** A run that pushes a shard over its budget
+  cleans that shard after its output is flushed: it lists
+  `<kind>/<shard>/` for every kind, sorts by mtime, deletes the oldest
+  until the shard is at most 90% of its budget, and writes the shard's
+  exact size back. A run cleans shards until about 20 ms have passed;
+  shards still over budget are cleaned by the next run. An agent's
+  command never waits on a full scan.
+- **Drift.** Each run also rescans one shard in round-robin order (its
+  number is in `obj/stats`) and corrects its size. So every shard is
+  corrected every 256 runs, with no daily full scan.
+- **`hd cache gc`** cleans every shard now, with no time bound, and
+  prints the bytes before and after.
 - **The cap** comes from `HD_CACHE_MAX_SIZE` (bytes, with `K`, `M`, `G`
   suffixes). Whether a manifest key or a user config file can also set it
   is a CLI spec detail.
@@ -353,6 +510,20 @@ the cap, `hd cache gc` runs it on demand, and the cap is configurable.
 - A process holding a mapped entry keeps working if another process
   deletes it, because unlinking a mapped file is safe on Unix. On Windows,
   eviction skips files it cannot delete.
+
+**Cost** (a full 10 GB cache; the review's Mac costs):
+
+| Step | Files per file-per-entry cache (before packs) | With packs (§5.2, §5.4) | Cost per unit | Per run |
+| --- | --- | --- | --- | --- |
+| files in the cache | 1 to 2 million of 5 to 10 KB | about 50,000 to 100,000 (packs are 100 KB to a few MB) | | |
+| full scan, the old design | 1 to 2 million | | 4.6 to 8.5 µs | 5 to 17 s: never fits 20 ms |
+| scan one shard | 4,000 to 8,000 | 200 to 400 | 4.6 to 8.5 µs | 1 to 3.4 ms with packs |
+| delete 10% of a shard | 400 to 800 | 20 to 40 | 48 to 73 µs | 1 to 3 ms with packs |
+| update `obj/stats` | | 1 | about 0.5 ms | 0.5 ms |
+
+Inflow stays below what eviction can clean: a cold build of a 10k-line
+program writes about 64 files and a warm edit 3 to 6 (§5.9), against
+three to five shard cleanings per 20 ms.
 
 ### 5.8 The Browser `CacheStore`
 
@@ -365,12 +536,60 @@ pub trait CacheStore: Sync {
 pub struct MemoryStore { entries: Mutex<HashMap<(EntryKind, Hash128), Arc<[u8]>>>, new: Mutex<Vec<..>> }
 ```
 
-- The core never awaits storage. Before a run the JS host loads the
-  playground's entries from IndexedDB into the `MemoryStore`. After the
-  run it drains the new entries and writes them back.
+- The core never awaits storage. The JS host loads the playground's
+  entries from IndexedDB into the `MemoryStore` once, when the compiler
+  worker starts, not before each run: a 50 MB store would cost 100 to
+  500 ms of IndexedDB reads per run (systems review). After each run it
+  drains only the new entries and writes them back in one transaction.
 - Keys are the same as native. `toolchain_key` keeps a new compiler build
   from reading old entries.
 - The IndexedDB store keeps a last-use time per entry and evicts the
   oldest past a small browser cap, such as 50 MB, when it loads.
 - Std is embedded, and playground programs are small, so a cold check is
   the normal browser case. The store mainly speeds up "Run" after "Check".
+
+### 5.9 What Cache I/O Costs
+
+(Systems review, findings 1, 5 and 8.) Counts are for `ordinary-10k`:
+100 modules in 20 folders, 40 to 80 traits with impls, one program of
+about 4,800 instances and 4,700 functions, about 30 folder groups. Costs
+are the review's Mac measurements under load: publish about 340 µs, open
+and read 60 to 120 µs, `stat` about 2 µs. A Linux runner is likely 5 to
+20 times cheaper; slice 4 measures both.
+
+| Run | Before (file per entry) | Now | Now, at the Mac's rates |
+| --- | --- | --- | --- |
+| cold `hd check`: publishes | about 400: 100 `check`, 100 `tir`, 100 `locs`, 20 `iface`, 20 `hdr`, 20 `init`, 40 to 80 `coh`, `pkgres` | about 123: 100 `check`, 20 `iface`, `graph`, `pkgres`, the manifest | about 42 ms of I/O-thread time, overlapping the check; was about 140 ms |
+| cold `hd build`: added publishes | about 9,500: 4,800 `code`, 4,700 `cranelift`, `link`, `cwasm` | about 64: 30 `codepack`, 30 `clpack`, `link`, `cwasm` with its sidecar, `packhint` | about 22 ms; was about 3.2 s |
+| warm `hd check`, private body edit: opens | about 200: every `iface`, `check`, `coh`, `hdr` | 2 or 3: the manifest with its record, the edited file, and the previous `pkgres` when it has diagnostics | 0.2 to 0.4 ms; was 12 to 25 ms |
+| warm `hd check`, private body edit: publishes | 4 or 5, before output | 3, after output: `check`, `pkgres`, the manifest | about 1 ms, after output |
+| warm `hd check`, public edit in a folder every module reaches | about 200 opens; 100 rechecks; about 300 publishes | without early cutoff: 2 opens, 100 rechecks, about 103 publishes; with it (§5.3.1): about 100 opens, a few rechecks, about 5 publishes | without: about 35 ms of publishes plus the rechecks; with: 6 to 12 ms of opens |
+| warm `hd run` after a body edit: reads | about 9,500 entries | the manifest and about 60 packs, each mapped once | 4 to 7 ms; was 0.6 to 1.2 s |
+| warm `hd run` after a body edit: publishes | the changed `code` and `cranelift` entries, `link`, `cwasm` | 1 or 2 of each pack kind, `link`, `cwasm`, `packhint`, `check`, `pkgres`, the manifest | about 3 ms, after the program starts |
+| warm run with no edit | the manifest and `pkgres` | the same | under 0.3 ms |
+
+A lookup that misses is a failed `open`. It is cheaper than a read but
+not measured; a cold check makes about 123 of them.
+
+**`edit-latency` estimate, one-function edit** (one core, the Mac's
+rates; the check times are estimates until slice 3 measures them):
+
+| Step | `ordinary-10k` (a 100-line module) | `one-file-10k` (one 10,000-line module) |
+| --- | --- | --- |
+| process start, manifest and record | 3 to 8 ms | 3 to 8 ms |
+| stat 100 files, read and hash the edited one | 0.3 ms | 0.5 ms |
+| keys from the record | under 1 ms | under 1 ms |
+| parse; M1, M2 and M3 of the module, with the per-run solver memo warm-up | 2 to 10 ms | 80 to 250 ms on one core; about 15 to 45 ms on 8 |
+| TIR remap | 0.02 ms | 2 ms |
+| print | under 1 ms | under 1 ms |
+| **time to output** | **about 6 to 20 ms** | **about 90 to 260 ms on one core; 25 to 60 ms on 8** |
+| publishes after output | about 1 ms | about 3 ms (a 2 MB `check` entry) |
+
+So `ordinary-10k` meets the 50 ms p50 with room on one core.
+`one-file-10k` meets it only on several cores. On one core it misses the
+p50 and approaches the 200 ms p95. M1's walk and M3's sweep are a small
+share of that. The cost is M2 over every body of the module, because the
+first release rechecks a whole module (type-checking.md §1.7). The next
+lever is per-body reuse inside the module's entry
+([checking-and-tir.md §4.13.1](checking-and-tir.md#4131-task-structure-per-module)),
+which the first release does not include.

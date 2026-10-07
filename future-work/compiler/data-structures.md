@@ -1788,29 +1788,37 @@ const _: () = assert!(core::mem::size_of::<ManifestRecord>() == 88);
 - **AoS on purpose**: each step of §5.5 reads a whole record.
 - Read whole at start (a 100-file package is about 9 KB), written whole
   and atomically at the end when anything changed.
+- A second section holds the **last-run record** (cache.md §5.5.1): per
+  folder, module, package and program, the keys and hashes of the last
+  run, about 8 KB at 10k lines. It is read and written with the stat
+  records, so it costs no extra open or publish.
 
 #### 3.20.4 Entry Sections By Kind
 
 | Kind | Sections, beyond `strings`, `paths`, `types` | Typical size, 1,000-line module |
 | --- | --- | --- |
 | `iface` | §3.16 | 40 B per public line |
-| `check` | `diags`; `init_summary` (per function: read bindings, calls, dispatched methods, as path rows); `row_results` (per private callee: solved keys); `facts` (the program-database records); `module_meta` (counts, `poisoned`) | 2 to 20 KB |
-| `tir` | `bodies` (per body: item path, kind, inline summary bit, column ranges, TIR hash, dependency range: 48 B); `tags`, `data`, `ty`, `span_lo`, `span_hi`, `extra`; `local_*`, `sub_*`, `label_inst`, `cap_*`; side tables; `deps` (path row, item interface hash) | about 210 B per line |
-| `check-test` | `diags`, `registrations` (name text, body path) | small |
-| `hdr` | `diags` of one folder's stage-B header checks (cache.md §5.2) | small |
-| `coh`, `init`, `pkgres` | `diags` plus a few rows | small |
+| `check` | `diags`; `init_summary` (per function: read bindings, calls, dispatched methods, as path rows); `row_results` (per private callee: solved keys); `facts` (the program-database records); `module_meta` (counts, `poisoned`); `reads` (cache.md §5.3.1: kind, path row, name row, hash; 24 B); `locs` (per declaration: path row, byte offset, line; 12 B); and, only when the module has no error, the TIR sections below | 2 to 20 KB, plus the TIR |
+| TIR sections of `check` | `bodies` (per body: item path, kind, inline summary bit, column ranges, TIR hash, dependency range: 48 B); `tags`, `data`, `ty`, `span_lo`, `span_hi`, `extra`; `local_*`, `sub_*`, `label_inst`, `cap_*`; side tables; `deps` (path row, item interface hash); `tir_meta` (the module's TIR content hash and literal list, codegen.md §11.3) | about 210 B per line |
+| `check-test` | `diags`, `registrations` (name text, body path), the overlay's TIR sections | small |
+| `graph` | one `parts` index (kind, part key, row range), then `diags` and the init orders of every non-empty part (cache.md §5.2) | small |
+| `pkgres` | `diags` plus a few rows | small |
 | `depfiles` | manifest-like records without stat fields | 56 B per file |
-| `code` | §3.22 | about 40 B per line per instance |
+| `codepack` | an index (code key, offset, length) sorted by key, then the members' code entries (§3.22) | about 40 B per line per instance; about 30 KB per folder group at 10k lines |
+| `clpack` | an index (wasmtime's function key, offset, length), then the compiled functions | about 4 to 8 times the group's Wasm |
+| `packhint` | the program's pack keys | under 1 KB |
 | `link`, `cwasm` | one `bytes` section | the module |
 
-The `tir` entry stores spans as two columns, not `syn`, so emission
-never needs the syntax tree (mine). That is why it is about 30 bytes per
-line larger on disk than in memory.
+The TIR sections store spans as two columns, not `syn`, so emission
+never needs the syntax tree (mine). That is why they are about 30 bytes
+per line larger on disk than in memory.
 
-**Memory, for all cache structures.** Entries are mapped or read for the
-moment they are needed. A warm check reads the manifest, about 100
-`iface` and `check` headers (64 bytes each, plus their `diags`), and
-writes one `check` and one `tir` entry.
+**Memory, for all cache structures.** Entries are mapped for the moment
+they are needed, and a reader touches only the sections it uses: output
+reads `diags`, D2 reads the TIR sections, early cutoff reads `reads`. A
+warm check after a private body edit reads the manifest with its
+last-run record and the previous `pkgres` (cache.md §5.5.1), and writes
+one `check` entry, the `pkgres` entry and the manifest.
 
 ### 3.21 The Scheduler's Task Graph
 
