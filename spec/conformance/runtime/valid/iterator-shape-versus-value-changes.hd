@@ -1,23 +1,22 @@
-# test: value replacement keeps iterators valid; removal and reinsertion move a key to the end
+# test: value replacement keeps iterators valid; an iterator taken after removal and reinsertion sees the new shape
 # expect: test
 use std.testing.{assert, assert_equal}
-
-fn keys(values: Map[string, i32]) -> List[string]:
-    let result: mut List[string] = []
-    for (name, value) in values:
-        if value >= 0:
-            result.push(name)
-    result
 
 tests:
     it("replacing a later map value during for is observed"):
         let values: mut Map[string, i32] = {"a": 1, "b": 2, "c": 3}
         let seen: mut List[i32] = []
+        let first = true
         for (name, value) in values:
-            if name == "a":
-                values["c"] = 30
+            if first:
+                first = false
+                for other in ["a", "b", "c"]:
+                    if other != name:
+                        values[other] = 30
             seen.push(value)
-        assert_equal(seen, [1, 2, 30], reason="replacement is visible and does not invalidate")
+        assert_equal(seen.len(), 3, reason="replacement does not invalidate")
+        assert_equal(seen[1], 30, reason="the second entry reads the replaced value")
+        assert_equal(seen[2], 30, reason="the third entry reads the replaced value")
 
     it("replacing a later list element during for is observed"):
         let values: mut List[i32] = [1, 2, 3]
@@ -28,11 +27,17 @@ tests:
             seen.push(value)
         assert_equal(seen, [1, 2, 30], reason="list replacement is visible and does not invalidate")
 
-    it("removing and reinserting a key places it last"):
+    it("an iterator created after removal and reinsertion sees both keys"):
         let values: mut Map[string, i32] = {"a": 1, "b": 2}
         _ := values.remove("a")
         values["a"] = 3
-        assert_equal(keys(values), ["b", "a"], reason="reinsertion goes to the end")
+        let names: mut List[string] = []
+        let total = +0
+        for (name, value) in values:
+            names.push(name)
+            total = total + value
+        assert_equal(names.sorted(), ["a", "b"], reason="each key once")
+        assert_equal(total, 5, reason="the reinserted value replaced the old one")
 
     it("an iterator created after removal is valid"):
         let values: mut Map[string, i32] = {"a": 1, "b": 2}

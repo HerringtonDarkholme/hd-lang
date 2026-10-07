@@ -1,14 +1,14 @@
 # std.json: the untyped JSON value, its parser, and its writers, and
 # typed JSON over the `std.serde` consent: `to_json`, `from_json`,
 # `encode`, and `decode` (spec/std/json.md).
-use std.format.DebugWriter
+use std.format.{DebugWriter, DebugList}
 use std.error.Error
 use std.num.parse_f64
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
 use std.structure.{VariantInfo, Member, Facts}
 
-# One JSON value (r-std-json.value.decl). An object's keys follow its
-# `Map`'s deterministic iteration order (r-std-json.value.object-map-order).
+# One JSON value (r-std-json.value.decl). An object keeps its members in
+# insertion order (r-std-json.object.order).
 ## A JSON value: `null`, `Bool`, `Number`, `Text`, `Array`, or `Object`.
 ## See [std-json.value.decl](../../spec/std/json.md#r-std-json.value.decl).
 pub enum Json:
@@ -17,7 +17,77 @@ pub enum Json:
     Number(value: Number)
     Text(value: string)
     Array(items: List[Json])
-    Object(fields: Map[string, Json])
+    Object(fields: JsonObject)
+
+# The members of a JSON object (r-std-json.object.decl): `entries` holds them
+# in insertion order, and `index` maps each key to its place in `entries`, so
+# a lookup does not scan.
+## The members of a JSON object, in insertion order.
+## See [std-json.object.decl](../../spec/std/json.md#r-std-json.object.decl).
+pub data JsonObject:
+    entries: mut List[(string, Json)]
+    index: mut Map[string, usize]
+
+impl JsonObject:
+    ## Returns an object with no members.
+    ## See [std-json.object.new](../../spec/std/json.md#r-std-json.object.new).
+    pub fn new() -> mut JsonObject:
+        let entries: mut List[(string, Json)] = []
+        let index: mut Map[string, usize] = {}
+        JsonObject { entries: entries, index: index }
+
+    ## Returns the number of members.
+    ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
+    pub fn len(self) -> usize:
+        self.entries.len()
+
+    ## True exactly when the object has no members.
+    ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
+    pub fn is_empty(self) -> bool:
+        self.entries.len() == 0
+
+    ## The value of `key`, or `.None` when the object has no such key.
+    ## See [std-json.object.get](../../spec/std/json.md#r-std-json.object.get).
+    pub fn get(self, key: string) -> Json?:
+        match self.index.get(key):
+            .Some(at) => .Some(self.entries[at]._1)
+            .None => .None
+
+    ## True exactly when the object has the key.
+    ## See [std-json.object.get](../../spec/std/json.md#r-std-json.object.get).
+    pub fn contains_key(self, key: string) -> bool:
+        self.index.get(key).is_some()
+
+    ## Sets `key` to `value`. A new key goes last, and an existing key keeps its place.
+    ## See [std-json.object.set](../../spec/std/json.md#r-std-json.object.set).
+    pub fn set(mut self, key: string, value: Json) -> void:
+        match self.index.get(key):
+            .Some(at) => self.entries[at] = (key, value)
+            .None =>
+                self.index[key] = self.entries.len()
+                self.entries.push((key, value))
+
+    ## The keys, in insertion order.
+    ## See [std-json.object.order](../../spec/std/json.md#r-std-json.object.order).
+    pub fn keys(self) -> List[string]:
+        self.entries.map(fn(entry: (string, Json)) -> string: entry._0)
+
+impl Iterable[(string, Json)] for JsonObject:
+    fn iter(self) -> mut Iterator[(string, Json)]:
+        self.entries.iter()
+
+# The same members, in any order (r-std-json.value.eq.object).
+impl Eq for JsonObject:
+    fn eq(self, other: JsonObject) -> bool:
+        if self.len() != other.len():
+            return false
+        for (key, value) in self.entries:
+            match other.get(key):
+                .Some(found) =>
+                    if found != value:
+                        return false
+                .None => return false
+        true
 
 # What a `Number` holds: an integer below zero, an integer from zero up, or
 # a finite float. Normalized, so one integer has one representation
@@ -404,7 +474,7 @@ fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, Jso
 fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, JsonError]:
     if depth >= 128:
         return .Err(JsonError.NestingTooDeep(open))
-    let fields: mut Map[string, Json] = {}
+    let fields: mut JsonObject = JsonObject::new()
     let index = skip_space(bytes, open + 1)
     if index < bytes.len() && bytes[index] == 125:
         return .Ok(Parsed { value: Json.Object(fields), end: index + 1 })
@@ -416,7 +486,7 @@ fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, Js
         if index >= bytes.len() || bytes[index] != 58:
             return .Err(unexpected(bytes, index))
         found := parse_value(bytes, index + 1, depth + 1)?
-        fields[key.text] = found.value
+        fields.set(key.text, found.value)
         index = skip_space(bytes, found.end)
         if index < bytes.len() && bytes[index] == 44:
             index = skip_space(bytes, index + 1)
@@ -618,6 +688,14 @@ impl Debug for Json:
             .Array(items) => out.debug_tuple("Json.Array").named_field("items", items).finish()
             .Object(fields) => out.debug_tuple("Json.Object").named_field("fields", fields).finish()
 
+# One `debug_list` entry per member, in insertion order.
+impl Debug for JsonObject:
+    fn debug(self, out: mut DebugWriter) -> void:
+        let list: mut DebugList = out.debug_list()
+        for entry in self.entries:
+            _ := list.entry(entry)
+        list.finish()
+
 impl Debug for JsonError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
@@ -714,10 +792,10 @@ impl Deserialize for Json:
                 .Ok(Json.Array(items))
             .Map =>
                 input.begin_map()?
-                let fields: mut Map[string, Json] = {}
+                let fields: mut JsonObject = JsonObject::new()
                 while true:
                     match input.next_key()?:
-                        .Some(key) => fields[key] = Json::deserialize(input)?
+                        .Some(key) => fields.set(key, Json::deserialize(input)?)
                         .None => break
                 .Ok(Json.Object(fields))
 
@@ -832,15 +910,15 @@ impl Serializer for JsonWriter:
             return self.put(Json.Object(fields))
         if fields.len() == 0:
             return self.put(Json.Text(frame.name))
-        let outer: mut Map[string, Json] = {}
-        outer[frame.name] = Json.Object(fields)
+        let outer: mut JsonObject = JsonObject::new()
+        outer.set(frame.name, Json.Object(fields))
         self.put(Json.Object(outer))
 
-fn object_of(keys: List[string], values: List[Json]) -> Map[string, Json]:
-    let fields: mut Map[string, Json] = {}
+fn object_of(keys: List[string], values: List[Json]) -> JsonObject:
+    let fields: mut JsonObject = JsonObject::new()
     let index: usize = 0
     while index < keys.len():
-        fields[keys[index]] = values[index]
+        fields.set(keys[index], values[index])
         index = index + 1
     fields
 
@@ -852,7 +930,7 @@ data ReadFrame:
     pub home: string
     pub items: List[Json]
     pub keys: List[string]
-    pub fields: Map[string, Json]
+    pub fields: JsonObject
 
 # Reads one `Json` for `from_json`. `value` is the value at the cursor,
 # `present` is false for a member whose key is missing, and `path` is the
@@ -963,7 +1041,7 @@ impl Deserializer for JsonReader:
         if self.present:
             match self.value:
                 .Array(items) =>
-                    self.push(ReadFrame { base: self.path, home: self.path, items: items, keys: [], fields: {} })
+                    self.push(ReadFrame { base: self.path, home: self.path, items: items, keys: [], fields: JsonObject::new() })
                     return .Ok(())
                 _ => pass
         .Err(self.fail("array"))
@@ -991,7 +1069,7 @@ impl Deserializer for JsonReader:
                     for entry in fields:
                         keys.push(entry._0)
                         items.push(entry._1)
-                    self.push(ReadFrame { base: self.path, home: self.path, items: items, keys: keys, fields: {} })
+                    self.push(ReadFrame { base: self.path, home: self.path, items: items, keys: keys, fields: JsonObject::new() })
                     return .Ok(())
                 _ => pass
         .Err(self.fail("object"))
@@ -1030,7 +1108,7 @@ impl Deserializer for JsonReader:
         match self.value:
             .Text(text) =>
                 name = text
-                payload = Json.Object({})
+                payload = Json.Object(JsonObject::new())
             .Object(fields) =>
                 if fields.len() != 1:
                     return .Err(self.fail("variant"))

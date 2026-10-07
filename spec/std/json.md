@@ -36,14 +36,14 @@ pub enum Json:
     Number(value: Number)
     Text(value: string)
     Array(items: List[Json])
-    Object(fields: Map[string, Json])
+    Object(fields: JsonObject)
 ```
 
 1. r[std-json.value.decl] `std.json` declares the enum `Json` with exactly the variants above.
-2. r[std-json.value.object-map-order] An `Object`'s keys follow its `Map`'s [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), so writing the same `Object` twice gives the same text.
+2. r[std-json.value.object-type] An `Object` holds a [`JsonObject`](#json-objects), which keeps its members in insertion order. It is not a `Map`, whose [iteration order](../lang/04-type-system.md#r-types.map.order.unspecified) is unspecified.
 3. r[std-json.value.eq] `Json` implements `Eq`. Two values are equal when they are the same variant with equal contents.
 4. r[std-json.value.eq.array] Arrays are equal when they have equal items in the same order.
-5. r[std-json.value.eq.object] Objects are equal as maps are, so key order does not matter ([`types.map.semantics`](../lang/04-type-system.md#r-types.map.semantics)).
+5. r[std-json.value.eq.object] Objects are equal when they have the same keys with equal values. Their order does not matter.
 6. r[std-json.value.debug] `Json`, `Number`, and `JsonError` implement `Debug`, as [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types) requires.
 
 The accessors read one kind and give `.None` for any other:
@@ -61,6 +61,35 @@ The accessors read one kind and give `.None` for any other:
 
 > **Note.** The accessors take no path and no default. Chain them with
 > `and_then` ([Option](option.md)).
+
+## Json Objects
+
+`JsonObject` is the type of an `Object`'s members. Insertion order is part
+of its contract, so a config file parsed and written again keeps its keys
+where they were.
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-json.object.new] `new` | `pub fn new() -> mut JsonObject` | an object with no members |
+| r[std-json.object.len] `len` | `pub fn len(self) -> usize` | the number of members; `is_empty` is `len() == 0` |
+| r[std-json.object.get] `get` | `pub fn get(self, key: string) -> Json?` | the value of `key`, or `.None`; `contains_key` is `true` for a key that has a member |
+| r[std-json.object.set] `set` | `pub fn set(mut self, key: string, value: Json) -> void` | a new key becomes the last member, and an existing key keeps its place with the new value |
+| r[std-json.object.keys] `keys` | `pub fn keys(self) -> List[string]` | the keys, in insertion order |
+
+1. r[std-json.object.decl] `std.json` declares `JsonObject` with the methods above, and `JsonObject` implements `Iterable[(string, Json)]`, `Eq`, and `Debug`.
+2. r[std-json.object.order] `keys`, iteration, and `Debug` give the members in insertion order.
+3. r[std-json.object.eq] Two `JsonObject`s are equal when they have the same keys with equal values, in any order.
+
+```text
+use std.json.{Json, JsonObject}
+
+fn build() -> Json:
+    let fields: mut JsonObject = JsonObject::new()
+    fields.set("name", Json.Text("hd"))
+    fields.set("id", Json.Null)
+    fields.set("name", Json.Bool(true))   # keeps its place: keys() is ["name", "id"]
+    Json.Object(fields)
+```
 
 ## Numbers
 
@@ -172,15 +201,16 @@ fn checks() -> List[bool]:
 
 ### Objects
 
-1. r[std-json.parse.object.duplicate-last] When a key occurs more than once, the object has one entry for it, whose value is the last one.
-2. r[std-json.parse.object.key] A key is a string, and its escapes are decoded as a string's are.
+1. r[std-json.parse.object.source-order] The members of a parsed object are in the order of their first occurrence in the text.
+2. r[std-json.parse.object.duplicate-last] When a key occurs more than once, the object has one entry for it. Its value is the last one, and its place is the first one's.
+3. r[std-json.parse.object.key] A key is a string, and its escapes are decoded as a string's are.
 
 ```text
 use std.json.parse
 
 fn last_wins() -> string:
     match parse("{\"b\": 1, \"a\": 2, \"b\": 3}"):
-        .Ok(value) => "${value}"   # {"b":3,"a":2} or {"a":2,"b":3}: the last value
+        .Ok(value) => "${value}"   # {"b":3,"a":2}: first place, last value
         .Err(_) => "error"
 ```
 
@@ -376,9 +406,10 @@ fn show_pretty(value: Json) -> string:
 
 1. r[std-json.display.compact] `Json` implements `Display`. Its text has no whitespace outside strings: `[1,2]` and `{"a":1}`.
 2. r[std-json.display.kinds] `Null` prints as `null`, a `Bool` as `true` or `false`, and a `Number` as [`std-json.number.display`](#r-std-json.number.display) gives.
-3. r[std-json.display.containers] An `Array` prints its items in order, and an `Object` prints its entries in insertion order as `"key":value`, each list separated by `,`.
-4. r[std-json.display.text] A `Text` and each key print in quotes. A quote, a backslash, and each character below U+0020 are escaped, and every other scalar value prints as itself.
-5. r[std-json.display.escapes] The escapes are `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, and `\t`, and `\u00` with two lowercase hex digits for the other controls. `/` is not escaped.
+3. r[std-json.display.containers] An `Array` prints its items in order, and an `Object` prints its members as `"key":value`, each list separated by `,`.
+4. r[std-json.display.object-order] An `Object` prints its members in insertion order, in compact text and in `pretty` text. Printing a parsed object gives its keys in the text's order.
+5. r[std-json.display.text] A `Text` and each key print in quotes. A quote, a backslash, and each character below U+0020 are escaped, and every other scalar value prints as itself.
+6. r[std-json.display.escapes] The escapes are `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, and `\t`, and `\u00` with two lowercase hex digits for the other controls. `/` is not escaped.
 
 ```text
 use std.json.{Json, parse}
@@ -492,7 +523,7 @@ JSON writes and reads each standard implementation of
 | r[std-json.std.float] Floats | `f32` and `f64` | the `Number` of the value as an `f64` | any `Number`, as `as_f64` gives it |
 | r[std-json.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload's `Json` for `.Some` | `.None` from `null`, and `.Some` of what `T` reads from any other value |
 | r[std-json.std.list] List | `List[T]`, where `T` implements the trait | an `Array` of the items' values, in order | an `Array`, item by item |
-| r[std-json.std.map] Map | `Map[string, V]`, where `V` implements the trait | an `Object` of the entries' values, in insertion order | an `Object`, entry by entry, in its key order |
+| r[std-json.std.map] Map | `Map[string, V]`, where `V` implements the trait | an `Object` of the entries' values, in the map's iteration order | an `Object`, entry by entry, in its key order |
 
 1. r[std-json.std.json.consent] `std.json` implements `Serialize` and `Deserialize` for `Json`. A `Json` reads through `peek`, so it takes any value.
 2. r[std-json.std.integer.read] A float is never an integer, so `1.0` is a `WrongType` for every integer type. So is an integer outside the type's range.

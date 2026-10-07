@@ -864,11 +864,12 @@ std/json.md	13	type-fragment	-
 std/json.md	14	type-fragment	-
 std/json.md	15	type-fragment	-
 std/json.md	16	type-fragment	-
-std/json.md	17	accept	runtime/valid/json-serde-private-round-trip.hd
-std/json.md	18	mixed	typing/invalid/json-encode-not-derived.hd|typing/invalid/json-decode-not-derived.hd
-std/json.md	19	type-fragment	-
-std/json.md	20	accept	runtime/valid/json-typed-enum.hd
-std/json.md	21	type-fragment	-
+std/json.md	17	type-fragment	-
+std/json.md	18	accept	runtime/valid/json-serde-private-round-trip.hd
+std/json.md	19	mixed	typing/invalid/json-encode-not-derived.hd|typing/invalid/json-decode-not-derived.hd
+std/json.md	20	type-fragment	-
+std/json.md	21	accept	runtime/valid/json-typed-enum.hd
+std/json.md	22	type-fragment	-
 std/serde.md	1	accept	runtime/valid/serde-derive-call-order.hd
 std/serde.md	2	type-fragment	-
 std/serde.md	3	accept	runtime/valid/serde-derive-call-order.hd
