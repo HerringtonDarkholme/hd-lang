@@ -79,7 +79,15 @@ fn incremental(executor: Executor) {
     let store = MemoryStore::default();
     let base = program(DATA_MAIN, GEO);
     let cold = ok(&store, &base, executor);
-    assert_eq!(cold.counters.modules_checked.len(), 2);
+    // The program's two modules, and the std modules collection crosses into.
+    let own = |c: &hd_driver::Counters| {
+        c.modules_checked
+            .iter()
+            .filter(|m| m.starts_with("demo."))
+            .count()
+    };
+    assert_eq!(own(&cold.counters), 2);
+    assert!(cold.counters.modules_checked.len() > 2);
     let cold_wasm = cold.wasm.clone().expect("wasm");
 
     // Warm, no edit: every boundary hits.
@@ -107,7 +115,7 @@ fn incremental(executor: Executor) {
         "interface rebuilt: {:?}",
         c.ifaces_built
     );
-    assert_eq!(c.hit("check"), 1, "main's check entry reused");
+    assert!(c.hit("check") >= 1, "main's and std's check entries reused");
     assert_eq!(c.miss("link"), 1, "TIR changed, so the program relinks");
     assert!(c.hit("code") >= 1, "unchanged instances reuse their code");
     assert_eq!(c.emitted, 1, "only the edited function is re-emitted");

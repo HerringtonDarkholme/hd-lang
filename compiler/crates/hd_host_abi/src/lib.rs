@@ -3,8 +3,9 @@
 //! §17.1, §17.2): capability traits, methods, codecs and wait flags; the
 //! import names they produce; and operation handles.
 //!
-//! The table mirrors std's capability traits in `lib/std`. The generators
-//! (hd-side stubs, wasmtime stubs, JS glue) are not written yet.
+//! The table mirrors std's capability traits in `lib/std`. `hd_wasm`
+//! generates the hd-side provider stubs of the default profile from it;
+//! the wasmtime stubs and the JS glue generator are not written yet.
 
 use hd_base::{NotImplemented, Stage, StageResult};
 
@@ -247,42 +248,6 @@ pub fn intrinsic(key: &str) -> Option<Lowering> {
     INTRINSICS.iter().find(|(k, _)| *k == key).map(|(_, l)| *l)
 }
 
-/// A compiler-provided lowering of one instance of an ordinary std
-/// function, used while std bodies do not compile yet (M3): a call of
-/// `item` at `type_args` becomes the host import `module.field`. The
-/// emitter, the linker and the JS host read this one description (§17.1).
-#[derive(Debug)]
-pub struct StdLowering {
-    /// The std function's dotted path, as `std.console.println`.
-    pub item: &'static str,
-    pub type_args: &'static [Scalar],
-    pub module: &'static str,
-    pub field: &'static str,
-    pub params: &'static [Scalar],
-    pub result: Codec,
-}
-
-/// `std.console.println` of an `i32`: until std's `Console` path
-/// (`$.use(Console)`, `write_line!` and `block_on`) compiles, its instance
-/// at `i32` is this host import.
-pub static STD_LOWERINGS: &[StdLowering] = &[StdLowering {
-    item: "std.console.println",
-    type_args: &[Scalar::I32],
-    module: "hd",
-    field: "println_i32",
-    params: &[Scalar::I32],
-    result: Codec::Void,
-}];
-
-/// The std lowering of an instance, by index into `STD_LOWERINGS`.
-#[must_use]
-pub fn std_lowering(item: &str, type_args: &[Scalar]) -> Option<u32> {
-    STD_LOWERINGS
-        .iter()
-        .position(|l| l.item == item && l.type_args == type_args)
-        .and_then(|i| u32::try_from(i).ok())
-}
-
 /// A Wasm import: module and name fields.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Import {
@@ -319,9 +284,6 @@ pub fn is_known_import(module: &str, name: &str) -> bool {
     RUNTIME_IMPORTS
         .iter()
         .any(|(m, n)| *m == module && *n == name)
-        || STD_LOWERINGS
-            .iter()
-            .any(|p| p.module == module && p.field == name)
         || (module == "hd:prim"
             && INTRINSICS
                 .iter()

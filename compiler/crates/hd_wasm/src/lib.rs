@@ -1,67 +1,196 @@
 #![forbid(unsafe_code)]
 //! `hd_wasm`: Wasm GC emission (codegen.md §12, wasm-layout.md §15) and link
 //! (§13.10). `Emit` walks one instance's `hd_tir::ir::Body` under its
-//! substitution, with value layouts from `hd_mono::layout::layout_of`,
-//! call targets from collection (no selection here), and host imports from
-//! `hd_host_abi`. A code entry holds symbolic relocations (callees by
-//! instance key, struct types by stable path); `Link` assigns indices.
+//! substitution (`emit`), with value layouts from `layout` and call targets
+//! from collection (no selection here). Runtime pieces the compiler builds
+//! (literal getters, number formatting, panic stubs, host provider stubs,
+//! vtable adapters, the entry wrapper) are `rt` helpers. A code entry holds
+//! symbolic relocations: callees by instance key or helper, Wasm types by
+//! their structural descriptor; `Link` assigns indices.
 
+pub mod asm;
+pub mod emit;
+pub mod layout;
 pub mod meta;
+pub mod rt;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{DefId, Hash128, NotImplemented, Stage, StageResult};
+use hd_base::{Hash128, NotImplemented, Stage, StageResult};
 use wasm_encoder::{
-    BlockType, CodeSection, CompositeInnerType, CompositeType, EntityType, ExportKind,
-    ExportSection, FieldType, FunctionSection, HeapType, ImportSection, Module, RefType,
-    StorageType, StructType, SubType, TypeSection, ValType,
+    CodeSection, CompositeInnerType, CompositeType, ConstExpr, DataCountSection, DataSection,
+    ElementSection, Elements, EntityType, ExportKind, ExportSection, FieldType, FuncType,
+    FunctionSection, GlobalSection, GlobalType, HeapType, ImportSection, MemorySection, MemoryType,
+    Module, RefType, StorageType, StructType, SubType, TypeSection, ValType,
 };
 
-use hd_mono::layout::{LayoutClass, ValType as LV, layout_of};
-use hd_mono::{CallTarget, ProgramEnv, is_class_ref, subst};
-use hd_tir::ir::{Body, NONE, PrimOp, Ref, Tag, local_flags};
-use hd_types::{InternPool, Prim, Ty, TyData, TyList};
+pub use emit::{emit, entry};
+pub use rt::Helper;
 
-/// A Wasm value type with symbolic struct references.
+/// A Wasm value type, with references to structural type descriptors.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum VT {
     I32,
     I64,
-    /// `(ref $T)` by stable path.
-    Ref(String),
-    /// `eqref`: the erased layout of the `REF` class (wasm-layout.md §15.1).
+    F32,
+    F64,
+    /// `eqref`, nullable: erased storage (the A1 class `REF`, wasm-layout.md §15.1).
     Eq,
+    /// `(ref $T)` or `(ref null $T)`.
+    Ref(Box<WTy>, bool),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum W {
-    I32(i32),
-    LGet(u32),
-    LSet(u32),
-    Call(Hash128),
-    CallImport(u32),
-    StructNew(String),
-    StructGet(String, u32, bool),
-    Prim(PrimOp),
-    If,
-    Else,
-    End,
-    Block,
-    Loop,
-    Br(u32),
-    Return,
-    Unreachable,
-    /// `ref.cast (ref $T)`: an erased value is cast where its exact type is needed.
-    Cast(String),
+/// A Wasm heap type, described by structure (hd needs no nominal Wasm
+/// types, codegen.md §13.7): equal descriptors are one type.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum WTy {
+    /// `(array (mut i8))`: string bytes.
+    Bytes,
+    /// `(array (mut T))`.
+    Array(VT),
+    /// A struct of mutable fields; `open` is a non-final type that closures,
+    /// suspension frames and their subtypes extend.
+    Struct {
+        fields: Vec<VT>,
+        sup: Option<Box<WTy>>,
+        open: bool,
+    },
+    Func(Vec<VT>, Vec<VT>),
+}
+
+impl VT {
+    #[must_use]
+    pub fn r(t: WTy) -> VT {
+        VT::Ref(Box::new(t), false)
+    }
+    #[must_use]
+    pub fn rn(t: WTy) -> VT {
+        VT::Ref(Box::new(t), true)
+    }
+    /// The defaultable form (wasm-layout.md §15.2): references nullable.
+    #[must_use]
+    pub fn dflt(&self) -> VT {
+        match self {
+            VT::Ref(t, _) => VT::Ref(t.clone(), true),
+            v => v.clone(),
+        }
+    }
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            VT::I32 => w.u8(0),
+            VT::I64 => w.u8(1),
+            VT::F32 => w.u8(2),
+            VT::F64 => w.u8(3),
+            VT::Eq => w.u8(4),
+            VT::Ref(t, n) => {
+                w.u8(if *n { 6 } else { 5 });
+                t.encode(w);
+            }
+        }
+    }
+    fn decode(r: &mut Reader<'_>, depth: u8) -> Option<VT> {
+        Some(match r.u8() {
+            0 => VT::I32,
+            1 => VT::I64,
+            2 => VT::F32,
+            3 => VT::F64,
+            4 => VT::Eq,
+            5 => VT::Ref(Box::new(WTy::decode(r, depth)?), false),
+            6 => VT::Ref(Box::new(WTy::decode(r, depth)?), true),
+            _ => return None,
+        })
+    }
+}
+
+pub(crate) fn encode_vts(v: &[VT], w: &mut Writer) {
+    w.len_of(v);
+    for x in v {
+        x.encode(w);
+    }
+}
+
+pub(crate) fn decode_vts(r: &mut Reader<'_>, depth: u8) -> Option<Vec<VT>> {
+    let n = r.count();
+    (0..n).map(|_| VT::decode(r, depth)).collect()
+}
+
+impl WTy {
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            WTy::Bytes => w.u8(0),
+            WTy::Array(v) => {
+                w.u8(1);
+                v.encode(w);
+            }
+            WTy::Struct { fields, sup, open } => {
+                w.u8(2);
+                encode_vts(fields, w);
+                w.u8(u8::from(*open));
+                match sup {
+                    Some(s) => {
+                        w.u8(1);
+                        s.encode(w);
+                    }
+                    None => w.u8(0),
+                }
+            }
+            WTy::Func(p, r) => {
+                w.u8(3);
+                encode_vts(p, w);
+                encode_vts(r, w);
+            }
+        }
+    }
+    fn decode(r: &mut Reader<'_>, depth: u8) -> Option<WTy> {
+        let depth = depth.checked_add(1).filter(|d| *d < 64)?;
+        Some(match r.u8() {
+            0 => WTy::Bytes,
+            1 => WTy::Array(VT::decode(r, depth)?),
+            2 => {
+                let fields = decode_vts(r, depth)?;
+                let open = r.u8() == 1;
+                let sup = if r.u8() == 1 {
+                    Some(Box::new(WTy::decode(r, depth)?))
+                } else {
+                    None
+                };
+                WTy::Struct { fields, sup, open }
+            }
+            3 => WTy::Func(decode_vts(r, depth)?, decode_vts(r, depth)?),
+            _ => return None,
+        })
+    }
+    #[must_use]
+    pub fn fields(&self) -> &[VT] {
+        match self {
+            WTy::Struct { fields, .. } => fields,
+            _ => &[],
+        }
+    }
+}
+
+/// A function symbol (codegen.md §13.8 `FuncTarget`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Sym {
+    /// A collected instance, by instance key.
+    Inst(Hash128),
+    /// A host import: module, name and Wasm signature.
+    Import {
+        module: String,
+        name: String,
+        params: Vec<VT>,
+        results: Vec<VT>,
+    },
+    /// A compiler-generated runtime function.
+    Helper(Helper),
 }
 
 /// A relocation target (codegen.md §13.8 `Reloc`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Reloc {
-    Func(Hash128),
-    Import(u32),
-    Type(String),
+    Func(Sym),
+    Type(WTy),
 }
 
 /// A code entry (codegen.md §13.8): locals and instructions as bytes, index
@@ -74,25 +203,43 @@ pub struct Code {
     pub relocs: Vec<(u32, Reloc)>,
 }
 
-impl VT {
-    fn encode(&self, w: &mut Writer) {
+impl Sym {
+    pub(crate) fn encode(&self, w: &mut Writer) {
         match self {
-            VT::I32 => w.u8(0),
-            VT::Eq => w.u8(1),
-            VT::Ref(p) => {
-                w.u8(2);
-                w.str(p);
+            Sym::Inst(k) => {
+                w.u8(0);
+                w.hash(*k);
             }
-            VT::I64 => w.u8(3),
+            Sym::Import {
+                module,
+                name,
+                params,
+                results,
+            } => {
+                w.u8(1);
+                w.str(module);
+                w.str(name);
+                encode_vts(params, w);
+                encode_vts(results, w);
+            }
+            Sym::Helper(h) => {
+                w.u8(2);
+                h.encode(w);
+            }
         }
     }
-    fn decode(r: &mut Reader<'_>) -> VT {
-        match r.u8() {
-            0 => VT::I32,
-            1 => VT::Eq,
-            3 => VT::I64,
-            _ => VT::Ref(r.str().to_owned()),
-        }
+    pub(crate) fn decode(r: &mut Reader<'_>) -> Option<Sym> {
+        Some(match r.u8() {
+            0 => Sym::Inst(r.hash()),
+            1 => Sym::Import {
+                module: r.str().to_owned(),
+                name: r.str().to_owned(),
+                params: decode_vts(r, 0)?,
+                results: decode_vts(r, 0)?,
+            },
+            2 => Sym::Helper(Helper::decode(r)?),
+            _ => return None,
+        })
     }
 }
 
@@ -101,28 +248,20 @@ impl Code {
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         let mut w = Writer::default();
-        for list in [&self.params, &self.results] {
-            w.len_of(list);
-            for v in list {
-                v.encode(&mut w);
-            }
-        }
+        encode_vts(&self.params, &mut w);
+        encode_vts(&self.results, &mut w);
         w.blob(&self.body);
         w.len_of(&self.relocs);
         for (at, r) in &self.relocs {
             w.u32(*at);
             match r {
-                Reloc::Func(k) => {
+                Reloc::Func(s) => {
                     w.u8(0);
-                    w.hash(*k);
+                    s.encode(&mut w);
                 }
-                Reloc::Import(i) => {
+                Reloc::Type(t) => {
                     w.u8(1);
-                    w.u32(*i);
-                }
-                Reloc::Type(p) => {
-                    w.u8(2);
-                    w.str(p);
+                    t.encode(&mut w);
                 }
             }
         }
@@ -133,26 +272,24 @@ impl Code {
     #[must_use]
     pub fn decode(bytes: &[u8]) -> Option<Code> {
         let mut r = Reader::new(bytes);
-        let n = r.count();
-        let params = (0..n).map(|_| VT::decode(&mut r)).collect();
-        let n = r.count();
-        let results = (0..n).map(|_| VT::decode(&mut r)).collect();
+        let params = decode_vts(&mut r, 0)?;
+        let results = decode_vts(&mut r, 0)?;
         let body = r.blob().to_vec();
         let n = r.count();
-        let relocs = (0..n)
-            .map(|_| {
-                let at = r.u32();
-                let reloc = match r.u8() {
-                    0 => Reloc::Func(r.hash()),
-                    1 => Reloc::Import(r.u32()),
-                    _ => Reloc::Type(r.str().to_owned()),
-                };
-                (at, reloc)
-            })
-            .collect();
-        let relocs_ok =
-            |rs: &Vec<(u32, Reloc)>| rs.iter().all(|(at, _)| (*at as usize) + 5 <= body.len());
-        (r.ok() && relocs_ok(&relocs)).then_some(Code {
+        let mut relocs = Vec::new();
+        for _ in 0..n {
+            let at = r.u32();
+            let reloc = match r.u8() {
+                0 => Reloc::Func(Sym::decode(&mut r)?),
+                1 => Reloc::Type(WTy::decode(&mut r, 0)?),
+                _ => return None,
+            };
+            if (at as usize) + 5 > body.len() {
+                return None;
+            }
+            relocs.push((at, reloc));
+        }
+        r.ok().then_some(Code {
             params,
             results,
             body,
@@ -161,535 +298,236 @@ impl Code {
     }
 }
 
-fn padded(out: &mut Vec<u8>, v: u32) {
+pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
+    Err(NotImplemented::new(Stage::Emit, what))
+}
+
+pub(crate) fn padded(out: &mut Vec<u8>, v: u32) {
     for k in 0..4 {
         out.push(u8::try_from((v >> (7 * k)) & 0x7f).expect("7 bits") | 0x80);
     }
     out.push(u8::try_from((v >> 28) & 0x7f).expect("7 bits"));
 }
-fn slot(out: &mut Vec<u8>, relocs: &mut Vec<(u32, Reloc)>, r: Reloc) {
-    relocs.push((u32::try_from(out.len()).expect("offset"), r));
-    padded(out, 0);
-}
-fn val_bytes(out: &mut Vec<u8>, relocs: &mut Vec<(u32, Reloc)>, vt: &VT) {
-    match vt {
-        VT::I32 => out.push(0x7f),
-        VT::I64 => out.push(0x7e),
-        VT::Eq => out.push(0x6d),
-        VT::Ref(p) => {
-            out.push(0x64);
-            slot(out, relocs, Reloc::Type(p.clone()));
-        }
-    }
-}
-
-/// Encodes a body: plain instructions through `wasm-encoder`, relocated
-/// immediates as raw opcode bytes plus a padded slot.
-fn encode(locals: &[VT], ws: &[W]) -> (Vec<u8>, Vec<(u32, Reloc)>) {
-    let mut out = Vec::new();
-    let mut relocs = Vec::new();
-    let n = u32::try_from(locals.len()).expect("locals");
-    wasm_encoder::Encode::encode(&n, &mut out);
-    for l in locals {
-        out.push(1);
-        val_bytes(&mut out, &mut relocs, l);
-    }
-    for w in ws {
-        match w {
-            W::Call(k) => {
-                out.push(0x10);
-                slot(&mut out, &mut relocs, Reloc::Func(*k));
-            }
-            W::CallImport(i) => {
-                out.push(0x10);
-                slot(&mut out, &mut relocs, Reloc::Import(*i));
-            }
-            W::StructNew(p) => {
-                out.extend_from_slice(&[0xfb, 0x00]);
-                slot(&mut out, &mut relocs, Reloc::Type(p.clone()));
-            }
-            W::StructGet(p, f, packed) => {
-                out.extend_from_slice(&[0xfb, if *packed { 0x04 } else { 0x02 }]);
-                slot(&mut out, &mut relocs, Reloc::Type(p.clone()));
-                wasm_encoder::Encode::encode(f, &mut out);
-            }
-            W::Cast(p) => {
-                out.extend_from_slice(&[0xfb, 0x16]);
-                slot(&mut out, &mut relocs, Reloc::Type(p.clone()));
-            }
-            W::I32(v) => {
-                wasm_encoder::InstructionSink::new(&mut out).i32_const(*v);
-            }
-            W::LGet(l) => {
-                wasm_encoder::InstructionSink::new(&mut out).local_get(*l);
-            }
-            W::LSet(l) => {
-                wasm_encoder::InstructionSink::new(&mut out).local_set(*l);
-            }
-            W::Prim(op) => {
-                let mut s = wasm_encoder::InstructionSink::new(&mut out);
-                match op {
-                    PrimOp::Add => s.i32_add(),
-                    PrimOp::Sub | PrimOp::Neg => s.i32_sub(),
-                    PrimOp::Mul => s.i32_mul(),
-                    PrimOp::Div => s.i32_div_s(),
-                    PrimOp::Rem => s.i32_rem_s(),
-                    PrimOp::Eq => s.i32_eq(),
-                    PrimOp::Ne => s.i32_ne(),
-                    PrimOp::Lt => s.i32_lt_s(),
-                    PrimOp::Le => s.i32_le_s(),
-                    PrimOp::Gt => s.i32_gt_s(),
-                    PrimOp::Ge => s.i32_ge_s(),
-                    PrimOp::And | PrimOp::BitAnd => s.i32_and(),
-                    PrimOp::Or | PrimOp::BitOr => s.i32_or(),
-                    PrimOp::BitXor => s.i32_xor(),
-                    PrimOp::Shl => s.i32_shl(),
-                    PrimOp::Shr => s.i32_shr_s(),
-                    PrimOp::Not => s.i32_eqz(),
-                    // Refused before encoding (`Em::inst`).
-                    PrimOp::Conv => s.unreachable(),
-                };
-            }
-            W::If => {
-                wasm_encoder::InstructionSink::new(&mut out).if_(BlockType::Empty);
-            }
-            W::Else => {
-                wasm_encoder::InstructionSink::new(&mut out).else_();
-            }
-            W::End => {
-                wasm_encoder::InstructionSink::new(&mut out).end();
-            }
-            W::Block => {
-                wasm_encoder::InstructionSink::new(&mut out).block(BlockType::Empty);
-            }
-            W::Loop => {
-                wasm_encoder::InstructionSink::new(&mut out).loop_(BlockType::Empty);
-            }
-            W::Br(d) => {
-                wasm_encoder::InstructionSink::new(&mut out).br(*d);
-            }
-            W::Return => {
-                wasm_encoder::InstructionSink::new(&mut out).return_();
-            }
-            W::Unreachable => {
-                wasm_encoder::InstructionSink::new(&mut out).unreachable();
-            }
-        }
-    }
-    (out, relocs)
-}
-
-fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
-    Err(NotImplemented::new(Stage::Emit, what))
-}
-
-/// The Wasm values of a concrete type (wasm-layout.md §15.1, §15.2):
-/// `layout_of`'s classes, with a data type's reference named by its path.
-pub fn vt_of(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    path: &dyn Fn(DefId) -> String,
-    t: Ty,
-) -> StageResult<Option<VT>> {
-    if is_class_ref(pool, t) {
-        return Ok(Some(VT::Eq));
-    }
-    let l = layout_of(pool, env, t)?;
-    Ok(match (l.class, l.values.as_slice()) {
-        (LayoutClass::Void, _) => None,
-        (LayoutClass::I32, [LV::I32]) => Some(VT::I32),
-        (LayoutClass::I64, [LV::I64]) => Some(VT::I64),
-        (LayoutClass::Ref, [LV::Ref { nullable: false }]) => match pool.get(t) {
-            TyData::Adt { def, args } if args == TyList::EMPTY => Some(VT::Ref(path(def))),
-            _ => return unsupported(format!("the layout of {}", pool.display(t))),
-        },
-        _ => return unsupported(format!("the layout of {}", pool.display(t))),
-    })
-}
-
-struct Em<'a> {
-    pool: &'a InternPool,
-    env: &'a dyn ProgramEnv,
-    path: &'a dyn Fn(DefId) -> String,
-    b: &'a Body,
-    item: DefId,
-    args: TyList,
-    calls: &'a HashMap<u32, CallTarget>,
-    out: Vec<W>,
-    locals: Vec<VT>,
-    nparams: u32,
-    temps: HashMap<u32, u32>,
-    local_map: Vec<u32>,
-    /// Control stack: `Some(label)` for a loop's outer break block.
-    ctrl: Vec<Option<u32>>,
-}
-
-impl Em<'_> {
-    fn sub(&self, t: Ty) -> Ty {
-        subst(self.pool, self.item, self.args, t)
-    }
-    fn vt(&self, t: Ty) -> StageResult<Option<VT>> {
-        vt_of(self.pool, self.env, self.path, self.sub(t))
-    }
-    fn new_local(&mut self, vt: VT) -> u32 {
-        self.locals.push(vt);
-        self.nparams + u32::try_from(self.locals.len() - 1).expect("locals")
-    }
-    fn load(&mut self, r: u32) -> StageResult<()> {
-        if r == NONE {
-            return Ok(());
-        }
-        let r = Ref(r);
-        if r.as_inst().is_none() {
-            let Some(&(t, bits)) = self.b.consts.get((r.0 & !Ref::CONST_BIT) as usize) else {
-                return unsupported("a constant outside the body's column");
-            };
-            match self.pool.get(self.sub(t)) {
-                TyData::Prim(p) if p.is_integer() || p == Prim::Bool => {
-                    let low = u32::try_from(bits & 0xffff_ffff).expect("32 bits");
-                    self.out.push(W::I32(low.cast_signed()));
-                }
-                _ => return unsupported("a constant of this type"),
-            }
-        } else if let Some(&l) = self.temps.get(&r.0) {
-            self.out.push(W::LGet(l));
-        }
-        Ok(())
-    }
-    fn store(&mut self, i: u32) -> StageResult<()> {
-        if let Some(vt) = self.vt(self.b.ty[i as usize])? {
-            let l = self.new_local(vt);
-            self.temps.insert(i, l);
-            self.out.push(W::LSet(l));
-        }
-        Ok(())
-    }
-    fn block(&mut self, blk: u32) -> StageResult<()> {
-        if blk == NONE {
-            return Ok(());
-        }
-        let list = self.b.record(self.b.data[blk as usize][0]).to_vec();
-        for i in list {
-            // A `Block` in a list belongs to the `If` or `Loop` after it.
-            if self.b.tags[i as usize] != Tag::Block {
-                self.inst(i)?;
-            }
-        }
-        Ok(())
-    }
-    fn values(&mut self, rec: u32) -> StageResult<()> {
-        for r in self.b.record(rec).to_vec() {
-            self.load(r)?;
-        }
-        Ok(())
-    }
-    fn inst(&mut self, i: u32) -> StageResult<()> {
-        let [a, bb] = self.b.data[i as usize];
-        match self.b.tags[i as usize] {
-            Tag::LocalGet => {
-                self.out.push(W::LGet(self.local_map[a as usize]));
-                self.store(i)?;
-            }
-            Tag::LocalSet => {
-                self.load(bb)?;
-                self.out.push(W::LSet(self.local_map[a as usize]));
-            }
-            Tag::Prim => {
-                let Some(op) = PrimOp::from_u32(a) else {
-                    return unsupported("an unknown operator");
-                };
-                if op == PrimOp::Conv {
-                    return unsupported("emission of numeric conversions");
-                }
-                if op == PrimOp::Neg {
-                    self.out.push(W::I32(0));
-                }
-                self.values(bb)?;
-                self.out.push(W::Prim(op));
-                self.store(i)?;
-            }
-            Tag::CallHost => {
-                self.values(bb)?;
-                self.out.push(W::CallImport(a));
-            }
-            Tag::Call => {
-                let args_at = bb;
-                let n = self.b.record(args_at).len().saturating_sub(3);
-                let body = self.b;
-                for &r in &body.record(args_at)[..n] {
-                    self.load(r)?;
-                }
-                let Some(target) = self.calls.get(&i).copied() else {
-                    return unsupported("a call that collection did not resolve");
-                };
-                if let Some(ix) = target.import {
-                    self.out.push(W::CallImport(ix));
-                    self.store(i)?;
-                    return Ok(());
-                }
-                self.out.push(W::Call(target.key));
-                let want = self.vt(self.b.ty[i as usize])?;
-                let got = vt_of(self.pool, self.env, self.path, target.ret)?;
-                if let (Some(VT::Eq), Some(VT::Ref(p))) = (got, want) {
-                    self.out.push(W::Cast(p));
-                }
-                self.store(i)?;
-            }
-            Tag::NewData => {
-                self.values(bb)?;
-                let Some(VT::Ref(p)) = self.vt(self.b.ty[i as usize])? else {
-                    return unsupported("a data value without a struct layout");
-                };
-                self.out.push(W::StructNew(p));
-                self.store(i)?;
-            }
-            Tag::Field => {
-                self.load(a)?;
-                let base = self.sub(self.b.ty[a as usize]);
-                let TyData::Adt { def, .. } = self.pool.get(base) else {
-                    return unsupported("a field of a non-data value");
-                };
-                let fields = self.env.data_fields(def).unwrap_or_default();
-                let packed = fields.get(bb as usize).is_some_and(|t| *t == Ty::BOOL);
-                self.out.push(W::StructGet((self.path)(def), bb, packed));
-                self.store(i)?;
-            }
-            Tag::If => {
-                self.load(a)?;
-                let rec = self.b.record(bb).to_vec();
-                self.out.push(W::If);
-                self.ctrl.push(None);
-                self.block(rec[0])?;
-                if rec.get(1).is_some_and(|e| *e != NONE) {
-                    self.out.push(W::Else);
-                    self.block(rec[1])?;
-                }
-                self.ctrl.pop();
-                self.out.push(W::End);
-            }
-            Tag::Loop => {
-                let label = self
-                    .b
-                    .label_inst
-                    .iter()
-                    .position(|&x| x == i)
-                    .map(|l| u32::try_from(l).expect("label"));
-                self.out.push(W::Block);
-                self.ctrl.push(label);
-                self.out.push(W::Loop);
-                self.ctrl.push(None);
-                self.block(a)?;
-                self.out.push(W::Br(0));
-                self.ctrl.pop();
-                self.out.push(W::End);
-                self.ctrl.pop();
-                self.out.push(W::End);
-            }
-            Tag::Break => {
-                let Some(pos) = self.ctrl.iter().rposition(|c| *c == Some(a)) else {
-                    return unsupported("a break outside its loop");
-                };
-                let depth = u32::try_from(self.ctrl.len() - 1 - pos).expect("depth");
-                self.out.push(W::Br(depth));
-            }
-            Tag::Return => {
-                self.load(a)?;
-                self.out.push(W::Return);
-            }
-            Tag::Block => {}
-            other => return unsupported(format!("emission of TIR tag {}", other.name())),
-        }
-        Ok(())
-    }
-}
-
-/// `Emit(inst)`: walks the generic TIR under the instance's arguments.
-pub fn emit(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    path: &dyn Fn(DefId) -> String,
-    b: &Body,
-    args: TyList,
-    ret: Ty,
-    calls: &HashMap<u32, CallTarget>,
-) -> StageResult<Code> {
-    let item = b.item;
-    let mut params = Vec::new();
-    let mut local_map = Vec::new();
-    let mut user_locals = Vec::new();
-    for l in 0..b.local_ty.len() {
-        let t = subst(pool, item, args, b.local_ty[l]);
-        let vt = vt_of(pool, env, path, t)?.unwrap_or(VT::I32);
-        if b.local_flags[l] & local_flags::PARAM != 0 {
-            local_map.push(u32::try_from(params.len()).expect("params"));
-            params.push(vt);
-        } else {
-            local_map.push(u32::MAX);
-            user_locals.push((l, vt));
-        }
-    }
-    let nparams = u32::try_from(params.len()).expect("params");
-    let mut locals = Vec::new();
-    for (l, vt) in user_locals {
-        local_map[l] = nparams + u32::try_from(locals.len()).expect("locals");
-        locals.push(vt);
-    }
-    let results: Vec<VT> = vt_of(pool, env, path, subst(pool, item, args, ret))?
-        .into_iter()
-        .collect();
-    let root = b.sub_root[0];
-    let mut em = Em {
-        pool,
-        env,
-        path,
-        b,
-        item,
-        args,
-        calls,
-        out: Vec::new(),
-        locals,
-        nparams,
-        temps: HashMap::new(),
-        local_map,
-        ctrl: Vec::new(),
-    };
-    em.block(root)?;
-    let tail = b.data[root as usize][1];
-    if tail == NONE {
-        if !results.is_empty() {
-            em.out.push(W::Unreachable);
-        }
-    } else {
-        em.load(tail)?;
-    }
-    em.out.push(W::End);
-    let (body, relocs) = encode(&em.locals, &em.out);
-    Ok(Code {
-        params,
-        results,
-        body,
-        relocs,
-    })
-}
 
 // ------------------------------------------------------------------- link
 
-/// One struct type: its stable path and fields (value type, packed `i8`).
-pub type StructDef = (String, Vec<(VT, bool)>);
+/// The type section under construction: each descriptor once, its
+/// dependencies first, each in its own recursion group.
+#[derive(Default)]
+struct Types {
+    idx: BTreeMap<WTy, u32>,
+    sec: TypeSection,
+    n: u32,
+}
 
-/// `Link(P)`: index assignment, type section, relocation patching. Inputs
-/// are in content order, so the bytes are deterministic. Imports come from
-/// `hd_host_abi::STD_LOWERINGS` by index.
-pub fn link(
-    codes: &[(Hash128, Code)],
-    root: Hash128,
-    structs: &[StructDef],
-    imports: &[u32],
-) -> StageResult<Vec<u8>> {
-    let mut types = TypeSection::new();
-    let struct_idx: BTreeMap<String, u32> = structs
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (s.0.clone(), u32::try_from(i).expect("types")))
-        .collect();
-    let val = |vt: &VT| -> StageResult<ValType> {
-        Ok(match vt {
+impl Types {
+    fn val(&mut self, v: &VT) -> ValType {
+        match v {
             VT::I32 => ValType::I32,
             VT::I64 => ValType::I64,
+            VT::F32 => ValType::F32,
+            VT::F64 => ValType::F64,
             VT::Eq => ValType::Ref(RefType::EQREF),
-            VT::Ref(p) => {
-                let Some(&i) = struct_idx.get(p) else {
-                    return unsupported(format!("no struct type for {p}"));
-                };
+            VT::Ref(t, n) => {
+                let i = self.of(t);
                 ValType::Ref(RefType {
-                    nullable: false,
+                    nullable: *n,
                     heap_type: HeapType::Concrete(i),
                 })
             }
-        })
-    };
-    let mut subtypes = Vec::new();
-    for (_, fields) in structs {
-        let mut fs = Vec::new();
-        for (vt, packed) in fields {
-            let element_type = if *packed {
-                StorageType::I8
-            } else {
-                StorageType::Val(val(vt)?)
-            };
-            fs.push(FieldType {
-                element_type,
-                mutable: true,
-            });
         }
-        subtypes.push(SubType {
-            is_final: true,
-            supertype_idxs: vec![],
+    }
+    fn of(&mut self, t: &WTy) -> u32 {
+        if let Some(&i) = self.idx.get(t) {
+            return i;
+        }
+        let (inner, sup, open) = match t {
+            WTy::Bytes => (
+                CompositeInnerType::Array(wasm_encoder::ArrayType(FieldType {
+                    element_type: StorageType::I8,
+                    mutable: true,
+                })),
+                None,
+                false,
+            ),
+            WTy::Array(v) => {
+                let e = self.val(v);
+                (
+                    CompositeInnerType::Array(wasm_encoder::ArrayType(FieldType {
+                        element_type: StorageType::Val(e),
+                        mutable: true,
+                    })),
+                    None,
+                    false,
+                )
+            }
+            WTy::Struct { fields, sup, open } => {
+                let sup = sup.as_ref().map(|s| self.of(s));
+                let fs: Vec<FieldType> = fields
+                    .iter()
+                    .map(|f| FieldType {
+                        element_type: StorageType::Val(self.val(f)),
+                        mutable: true,
+                    })
+                    .collect();
+                (
+                    CompositeInnerType::Struct(StructType { fields: fs.into() }),
+                    sup,
+                    *open,
+                )
+            }
+            WTy::Func(p, r) => {
+                let ps: Vec<ValType> = p.iter().map(|v| self.val(v)).collect();
+                let rs: Vec<ValType> = r.iter().map(|v| self.val(v)).collect();
+                (CompositeInnerType::Func(FuncType::new(ps, rs)), None, false)
+            }
+        };
+        self.sec.ty().subtype(&SubType {
+            is_final: !open,
+            supertype_idxs: sup.into_iter().collect(),
             composite_type: CompositeType {
-                inner: CompositeInnerType::Struct(StructType { fields: fs.into() }),
+                inner,
                 shared: false,
                 descriptor: None,
                 describes: None,
             },
         });
+        let i = self.n;
+        self.n += 1;
+        self.idx.insert(t.clone(), i);
+        i
     }
-    let mut ntypes = 0u32;
-    if !subtypes.is_empty() {
-        ntypes = u32::try_from(subtypes.len()).expect("types");
-        types.ty().rec(subtypes);
-    }
-    let mut func_types: BTreeMap<(Vec<VT>, Vec<VT>), u32> = BTreeMap::new();
-    let mut sig_of = |types: &mut TypeSection, params: &[VT], results: &[VT]| -> StageResult<u32> {
-        let key = (params.to_vec(), results.to_vec());
-        if let Some(&i) = func_types.get(&key) {
-            return Ok(i);
+}
+
+/// `Link(P)`: helpers, index assignment, the type section, the literal
+/// pool, relocation patching (codegen.md §13.10). Inputs are in content
+/// order, so the bytes are deterministic. `entry` is the exported `main`;
+/// `names` are the instances' item paths for the dev `name` section.
+pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> StageResult<Vec<u8>> {
+    // Helpers and imports reachable from the code, to a fixed point.
+    let mut helpers: BTreeMap<Helper, Code> = BTreeMap::new();
+    let mut imports: BTreeSet<(String, String, Vec<VT>, Vec<VT>)> = BTreeSet::new();
+    let mut todo = vec![entry.clone()];
+    let mut scan = |c: &Code, todo: &mut Vec<Helper>| {
+        for (_, r) in &c.relocs {
+            match r {
+                Reloc::Func(Sym::Helper(h)) => todo.push(h.clone()),
+                Reloc::Func(Sym::Import {
+                    module,
+                    name,
+                    params,
+                    results,
+                }) => {
+                    imports.insert((
+                        module.clone(),
+                        name.clone(),
+                        params.clone(),
+                        results.clone(),
+                    ));
+                }
+                _ => {}
+            }
         }
-        let i = ntypes;
-        ntypes += 1;
-        let ps: Vec<ValType> = params.iter().map(&val).collect::<StageResult<_>>()?;
-        let rs: Vec<ValType> = results.iter().map(&val).collect::<StageResult<_>>()?;
-        types.ty().function(ps, rs);
-        func_types.insert(key, i);
-        Ok(i)
     };
-    let mut imps = ImportSection::new();
-    let mut import_idx = HashMap::new();
-    for (n, &imp) in imports.iter().enumerate() {
-        let Some(p) = hd_host_abi::STD_LOWERINGS.get(imp as usize) else {
-            return unsupported("an unknown import");
-        };
-        let params: Vec<VT> = p
-            .params
-            .iter()
-            .map(|s| match s {
-                hd_host_abi::Scalar::I32 => VT::I32,
-                _ => VT::I64,
-            })
-            .collect();
-        let t = sig_of(&mut types, &params, &[])?;
-        imps.import(p.module, p.field, EntityType::Function(t));
-        import_idx.insert(imp, u32::try_from(n).expect("imports"));
+    for (_, c) in codes {
+        scan(c, &mut todo);
     }
-    let nimports = u32::try_from(imports.len()).expect("imports");
-    let func_idx: HashMap<Hash128, u32> = codes
-        .iter()
-        .enumerate()
-        .map(|(i, (k, _))| (*k, nimports + u32::try_from(i).expect("funcs")))
-        .collect();
+    while let Some(h) = todo.pop() {
+        if helpers.contains_key(&h) {
+            continue;
+        }
+        let c = rt::helper_code(&h)?;
+        scan(&c, &mut todo);
+        helpers.insert(h, c);
+    }
+    // Literals: one passive segment, deduplicated by content.
+    let mut lits: BTreeMap<Vec<u8>, (u32, u32)> = BTreeMap::new();
+    let mut data = Vec::new();
+    for h in helpers.keys() {
+        if let Helper::Lit(bytes) = h {
+            let off = u32::try_from(data.len()).expect("data");
+            data.extend_from_slice(bytes);
+            lits.insert(
+                bytes.clone(),
+                (off, u32::try_from(bytes.len()).expect("lit")),
+            );
+        }
+    }
+    let mut types = Types::default();
+    let mut imps = ImportSection::new();
+    let mut func_idx: BTreeMap<Sym, u32> = BTreeMap::new();
+    let mut nfuncs = 0u32;
+    for (module, name, params, results) in &imports {
+        let t = types.of(&WTy::Func(params.clone(), results.clone()));
+        imps.import(module, name, EntityType::Function(t));
+        func_idx.insert(
+            Sym::Import {
+                module: module.clone(),
+                name: name.clone(),
+                params: params.clone(),
+                results: results.clone(),
+            },
+            nfuncs,
+        );
+        nfuncs += 1;
+    }
+    let mut bodies: Vec<&Code> = Vec::new();
+    for (h, c) in &helpers {
+        func_idx.insert(Sym::Helper(h.clone()), nfuncs);
+        nfuncs += 1;
+        bodies.push(c);
+    }
+    for (k, c) in codes {
+        func_idx.insert(Sym::Inst(*k), nfuncs);
+        nfuncs += 1;
+        bodies.push(c);
+    }
+    // Globals: one lazily filled cell per literal (wasm-layout.md §15.4).
+    let mut globals = GlobalSection::new();
+    let mut lit_global: BTreeMap<Vec<u8>, u32> = BTreeMap::new();
+    for (i, bytes) in lits.keys().enumerate() {
+        let t = types.of(&WTy::Bytes);
+        globals.global(
+            GlobalType {
+                val_type: ValType::Ref(RefType {
+                    nullable: true,
+                    heap_type: HeapType::Concrete(t),
+                }),
+                mutable: true,
+                shared: false,
+            },
+            &ConstExpr::ref_null(HeapType::Concrete(t)),
+        );
+        lit_global.insert(bytes.clone(), u32::try_from(i).expect("globals"));
+    }
     let mut funcs = FunctionSection::new();
     let mut code_sec = CodeSection::new();
-    for (_, c) in codes {
-        let t = sig_of(&mut types, &c.params, &c.results)?;
+    let mut declared = BTreeSet::new();
+    let helper_list: Vec<&Helper> = helpers.keys().collect();
+    for (n, c) in bodies.iter().enumerate() {
+        let t = types.of(&WTy::Func(c.params.clone(), c.results.clone()));
         funcs.function(t);
+        let lit;
+        let c = if let Some(Helper::Lit(bytes)) = helper_list.get(n) {
+            let (off, len) = lits[bytes];
+            lit = rt::lit_code(off, len, lit_global[bytes]);
+            &lit
+        } else {
+            *c
+        };
         let mut body = c.body.clone();
         for (at, r) in &c.relocs {
             let v = match r {
-                Reloc::Func(k) => func_idx.get(k).copied(),
-                Reloc::Import(i) => import_idx.get(i).copied(),
-                Reloc::Type(p) => struct_idx.get(p).copied(),
-            };
-            let Some(v) = v else {
-                return unsupported("a relocation with no target");
+                Reloc::Func(s) => {
+                    let Some(&f) = func_idx.get(s) else {
+                        return unsupported(format!("a relocation with no target: {s:?}"));
+                    };
+                    if body.get(*at as usize - 1) == Some(&0xd2) {
+                        declared.insert(f);
+                    }
+                    f
+                }
+                Reloc::Type(t) => types.of(t),
             };
             let mut b = Vec::new();
             padded(&mut b, v);
@@ -697,16 +535,62 @@ pub fn link(
         }
         code_sec.raw(&body);
     }
-    let Some(&main) = func_idx.get(&root) else {
-        return unsupported("the root instance has no code");
+    let Some(&main) = func_idx.get(&Sym::Helper(entry.clone())) else {
+        return unsupported("the entry wrapper has no code");
     };
     let mut exports = ExportSection::new();
     exports.export("main", ExportKind::Func, main);
+    let mut mems = MemorySection::new();
+    if !imports.is_empty() {
+        mems.memory(MemoryType {
+            minimum: 1,
+            maximum: None,
+            memory64: false,
+            shared: false,
+            page_size_log2: None,
+        });
+        exports.export("hd.x", ExportKind::Memory, 0);
+    }
+    let mut elems = ElementSection::new();
+    if !declared.is_empty() {
+        let fs: Vec<u32> = declared.into_iter().collect();
+        elems.declared(Elements::Functions(fs.into()));
+    }
     let mut module = Module::new();
-    module.section(&types);
+    module.section(&types.sec);
     module.section(&imps);
     module.section(&funcs);
+    if !imports.is_empty() {
+        module.section(&mems);
+    }
+    module.section(&globals);
     module.section(&exports);
+    module.section(&elems);
+    module.section(&DataCountSection { count: 1 });
     module.section(&code_sec);
+    let mut ds = DataSection::new();
+    ds.passive(data);
+    module.section(&ds);
+    // The dev pipeline's standard `name` section (codegen.md §13.10 step 9).
+    let mut fnames = wasm_encoder::NameMap::new();
+    let nh = u32::try_from(helpers.len()).expect("helpers");
+    let ni = u32::try_from(imports.len()).expect("imports");
+    for (k, (module_name, name, _, _)) in imports.iter().enumerate() {
+        fnames.append(
+            u32::try_from(k).expect("k"),
+            &format!("{module_name}/{name}"),
+        );
+    }
+    for (k, h) in helper_list.iter().enumerate() {
+        let text = format!("{h:?}");
+        let short: String = text.chars().take(60).collect();
+        fnames.append(ni + u32::try_from(k).expect("k"), &format!("rt:{short}"));
+    }
+    for (k, n) in names.iter().enumerate() {
+        fnames.append(ni + nh + u32::try_from(k).expect("k"), n);
+    }
+    let mut ns = wasm_encoder::NameSection::new();
+    ns.functions(&fnames);
+    module.section(&ns);
     Ok(module.finish())
 }

@@ -621,8 +621,20 @@ impl Run<'_> {
         let all: Vec<TaskId> = iface_task.iter().flatten().copied().collect();
         let coh = sp.add(TaskKind::Coherence, &all);
         sp.edge(coh, pr);
+        // A program's collection crosses packages (codegen.md §13.2): the
+        // std modules its folders reach are checked to TIR too.
+        let mut reached = vec![false; self.table.folders.len()];
+        if matches!(self.goal, Goal::Program { .. }) {
+            for module in &self.table.modules {
+                if module.package == 0 {
+                    for c in g.closure[module.folder.idx()].iter() {
+                        reached[c.idx()] = true;
+                    }
+                }
+            }
+        }
         for (m, module) in self.table.modules.iter().enumerate() {
-            if module.package != 0 {
+            if module.package != 0 && !reached[module.folder.idx()] {
                 continue;
             }
             let deps: Vec<TaskId> = g.closure[module.folder.idx()]
@@ -1364,10 +1376,10 @@ impl Run<'_> {
         let mut bodies = HashMap::new();
         let mut decoded = Vec::new();
         for m in 0..self.table.modules.len() {
-            if self.table.modules[m].package != 0 {
-                continue;
-            }
             let Some(Some(c)) = self.check[m].get() else {
+                if self.table.modules[m].package != 0 {
+                    continue;
+                }
                 return None;
             };
             if c.has_errors {
@@ -1475,11 +1487,14 @@ impl Run<'_> {
         for (slot, id) in order.iter().enumerate() {
             let item = collected.table.item[id.idx()];
             let tir = p.bodies.get(&item).map_or(Hash128(0), |b| b.1);
+            let mut reps = hd_base::StableHasher::new("code-deps");
+            reps.hash(self.toolchain);
+            reps.hash(collected.callee_reps[id.idx()]);
             let ck = code_key(
                 self.pipeline,
                 collected.table.key[id.idx()],
                 tir,
-                collected.callee_reps[id.idx()],
+                reps.finish(),
             );
             code_keys.push(ck);
             match self
@@ -1515,6 +1530,7 @@ impl Run<'_> {
         };
         let id = c.order[slot];
         let item = c.collected.table.item[id.idx()];
+        let sub = c.collected.table.sub[id.idx()];
         let args = c.collected.table.args[id.idx()];
         let Some((body, _)) = p.bodies.get(&item) else {
             self.stage::<()>(
@@ -1532,6 +1548,7 @@ impl Run<'_> {
             &env,
             &path,
             body,
+            sub,
             args,
             ret,
             &c.collected.calls[id.idx()],
@@ -1549,36 +1566,29 @@ impl Run<'_> {
             return;
         };
         let mut codes = Vec::new();
+        let mut fnames = Vec::new();
         for (slot, id) in c.order.iter().enumerate() {
             let Some(code) = c.codes[slot].get() else {
                 return;
             };
             codes.push((c.collected.table.key[id.idx()], code.clone()));
+            fnames.push(format!(
+                "{}#{}",
+                self.names().path(c.collected.table.item[id.idx()]),
+                c.collected.table.sub[id.idx()]
+            ));
         }
         let env = Env { run: self, p };
         let names = self.names();
         let path = |d: DefId| names.path(d);
-        let mut structs = Vec::new();
-        for d in &c.collected.data {
-            let mut fields = Vec::new();
-            for t in env.data_fields(d.def()).unwrap_or_default() {
-                let vt = match hd_wasm::vt_of(&self.pool, &env, &path, t) {
-                    Ok(Some(v)) => v,
-                    Ok(None) => hd_wasm::VT::I32,
-                    Err(e) => {
-                        self.stage::<()>(Stage::Link, Err(e));
-                        return;
-                    }
-                };
-                fields.push((vt, t == Ty::BOOL));
-            }
-            structs.push((names.path(d.def()), fields));
-        }
-        let imports: Vec<u32> = c.collected.imports.iter().copied().collect();
-        let Some(wasm) = self.stage(
+        let root = c.collected.table.item[0];
+        let Some(entry) = self.stage(
             Stage::Link,
-            hd_wasm::link(&codes, c.root_key, &structs, &imports),
+            hd_wasm::entry(&self.pool, &env, &path, root, c.root_key),
         ) else {
+            return;
+        };
+        let Some(wasm) = self.stage(Stage::Link, hd_wasm::link(&codes, &fnames, &entry)) else {
             return;
         };
         self.put(EntryKind::Link, c.prog_key, &[&wasm]);
@@ -1673,8 +1683,27 @@ struct Env<'r> {
 }
 
 impl LayoutEnv for Env<'_> {
-    fn enum_variants(&self, _: DefId, _: TyList) -> Option<Vec<Vec<Ty>>> {
-        None
+    fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
+        match &self.p.items.get(&def)?.data {
+            ItemData::Enum { variants, .. } => Some(
+                variants
+                    .iter()
+                    .map(|v| {
+                        v.fields
+                            .iter()
+                            .map(|f| hd_mono::subst(&self.run.pool, self, def, args, f.ty))
+                            .collect()
+                    })
+                    .collect(),
+            ),
+            _ => None,
+        }
+    }
+}
+
+impl Env<'_> {
+    fn sig(&self, def: DefId) -> Option<&hd_resolve::FnSig> {
+        self.p.items.get(&def)?.sig()
     }
 }
 
@@ -1682,42 +1711,60 @@ impl ProgramEnv for Env<'_> {
     fn body(&self, def: DefId) -> Option<&Body> {
         self.p.bodies.get(&def).map(|b| &b.0)
     }
-    fn lowering(&self, def: DefId, args: TyList) -> Option<u32> {
-        if self.p.bodies.contains_key(&def) {
-            return None;
-        }
-        let names = self.run.names();
-        let module = names.module_of(def);
-        if !module.starts_with("std.") && module != "std" {
-            return None;
-        }
-        let path = format!(
-            "{module}.{}",
-            self.run.paths.segment(hd_base::PathId::from_raw(def.raw()))
-        );
-        let scalars: Option<Vec<hd_host_abi::Scalar>> = self
-            .run
-            .pool
-            .list_items(args)
-            .into_iter()
-            .map(|t| match self.run.pool.get(t) {
-                hd_types::TyData::Prim(hd_types::Prim::I32) => Some(hd_host_abi::Scalar::I32),
-                hd_types::TyData::Prim(hd_types::Prim::I64) => Some(hd_host_abi::Scalar::I64),
-                hd_types::TyData::Prim(hd_types::Prim::F64) => Some(hd_host_abi::Scalar::F64),
-                _ => None,
-            })
-            .collect();
-        hd_host_abi::std_lowering(&path, &scalars?)
-    }
     fn bounded(&self, def: DefId) -> Option<Vec<bool>> {
-        self.p
-            .items
-            .get(&def)?
-            .sig()
+        self.sig(def)
             .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
     }
     fn ret(&self, def: DefId) -> Option<Ty> {
-        self.p.items.get(&def)?.sig().map(|s| s.ret)
+        self.sig(def).map(|s| s.ret)
+    }
+    fn params(&self, def: DefId) -> Option<Vec<Ty>> {
+        self.sig(def)
+            .map(|s| s.params.iter().map(|p| p.1).collect())
+    }
+    fn suspends(&self, def: DefId) -> bool {
+        self.sig(def).is_some_and(|s| s.suspends)
+    }
+    fn row_keys(&self, def: DefId) -> Vec<DefId> {
+        let Some(s) = self.sig(def) else {
+            return Vec::new();
+        };
+        let mut keys: Vec<DefId> = self
+            .run
+            .pool
+            .row_data(s.row)
+            .keys
+            .into_iter()
+            .filter_map(|k| match self.run.pool.get(k) {
+                hd_types::TyData::TraitValue { def, .. } => Some(def),
+                _ => None,
+            })
+            .collect();
+        let names = self.run.names();
+        keys.sort_by_key(|k| names.path_hash(*k));
+        keys
+    }
+    fn parent(&self, def: DefId) -> Option<(DefId, usize)> {
+        let ItemData::Method { owner, .. } = &self.p.items.get(&def)?.data else {
+            return None;
+        };
+        let o = self.p.items.get(owner)?;
+        match &o.data {
+            ItemData::Impl { .. } => Some((*owner, o.generics.len())),
+            ItemData::Trait(_) => Some((*owner, 1 + o.generics.len())),
+            _ => None,
+        }
+    }
+    fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)> {
+        let it = self.p.items.get(&impl_)?;
+        match &it.data {
+            ItemData::Impl {
+                self_ty,
+                trait_args,
+                ..
+            } => Some((*self_ty, *trait_args, it.generics.len())),
+            _ => None,
+        }
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
         let name = match &self.p.items.get(&method)?.data {
@@ -1731,6 +1778,23 @@ impl ProgramEnv for Env<'_> {
             _ => None,
         }
     }
+    fn trait_methods(&self, trait_: DefId) -> Vec<DefId> {
+        match self.p.items.get(&trait_).map(|i| &i.data) {
+            Some(ItemData::Trait(t)) => t.methods.iter().map(|m| m.1).collect(),
+            _ => Vec::new(),
+        }
+    }
+    fn trait_arity(&self, trait_: DefId) -> usize {
+        self.p.items.get(&trait_).map_or(0, |i| i.generics.len())
+    }
+    fn intrinsic(&self, def: DefId) -> Option<String> {
+        let it = self.p.items.get(&def)?;
+        if let Some(k) = it.intrinsic {
+            return Some(self.run.syms.resolve(k).to_owned());
+        }
+        let names = self.run.names();
+        (names.path(def) == "std/task/block_on").then(|| "block_on".to_owned())
+    }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
         match &self.p.items.get(&def)?.data {
             ItemData::Data(fs) => Some(fs.iter().map(|f| f.ty).collect()),
@@ -1739,6 +1803,9 @@ impl ProgramEnv for Env<'_> {
     }
     fn path_hash(&self, def: DefId) -> Hash128 {
         self.run.names().path_hash(def)
+    }
+    fn describe(&self, def: DefId) -> String {
+        self.run.names().path(def)
     }
     fn impl_tables(&self) -> Vec<(ModuleId, &ImplTable)> {
         self.p.impl_tables.iter().map(|(m, t)| (*m, t)).collect()

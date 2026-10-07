@@ -1,0 +1,2036 @@
+//! `Emit(inst)` (codegen.md §12.1, §12.2): one walk of an instance's
+//! generic TIR under its substitution. Every value instruction's result
+//! lives in Wasm locals, one per value of its layout (`multi` layouts have
+//! several), so structured control needs only empty block types. Calls go
+//! to collection's recorded targets; nothing is selected here. A tag or
+//! form this walk does not lower yet answers the structured `unsupported`.
+
+use std::collections::HashMap;
+
+use hd_base::{DefId, StageResult};
+use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, subst};
+use hd_tir::ir::{
+    Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
+};
+use hd_types::{InternPool, Prim, Ty, TyData, TyList};
+
+use crate::asm::Asm;
+use crate::layout::{EnumShape, Lay, OptShape, Shape, box_of, storage};
+use crate::rt::{Helper, OptForm, block_import};
+use crate::{Code, Sym, VT, WTy, unsupported};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Ctl {
+    Plain,
+    /// The block whose end starts arm `k` of match instruction `m`.
+    Arm(u32, u32),
+    Brk(u32),
+    Cont(u32),
+}
+
+struct Em<'a> {
+    lay: Lay<'a>,
+    b: &'a Body,
+    item: DefId,
+    args: TyList,
+    calls: &'a HashMap<u32, Target>,
+    a: Asm,
+    locals: Vec<Option<Vec<u32>>>,
+    vals: HashMap<u32, (Vec<u32>, Vec<VT>)>,
+    ctrl: Vec<Ctl>,
+    deciding: Vec<u32>,
+    /// Covering providers, innermost last: key trait, its two locals.
+    providers: Vec<(DefId, [u32; 2])>,
+}
+
+fn u32_of(i: usize) -> u32 {
+    u32::try_from(i).expect("index")
+}
+
+/// The integer kind of a scalar type: bits, signed, float.
+fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
+    let t = match pool.get(t) {
+        TyData::Mut(i) => i,
+        _ => t,
+    };
+    match pool.get(t) {
+        TyData::Prim(p) => match p {
+            Prim::I8 => (8, true, false),
+            Prim::U8 | Prim::Bool => (8, false, false),
+            Prim::I16 => (16, true, false),
+            Prim::U16 => (16, false, false),
+            Prim::I32 => (32, true, false),
+            Prim::U32 | Prim::Usize | Prim::Char => (32, false, false),
+            Prim::I64 => (64, true, false),
+            Prim::U64 => (64, false, false),
+            Prim::F32 => (32, true, true),
+            Prim::F64 => (64, true, true),
+            _ => (32, true, false),
+        },
+        _ => (32, false, false),
+    }
+}
+
+impl Em<'_> {
+    fn pool(&self) -> &InternPool {
+        self.lay.pool
+    }
+    fn env(&self) -> &dyn ProgramEnv {
+        self.lay.env
+    }
+    fn sub(&self, t: Ty) -> Ty {
+        subst(self.lay.pool, self.lay.env, self.item, self.args, t)
+    }
+    fn ty_of(&self, r: u32) -> Ty {
+        if Ref(r).as_inst().is_some() {
+            self.sub(self.b.ty[r as usize])
+        } else {
+            self.sub(
+                self.b
+                    .consts
+                    .get((r & !Ref::CONST_BIT) as usize)
+                    .map_or(Ty::VOID, |c| c.0),
+            )
+        }
+    }
+    fn vts(&self, t: Ty) -> StageResult<Vec<VT>> {
+        self.lay.vts(t)
+    }
+    fn depth_of(&self, want: Ctl) -> StageResult<u32> {
+        match self.ctrl.iter().rposition(|c| *c == want) {
+            Some(p) => Ok(u32_of(self.ctrl.len() - 1 - p)),
+            None => unsupported("a branch to a label outside its construct"),
+        }
+    }
+    fn open(&mut self, c: Ctl) {
+        self.ctrl.push(c);
+    }
+
+    /// The Wasm locals of a body local.
+    fn local(&mut self, l: u32) -> StageResult<Vec<u32>> {
+        if let Some(Some(v)) = self.locals.get(l as usize) {
+            return Ok(v.clone());
+        }
+        let t = self.sub(self.b.local_ty[l as usize]);
+        let vs: Vec<u32> = self.vts(t)?.into_iter().map(|v| self.a.local(v)).collect();
+        if self.locals.len() <= l as usize {
+            self.locals.resize(l as usize + 1, None);
+        }
+        self.locals[l as usize] = Some(vs.clone());
+        Ok(vs)
+    }
+
+    /// Pushes component `k` of a value, converted to `want`.
+    fn comp(&mut self, r: u32, k: usize, want: &VT) -> StageResult<()> {
+        if r == NONE {
+            self.a.zero(want);
+            return Ok(());
+        }
+        if Ref(r).as_inst().is_none() {
+            let Some(&(t, bits)) = self.b.consts.get((r & !Ref::CONST_BIT) as usize) else {
+                return unsupported("a constant outside the body's column");
+            };
+            let t = self.sub(t);
+            match self.lay.shape(t)? {
+                Shape::Str => {
+                    let Some(s) = self.b.strings.get(usize::try_from(bits).unwrap_or(0)) else {
+                        return unsupported("a string constant outside the table");
+                    };
+                    if k == 0 {
+                        self.a.call(Sym::Helper(Helper::Lit(s.as_bytes().to_vec())));
+                    } else {
+                        self.a.i64(i64::try_from(s.len()).unwrap_or(0) << 32);
+                    }
+                }
+                Shape::Scalar(VT::I64) => self.a.i64(bits.cast_signed()),
+                Shape::Scalar(VT::F64) => {
+                    self.a.s().f64_const(f64::from_bits(bits).into());
+                }
+                Shape::Scalar(VT::F32) => {
+                    let b32 = u32::try_from(bits & 0xffff_ffff).expect("32 bits");
+                    self.a.s().f32_const(f32::from_bits(b32).into());
+                }
+                Shape::Scalar(_) | Shape::Enum(EnumShape { boxed: None, .. }) => {
+                    let low = u32::try_from(bits & 0xffff_ffff).expect("32 bits");
+                    self.a.i32(low.cast_signed());
+                }
+                Shape::Void => {}
+                _ => return unsupported("a constant of this type"),
+            }
+            return Ok(());
+        }
+        let Some((ls, vs)) = self.vals.get(&r).cloned() else {
+            return unsupported(format!("a value used before emission (%{r})"));
+        };
+        let (Some(l), Some(have)) = (ls.get(k), vs.get(k)) else {
+            return unsupported("a value with fewer components than its use");
+        };
+        self.a.get(*l);
+        self.a.conv(have, want);
+        Ok(())
+    }
+
+    /// Pushes every component of a value, converted to `want`.
+    fn load_as(&mut self, r: u32, want: &[VT]) -> StageResult<()> {
+        for (k, w) in want.iter().enumerate() {
+            self.comp(r, k, w)?;
+        }
+        Ok(())
+    }
+    fn load(&mut self, r: u32) -> StageResult<Vec<VT>> {
+        let want = self.vts(self.ty_of(r))?;
+        self.load_as(r, &want)?;
+        Ok(want)
+    }
+
+    /// Fresh result locals of instruction `i`.
+    fn result(&mut self, i: u32) -> StageResult<Vec<u32>> {
+        if let Some((ls, _)) = self.vals.get(&i) {
+            return Ok(ls.clone());
+        }
+        let vs = self.vts(self.sub(self.b.ty[i as usize]))?;
+        let ls: Vec<u32> = vs.iter().map(|v| self.a.local(v.clone())).collect();
+        self.vals.insert(i, (ls.clone(), vs));
+        Ok(ls)
+    }
+    /// Pops the instruction's values (pushed in its layout) into its locals.
+    fn store(&mut self, i: u32) -> StageResult<()> {
+        let ls = self.result(i)?;
+        for l in ls.iter().rev() {
+            self.a.set(*l);
+        }
+        Ok(())
+    }
+    /// Stores the values on the stack, in `have`, as `i`'s result.
+    fn store_from(&mut self, i: u32, have: &[VT]) -> StageResult<()> {
+        let tmp: Vec<u32> = have.iter().map(|v| self.a.local(v.clone())).collect();
+        for l in tmp.iter().rev() {
+            self.a.set(*l);
+        }
+        let ls = self.result(i)?;
+        let want = self.vals[&i].1.clone();
+        for ((t, h), (l, w)) in tmp.iter().zip(have).zip(ls.iter().zip(&want)) {
+            self.a.get(*t);
+            self.a.conv(h, w);
+            self.a.set(*l);
+        }
+        Ok(())
+    }
+
+    fn rec(&self, at: u32) -> Vec<u32> {
+        self.b.record(at).to_vec()
+    }
+
+    /// A block instruction: its list, then its tail into `dest`.
+    fn block_into(&mut self, blk: u32, dest: Option<u32>) -> StageResult<()> {
+        if blk == NONE {
+            return Ok(());
+        }
+        if self.b.tags[blk as usize] != Tag::Block {
+            return unsupported("a block operand that is not a block");
+        }
+        let [list, tail] = self.b.data[blk as usize];
+        for i in self.rec(list) {
+            if self.b.tags[i as usize] != Tag::Block {
+                self.inst(i)?;
+            }
+        }
+        if tail != NONE
+            && let Some(d) = dest
+        {
+            let want = self.vts(self.sub(self.b.ty[d as usize]))?;
+            if !want.is_empty() {
+                self.load_as(tail, &want)?;
+                self.store(d)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn panic(&mut self, msg: &str) {
+        self.a.call(Sym::Helper(Helper::Panic(msg.to_owned())));
+        self.a.s().unreachable();
+    }
+
+    fn inst(&mut self, i: u32) -> StageResult<()> {
+        let [a, bw] = self.b.data[i as usize];
+        let ty = self.sub(self.b.ty[i as usize]);
+        match self.b.tags[i as usize] {
+            Tag::Block => {
+                self.a.block();
+                self.open(Ctl::Plain);
+                self.block_into(i, Some(i))?;
+                self.ctrl.pop();
+                self.a.end();
+            }
+            Tag::LocalGet => {
+                let ls = self.local(a)?;
+                for l in &ls {
+                    self.a.get(*l);
+                }
+                self.store(i)?;
+            }
+            Tag::LocalSet => {
+                let ls = self.local(a)?;
+                let t = self.sub(self.b.local_ty[a as usize]);
+                let want = self.vts(t)?;
+                self.load_as(bw, &want)?;
+                for l in ls.iter().rev() {
+                    self.a.set(*l);
+                }
+            }
+            Tag::Prim => self.prim(i, a, bw)?,
+            Tag::And | Tag::Or => {
+                let r = self.result(i)?;
+                self.comp(a, 0, &VT::I32)?;
+                if self.b.tags[i as usize] == Tag::Or {
+                    self.a.s().i32_eqz();
+                }
+                self.a.if_();
+                self.open(Ctl::Plain);
+                self.block_into(bw, Some(i))?;
+                self.ctrl.pop();
+                self.a.else_();
+                self.a.i32(i32::from(self.b.tags[i as usize] == Tag::Or));
+                self.a.set(r[0]);
+                self.a.end();
+            }
+            Tag::Call => self.call(i, a, bw, ty)?,
+            Tag::CallValue => {
+                let Shape::Fn { base, code } = self.lay.shape(self.ty_of(a))? else {
+                    return unsupported("a call of a value that is not a closure");
+                };
+                let WTy::Func(ps, rs) = &code else {
+                    return unsupported("a closure code type");
+                };
+                let f = self.a.local(VT::r(base.clone()));
+                self.comp(a, 0, &VT::r(base.clone()))?;
+                self.a.set(f);
+                self.a.get(f);
+                let args = self.rec(bw);
+                let mut k = 1;
+                for r in args {
+                    let n = self.vts(self.ty_of(r))?.len();
+                    let want: Vec<VT> = ps[k..k + n].to_vec();
+                    self.load_as(r, &want)?;
+                    k += n;
+                }
+                self.a.get(f);
+                self.a.struct_get(&base, 0);
+                self.a.call_ref(&code);
+                self.store_from(i, &rs.clone())?;
+            }
+            Tag::Interp => {
+                let parts = self.rec(bw);
+                self.concat(i, &parts)?;
+            }
+            Tag::Intrinsic => self.intrinsic(i, a, bw, ty)?,
+            Tag::Coerce => self.coerce(i, a, bw, ty)?,
+            Tag::NewData => {
+                let Shape::Data { ty: st, fields } = self.lay.shape(ty)? else {
+                    return unsupported("a data value without a struct layout");
+                };
+                for (r, (_, vs)) in self.rec(bw).into_iter().zip(fields) {
+                    self.load_as(r, &vs)?;
+                }
+                self.a.struct_new(&st);
+                self.store(i)?;
+            }
+            Tag::Field | Tag::FieldSet => {
+                let base_t = self.ty_of(a);
+                let Shape::Data { ty: st, fields } = self.lay.shape(base_t)? else {
+                    return unsupported("a field of a value without a struct layout");
+                };
+                let (idx, val) = if self.b.tags[i as usize] == Tag::Field {
+                    (bw, None)
+                } else {
+                    let r = self.rec(bw);
+                    (r[0], Some(r[1]))
+                };
+                let Some((start, vs)) = fields.get(idx as usize).cloned() else {
+                    return unsupported("a field index outside the struct");
+                };
+                match val {
+                    None => {
+                        for k in 0..vs.len() {
+                            self.comp(a, 0, &VT::r(st.clone()))?;
+                            self.a.struct_get(&st, start + u32_of(k));
+                        }
+                        self.store_from(i, &vs)?;
+                    }
+                    Some(v) => {
+                        for (k, w) in vs.iter().enumerate() {
+                            self.comp(a, 0, &VT::r(st.clone()))?;
+                            self.comp(v, k, w)?;
+                            self.a.struct_set(&st, start + u32_of(k));
+                        }
+                    }
+                }
+            }
+            Tag::NewTuple => {
+                let Shape::Tuple { elems, boxed } = self.lay.shape(ty)? else {
+                    return unsupported("a tuple without a tuple layout");
+                };
+                for (r, vs) in self.rec(bw).into_iter().zip(elems) {
+                    self.load_as(r, &vs)?;
+                }
+                if let Some(b) = boxed {
+                    self.a.struct_new(&b);
+                }
+                self.store(i)?;
+            }
+            Tag::TupleGet => {
+                let Shape::Tuple { elems, boxed } = self.lay.shape(self.ty_of(a))? else {
+                    return unsupported("a tuple read of a non-tuple");
+                };
+                let start: usize = elems[..bw as usize].iter().map(Vec::len).sum();
+                let vs = elems[bw as usize].clone();
+                for (k, v) in vs.iter().enumerate() {
+                    match &boxed {
+                        Some(b) => {
+                            self.comp(a, 0, &VT::r(b.clone()))?;
+                            self.a.struct_get(b, u32_of(start + k));
+                        }
+                        None => self.comp(a, start + k, v)?,
+                    }
+                }
+                self.store_from(i, &vs)?;
+            }
+            Tag::NewVariant => self.new_variant(i, a, bw, ty)?,
+            Tag::NewList => {
+                let Shape::List { elem, ty: lt } = self.lay.shape(ty)? else {
+                    return unsupported("a list literal without a list layout");
+                };
+                let items = self.rec(bw);
+                self.a.i32(i32::try_from(items.len()).unwrap_or(0));
+                for (k, v) in elem.iter().enumerate() {
+                    let st = storage(v).dflt();
+                    for r in &items {
+                        self.comp(*r, k, v)?;
+                    }
+                    self.a.array_new_fixed(&WTy::Array(st), u32_of(items.len()));
+                }
+                self.a.struct_new(&lt);
+                self.store(i)?;
+            }
+            Tag::NewMap => {
+                let Shape::Map { key, val, ty: mt } = self.lay.shape(ty)? else {
+                    return unsupported("a map literal without a map layout");
+                };
+                let items = self.rec(bw);
+                let n = items.len() / 2;
+                self.a.i32(i32::try_from(n).unwrap_or(0));
+                for (part, vs) in [(0, &key), (1, &val)] {
+                    for (k, v) in vs.iter().enumerate() {
+                        for e in 0..n {
+                            self.comp(items[2 * e + part], k, v)?;
+                        }
+                        self.a
+                            .array_new_fixed(&WTy::Array(storage(v).dflt()), u32_of(n));
+                    }
+                }
+                self.a.struct_new(&mt);
+                self.store(i)?;
+            }
+            Tag::Closure => self.closure(i, a, bw, ty)?,
+            Tag::ProviderGet => {
+                let key = self.rec(a).first().copied().unwrap_or(NONE);
+                let key_t = Ty(key);
+                let TyData::TraitValue { def, .. } = self.pool().get(key_t) else {
+                    return unsupported("a provider key that is not a trait");
+                };
+                let Some((_, ls)) = self.providers.iter().rev().find(|p| p.0 == def) else {
+                    return unsupported("a provider the function's row does not pass");
+                };
+                let ls = *ls;
+                self.a.get(ls[0]);
+                self.a.get(ls[1]);
+                self.store(i)?;
+            }
+            Tag::If => {
+                let r = self.rec(bw);
+                self.result(i)?;
+                self.comp(a, 0, &VT::I32)?;
+                self.a.if_();
+                self.open(Ctl::Plain);
+                self.block_into(r[0], Some(i))?;
+                if r.get(1).is_some_and(|e| *e != NONE) {
+                    self.a.else_();
+                    self.block_into(r[1], Some(i))?;
+                }
+                self.ctrl.pop();
+                self.a.end();
+            }
+            Tag::Loop => {
+                self.result(i)?;
+                self.a.block();
+                self.open(Ctl::Brk(i));
+                self.a.loop_();
+                self.open(Ctl::Cont(i));
+                self.block_into(a, None)?;
+                self.a.br(0);
+                self.ctrl.pop();
+                self.a.end();
+                self.ctrl.pop();
+                self.a.end();
+            }
+            Tag::Break | Tag::Continue => {
+                let Some(&target) = self.b.label_inst.get(a as usize) else {
+                    return unsupported("a break with an unknown label");
+                };
+                if self.b.tags[i as usize] == Tag::Break {
+                    if bw != NONE {
+                        let want = self.vts(self.sub(self.b.ty[target as usize]))?;
+                        if !want.is_empty() {
+                            self.load_as(bw, &want)?;
+                            self.store(target)?;
+                        }
+                    }
+                    let d = self.depth_of(Ctl::Brk(target))?;
+                    self.a.br(d);
+                } else {
+                    let d = self.depth_of(Ctl::Cont(target))?;
+                    self.a.br(d);
+                }
+            }
+            Tag::Return => {
+                if a != NONE {
+                    self.load(a)?;
+                }
+                self.a.s().return_();
+            }
+            Tag::Unreachable => {
+                self.a.s().unreachable();
+            }
+            Tag::Scope => {
+                if !self.rec(bw).is_empty() {
+                    return unsupported("emission of `defer` (the exit ladder)");
+                }
+                self.result(i)?;
+                self.a.block();
+                self.open(Ctl::Plain);
+                self.block_into(a, Some(i))?;
+                self.ctrl.pop();
+                self.a.end();
+            }
+            Tag::Match => {
+                let blocks = self.rec(bw);
+                let n = blocks.len() - 1;
+                self.result(i)?;
+                self.a.block();
+                self.open(Ctl::Brk(i));
+                for k in (0..n).rev() {
+                    self.a.block();
+                    self.open(Ctl::Arm(i, u32_of(k)));
+                }
+                self.deciding.push(i);
+                self.block_into(blocks[0], None)?;
+                self.deciding.pop();
+                self.a.s().unreachable();
+                for k in 0..n {
+                    self.ctrl.pop();
+                    self.a.end();
+                    self.block_into(blocks[k + 1], Some(i))?;
+                    let d = self.depth_of(Ctl::Brk(i))?;
+                    self.a.br(d);
+                }
+                self.ctrl.pop();
+                self.a.end();
+            }
+            Tag::ToArm => {
+                let Some(&m) = self.deciding.last() else {
+                    return unsupported("an arm jump outside a match decision");
+                };
+                let d = self.depth_of(Ctl::Arm(m, a))?;
+                self.a.br(d);
+            }
+            Tag::Guard => {
+                let r = self.rec(bw);
+                self.block_value(a)?;
+                self.a.if_();
+                self.open(Ctl::Plain);
+                self.block_into(r[0], None)?;
+                self.a.else_();
+                self.block_into(r[1], None)?;
+                self.ctrl.pop();
+                self.a.end();
+            }
+            Tag::SwitchTag => {
+                let r = self.rec(bw);
+                self.result(i)?;
+                self.tag_of(a)?;
+                self.a.i32(r[0].cast_signed());
+                self.a.s().i32_eq();
+                self.a.if_();
+                self.open(Ctl::Plain);
+                self.block_into(r[1], Some(i))?;
+                self.a.else_();
+                self.block_into(r[2], Some(i))?;
+                self.ctrl.pop();
+                self.a.end();
+            }
+            Tag::SwitchInt | Tag::SwitchChar => {
+                let r = self.rec(bw);
+                self.result(i)?;
+                self.comp(a, 0, &VT::I32)?;
+                self.a.i32(r[0].cast_signed());
+                self.a.s().i32_eq();
+                self.a.if_();
+                self.open(Ctl::Plain);
+                self.block_into(r[1], Some(i))?;
+                self.a.else_();
+                self.block_into(r[2], Some(i))?;
+                self.ctrl.pop();
+                self.a.end();
+            }
+            Tag::Payload => {
+                let r = self.rec(bw);
+                self.payload(i, a, r[0], r[1])?;
+            }
+            Tag::Unwrap => {
+                let Shape::Opt(o, inner) = self.lay.shape(self.ty_of(a))? else {
+                    return unsupported("an unwrap of a non-optional");
+                };
+                self.unwrap(a, &o, &inner)?;
+                self.store_from(i, &inner)?;
+            }
+            Tag::Hook | Tag::Defer => {}
+            Tag::Await => {
+                return unsupported("emission of `Await` (suspension state machines)");
+            }
+            other => return unsupported(format!("emission of TIR tag {}", other.name())),
+        }
+        Ok(())
+    }
+
+    /// A block's tail value on the stack (a guard's condition).
+    fn block_value(&mut self, blk: u32) -> StageResult<()> {
+        let [list, tail] = self.b.data[blk as usize];
+        for i in self.rec(list) {
+            if self.b.tags[i as usize] != Tag::Block {
+                self.inst(i)?;
+            }
+        }
+        self.comp(tail, 0, &VT::I32)
+    }
+
+    /// Pushes the tag of an enum or optional value.
+    fn tag_of(&mut self, v: u32) -> StageResult<()> {
+        match self.lay.shape(self.ty_of(v))? {
+            Shape::Enum(e) => match e.boxed {
+                Some(b) => {
+                    self.comp(v, 0, &VT::r(b.clone()))?;
+                    self.a.struct_get(&b, 0);
+                }
+                None => self.comp(v, 0, &VT::I32)?,
+            },
+            Shape::Opt(o, inner) => match o {
+                OptShape::NullRef(r) => {
+                    self.comp(v, 0, &r.dflt())?;
+                    self.a.s().ref_is_null().i32_eqz();
+                }
+                OptShape::NullStr => {
+                    self.comp(v, 0, &VT::rn(WTy::Bytes))?;
+                    self.a.s().ref_is_null().i32_eqz();
+                }
+                OptShape::Tagged(_) => self.comp(v, 0, &VT::I32)?,
+                OptShape::Boxed(b, _) => {
+                    let _ = inner;
+                    self.comp(v, 0, &VT::rn(b))?;
+                    self.a.s().ref_is_null().i32_eqz();
+                }
+            },
+            _ => return unsupported("a tag switch on a value without tags"),
+        }
+        Ok(())
+    }
+
+    fn unwrap(&mut self, v: u32, o: &OptShape, inner: &[VT]) -> StageResult<()> {
+        match o {
+            OptShape::NullRef(r) => {
+                self.comp(v, 0, &r.dflt())?;
+                self.a.conv(&r.dflt(), &inner[0]);
+            }
+            OptShape::NullStr => {
+                self.comp(v, 0, &VT::rn(WTy::Bytes))?;
+                self.a.s().ref_as_non_null();
+                self.comp(v, 1, &VT::I64)?;
+            }
+            OptShape::Tagged(dv) => {
+                for (k, (d, w)) in dv.iter().zip(inner).enumerate() {
+                    self.comp(v, k + 1, d)?;
+                    self.a.conv(d, w);
+                }
+            }
+            OptShape::Boxed(b, dv) => {
+                for (k, (d, w)) in dv.iter().zip(inner).enumerate() {
+                    self.comp(v, 0, &VT::rn(b.clone()))?;
+                    self.a.struct_get(b, u32_of(k));
+                    self.a.conv(d, w);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn payload(&mut self, i: u32, v: u32, variant: u32, field: u32) -> StageResult<()> {
+        let shape = self.lay.shape(self.ty_of(v))?;
+        match shape {
+            Shape::Enum(e) => {
+                let Some((slots, vs)) = e
+                    .fields
+                    .get(variant as usize)
+                    .and_then(|f| f.get(field as usize))
+                    .cloned()
+                else {
+                    return unsupported("a payload outside the variant");
+                };
+                for (s, want) in slots.iter().zip(&vs) {
+                    let st = e.slots[*s].clone();
+                    match &e.boxed {
+                        Some(b) => {
+                            self.comp(v, 0, &VT::r(b.clone()))?;
+                            self.a.struct_get(b, u32_of(*s + 1));
+                        }
+                        None => self.comp(v, *s + 1, &st)?,
+                    }
+                    self.a.conv(&st, want);
+                }
+                self.store_from(i, &vs)
+            }
+            Shape::Opt(o, inner) => {
+                self.unwrap(v, &o, &inner)?;
+                self.store_from(i, &inner)
+            }
+            _ => unsupported("a payload of a value without variants"),
+        }
+    }
+
+    fn new_variant(&mut self, i: u32, variant: u32, vals: u32, ty: Ty) -> StageResult<()> {
+        let args = self.rec(vals);
+        match self.lay.shape(ty)? {
+            Shape::Enum(e) => {
+                self.a.i32(variant.cast_signed());
+                let fields = e.fields.get(variant as usize).cloned().unwrap_or_default();
+                for (s, st) in e.slots.iter().enumerate() {
+                    let src = fields.iter().zip(&args).find_map(|((slots, vs), r)| {
+                        slots
+                            .iter()
+                            .position(|x| *x == s)
+                            .map(|k| (*r, k, vs[k].clone()))
+                    });
+                    match src {
+                        Some((r, k, exact)) => {
+                            self.comp(r, k, &exact)?;
+                            self.a.conv(&exact, st);
+                        }
+                        None => self.a.zero(st),
+                    }
+                }
+                if let Some(b) = &e.boxed {
+                    self.a.struct_new(b);
+                }
+                self.store(i)
+            }
+            Shape::Opt(o, inner) => {
+                let some = variant == 1;
+                match &o {
+                    OptShape::NullRef(r) => {
+                        if some {
+                            self.comp(args[0], 0, r)?;
+                        } else {
+                            self.a.zero(&r.dflt());
+                        }
+                    }
+                    OptShape::NullStr => {
+                        if some {
+                            self.load_as(args[0], &inner)?;
+                        } else {
+                            self.a.ref_null(&WTy::Bytes);
+                            self.a.i64(0);
+                        }
+                    }
+                    OptShape::Tagged(dv) | OptShape::Boxed(_, dv) => {
+                        if matches!(o, OptShape::Tagged(_)) {
+                            self.a.i32(i32::from(some));
+                        }
+                        if some || matches!(o, OptShape::Tagged(_)) {
+                            for (k, d) in dv.iter().enumerate() {
+                                if some {
+                                    self.comp(args[0], k, &inner[k])?;
+                                } else {
+                                    self.a.zero(d);
+                                }
+                            }
+                        }
+                        if let OptShape::Boxed(b, _) = &o {
+                            if some {
+                                self.a.struct_new(b);
+                            } else {
+                                self.a.ref_null(b);
+                            }
+                        }
+                    }
+                }
+                self.store(i)
+            }
+            _ => unsupported("a variant of a type without variants"),
+        }
+    }
+
+    /// Joins string values into one exact-size array, viewed from 0.
+    fn concat(&mut self, i: u32, parts: &[u32]) -> StageResult<()> {
+        let sv = [VT::r(WTy::Bytes), VT::I64];
+        let mut ls = Vec::new();
+        for p in parts {
+            let b = self.a.local(sv[0].clone());
+            let s = self.a.local(VT::I64);
+            self.load_as(*p, &sv)?;
+            self.a.set(s);
+            self.a.set(b);
+            ls.push((b, s));
+        }
+        let (total, off, arr) = (
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+            self.a.local(sv[0].clone()),
+        );
+        self.a.i32(0);
+        self.a.set(total);
+        self.a.i32(0);
+        self.a.set(off);
+        for (_, s) in &ls {
+            self.a.get(total);
+            self.a.get(*s);
+            self.a.i64(32);
+            self.a.s().i64_shr_u().i32_wrap_i64().i32_add();
+            self.a.set(total);
+        }
+        self.a.get(total);
+        self.a.array_new_default(&WTy::Bytes);
+        self.a.set(arr);
+        for (b, s) in &ls {
+            self.a.get(arr);
+            self.a.get(off);
+            self.a.get(*b);
+            self.a.get(*s);
+            self.a.s().i32_wrap_i64();
+            self.a.get(*s);
+            self.a.i64(32);
+            self.a.s().i64_shr_u().i32_wrap_i64();
+            self.a.array_copy(&WTy::Bytes, &WTy::Bytes);
+            self.a.get(off);
+            self.a.get(*s);
+            self.a.i64(32);
+            self.a.s().i64_shr_u().i32_wrap_i64().i32_add();
+            self.a.set(off);
+        }
+        self.a.get(arr);
+        self.a.get(total);
+        self.a.s().i64_extend_i32_u();
+        self.a.i64(32);
+        self.a.s().i64_shl();
+        self.store(i)
+    }
+
+    fn prim(&mut self, i: u32, op: u32, rec: u32) -> StageResult<()> {
+        let Some(op) = PrimOp::from_u32(op) else {
+            return unsupported("an unknown operator");
+        };
+        let ops = self.rec(rec);
+        let t0 = ops.first().map_or(Ty::I32, |r| self.ty_of(*r));
+        let ty = self.sub(self.b.ty[i as usize]);
+        let (bits, signed, float) = num(self.pool(), t0);
+        let vt0 = self.vts(t0)?;
+        if !matches!(vt0.as_slice(), [VT::I32 | VT::I64 | VT::F32 | VT::F64]) {
+            return unsupported(format!("the operator {op:?} on this layout"));
+        }
+        let wide = vt0[0] == VT::I64;
+        if float {
+            return self.float_prim(i, op, &ops, &vt0[0]);
+        }
+        let s = |em: &mut Self| -> StageResult<()> {
+            for r in &ops {
+                em.comp(*r, 0, &vt0[0])?;
+            }
+            Ok(())
+        };
+        match op {
+            PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem | PrimOp::Neg => {
+                self.checked(op, &ops, bits, signed, wide)?;
+            }
+            PrimOp::Eq | PrimOp::Ne | PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge => {
+                s(self)?;
+                let mut x = self.a.s();
+                match (op, wide, signed) {
+                    (PrimOp::Eq, false, _) => x.i32_eq(),
+                    (PrimOp::Ne, false, _) => x.i32_ne(),
+                    (PrimOp::Lt, false, true) => x.i32_lt_s(),
+                    (PrimOp::Lt, false, false) => x.i32_lt_u(),
+                    (PrimOp::Le, false, true) => x.i32_le_s(),
+                    (PrimOp::Le, false, false) => x.i32_le_u(),
+                    (PrimOp::Gt, false, true) => x.i32_gt_s(),
+                    (PrimOp::Gt, false, false) => x.i32_gt_u(),
+                    (PrimOp::Ge, false, true) => x.i32_ge_s(),
+                    (PrimOp::Ge, false, false) => x.i32_ge_u(),
+                    (PrimOp::Eq, true, _) => x.i64_eq(),
+                    (PrimOp::Ne, true, _) => x.i64_ne(),
+                    (PrimOp::Lt, true, true) => x.i64_lt_s(),
+                    (PrimOp::Lt, true, false) => x.i64_lt_u(),
+                    (PrimOp::Le, true, true) => x.i64_le_s(),
+                    (PrimOp::Le, true, false) => x.i64_le_u(),
+                    (PrimOp::Gt, true, true) => x.i64_gt_s(),
+                    (PrimOp::Gt, true, false) => x.i64_gt_u(),
+                    (PrimOp::Ge, true, true) => x.i64_ge_s(),
+                    _ => x.i64_ge_u(),
+                };
+            }
+            PrimOp::And | PrimOp::BitAnd => {
+                s(self)?;
+                if wide {
+                    self.a.s().i64_and();
+                } else {
+                    self.a.s().i32_and();
+                }
+            }
+            PrimOp::Or | PrimOp::BitOr => {
+                s(self)?;
+                if wide {
+                    self.a.s().i64_or();
+                } else {
+                    self.a.s().i32_or();
+                }
+            }
+            PrimOp::BitXor => {
+                s(self)?;
+                if wide {
+                    self.a.s().i64_xor();
+                } else {
+                    self.a.s().i32_xor();
+                }
+            }
+            PrimOp::Shl => {
+                s(self)?;
+                if wide {
+                    self.a.s().i64_shl();
+                } else {
+                    self.a.s().i32_shl();
+                }
+            }
+            PrimOp::Shr => {
+                s(self)?;
+                let mut x = self.a.s();
+                match (wide, signed) {
+                    (false, true) => x.i32_shr_s(),
+                    (false, false) => x.i32_shr_u(),
+                    (true, true) => x.i64_shr_s(),
+                    (true, false) => x.i64_shr_u(),
+                };
+            }
+            PrimOp::Not => {
+                s(self)?;
+                if self.pool().get(t0) == TyData::Prim(Prim::Bool) {
+                    self.a.s().i32_eqz();
+                } else if wide {
+                    self.a.i64(-1);
+                    self.a.s().i64_xor();
+                } else {
+                    self.a.i32(-1);
+                    self.a.s().i32_xor();
+                }
+            }
+            PrimOp::Conv => {
+                s(self)?;
+                let to = self.vts(ty)?;
+                let (_, _, tfloat) = num(self.pool(), ty);
+                let mut x = self.a.s();
+                match (
+                    vt0[0].clone(),
+                    to.first().cloned().unwrap_or(VT::I32),
+                    tfloat,
+                ) {
+                    (VT::I32, VT::I64, _) => {
+                        if signed {
+                            x.i64_extend_i32_s()
+                        } else {
+                            x.i64_extend_i32_u()
+                        };
+                    }
+                    (VT::I64, VT::I32, _) => {
+                        x.i32_wrap_i64();
+                    }
+                    (VT::I32, VT::F64, _) => {
+                        if signed {
+                            x.f64_convert_i32_s()
+                        } else {
+                            x.f64_convert_i32_u()
+                        };
+                    }
+                    (VT::I64, VT::F64, _) => {
+                        if signed {
+                            x.f64_convert_i64_s()
+                        } else {
+                            x.f64_convert_i64_u()
+                        };
+                    }
+                    (a, b, _) if a == b => {}
+                    _ => return unsupported("this numeric conversion"),
+                }
+            }
+        }
+        self.store(i)
+    }
+
+    fn float_prim(&mut self, i: u32, op: PrimOp, ops: &[u32], vt: &VT) -> StageResult<()> {
+        if *vt != VT::F64 {
+            return unsupported("f32 arithmetic");
+        }
+        if op == PrimOp::Neg {
+            self.comp(ops[0], 0, vt)?;
+            self.a.s().f64_neg();
+            return self.store(i);
+        }
+        for r in ops {
+            self.comp(*r, 0, vt)?;
+        }
+        let mut x = self.a.s();
+        match op {
+            PrimOp::Add => x.f64_add(),
+            PrimOp::Sub => x.f64_sub(),
+            PrimOp::Mul => x.f64_mul(),
+            PrimOp::Div => x.f64_div(),
+            PrimOp::Eq => x.f64_eq(),
+            PrimOp::Ne => x.f64_ne(),
+            PrimOp::Lt => x.f64_lt(),
+            PrimOp::Le => x.f64_le(),
+            PrimOp::Gt => x.f64_gt(),
+            PrimOp::Ge => x.f64_ge(),
+            _ => return unsupported(format!("the float operator {op:?}")),
+        };
+        self.store(i)
+    }
+
+    /// Checked integer arithmetic (lowering-catalog.md, "Arithmetic And
+    /// Overflow Checks"): 32-bit and narrower in `i64` with a range check;
+    /// 64-bit add and subtract by sign tests.
+    fn checked(
+        &mut self,
+        op: PrimOp,
+        ops: &[u32],
+        bits: u8,
+        signed: bool,
+        wide: bool,
+    ) -> StageResult<()> {
+        let vt = if wide { VT::I64 } else { VT::I32 };
+        let x = self.a.local(VT::I64);
+        let y = self.a.local(VT::I64);
+        let r = self.a.local(VT::I64);
+        let (lhs, rhs) = if op == PrimOp::Neg {
+            (None, ops[0])
+        } else {
+            (Some(ops[0]), ops[1])
+        };
+        for (src, dst) in [(lhs, x), (Some(rhs), y)] {
+            match src {
+                Some(v) => {
+                    self.comp(v, 0, &vt)?;
+                    if !wide {
+                        if signed {
+                            self.a.s().i64_extend_i32_s();
+                        } else {
+                            self.a.s().i64_extend_i32_u();
+                        }
+                    }
+                }
+                None => self.a.i64(0),
+            }
+            self.a.set(dst);
+        }
+        if matches!(op, PrimOp::Div | PrimOp::Rem) {
+            self.a.get(y);
+            self.a.s().i64_eqz();
+            self.a.if_();
+            self.panic("division-by-zero: division by zero");
+            self.a.end();
+        }
+        self.a.get(x);
+        self.a.get(y);
+        {
+            let mut s = self.a.s();
+            match (op, signed) {
+                (PrimOp::Add, _) => s.i64_add(),
+                (PrimOp::Sub | PrimOp::Neg, _) => s.i64_sub(),
+                (PrimOp::Mul, _) => s.i64_mul(),
+                (PrimOp::Div, true) => s.i64_div_s(),
+                (PrimOp::Div, false) => s.i64_div_u(),
+                (PrimOp::Rem, true) => s.i64_rem_s(),
+                _ => s.i64_rem_u(),
+            };
+        }
+        self.a.set(r);
+        if wide {
+            // 64-bit: add and subtract overflow by sign tests.
+            match (op, signed) {
+                (PrimOp::Add, true) => {
+                    self.a.get(x);
+                    self.a.get(r);
+                    self.a.s().i64_xor();
+                    self.a.get(y);
+                    self.a.get(r);
+                    self.a.s().i64_xor().i64_and();
+                    self.a.i64(0);
+                    self.a.s().i64_lt_s();
+                }
+                (PrimOp::Sub | PrimOp::Neg, true) => {
+                    self.a.get(x);
+                    self.a.get(y);
+                    self.a.s().i64_xor();
+                    self.a.get(x);
+                    self.a.get(r);
+                    self.a.s().i64_xor().i64_and();
+                    self.a.i64(0);
+                    self.a.s().i64_lt_s();
+                }
+                (PrimOp::Add, false) => {
+                    self.a.get(r);
+                    self.a.get(x);
+                    self.a.s().i64_lt_u();
+                }
+                (PrimOp::Sub | PrimOp::Neg, false) => {
+                    self.a.get(x);
+                    self.a.get(y);
+                    self.a.s().i64_lt_u();
+                }
+                _ => self.a.i32(0),
+            }
+        } else {
+            let (lo, hi): (i64, i64) = if signed {
+                (-(1i64 << (bits - 1)), (1i64 << (bits - 1)) - 1)
+            } else {
+                (0, (1i64 << bits) - 1)
+            };
+            self.a.get(r);
+            self.a.i64(lo);
+            self.a.s().i64_lt_s();
+            self.a.get(r);
+            self.a.i64(hi);
+            self.a.s().i64_gt_s().i32_or();
+        }
+        self.a.if_();
+        self.panic("arithmetic-overflow: integer overflow");
+        self.a.end();
+        self.a.get(r);
+        if !wide {
+            self.a.s().i32_wrap_i64();
+        }
+        Ok(())
+    }
+
+    /// The current providers for a callee's row keys, in key order.
+    fn push_providers(&mut self, keys: &[DefId]) -> StageResult<()> {
+        for k in keys {
+            let Some((_, ls)) = self.providers.iter().rev().find(|p| p.0 == *k) else {
+                return unsupported("a call whose row this function does not cover");
+            };
+            let ls = *ls;
+            self.a.get(ls[0]);
+            self.a.get(ls[1]);
+        }
+        Ok(())
+    }
+
+    fn call(&mut self, i: u32, callee_at: u32, args_at: u32, ty: Ty) -> StageResult<()> {
+        let rec = self.rec(args_at);
+        let args = &rec[..rec.len().saturating_sub(3)];
+        let Some(c) = Callee::from_words(self.b.record(callee_at)) else {
+            return unsupported("a malformed callee record");
+        };
+        if let Callee::TraitMethod {
+            trait_,
+            method,
+            choice: (ChoiceKind::TraitValue, _),
+            ..
+        } = c
+        {
+            return self.call_dyn(i, trait_, method, args);
+        }
+        let Some(Target::Call(t)) = self.calls.get(&i).cloned() else {
+            return unsupported("a call that collection did not resolve");
+        };
+        match &t.kind {
+            TargetKind::Instance => {
+                let pool = self.pool();
+                let mut ps = Vec::new();
+                for p in self.env().params(t.item).unwrap_or_default() {
+                    ps.push(subst(pool, self.env(), t.item, t.args, p));
+                }
+                for (r, p) in args.iter().zip(&ps) {
+                    let want = self.vts(*p)?;
+                    self.load_as(*r, &want)?;
+                }
+                let keys = self.env().row_keys(t.item);
+                self.push_providers(&keys)?;
+                self.a.call(Sym::Inst(t.key));
+                let got = self.vts(t.ret)?;
+                self.store_from(i, &got)
+            }
+            TargetKind::Intrinsic(key) => self.call_intrinsic(i, key, args, ty),
+            TargetKind::Builtin { self_ty, .. } => {
+                let name = (self.lay.path)(t.item);
+                let name = name.rsplit(['.', '/']).next().unwrap_or("").to_owned();
+                self.builtin(i, &name, *self_ty, args)
+            }
+        }
+    }
+
+    fn builtin(&mut self, i: u32, name: &str, self_ty: Ty, args: &[u32]) -> StageResult<()> {
+        let self_ty = match self.pool().get(self_ty) {
+            TyData::Mut(x) => x,
+            _ => self_ty,
+        };
+        let shape = self.lay.shape(self_ty)?;
+        match (name, &shape) {
+            ("to_string", Shape::Scalar(v @ (VT::I32 | VT::I64))) => {
+                if self.pool().get(self_ty) == TyData::Prim(Prim::Bool) {
+                    self.comp(args[0], 0, &VT::I32)?;
+                    self.a.if_();
+                    self.lit_into(i, "true")?;
+                    self.a.else_();
+                    self.lit_into(i, "false")?;
+                    self.a.end();
+                    return Ok(());
+                }
+                let (_, signed, _) = num(self.pool(), self_ty);
+                self.comp(args[0], 0, v)?;
+                self.a.call(Sym::Helper(Helper::IntToStr {
+                    wide: *v == VT::I64,
+                    signed,
+                }));
+                self.store(i)
+            }
+            ("to_string", Shape::Str) => {
+                self.load(args[0])?;
+                self.store(i)
+            }
+            ("eq", Shape::Scalar(v @ (VT::I32 | VT::I64))) => {
+                self.comp(args[0], 0, v)?;
+                self.comp(args[1], 0, v)?;
+                if *v == VT::I64 {
+                    self.a.s().i64_eq();
+                } else {
+                    self.a.s().i32_eq();
+                }
+                self.store(i)
+            }
+            ("eq", Shape::Str) => {
+                self.load(args[0])?;
+                self.load(args[1])?;
+                self.a.call(Sym::Helper(Helper::StrEq));
+                self.store(i)
+            }
+            _ => unsupported(format!(
+                "the built-in method `{name}` at {}",
+                self.pool().display(self_ty)
+            )),
+        }
+    }
+
+    fn lit_into(&mut self, i: u32, s: &str) -> StageResult<()> {
+        self.a.call(Sym::Helper(Helper::Lit(s.as_bytes().to_vec())));
+        self.a.i64(i64::try_from(s.len()).unwrap_or(0) << 32);
+        self.store(i)
+    }
+
+    fn call_intrinsic(&mut self, i: u32, key: &str, args: &[u32], ty: Ty) -> StageResult<()> {
+        match key {
+            "panic_message" => {
+                self.load(args[0])?;
+                self.a.call(Sym::Helper(Helper::PanicStr));
+                self.a.s().unreachable();
+                Ok(())
+            }
+            "block_on" => {
+                // suspension.md §14.9: poll; when Pending, wait in the host.
+                let Shape::Suspend { base, poll, result } = self.lay.shape(self.ty_of(args[0]))?
+                else {
+                    return unsupported("`block_on` of a value that is not a suspension");
+                };
+                let s = self.a.local(VT::r(base.clone()));
+                self.comp(args[0], 0, &VT::r(base.clone()))?;
+                self.a.set(s);
+                let ready = self.a.local(VT::I32);
+                let tmp: Vec<u32> = result.iter().map(|v| self.a.local(v.dflt())).collect();
+                self.a.block();
+                self.a.loop_();
+                self.a.get(s);
+                self.a.get(s);
+                self.a.struct_get(&base, 0);
+                self.a.call_ref(&poll);
+                for l in tmp.iter().rev() {
+                    self.a.set(*l);
+                }
+                self.a.set(ready);
+                self.a.get(ready);
+                self.a.br_if(1);
+                self.a.call(block_import());
+                self.a.s().drop();
+                self.a.br(0);
+                self.a.end();
+                self.a.end();
+                for (l, v) in tmp.iter().zip(&result) {
+                    self.a.get(*l);
+                    self.a.conv(&v.dflt(), v);
+                }
+                let _ = ty;
+                self.store_from(i, &result)
+            }
+            other => unsupported(format!("the intrinsic `{other}`")),
+        }
+    }
+
+    fn call_dyn(&mut self, i: u32, trait_: DefId, method: DefId, args: &[u32]) -> StageResult<()> {
+        let recv_t = self.ty_of(args[0]);
+        let Shape::Dyn {
+            vt, args: targs, ..
+        } = self.lay.shape(recv_t)?
+        else {
+            return unsupported("a trait-value call on a value that is not a trait value");
+        };
+        let Some(slot) = self
+            .env()
+            .trait_methods(trait_)
+            .iter()
+            .position(|m| *m == method)
+        else {
+            return unsupported("a trait-value call of a supertrait's method");
+        };
+        let sig = self.lay.slot_sig(trait_, targs, method)?;
+        let WTy::Func(ps, rs) = &sig else {
+            return unsupported("a vtable slot type");
+        };
+        let rl = self.a.local(VT::Eq);
+        let vl = self.a.local(VT::r(vt.clone()));
+        self.comp(args[0], 0, &VT::Eq)?;
+        self.a.set(rl);
+        self.comp(args[0], 1, &VT::r(vt.clone()))?;
+        self.a.set(vl);
+        self.a.get(rl);
+        let mut k = 1;
+        for r in &args[1..] {
+            let n = self.vts(self.ty_of(*r))?.len();
+            let want = ps[k..k + n].to_vec();
+            self.load_as(*r, &want)?;
+            k += n;
+        }
+        self.a.get(vl);
+        self.a.struct_get(&vt, u32_of(slot));
+        self.a.call_ref(&sig);
+        self.store_from(i, &rs.clone())
+    }
+
+    fn closure(&mut self, i: u32, sub: u32, rec: u32, ty: Ty) -> StageResult<()> {
+        let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
+            return unsupported("a closure that collection did not record");
+        };
+        let Shape::Fn { base, code } = self.lay.shape(ty)? else {
+            return unsupported("a closure without a function type");
+        };
+        let caps = self.rec(rec);
+        let (start, len) = (caps[0] as usize, caps[1] as usize);
+        let mut fields = vec![VT::r(code.clone())];
+        self.a.ref_func(Sym::Inst(key));
+        for c in start..start + len {
+            if self.b.cap_mode.get(c) == Some(&hd_tir::ir::CaptureMode::Shared) {
+                return unsupported("a mutably captured variable (a shared cell)");
+            }
+            let l = self.b.cap_local[c].raw();
+            let t = self.sub(self.b.local_ty[l as usize]);
+            let vs = self.vts(t)?;
+            let ls = self.local(l)?;
+            for x in &ls {
+                self.a.get(*x);
+            }
+            fields.extend(vs);
+        }
+        let _ = sub;
+        let env = WTy::Struct {
+            fields,
+            sup: Some(Box::new(base)),
+            open: false,
+        };
+        self.a.struct_new(&env);
+        self.store(i)
+    }
+
+    fn coerce(&mut self, i: u32, v: u32, rec: u32, ty: Ty) -> StageResult<()> {
+        let r = self.rec(rec);
+        let kind = r[0];
+        let want = self.vts(ty)?;
+        if kind == Coercion::Never as u32 {
+            self.a.s().unreachable();
+            return Ok(());
+        }
+        if kind == Coercion::WrapSome as u32 {
+            let Shape::Opt(o, inner) = self.lay.shape(ty)? else {
+                return unsupported("an option wrap to a non-optional");
+            };
+            match &o {
+                OptShape::NullRef(_) | OptShape::NullStr => self.load_as(v, &want)?,
+                OptShape::Tagged(_) => {
+                    self.a.i32(1);
+                    self.load_as(v, &inner)?;
+                }
+                OptShape::Boxed(b, _) => {
+                    self.load_as(v, &inner)?;
+                    self.a.struct_new(b);
+                }
+            }
+            return self.store(i);
+        }
+        if kind == Coercion::ToTraitValue as u32 {
+            let Some(Target::VTable(trait_, slots)) = self.calls.get(&i).cloned() else {
+                return unsupported("a trait-value coercion that collection did not record");
+            };
+            let Shape::Dyn {
+                vt, args: targs, ..
+            } = self.lay.shape(ty)?
+            else {
+                return unsupported("a coercion to a non-trait type");
+            };
+            let from = self.ty_of(v);
+            let fv = self.vts(from)?;
+            self.erase(v, &fv)?;
+            let methods = self.env().trait_methods(trait_);
+            for (m, t) in methods.iter().zip(&slots) {
+                let sig = self.lay.slot_sig(trait_, targs, *m)?;
+                let target = Self::adapter_target(t)?;
+                let mut ps = Vec::new();
+                for p in self.env().params(t.item).unwrap_or_default() {
+                    ps.extend(self.vts(subst(self.pool(), self.env(), t.item, t.args, p))?);
+                }
+                if self.env().suspends(*m) {
+                    return unsupported("a vtable slot of a suspending method");
+                }
+                self.a.ref_func(Sym::Helper(Helper::Adapter {
+                    sig,
+                    self_vts: fv.clone(),
+                    target: Box::new(target),
+                    params: ps,
+                    results: self.vts(t.ret)?,
+                }));
+            }
+            self.a.struct_new(&vt);
+            return self.store(i);
+        }
+        if kind == Coercion::Weaken as u32
+            || kind == Coercion::Variance as u32
+            || kind == Coercion::RowSubsume as u32
+        {
+            self.load_as(v, &want)?;
+            return self.store(i);
+        }
+        unsupported(format!("the coercion kind {kind}"))
+    }
+
+    fn adapter_target(t: &CallTarget) -> StageResult<Sym> {
+        match t.kind {
+            TargetKind::Instance => Ok(Sym::Inst(t.key)),
+            _ => unsupported("a vtable slot filled by a compiler lowering"),
+        }
+    }
+
+    /// Pushes a value as `eqref` (§13.5.1, "As an open value").
+    fn erase(&mut self, v: u32, vts: &[VT]) -> StageResult<()> {
+        if let [x @ (VT::Eq | VT::Ref(..))] = vts {
+            self.comp(v, 0, x)
+        } else {
+            self.load_as(v, vts)?;
+            self.a.struct_new(&box_of(vts));
+            Ok(())
+        }
+    }
+
+    fn list_parts(&self, t: Ty) -> StageResult<(Vec<VT>, WTy)> {
+        match self.lay.shape(t)? {
+            Shape::List { elem, ty } => Ok((elem, ty)),
+            _ => unsupported("a list operation on a non-list"),
+        }
+    }
+
+    fn intrinsic(&mut self, i: u32, op: u32, rec: u32, ty: Ty) -> StageResult<()> {
+        let Some(op) = IntrinsicOp::from_u32(op) else {
+            return unsupported("an unknown intrinsic operation");
+        };
+        let args = self.rec(rec);
+        match op {
+            IntrinsicOp::ListLen | IntrinsicOp::MapLen => {
+                let t = self.ty_of(args[0]);
+                let (Shape::List { ty: lt, .. } | Shape::Map { ty: lt, .. }) = self.lay.shape(t)?
+                else {
+                    return unsupported("a length of a non-collection");
+                };
+                self.comp(args[0], 0, &VT::r(lt.clone()))?;
+                self.a.struct_get(&lt, 0);
+                self.store(i)
+            }
+            IntrinsicOp::ListIndex => {
+                let (elem, lt) = self.list_parts(self.ty_of(args[0]))?;
+                let l = self.a.local(VT::r(lt.clone()));
+                let ix = self.a.local(VT::I32);
+                self.comp(args[0], 0, &VT::r(lt.clone()))?;
+                self.a.set(l);
+                self.comp(args[1], 0, &VT::I32)?;
+                self.a.set(ix);
+                self.bounds(l, &lt, ix);
+                for (k, v) in elem.iter().enumerate() {
+                    let st = storage(v).dflt();
+                    self.a.get(l);
+                    self.a.struct_get(&lt, 1 + u32_of(k));
+                    self.a.get(ix);
+                    self.a.array_get(&WTy::Array(st.clone()));
+                    self.a.conv(&st, v);
+                }
+                self.store_from(i, &elem)
+            }
+            IntrinsicOp::ListSet => {
+                let (elem, lt) = self.list_parts(self.ty_of(args[0]))?;
+                let l = self.a.local(VT::r(lt.clone()));
+                let ix = self.a.local(VT::I32);
+                self.comp(args[0], 0, &VT::r(lt.clone()))?;
+                self.a.set(l);
+                self.comp(args[1], 0, &VT::I32)?;
+                self.a.set(ix);
+                self.bounds(l, &lt, ix);
+                for (k, v) in elem.iter().enumerate() {
+                    let st = storage(v).dflt();
+                    self.a.get(l);
+                    self.a.struct_get(&lt, 1 + u32_of(k));
+                    self.a.get(ix);
+                    self.comp(args[2], k, v)?;
+                    self.a.array_set(&WTy::Array(st));
+                }
+                Ok(())
+            }
+            IntrinsicOp::ListPush => {
+                let (elem, lt) = self.list_parts(self.ty_of(args[0]))?;
+                let l = self.a.local(VT::r(lt.clone()));
+                self.comp(args[0], 0, &VT::r(lt.clone()))?;
+                self.a.set(l);
+                let n = self.a.local(VT::I32);
+                self.a.get(l);
+                self.a.struct_get(&lt, 0);
+                self.a.set(n);
+                self.grow(l, &lt, n, 1, &elem);
+                for (k, v) in elem.iter().enumerate() {
+                    let st = storage(v).dflt();
+                    self.a.get(l);
+                    self.a.struct_get(&lt, 1 + u32_of(k));
+                    self.a.get(n);
+                    self.comp(args[1], k, v)?;
+                    self.a.array_set(&WTy::Array(st));
+                }
+                self.a.get(l);
+                self.a.get(n);
+                self.a.i32(1);
+                self.a.s().i32_add();
+                self.a.struct_set(&lt, 0);
+                Ok(())
+            }
+            IntrinsicOp::ListIter => self.list_iter(i, args[0], ty),
+            IntrinsicOp::StrConcat => self.concat(i, &args),
+            IntrinsicOp::StrEq => {
+                let sv = [VT::r(WTy::Bytes), VT::I64];
+                self.load_as(args[0], &sv)?;
+                self.load_as(args[1], &sv)?;
+                self.a.call(Sym::Helper(Helper::StrEq));
+                self.store(i)
+            }
+            IntrinsicOp::MapIndex | IntrinsicOp::MapGet | IntrinsicOp::MapSet => {
+                self.map_op(i, op, &args, ty)
+            }
+            other => unsupported(format!("the intrinsic operation {other:?}")),
+        }
+    }
+
+    /// `i < len` or the `index-out-of-bounds` panic.
+    fn bounds(&mut self, l: u32, lt: &WTy, ix: u32) {
+        self.a.get(ix);
+        self.a.get(l);
+        self.a.struct_get(lt, 0);
+        self.a.s().i32_ge_u();
+        self.a.if_();
+        self.panic("index-out-of-bounds: list index out of bounds");
+        self.a.end();
+    }
+
+    /// Grows the arrays `first..` of collection `l` (length in `n`) when full.
+    fn grow(&mut self, l: u32, lt: &WTy, n: u32, first: u32, comps: &[VT]) {
+        if comps.is_empty() {
+            return;
+        }
+        let cap = self.a.local(VT::I32);
+        self.a.get(n);
+        self.a.get(l);
+        self.a.struct_get(lt, first);
+        self.a.array_len();
+        self.a.s().i32_eq();
+        self.a.if_();
+        self.a.get(n);
+        self.a.i32(2);
+        self.a.s().i32_mul();
+        self.a.i32(4);
+        self.a.s().i32_add();
+        self.a.set(cap);
+        for (k, v) in comps.iter().enumerate() {
+            let arr = WTy::Array(storage(v).dflt());
+            let fresh = self.a.local(VT::r(arr.clone()));
+            self.a.get(cap);
+            self.a.array_new_default(&arr);
+            self.a.set(fresh);
+            self.a.get(fresh);
+            self.a.i32(0);
+            self.a.get(l);
+            self.a.struct_get(lt, first + u32_of(k));
+            self.a.i32(0);
+            self.a.get(n);
+            self.a.array_copy(&arr, &arr);
+            self.a.get(l);
+            self.a.get(fresh);
+            self.a.struct_set(lt, first + u32_of(k));
+        }
+        self.a.end();
+    }
+
+    fn list_iter(&mut self, i: u32, list: u32, ty: Ty) -> StageResult<()> {
+        let lt_ty = self.ty_of(list);
+        let (elem, lt) = self.list_parts(lt_ty)?;
+        let TyData::Adt { args, .. } = self.pool().get(match self.pool().get(lt_ty) {
+            TyData::Mut(x) => x,
+            _ => lt_ty,
+        }) else {
+            return unsupported("a list type");
+        };
+        let et = self.pool().list_items(args)[0];
+        let ot = self.pool().intern_ty(&TyData::Option(et));
+        let Shape::Opt(o, _) = self.lay.shape(ot)? else {
+            return unsupported("an optional element layout");
+        };
+        let opt = match o {
+            OptShape::NullRef(_) => OptForm::NullRef,
+            OptShape::NullStr => OptForm::NullStr,
+            OptShape::Tagged(_) => OptForm::Tagged,
+            OptShape::Boxed(b, _) => OptForm::Boxed(b),
+        };
+        let code = WTy::Func(vec![VT::Eq], self.vts(ot)?);
+        let base = crate::layout::closure_base(&code);
+        let env = WTy::Struct {
+            fields: vec![VT::r(code.clone()), VT::r(lt.clone()), VT::I32],
+            sup: Some(Box::new(base)),
+            open: false,
+        };
+        let Shape::Data { ty: it, .. } = self.lay.shape(ty)? else {
+            return unsupported("an iterator without a struct layout");
+        };
+        self.a.ref_func(Sym::Helper(Helper::ListStep {
+            code,
+            env: env.clone(),
+            list: lt.clone(),
+            elem,
+            opt,
+        }));
+        self.comp(list, 0, &VT::r(lt))?;
+        self.a.i32(0);
+        self.a.struct_new(&env);
+        self.a.struct_new(&it);
+        self.store(i)
+    }
+
+    /// Map operations over the insertion-ordered arrays: a linear key
+    /// search (the bucketing hash is not built yet).
+    fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32], ty: Ty) -> StageResult<()> {
+        let Shape::Map { key, val, ty: mt } = self.lay.shape(self.ty_of(args[0]))? else {
+            return unsupported("a map operation on a non-map");
+        };
+        let m = self.a.local(VT::r(mt.clone()));
+        self.comp(args[0], 0, &VT::r(mt.clone()))?;
+        self.a.set(m);
+        let kl: Vec<u32> = key.iter().map(|v| self.a.local(v.clone())).collect();
+        for (k, v) in key.iter().enumerate() {
+            self.comp(args[1], k, v)?;
+            self.a.set(kl[k]);
+        }
+        let (n, at, j) = (
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+            self.a.local(VT::I32),
+        );
+        self.a.get(m);
+        self.a.struct_get(&mt, 0);
+        self.a.set(n);
+        self.a.i32(-1);
+        self.a.set(at);
+        self.a.i32(0);
+        self.a.set(j);
+        self.a.block();
+        self.a.loop_();
+        self.a.get(j);
+        self.a.get(n);
+        self.a.s().i32_ge_u();
+        self.a.br_if(1);
+        match key.as_slice() {
+            [VT::I32 | VT::I64] => {
+                let st = key[0].clone();
+                self.a.get(m);
+                self.a.struct_get(&mt, 1);
+                self.a.get(j);
+                self.a.array_get(&WTy::Array(st.clone()));
+                self.a.get(kl[0]);
+                if st == VT::I64 {
+                    self.a.s().i64_eq();
+                } else {
+                    self.a.s().i32_eq();
+                }
+            }
+            [VT::Ref(t, false), VT::I64] if **t == WTy::Bytes => {
+                let bn = VT::rn(WTy::Bytes);
+                self.a.get(m);
+                self.a.struct_get(&mt, 1);
+                self.a.get(j);
+                self.a.array_get(&WTy::Array(bn.clone()));
+                self.a.s().ref_as_non_null();
+                self.a.get(m);
+                self.a.struct_get(&mt, 2);
+                self.a.get(j);
+                self.a.array_get(&WTy::Array(VT::I64));
+                self.a.get(kl[0]);
+                self.a.get(kl[1]);
+                self.a.call(Sym::Helper(Helper::StrEq));
+            }
+            _ => return unsupported("a map key type other than an integer or a string"),
+        }
+        self.a.if_();
+        self.a.get(j);
+        self.a.set(at);
+        self.a.br(2);
+        self.a.end();
+        self.a.get(j);
+        self.a.i32(1);
+        self.a.s().i32_add();
+        self.a.set(j);
+        self.a.br(0);
+        self.a.end();
+        self.a.end();
+        let vfirst = 1 + u32_of(key.len());
+        let read = |em: &mut Self| {
+            for (k, v) in val.iter().enumerate() {
+                let st = storage(v).dflt();
+                em.a.get(m);
+                em.a.struct_get(&mt, vfirst + u32_of(k));
+                em.a.get(at);
+                em.a.array_get(&WTy::Array(st.clone()));
+                em.a.conv(&st, v);
+            }
+        };
+        match op {
+            IntrinsicOp::MapIndex => {
+                self.a.get(at);
+                self.a.i32(0);
+                self.a.s().i32_lt_s();
+                self.a.if_();
+                self.panic("key-not-found: map key not found");
+                self.a.end();
+                read(self);
+                self.store_from(i, &val)
+            }
+            IntrinsicOp::MapGet => {
+                let Shape::Opt(o, _) = self.lay.shape(ty)? else {
+                    return unsupported("a map lookup without an optional result");
+                };
+                let res = self.result(i)?;
+                let want = self.vals[&i].1.clone();
+                self.a.get(at);
+                self.a.i32(0);
+                self.a.s().i32_ge_s();
+                self.a.if_();
+                if matches!(o, OptShape::Tagged(_)) {
+                    self.a.i32(1);
+                }
+                read(self);
+                if let OptShape::Boxed(b, _) = &o {
+                    self.a.struct_new(b);
+                }
+                for l in res.iter().rev() {
+                    self.a.set(*l);
+                }
+                self.a.else_();
+                for (l, v) in res.iter().zip(&want) {
+                    self.a.zero(&v.dflt());
+                    self.a.set(*l);
+                }
+                self.a.end();
+                Ok(())
+            }
+            _ => {
+                // MapSet: overwrite, or append both key and value.
+                self.a.get(at);
+                self.a.i32(0);
+                self.a.s().i32_lt_s();
+                self.a.if_();
+                let comps: Vec<VT> = key.iter().chain(&val).cloned().collect();
+                self.grow(m, &mt, n, 1, &comps);
+                for (k, v) in key.iter().enumerate() {
+                    self.a.get(m);
+                    self.a.struct_get(&mt, 1 + u32_of(k));
+                    self.a.get(n);
+                    self.a.get(kl[k]);
+                    self.a.array_set(&WTy::Array(storage(v).dflt()));
+                }
+                self.a.get(n);
+                self.a.set(at);
+                self.a.get(m);
+                self.a.get(n);
+                self.a.i32(1);
+                self.a.s().i32_add();
+                self.a.struct_set(&mt, 0);
+                self.a.end();
+                for (k, v) in val.iter().enumerate() {
+                    self.a.get(m);
+                    self.a.struct_get(&mt, vfirst + u32_of(k));
+                    self.a.get(at);
+                    self.comp(args[2], k, v)?;
+                    self.a.array_set(&WTy::Array(storage(v).dflt()));
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// The Wasm signature of an instance: its parameters' values, then one
+/// trait value per row key (codegen.md §12.4); a closure's code takes its
+/// environment first.
+pub fn signature(
+    lay: &Lay<'_>,
+    b: &Body,
+    sub: u16,
+    args: TyList,
+    ret: Ty,
+) -> StageResult<(Vec<VT>, Vec<VT>, Vec<u32>)> {
+    let item = b.item;
+    let s = |t: Ty| subst(lay.pool, lay.env, item, args, t);
+    let mut params = Vec::new();
+    let mut plocals = Vec::new();
+    if sub == 0 {
+        let mut in_sub = vec![false; b.local_ty.len()];
+        for r in &b.sub_params[1..] {
+            for &l in &b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize] {
+                if let Some(x) = in_sub.get_mut(l as usize) {
+                    *x = true;
+                }
+            }
+        }
+        for (l, sub_param) in in_sub.iter().enumerate() {
+            if b.local_flags[l] & local_flags::PARAM != 0 && !sub_param {
+                plocals.push(u32_of(l));
+            }
+        }
+        for &l in &plocals {
+            params.extend(lay.vts(s(b.local_ty[l as usize]))?);
+        }
+        for k in lay.env.row_keys(item) {
+            params.push(VT::Eq);
+            params.push(VT::r(lay.vtable(k, TyList::EMPTY)?));
+        }
+        let results = lay.vts(s(ret))?;
+        Ok((params, results, plocals))
+    } else {
+        let r = b.sub_params[sub as usize];
+        plocals = b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize].to_vec();
+        params.push(VT::Eq);
+        for &l in &plocals {
+            params.extend(lay.vts(s(b.local_ty[l as usize]))?);
+        }
+        let Some(ci) =
+            (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub))
+        else {
+            return unsupported("a closure body without its closure");
+        };
+        let Shape::Fn { code, .. } = lay.shape(s(b.ty[ci]))? else {
+            return unsupported("a closure without a function type");
+        };
+        let WTy::Func(_, rs) = code else {
+            return unsupported("a closure code type");
+        };
+        Ok((params, rs, plocals))
+    }
+}
+
+/// `Emit(inst)`: walks the generic TIR of sub-body `sub` under the
+/// instance's arguments.
+pub fn emit(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    b: &Body,
+    sub: u16,
+    args: TyList,
+    ret: Ty,
+    calls: &HashMap<u32, Target>,
+) -> StageResult<Code> {
+    let lay = Lay { pool, env, path };
+    let (params, results, plocals) = signature(&lay, b, sub, args, ret)?;
+    let mut em = Em {
+        lay,
+        b,
+        item: b.item,
+        args,
+        calls,
+        a: Asm::new(params.clone()),
+        locals: vec![None; b.local_ty.len()],
+        vals: HashMap::new(),
+        ctrl: Vec::new(),
+        deciding: Vec::new(),
+        providers: Vec::new(),
+    };
+    let s = |t: Ty| subst(pool, env, b.item, args, t);
+    // Parameters are the first Wasm locals, in order.
+    let mut next = u32::from(sub != 0);
+    let mut copies = Vec::new();
+    for &l in &plocals {
+        let n = u32_of(em.lay.vts(s(b.local_ty[l as usize]))?.len());
+        let ls: Vec<u32> = (next..next + n).collect();
+        next += n;
+        // A parameter that is assigned gets a defaultable copy.
+        copies.push((l, ls));
+    }
+    for (l, ls) in copies {
+        em.locals[l as usize] = Some(ls);
+    }
+    if sub == 0 {
+        for k in env.row_keys(b.item) {
+            em.providers.push((k, [next, next + 1]));
+            next += 2;
+        }
+    } else {
+        // The closure's environment: captured values into their locals.
+        let Some(ci) =
+            (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub))
+        else {
+            return unsupported("a closure body without its closure");
+        };
+        let Shape::Fn { base, code } = em.lay.shape(s(b.ty[ci]))? else {
+            return unsupported("a closure without a function type");
+        };
+        let caps = b.record(b.data[ci][1]).to_vec();
+        let mut fields = vec![VT::r(code)];
+        let mut cl = Vec::new();
+        for c in caps[0] as usize..(caps[0] + caps[1]) as usize {
+            let l = b.cap_local[c].raw();
+            let vs = em.lay.vts(s(b.local_ty[l as usize]))?;
+            let ls = em.local(l)?;
+            for (k, v) in vs.iter().enumerate() {
+                cl.push((u32_of(fields.len()), ls[k], v.clone()));
+                fields.push(v.clone());
+            }
+        }
+        let env_ty = WTy::Struct {
+            fields,
+            sup: Some(Box::new(base)),
+            open: false,
+        };
+        let e = em.a.local(VT::r(env_ty.clone()));
+        em.a.get(0);
+        em.a.ref_cast(&env_ty, false);
+        em.a.set(e);
+        for (f, l, _) in cl {
+            em.a.get(e);
+            em.a.struct_get(&env_ty, f);
+            em.a.set(l);
+        }
+    }
+    let root = b.sub_root[sub as usize];
+    em.ctrl.push(Ctl::Plain);
+    em.block_into(root, None)?;
+    let tail = b.data[root as usize][1];
+    if tail == NONE {
+        if !results.is_empty() {
+            em.a.s().unreachable();
+        }
+    } else {
+        em.load_as(tail, &results)?;
+    }
+    Ok(em.a.finish(results))
+}
+
+/// The entry wrapper of `main` (codegen.md §13.1): one default-profile
+/// provider per row key, each a vtable of host stubs generated from
+/// `hd_host_abi::TABLE` (runtime-and-host.md §17.1).
+pub fn entry(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    main: DefId,
+    key: hd_base::Hash128,
+) -> StageResult<Helper> {
+    let lay = Lay { pool, env, path };
+    let mut providers = Vec::new();
+    for k in env.row_keys(main) {
+        let p = path(k);
+        let Some(host) = hd_host_abi::TABLE
+            .iter()
+            .find(|t| t.std_path.replace('.', "/") == p)
+        else {
+            return unsupported(format!("a default provider for `{p}`"));
+        };
+        let vt = lay.vtable(k, TyList::EMPTY)?;
+        let mut slots = Vec::new();
+        for m in env.trait_methods(k) {
+            let sig = lay.slot_sig(k, TyList::EMPTY, m)?;
+            let mp = path(m);
+            let name = mp.rsplit(['.', '/']).next().unwrap_or("");
+            // A method the table does not list runs its default body,
+            // which for `write_error_line!` is the first method's call.
+            let Some(hm) = host
+                .methods
+                .iter()
+                .find(|x| x.name == name)
+                .or_else(|| host.methods.first())
+            else {
+                return unsupported(format!("the host method `{name}`"));
+            };
+            if !env.suspends(m)
+                || hm.wait != hd_host_abi::Wait::May
+                || hm.params != [hd_host_abi::Codec::Buffer("string")]
+            {
+                return unsupported(format!("the host method shape of `{}.{name}`", host.key));
+            }
+            let full = pool.list(&[hd_mono::class_ref(pool)]);
+            let ret = subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID));
+            let result = lay.vts(ret)?;
+            let (base, poll_ty) = crate::layout::suspend_base(&result);
+            let frame = WTy::Struct {
+                fields: vec![VT::r(poll_ty), VT::r(WTy::Bytes), VT::I64, VT::I32],
+                sup: Some(Box::new(base)),
+                open: false,
+            };
+            let poller = Helper::HostPoll {
+                frame: frame.clone(),
+                module: format!("hd:{}", host.key),
+                method: hm.name.to_owned(),
+                result,
+            };
+            slots.push(Helper::HostCold {
+                sig,
+                frame,
+                poll: Box::new(poller),
+            });
+        }
+        providers.push((vt, slots));
+    }
+    let results = lay.vts(env.ret(main).unwrap_or(Ty::VOID))?;
+    Ok(Helper::Entry {
+        main: key,
+        providers,
+        results: u32_of(results.len()),
+    })
+}

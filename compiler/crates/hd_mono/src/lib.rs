@@ -2,8 +2,10 @@
 //! `hd_mono`: monomorphizing collection (codegen.md §13.1 to §13.3) over
 //! `hd_tir::ir` bodies into the `InstanceTable`, with A1 classes and
 //! instance keys from `layout`, and trait selection through the solver's
-//! `select`. Collection records each call's target, so emission never
-//! selects again. Reads TIR and interfaces only, never syntax.
+//! `select` plus a head match. Collection records each call's target, each
+//! closure's code instance and each trait-value coercion's vtable, so
+//! emission never selects again. Reads TIR and interfaces only, never
+//! syntax. Bodies of every package (std included) are collected alike.
 
 pub mod layout;
 pub mod passes;
@@ -12,28 +14,48 @@ pub mod suspend;
 use std::collections::{BTreeSet, HashMap};
 
 use hd_base::{DefId, Hash128, InstId, ModuleId, NotImplemented, StableHasher, Stage, StageResult};
-use hd_tir::ir::{Body, Callee, ChoiceKind, Tag};
+use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, Tag};
 use hd_types::solver::{ConcreteTraitRef, ImplTable, Solver, TraitRef};
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
-use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, instance_key};
+use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, canon, instance_key};
 
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
     fn body(&self, def: DefId) -> Option<&Body>;
-    /// The compiler-provided lowering of an instance whose item has no
-    /// TIR of its own (`hd_host_abi::std_lowering`).
-    fn lowering(&self, def: DefId, args: TyList) -> Option<u32>;
-    /// Per type parameter: has a bound (A1, codegen.md §13.2: exact).
+    /// Per type parameter of the item itself: has a bound (A1, codegen.md
+    /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
     /// The declared result type.
     fn ret(&self, def: DefId) -> Option<Ty>;
+    /// The declared parameter types (`self` first for a method).
+    fn params(&self, def: DefId) -> Option<Vec<Ty>>;
+    /// Whether the function suspends (`fn f!`).
+    fn suspends(&self, def: DefId) -> bool;
+    /// The requirement keys of the function's row, as trait items, in
+    /// key order (codegen.md §12.4).
+    fn row_keys(&self, def: DefId) -> Vec<DefId>;
+    /// A method's owner (impl or trait) and how many of the instance's
+    /// arguments are the owner's: an impl's parameters, or a trait's
+    /// `Self` and parameters.
+    fn parent(&self, def: DefId) -> Option<(DefId, usize)>;
+    /// An impl's head: self type, trait arguments, parameter count.
+    fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
     /// The method of `impl_` that implements the trait method `method`.
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId>;
+    /// A trait's own methods, in declaration order (the vtable shape).
+    fn trait_methods(&self, trait_: DefId) -> Vec<DefId>;
+    /// A trait's own parameter count, `Self` excluded.
+    fn trait_arity(&self, trait_: DefId) -> usize;
+    /// The compiler's lowering key of a body-less std function
+    /// (`@intrinsic("key")`, or a compiler-supplied item by name).
+    fn intrinsic(&self, def: DefId) -> Option<String>;
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
     fn path_hash(&self, def: DefId) -> Hash128;
+    /// The item's stable path, for diagnostics.
+    fn describe(&self, def: DefId) -> String;
     fn impl_tables(&self) -> Vec<(ModuleId, &ImplTable)>;
 }
 
@@ -49,25 +71,49 @@ pub fn is_class_ref(pool: &InternPool, t: Ty) -> bool {
     pool.get(t) == TyData::Canon(0xF0)
 }
 
-/// Where one call goes: the callee instance's key and its result type
-/// under its own arguments (an erased result is cast back at the caller).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// How a call is lowered.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TargetKind {
+    /// A direct call of a collected instance.
+    Instance,
+    /// A compiler lowering of a body-less std function, by intrinsic key.
+    Intrinsic(String),
+    /// A body-less method of a built-in family (`impl[N < Num] Display for
+    /// N`): the method's name at a concrete self type.
+    Builtin { method: String, self_ty: Ty },
+}
+
+/// Where one call goes: the callee instance's key, its item, arguments and
+/// result type under its own arguments (an erased result is cast back at
+/// the caller).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallTarget {
     pub key: Hash128,
+    pub item: DefId,
+    pub args: TyList,
     pub ret: Ty,
-    /// A compiler-provided lowering: the call is this host import
-    /// (`hd_host_abi::STD_LOWERINGS` index) instead of an instance.
-    pub import: Option<u32>,
+    pub kind: TargetKind,
+}
+
+/// What collection recorded for one instruction.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Target {
+    Call(CallTarget),
+    /// A coercion to a trait value: the trait and one target per vtable slot.
+    VTable(DefId, Vec<CallTarget>),
+    /// A closure's code instance.
+    Closure(Hash128),
 }
 
 /// The output of `Collect` (codegen.md §11.3).
 #[derive(Debug, Default)]
 pub struct Collected {
     pub table: InstanceTable,
-    /// Per instance: each `Call` instruction's target.
-    pub calls: Vec<HashMap<u32, CallTarget>>,
-    /// Per instance: the hash of its callees' representation summaries,
-    /// in call order (walking skeleton, SK-3); each code key holds it.
+    /// Per instance: each instruction's target.
+    pub calls: Vec<HashMap<u32, Target>>,
+    /// Per instance: the hash of what its code reads besides its own TIR:
+    /// callees' representation summaries and signatures (walking skeleton,
+    /// SK-3) and the layouts of its types; each code key holds it.
     pub callee_reps: Vec<Hash128>,
     pub imports: BTreeSet<u32>,
     /// Data types the program builds or reads.
@@ -87,14 +133,21 @@ impl DefIdOrd {
     }
 }
 
-/// Substitutes an instance's arguments for its item's parameters.
+/// Substitutes an instance's arguments for its item's parameters: the
+/// owner's (impl or trait) first, then the item's own.
 #[must_use]
-pub fn subst(pool: &InternPool, item: DefId, args: TyList, t: Ty) -> Ty {
+pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
     let a = pool.list_items(args);
+    let parent = env.parent(item);
+    let n = parent.map_or(0, |p| p.1);
     pool.subst(t, &|p: ParamRef| {
-        (p.owner == item)
-            .then(|| a.get(p.index as usize).copied())
-            .flatten()
+        if p.owner == item {
+            a.get(n + p.index as usize).copied()
+        } else if parent.is_some_and(|(o, _)| o == p.owner) {
+            a.get(p.index as usize).copied()
+        } else {
+            None
+        }
     })
 }
 
@@ -111,8 +164,410 @@ fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
         .collect()
 }
 
+/// Matches an impl head's `pattern` (over the parameters of `owner`)
+/// against a concrete type, filling `out`.
+fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Option<Ty>>) {
+    let strip = |x: Ty| match pool.get(x) {
+        TyData::Mut(i) => i,
+        _ => x,
+    };
+    let (pattern, t) = (strip(pattern), strip(t));
+    match (pool.get(pattern), pool.get(t)) {
+        (TyData::Param(p), _) if p.owner == owner => {
+            let i = p.index as usize;
+            if out.len() <= i {
+                out.resize(i + 1, None);
+            }
+            out[i].get_or_insert(t);
+        }
+        (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
+        | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
+        | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => {
+            for (x, y) in pool.list_items(a).into_iter().zip(pool.list_items(b)) {
+                unify(pool, owner, x, y, out);
+            }
+        }
+        (TyData::Option(x), TyData::Option(y)) => unify(pool, owner, x, y, out),
+        (
+            TyData::Fn {
+                params: a,
+                result: r,
+                ..
+            },
+            TyData::Fn {
+                params: b,
+                result: s,
+                ..
+            },
+        ) => {
+            for (x, y) in pool.list_items(a).into_iter().zip(pool.list_items(b)) {
+                unify(pool, owner, x, y, out);
+            }
+            unify(pool, owner, r, s, out);
+        }
+        _ => {}
+    }
+}
+
+/// The hash of a type's layout-relevant shape: its canonical form and,
+/// for a declared type, its fields' (codegen.md §13.8 `layout_hash`).
+fn layout_hash(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, h: &mut StableHasher, depth: u8) {
+    let ph = |d: DefId| env.path_hash(d);
+    canon(pool, &ph, t, h);
+    if depth > 4 {
+        return;
+    }
+    if let TyData::Adt { def, args } = pool.get(t) {
+        for f in env.data_fields(def).unwrap_or_default() {
+            layout_hash(pool, env, subst(pool, env, def, args, f), h, depth + 1);
+        }
+        for v in env.enum_variants(def, args).unwrap_or_default() {
+            for f in v {
+                layout_hash(pool, env, f, h, depth + 1);
+            }
+        }
+    }
+}
+
+struct Cx<'a> {
+    pool: &'a InternPool,
+    env: &'a dyn ProgramEnv,
+    solver: &'a dyn Solver,
+    tables: Vec<(ModuleId, &'a ImplTable)>,
+    out: Collected,
+    work: Vec<InstId>,
+}
+
+fn err<T>(what: &str) -> StageResult<T> {
+    Err(NotImplemented::new(Stage::Collect, what))
+}
+
+impl Cx<'_> {
+    fn key(&self, item: DefId, sub: u16, args: TyList) -> Hash128 {
+        let ph = |d: DefId| self.env.path_hash(d);
+        instance_key(self.pool, &ph, item, sub, &key_args(self.pool, args))
+    }
+
+    /// Pushes an instance; returns its key.
+    fn push(
+        &mut self,
+        item: DefId,
+        sub: u16,
+        args: TyList,
+        depth: u8,
+        parent: InstId,
+    ) -> StageResult<Hash128> {
+        let key = self.key(item, sub, args);
+        let (id, new) =
+            self.out
+                .table
+                .push(item, sub, args, depth.saturating_add(1), parent, key)?;
+        if new {
+            self.work.push(id);
+        }
+        Ok(key)
+    }
+
+    /// A1 (codegen.md §13.2): an unbounded, move-only argument of a
+    /// reference layout is keyed and laid out as the class `REF`.
+    fn classify(&self, def: DefId, args: &[Ty], own_from: usize) -> StageResult<TyList> {
+        let bounded = self.env.bounded(def).unwrap_or_default();
+        let mut a = Vec::new();
+        for (k, &t) in args.iter().enumerate() {
+            let exact = k < own_from
+                || bounded.get(k - own_from).copied().unwrap_or(true)
+                || is_class_ref(self.pool, t)
+                || self.env.body(def).is_none();
+            a.push(
+                if !exact && a1_class(self.pool, self.env, t)? == A1Class::Ref {
+                    class_ref(self.pool)
+                } else {
+                    t
+                },
+            );
+        }
+        Ok(self.pool.list(&a))
+    }
+
+    /// The target of a call of `def` at full arguments `args`.
+    fn target(
+        &mut self,
+        def: DefId,
+        args: TyList,
+        depth: u8,
+        parent: InstId,
+    ) -> StageResult<CallTarget> {
+        let ret = self.env.ret(def).unwrap_or(Ty::VOID);
+        if self.env.body(def).is_none() {
+            let Some(key) = self.env.intrinsic(def) else {
+                return Err(NotImplemented::new(
+                    Stage::Collect,
+                    format!(
+                        "a call of the body-less `{}`, which is not an intrinsic",
+                        self.env.describe(def)
+                    ),
+                ));
+            };
+            return Ok(CallTarget {
+                key: Hash128(0),
+                item: def,
+                args,
+                ret: subst(self.pool, self.env, def, args, ret),
+                kind: TargetKind::Intrinsic(key),
+            });
+        }
+        let own_from = self.env.parent(def).map_or(0, |p| p.1);
+        let args = self.classify(def, &self.pool.list_items(args), own_from)?;
+        let key = self.push(def, 0, args, depth, parent)?;
+        Ok(CallTarget {
+            key,
+            item: def,
+            args,
+            ret: subst(self.pool, self.env, def, args, ret),
+            kind: TargetKind::Instance,
+        })
+    }
+
+    /// Selects the implementation of `trait_` for `self_ty` (codegen.md
+    /// §13.2 `select`): the impl and its arguments.
+    fn select(
+        &self,
+        trait_: DefId,
+        self_ty: Ty,
+        trait_args: TyList,
+        choice: Option<DefId>,
+    ) -> StageResult<(DefId, Vec<Ty>)> {
+        let impl_ = if let Some(d) = choice {
+            d
+        } else {
+            {
+                let tref = ConcreteTraitRef(TraitRef {
+                    trait_,
+                    self_ty,
+                    args: trait_args,
+                });
+                let sel = self.solver.select(self.pool, &self.tables, tref)?;
+                let Some((_, t)) = self.tables.iter().find(|(m, _)| *m == sel.impl_row.module)
+                else {
+                    return err("a selection outside the impl tables");
+                };
+                t.def[sel.impl_row.row as usize]
+            }
+        };
+        let Some((head, targs, n)) = self.env.impl_head(impl_) else {
+            return err("a selected impl without a head");
+        };
+        let mut out = vec![None; n];
+        unify(self.pool, impl_, head, self_ty, &mut out);
+        for (x, y) in self
+            .pool
+            .list_items(targs)
+            .into_iter()
+            .zip(self.pool.list_items(trait_args))
+        {
+            unify(self.pool, impl_, x, y, &mut out);
+        }
+        let mut args = Vec::new();
+        for a in out.into_iter().take(n) {
+            let Some(a) = a else {
+                return err("an impl parameter that its head does not fix (a `Bind` step)");
+            };
+            args.push(a);
+        }
+        Ok((impl_, args))
+    }
+
+    /// The target of a trait method at a concrete self type: the impl's
+    /// method, the trait's default body, or a built-in lowering.
+    fn method_target(
+        &mut self,
+        trait_: DefId,
+        method: DefId,
+        self_ty: Ty,
+        targs: &[Ty],
+        choice: Option<DefId>,
+        depth: u8,
+        parent: InstId,
+    ) -> StageResult<CallTarget> {
+        let n_trait = self.env.trait_arity(trait_);
+        let trait_args = self.pool.list(&targs[..n_trait.min(targs.len())]);
+        let method_args = &targs[n_trait.min(targs.len())..];
+        let (impl_, impl_args) = self.select(trait_, self_ty, trait_args, choice)?;
+        match self.env.impl_method(impl_, method) {
+            Some(m) if self.env.body(m).is_some() => {
+                let mut all = impl_args;
+                all.extend_from_slice(method_args);
+                self.target(m, self.pool.list(&all), depth, parent)
+            }
+            Some(m) => Ok(CallTarget {
+                key: Hash128(0),
+                item: m,
+                args: TyList::EMPTY,
+                ret: subst(
+                    self.pool,
+                    self.env,
+                    method,
+                    self.pool.list(&[&[self_ty], targs].concat()),
+                    self.env.ret(method).unwrap_or(Ty::VOID),
+                ),
+                kind: TargetKind::Builtin {
+                    method: String::new(),
+                    self_ty,
+                },
+            }),
+            None => {
+                let mut all = vec![self_ty];
+                all.extend_from_slice(targs);
+                self.target(method, self.pool.list(&all), depth, parent)
+            }
+        }
+    }
+
+    fn scan(&mut self, id: InstId) -> StageResult<()> {
+        let (item, sub, args, depth) = (
+            self.out.table.item[id.idx()],
+            self.out.table.sub[id.idx()],
+            self.out.table.args[id.idx()],
+            self.out.table.depth[id.idx()],
+        );
+        let pool = self.pool;
+        let env = self.env;
+        let Some(body) = env.body(item) else {
+            return err("an instance whose item has no TIR");
+        };
+        let mut calls = HashMap::new();
+        let mut reps = StableHasher::new("callee-reps");
+        let mut seen = std::collections::HashSet::new();
+        let s = |t: Ty| subst(pool, env, item, args, t);
+        for i in 0..body.len() {
+            let ty = s(body.ty[i]);
+            if seen.insert(ty) {
+                layout_hash(pool, env, ty, &mut reps, 0);
+            }
+            note_data(pool, env, ty, &mut self.out.data);
+            let ix = u32::try_from(i).expect("insts");
+            let [a, b] = body.data[i];
+            match body.tags[i] {
+                Tag::CallHost => {
+                    self.out.imports.insert(a);
+                }
+                Tag::Call | Tag::Await => {
+                    let Some(c) = Callee::from_words(body.record(a)) else {
+                        return err("a malformed callee record");
+                    };
+                    let t = match c {
+                        Callee::Item { def, targs } => {
+                            let targs: Vec<Ty> =
+                                pool.list_items(targs).into_iter().map(s).collect();
+                            self.target(def, pool.list(&targs), depth, id)?
+                        }
+                        Callee::TraitMethod {
+                            trait_,
+                            method,
+                            self_ty,
+                            targs,
+                            choice,
+                        } => {
+                            let self_ty = s(self_ty);
+                            let targs: Vec<Ty> =
+                                pool.list_items(targs).into_iter().map(s).collect();
+                            let pick = match choice.0 {
+                                ChoiceKind::Impl => Some(DefId::from_raw(choice.1)),
+                                ChoiceKind::Bound => None,
+                                ChoiceKind::TraitValue => continue,
+                                ChoiceKind::Builtin => {
+                                    let name = env.path_hash(method);
+                                    reps.hash(name);
+                                    calls.insert(
+                                        ix,
+                                        Target::Call(CallTarget {
+                                            key: Hash128(0),
+                                            item: method,
+                                            args: TyList::EMPTY,
+                                            ret: ty,
+                                            kind: TargetKind::Builtin {
+                                                method: String::new(),
+                                                self_ty,
+                                            },
+                                        }),
+                                    );
+                                    continue;
+                                }
+                            };
+                            if matches!(pool.get(self_ty), TyData::TraitValue { .. }) {
+                                continue;
+                            }
+                            self.method_target(trait_, method, self_ty, &targs, pick, depth, id)?
+                        }
+                    };
+                    reps.hash(env.path_hash(t.item));
+                    reps.hash(t.key);
+                    let ph = |d: DefId| env.path_hash(d);
+                    canon(pool, &ph, t.ret, &mut reps);
+                    for p in env.params(t.item).unwrap_or_default() {
+                        canon(pool, &ph, subst(pool, env, t.item, t.args, p), &mut reps);
+                    }
+                    for b in env.bounded(t.item).unwrap_or_default() {
+                        reps.u8(u8::from(b));
+                    }
+                    for k in env.row_keys(t.item) {
+                        reps.hash(env.path_hash(k));
+                    }
+                    calls.insert(ix, Target::Call(t));
+                }
+                Tag::Closure => {
+                    let sub_k = u16::try_from(a).expect("subs");
+                    let key = self.push(item, sub_k, args, depth, id)?;
+                    calls.insert(ix, Target::Closure(key));
+                }
+                Tag::Coerce => {
+                    let rec = body.record(b);
+                    if rec.first().copied() != Some(Coercion::ToTraitValue as u32) {
+                        continue;
+                    }
+                    let from = s(body.ty[a as usize]);
+                    let from = match pool.get(from) {
+                        TyData::Mut(x) => x,
+                        _ => from,
+                    };
+                    let to = match pool.get(ty) {
+                        TyData::Mut(x) => x,
+                        _ => ty,
+                    };
+                    let TyData::TraitValue {
+                        def: trait_,
+                        args: trait_args,
+                        ..
+                    } = pool.get(to)
+                    else {
+                        return err("a trait-value coercion to a non-trait type");
+                    };
+                    let targs = pool.list_items(trait_args);
+                    let mut slots = Vec::new();
+                    for m in env.trait_methods(trait_) {
+                        let t = self.method_target(trait_, m, from, &targs, None, depth, id)?;
+                        reps.hash(t.key);
+                        slots.push(t);
+                    }
+                    calls.insert(ix, Target::VTable(trait_, slots));
+                }
+                _ => {}
+            }
+        }
+        reps.u16(sub);
+        if self.out.calls.len() <= id.idx() {
+            self.out.calls.resize_with(id.idx() + 1, HashMap::new);
+            self.out.callee_reps.resize(id.idx() + 1, Hash128(0));
+        }
+        self.out.calls[id.idx()] = calls;
+        self.out.callee_reps[id.idx()] = reps.finish();
+        Ok(())
+    }
+}
+
 fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<DefIdOrd>) {
     if let TyData::Adt { def, .. } = pool.get(t)
+        && env.data_fields(def).is_some()
         && out.insert(DefIdOrd(env.path_hash(def), def.raw()))
     {
         for f in env.data_fields(def).unwrap_or_default() {
@@ -129,149 +584,24 @@ pub fn collect(
     solver: &dyn Solver,
     root: DefId,
 ) -> StageResult<Collected> {
-    let ph = |d: DefId| env.path_hash(d);
-    let mut out = Collected::default();
-    let root_key = instance_key(pool, &ph, root, 0, &[]);
-    let (first, _) = out
-        .table
-        .push(root, 0, TyList::EMPTY, 0, InstId::NONE, root_key)?;
-    let mut work = vec![first];
-    let tables = env.impl_tables();
-    while let Some(id) = work.pop() {
-        let (item, args, depth) = (
-            out.table.item[id.idx()],
-            out.table.args[id.idx()],
-            out.table.depth[id.idx()],
-        );
-        let Some(body) = env.body(item) else {
-            return Err(NotImplemented::new(
-                Stage::Collect,
-                "an instance whose item has no TIR",
-            ));
-        };
-        let mut calls = HashMap::new();
-        let mut reps = StableHasher::new("callee-reps");
-        for i in 0..body.len() {
-            note_data(
-                pool,
-                env,
-                subst(pool, item, args, body.ty[i]),
-                &mut out.data,
-            );
-            match body.tags[i] {
-                Tag::CallHost => {
-                    out.imports.insert(body.data[i][0]);
-                }
-                Tag::Call => {
-                    let Some(c) = Callee::from_words(body.record(body.data[i][0])) else {
-                        return Err(NotImplemented::new(
-                            Stage::Collect,
-                            "a malformed callee record",
-                        ));
-                    };
-                    let (callee, cargs) = match c {
-                        Callee::Item { def, targs } => {
-                            let bounded = env.bounded(def).unwrap_or_default();
-                            let mut a = Vec::new();
-                            for (k, t) in pool.list_items(targs).into_iter().enumerate() {
-                                let t = subst(pool, item, args, t);
-                                let exact = bounded.get(k).copied().unwrap_or(true)
-                                    || is_class_ref(pool, t);
-                                a.push(if !exact && a1_class(pool, env, t)? == A1Class::Ref {
-                                    class_ref(pool)
-                                } else {
-                                    t
-                                });
-                            }
-                            (def, pool.list(&a))
-                        }
-                        Callee::TraitMethod {
-                            trait_,
-                            method,
-                            self_ty,
-                            choice,
-                            ..
-                        } => {
-                            let self_ty = subst(pool, item, args, self_ty);
-                            let impl_ = match choice.0 {
-                                ChoiceKind::Impl => DefId::from_raw(choice.1),
-                                ChoiceKind::Bound => {
-                                    let tref = ConcreteTraitRef(TraitRef {
-                                        trait_,
-                                        self_ty,
-                                        args: TyList::EMPTY,
-                                    });
-                                    let sel = solver.select(pool, &tables, tref)?;
-                                    let Some((_, t)) =
-                                        tables.iter().find(|(m, _)| *m == sel.impl_row.module)
-                                    else {
-                                        return Err(NotImplemented::new(
-                                            Stage::Collect,
-                                            "a selection outside the impl tables",
-                                        ));
-                                    };
-                                    t.def[sel.impl_row.row as usize]
-                                }
-                                _ => {
-                                    return Err(NotImplemented::new(
-                                        Stage::Collect,
-                                        "trait-value and builtin calls",
-                                    ));
-                                }
-                            };
-                            let Some(m) = env.impl_method(impl_, method) else {
-                                return Err(NotImplemented::new(
-                                    Stage::Collect,
-                                    "an impl without the called method",
-                                ));
-                            };
-                            (m, TyList::EMPTY)
-                        }
-                    };
-                    if let Some(ix) = env.lowering(callee, cargs) {
-                        out.imports.insert(ix);
-                        calls.insert(
-                            u32::try_from(i).expect("insts"),
-                            CallTarget {
-                                key: Hash128(0),
-                                ret: Ty::VOID,
-                                import: Some(ix),
-                            },
-                        );
-                        reps.hash(env.path_hash(callee));
-                        continue;
-                    }
-                    let key = instance_key(pool, &ph, callee, 0, &key_args(pool, cargs));
-                    let (cid, new) =
-                        out.table
-                            .push(callee, 0, cargs, depth.saturating_add(1), id, key)?;
-                    if new {
-                        work.push(cid);
-                    }
-                    let ret = subst(pool, callee, cargs, env.ret(callee).unwrap_or(Ty::VOID));
-                    calls.insert(
-                        u32::try_from(i).expect("insts"),
-                        CallTarget {
-                            key,
-                            ret,
-                            import: None,
-                        },
-                    );
-                    reps.hash(env.path_hash(callee));
-                    for b in env.bounded(callee).unwrap_or_default() {
-                        reps.u8(u8::from(b));
-                    }
-                }
-                _ => {}
-            }
-        }
-        if out.calls.len() <= id.idx() {
-            out.calls.resize_with(id.idx() + 1, HashMap::new);
-            out.callee_reps.resize(id.idx() + 1, Hash128(0));
-        }
-        out.calls[id.idx()] = calls;
-        out.callee_reps[id.idx()] = reps.finish();
+    let mut cx = Cx {
+        pool,
+        env,
+        solver,
+        tables: env.impl_tables(),
+        out: Collected::default(),
+        work: Vec::new(),
+    };
+    cx.push(root, 0, TyList::EMPTY, 0, InstId::NONE)?;
+    // Breadth-first in push order (codegen.md §13.4): the first instance
+    // over a limit is the same on every run.
+    let mut next = 0;
+    while next < cx.work.len() {
+        let id = cx.work[next];
+        next += 1;
+        cx.scan(id)?;
     }
+    let mut out = cx.out;
     out.calls.resize_with(out.table.len(), HashMap::new);
     out.callee_reps.resize(out.table.len(), Hash128(0));
     Ok(out)
