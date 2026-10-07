@@ -1,266 +1,52 @@
 # New Compiler: Architecture Notes
 
-The owner's direction for the new compiler and CLI, recorded as given.
-Nothing here is spec; the [specification](../spec/README.md) stays
-authoritative, and anything that changes language behavior goes through it.
+The owner's direction for the new compiler and CLI, recorded as given, with
+the orchestrator's proposals kept apart. Last restructured 2026-10-06.
 
-## Context
-
-- **Decision, 2026-10-06:** start the new compiler now; the prototype in
-  [`src/`](../src/README.md) is frozen as a test oracle
-  ([Roadmap](ROADMAP.md#order)).
-- **Measured state of the prototype:**
+- The [specification](../spec/README.md) stays authoritative. Nothing here
+  is spec, and anything that changes language behavior goes through it.
+- Every section says whose text it is: the owner's, or the orchestrator's.
+- Measured state of the prototype:
   [baseline report](../audit/compiler/baseline-2026-10-06.md).
-- **Earlier analysis:**
+- Earlier analysis:
   [architecture directions, 2026-10-05](../audit/compiler/architecture-directions-2026-10-05.md),
   [status quo](../audit/compiler/status-quo-2026-10-04.md).
-- **Core decisions already made (owner, 2026-10-06):**
-  - NonEscapable comes after the first release.
-  - No serializable closures in the first release.
-  - Suspension lowering reserves no-op observability and replay hook
-    points from day one.
-  - `usize` is target-defined: 32 bits on Wasm32.
 
-## Owner's Notes
+## Summary
 
-<!-- Each entry: date, topic, the owner's point as stated. -->
-
-### Goals (2026-10-06)
+**Goals (owner, 2026-10-06):**
 
 1. **Fast.**
 2. **Parallel.**
 3. **Supports incremental builds.**
 
-### Must-Have Features (2026-10-06)
+**Must-have features (owner, 2026-10-06):**
 
 - **Parallel checking.**
 - **Incremental checking.**
 
-### Pillar 1 Features (owner-approved, 2026-10-06)
+**Decided (owner, 2026-10-06):**
 
-The owner approved the whole pillar 1 list ("all these are good") and added
-two features.
+- The prototype in [`src/`](../src/README.md) is frozen as a test oracle
+  ([Roadmap](ROADMAP.md#order)); the new compiler starts now.
+  See [Prototype Baselines](#prototype-baselines-to-beat-2026-10-06).
+- Multiple backends: **Wasm** and **Cranelift** first, **LLVM** and **JS**
+  at low priority. See [Toolchain-Wide Features](#toolchain-wide-features).
+- A program database instead of a language server. See
+  [Pillar 1 features](#pillar-1-features-agent-wait-time-and-retries).
+- NonEscapable comes after the first release.
+- No serializable closures in the first release.
+- Suspension lowering reserves no-op observability and replay hook points
+  from day one.
+- `usize` is target-defined: 32 bits on Wasm32.
+- `defer` is kept for the first release. See
+  [Follow-Up Questions](#follow-up-questions).
+- `hd doc` is decided: [HD_DOC.md](HD_DOC.md).
+- Host capabilities are decided: [HOST_CAPABILITIES.md](HOST_CAPABILITIES.md).
+  See [Host Capabilities](#host-capabilities-what-the-new-compiler-inherits-2026-10-06).
+- `Http` is its own trait.
 
-- **Waiting:**
-  - incremental checking (must-have);
-  - parallel checking (must-have);
-  - skip dependency bodies;
-  - std checked in advance and built into the binary;
-  - `hd test --affected`;
-  - test runs that compile once and start from a snapshot;
-  - `hd watch` / `hd dev`;
-  - fast debug builds;
-  - hard limits instead of hangs.
-- **Tiered compilation** (owner). Dev builds are very fast; release builds
-  are optimized. For example: a fast tier with a cheap Cranelift build or a
-  baseline compiler for `hd run`, `hd test` and `hd dev`, and an optimizing
-  tier (optimized Cranelift, later LLVM) for release. The design is deferred.
-- **Module hot reloading** (owner), for server and frontend programs. In a
-  running program, swap a changed module's code without restarting. The
-  rules for state that crosses a reload are design work for later.
-- **Tokens read:**
-  - compact diagnostics by default;
-  - the program database;
-  - `hd doc` Markdown plus the git-distributed source;
-  - deterministic output.
-- **Retries:**
-  - error recovery (all independent mistakes in one run);
-  - one diagnostic per root cause;
-  - exact-edit fix-its and `hd fix`;
-  - did-you-mean, import and `let mut` hints;
-  - `hd fmt`;
-  - a pathology fuzzer.
-- **More pillar 1 ideas (owner: "add all", 2026-10-06; triage later):**
-  - **Waiting:**
-    - a syntax-and-names tier (`hd check --fast`, under 10 ms);
-    - scoped `hd check FILE`;
-    - running tests even when unrelated code fails to check (deferred
-      type errors: a broken module panics only if a test reaches it);
-    - background test precompilation in watch mode.
-  - **Tokens:**
-    - diff-aware output ("fixed 3, new 1");
-    - capped, grouped output (`--max-errors`, a summary mode);
-    - quiet passing tests;
-    - structured assert diffs that print only the differing fields;
-    - a repro command on every failure;
-    - canned program-database queries (`hd callers`, `hd needs Http`).
-  - **Retries:**
-    - typed holes (`_` / `todo()` report the expected type and the names
-      in scope that fit);
-    - requirement-propagating fix-its (add `$ Clock` and carry it up
-      through callers with `hd fix`);
-    - code-generating fix-its: missing match arms, `impl` stubs,
-      `@derive(Eq)`, auto-imports;
-    - signature suggestions offered as explicit fix-its. Declarations are
-      still never inferred; the agent accepts the edit.
-    - a worked example for every error code in `hd explain`;
-    - project templates (`hd new --template service|cli|library`);
-    - deterministic tests with the seed printed on failure.
-
-### Pillar 2 Features (owner: "add all", 2026-10-06; deprioritized, triage later)
-
-- **Share work instead of repeating it:**
-  - a cache keyed by file content, not path, so worktrees on one commit
-    share everything;
-  - std and dependencies checked once per machine;
-  - a shared cache of compiled machine code (wasmtime-cache or
-    V8-code-cache style);
-  - copy-on-write builds (hardlinks or reflinks from the cache);
-  - dependency fetches shared across worktrees, with an offline mirror;
-  - a remote cache later (CI warms it);
-  - **test results cached by content** (Bazel style): a test whose inputs
-    already passed anywhere on the machine is skipped;
-  - diagnostics cached by content;
-  - one program database per commit content;
-  - `hd prepare`, which pre-warms a new worktree from the base commit's
-    cache.
-- **Don't oversubscribe:**
-  - a cross-process jobserver (a shared pool of CPU tokens);
-  - priority classes (interactive checks before background suites);
-  - per-test-run caps (`--jobs`, heap, time).
-- **Keep each process small and cheap to start:**
-  - arenas per module, bodies dropped after codegen, cache files mapped
-    into memory, interning per run;
-  - lazy std loading;
-  - no daemon per agent (an optional machine-wide daemon);
-  - **a fork server** (Android zygote style): a warm process forks per
-    command, and children share std's pages copy-on-write;
-  - read-only cache files mapped into memory, so the OS shares their
-    pages across processes;
-  - compressed cache entries.
-- **Batch and split work:**
-  - `hd check --roots a b c` (several worktrees in one process);
-  - test sharding (`--shard i/n`);
-  - background work (lint, program database, docs) throttled when the
-    machine is loaded.
-- **Lighter isolation per agent:** **hd's sandbox as a container
-  substitute**, made of capability grants plus resource limits plus
-  Wasm/native confinement, so agent-written hd code runs without a
-  container or VM per agent.
-- **Visibility:**
-  - `hd stats` / per-command JSON reporting CPU-seconds, peak RSS and
-    cache hits, so an orchestrator can size its parallelism;
-  - cache quotas and `hd cache gc`.
-
-### Pillar 3 Features (owner: "add all, triage later", 2026-10-06)
-
-- **Correct programs:**
-  - fast property tests (integrated shrinking, one instance, compiled
-    `Arbitrary` generators), plus a regression file of failing seeds
-    that runs first;
-  - fast unit and integration tests (snapshot start, pooled runner,
-    parallel runs);
-  - `hd fuzz`, `hd test --coverage`, snapshot tests with `--update`;
-  - cross-backend conformance and differential testing;
-  - **deterministic simulation testing**: a whole program runs against
-    fake capability providers under a seeded scheduler that varies the
-    order of suspension points, and a failure replays from its seed;
-  - interleaving exploration for `all!` / `race!` (in the style of loom);
-  - generated recording fakes for any capability trait (generalizing
-    `ScriptedHttp`), for example `@derive(Fake)`;
-  - `hd lint` for least privilege (unused requirements), ignored
-    `Result`s and unreachable code;
-  - debug-mode runtime checks: iterator invalidation, use of a closed
-    handle, deadlocked suspension.
-- **Fast programs:**
-  - code generated per value layout, with `i31ref` first on Wasm;
-  - counted range loops, inlining and escape analysis (zero-allocation
-    loops);
-  - cheap `Option`: a nullable reference, or a scalar returned as two
-    values;
-  - derive templates compiled to straight-line code;
-  - suspension as state machines with an allocation-free ready path;
-  - cheap host calls: typed scalar imports, buffered console;
-  - a native backend with its own GC;
-  - profile-guided optimization from `hd run --profile`;
-  - async I/O for servers (epoll, kqueue or io_uring natively; the host
-    event loop on Wasm);
-  - data parallelism for CPU-bound work, such as `par_map` or parallel
-    iterators (raises the language question of real threads);
-  - startup snapshots for serverless;
-  - per-request arenas;
-  - SIMD where it helps (low priority).
-- **Sandboxing:** resource limits (`--max-heap`, time or fuel), alongside
-  capability grants.
-- **Small and observable programs:**
-  - whole-program DCE, std tree-shaking, `wasm-opt`,
-    `hd build --size-report`;
-  - `hd run --profile` (CPU flamegraph and allocation profile);
-  - `hd bench`;
-  - native and browser debuggers with source lines;
-  - panic locations, `dbg`, and record and replay;
-  - structured tracing through the reserved hooks (OpenTelemetry-style);
-  - symbolized crash backtraces in release builds;
-  - heap snapshots and leak detection.
-- **Packaging:** a standalone native binary, a WASI component, or a
-  serverless or edge bundle from one command.
-
-### Candidate Features (2026-10-06)
-
-Owner: "just think about features; later, if a feature is too hard to
-implement, removing it is fine." Every item is in until its cost says
-otherwise. Items marked ✓ exist in the prototype or are already decided.
-
-- **Build and targets**
-  - `hd build --target wasm | native | js | wasi`, with cross-compilation.
-  - Native: one standalone executable with the runtime linked in.
-  - WASI output for wasmtime, edge and serverless hosts.
-  - JS: an npm package with generated TypeScript declarations.
-  - `hd build --size-report`.
-  - `hd app.wasm` ✓, and running native executables directly.
-- **Dev loop**
-  - `hd watch` / `hd dev`: incremental check, test and rerun on save.
-  - Hot reload in dev: swap changed functions into the running program.
-  - `hd fix`: apply all safe fix-its.
-  - `hd fmt`.
-  - **A program database instead of a language server** (owner,
-    2026-10-06: "program database is better than lsp in agentic
-    world"). The compiler writes queryable facts about the program, for
-    example SQLite in `build/`: declarations, signatures, requirement
-    rows, call edges, implementations, derives and diagnostics. An agent
-    answers structural questions with one query. It falls out of the
-    incremental engine's stored facts. The 2026-09-27 on-hold decisions
-    are in git history. A language server for human editors is optional,
-    later.
-  - `hd explain CODE` ✓, `hd doc` ✓ (HTML and Markdown).
-  - A notebook-style REPL whose cells rerun when what they depend on
-    changes.
-- **Testing and quality**
-  - `hd test --affected`, `--watch`, run in parallel.
-  - Snapshot tests with `--update`.
-  - `hd test --coverage`.
-  - `hd bench`: warm-up and spread reported.
-  - `hd fuzz`: coverage-guided, reusing the derived `Arbitrary` generators.
-  - Property tests ✓.
-  - Conformance and differential testing across backends.
-- **Debugging and observability**
-  - Native debugging (lldb/gdb) and Wasm debugging in browser devtools,
-    with source lines.
-  - `hd run --profile`: CPU flamegraph and allocation profile.
-  - `hd run --record` / `--replay`: deterministic replay, built on the
-    reserved hooks.
-  - Panic locations and cause chains ✓, `dbg` ✓.
-- **Safety**
-  - Capability grants ✓, identical on every backend.
-  - `hd audit`: which capabilities each dependency's code requires.
-- **Packages**
-  - Git dependencies, `hd.sum` and workspaces ✓.
-  - `hd add` / `remove` / `update`, plus offline and vendored mode.
-  - `hd api diff` (an open issue).
-  - `hd migrate` codemods, since hd has no editions.
-- **Interop and embedding**
-  - Embedding APIs: a Rust crate for native hosts, an npm package for JS
-    hosts. The host supplies custom capability traits.
-  - hd libraries exported as Wasm components, with WIT generated from hd
-    traits.
-  - Plugins: the parked runtime code loading.
-
-### Multiple Backends (2026-10-06)
-
-The language has more than one backend: **Wasm** and **Cranelift** first,
-with **LLVM** and **JS** at low priority.
-
-### How To Judge It: The Agentic Programming Language Arena (2026-10-06)
+## How It Is Judged: The Agentic Programming Language Arena (2026-10-06)
 
 The owner's framework for comparing languages and toolchains for agentic
 development. It has three pillars. They are not collapsed into one score;
@@ -301,6 +87,9 @@ observable properties of the result, not whether the source "looks good".
 - Correctness is a gate: a faster wrong program is not a better outcome.
 
 ## Goal Metrics (proposal, 2026-10-06; awaiting the owner's edits)
+
+This whole section is the orchestrator's proposal. Only the rules below are
+the owner's.
 
 Owner rules for these metrics:
 - **Scripts only.** Every metric is checked by a script, with no AI and
@@ -387,6 +176,284 @@ bugs its tests catch.
 
 - **Reproducible builds** (same source → same Wasm bytes across runs and
   machines). Parked by the owner, 2026-10-06.
+
+## Features
+
+Owner, 2026-10-06 (candidate features): "just think about features; later,
+if a feature is too hard to implement, removing it is fine." Every item is in
+until its cost says otherwise. Items marked ✓ exist in the prototype or are
+already decided. The owner approved the pillar 1 list ("all these are good")
+and added tiered compilation and module hot reloading. For the other
+pillars the owner said "add all", and triage comes later.
+
+### Pillar 1 Features: Agent Wait Time And Retries
+
+Owner-approved, 2026-10-06. Items under "More ideas" were added on the
+owner's "add all" (2026-10-06); triage later.
+
+- **Waiting:**
+  - incremental checking (must-have);
+  - parallel checking (must-have);
+  - skip dependency bodies, because explicit signatures make them
+    unnecessary;
+  - early cutoff: an unchanged interface hash stops propagation;
+  - std checked in advance and built into the binary, with zero-copy,
+    memory-mappable cache files;
+  - `hd test --affected` (run only the tests the change can reach),
+    `--watch`, run in parallel;
+  - test runs that compile once and start from a snapshot;
+  - `hd watch` / `hd dev`: incremental check, test and rerun on save;
+  - fast debug builds: a lightly optimized debug build with cheap overflow
+    and bounds checks;
+  - no exponential algorithms: bounded impl search (F-626), iterative
+    passes for deep nesting and chains, arenas;
+  - hard limits (recursion, instantiation depth, impl-search steps)
+    instead of hangs, each with its own diagnostic;
+  - a pathology fuzzer that flags superlinear growth.
+- **Tiered compilation** (owner). Dev builds are very fast; release builds
+  are optimized. For example: a fast tier with a cheap Cranelift build or a
+  baseline compiler for `hd run`, `hd test` and `hd dev`, and an optimizing
+  tier (optimized Cranelift, later LLVM) for release. The design is deferred.
+- **Module hot reloading** (owner), for server and frontend programs. In a
+  running program, swap a changed module's code without restarting. The
+  rules for state that crosses a reload are design work for later.
+  Candidate form: hot reload in dev swaps changed functions into the
+  running program.
+- **Tokens read:**
+  - compact diagnostics by default, with details on request (today one
+    diagnostic is 7.4 KB), as JSON;
+  - the program database (below);
+  - `hd doc` Markdown plus the git-distributed source;
+  - `hd doc`, `def` and `explain` answered from the query database;
+    `hd explain CODE` ✓, `hd doc` ✓ (HTML and Markdown);
+  - deterministic output everywhere.
+- **Program database instead of a language server** (owner, 2026-10-06:
+  "program database is better than lsp in agentic world"). The compiler
+  writes queryable facts about the program, for example SQLite in `build/`:
+  declarations, signatures, requirement rows, call edges, implementations,
+  derives and diagnostics. An agent answers structural questions with one
+  query. It falls out of the incremental engine's stored facts. The
+  2026-09-27 on-hold decisions are in git history. A language server for
+  human editors is optional, later.
+- **Retries:**
+  - error recovery, so all independent mistakes show in one run: a lossless
+    CST parser with error recovery, plus checker recovery per item with
+    "poison" types, so one error never hides or multiplies others;
+  - one diagnostic per root cause;
+  - exact-edit fix-its (machine-readable, as exact text edits) and
+    `hd fix`, which applies every safe fix-it in one command;
+  - did-you-mean, import and `let mut` hints;
+  - `hd fmt`, on the same CST;
+  - a notebook-style REPL whose cells rerun when what they depend on
+    changes.
+- **More ideas, waiting:**
+  - a syntax-and-names tier (`hd check --fast`, under 10 ms);
+  - scoped `hd check FILE`;
+  - running tests even when unrelated code fails to check (deferred type
+    errors: a broken module panics only if a test reaches it);
+  - background test precompilation in watch mode.
+- **More ideas, tokens:**
+  - diff-aware output ("fixed 3, new 1");
+  - capped, grouped output (`--max-errors`, a summary mode);
+  - quiet passing tests;
+  - structured assert diffs that print only the differing fields;
+  - a repro command on every failure;
+  - canned program-database queries (`hd callers`, `hd needs Http`).
+- **More ideas, retries:**
+  - typed holes (`_` / `todo()` report the expected type and the names in
+    scope that fit);
+  - requirement-propagating fix-its (add `$ Clock` and carry it up through
+    callers with `hd fix`);
+  - code-generating fix-its: missing match arms, `impl` stubs,
+    `@derive(Eq)`, auto-imports;
+  - signature suggestions offered as explicit fix-its. Declarations are
+    still never inferred; the agent accepts the edit;
+  - a worked example for every error code in `hd explain`;
+  - project templates (`hd new --template service|cli|library`);
+  - deterministic tests with the seed printed on failure.
+
+### Pillar 2 Features: Agent Scalability
+
+Owner: "add all", 2026-10-06; **deprioritized, triage later**. Many agents on
+one machine is "probably too stretched".
+
+- **Share work instead of repeating it:**
+  - a cache keyed by file content, not path, so worktrees on one commit
+    share everything;
+  - std and dependencies checked once per machine;
+  - a shared cache of compiled machine code (wasmtime-cache or
+    V8-code-cache style);
+  - copy-on-write builds (hardlinks or reflinks from the cache);
+  - dependency fetches shared across worktrees, with an offline mirror;
+  - a remote cache later (CI warms it), using the same content-addressed
+    keys;
+  - **test results cached by content** (Bazel style): a test whose inputs
+    already passed anywhere on the machine is skipped;
+  - diagnostics cached by content;
+  - one program database per commit content;
+  - `hd prepare`, which pre-warms a new worktree from the base commit's
+    cache.
+- **Don't oversubscribe:**
+  - a cross-process jobserver (a shared pool of CPU tokens, as make and
+    cargo do), to stop the 9x slowdown from too many threads;
+  - priority classes (interactive checks before background suites);
+  - per-test-run caps (`--jobs`, heap, time).
+- **Keep each process small and cheap to start:**
+  - arenas per module, bodies dropped after codegen, cache files mapped
+    into memory, interning per compilation run (not global);
+  - lazy std loading;
+  - no daemon per agent (an optional machine-wide daemon);
+  - **a fork server** (Android zygote style): a warm process forks per
+    command, and children share std's pages copy-on-write;
+  - read-only cache files mapped into memory, so the OS shares their
+    pages across processes;
+  - compressed cache entries.
+- **Batch and split work:**
+  - `hd check --roots a b c` (several worktrees in one process);
+  - test sharding (`--shard i/n`);
+  - background work (lint, program database, docs) throttled when the
+    machine is loaded.
+- **Lighter isolation per agent:** **hd's sandbox as a container
+  substitute**, made of capability grants plus resource limits plus
+  Wasm/native confinement, so agent-written hd code runs without a
+  container or VM per agent.
+- **Visibility:**
+  - `hd stats` / per-command JSON reporting CPU-seconds, peak RSS and
+    cache hits, so an orchestrator can size its parallelism;
+  - cache quotas and `hd cache gc`;
+  - a capped cache with eviction, lock-free reads, and change detection
+    by hash and mtime.
+
+### Pillar 3 Features: Artifact Quality
+
+Owner: "add all, triage later", 2026-10-06. Runtime performance is
+**discussed systematically later**.
+
+- **Correct programs:**
+  - fast property tests (integrated shrinking, cases run in one instance,
+    compiled `Arbitrary` generators), plus a regression file of failing
+    seeds that runs first; property tests ✓;
+  - fast unit and integration tests (snapshot start, pooled runner,
+    parallel runs);
+  - `hd fuzz` (coverage-guided, reusing the derived `Arbitrary`
+    generators), `hd test --coverage`, snapshot tests with `--update`;
+  - cross-backend conformance and differential testing;
+  - **deterministic simulation testing**: a whole program runs against
+    fake capability providers under a seeded scheduler that varies the
+    order of suspension points, and a failure replays from its seed;
+  - interleaving exploration for `all!` / `race!` (in the style of loom);
+  - generated recording fakes for any capability trait (generalizing
+    `ScriptedHttp`), for example `@derive(Fake)`;
+  - `hd lint` for least privilege (unused requirements), ignored
+    `Result`s and unreachable code;
+  - debug-mode runtime checks: iterator invalidation, use of a closed
+    handle, deadlocked suspension.
+- **Fast programs:**
+  - code generated per value layout (monomorphization), with `i31ref`
+    first on Wasm;
+  - enum layout chosen per enum (GC subtypes or a tag plus shared fields);
+  - counted range loops, inlining and escape analysis (zero-allocation
+    loops; captured counters turned back into locals);
+  - closures that capture nothing become function references;
+  - cheap `Option`: a nullable reference (no allocation), or a scalar
+    returned as two values;
+  - derive templates compiled to straight-line code at compile time;
+  - suspension as state machines with an allocation-free ready path, or
+    stack switching later;
+  - cheap host calls: typed scalar imports, serde only for structured
+    values, buffered console;
+  - a native backend with its own GC;
+  - profile-guided optimization from `hd run --profile`;
+  - async I/O for servers (epoll, kqueue or io_uring natively; the host
+    event loop on Wasm);
+  - data parallelism for CPU-bound work, such as `par_map` or parallel
+    iterators (raises the language question of real threads);
+  - startup snapshots for serverless;
+  - per-request arenas;
+  - SIMD where it helps (low priority).
+- **Sandboxing:** resource limits (`--max-heap`, time or fuel), alongside
+  capability grants ✓ (identical on every backend).
+- **Small and observable programs:**
+  - whole-program DCE, std tree-shaking, `wasm-opt`,
+    `hd build --size-report`;
+  - `hd run --profile` (CPU flamegraph and allocation profile);
+  - `hd bench` (warm-up and spread reported);
+  - native debugging (lldb/gdb) and Wasm debugging in browser devtools,
+    with source lines;
+  - panic locations and cause chains ✓, `dbg` ✓, and record and replay
+    (`hd run --record` / `--replay`, deterministic replay built on the
+    reserved hooks);
+  - structured tracing through the reserved hooks (OpenTelemetry-style);
+  - symbolized crash backtraces in release builds;
+  - heap snapshots and leak detection.
+- **Packaging:** a standalone native binary, a WASI component, or a
+  serverless or edge bundle from one command.
+
+### Toolchain-Wide Features
+
+Candidate items that fit no single pillar (owner: "just think about
+features", 2026-10-06).
+
+- **Targets (owner, 2026-10-06):** the language has more than one backend.
+  **Wasm** and **Cranelift** first, with **LLVM** and **JS** at low
+  priority.
+  - `hd build --target wasm | native | js | wasi`, with cross-compilation.
+  - Native: one standalone executable with the runtime linked in.
+  - WASI output for wasmtime, edge and serverless hosts.
+  - JS: an npm package with generated TypeScript declarations.
+  - `hd build --size-report`.
+  - `hd app.wasm` ✓, and running native executables directly.
+- **Safety:** `hd audit`: which capabilities each dependency's code
+  requires.
+- **Packages:**
+  - git dependencies, `hd.sum` and workspaces ✓;
+  - `hd add` / `remove` / `update`, plus offline and vendored mode;
+  - `hd api diff` (an open issue);
+  - `hd migrate` codemods, since hd has no editions.
+- **Interop and embedding:**
+  - embedding APIs: a Rust crate for native hosts, an npm package for JS
+    hosts, where the host supplies custom capability traits;
+  - hd libraries exported as Wasm components, with WIT generated from hd
+    traits;
+  - plugins: the parked runtime code loading.
+
+## Architecture Direction (orchestrator's proposals, not decided)
+
+The orchestrator's ideas for which compiler features move which metrics.
+Owner: "these suggestions are meaningful". Big features are discussed
+first. Runtime performance gets its own systematic discussion later. Many
+agents on one machine is "probably too stretched" and is deprioritized.
+Nothing here is decided.
+
+### Big Features (to discuss first)
+
+| # | Feature | Moves |
+|---|---|---|
+| A | A native single-binary toolchain (Rust, Go or Zig rather than Node) | startup, lookup-latency, cold-check, disk, resources |
+| B | A query-based incremental engine (salsa / rust-analyzer style), keyed by interface hashes. Explicit signatures mean a body edit never changes an interface | edit-latency, test-latency, recheck-precision, incremental-soundness |
+| C | A shared content-addressed on-disk cache of checked interfaces and compiled modules (std, dependencies, own modules), published atomically | cold-check, cache reuse, suite-cpu |
+| D | Parallel checking: interfaces resolved in module-graph waves, then all function bodies checked in parallel | parallel-speedup, cold-check, suite-cpu |
+| E | Code generated per value layout (monomorphization), with `i31ref` as the first step | runtime, allocations, proptest/serde/test perf |
+
+### Open Decisions
+
+- **Implementation language.** Rust leads: it has salsa, rayon, rowan and wasm-encoder.
+- **Wasm engine for `hd run` and `hd test`.** V8 is mature but slow to start. Embedded wasmtime starts fast, but its Wasm GC support is maturing. The engine should sit behind an interface either way.
+- **Daemon or none.** The lean is none: a native binary plus the shared cache.
+- **Limits on monomorphization,** so binaries don't grow without bound.
+
+### Correctness Tooling
+
+- Incremental-soundness fuzzing: random edit scripts, with incremental builds compared against clean builds.
+- Differential fuzzing across the new compiler, the frozen prototype and the spec examples.
+
+### Language Note
+
+No language change is needed. Explicit signatures and requirement rows, no
+overloading, no wildcard imports, orphan rules, per-module scope, and
+checked templates instead of macros already give what this architecture
+needs. Two things to watch: typed-derivation templates expanded per type
+(cache them per type), and cross-package coherence checks.
 
 ## Prototype Baselines To Beat (2026-10-06)
 
@@ -486,42 +553,10 @@ alone, and 15–17 min when several worktrees run it at once.
 - A memory-per-check measure for pillar 2.
 - More runtime runs, with warm-up and a reported spread.
 
-## What The Arena Asks Of The Compiler (orchestrator's reading, not owner text)
-
-- **Pillar 1, development cost:**
-  - Each check-edit loop is part of an agent's elapsed time, so check
-    latency on a small edit matters more than full-build speed. This is
-    where incremental builds pay.
-  - Diagnostics that name the fix cut retries, and so cut tokens. The
-    [hd writing log](../audit/hd-writing-log.md) records which messages
-    failed agents.
-  - Deterministic, machine-readable output (`--format json`) keeps an
-    agent from re-running commands to parse them.
-- **Pillar 2, scalability:**
-  - The measure is per-agent memory, CPU and disk when N agents check and
-    test at once.
-  - That favors a shared, content-addressed cache of checked std and
-    dependencies over a per-process copy. Today each process re-checks
-    std (task P4c, deferred). Measured 2026-10-04: std is about 78% of a
-    small warm compile (75 ms of 96 ms), and about 35% of the portable
-    suite's CPU time.
-  - It also favors a small resident memory per check, and no heavyweight
-    daemon per agent.
-  - The prototype's numbers: about 0.3 s to check a tiny program, and 15–17
-    minutes for a full suite when several worktrees ran it at once,
-    against 1.7 minutes alone.
-- **Pillar 3, artifact quality:**
-  - Correctness is pinned by the portable conformance suite, which is the
-    gate.
-  - Runtime performance and executable size are what the prototype does
-    worst: 2.5–11x slower than Node outside recursion
-    ([baseline](../audit/compiler/baseline-2026-10-06.md)).
-
-## Carried Over From Prototype Records (not owner text)
+## Inherited From The Prototype (not owner text)
 
 Implementation notes written for the prototype, moved here when their
-records were deleted (2026-10-06). The spec decides behavior; these say
-how.
+records were deleted (2026-10-06). The spec decides behavior; these say how.
 
 ### Literal Inference
 
@@ -556,7 +591,7 @@ loop (F-555), against
 - Tests to cover: delayed, synchronous, duplicate, and stale wakes;
   competing drivers; cancellation; provider retention; and poisoning.
 
-## Host Capabilities: What The New Compiler Inherits (2026-10-06)
+### Host Capabilities: What The New Compiler Inherits (2026-10-06)
 
 The prototype implements the approved host-capability spec (task N3, three
 sessions): `std.http` with `ScriptedHttp`, `[capabilities]` and `--cap`
@@ -575,78 +610,36 @@ which the prototype doesn't:
   symlinks.
 - **Runtime code loading,** parked in OPEN_ISSUES.
 
-## Architecture Brainstorm From The Metrics (2026-10-06)
+### What The Arena Asks Of The Compiler (orchestrator's reading, not owner text)
 
-The orchestrator's ideas for which compiler features move which metrics.
-Owner: "these suggestions are meaningful". Big features are discussed
-first. Runtime performance gets its own systematic discussion later. Many
-agents on one machine is "probably too stretched" and is deprioritized.
-Nothing here is decided.
-
-### Big Features (to discuss first)
-
-| # | Feature | Moves |
-|---|---|---|
-| A | A native single-binary toolchain (Rust, Go or Zig rather than Node) | startup, lookup-latency, cold-check, disk, resources |
-| B | A query-based incremental engine (salsa / rust-analyzer style), keyed by interface hashes. Explicit signatures mean a body edit never changes an interface | edit-latency, test-latency, recheck-precision, incremental-soundness |
-| C | A shared content-addressed on-disk cache of checked interfaces and compiled modules (std, dependencies, own modules), published atomically | cold-check, cache reuse, suite-cpu |
-| D | Parallel checking: interfaces resolved in module-graph waves, then all function bodies checked in parallel | parallel-speedup, cold-check, suite-cpu |
-| E | Code generated per value layout (monomorphization), with `i31ref` as the first step | runtime, allocations, proptest/serde/test perf |
-
-Open decisions they raise:
-- **Implementation language.** Rust leads: it has salsa, rayon, rowan and wasm-encoder.
-- **Wasm engine for `hd run` and `hd test`.** V8 is mature but slow to start. Embedded wasmtime starts fast, but its Wasm GC support is maturing. The engine should sit behind an interface either way.
-- **Daemon or none.** The lean is none: a native binary plus the shared cache.
-- **Limits on monomorphization,** so binaries don't grow without bound.
-
-### Pillar 1 Ideas (agent wait time and retries)
-
-- A lossless CST parser with error recovery, plus checker recovery per item with "poison" types, so one error never hides or multiplies others.
-- Machine-readable fix-its as exact text edits, plus `hd fix` to apply every safe fix-it in one command.
-- Compact JSON diagnostics by default, with details on request. Today one diagnostic is 7.4 KB.
-- A formatter on the same CST. Deterministic output everywhere.
-- Skip dependency bodies when checking: explicit signatures make them unnecessary.
-- Early cutoff: an unchanged interface hash stops propagation.
-- `hd test --affected`: run only the tests the change can reach.
-- Pre-checked std baked into the binary, and zero-copy, memory-mappable cache files.
-- No exponential algorithms: bounded impl search (F-626), iterative passes for deep nesting and chains, arenas.
-- Hard limits (recursion, instantiation depth, impl-search steps), each with its own diagnostic instead of a hang.
-- A pathology fuzzer that flags superlinear growth.
-- A lightly optimized debug build with cheap overflow and bounds checks.
-- `hd doc`, `def` and `explain` answered from the query database.
-
-### Pillar 2 Ideas (deprioritized: "too stretched")
-
-- A cross-process jobserver: `hd` processes share a CPU token pool, as make and cargo do, to stop the 9x slowdown from too many threads.
-- A remote cache later, using the same content-addressed keys.
-- Interning per compilation run, not global.
-- A capped cache with eviction, lock-free reads, and change detection by hash and mtime.
-
-### Pillar 3 Ideas (runtime; discussed systematically later)
-
-- Counted range loops, inlining, and escape analysis that turns captured counters back into locals.
-- `Option` of a reference as a nullable ref (no allocation); `Option` of a scalar returned as two values.
-- Closures that capture nothing become function references.
-- Derive templates compiled to straight-line code at compile time.
-- Typed host imports for scalars, serde only for structured values, and buffered console output.
-- Suspension compiled to state machines with an allocation-free "already ready" path, or stack switching later.
-- Snapshot-started tests and a pooled test runner.
-- Integrated shrinking for proptest, with cases run in one instance.
-- Enum layout chosen per enum (GC subtypes or a tag plus shared fields).
-- Whole-program dead-code elimination and `wasm-opt`.
-
-### Correctness Tooling
-
-- Incremental-soundness fuzzing: random edit scripts, with incremental builds compared against clean builds.
-- Differential fuzzing across the new compiler, the frozen prototype and the spec examples.
-
-### Language Note
-
-No language change is needed. Explicit signatures and requirement rows, no
-overloading, no wildcard imports, orphan rules, per-module scope, and
-checked templates instead of macros already give what this architecture
-needs. Two things to watch: typed-derivation templates expanded per type
-(cache them per type), and cross-package coherence checks.
+- **Pillar 1, development cost:**
+  - Each check-edit loop is part of an agent's elapsed time, so check
+    latency on a small edit matters more than full-build speed. This is
+    where incremental builds pay.
+  - Diagnostics that name the fix cut retries, and so cut tokens. The
+    [hd writing log](../audit/hd-writing-log.md) records which messages
+    failed agents.
+  - Deterministic, machine-readable output (`--format json`) keeps an
+    agent from re-running commands to parse them.
+- **Pillar 2, scalability:**
+  - The measure is per-agent memory, CPU and disk when N agents check and
+    test at once.
+  - That favors a shared, content-addressed cache of checked std and
+    dependencies over a per-process copy. Today each process re-checks
+    std (task P4c, deferred). Measured 2026-10-04: std is about 78% of a
+    small warm compile (75 ms of 96 ms), and about 35% of the portable
+    suite's CPU time.
+  - It also favors a small resident memory per check, and no heavyweight
+    daemon per agent.
+  - The prototype's numbers: about 0.3 s to check a tiny program, and 15–17
+    minutes for a full suite when several worktrees ran it at once,
+    against 1.7 minutes alone.
+- **Pillar 3, artifact quality:**
+  - Correctness is pinned by the portable conformance suite, which is the
+    gate.
+  - Runtime performance and executable size are what the prototype does
+    worst: 2.5–11x slower than Node outside recursion
+    ([baseline](../audit/compiler/baseline-2026-10-06.md)).
 
 ## Follow-Up Questions
 
