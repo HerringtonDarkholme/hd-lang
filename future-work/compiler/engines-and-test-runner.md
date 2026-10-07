@@ -1,6 +1,6 @@
 # New Compiler Design: Engines And Test Runner
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 18. Execution Engines And Tiers
 

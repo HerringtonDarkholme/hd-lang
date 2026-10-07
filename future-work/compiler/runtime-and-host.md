@@ -1,6 +1,6 @@
 # New Compiler Design: Runtime And Host Interface
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 16. Runtime
 

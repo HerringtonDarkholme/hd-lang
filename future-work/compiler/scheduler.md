@@ -1,6 +1,6 @@
 # New Compiler Design: Scheduler And Task Graph
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 6. Scheduler And Task Graph
 

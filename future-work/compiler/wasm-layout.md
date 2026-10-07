@@ -1,6 +1,6 @@
 # New Compiler Design: Wasm GC Layout And Emission
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 15. Wasm GC Layout And Emission
 

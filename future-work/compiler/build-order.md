@@ -1,6 +1,6 @@
 # New Compiler Design: Build Order
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 9. Build Order
 

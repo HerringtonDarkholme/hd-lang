@@ -1,6 +1,6 @@
 # New Compiler: Detailed Design
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 Status: Design, not decided. Both parts are done, 2026-10-07: Part D1,
 the pipeline and front half, and Part D2, the back half. D2 also revised

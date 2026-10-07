@@ -1,6 +1,6 @@
 # New Compiler Design: Testing The Compiler
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 8. Determinism And Soundness Tests
 

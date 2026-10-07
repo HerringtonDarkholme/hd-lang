@@ -1,6 +1,6 @@
 # New Compiler Design: Command Flows
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 7. Command Flows
 

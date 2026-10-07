@@ -1,6 +1,6 @@
 # New Compiler Design: Suspension Lowering
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 14. Suspension Lowering
 

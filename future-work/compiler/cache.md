@@ -1,6 +1,6 @@
 # New Compiler Design: Cache
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 5. Cache
 

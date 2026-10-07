@@ -1,6 +1,6 @@
 # New Compiler Design: Core Data Structures
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 3. Core Data Structures
 

@@ -1,6 +1,24 @@
 # New Compiler Design: Open Questions
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
+
+**Answered (owner and orchestrator, 2026-10-07).**
+
+| Question | Answer |
+|---|---|
+| 10: where compiled entries live | `$HD_CACHE/obj/`; the `hd clean --cache` layout rule is amended (orchestrator's call) |
+| 10: default thread count | `min(cores, 8)`, with `--jobs` / `HD_JOBS` (orchestrator's call) |
+| 10: `cache-contention` target | no corruption, and N concurrent checks cost at most 1.5x the CPU of one (orchestrator's call) |
+| 10: templates calling private helpers | allowed, as hidden interface items (owner) |
+| 10: one code per limit | separate codes (orchestrator's call) |
+| 10: `hd fmt` on a file with syntax errors | the file is left untouched (orchestrator's call) |
+| 23.1-1: bounded inlining and scalar replacement | in the first release (owner) |
+| 23.1-2: polymorphic recursion | build error `instantiation-too-deep` (owner) |
+| 23.1-3: suspension panic categories | add `suspension-deadlock` and `suspension-forbidden-context` (orchestrator's call) |
+| 23.1-4: limit flags | `--max-heap SIZE` and `--time-limit DURATION`, no default (orchestrator's call) |
+| 23.1-5: property-test base seed | from the test's stable name, plus `--seed N` (orchestrator's call) |
+| 23.1-6: a panic in the REPL | the session continues; the input adds no binding (orchestrator's call) |
+| 23.2-7: the 5 ms start target | it counts instantiation to first output, not process start (orchestrator's call) |
 
 ## 10. Open Questions For The Owner
 

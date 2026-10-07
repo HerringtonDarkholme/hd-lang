@@ -1,6 +1,6 @@
 # New Compiler Design: Resolution And Interfaces
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ### 4.7 Discovery, Module Identity And Folders
 

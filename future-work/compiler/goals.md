@@ -27,6 +27,20 @@ Detailed design: [README.md](README.md)
 - **Parallel checking.**
 - **Incremental checking.**
 
+**Decided (owner, 2026-10-07):**
+
+- Bounded inlining and scalar replacement of small non-escaping values are
+  in the first release, the same in debug and release builds, so the
+  `runtime` and `allocations` targets can be met.
+- Polymorphic recursion is a build error at the instantiation depth limit
+  (`instantiation-too-deep`); there is no boxed fallback.
+- A derive template may call private helpers of its trait's module; the
+  interface exports them as hidden items that only expanded template code
+  can call.
+- The compiler process has no default memory cap (opt-in flag or
+  environment variable); the shared cache defaults to 10 GB with LRU
+  eviction; `hd build` on a library-only package writes only its interface.
+
 **Decided (owner, 2026-10-06):**
 
 - **Architecture, after [the research](research.md#open-questions-for-the-owner):**
@@ -397,8 +411,10 @@ the architecture locks in are triaged here.
 - `hd test --coverage`, and snapshot tests with `--update`;
 - `hd lint`: unused requirements (least privilege), ignored `Result`s,
   unreachable code;
-- inlining, escape analysis, profile-guided optimization, startup
-  snapshots for serverless, SIMD: for the runtime-performance discussion;
+- general inlining beyond the first release's bounded pass, escape
+  analysis, profile-guided optimization, startup snapshots for serverless,
+  SIMD: for the runtime-performance discussion (bounded inlining and
+  scalar replacement moved to the first release, owner, 2026-10-07);
 - data parallelism (`par_map`, parallel iterators). It raises the language
   question of real threads; until then the runtime keeps no global
   mutable state;

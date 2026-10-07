@@ -1,6 +1,6 @@
 # New Compiler Design: Body Checking And The TIR
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 The detailed type-checking design is in progress in type-checking.md (frontend lane); this file keeps the D1 summary and the TIR definition.
 

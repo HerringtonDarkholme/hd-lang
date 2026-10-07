@@ -1,6 +1,6 @@
 # New Compiler Design: Front-Half Syntax Stages
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## 4. Front-Half Stages
 

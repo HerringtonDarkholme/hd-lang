@@ -1,6 +1,6 @@
 # New Compiler Design: Back Half, Codegen
 
-Part of the [compiler design](../README.md).
+Part of the [compiler design](README.md).
 
 ## Part D2: The Back Half
 
