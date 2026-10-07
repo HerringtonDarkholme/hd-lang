@@ -1,0 +1,24 @@
+# Every pattern form: wildcard, literals, bindings, variants, data,
+# tuple, unit, spread, and range.
+fn patterns(value: Shape, pair: (i32, i32), n: i32) -> i32:
+    let (mut low, high) = pair
+    let Point { x, y: py, mut tags } = point
+    let .Some(first) = find(n) else: return 0
+    match value:
+        _ => 0
+        -1 => 1
+        "text" => 2
+        'c' => 3
+        true => 4
+        .Circle(r) => r
+        Shape.Rect(w, height=h) => w * h
+        geo.Shape.Empty => 0
+        Point { x, y: 0 } => x
+        (a, b, rest...) => a
+        (only...,) => 0
+        () => 0
+        ..=-1 => 5
+        1..10 => 6
+        100.. => 7
+        Bare(inner) => inner
+        other if other > 3 => other

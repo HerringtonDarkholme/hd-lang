@@ -1,0 +1,94 @@
+Root
+  FnDecl fn below -> :
+    GenericParameterList [ , ]
+      GenericParameter T
+        BoundList < &
+          NamedType Ord
+          NamedType Hash
+      GenericParameter $ R
+    ParameterList ( , )
+      Parameter value :
+        NamedType T
+      Parameter limit :
+        NamedType i32
+    NamedType bool
+    RequirementRow $
+      NamedType R
+    Block
+      ExprStmt
+        IfExpr if :
+          LogicalAndExpr &&
+            ComparisonExpr <
+              NameExpr value
+              CallExpr
+                TypeArgsExpr ::
+                  NameExpr limit
+                  TypeArgumentList [ ]
+                    NamedType i32
+                ArgumentList ( )
+            ComparisonExpr <
+              CallExpr
+                TypeArgsExpr ::
+                  NameExpr first
+                  TypeArgumentList [ ]
+                    NamedType T
+                ArgumentList ( )
+                  Argument
+                    NameExpr xs
+              NameExpr value
+          Block
+            ExprStmt
+              LiteralExpr true
+      ExprStmt
+        ComparisonExpr <
+          CallExpr
+            PathExpr :: add
+              TypeArgsExpr ::
+                NameExpr Add
+                TypeArgumentList [ ]
+                  NamedType i32
+            ArgumentList ( , )
+              Argument
+                LiteralExpr 1
+              Argument
+                LiteralExpr 2
+          FieldExpr . value
+            DataExpr { }
+              TypeArgsExpr ::
+                NameExpr Box
+                TypeArgumentList [ ]
+                  NamedType i32
+              DataFieldInit value :
+                LiteralExpr 1
+  TraitDecl trait Numeric :
+    BoundList < &
+      NamedType Add
+        TypeArgumentList [ ]
+          AssociatedTypeBinding Out =
+            NamedType Self
+      NamedType Copy
+    Block
+      FnDecl fn zero ->
+        ParameterList ( )
+        NamedType Self
+  ImplDecl impl for :
+    GenericParameterList [ ]
+      GenericParameter T
+        BoundList < mut
+          NamedType Clear
+    NamedType Reset
+    NamedType Holder
+      TypeArgumentList [ ]
+        NamedType T
+    Block
+      FnDecl fn reset -> :
+        ParameterList ( )
+          Parameter mut self
+        NamedType void
+        Block
+          ExprStmt
+            CallExpr
+              FieldExpr . clear
+                FieldExpr . value
+                  NameExpr self
+              ArgumentList ( )

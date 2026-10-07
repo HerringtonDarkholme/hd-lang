@@ -1,0 +1,12 @@
+# Binding power from := down to postfix, one level per node kind.
+fn levels(a: i32, b: i32, c: bool, xs: List[i32]) -> void:
+    x := a + b * c ** 2 ** 3 - -a
+    y := a << 1 | b & 3 ^ 4
+    z := !c || a < b && b >= 0
+    p := xs |> wrap(_) |> size
+    r := 0..a + 1
+    s := ..=b
+    t := xs[1..]
+    q := a.b.c(1)[0]?.d
+    n := (a := b) + 1
+    v := x is .Some

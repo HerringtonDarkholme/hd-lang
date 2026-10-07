@@ -154,6 +154,8 @@ pub(crate) struct Parser<'t> {
     errors: Vec<(Code, u32, u32)>,
     /// Spans the lexer already reported: no second diagnostic there.
     lexed: Vec<(u32, u32)>,
+    /// The first opener the lexer found unclosed.
+    unclosed_from: u32,
     /// The current statement already reported its error.
     stmt_errored: bool,
     /// The last construct consumed ended in a suite.
@@ -179,6 +181,12 @@ impl<'t> Parser<'t> {
             layouts: Vec::new(),
             errors: Vec::new(),
             lexed: spans,
+            unclosed_from: lexed
+                .iter()
+                .filter(|diagnostic| diagnostic.code == Code::UnclosedDelimiter)
+                .map(|diagnostic| diagnostic.primary.lo)
+                .min()
+                .unwrap_or(u32::MAX),
             stmt_errored: false,
             suite_closed: false,
             suite_inline: false,
@@ -384,6 +392,10 @@ impl<'t> Parser<'t> {
     }
 
     fn lexed_covers(&self, offset: u32) -> bool {
+        // Past an unclosed delimiter every later line is inside it.
+        if offset > self.unclosed_from {
+            return true;
+        }
         let index = self.lexed.partition_point(|&(lo, _)| lo <= offset);
         self.lexed[..index]
             .iter()
@@ -460,7 +472,14 @@ impl<'t> Parser<'t> {
     /// After a suite-introducing `:`: the suite body as a `Block`.
     pub(crate) fn suite(&mut self, closure: bool, inline_ctx: Ctx) -> Done {
         let marker = self.start();
-        match self.cur.open_suite(closure) {
+        if !self.enter() {
+            self.skip_balanced();
+            return self.complete(marker, SyntaxKind::Block);
+        }
+        let kind = self.cur.open_suite(closure);
+        self.leave();
+        self.nesting += 1;
+        match kind {
             SuiteKind::SameLine => {
                 self.inline_statement(inline_ctx);
                 self.cur.close_inline();
@@ -477,6 +496,7 @@ impl<'t> Parser<'t> {
                 self.suite_inline = false;
             }
         }
+        self.nesting -= 1;
         self.suite_closed = true;
         self.complete(marker, SyntaxKind::Block)
     }

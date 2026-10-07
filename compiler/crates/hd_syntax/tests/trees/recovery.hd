@@ -1,0 +1,12 @@
+# Each independent error reports once, and parsing goes on.
+fn broken(a: i32) -> i32:
+    x := a and b
+    z := a < b < c
+    return a
+
+fn after() -> i32: 1
+
+pub impl Shape for Point:
+    fn area(self) -> i32: 1
+
+values := [1, 2)

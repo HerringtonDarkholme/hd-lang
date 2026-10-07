@@ -233,7 +233,12 @@ impl Parser<'_> {
                 let clause = self.start();
                 self.bump(); // else
                 if self.at(TokenKind::KwIf) {
-                    self.if_expr(ctx);
+                    if self.enter() {
+                        self.if_expr(ctx);
+                        self.leave();
+                    } else {
+                        self.skip_balanced();
+                    }
                 } else if self.expect(TokenKind::Colon) {
                     self.suite(false, Ctx::Inline);
                 }

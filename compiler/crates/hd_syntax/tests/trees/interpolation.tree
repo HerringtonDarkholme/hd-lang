@@ -1,0 +1,56 @@
+Root
+  FnDecl fn greet -> :
+    ParameterList ( , )
+      Parameter user :
+        NamedType User
+      Parameter items :
+        NamedType List
+          TypeArgumentList [ ]
+            NamedType string
+    NamedType string
+    Block
+      ExprStmt
+        BindingExpr :=
+          BindingPattern a
+          StringExpr "hello $user.name"
+      ExprStmt
+        BindingExpr :=
+          BindingPattern b
+          StringExpr "count ${ } of ${ }"
+            Interpolation
+              AdditiveExpr +
+                CallExpr
+                  FieldExpr . len
+                    NameExpr items
+                  ArgumentList ( )
+                LiteralExpr 1
+            Interpolation
+              CallExpr
+                NameExpr total
+                ArgumentList ( )
+                  Argument
+                    StringExpr "x ${ }"
+                      Interpolation
+                        FieldExpr . id
+                          NameExpr user
+      ExprStmt
+        BindingExpr :=
+          BindingPattern c
+          StringExpr sql"select * from t where id = ${ }"
+            Interpolation
+              FieldExpr . id
+                NameExpr user
+      ExprStmt
+        BindingExpr :=
+          BindingPattern d
+          StringExpr """first ${ }\nsecond ${ }"""
+            Interpolation
+              NameExpr a
+            Interpolation
+              NameExpr b
+      ExprStmt
+        StringExpr "${ }${ }"
+          Interpolation
+            NameExpr a
+          Interpolation
+            NameExpr b

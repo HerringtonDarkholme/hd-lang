@@ -1,0 +1,38 @@
+## A module of every declaration form.
+
+use std.text.{split as cut, join}
+pub use pkg.geo.{Point}
+use dep.json.decode as parse
+
+@derive(Debug, Eq)
+pub data Point:
+    ## The horizontal position.
+    pub x: i32
+    y: i32 = 0
+    Base
+
+enum Status(code: i32 = 200):
+    Ok -> Status(200)
+    @rename("gone")
+    Missing(path: string, @rename("why") reason: string)
+
+trait Shape < Named:
+    type Unit
+    fn area(self) -> i32
+    fn scaled(self, by: i32) -> i32: self.area() * by
+
+impl Shape for Point by Base:
+    type Unit = i32
+    fn area(self) -> i32: self.x * self.y
+
+impl User by Structure:
+    name = field("name")
+    Self += derive_all()
+
+limit := 80
+
+tests:
+    use std.testing.assert_equal
+
+    it("adds"):
+        assert_equal(1 + 1, 2)

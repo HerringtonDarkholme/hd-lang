@@ -1,0 +1,147 @@
+Root
+  FnDecl fn patterns -> :
+    ParameterList ( , , )
+      Parameter value :
+        NamedType Shape
+      Parameter pair :
+        TupleType ( , )
+          NamedType i32
+          NamedType i32
+      Parameter n :
+        NamedType i32
+    NamedType i32
+    Block
+      LetStmt let =
+        TuplePattern ( , )
+          BindingPattern mut low
+          BindingPattern high
+        NameExpr pair
+      LetStmt let =
+        DataPattern Point { , , }
+          DataPatternField x
+          DataPatternField y :
+            BindingPattern py
+          DataPatternField mut tags
+        NameExpr point
+      LetStmt let =
+        VariantPattern . Some
+          PatternArgumentList ( )
+            BindingPattern first
+        CallExpr
+          NameExpr find
+          ArgumentList ( )
+            Argument
+              NameExpr n
+        ElseClause else :
+          Block
+            ReturnStmt return
+              LiteralExpr 0
+      ExprStmt
+        MatchExpr match :
+          NameExpr value
+          MatchArm =>
+            WildcardPattern _
+            Block
+              ExprStmt
+                LiteralExpr 0
+          MatchArm =>
+            LiteralPattern - 1
+            Block
+              ExprStmt
+                LiteralExpr 1
+          MatchArm =>
+            LiteralPattern "text"
+            Block
+              ExprStmt
+                LiteralExpr 2
+          MatchArm =>
+            LiteralPattern 'c'
+            Block
+              ExprStmt
+                LiteralExpr 3
+          MatchArm =>
+            LiteralPattern true
+            Block
+              ExprStmt
+                LiteralExpr 4
+          MatchArm =>
+            VariantPattern . Circle
+              PatternArgumentList ( )
+                BindingPattern r
+            Block
+              ExprStmt
+                NameExpr r
+          MatchArm =>
+            VariantPattern Shape . Rect
+              PatternArgumentList ( , )
+                BindingPattern w
+                NamedPattern height =
+                  BindingPattern h
+            Block
+              ExprStmt
+                MultiplicativeExpr *
+                  NameExpr w
+                  NameExpr h
+          MatchArm =>
+            VariantPattern geo . Shape . Empty
+            Block
+              ExprStmt
+                LiteralExpr 0
+          MatchArm =>
+            DataPattern Point { , }
+              DataPatternField x
+              DataPatternField y :
+                LiteralPattern 0
+            Block
+              ExprStmt
+                NameExpr x
+          MatchArm =>
+            TuplePattern ( , , )
+              BindingPattern a
+              BindingPattern b
+              SpreadPattern rest ...
+            Block
+              ExprStmt
+                NameExpr a
+          MatchArm =>
+            TuplePattern ( , )
+              SpreadPattern only ...
+            Block
+              ExprStmt
+                LiteralExpr 0
+          MatchArm =>
+            TuplePattern ( )
+            Block
+              ExprStmt
+                LiteralExpr 0
+          MatchArm =>
+            RangePattern ..= - 1
+            Block
+              ExprStmt
+                LiteralExpr 5
+          MatchArm =>
+            RangePattern 1 .. 10
+            Block
+              ExprStmt
+                LiteralExpr 6
+          MatchArm =>
+            RangePattern 100 ..
+            Block
+              ExprStmt
+                LiteralExpr 7
+          MatchArm =>
+            VariantPattern Bare
+              PatternArgumentList ( )
+                BindingPattern inner
+            Block
+              ExprStmt
+                NameExpr inner
+          MatchArm =>
+            BindingPattern other
+            MatchGuard if
+              ComparisonExpr >
+                NameExpr other
+                LiteralExpr 3
+            Block
+              ExprStmt
+                NameExpr other

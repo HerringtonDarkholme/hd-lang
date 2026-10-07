@@ -1,0 +1,16 @@
+# Same-line closures end at a comma or closer; an indented closure body
+# ends at a line starting with `,` or the closer.
+fn apply_all(xs: List[i32]) -> void:
+    ys := xs.map(fn(x): x + 1).filter(fn(x: i32) -> bool: x > 2)
+    choice(fn(a):
+        println(a)
+    , fn(b): println(b))
+    run(fn!() -> i32 $ Log:
+        twice := fn(x: i32) -> i32:
+            x * 2
+        twice(21)
+    )
+    transaction:
+        save()
+    done := run:
+        1

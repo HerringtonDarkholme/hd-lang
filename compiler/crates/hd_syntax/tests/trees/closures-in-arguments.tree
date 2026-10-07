@@ -1,0 +1,111 @@
+Root
+  FnDecl fn apply_all -> :
+    ParameterList ( )
+      Parameter xs :
+        NamedType List
+          TypeArgumentList [ ]
+            NamedType i32
+    NamedType void
+    Block
+      ExprStmt
+        BindingExpr :=
+          BindingPattern ys
+          CallExpr
+            FieldExpr . filter
+              CallExpr
+                FieldExpr . map
+                  NameExpr xs
+                ArgumentList ( )
+                  Argument
+                    ClosureExpr fn :
+                      ParameterList ( )
+                        Parameter x
+                      Block
+                        ExprStmt
+                          AdditiveExpr +
+                            NameExpr x
+                            LiteralExpr 1
+            ArgumentList ( )
+              Argument
+                ClosureExpr fn -> :
+                  ParameterList ( )
+                    Parameter x :
+                      NamedType i32
+                  NamedType bool
+                  Block
+                    ExprStmt
+                      ComparisonExpr >
+                        NameExpr x
+                        LiteralExpr 2
+      ExprStmt
+        CallExpr
+          NameExpr choice
+          ArgumentList ( , )
+            Argument
+              ClosureExpr fn :
+                ParameterList ( )
+                  Parameter a
+                Block
+                  ExprStmt
+                    CallExpr
+                      NameExpr println
+                      ArgumentList ( )
+                        Argument
+                          NameExpr a
+            Argument
+              ClosureExpr fn :
+                ParameterList ( )
+                  Parameter b
+                Block
+                  ExprStmt
+                    CallExpr
+                      NameExpr println
+                      ArgumentList ( )
+                        Argument
+                          NameExpr b
+      ExprStmt
+        CallExpr
+          NameExpr run
+          ArgumentList ( )
+            Argument
+              ClosureExpr fn ! -> :
+                ParameterList ( )
+                NamedType i32
+                RequirementRow $
+                  NamedType Log
+                Block
+                  ExprStmt
+                    BindingExpr :=
+                      BindingPattern twice
+                      ClosureExpr fn -> :
+                        ParameterList ( )
+                          Parameter x :
+                            NamedType i32
+                        NamedType i32
+                        Block
+                          ExprStmt
+                            MultiplicativeExpr *
+                              NameExpr x
+                              LiteralExpr 2
+                  ExprStmt
+                    CallExpr
+                      NameExpr twice
+                      ArgumentList ( )
+                        Argument
+                          LiteralExpr 21
+      ExprStmt
+        TrailingCallExpr :
+          NameExpr transaction
+          Block
+            ExprStmt
+              CallExpr
+                NameExpr save
+                ArgumentList ( )
+      ExprStmt
+        BindingExpr :=
+          BindingPattern done
+          TrailingCallExpr :
+            NameExpr run
+            Block
+              ExprStmt
+                LiteralExpr 1

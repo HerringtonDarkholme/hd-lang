@@ -1,0 +1,10 @@
+# Defaults follow any bound, at the level of the parameter list.
+pub trait Add[Rhs = Self]:
+    type Out
+    fn add(self, other: Rhs) -> Self::Out
+
+data Table[+K < Hash, V = string, $R = $()]:
+    pub rows: Map[K, V] = {}
+
+fn pick[T, I < Supplier[Item = T] = Constant](source: I, width: usize = +0) -> T:
+    source.get()

@@ -430,12 +430,13 @@ impl<'s> Lexer<'s> {
                             | (TokenKind::LBrace, TokenKind::RBrace)
                     )
                 });
-                if matches {
-                    stack.pop();
-                } else {
+                if !matches {
                     let (lo, hi) = (self.tokens.start[index], self.tokens.end[index]);
                     self.error(Code::UnmatchedDelimiter, lo as usize, hi as usize);
                 }
+                // A wrong closer still closes the innermost opener, so one
+                // mistake reports once.
+                stack.pop();
             }
         }
         for (_, index) in stack {
@@ -514,7 +515,9 @@ impl<'s> Lexer<'s> {
 
     fn consume_identifier_chars(&mut self) -> bool {
         let start = self.pos;
-        let first_byte = self.bytes[self.pos];
+        let Some(&first_byte) = self.bytes.get(self.pos) else {
+            return false;
+        };
         if first_byte.is_ascii() {
             if first_byte != b'_' && !first_byte.is_ascii_alphabetic() {
                 return false;
@@ -702,7 +705,10 @@ impl<'s> Lexer<'s> {
                     self.tokens.push(kind, piece_start, self.pos, piece_line);
                     interpolated = true;
                     if !self.interpolation() {
-                        break;
+                        // End of input inside the code: no tail piece.
+                        self.string_depth -= 1;
+                        self.error(Code::UnterminatedString, start, self.pos);
+                        return;
                     }
                     piece_start = self.pos;
                     piece_line = self.line;

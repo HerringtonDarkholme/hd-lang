@@ -1,0 +1,116 @@
+Root
+  FnDecl fn levels -> :
+    ParameterList ( , , , )
+      Parameter a :
+        NamedType i32
+      Parameter b :
+        NamedType i32
+      Parameter c :
+        NamedType bool
+      Parameter xs :
+        NamedType List
+          TypeArgumentList [ ]
+            NamedType i32
+    NamedType void
+    Block
+      ExprStmt
+        BindingExpr :=
+          BindingPattern x
+          AdditiveExpr -
+            AdditiveExpr +
+              NameExpr a
+              MultiplicativeExpr *
+                NameExpr b
+                PowerExpr **
+                  NameExpr c
+                  PowerExpr **
+                    LiteralExpr 2
+                    LiteralExpr 3
+            UnaryExpr -
+              NameExpr a
+      ExprStmt
+        BindingExpr :=
+          BindingPattern y
+          BitwiseOrExpr |
+            ShiftExpr <<
+              NameExpr a
+              LiteralExpr 1
+            BitwiseXorExpr ^
+              BitwiseAndExpr &
+                NameExpr b
+                LiteralExpr 3
+              LiteralExpr 4
+      ExprStmt
+        BindingExpr :=
+          BindingPattern z
+          LogicalOrExpr ||
+            UnaryExpr !
+              NameExpr c
+            LogicalAndExpr &&
+              ComparisonExpr <
+                NameExpr a
+                NameExpr b
+              ComparisonExpr >=
+                NameExpr b
+                LiteralExpr 0
+      ExprStmt
+        BindingExpr :=
+          BindingPattern p
+          PipeExpr |>
+            PipeExpr |>
+              NameExpr xs
+              CallExpr
+                NameExpr wrap
+                ArgumentList ( )
+                  Argument
+                    PlaceholderExpr _
+            NameExpr size
+      ExprStmt
+        BindingExpr :=
+          BindingPattern r
+          RangeExpr ..
+            LiteralExpr 0
+            AdditiveExpr +
+              NameExpr a
+              LiteralExpr 1
+      ExprStmt
+        BindingExpr :=
+          BindingPattern s
+          RangeExpr ..=
+            NameExpr b
+      ExprStmt
+        BindingExpr :=
+          BindingPattern t
+          IndexExpr [ ]
+            NameExpr xs
+            RangeExpr ..
+              LiteralExpr 1
+      ExprStmt
+        BindingExpr :=
+          BindingPattern q
+          FieldExpr . d
+            TryExpr ?
+              IndexExpr [ ]
+                CallExpr
+                  FieldExpr . c
+                    FieldExpr . b
+                      NameExpr a
+                  ArgumentList ( )
+                    Argument
+                      LiteralExpr 1
+                LiteralExpr 0
+      ExprStmt
+        BindingExpr :=
+          BindingPattern n
+          AdditiveExpr +
+            ParenExpr ( )
+              BindingExpr :=
+                BindingPattern a
+                NameExpr b
+            LiteralExpr 1
+      ExprStmt
+        BindingExpr :=
+          BindingPattern v
+          ComparisonExpr is
+            NameExpr x
+            VariantExpr . Some

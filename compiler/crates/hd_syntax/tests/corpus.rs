@@ -95,6 +95,35 @@ fn valid_sources() -> Vec<PathBuf> {
 }
 
 #[test]
+fn parse_gap_repros_parse_clean() {
+    let mut files = Vec::new();
+    hd_files(
+        &repository_root().join("compiler/tests/parse-gaps"),
+        &mut files,
+    );
+    assert!(files.len() >= 17, "parse-gap repros missing");
+    for path in files {
+        let source = fs::read_to_string(&path).expect("read repro");
+        let parsed = parse(source.as_bytes());
+        assert!(
+            parsed.is_ok(),
+            "{}: {:?}",
+            path.display(),
+            parsed.diagnostic_codes()
+        );
+        assert!(
+            !parsed
+                .tree
+                .root()
+                .descendants()
+                .any(|node| node.kind() == SyntaxKind::Error),
+            "{}",
+            path.display()
+        );
+    }
+}
+
+#[test]
 fn every_source_lexes_without_panic_and_round_trips() {
     let files = corpus();
     assert!(files.len() > 2_000, "corpus unexpectedly small");

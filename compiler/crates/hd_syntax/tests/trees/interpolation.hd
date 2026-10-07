@@ -1,0 +1,8 @@
+# `$name` stays in the text; `${...}` holds code tokens, nested strings too.
+fn greet(user: User, items: List[string]) -> string:
+    a := "hello $user.name"
+    b := "count ${items.len() + 1} of ${total("x ${user.id}")}"
+    c := sql"select * from t where id = ${user.id}"
+    d := """first ${a}
+second ${b}"""
+    "${a}${b}"

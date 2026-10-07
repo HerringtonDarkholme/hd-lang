@@ -1,0 +1,95 @@
+Root
+  FnDecl fn chain -> :
+    ParameterList ( , )
+      Parameter raw :
+        NamedType string
+      Parameter flag :
+        NamedType bool
+    NamedType i32
+    Block
+      ExprStmt
+        BindingExpr :=
+          BindingPattern word
+          CallExpr
+            FieldExpr . trim
+              CallExpr
+                FieldExpr . slice
+                  NameExpr raw
+                ArgumentList ( , )
+                  Argument
+                    LiteralExpr 0
+                  Argument
+                    LiteralExpr 8
+            ArgumentList ( )
+      ExprStmt
+        BindingExpr :=
+          BindingPattern size
+          PipeExpr |>
+            PipeExpr |>
+              NameExpr raw
+              CallExpr
+                FieldExpr . slice
+                  PlaceholderExpr _
+                ArgumentList ( , )
+                  Argument
+                    LiteralExpr 0
+                  Argument
+                    LiteralExpr 8
+            CallExpr
+              FieldExpr . len
+                PlaceholderExpr _
+              ArgumentList ( )
+      ExprStmt
+        BindingExpr :=
+          BindingPattern total
+          CallExpr
+            NameExpr sum
+            ArgumentList ( , , )
+              Argument
+                LiteralExpr 1
+              Argument
+                LiteralExpr 2
+      ExprStmt
+        BindingExpr :=
+          BindingPattern picked
+          ListExpr [ ]
+            IfExpr if :
+              NameExpr flag
+              Block
+                ExprStmt
+                  LiteralExpr 1
+              ElseClause else :
+                Block
+                  ExprStmt
+                    LiteralExpr 2
+      ExprStmt
+        BindingExpr :=
+          BindingPattern pair
+          ParenExpr ( )
+            IfExpr if :
+              NameExpr flag
+              Block
+                ExprStmt
+                  UnaryExpr +
+                    LiteralExpr 1
+              ElseClause else :
+                Block
+                  ExprStmt
+                    UnaryExpr +
+                      LiteralExpr 2
+      ExprStmt
+        IfExpr if :
+          NameExpr flag
+          Block
+            ReturnStmt return
+              LiteralExpr 1
+          ElseClause else :
+            Block
+              ReturnStmt return
+                LiteralExpr 2
+      ExprStmt
+        CallExpr
+          VariantExpr . Ok
+          ArgumentList ( )
+            Argument
+              NameExpr word

@@ -26,8 +26,8 @@ fn measure(mut operation: impl FnMut(), bytes: usize) -> f64 {
         rounds += 1;
     }
     let seconds = start.elapsed().as_secs_f64();
-    #[allow(clippy::cast_precision_loss)]
-    let processed = bytes as f64 * rounds as f64;
+    let processed = f64::from(u32::try_from(bytes).unwrap_or(u32::MAX))
+        * f64::from(u32::try_from(rounds).unwrap_or(u32::MAX));
     processed / seconds / (1024.0 * 1024.0)
 }
 

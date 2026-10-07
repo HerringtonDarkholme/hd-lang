@@ -1,0 +1,135 @@
+Root
+  UseDecl use std . text .
+    UseGroup { , }
+      UseItem split as cut
+      UseItem join
+  UseDecl pub use pkg . geo .
+    UseGroup { }
+      UseItem Point
+  UseDecl use dep . json . decode as parse
+  DataDecl pub data Point :
+    Decorator @
+      CallExpr
+        NameExpr derive
+        ArgumentList ( , )
+          Argument
+            NameExpr Debug
+          Argument
+            NameExpr Eq
+    Block
+      DataField pub x :
+        NamedType i32
+      DataField y :
+        NamedType i32
+        DefaultValue =
+          LiteralExpr 0
+      EmbeddedField
+        NamedType Base
+  EnumDecl enum Status :
+    ParameterList ( )
+      Parameter code :
+        NamedType i32
+        DefaultValue =
+          LiteralExpr 200
+    Block
+      EnumVariant Ok ->
+        VariantSharedData Status
+          ArgumentList ( )
+            Argument
+              LiteralExpr 200
+      EnumVariant Missing
+        Decorator @
+          CallExpr
+            NameExpr rename
+            ArgumentList ( )
+              Argument
+                StringExpr "gone"
+        ParameterList ( , )
+          Parameter path :
+            NamedType string
+          Parameter reason :
+            Decorator @
+              CallExpr
+                NameExpr rename
+                ArgumentList ( )
+                  Argument
+                    StringExpr "why"
+            NamedType string
+  TraitDecl trait Shape :
+    BoundList <
+      NamedType Named
+    Block
+      AssociatedTypeDecl type Unit
+      FnDecl fn area ->
+        ParameterList ( )
+          Parameter self
+        NamedType i32
+      FnDecl fn scaled -> :
+        ParameterList ( , )
+          Parameter self
+          Parameter by :
+            NamedType i32
+        NamedType i32
+        Block
+          ExprStmt
+            MultiplicativeExpr *
+              CallExpr
+                FieldExpr . area
+                  NameExpr self
+                ArgumentList ( )
+              NameExpr by
+  ImplDecl impl for by Base :
+    NamedType Shape
+    NamedType Point
+    Block
+      AssociatedTypeDecl type Unit =
+        NamedType i32
+      FnDecl fn area -> :
+        ParameterList ( )
+          Parameter self
+        NamedType i32
+        Block
+          ExprStmt
+            MultiplicativeExpr *
+              FieldExpr . x
+                NameExpr self
+              FieldExpr . y
+                NameExpr self
+  ImplDecl impl by Structure :
+    NamedType User
+    Block
+      Derivation name =
+        CallExpr
+          NameExpr field
+          ArgumentList ( )
+            Argument
+              StringExpr "name"
+      Derivation Self +=
+        CallExpr
+          NameExpr derive_all
+          ArgumentList ( )
+  ExprStmt
+    BindingExpr :=
+      BindingPattern limit
+      LiteralExpr 80
+  TestsBlock tests :
+    Block
+      UseDecl use std . testing . assert_equal
+      ExprStmt
+        TrailingCallExpr :
+          CallExpr
+            NameExpr it
+            ArgumentList ( )
+              Argument
+                StringExpr "adds"
+          Block
+            ExprStmt
+              CallExpr
+                NameExpr assert_equal
+                ArgumentList ( , )
+                  Argument
+                    AdditiveExpr +
+                      LiteralExpr 1
+                      LiteralExpr 1
+                  Argument
+                    LiteralExpr 2

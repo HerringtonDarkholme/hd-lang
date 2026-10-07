@@ -1,0 +1,60 @@
+Root
+  TraitDecl pub trait Add :
+    GenericParameterList [ ]
+      GenericParameter Rhs
+        TypeDefault =
+          NamedType Self
+    Block
+      AssociatedTypeDecl type Out
+      FnDecl fn add ->
+        ParameterList ( , )
+          Parameter self
+          Parameter other :
+            NamedType Rhs
+        ProjectionType :: Out
+          NamedType Self
+  DataDecl data Table :
+    GenericParameterList [ , , ]
+      GenericParameter + K
+        BoundList <
+          NamedType Hash
+      GenericParameter V
+        TypeDefault =
+          NamedType string
+      GenericParameter $ R
+        TypeDefault =
+          RequirementRow $ ( )
+    Block
+      DataField pub rows :
+        NamedType Map
+          TypeArgumentList [ , ]
+            NamedType K
+            NamedType V
+        DefaultValue =
+          MapExpr { }
+  FnDecl fn pick -> :
+    GenericParameterList [ , ]
+      GenericParameter T
+      GenericParameter I
+        BoundList <
+          NamedType Supplier
+            TypeArgumentList [ ]
+              AssociatedTypeBinding Item =
+                NamedType T
+        TypeDefault =
+          NamedType Constant
+    ParameterList ( , )
+      Parameter source :
+        NamedType I
+      Parameter width :
+        NamedType usize
+        DefaultValue =
+          UnaryExpr +
+            LiteralExpr 0
+    NamedType T
+    Block
+      ExprStmt
+        CallExpr
+          FieldExpr . get
+            NameExpr source
+          ArgumentList ( )

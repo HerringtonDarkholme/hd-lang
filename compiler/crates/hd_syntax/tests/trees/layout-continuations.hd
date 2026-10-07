@@ -1,0 +1,23 @@
+# Bracket continuation, leading-dot and leading-pipe lines, a nested suite
+# inside brackets, `else` resuming a header, and a same-line `if` with its
+# `else` on the next line.
+fn chain(raw: string, flag: bool) -> i32:
+    word := raw
+        .slice(0, 8)
+        .trim()
+    size := raw
+        |> _.slice(0, 8)
+        |> _.len()
+    total := sum(
+        1,
+        2,
+    )
+    picked := [if flag:
+        1
+    else:
+        2]
+    pair := (if flag: +1
+     else: +2)
+    if flag: return 1
+    else: return 2
+    .Ok(word)

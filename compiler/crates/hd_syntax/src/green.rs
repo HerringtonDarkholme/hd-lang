@@ -221,6 +221,37 @@ impl GreenTree {
         output
     }
 
+    /// A snapshot form: one node per line, indented by depth, with the
+    /// node's own tokens (not its children's) after its kind.
+    #[must_use]
+    pub fn outline(&self, tokens: &TokenBuf, source: &str) -> String {
+        fn walk(
+            node: NodeRef<'_>,
+            depth: usize,
+            tokens: &TokenBuf,
+            source: &str,
+            out: &mut String,
+        ) {
+            let own: Vec<&str> = node
+                .direct_tokens()
+                .map(|token| tokens.text(token, source))
+                .collect();
+            let _ = write!(out, "{}{:?}", "  ".repeat(depth), node.kind());
+            if !own.is_empty() {
+                let _ = write!(out, " {}", own.join(" ").replace('\n', "\\n"));
+            }
+            out.push('\n');
+            for child in node.children() {
+                walk(child, depth + 1, tokens, source, out);
+            }
+        }
+        let mut out = String::new();
+        if !self.is_empty() {
+            walk(self.root(), 0, tokens, source, &mut out);
+        }
+        out
+    }
+
     #[must_use]
     pub fn reconstruct(&self, tokens: &TokenBuf, source: &str) -> String {
         tokens.reconstruct(source)

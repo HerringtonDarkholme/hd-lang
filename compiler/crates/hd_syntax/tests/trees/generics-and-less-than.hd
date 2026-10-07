@@ -1,0 +1,12 @@
+# `<` is a bound in a declaration and a comparison in an expression;
+# expression type arguments follow `::`.
+fn below[T < Ord & Hash, $R](value: T, limit: i32) -> bool $ R:
+    if value < limit::[i32]() && first::[T](xs) < value:
+        true
+    Add::[i32]::add(1, 2) < Box::[i32] { value: 1 }.value
+
+trait Numeric < Add[Out = Self] & Copy:
+    fn zero() -> Self
+
+impl[T < mut Clear] Reset for Holder[T]:
+    fn reset(mut self) -> void: self.value.clear()

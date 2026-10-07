@@ -1,0 +1,85 @@
+Root
+  FnDecl fn forms -> :
+    ParameterList ( , , , , , , , , , , )
+      Parameter a :
+        NamedType geo . Point
+      Parameter b :
+        OptionalType ?
+          DynType dyn
+            NamedType Supplier
+              TypeArgumentList [ ]
+                AssociatedTypeBinding Item =
+                  NamedType i32
+      Parameter c :
+        MutType mut
+          NamedType List
+            TypeArgumentList [ ]
+              NamedType string
+      Parameter d :
+        TupleType ( , , )
+          NamedType i32
+          TupleType ( , )
+            NamedType string
+          TupleType ( )
+      Parameter e :
+        OptionalType ?
+          ParenType ( )
+            FunctionType fn ( ) ->
+              NamedType i32
+      Parameter f :
+        FunctionType fn ! ( , ) ->
+          NamedType i32
+          RestType ...
+            NamedType List
+              TypeArgumentList [ ]
+                NamedType i32
+          NamedType i32
+          RequirementRow $ +
+            NamedType Log
+            NamedType Store
+              TypeArgumentList [ ]
+                AssociatedTypeBinding Item =
+                  NamedType User
+      Parameter g :
+        ProjectionType :: Item
+          NamedType I
+      Parameter h :
+        ContextType $ . Context [ ]
+          RequirementRow $ +
+            NamedType Log
+            NamedType Clock
+      Parameter i :
+        NamedType Fn
+          TypeArgumentList [ , , ]
+            TupleType ( )
+            NamedType void
+            RequirementRow $ ( )
+      Parameter j :
+        TupleType ( , )
+          RestType ...
+            NamedType List
+              TypeArgumentList [ ]
+                NamedType i32
+    ParenType ( )
+      FunctionType fn ( ) ->
+        NamedType i32
+        RequirementRow $
+          NamedType Log
+    RequirementRow $
+      NamedType Clock
+    Block
+      ExprStmt
+        ClosureExpr fn -> :
+          ParameterList ( )
+          NamedType i32
+          RequirementRow $
+            NamedType Log
+          Block
+            ExprStmt
+              LiteralExpr 1
+  TypeDecl type AppRow =
+    RequirementRow $ +
+      NamedType Db
+      NamedType Cache
+  TypeDecl type Meters ( )
+    NamedType f64

@@ -149,7 +149,6 @@ impl<'t> LayoutCursor<'t> {
     /// Called right after the parser consumes a suite-introducing `:` (or a
     /// match arm's `=>`). A token on the same line starts a same-line suite.
     pub fn open_suite(&mut self, closure: bool) -> SuiteKind {
-        debug_assert!(self.pending.is_empty());
         if self.pos < self.tokens.len() && !self.line_first(self.pos) {
             self.inline.push(self.depth);
             return SuiteKind::SameLine;

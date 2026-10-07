@@ -1,0 +1,51 @@
+Root
+  FnDecl fn broken -> :
+    ParameterList ( )
+      Parameter a :
+        NamedType i32
+    NamedType i32
+    Block
+      ExprStmt
+        BindingExpr :=
+          BindingPattern x
+          NameExpr a
+      Error and b
+      ExprStmt
+        BindingExpr :=
+          BindingPattern z
+          ComparisonExpr <
+            ComparisonExpr <
+              NameExpr a
+              NameExpr b
+            NameExpr c
+      ReturnStmt return
+        NameExpr a
+  FnDecl fn after -> :
+    ParameterList ( )
+    NamedType i32
+    Block
+      ExprStmt
+        LiteralExpr 1
+  ImplDecl pub impl for :
+    NamedType Shape
+    NamedType Point
+    Block
+      FnDecl fn area -> :
+        ParameterList ( )
+          Parameter self
+        NamedType i32
+        Block
+          ExprStmt
+            LiteralExpr 1
+  ExprStmt
+    BindingExpr :=
+      BindingPattern values
+      ListExpr [ ,
+        LiteralExpr 1
+        LiteralExpr 2
+        Error
+  Error )
+diagnostic 3:12: syntax-error
+diagnostic 4:16: comparison-chaining
+diagnostic 9:1: syntax-error
+diagnostic 12:16: unmatched-delimiter
