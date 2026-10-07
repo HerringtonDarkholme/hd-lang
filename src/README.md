@@ -248,7 +248,7 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `test-only-use`, whose message names the remove-then-add sequence. `hd clean`
   (`commands/clean.ts`) removes `build/` of the package or of each member;
   `hd clean --cache` (`clearCache` in `dependencies/cache.ts`) removes
-  `pkg`, `hash`, and `tmp` of the cache directory, makes read-only entries
+  `pkg`, `hash`, `obj`, and `tmp` of the cache directory, makes read-only entries
   writable first, and refuses the root, the home directory, and any
   directory with other entries. A pseudo-version's base tag
   must exist and be an ancestor of its commit (`git merge-base

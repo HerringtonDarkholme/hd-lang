@@ -169,7 +169,7 @@ export async function removeTree(path: string): Promise<void> {
 }
 
 /** The entries `hd` keeps in a cache directory; `hd clean --cache` removes only these. */
-const CACHE_ENTRIES = ["pkg", "hash", "tmp"];
+const CACHE_ENTRIES = ["pkg", "hash", "obj", "tmp"];
 
 /** What `hd clean --cache` did: the versions it removed, or why it refused. */
 export type CacheClearing =
@@ -190,12 +190,12 @@ async function cachedVersions(directory: string, prefix = ""): Promise<string[]>
 }
 
 /**
- * Removes every fetched version from the cache directory
- * (spec/cli/command-line.md#r-cli.clean.cache). It refuses the file system
- * root, the home directory, a non-directory, and a directory that holds
- * anything but `pkg`, `hash`, and `tmp` (cli.clean.cache.layout), and it
- * removes only those three entries, never following a link out of the
- * directory (cli.clean.cache.scope).
+ * Removes every fetched version and compiled entry from the cache directory
+ * (spec/cli/command-line.md#r-cli.clean.cache, cli.clean.cache.compiled). It
+ * refuses the file system root, the home directory, a non-directory, and a
+ * directory that holds anything but `pkg`, `hash`, `obj`, and `tmp`
+ * (cli.clean.cache.foreign), and it removes only those four entries, never
+ * following a link out of the directory (cli.clean.cache.entries).
  */
 export async function clearCache(variables: Variables): Promise<CacheClearing> {
   const directory = resolve(cacheDirectory(variables));
@@ -214,7 +214,7 @@ export async function clearCache(variables: Variables): Promise<CacheClearing> {
   if (foreign.length > 0)
     return {
       directory,
-      refused: `${directory} holds ${foreign[0]!}, which is not an hd cache entry (pkg, hash, tmp), so it is no hd cache`,
+      refused: `${directory} holds ${foreign[0]!}, which is not an hd cache entry (pkg, hash, obj, tmp), so it is no hd cache`,
     };
   const removed = (await cachedVersions(join(real, "pkg"))).sort();
   for (const name of CACHE_ENTRIES) {
