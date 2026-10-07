@@ -30,6 +30,13 @@ The same pass applied two owner decisions recorded in
   [trait-solver.md](trait-solver.md) §2.2, §2.3, §3.1, §4.3, §7.1 and
   §8.2, and from [resolution-and-interfaces.md](resolution-and-interfaces.md).
   Headings stay, so links into them still work.
+- **Backend changes on main (b4ef8697) followed here.** `CallDyn` has no
+  evidence operands and the vtable shape has no `dyn_bounds`: the erased
+  body gets bound methods from the type witness (codegen.md §13.5.1, N5).
+  Row subsumption is no instruction (N-I2). Slots are durable
+  instructions with a `fills` log (N-I1). The `is` text follows S1c.
+  trait-solver.md §14.2 lists the solver-only adversarial fixtures that
+  N-R1's gate 4 gives the frontend lane.
 - **`dyn` types and per-member availability.**
   [syntax.md §4.4](syntax.md#44-parser-and-green-tree) parses `dyn Tr` as
   a type form;
@@ -44,7 +51,7 @@ The same pass applied two owner decisions recorded in
 | N1 | accepted-fixed | [trait-solver.md §3.2](trait-solver.md#32-owner-modules), §1.1, §2.2, §7.1, §14.2; [type-checking.md §1.6](type-checking.md#16-the-trait-solver-interface) | Quoted: "the global memo lives for one run: one frozen set of interfaces". True: `Instantiations { Receiver, Pick }` has no placeholder, so it went to the global memo, while its answer depends on the asker's closure. Every context now carries an interned `ImplUniverseId` (the folders in its closure with argument-owned impls), keyed into every `Instantiations` and `Methods` goal. Other goals provably never read the directory; a debug bit asserts it. |
 | N7 | accepted-fixed, needs-backend | [trait-solver.md §8.3](trait-solver.md#83-what-codegen-does-with-it), §1.3 | Quoted: "`select` therefore matches heads in the owner modules and returns the impl and its arguments". True: matching `Feed[ConcreteStore]` fixes `I` but not `T`. `select` now runs the plan's `Bind` steps after the head match, without proving `Bound` steps, and keeps its answers in a codegen table apart from the proof memo. codegen.md §13.2 must say the same. |
 | N8 | accepted-fixed, needs-backend | [type-checking.md §5.4](type-checking.md#54-closure-rows), §5.2, §5.3, §5.5 | Quoted: "A closure that calls an omitted-row function records its facts under the enclosing callable's `RowVar`". True. Instead of a new row variable per closure, the closure's row is its own `BodyRow` (keys plus pending parts), its calls name `Closure(sub_body)` as caller, and a body records facts only where it invokes a function value. The row sweep resolves a returned closure's type. Cold suspensions keep their capture rule. |
-| N10 | accepted-fixed, needs-backend | [type-checking.md §3.5](type-checking.md#35-the-trail-and-the-one-rollback-contract), §1.5, §3.6, §13 | Quoted: "`scopes`, `loops`, `fns` ... equal depth at the trial's end, asserted". True. Join operands and held classes are now rows of an append-only `join_items` column with a trailed head per frame. A trial never fills a slot reserved before its checkpoint; the fill goes to a truncatable `deferred_fills` column, applied when no trial is open. Also found: the statement's open literal classes were a stack that trials grew; now a column. The verifier hashes frame contents and older slots. |
+| N10 | accepted-fixed, needs-backend | [type-checking.md §3.5](type-checking.md#35-the-trail-and-the-one-rollback-contract), §1.5, §3.6, §13 | Quoted: "`scopes`, `loops`, `fns` ... equal depth at the trial's end, asserted". True. Join operands and held classes are now rows of an append-only `join_items` column with a trailed head per frame. A slot reserved before a trial and filled during it is recorded in the builder's `fills` log, which the backend added for N-I1, and rollback empties it. Also found: the statement's open literal classes were a stack that trials grew; now a column. The verifier hashes frame contents and older slots. |
 | N-A1 | partly, needs-backend | [resolution-and-interfaces.md §4.10](resolution-and-interfaces.md#410-folder-interface-construction), §4.10.1, §4.12.1; [trait-solver.md §3.2](trait-solver.md#32-owner-modules) step 4, change 21 | Quoted: "Such an impl may live in a folder whose public API, and so whose deep hash, does not change" (cache.md). The two documents did disagree. Resolution's reading holds: an argument-owned impl has a nameable trait and target, so its head is in `api_hash` and the deep hash. The `argc` graph is redundant and should go; the solver memo keeps the per-context universe (N1). |
 | N-A3 | accepted-fixed | [syntax.md §4.5](syntax.md#45-header-extraction-and-the-api-text-hash) | Quoted: "the hash of the token kinds and texts", with whitespace left out. True: indentation is syntax in kept template bodies. The hash now reads the green tree's tokens with its virtual layout tokens (`Newline`, `Indent`, `Dedent`, `SuiteEnd`), so equal lexical tokens with different blocks hash differently. A test checks it. |
 | N-D1 | accepted-fixed, needs-backend | [trait-solver.md §5.3](trait-solver.md#53-why-no-global-index), §3.3, §5.2, §11; [resolution-and-interfaces.md §4.12.3](resolution-and-interfaces.md#4123-coherence) | Quoted: "Each trait is one task keyed by its sorted head hashes". True: the report picks the later impl by rank, which the key did not cover. A head hash is now `H(head, rank)`. Also found: the rank used a byte offset, which a body edit above the impl moves without rebuilding the interface; it is now the item index. |
@@ -105,10 +112,10 @@ The same pass applied two owner decisions recorded in
    `Closure(sub_body)`. A closure's row belongs to its function type; a
    call of a function value whose row holds pending parts records facts
    at the invoking body. No fact puts a closure's keys into its creator.
-5. **data-structures.md §3.9.5, with N-I1 (N10).** A slot reserved
-   before a trial's checkpoint may have its fill deferred until no trial
-   is open, so its identity must survive until then. N-I1's durable slot
-   identities give that.
+5. **data-structures.md §3.9.5, with N-I1 (N10).** Done on main: slots
+   are durable `Slot` instructions, and the `fills` log undoes
+   pre-checkpoint fills at rollback. type-checking.md §1.5 and §3.5 now
+   use that log instead of a checker-side column.
 6. **Driver and scheduler (N1).** After M1 builds the closure bit sets,
    compute one `ImplUniverseId` per solving context: each module, each
    module's test overlay, each `HeaderCheck(F)`. Intern them per run.

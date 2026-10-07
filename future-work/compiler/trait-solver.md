@@ -1269,7 +1269,7 @@ head (rule TS-6). The solver keeps the nested proof only in the memo, for
 | --- | --- | --- |
 | a trait method call with a known self type or a bound | `Call` with a `TraitMethod` callee | the choice: `Impl`, `Bound`, `TraitValue` or `Builtin` |
 | a conversion to a trait value | `Coerce` of kind to-trait-value | the concrete type, the trait reference and the `Impl` choice |
-| a call through a trait value whose method has bounded method-level parameters | `CallDyn` | one `Evidence` per method-level bound (section 9.2) |
+| a call through a trait value | `CallDyn` | none: its method-level bounds are proven at the call and reach the erased body through the type witness (section 9.2) |
 
 The `TraitMethod` choice in D2's catalog is "the impl's `DefId` or the
 index of the bound in scope". This design needs two more choices,
@@ -1315,8 +1315,8 @@ of making them. A proof entry and a selection entry never share a key.
 - **Default methods.** A `TraitMethod` call resolved to an impl that does
   not write the method instantiates the trait's default body, with `Self`
   set to the impl's target.
-- **Vtables.** For each `(type, trait reference)` that a coercion, an
-  evidence choice or a `CallDyn` bound needs, codegen selects the impl of
+- **Vtables.** For each `(type, trait reference)` that a coercion or an
+  evidence choice needs, codegen selects the impl of
   the trait and of each supertrait, and fills the vtable shape (section
   9.2).
 
@@ -1381,7 +1381,6 @@ pub struct VtableShape {
     slots: Box<[SlotRef]>,          // the trait's own methods, in declaration order
     supers: Box<[DefId]>,           // direct supertraits, in declared order; each a pointer to its vtable
     type_id: bool,                  // the trait is Inspectable or extends it
-    dyn_bounds: Box<[(u16, u8)]>,   // per slot: how many method-level bounds take evidence at the call
 }
 ```
 
@@ -1389,27 +1388,20 @@ pub struct VtableShape {
   `Error < Display & Inspectable` shares one vtable per
   supertrait. Widening to a supertrait value reads one pointer
   ([`trait.dyn.widen`](../../spec/lang/09-traits.md#r-trait.dyn.widen)).
-- **Method-level bounds.** A method available on `dyn` may have a parameter
-  `T < Display`, with any type argument. Its one body takes the evidence
-  for `Display` with each call
+- **Method-level type parameters.** A method available on `dyn` may have
+  a parameter `T < Display`, called with any type argument
   ([`types.trait.safe.method-type-arg`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg)).
-  So a `CallDyn` carries one vtable per such bound, chosen by the checker
-  at the call. This is the one place where a dictionary is
-  passed at run time.
-- **The slot's ABI (review blocker 5).** The slot's body is the impl
-  method compiled once with each method-level parameter erased to the
-  reference shape (`anyref`), one type witness per method-level type
-  parameter (owner, 2026-10-07, in [goals.md](goals.md#summary): layout
-  operations for the caller's concrete type, so containers of `T` are
-  used in place), and one vtable parameter per bound. The witness record
-  and its ABI are the backend lane's (Codex re-review N5); the solver's
-  part is only the evidence per bound. A caller
-  passing a value-typed argument boxes it at the call; the box has no
-  identity ([`types.trait.safe.method-type-arg.box`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg.box)).
-  A caller that knows `T` casts or unboxes the result back to `T`. Statically dispatched calls of the same method stay monomorphized;
-  only the vtable slot uses the erased instance. `Inspectable.downcast[T]`
-  is the std case: its `T < AnyRef & Inspectable` evidence carries the
-  `TypeId` it compares.
+  The checker proves each such bound at the call's type argument, as an
+  ordinary `Implements` goal, and records nothing more: `CallDyn` has no
+  evidence operands. The slot's body is the impl method compiled once,
+  erased, and it receives one type witness per method type parameter
+  (owner, 2026-10-07, in [goals.md](goals.md#summary)). The witness
+  carries the layout operations and, as outlined thunks, the bound
+  methods at the caller's concrete type, each selected by head there
+  (rule TS-6). That ABI is codegen's
+  ([codegen.md §13.5](codegen.md#135-dictionaries-trait-values-and-gadt-evidence),
+  Codex re-review N5). Statically dispatched calls of the same method
+  stay monomorphized.
 - **Row parameters** pass their providers as one bundle and need no slot.
 
 ### 9.3 Trait Values As Self Types
@@ -1653,6 +1645,7 @@ conformance index, and lists rules with no fixture, per component.
 | select soundness | in CI builds, every `select` at an instance re-solves the full goal and asserts `Holds` with the same impl (rule TS-6) |
 | pathological suite | each case of section 13, well-typed and ill-typed, within its fuel and wall-time budget, with its limit diagnostic; each also at sizes `n` and `2n`, failing when the observed exponent exceeds 1.2 (section 7.6) |
 | one-root-cause fuzzer | mutate one impl or bound of a well-typed program; more than two error diagnostics flags a cascade for review |
+| adversarial solver fixtures (Codex re-review N-R1, gate 4; frontend lane) | built before the full checker, run with shuffled scheduling before threads: two modules with different candidate universes in both orders (section 3.2); binding-constrained impl parameters through `select` (section 8.3); supertrait diamonds that bind on one path only, and with conflicting bindings (section 4.2); shared-subgoal DAGs with a fixed fuel charge (section 7.4); residual bounds that stall, then fit or fail (section 6.5); projections through impls whose bounds fail (section 4.3); trials that hold early returns or wake older stalled calls (type-checking.md §3.5). Accept or reject goes into implementation-neutral conformance fixtures; costs and answers go into solver snapshots |
 
 ## 15. Prototype Failures And The Rules That Prevent Them
 
@@ -1669,7 +1662,7 @@ From [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md), its history, the
 | `TypeId` spelled by bare name; two same-named types of different modules could share an identity | F-620 | `Inspectable` evidence names the type, and codegen derives identity from the canonical type over stable paths ([§13.3](codegen.md#133-instance-keys)) |
 | `Trait::method(item)` with a parameter receiver searched impls only | F-624 | one goal for every source, the environment first (section 3.1) |
 | impl matching on canonical type strings | [CA-02](../../audit/compiler/findings-2026-10-04.md#ca-02-textual-types-and-semantic-cycles) | heads in the pool; the head index; TC-2 |
-| dictionary plans in HIR, an erased-dictionary ABI shared with the emitter | [CA-04](../../audit/compiler/findings-2026-10-04.md#ca-04-cross-stage-representation-and-distributed-abi) | TIR records only the top choice; codegen selects by head (TS-6); dictionaries only for trait values and `CallDyn` bounds (GADT evidence is removed with GADTs) |
+| dictionary plans in HIR, an erased-dictionary ABI shared with the emitter | [CA-04](../../audit/compiler/findings-2026-10-04.md#ca-04-cross-stage-representation-and-distributed-abi) | TIR records only the top choice; codegen selects by head (TS-6); dictionaries only for trait values; `dyn` generic methods get type witnesses (codegen.md §13.5.1); GADT evidence is removed with GADTs |
 | derivation diagnostics in process-global registries keyed by span | [CS-02](../../audit/compiler/findings-2026-10-04.md#cs-02-derivation-diagnostic-registries-reuse-keys-without-compilation-identity) | `FailInfo` carries the impl's origin; diagnostics are values in the body result |
 | derives through generated source that is parsed again | checker audit, Derivation And Std Integration | the solver sees derived heads only; template bodies are token text with a resolution table, checked as derive instances |
 | bound inference repeats until no solution changes | checker audit, `bound-inference.ts` | the spec's bounded loop stays in the checker; the solver has no fixpoint (TS-7) |
@@ -1732,8 +1725,8 @@ owner disagrees.
    derived head is in the table, so the member check never meets a cycle
    (section 3.10). Every cycle that the search meets is `Overflow`.
 5. **Smaller gaps**, each fixed by a change in section 16.4: D2's
-   "dictionaries only for trait values and GADT evidence" misses `CallDyn`
-   bound evidence (change 19); type-checking.md's goals have no `mut`, the
+   "dictionaries only for trait values and GADT evidence" (both GADT
+   evidence and `CallDyn` bound evidence are now gone; change 19); type-checking.md's goals have no `mut`, the
    prototype's F-619 (change 1); D2's collection re-solves where a head
    match suffices (change 18).
 
@@ -1801,8 +1794,9 @@ the backend lane's, listed in
 **checking-and-tir.md**
 
 16. **§4.13.11 catalog:** the `TraitMethod` choice gains `TraitValue` and
-    `Builtin`; `CallDyn` gains one evidence operand per method-level
-    bound. (`NewVariant` evidence choices are removed with GADTs.)
+    `Builtin`. `CallDyn` has no evidence operands: the erased body gets
+    its bound methods from the type witness (Codex re-review N5).
+    (`NewVariant` evidence choices are removed with GADTs.)
 17. **§4.13.9:** a derive instance needs no coinductive assumption
     (section 3.10). Supertraits, supertrait bindings, delegation parts
     and newtype bases are checked by the folder's `HeaderCheck(F)` task
@@ -1815,8 +1809,8 @@ the backend lane's, listed in
     fuel; a failure is an internal error (rule TS-6).
 19. **§13.5:** vtables follow the trait record's shape, with supertrait
     vtables by pointer; a slot for a method with method-level parameters
-    is the erased instance with one vtable parameter per bound (section
-    9.2).
+    is the erased instance with one type witness per parameter (section
+    9.2; codegen.md §13.5.1).
 20. **§13.6:** tuple `Eq`, `Ord`, `Hash` and `Debug` are tuple-template
     instances, instantiated per tuple type like any impl.
 

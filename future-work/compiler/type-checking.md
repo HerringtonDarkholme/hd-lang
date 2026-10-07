@@ -221,9 +221,13 @@ It reserves in exactly four cases:
    when the receiver's type is known, at the latest at the end of the
    statement.
 
-Slots live on the scratch stack, so a trial's rollback removes the slots
-it reserved. A trial never fills a slot reserved before it: that fill is
-deferred until no trial is open (section 3.5). A slot still empty at the end of the body is a checker bug,
+A slot is a real TIR instruction with tag `Slot`, which lives as long as
+the body, and `fill` writes it once
+([§3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation),
+Codex re-review N-I1). A slot reserved inside a trial is truncated with
+the instructions. A slot reserved before a trial and filled during it
+goes into the builder's `fills` log, and rollback empties it again
+(section 3.5). A slot still empty at the end of the body is a checker bug,
 which `finish` reports as an internal error.
 
 **Constants have no span in TIR, and the checker needs none.** A literal
@@ -851,7 +855,7 @@ field of section 13.
 
 | Class | Rollback | Fields |
 | --- | --- | --- |
-| **append-only column** | truncated to its checkpoint length | through the builder: TIR instructions, `extra`, labels, locals (one table with the checker's columns), sub-bodies, captures, side tables, reserved slots, the body-local pool and its `resolved` column. In the checker: buffered diagnostics, obligations, watch edges, the wake queue, row facts, pending call records, init facts, scope bindings, literal members, the statement's open literal classes, join items, deferred slot fills, the "reported once" list |
+| **append-only column** | truncated to its checkpoint length | through the builder: TIR instructions, `extra`, labels, locals (one table with the checker's columns), sub-bodies, captures, side tables, reserved slots, the body-local pool and its `resolved` column. In the checker: buffered diagnostics, obligations, watch edges, the wake queue, row facts, pending call records, init facts, scope bindings, literal members, the statement's open literal classes, join items, the "reported once" list |
 | **trailed slot** | the trail restores the old value | per variable: parent, rank, binding, kind, blame, `watch_head`, literal-class data (signed, first span, held by a join, defaulted); per obligation: state; per local: flags and the definite-assignment bits; per scope: its newest binding; per open `fns` or `loops` frame: the head of its join-item list; per pool row below the checkpoint: a `resolved` entry |
 | **balanced stack** | equal depth at the trial's end, asserted | `scopes`, `loops`, `fns`, `avail`, `restricted`, the divergence flag. A trial checks whole expressions, which push and pop in pairs. A frame's fields other than its join-item head never change after the push |
 | **kept on purpose** | never rolled back | fuel (rule TC-8); the solver's body memo and its `met` set (trait-solver.md rule TS-5); the trial memo (section 2.5); an M1 body checked during a trial, which runs in its own `BodyCx` and is final (TC-4) |
@@ -870,13 +874,12 @@ unchanged. Two writes reach such state, and each now has a class:
 - **Fills of older slots.** A trial may bind a variable that wakes an
   obligation created before the trial, such as a stalled method call
   (section 1.5, case 4). Retrying it may teach bindings, which are
-  trailed. But while any trial is open, the checker never fills a slot
-  reserved before the innermost open checkpoint. It appends the fill to
-  the `deferred_fills` column instead. Rollback truncates that column,
-  so a discarded candidate's callee is never installed. When no trial is
-  open, the checker applies the column in order and clears it. A slot
-  reserved inside the innermost trial is filled at once, since rollback
-  removes the slot with it.
+  trailed, and fill the call's slot. The builder records a fill of a
+  slot reserved before the checkpoint in its `fills` log, whose length
+  is in `TirCheckpoint`; rollback empties each logged slot again
+  ([§3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation),
+  Codex re-review N-I1). So a discarded candidate's callee is never left
+  installed. The checker needs no column of its own for this.
 - **The statement's open literal classes** were a stack. A trial adds
   classes to them, so they are now an append-only column, truncated
   like the others.
@@ -908,7 +911,7 @@ pub struct Checkpoint {                  // the checker's part; `tir` holds the 
     trail: u32, diags: u32, errors: u32, obligations: u32, watch_edges: u32,
     wake_queue: u32, row_facts: u32, pending_calls: u32, init_facts: u32,
     scope_binds: u32, lit_members: u32, lit_open: u32, join_items: u32,
-    deferred_fills: u32, reported: u32,
+    reported: u32,
     stacks: StackDepths,                 // asserted equal at rollback, not restored
     tir: tir::TirCheckpoint,
 }
@@ -1112,11 +1115,11 @@ its position expects) holds only because of this rule.
 | --- | --- | --- | --- |
 | `Never` | `never` → any | `never` to any | unreachable |
 | `Weaken` | `mut T` → `T` | readonly view | none: a static view change |
-| `Variance` | `C[A]` → `C[B]` by declared variance | **missing** (section 17) | none, by [Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance) |
+| `Variance` | `C[A]` → `C[B]` by declared variance | variance (checking-and-tir.md catalog) | none, by [Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance) |
 | `WrapSome` | `T` → `T?` | option wrap | build `.Some` |
-| `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | row subsumption | an adapter that passes only `R1`'s providers |
+| `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | row subsumption | none: every function value takes a context and looks its keys up by id, so a context holding `R2`'s keys serves `R1` ([codegen.md §12.4](codegen.md#124-rows-and-providers), Codex re-review N-I2) |
 | `ToTraitValue` | `S` → `Tr`, `mut S` → `mut Tr`; `Any` included | to trait value, to `Any` | box with its dispatch table; the impl choice is in the record |
-| `Supertrait` | child trait value → parent trait value | **missing** (section 17) | re-table |
+| `Supertrait` | child trait value → parent trait value | supertrait (checking-and-tir.md catalog) | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | suspending function to constructor | none, or a thin adapter |
 
 The error conversion of `?` is not a coercion: it is a `Call` of the
@@ -1986,7 +1989,6 @@ pub struct BodyCx<'f, B: TirSink> {
     loops: Vec<LoopCx>,                 // break type slot, label, join-item head (trailed), ~16 B
     fns: Vec<FnCx>,                     // result slot, row, driver flag, join-item head (trailed), ~28 B
     join_items: Vec<(JoinItem, u32)>,   // append-only: a join operand or held class, next item (§3.5)
-    deferred_fills: Vec<(SlotId, FillRef)>, // append-only: fills of older slots during a trial (§3.5)
     avail: Vec<RowId>,                  // the available stack (§5.2)
     restricted: u16,                    // §5.8 depth
     lit_open: Vec<InferVar>,            // append-only: open literal classes of the current statement
@@ -2107,7 +2109,7 @@ again:
 | typed holes | `_` only in the first release | section 10.4 |
 | a no-emit mode | accepted for the playground and `hd fix` (orchestrator) | section 1.5 |
 | polymorphic recursion | `instantiation-too-deep`; the row solve uses the same code | section 5.5 |
-| identity of `.Some`, `.Ok`, `.Err` and boxes | none; `is` on optionals and results compares payloads; an optional takes its payload's category; `is` on a function type is an error | section 2.2 |
+| identity of enums, functions and boxes | none (S1c): `is` on any enum, optional or result, on a function value or on another value type is `identity-requires-references` | section 2.2 |
 | trait-solver questions 1, 3, 4 | dependency-closure impls; depth counted as listed; one error per body and leaf goal | section 1.6 |
 
 **Open.**
@@ -2141,10 +2143,9 @@ unless the owner disagrees.
    but not in a closure.
 2. **GADT arms and outer inference variables.** Removed with GADTs
    (section 6.1).
-3. **`is` on results.** With `.Ok` and `.Err` free of identity, this
-   design lets `is` compare two results only when both payload types are
-   reference types, the same category rule as for optionals (section
-   2.2).
+3. **`is` on results.** Settled by S1c: every enum, optionals and
+   results included, is a value type, so `is` on one is
+   `identity-requires-references` (section 2.2).
 
 ### 16.2 Inconsistencies Found
 
@@ -2170,10 +2171,9 @@ unless the owner disagrees.
    checker's own tables (section 8). Only the checker's way keeps
    checking independent of emission (TC-3), and it reports with the
    syntax still at hand.
-5. **Coercion kinds.** TIR's `Coerce` has no kind for a declared
-   variance conversion or a supertrait widening, yet each changes the
-   type, so invariant 4 needs them (section 4.2). The GADT `Refine` kind
-   is removed with GADTs.
+5. **Coercion kinds.** Resolved: checking-and-tir.md's catalog now has
+   kinds for declared variance and supertrait widening (section 4.2). The
+   GADT `Refine` kind is removed with GADTs.
 6. **Ambiguity codes.** D1 §4.13.2 says an unsolved variable is "an
    ambiguity error". The spec separates `cannot-infer-type` (no solution)
    from `ambiguous-type` (several).
