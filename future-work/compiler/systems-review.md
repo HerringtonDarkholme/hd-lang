@@ -1,6 +1,6 @@
 # New Compiler: Systems Performance Review
 
-Status: Review, 2026-10-07.
+Status: Review, 2026-10-07. Applied the same day; see [Disposition](#disposition-2026-10-07).
 
 Part of the [compiler design](README.md). This review prices the design.
 It decides nothing and edits no design file. The lowering pass
@@ -785,3 +785,31 @@ listed in the findings.
    passes on Linux can miss `edit-latency` on the Mac by the I/O alone.
    **Recommendation:** gate `edit-latency`, `io-per-check` and
    `test-latency` on both machines, with the Mac run on an idle machine.
+
+## Disposition (2026-10-07)
+
+The owner answered the four questions as recommended. The orchestrator
+decided the rest. Every finding below is applied in the owning design
+file, with a cost table where a mechanism changed.
+
+| Finding | Verdict | What changed | Where |
+| --- | --- | --- | --- |
+| 1. One file per cache entry | applied | `check`, TIR and `locs` are sections of one `check` entry per module; coherence, header and init results are parts of one `graph` entry per package; code and Cranelift entries exist only in packs per program and folder group, found through the last-run record or a shared `packhint`. Cold check: about 123 publishes (was 400); cold build adds about 64 (was 9,500) | [cache.md §5.2, §5.4, §5.9](cache.md#52-entry-kinds); [data-structures.md §3.20.4](data-structures.md#3204-entry-sections-by-kind); [engines-and-test-runner.md §18.2](engines-and-test-runner.md#182-compile-caches); [codegen.md §13.10](codegen.md#1310-the-link-step) |
+| 2. One test program per module | applied (question 1) | one unit and doc-test program per package, one init export per module, a fresh instance per case; `--filter` roots only the selected cases and their modules' init exports; `--affected` fingerprints per case group; a build error drops only its module's cases. Integration tests stay one program per file | [engines-and-test-runner.md §19.1](engines-and-test-runner.md#191-building); [commands.md §7.3, §7.4](commands.md#74-hd-test---affected); [codegen.md §13.1](codegen.md#131-roots) |
+| 3. A public edit rechecks the folder's dependents | applied, enabled after slice 4 measures the hit rate (question 2) | each `check` entry records its reads; a miss with unchanged source compares them and reuses the previous entry without a publish | [cache.md §5.3.1](cache.md#531-early-cutoff-by-recorded-reads) |
+| 4. A comment edit relinks every program | applied | `prog_key` and `--affected` hash TIR content; TIR hashes leave out positions; sites and lines are anchors resolved when printed, and `hd build` resolves them in the file it writes. The review missed that panic locations are program output; anchors are the fix | [codegen.md §11.3, §13.8](codegen.md#113-tasks); [checking-and-tir.md](checking-and-tir.md#lifetime-and-the-tir-entry); [wasm-layout.md §15.5](wasm-layout.md#155-panic-sites-and-backtraces) |
+| 5. Warm reads proportional to the program | applied | the last-run record, a section of the manifest; a private body edit opens 2 or 3 files (was about 200) | [cache.md §5.5.1](cache.md#551-the-last-run-record); [commands.md §7.1](commands.md#71-hd-check-package-mode) |
+| 6. Eviction cannot be LRU and bounded | applied (question 3) | ccache-style per-shard budgets and LRU, 256 shards, 20 ms per run, one shard rescanned per run for drift | [cache.md §5.7](cache.md#57-eviction-and-the-size-cap) |
+| 7. Browser step grew to one module | applied | the serial and stepping executors run a body batch with a cursor, one body per step; M1 and M3 resume too; the worker is killed only if stale and silent for 200 ms | [scheduler.md §6.2](scheduler.md#62-executors) |
+| 8. A one-function edit pays for its module | applied as far as the design allows | print, then publish; TIR written only for error-free modules; the 10k single-file edit is estimated at 90 to 260 ms on one core and 25 to 60 ms on 8, so it misses the p50 on one core. Per-body reuse is designed as a later step | [cache.md §5.4, §5.9](cache.md#59-what-cache-io-costs); [checking-and-tir.md §4.13.1](checking-and-tir.md#4131-task-structure-per-module); [build-order.md §9.1](build-order.md#91-status-of-the-pillar-1-and-2-targets) |
+| 9. Locks on every intern and memo hit | applied | per-worker read-through tables for interners, the global memo and the selection table; memo children are entry indices; pre-seeded types first | [data-structures.md §3.3](data-structures.md#33-interners); [trait-solver.md §7.1](trait-solver.md#71-memo-keys-and-eligibility) |
+| 10. GC pauses grow with the live heap | applied as metrics | pause length, max and p99, and request p99 in `runtime` and `long-run-memory`; slice 10's exit test | [goals.md, pillar 3](goals.md#pillar-3-artifact-quality-the-users-program-not-the-compiler); [build-order.md §22](build-order.md#22-back-half-build-order) |
+| Question 4: the Mac as a gate | applied | the idle Mac gates `edit-latency`, `io-per-check` and `test-latency` | [build-order.md §22.2](build-order.md#222-engine-pin-and-benchmark-matrix) |
+| Literal getters (orchestrator's review of the lowering catalog) | applied | one table global and one getter per module with module-local numbers, priced against one getter per literal and an inlined read; S2 and E10 give the final numbers | [lowering-catalog.md, Literals](lowering-catalog.md#literals); [wasm-layout.md §15.4](wasm-layout.md#154-globals-and-module-initialization); [codegen.md §13.8, §13.10](codegen.md#138-code-entries) |
+| Measurements to add | applied | all 16 rows, adapted to the new design | [build-order.md §9.2](build-order.md#92-systems-measurements-per-slice) |
+| Body size per task (granularity) | applied | measured figures replace "about 500 bytes per body"; bodies ordered by byte length; tasks about 600, not 2,000; the task kind has no item payload; coherence is one task | [scheduler.md §6.1, §6.2](scheduler.md#62-executors); [data-structures.md §3.21](data-structures.md#321-the-schedulers-task-graph) |
+| Relocation kinds | applied | `Func`, `Type`, `Global`, `Field`; no `Site`, no `Data` | [data-structures.md §3.22](data-structures.md#322-codegen-the-instance-table-and-code-entries) |
+| `--size-report` status | applied | no longer Later; designed for the first release | [goals.md, features](goals.md#pillar-3-features-artifact-quality) |
+| Probe file every run | applied | created only before the first hash | [cache.md §5.5](cache.md#55-the-stat-manifest-and-change-detection) |
+| IndexedDB loaded per run | applied | loaded once per worker | [cache.md §5.8](cache.md#58-the-browser-cachestore); [commands.md §7.9](commands.md#79-the-playground) |
+| Not applied in this pass | open | cold-check peak memory with every tree parsed (data-structures.md §3.24); `getattrlistbulk` for stats; fix-it verification re-parsing only the enclosing item; a content-hash column per pool item; a cap of 2 or 3 concurrent `Precompile` tasks; the REPL's session scope map; ticking the epoch only while a store has a deadline. Each is local to its owning file and changes no mechanism above | the files named in the review's other findings |

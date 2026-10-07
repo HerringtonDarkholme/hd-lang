@@ -286,7 +286,7 @@ toolchain helps make it correct.
 | `proptest-perf` | a fixed property-test suite of user-style code (derived `Arbitrary` generators, `it_prop`, shrinking): cases per second, time to shrink a known failure | e.g. ≥ 100k cases/s for simple generators; shrink ≤ 1 s |
 | `unit-test-perf` | a generated suite of unit tests (`tests:` blocks and `*_test.hd`, no host capabilities): time for `hd test` per 1,000 tests, warm, plus per-test overhead | e.g. ≤ 1 ms of overhead per test; 1,000 unit tests ≤ 1 s |
 | `integration-test-perf` | a generated `tests/` suite (default profile, `temp_dir()`, real file system) and doc tests: time per test and setup cost per test program | e.g. ≤ 20 ms setup per test program; total sublinear in programs when they share a build |
-| `runtime` | microbenchmarks of user-style programs with warm-up and spread, geomean vs Node | ≤ 1.5x; no case > 3x |
+| `runtime` | microbenchmarks of user-style programs with warm-up and spread, geomean vs Node; per case also GC collections, total pause and max pause (systems review, finding 10) | ≤ 1.5x; no case > 3x; pauses reported, gated once a pause budget is set |
 | `allocations` | allocations per iteration in counted loops and iterator chains of user programs | 0 for counted loops; ≤ 1 for chains |
 | `size-startup-heap` | release Wasm size of user programs, instantiate to first output, peak heap | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node |
 | `host-call-overhead` | cost per crossing for Console, Fs and serde-boundary calls | budget per call, e.g. ≤ 1 µs for a scalar call |
@@ -294,7 +294,7 @@ toolchain helps make it correct.
 | `serde-throughput` | JSON encode/decode MB/s on fixed documents | within 2x of Node's JSON |
 | `text-throughput` | string building, splitting and regex MB/s on fixed inputs | within 2x of Node |
 | `dead-code` | Wasm bytes per 1,000 lines; unused std excluded | budget per size; no unused std in the binary |
-| `long-run-memory` | a simulated service for 10 minutes: heap over time | flat after warm-up |
+| `long-run-memory` | a simulated service for 10 minutes: heap over time; GC pause length (max and p99) and the p99 latency of its request loop (systems review, finding 10) | flat after warm-up; pause and p99 latency reported, gated once a budget is set |
 
 `proptest-perf`, `unit-test-perf` and `integration-test-perf` matter for
 the program's correctness: the more cases an agent can afford per test run, the more
@@ -516,7 +516,10 @@ the architecture locks in are triaged here.
   mutable state;
 - `hd run --profile` (CPU flamegraph and allocation profile), `hd bench`,
   native and browser-devtools debugging with source lines, heap snapshots
-  and leak detection, `wasm-opt` and `hd build --size-report`;
+  and leak detection, and `wasm-opt` (whether release builds run it is
+  the tiering design's call). `hd build --size-report` is no longer
+  Later: it is designed for the first release
+  ([codegen.md §12.8](codegen.md#128-size-versus-speed-policy));
 - **a native backend with its own GC** (Cranelift), native async I/O
   (epoll, kqueue or io_uring), and packaging as a standalone native
   binary, a WASI component, or a serverless or edge bundle.

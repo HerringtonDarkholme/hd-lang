@@ -20,6 +20,7 @@ updated for answer 13: no drive summary in any slice.
 | 5. Browser front end | `hd_web` with the stepping scheduler and the JS stores | the playground checks programs in a worker; size measured so the owner can set a budget (answer 4); `long-session` flat in the browser |
 
 D2's slices 6 to 10 follow in §22, refining [Q16](research.md#build-order-1).
+Each slice's exit test also includes its rows of §9.2.
 
 ### 9.1 Status Of The Pillar 1 And 2 Targets
 
@@ -31,11 +32,36 @@ it.
 | Target | Status | What can break it | Benchmark parameters | Measured in |
 | --- | --- | --- | --- | --- |
 | `resources`: warm check ≤ 0.2 CPU-s, ≤ 50 MB | plausible, not established. data-structures.md §3.24 estimates structures and binary pages; it is not measured RSS | process loading, directory walks and stats (10,000 tiny files cost 20 to 100 ms in stats alone), cache I/O, allocator slack, thread stacks | empty, 100-file and 10,000-file packages; RSS and CPU separately; cold OS cache reported apart | 4 |
-| `edit-latency`: p50 ≤ 50 ms | plausible for small modules; not a guarantee for a 10k-line package | a one-function edit rechecks and rewrites its whole module (a 10k-line single-file module writes about 2 MB of TIR); a solver-heavy body; automatic eviction (bounded, cache.md §5.7) | module-size distribution published; one-file and many-file packages; time split into startup, check, serialization and publish | 4 |
+| `edit-latency`: p50 ≤ 50 ms | plausible for small modules: an estimated 6 to 20 ms to output on one core for `ordinary-10k` (cache.md §5.9). Not met on one core for `one-file-10k`: 90 to 260 ms, 25 to 60 ms on 8 | a one-function edit rechecks its whole module (checking-and-tir.md §4.13.1); a solver-heavy body; per-file I/O on the Mac (publish about 340 µs, open 60 to 120 µs), which the last-run record and print-then-publish keep off the output path | module-size distribution published; one-file and many-file packages; one core and 8 cores; time split into startup, check, serialization and publish | 4 |
 | `cold-check`: ≤ 1 s | plausible for ordinary code; line count alone does not bound it | wide impl buckets (the overlap check's trie and unification work, counted, not the old pairwise estimate), deep folder chains on the serial interface path, bodies near the fuel limit, shared proof subgoals (frontend lane) | an ordinary benchmark and a separate pathological set, each reporting work counts, not only time | 3 and 4 |
 | `startup`: ≤ 20 ms, ≤ 10 MB | feasible only with the lazy command path (commands.md §7.1 step 2) | binary page faults, pool or engine creation, eager std validation, cache scans | warm and cold executable pages on named platforms; resident pages, not file size | 1, then 4 |
 | `determinism` | contract fixed for the backend: the wire rule, one key order, print-at-end, per-state operational fields | the frontend's solver memo keys (Codex finding 8, frontend lane) | the matrix of testing-the-compiler.md §8.1, with ID shift, shuffled order and mixed warmth run before threads | 2, then 4 |
 | `recheck-precision`: one module per private body edit | holds for an ordinary private function; see design-overview.md §1.4 for what is counted and the exceptions | hidden template helpers and facts (frontend lane, Codex findings 4 and 6); init-order recomputation | the edit vocabulary of testing-the-compiler.md §8.2 | 4 |
+
+### 9.2 Systems Measurements Per Slice
+
+From the [systems review](systems-review.md#measurements-to-add-to-the-slice-exit-tests).
+Each row joins its slice's exit test. "Both machines" means the CI
+runner and the idle Mac of §22.2.
+
+| Slice | Measurement | Gate or report |
+| --- | --- | --- |
+| 1 | Body size distribution of std and `ordinary-10k`: bytes and tokens per body, p50, p90, p99, max (the review's numbers are the baseline: mean 240 B and 37 tokens, median 118 B and 19 tokens) | report |
+| 1 | Resident pages and wall time of `hd --version` with the release binary, wasmtime linked in | gate (`startup`) |
+| 3 | Check throughput in tokens per µs, per body size class, one thread | report; sets the minimum split size (scheduler.md §6.2) |
+| 3 | Lock acquisitions and contended waits per run for the interners and the global memo; memo hit cost at 1 and 8 threads; per-worker table hit rates (data-structures.md §3.3) | report; gate the 100 ns hit at 1 thread |
+| 3 | Fix-it verification time on a 1,000-line file with 20 fix-its | report |
+| 4 | Per-entry publish and read cost on both machines, by entry size (2 KiB, 64 KiB, 2 MB) | report; checks the costs in cache.md §5.9 |
+| 4 | Files opened, created and renamed per warm edit, by edit kind (systems-review.md, "Incremental Cost Per Edit") | gate on both machines: proportional to the edit (`io-per-check`) |
+| 4 | Modules rechecked per public edit in `ordinary-10k` and in a one-folder variant, and how many early cutoff would reuse (cache.md §5.3.1) | report; decides when early cutoff is enabled |
+| 4 | One-core `edit-latency` p50 and p95, next to 8 cores, on `ordinary-10k` and `one-file-10k` | gate on both core counts and both machines |
+| 4 | Time from start to the first printed diagnostic, against total time to exit | report |
+| 4 | Eviction: shards scanned, entries deleted per run, bytes over cap after a scripted day | gate (`cache-growth`) |
+| 5 | Longest stepping-executor step, in ms, on a 1,000- and a 3,000-line program in Chrome; worker restarts during a scripted typing session | gate: no step over 50 ms on the 1,000-line program |
+| 6 | `prog_key` hits after a comment edit, a `tests:` edit and a private body edit that keeps the TIR | gate: a hit for all three |
+| 8 | `hd test` on `tests-1k` cold, and after an edit to a module that 50 modules use: CPU-s, packs read, Cranelift functions compiled, `cwasm` bytes written, constant globals built per case | report |
+| 8 | Concurrent `Precompile` peak RSS | report |
+| 10 | GC collections, total pause and max pause per `runtime-suite` case; p99 pause and p99 request latency of `long-run-memory` (slice 7 starts measuring) | report; gate the max pause once a budget is set |
 
 ## 22. Back-Half Build Order
 
@@ -57,7 +83,7 @@ verifier and printer.
 | 7. Data and std | data, enums, closures, strings, lists, maps, `Option` and `Result` layouts, the exchange buffer for structured values, panics with sites and backtraces, folding | `runtime/valid` and the `runtime/panic` cases chapter by chapter, with a known-failures list | `runtime`, `allocations` (counted loops: 0), `dead-code`, `text-throughput` |
 | 8. Suspension, host and tests | state machines, `all!`, `race!`, cancellation, the reactor, grants and startup refusal, resource limits, the test runner with property tests | the suspension and capability cases; the CLI cases of [`cli-cases.tsv`](../../spec/conformance/cli-cases.tsv) | `suspension-overhead`, `host-call-overhead`, `unit-test-perf`, `proptest-perf`, `integration-test-perf`, `test-latency` |
 | 9. The browser | the JS glue, the program worker, synchronous mode, the headless-browser adapter | the runtime cases pass on wasmtime and in the browser with one known-failures list | browser size recorded; `allocations` on V8 through the glue |
-| 10. Optimization within the shared tier | bounded inlining and scalar replacement if question 1 says so; the measured engine choices (§18.6) | no conformance regression; Wasm still deterministic | `runtime` (≤ 1.5x Node), `allocations` (chains ≤ 1), `serde-throughput`, `long-run-memory` |
+| 10. Optimization within the shared tier | bounded inlining and scalar replacement if question 1 says so; the measured engine choices (§18.6) | no conformance regression; Wasm still deterministic; GC collections, total and max pause per `runtime-suite` case, and the p99 pause and request latency of `long-run-memory`, reported against the pause budget once set | `runtime` (≤ 1.5x Node), `allocations` (chains ≤ 1), `serde-throughput`, `long-run-memory` |
 
 ### 22.1 How The Pillar 3 Targets Are Met
 
@@ -72,7 +98,7 @@ verifier and printer.
 | `serde-throughput` | ≥ 0.5x Node | byte arrays, direct monomorphized calls, a streaming `JsonWriter` in std | plausible; std work |
 | `text-throughput` | ≥ 0.5x Node | `(array i8)` strings, a growable builder, `Interp` sized once | plausible |
 | `dead-code` | ≤ 10 KB per 1,000 lines; no unused std | reachability over TIR; folding; structural types | met by design; measured in slice 7 |
-| `long-run-memory` | flat after warm-up | no global caches in std's runtime; wake table entries freed on completion | depends on wasmtime's collector; measured in slice 10 |
+| `long-run-memory` | flat after warm-up; GC pause max and p99, and the request loop's p99 latency, reported | no global caches in std's runtime; wake table entries freed on completion; the initial heap sized from the profile | depends on wasmtime's collector, a copying collector without a young generation, whose pause grows with the live heap (systems review, finding 10: an estimated 25 to 50 ms per collection at 50 MB live). Slice 7 measures pauses per `runtime-suite` case; slice 10 gates once the owner sets a budget |
 | `unit-test-perf` | ≤ 1 ms per test; 1,000 in ≤ 1 s | one unit-test program per package with an init export per module, `InstancePre`, pooling, parallel workers (§19.1, §19.3) | plausible for small warm tests, not established: init runs per case, and its cost is the program's (Codex review, P8). Slice 8 measures it with fixed module count and init work |
 | `proptest-perf` | ≥ 100k cases/s; shrink ≤ 1 s | cases in one instance; scalar `record`; host-side shrinking; one property per worker (§19.4) | plausible for simple generators, by estimate; slice 8 |
 | `integration-test-perf` | ≤ 20 ms setup per program | warm `prog_key` and `cwasm` hits; lazy temp directories | met by design |
@@ -99,7 +125,13 @@ recorded in each report.
 | Machine | Use |
 | --- | --- |
 | Linux x86-64 CI runner, one fixed 8-vCPU instance type, local SSD | every gated number; CI history |
-| Apple Silicon Mac (the owner's class of machine) | a second report, never a gate on its own |
+| Apple Silicon Mac (the owner's class of machine), measured idle | a second report; also a gate for the I/O-bound targets `edit-latency`, `io-per-check` and `test-latency` |
+
+The Mac gates those three because its per-file costs are 5 to 20 times a
+Linux runner's (systems review: publish about 340 µs, open 60 to 120 µs,
+under load), and the owner's agents run there. A design that passes on
+Linux can miss `edit-latency` on the Mac by its I/O alone (systems
+review, open question 4; the owner accepted the recommendation).
 
 **Fixtures.** Each fixture is committed and versioned, so a number
 names its input:
