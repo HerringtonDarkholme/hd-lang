@@ -47,7 +47,9 @@ dependencies = [
 name = "hd_cli"
 version = "0.0.0"
 dependencies = [
+ "hd_cache",
  "hd_driver",
+ "hd_sched",
  "hd_syntax",
 ]
 
@@ -59,6 +61,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hd_doc"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_driver",
+ "hd_iface",
+]
+
+[[package]]
 name = "hd_driver"
 version = "0.0.0"
 dependencies = [
@@ -67,6 +78,8 @@ dependencies = [
  "hd_check",
  "hd_iface",
  "hd_mono",
+ "hd_project",
+ "hd_resolve",
  "hd_sched",
  "hd_syntax",
  "hd_tir",
@@ -151,6 +164,15 @@ name = "hd_sched"
 version = "0.0.0"
 
 [[package]]
+name = "hd_stdpack"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_driver",
+ "hd_project",
+]
+
+[[package]]
 name = "hd_syntax"
 version = "0.0.0"
 dependencies = [
@@ -159,6 +181,15 @@ dependencies = [
  "hd_intern",
  "unicode-ident",
  "unicode-normalization",
+]
+
+[[package]]
+name = "hd_testkit"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_driver",
+ "hd_sched",
 ]
 
 [[package]]
@@ -190,6 +221,18 @@ dependencies = [
  "hd_mono",
  "hd_tir",
  "wasm-encoder",
+]
+
+[[package]]
+name = "hd_web"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_cache",
+ "hd_driver",
+ "hd_project",
+ "hd_run",
+ "hd_sched",
 ]
 
 [[package]]

@@ -1,0 +1,14 @@
+[package]
+name = "hd_doc"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hd_base = { path = "../hd_base" }
+hd_iface = { path = "../hd_iface" }
+hd_driver = { path = "../hd_driver" }
+
+[lints]
+workspace = true

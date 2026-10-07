@@ -105,9 +105,15 @@ pub fn orphan_ok(impl_module: ModuleId, trait_module: Option<ModuleId>, self_hea
 /// bounds of written header types, impl supertraits, newtype bases and
 /// delegation targets.
 pub fn header_check(table: &ModuleTable, graph: &FolderGraph, folder: usize) -> StageResult<Vec<String>> {
-    let modules = table.folders.get(folder).map_or(0, |f| f.modules.len());
+    let path = table.folders.get(folder).map_or("", |f| f.path.as_str());
     let deps = graph.closure.get(folder).map_or(0, hd_project::FolderSet::len);
-    Err(NotImplemented::new(Stage::HeaderCheck, format!("stage-B header validation ({modules} modules, closure of {deps} folders)")))
+    header_check_folder(path, deps)
+}
+
+/// `header_check` by folder path and closure size, for drivers that keep
+/// their own folder tables.
+pub fn header_check_folder(folder: &str, closure_len: usize) -> StageResult<Vec<String>> {
+    Err(NotImplemented::new(Stage::HeaderCheck, format!("stage-B header validation of {folder} (closure of {closure_len} folders)")))
 }
 
 /// Derived impl heads (§4.10): `derive` lines become impl heads in the interface.

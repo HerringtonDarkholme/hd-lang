@@ -22,6 +22,7 @@ use hd_tir::world::{DefId, World, load_items};
 use hd_tir::{Tables, TirBody, read_body, read_tables, tir_hash, write_body, write_tables};
 use hd_wasm::{Code, emit, link};
 
+pub mod architecture;
 pub mod bench;
 pub mod node;
 pub mod source;
@@ -49,6 +50,32 @@ pub struct Counters {
     pub stage_time: BTreeMap<&'static str, Duration>,
     pub deep_hashes: BTreeMap<String, Hash128>,
     pub check_keys: BTreeMap<String, Hash128>,
+    /// Per stage: runs that finished, and runs that reported a component
+    /// as not implemented (with the first reason). Not diagnostics.
+    pub stages: BTreeMap<&'static str, StageCount>,
+}
+
+/// How far one stage got over a run.
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct StageCount {
+    pub ok: usize,
+    pub not_implemented: usize,
+    pub first_reason: Option<String>,
+}
+
+impl Counters {
+    fn stage<T>(&mut self, name: &'static str, r: &hd_base::StageResult<T>) {
+        let c = self.stages.entry(name).or_default();
+        match r {
+            Ok(_) => c.ok += 1,
+            Err(e) => {
+                c.not_implemented += 1;
+                if c.first_reason.is_none() {
+                    c.first_reason = Some(e.to_string());
+                }
+            }
+        }
+    }
 }
 
 impl Counters {
@@ -85,6 +112,7 @@ struct FileSlot {
     api_text_hash: Hash128,
     uses: Vec<String>,
     parse: Option<SubsetParse>,
+    facts: hd_check::stages::ModuleFacts,
 }
 
 struct Prep {
@@ -183,6 +211,7 @@ pub fn run_with(
             api_text_hash: Hash128(0),
             uses: Vec::new(),
             parse: None,
+            facts: hd_check::stages::ModuleFacts::default(),
         });
         skims.push(g.add(TaskKind::Skim(u32::try_from(i).expect("f")), &[]));
     }
@@ -231,12 +260,24 @@ impl Run<'_> {
             TaskKind::Ext(ExtTask::Collect) => self.collect(g),
             TaskKind::Ext(ExtTask::Emit(i)) => self.emit(i as usize),
             TaskKind::Ext(ExtTask::Link) => self.link(),
-            TaskKind::Parse(_)
-            | TaskKind::HeaderCheck(_)
-            | TaskKind::TestOverlay(_)
-            | TaskKind::Coherence
-            | TaskKind::InitOrder(_)
-            | TaskKind::Ext(ExtTask::Precompile | ExtTask::RunCase(_)) => {}
+            TaskKind::HeaderCheck(f) => self.header_check(f as usize),
+            TaskKind::TestOverlay(m) => {
+                let r = hd_check::stages::test_overlay(&self.files[m as usize].facts);
+                self.c.stage("TestOverlay", &r);
+            }
+            TaskKind::Coherence => {
+                let facts: Vec<_> = self.files.iter().map(|f| f.facts.clone()).collect();
+                let r = hd_check::stages::coherence(&facts);
+                self.c.stage("Coherence", &r);
+            }
+            TaskKind::InitOrder(f) => {
+                let folder = &self.folders[f as usize];
+                let facts: Vec<_> = self.files.iter().filter(|x| &x.folder == folder).map(|x| &x.facts).collect();
+                let r = hd_check::stages::init_order(folder, &facts);
+                self.c.stage("InitOrder", &r);
+            }
+            // `hd run` runs the linked program itself (hd_cli); no test cases here.
+            TaskKind::Parse(_) | TaskKind::Ext(ExtTask::Precompile | ExtTask::RunCase(_)) => {}
         }
     }
 
@@ -253,6 +294,15 @@ impl Run<'_> {
         slot.source_hash = sk.source_hash;
         slot.api_text_hash = sk.api_text_hash;
         slot.uses = source::use_paths(src, &sk);
+        slot.facts = architecture::facts_of(&slot.module, &sk);
+    }
+
+    /// `HeaderCheck(F)`: stage B. Its answers never change what a
+    /// dependent reports, so a not-implemented result is counted, not shown.
+    fn header_check(&mut self, fi: usize) {
+        let folder = self.folders[fi].clone();
+        let r = hd_resolve::header_check_folder(&folder, self.closure(&folder).len());
+        self.c.stage("HeaderCheck", &r);
     }
 
     /// Lazy full parse ("full parse if needed", M1): only on a miss, as a
@@ -291,17 +341,26 @@ impl Run<'_> {
             visit(f, &self.folder_uses, &mut order, &mut visiting, &mut self.diagnostics);
         }
         self.folders = order.clone();
+        let mut checks = Vec::new();
         for (i, f) in order.iter().enumerate() {
             let deps: Vec<TaskId> = self.folder_uses[f].iter().filter_map(|u| self.iface_tasks.get(u).copied()).collect();
             let t = g.add(TaskKind::FolderIface(u32::try_from(i).expect("f")), &deps);
             self.iface_tasks.insert(f.clone(), t);
+            // HeaderCheck(F) waits for F's interface and those F's uses reach.
+            let mut hdeps: Vec<TaskId> = self.closure(f).iter().map(|c| self.iface_tasks[c]).collect();
+            hdeps.push(t);
+            checks.push(g.add(TaskKind::HeaderCheck(u32::try_from(i).expect("f")), &hdeps));
+            checks.push(g.add(TaskKind::InitOrder(u32::try_from(i).expect("f")), &[t]));
         }
+        let all_ifaces: Vec<TaskId> = order.iter().map(|f| self.iface_tasks[f]).collect();
+        checks.push(g.add(TaskKind::Coherence, &all_ifaces));
         let mut preps = Vec::new();
         for (m, f) in self.files.iter().enumerate() {
             let deps: Vec<TaskId> =
                 self.closure(&f.folder).iter().map(|c| self.iface_tasks[c]).collect();
             preps.push(g.add(TaskKind::ModulePrep(u32::try_from(m).expect("m")), &deps));
         }
+        preps.extend(checks);
         let pr = g.add(TaskKind::PackageResult, &preps);
         self.package_result = Some(pr);
     }
@@ -396,7 +455,9 @@ impl Run<'_> {
         self.prep.insert(m, Prep { scope, headers, errors, bodies: Vec::new() });
         let body = g.add(TaskKind::Body(m), &[id]);
         let finish = g.add(TaskKind::ModuleFinish(m), &[body]);
+        let overlay = g.add(TaskKind::TestOverlay(m), &[id]);
         g.edge(finish, self.package_result.expect("package result"));
+        g.edge(overlay, self.package_result.expect("package result"));
     }
 
     fn body(&mut self, m: u32) {

@@ -12,6 +12,8 @@ path = "src/main.rs"
 [dependencies]
 hd_driver = { path = "../hd_driver" }
 hd_syntax = { path = "../hd_syntax" }
+hd_sched = { path = "../hd_sched", features = ["threads"] }
+hd_cache = { path = "../hd_cache", features = ["disk"] }
 
 [lints]
 workspace = true
