@@ -36,6 +36,41 @@ authoritative, and anything that changes language behavior goes through it.
 - **Parallel checking.**
 - **Incremental checking.**
 
+### Pillar 1 Features (owner-approved, 2026-10-06)
+
+The owner approved the whole pillar 1 list ("all these are good") and added
+two features.
+
+- **Waiting:**
+  - incremental checking (must-have);
+  - parallel checking (must-have);
+  - skip dependency bodies;
+  - std checked in advance and built into the binary;
+  - `hd test --affected`;
+  - test runs that compile once and start from a snapshot;
+  - `hd watch` / `hd dev`;
+  - fast debug builds;
+  - hard limits instead of hangs.
+- **Tiered compilation** (owner). Dev builds are very fast; release builds
+  are optimized. For example: a fast tier with a cheap Cranelift build or a
+  baseline compiler for `hd run`, `hd test` and `hd dev`, and an optimizing
+  tier (optimized Cranelift, later LLVM) for release. The design is deferred.
+- **Module hot reloading** (owner), for server and frontend programs. In a
+  running program, swap a changed module's code without restarting. The
+  rules for state that crosses a reload are design work for later.
+- **Tokens read:**
+  - compact diagnostics by default;
+  - the program database;
+  - `hd doc` Markdown plus the git-distributed source;
+  - deterministic output.
+- **Retries:**
+  - error recovery (all independent mistakes in one run);
+  - one diagnostic per root cause;
+  - exact-edit fix-its and `hd fix`;
+  - did-you-mean, import and `let mut` hints;
+  - `hd fmt`;
+  - a pathology fuzzer.
+
 ### Candidate Features (2026-10-06)
 
 Owner: "just think about features; later, if a feature is too hard to
