@@ -96,6 +96,30 @@ impl DiagBuf {
         true
     }
 
+    /// Error-severity diagnostic with no root key.
+    pub fn error(&mut self, code: Code, primary: Span, message: &str) {
+        self.push(code, Severity::Error, primary, message, None);
+    }
+
+    /// Appends another buffer's diagnostics (messages only; this run's
+    /// stages attach no labels or fixes after parsing).
+    pub fn append(&mut self, other: &DiagBuf) {
+        for i in 0..other.len() {
+            self.push(
+                other.code[i],
+                other.severity[i],
+                other.primary[i],
+                other.get_text(other.message[i]),
+                other.root[i],
+            );
+        }
+    }
+
+    #[must_use]
+    pub fn has_errors(&self) -> bool {
+        self.severity.contains(&Severity::Error)
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.code.len()

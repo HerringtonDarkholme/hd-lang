@@ -8,7 +8,6 @@ description = "Monomorphizing collection over TIR"
 
 [dependencies]
 hd_base = { path = "../hd_base" }
-hd_iface = { path = "../hd_iface" }
 hd_tir = { path = "../hd_tir" }
 hd_types = { path = "../hd_types" }
 

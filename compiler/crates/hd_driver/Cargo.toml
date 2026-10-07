@@ -4,20 +4,22 @@ version = "0.0.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Orchestration of one compile run, counters, source loading and the Node runner"
+description = "The one driver: the task graph of one compile run over the caller's sources, cache store, executor and clock"
 
 [dependencies]
 hd_base = { path = "../hd_base" }
-hd_syntax = { path = "../hd_syntax" }
-hd_iface = { path = "../hd_iface" }
-hd_tir = { path = "../hd_tir" }
+hd_cache = { path = "../hd_cache" }
 hd_check = { path = "../hd_check" }
+hd_diag = { path = "../hd_diag" }
+hd_intern = { path = "../hd_intern" }
 hd_mono = { path = "../hd_mono" }
-hd_wasm = { path = "../hd_wasm" }
-hd_sched = { path = "../hd_sched" }
 hd_project = { path = "../hd_project" }
 hd_resolve = { path = "../hd_resolve" }
-hd_cache = { path = "../hd_cache" }
+hd_sched = { path = "../hd_sched", features = ["threads"] }
+hd_syntax = { path = "../hd_syntax" }
+hd_tir = { path = "../hd_tir" }
+hd_types = { path = "../hd_types" }
+hd_wasm = { path = "../hd_wasm" }
 
 [lints]
 workspace = true

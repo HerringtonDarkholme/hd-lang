@@ -7,9 +7,10 @@ rust-version.workspace = true
 description = "The task graph and its serial, stepping and pool executors"
 
 [features]
-threads = []
+threads = ["dep:rayon"]
 
 [dependencies]
+rayon = { version = "1", optional = true }
 
 [lints]
 workspace = true

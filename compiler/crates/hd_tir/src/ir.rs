@@ -3,9 +3,8 @@
 //! `TirSink` builder API, a text printer, a text parser that round-trips,
 //! and the verifier.
 //!
-//! The walking skeleton's subset TIR (`crate::TirBody`) still carries the
-//! running `hd run` path; this module is the full catalog that replaces it
-//! chapter by chapter (build-order.md slice 3).
+//! Constants: `Ref::konst(i)` names row `i` of the body's own constant
+//! column (`consts`), so a body and its TIR hash need no run-wide table.
 
 use std::fmt::Write as _;
 
@@ -153,6 +152,49 @@ tags! {
     ToArm: Meta, None;
 }
 
+/// `Prim` operators (the `Meta` word of a `Prim` instruction).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u32)]
+pub enum PrimOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Neg,
+    And,
+    Or,
+}
+
+impl PrimOp {
+    pub const ALL: [PrimOp; 14] = [
+        PrimOp::Add,
+        PrimOp::Sub,
+        PrimOp::Mul,
+        PrimOp::Div,
+        PrimOp::Rem,
+        PrimOp::Eq,
+        PrimOp::Ne,
+        PrimOp::Lt,
+        PrimOp::Le,
+        PrimOp::Gt,
+        PrimOp::Ge,
+        PrimOp::Neg,
+        PrimOp::And,
+        PrimOp::Or,
+    ];
+    #[must_use]
+    pub fn from_u32(v: u32) -> Option<Self> {
+        Self::ALL.get(v as usize).copied()
+    }
+}
+
 /// Coercion kinds (§4.13.11 "Coercion kinds"; type-checking.md §4.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -178,6 +220,20 @@ pub enum ChoiceKind {
     Builtin,
 }
 
+impl ChoiceKind {
+    #[must_use]
+    pub fn from_u32(v: u32) -> Option<Self> {
+        [
+            ChoiceKind::Impl,
+            ChoiceKind::Bound,
+            ChoiceKind::TraitValue,
+            ChoiceKind::Builtin,
+        ]
+        .get(v as usize)
+        .copied()
+    }
+}
+
 /// A callee record in `extra`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Callee {
@@ -195,7 +251,27 @@ pub enum Callee {
 }
 
 impl Callee {
-    fn words(&self) -> Vec<u32> {
+    /// Decodes a callee record's words.
+    #[must_use]
+    pub fn from_words(w: &[u32]) -> Option<Callee> {
+        match w {
+            [0, def, targs] => Some(Callee::Item {
+                def: DefId::from_raw(*def),
+                targs: TyList(*targs),
+            }),
+            [1, trait_, method, self_ty, targs, kind, value] => Some(Callee::TraitMethod {
+                trait_: DefId::from_raw(*trait_),
+                method: DefId::from_raw(*method),
+                self_ty: Ty(*self_ty),
+                targs: TyList(*targs),
+                choice: (ChoiceKind::from_u32(*kind)?, *value),
+            }),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn words(&self) -> Vec<u32> {
         match self {
             Callee::Item { def, targs } => vec![0, def.raw(), targs.0],
             Callee::TraitMethod {
@@ -289,6 +365,8 @@ pub struct Body {
     pub cap_local: Vec<LocalId>,
     pub cap_mode: Vec<CaptureMode>,
     pub susp: Vec<SuspRow>,
+    /// The body's constants: type and bits (`Ref::konst(i)` is row i).
+    pub consts: Vec<(Ty, u64)>,
 }
 
 impl Body {
@@ -314,6 +392,7 @@ impl Body {
             cap_local: vec![],
             cap_mode: vec![],
             susp: vec![],
+            consts: vec![],
         }
     }
 
@@ -430,6 +509,61 @@ impl TirBuilder {
             self.scratch.push(i);
         }
         Ref(i)
+    }
+
+    /// A record of values or blocks in `extra` (the `Values`/`Blocks`
+    /// operand of `If`, `CallHost` and others).
+    pub fn refs_record(&mut self, refs: &[Ref]) -> u32 {
+        let words: Vec<u32> = refs.iter().map(|r| r.0).collect();
+        self.record(&words)
+    }
+
+    /// The body so far (for the checker's final type pass).
+    pub fn body_mut(&mut self) -> &mut Body {
+        &mut self.body
+    }
+
+    /// A constant of the body's own column.
+    pub fn const_value(&mut self, ty: Ty, bits: u64) -> Ref {
+        let i = u32::try_from(self.body.consts.len()).expect("consts");
+        self.body.consts.push((ty, bits));
+        Ref::konst(i)
+    }
+
+    /// The type of a value: an instruction's or a constant's.
+    #[must_use]
+    pub fn ty_of(&self, r: Ref) -> Ty {
+        match r.as_inst() {
+            Some(i) => self
+                .body
+                .ty
+                .get(i.0 as usize)
+                .copied()
+                .unwrap_or(Ty::POISON),
+            None => self
+                .body
+                .consts
+                .get((r.0 & !Ref::CONST_BIT) as usize)
+                .map_or(Ty::POISON, |c| c.0),
+        }
+    }
+
+    /// The constant behind a value, if it is one.
+    #[must_use]
+    pub fn const_of(&self, r: Ref) -> Option<(Ty, u64)> {
+        if r.as_inst().is_some() {
+            return None;
+        }
+        self.body
+            .consts
+            .get((r.0 & !Ref::CONST_BIT) as usize)
+            .copied()
+    }
+
+    /// The local's declared type.
+    #[must_use]
+    pub fn local_ty(&self, l: LocalId) -> Ty {
+        self.body.local_ty[l.idx()]
     }
 
     fn refs(rs: &[Ref]) -> Vec<u32> {
@@ -677,10 +811,10 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
                     }
                 }
                 Op::Label if (word as usize) >= b.label_inst.len() => {
-                    errs.push(err(5, "unknown label".into()))
+                    errs.push(err(5, "unknown label".into()));
                 }
                 Op::Local if (word as usize) >= b.local_ty.len() => {
-                    errs.push(err(1, "unknown local".into()))
+                    errs.push(err(1, "unknown local".into()));
                 }
                 _ => {}
             }
@@ -770,6 +904,9 @@ pub fn print(b: &Body) -> String {
         );
     }
     let _ = writeln!(o, "extra {}", words(&b.extra));
+    for (t, bits) in &b.consts {
+        let _ = writeln!(o, "const {} {bits}", t.0);
+    }
     for i in 0..b.len() {
         let [a, w] = b.data[i];
         let _ = writeln!(
@@ -884,6 +1021,14 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 });
             }
             "extra" => b.extra = nums(1)?,
+            "const" => {
+                let t = word(f.get(1).copied().unwrap_or("")).map_err(e)?;
+                let bits: u64 = f
+                    .get(2)
+                    .and_then(|s| s.parse().ok())
+                    .ok_or_else(|| e("const bits".into()))?;
+                b.consts.push((Ty(t), bits));
+            }
             s if s.starts_with('%') => {
                 // %i = Tag a b : ty @syn
                 if f.len() != 8 || f[1] != "=" || f[5] != ":" || !f[7].starts_with('@') {

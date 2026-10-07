@@ -7,4 +7,7 @@ publish = false
 [workspace]
 
 [dependencies]
+hd_cache = { path = "../../crates/hd_cache" }
 hd_driver = { path = "../../crates/hd_driver" }
+hd_project = { path = "../../crates/hd_project" }
+hd_sched = { path = "../../crates/hd_sched" }

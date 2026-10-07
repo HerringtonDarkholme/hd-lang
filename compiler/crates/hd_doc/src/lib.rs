@@ -4,7 +4,7 @@
 //! the entry point reports the stage.
 
 use hd_base::{NotImplemented, Stage, StageResult};
-use hd_iface::FolderIface;
+use hd_resolve::FolderIface;
 
 /// What `hd doc` asks for: a folder, an item, or a search.
 #[derive(Clone, Debug, PartialEq, Eq)]

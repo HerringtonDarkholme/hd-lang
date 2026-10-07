@@ -1,722 +1,1311 @@
-//! `hd_driver`: one run over a source set, through every stage, as tasks of
-//! the serial scheduler, with every stage boundary through the cache. It is
-//! the only crate that sees every stage; `source` and `node` hold its file
-//! system and process access.
+#![forbid(unsafe_code)]
+//! `hd_driver`: the one driver (design-overview.md §1, scheduler.md §6.1).
+//! A run is the task graph of §6.1 over a package: skim, folder graph,
+//! folder interfaces, header checks, module prep, bodies, module finish,
+//! coherence, init order, package result, then `Collect`, `Emit` and
+//! `Link` for a program. Every task writes its result into a per-kind slot
+//! (`OnceLock`), so the serial, stepping and pool executors run the same
+//! task code. Every stage boundary goes through the caller's `CacheStore`.
+//!
+//! The driver holds no file system, process or clock: sources, the cache
+//! store, the executor and the clock come from the caller (design-overview
+//! §2.2 rules 1 and 3).
+//!
+//! A build stops when a stage it needs answers "not implemented": the
+//! answer becomes an internal `unsupported` diagnostic. `analyze_package`
+//! runs the same code and only counts such answers.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
-use hd_base::Hash128;
-use hd_cache::{FileApi, check_key, code_key, iface_key, prog_key, toolchain_key};
-use hd_check::{Cst, Scope, check_module_bodies, lower_headers, module_scope};
-use hd_iface::{
-    FolderIface, HeaderItem, KeyHasher, Reader, build_iface, decode_iface, decode_item,
-    encode_item, folder_of_module, item_path, put_hash, put_str, put_u32,
+use hd_base::wire::{Reader, Writer};
+use hd_base::{
+    DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, Stage, StageResult,
 };
-use hd_mono::{Instance, collect, instance_key};
-use hd_sched::{ExtTask, TaskGraph, TaskId, TaskKind};
-use hd_syntax::skim;
-use hd_syntax::subset::{SubsetParse, parse_subset};
-use hd_tir::world::{DefId, World, load_items};
-use hd_tir::{Tables, TirBody, read_body, read_tables, tir_hash, write_body, write_tables};
-use hd_wasm::{Code, emit, link};
+use hd_cache::{
+    CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, iface_key, prog_key,
+    toolchain_key,
+};
+use hd_check::BodyCx;
+use hd_check::stages::{ModuleFacts, coherence, init_order, test_overlay};
+use hd_diag::{Code, DiagBuf, Severity};
+use hd_intern::{PathTable, ShardedInterner};
+use hd_mono::layout::LayoutEnv;
+use hd_mono::{Collected, ProgramEnv};
+use hd_project::{FolderGraph, ModuleTable, SourceSet};
+use hd_resolve::{FolderIface, Item, ItemData, Lookup, Names, Src};
+use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
+use hd_syntax::{HeaderKind, Parse, parse, skim};
+use hd_tir::Body;
+use hd_types::solver::{GlobalMemo, ImplTable, ImplUniverses, SkeletonSolver};
+use hd_types::{InternPool, Ty, TyList};
+use hd_wasm::Code as WasmCode;
 
-pub mod architecture;
 pub mod bench;
-pub mod node;
-pub mod source;
+mod report;
 
-pub use hd_cache::MemStore;
-pub use hd_check::A1Rule;
-pub use source::{Program, SourceFile, load_program, module_path};
+pub use report::{Counters, PipelineReport, Tally};
 
 const COMPILER: &str = "hd 0";
 const TARGET: &str = "wasm32-gc";
-const PIPELINE: &str = "dev";
 const ROLE: &str = "lib";
+const LAYOUT: u16 = hd_cache::LAYOUT_VERSION;
 
-#[derive(Default, Debug, Clone)]
-pub struct Counters {
-    pub tasks: BTreeMap<&'static str, usize>,
-    pub hits: BTreeMap<&'static str, usize>,
-    pub misses: BTreeMap<&'static str, usize>,
-    pub modules_checked: Vec<String>,
-    pub ifaces_built: Vec<String>,
-    pub parsed: Vec<String>,
-    /// Modules whose TIR was decoded from their `check` entry.
-    pub tir_decoded: Vec<String>,
-    pub emitted: usize,
-    pub stage_time: BTreeMap<&'static str, Duration>,
-    pub deep_hashes: BTreeMap<String, Hash128>,
-    pub check_keys: BTreeMap<String, Hash128>,
-    /// Per stage: runs that finished, and runs that reported a component
-    /// as not implemented (with the first reason). Not diagnostics.
-    pub stages: BTreeMap<&'static str, StageCount>,
+/// The caller's clock, for stage times only (never in an output).
+pub trait Clock: Sync {
+    fn now_ns(&self) -> u64;
 }
 
-/// How far one stage got over a run.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct StageCount {
-    pub ok: usize,
-    pub not_implemented: usize,
-    pub first_reason: Option<String>,
-}
+/// A clock that reads zero: the browser and deterministic tests.
+pub struct NoClock;
 
-impl Counters {
-    fn stage<T>(&mut self, name: &'static str, r: &hd_base::StageResult<T>) {
-        let c = self.stages.entry(name).or_default();
-        match r {
-            Ok(_) => c.ok += 1,
-            Err(e) => {
-                c.not_implemented += 1;
-                if c.first_reason.is_none() {
-                    c.first_reason = Some(e.to_string());
-                }
-            }
-        }
+impl Clock for NoClock {
+    fn now_ns(&self) -> u64 {
+        0
     }
 }
 
-impl Counters {
-    #[must_use]
-    pub fn hit(&self, kind: &str) -> usize {
-        self.hits.get(kind).copied().unwrap_or(0)
-    }
-    #[must_use]
-    pub fn miss(&self, kind: &str) -> usize {
-        self.misses.get(kind).copied().unwrap_or(0)
-    }
-    #[must_use]
-    pub fn ran(&self, task: &str) -> usize {
-        self.tasks.get(task).copied().unwrap_or(0)
-    }
+/// Which executor runs the graph (scheduler.md §6.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Executor {
+    Serial(SerialOrder),
+    Pool(usize),
 }
 
-/// Options that change what a stage writes; each is part of the toolchain key.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Options {
-    pub a1_rule: A1Rule,
+/// What the caller supplies.
+pub struct Host<'a> {
+    pub sources: &'a dyn SourceSet,
+    pub store: &'a dyn CacheStore,
+    pub clock: &'a dyn Clock,
+    pub executor: Executor,
 }
 
-pub struct RunResult {
+/// What a run is for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Goal {
+    /// A program whose root is `fn main` of this module (its path below
+    /// the package, as `main` or `app.main`).
+    Program { entry: String },
+    /// Every stage over a package; "not implemented" is counted.
+    Analyze,
+}
+
+/// The result of a run.
+pub struct Output {
     pub wasm: Option<Vec<u8>>,
-    pub diagnostics: Vec<String>,
+    pub diags: DiagBuf,
+    /// Package-relative file paths, indexed by a diagnostic's `FileId`.
+    pub files: Vec<String>,
     pub counters: Counters,
+    pub report: PipelineReport,
 }
 
-struct FileSlot {
-    module: String,
-    folder: String,
+impl Output {
+    /// Diagnostics as `file:lo..hi: error code: message`, in content order.
+    #[must_use]
+    pub fn render(&self) -> String {
+        self.diags
+            .render_compact(&|s: Span| self.files.get(s.file.idx()).cloned().unwrap_or_default())
+    }
+}
+
+struct SkimOut {
     source_hash: Hash128,
     api_text_hash: Hash128,
     uses: Vec<String>,
-    parse: Option<SubsetParse>,
-    facts: hd_check::stages::ModuleFacts,
+    facts: ModuleFacts,
 }
 
-struct Prep {
-    scope: Scope,
-    headers: Vec<HeaderItem>,
-    errors: Vec<String>,
-    bodies: Vec<(String, hd_check::Checked)>,
+struct GraphOut {
+    graph: FolderGraph,
+    package_result: TaskId,
 }
 
-/// A module's `check` entry, read only as far as `prog_key` needs: the rest
-/// (private headers and TIR) is decoded at `Collect`, and only on a miss.
-struct PendingEntry {
-    bytes: Arc<[u8]>,
-    rest: usize,
+/// A module's own items after `ModulePrep` (a check miss).
+struct PrepOut {
+    items: Vec<Item>,
+    diags: DiagBuf,
 }
 
-struct Run<'s> {
-    store: &'s mut MemStore,
-    opts: Options,
-    toolchain: Hash128,
-    package: Hash128,
-    c: Counters,
-    w: World,
-    files: Vec<FileSlot>,
-    sources: &'s [SourceFile],
-    folders: Vec<String>,
-    folder_uses: HashMap<String, BTreeSet<String>>,
-    ifaces: HashMap<String, FolderIface>,
-    iface_tasks: HashMap<String, TaskId>,
-    prep: HashMap<u32, Prep>,
-    pending: BTreeMap<String, PendingEntry>,
-    tir: HashMap<DefId, TirBody>,
-    tir_hashes: HashMap<DefId, Hash128>,
-    tir_content: BTreeMap<String, Hash128>,
-    diagnostics: Vec<String>,
-    package_result: Option<TaskId>,
-    entry: String,
-    instances: Vec<(Hash128, Instance)>,
-    callee_reps: HashMap<Hash128, Hash128>,
-    codes: Vec<Option<(Hash128, Code)>>,
-    data_types: Vec<String>,
-    imports: Vec<u32>,
+/// A module's TIR and body diagnostics after `Body(m)`.
+type BodyOut = (Vec<Body>, DiagBuf);
+
+/// A module's `check` entry, as far as `prog_key` needs it.
+struct CheckOut {
+    entry: Arc<[u8]>,
+    content: Hash128,
+    has_errors: bool,
+}
+
+/// The program as `Collect` decoded it.
+struct ProgramTables {
+    items: HashMap<DefId, Item>,
+    bodies: HashMap<DefId, (Body, Hash128)>,
+    impl_tables: Vec<(ModuleId, ImplTable)>,
+}
+
+struct CollectOut {
+    collected: Collected,
+    order: Vec<hd_base::InstId>,
+    codes: Vec<OnceLock<WasmCode>>,
+    code_keys: Vec<Hash128>,
     prog_key: Hash128,
-    wasm: Option<Vec<u8>>,
+    root_key: Hash128,
 }
 
-/// One run with default options.
-pub fn run(store: &mut MemStore, sources: &[SourceFile], entry_module: &str) -> RunResult {
-    run_with(store, sources, entry_module, Options::default())
+struct Run<'a> {
+    host: &'a Host<'a>,
+    package: String,
+    goal: Goal,
+    table: ModuleTable,
+    texts: Vec<Arc<str>>,
+    pool: InternPool,
+    paths: PathTable,
+    syms: ShardedInterner,
+    universes: ImplUniverses,
+    memo: GlobalMemo,
+    toolchain: Hash128,
+    package_key: Hash128,
+    pipeline: Hash128,
+    skim: Vec<OnceLock<SkimOut>>,
+    parse: Vec<OnceLock<Parse>>,
+    graph: OnceLock<GraphOut>,
+    iface: Vec<OnceLock<Option<Arc<FolderIface>>>>,
+    prep: Vec<OnceLock<Option<PrepOut>>>,
+    body: Vec<OnceLock<Option<BodyOut>>>,
+    check: Vec<OnceLock<Option<CheckOut>>>,
+    program: OnceLock<ProgramTables>,
+    collect: OnceLock<CollectOut>,
+    wasm: OnceLock<Vec<u8>>,
+    diags: Mutex<DiagBuf>,
+    report: Mutex<PipelineReport>,
+    counters: Mutex<Counters>,
 }
 
-/// One run: a fresh `World` (fresh run IDs) over a shared store.
-pub fn run_with(
-    store: &mut MemStore,
-    sources: &[SourceFile],
-    entry_module: &str,
-    opts: Options,
-) -> RunResult {
-    let mut r = Run {
-        store,
-        opts,
-        toolchain: toolchain_key(COMPILER, TARGET, &format!("{:?}", opts.a1_rule)),
-        package: KeyHasher::new("root").str("pkg").finish(),
-        c: Counters::default(),
-        w: World::default(),
-        files: Vec::new(),
-        sources,
-        folders: Vec::new(),
-        folder_uses: HashMap::new(),
-        ifaces: HashMap::new(),
-        iface_tasks: HashMap::new(),
-        prep: HashMap::new(),
-        pending: BTreeMap::new(),
-        tir: HashMap::new(),
-        tir_hashes: HashMap::new(),
-        tir_content: BTreeMap::new(),
-        diagnostics: Vec::new(),
-        package_result: None,
-        entry: entry_module.to_owned(),
-        instances: Vec::new(),
-        callee_reps: HashMap::new(),
-        codes: Vec::new(),
-        data_types: Vec::new(),
-        imports: Vec::new(),
-        prog_key: Hash128(0),
-        wasm: None,
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// One run with the caller's sources, store, executor and clock.
+#[must_use]
+pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
+    let table = ModuleTable::discover(package, host.sources);
+    let texts: Vec<Arc<str>> = table
+        .files
+        .iter()
+        .map(|p| {
+            Arc::from(
+                host.sources
+                    .read(p)
+                    .map(|b| String::from_utf8_lossy(&b).into_owned())
+                    .unwrap_or_default(),
+            )
+        })
+        .collect();
+    let n = table.modules.len();
+    let nf = table.folders.len();
+    let pipeline = hd_mono::passes::validate(&hd_mono::passes::DEV).unwrap_or_default();
+    let run = Run {
+        host,
+        package: package.to_owned(),
+        goal: goal.clone(),
+        texts,
+        pool: InternPool::new(),
+        paths: PathTable::new(),
+        syms: ShardedInterner::default(),
+        universes: ImplUniverses::default(),
+        memo: GlobalMemo::default(),
+        toolchain: toolchain_key(COMPILER, TARGET, "a1=bounded"),
+        package_key: hd_cache::package_key(package),
+        pipeline,
+        skim: (0..n).map(|_| OnceLock::new()).collect(),
+        parse: (0..n).map(|_| OnceLock::new()).collect(),
+        graph: OnceLock::new(),
+        iface: (0..nf).map(|_| OnceLock::new()).collect(),
+        prep: (0..n).map(|_| OnceLock::new()).collect(),
+        body: (0..n).map(|_| OnceLock::new()).collect(),
+        check: (0..n).map(|_| OnceLock::new()).collect(),
+        program: OnceLock::new(),
+        collect: OnceLock::new(),
+        wasm: OnceLock::new(),
+        diags: Mutex::new(DiagBuf::default()),
+        report: Mutex::new(PipelineReport {
+            package: package.to_owned(),
+            ..PipelineReport::default()
+        }),
+        counters: Mutex::new(Counters::default()),
+        table,
     };
+    lock(&run.report).ok(Stage::Discover);
     let mut g = TaskGraph::default();
     let mut skims = Vec::new();
-    for (i, f) in sources.iter().enumerate() {
-        let m = module_path(&f.path);
-        r.files.push(FileSlot {
-            folder: folder_of_module(&m).to_owned(),
-            module: m,
-            source_hash: Hash128(0),
-            api_text_hash: Hash128(0),
-            uses: Vec::new(),
-            parse: None,
-            facts: hd_check::stages::ModuleFacts::default(),
-        });
-        skims.push(g.add(TaskKind::Skim(u32::try_from(i).expect("f")), &[]));
+    for i in 0..n {
+        skims.push(g.add(TaskKind::Skim(u32::try_from(i).expect("files")), &[]));
+        if *goal == Goal::Analyze {
+            g.add(TaskKind::Parse(u32::try_from(i).expect("files")), &[]);
+        }
     }
     g.add(TaskKind::FolderGraph, &skims);
-    g.run(&mut |id, kind, g| {
-        let t0 = Instant::now();
-        *r.c.tasks.entry(kind.name()).or_default() += 1;
-        r.exec(id, kind, g);
-        *r.c.stage_time.entry(kind.name()).or_default() += t0.elapsed();
-    });
-    RunResult {
-        wasm: r.wasm,
-        diagnostics: r.diagnostics,
-        counters: r.c,
+    let exec = |id: TaskId, kind: TaskKind, sp: &dyn Spawn| run.exec(id, kind, sp);
+    let left = match host.executor {
+        Executor::Serial(order) => SerialScheduler { order }.run(&mut g, &exec),
+        Executor::Pool(threads) => hd_sched::pool::run_pool(g, threads, &exec).1,
+    };
+    if left > 0 {
+        run.stop(
+            Stage::PackageResult,
+            &format!("{left} tasks never became ready"),
+        );
+    }
+    let mut counters = lock(&run.counters).clone();
+    counters.sort();
+    let report = lock(&run.report).clone();
+    let diags = std::mem::take(&mut *lock(&run.diags));
+    let wasm = if diags.has_errors() {
+        None
+    } else {
+        run.wasm.get().cloned()
+    };
+    Output {
+        wasm,
+        diags,
+        files: run.table.files.clone(),
+        counters,
+        report,
     }
 }
 
-/// Depth-first visit for the folder order; a revisit in progress is a
-/// `folder-cycle`.
-fn visit(
-    f: &str,
-    uses: &HashMap<String, BTreeSet<String>>,
-    order: &mut Vec<String>,
-    visiting: &mut BTreeSet<String>,
-    diags: &mut Vec<String>,
-) {
-    if order.iter().any(|o| o == f) {
-        return;
-    }
-    if !visiting.insert(f.to_owned()) {
-        diags.push(format!("folder-cycle at {f}"));
-        return;
-    }
-    for u in uses.get(f).into_iter().flatten() {
-        visit(u, uses, order, visiting, diags);
-    }
-    order.push(f.to_owned());
+/// Runs every stage of the design over one package and counts how far
+/// each gets (the same driver as `build`, in analysis mode).
+pub fn analyze_package(package: &str, sources: &dyn SourceSet) -> PipelineReport {
+    let store = MemoryStore::default();
+    let host = Host {
+        sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    build(&host, package, &Goal::Analyze).report
+}
+
+fn u32_of(i: usize) -> u32 {
+    u32::try_from(i).expect("run index")
 }
 
 impl Run<'_> {
-    fn exec(&mut self, id: TaskId, kind: TaskKind, g: &mut TaskGraph) {
+    fn names(&self) -> Names<'_> {
+        Names {
+            pool: &self.pool,
+            paths: &self.paths,
+            syms: &self.syms,
+        }
+    }
+
+    fn analyze(&self) -> bool {
+        self.goal == Goal::Analyze
+    }
+
+    fn exec(&self, id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
+        let t0 = self.host.clock.now_ns();
         match kind {
             TaskKind::Skim(f) => self.skim(f as usize),
-            TaskKind::FolderGraph => self.folder_graph(g),
+            TaskKind::FolderGraph => self.folder_graph(sp),
             TaskKind::FolderIface(f) => self.folder_iface(f as usize),
-            TaskKind::ModulePrep(m) => self.module_prep(id, m, g),
-            TaskKind::Body(m) => self.body(m),
-            TaskKind::ModuleFinish(m) => self.module_finish(m),
-            TaskKind::PackageResult => self.package_result(g),
-            TaskKind::Ext(ExtTask::Collect) => self.collect(g),
+            TaskKind::HeaderCheck(f) => self.header_check(f as usize),
+            TaskKind::InitOrder(f) => self.init_order(f as usize),
+            TaskKind::Coherence => self.coherence(),
+            TaskKind::ModulePrep(m) => self.module_prep(id, m, sp),
+            TaskKind::Body(m) => self.body(m as usize),
+            TaskKind::ModuleFinish(m) => self.module_finish(m as usize),
+            TaskKind::TestOverlay(m) => {
+                let r = test_overlay(&self.skim_of(m as usize).facts);
+                self.stage(Stage::TestOverlay, r);
+            }
+            TaskKind::PackageResult => self.package_result(sp),
+            TaskKind::Ext(ExtTask::Collect) => self.collect(sp),
             TaskKind::Ext(ExtTask::Emit(i)) => self.emit(i as usize),
             TaskKind::Ext(ExtTask::Link) => self.link(),
-            TaskKind::HeaderCheck(f) => self.header_check(f as usize),
-            TaskKind::TestOverlay(m) => {
-                let r = hd_check::stages::test_overlay(&self.files[m as usize].facts);
-                self.c.stage("TestOverlay", &r);
+            TaskKind::Parse(f) => {
+                self.parse_of(f as usize);
             }
-            TaskKind::Coherence => {
-                let facts: Vec<_> = self.files.iter().map(|f| f.facts.clone()).collect();
-                let r = hd_check::stages::coherence(&facts);
-                self.c.stage("Coherence", &r);
+            TaskKind::Ext(ExtTask::Precompile | ExtTask::RunCase(_)) => {}
+        }
+        let mut c = lock(&self.counters);
+        *c.tasks.entry(kind.name()).or_default() += 1;
+        *c.stage_ns.entry(kind.name()).or_default() += self.host.clock.now_ns().saturating_sub(t0);
+    }
+
+    /// Records a stage's answer. A "not implemented" answer stops a build
+    /// with an internal `unsupported` diagnostic; analysis only counts it.
+    fn stage<T>(&self, s: Stage, r: StageResult<T>) -> Option<T> {
+        match r {
+            Ok(v) => {
+                lock(&self.report).ok(s);
+                Some(v)
             }
-            TaskKind::InitOrder(f) => {
-                let folder = &self.folders[f as usize];
-                let facts: Vec<_> = self
-                    .files
-                    .iter()
-                    .filter(|x| &x.folder == folder)
-                    .map(|x| &x.facts)
-                    .collect();
-                let r = hd_check::stages::init_order(folder, &facts);
-                self.c.stage("InitOrder", &r);
+            Err(e) => {
+                lock(&self.report).not_implemented(s, &e.what);
+                if !self.analyze() {
+                    self.stop(s, &e.what);
+                }
+                None
             }
-            // `hd run` runs the linked program itself (hd_cli); no test cases here.
-            TaskKind::Parse(_) | TaskKind::Ext(ExtTask::Precompile | ExtTask::RunCase(_)) => {}
         }
     }
 
-    fn lookup(&mut self, kind: &'static str, key: Hash128) -> Option<Arc<[u8]>> {
-        let v = self.store.get(kind, key);
-        *if v.is_some() {
-            self.c.hits.entry(kind)
+    fn stop(&self, s: Stage, what: &str) {
+        let span = Span {
+            file: FileId::from_raw(u32::MAX),
+            lo: 0,
+            hi: 0,
+        };
+        lock(&self.diags).error(
+            Code::Unsupported,
+            span,
+            &format!("unsupported: {}: {what}", s.name()),
+        );
+    }
+
+    fn blocked(&self, s: Stage) {
+        lock(&self.report).blocked(s);
+    }
+
+    fn lookup(&self, kind: EntryKind, key: Hash128) -> Option<Vec<Vec<u8>>> {
+        let bytes = self.host.store.get(kind, &key);
+        let sections = bytes.as_deref().and_then(|b| {
+            let (h, s) = hd_cache::decode_entry(b).ok()?;
+            (h.key == key && h.toolchain == self.toolchain && h.layout == LAYOUT)
+                .then(|| s.into_iter().map(|(_, p)| p.to_vec()).collect::<Vec<_>>())
+        });
+        let mut c = lock(&self.counters);
+        *if sections.is_some() {
+            c.hits.entry(kind.as_str())
         } else {
-            self.c.misses.entry(kind)
+            c.misses.entry(kind.as_str())
         }
         .or_default() += 1;
-        v
+        sections
     }
 
-    fn skim(&mut self, f: usize) {
-        let src = &self.sources[f].text;
-        let sk = skim(src.as_bytes());
-        let slot = &mut self.files[f];
-        slot.source_hash = sk.source_hash;
-        slot.api_text_hash = sk.api_text_hash;
-        slot.uses = source::use_paths(src, &sk);
-        slot.facts = architecture::facts_of(&slot.module, &sk);
+    fn put(&self, kind: EntryKind, key: Hash128, sections: &[&[u8]]) {
+        let s: Vec<(u16, u32, &[u8])> = sections
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (u16::try_from(i).expect("sections"), 0, *b))
+            .collect();
+        let bytes = hd_cache::encode_entry(kind, LAYOUT, key, self.toolchain, 0, &s);
+        self.host.store.put(kind, &key, &bytes);
     }
 
-    /// `HeaderCheck(F)`: stage B. Its answers never change what a
-    /// dependent reports, so a not-implemented result is counted, not shown.
-    fn header_check(&mut self, fi: usize) {
-        let folder = self.folders[fi].clone();
-        let r = hd_resolve::header_check_folder(&folder, self.closure(&folder).len());
-        self.c.stage("HeaderCheck", &r);
+    fn skim_of(&self, m: usize) -> &SkimOut {
+        self.skim[m].get_or_init(|| self.skim_now(m))
     }
 
-    /// Lazy full parse ("full parse if needed", M1): only on a miss, as a
-    /// `Parse` task the missing task creates (walking skeleton, SK-4).
-    fn parse(&mut self, f: usize) {
-        if self.files[f].parse.is_none() {
-            let t0 = Instant::now();
-            let p = parse_subset(&self.sources[f].text);
-            for e in &p.errors {
-                self.diagnostics
-                    .push(format!("{}: parse: {e}", self.sources[f].path));
+    fn skim_now(&self, m: usize) -> SkimOut {
+        let text = &self.texts[m];
+        let sk = skim(text.as_bytes());
+        let mut uses = Vec::new();
+        for &(lo, hi) in &sk.uses {
+            let line = text.get(lo as usize..hi as usize).unwrap_or("").trim();
+            if let Some(rest) = line.strip_prefix("use ") {
+                let path = rest.split(".{").next().unwrap_or(rest).trim();
+                let path = match path.strip_prefix("pkg.") {
+                    Some(p) => format!("{}.{p}", self.package),
+                    None => path.to_owned(),
+                };
+                uses.push(path);
             }
-            self.files[f].parse = Some(p);
-            *self.c.tasks.entry("Parse").or_default() += 1;
-            self.c.parsed.push(self.files[f].module.clone());
-            *self.c.stage_time.entry("Parse").or_default() += t0.elapsed();
+        }
+        let facts = ModuleFacts {
+            path: self.table.modules[m].path.clone(),
+            has_tests_block: sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests),
+            top_level_statements: sk
+                .bodies
+                .iter()
+                .filter(|b| b.kind == HeaderKind::Control && b.header_indent == 0)
+                .count(),
+            impls: sk
+                .bodies
+                .iter()
+                .filter(|b| b.kind == HeaderKind::Impl && b.header_indent == 0)
+                .count(),
+        };
+        SkimOut {
+            source_hash: sk.source_hash,
+            api_text_hash: sk.api_text_hash,
+            uses,
+            facts,
         }
     }
 
-    fn folder_graph(&mut self, g: &mut TaskGraph) {
-        let mut folders = BTreeSet::new();
-        for f in &self.files {
-            folders.insert(f.folder.clone());
-            let e = self.folder_uses.entry(f.folder.clone()).or_default();
-            for u in &f.uses {
-                let uf = folder_of_module(u).to_owned();
-                if uf != f.folder {
-                    e.insert(uf);
+    fn skim(&self, m: usize) {
+        self.skim_of(m);
+        lock(&self.report).ok(Stage::Skim);
+    }
+
+    /// The full parse, on demand (the "full parse if needed" of M1). Its
+    /// diagnostics are the user's.
+    fn parse_of(&self, m: usize) -> &Parse {
+        self.parse[m].get_or_init(|| {
+            let p = parse(self.texts[m].as_bytes());
+            {
+                let mut c = lock(&self.counters);
+                c.parsed.push(self.table.modules[m].path.clone());
+                *c.tasks.entry("Parse").or_default() += 1;
+            }
+            if p.is_ok() {
+                lock(&self.report).ok(Stage::Parse);
+            } else {
+                let code = p.diagnostics[0].code.as_str();
+                lock(&self.report)
+                    .not_implemented(Stage::Parse, &format!("full parser reports {code}"));
+                let mut d = lock(&self.diags);
+                for x in &p.diagnostics {
+                    let span = Span {
+                        file: FileId::from_raw(u32_of(m)),
+                        ..x.primary
+                    };
+                    d.push(x.code, x.severity, span, x.code.as_str(), None);
+                }
+            }
+            p
+        })
+    }
+
+    fn src(&self, m: usize) -> Src<'_> {
+        Src {
+            parse: self.parse_of(m),
+            text: &self.texts[m],
+            file: FileId::from_raw(u32_of(m)),
+        }
+    }
+
+    fn folder_graph(&self, sp: &dyn Spawn) {
+        let uses: Vec<Vec<String>> = (0..self.table.modules.len())
+            .map(|m| self.skim_of(m).uses.clone())
+            .collect();
+        let graph = FolderGraph::build(&self.table, &uses);
+        lock(&self.report).ok(Stage::FolderGraph);
+        for c in &graph.cycles {
+            let names: Vec<&str> = c
+                .iter()
+                .map(|f| self.table.folders[f.idx()].path.as_str())
+                .collect();
+            let span = Span {
+                file: FileId::from_raw(u32::MAX),
+                lo: 0,
+                hi: 0,
+            };
+            lock(&self.diags).error(
+                Code::FolderCycle,
+                span,
+                &format!("folder-cycle: {}", names.join(" -> ")),
+            );
+        }
+        let pr = sp.add_held(TaskKind::PackageResult, &[]);
+        let order = graph.order.clone();
+        let _ = self.graph.set(GraphOut {
+            graph,
+            package_result: pr,
+        });
+        let g = &self.graph.get().expect("set above").graph;
+        let mut iface_task: Vec<Option<TaskId>> = vec![None; self.table.folders.len()];
+        for &f in &order {
+            let deps: Vec<TaskId> = g.uses[f.idx()]
+                .iter()
+                .filter_map(|u| iface_task[u.idx()])
+                .collect();
+            let t = sp.add(TaskKind::FolderIface(f.raw()), &deps);
+            iface_task[f.idx()] = Some(t);
+            let closure: Vec<TaskId> = g.closure[f.idx()]
+                .iter()
+                .filter_map(|c| iface_task[c.idx()])
+                .collect();
+            let hc = sp.add(TaskKind::HeaderCheck(f.raw()), &closure);
+            let io = sp.add(TaskKind::InitOrder(f.raw()), &[t]);
+            sp.edge(hc, pr);
+            sp.edge(io, pr);
+        }
+        let all: Vec<TaskId> = iface_task.iter().flatten().copied().collect();
+        let coh = sp.add(TaskKind::Coherence, &all);
+        sp.edge(coh, pr);
+        for (m, module) in self.table.modules.iter().enumerate() {
+            let deps: Vec<TaskId> = g.closure[module.folder.idx()]
+                .iter()
+                .filter_map(|c| iface_task[c.idx()])
+                .collect();
+            let prep = sp.add(TaskKind::ModulePrep(u32_of(m)), &deps);
+            sp.edge(prep, pr);
+        }
+        sp.release(pr);
+    }
+
+    fn closure(&self, folder: FolderId) -> Vec<FolderId> {
+        self.graph
+            .get()
+            .map(|g| g.graph.closure[folder.idx()].iter().collect())
+            .unwrap_or_default()
+    }
+
+    fn iface_of(&self, f: FolderId) -> Option<Arc<FolderIface>> {
+        self.iface
+            .get(f.idx())
+            .and_then(|s| s.get())
+            .cloned()
+            .flatten()
+    }
+
+    fn iface_by_path(&self, path: &str) -> Option<Arc<FolderIface>> {
+        let f = self.table.folders.iter().find(|x| x.path == path)?;
+        self.iface_of(f.id)
+    }
+
+    /// `FolderIface(F)` (resolution-and-interfaces.md §4.10).
+    fn folder_iface(&self, fi: usize) {
+        let folder = &self.table.folders[fi];
+        let fid = folder.id;
+        let uses: Vec<FolderId> = self
+            .graph
+            .get()
+            .map(|g| g.graph.uses[fi].clone())
+            .unwrap_or_default();
+        let reach: Vec<FolderId> = self
+            .closure(fid)
+            .into_iter()
+            .filter(|c| *c != fid)
+            .collect();
+        let mut reach_hashes = Vec::new();
+        for c in &reach {
+            if let Some(i) = self.iface_of(*c) {
+                reach_hashes.push((self.table.folders[c.idx()].path.as_str(), i.deep_hash));
+            } else {
+                self.blocked(Stage::FolderIface);
+                let _ = self.iface[fi].set(None);
+                return;
+            }
+        }
+        let apis: Vec<FileApi<'_>> = folder
+            .modules
+            .iter()
+            .map(|m| FileApi {
+                module: &self.table.modules[m.idx()].path,
+                role: ROLE,
+                api_text_hash: self.skim_of(m.idx()).api_text_hash,
+            })
+            .collect();
+        let key = iface_key(
+            self.toolchain,
+            self.package_key,
+            &folder.path,
+            &apis,
+            &reach_hashes,
+        );
+        let used_deep: Vec<Hash128> = uses
+            .iter()
+            .filter_map(|u| self.iface_of(*u))
+            .map(|i| i.deep_hash)
+            .collect();
+        let names = self.names();
+        if let Some(sections) = self.lookup(EntryKind::Iface, key)
+            && let Some(blob) = sections.first()
+            && let Some(items) = hd_resolve::decode_items(&names, blob)
+        {
+            let iface = hd_resolve::folder_iface(
+                &folder.path,
+                items,
+                Arc::from(blob.as_slice()),
+                &used_deep,
+            );
+            lock(&self.counters)
+                .deep_hashes
+                .insert(folder.path.clone(), iface.deep_hash);
+            lock(&self.report).ok(Stage::FolderIface);
+            let _ = self.iface[fi].set(Some(Arc::new(iface)));
+            return;
+        }
+        let mut items = Vec::new();
+        for m in &folder.modules {
+            let m = m.idx();
+            if !self.parse_of(m).is_ok() {
+                self.blocked(Stage::FolderIface);
+                let _ = self.iface[fi].set(None);
+                return;
+            }
+            let mut scratch = DiagBuf::default();
+            match self.lower_module(m, Stage::FolderIface, &mut scratch) {
+                Ok(own) => items.extend(hd_resolve::interface_items(&own)),
+                Err(e) => {
+                    self.stage::<()>(Stage::FolderIface, Err(e));
+                    let _ = self.iface[fi].set(None);
+                    return;
                 }
             }
         }
-        // Topological order (the graph is acyclic in the subset; a cycle
-        // would be `folder-cycle`).
-        let mut order: Vec<String> = Vec::new();
-        let mut visiting = BTreeSet::new();
-        for f in &folders {
-            visit(
-                f,
-                &self.folder_uses,
-                &mut order,
-                &mut visiting,
-                &mut self.diagnostics,
-            );
+        let blob = match hd_resolve::encode_items(&names, &items) {
+            Ok(b) => b,
+            Err(e) => {
+                self.stage::<()>(Stage::FolderIface, Err(e));
+                let _ = self.iface[fi].set(None);
+                return;
+            }
+        };
+        self.put(EntryKind::Iface, key, &[&blob]);
+        let iface = hd_resolve::folder_iface(&folder.path, items, Arc::from(blob), &used_deep);
+        {
+            let mut c = lock(&self.counters);
+            c.ifaces_built.push(folder.path.clone());
+            c.deep_hashes.insert(folder.path.clone(), iface.deep_hash);
         }
-        self.folders = order.clone();
-        let mut checks = Vec::new();
-        for (i, f) in order.iter().enumerate() {
-            let deps: Vec<TaskId> = self.folder_uses[f]
-                .iter()
-                .filter_map(|u| self.iface_tasks.get(u).copied())
-                .collect();
-            let t = g.add(TaskKind::FolderIface(u32::try_from(i).expect("f")), &deps);
-            self.iface_tasks.insert(f.clone(), t);
-            // HeaderCheck(F) waits for F's interface and those F's uses reach.
-            let mut hdeps: Vec<TaskId> = self
-                .closure(f)
-                .iter()
-                .map(|c| self.iface_tasks[c])
-                .collect();
-            hdeps.push(t);
-            checks.push(g.add(TaskKind::HeaderCheck(u32::try_from(i).expect("f")), &hdeps));
-            checks.push(g.add(TaskKind::InitOrder(u32::try_from(i).expect("f")), &[t]));
-        }
-        let all_ifaces: Vec<TaskId> = order.iter().map(|f| self.iface_tasks[f]).collect();
-        checks.push(g.add(TaskKind::Coherence, &all_ifaces));
-        let mut preps = Vec::new();
-        for (m, f) in self.files.iter().enumerate() {
-            let deps: Vec<TaskId> = self
-                .closure(&f.folder)
-                .iter()
-                .map(|c| self.iface_tasks[c])
-                .collect();
-            preps.push(g.add(TaskKind::ModulePrep(u32::try_from(m).expect("m")), &deps));
-        }
-        preps.extend(checks);
-        let pr = g.add(TaskKind::PackageResult, &preps);
-        self.package_result = Some(pr);
+        lock(&self.report).ok(Stage::FolderIface);
+        let _ = self.iface[fi].set(Some(Arc::new(iface)));
     }
 
-    /// `closure(F)`: F plus every folder reachable through use edges.
-    fn closure(&self, folder: &str) -> BTreeSet<String> {
-        let mut out = BTreeSet::new();
-        let mut stack = vec![folder.to_owned()];
-        while let Some(f) = stack.pop() {
-            if out.insert(f.clone()) {
-                stack.extend(self.folder_uses.get(&f).into_iter().flatten().cloned());
+    /// Heads, scope and items of one module.
+    fn lower_module(&self, m: usize, stage: Stage, diags: &mut DiagBuf) -> StageResult<Vec<Item>> {
+        let names = self.names();
+        let src = self.src(m);
+        let module = &self.table.modules[m].path;
+        let heads = hd_resolve::heads(&names, &src, module);
+        let (scope, kinds) = hd_resolve::module_scope(
+            &names,
+            &src,
+            &self.package,
+            module,
+            &heads,
+            &|f| self.iface_by_path(f),
+            stage,
+            diags,
+        )?;
+        hd_resolve::lower_items(&names, &src, &heads, &scope, &kinds, stage, diags)
+    }
+
+    fn header_check(&self, fi: usize) {
+        match self.iface.get(fi).and_then(|s| s.get()).cloned().flatten() {
+            Some(i) => {
+                let r = hd_resolve::header_check(&self.pool, &i.items);
+                self.stage(Stage::HeaderCheck, r);
+            }
+            None => self.blocked(Stage::HeaderCheck),
+        }
+    }
+
+    fn init_order(&self, fi: usize) {
+        let folder = &self.table.folders[fi];
+        let facts: Vec<&ModuleFacts> = folder
+            .modules
+            .iter()
+            .map(|m| &self.skim_of(m.idx()).facts)
+            .collect();
+        let r = init_order(&folder.path, &facts);
+        self.stage(Stage::InitOrder, r);
+    }
+
+    /// `Coherence`: the overlap check over every interface's impl heads.
+    fn coherence(&self) {
+        let mut heads = Vec::new();
+        for f in 0..self.table.folders.len() {
+            let Some(i) = self.iface.get(f).and_then(|s| s.get()).cloned().flatten() else {
+                self.blocked(Stage::Coherence);
+                return;
+            };
+            for it in &i.items {
+                if let ItemData::Impl {
+                    trait_, self_ty, ..
+                } = it.data
+                {
+                    heads.push((trait_, self_ty, it.def));
+                }
+            }
+        }
+        heads.sort_by_key(|h| self.names().path_hash(h.2));
+        if let Some(pairs) = self.stage(Stage::Coherence, coherence(&self.pool, &heads)) {
+            let names = self.names();
+            for (a, b) in pairs {
+                let span = Span {
+                    file: FileId::from_raw(u32::MAX),
+                    lo: 0,
+                    hi: 0,
+                };
+                let msg = format!("overlapping-impl: {} and {}", names.path(a), names.path(b));
+                lock(&self.diags).error(Code::OverlappingImpl, span, &msg);
+            }
+        }
+    }
+
+    fn check_key(&self, m: usize) -> Option<Hash128> {
+        let module = &self.table.modules[m];
+        let mut closure = Vec::new();
+        for c in self.closure(module.folder) {
+            closure.push((
+                self.table.folders[c.idx()].path.as_str(),
+                self.iface_of(c)?.deep_hash,
+            ));
+        }
+        Some(check_key(
+            self.toolchain,
+            self.package_key,
+            &module.path,
+            ROLE,
+            self.skim_of(m).source_hash,
+            &closure,
+        ))
+    }
+
+    /// `ModulePrep(m)`: the `check` key lookup first; only on a miss does
+    /// it lower headers and create `Body(m)`, `ModuleFinish(m)` and
+    /// `TestOverlay(m)` (scheduler.md §6.1).
+    fn module_prep(&self, id: TaskId, m: u32, sp: &dyn Spawn) {
+        let mi = m as usize;
+        let Some(key) = self.check_key(mi) else {
+            for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
+                self.blocked(s);
+            }
+            let _ = self.prep[mi].set(None);
+            let _ = self.check[mi].set(None);
+            return;
+        };
+        lock(&self.counters)
+            .check_keys
+            .insert(self.table.modules[mi].path.clone(), key);
+        if let Some(sections) = self.lookup(EntryKind::Check, key) {
+            lock(&self.report).ok(Stage::ModulePrep);
+            self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
+            let _ = self.prep[mi].set(None);
+            return;
+        }
+        if !self.parse_of(mi).is_ok() {
+            for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
+                self.blocked(s);
+            }
+            let _ = self.prep[mi].set(None);
+            let _ = self.check[mi].set(None);
+            return;
+        }
+        let mut diags = DiagBuf::default();
+        let items = self.lower_module(mi, Stage::ModulePrep, &mut diags);
+        let Some(items) = self.stage(Stage::ModulePrep, items) else {
+            self.blocked(Stage::Body);
+            self.blocked(Stage::ModuleFinish);
+            let _ = self.prep[mi].set(None);
+            let _ = self.check[mi].set(None);
+            return;
+        };
+        let _ = self.prep[mi].set(Some(PrepOut { items, diags }));
+        let Some(pr) = self.graph.get().map(|g| g.package_result) else {
+            return;
+        };
+        let body = sp.add(TaskKind::Body(m), &[id]);
+        let finish = sp.add(TaskKind::ModuleFinish(m), &[body]);
+        let overlay = sp.add(TaskKind::TestOverlay(m), &[id]);
+        sp.edge(finish, pr);
+        sp.edge(overlay, pr);
+    }
+
+    fn impl_tables_of(&self, own: &[Item], closure: &[FolderId]) -> Vec<(ModuleId, ImplTable)> {
+        let names = self.names();
+        let mut out = Vec::new();
+        let own_impls: Vec<&Item> = own
+            .iter()
+            .filter(|i| matches!(i.data, ItemData::Impl { .. }))
+            .collect();
+        out.push((
+            ModuleId::from_raw(u32::MAX - 1),
+            hd_resolve::impl_table(&names, &own_impls),
+        ));
+        for f in closure {
+            if let Some(i) = self.iface_of(*f) {
+                let impls: Vec<&Item> = i
+                    .items
+                    .iter()
+                    .filter(|x| matches!(x.data, ItemData::Impl { .. }))
+                    .collect();
+                out.push((
+                    ModuleId::from_raw(f.raw()),
+                    hd_resolve::impl_table(&names, &impls),
+                ));
             }
         }
         out
     }
 
-    fn folder_iface(&mut self, fi: usize) {
-        let folder = self.folders[fi].clone();
-        let mut files: Vec<usize> = (0..self.files.len())
-            .filter(|&i| self.files[i].folder == folder)
-            .collect();
-        files.sort_by(|a, b| self.files[*a].module.cmp(&self.files[*b].module));
-        let mut reach = self.closure(&folder);
-        reach.remove(&folder);
-        let key = {
-            let apis: Vec<FileApi<'_>> = files
-                .iter()
-                .map(|&f| FileApi {
-                    module: &self.files[f].module,
-                    role: ROLE,
-                    api_text_hash: self.files[f].api_text_hash,
-                })
-                .collect();
-            let reach: Vec<(&str, Hash128)> = reach
-                .iter()
-                .map(|d| (d.as_str(), self.ifaces[d].deep_hash))
-                .collect();
-            iface_key(self.toolchain, self.package, &folder, &apis, &reach)
-        };
-        let iface = if let Some(blob) = self.lookup("iface", key) {
-            decode_iface(&blob)
-        } else {
-            let mut items = Vec::new();
-            for &f in &files {
-                self.parse(f);
-                let module = self.files[f].module.clone();
-                let src = &self.sources[f].text;
-                let p = self.files[f].parse.as_ref().expect("parsed");
-                let cst = Cst { src, p };
-                let scope = module_scope(&cst, &module, &self.ifaces);
-                let (hs, errs) = lower_headers(&cst, &module, &scope);
-                self.diagnostics.extend(scope.errors.iter().cloned());
-                self.diagnostics.extend(errs);
-                items.extend(hs.into_iter().filter(|h| h.public));
-            }
-            let iface = build_iface(&folder, &items, &self.ifaces);
-            self.store.put("iface", key, iface.blob.clone());
-            self.c.ifaces_built.push(folder.clone());
-            iface
-        };
-        load_items(&mut self.w, &iface.items, Some(&iface.item_hashes));
-        self.c.deep_hashes.insert(folder.clone(), iface.deep_hash);
-        self.ifaces.insert(folder, iface);
-    }
-
-    fn check_key(&self, m: usize) -> Hash128 {
-        let f = &self.files[m];
-        let closure = self.closure(&f.folder);
-        let closure: Vec<(&str, Hash128)> = closure
-            .iter()
-            .map(|c| (c.as_str(), self.ifaces[c].deep_hash))
-            .collect();
-        check_key(
-            self.toolchain,
-            self.package,
-            &f.module,
-            ROLE,
-            f.source_hash,
-            &closure,
-        )
-    }
-
-    /// `ModulePrep(m)`: the `check` key lookup is its first step; only on a
-    /// miss does it parse and create `Body(m)` and `ModuleFinish(m)`
-    /// (scheduler.md §6.1; walking skeleton, SK-4).
-    fn module_prep(&mut self, id: TaskId, m: u32, g: &mut TaskGraph) {
-        let mi = m as usize;
-        let key = self.check_key(mi);
-        self.c.check_keys.insert(self.files[mi].module.clone(), key);
-        if let Some(entry) = self.lookup("check", key) {
-            self.read_check_entry(mi, entry);
-            return;
-        }
-        self.parse(mi);
-        let module = self.files[mi].module.clone();
-        let src = &self.sources[mi].text;
-        let p = self.files[mi].parse.as_ref().expect("parsed");
-        let cst = Cst { src, p };
-        let scope = module_scope(&cst, &module, &self.ifaces);
-        let (headers, errs) = lower_headers(&cst, &module, &scope);
-        let mut errors = scope.errors.clone();
-        errors.extend(errs);
-        load_items(&mut self.w, &headers, None);
-        self.prep.insert(
-            m,
-            Prep {
-                scope,
-                headers,
-                errors,
-                bodies: Vec::new(),
-            },
-        );
-        let body = g.add(TaskKind::Body(m), &[id]);
-        let finish = g.add(TaskKind::ModuleFinish(m), &[body]);
-        let overlay = g.add(TaskKind::TestOverlay(m), &[id]);
-        g.edge(finish, self.package_result.expect("package result"));
-        g.edge(overlay, self.package_result.expect("package result"));
-    }
-
-    fn body(&mut self, m: u32) {
-        let mi = m as usize;
-        let module = self.files[mi].module.clone();
-        let src = &self.sources[mi].text;
-        let p = self.files[mi].parse.as_ref().expect("parsed");
-        let cst = Cst { src, p };
-        let prep = self.prep.get_mut(&m).expect("prep");
-        prep.bodies = check_module_bodies(
-            &mut self.w,
-            &cst,
-            &module,
-            &prep.scope,
-            &prep.headers,
-            self.opts.a1_rule,
-        );
-    }
-
-    /// Writes the `check` entry. Sections, in order: diagnostics; the meta
-    /// section (the module's TIR content hash, which `prog_key` reads);
-    /// headers (private signatures and private data layouts, by stable path:
-    /// walking skeleton, SK-1); TIR, one record per body.
-    fn module_finish(&mut self, m: u32) {
-        let mi = m as usize;
-        let prep = self.prep.remove(&m).expect("prep");
-        let module = self.files[mi].module.clone();
-        self.c.modules_checked.push(module.clone());
-        let mut errors = prep.errors.clone();
-        for (path, ck) in &prep.bodies {
-            for e in &ck.errors {
-                errors.push(format!("{module}: {path}: {e}"));
-            }
-        }
-        let has_tir = errors.is_empty();
-        let mut tir = Vec::new();
-        let mut content = KeyHasher::new("tir-content");
-        let nbodies = if has_tir { prep.bodies.len() } else { 0 };
-        put_u32(&mut tir, u32::try_from(nbodies).expect("n"));
-        for (path, ck) in prep.bodies.iter().take(nbodies) {
-            let mut tables = Tables::default();
-            let mut bytes = Vec::new();
-            let mut spans = Vec::new();
-            write_body(&self.w, &mut tables, &ck.body, &mut bytes, &mut spans);
-            let h = tir_hash(&bytes, &tables);
-            put_str(&mut tir, path);
-            put_hash(&mut tir, h);
-            write_tables(&tables, &mut tir);
-            put_u32(&mut tir, u32::try_from(bytes.len()).expect("n"));
-            tir.extend_from_slice(&bytes);
-            put_u32(&mut tir, u32::try_from(spans.len()).expect("n"));
-            tir.extend_from_slice(&spans);
-            content = content.str(path).hash(h);
-            for (p, ih) in &ck.deps {
-                content = content.str(p).hash(*ih);
-            }
-        }
-        let mut entry = Vec::new();
-        put_u32(&mut entry, u32::try_from(errors.len()).expect("n"));
-        for e in &errors {
-            put_str(&mut entry, e);
-        }
-        put_hash(&mut entry, content.finish());
-        let private: Vec<&HeaderItem> = prep.headers.iter().filter(|h| !h.public).collect();
-        put_u32(&mut entry, u32::try_from(private.len()).expect("n"));
-        for h in private {
-            encode_item(&mut entry, h);
-        }
-        entry.extend_from_slice(&tir);
-        let key = self.c.check_keys[&module];
-        let entry = self.store.put("check", key, entry);
-        // D2 reads TIR from the entry, never from the checker's memory.
-        self.read_check_entry(mi, entry);
-    }
-
-    /// Reads diagnostics and the meta section only; the rest waits for
-    /// `Collect` (walking skeleton, SK-N16).
-    fn read_check_entry(&mut self, mi: usize, bytes: Arc<[u8]>) {
-        let module = self.files[mi].module.clone();
-        let mut r = Reader::new(&bytes);
-        let ne = r.u32();
-        for _ in 0..ne {
-            let e = r.str();
-            self.diagnostics.push(e);
-        }
-        self.tir_content.insert(module.clone(), r.hash());
-        let rest = r.pos;
-        self.pending.insert(module, PendingEntry { bytes, rest });
-    }
-
-    /// Decodes the headers and TIR sections of every module's entry.
-    fn decode_pending(&mut self) {
-        for (module, p) in std::mem::take(&mut self.pending) {
-            let mut r = Reader::new(&p.bytes);
-            r.pos = p.rest;
-            let nh = r.u32();
-            let headers: Vec<HeaderItem> = (0..nh).map(|_| decode_item(&mut r)).collect();
-            load_items(&mut self.w, &headers, None);
-            let nb = r.u32();
-            for _ in 0..nb {
-                let path = r.str();
-                let h = r.hash();
-                let rows = read_tables(&mut self.w, &mut r);
-                let n = r.u32() as usize;
-                let mut br = Reader::new(&r.bytes[r.pos..r.pos + n]);
-                let mut body = read_body(&mut self.w, &rows, &mut br);
-                r.pos += n;
-                let ns = r.u32() as usize;
-                r.pos += ns; // spans: locations only
-                let def = self.w.def(&path);
-                body.item = Some(def);
-                self.tir.insert(def, body);
-                self.tir_hashes.insert(def, h);
-            }
-            self.c.tir_decoded.push(module);
-        }
-    }
-
-    fn package_result(&mut self, g: &mut TaskGraph) {
-        if self.diagnostics.is_empty() {
-            g.add(TaskKind::Ext(ExtTask::Collect), &[]);
-        }
-    }
-
-    fn collect(&mut self, g: &mut TaskGraph) {
-        // prog_key (codegen.md §11.3): TIR content of the modules.
-        let modules: Vec<(&str, Hash128)> = self
-            .tir_content
-            .iter()
-            .map(|(m, h)| (m.as_str(), *h))
-            .collect();
-        self.prog_key = prog_key(self.toolchain, PIPELINE, &self.entry, &modules);
-        if let Some(wasm) = self.lookup("link", self.prog_key) {
-            self.wasm = Some(wasm.to_vec());
-            return;
-        }
-        self.decode_pending();
-        let Some(root) = self.w.lookup(&item_path(&self.entry, "main")) else {
-            self.diagnostics
-                .push(format!("no-main: `{}` has no `fn main`", self.entry));
+    /// `Body(m)`: every body of the module, in source order.
+    fn body(&self, m: usize) {
+        let Some(Some(prep)) = self.prep[m].get() else {
+            self.blocked(Stage::Body);
+            let _ = self.body[m].set(None);
             return;
         };
-        let set = match collect(&mut self.w, &self.tir, root) {
-            Ok(set) => set,
+        let module = &self.table.modules[m];
+        let closure = self.closure(module.folder);
+        let ifaces: Vec<Arc<FolderIface>> =
+            closure.iter().filter_map(|f| self.iface_of(*f)).collect();
+        let lookup = Lookup::new(&prep.items, ifaces.iter().map(AsRef::as_ref).collect());
+        let tables = self.impl_tables_of(&prep.items, &closure);
+        let table_refs: Vec<(ModuleId, &ImplTable)> = tables.iter().map(|(m, t)| (*m, t)).collect();
+        let names = self.names();
+        let src = self.src(m);
+        let heads = hd_resolve::heads(&names, &src, &module.path);
+        let Ok((scope, _)) = hd_resolve::module_scope(
+            &names,
+            &src,
+            &self.package,
+            &module.path,
+            &heads,
+            &|f| self.iface_by_path(f),
+            Stage::Body,
+            &mut DiagBuf::default(),
+        ) else {
+            self.blocked(Stage::Body);
+            let _ = self.body[m].set(None);
+            return;
+        };
+        let universe = self.universes.intern(&closure);
+        let solver = SkeletonSolver;
+        let cx = BodyCx {
+            names,
+            src,
+            scope: &scope,
+            lookup: &lookup,
+            impls: &table_refs,
+            universe,
+            global: &self.memo,
+            solver: &solver,
+        };
+        let mut diags = DiagBuf::default();
+        let mut bodies = Vec::new();
+        for (def, node) in hd_resolve::body_nodes(&names, &src, &heads) {
+            match hd_check::check_fn(&cx, def, node, &mut diags) {
+                Ok(b) => bodies.push(b),
+                Err(e) => {
+                    self.stage::<()>(Stage::Body, Err(e));
+                    let _ = self.body[m].set(None);
+                    return;
+                }
+            }
+        }
+        lock(&self.report).ok(Stage::Body);
+        let _ = self.body[m].set(Some((bodies, diags)));
+    }
+
+    /// `ModuleFinish(m)`: writes the `check` entry. Sections: diagnostics;
+    /// meta (the module's TIR content hash, which `prog_key` reads); the
+    /// module's items; TIR, one record per body.
+    fn module_finish(&self, m: usize) {
+        let (Some(Some(prep)), Some(Some((bodies, bdiags)))) =
+            (self.prep[m].get(), self.body[m].get())
+        else {
+            self.blocked(Stage::ModuleFinish);
+            let _ = self.check[m].set(None);
+            return;
+        };
+        let names = self.names();
+        let mut diags = prep.diags.clone();
+        diags.append(bdiags);
+        let mut dw = Writer::default();
+        dw.len_of(&diags.code);
+        for i in 0..diags.len() {
+            dw.str(diags.code[i].as_str());
+            dw.u32(diags.primary[i].lo);
+            dw.u32(diags.primary[i].hi);
+            dw.str(diags.get_text(diags.message[i]));
+        }
+        let mut tw = Writer::default();
+        let mut content = hd_base::StableHasher::new("tir-content");
+        let keep: &[Body] = if diags.has_errors() { &[] } else { bodies };
+        tw.len_of(keep);
+        for b in keep {
+            let bytes = match hd_tir::wire::write_body(b, &self.pool, &self.paths, &self.syms) {
+                Ok(x) => x,
+                Err(e) => {
+                    self.stage::<()>(Stage::ModuleFinish, Err(e));
+                    let _ = self.check[m].set(None);
+                    return;
+                }
+            };
+            content.hash(names.path_hash(b.item));
+            content.hash(hd_tir::wire::tir_hash(&bytes));
+            tw.blob(&bytes);
+        }
+        let mut meta = Writer::default();
+        meta.hash(content.finish());
+        let items = match hd_resolve::encode_items(&names, &prep.items) {
+            Ok(x) => x,
             Err(e) => {
-                self.diagnostics.push(format!("collect: {e}"));
+                self.stage::<()>(Stage::ModuleFinish, Err(e));
+                let _ = self.check[m].set(None);
                 return;
             }
         };
-        self.instances = set.instances;
-        self.callee_reps = set.callee_reps;
-        self.data_types = set.types.into_iter().collect();
-        self.imports = set.imports.into_iter().collect();
-        self.codes = vec![None; self.instances.len()];
-        let link = g.add(TaskKind::Ext(ExtTask::Link), &[]);
-        let emits: Vec<TaskId> = (0..self.instances.len())
-            .map(|i| {
-                g.add(
-                    TaskKind::Ext(ExtTask::Emit(u32::try_from(i).expect("i"))),
-                    &[],
-                )
-            })
-            .collect();
-        for e in emits {
-            g.edge(e, link);
+        let Some(key) = self.check_key(m) else { return };
+        let sections: [&[u8]; 4] = [&dw.bytes, &meta.bytes, &items, &tw.bytes];
+        self.put(EntryKind::Check, key, &sections);
+        lock(&self.counters)
+            .modules_checked
+            .push(self.table.modules[m].path.clone());
+        lock(&self.report).ok(Stage::ModuleFinish);
+        let owned: Vec<Vec<u8>> = sections.iter().map(|s| s.to_vec()).collect();
+        self.read_check(m, &owned, Arc::from(join_sections(&owned)));
+    }
+
+    /// Reads diagnostics and the meta section; the rest waits for `Collect`.
+    fn read_check(&self, m: usize, sections: &[Vec<u8>], entry: Arc<[u8]>) {
+        let (Some(d), Some(meta)) = (sections.first(), sections.get(1)) else {
+            let _ = self.check[m].set(None);
+            return;
+        };
+        let mut r = Reader::new(d);
+        let mut buf = DiagBuf::default();
+        for _ in 0..r.count() {
+            let code = Code::from_name(r.str()).unwrap_or(Code::Unsupported);
+            let (lo, hi) = (r.u32(), r.u32());
+            let msg = r.str().to_owned();
+            buf.push(
+                code,
+                Severity::Error,
+                Span {
+                    file: FileId::from_raw(u32_of(m)),
+                    lo,
+                    hi,
+                },
+                &msg,
+                None,
+            );
+        }
+        let has_errors = buf.has_errors();
+        lock(&self.diags).append(&buf);
+        let content = Reader::new(meta).hash();
+        let _ = self.check[m].set(Some(CheckOut {
+            entry,
+            content,
+            has_errors,
+        }));
+    }
+
+    fn package_result(&self, sp: &dyn Spawn) {
+        lock(&self.report).ok(Stage::PackageResult);
+        match &self.goal {
+            Goal::Program { .. } => {
+                if !lock(&self.diags).has_errors() {
+                    sp.add(TaskKind::Ext(ExtTask::Collect), &[]);
+                }
+            }
+            Goal::Analyze => {
+                lock(&self.report).not_implemented(
+                    Stage::Collect,
+                    "no program root: a library package needs a test plan (§13.1)",
+                );
+                for s in [Stage::Emit, Stage::Link, Stage::Precompile, Stage::Run] {
+                    self.blocked(s);
+                }
+            }
         }
     }
 
-    fn emit(&mut self, i: usize) {
-        let (ikey, inst) = self.instances[i].clone();
-        // Code key (§13.8): the stored TIR hash, no re-serialization.
-        let ck = code_key(
-            PIPELINE,
-            ikey,
-            self.tir_hashes[&inst.item],
-            self.callee_reps[&ikey],
-        );
-        let code = if let Some(bytes) = self.lookup("code", ck) {
-            Code::decode(&bytes)
-        } else {
-            self.c.emitted += 1;
-            let body = &self.tir[&inst.item];
-            let c = emit(&mut self.w, &self.tir, body, &inst);
-            self.store.put("code", ck, c.encode());
-            c
-        };
-        self.codes[i] = Some((ikey, code));
+    /// Decodes every module's items and TIR (a `prog_key` miss).
+    fn program(&self) -> Option<&ProgramTables> {
+        if let Some(p) = self.program.get() {
+            return Some(p);
+        }
+        let names = self.names();
+        let mut items = HashMap::new();
+        let mut bodies = HashMap::new();
+        let mut decoded = Vec::new();
+        for m in 0..self.table.modules.len() {
+            let Some(Some(c)) = self.check[m].get() else {
+                return None;
+            };
+            if c.has_errors {
+                return None;
+            }
+            let sections = split_sections(&c.entry)?;
+            for it in hd_resolve::decode_items(&names, sections.get(2)?)? {
+                items.insert(it.def, it);
+            }
+            let mut r = Reader::new(sections.get(3)?);
+            for _ in 0..r.count() {
+                let bytes = r.blob();
+                let b = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms)?;
+                bodies.insert(b.item, (b, hd_tir::wire::tir_hash(bytes)));
+            }
+            decoded.push(self.table.modules[m].path.clone());
+        }
+        for f in 0..self.table.folders.len() {
+            if let Some(i) = self.iface_of(FolderId::from_raw(u32_of(f))) {
+                for it in &i.items {
+                    items.entry(it.def).or_insert_with(|| it.clone());
+                }
+            }
+        }
+        let mut impls: Vec<&Item> = items
+            .values()
+            .filter(|i| matches!(i.data, ItemData::Impl { .. }))
+            .collect();
+        impls.sort_by_key(|i| names.path_hash(i.def));
+        let impl_tables = vec![(
+            ModuleId::from_raw(0),
+            hd_resolve::impl_table(&names, &impls),
+        )];
+        lock(&self.counters).tir_decoded.extend(decoded);
+        let _ = self.program.set(ProgramTables {
+            items,
+            bodies,
+            impl_tables,
+        });
+        self.program.get()
     }
 
-    fn link(&mut self) {
-        let root = self
-            .w
-            .lookup(&item_path(&self.entry, "main"))
-            .expect("main");
-        let root_key = instance_key(
-            &self.w,
-            &Instance {
-                item: root,
-                ty_args: vec![],
-            },
-        );
-        let codes: Vec<(Hash128, Code)> = self
-            .codes
-            .iter_mut()
-            .map(|c| c.take().expect("emitted"))
-            .collect();
-        let wasm = link(&self.w, &codes, root_key, &self.data_types, &self.imports);
-        self.store.put("link", self.prog_key, wasm.clone());
-        self.wasm = Some(wasm);
+    /// `Collect` (codegen.md §11.3): `prog_key`, then instances, then code
+    /// keys; hits are looked up here, and only misses become `Emit` tasks.
+    fn collect(&self, sp: &dyn Spawn) {
+        let Goal::Program { entry } = &self.goal else {
+            return;
+        };
+        let entry_module = format!("{}.{entry}", self.package);
+        let mut modules: Vec<(&str, Hash128)> = Vec::new();
+        for (m, module) in self.table.modules.iter().enumerate() {
+            let Some(Some(c)) = self.check[m].get() else {
+                self.blocked(Stage::Collect);
+                return;
+            };
+            modules.push((module.path.as_str(), c.content));
+        }
+        let pkey = prog_key(self.toolchain, self.pipeline, &entry_module, &modules);
+        if let Some(sections) = self.lookup(EntryKind::Link, pkey)
+            && let Some(w) = sections.first()
+        {
+            lock(&self.report).ok(Stage::Collect);
+            let _ = self.wasm.set(w.clone());
+            return;
+        }
+        let Some(p) = self.program() else {
+            self.stage::<()>(
+                Stage::Collect,
+                Err(NotImplemented::new(
+                    Stage::Collect,
+                    "a module's check entry did not decode",
+                )),
+            );
+            return;
+        };
+        let names = self.names();
+        let root = names.item(&entry_module, "main");
+        if !p.bodies.contains_key(&root) {
+            let span = Span {
+                file: FileId::from_raw(u32::MAX),
+                lo: 0,
+                hi: 0,
+            };
+            lock(&self.diags).error(
+                Code::MissingEntryPoint,
+                span,
+                &format!("missing-entry-point: `{entry_module}` has no `fn main`"),
+            );
+            return;
+        }
+        let env = Env { run: self, p };
+        let Some(collected) = self.stage(
+            Stage::Collect,
+            hd_mono::collect(&self.pool, &env, &SkeletonSolver, root),
+        ) else {
+            return;
+        };
+        let order = collected.table.content_order();
+        let mut code_keys = Vec::new();
+        let codes: Vec<OnceLock<WasmCode>> = order.iter().map(|_| OnceLock::new()).collect();
+        let mut misses = Vec::new();
+        for (slot, id) in order.iter().enumerate() {
+            let item = collected.table.item[id.idx()];
+            let tir = p.bodies.get(&item).map_or(Hash128(0), |b| b.1);
+            let ck = code_key(
+                self.pipeline,
+                collected.table.key[id.idx()],
+                tir,
+                collected.callee_reps[id.idx()],
+            );
+            code_keys.push(ck);
+            match self
+                .lookup(EntryKind::Code, ck)
+                .and_then(|s| s.first().and_then(|b| WasmCode::decode(b)))
+            {
+                Some(c) => {
+                    let _ = codes[slot].set(c);
+                }
+                None => misses.push(slot),
+            }
+        }
+        let root_key = collected.table.key[0];
+        let _ = self.collect.set(CollectOut {
+            collected,
+            order,
+            codes,
+            code_keys,
+            prog_key: pkey,
+            root_key,
+        });
+        let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
+        for slot in misses {
+            let e = sp.add(TaskKind::Ext(ExtTask::Emit(u32_of(slot))), &[]);
+            sp.edge(e, link);
+        }
+        sp.release(link);
     }
+
+    fn emit(&self, slot: usize) {
+        let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
+            return;
+        };
+        let id = c.order[slot];
+        let item = c.collected.table.item[id.idx()];
+        let args = c.collected.table.args[id.idx()];
+        let Some((body, _)) = p.bodies.get(&item) else {
+            self.stage::<()>(
+                Stage::Emit,
+                Err(NotImplemented::new(Stage::Emit, "an instance without TIR")),
+            );
+            return;
+        };
+        let env = Env { run: self, p };
+        let names = self.names();
+        let ret = env.ret(item).unwrap_or(Ty::VOID);
+        let path = |d: DefId| names.path(d);
+        let r = hd_wasm::emit(
+            &self.pool,
+            &env,
+            &path,
+            body,
+            args,
+            ret,
+            &c.collected.calls[id.idx()],
+        );
+        let Some(code) = self.stage(Stage::Emit, r) else {
+            return;
+        };
+        self.put(EntryKind::Code, c.code_keys[slot], &[&code.encode()]);
+        lock(&self.counters).emitted += 1;
+        let _ = c.codes[slot].set(code);
+    }
+
+    fn link(&self) {
+        let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
+            return;
+        };
+        let mut codes = Vec::new();
+        for (slot, id) in c.order.iter().enumerate() {
+            let Some(code) = c.codes[slot].get() else {
+                return;
+            };
+            codes.push((c.collected.table.key[id.idx()], code.clone()));
+        }
+        let env = Env { run: self, p };
+        let names = self.names();
+        let path = |d: DefId| names.path(d);
+        let mut structs = Vec::new();
+        for d in &c.collected.data {
+            let mut fields = Vec::new();
+            for t in env.data_fields(d.def()).unwrap_or_default() {
+                let vt = match hd_wasm::vt_of(&self.pool, &env, &path, t) {
+                    Ok(Some(v)) => v,
+                    Ok(None) => hd_wasm::VT::I32,
+                    Err(e) => {
+                        self.stage::<()>(Stage::Link, Err(e));
+                        return;
+                    }
+                };
+                fields.push((vt, t == Ty::BOOL));
+            }
+            structs.push((names.path(d.def()), fields));
+        }
+        let imports: Vec<u32> = c.collected.imports.iter().copied().collect();
+        let Some(wasm) = self.stage(
+            Stage::Link,
+            hd_wasm::link(&codes, c.root_key, &structs, &imports),
+        ) else {
+            return;
+        };
+        self.put(EntryKind::Link, c.prog_key, &[&wasm]);
+        let _ = self.wasm.set(wasm);
+    }
+}
+
+/// Sections are kept joined (length-prefixed) as one `Arc`, so a slot
+/// holds one allocation per module.
+fn join_sections(sections: &[Vec<u8>]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(sections);
+    for s in sections {
+        w.blob(s);
+    }
+    w.bytes
+}
+
+fn split_sections(bytes: &[u8]) -> Option<Vec<&[u8]>> {
+    let mut r = Reader::new(bytes);
+    let n = r.count();
+    let v: Vec<&[u8]> = (0..n).map(|_| r.blob()).collect();
+    r.ok().then_some(v)
+}
+
+/// The program as collection and emission see it.
+struct Env<'r> {
+    run: &'r Run<'r>,
+    p: &'r ProgramTables,
+}
+
+impl LayoutEnv for Env<'_> {
+    fn enum_variants(&self, _: DefId, _: TyList) -> Option<Vec<Vec<Ty>>> {
+        None
+    }
+}
+
+impl ProgramEnv for Env<'_> {
+    fn body(&self, def: DefId) -> Option<&Body> {
+        self.p.bodies.get(&def).map(|b| &b.0)
+    }
+    fn bounded(&self, def: DefId) -> Option<Vec<bool>> {
+        self.p
+            .items
+            .get(&def)?
+            .sig()
+            .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
+    }
+    fn ret(&self, def: DefId) -> Option<Ty> {
+        self.p.items.get(&def)?.sig().map(|s| s.ret)
+    }
+    fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
+        let name = match &self.p.items.get(&method)?.data {
+            ItemData::Method { .. } => self.p.items.get(&method)?.name,
+            _ => return None,
+        };
+        match &self.p.items.get(&impl_)?.data {
+            ItemData::Impl { methods, .. } => {
+                methods.iter().find(|(n, _)| *n == name).map(|(_, d)| *d)
+            }
+            _ => None,
+        }
+    }
+    fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
+        match &self.p.items.get(&def)?.data {
+            ItemData::Data(fs) => Some(fs.iter().map(|f| f.ty).collect()),
+            _ => None,
+        }
+    }
+    fn path_hash(&self, def: DefId) -> Hash128 {
+        self.run.names().path_hash(def)
+    }
+    fn impl_tables(&self) -> Vec<(ModuleId, &ImplTable)> {
+        self.p.impl_tables.iter().map(|(m, t)| (*m, t)).collect()
+    }
+}
+
+/// Diagnostics of a run by stable module order, for tests.
+#[must_use]
+pub fn messages(o: &Output) -> Vec<String> {
+    let mut v: Vec<String> = o
+        .diags
+        .content_order()
+        .into_iter()
+        .map(|i| o.diags.get_text(o.diags.message[i]).to_owned())
+        .collect();
+    v.dedup();
+    v
 }

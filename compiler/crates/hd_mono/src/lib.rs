@@ -1,164 +1,252 @@
-//! `hd_mono`: monomorphizing collection (codegen.md §13.1 to §13.3), simplest
-//! form. Reads TIR only.
+#![forbid(unsafe_code)]
+//! `hd_mono`: monomorphizing collection (codegen.md §13.1 to §13.3) over
+//! `hd_tir::ir` bodies into the `InstanceTable`, with A1 classes and
+//! instance keys from `layout`, and trait selection through the solver's
+//! `select`. Collection records each call's target, so emission never
+//! selects again. Reads TIR and interfaces only, never syntax.
 
 pub mod layout;
 pub mod passes;
 pub mod suspend;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
-use hd_base::Hash128;
-use hd_iface::KeyHasher;
-use hd_tir::world::{DefId, DefKind, Ty, TyKind, World};
-use hd_tir::{CALLEE_ITEM, CHOICE_BOUND, CHOICE_IMPL, TirBody, TirTag};
+use hd_base::{DefId, Hash128, InstId, ModuleId, NotImplemented, StableHasher, Stage, StageResult};
+use hd_tir::ir::{Body, Callee, ChoiceKind, Tag};
+use hd_types::solver::{ConcreteTraitRef, ImplTable, Solver, TraitRef};
+use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Instance {
-    pub item: DefId,
-    pub ty_args: Vec<Ty>,
+use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, instance_key};
+
+/// What collection reads about the program (the driver implements it over
+/// TIR and interfaces).
+pub trait ProgramEnv: LayoutEnv {
+    fn body(&self, def: DefId) -> Option<&Body>;
+    /// Per type parameter: has a bound (A1, codegen.md §13.2: exact).
+    fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
+    /// The declared result type.
+    fn ret(&self, def: DefId) -> Option<Ty>;
+    /// The method of `impl_` that implements the trait method `method`.
+    fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId>;
+    /// Data fields, for the struct types a program needs.
+    fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
+    fn path_hash(&self, def: DefId) -> Hash128;
+    fn impl_tables(&self) -> Vec<(ModuleId, &ImplTable)>;
 }
 
-/// `instance_key = H("inst", item stable path, sub-body index, [canon(arg)])`.
+/// The A1 class `REF` as a type argument: a reserved canonical
+/// placeholder, which never occurs in a concrete instance otherwise.
 #[must_use]
-pub fn instance_key(w: &World, inst: &Instance) -> Hash128 {
-    let mut h = KeyHasher::new("inst").str(w.path(inst.item)).str("0");
-    for t in &inst.ty_args {
-        let mut b = Vec::new();
-        w.canon(*t).encode(&mut b);
-        h = h.bytes(&b);
-    }
-    h.finish()
+pub fn class_ref(pool: &InternPool) -> Ty {
+    pool.intern_ty(&TyData::Canon(0xF0))
 }
 
-pub struct InstanceSet {
-    /// Sorted by instance key bytes.
-    pub instances: Vec<(Hash128, Instance)>,
-    /// Per instance key: the hash of its callees' representation summaries,
-    /// in call order (walking skeleton, SK-3). Each code key holds it.
-    pub callee_reps: HashMap<Hash128, Hash128>,
+#[must_use]
+pub fn is_class_ref(pool: &InternPool, t: Ty) -> bool {
+    pool.get(t) == TyData::Canon(0xF0)
+}
+
+/// Where one call goes: the callee instance's key and its result type
+/// under its own arguments (an erased result is cast back at the caller).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CallTarget {
+    pub key: Hash128,
+    pub ret: Ty,
+}
+
+/// The output of `Collect` (codegen.md §11.3).
+#[derive(Debug, Default)]
+pub struct Collected {
+    pub table: InstanceTable,
+    /// Per instance: each `Call` instruction's target.
+    pub calls: Vec<HashMap<u32, CallTarget>>,
+    /// Per instance: the hash of its callees' representation summaries,
+    /// in call order (walking skeleton, SK-3); each code key holds it.
+    pub callee_reps: Vec<Hash128>,
     pub imports: BTreeSet<u32>,
-    pub types: BTreeSet<String>,
+    /// Data types the program builds or reads.
+    pub data: BTreeSet<DefIdOrd>,
 }
 
-/// `select` (§13.2): head match of a concrete trait reference.
+pub use layout::InstanceTable;
+
+/// A `DefId` ordered by its stable path hash, never by run ID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct DefIdOrd(pub Hash128, pub u32);
+
+impl DefIdOrd {
+    #[must_use]
+    pub fn def(self) -> DefId {
+        DefId::from_raw(self.1)
+    }
+}
+
+/// Substitutes an instance's arguments for its item's parameters.
 #[must_use]
-pub fn select(w: &World, trait_: DefId, self_ty: Ty) -> Option<DefId> {
-    w.impls
-        .get(&trait_)?
-        .iter()
-        .copied()
-        .find(|i| matches!(w.defs.get(i), Some(DefKind::Impl { target, .. }) if *target == self_ty))
-}
-
-/// Resolves a trait-method callee at an instance to the impl method.
-pub fn resolve_method(w: &mut World, rec: &[u32], args: &[Ty]) -> Result<Instance, String> {
-    let trait_ = DefId(rec[1]);
-    let index = rec[2] as usize;
-    let self_ty = w.subst(Ty(rec[3]), args, None);
-    let imp = match rec[4] {
-        CHOICE_IMPL => DefId(rec[5]),
-        CHOICE_BOUND => select(w, trait_, self_ty).ok_or_else(|| {
-            format!(
-                "select: no impl of {} at {}",
-                w.path(trait_),
-                w.display(self_ty)
-            )
-        })?,
-        _ => unreachable!(),
-    };
-    let Some(DefKind::Impl { methods, .. }) = w.defs.get(&imp) else {
-        panic!("impl")
-    };
-    let method = methods
-        .iter()
-        .find(|(_, m)| matches!(w.defs.get(m), Some(DefKind::ImplMethod { index: i, .. }) if *i as usize == index))
-        .map(|(_, m)| *m)
-        .expect("impl method");
-    Ok(Instance {
-        item: method,
-        ty_args: Vec::new(),
+pub fn subst(pool: &InternPool, item: DefId, args: TyList, t: Ty) -> Ty {
+    let a = pool.list_items(args);
+    pool.subst(t, &|p: ParamRef| {
+        (p.owner == item)
+            .then(|| a.get(p.index as usize).copied())
+            .flatten()
     })
 }
 
-/// A1 at collection: a move-only type argument with a one-reference layout is
-/// replaced by its class `REF`.
-pub fn classify(w: &mut World, bodies: &HashMap<DefId, TirBody>, mut inst: Instance) -> Instance {
-    let Some(b) = bodies.get(&inst.item) else {
-        return inst;
-    };
-    for (i, t) in inst.ty_args.iter_mut().enumerate() {
-        let move_only = b.rep_exact.get(i).copied() == Some(0);
-        if move_only && matches!(w.kind(*t), TyKind::Adt(_) | TyKind::ClassRef) {
-            *t = w.ty(TyKind::ClassRef);
-        }
-    }
-    inst
+fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
+    pool.list_items(args)
+        .into_iter()
+        .map(|t| {
+            if is_class_ref(pool, t) {
+                KeyArg::Class(A1Class::Ref)
+            } else {
+                KeyArg::Canon(t)
+            }
+        })
+        .collect()
 }
 
-pub fn collect(
-    w: &mut World,
-    bodies: &HashMap<DefId, TirBody>,
-    root: DefId,
-) -> Result<InstanceSet, String> {
-    let mut seen: HashSet<Instance> = HashSet::new();
-    let mut work = vec![Instance {
-        item: root,
-        ty_args: Vec::new(),
-    }];
-    let mut out = Vec::new();
-    let mut imports = BTreeSet::new();
-    let mut types = BTreeSet::new();
-    let mut callee_reps = HashMap::new();
-    while let Some(inst) = work.pop() {
-        if !seen.insert(inst.clone()) {
-            continue;
+fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<DefIdOrd>) {
+    if let TyData::Adt { def, .. } = pool.get(t)
+        && out.insert(DefIdOrd(env.path_hash(def), def.raw()))
+    {
+        for f in env.data_fields(def).unwrap_or_default() {
+            note_data(pool, env, f, out);
         }
-        let body = bodies
-            .get(&inst.item)
-            .unwrap_or_else(|| panic!("no TIR for {}", w.path(inst.item)));
-        let mut reps = KeyHasher::new("callee-reps");
-        for i in 0..body.tags.len() {
-            let ty = w.subst(body.ty[i], &inst.ty_args, None);
-            if let TyKind::Adt(d) = *w.kind(ty) {
-                types.insert(w.path(d).to_owned());
-            }
+    }
+}
+
+/// Collection from `root` (codegen.md §13.1): every reachable instance,
+/// each call's target, the imports and data types.
+pub fn collect(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    solver: &dyn Solver,
+    root: DefId,
+) -> StageResult<Collected> {
+    let ph = |d: DefId| env.path_hash(d);
+    let mut out = Collected::default();
+    let root_key = instance_key(pool, &ph, root, 0, &[]);
+    let (first, _) = out
+        .table
+        .push(root, 0, TyList::EMPTY, 0, InstId::NONE, root_key)?;
+    let mut work = vec![first];
+    let tables = env.impl_tables();
+    while let Some(id) = work.pop() {
+        let (item, args, depth) = (
+            out.table.item[id.idx()],
+            out.table.args[id.idx()],
+            out.table.depth[id.idx()],
+        );
+        let Some(body) = env.body(item) else {
+            return Err(NotImplemented::new(
+                Stage::Collect,
+                "an instance whose item has no TIR",
+            ));
+        };
+        let mut calls = HashMap::new();
+        let mut reps = StableHasher::new("callee-reps");
+        for i in 0..body.len() {
+            note_data(
+                pool,
+                env,
+                subst(pool, item, args, body.ty[i]),
+                &mut out.data,
+            );
             match body.tags[i] {
-                TirTag::Call => {
-                    let rec = body.get_list(body.data[i][0]).to_vec();
-                    let callee = if rec[0] == CALLEE_ITEM {
-                        let args: Vec<Ty> = rec[2..]
-                            .iter()
-                            .map(|&t| w.subst(Ty(t), &inst.ty_args, None))
-                            .collect();
-                        Instance {
-                            item: DefId(rec[1]),
-                            ty_args: args,
-                        }
-                    } else {
-                        resolve_method(w, &rec, &inst.ty_args)?
-                    };
-                    let rep = bodies
-                        .get(&callee.item)
-                        .map_or(&[][..], |b| &b.rep_exact[..]);
-                    reps = reps.str(w.path(callee.item)).bytes(rep);
-                    let callee = classify(w, bodies, callee);
-                    work.push(callee);
+                Tag::CallHost => {
+                    out.imports.insert(body.data[i][0]);
                 }
-                TirTag::Intrinsic => {
-                    imports.insert(body.data[i][0]);
+                Tag::Call => {
+                    let Some(c) = Callee::from_words(body.record(body.data[i][0])) else {
+                        return Err(NotImplemented::new(
+                            Stage::Collect,
+                            "a malformed callee record",
+                        ));
+                    };
+                    let (callee, cargs) = match c {
+                        Callee::Item { def, targs } => {
+                            let bounded = env.bounded(def).unwrap_or_default();
+                            let mut a = Vec::new();
+                            for (k, t) in pool.list_items(targs).into_iter().enumerate() {
+                                let t = subst(pool, item, args, t);
+                                let exact = bounded.get(k).copied().unwrap_or(true)
+                                    || is_class_ref(pool, t);
+                                a.push(if !exact && a1_class(pool, env, t)? == A1Class::Ref {
+                                    class_ref(pool)
+                                } else {
+                                    t
+                                });
+                            }
+                            (def, pool.list(&a))
+                        }
+                        Callee::TraitMethod {
+                            trait_,
+                            method,
+                            self_ty,
+                            choice,
+                            ..
+                        } => {
+                            let self_ty = subst(pool, item, args, self_ty);
+                            let impl_ = match choice.0 {
+                                ChoiceKind::Impl => DefId::from_raw(choice.1),
+                                ChoiceKind::Bound => {
+                                    let tref = ConcreteTraitRef(TraitRef {
+                                        trait_,
+                                        self_ty,
+                                        args: TyList::EMPTY,
+                                    });
+                                    let sel = solver.select(pool, &tables, tref)?;
+                                    let Some((_, t)) =
+                                        tables.iter().find(|(m, _)| *m == sel.impl_row.module)
+                                    else {
+                                        return Err(NotImplemented::new(
+                                            Stage::Collect,
+                                            "a selection outside the impl tables",
+                                        ));
+                                    };
+                                    t.def[sel.impl_row.row as usize]
+                                }
+                                _ => {
+                                    return Err(NotImplemented::new(
+                                        Stage::Collect,
+                                        "trait-value and builtin calls",
+                                    ));
+                                }
+                            };
+                            let Some(m) = env.impl_method(impl_, method) else {
+                                return Err(NotImplemented::new(
+                                    Stage::Collect,
+                                    "an impl without the called method",
+                                ));
+                            };
+                            (m, TyList::EMPTY)
+                        }
+                    };
+                    let key = instance_key(pool, &ph, callee, 0, &key_args(pool, cargs));
+                    let (cid, new) =
+                        out.table
+                            .push(callee, 0, cargs, depth.saturating_add(1), id, key)?;
+                    if new {
+                        work.push(cid);
+                    }
+                    let ret = subst(pool, callee, cargs, env.ret(callee).unwrap_or(Ty::VOID));
+                    calls.insert(u32::try_from(i).expect("insts"), CallTarget { key, ret });
+                    reps.hash(env.path_hash(callee));
+                    for b in env.bounded(callee).unwrap_or_default() {
+                        reps.u8(u8::from(b));
+                    }
                 }
                 _ => {}
             }
         }
-        let key = instance_key(w, &inst);
-        callee_reps.insert(key, reps.finish());
-        out.push((key, inst));
+        if out.calls.len() <= id.idx() {
+            out.calls.resize_with(id.idx() + 1, HashMap::new);
+            out.callee_reps.resize(id.idx() + 1, Hash128(0));
+        }
+        out.calls[id.idx()] = calls;
+        out.callee_reps[id.idx()] = reps.finish();
     }
-    out.sort_by_key(|(k, _)| k.0);
-    Ok(InstanceSet {
-        instances: out,
-        callee_reps,
-        imports,
-        types,
-    })
+    out.calls.resize_with(out.table.len(), HashMap::new);
+    out.callee_reps.resize(out.table.len(), Hash128(0));
+    Ok(out)
 }

@@ -6,7 +6,7 @@
 //! (SK-10): this crate is plain Rust with the session's shape.
 
 use hd_cache::MemoryStore;
-use hd_driver::architecture::{PipelineReport, analyze_package};
+use hd_driver::{PipelineReport, analyze_package};
 use hd_project::MemorySources;
 use hd_sched::{CancelFlag, Progress};
 

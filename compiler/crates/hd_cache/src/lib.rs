@@ -1,41 +1,17 @@
-//! `hd_cache`: the in-memory `CacheStore` (cache.md §5) and the key rules of
-//! §5.3. Entries are bytes by `(kind, key)`; every key is `H(tag, fields...)`
-//! over content, never a run ID.
+#![forbid(unsafe_code)]
+//! `hd_cache`: the `CacheStore` interface with its memory and disk stores,
+//! entry framing (cache.md §5) and the key rules of §5.3. Entries are
+//! bytes by `(kind, key)`; every key is `H(tag, fields...)` over content,
+//! never a run ID.
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use hd_base::Hash128;
-use hd_iface::KeyHasher;
+use hd_base::{Hash128, StableHasher};
 
 pub mod store;
-pub use store::{CacheStore, DiskStore, EntryKind, MemoryStore};
+pub use store::{CacheStore, DiskStore, EntryKind, MemoryStore, decode_entry, encode_entry};
 
-/// The in-memory store: entries by (kind, key), bytes only.
-#[derive(Default)]
-pub struct MemStore {
-    entries: HashMap<(&'static str, u128), Arc<[u8]>>,
-}
-
-impl MemStore {
-    #[must_use]
-    pub fn get(&self, kind: &'static str, key: Hash128) -> Option<Arc<[u8]>> {
-        self.entries.get(&(kind, key.0)).cloned()
-    }
-    pub fn put(&mut self, kind: &'static str, key: Hash128, bytes: Vec<u8>) -> Arc<[u8]> {
-        let bytes: Arc<[u8]> = bytes.into();
-        self.entries.insert((kind, key.0), Arc::clone(&bytes));
-        bytes
-    }
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-}
+/// The entry layout version (data-structures.md §3.20): part of every
+/// toolchain key, so a layout change misses instead of misreading.
+pub const LAYOUT_VERSION: u16 = 2;
 
 /// One file's part of a folder key: `(module, role, api_text_hash)`.
 pub struct FileApi<'a> {
@@ -44,15 +20,25 @@ pub struct FileApi<'a> {
     pub api_text_hash: Hash128,
 }
 
-/// `toolchain_key`: the compiler, the target and any option that changes
-/// what a stage writes.
+/// `toolchain_key`: the compiler, the target, the entry layout, the hash
+/// function and any option that changes what a stage writes.
 #[must_use]
 pub fn toolchain_key(compiler: &str, target: &str, options: &str) -> Hash128 {
-    KeyHasher::new("tc")
-        .str(compiler)
-        .str(target)
-        .str(options)
-        .finish()
+    let mut k = StableHasher::new("tc");
+    k.str(compiler);
+    k.str(target);
+    k.u16(LAYOUT_VERSION);
+    k.str("xxh3-128");
+    k.str(options);
+    k.finish()
+}
+
+/// The package key: the package's name from its manifest.
+#[must_use]
+pub fn package_key(name: &str) -> Hash128 {
+    let mut k = StableHasher::new("pkg");
+    k.str(name);
+    k.finish()
 }
 
 /// `iface_key(F) = H("iface", toolchain, package, F, [(module, role,
@@ -65,15 +51,18 @@ pub fn iface_key(
     files: &[FileApi<'_>],
     reach: &[(&str, Hash128)],
 ) -> Hash128 {
-    let mut k = KeyHasher::new("iface")
-        .hash(toolchain)
-        .hash(package)
-        .str(folder);
+    let mut k = StableHasher::new("iface");
+    k.hash(toolchain);
+    k.hash(package);
+    k.str(folder);
     for f in files {
-        k = k.str(f.module).str(f.role).hash(f.api_text_hash);
+        k.str(f.module);
+        k.str(f.role);
+        k.hash(f.api_text_hash);
     }
     for (d, h) in reach {
-        k = k.str(d).hash(*h);
+        k.str(d);
+        k.hash(*h);
     }
     k.finish()
 }
@@ -89,14 +78,15 @@ pub fn check_key(
     source_hash: Hash128,
     closure: &[(&str, Hash128)],
 ) -> Hash128 {
-    let mut k = KeyHasher::new("check")
-        .hash(toolchain)
-        .hash(package)
-        .str(module)
-        .str(role)
-        .hash(source_hash);
+    let mut k = StableHasher::new("check");
+    k.hash(toolchain);
+    k.hash(package);
+    k.str(module);
+    k.str(role);
+    k.hash(source_hash);
     for (c, h) in closure {
-        k = k.str(c).hash(*h);
+        k.str(c);
+        k.hash(*h);
     }
     k.finish()
 }
@@ -106,16 +96,17 @@ pub fn check_key(
 #[must_use]
 pub fn prog_key(
     toolchain: Hash128,
-    pipeline: &str,
+    pipeline: Hash128,
     entry: &str,
     modules: &[(&str, Hash128)],
 ) -> Hash128 {
-    let mut k = KeyHasher::new("prog")
-        .hash(toolchain)
-        .str(pipeline)
-        .str(entry);
+    let mut k = StableHasher::new("prog");
+    k.hash(toolchain);
+    k.hash(pipeline);
+    k.str(entry);
     for (m, h) in modules {
-        k = k.str(m).hash(*h);
+        k.str(m);
+        k.hash(*h);
     }
     k.finish()
 }
@@ -123,13 +114,18 @@ pub fn prog_key(
 /// `code_key = H("code", pipeline, instance key, TIR hash, callee
 /// representation summaries)` (codegen.md §13.8; walking skeleton, SK-3).
 #[must_use]
-pub fn code_key(pipeline: &str, instance: Hash128, tir: Hash128, callee_reps: Hash128) -> Hash128 {
-    KeyHasher::new("code")
-        .str(pipeline)
-        .hash(instance)
-        .hash(tir)
-        .hash(callee_reps)
-        .finish()
+pub fn code_key(
+    pipeline: Hash128,
+    instance: Hash128,
+    tir: Hash128,
+    callee_reps: Hash128,
+) -> Hash128 {
+    let mut k = StableHasher::new("code");
+    k.hash(pipeline);
+    k.hash(instance);
+    k.hash(tir);
+    k.hash(callee_reps);
+    k.finish()
 }
 
 #[cfg(test)]
@@ -139,9 +135,10 @@ mod tests {
     #[test]
     fn keys_change_with_each_field() {
         let tc = toolchain_key("hd 0", "wasm32-gc", "");
-        let a = code_key("dev", Hash128(1), Hash128(2), Hash128(3));
-        assert_ne!(a, code_key("dev", Hash128(1), Hash128(2), Hash128(4)));
-        assert_ne!(a, code_key("opt", Hash128(1), Hash128(2), Hash128(3)));
+        let (dev, opt) = (Hash128(10), Hash128(11));
+        let a = code_key(dev, Hash128(1), Hash128(2), Hash128(3));
+        assert_ne!(a, code_key(dev, Hash128(1), Hash128(2), Hash128(4)));
+        assert_ne!(a, code_key(opt, Hash128(1), Hash128(2), Hash128(3)));
         let c = check_key(
             tc,
             Hash128(9),
@@ -161,16 +158,6 @@ mod tests {
                 &[("pkg", Hash128(7))]
             )
         );
-    }
-
-    #[test]
-    fn store_round_trip() {
-        let mut s = MemStore::default();
-        s.put("check", Hash128(1), vec![1, 2, 3]);
-        assert_eq!(
-            s.get("check", Hash128(1)).as_deref(),
-            Some(&[1u8, 2, 3][..])
-        );
-        assert!(s.get("iface", Hash128(1)).is_none());
+        assert_ne!(package_key("a"), package_key("b"));
     }
 }

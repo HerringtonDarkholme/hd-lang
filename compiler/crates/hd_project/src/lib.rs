@@ -53,9 +53,7 @@ impl SourceSet for MemorySources {
     }
 }
 
-/// The manifest's package section (`hd.toml`). The design parses it with
-/// `toml`; this skeleton reads only `name = "..."` and `version = "..."`
-/// lines (architecture skeleton, SK-8).
+/// The manifest's package section (`hd.toml`), parsed with `toml`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Manifest {
     pub name: String,
@@ -63,24 +61,31 @@ pub struct Manifest {
     pub dependencies: Vec<(String, String)>,
 }
 
+/// Parses `hd.toml`. Sections other than `[package]` and `[dependencies]`
+/// are not implemented yet.
 pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
+    let table: toml::Table = text.parse().map_err(|e: toml::de::Error| {
+        NotImplemented::new(Stage::Discover, format!("manifest: {}", e.message()))
+    })?;
     let mut m = Manifest::default();
-    let mut section = String::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.starts_with('[') {
-            line.trim_matches(['[', ']']).clone_into(&mut section);
-            continue;
-        }
-        let Some((k, v)) = line.split_once('=') else {
-            continue;
-        };
-        let (k, v) = (k.trim(), v.trim().trim_matches('"'));
-        match (section.as_str(), k) {
-            ("package" | "", "name") => v.clone_into(&mut m.name),
-            ("package" | "", "version") => m.version = Some(v.to_owned()),
-            ("dependencies", _) => m.dependencies.push((k.to_owned(), v.to_owned())),
-            ("package" | "", _) => {}
+    for (section, value) in &table {
+        match (section.as_str(), value) {
+            ("package", toml::Value::Table(p)) => {
+                if let Some(toml::Value::String(n)) = p.get("name") {
+                    n.clone_into(&mut m.name);
+                }
+                if let Some(toml::Value::String(v)) = p.get("version") {
+                    m.version = Some(v.clone());
+                }
+            }
+            ("dependencies", toml::Value::Table(d)) => {
+                for (k, v) in d {
+                    m.dependencies.push((
+                        k.clone(),
+                        v.as_str().map_or_else(|| v.to_string(), str::to_owned),
+                    ));
+                }
+            }
             (other, _) => {
                 return Err(NotImplemented::new(
                     Stage::Discover,

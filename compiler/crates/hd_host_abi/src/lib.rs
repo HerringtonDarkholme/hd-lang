@@ -195,6 +195,36 @@ pub const RUNTIME_MODULES: &[&str] = &["hd:rt", "hd:TestRunner", "hd:PropertyRun
 pub const RUNTIME_IMPORTS: &[(&str, &str)] =
     &[("hd:rt", "block"), ("hd:rt", "abort"), ("hd:rt", "stderr")];
 
+/// A prelude function bound straight to a host import. Until std's
+/// `Console` reaches programs, `println` of an `i32` is the one such
+/// function; it is part of this table so the emitter, the linker and the
+/// JS host read one description (§17.1).
+#[derive(Debug)]
+pub struct PreludeImport {
+    pub name: &'static str,
+    pub module: &'static str,
+    pub field: &'static str,
+    pub params: &'static [Scalar],
+    pub result: Codec,
+}
+
+pub static PRELUDE_IMPORTS: &[PreludeImport] = &[PreludeImport {
+    name: "println",
+    module: "hd",
+    field: "println_i32",
+    params: &[Scalar::I32],
+    result: Codec::Void,
+}];
+
+/// The prelude import a name binds to, by index into `PRELUDE_IMPORTS`.
+#[must_use]
+pub fn prelude_import(name: &str) -> Option<u32> {
+    PRELUDE_IMPORTS
+        .iter()
+        .position(|p| p.name == name)
+        .and_then(|i| u32::try_from(i).ok())
+}
+
 /// A Wasm import: module and name fields.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Import {
@@ -231,6 +261,9 @@ pub fn is_known_import(module: &str, name: &str) -> bool {
     RUNTIME_IMPORTS
         .iter()
         .any(|(m, n)| *m == module && *n == name)
+        || PRELUDE_IMPORTS
+            .iter()
+            .any(|p| p.module == module && p.field == name)
         || (RUNTIME_MODULES.contains(&module) && module != "hd:rt")
         || TABLE.iter().any(|t| {
             t.methods.iter().any(|m| {

@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use hd_driver::architecture::analyze_package;
+use hd_driver::analyze_package;
 use hd_project::MemorySources;
 
 fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {

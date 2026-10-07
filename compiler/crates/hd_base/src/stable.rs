@@ -1,25 +1,23 @@
-//! Stable hashing (data-structures.md §3.2): a 128-bit streaming hasher with
-//! a fixed seed. Integers hash little-endian at their declared width; lists
-//! and strings hash their length first. No `usize` is hashed, and run IDs
+//! Stable hashing (data-structures.md §3.2): xxh3-128, streaming, default
+//! seed. Integers hash little-endian at their declared width; lists and
+//! strings hash their length first. No `usize` is hashed, and run IDs
 //! have no `StableHash` impl, so they cannot enter a key by accident.
 
 use crate::Hash128;
 
-/// 128-bit streaming hasher. The design names xxh3-128; the workspace has
-/// no xxhash dependency yet, so this is a fixed-seed FNV-style mix, the same
-/// one `hash128` uses (architecture skeleton, SK-7).
-#[derive(Clone, Debug)]
-pub struct StableHasher {
-    lo: u64,
-    hi: u64,
+/// 128-bit streaming hasher: xxh3-128.
+#[derive(Clone)]
+pub struct StableHasher(xxhash_rust::xxh3::Xxh3);
+
+impl core::fmt::Debug for StableHasher {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("StableHasher")
+    }
 }
 
 impl Default for StableHasher {
     fn default() -> Self {
-        Self {
-            lo: 0xcbf2_9ce4_8422_2325,
-            hi: 0x9e37_79b9_7f4a_7c15,
-        }
+        Self(xxhash_rust::xxh3::Xxh3::new())
     }
 }
 
@@ -31,12 +29,7 @@ impl StableHasher {
         h
     }
     pub fn bytes(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.lo ^= u64::from(b);
-            self.lo = self.lo.wrapping_mul(0x0000_0100_0000_01b3);
-            self.hi ^= self.lo.rotate_left(17).wrapping_add(u64::from(b));
-            self.hi = self.hi.wrapping_mul(0x9ddf_ea08_eb38_2d69);
-        }
+        self.0.update(bytes);
     }
     pub fn u8(&mut self, v: u8) {
         self.bytes(&[v]);
@@ -60,7 +53,7 @@ impl StableHasher {
     }
     #[must_use]
     pub fn finish(&self) -> Hash128 {
-        Hash128(u128::from(self.lo) | (u128::from(self.hi) << 64))
+        Hash128(self.0.digest128())
     }
 }
 
@@ -112,5 +105,13 @@ mod tests {
         let mut c = StableHasher::new("t");
         ["x", "y"][..].stable_hash(&mut c);
         assert_ne!(c.finish(), a.finish());
+    }
+
+    #[test]
+    fn streaming_equals_one_shot_xxh3() {
+        let mut h = StableHasher::default();
+        h.bytes(b"hello ");
+        h.bytes(b"world");
+        assert_eq!(h.finish(), crate::hash128(b"hello world"));
     }
 }

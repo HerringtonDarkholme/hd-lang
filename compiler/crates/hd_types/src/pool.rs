@@ -458,6 +458,69 @@ impl InternPool {
         self.tag.is_empty()
     }
 
+    /// Replaces declared parameters: `f` maps a parameter to its argument,
+    /// or `None` to keep it.
+    pub fn subst(&self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
+        if !self.has_param(t) {
+            return t;
+        }
+        let l = |x: TyList| {
+            self.list(
+                &self
+                    .list_items(x)
+                    .into_iter()
+                    .map(|e| self.subst(e, f))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let d = match self.get(t) {
+            TyData::Param(p) => return f(p).unwrap_or(t),
+            TyData::Adt { def, args } => TyData::Adt { def, args: l(args) },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: l(elems),
+                rest: rest.map(|r| self.subst(r, f)),
+            },
+            TyData::Option(i) => TyData::Option(self.subst(i, f)),
+            TyData::Mut(i) => TyData::Mut(self.subst(i, f)),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+            } => TyData::Fn {
+                params: l(params),
+                result: self.subst(result, f),
+                row,
+                suspends,
+            },
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => TyData::TraitValue {
+                def,
+                args: l(args),
+                bindings: bindings
+                    .into_iter()
+                    .map(|(d, b)| (d, self.subst(b, f)))
+                    .collect(),
+            },
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty: self.subst(self_ty, f),
+                args: l(args),
+            },
+            other => other,
+        };
+        self.intern_ty(&d)
+    }
+
     /// Prints a type with run IDs for items (`#n`); output that a user
     /// sees goes through stable paths instead (§6.5).
     #[must_use]

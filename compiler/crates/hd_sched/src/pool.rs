@@ -1,89 +1,113 @@
-//! The pool executor (§6.2), feature `threads`. The design uses rayon's
-//! work-stealing pool; the workspace has no rayon yet, so a shared ready
-//! queue under a mutex with a condition variable stands in (SK-9). The
-//! task graph's contract is the same: a running task may add tasks and
-//! edges through the `Spawner`, and each edge is satisfied exactly once.
+//! The pool executor (§6.2), feature `threads`: rayon's work-stealing
+//! pool. A task that becomes ready is spawned into the pool's scope; the
+//! graph itself sits behind one mutex, held only to add, edge, release or
+//! complete. Tasks that receive edges after creation are created behind
+//! their guard (`add_held`), so no edge can reach a started task.
 
-use std::sync::{Condvar, Mutex};
+use std::sync::Mutex;
 
-use crate::{SerialOrder, TaskGraph, TaskId, TaskKind};
+use crate::{Exec, SerialOrder, Spawn, TaskGraph, TaskId, TaskKind};
 
-/// What a running task may do to the graph.
-pub struct Spawner<'a> {
-    shared: &'a Shared,
+struct PoolSpawn<'a, 's> {
+    graph: &'s Mutex<TaskGraph>,
+    scope: &'a rayon::Scope<'s>,
+    exec: &'s Exec<'s>,
 }
 
-struct Shared {
-    graph: Mutex<(TaskGraph, usize)>,
-    wake: Condvar,
+fn lock(g: &Mutex<TaskGraph>) -> std::sync::MutexGuard<'_, TaskGraph> {
+    g.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-impl Spawner<'_> {
-    #[must_use]
-    pub fn add(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId {
-        let mut g = self.shared.graph.lock().expect("graph");
-        let id = g.0.add(kind, deps);
-        self.shared.wake.notify_all();
-        id
+fn drain(g: &mut TaskGraph) -> Vec<(TaskId, TaskKind)> {
+    let mut out = Vec::new();
+    while let Some(id) = g.pop(SerialOrder::Fifo) {
+        out.push((id, g.kind(id)));
     }
-    pub fn edge(&self, from: TaskId, to: TaskId) {
-        self.shared.graph.lock().expect("graph").0.edge(from, to);
+    out
+}
+
+fn spawn<'s>(
+    scope: &rayon::Scope<'s>,
+    graph: &'s Mutex<TaskGraph>,
+    exec: &'s Exec<'s>,
+    ready: Vec<(TaskId, TaskKind)>,
+) {
+    for (id, kind) in ready {
+        scope.spawn(move |s| {
+            exec(
+                id,
+                kind,
+                &PoolSpawn {
+                    graph,
+                    scope: s,
+                    exec,
+                },
+            );
+            let next = {
+                let mut g = lock(graph);
+                g.complete(id);
+                drain(&mut g)
+            };
+            spawn(s, graph, exec, next);
+        });
     }
 }
 
-/// Runs the graph on `threads` workers; returns it with every task done.
-pub fn run_pool(
-    graph: TaskGraph,
-    threads: usize,
-    exec: &(dyn Fn(TaskId, TaskKind, &Spawner<'_>) + Sync),
-) -> TaskGraph {
-    let shared = Shared {
-        graph: Mutex::new((graph, 0)),
-        wake: Condvar::new(),
-    };
-    std::thread::scope(|s| {
-        for _ in 0..threads.max(1) {
-            s.spawn(|| {
-                loop {
-                    let next = {
-                        let mut g = shared.graph.lock().expect("graph");
-                        loop {
-                            if let Some(id) = g.0.pop(SerialOrder::Priority) {
-                                g.1 += 1;
-                                break Some((id, g.0.kind(id)));
-                            }
-                            if g.1 == 0 {
-                                break None;
-                            }
-                            g = shared.wake.wait(g).expect("wait");
-                        }
-                    };
-                    let Some((id, kind)) = next else {
-                        shared.wake.notify_all();
-                        return;
-                    };
-                    exec(id, kind, &Spawner { shared: &shared });
-                    let mut g = shared.graph.lock().expect("graph");
-                    g.0.complete(id);
-                    g.1 -= 1;
-                    shared.wake.notify_all();
-                }
-            });
+impl PoolSpawn<'_, '_> {
+    fn after<T>(&self, f: impl FnOnce(&mut TaskGraph) -> T) -> T {
+        let (v, ready) = {
+            let mut g = lock(self.graph);
+            let v = f(&mut g);
+            (v, drain(&mut g))
+        };
+        spawn(self.scope, self.graph, self.exec, ready);
+        v
+    }
+}
+
+impl Spawn for PoolSpawn<'_, '_> {
+    fn add(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId {
+        self.after(|g| g.add(kind, deps))
+    }
+    fn edge(&self, from: TaskId, to: TaskId) {
+        self.after(|g| g.edge(from, to));
+    }
+    fn add_held(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId {
+        self.after(|g| g.add_held(kind, deps, 0))
+    }
+    fn release(&self, id: TaskId) {
+        self.after(|g| g.release(id));
+    }
+}
+
+/// Runs the graph on `threads` rayon workers; returns it with the number
+/// of tasks that never became ready (0 unless the graph has a bug). If the
+/// pool cannot be built, the graph runs serially.
+pub fn run_pool(mut graph: TaskGraph, threads: usize, exec: &Exec<'_>) -> (TaskGraph, usize) {
+    let Ok(pool) = rayon::ThreadPoolBuilder::new()
+        .num_threads(threads.max(1))
+        .build()
+    else {
+        let left = crate::SerialScheduler {
+            order: SerialOrder::Priority,
         }
-    });
-    let (g, _) = shared.graph.into_inner().expect("graph");
-    let stuck = g.unfinished();
-    assert!(
-        stuck == 0,
-        "{stuck} tasks never became ready (a cycle or a missing edge)"
-    );
-    g
+        .run(&mut graph, exec);
+        return (graph, left);
+    };
+    let first = drain(&mut graph);
+    let shared = Mutex::new(graph);
+    pool.scope(|s| spawn(s, &shared, exec, first));
+    let g = shared
+        .into_inner()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let left = g.unfinished();
+    (g, left)
 }
 
 #[cfg(test)]
 mod tests {
     use super::run_pool;
-    use crate::{TaskGraph, TaskKind};
+    use crate::{ExtTask, Spawn, TaskGraph, TaskKind};
     use std::sync::Mutex;
 
     #[test]
@@ -94,15 +118,19 @@ mod tests {
             g.add(TaskKind::FolderIface(f), &[root]);
         }
         let log = Mutex::new(Vec::new());
-        let g = run_pool(g, 4, &|_, kind, sp| {
+        let (g, left) = run_pool(g, 4, &|_, kind, sp: &dyn Spawn| {
             log.lock().expect("log").push(kind);
             if let TaskKind::FolderIface(f) = kind {
-                let _ = sp.add(TaskKind::ModulePrep(f), &[]);
+                let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
+                let e = sp.add(TaskKind::Ext(ExtTask::Emit(f)), &[]);
+                sp.edge(e, link);
+                sp.release(link);
             }
         });
         let log = log.into_inner().expect("log");
+        assert_eq!(left, 0);
         assert_eq!(log[0], TaskKind::FolderGraph);
-        assert_eq!(log.len(), 17);
-        assert_eq!(g.len(), 17);
+        assert_eq!(log.len(), 25);
+        assert_eq!(g.len(), 25);
     }
 }

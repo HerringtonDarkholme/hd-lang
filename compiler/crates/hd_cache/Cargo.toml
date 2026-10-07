@@ -4,14 +4,13 @@ version = "0.0.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "The in-memory cache store and the cache key rules"
+description = "The cache store interface, its memory and disk stores, entry framing and the cache key rules"
 
 [features]
 disk = []
 
 [dependencies]
 hd_base = { path = "../hd_base" }
-hd_iface = { path = "../hd_iface" }
 
 [lints]
 workspace = true

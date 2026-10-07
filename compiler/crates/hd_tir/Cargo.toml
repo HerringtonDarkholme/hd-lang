@@ -4,12 +4,11 @@ version = "0.0.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "The run's type and item tables, and TIR with its wire form, printer and verifier"
+description = "TIR: the typed IR in columns, its builder, verifier, printer and wire form"
 
 [dependencies]
 hd_base = { path = "../hd_base" }
 hd_intern = { path = "../hd_intern" }
-hd_iface = { path = "../hd_iface" }
 hd_types = { path = "../hd_types" }
 
 [lints]

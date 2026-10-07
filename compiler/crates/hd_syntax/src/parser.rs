@@ -94,8 +94,40 @@ impl<'t> Parser<'t> {
 
     fn source_file(&mut self) {
         self.events.push(Event::Start(SyntaxKind::Root));
-        self.parse_lines(0, self.tokens.line_start.len(), 0, true);
+        self.parse_lines(0, self.tokens.line_start.len(), 0, true, SyntaxKind::Root);
         self.events.push(Event::Finish);
+    }
+
+    /// Nests one line's tokens (`structure.rs`) where the line kind has a
+    /// grammar there; other lines keep their flat tokens.
+    fn emit_line(&mut self, first: usize, end: usize, kind: SyntaxKind, container: SyntaxKind) {
+        let structured = match kind {
+            SyntaxKind::FnDecl | SyntaxKind::ImplDecl | SyntaxKind::DataField => true,
+            SyntaxKind::Statement => !matches!(
+                container,
+                SyntaxKind::EnumDecl | SyntaxKind::TraitDecl | SyntaxKind::Root
+            ),
+            _ => false,
+        };
+        if !structured {
+            let statement =
+                (kind == SyntaxKind::Statement).then(|| self.statement_kind(first, end));
+            if let Some(statement) = statement {
+                self.events.push(Event::Start(statement));
+            }
+            self.emit_tokens(first, end, kind);
+            if statement.is_some() {
+                self.events.push(Event::Finish);
+            }
+            return;
+        }
+        let mut line = crate::structure::Line::new(self.tokens, first, end, &mut self.events);
+        match kind {
+            SyntaxKind::FnDecl => line.fn_header(),
+            SyntaxKind::ImplDecl => line.impl_header(),
+            SyntaxKind::DataField => line.data_field(),
+            _ => line.statement(),
+        }
     }
 
     fn parse_lines(
@@ -104,6 +136,7 @@ impl<'t> Parser<'t> {
         end_line: usize,
         indent: u16,
         top_level: bool,
+        container: SyntaxKind,
     ) -> usize {
         while line < end_line {
             let Some((first, end)) = self.line_tokens(line) else {
@@ -117,17 +150,12 @@ impl<'t> Parser<'t> {
             if line_indent > indent && !top_level {
                 break;
             }
-            let kind = self.line_kind(first, end, top_level);
+            let mut kind = self.line_kind(first, end, top_level);
+            if kind == SyntaxKind::Statement && container == SyntaxKind::DataDecl {
+                kind = SyntaxKind::DataField;
+            }
             self.events.push(Event::Start(kind));
-            let statement =
-                (kind == SyntaxKind::Statement).then(|| self.statement_kind(first, end));
-            if let Some(statement) = statement {
-                self.events.push(Event::Start(statement));
-            }
-            self.emit_tokens(first, end, kind);
-            if statement.is_some() {
-                self.events.push(Event::Finish);
-            }
+            self.emit_line(first, end, kind, container);
             if self.has_indented_body(line, end) {
                 let Some(body_line) = self.next_token_line(line + 1) else {
                     self.events.push(Event::Finish);
@@ -135,7 +163,12 @@ impl<'t> Parser<'t> {
                 };
                 let body_indent = self.tokens.line_indent[body_line];
                 self.events.push(Event::Start(SyntaxKind::Block));
-                line = self.parse_lines(body_line, end_line, body_indent, false);
+                let inner = if kind == SyntaxKind::Statement {
+                    container
+                } else {
+                    kind
+                };
+                line = self.parse_lines(body_line, end_line, body_indent, false, inner);
                 self.events.push(Event::Finish);
             } else {
                 line += 1;

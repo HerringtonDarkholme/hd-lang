@@ -8,7 +8,7 @@ description = "Wasm GC emission and link from TIR and collection output"
 
 [dependencies]
 hd_base = { path = "../hd_base" }
-hd_iface = { path = "../hd_iface" }
+hd_types = { path = "../hd_types" }
 hd_tir = { path = "../hd_tir" }
 hd_mono = { path = "../hd_mono" }
 hd_host_abi = { path = "../hd_host_abi" }

@@ -1,8 +1,11 @@
+#![forbid(unsafe_code)]
 //! `hd_sched`: the task graph and its executors (scheduler.md §6.1 to
 //! §6.4; data-structures.md §3.21): serial (FIFO, priority or shuffled),
-//! stepping (the browser's `run_for`), and the thread pool (feature
-//! `threads`; std threads stand in for rayon, architecture skeleton SK-9).
+//! stepping (the browser's `run_for`), and the rayon pool (feature
+//! `threads`). Every executor runs the same task signature, `Exec`: a task
+//! gets its id, its kind and a `&dyn Spawn` (SK-13).
 
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -125,10 +128,19 @@ impl TaskGraph {
     }
 
     pub fn add_with_priority(&mut self, kind: TaskKind, deps: &[TaskId], priority: u32) -> TaskId {
+        let id = self.add_held(kind, deps, priority);
+        self.release(id);
+        id
+    }
+
+    /// The creation guard (data-structures.md §3.21): the task waits on
+    /// one extra count until `release`, so edges added after creation can
+    /// never race its start.
+    pub fn add_held(&mut self, kind: TaskKind, deps: &[TaskId], priority: u32) -> TaskId {
         let id = TaskId(self.nodes.len());
         self.nodes.push(TaskNode {
             kind,
-            waiting_on: 0,
+            waiting_on: 1,
             successors: Vec::new(),
             state: State::Waiting,
             priority,
@@ -136,11 +148,17 @@ impl TaskGraph {
         for &d in deps {
             self.edge(d, id);
         }
-        if self.nodes[id.0].waiting_on == 0 {
-            self.nodes[id.0].state = State::Ready;
+        id
+    }
+
+    /// Drops a task's creation guard.
+    pub fn release(&mut self, id: TaskId) {
+        let n = &mut self.nodes[id.0];
+        n.waiting_on -= 1;
+        if n.waiting_on == 0 && n.state == State::Waiting {
+            n.state = State::Ready;
             self.ready.push_back(id);
         }
-        id
     }
 
     /// `to` waits for `from`. `to` must not have started.
@@ -236,27 +254,37 @@ impl TaskGraph {
             .filter(|n| !matches!(n.state, State::Done | State::Cancelled))
             .count()
     }
-
-    /// The serial executor, FIFO over ready tasks.
-    pub fn run(&mut self, exec: &mut dyn FnMut(TaskId, TaskKind, &mut TaskGraph)) {
-        SerialScheduler {
-            order: SerialOrder::Fifo,
-        }
-        .run(self, exec);
-    }
 }
 
-/// The executor interface: the serial and stepping executors run on the
-/// caller's thread with `&mut` access to the graph; the pool executor
-/// (feature `threads`) has its own `Sync` entry point.
-pub trait Executor {
-    fn run(
-        &mut self,
-        graph: &mut TaskGraph,
-        exec: &mut dyn FnMut(TaskId, TaskKind, &mut TaskGraph),
-    );
-    fn threads(&self) -> usize {
-        1
+/// What a running task may do to the graph (scheduler.md §6.2, SK-13):
+/// every executor implements it, so task code is executor-independent.
+pub trait Spawn {
+    fn add(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId;
+    fn edge(&self, from: TaskId, to: TaskId);
+    /// Adds a task behind its creation guard; it starts only after
+    /// `release`, so the creator can add edges into it first.
+    fn add_held(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId;
+    fn release(&self, id: TaskId);
+}
+
+/// The one task signature of every executor.
+pub type Exec<'a> = dyn Fn(TaskId, TaskKind, &dyn Spawn) + Sync + 'a;
+
+/// `Spawn` over a serial executor's `&mut` graph.
+struct SerialSpawn<'g>(RefCell<&'g mut TaskGraph>);
+
+impl Spawn for SerialSpawn<'_> {
+    fn add(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId {
+        self.0.borrow_mut().add(kind, deps)
+    }
+    fn edge(&self, from: TaskId, to: TaskId) {
+        self.0.borrow_mut().edge(from, to);
+    }
+    fn add_held(&self, kind: TaskKind, deps: &[TaskId]) -> TaskId {
+        self.0.borrow_mut().add_held(kind, deps, 0)
+    }
+    fn release(&self, id: TaskId) {
+        self.0.borrow_mut().release(id);
     }
 }
 
@@ -266,18 +294,16 @@ pub struct SerialScheduler {
     pub order: SerialOrder,
 }
 
-impl Executor for SerialScheduler {
-    fn run(&mut self, g: &mut TaskGraph, exec: &mut dyn FnMut(TaskId, TaskKind, &mut TaskGraph)) {
+impl SerialScheduler {
+    /// Runs every task; returns how many never became ready (a cycle or a
+    /// missing edge, a compiler bug the caller reports).
+    pub fn run(&self, g: &mut TaskGraph, exec: &Exec<'_>) -> usize {
         while let Some(id) = g.pop(self.order) {
             let kind = g.kind(id);
-            exec(id, kind, g);
+            exec(id, kind, &SerialSpawn(RefCell::new(g)));
             g.complete(id);
         }
-        let stuck = g.unfinished();
-        assert!(
-            stuck == 0,
-            "{stuck} tasks never became ready (a cycle or a missing edge)"
-        );
+        g.unfinished()
     }
 }
 
@@ -289,8 +315,8 @@ pub enum Progress {
     Cancelled,
 }
 
-/// The stepping executor (§6.2, mine): the serial executor in slices, so
-/// the browser worker can return to JavaScript between them.
+/// The stepping executor (§6.2): the serial executor in slices, so the
+/// browser worker can return to JavaScript between them.
 #[derive(Clone, Debug)]
 pub struct SteppingScheduler {
     pub order: SerialOrder,
@@ -299,12 +325,7 @@ pub struct SteppingScheduler {
 
 impl SteppingScheduler {
     /// Runs at most `max_steps` tasks, then returns.
-    pub fn run_for(
-        &mut self,
-        g: &mut TaskGraph,
-        max_steps: usize,
-        exec: &mut dyn FnMut(TaskId, TaskKind, &mut TaskGraph),
-    ) -> Progress {
+    pub fn run_for(&mut self, g: &mut TaskGraph, max_steps: usize, exec: &Exec<'_>) -> Progress {
         let mut ran = 0;
         while ran < max_steps {
             if self.cancel.is_cancelled() {
@@ -315,7 +336,7 @@ impl SteppingScheduler {
                 return Progress::Done;
             };
             let kind = g.kind(id);
-            exec(id, kind, g);
+            exec(id, kind, &SerialSpawn(RefCell::new(g)));
             g.complete(id);
             ran += 1;
         }
@@ -330,25 +351,34 @@ impl SteppingScheduler {
 #[cfg(test)]
 mod tests {
     use super::{
-        CancelFlag, Executor, ExtTask, Progress, SerialOrder, SerialScheduler, SteppingScheduler,
-        TaskGraph, TaskKind,
+        CancelFlag, ExtTask, Progress, SerialOrder, SerialScheduler, Spawn, SteppingScheduler,
+        TaskGraph, TaskId, TaskKind,
     };
+    use std::sync::Mutex;
 
     #[test]
     fn tasks_added_while_running_wait_for_their_edges() {
         let mut g = TaskGraph::default();
         let first = g.add(TaskKind::FolderGraph, &[]);
         g.add(TaskKind::PackageResult, &[first]);
-        let mut order = Vec::new();
-        g.run(&mut |_, kind, g| {
-            order.push(kind.name());
+        let order = Mutex::new(Vec::new());
+        let left = SerialScheduler {
+            order: SerialOrder::Fifo,
+        }
+        .run(&mut g, &|_, kind, sp: &dyn Spawn| {
+            order.lock().expect("log").push(kind.name());
             if kind == TaskKind::PackageResult {
-                let link = g.add(TaskKind::Ext(ExtTask::Link), &[]);
-                let emit = g.add(TaskKind::Ext(ExtTask::Emit(0)), &[]);
-                g.edge(emit, link);
+                let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
+                let emit = sp.add(TaskKind::Ext(ExtTask::Emit(0)), &[]);
+                sp.edge(emit, link);
+                sp.release(link);
             }
         });
-        assert_eq!(order, ["FolderGraph", "PackageResult", "Emit", "Link"]);
+        assert_eq!(left, 0);
+        assert_eq!(
+            order.into_inner().expect("log"),
+            ["FolderGraph", "PackageResult", "Emit", "Link"]
+        );
     }
 
     fn diamond() -> TaskGraph {
@@ -369,8 +399,11 @@ mod tests {
             SerialOrder::Shuffled(8),
         ] {
             let mut g = diamond();
-            let mut seen = Vec::new();
-            SerialScheduler { order }.run(&mut g, &mut |_, k, _| seen.push(k));
+            let seen = Mutex::new(Vec::new());
+            SerialScheduler { order }.run(&mut g, &|_, k, _: &dyn Spawn| {
+                seen.lock().expect("log").push(k);
+            });
+            let seen = seen.into_inner().expect("log");
             assert_eq!(seen[0], TaskKind::Skim(0));
             assert_eq!(seen[3], TaskKind::PackageResult);
             if order == SerialOrder::Priority {
@@ -387,19 +420,16 @@ mod tests {
             order: SerialOrder::Fifo,
             cancel: cancel.clone(),
         };
-        let mut noop = |_, _, _: &mut TaskGraph| {};
-        assert_eq!(
-            s.run_for(&mut g, 2, &mut noop),
-            Progress::Yielded { ran: 2 }
-        );
+        let noop = |_: TaskId, _: TaskKind, _: &dyn Spawn| {};
+        assert_eq!(s.run_for(&mut g, 2, &noop), Progress::Yielded { ran: 2 });
         cancel.cancel();
-        assert_eq!(s.run_for(&mut g, 2, &mut noop), Progress::Cancelled);
+        assert_eq!(s.run_for(&mut g, 2, &noop), Progress::Cancelled);
         assert_eq!(g.unfinished(), 0);
         let mut g = diamond();
         let mut s = SteppingScheduler {
             order: SerialOrder::Fifo,
             cancel: CancelFlag::default(),
         };
-        assert_eq!(s.run_for(&mut g, 100, &mut noop), Progress::Done);
+        assert_eq!(s.run_for(&mut g, 100, &noop), Progress::Done);
     }
 }

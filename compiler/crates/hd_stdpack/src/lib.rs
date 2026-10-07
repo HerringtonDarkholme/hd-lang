@@ -6,7 +6,7 @@
 //! stage through `ModuleFinish` passes.
 
 use hd_base::{NotImplemented, Stage, StageResult};
-use hd_driver::architecture::analyze_package;
+use hd_driver::analyze_package;
 use hd_project::SourceSet;
 
 /// The std pack: interface blobs by folder, in path order.

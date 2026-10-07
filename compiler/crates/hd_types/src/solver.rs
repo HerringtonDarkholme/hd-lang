@@ -546,6 +546,10 @@ impl Solver for SkeletonSolver {
                 }
             }
         }
+        let exact_only = cx
+            .tables
+            .iter()
+            .all(|(_, t)| t.head_self.iter().all(|s| !cx.pool.has_param(*s)));
         match found.as_slice() {
             [one] => Ok(Answer::Holds {
                 evidence: Evidence::Impl {
@@ -554,6 +558,18 @@ impl Solver for SkeletonSolver {
                 },
                 learned: vec![],
             }),
+            [] if exact_only
+                && !cx.pool.has_infer(tref.self_ty)
+                && !cx.pool.has_param(tref.self_ty) =>
+            {
+                let (leaf, _) = canonicalize(cx.pool, GoalKind::Implements, *tref, false);
+                Ok(Answer::Fails(Box::new(FailInfo {
+                    leaf,
+                    chain: vec![],
+                    reason: FailReason::NoImpl,
+                    near: vec![],
+                })))
+            }
             _ => Err(NotImplemented::new(
                 Stage::Body,
                 "impl search beyond one exact head",

@@ -2,14 +2,23 @@
 //! `hd_resolve`: use resolution, the folder interface builder, derived
 //! heads, orphan and visibility checks, and interface validation
 //! (resolution-and-interfaces.md §4.9, §4.10, §4.12; data-structures.md
-//! §3.15). The subset folder-interface builder that `hd run` uses today
-//! lives in `hd_check::resolve` and `hd_iface`; this crate holds the
-//! design's tables and the stage-B header check.
+//! §3.15): module scopes over the full parser's tree, header lowering to
+//! `hd_types` types, folder interfaces and their blobs, impl tables for
+//! the solver, and the stage-B header check.
 
 use std::collections::HashMap;
 
 use hd_base::{DefId, ModuleId, NotImplemented, Stage, StageResult, Symbol};
-use hd_project::{FolderGraph, ModuleTable};
+
+pub mod iface;
+pub mod view;
+
+pub use iface::{
+    Field, FnSig, FolderIface, Generic, Head, HeadKind, Item, ItemData, Kinds, Lookup, Names,
+    UseDecl, body_nodes, decode_items, deep_hash, encode_items, folder_iface, heads, impl_table,
+    interface_items, lower_items, module_scope, use_decls,
+};
+pub use view::Src;
 
 /// What a module-level name is bound to (§3.15).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -110,27 +119,28 @@ pub fn orphan_ok(
 
 /// Header validation stage B (§4.10.1; scheduler.md §6.1 `HeaderCheck(F)`):
 /// bounds of written header types, impl supertraits, newtype bases and
-/// delegation targets.
-pub fn header_check(
-    table: &ModuleTable,
-    graph: &FolderGraph,
-    folder: usize,
-) -> StageResult<Vec<String>> {
-    let path = table.folders.get(folder).map_or("", |f| f.path.as_str());
-    let deps = graph
-        .closure
-        .get(folder)
-        .map_or(0, hd_project::FolderSet::len);
-    header_check_folder(path, deps)
-}
-
-/// `header_check` by folder path and closure size, for drivers that keep
-/// their own folder tables.
-pub fn header_check_folder(folder: &str, closure_len: usize) -> StageResult<Vec<String>> {
-    Err(NotImplemented::new(
-        Stage::HeaderCheck,
-        format!("stage-B header validation of {folder} (closure of {closure_len} folders)"),
-    ))
+/// delegation targets. Items without type arguments, supertraits,
+/// newtypes or delegation have nothing to check; the rest is not
+/// implemented yet.
+pub fn header_check(pool: &hd_types::InternPool, items: &[Item]) -> StageResult<()> {
+    let has_args = |t: hd_types::Ty| matches!(pool.get(t), hd_types::TyData::Adt { args, .. } if args != hd_types::TyList::EMPTY);
+    for it in items {
+        let tys: Vec<hd_types::Ty> = match &it.data {
+            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => {
+                s.params.iter().map(|p| p.1).chain([s.ret]).collect()
+            }
+            ItemData::Data(fs) => fs.iter().map(|f| f.ty).collect(),
+            ItemData::Impl { self_ty, .. } => vec![*self_ty],
+            ItemData::Trait(_) => vec![],
+        };
+        if tys.into_iter().any(has_args) {
+            return Err(NotImplemented::new(
+                Stage::HeaderCheck,
+                "bounds of header types with arguments",
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Derived impl heads (§4.10): `derive` lines become impl heads in the interface.

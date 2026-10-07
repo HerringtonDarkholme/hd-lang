@@ -24,6 +24,22 @@ pub enum PathKind {
     Hidden,
 }
 
+impl PathKind {
+    pub const ALL: [PathKind; 7] = [
+        PathKind::Package,
+        PathKind::Module,
+        PathKind::Item,
+        PathKind::Member,
+        PathKind::Variant,
+        PathKind::Impl,
+        PathKind::Hidden,
+    ];
+    #[must_use]
+    pub fn from_u8(v: u8) -> Option<PathKind> {
+        Self::ALL.get(v as usize).copied()
+    }
+}
+
 /// An impl segment: its head's normalized text hash plus an ordinal among
 /// identical heads in the module.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -145,7 +161,7 @@ impl PathTable {
                 (None, _) => {}
                 (Some(PathKind::Package), _) => out.push('/'),
                 (Some(PathKind::Module), PathKind::Item | PathKind::Impl | PathKind::Hidden) => {
-                    out.push('/')
+                    out.push('/');
                 }
                 _ => out.push('.'),
             }

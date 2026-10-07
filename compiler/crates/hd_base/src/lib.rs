@@ -1,12 +1,14 @@
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 //! `hd_base`: the ID newtype macro, `Hash128` and `StableHasher`, `Span`,
-//! `Fuel`, `AppendVec` and the structured "not implemented" error that every
-//! skeleton stage returns (design-overview.md §2.1, data-structures.md §3.1,
-//! §3.2, §3.9.4).
+//! `Fuel`, `AppendVec`, the little-endian entry codec and the structured
+//! "not implemented" error that every skeleton stage returns
+//! (design-overview.md §2.1, data-structures.md §3.1, §3.2, §3.9.4).
+//! `append` is the workspace's one audited `unsafe` module.
 
 pub mod append;
 pub mod stable;
 pub mod unsupported;
+pub mod wire;
 
 pub use append::{AppendVec, Col, Range32};
 pub use stable::{StableHash, StableHasher};
@@ -77,18 +79,10 @@ const _: () = assert!(core::mem::size_of::<Span>() == 12);
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Hash128(pub u128);
 
-/// Small deterministic content hash used before the cache crate exists.
+/// The content hash of a byte string: xxh3-128 (data-structures.md §3.2).
 #[must_use]
 pub fn hash128(bytes: &[u8]) -> Hash128 {
-    let mut lo = 0xcbf2_9ce4_8422_2325_u64;
-    let mut hi = 0x9e37_79b9_7f4a_7c15_u64;
-    for &byte in bytes {
-        lo ^= u64::from(byte);
-        lo = lo.wrapping_mul(0x0000_0100_0000_01b3);
-        hi ^= lo.rotate_left(17).wrapping_add(u64::from(byte));
-        hi = hi.wrapping_mul(0x9ddf_ea08_eb38_2d69);
-    }
-    Hash128(u128::from(lo) | (u128::from(hi) << 64))
+    Hash128(xxhash_rust::xxh3::xxh3_128(bytes))
 }
 
 /// Per-body (or per-goal) work budget (checking-and-tir.md §4.15,
