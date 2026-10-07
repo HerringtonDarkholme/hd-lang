@@ -10,9 +10,13 @@ use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
 use std.format.DebugWriter
 
+## A sink that hashes the bytes written to it.
+## See [trait.hash.module](../../spec/lang/09-traits.md#r-trait.hash.module).
 pub trait Hasher:
     fn write(mut self, bytes: List[u8]) -> void
 
+## A type whose values write their hash bytes to a `Hasher`; a map key needs it with `Eq`.
+## See [trait.hash.module](../../spec/lang/09-traits.md#r-trait.hash.module).
 pub trait Hash:
     fn hash(self, state: mut Hasher) -> void
 
@@ -122,6 +126,8 @@ fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
 # The standard `Hasher`: 64-bit FNV-1a with no seed
 # (r-std-hash.default.algorithm, r-std-hash.default.fixed). The state
 # starts at the FNV offset basis `0xcbf29ce484222325`.
+## The standard hasher: 64-bit FNV-1a over the bytes written to it.
+## See [std-hash.default.decl](../../spec/std/hash.md#r-std-hash.default.decl).
 pub data DefaultHasher:
     state: u64
 
@@ -132,10 +138,14 @@ impl Debug for DefaultHasher:
         out.debug_struct("DefaultHasher").field("state", self.state).finish()
 
 impl DefaultHasher:
+    ## Returns a fresh hasher.
+    ## See [std-hash.default.decl](../../spec/std/hash.md#r-std-hash.default.decl).
     pub fn new() -> mut DefaultHasher:
         DefaultHasher { state: 14695981039346656037 }
 
     # The state, unchanged (r-std-hash.default.finish).
+    ## The hash of the bytes written so far.
+    ## See [std-hash.default.finish](../../spec/std/hash.md#r-std-hash.default.finish).
     pub fn finish(self) -> u64:
         self.state
 
@@ -155,6 +165,8 @@ impl Hasher for DefaultHasher:
             self.state = (middle << 32) | (low_product & mask)
 
 # Hashes `value` into a new `DefaultHasher` (r-std-hash.hash-of).
+## `value`'s hash under a fresh `DefaultHasher`, the value `Map` buckets a key by.
+## See [std-hash.hash-of](../../spec/std/hash.md#r-std-hash.hash-of).
 pub fn hash_of[T < Hash](value: T) -> u64:
     let mut hasher = DefaultHasher::new()
     value.hash(hasher)
