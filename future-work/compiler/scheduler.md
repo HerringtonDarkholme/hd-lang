@@ -77,7 +77,15 @@ pub struct SteppingScheduler { .. }                     // browser: run_for(max_
   dependence without threads (§8.1).
 - **Stepping (mine).** The browser runs the serial scheduler in slices:
   `run_for(steps)` returns to JavaScript between slices, so the worker can
-  receive a "source changed" message and cancel the run.
+  receive a "source changed" message and cancel the run. A step is one
+  whole task, and a task cannot yield inside itself (Codex re-review
+  N-B5). So one solver-heavy body can hold the worker for as long as its
+  fuel allows. The playground therefore bounds staleness from outside:
+  when an edit arrives and the current run has not returned to
+  JavaScript within 200 ms, the page terminates the compiler worker and
+  starts a fresh one on the new source. Entries already written back to
+  IndexedDB survive (cache.md §5.8); only the cancelled run's new entries
+  are lost. No intra-body yield is promised.
 
 ### 6.3 Priority
 

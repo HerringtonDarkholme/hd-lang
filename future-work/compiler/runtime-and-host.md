@@ -110,14 +110,32 @@ mirrors them, and a test fails when the two disagree.
 | --- | --- | --- |
 | scalars only, never waits | one function with Wasm parameters and results | `hd:Clock` `now_ms() -> i64` |
 | structured values, never waits | `(len: i32) -> i32`: arguments in the exchange buffer, result length back | `hd:Env` `get` |
-| may wait | `name.start(len) -> i32`, then `name.finish(h) -> i32` | `hd:FsRead` `read_text.start`, `read_text.finish` |
+| may wait | `name.start(len) -> (i32 status, i32 value)`, then `name.finish(h) -> i32` | `hd:FsRead` `read_text.start`, `read_text.finish` |
 | runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)` | |
 
-A `.start` call returns `-1` when the operation finished at once, with the
-result in the buffer, or a handle `h >= 0` when it is pending. The leaf
-frame registers its waker in the wake table at `h` and returns Pending.
-After `hd.wake(h)`, the next poll calls `.finish(h)`, which writes the
-result into the buffer.
+A `.start` call returns two values (Codex re-review N-B3). Status `0`
+means the operation finished at once: the result is in the buffer and
+`value` is its length. Status `1` means it is pending and `value` is its
+handle. The leaf frame registers its waker in the wake table under the
+handle and returns Pending. When the handle appears in an `hd.wake(n)`
+batch, the next poll calls `.finish(h)`, which writes the result into
+the buffer and returns its length. The generated decoder checks every
+length against the buffer's current size before reading.
+
+**Handles.** A handle is instance-scoped and generation-tagged: 20 bits
+of slot and 11 bits of generation, so it is never negative. The host
+keeps one state per slot:
+
+| State | Entered by | Then |
+| --- | --- | --- |
+| Pending | `.start` returning status 1 | completion moves it to Completed; `hd:rt/abort(h)` to Cancelled |
+| Completed | the operation finishing | its handle is queued for the next `hd.wake` batch; `.finish(h)` frees the slot |
+| Cancelled | `abort(h)` | a late completion is dropped; the slot is freed at once |
+
+A freed slot's generation increments, so a stale handle never names a
+new operation. The Wasm wake table stores the full handle and ignores a
+wake whose generation does not match. `.finish` or `abort` on a stale
+handle is a `host-contract` panic.
 
 The prototype names imports `hd:<trait>/<method>`. D2 splits that into
 Wasm's module and name fields, so the startup check reads the module field
@@ -126,7 +144,10 @@ alone.
 ### 17.3 The Exchange Buffer
 
 - One exported linear memory, `hd.x`, of one page at first, grown on
-  demand. A module that crosses only scalars has none.
+  demand. A module that crosses only scalars has none. The writer grows
+  it: generated Wasm code before writing arguments, the host before
+  writing a result. A refused growth, which `memory.grow` reports as
+  `-1`, is the `heap-exhausted` panic on either side (§17.8).
 - The caller writes encoded arguments at offset 0 and passes their length.
   The host writes the encoded result at offset 0 and returns its length.
 - Calls do not nest: an instance runs on one thread, and no host call
@@ -194,8 +215,18 @@ type description, so it needs no field names:
 
 - **Start and poll.** The JS host starts a Promise (fetch, a timer), keeps
   it in a handle table, and returns the handle. On settle it queues the
-  handle. A queued handle schedules one task that calls `hd.wake(n)` and
-  then `hd.poll()`, so wakes coalesce per task turn.
+  handle in one completion queue. While the glue is Idle, a non-empty
+  queue schedules one task that calls `hd.wake(n)` and then
+  `hd.poll()`, so wakes coalesce per task turn.
+- **One entry at a time (Codex re-review N-B4).** The glue keeps an
+  entry state: Idle, Running, or Suspended (JSPI, inside `hd:rt/block`).
+  Only Idle starts an export. While Suspended, a completion resolves the
+  Promise that the suspended `block` import waits on, and nothing else;
+  `block` then writes the queued handles and returns. While Running or
+  Suspended, completions only queue. When an export's Promise settles,
+  the glue returns to Idle and, if the queue is non-empty, schedules the
+  next wake-and-poll task. So no export re-enters a Wasm stack that JSPI
+  suspended.
 - **Cancellation** calls `AbortController.abort()` for fetches and
   `clearTimeout` for timers.
 - **`block_on`** (answer 9):
@@ -203,13 +234,17 @@ type description, so it needs no field names:
      `hd:rt/block` as a suspending import, and wraps `hd.init`, `hd.poll`
      and the test exports with `WebAssembly.promising`. `block` then
      waits on a real Promise.
-  2. **No JSPI, and the module imports `hd:rt/block`** (mine): the glue
-     runs the whole program in synchronous mode. A same-origin HTTP
-     request is a synchronous `XMLHttpRequest` that finishes inside
-     `.start`, so it never pends. Every other operation that would pend
-     inside `block` panics `host-contract` with a message that names
-     JSPI. The import list decides the mode before the program starts,
-     because reachability makes it exact.
+  2. **No JSPI, and the module imports `hd:rt/block`** (mine; Codex
+     re-review N-B5): a restricted browser profile, scoped to `block`.
+     std's `block_on` increments an exported mutable global,
+     `hd.blocking`, around its loop. A `.start` that runs while it is
+     non-zero is synchronous: a same-origin HTTP request is a
+     synchronous `XMLHttpRequest` that finishes inside `.start`, and
+     every other operation that would pend panics `host-contract` with
+     a message that names JSPI. A `.start` outside `block_on` keeps the
+     ordinary asynchronous path, cancellation included, so a retained
+     but untaken `block_on` changes nothing elsewhere. The conformance
+     runner tests each refused operation in this profile.
   3. **No `hd:rt/block` import**: the normal asynchronous mode, on every
      browser with Wasm GC.
 
@@ -235,9 +270,10 @@ type description, so it needs no field names:
 | Limit | Mechanism | Failure |
 | --- | --- | --- |
 | time (`--time-limit`, a test's `timeout`) | epoch interruption: one ticker thread per process increments the engine epoch every millisecond; each store sets its deadline in ticks | the trap maps to `time-limit`; a pending host wait is cut by a reactor timer at the same deadline |
-| GC heap and the exchange buffer (`--max-heap`) | a `ResourceLimiter` on the store; wasmtime grows its GC heap through the same limiter as linear memory (confirm in slice 6) | refused growth traps, mapped to `heap-exhausted` |
+| GC heap and the exchange buffer (`--max-heap`) | one aggregate budget per store, enforced by a `ResourceLimiter`. A refused linear-memory growth makes `memory.grow` return `-1`, which the writer turns into the `heap-exhausted` panic (§17.3). A GC allocation that fails after a collection traps; the trap maps to `heap-exhausted`. Slice 0a tests both on the pinned wasmtime | `heap-exhausted` |
+| host-side buffers (a read result waiting for `.finish`, a reactor body) | a separate per-store byte budget in the host, checked before the host allocates; the default is the `--max-heap` value | the operation's result is the `heap-exhausted` panic at `.finish` |
 | stack | `Config::max_wasm_stack`, part of the runtime profile | `stack-exhausted` |
-| instances, tables, memories | the pooling allocator's totals (§18.3) | an internal error naming the limit |
+| instances, tables, memories, GC heaps | the pooling allocator's totals (§18.3). The runner never runs more stores at once than the pool has slots, so exhaustion means a bug | an internal error naming the limit |
 
 The flag names are open question 4; answer 11 settled the categories but
 not the flags.

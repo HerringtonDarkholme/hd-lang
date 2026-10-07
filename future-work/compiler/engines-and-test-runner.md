@@ -27,9 +27,20 @@ Cranelift, as the research found.
 - **Precompiled modules.** `Engine::precompile_module` output is stored
   as a `cwasm` entry. A disk entry is loaded with
   `Module::deserialize_file`, which maps the file instead of copying it.
-  The entry's checksum (§5.4) and wasmtime's own compatibility check both
-  guard it. The key holds the Wasm hash, the wasmtime version, the engine
+  The key holds the Wasm hash, the wasmtime version, the engine
   configuration and the target, so a config change misses.
+- **A `cwasm` is trusted native code (Codex re-review N-B7).**
+  `deserialize_file` is unsafe: wasmtime runs the bytes as machine code,
+  and neither a checksum nor the Wasm sandbox makes a foreign file safe.
+  So `cwasm` entries live only in a private native-code directory,
+  `$HD_CACHE/obj/native/`, created with owner-only permissions and
+  refused if another user can write it. They are never shared between
+  users and never fetched from a remote cache; a remote cache, if one
+  comes later, carries Wasm only. The common framed entry format (cache.md
+  §5.4) does not fit `deserialize_file`, which wants the raw artifact, so
+  a `cwasm` is stored raw, published by the same write-then-rename, with
+  a small framed sidecar entry that holds its key and checksum. The
+  checksum is checked when the file is loaded, at about 10 GB/s.
 - **Per-function cache.** `Config::enable_incremental_compilation` takes
   a cache store; an adapter maps it onto `CacheStore` as entry kind
   `cranelift`. A program whose other functions did not change recompiles

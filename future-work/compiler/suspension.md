@@ -156,6 +156,13 @@ host loop:
         status = hd.poll()
 ```
 
+`hd.poll` drains internal wakes before it answers (Codex re-review
+N-B3): while the "woken" global is set, it clears it and polls the root
+again. So `-1` always means that no wake is queued inside the instance,
+and the host loop's deadlock test matches §14.8's definition. Handles
+are generation-tagged, and a wake for a stale handle is ignored
+(runtime-and-host.md §17.2).
+
 One `hd.wake` call carries every completion of one reactor turn, so a
 burst of completions costs one crossing. The driver returns to the host
 whenever the root is Pending
