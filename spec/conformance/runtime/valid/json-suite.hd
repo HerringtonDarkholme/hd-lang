@@ -40,7 +40,11 @@ tests:
         ]
         for case in cases:
             match parse(case._1):
-                .Ok(value) => assert_equal("${value}", case._2, reason=case._0)
+                .Ok(value) => match parse(case._2):
+                    .Ok(expected) =>
+                        assert(value == expected, reason=case._0)
+                        assert_equal("${value}".len(), case._2.len(), reason=case._0)
+                    .Err(_) => assert(false, reason="${case._0} expects valid text")
                 .Err(_) => assert(false, reason="${case._0} should parse")
 
     it("n_ files fail"):

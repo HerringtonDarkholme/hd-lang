@@ -348,7 +348,7 @@ tests:
             for tag in item.tags:
                 if seen.insert(tag):
                     kept.push(tag)
-        assert_equal(kept, ["fruit", "fresh", "bakery", "dairy"], reason="in insertion order")
+        assert_equal(kept, ["fruit", "fresh", "bakery", "dairy"], reason="first occurrences, in item order")
 ```
 
 A `Set` keeps each value once, in the order it first appeared. `Deque`

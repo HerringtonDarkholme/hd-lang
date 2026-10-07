@@ -40,7 +40,7 @@ pub enum Json:
 ```
 
 1. r[std-json.value.decl] `std.json` declares the enum `Json` with exactly the variants above.
-2. r[std-json.value.object-order] An `Object` keeps its keys in [insertion order](../lang/04-type-system.md#r-types.map.order), as every `Map` does.
+2. r[std-json.value.object-map-order] An `Object`'s keys follow its `Map`'s [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), so writing the same `Object` twice gives the same text.
 3. r[std-json.value.eq] `Json` implements `Eq`. Two values are equal when they are the same variant with equal contents.
 4. r[std-json.value.eq.array] Arrays are equal when they have equal items in the same order.
 5. r[std-json.value.eq.object] Objects are equal as maps are, so key order does not matter ([`types.map.semantics`](../lang/04-type-system.md#r-types.map.semantics)).
@@ -172,16 +172,15 @@ fn checks() -> List[bool]:
 
 ### Objects
 
-1. r[std-json.parse.object.order] The keys of a parsed object are in the order of their first occurrence in the text.
-2. r[std-json.parse.object.duplicate] When a key occurs more than once, the object has one entry for it. Its value is the last one, and its position is the first one's.
-3. r[std-json.parse.object.key] A key is a string, and its escapes are decoded as a string's are.
+1. r[std-json.parse.object.duplicate-last] When a key occurs more than once, the object has one entry for it, whose value is the last one.
+2. r[std-json.parse.object.key] A key is a string, and its escapes are decoded as a string's are.
 
 ```text
 use std.json.parse
 
 fn last_wins() -> string:
     match parse("{\"b\": 1, \"a\": 2, \"b\": 3}"):
-        .Ok(value) => "${value}"   # {"b":3,"a":2}: first position, last value
+        .Ok(value) => "${value}"   # {"b":3,"a":2} or {"a":2,"b":3}: the last value
         .Err(_) => "error"
 ```
 

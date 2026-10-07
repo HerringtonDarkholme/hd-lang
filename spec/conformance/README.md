@@ -90,7 +90,7 @@ A fixture must not depend on:
   except the package sources its package role or package tree supplies;
 - the clock, randomness, or timing;
 - diagnostic message text;
-- map iteration order beyond insertion order;
+- map or set iteration order, beyond its being the same in every run;
 - any value rendering the specification does not define.
 
 Runtime results are observed with `assert` and `assert_equal` from

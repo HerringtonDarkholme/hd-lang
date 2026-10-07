@@ -140,7 +140,7 @@ fn bucket(key: string) -> u64:
 5. r[std-hash.default.finish] `finish(self) -> u64` returns the state and does not change it.
 6. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
 7. r[std-hash.hash-of] `hash_of[T < Hash](value: T) -> u64` calls `value.hash` on a new `DefaultHasher` and returns its `finish()`.
-8. r[std-hash.default.map] The built-in `Map` buckets each key by its `hash_of` value, so the bucketing of a map is the same in every run.
+8. r[std-hash.map.bucket-hash] The hash by which the built-in `Map` buckets its keys is an implementation detail. It need not be `hash_of`, and it must be the same in every run.
 
 > **Why.** FNV-1a is a few lines of hd that need only XOR and one
 > wrapping multiplication. SipHash-1-3 mixes better, but its strength is

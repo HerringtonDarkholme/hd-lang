@@ -1,7 +1,7 @@
-# test: an object keeps its keys in insertion order, and a duplicate key keeps its first position with the last value
-# Spec std/json Parsing, Writing: std-json.parse.object.order, std-json.parse.object.duplicate, std-json.display.compact (JSON-SURFACE; task #226).
+# test: an object's keys follow its map's deterministic order, and a duplicate key keeps one entry with the last value
+# Spec std/json Values, Parsing, Writing: std-json.value.object-map-order, std-json.parse.object.duplicate-last, std-json.display.compact (JSON-SURFACE; task #226).
 use std.json.{parse, Json}
-use std.testing.{assert_equal}
+use std.testing.{assert, assert_equal}
 
 fn read(text: string) -> Json:
     match parse(text):
@@ -18,24 +18,26 @@ fn keys(value: Json) -> List[string]:
         _ => panic("not an object")
 
 tests:
-    it("keys come back in the order the text wrote them"):
-        assert_equal(keys(read("{\"b\":1,\"a\":2,\"c\":3}")), ["b", "a", "c"], reason="parse order")
-        assert_equal("${read("{\"b\":1,\"a\":2,\"c\":3}")}", "{\"b\":1,\"a\":2,\"c\":3}", reason="Display order")
+    it("a parsed object has each key once, in the same order every time"):
+        value := read("{\"b\":1,\"a\":2,\"c\":3}")
+        assert_equal(keys(value).sorted(), ["a", "b", "c"], reason="each key once")
+        assert_equal("${value}", "${value}", reason="the same text every time")
+        assert(read("${value}") == value, reason="the text round-trips")
 
-    it("a duplicate key keeps its first position and takes the last value"):
+    it("a duplicate key keeps one entry and takes the last value"):
         value := read("{\"b\":1,\"a\":2,\"b\":3}")
-        assert_equal(keys(value), ["b", "a"], reason="first position")
-        assert_equal("${value}", "{\"b\":3,\"a\":2}", reason="last value")
-        assert_equal(value.get("b"), .Some(read("3")), reason="get")
+        assert_equal(keys(value).sorted(), ["a", "b"], reason="one entry per key")
+        assert_equal(value.get("b"), .Some(read("3")), reason="last value")
 
     it("an object built from a map prints in the map's order"):
         let fields: mut Map[string, Json] = {}
         fields["z"] = Json.Bool(true)
         fields["a"] = Json.Null
-        fields["m"] = Json.Array([])
-        assert_equal("${Json.Object(fields)}", "{\"z\":true,\"a\":null,\"m\":[]}", reason="insertion order")
+        object := Json.Object(fields)
+        text := "${object}"
+        assert(text == "{\"z\":true,\"a\":null}" || text == "{\"a\":null,\"z\":true}", reason="both keys, in the map's order")
 
-    it("nested objects keep their order at every level"):
-        text := "{\"y\":{\"q\":1,\"p\":2},\"x\":[{\"b\":0,\"a\":0}]}"
+    it("one-key objects keep their text at every level"):
+        text := "{\"y\":[{\"b\":{\"q\":1}}]}"
         assert_equal("${read(text)}", text, reason="nested")
-        assert_equal(read(text).pretty(), "{\n  \"y\": {\n    \"q\": 1,\n    \"p\": 2\n  },\n  \"x\": [\n    {\n      \"b\": 0,\n      \"a\": 0\n    }\n  ]\n}", reason="pretty")
+        assert_equal(read(text).pretty(), "{\n  \"y\": [\n    {\n      \"b\": {\n        \"q\": 1\n      }\n    }\n  ]\n}", reason="pretty")

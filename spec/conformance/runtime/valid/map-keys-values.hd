@@ -1,5 +1,5 @@
-# test: contains_key, keys, and values; keys and values are snapshots in insertion order
-# Spec std/collections Map Methods: std-collections.map.contains-key, .keys, .values, and .snapshot
+# test: contains_key, keys, and values; keys and values are snapshots in one deterministic order
+# Spec std/collections Map Methods: std-collections.map.contains-key, .keys.order, .values, and .snapshot
 # (STDLIB question 16, 2026-09-29; batch 64, STD-1).
 use std.testing.{assert, assert_equal}
 
@@ -15,10 +15,14 @@ tests:
         assert(!stock.contains_key("sugar"), reason="absent key")
         assert_equal(summary(stock), "2 items", reason="through a helper")
 
-    it("keys and values follow insertion order"):
+    it("keys and values come in one deterministic order"):
         stock := {"tea": 3, "milk": 1}
-        assert_equal(stock.keys(), ["tea", "milk"], reason="keys in insertion order")
-        assert_equal(stock.values(), [3, 1], reason="values in the same order")
+        names := stock.keys()
+        amounts := stock.values()
+        assert_equal(names.sorted(), ["milk", "tea"], reason="every key once")
+        assert_equal(stock.get(names[0]), .Some(amounts[0]), reason="values in the keys' order")
+        assert_equal(stock.get(names[1]), .Some(amounts[1]), reason="values in the keys' order")
+        assert_equal(stock.keys(), names, reason="the same order every time")
 
     it("the returned lists do not follow later changes"):
         let stock: mut Map[string, i32] = {"tea": 3}

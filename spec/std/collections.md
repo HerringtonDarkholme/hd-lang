@@ -146,20 +146,19 @@ fn steps(readings: List[i32]) -> List[List[i32]]:
 5. r[std-collections.helper.sorted] `sorted` returns the elements in ascending order by `Ord`.
 6. r[std-collections.helper.stable] Both sorts are stable: elements that compare equal keep their order.
 7. r[std-collections.helper.group-by] `group_by(key)` maps each key that `key` returns to the list of the elements that gave it, in list order.
-8. r[std-collections.helper.group-by.order] The map's keys are in the order each was first returned, by the map's [insertion order](../lang/04-type-system.md#r-types.map.order).
-9. r[std-collections.helper.partition] `partition(keep)` returns the elements for which `keep` is true, then the rest, each in list order.
-10. r[std-collections.helper.any-all] `any(test)` is true when `test` is true for some element, and `all(test)` when it is true for every element. So on an empty list `any` is false and `all` is true.
-11. r[std-collections.helper.find] `find(test)` returns the first element for which `test` is true in `.Some`, or `.None` when there is none.
-12. r[std-collections.helper.short-circuit] `any`, `all`, and `find` call `test` on no element after the first one that decides the result.
-13. r[std-collections.helper.flat-map] `flat_map(transform)` joins the lists that `transform` returns, in list order.
-14. r[std-collections.helper.windows] `windows(size)` returns every run of `size` consecutive elements, in order of its first index, so the runs overlap.
-15. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
-16. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
-17. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
-18. r[std-collections.helper.min-max.first] `min` returns the first smallest element and `max` the first largest one by `Ord`, each in `.Some`. An empty list gives `.None`.
-19. r[std-collections.helper.sum] `sum` returns the total of the elements, added with `+` in list order from 0 of type `T`, so an empty list gives 0.
-20. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
-21. r[std-collections.helper.sum.iterator] `items.sum()` returns what `items.iter().sum()` returns.
+8. r[std-collections.helper.partition] `partition(keep)` returns the elements for which `keep` is true, then the rest, each in list order.
+9. r[std-collections.helper.any-all] `any(test)` is true when `test` is true for some element, and `all(test)` when it is true for every element. So on an empty list `any` is false and `all` is true.
+10. r[std-collections.helper.find] `find(test)` returns the first element for which `test` is true in `.Some`, or `.None` when there is none.
+11. r[std-collections.helper.short-circuit] `any`, `all`, and `find` call `test` on no element after the first one that decides the result.
+12. r[std-collections.helper.flat-map] `flat_map(transform)` joins the lists that `transform` returns, in list order.
+13. r[std-collections.helper.windows] `windows(size)` returns every run of `size` consecutive elements, in order of its first index, so the runs overlap.
+14. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
+15. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
+16. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
+17. r[std-collections.helper.min-max.first] `min` returns the first smallest element and `max` the first largest one by `Ord`, each in `.Some`. An empty list gives `.None`.
+18. r[std-collections.helper.sum] `sum` returns the total of the elements, added with `+` in list order from 0 of type `T`, so an empty list gives 0.
+19. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
+20. r[std-collections.helper.sum.iterator] `items.sum()` returns what `items.iter().sum()` returns.
 
 | Call | Result |
 | --- | --- |
@@ -200,7 +199,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 1. r[std-collections.counts.decl] `std.collections` declares `pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]`. Code imports it, as in `use std.collections.counts`.
 2. r[std-collections.counts.value] The map has one entry per distinct element of `items`, and its value is the number of elements equal to that one.
-3. r[std-collections.counts.order] The keys are in the order of their first occurrence in `items`, so an empty list gives an empty map.
+3. r[std-collections.counts.empty] An empty list gives an empty map.
 
 > **Why.** `counts` is Python's `collections.Counter` as a plain map, so
 > the `Map` methods read it.
@@ -221,7 +220,7 @@ fn summary(stock: Map[string, i32]) -> string:
 ```
 
 1. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
-2. r[std-collections.map.keys] `keys` returns the map's keys in [insertion order](../lang/04-type-system.md#r-types.map.order).
+2. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
 3. r[std-collections.map.values] `values` returns the map's values in the same order.
 4. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
 5. r[std-collections.map.get-or] `get_or(key, fallback)` returns the value of the entry whose key equals `key`, or `fallback` when there is none.
@@ -231,7 +230,7 @@ See also: [Map Key Types](../lang/04-type-system.md#map-key-types).
 
 ## Set
 
-A `Set[T]` holds distinct elements, in the order they were inserted:
+A `Set[T]` holds distinct elements, in a deterministic order:
 
 ```text
 use std.collections.Set
@@ -263,7 +262,7 @@ fn unique(words: List[string]) -> List[string]:
 4. r[std-collections.set.contains] `contains(value)` is true exactly when the set has an element equal to `value`.
 5. r[std-collections.set.insert] `insert(value)` adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
 6. r[std-collections.set.remove] `remove(value)` removes the element equal to `value` and returns `true`. When there is none, it changes nothing and returns `false`.
-7. r[std-collections.set.iter] Iterating a set yields its elements in the order that a map's keys would have after the same inserts and removes, by [`types.map.replace`](../lang/04-type-system.md#r-types.map.replace).
+7. r[std-collections.set.iter] Iterating a set yields its elements in the order that a map's keys would have after the same inserts and removes, by [`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic).
 8. r[std-collections.set.invalidate] An `insert` or `remove` that changes the set invalidates its iterators, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for a map. Panic: `iterator-invalidated`.
 9. r[std-collections.set.eq] Two sets are equal when each element of one equals an element of the other, in any order.
 
@@ -273,8 +272,8 @@ fn unique(words: List[string]) -> List[string]:
 
 > **Why.** `insert` and `remove` report whether they changed the set, as
 > Rust's `HashSet` methods do, so a loop that skips duplicates needs no
-> second lookup. A set keeps insertion order, as a map does, so its
-> iteration and `Debug` text are deterministic.
+> second lookup. A set iterates in a map's deterministic order, so its
+> iteration and `Debug` text are the same in every run.
 
 ## Deque
 

@@ -1591,7 +1591,7 @@ runtime/valid/comprehensions.hd	runtime
 runtime/valid/for-loops-lists-and-maps.hd	runtime
 runtime/valid/iterator-shape-versus-value-changes.hd	runtime
 runtime/valid/map-grow-and-remove.hd	runtime
-runtime/valid/map-insertion-order.hd	runtime
+runtime/valid/map-iteration-order.hd	runtime
 runtime/valid/map-literal-and-comprehension-order.hd	runtime
 runtime/valid/plain-dollar-text.hd	runtime
 runtime/valid/row-union-list-runs.hd	runtime

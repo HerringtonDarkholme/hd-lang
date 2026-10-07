@@ -1,5 +1,5 @@
-# test: MapArgs and MapEnv cover Args and Env rows through $.with, and names lists keys in insertion order
-# Spec std/host Map Providers: std-host.map-args.new, std-host.map-env.new, and std-host.map-env.names (STDLIB decision 4, PROVIDER-SHAPES; task #220).
+# test: MapArgs and MapEnv cover Args and Env rows through $.with, and names lists the map's keys
+# Spec std/host Map Providers: std-host.map-args.new, std-host.map-env.new, and std-host.map-env.names.order (STDLIB decision 4, PROVIDER-SHAPES; task #220).
 use std.host.{Args, Env, MapArgs, MapEnv, args, env}
 use std.testing.assert_equal
 
@@ -19,5 +19,5 @@ tests:
             assert_equal(greeting(), "hi, 2", reason="one variable, two arguments")
             assert_equal(program(), "tool", reason="the program name")
             assert_equal(env("MISSING"), .None, reason="a key the map lacks")
-        assert_equal(vars.names(), ["GREETING", "HOME"], reason="insertion order")
+        assert_equal(vars.names().sorted(), ["GREETING", "HOME"], reason="both keys")
         assert_equal(given.list(), ["a", "b"], reason="the arguments, in order")

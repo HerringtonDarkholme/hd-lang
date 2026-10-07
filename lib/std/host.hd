@@ -48,7 +48,7 @@ impl Args for MapArgs:
         self.values
 
 # The deterministic `Env`: its map is the whole environment, and `names`
-# lists the map's keys in insertion order (r-std-host.map-env.names).
+# lists the map's keys in its iteration order (r-std-host.map-env.names.order).
 ## The deterministic `Env` provider: a fixed map of variables, with no host access.
 ## See [std-host.map-env.decl](../../spec/std/host.md#r-std-host.map-env.decl).
 pub data MapEnv:

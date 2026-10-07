@@ -1,5 +1,5 @@
 # test: each standard Deserialize reads one value with its own call and expected name, and a value that does not fit is the reader's invalid error
-# Spec std/serde Reading, Standard Implementations: std-serde.read.scalar, std-serde.read.expected, std-serde.read.invalid, std-serde.read.is-null, std-serde.read.list, std-serde.read.map, std-serde.read.one-value, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map, std-serde.std.range, std-serde.std.float-read.
+# Spec std/serde Reading, Standard Implementations: std-serde.read.scalar, std-serde.read.expected, std-serde.read.invalid, std-serde.read.is-null, std-serde.read.list, std-serde.read.map, std-serde.read.one-value, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map-entries, std-serde.std.range, std-serde.std.float-read.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Facts, VariantInfo, Member}
 use std.testing.assert_equal

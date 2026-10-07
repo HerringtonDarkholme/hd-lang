@@ -1,9 +1,9 @@
 # test: each standard Serialize writes exactly one value of the data model with its own call, and a derived newtype writes its base value
-# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.one-value, std-serde.model.len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map.
+# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.one-value, std-serde.model.len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map-entries.
 # Spec 09 Derived Newtypes: trait.derive.newtype.templated.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Facts, VariantInfo, Member}
-use std.testing.assert_equal
+use std.testing.{assert, assert_equal}
 
 # Records each call as a word, so a test reads what a value writes.
 data Calls:
@@ -121,9 +121,12 @@ tests:
         let boxes: List[List[i32]] = [[+1], []]
         assert_equal(calls(boxes), "list:2 list:1 int:1 end-list list:0 end-list end-list", reason="nested")
 
-    it("a map writes its length, then a key and a value per entry, in insertion order"):
-        let stock: Map[string, u32] = { "pen": 4, "ink": 0, "pad": 9 }
-        assert_equal(calls(stock), "map:3 key:pen uint:4 key:ink uint:0 key:pad uint:9 end-map", reason="insertion order")
+    it("a map writes its length, then a key and a value per entry, in the map's order"):
+        let stock: Map[string, u32] = { "pen": 4 }
+        assert_equal(calls(stock), "map:1 key:pen uint:4 end-map", reason="one entry")
+        let pair: Map[string, u32] = { "pen": 4, "ink": 0 }
+        written := calls(pair)
+        assert(written == "map:2 key:pen uint:4 key:ink uint:0 end-map" || written == "map:2 key:ink uint:0 key:pen uint:4 end-map", reason="both entries, in the map's order")
         let none: Map[string, bool] = {}
         assert_equal(calls(none), "map:0 end-map", reason="no entry")
 

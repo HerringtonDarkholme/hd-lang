@@ -380,16 +380,16 @@ impl[K < Eq & Hash, V] Map[K, V]:
             .Some(_) => true
             .None => false
 
-    ## A new list of the keys, in insertion order.
-    ## See [std-collections.map.keys](../../spec/std/collections.md#r-std-collections.map.keys).
+    ## A new list of the keys, in the map's iteration order.
+    ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
     pub fn keys(self) -> List[K]:
         let found: mut List[K] = []
         for (key, _) in self:
             found.push(key)
         found
 
-    ## A new list of the values, in insertion order.
-    ## See [std-collections.map.keys](../../spec/std/collections.md#r-std-collections.map.keys).
+    ## A new list of the values, in the map's iteration order.
+    ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
     pub fn values(self) -> List[V]:
         let found: mut List[V] = []
         for (_, value) in self:
@@ -617,7 +617,7 @@ impl[T < Debug] Debug for Deque[T]:
             _ := list.entry(item)
         list.finish()
 
-# A set of distinct elements in insertion order
+# A set of distinct elements in its map's deterministic order
 # (spec/std/collections.md#set), plain hd over a `Map` whose values say
 # nothing.
 ## A set holds distinct elements, in the order they were inserted.
@@ -676,7 +676,7 @@ impl[T < Eq & Hash] Eq for Set[T]:
                 return false
         true
 
-# One `debug_list` entry per element, in insertion order
+# One `debug_list` entry per element, in iteration order
 # (r-std-format.debug.std-types.set).
 impl[T < Eq & Hash & Debug] Debug for Set[T]:
     fn debug(self, out: mut DebugWriter) -> void:

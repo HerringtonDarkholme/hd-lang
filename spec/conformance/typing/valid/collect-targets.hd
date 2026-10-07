@@ -1,5 +1,5 @@
 # test: collect builds the target that the expected type or an explicit list names, and defaults to List
-# std Iterators, Collect Targets: std-iter.adapter.collect-defaulted, std-iter.collect.target, std-iter.collect.target-default, std-iter.collect.list, std-iter.collect.map, std-iter.collect.result, std-iter.collect.option (Collect CO1, CO5).
+# std Iterators, Collect Targets: std-iter.adapter.collect-defaulted, std-iter.collect.target, std-iter.collect.target-default, std-iter.collect.list, std-iter.collect.map-last, std-iter.collect.result, std-iter.collect.option (Collect CO1, CO5).
 
 fn parse_port(text: string) -> Result[usize, string]:
     .Ok(text.len())

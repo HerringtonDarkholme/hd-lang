@@ -199,7 +199,7 @@ The standard library implements `FromIterator` for these prelude types:
 | Rule | Target | Items | Result |
 | --- | --- | --- | --- |
 | r[std-iter.collect.list] List | `List[T]` | `T` | every remaining item, in order |
-| r[std-iter.collect.map] Map | `Map[K, V]` | `(K, V)` | one entry per pair; for an equal key the later value wins, and the key keeps its first position |
+| r[std-iter.collect.map-last] Map | `Map[K, V]` | `(K, V)` | one entry per pair; for an equal key the later value wins |
 | r[std-iter.collect.result] All results | `Result[C, E]`, where `C < FromIterator[T]` | `Result[T, E]` | `.Ok` of the `C` collected from the `.Ok` payloads, or the first `.Err` |
 | r[std-iter.collect.option] All values | `C?`, where `C < FromIterator[T]` | `T?` | `.Some` of the `C` collected from the `.Some` payloads, or `.None` at the first `.None` |
 

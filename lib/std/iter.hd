@@ -253,8 +253,8 @@ impl[T] FromIterator[T] for List[T]:
                 .None => break
         collected
 
-# One entry per pair: for an equal key the later value wins, and the key
-# keeps its first position (spec/std/iter.md#r-std-iter.collect.map).
+# One entry per pair: for an equal key the later value wins
+# (spec/std/iter.md#r-std-iter.collect.map-last).
 impl[K < Eq & Hash, V] FromIterator[(K, V)] for Map[K, V]:
     fn from_iter(items: mut Iterator[(K, V)]) -> Map[K, V]:
         let collected: mut Map[K, V] = {}

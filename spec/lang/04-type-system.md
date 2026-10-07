@@ -2167,9 +2167,10 @@ fn setup() -> void:
 1. r[types.map.eq-hash] Map lookup and duplicate-key replacement use `Eq` for key comparison and `Hash` for indexing.
 2. r[types.map.no-law] The language does not check or impose a law connecting these two implementations.
 3. r[types.map.inconsistent] If an implementation hashes values differently that `Eq` considers equal, lookup and duplicate-key behavior are not guaranteed.
-4. r[types.map.order] Map iteration follows insertion order.
-5. r[types.map.replace] Replacing the value for an existing key does not move that entry; removing and later reinserting a key places it at the end.
-6. r[types.map.semantics] Hash values remain outside map value semantics, and map equality remains independent of insertion order.
+4. r[types.map.order.deterministic] Map iteration order is deterministic. A program that builds a map by the same operations on the same data iterates it in the same order in every run.
+5. r[types.map.order.unspecified] Beyond that, the order is unspecified. It need not be insertion order.
+6. r[types.map.replace.in-place] Replacing the value for an existing key does not change the map's iteration order.
+7. r[types.map.semantics] Hash values remain outside map value semantics, and map equality remains independent of insertion order.
 
 ```hd
 fn demo() -> List[string]:
@@ -2177,8 +2178,12 @@ fn demo() -> List[string]:
     let keys: mut List[string] = []
     for entry in m:
         keys.push(entry._0)
-    keys   # ["b", "a"]: insertion order
+    keys   # ["b", "a"] or ["a", "b"]: the map's order, the same in every run
 ```
+
+> **Why.** A deterministic order keeps output and tests reproducible.
+> Leaving it unspecified lets the map use a faster layout and hash, as
+> Go and Rust do. Code that needs an order sorts the keys.
 
 ### Mutated Keys
 
@@ -2417,7 +2422,7 @@ See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across
   null reference or a tag.
 - A list is a growable array of its element shape, with value-layout
   elements unboxed. A map is expected to use
-  hashing, with insertion order kept separately.
+  hashing, with a deterministic iteration order.
 - A closure is a function reference plus an environment record. A closure
   without captures needs no environment. Because a function value has no
   identity, an implementation may share one value for a named function or

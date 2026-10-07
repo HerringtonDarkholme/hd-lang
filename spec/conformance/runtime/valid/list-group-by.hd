@@ -1,5 +1,5 @@
-# test: group_by maps each key to its elements in list order, with keys in first-seen order
-# Spec std/collections List Helpers: std-collections.helper.group-by and .group-by.order.
+# test: group_by maps each key to its elements in list order, one key per distinct result
+# Spec std/collections List Helpers: std-collections.helper.group-by.
 use std.testing.assert_equal
 
 fn by_initial(words: List[string]) -> Map[string, List[string]]:
@@ -10,10 +10,7 @@ tests:
         groups := by_initial(["bean", "apple", "beet", "avocado"])
         assert_equal(groups.get("a"), .Some(["apple", "avocado"]), reason="group a")
         assert_equal(groups.get("b"), .Some(["bean", "beet"]), reason="group b")
-    it("keeps keys in first-seen order"):
-        let order: mut List[string] = []
-        for (key, _) in by_initial(["bean", "apple", "beet"]):
-            order.push(key)
-        assert_equal(order, ["b", "a"], reason="b came first")
+    it("has one key per distinct result"):
+        assert_equal(by_initial(["bean", "apple", "beet"]).keys().sorted(), ["a", "b"], reason="a and b")
     it("gives an empty map for an empty list"):
         assert_equal(by_initial([]).len(), 0, reason="no groups")

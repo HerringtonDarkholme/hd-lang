@@ -7,8 +7,8 @@ use std.num.parse_f64
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
 use std.structure.{VariantInfo, Member, Facts}
 
-# One JSON value (r-std-json.value.decl). An object keeps its keys in
-# insertion order, as every `Map` does.
+# One JSON value (r-std-json.value.decl). An object's keys follow its
+# `Map`'s deterministic iteration order (r-std-json.value.object-map-order).
 ## A JSON value: `null`, `Bool`, `Number`, `Text`, `Array`, or `Object`.
 ## See [std-json.value.decl](../../spec/std/json.md#r-std-json.value.decl).
 pub enum Json:

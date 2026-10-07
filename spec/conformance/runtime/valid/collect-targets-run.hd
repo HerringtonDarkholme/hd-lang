@@ -1,5 +1,5 @@
 # test: a Map target keeps the last value of an equal key at its first position; Result and optional targets stop at the first failure
-# std Iterators, Collect Targets: std-iter.collect.map, std-iter.collect.result, std-iter.collect.option, std-iter.collect.drain, std-iter.collect.stop (Collect CO1, CO2).
+# std Iterators, Collect Targets: std-iter.collect.map-last, std-iter.collect.result, std-iter.collect.option, std-iter.collect.drain, std-iter.collect.stop (Collect CO1, CO2).
 use std.testing.assert_equal
 
 fn parse_digit(text: string) -> Result[usize, string]:
@@ -13,9 +13,11 @@ fn find(text: string) -> usize?:
     .Some(text.len())
 
 tests:
-    it("the last value of an equal key wins, at the key's first position"):
+    it("the last value of an equal key wins"):
         let entries: Map[string, i32] = [("a", +1), ("b", +2), ("a", +3)].iter().collect()
-        assert_equal([for (key, value) in entries => "$key=$value"], ["a=3", "b=2"], reason="last value, first position")
+        assert_equal(entries.len(), 2, reason="one entry per key")
+        assert_equal(entries.get("a"), .Some(3), reason="last value")
+        assert_equal(entries.get("b"), .Some(2), reason="one value")
 
     it("a Result target stops at the first error"):
         let mut source = ["1", "x", "22", "333"].iter()

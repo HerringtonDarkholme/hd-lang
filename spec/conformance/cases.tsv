@@ -230,7 +230,7 @@ typing/valid/string-semantics.hd	type	accept	lang/04-type-system.md#strings
 typing/valid/numeric-corners.hd	type	accept	lang/04-type-system.md#numeric-conversions
 runtime/panic/signed-min-division-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 typing/valid/composite-ordering.hd	type	accept	lang/05-expressions.md#unary-and-binary-operators
-runtime/valid/map-insertion-order.hd	runtime	accept	lang/05-expressions.md#list-and-map-expressions
+runtime/valid/map-iteration-order.hd	runtime	accept	lang/05-expressions.md#list-and-map-expressions
 typing/invalid/unbounded-generic-identity.hd	type	reject:identity-requires-references	lang/04-type-system.md#generics
 typing/valid/reference-generic-identity.hd	type	accept	lang/04-type-system.md#generics
 typing/invalid/tuple-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#unary-and-binary-operators
@@ -1474,7 +1474,7 @@ typing/invalid/trait-reference-unsolved-self.hd	type	reject:cannot-infer-type	la
 typing/invalid/mut-self-reference-readonly-callback.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.ref.unbound.mut-self
 typing/invalid/pipe-suspending-method-reference.hd	type	reject:suspending-pipe-step	lang/05-expressions.md#r-expr.pipe.bare.no-suspend
 typing/valid/collect-targets.hd	type	accept	std/iter.md#collect-targets
-runtime/valid/collect-targets-run.hd	runtime	accept	std/iter.md#r-std-iter.collect.map
+runtime/valid/collect-targets-run.hd	runtime	accept	std/iter.md#r-std-iter.collect.map-last
 typing/invalid/collect-target-not-fromiterator.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.collect.bound
 runtime/valid/comprehension-propagation.hd	runtime	accept	lang/05-expressions.md#comprehension-restrictions
 runtime/valid/pipe-nested-placeholder.hd	runtime	accept	lang/05-expressions.md#r-expr.pipe.slot.nested
@@ -2029,7 +2029,7 @@ runtime/valid/json-round-trip.hd	runtime	accept	std/json.md#r-std-json.value.acc
 runtime/valid/json-escapes.hd	runtime	accept	std/json.md#r-std-json.parse.string.surrogates
 runtime/valid/json-errors.hd	runtime	accept	std/json.md#r-std-json.error.position-bytes
 runtime/valid/json-numbers.hd	runtime	accept	std/json.md#r-std-json.number.eq
-runtime/valid/json-object-order.hd	runtime	accept	std/json.md#r-std-json.parse.object.duplicate
+runtime/valid/json-object-order.hd	runtime	accept	std/json.md#r-std-json.parse.object.duplicate-last
 runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
 runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float

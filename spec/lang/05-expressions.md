@@ -595,8 +595,8 @@ fn numbers(count: i32) -> List[i32]:
 #### Map Literals
 
 1. r[expr.map.order] A map literal evaluates each key and then its value, processing entries from left to right.
-2. r[expr.map.duplicate] If two evaluated entries have equal keys, the later value replaces the earlier value without changing that key's first insertion position.
-3. r[expr.map.iteration] Map iteration is in insertion order and is not part of map equality.
+2. r[expr.map.duplicate.last] If two evaluated entries have equal keys, the later value replaces the earlier value.
+3. r[expr.map.iteration.order] Map iteration follows the map's [deterministic order](04-type-system.md#r-types.map.order.deterministic) and is not part of map equality.
 4. r[expr.map.keys] Key validity and equality/hash requirements are defined in [Type System](04-type-system.md#map-key-types).
 
 ```hd

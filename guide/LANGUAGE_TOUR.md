@@ -2512,9 +2512,10 @@ fn lookup_users!(request: LookupRequest) -> Result[List[User], LookupError] $ Da
 
 Mutable types, trait values, closures, and live runtime handles cannot appear anywhere in an exported parameter or result. So an error type that holds an erased `dyn Error` cannot cross either; convert it with `std.error`'s `report_of` to an `ErrorReport` first. Requirement keys such as `Database` are host bindings and do not cross as serialized function arguments. Export registration checks the complete signature and generates the boundary conversion.
 
-Maps iterate in insertion order. Replacing an existing key keeps its position;
-removing and reinserting it moves it to the end. Map equality and boundary
-meaning remain independent of that order, so consumers must not attach semantic
+Maps iterate in a deterministic order: the same program on the same data
+iterates a map the same way in every run, but the order need not be insertion
+order. Sort the keys when the order matters. Map equality and boundary meaning
+remain independent of that order, so consumers must not attach semantic
 meaning to field order unless their own format explicitly does so.
 
 ## Tests

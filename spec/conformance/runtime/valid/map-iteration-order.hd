@@ -1,0 +1,20 @@
+use std.testing.assert_equal
+
+fn keys(values: Map[string, i32]) -> List[string]:
+    let result: mut List[string] = []
+    for (key, value) in values:
+        result.push(key)
+    result
+
+fn total(values: Map[string, i32]) -> i32:
+    let sum = +0
+    for (_, value) in values:
+        sum = sum + value
+    sum
+
+tests:
+    it("map iteration visits each entry once, in the same order every time"):
+        values := {"first": +1, "second": 2, "third": 3}
+        assert_equal(total(values), 6, reason="each value once")
+        assert_equal(keys(values).len(), 3, reason="each key once")
+        assert_equal(keys(values), keys(values), reason="a deterministic order")

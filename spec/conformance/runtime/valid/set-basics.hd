@@ -1,4 +1,4 @@
-# test: a Set keeps distinct elements in insertion order; insert and remove report a change
+# test: a Set keeps distinct elements in a deterministic order; insert and remove report a change
 # Spec std/collections Set: std-collections.set.decl, .distinct, .len, .contains, .insert, .remove, .iter, and .eq.
 use std.collections.Set
 use std.testing.{assert, assert_equal}
@@ -27,13 +27,14 @@ tests:
         assert(set.contains("x") && !set.contains("y"), reason="contains")
         assert(set.remove("x") && !set.remove("x"), reason="remove reports a change")
         assert_equal(set.len(), 0, reason="empty again")
-    it("iterates in insertion order; a removed element goes to the end when inserted again"):
+    it("iterates each element once, in the same order every time"):
         let set: mut Set[string] = Set::new()
         _ := set.insert("a")
         _ := set.insert("b")
         _ := set.remove("a")
         _ := set.insert("a")
-        assert_equal(listed(set), ["b", "a"], reason="insertion order")
+        assert_equal(listed(set).sorted(), ["a", "b"], reason="each element once")
+        assert_equal(listed(set), listed(set), reason="a deterministic order")
     it("equal sets have the same elements in any order"):
         let left: mut Set[i32] = Set::new()
         let right: mut Set[i32] = Set::new()

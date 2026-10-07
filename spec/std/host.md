@@ -84,14 +84,14 @@ tests:
         vars := MapEnv::new({"GREETING": "hi", "HOME": "/home/me"})
         $.with(Args=given, Env=vars):
             assert_equal(greeting(), "hi, 2", reason="one variable, two arguments")
-        assert_equal(vars.names(), ["GREETING", "HOME"], reason="insertion order")
+        assert_equal(vars.names().sorted(), ["GREETING", "HOME"], reason="both keys")
 ```
 
 1. r[std-host.map-args.decl] `std.host` declares `MapArgs`, which implements `Args`, with private fields. Code imports it, as in `use std.host.MapArgs`.
 2. r[std-host.map-args.new] `MapArgs::new(program: string, values: List[string]) -> MapArgs` returns a provider whose `program` returns `program` and whose `list` returns `values`.
 3. r[std-host.map-env.decl] `std.host` declares `MapEnv`, which implements `Env`, with private fields. Code imports it, as in `use std.host.MapEnv`.
 4. r[std-host.map-env.new] `MapEnv::new(values: Map[string, string]) -> MapEnv` returns a provider whose `get(name)` returns the value of the key `name` in `values`, or `.None` when there is no such key.
-5. r[std-host.map-env.names] `names` on a `MapEnv` returns the keys of `values` in insertion order.
+5. r[std-host.map-env.names.order] `names` on a `MapEnv` returns the keys of `values` in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
 6. r[std-host.map.no-host] Neither provider reads the host's arguments or environment.
 
 > **Why.** A test states every argument and variable that the code under
