@@ -1,6 +1,11 @@
 # New Compiler: Type Checking
 
-Status: Design, not decided. Frontend lane, 2026-10-07.
+Status: Design, not decided. Frontend lane, 2026-10-07. Revised the same
+day for the Codex review of 8bb6860d
+([frontend response](codex-review-response-frontend.md)), the changes that
+[trait-solver.md §16.4](trait-solver.md#164-changes-needed-in-type-checkingmd-and-the-other-design-files)
+asks for, and [data-structures.md](data-structures.md) §3.4, §3.9 and
+§3.18 to §3.19.
 
 This document details the body checker of the new compiler. It refines
 these sections of [COMPILER_DESIGN.md](design-overview.md) (part D1):
@@ -19,7 +24,7 @@ these sections of [COMPILER_DESIGN.md](design-overview.md) (part D1):
 - [§6 Scheduler](scheduler.md#6-scheduler-and-task-graph) and
   [§8 Determinism And Soundness Tests](testing-the-compiler.md#8-determinism-and-soundness-tests).
 
-The trait solver gets its own design, `trait-solver.md`, after this one.
+The trait solver has its own design, [trait-solver.md](trait-solver.md).
 Section 1.6 states the interface between the two.
 
 ## How To Read This
@@ -99,6 +104,7 @@ pub struct BodyResult {
     pub diags: Vec<Diagnostic>,           // unsorted; ModuleFinish sorts (§12)
     pub result_ty: Option<Ty>,            // M1 bodies only: the inferred result
     pub row_facts: RowFacts,              // M3 input (§5.5)
+    pub pending_calls: Vec<PendingCall>,  // calls whose providers M3 fills (§5.5)
     pub init_facts: InitFacts,            // init summary input (§8.4)
     pub fuel_used: u64,                   // reported in test mode (§14)
     pub tir: Option<TirBody>,             // None only in no-emit mode (§1.5)
@@ -134,9 +140,10 @@ pub enum TyView<'a> {            // a typed view; borrowed, never stored
     Fn { params: &'a [Ty], result: Ty, row: RowRef, suspends: bool },
     TraitValue { def: DefId, args: &'a [Ty], bindings: &'a [(Symbol, Ty)] },
     Param(ParamRef),             // declared, rigid; never inferred
-    Assoc { base: Ty, trait_: DefId, name: Symbol },
+    Assoc { assoc: DefId, tref: TraitRef },  // a projection; trait-solver.md §2.1
     Mut(Ty),                     // the mutable view `mut T`; `T` alone is readonly
     Infer(InferVar),             // body-local only
+    Rigid(RigidVar),             // body-local only: a GADT existential of one arm (§6.1)
 }
 
 pub trait TyRead {
@@ -151,8 +158,20 @@ pub trait TyBuild: TyRead {
 
 - **`Mut`, not `Readonly`.** In the spec `T` is the readonly view and
   `mut T` is the marked form
-  ([Views](../../spec/lang/04-type-system.md#views)). D1's `Readonly(Ty)`
-  is inverted; see section 17.
+  ([Views](../../spec/lang/04-type-system.md#views)).
+  [data-structures.md §3.4](data-structures.md#34-types) now uses `Mut`
+  too.
+- **`Rigid` for existentials.** Each GADT arm gives each existential a
+  fresh rigid placeholder. It unifies only with itself and lives in the
+  body-local pool, as data-structures.md §3.4 has it. The pool sets
+  `HAS_RIGID` on every type that holds one, so the escape test of
+  section 6.1 is one load for most types.
+- **Projections name their item.** `Assoc` holds the associated type's
+  own `DefId` and the instantiated trait reference, so
+  `<S as Add[i32]>::Out` and `<S as Add[i64]>::Out` are different types
+  ([trait-solver.md §2.1](trait-solver.md#21-trait-references)).
+  data-structures.md §3.4 still has `{ base, trait_, name }`; the backend
+  lane changes it (trait-solver.md change 15).
 - **One inference-variable form.** D1 has `Infer` and `IntLit`. Here a
   literal is an ordinary `Infer` variable whose kind (general, integer
   literal, float literal) lives in the inference table, because two
@@ -179,13 +198,46 @@ on, and what it promises in return.
 
 | Builder operation | Checker use |
 | --- | --- |
-| `konst`, `local`, `get`, `set`, `prim`, `emit` | every expression, in evaluation order |
-| `call` with a `Callee` record and `Providers` | every resolved call; providers in key order, or `Pending(row variable)` for a private callee whose row M3 solves (section 5.5) |
+| `konst` | a literal or other constant: a constant `Ref` into the global pool, with no instruction ([§3.18](data-structures.md#318-tir)) |
+| `local`, `get`, `set`, `prim`, `emit` | every expression, in evaluation order |
+| `reserve`, `fill` | a slot in the open block's list, filled later, once (the four cases below) |
+| `call` with a `Callee` record and `Providers` | every resolved call; `(key, provider)` pairs, or `Pending(index)` naming a pending call record for a private callee whose row M3 solves (section 5.5) |
 | `await_` | bang calls, `s!()`, `all!`, `race!`; the builder records the enclosing scope chain |
 | `coerce` | each coercion found by `coerce` (section 4.2) |
 | `open_block`/`close_block`, `open_scope`/`defer`/`close_scope`, `open_loop`, `sub_body` | every block, cleanup scope, loop and closure, opened and closed in source nesting |
 | `checkpoint`, `rollback` | every trial (section 3.5) |
 | `finish(solution)` | once per body, at its end: the final type sweep and, in debug builds, the verifier |
+
+**When the checker reserves a slot.** A block's list is evaluation
+order, but the checker does not always decide in that order
+([§3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation)).
+It reserves in exactly four cases:
+
+1. **A postponed argument** (section 2.4 step 4): its slot is reserved at
+   its source position and filled when the argument is checked.
+2. **A left operand checked second** (section 2.5, operators): when the
+   left operand is built only of unsuffixed literals and is not a bare
+   constant, its slot is reserved before the right operand is checked.
+3. **An arm or branch tail** of an `if`, `match` or value loop with no
+   expected type: the coercion to the joined type is known only at the
+   join (section 4.3), so each tail reserves a slot that the join fills.
+4. **A stalled method call** (section 2.5): its callee record is filled
+   when the receiver's type is known, at the latest at the end of the
+   statement.
+
+Slots live on the scratch stack, so a trial's rollback removes the slots
+it reserved. A slot still empty at the end of the body is a checker bug,
+which `finish` reports as an internal error.
+
+**Constants have no span in TIR, and the checker needs none.** A literal
+is a constant `Ref` with no instruction and no `syn` entry. The checker
+reports literal diagnostics (`integer-literal-range`, the `+N` hint) from
+its own literal table, which keeps each literal's syntax node (section
+3.6), and promise 6 below means it never reads TIR back. One gap is the
+backend's: a literal whose width is still open when it is emitted has no
+global constant form yet (review finding I7). The checker needs `konst`
+to take such a literal; it gets its width from the `Solution` at
+`finish`.
 
 **What the checker promises.** These are the invariants of §4.13.11
 seen from the caller's side.
@@ -195,6 +247,8 @@ seen from the caller's side.
    bound's index), or stored evidence. Operators, interpolation,
    indexing, iteration, `?`, pipes, compound assignment, comprehensions
    and default arguments arrive desugared, as D2's desugaring table says.
+   A default is a call of the default's own body with the earlier
+   arguments (section 2.4 step 3).
 2. **Every implicit conversion is a `coerce`.** So every operand's type
    equals the type its position expects (invariant 4).
 3. **Scopes are explicit.** Every cleanup scope of
@@ -232,23 +286,27 @@ This design keeps that default and adds one mode:
 The no-emit mode saves about 200 bytes per source line of transient
 memory and the emission time where no build can follow. Its `check`
 entry is written without a `tir` entry, so a later build rechecks that
-module. Section 16 question 5 asks whether the mode is worth having.
+module. The mode is accepted for the playground and `hd fix`
+(orchestrator, 2026-10-07).
 
 ### 1.6 The Trait Solver Interface
 
 The checker asks the solver four kinds of goals. The solver never
 writes the checker's state, never reports a diagnostic, and never sees
-spans.
+spans. [trait-solver.md](trait-solver.md) designs the solver; this is the
+interface as the checker sees it, with that design's changes 1 to 5.
 
 ```rust
+pub struct TraitRef { pub trait_: DefId, pub self_ty: Ty, pub args: TyList }
+
 pub enum Goal {
-    /// `ty: Trait[args, bindings]`.
-    Implements { ty: Ty, trait_: DefId, args: TyList, bindings: AssocList },
-    /// Normalize `<base as Trait[args]>::name`.
-    Project { base: Ty, trait_: DefId, args: TyList, name: Symbol },
-    /// Every instantiation `Trait[A..]` that `ty` implements.
+    /// `self_ty: Trait[args, bindings]`; `mut_` for a `T < mut Tr` bound.
+    Implements { tref: TraitRef, bindings: AssocList, mut_: bool },
+    /// Normalize `<self_ty as Trait[args]>::assoc`; `assoc` is the item's own DefId.
+    Project { assoc: DefId, tref: TraitRef },
+    /// Every instantiation `Trait[A..]` that `self_ty` implements.
     /// For bound-only parameters and for choosing among instantiations.
-    Instantiations { ty: Ty, trait_: DefId },
+    Instantiations { self_ty: Ty, trait_: DefId, mut_: bool },
     /// The method candidates named `name` for a receiver type,
     /// inherent first, then available traits.
     Methods { receiver: Ty, name: Symbol },
@@ -256,7 +314,8 @@ pub enum Goal {
 
 pub enum Answer {
     Holds { evidence: Evidence, learned: SmallVec<[(InferVar, Ty); 2]> },
-    Many(SmallVec<[Candidate; 4]>),          // Instantiations and Methods only
+    Normalized { ty: Ty, evidence: Evidence, learned: SmallVec<[(InferVar, Ty); 2]> }, // Project only
+    Many { candidates: SmallVec<[Candidate; 4]>, unavailable: SmallVec<[DefId; 2]> }, // Instantiations, Methods
     Fails(FailInfo),                         // closest impl, failed subgoal, for the message
     Stalled { on: SmallVec<[InferVar; 2]> }, // needs more inference first
     Overflow,                                // trait-resolution-depth
@@ -264,57 +323,89 @@ pub enum Answer {
 }
 
 pub enum Evidence {
-    Impl { def: DefId, args: TyList },       // a written, derived or template impl
-    Bound { param: ParamRef, index: u16 },   // from the parameter environment
-    Builtin(BuiltinImpl),                    // tuples at every arity, numeric families, Fn
-    Coinductive,                             // a derived impl's own member check
+    Impl { row: ImplRef, args: TyList },     // written, derived, delegated, generated, numeric family, tuple template
+    Bound { param: ParamRef, index: u16 },   // a clause index in the elaborated environment
+    TraitValue { trait_: DefId },            // the self type is a trait value of this trait or a subtrait
+    Builtin(BuiltinImpl),                    // Any, AnyVal, AnyRef, Inspectable, Tuple, Num, Integer, Float, Suspend
     Poison,
 }
 
 pub struct SolveCx<'a> {
-    pub env: &'a ParamEnv,          // declared bounds plus GADT arm equalities (§6.1)
+    pub env: ArmEnv<'a>,            // the item's elaborated ParamEnv plus active arm equalities (§6.1)
     pub infer: &'a dyn InferRead,   // shallow resolution of inference variables
     pub avail: AvailKey,            // which traits are available in this module
-    pub local_impls: &'a LocalImpls,
-    pub memo: &'a mut BodyMemo,     // per-body memo for goals with variables; owned by BodyCx
+    pub local_vis: LocalVis,        // the local impls visible at this point
+    pub memo: &'a mut BodyMemo,     // per-body memo and `met` set; owned by BodyCx
 }
 
 pub trait Solver: Sync {
     fn solve(&self, cx: &mut SolveCx<'_>, goal: Goal, fuel: &mut Fuel) -> Answer;
+    fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey;
+    fn select(&self, tref: ConcreteTraitRef) -> Selection;          // codegen only
+    fn normalize_concrete(&self, assoc: DefId, tref: ConcreteTraitRef) -> Ty; // codegen only
 }
 ```
 
+- **No `Coinductive` evidence.** A derive instance's member goals reach
+  the derived head as an ordinary `Impl`, so the search never meets a
+  cycle it must assume
+  ([trait-solver.md §3.10](trait-solver.md#310-derives-delegation-and-error)).
+- **Tuples are templates.** Tuple `Eq`, `Ord`, `Hash` and `Debug` are
+  `Impl` evidence of std's tuple templates, not `Builtin` (section 6.2).
+- **`elaborate`** runs once per item signature, when its body task
+  starts. The resulting `EnvKey` is part of every memo key that names a
+  parameter.
+
 **How the checker uses answers.**
 
-- `Holds` with `learned` bindings: the checker applies each binding
-  through its own unifier, on its own trail (section 3.5). The solver
+- `Holds` or `Normalized` with `learned` bindings: the checker applies
+  each binding through its own unifier, on its own trail (section 3.5).
+  For `Normalized`, it then unifies `ty` with the other side. The solver
   stays pure, so its answers can be memoized.
 - `Stalled`: the checker keeps the goal as an **obligation** and watches
   the listed variables. It asks again when one of them is bound, and at
-  the latest at the end of the statement or the body (section 2.7).
+  the latest at the end of the statement or the body (section 2.7). A
+  `Project` that stalls on a variable inside its own base becomes a
+  **projection-equality obligation** `?0 == <?0 as Tr>::Item`; the
+  checker never binds a variable to a projection over itself
+  ([trait-solver.md §4.3](trait-solver.md#43-normalization-lazy-at-three-points)).
 - `Fails`: the checker reports the error, once per root cause, with
-  `FailInfo` for the message.
+  `FailInfo` for the message. One missing impl gives one error per body
+  and leaf goal, with an "and N more uses" note (owner, 2026-10-07).
 - `Overflow` and `OutOfFuel`: the checker reports the limit diagnostic
   and poisons the expression.
+- `Many.unavailable` lists traits that are not available but would
+  match. It feeds the `use` fix-it of `unknown-method` only.
 
 **What the checker sees of caching and budgets.**
 
-- **Memo.** The solver canonicalizes a goal (inference variables
-  renumbered by first occurrence) and memoizes it: globally when it has
-  no variables and no arm equality, per body otherwise
-  ([§4.12.2](resolution-and-interfaces.md#4122-solving)). The checker never
-  reads or writes memo entries itself.
-- **Fuel.** The checker passes its body's `Fuel`. The solver charges one
-  step per candidate tried and per subgoal expanded. A memo hit charges
-  the steps stored with the entry. So the fuel a goal costs is the same
-  on every run, thread count and cache state (lesson 3 of
+- **Memo.** The solver canonicalizes a goal: variables resolved, arm
+  equalities substituted, concrete projections normalized, remaining
+  variables numbered by first occurrence. The memo key holds the
+  canonical goal plus every input that can change the answer: the
+  `EnvKey` when the goal names a parameter, the `LocalVis` when it can
+  match a local impl, and the `AvailKey` for `Methods`. A goal with no
+  variable, no local type and no existential goes to the run's global
+  memo; any other goes to the body memo. A goal that met the depth cut
+  or ran out of fuel is never published globally
+  ([trait-solver.md §7.1](trait-solver.md#71-memo-keys-and-eligibility)).
+  The checker never reads or writes memo entries itself.
+- **Fuel.** The checker passes its body's `Fuel`. The first time a body
+  meets a canonical goal, the solver charges the goal's intrinsic cost:
+  1, plus the heads it matched, plus the costs of its distinct children.
+  Each later ask of the same goal in that body costs 1. So the fuel a goal
+  costs is the same on every run, thread count and cache state (rule
+  TS-5; lesson 3 of
   [Lessons For hd](prior-art-issues.md#lessons-for-hd)).
-- **Depth.** The solver counts nesting itself and answers `Overflow` at
-  `trait-resolution-depth`.
+- **Depth.** The solver tracks depth itself, by stored heights, and
+  answers `Overflow` at `trait-resolution-depth`. One level is a bound-plan
+  step, a tuple template's element obligation, an `Inspectable` step
+  through a type argument, or a projection step (owner, 2026-10-07).
 - **Stalled goals are not memoized globally**, since their answer depends
-  on the body. The per-body memo lives in the checker's `BodyCx` and is
-  lent to the solver for each call, so the solver itself holds no
-  per-body state.
+  on the body. The body memo lives in the checker's `BodyCx` and is lent
+  to the solver for each call. Its keys and answers live in its own
+  arena, over canonical placeholders, so a rollback that truncates the
+  body-local pool leaves no entry dangling.
 
 ### 1.7 Body Tasks And The Exactly-Once Rule
 
@@ -323,7 +414,7 @@ D1's phases stay. This design adds one rule.
 | Phase | Task | Bodies checked here |
 | --- | --- | --- |
 | M1 | `ModulePrep(m)`, serial | the module's top-level statements; every non-public function and inherent method whose result type is omitted; depth first (section 9) |
-| M2 | `Body(m, i)`, parallel | every other body: functions and methods with written results, impl members, derive instances, test bodies, fact and default expressions |
+| M2 | `Body(m, i)`, parallel | every other body: functions and methods with written results, impl members, derive instances, test bodies, default bodies, fact and shared-enum-data expressions |
 | M3 | `ModuleFinish(m)`, serial | no body: the row solve, deferred row checks, init summary, diagnostic sort |
 
 **Rule TC-4. Each body is checked exactly once per run.** A body checked
@@ -331,6 +422,32 @@ in M1 for its result type is not checked again in M2: its `BodyResult`
 is final. Rows never cause a recheck (section 5.5). Literal widths never
 cause a statement recheck (section 3.6). The only repeated work is a
 speculative trial (section 3.5), which is bounded and rolled back.
+
+**A body result is a function of the body and the module's frozen
+inputs.** An M2 `BodyResult` reads only its own syntax, the module scope,
+the private signatures (M1 results included) and the frozen interfaces
+(rule TC-9). This is what a later per-body cache would need: after a
+private body edit that leaves every private signature unchanged, only
+that body's result differs. The first release still rechecks the whole
+module ([cache.md](cache.md)); the review's edit-latency finding (P2) is
+the backend lane's.
+
+**Default and fact bodies (review finding 4).** They are checked once,
+where they are declared, and never at the call:
+
+| Body | Checked as | Evaluated |
+| --- | --- | --- |
+| a parameter default | a function of the earlier parameters and the declaration's generics, with the parameter's type as its result | at each call that omits it, after every explicit argument, in declaration order ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)) |
+| a data field default | a function of the declaration's generics only; it sees the declaration's lexical scope, not other fields | at each construction that omits it, in field order ([`data.default.eval`](../../spec/lang/08-data-and-enums.md#r-data.default.eval)) |
+| a fact, a metadata expression, a variant's shared-data constructor and its defaults | a body with no parameters | once, at compile time ([`annot.fact.eval`](../../spec/lang/14-annotations.md#r-annot.fact.eval), [`data.shared.compile-time`](../../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)) |
+
+All of them are restricted contexts (section 5.8) and must be
+requirement-free. The checker states which body a call's default is and
+passes the earlier argument values (section 2.4 step 3). It never
+decides how a default or a fact is evaluated: a per-call default
+instruction and the compile-time evaluator are the backend lane's
+(review finding 4; section 17). A dependent's check reads only a fact's
+type, never its value.
 
 ## 2. The Algorithm
 
@@ -382,14 +499,43 @@ uses `want`. "Infer" means it synthesizes and the caller coerces.
 | `$.use(K)` | infer | none | key must be in `available` (section 5.2) |
 | `$.with K=p: body` | check | `body` gets `want` | each provider checked against `K` |
 | `f!(args)` | as call | | suspension checks (section 5.7) |
-| `x is y` | infer both | none | identity rules |
+| `x is y` | infer both | none | identity rules; see below |
 | `_` | check | records `want` for the hole diagnostic | `placeholder-outside-pipe` (section 10.4) |
+
+**Identity `is`** ([Allocation Identity](../../spec/lang/05-expressions.md#allocation-identity),
+with the owner's answers of 2026-10-07, which the spec pass applies).
+After inferring both operands, the checker:
+
+1. Strips `mut` at every level of both types.
+2. Rejects a function type: `unsupported-function-identity`. Generic code
+   over `T < AnyRef` may still compare, with an unspecified result.
+3. Rejects a value type: `identity-requires-references`. An optional
+   takes its payload's category, so `i32?` and `(i32, i32)?` are rejected
+   too. Only `AnyRef` types pass: data, enums, `List`, `Map`, trait values
+   and `Any`, and optionals of those. This design reads `Result[T, E]`
+   the same way: it passes only when both `T` and `E` pass (section 16.1
+   reading 3).
+4. Requires compatible types: equal, or one a trait value or `Any` that
+   the other converts to. Otherwise `incompatible-identity-operands`.
+5. Emits the comparison desugared for optionals and results.
+   `.Some(...)`, `.Ok(...)` and `.Err(...)` have no identity of their
+   own, so `a is b` on two optionals is a `SwitchTag` on both: two
+   `.None`s give `true`, two `.Some`s give `is` on the payloads, and mixed
+   tags give `false`. Results compare the same way, tag by tag. TIR's
+   `Is` instruction therefore only ever sees two operands of nominal
+   reference types.
+
+When an `Any` or trait value holds a value type at run time, the result
+is unspecified. That is codegen's concern, not the checker's.
 
 ### 2.3 Statements And Blocks
 
 1. Statements are checked in source order. Each statement is a **literal
    scope**: open literal variables still unbound at its end take their
    default ([`types.literal.local.statement`](../../spec/lang/04-type-system.md#r-types.literal.local.statement)).
+   The one exception is a literal held by an open join: a `return`
+   operand of a body with an omitted result, or a `break` value of a
+   loop. It waits for that join (section 3.6).
 2. `let x = e`: infer `e`, then apply the binding rule for the view
    (section 8.1). `let x: T = e`: check `e` against `T`.
 3. An expression statement whose value is discarded is checked for
@@ -414,8 +560,13 @@ For a call `f(args)` whose callee resolves to a generic declaration:
    attempt is a speculation (section 3.5) and is rolled back on failure.
 3. **Match arguments to parameters.** Positional, then named, then
    spreads and varargs ([Calls](../../spec/lang/05-expressions.md#calls)).
-   A missing argument with a default is filled by a `Default`
-   instruction.
+   A missing argument with a default is filled by a **default call**:
+   after every explicit argument, in parameter declaration order, the
+   checker emits a call of that parameter's default body, with the
+   callee's type arguments and the values of the earlier parameters,
+   explicit or defaulted. Each call evaluates the default again, so a
+   default that allocates or mutates does so once per call. A data
+   literal fills an omitted field the same way, with no earlier fields.
 4. **Check arguments in source order.** Each argument is checked against
    its parameter type, which may hold variables. An argument that needs
    an expected type to check (a closure with unannotated parameters, a
@@ -466,25 +617,58 @@ first, then candidates from available traits
 | receiver is an unbound variable | `Stalled`: postpone to the end of the statement; if still unbound, `cannot-infer-type` naming the receiver |
 
 **The instantiation choice** ([Instantiations Of One Generic Trait](../../spec/lang/09-traits.md#instantiations-of-one-generic-trait)).
-For each candidate, in the solver's content order, the checker checks the
-arguments against the candidate's parameters inside a trial
-(section 3.5) and rolls back. A candidate fits if the trial has no
-error. Then:
+The solver returns the candidates in content order. The checker then:
 
-- one fit: check the call again for real against it;
-- several fits, and they differ only in the width of an open literal
-  argument: default the literal and choose again
-  ([`trait.resolve.literal-arg`](../../spec/lang/09-traits.md#r-trait.resolve.literal-arg));
-- several fits otherwise: `ambiguous-method`;
-- none: `type-mismatch` listing the instantiations.
+1. **Prefilters (change 7).** It drops each candidate whose parameter's
+   head constructor cannot match an argument whose type is already
+   known. No trial runs for those.
+2. **Tries each survivor.** Inside a trial (section 3.5) it checks the
+   arguments against the candidate's parameters. When the call has an
+   expected type, the trial then runs `coerce(result, want)`, still
+   inside the trial (change 9, review T4). A candidate **fits** if the
+   trial has no error. So `let n: i32 = money.pick()` picks `Pick[i32]`
+   when `Money` implements `Pick[i32]` and `Pick[string]`, as
+   [`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.fits.expected)
+   requires. Methods of two different traits are still `ambiguous-method`
+   whatever the expected type.
+3. **Chooses:**
+   - one fit: check the call again for real against it;
+   - several fits, and they differ only in the width of an open literal
+     argument: default the literal and choose again
+     ([`trait.resolve.literal-arg`](../../spec/lang/09-traits.md#r-trait.resolve.literal-arg));
+   - several fits otherwise: `ambiguous-method`;
+   - none: `type-mismatch` listing the instantiations.
 
-Trial cost is bounded. Arguments that check the same way for every
-candidate (they have no expected-type dependence) are inferred once
-before the trials, and a trial only unifies their types. Only postponed
-arguments (step 4 above) are checked once per candidate. Every trial
-charges fuel. So a nested chain of such calls costs at most
-candidates × postponed-argument size per level, and fuel stops a
-pathological program with `item-too-complex`.
+**Trial cost.** Arguments that check the same way for every candidate
+(they have no expected-type dependence) are inferred once before the
+trials, and a trial only unifies their types. Only postponed arguments
+(step 4 above) are checked once per candidate. Every trial charges fuel.
+
+**The per-site trial memo (change 8, mine).** Nested calls multiply
+trials: the real check of an outer call re-checks its inner calls, and
+each outer candidate's trial checks them too. So each call site keeps its
+trial outcomes in the body's trial memo, keyed by:
+
+- the call's syntax node and the candidate's index;
+- the canonical expected type and the canonical types of the arguments
+  inferred before the trials, numbered as the solver numbers variables
+  (trait-solver.md §2.2).
+
+An entry records only "fits" or "does not fit". It is valid only if the
+trial read no other inference variable from outside itself. The trial
+tracks this: a `find` on a variable older than the trial's checkpoint
+that is not in the key marks the outcome **tainted**, and a tainted
+outcome is not stored. A closure body that reads an outer local whose
+type is still open is the usual cause. A hit costs 1 fuel. With the memo,
+a site under `n` outer candidates sees at most `n` distinct keys, so 20
+nested levels of two candidates cost about 80 trials, not a million
+([trait-solver.md §7.6](trait-solver.md#76-bounded-is-not-linear)). The
+memo is per body and never rolled back: its keys name no variable, and
+an untainted outcome depends on nothing else.
+
+**Unavailable traits.** A `Methods` answer also lists traits that are
+not available but would match (change 10). The checker uses the list
+only for the `use` fix-it of `unknown-method` (section 10.5).
 
 **Operators.** `a op b` follows
 [Operator Traits](../../spec/lang/05-expressions.md#operator-traits):
@@ -507,7 +691,10 @@ pathological program with `item-too-complex`.
 2. Without it, every parameter needs an annotation:
    `closure-parameter-needs-annotation`.
 3. An omitted result is the LCT of the final value and every `return`
-   operand (section 4.3).
+   operand (section 4.3). Literal `return` operands stay open until that
+   join, even across statements
+   ([`types.literal.local.form.closure-return.statements`](../../spec/lang/04-type-system.md#r-types.literal.local.form.closure-return.statements),
+   section 3.6).
 4. A closure is monomorphic. Its body is checked inside the enclosing
    body, with the same inference table, and is part of the same body
    task.
@@ -527,19 +714,33 @@ functions and itself, so the only cycle is self-recursion, which is
 
 | Variable | Resolved | If still open |
 | --- | --- | --- |
-| literal (integer or float) | as soon as it meets a concrete numeric type; else at the end of its statement, by default | never open past its statement |
+| literal (integer or float) | as soon as it meets a concrete numeric type; else at the end of its statement, by default; a class held by a join, at the join (section 3.6) | never open past its statement or its join |
 | use-site type argument | when unified; else at the end of the call's statement, after defaults | `cannot-infer-type` or `ambiguous-type` |
 | local binding's type | from its initializer, in its statement | an empty collection literal can leave its element open to the end of the body (section 2.8) |
 | closure parameter | from `Expect::Fn` or the annotation | `closure-parameter-needs-annotation` |
 | omitted private result | at the end of its body in M1 | never open |
-| private row variable | in M3 | never open |
+| private row variable | in M3, then the row sweep (section 5.5) | never open |
 
 **Obligations.** A stalled goal goes on the body's obligation list with
-the variables it waits on. Each variable has a watch list (section 13).
-Binding a variable wakes its watchers. Woken obligations are retried at
-the next statement boundary, and before any step that needs their
-answer, such as method lookup on a stalled receiver. They are retried in
-creation order, so the result does not depend on which binding woke them.
+the variables it waits on and the arm environment it was asked under
+(section 6.1). Each variable it waits on gets one **watch edge**, a row
+`(variable, obligation, next)` in an append-only table; the variable's
+`watch_head` points at its newest edge (section 13). One obligation that
+waits on three variables has three edges, one in each list.
+
+- **Waking.** Binding a variable, or uniting it under another root,
+  wakes the obligations on its edges. A woken obligation is queued once
+  per wake round: its state moves from `Pending` to `Woken`, and a second
+  wake in the same round finds it `Woken` and does nothing (change 11).
+- **Retrying.** Woken obligations are retried at the next statement
+  boundary, and before any step that needs their answer, such as method
+  lookup on a stalled receiver. They are retried in creation order, so
+  the result does not depend on which binding woke them. A retry is
+  charged the goal's size, and one that stalls again adds edges on the
+  variables it now waits on.
+- **Projections.** A stalled `Project` whose base holds the variable it
+  would bind is a projection-equality obligation, retried like any other
+  (section 1.6).
 
 ### 2.8 Empty Collections
 
@@ -577,6 +778,11 @@ expected type, and a placeholder slot `_` in an explicit list.
 - Each root also holds a **blame span**: the span of the first
   unification that bound it. A mismatch message names it ("expected
   `i64` because of this argument").
+- Each root holds a **birth**: the creation index of the oldest variable
+  in its class. Union keeps the smaller. Section 6.1 uses it to tell a
+  variable from outside a GADT arm from one made inside it.
+- A union wakes the watchers of the root that stops being a root, so
+  their obligations re-stall on the new root (section 2.7).
 - `unify(a, b)` resolves both sides shallowly, then:
   - two unbound roots: union; merge kinds (section 3.6);
   - a root and a type: occurs check, kind check, bind;
@@ -633,38 +839,60 @@ column lengths, and rollback truncates them all, plus the inference trail
 The checker uses exactly that protocol.
 
 **Rule TC-5. One rollback contract.** Every piece of body state that a
-check can change is one of:
+check can change is in exactly one of these four classes. The review
+(T2) found fields that the first version left out; the table lists every
+field of section 13.
 
-1. an **append-only column**: TIR instructions, `extra` and locals
-   through the builder; the scratch buffer; the local pool; buffered
-   diagnostics; obligations; row facts; init facts; or
-2. a **slot written only through the trail**: union-find parents and
-   ranks, bindings, variable kinds, GADT arm equalities, local flags, the
-   definite-assignment bits.
+| Class | Rollback | Fields |
+| --- | --- | --- |
+| **append-only column** | truncated to its checkpoint length | through the builder: TIR instructions, `extra`, labels, locals (one table with the checker's columns), sub-bodies, captures, side tables, reserved slots, the body-local pool and its `resolved` column. In the checker: buffered diagnostics, obligations, watch edges, the wake queue, row facts, pending call records, init facts, scope bindings, the arm-environment table, literal members, the "reported once" list |
+| **trailed slot** | the trail restores the old value | per variable: parent, rank, binding, kind, blame, birth, `watch_head`, literal-class data (signed, first span, held by a join, defaulted); per obligation: state; per local: flags and the definite-assignment bits; per scope: its newest binding; per pool row below the checkpoint: a `resolved` entry |
+| **balanced stack** | equal depth at the trial's end, asserted | `scopes`, `loops`, `fns`, `avail`, `restricted`, the open GADT arms, the open literal scopes, the divergence flag. A trial checks whole expressions, which push and pop in pairs |
+| **kept on purpose** | never rolled back | fuel (rule TC-8); the solver's body memo and its `met` set (trait-solver.md rule TS-5); the trial memo (section 2.5); an M1 body checked during a trial, which runs in its own `BodyCx` and is final (TC-4) |
 
-A checkpoint records each column's length and the trail's length.
-Rollback pops the trail, restoring each old value, and truncates each
-column. Nothing else in a body is mutable, and no checker state is ever
-cloned.
+Three fields needed a new layout to fit a class:
+
+- **Watch lists** were a `next` column on each obligation, which cannot
+  put one obligation on several variables' lists. They are now an
+  append-only edge table, with each variable's head trailed (section
+  2.7).
+- **The `resolved` memo** of the local pool maps a local type to its
+  global resolution. A trial that binds `?T := i32` and resolves a
+  pre-existing `List[?T]` must not leave `List[i32]` cached after
+  rollback. A write to `resolved` for a row older than the checkpoint
+  goes on the trail; a newer row is truncated anyway.
+- **The error count** that decides whether a trial failed is the number
+  of error diagnostics in the buffer, so truncation restores it.
+
+A checkpoint records each column's length and the trail's length. The
+builder's lengths, the local pool's included, are in its `TirCheckpoint`
+([§3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation)),
+so the checker's part does not repeat them. Rollback pops the trail,
+restoring each old value, and truncates each column. No checker state is
+ever cloned.
 
 ```rust
 #[derive(Copy, Clone)]
-pub struct Checkpoint {                  // the checker's part; `tir` is D2's (§3.9.5)
-    trail: u32, diags: u32, obligations: u32, local_pool: u32,
-    row_facts: u32, init_facts: u32, tir: tir::Checkpoint,
+pub struct Checkpoint {                  // the checker's part; `tir` holds the local pool's length
+    trail: u32, diags: u32, errors: u32, obligations: u32, watch_edges: u32,
+    wake_queue: u32, row_facts: u32, pending_calls: u32, init_facts: u32,
+    scope_binds: u32, arm_envs: u32, lit_members: u32, reported: u32,
+    stacks: StackDepths,                 // asserted equal at rollback, not restored
+    tir: tir::TirCheckpoint,
 }
 
 enum Undo {                              // 8 bytes: tag + index; old value in `trail_old`
     Parent(InferVar), Rank(InferVar), Bind(InferVar), Kind(InferVar),
-    ArmEq(u32), LocalFlag(LocalId), Assigned(LocalId),
+    Blame(InferVar), Birth(InferVar), WatchHead(InferVar), LitClass(InferVar),
+    ObState(ObId), LocalFlag(LocalId), Assigned(LocalId), ScopeHead(ScopeId),
+    Resolved(PoolRow),
 }
 
 impl<B: TirSink> Checker<'_, B> {
     fn trial<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> (R, bool /* had error */) {
         let c = self.checkpoint();
-        let errors_before = self.error_count;
         let r = f(self);
-        let failed = self.error_count > errors_before;
+        let failed = self.diags.errors() > c.errors;
         self.rollback(c);
         (r, failed)
     }
@@ -673,24 +901,25 @@ impl<B: TirSink> Checker<'_, B> {
 
 - **Path halving writes too.** `find` shortens paths, which writes
   parents. Inside a trial those writes go on the trail like any other.
-  When no trial and no GADT arm is open, the trail is cleared at each
-  statement boundary, since nothing can roll back past that point, so
-  halving costs nothing extra there.
-- **The per-body solver memo is not rolled back, and need not be.** Its
-  keys are canonical goals with variables already resolved, so an entry
-  stays true after a rollback. Fuel is charged on every hit, so keeping
-  it changes no budget (TC-8).
+  When no trial is open, the trail is cleared at each statement
+  boundary, since nothing can roll back past that point, so halving costs
+  nothing extra there.
+- **The solver's answers own their storage.** Body-memo keys and answers
+  live in the memo's own arena, over canonical placeholders, never in the
+  local pool. So truncating the pool cannot leave an entry dangling
+  ([trait-solver.md §7.1](trait-solver.md#71-memo-keys-and-eligibility)).
 - **Users of `trial`:** the expected-result attempt (section 2.4), the
   instantiation choice (section 2.5), LCT joins (section 4.3), key
-  collision checks (section 5.2), and hole candidates (section 10.4). GADT
-  arms use a checkpoint with a scoped pop (section 6.1). No other code
-  rolls back.
+  collision checks (section 5.2), and hole candidates (section 10.4). No
+  other code rolls back. GADT arms do not roll back at all (section 6.1).
 - **Trials nest, within fuel.** Every trial charges a fixed cost plus the
   steps it takes, so fuel bounds the product of nested trials.
-- **Debug check (mine).** In debug builds, `rollback` compares a hash of
-  the inference table, flags and column lengths with the hash taken at
-  the checkpoint. A mismatch is an internal error naming the trial's
-  span. This is the verifier for TC-5.
+- **Debug check (mine).** In debug builds, `rollback` compares a content
+  hash with the one taken at the checkpoint. The hash covers every
+  trailed slot, every column length, the stack depths, and the indices
+  that slots point at: no `watch_head`, obligation or scope head may
+  point past its column's length. A mismatch is an internal error naming
+  the trial's span. This is the verifier for TC-5.
 
 ### 3.6 Literal Widths
 
@@ -720,6 +949,35 @@ otherwise, `f64` for floats
 The statement's open classes are a per-statement list, so defaulting
 walks only them.
 
+**Joins that cross statements (review T5).** The return paths of one
+closure, and the `break` and `else` values of one loop, join although
+they sit in different statements
+([`types.literal.local.form.closure-return.statements`](../../spec/lang/04-type-system.md#r-types.literal.local.form.closure-return.statements)).
+So `return 0` early in a closure whose last value is an `i64` must give
+`0` the type `i64`, not `usize`. The mechanism:
+
+1. Each open join (a body with an omitted result, or a value loop with no
+   expected type) keeps a list of the values it will join, and a list of
+   **held classes**.
+2. When a `return` or `break` operand's type is an open literal class,
+   the class is marked held (a trailed flag on its root) and added to the
+   join's list. Defaulting at the end of a statement skips held classes.
+3. At the join (the end of the body, or the end of the loop), the LCT
+   fold of section 4.3 runs over the collected values. A held class meets
+   the typed values there and binds. A held class still open after the
+   fold takes its default then.
+4. A held class that meets a type earlier, inside its own statement,
+   binds at once as usual; holding only delays defaulting.
+
+A literal that leaves its statement some other way, for example in a
+`let` binding, takes no part: the binding's type is fixed at the end of
+its statement ([`types.literal.local.statement`](../../spec/lang/04-type-system.md#r-types.literal.local.statement)).
+The spec names closures only. This design treats a private function or
+local `fn` with an omitted result the same way, since its result is the
+same kind of LCT site
+([`types.lct.sites`](../../spec/lang/04-type-system.md#r-types.lct.sites));
+section 16.1 reading 1 asks to confirm.
+
 **Where a literal meets a type without unifying.** Three forms need care:
 
 | Form | Rule | Mechanism |
@@ -737,18 +995,19 @@ solve it: `5.max(n)` with `n: i64` gives `i64`. Otherwise the class takes
 its default before lookup, so `10.halve()` with only `impl Halve for i64`
 is an error against `usize`, as the spec's note requires.
 
-**No statement retry (mine, needs confirming).** The spec permits a
-checker to meet [`types.literal.local.join`](../../spec/lang/04-type-system.md#r-types.literal.local.join)
-by re-checking a failed statement once per width its failure names. The
-prototype did that, with a weaker rollback and with widths scraped from
-diagnostic text. With classes, a literal binds to the width it meets the
-moment it meets it, so the default is used only when nothing decides the
-class. The claim is that this gives the spec's result for every form in
-the spec's table. The one place it may differ is a statement whose
-literals form two or more separate classes meeting different widths;
-section 16 question 1 asks which reading the spec means. A test-only
-**oracle mode** implements the spec's retry rule literally, over the same
-trail, and the differential fuzzer compares the two (section 14).
+**No statement retry (owner, 2026-10-07).** A literal's width is decided
+once per connected literal class, by union-find, not by re-checking a
+failed statement. The prototype re-checked, with a weaker rollback and
+with widths scraped from diagnostic text. With classes, a literal binds
+to the width it meets the moment it meets it, so the default is used
+only when nothing decides the class. In `(pick(1, big), pick(2, small))`
+with `big: i64` and `small: i32`, `1` is `i64` and `2` is `i32`. The spec
+pass rewords
+[`types.literal.local.join`](../../spec/lang/04-type-system.md#r-types.literal.local.join)
+to say so. A test-only **oracle mode** implements the old retry rule
+literally, over the same trail, and the differential fuzzer compares the
+two (section 14). After the rewording, a difference that only separate
+classes explain is expected; any other is a bug.
 
 **The `+N` style.** When a class defaulted to `usize` later meets a
 signed type or a negative operation, the error points at the literal and
@@ -848,7 +1107,9 @@ against the expected type. Without one:
    is `no-least-common-type`. If no step applies, it is `no-common-type`
    ([`types.lct.no-least`](../../spec/lang/04-type-system.md#r-types.lct.no-least)).
 6. **Coerce.** Each value then gets the coercion from its type to the
-   joined type, as a `Coerce` instruction.
+   joined type, as a `Coerce` instruction. A branch or arm tail was
+   emitted before the join was known, so it reserved a slot, which the
+   join fills now (section 1.5).
 
 Each `join` is a trial over two types and costs fuel per step. The fold
 is linear in the number of values, so a list literal of 100,000 elements
@@ -884,13 +1145,20 @@ pub struct BodyRow {
     params: SmallVec<[RowParamRef; 1]>,   // declared row parameters listed in the row
     pending: SmallVec<[PendingRow; 1]>,   // private callees' rows, solved in M3
 }
-pub struct PendingRow { var: RowVar, minus: RowId }   // RowVar(f) minus these keys
+/// RowVar(g) as seen from one call: g's solved row, with g's generics
+/// replaced by the call's arguments, minus the keys that `$.with` blocks
+/// around the call provide.
+pub struct PendingRow { var: RowVar, subst: SubstRef, minus: RowId }
+pub struct RowVar(u32);   // the private callable's item index in its module: stable, not body-local
 ```
 
 - Keys are sorted by `Ty` value for in-run merges. They are re-sorted by
   stable content for printing and hashing (D1 §4.13.4).
 - Entailment is membership after alias expansion
   ([Entailment](../../spec/lang/11-requirements-and-suspension.md#entailment)).
+- `subst` maps the callee's type parameters and row parameters to the
+  call's arguments, so one generic callee called at `T = i32` and at
+  `T = string` gives two pending rows (review finding 7).
 - `minus` exists because a call inside `$.with K=...` needs only
   `RowVar(g)` without `K` from the caller.
 
@@ -945,46 +1213,86 @@ A non-public function, method or local `fn` without a `$` clause has an
 inferred row
 ([`req.row.omitted.inferred-private`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.inferred-private)).
 Rows never order checking (D1 §4.13.1): bodies record facts, and M3
-solves them.
+solves them. The review (finding 7) found the first version's solve and
+its output incomplete; this section replaces it.
+
+**What a body records.**
 
 ```rust
 pub enum RowFact {
-    Uses     { f: RowVar, keys: RowId },                         // f's body uses keys
-    Includes { f: RowVar, g: RowVar, minus: RowId, at: Span },   // f calls g inside with-blocks for `minus`
-    Entails  { avail: RowId, params: ParamSetRef, g: RowVar, minus: RowId, at: Span },
+    Uses     { f: RowVar, keys: RowId },                   // f's body uses keys outside its own `$.with` blocks
+    Includes { f: RowVar, g: PendingRow, at: Span },       // f's row must contain g's row, substituted, minus
+    Entails  { avail: RowId, params: ParamSetRef, g: PendingRow, at: Span }, // a written row must contain it
+}
+
+/// One call whose providers M3 fills. Appended in emission order.
+pub struct PendingCall {
+    inst: Inst,                           // the call; its provider word holds `Pending(index of this record)`
+    g: PendingRow,                        // what the callee needs, as seen from this call
+    with: Range32,                        // (key, provider Ref) pairs of the `$.with` blocks around the call
+    caller: CallerRow,                    // Written(row) | Inferred(RowVar): where the other keys come from
 }
 ```
 
-An `Entails` fact comes from a call in a body whose row is written, or
-from a subsumption against a known row.
+The `with` pairs are the lexical provider environment at the call, so
+M3 can pick each provider without looking at the body again. A closure
+that calls an omitted-row function records its facts under the
+enclosing callable's `RowVar` when the closure's own row is inferred,
+since the closure's keys flow into the callable's row (section 5.4).
 
 **The solve, in M3, per module:**
 
-1. Build the graph of row variables from the `Includes` facts.
-2. Compute its SCCs with Tarjan's algorithm, visiting nodes in source
-   order, so the SCC order is content order.
-3. In reverse topological order, solve each SCC as a least fixpoint.
-   Start from the union of its `Uses` keys. Then add `row(g)` minus
-   `minus` into `row(f)` for each `Includes` edge into the SCC, until
-   nothing changes
+1. **One set per row variable.** Each `RowVar` starts from its own `Uses`
+   keys, not from a union over its SCC. Then the solve is a worklist over
+   `Includes` edges: when `row(g)` grows, each edge `f ← g` adds
+   `subst(row(g)) − minus` to `row(f)`, and `f` is queued if it grew.
+   The transfer is monotone, since `minus` is a constant per edge, so the
+   result is the least solution
    ([`req.row.omitted.cycle`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.cycle)).
-4. Rows only grow, and each row holds at most the module's distinct
-   keys. So the loop ends after at most `keys × variables` additions per
-   SCC, and in practice after one pass per key. It is serial, monotone
-   and bounded (lesson 7 of the prior-art lessons).
-5. Run each `Entails` check against the solved rows. A missing key is
-   `missing-requirement` at the call. A note names the callee chain that
-   brought the key in: each row keeps, per key, the first edge that
-   added it.
-6. Fill the calls' pending providers. A call to a private callee was
-   emitted with `Providers::Pending(row variable)`. M3 now writes one
-   provider per key of the solved row, which is one of the two in-place
-   patches D2 allows
-   ([§3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation)).
-   After it, no call is pending (TIR invariant 8).
+   In the review's example, `f` uses `Clock` and calls `g`, and `g` calls
+   `f` inside a `$.with Clock=...` block. The solve gives `row(f) =
+   {Clock}` and `row(g) = {}`; `g` never over-requires `Clock`.
+2. **Order.** The worklist starts with the row variables in source
+   order and pops in queue order, so the solve is deterministic. SCCs
+   are not needed for correctness; Tarjan's order is kept as the initial
+   queue order, so most rows finish in one pass.
+3. **Substitution and growth.** `subst` can make a key larger, as when a
+   generic `g[T]` calls itself at `List[T]` and needs `Repo[T]`. That is
+   polymorphic recursion in rows. A key whose type-argument nesting
+   passes the instantiation depth limit stops the solve for that row
+   with `instantiation-too-deep` at the call that added it, the code the
+   owner chose for polymorphic recursion (2026-10-07). With that cut,
+   every row is finite. Each addition costs one step of the module's M3
+   fuel.
+4. **Entailment checks.** Each `Entails` fact is checked against the
+   solved rows. A missing key is `missing-requirement` at the call. A
+   note names the callee chain that brought the key in: each row keeps,
+   per key, the first edge that added it.
+5. **Providers.** For each `PendingCall`, in order, and each key `k` of
+   `subst(row(g))` in canonical key order: if `k` is in `minus`, the
+   provider is the matching `with` pair's `Ref`; otherwise it is the
+   caller's own provider for `k`, which its written or solved row now
+   holds. M3 appends the `(key, provider)` pairs to the body's `extra` and
+   patches the call's provider word to point at them. The count of pairs
+   was unknown in M2, so the patch is one fixed word pointing at an
+   appended range, not words written in place.
+6. **The row sweep.** A type can hold a pending row: a closure's function
+   type, a local bound to it, a row argument of a generic call. The
+   body-end sweep at `finish` leaves such types alone, because their
+   pending parts name module-scoped `RowVar`s, not body-local variables.
+   After step 5, M3 rewrites every type with the `HAS_ROWVAR` flag in the
+   module's bodies (the TIR `ty` column, locals, callee records and
+   coercion records) by replacing each pending part with its solved row.
+   The flag makes the scan one load per entry. After the sweep, no type
+   and no call is pending (TIR invariant 8).
 
 No body is checked again (TC-4). The prototype rechecked every relevant
 body in each row round.
+
+Steps 5 and 6 need two things from the backend lane: a pending row that
+names a `RowVar` must be internable outside the body-local pool for the
+length of `ModuleFinish`, and M3 needs a second write to the `ty` column
+and to the type words of records. Section 17 lists them.
 
 ### 5.6 Row Patterns And Least Solutions
 
@@ -999,9 +1307,10 @@ When `S` holds a `PendingRow`, the least solution is still expressible:
 `R := S` without `K` keeps the pending part with a larger `minus`. But a
 pattern whose keys mention a **type parameter**, such as `Repo[A]`,
 cannot be matched against a pending row in M2: its keys are not known
-yet. This design reports that case as `cannot-infer-type`, with a fix-it
-that writes the private callee's `$` clause. Section 16 question 2 asks
-the owner to confirm.
+yet. That case is `cannot-infer-type`, with a fix-it that writes the
+private callee's `$` clause (orchestrator's call, 2026-10-07). The case is
+rare and the fix is one line; inferring such rows in M1 instead would
+move most private bodies into the serial phase.
 
 ### 5.7 Suspension
 
@@ -1041,7 +1350,7 @@ The check reads the resolved callee at the call. It never looks into
 another body, so it needs no summary and no interface fact. An indirect
 call reaches the run-time check that D2 emits. For a `defer` suite, the
 diagnostic says to collect the work and do it after the scope (wishlist
-item 6). Section 16 lists the spec text that still says "transitive".
+item 6). Section 16.2 lists the spec text that still says "transitive".
 
 ## 6. GADT Refinement And Tuples
 
@@ -1050,34 +1359,94 @@ item 6). Section 16 lists the spec text that still says "transitive".
 For a `match` on `E[S1..Sn]` and an arm whose variant result is
 `E[R1..Rn]` ([Refinement Algorithm](../../spec/lang/13-gadts.md#refinement-algorithm)):
 
-1. Take a trail mark for the arm.
+1. Note the arm's **birth mark**: the number of inference variables made
+   so far. A variable whose class birth is below the mark is **outer** to
+   the arm.
 2. Give each variant-local parameter that does not occur in the result a
-   fresh **rigid** placeholder (an existential). Give each one that
-   occurs a fresh variable.
+   fresh `Rigid` placeholder (an existential). Give each one that occurs
+   a fresh variable.
 3. Unify each `Si` with `Ri`, first-order and nominal, after alias
    expansion. Where `Si` is a rigid parameter `T` of the enclosing
    declaration, record an **arm equality** `T ≡ Ri` instead of failing.
+   The equalities and existentials go into an append-only **arm
+   environment** table, and the arm pushes its entry on the open-arms
+   stack.
 4. A contradiction makes the arm impossible: two different nominal
    heads, or `T ≡ A` and `T ≡ B` with `A ≠ B`. That is
    `impossible-gadt-pattern` on the arm, and exhaustiveness skips the
    variant.
-5. Check the arm's patterns, guard and body with the equalities active.
-   Shallow resolution of a rigid parameter consults the equality table,
-   and the solver sees the equalities through `ParamEnv` (section 1.6).
+5. Check the arm's patterns, guard and body with the equalities active,
+   under the two rules below.
 6. Check the arm's result against the match's type. A result type that
    mentions an existential is `type-mismatch`
    ([`gadt.existential.no-escape`](../../spec/lang/13-gadts.md#r-gadt.existential.no-escape)).
-7. At the arm's end, pop the equalities. Bindings of ordinary variables
-   made in the arm stay, unless they mention a refined parameter's
-   equality or an existential. Such a binding is `type-mismatch`, since
-   the refinement would escape
-   ([`gadt.check.no-escape`](../../spec/lang/13-gadts.md#r-gadt.check.no-escape)).
+7. At the arm's end, pop the open-arms stack. Nothing is undone: the
+   arm-environment entry stays in its table, because obligations made in
+   the arm still name it.
 
-Step 7 needs a **scoped pop**: it undoes only `ArmEq` entries above the
-mark and keeps `Bind` entries. The escape check scans the `Bind` entries
-above the mark, which are exactly the bindings the arm made. Nested GADT
-patterns compose their equalities within one arm
-([`gadt.unify.nested`](../../spec/lang/13-gadts.md#r-gadt.unify.nested)).
+**Rule TC-10. Equalities are consulted, never written into types
+(mine).** Shallow resolution never replaces a refined parameter `T` by
+its equal. When unification meets `T` against another type, it looks up
+`T ≡ R` and continues with `R`, without recording `R` anywhere. Method
+lookup and the solver substitute equalities for their own queries only
+(trait-solver.md §2.2 step 2). So a type stored by the arm still says
+`T` where the source said `T`.
+
+**Rule TC-11. An outer variable is bound only to what holds outside the
+arm (mine, after GHC's untouchable variables).** Inside an arm with an
+equality or an existential, binding an outer variable `?a := τ`, or
+uniting an outer root with a bound root of value `τ`, requires that `τ`
+mention no parameter refined by this arm and no existential of it. The
+test reads the `HAS_PARAM` and `HAS_RIGID` flags first, so most types
+cost one load. A failure is `type-mismatch` on the expression that
+needed it ("the arm's type equality would escape the arm"), with a fix-it
+that annotates the binding or gives the `match` an expected type
+([`gadt.check.no-escape`](../../spec/lang/13-gadts.md#r-gadt.check.no-escape)).
+Uniting two unbound variables needs no test: the united class is outer
+if either was, by its birth.
+
+**Why this is sound (review T3).** The first version kept the arm's
+bindings and scanned them afterward for escapes. The review showed two
+holes: a binding made through an equality (`?a := i32` under `T ≡ i32`)
+no longer mentions `T`, and a union changes a class without a `Bind`
+entry. Both are closed by construction:
+
+- Every binding of an outer variable made in the arm has a value that
+  is well formed and means the same with or without the arm's
+  equalities, by TC-11. So no fact that needs an equality reaches code
+  outside the arm.
+- No binding is ever made *through* an equality, by TC-10: the unifier
+  binds a variable only to a type it was given, and a given type that
+  names `T` fails TC-11's test.
+- Bindings of variables born inside the arm stay inside it, unless one
+  is united with an outer class, which TC-11 checks.
+- Obligations that the arm leaves stalled keep their arm environment
+  (section 2.7). A retry after the arm ends is asked under that
+  environment, which is exactly the context where the goal arose.
+
+So there is one transaction semantics, the trial's. A GADT arm is not a
+transaction: it adds facts that hold everywhere, and it consults
+equalities that hold only inside it. This is the "commit only
+constraints proven independent of the arm" option of the review.
+
+**What it rejects.** An arm under `T ≡ i32` whose value flows into an
+outer variable as `T` or as `i32` is ambiguous: both choices type the
+arm, and they differ outside it. GHC rejects the same programs, and the
+spec's own examples give the `match` an expected type
+([`gadt.refine.match-type`](../../spec/lang/13-gadts.md#r-gadt.refine.match-type)),
+where no outer variable is involved. Section 16.1 reading 2 asks to
+confirm this reading of `gadt.check.no-escape`.
+
+**In TIR.** An arm under `T ≡ i32` may return an `i32` where `T` is
+expected. TIR's invariant 4 needs an explicit step there: a static
+`Refine` coercion naming the arm environment, which has no run-time
+effect ([`gadt.unify.no-cast`](../../spec/lang/13-gadts.md#r-gadt.unify.no-cast)).
+The coercion kind is the backend lane's (section 17).
+
+Nested GADT patterns compose their equalities within one arm
+([`gadt.unify.nested`](../../spec/lang/13-gadts.md#r-gadt.unify.nested)):
+an inner arm's birth mark and refined set are checked as well as the
+outer arm's.
 
 An existential with bounds carries its evidence in the value
 ([`gadt.runtime.evidence`](../../spec/lang/13-gadts.md#r-gadt.runtime.evidence)).
@@ -1096,8 +1465,10 @@ There are no variadic generics
   stalled obligation, resolved like any other.
 - A tuple with a rest element, `(A, B, List[T]...)`, uses the `rest`
   field of the tuple view. A spread pattern binds the rest as `List[T]`.
-- `Tuple`, and `Eq`, `Ord` and `Hash` for tuples, are compiler-supplied
-  at every arity. The solver answers them with `Evidence::Builtin`.
+- `Tuple` is compiler-supplied at every arity: `Evidence::Builtin`.
+- Tuple `Eq`, `Ord`, `Hash` and `Debug` come from std's tuple templates,
+  so the solver answers them with `Evidence::Impl` of the template at the
+  tuple type, as for any impl (trait-solver.md change 6).
 - `Fn[Args, O, $ R]` unifies `Args` with a function type's parameter
   tuple.
 
@@ -1224,7 +1595,10 @@ initializer is readonly, which `let mut` would reject, the fix-it is a
 ### 8.3 Local Flags
 
 Each local has a flags byte, written through the trail: `READ`,
-`ASSIGNED`, `MUTATED`, `CAPTURED`, `CAPTURED_ASSIGNED`. With no extra
+`ASSIGNED`, `MUTATED`, `CAPTURED`, `CAPTURED_ASSIGNED`. It is the
+`local_flags` column of the one local table that the TIR builder owns
+([§3.19](data-structures.md#319-per-body-checker-scratch)); the checker
+keeps no second copy. With no extra
 pass they give:
 
 - `unused-local-binding`, and the error for an unread must-use binding,
@@ -1291,9 +1665,27 @@ A non-public function, a non-public inherent method and a local `fn` may
 omit `-> T`
 ([`fn.decl.result-omitted-private`](../../spec/lang/07-functions.md#r-fn.decl.result-omitted-private)).
 Public functions, trait methods and impl methods cannot
-(`missing-result-type`, a header error). So an omitted result never
-reaches a folder interface, and inference never enters a dependent's
-cache key.
+(`missing-result-type`, a header error).
+
+**Hidden template helpers (review finding 6).** A derive template may
+call private helpers of its trait's module, which the interface exports
+as hidden items (owner, 2026-10-07). A dependent checks the instantiated
+template, so it needs each helper's signature. To keep "interfaces come
+from syntax alone", this design proposes that a private item named by a
+template body follows the public signature rules
+([`module.package.annotated`](../../spec/lang/10-modules.md#r-module.package.annotated)):
+
+- a function writes its result type, else `missing-result-type`;
+- a function without a `$` clause has the empty row, as a public one
+  does ([`req.row.omitted.empty-pub`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.empty-pub)),
+  so its body must provide any key it uses itself;
+- a top-level binding is not a helper: a template may not name one.
+
+Resolution applies these rules at interface time from the template's
+resolution table (resolution-and-interfaces.md §4.10 step 5), so they
+need no body. With them, an omitted result or row never reaches a folder
+interface, and inference never enters a dependent's cache key. The rule
+is new language text; section 16 question 1 asks the owner.
 
 ### 9.2 The M1 Walk
 
@@ -1327,7 +1719,9 @@ on a reference to g inside any M1 body:
   bindings get their types there and other bodies read them. A function
   that reads a binding whose statement is not checked yet triggers that
   statement first, the same depth-first way. A cycle through a binding's
-  type is reported like a function cycle (section 16 question 3).
+  type, as in `let a = fn(): b()` and `let b = fn(): a()` at top level,
+  is `recursive-function-needs-result-type` on the first binding in
+  source order, with the hint "annotate one binding" (owner, 2026-10-07).
 - Cycle reporting follows
   [`fn.decl.omitted-cycle.report`](../../spec/lang/07-functions.md#r-fn.decl.omitted-cycle.report):
   the member first in source order, whichever member the walk entered
@@ -1417,8 +1811,8 @@ defaulting and obligations. The diagnostic's note shows:
 
 The candidates also go into TIR's side table for the `Hole`
 instruction, where tools can read them. The hole's type is poison
-afterwards, so it causes nothing else. The design list's `todo()` has no
-std function today; section 16 question 4 asks.
+afterwards, so it causes nothing else. Typed holes are `_` only in the
+first release (owner, 2026-10-07); there is no `todo()`.
 
 ### 10.5 Fix-Its For Common Mistakes
 
@@ -1446,6 +1840,15 @@ Each gets this treatment:
 | `mut-on-primitive` | the binding | fix-it removing `mut`; "a plain `let` is already reassignable" |
 | `integer-literal-range` | the literal, the expected type | names the range and a wider type of the same family |
 
+**Suggestions search only keyed inputs.** A did-you-mean or `use`
+fix-it may search only what the module's `check` key covers: its own
+syntax, the folders in its dependency closure, std and the prelude
+([cache.md §5.3](cache.md#53-key-composition), review A7). So the
+`unknown-method` fix-it lists unavailable traits from the dependency
+closure only, the `unknown-name` fix-it searches std's exports and the
+closure's folders, and a cached diagnostic never names an item whose
+change would not invalidate it.
+
 **Message quality rules** (from wishlist item 4 and group 3):
 
 1. **No internal names.** Types render through stable paths with the
@@ -1469,9 +1872,10 @@ Every count is a language-level unit, never time or allocation (lesson
 | --- | --- |
 | an expression or pattern node checked | 1 |
 | a unification pair visited | 1 |
-| a solver candidate tried, a subgoal expanded | 1 (charged by the solver) |
-| a solver memo hit | the steps stored with the entry |
+| a goal the body meets for the first time | its intrinsic cost: 1, plus heads matched, plus its distinct children's costs (charged by the solver, rule TS-5) |
+| a goal the body has met before | 1 |
 | a trial started | 8, plus its steps |
+| a trial-memo hit (section 2.5) | 1 |
 | a usefulness matrix cell visited | 1 |
 | an LCT join step | 1 |
 | an obligation retried | 1 |
@@ -1480,8 +1884,9 @@ The default is 2,000,000 steps per body (D1 §4.15). Fuel is per body, so
 one item's complexity never fails another item.
 
 **Rule TC-8. Fuel used is a pure function of the body and its frozen
-inputs.** Memo hits charge their stored cost, and trials are charged
-whether or not they commit. So a body passes or fails its budget the
+inputs.** A goal's charge depends only on the goal and on whether this
+body met it before, never on which body filled the memo. Trials are
+charged whether or not they commit. So a body passes or fails its budget the
 same way on any thread count, cache state or check order. The test mode
 prints `fuel_used` per body, and the determinism matrix compares it
 (section 14).
@@ -1519,9 +1924,9 @@ Other limits each have their own diagnostic (D1 §4.15):
 | a list literal of 100,000 elements | quadratic LCT or literal grouping | the LCT fold is linear; literal classes are union-find, O(n α) |
 | a 10,000-arm literal match | quadratic usefulness | the one-column fast path is linear |
 | wide tuple patterns with nested enums | exponential usefulness | fuel per cell; `match-too-complex` |
-| nested instantiation choices, `a.add(b.add(c.add(...)))` | trials multiply | arguments inferred once outside trials; only postponed arguments retried; fuel |
+| nested instantiation choices, `a.add(b.add(c.add(...)))` | trials multiply | the head prefilter; arguments inferred once outside trials; the per-site trial memo, so cost is sites × candidates; fuel |
 | a type that grows on each step, `List[List[...]]` built by inference | memory | type size limit at `mk` |
-| many obligations waiting on one variable | quadratic waking | watch lists; each obligation wakes once per binding of a variable it waits on |
+| many obligations waiting on one variable | quadratic waking | watch edges; each obligation is queued at most once per wake round |
 | a long chain of private functions in M1 | native recursion | the explicit M1 stack |
 | huge rows | quadratic set operations | sorted merges, linear |
 | an ill-typed version of each of the above | Swift's slowest cases are errors | poison stops cascades, and the pathological suite runs every case ill-typed too (section 14) |
@@ -1534,8 +1939,9 @@ Other limits each have their own diagnostic (D1 §4.15):
 - its own `BodyCx` and arena;
 - the append-only global interners (types, rows, strings), whose IDs
   never reach output (D1 §3.1);
-- the solver's global memo, whose entries are pure functions of frozen
-  inputs, written first-writer-wins.
+- the solver's global memo, whose entries are pure functions of their
+  keys (trait-solver.md rule TS-1), written first-writer-wins, and
+  published only for completed, context-free goals (rule TS-4).
 
 There are no statics, thread-locals, global counters or caches keyed by
 span. The prototype's module-global literal map and map-key facts have
@@ -1569,52 +1975,69 @@ All per-body state lives in `BodyCx`, struct-of-arrays, indexed by
 ```rust
 pub struct BodyCx<'f, B: TirSink> {
     frozen: &'f Frozen,                 // module scope, ifaces, private sigs, solver, config
-    tir: B,                             // the TIR builder, or the discarding sink
+    tir: B,                             // the TIR builder, or the discarding sink; owns the local table
     fuel: Fuel,
-    // inference table, SoA, indexed by InferVar
+    env: EnvKey,                        // the item's elaborated environment (§1.6)
+    // inference table, SoA, indexed by InferVar; every column trailed
     parent: Vec<u32>,                   // 4 B; union-find parent (self = root)
     rank: Vec<u8>,                      // 1 B
     kind: Vec<VarKind>,                 // 1 B; General | IntLit{signed} | FloatLit
     value: Vec<Ty>,                     // 4 B; Ty::NONE when unbound
     blame: Vec<SpanIdx>,                // 4 B; first deciding span
-    watch_head: Vec<u32>,               // 4 B; first obligation waiting on this var
+    birth: Vec<u32>,                    // 4 B; oldest variable of the class (§6.1)
+    watch_head: Vec<u32>,               // 4 B; newest watch edge of this var
+    lit_flags: Vec<u8>,                 // 1 B; held by a join, defaulted (§3.6)
     // trail
     trail: Vec<Undo>,                   // 8 B each
-    trail_old: Vec<u32>,                // 4 B; old values for Parent/Rank/Bind/Kind
-    // obligations, SoA
+    trail_old: Vec<u32>,                // 4 B; old values
+    // obligations, SoA; append-only except `ob_state`
     ob_goal: Vec<Goal>,                 // 16 B
     ob_span: Vec<SpanIdx>,              // 4 B
-    ob_next_watch: Vec<u32>,            // 4 B; next obligation on the same var
-    ob_state: Vec<u8>,                  // 1 B; Pending | Woken | Done
-    // locals, SoA, indexed by LocalId
-    local_name: Vec<Symbol>, local_ty: Vec<Ty>, local_span: Vec<SpanIdx>,
-    local_flags: Vec<u8>,               // READ, ASSIGNED, MUTATED, CAPTURED, ...
+    ob_env: Vec<ArmEnvId>,              // 4 B; the arm environment it was asked under (§6.1)
+    ob_state: Vec<u8>,                  // 1 B; Pending | Woken | Done; trailed
+    watch_edges: Vec<(InferVar, ObId, u32)>, // 12 B; (variable, obligation, next edge)
+    wake_queue: Vec<ObId>,              // this round's woken obligations
+    // locals: the builder's one table (local_ty, local_name, local_syn, local_flags);
+    // the checker reads it and writes flags through the trail
     // scopes and contexts
-    scopes: Vec<Scope>,                 // name -> LocalId chain, ~16 B per scope
-    loops: Vec<LoopCx>,                 // break type slot, label, ~12 B
-    fns: Vec<FnCx>,                     // result slot, row, driver flag, ~24 B
+    scopes: Vec<Scope>,                 // balanced stack; each scope's newest binding is trailed
+    scope_binds: Vec<(Symbol, LocalId, u32)>, // append-only: name, local, previous binding
+    loops: Vec<LoopCx>,                 // break type slot, label, held literals, ~16 B
+    fns: Vec<FnCx>,                     // result slot, row, driver flag, held literals, ~28 B
     avail: Vec<RowId>,                  // the available stack (§5.2)
     restricted: u16,                    // §5.8 depth
+    arms: Vec<ArmFrame>,                // open GADT arms: birth mark, arm environment (§6.1)
     literal_scope: Vec<InferVar>,       // open literal classes of the current statement
+    lit_members: Vec<(InferVar, NodeIdx)>, // every literal and its node: range checks, hints
     assigned: BitStack,                 // definite assignment sets (§8.4)
     // outputs, append-only
     diags: Vec<Diagnostic>,
+    reported: Vec<RootKey>,             // "once per name per body" keys
     row_facts: Vec<RowFact>,
+    pending_calls: Vec<PendingCall>,    // §5.5
     init_facts: Vec<InitFact>,
-    arm_eqs: Vec<(ParamRef, Ty)>,       // §6.1, trail-managed
+    arm_envs: ArmEnvTable,              // equalities and existentials of every arm (§6.1)
     // reusable scratch, cleared per use, never shrunk within a body
     scratch_tys: Vec<Ty>, scratch_refs: Vec<Ref>, scratch_args: Vec<ArgSlot>,
-    memo: BodyMemo,                     // lent to the solver per goal (§1.6)
+    memo: BodyMemo,                     // lent to the solver per goal (§1.6); never rolled back
+    trials: TrialMemo,                  // §2.5; never rolled back
     spine: Vec<ExprId>,                 // §11.3 spine iteration
 }
 ```
 
-- **Inference table:** 18 bytes per variable. A typical body has tens to
-  hundreds of variables, so the table fits in a few cache lines.
+- **Inference table:** 23 bytes per variable. A typical body has tens to
+  hundreds of variables, so the table fits in a few cache lines. The
+  count comes from the column widths. Whether columns or a small struct
+  per variable is faster is measured in slice 3
+  ([§3.9.4](data-structures.md#394-tables-as-struct-of-arrays)).
 - **Trail:** 8 bytes per entry, plus 4 for an old value. Entries exist
-  only while a trial or a GADT arm is open, or since the body's start
-  when no trial is open; the trail is cleared at each statement boundary
-  outside trials, since nothing can roll back past a finished statement.
+  only while a trial is open, or since the last statement boundary; the
+  trail is cleared at each statement boundary outside trials, since
+  nothing can roll back past a finished statement. GADT arms add no
+  trail entries.
+- **One local table.** The builder owns the locals' columns, and the
+  checker reads them (data-structures.md §3.19). Locals are truncated
+  with the builder's checkpoint.
 - **No expectation stack.** The expected type is an argument of `check`,
   passed by value. The context stacks (`scopes`, `loops`, `fns`,
   `avail`) are the only stacks, and they are vectors.
@@ -1694,45 +2117,61 @@ From [the checker audit](../../audit/compiler/checker-2026-10-04.md),
 
 ## 16. Open Questions For The Owner
 
-1. **Literal width: per class or per statement?**
-   [`types.literal.local.join`](../../spec/lang/04-type-system.md#r-types.literal.local.join)
-   says that when a statement fails at the default types, "the literals
-   take that width": one width for all of the statement's literals. In
-   `(pick(1, big), pick(2, small))` with `big: i64` and `small: i32`, one
-   width makes the statement an error, while per-class widths accept it
-   (`1` is `i64`, `2` is `i32`). The literal plan's union-find gives
-   per-class widths. **Recommendation:** per class. Reword rule 5 so that
-   each group of literals that meet each other takes the width it meets.
-   It is the more permissive reading, it needs no retry, and every
-   example in the spec agrees with it.
-2. **A type parameter solved from a not-yet-inferred private row.**
-   Matching a row pattern such as `Repo[A] + Repo[B]` against the row of
-   a private function whose row is omitted needs that row in M2, but M3
-   solves it (section 5.6). **Recommendation:** make it an error,
-   `cannot-infer-type`, with a fix-it that writes the callee's `$`
-   clause. The case is rare and the fix is one line. The alternative,
-   inferring such rows in M1, would move most private bodies into the
-   serial phase.
-3. **Type cycles through top-level bindings.** `let a = fn(): b()` and
-   `let b = fn(): a()` at top level make a cycle of inferred types that
-   no rule names, and nothing is read at initialization.
-   **Recommendation:** report it as `recursive-function-needs-result-type`
-   on the first binding in source order, with the hint "annotate one
-   binding". No new code.
-4. **Typed holes: `_` only, or also `todo()`?** The design list names
-   `_` and `todo()`, but std has no `todo`. **Recommendation:** `_` only
-   for the first release. It already has a code
-   (`placeholder-outside-pipe`), while a `todo()` that compiles would
-   need a std entry and a panic category.
-5. **A no-emit check mode.** D2 has every `hd check` emit TIR for the
-   `tir` cache entry. The playground's check-as-you-type and `hd fix`
-   rounds never build, so emission there is wasted (about 200 bytes per
-   line and the emission time). **Recommendation:** add the no-emit mode
-   of section 1.5 for those two callers only, and keep `hd check`
-   emitting. It costs one generic parameter, and TC-3's test keeps the
-   two modes equal.
+**Answered (owner and orchestrator, 2026-10-07).** Used above, not asked
+again:
 
-### 16.1 Inconsistencies Found
+| Question | Answer | Where |
+| --- | --- | --- |
+| literal width per class or per statement | per connected class; the spec rewords `types.literal.local.join`; the oracle stays for differential tests | section 3.6 |
+| a row pattern against an unsolved private row | `cannot-infer-type` with a fix-it writing the callee's `$` clause (orchestrator) | section 5.6 |
+| type cycles through top-level bindings | `recursive-function-needs-result-type` on the first binding | section 9.2 |
+| typed holes | `_` only in the first release | section 10.4 |
+| a no-emit mode | accepted for the playground and `hd fix` (orchestrator) | section 1.5 |
+| polymorphic recursion | `instantiation-too-deep`; the row solve uses the same code | section 5.5 |
+| identity of `.Some`, `.Ok`, `.Err` and boxes | none; `is` on optionals and results compares payloads; an optional takes its payload's category; `is` on a function type is an error | section 2.2 |
+| trait-solver questions 1, 3, 4 | dependency-closure impls; depth counted as listed; one error per body and leaf goal | section 1.6 |
+
+**Open.**
+
+1. **Signatures of hidden template helpers (review finding 6).** A
+   template may call private helpers of its trait's module (owner,
+   2026-10-07), so a dependent needs their signatures. If a helper may
+   omit its result or row, the interface depends on a body, and a helper
+   body edit changes what a dependent's check reads. **Recommendation:**
+   a private item that a template body names follows the public
+   signature rules: a written result type, else `missing-result-type`;
+   no `$` clause means the empty row; a template may not name a
+   top-level binding. Add one rule beside
+   [`module.package.annotated`](../../spec/lang/10-modules.md#r-module.package.annotated).
+   It uses existing codes and keeps "interfaces come from syntax alone"
+   (section 9.1). The alternative, checking helper bodies before the
+   interface is usable, would put bodies on the interface's critical path
+   and break the one-module recheck after a private edit.
+
+### 16.1 Readings Of The Spec To Confirm
+
+These follow from the spec as this design reads it. No answer is needed
+unless the owner disagrees.
+
+1. **Literal joins in functions with omitted results.**
+   [`types.literal.local.form.closure-return.statements`](../../spec/lang/04-type-system.md#r-types.literal.local.form.closure-return.statements)
+   names closures. This design applies it to every body with an omitted
+   result, private functions and local `fn`s included, because they are
+   the same LCT site (section 3.6). Without it, `return 0` before a final
+   `i64` value would default to `usize` and fail in a private function
+   but not in a closure.
+2. **GADT arms and outer inference variables.** Section 6.1 rejects an
+   arm that binds a variable from outside the arm to a type that names
+   one of the arm's refined parameters or existentials (rule TC-11).
+   This reads [`gadt.check.no-escape`](../../spec/lang/13-gadts.md#r-gadt.check.no-escape)
+   strictly, as GHC does. The spec's examples all give the `match` an
+   expected type, which the rule never rejects.
+3. **`is` on results.** With `.Ok` and `.Err` free of identity, this
+   design lets `is` compare two results only when both payload types are
+   reference types, the same category rule as for optionals (section
+   2.2).
+
+### 16.2 Inconsistencies Found
 
 1. **The `block_on` ban is still transitive in the spec.**
    [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive),
@@ -1746,69 +2185,81 @@ From [the checker audit](../../audit/compiler/checker-2026-10-04.md),
 2. **`println` in the ban.** Answer 13 and D1 §4.13.5 ban a direct
    `println` as well as `block_on`, but no spec rule names `println`.
    Section 5.8 follows the answer.
-3. **Readonly versus `mut` in D1's types.** D1 §3.4 and the pool's tag
-   table have `Readonly(Ty)`, but the spec's marked form is `mut T`, and
-   `T` alone is readonly. Section 1.4 uses `Mut(Ty)`.
-4. **Literal variables in D1.** D1 §3.4 has a separate `IntLit` kind and
-   no float literal kind. Here one `Infer` form carries its kind in the
-   inference table, because unification merges kinds.
-5. **Redundancy warnings.** This design's brief asks for redundancy
+3. **Redundancy warnings.** This design's brief asks for redundancy
    warnings, but the spec makes an unreachable arm an error
    (`unreachable-match-arm`). The design follows the spec.
-6. **Checks over TIR.** Revised D1 §4.13.3 runs mutability checks "on
-   TIR places" and definite initialization and `let-else` as "a forward
+4. **Checks over TIR.** D1 §4.13.3 runs mutability checks "on TIR
+   places" and definite initialization and `let-else` as "a forward
    dataflow pass over the body's TIR", and §4.13.10 computes the init
    summary from TIR. Here all of them run during checking, on the
-   checker's own tables (section 8). Both work while TIR is always
-   emitted. Only the checker's way keeps checking independent of
-   emission (TC-3), and it reports with the syntax still at hand.
-7. **Coercion kinds.** TIR's `Coerce` has no kind for a declared
-   variance conversion or a supertrait widening, yet both change the
-   type, so invariant 4 needs them (section 4.2).
-8. **Ambiguity codes.** D1 §4.13.2 says an unsolved variable is "an
+   checker's own tables (section 8). Only the checker's way keeps
+   checking independent of emission (TC-3), and it reports with the
+   syntax still at hand.
+5. **Coercion kinds.** TIR's `Coerce` has no kind for a declared
+   variance conversion, a supertrait widening or a GADT refinement, yet
+   each changes the type, so invariant 4 needs them (sections 4.2 and
+   6.1).
+6. **Ambiguity codes.** D1 §4.13.2 says an unsolved variable is "an
    ambiguity error". The spec separates `cannot-infer-type` (no solution)
    from `ambiguous-type` (several).
 
+Two earlier items are resolved: data-structures.md §3.4 now has `Mut`
+instead of `Readonly`, and one `Infer` form with the literal kind in the
+inference table.
+
 ## 17. Changes Needed In COMPILER_DESIGN.md
 
-For the owners of D1 and D2 to make later. This document does not edit
-COMPILER_DESIGN.md.
+COMPILER_DESIGN.md is now split into the files of the
+[README](README.md). These changes are for the backend lane to make in
+its files. This document edits none of them. The response file lists
+them too
+([codex-review-response-frontend.md](codex-review-response-frontend.md)).
 
-1. **§3.4 and §3.9.2 (types):** replace `Readonly(Ty)` with `Mut(Ty)`, in
-   `TyKind` and in the pool's tag table. Drop `IntLit` and keep one
-   `Infer(InferVar)`, with the variable's kind in the inference table.
-   State section 1.4's accessor API as the checker's contract with the
-   pool's generated views.
-2. **§4.13.1:** add rule TC-4 (each body checked exactly once). Add that
-   M1 checks the module's top-level statements first, because
-   unannotated top-level bindings get their types there.
-3. **§4.13.2:** replace "ambiguity error" with the two codes. Add the
-   permission join (section 3.4), the family rule and the no-retry
-   literal plan (section 3.6), and the instantiation choice with its
-   trial bound (section 2.5).
-4. **§4.13.3 and §4.13.10:** move mutability, definite initialization,
-   `let-else` and init summaries from "over TIR" to "during checking",
-   with a pointer to section 8.
-5. **§4.13.4:** add the `minus` part of a pending row and the `Entails`
-   fact (section 5.5), and the M2 limit of section 5.6.
-6. **§4.13.6:** add the scoped pop and the escape check of section 6.1.
-7. **§4.13.11, catalog:** add `Coerce` kinds for declared variance and
-   for supertrait widening. Say which callee choice a compiler-supplied
-   impl uses (tuples at every arity, numeric families), since a
-   `TraitMethod` choice today is an impl `DefId` or a bound index.
-8. **§4.13.11, `Closure`:** a capture's mode (`Copy`, `Move`, `Shared`)
-   depends on statements after the closure. Either `finish` patches the
-   mode from the checker's `Solution`, a third in-place patch of a fixed
-   word beside the two of §3.9.5, or the builder computes it in `finish`
-   from `LocalSet` order. Pick one.
-9. **§4.13.11, builder:** let the checker be generic over a sink trait
-   (`TirSink`) that `TirBuilder` implements, for the no-emit mode of
-   section 1.5, if question 5 is accepted.
-10. **§4.15:** add the fuel cost table of section 11.1 and the
-    out-of-fuel policy of section 11.2.
-11. **§8.1:** add the emit and no-emit dimension and the `fuel_used`
-    comparison to the determinism matrix.
-12. **§10.1:** add inconsistencies 1, 2 and 5 of section 16.1.
-13. **§2.1, crates:** give the solver its own module boundary in
-    `hd_types` (`hd_types::solve`), matching the separate
-    `trait-solver.md`.
+1. **data-structures.md §3.4 and §3.9.2:** the projection type is
+   `Assoc { assoc: DefId, tref }` (trait-solver.md change 15). A `Row`
+   item whose pending part names a module-scoped `RowVar`, with a
+   substitution, may live outside the body-local pool until
+   `ModuleFinish` ends (section 5.5 step 6).
+2. **data-structures.md §3.9.5:** two more writes after the fact, both by
+   M3: the row sweep rewrites `HAS_ROWVAR` types in the `ty` column and in
+   type words of records; and each pending call's provider word is
+   patched to point at an appended `(key, provider)` range (section 5.5).
+3. **checking-and-tir.md §4.13.1:** add rule TC-4 (each body checked
+   exactly once). Add that M1 checks the module's top-level statements
+   first, because unannotated top-level bindings get their types there.
+4. **checking-and-tir.md §4.13.2:** replace "ambiguity error" with the two
+   codes. Add the permission join (section 3.4), the family rule, the
+   no-retry literal plan and the cross-statement joins (section 3.6), and
+   the instantiation choice with its prefilter, expected-type filter and
+   trial memo (section 2.5).
+5. **checking-and-tir.md §4.13.3 and §4.13.10:** move mutability, definite
+   initialization, `let-else` and init summaries from "over TIR" to
+   "during checking", with a pointer to section 8.
+6. **checking-and-tir.md §4.13.4:** replace the pending row and the
+   `Pending(row variable)` provider with section 5.5's `PendingRow` (with
+   its substitution), `PendingCall` record, per-variable worklist solve
+   and row sweep. Keep the M2 limit of section 5.6.
+7. **checking-and-tir.md §4.13.6:** replace the scoped pop with rules
+   TC-10 and TC-11 of section 6.1: no rollback at an arm's end, arm
+   environments in an append-only table.
+8. **checking-and-tir.md §4.13.11, catalog:** replace `Default` with a
+   default call: the default body's `DefId`, the callee's type arguments
+   and the earlier argument values, emitted per call after the explicit
+   arguments (section 1.7; review finding 4). Add `Coerce` kinds for
+   declared variance, supertrait widening and GADT refinement (`Refine`,
+   static). Facts, metadata and shared enum data need a compile-time
+   evaluator with its own budget, whose failure is a compile-time
+   diagnostic; that design is the backend lane's (codegen.md §12.3).
+9. **checking-and-tir.md §4.13.11, builder:** `konst` must accept a
+   literal whose width is still an inference variable; the width comes
+   from the `Solution` at `finish` (review I7, section 1.5).
+10. **checking-and-tir.md §4.13.11, `Closure`:** a capture's mode
+    (`Copy`, `Move`, `Shared`) depends on statements after the closure;
+    `finish` fills the capture-mode column from the checker's `Solution`
+    (already in data-structures.md §3.9.5).
+11. **checking-and-tir.md §4.15:** add the fuel cost table of section
+    11.1 and the out-of-fuel policy of section 11.2.
+12. **testing-the-compiler.md §8.1:** add the emit and no-emit dimension
+    and the `fuel_used` comparison to the determinism matrix.
+13. **open-questions.md §10.1:** add inconsistencies 1, 2 and 3 of
+    section 16.2.

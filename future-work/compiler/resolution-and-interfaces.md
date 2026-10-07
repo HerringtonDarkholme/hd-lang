@@ -127,27 +127,60 @@ are frozen:
    ([Derived Bounds](../../spec/lang/14-annotations.md#derived-bounds)). For
    `@error`, `@from` and `@source`, the `Display`, `Error` and `From`
    heads.
-5. Run the header checks that need nothing else: `private-type-leak`,
-   `orphan-impl`, `nonlocal-impl`, `unconstrained-impl-parameter`,
-   `ambiguous-row-pattern`, `misplaced-derivation`, a second template
-   (`overlapping-impl`), a missing public result type or row
-   ([`module.package.annotated`](../../spec/lang/10-modules.md#r-module.package.annotated)),
-   and duplicate declarations.
-6. Build each module's `ImplTable` (§4.12.1).
+5. Run the header checks of stage A in §4.10.1: everything that reads
+   only headers, F's own and its dependencies'. Among them: impl
+   parameters that appear only inside a projection in the head are
+   unconstrained (`unconstrained-impl-parameter`, owner, 2026-10-07); and
+   every private item that a template body names must have a written
+   signature (§4.10.1, the hidden-helper rule). In the same pass, compute
+   each impl's **bound plan** (trait-solver.md §3.6), each trait's
+   dynamic-safety flag with its first failing reason and its **vtable
+   shape** (trait-solver.md §9.1 and §9.2), and list each tuple template
+   in the `heads` section with head key `TupleAny` (trait-solver.md
+   §3.9).
+6. Build each module's `ImplTable` (§4.12.1), the `arg_impls` section,
+   and, for std, the synthetic table of built-in targets.
 7. Write the blob (§4.11), then compute item hashes, `api_hash`,
    `deep_hash` and `heads_hash`.
 8. **Validate on write** (lesson 12). Every `DefId` that the api sections
-   mention is exported from its folder, or is a hidden template item of
-   this folder. A failure is an internal compiler error naming the item,
-   not a user diagnostic, since user-facing leaks are already
-   `private-type-leak` in step 5. Debug builds and verify mode also decode
-   the written bytes and compare them with the in-memory interface.
+   mention is exported from its folder, or is a hidden item of this
+   folder that a template body or another hidden item's signature names.
+   A failure is an internal compiler error naming the item, not a user
+   diagnostic, since user-facing leaks are already `private-type-leak` in
+   step 5. Debug builds and verify mode also decode the written bytes and
+   compare them with the in-memory interface.
+
+After step 8 the interface is usable: dependents may read it. The
+stage-B checks of §4.10.1 run next, in their own task, and no dependent
+reads their result.
 
 **What the interface holds.** Public items, all impl heads, templates with
-their bodies, hidden template items, and default and fact expressions as
-token ranges with their types. It holds no private item, body, doc comment
-or fact value. A check needs only a fact's type; D2 computes values at
-build time from TIR (the research's Q4b contradiction 2).
+their bodies, hidden items, and per parameter and field whether it has a
+default. It holds no private item except hidden ones, no ordinary body,
+no doc comment and no fact value. Spans in it are relative to their
+declaration ([data-structures.md §3.7](data-structures.md#37-spans-and-files),
+review A3): `(declaration path row, lo, hi)`, so a blank line above a
+declaration changes no byte of the blob.
+
+- **Defaults are not in the interface as expressions.** A caller emits a
+  call of the default's own body with the earlier arguments
+  ([type-checking.md §1.7](type-checking.md#17-body-tasks-and-the-exactly-once-rule)),
+  so it needs only the parameter's type and the fact that a default
+  exists. Codegen reads the default's TIR from its module's `tir` entry,
+  as for any generic function.
+- **Facts carry their type only.** A check needs only a fact's type.
+  Values are computed once, at compile time, by the backend's evaluator
+  (review finding 4).
+- **Hidden items and their closure (review finding 6).** A template body
+  may name private items of its trait's module (owner, 2026-10-07). The
+  interface holds each such item's record in the `hidden` section, plus,
+  transitively, every private type its signature names, with that type's
+  fields, variants and the methods the template body names. All of it
+  comes from headers and the template's resolution table, never from a
+  body, because every hidden function has a written result type and its
+  omitted `$` clause means the empty row (§4.10.1). So "interfaces come
+  from syntax alone" stays true, and a hidden helper's body edit changes
+  no interface byte. User code cannot name a hidden item.
 
 **Two hashes, two readers (mine).** `api_hash` and `deep_hash` cover what
 a dependent's check can read: public items, and impl heads whose target
@@ -162,6 +195,44 @@ So adding `impl Display for PrivateThing` rechecks no dependent.
 A folder task cannot be split, so one very large folder bounds the wall
 time of a cold run. That is a measured risk, not designed away.
 
+#### 4.10.1 Header Validation Stages
+
+The review (T7) found that the header checks had no complete stage
+contract. Every header rule runs in exactly one of three stages:
+
+| Stage | Task | Reads | Rules |
+| --- | --- | --- | --- |
+| A | `FolderIface(F)`, step 5 | F's headers, its dependencies' interfaces | duplicate declarations; `private-type-leak`; `orphan-impl`; `nonlocal-impl`; `bare-parameter-impl-target`, `trait-value-impl-target`, `mutable-impl-target`, `invalid-impl-target`; `unconstrained-impl-parameter` (projections included); `sealed-trait-implementation`; `ambiguous-row-pattern`; `misplaced-derivation`; a second template or a derive beside a written impl (`overlapping-impl`); `mixed-derived-law`; `duplicate-inherent-member`; `missing-result-type` for public items and hidden helpers; `default-order`; `generic-kind-mismatch`; cycles of aliases and supertraits (`supertrait-cycle`); `ambiguous-associated-type`; declared variance against every use in fields, payloads and methods, private inherent methods included; impl members against the trait: completeness (`missing-trait-method`), signature equality, associated-type bindings complete |
+| B | `HeaderCheck(F)`, after F's interface and its dependencies' interfaces | the solver over frozen impl tables | written types against their declared bounds, for every type written in a header (a `Set[K]` needs `K: Hash` from the item's own bounds: [`trait.bound.no-implied`](../../spec/lang/09-traits.md#r-trait.bound.no-implied)); supertraits of each impl and supertrait bindings (`missing-supertrait-implementation`); a derived newtype's base impl; a delegation target's impl |
+| C | body tasks (M2) | bodies | derive-instance member obligations; local impls; everything in [type-checking.md](type-checking.md) |
+
+- **Why stage B is a task of its own.** Its goals need the impl tables of
+  F and of every dependency, which step 6 builds after stage A. Its
+  answers never change what a dependent's check reports, so dependents
+  do not wait for it. A run with a stage-B error fails as any run with an
+  error does, and codegen waits for every `HeaderCheck` task of the
+  program graph.
+- **Dependencies are checked too.** Stages A and B run for every folder
+  of the program graph, std and dependencies included, whether or not
+  the run checks that folder's bodies. So an imported impl that misses a
+  member or a supertrait is reported, in the dependency's file, even by
+  `hd check`. When a dependency's bodies are checked is the command's
+  policy ([commands.md](commands.md)), not the interface's.
+- **Caching.** Stage A's diagnostics are in the blob's `diags` section,
+  outside every api hash. Stage B's are the `HeaderCheck(F)` task's
+  result; its key is F's interface key plus the deep hashes and the
+  `arg_impls` closure hash of its dependencies. That entry kind is the
+  backend lane's ([cache.md](cache.md)).
+- **Fuel.** Each item's stage-B goals share one fuel budget per item, as
+  a body's do, so one pathological header fails only itself.
+- **The hidden-helper rule.** A private function that a template body
+  names must write its result type (`missing-result-type`), and without
+  a `$` clause it has the empty row, as a public function does. A
+  template may not name a private top-level binding. This is a proposed
+  language rule
+  ([type-checking.md §16](type-checking.md#16-open-questions-for-the-owner),
+  question 1).
+
 ### 4.11 The Interface Blob
 
 #### 4.11.1 Layout
@@ -175,13 +246,14 @@ paths       StablePath records over string offsets
 types       the InternPool's tag, data and extra columns, with blob-local operands
 items       ItemRecord, in (module path, source order)
 exports     (module, name) -> item, sorted by bytes, for binary search
-impls       ImplRecord: head, bounds, owner module, by-clause, api or heads-only
+impls       ImplRecord: head, bounds, bound plan, owner module, by-clause, api or heads-only
+arg_impls   heads owned only through a trait argument, by (trait, target head key); own hash
 templates   template headers; bodies as token text plus a resolution table
             (path node -> stable path in the trait's module)
-hidden      hidden template items, in the item record shape
+hidden      hidden items and their private type closure, in the item record shape
 item_hash   (item index, shallow Hash128, deep Hash128)
 mentions    (folder stable path, deep hash) of every other folder named
-diags       header diagnostics with stable spans (outside every api hash)
+diags       stage-A header diagnostics, spans relative to their declaration (outside every api hash)
 ```
 
 - Every section's row layout is in
@@ -244,64 +316,86 @@ outer constructor ([Implementation Modules](../../spec/lang/09-traits.md#impleme
 So no global impl index is needed:
 
 ```rust
-pub struct ImplTable {                    // per module, frozen with its folder; columns sorted by (trait, head key)
+pub struct ImplTable {                    // per module, SoA, frozen with its folder
     pub trait_: Box<[DefId]>,             // DefId::NONE for inherent impls
     pub def: Box<[DefId]>,
     pub head_key: Box<[HeadKey]>,         // packed u32: kind in the high bits
-    pub generic: BitBox,
+    pub arg_key: Box<[[HeadKey; 2]]>,     // head keys of the first two trait arguments; ANY when generic
+    pub n_params: Box<[u8]>,
+    pub head: Box<[HeadRef]>,             // target and trait arguments, as interface type records
+    pub plan: Box<[PlanRange]>,           // the bound plan (trait-solver.md §3.6)
+    pub assoc: Box<[AssocRange]>,         // associated-type bindings, by associated item DefId
+    pub origin: Box<[ImplOrigin]>,        // Written | Derived | Delegated | Error | NumericFamily | TupleTemplate
+    pub rank: Box<[u64]>,                 // content rank: (module path rank, source position)
     pub by_trait: HashMap<DefId, (u32, u32)>,  // an index: trait -> range of rows
 }
-pub enum HeadKey { Ctor(DefId), Prim(Prim), Tuple(u16), Fn, Param }   // fast reject
+pub enum HeadKey { Ctor(DefId), Prim(Prim), Tuple(u16), TupleAny, Fn, SuspendFn, Param, Any }   // fast reject
 ```
+
+Rows are sorted by `(trait rank, head key, arg key, rank)`, so candidate
+order is content order. The probe and its fast reject are
+[trait-solver.md §3.3](trait-solver.md#33-the-head-index) (change 12).
 
 The columns' final form, sorted by the trait's path hash so candidate
 order is content order, is
 [data-structures.md §3.17](data-structures.md#317-impl-tables).
 
-To solve `Target: Trait[Args]`, look in the tables of at most
-`2 + len(Args)` modules: the trait's, the target constructor's, and each
-argument constructor's. Blanket impls (`impl[T] Tr for T`) can only be in
-the trait's module. Built-in owners (tuples, functions, primitives) map to
-fixed std modules. Local impls, which must involve a local type or trait,
-are in a body-local table.
+To solve `Target: Trait[Args]` with known arguments, look in the tables
+of at most `2 + len(Args)` modules: the trait's, the target constructor's,
+and each argument constructor's. Blanket impls (`impl[T] Tr for T`) can
+only be in the trait's module. Local impls, which must involve a local
+type or trait, are in a body-local table. Two additions cover what that
+bound misses (trait-solver.md §3.2):
 
-Every module consulted declares something the goal mentions, so it lies in
-the asking module's deep dependency closure. Trait lookup therefore reads
+- **Built-in targets.** std may hold impls and inherent impls for
+  primitives, `List`, `Map`, tuples, `Fn`, `Option` and `Result` in any
+  of its modules. std's interface gathers all of them, inherent impls
+  included, into one synthetic table, which lookup reads instead of an
+  "owner" module.
+- **Open trait arguments.** An impl owned only through a trait argument
+  is listed in its folder's `arg_impls` section. Once per run, the driver
+  merges those sections into a per-trait **candidate directory**, frozen
+  before any body that needs it. A goal with an open argument reads the
+  directory, filtered to the asking module's dependency closure (owner,
+  2026-10-07). The module's `check` key gains a hash over the `arg_impls`
+  section hashes of that closure (trait-solver.md change 21, the backend
+  lane's).
+
+Every module consulted declares something the goal mentions, or holds a
+directory row from the dependency closure, so it lies in the asking
+module's deep dependency closure. Trait lookup therefore reads
 nothing that the module's cache key does not cover. And the table a goal
 needs is frozen as soon as its one folder's interface is, so bodies can
 run while unrelated folders are still being resolved.
 
 #### 4.12.2 Solving
 
-- **Goal.** `(trait, self type, args)`, after normalizing projections whose
-  base is concrete.
-- **Candidates,** in order: bounds in the parameter environment; impls from
-  owner tables, fast-rejected by `HeadKey`; compiler-derived impls for
-  tuples at every arity and for numeric families.
-- **Match** the impl head by unification, then solve its bounds as
-  subgoals, depth first.
-- **Cycles.** A goal already on the stack succeeds only inside a derived
-  impl's member check, which is coinductive
-  ([`annot.bound.recursive`](../../spec/lang/14-annotations.md#r-annot.bound.recursive)).
-  Elsewhere it fails with `trait-resolution-depth`.
-- **Memo.** A fully concrete goal is memoized in a global sharded table as
-  `(answer, steps)`. A goal with inference variables is memoized per body.
-  "Type T satisfies bound B" is the most common goal and gets both (Go
-  #66699). First writer wins. The answer is a pure function of frozen
-  inputs, so every writer writes the same answer.
-- **Budget.** Each candidate tried and each subgoal expanded costs one
-  step of the body's fuel. A memo hit charges the steps stored with it. So
-  whether a goal runs out depends neither on which body computed it first,
-  nor on the thread count, nor on cache warmth
-  ([Budgets And Schedule Independence](prior-art-issues.md#budgets-and-schedule-independence)).
-- **Method lookup.** Inherent methods of the receiver's nominal type come
-  first, from the target module's inherent table. Then the methods of
-  traits available in the module
-  ([Trait Availability](../../spec/lang/09-traits.md#trait-availability)):
-  its uses, its declarations, the prelude and the receiver's bounds. Each
-  such trait with the method name asks one goal. Several matches are an
-  ambiguity error. None is an unknown-method error, with a `use`
-  suggestion when an unavailable trait would match.
+The solver is designed in [trait-solver.md](trait-solver.md). In short:
+
+- **Goals** are canonical: variables resolved, arm equalities
+  substituted, concrete projections normalized, the rest numbered by
+  first occurrence (trait-solver.md §2.2).
+- **Candidates,** in order: the parameter environment, a trait value as
+  self, compiler-supplied impls of sealed traits, owner tables and the
+  candidate directory, local impls. The solver commits on the one head
+  that matches and never backtracks among impls (rule TS-2).
+- **Cycles.** A goal already on the stack is `Overflow`, reported as
+  `trait-resolution-depth`. Derive instances need no coinductive
+  assumption: the derived head is in the table, so the member check
+  meets no cycle (trait-solver.md §3.10).
+- **Memo.** Keys hold the canonical goal plus the environment, the
+  visible local impls and, for `Methods`, the availability key. Only
+  completed, context-free answers are published to the run's global
+  memo; depth is a stored height; fuel and depth exhaustion are never
+  cached as failures (trait-solver.md §7.1 to §7.3).
+- **Budget.** The first time a body meets a goal it pays the goal's
+  intrinsic cost, and 1 on each repeat, so whether a goal runs out
+  depends neither on which body computed it first, nor on the thread
+  count, nor on cache warmth (trait-solver.md §7.4).
+- **Method lookup.** Inherent methods first, then the methods of traits
+  available in the module
+  ([Trait Availability](../../spec/lang/09-traits.md#trait-availability)),
+  one goal per trait that declares the name (trait-solver.md §6.5).
 
 #### 4.12.3 Coherence
 
@@ -309,14 +403,23 @@ run while unrelated folders are still being resolved.
   ([Overlap](../../spec/lang/09-traits.md#overlap)).
 - One `Coherence(trait)` task runs per trait with more than one impl in
   the program's graph (root package, dependencies, std). Its input is that
-  trait's heads from the `heads` sections of every folder interface. Heads
-  are bucketed by `HeadKey`; a `Param` head joins every bucket. Each pair
-  in a bucket is unified after renaming apart. Numeric-family heads expand
-  to their members first.
+  trait's heads from the `heads` sections of every folder interface,
+  derived, generated and delegated heads and tuple templates included.
+- **Near-linear, not pairwise (change 14, review T6).** Numeric-family
+  heads expand to their members first. Ground heads go into a hash set;
+  generic heads go into a discrimination tree, a trie over the head's
+  pre-order walk with impl parameters as wildcards. Each head queries the
+  tree and the set before it is inserted, and each candidate pair is
+  confirmed by unification after renaming apart
+  ([trait-solver.md §5.2](trait-solver.md#52-the-overlap-check)). Disjoint
+  heads cost time linear in their total size, not one check per pair.
 - An overlap is reported once, at the later impl in content order
-  (package, module path, offset), naming the earlier one.
+  (package, module path, offset), naming the earlier one and a **witness**
+  type that both heads match, such as "both apply to `Box[Plain]`".
+  The task stops after the first overlap per impl.
 - The task's key is the trait's stable path plus the sorted head hashes,
-  so it is cached and reruns only when a head of that trait changes.
+  so it is cached and reruns only when a head of that trait changes. Its
+  spans are relative to their declaration (review A3).
 - `hd check` runs coherence over the whole graph, not only at link time
   ([`module.interface.coherence`](../../spec/lang/10-modules.md#r-module.interface.coherence)).
   It is cached and cheap, and agents see the error one command earlier.

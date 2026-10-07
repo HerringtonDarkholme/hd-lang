@@ -245,6 +245,16 @@ folder's interface:
 Left out: function bodies, `tests:` blocks, top-level statements, comments,
 doc comments and whitespace.
 
+Hidden template helpers are no exception. A private function that a
+template body names has a written result type, and its omitted `$`
+clause means the empty row
+([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)).
+So its header text is its whole interface, and an edit to its body
+changes no api text hash (Codex review, finding 6). Default and fact
+token ranges stay in the hash because they are part of the header text;
+the interface itself keeps only whether a default exists and a fact's
+type, so the deep hash cuts off an edit inside them.
+
 The folder interface key uses these hashes instead of source hashes
 (§5.3). So a body edit never rebuilds its folder's interface. A private
 header edit rebuilds it, but the rebuilt blob's deep hash changes only if

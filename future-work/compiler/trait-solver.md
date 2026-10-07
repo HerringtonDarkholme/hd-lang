@@ -1,6 +1,8 @@
 # New Compiler: The Trait Solver
 
-Status: Design, not decided. Frontend lane, 2026-10-07.
+Status: Design, not decided. Frontend lane, 2026-10-07. Revised the same
+day with the owner's answers to section 16.1 and the frontend response to
+the Codex review ([codex-review-response-frontend.md](codex-review-response-frontend.md)).
 
 This document details the trait solver of the new compiler. It implements
 the interface that [type-checking.md §1.6](type-checking.md#16-the-trait-solver-interface)
@@ -82,7 +84,8 @@ right.
 | --- | --- | --- |
 | Resolution (`hd_resolve`) | impl heads, bound plans and derived heads in the interface; every header check that needs no solver: orphan, module ownership, targets, unconstrained parameters, sealed traits, dynamic safety, template placement | goals |
 | **Trait solver (`hd_types::solve`, this document)** | the four goals; parameter-environment elaboration; normalization of projections; canonical goals and the memo; impl selection for codegen; `FailInfo` | inference variables (it reads them, never writes them), diagnostics text, spans |
-| Impl checks (body tasks in M2) | each impl's supertrait and binding checks, derive member obligations, delegation checks: goals under the impl's environment, asked through the solver | the answers |
+| Impl checks (`HeaderCheck(F)`, one task per folder, before bodies need it) | each impl's supertrait and binding checks, newtype bases, delegation targets: goals under the impl's environment, asked through the solver ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)) | the answers |
+| Derive instances (body tasks in M2) | derive member obligations, checked with the instance body | the answers |
 | Type checker (`hd_check`) | when to ask, applying learned bindings, obligations, the instantiation choice by trial, every diagnostic | impl search |
 | Coherence (`Coherence(trait)` task) | overlap across the program graph, per trait, from heads | goals |
 | Codegen collection (D2) | instances and vtables | anything but a head match at concrete types (rule TS-6) |
@@ -350,7 +353,7 @@ The fix is a **candidate directory**, after the review's proposal:
 3. A goal with an open argument reads the trait's directory rows for its
    target head key, and keeps only rows whose folder is in the asking
    module's **dependency closure** (a bit set per module, built in M1).
-   Section 16 question 1 asks the owner to confirm the closure rule.
+   The owner confirmed the closure rule (2026-10-07).
 4. **Cache key (incremental soundness).** A module's `check` key gains
    `arg_impls_closure_hash`: a Merkle hash over the `arg_impls` section
    hashes of every folder in the module's dependency closure, computed
@@ -489,7 +492,9 @@ Supertraits act in two directions.
 The second row is sound because the impl check proves every supertrait
 under the impl's own bounds
 ([`trait.super.impl-bounds`](../../spec/lang/09-traits.md#r-trait.super.impl-bounds)).
-That check is an impl-check body task in M2. It asks `Implements` for each
+That check runs in the folder's `HeaderCheck(F)` task, from headers and
+impl tables only, so a dependency's impls are checked even when its bodies
+are not (review T7). It asks `Implements` for each
 supertrait under the impl's environment, and `Project` for each
 supertrait binding
 ([`trait.binding.super.mismatch`](../../spec/lang/09-traits.md#r-trait.binding.super.mismatch)).
@@ -572,7 +577,10 @@ The solver never reads a template body. It sees only heads.
 - **Hidden helpers.** A template body may call private helpers of the
   trait's module, which the interface exports as hidden items
   (owner, 2026-10-07). Calls to them resolve through the template's
-  resolution table. Trait goals inside the instance run under the
+  resolution table. Each helper's signature is written in full, so a
+  dependent reads it from the interface, never from a body
+  ([type-checking.md §9.1](type-checking.md#91-who-can-omit), an open
+  owner question). Trait goals inside the instance run under the
   instance's environment like any other body; the solver needs nothing
   more.
 - **Member obligations and coinduction.** The derive-instance task checks
@@ -717,9 +725,10 @@ The spec does not say whether an impl head may contain a projection of an
 impl parameter, as in `impl[I < Store] Summary for Feed[I::Item]`. Such a
 head is not injective: two different `I` may give one `Feed` type, so
 matching cannot solve `I`, and overlap cannot be decided from heads.
-Section 16 question 2 asks the owner. Until then, resolution reports the
-head as `unconstrained-impl-parameter`, since `I` appears only under a
-projection.
+The owner decided (2026-10-07) to forbid it: resolution reports the head
+as `unconstrained-impl-parameter`, since `I` appears only under a
+projection. A parameter that appears only inside a projection is not
+constrained. No new code.
 
 ## 5. Coherence
 
@@ -734,12 +743,12 @@ projection.
 | sealed traits | the trait | folder interface | `sealed-trait-implementation` |
 | a second template; `@derive` beside a written impl or a block for the same trait | the module's heads | folder interface | `overlapping-impl` |
 | law partners all derived or all written | the module's heads | folder interface | `mixed-derived-law` |
-| supertraits and supertrait bindings of an impl | the solver, under the impl's environment | impl check, M2 | `missing-supertrait-implementation` |
+| supertraits and supertrait bindings of an impl | the solver, under the impl's environment | `HeaderCheck(F)` | `missing-supertrait-implementation` |
 | overlap between impls | heads of one trait across the program graph | `Coherence(trait)` task | `overlapping-impl` |
 | duplicate inherent members | inherent heads of one type, in its module | folder interface | `duplicate-inherent-member` |
 | local impls | the body's local impls | the body | the same codes |
 
-Only the impl check needs goals. Everything else is a function of heads,
+Only the impl checks need goals. Everything else is a function of heads,
 so it runs before any body and caches with the interface.
 
 ### 5.2 The Overlap Check
@@ -1025,7 +1034,7 @@ So whether a goal overflows depends only on the goal and on where it is
 used, never on which body computed it first. The stack never holds more
 than 64 goal frames plus their `Project` steps, which count as levels.
 
-**What counts as a level** (a reading; section 16 question 3): a bound-plan
+**What counts as a level** (owner, 2026-10-07): a bound-plan
 step of an impl, an element obligation of a tuple template, one
 `Inspectable` step through a type argument, and one `Project` step. An
 environment clause, a trait-value source and a sealed membership with no
@@ -1347,8 +1356,7 @@ A failure's root key is the body plus the leaf goal's canonical key (mine).
 Ten `==` uses on a `Point` without `Eq` in one body give one error at the
 first use, with a note "and 9 more uses in this body". Different leaves
 are different causes: `Box[Handle]: Eq` and `Handle: Hash` give two.
-Section 16 question 4 asks whether the owner wants this, or one error per
-use site.
+The owner chose this over one error per use site (2026-10-07).
 
 A stalled goal still open at the end of the body becomes type-checking.md's
 `cannot-infer-type`, naming the goal's trait: "cannot infer `U`: `Both`
@@ -1498,39 +1506,14 @@ From [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md), its history, the
 
 ### 16.1 Questions For The Owner
 
-1. **Which impls does an instantiation set count?** `Instantiations` and
-   bound-only inference ask for "every instantiation" a type implements.
-   An impl owned through a trait argument may live in a package that the
-   asking module does not depend on (section 3.2). If it counts, adding a
-   package to the program can make a call in an unrelated module
-   ambiguous, and the module's cache key would have to cover every
-   package. **Recommendation:** count only impls declared in the asking
-   module's dependency closure, as Rust's separate compilation does in
-   effect. Add one sentence to
-   [Instantiations Of One Generic Trait](../../spec/lang/09-traits.md#instantiations-of-one-generic-trait)
-   and to [Inference Through A Bound](../../spec/lang/04-type-system.md#inference-through-a-bound).
-   Coherence still checks the whole graph, so no two impls can disagree.
-2. **Projections of impl parameters in impl heads.** The spec neither
-   allows nor forbids `impl[I < Store] Summary for Feed[I::Item]`. Such a
-   head cannot be matched or checked for overlap from heads alone.
-   **Recommendation:** forbid it. Say in
-   [`trait.overlap.constrained-head`](../../spec/lang/09-traits.md#r-trait.overlap.constrained-head)
-   that a parameter that appears only inside a projection is not
-   constrained, so the existing `unconstrained-impl-parameter` applies. No
-   new code.
-3. **What counts as one level of proof depth?** The spec defines depth by
-   impl bounds only. **Recommendation:** count a bound-plan step, a tuple
-   template's element obligation, one `Inspectable` step through a type
-   argument and one projection step as one level each; count environment
-   clauses, trait-value sources and sealed memberships as no level
-   (section 7.3). Add this as a rule under
-   [Generic Bounds And Static Dispatch](../../spec/lang/09-traits.md#generic-bounds-and-static-dispatch),
-   so every implementation agrees on which programs pass.
-4. **One error per missing impl per body, or per use?** Ten `==` on a type
-   without `Eq` in one body can give ten errors or one with "and 9 more
-   uses". **Recommendation:** one per body and leaf goal (section 10.4).
-   The `mistakes` metric counts diagnostics per mistake, and the fix is
-   usually one `@derive` line.
+All four are answered (owner, 2026-10-07) and used above:
+
+| Question | Answer | Where |
+| --- | --- | --- |
+| 1. Which impls an instantiation set counts | only impls in the asking module's dependency closure; the spec pass adds a sentence to [Instantiations Of One Generic Trait](../../spec/lang/09-traits.md#instantiations-of-one-generic-trait) and [Inference Through A Bound](../../spec/lang/04-type-system.md#inference-through-a-bound) | section 3.2 |
+| 2. Projections of impl parameters in impl heads | forbidden, as `unconstrained-impl-parameter`; the spec pass says so in [`trait.overlap.constrained-head`](../../spec/lang/09-traits.md#r-trait.overlap.constrained-head) | section 4.4 |
+| 3. One level of proof depth | a bound-plan step, a tuple template's element obligation, an `Inspectable` step and a projection step; environment clauses, trait-value sources and sealed memberships are no level; the spec pass adds the rule | section 7.3 |
+| 4. One error per missing impl per body, or per use | one per body and leaf goal, with "and N more uses" | section 10.4 |
 
 ### 16.2 Readings Of The Spec To Confirm
 
@@ -1584,6 +1567,10 @@ owner disagrees.
 ### 16.4 Changes Needed In type-checking.md And The Other Design Files
 
 For the owners of those files to make. This document edits none of them.
+Status, 2026-10-07: changes 1 to 11 are applied in type-checking.md and
+changes 12 to 14 in resolution-and-interfaces.md. Changes 15 to 21 are
+the backend lane's, listed in
+[codex-review-response-frontend.md](codex-review-response-frontend.md).
 
 **type-checking.md**
 
@@ -1644,8 +1631,10 @@ For the owners of those files to make. This document edits none of them.
     `Builtin`; `CallDyn` gains one evidence operand per method-level
     bound; `NewVariant`'s evidence choices are `Evidence` values.
 17. **§4.13.9:** a derive instance needs no coinductive assumption
-    (section 3.10). Add an impl-check body task per impl in M2:
-    supertraits, supertrait bindings, delegation parts and newtype bases.
+    (section 3.10). Supertraits, supertrait bindings, delegation parts
+    and newtype bases are checked by the folder's `HeaderCheck(F)` task
+    (resolution-and-interfaces.md §4.10.1), not by an M2 body task, and
+    scheduler.md gains that task.
 
 **codegen.md**
 

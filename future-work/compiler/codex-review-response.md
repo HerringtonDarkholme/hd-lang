@@ -151,5 +151,5 @@ its alias assertions and drops those about distinct boxes.
 
 ## Frontend Lane
 
-Placeholder: the frontend lane adds its rows here for findings 3, 4, 6,
-7 and 8, A5, and T1 to T7.
+The frontend rows (findings 3, 4, 6, 7 and 8, A5, T1 to T7, P2 and P6)
+are in [codex-review-response-frontend.md](codex-review-response-frontend.md).
