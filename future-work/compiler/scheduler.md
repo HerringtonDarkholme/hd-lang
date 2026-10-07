@@ -10,7 +10,7 @@ Part of the [compiler design](README.md).
 pub enum TaskKind {
     Skim(FileId), Parse(FileId), FolderGraph(PackageId),
     FolderIface(FolderId), HeaderCheck(FolderId),
-    ModulePrep(ModuleId), Body(ModuleId, ItemIdx), ModuleFinish(ModuleId),
+    ModulePrep(ModuleId), Body(ModuleId), ModuleFinish(ModuleId),  // Body: all of a module's bodies, as one batched parallel iterator (granularity rule below)
     TestOverlay(ModuleId), Coherence(DefId), InitOrder(FolderId), PackageResult(PackageId),
     Ext(ExtTask),                       // D2's tasks, behind a trait object
 }
@@ -60,7 +60,7 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
   `arg_impls` section is not empty, interned once per run
   ([trait-solver.md §3.2](trait-solver.md#32-owner-modules)).
   - The contexts: each module's bodies, computed in M1 before any
-    `Body(m, i)` starts; each module's test overlay; each
+    `Body(m)` starts; each module's test overlay; each
     `HeaderCheck(F)`, from `closure(F)` when the task starts; and each
     derive instance, which uses its module's id.
   - Equal lists get one id, so most modules of a package share one.

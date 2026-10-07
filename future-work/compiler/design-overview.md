@@ -110,7 +110,7 @@ in-memory ID.
 ### 1.3 The Task Graph
 
 ```text
-Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) ──► Body(m, i) ──► ModuleFinish(m) ──► PackageResult
+Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) ──► Body(m) ──► ModuleFinish(m) ──► PackageResult
                │              ▲    │                ▲                                │
 Parse(f) ──────┼──────────────┼────┼────────────────┘                                ├──► InitOrder(F)
                │              │    └──► Coherence(trait) ◄── FolderIface(every F) ───┘

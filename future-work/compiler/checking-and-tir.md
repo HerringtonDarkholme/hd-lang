@@ -40,7 +40,7 @@ the GADT removal (§4.13.6 and the catalog).
 | Phase | Task | Serial or parallel | Work |
 | --- | --- | --- | --- |
 | M1 | `ModulePrep(m)` | serial within the module | full parse if needed; module scope; lower private headers; the module's local impl tables; infer the results of private callables with omitted result types |
-| M2 | `Body(m, i)` | parallel across all bodies of all modules | check one body against frozen tables |
+| M2 | `Body(m)` | parallel across modules; inside a module, bodies run as one batched parallel iterator ([scheduler.md](scheduler.md#62-executors) granularity rule) | check each body against frozen tables |
 | M3 | `ModuleFinish(m)` | serial within the module | solve inferred rows, run deferred row checks, write the init summary, sort diagnostics, build `ModuleResult` |
 
 **Each body is checked exactly once per run** (type-checking.md rule

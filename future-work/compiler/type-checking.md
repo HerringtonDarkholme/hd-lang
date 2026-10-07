@@ -420,7 +420,7 @@ D1's phases stay. This design adds one rule.
 | Phase | Task | Bodies checked here |
 | --- | --- | --- |
 | M1 | `ModulePrep(m)`, serial | the module's top-level statements; every non-public function and inherent method whose result type is omitted; depth first (section 9) |
-| M2 | `Body(m, i)`, parallel | every other body: functions and methods with written results, impl members, derive instances, test bodies, default bodies, fact and shared-enum-data expressions |
+| M2 | `Body(m)`: the module's bodies as one batched parallel iterator (scheduler.md granularity rule) | every other body: functions and methods with written results, impl members, derive instances, test bodies, default bodies, fact and shared-enum-data expressions |
 | M3 | `ModuleFinish(m)`, serial | no body: the row solve, deferred row checks, init summary, diagnostic sort |
 
 **Rule TC-4. Each body is checked exactly once per run.** A body checked
