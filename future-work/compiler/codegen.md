@@ -7,8 +7,8 @@ Part of the [compiler design](README.md).
 **Second pass** (backend lane, 2026-10-07), from
 [codex-review-response-frontend.md](codex-review-response-frontend.md#changes-for-the-backend-lane)
 items 18 to 20 and 22, and the owner's answers of the day: collection
-selects impls by head only (§13.2); vtables follow the trait record's
-shape, and `CallDyn` passes its evidence operands (§13.5); tuple traits
+selects impls by a head match plus `Bind` steps, with no proof
+(§13.2); vtables follow the trait record's shape (§13.5); tuple traits
 are template instances (§13.6); defaults run per call and facts are
 evaluated at compile time (§12.3); `Result` uses `multi` layouts, and
 bounded inlining and scalar replacement are first-release (§12.6);
@@ -179,7 +179,7 @@ instance.
 | `Scope` with `Defer` | the exit ladder below |
 | `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then bytes for strings; each arm once, in nested blocks that leaves branch to |
 | `Call` with an `Item` callee | `call`, relocated to the callee instance |
-| `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl selected by head at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
+| `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl that `select` picks at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
 | `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1) |
 | `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
@@ -245,7 +245,7 @@ cancel function (§14.6).
      an arena of its own. A body that is a tree of constants and
      constructors is folded without the interpreter.
   3. **What it may call.** Any hd function, method, trait method
-     (selected by head, rule TS-6), closure and default body whose TIR
+     (chosen by `select`, §13.2), closure and default body whose TIR
      is reachable, and the pure intrinsics: arithmetic, `Array`
      operations, string building, `TypeId`. Facts are requirement-free,
      so no provider exists and no `CallHost` is reachable. A suspension
@@ -437,7 +437,7 @@ walk, emission asserts in the compiler's debug builds and in CI:
 
 1. no `Param` type remains after substitution;
 2. every `TraitMethod` callee resolves to exactly one impl at the
-   instance's types, by head match alone (§13.2);
+   instance's types, by `select`'s head match and `Bind` steps (§13.2);
 3. every suspension point gets a resume case and a cancel case (§14.2);
 4. every relocation names a symbol in the program's instance, type, import
    or global sets (§13.10).
@@ -494,20 +494,13 @@ A worklist walk, as rustc's collector does:
 4. For each `TraitMethod` callee, read its choice. An `Impl` choice
    names the impl; substitute its arguments. A `Bound` choice becomes a
    concrete trait reference under the substitution, and the solver's
-   `select` matches it **by head only** (trait-solver.md rule TS-6):
-   no subgoal is solved, there is no depth limit and no fuel. Overlap
-   is head-only and the checker proved the bounds generically, so at
-   most one head matches. No match is an internal error (§12.7), never
-   a diagnostic. Push the impl method with the impl's type arguments,
-   or the trait's default body with `Self` set when the impl does not
-   write the method. `select` is memoized per run, shared across
-   programs. A `TraitValue` choice pushes nothing; a `Builtin` choice
-   pushes its generated body (§13.6).
-5. For each coercion to a trait value, each evidence value of a
-   `NewVariant`, and each evidence operand of a `CallDyn`, select the
-   impl by head as in step 4, record the vtable `(type, trait)` and push
-   every method of the trait at that type, supertraits' vtables
-   included. A method with its own type parameters is pushed as its
+   `select` finds the impl (table below). Push the impl method with the
+   impl's type arguments, or the trait's default body with `Self` set
+   when the impl does not write the method. A `TraitValue` choice
+   pushes nothing; a `Builtin` choice pushes its generated body (§13.6).
+5. For each coercion to a trait value, select the impl as in step 4,
+   record the vtable `(type, trait)` and push every method of the trait
+   at that type, supertraits' vtables included. A method with its own type parameters is pushed as its
    erased instance, and paired with every type-argument tuple that a
    `CallDyn` of that method reaches, to push its thunks (§13.5.1).
 6. For each `DefaultCall`, push the default body with the call's type
@@ -517,6 +510,24 @@ A worklist walk, as rustc's collector does:
 8. Record every `CallHost` as an import, every type whose layout an
    operation needs, and every fact the instance reads (§12.3).
 9. Repeat until the worklist is empty.
+
+**`select` (Codex re-review N7).** At an instance every type is
+concrete, so `select` is a head match plus reconstruction, never a
+proof ([trait-solver.md §8.3](trait-solver.md#83-what-codegen-does-with-it),
+rule TS-6):
+
+| Step | What it does |
+| --- | --- |
+| 1. Head match | match the concrete trait reference against the heads in its owner modules. Every trait argument is known, so the candidate directory is not read. Overlap is head-only and the checker proved the bounds generically, so at most one head matches. No match is an internal error (§12.7), never a diagnostic |
+| 2. `Bind` steps | run the impl's bound plan's `Bind` steps in plan order, through `normalize_concrete`. Each reads an associated-type binding at concrete types and fixes one impl parameter that the head does not fix |
+| 3. Skip `Bound` steps | the checker proved them; `select` proves no subgoal, has no depth limit and charges no fuel |
+| 4. Return | the impl and every impl argument. In `impl[T < Display, I < Store[Item = T]] Summary for Feed[I]`, matching `Feed[ConcreteStore]` fixes `I`, and the `Bind` step fixes `T` |
+
+`select` and `normalize_concrete` keep their answers in one **selection
+table** per run, keyed by the concrete trait reference, and shared
+across programs. It is not the solver's proof memo: a selection assumes
+a proof and does not make one, so a selection entry and a proof entry
+never share a key.
 
 The order of the walk never reaches output: the result is sorted by
 instance key before anything is emitted (§6.5). Collection is serial per
@@ -585,10 +596,7 @@ growing type) has no finite instance set.
 - **Trait values** are pairs: the value as `anyref` and its vtable
   (§15.2). A call through a trait value is one `struct.get` and one
   `call_ref`.
-- **GADT evidence is retired.** GADTs are removed from the language
-  (owner, 2026-10-07; the spec removal is S1e). No variant stores
-  evidence, and the `Evidence` callee and the `Refine` coercion leave
-  TIR with S1e.
+- **GADT evidence.** Removed with GADTs (owner, 2026-10-07).
 - **Generic methods called through a `dyn` value** use the type-witness
   ABI below.
 
@@ -649,7 +657,7 @@ list of supported operations. In particular:
 | --- | --- |
 | `Buffer[T] { items: ..., len: 0 }` for a user `data Buffer[T]` | `struct.new $Buffer_i32` of the unboxed fields; returns the reference |
 | `out.push(x)` on a caller-owned `mut List[T]` | `ref.cast $List_i32`, unbox `x`, `call List[i32].push`; in place |
-| `x.show()` with `T < Display` | the impl selected by head at `i32` (rule TS-6), called directly |
+| `x.show()` with `T < Display` | the impl that `select` picks at `i32` (§13.2), called directly |
 | `T::type_id()`, `downcast_val::[T](a)` | the concrete type id, the concrete cast |
 | a closure `fn(T) -> T` built in the body | a concrete `$Fn_i32_i32` closure whose code unboxes, calls the erased closure body, and boxes |
 | `f(x)` where `f: fn(T) -> T` came from the caller | `ref.cast` to the caller's closure type, unbox, `call_ref`, box |
@@ -699,10 +707,12 @@ $W_m     = (struct (field (ref null $Ops_I1.m)) (field (ref null $Ops_I2.m)) ...
   (§13.8). Witness types and globals are `Type` and `Global` symbols
   named by `(m, canon(args))`. So cached erased bodies and thunks do not
   depend on which other impls the program has.
-- **Evidence operands.** Codegen no longer reads `CallDyn`'s evidence
-  operands: the bound calls are thunks, selected by head at the concrete
-  type. The shape's `dyn_bounds` drops out of the slot signature. Both
-  are frontend cleanups (codex-rereview-response.md).
+- **No bound evidence.** Codegen reads neither `CallDyn`'s evidence
+  operands nor the vtable shape's `dyn_bounds`. A bound call in the
+  erased body is a thunk, chosen by `select` at the concrete type. So
+  the slot signature has no vtable parameter per bound, and collection
+  builds no vtable for a bound. Dropping the operand and the field is a
+  frontend cleanup.
 
 **Cost.**
 
