@@ -1,7 +1,8 @@
 # New Compiler: Architecture Research
 
 Status: Research, not decided. Both parts are done: Part 1, the front half,
-and Part 2, the back half, 2026-10-06.
+and Part 2, the back half, 2026-10-06. Q4b, on pre-parsing, was added the
+same day as a revisit of the front half.
 
 This document surveys prior art for the front half of the new compiler:
 the implementation language, the incremental model, parallel checking, the
@@ -38,6 +39,7 @@ high (I would bet on it), medium (likely, with a named risk), or low (a lean).
 | 4 | Parallel checking as a task graph: parse all files, then folder interfaces in dependency order, then every body as an independent task. The same code runs on one thread with byte-identical output. | high |
 | 5 | Data-oriented core: interned 32-bit IDs, per-folder and per-body arenas, flat token and node arrays, a zero-copy interface format, no IDs in any output or hash. | high |
 | 6 | A hand-written lexer that emits layout tokens, and a hand-written resilient recursive-descent parser that builds a lossless flat green tree. | high |
+| 6b | **A header pass** ([Q4b](#q4b-pre-parsing-and-header-extraction)): a skim mode of the same lexer skips bodies exactly by indentation, strings and brackets, and yields each module's `use` list, exported skeleton and interface hash. It skips about 60% of std's tokens. The one body-derived interface fact is the transitive `block_on` ban, which gets a per-folder drive summary. | high (exactness), medium (payoff) |
 | 7 | Checker: bidirectional inference local to each body, a poison type with root-cause suppression, trait lookup through a head index with memoized, step-bounded search, and rows as small sorted sets. | medium-high |
 | 8 | Program database hook: stable string symbol IDs and per-module fact records written into the module cache entry from day 1; the queryable store comes later. | medium |
 | 9 | Browser: the same core compiled to `wasm32-unknown-unknown`, single-threaded by default, behind four host interfaces (files, cache store, scheduler, capability host). | medium-high |
@@ -237,7 +239,10 @@ Lessons from the table:
   methods must write their result type and row
   ([functions](../spec/lang/07-functions.md#parameter-and-result-types),
   [rows](../spec/lang/11-requirements-and-suspension.md#omitted-requirement-clauses)).
-  A body edit cannot change a module's interface.
+  A body edit cannot change a module's interface. (Corrected in
+  [Q4b](#contradictions-with-part-1-and-part-2): the transitive `block_on`
+  ban makes some body edits visible to dependents, and template bodies
+  are interface.)
 - **An acyclic folder graph.** Files of one folder may use each other in
   loops, but folders form a DAG, and the spec says why: "a folder then
   compiles from the signatures of the folders it uses, as a Go package
@@ -278,7 +283,10 @@ one change: the folder resolves interfaces, and the module is the cache unit.
    function bodies. After an edit, the driver parses only the changed file.
    An unchanged header hash means an unchanged folder interface, so no other
    module's key changes. A private body edit therefore rechecks exactly one
-   module, which is the `recheck-precision` target.
+   module, which is the `recheck-precision` target. [Q4b](#q4b-pre-parsing-and-header-extraction)
+   refines this: the hash covers exported items, impl heads and template
+   bodies, not every token outside bodies, and a separate drive-summary
+   hash covers the one body-derived fact.
 4. **In memory, per item.** Inside one run, memo tables cover what several
    bodies share: trait lookups, template instantiations, generic
    instantiations. They are plain hash maps keyed by interned IDs, dropped
@@ -376,7 +384,10 @@ folders form a DAG. So:
    the cross-package duplicate-impl check. Each trait is an independent task.
 5. **Every body in parallel:** functions, methods, impl members, top-level
    statements and `tests:` blocks. Each body reads frozen interfaces and
-   writes only to its own arena.
+   writes only to its own arena. Exception found in
+   [Q4b](#q4b-pre-parsing-and-header-extraction): `defer` suites,
+   defaults, facts and module initialization also read the drive
+   summaries of the folders they call into, so that check runs late.
 6. **Private inference inside a module.** A private function without a
    result type must be checked before its callers can be. Run such
    functions in a module-level task, in call order, before that module's
@@ -510,6 +521,9 @@ Confidence: high.
 6. **Fix-its** are text edits on token spans. A fix-it is offered only if
    the edited text re-parses without a new error, which checks
    `fixit-safety` at the source.
+7. **A header pass** shares this lexer and the parser's item code, and
+   skips bodies. [Q4b](#q4b-pre-parsing-and-header-extraction) designs
+   it. Edited files still get the full lossless tree.
 
 ### Risks
 
@@ -519,6 +533,317 @@ Confidence: high.
   ([closures inside delimiters](../spec/lang/01-lexical-structure.md#closures-inside-delimiters)).
   If any of them turns out to need parser feedback, keep the feedback to one
   narrow, tested hook.
+
+## Q4b: Pre-Parsing And Header Extraction
+
+**Question.** Can the compiler run a cheap pass, like V8's preparser, that
+extracts a module's `use` list and its exported skeleton (types,
+signatures, fields, traits, impl heads) without parsing function bodies?
+What does hd's spec allow, what does it save, and how does it feed the
+scheduler, the cache and the playground? Added 2026-10-06 as a revisit of
+the front half.
+
+### Prior Art
+
+| System | Skips | Keeps | Cost or saving | What went wrong |
+| --- | --- | --- | --- | --- |
+| V8 preparser and lazy parsing | inner function bodies, until first call | syntax validity, and per-function variable allocation data: "a dense array of flags per variable" ([V8](https://v8.dev/blog/preparser)) | the preparser is about 2x faster than the full parser (secondary source; V8 gives no figure) ([Over Explained](https://dev.to/scmmishra/over-explained-javascript-and-v8-2cei)) | before v6.3 a function was preparsed once per nesting level; heuristics (PIFE: `(function(){…})`) misfire, and eager compilation of everything "comes at a significant memory cost" ([V8](https://v8.dev/blog/preparser)) |
+| Go `go/build`, `go list` | everything after the imports | the package clause and imports: `readGoInfo` "reads the file up to and including the import section" ([read.go](https://go.dev/src/go/build/read.go)) | the package graph costs a few hundred bytes per file | one feature reads the rest anyway: a file that imports `embed` is read fully to find `//go:embed` lines (same source) |
+| Go export data | bodies of other packages | per-package export data with a lazy index ([compiler README](https://go.dev/src/cmd/compile/README)) | a package compiles from its imports' export data only | bodiless declarations exist (assembly); the `-complete` flag says there are none, so a missing body is an error (from memory, unverified) |
+| TypeScript `preProcessFile` | everything but imports and references | import specifiers, from the scanner alone ([wiki](https://github.com/microsoft/typescript/wiki/using-the-language-service-api)) | no parse | a scanner without full lexer state misread template strings and comments ([#30878](https://github.com/Microsoft/TypeScript/issues/30878), [#47597](https://github.com/microsoft/TypeScript/issues/47597)) |
+| TypeScript `isolatedDeclarations` (5.5) | the type checker | `.d.ts` emitted per file, because exports must carry explicit types ([TS 5.5](https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#isolated-declarations)) | oxc's emitter: "40x faster than TSC on typical files, 20x faster on larger files" ([oxc](https://oxc.rs/blog/2024-09-29-transformer-alpha.html)) | users must annotate exports; I found no source on tsgo using it |
+| Java Turbine and ijar | method bodies | signatures, constants and annotations in header jars ([Bazel](https://bazel.build/docs/bazel-and-java)) | Chromium reports 10 to 30% faster incremental Java builds ([commit](https://github.com/chromium/chromium/commit/578730be19ac76113cd9da3ff2c2566c2f16fc32)) | header jar generation can cost more than it saves: one toolchain found it "much slower than compilation, resulting in a net penalty" ([salesforce](https://github.com/salesforce/bazel-jdt-java-toolchain)); constant initializers must still be evaluated, because `javac` inlines them into dependents (from the JLS, not checked here) |
+| Rust pipelined compilation | codegen, until `.rmeta` is written | metadata, including MIR of generic and inline functions | "10-20% compilation speed increases for optimized, clean builds of some crate graphs" ([Rust 1.38](https://blog.rust-lang.org/2019/09/26/Rust-1.38.0/)) | rustc cannot skip bodies: macros create items, `impl Trait` leaks auto traits from the body, and consts run `const fn` bodies (known design, not cited here) |
+| Swift | `-experimental-skip-non-inlinable-function-bodies` skips type checking and SILGen of bodies not serialized | signatures and `@inlinable` bodies | SwiftLint's module interface: 13.2 s to 1.7 s (7.7x); the stdlib only 1.09x to 1.43x, because it is full of `@inlinable` code ([PR #20420](https://github.com/swiftlang/swift/pull/20420)) | the per-file interface hash covers every token outside bodies, so adding a private top-level function recompiles every user of the module ([#92617](https://github.com/swiftlang/swift/issues/92617)) |
+| Zig | semantic analysis of unreferenced declarations | AstGen turns every file into untyped ZIR, with its own errors ([AstGen](https://mitchellh.com/zig/astgen)) | only what `main` reaches is analyzed ([Sema](https://mitchellh.com/zig/sema)) | errors in unreferenced code are never reported |
+| Kotlin `jvm-abi-gen` | method bodies | public signatures, and inline function bodies (unverified detail) ([rules_kotlin](https://github.com/bazel-contrib/rules_kotlin/blob/master/CompileAvoidance.md)) | downstream recompiles avoided on non-ABI edits | known bugs "affect less than 1% of targets" (same source) |
+| Dart outlines | method bodies and comments | the API, and "enough information to evaluate constant expressions" ([dart-lang #1483](https://github.com/dart-lang/language/issues/1483)) | body and comment edits do not invalidate dependents | compile-time user code would need full transitive sources and lose that benefit (same issue) |
+| Flow types-first | dependency bodies | signatures, which must be fully annotated at module boundaries ([Flow](https://flow.org/blog/2020/05/18/Types-First-A-Scalable-New-Architecture-for-Flow/)) | rechecks "multiple times faster" (the Medium post with figures returned 403) | users had to annotate exports |
+
+Lessons:
+
+- **Every system that skips bodies needs explicit signatures at the
+  boundary.** TypeScript and Flow had to add the rule. hd already has it
+  ([`module.package.annotated`](../spec/lang/10-modules.md#r-module.package.annotated)).
+- **What breaks skipping is code that runs at compile time.** Java's
+  constants, Dart's const expressions, Rust's `const fn` and macros, and
+  Swift's and Kotlin's inline bodies are the exceptions in every system.
+- **A skimmer must share the real lexer.** TypeScript's import scanner
+  had bugs exactly where its lexer state was simpler than the parser's.
+- **Hash only what dependents can see.** Swift hashes every token outside
+  bodies, private ones included, and pays for it.
+
+### What hd's Interface Needs Beyond Syntax
+
+I went through the spec for every place an exported skeleton might need
+more than the header text. "Token range" means the header pass keeps the
+tokens unparsed or parsed only as an expression, and checking happens in
+the declaring module.
+
+| Construct | Needed by dependents | Header pass handles it | Spec change |
+| --- | --- | --- | --- |
+| `use` and `pub use` | yes: edges and re-exports | yes; uses are top-level items only ([`grammar.suite.use-top-level`](../spec/lang/02-grammar.md#r-grammar.suite.use-top-level)); chains are resolved per folder | none |
+| uses in `tests:` blocks and doc tests | only by `hd test`; they make no folder edge ([`module.cycle.test-code`](../spec/lang/10-modules.md#r-module.cycle.test-code)) | yes, marked test-only | none |
+| parameter, field and shared-parameter defaults | the presence of a default; the expression runs per call ([`fn.default.eval`](../spec/lang/07-functions.md#r-fn.default.eval)) | token range; compile it as a callee-side default thunk (mine), so it is never inlined into a caller | none |
+| enum shared constructor data, `NotFound -> StatusCode(404)` | its type only; the value is evaluated at compile time ([`data.shared.compile-time`](../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)) | token range | none |
+| facts, decorators, member lines | the type for checking; the value for builds ([`module.interface.fact-values`](../spec/lang/10-modules.md#r-module.interface.fact-values)) | token range in the check interface; values evaluated at build time from MIR | none, but see contradiction 2 below |
+| `@derive(X)` | the generated impl head and its bounds | yes: bounds come from member types and omitted members ([`annot.bound.params`](../spec/lang/14-annotations.md#r-annot.bound.params)), after name resolution | none |
+| `@error`, `@from`, `@source` | the `Display`, `Error` and `From[P]` heads and their bounds | yes: bounds depend on which members a message interpolates ([`annot.error.bound.display`](../spec/lang/14-annotations.md#r-annot.error.bound.display)), which the lexer sees in the message string | none |
+| derivation templates, `impl[T] X for T by Structure` | the body: a dependent checks the instantiated template at its opt-in ([`annot.limit.interfaces`](../spec/lang/14-annotations.md#r-annot.limit.interfaces)) | yes: the header names it, and the template must sit in the trait's module ([`annot.template.module`](../spec/lang/14-annotations.md#r-annot.template.module)); keep the body as an interface body | none |
+| walker, describer and source bodies a template names | only for codegen | no, but builds read MIR anyway | none |
+| trait default methods | that a default exists | yes; the body is checked once in the trait ([`trait.default.checked-once`](../spec/lang/09-traits.md#r-trait.default.checked-once)) | none |
+| impl heads, intrinsic methods, delegation `by E` | yes, for coherence and lookup | yes | none |
+| local declarations and impls inside bodies | no: a local impl must involve a local type or trait ([`names.local-impl.involve`](../spec/lang/03-names-and-scopes.md#r-names.local-impl.involve)), which no other module can name | skipped with the body | none, but [`module.interface.contents`](../spec/lang/10-modules.md#r-module.interface.contents) lists local impl heads "needed for coherence"; I believe none are |
+| top-level statements | no: their bindings cannot be used ([`names.exec.not-usable`](../spec/lang/03-names-and-scopes.md#r-names.exec.not-usable)) | skipped like bodies | none |
+| private functions without a result type | no: inference stays in the module | the header pass records "result omitted", so the scheduler orders them (Q3 step 6) | none |
+| doc comments | `doc` values of members and variants ([`lex.doc.field`](../spec/lang/01-lexical-structure.md#r-lex.doc.field)), read by the module's own derivations; `hd doc` | kept as trivia text; outside the interface hash | none |
+| the transitive `block_on` and `println` ban | **yes, and it is body-derived** | **no** | see below |
+
+**The one real exception.** `block_on`, and `println` which drives a
+call with it, are forbidden in default expressions, `defer` suites,
+non-entry module initialization, and fact and metadata expressions. The
+ban is "transitive through the statically known call graph"
+([`req.drive.block-on.transitive`](../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive),
+[`module.console.println-block-on.contexts`](../spec/lang/10-modules.md#r-module.console.println-block-on.contexts)).
+So a `defer` suite that calls `log.flush()` from another package is legal
+only if `flush`'s body, and every body it calls, never reaches `block_on`.
+That is a property of bodies in other modules. Adding a `println` to a
+helper's body can break a dependent that never changed. The prototype
+computes it as a whole-program fixpoint over called names
+(`src/checker/program-effects.ts`), which a per-module compiler cannot do.
+
+**Design without a spec change (mine).** After a folder's bodies are
+checked, each function gets a three-valued **drive summary**: never
+drives, drives, or unprovable (a call through a function value or a
+dynamic trait method). Summaries combine bottom-up over the call graph,
+with a fixpoint inside a folder. A folder exports them beside its
+interface, under a separate **summary hash**. A dependent checks its
+`defer`, default, fact and initialization contexts in a late per-module
+task that waits for the summaries of the folders it calls into. Other
+bodies do not wait. The summary changes only when a bit flips, so early
+cutoff survives most body edits.
+
+**The spec change I do not recommend, listed for the owner.** Ban only
+direct `block_on` and `println` calls in those contexts, and panic at run
+time when a non-entry initializer or a default reaches `block_on`
+without a driver. That makes the interface purely syntactic again, but
+moves an error from compile time to run time. The summary costs little,
+so I would keep the spec as written.
+
+One question the spec leaves open: whether a call through a generic bound
+is "statically known". A generic helper checked once cannot know which
+implementation runs. I ask it below.
+
+### Skipping Bodies By Indentation
+
+A body is everything after a header's suite colon until the first
+logical line whose indentation is at most the header's. The header pass
+skips it with the lexer in a **skim mode** (mine): it still walks every
+byte, but builds no tokens and no tree. The rule alone is not enough:
+
+| Breaker | Example | What the skimmer tracks |
+| --- | --- | --- |
+| multiline strings | `std/text.hd` holds a `"""` Unicode table whose 115 lines start at column 0 inside a body | string mode, including `"""` and prefixed raw strings, where `\"` does not end the string |
+| interpolation | `"${f("a)")}"` nests code and strings | a stack of code and string frames |
+| bracket continuation | a closure body or `)` left of its statement ([`lex.nested.body-depth`](../spec/lang/01-lexical-structure.md#r-lex.nested.body-depth)); three conformance fixtures do this | bracket depth; any line inside brackets belongs to the body |
+| comments and blank lines | a `#` line at column 0 inside a body does not end it ([`lex.indent.blank`](../spec/lang/01-lexical-structure.md#r-lex.indent.blank)) | comment-only and blank lines are ignored |
+| char literals | `'"'` and `'#'` | the `'` literal form |
+| same-line suites | `fn f() -> i32: +1` | the first suite colon at bracket depth zero; the rest of the logical line is the body |
+| leading-dot and `\|>` lines | always deeper than their statement, so never a body end | nothing extra |
+| tabs, bare CR, BOM | lexical errors | the shared lexer reports them; the skimmer only stops on them |
+
+The state is a frame stack (code with a bracket depth, or a string with
+its delimiter and raw flag) plus the current line's indentation. The same
+skim applies to methods inside `trait` and `impl` bodies, because a
+method header is a `fn` line ending in `:` at member indentation.
+
+**Exactness.** My throwaway script implements this state machine (about
+230 lines of TypeScript, not committed). On every file that the
+prototype parses without a diagnostic, 2,888 of them, the skimmer found
+the same end line for every function and method body as the prototype's
+parser. A skimmer that tracked indentation and comments but not strings
+and brackets would have ended bodies early in 4 files: one std file and
+three fixtures.
+
+**Design rule.** The skim mode is a mode of the one hand-written lexer
+of Q4, not a second scanner. Its frame stack and string rules are the
+lexer's own, so the two cannot disagree. A differential test runs both
+on every fixture and std file and compares body ranges.
+
+### Measured Opportunity
+
+Lines, bytes and approximate tokens by class, from the script. Bodies
+include comments inside them. "Interface bodies" are bodies of
+`impl ... by Structure` blocks, kept by the header pass.
+
+| Corpus | Files | Lines | Fn and method bodies | Interface bodies | `tests:` blocks | Top-level statements | Skippable, lines / bytes / tokens |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `lib/std` | 36 | 11,549 | 43.1% | 0.6% | 0% | 0% | 43% / 42% / 62% |
+| examples and playground | 25 | 1,128 | 40.1% | 0% | 13.4% | 0.8% | 54% / 67% / 73% |
+| `test/` (metrics, std, fixtures, perf) | 111 | 1,997 | 15.5% | 0.2% | 27.3% | 0.4% | 43% / 64% / 73% |
+| `spec/conformance` fixtures | 2,940 | 48,190 | 17.2% | 0.3% | 17.1% | 1.0% | 35% / 48% / 56% |
+
+The rest of std is declaration lines (22%), doc comments (9%), plain
+comments (14%) and blank lines (12%). Conformance fixtures are small and
+declaration-heavy by design, so they understate real code.
+
+How approximate: lines are classed by their first token; a same-line
+body counts its bytes after the colon; tokens are counted with a regular
+expression; every body under `by Structure` counts as an interface body,
+derivation blocks included. Body ends are exact, as checked above.
+
+**Reading the numbers.** On real code, a header pass handles about 40%
+of the tokens a full parse would, or about a quarter for a test-heavy
+user module. The skim still reads every byte, so the saving is in
+tokens, nodes and memory, not in reading.
+
+### Design
+
+**The pass.** One function, `header_pass(bytes) -> Skeleton`, pure and
+deterministic. The skeleton holds:
+
+1. The `use` list with spans, each marked normal, `pub`, or test-only.
+2. Every declaration header: name, visibility, generics with bounds and
+   defaults, parameters, result, row, `!`, fields, variants with payloads
+   and `->` results, trait members, impl heads with `by` clauses,
+   associated types, aliases and newtypes.
+3. Token ranges for default expressions, fact and decorator expressions,
+   member lines and shared-data expressions, parsed as expressions but not
+   resolved.
+4. Body ranges: start and end byte offsets per body, marked ordinary,
+   interface (templates), test, or top-level statement.
+5. The **interface hash** (below) and the module's own source hash.
+
+The skeleton parser is the full parser's item-level code with one change:
+where the grammar expects `suite_body`, it emits a single skipped-body
+node over the skimmed range. So the header grammar has one
+implementation, matklad-style events serve both, and a skeleton derived
+from a full CST equals one from the header pass. Slice 1 tests that.
+
+**The interface hash (corrects Q2).** Hash the skeleton's exported part,
+in token kinds and text: `pub` items with their members, every impl head,
+derived impl heads, `pub use` lines, template bodies, and the token
+ranges of defaults and facts. Leave out private items, ordinary bodies,
+comments and plain uses. A private helper added at the top of a file then
+leaves dependents alone, which is the Swift problem above. Coherence and
+method lookup need impl heads of private types too, so all impl heads go
+in.
+
+**When a file is skimmed and when it is fully parsed.**
+
+| Situation | What runs |
+| --- | --- |
+| warm run, file unchanged, cache hit | nothing: the stat manifest and the cached entry answer (Q2) |
+| file changed, or its module entry misses | full parse; the skeleton comes from the CST, so the file is never read twice |
+| cold run, file not yet needed | skim first, so its folder interface can start; full parse later as its own task |
+| codegen needs a reachable item | its module's cached MIR; if the module missed, the module is checked first |
+| `hd test` | test bodies and doc tests are parsed only then |
+| `hd fmt`, `hd fix`, fix-its | always the lossless CST of Q4 |
+
+V8's cost of parsing twice appears only in the cold row, and only for
+files whose bodies are then checked. The skim is the cheap part, so this
+costs a little on a cold run in exchange for an earlier start of every
+folder interface.
+
+**How it feeds the rest.**
+
+- **Scheduler (Q3).** Discovery skims every file in parallel. The folder
+  graph, `folder-cycle` and `package-cycle` come from the use lists before
+  any full parse. A folder interface task needs only the skeletons of its
+  files and the interfaces of the folders it uses. Body parsing and body
+  checking become per-module tasks after that. This is Rust's pipelining
+  and Turbine's header jars inside one process.
+- **Early cutoff (Q2).** After an edit, the driver compares the new
+  interface hash with the cached one before any body is checked.
+  Dependents' cache lookups can start at once.
+- **Module cache key (Q2).** It gains the summary hashes of the folders
+  the module calls into (the drive summary above). Nothing else changes.
+- **Affected tests.** Given the changed files, the use graph from
+  skeletons says which test modules can be affected, without parsing
+  anything else. This serves "test results cached by content" in the
+  Arena features.
+- **Program database (Q6).** Skeletons give every declaration with its
+  span and signature text for every module cheaply, enough for an outline,
+  `hd doc` navigation, or "which modules declare `X`". References and
+  call edges still need checked bodies.
+- **Browser.** Playground programs are small and std is precomputed, so
+  the gain there is small. A multi-file playground gets an instant outline
+  and use errors. I would not count on it for first feedback.
+
+**What "check" means for a dependency whose bodies are never parsed.**
+Part 1 and the Day 1 list say dependency bodies are skipped. That holds
+on a warm machine: a dependency package's bodies are checked once, their
+diagnostics are not shown, and their interface and drive summaries are
+cached for every later run and worktree. On a cold machine they must be
+checked once, at least far enough to resolve calls for the drive
+summary, which needs types. std ships its summaries in the embedded blob.
+
+**Error recovery.** The header pass reports nothing. If it hits a broken
+header, it records the item as broken, which the checker treats as poison
+(Q5), and resynchronizes at the next column-0 line, as Q4's parser does.
+A broken file is always fully parsed when its module is checked, and the
+full parser reports the error once. The skimmer's recovery for an
+unterminated single-line string, which ends at the line end, is the
+lexer's own, so body ranges still agree.
+
+**Determinism.** The pass is a function of the file's bytes. Skeletons
+use stable paths and source order, and the hash never sees interned IDs.
+
+### Contradictions With Part 1 And Part 2
+
+1. **Q2, "a body edit cannot change a module's interface", and step 3,
+   "an unchanged header hash means an unchanged folder interface".** Not
+   quite. Template bodies are function bodies and are interface, so the
+   hash must include them. And the transitive `block_on` ban makes a body
+   edit able to break a dependent. The fix is the drive summary with its
+   own hash, and an interface hash over exported items only.
+2. **Facts in the interface.** The spec's package interface records fact
+   *values* ([`module.interface.fact-values`](../spec/lang/10-modules.md#r-module.interface.fact-values)),
+   and a value can depend on a body in another file. Checking needs only a
+   fact's type, so the check interface keeps the expression. Values are
+   computed at build time from MIR and reach the codegen cache through
+   MIR hashes (Q8). The spec's package interface is a later distribution
+   format, so this is not a spec conflict.
+3. **Q3, step 5, "each body reads frozen interfaces".** Bodies with
+   `defer`, defaults, facts or module initialization also read drive
+   summaries of the folders they call into. Only that late check waits.
+4. **Day 1, "dependency bodies skipped".** True warm, not cold, as above.
+5. **Outside this question:** [`module.interface.dictionaries`](../spec/lang/10-modules.md#r-module.interface.dictionaries)
+   says each generic function compiles once in its defining package with
+   dictionaries, which Q8's monomorphization contradicts. Open question 8
+   should cover that rule when the owner answers it.
+
+### Recommendation
+
+**Build the header pass as a skim mode of the Q4 lexer plus the full
+parser's item code with skipped bodies. Use it for discovery, the folder
+graph, folder interfaces and the interface hash; derive skeletons from
+the CST for files being fully parsed anyway.** Confidence: high that it
+is exact and cheap (measured agreement on 2,888 files); medium on its
+payoff, because the per-module cache already removes most repeated
+parsing.
+
+Keep the spec as written. Add the drive summary for the `block_on` ban,
+which is the one interface fact that needs bodies.
+
+### Risks
+
+- **The gain is mainly on cold runs.** Warm runs already parse only
+  changed files. Measure the cold `cold-check` target with and without
+  the skim before tuning it.
+- **Two code paths for headers.** Sharing the item parser and the
+  differential test keep them equal; without them, they will drift.
+- **The drive summary is a cross-module, body-derived fact.** It needs
+  its own soundness tests in `incremental-soundness`: edit scripts that
+  add and remove `println` in helpers used from `defer` suites.
+- **Generic calls in the ban.** If calls through bounds count as
+  statically known, the ban can only be checked per instantiation, which
+  needs bodies at codegen and moves errors to build time.
+
+**What would change it.** If a cold check of a large package spends
+little time before folder interfaces, drop the skim and full-parse
+everything in parallel (Q3 as written), deriving skeletons from CSTs. If
+the owner adopts the direct-only ban, drop the drive summary.
 
 ## Q5: Checker Structure
 
@@ -672,7 +997,7 @@ front half builds for the browser.
 | --- | --- | --- | --- |
 | `hd_base` | IDs, interners, arenas, stable hashing, spans, the `SourceSet` and `CacheStore` interfaces | none | yes |
 | `hd_diag` | the diagnostic model, compact and JSON renderers, the fix-it shape | `hd_base` | yes |
-| `hd_syntax` | lexer, layout pass, parser, flat CST, typed views | `hd_base`, `hd_diag` | yes |
+| `hd_syntax` | lexer (with its skim mode), layout pass, parser, flat CST, typed views, skeletons and the header pass | `hd_base`, `hd_diag` | yes |
 | `hd_fmt` | the formatter on the CST | `hd_syntax` | yes |
 | `hd_project` | manifests, module discovery, the folder and package graphs | `hd_syntax` | yes |
 | `hd_iface` | interface blobs: serialize, index, hash, lazy decode | `hd_base` | yes |
@@ -697,18 +1022,24 @@ baseline it selects 261 parse cases and 1,389 type cases
 1. **Slice 1, syntax.** Lexer, layout, parser and CST, behind `hd parse FILE`.
    Exit: the parse-phase cases pass, every fixture and `lib/std` file
    round-trips byte for byte, and the front crates build for
-   `wasm32-unknown-unknown` in CI from this slice on.
+   `wasm32-unknown-unknown` in CI from this slice on. The header pass
+   lands here too ([Q4b](#q4b-pre-parsing-and-header-extraction)), with
+   a differential test: on every fixture and std file, its body ranges
+   and skeleton equal those derived from the full CST.
 2. **Slice 2, std interfaces.** Name resolution and folder interfaces, run on
-   `lib/std` (about 11.5k lines in 35 files). A rough grep found std names
+   `lib/std` (about 11.5k lines in 35 files), built from skeletons rather
+   than full trees, with the folder graph from use lists. A rough grep found std names
    (`println`, `List`, `Option`, `?` and similar) in more than half of the
    typing fixtures, so **the std is the first real program**, not a later
    one. This slice already runs through `hd_driver` with the serial scheduler
    and computes cache keys, so incrementality is never retrofitted.
 3. **Slice 3, bodies.** Body checking, chapter by chapter in spec order. Exit:
    type-phase cases pass, with a known-failures list as the sync, as the
-   prototype keeps today.
+   prototype keeps today. The drive summary and the late check of `defer`,
+   default, fact and initialization contexts land here.
 4. **Slice 4, cache and threads on.** The disk cache, the stat manifest,
-   rayon, and the embedded std blob. Exit: `recheck-precision`,
+   rayon, and the embedded std blob, with the interface hash and the
+   drive-summary hash in cache keys. Exit: `recheck-precision`,
    `edit-latency`, `resources`, `startup`, `determinism` and
    `incremental-soundness` pass.
 5. **Slice 5, browser front end.** `hd_web` checks a playground program in a
@@ -767,6 +1098,18 @@ Runtime and CLI cases (903 and 51) need the back half and wait for Part 2.
     119, Firefox 122, Safari 18.2, the baseline wasm_of_ocaml documents),
     and make JSPI, JS string builtins, exceptions and stack switching
     optional or unused.
+13. **The transitive `block_on` ban across modules.** The ban in `defer`
+    suites, defaults, facts and non-entry initialization follows bodies
+    into other modules and packages, so it is the one interface fact that
+    syntax cannot give (Q4b). Recommendation: keep the spec, and compute a
+    per-folder drive summary with its own hash. The alternative, a spec
+    change, bans only direct calls and panics at run time instead.
+14. **Generic calls in that ban.** The spec does not say whether a call
+    through a generic bound, such as `x.close()` with `T < Close`, is
+    "statically known". If it is, the ban can only be checked per
+    instantiation, at build time. Recommendation (low confidence): treat
+    it as unprovable, as a dynamic trait call is, and let a stress test
+    of real `defer` code show whether that rejects too much.
 
 ## Part 2: The Back Half
 
@@ -1684,3 +2027,21 @@ instantiates.
 - Vx architecture summary: <https://github.com/vx-lang/Vx/blob/main/docs/architecture_executive_summary.md>
 - rustc `DefPathHash`: <https://doc.rust-lang.org/nightly/nightly-rustc/rustc_span/def_id/struct.DefPathHash.html>
 - rkyv: <https://rkyv.org/>
+- V8 preparser and lazy parsing: <https://v8.dev/blog/preparser>
+- V8 preparser speed (secondary): <https://dev.to/scmmishra/over-explained-javascript-and-v8-2cei>
+- Go `go/build` import reading: <https://go.dev/src/go/build/read.go>
+- TypeScript Language Service API, `preProcessFile`: <https://github.com/microsoft/typescript/wiki/using-the-language-service-api>
+- `preProcessFile` and template strings: <https://github.com/Microsoft/TypeScript/issues/30878>
+- `preProcessFile` and comments after a template literal type: <https://github.com/microsoft/TypeScript/issues/47597>
+- TypeScript 5.5, isolated declarations: <https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#isolated-declarations>
+- oxc transformer and isolated declarations speed: <https://oxc.rs/blog/2024-09-29-transformer-alpha.html>
+- Bazel and Java, ijar and header jars: <https://bazel.build/docs/bazel-and-java>
+- Chromium, turbine for Java headers: <https://github.com/chromium/chromium/commit/578730be19ac76113cd9da3ff2c2566c2f16fc32>
+- ECJ toolchain for Bazel (header jar cost): <https://github.com/salesforce/bazel-jdt-java-toolchain>
+- Rust 1.38, pipelined compilation: <https://blog.rust-lang.org/2019/09/26/Rust-1.38.0/>
+- Swift, skip non-inlinable function bodies: <https://github.com/swiftlang/swift/pull/20420>
+- Zig AstGen: <https://mitchellh.com/zig/astgen>
+- Zig Sema: <https://mitchellh.com/zig/sema>
+- rules_kotlin compile avoidance: <https://github.com/bazel-contrib/rules_kotlin/blob/master/CompileAvoidance.md>
+- Dart outlines and compile-time code: <https://github.com/dart-lang/language/issues/1483>
+- Flow types-first: <https://flow.org/blog/2020/05/18/Types-First-A-Scalable-New-Architecture-for-Flow/>
