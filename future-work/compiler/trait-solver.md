@@ -93,7 +93,8 @@ right.
 **Rule TS-1. The solver is a pure function of its memo key.** An answer
 depends only on the canonical goal, the parameter environment, the local
 impls visible at the asking point, the availability key (for `Methods`),
-and the run's frozen interfaces. Section 7.1 makes each of these part of
+the impl universe of the asking context (for `Instantiations` and
+`Methods`, section 3.2), and the run's frozen interfaces. Section 7.1 makes each of these part of
 the key. The solver holds no mutable state except memo tables. It never
 reports a diagnostic, never sees a span, and never writes an inference
 variable.
@@ -118,7 +119,7 @@ The answer shapes:
 | --- | --- | --- |
 | `Holds { evidence, learned }` | proven; `learned` binds inference variables that the proof forced (section 3.8) | apply `learned` on its own trail; record `evidence` in TIR |
 | `Normalized { ty, evidence, learned }` | `Project` only: the projection's normal form, over the caller's variables | unify `ty` with the other side |
-| `Many(candidates)` | several candidates, in content order (`Instantiations`, `Methods` only) | the instantiation choice or method rules |
+| `Many(candidates)` | one or more candidates, in content order (`Instantiations`, `Methods` only); an `Instantiations` candidate is a scheme with residual bounds (section 6.5) | the instantiation choice or method rules |
 | `Fails(FailInfo)` | no proof exists, whatever the open variables become | report, once per root cause (section 10) |
 | `Stalled { on }` | the answer depends on these variables | keep an obligation watching them |
 | `Overflow` | the proof needs a bound deeper than 64, or a cycle | `trait-resolution-depth` |
@@ -136,7 +137,8 @@ pub trait Solver: Sync {
     fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey;
 
     /// Codegen's entry: the impl whose head matches a concrete trait reference.
-    /// Head matching only; no subgoal, no depth limit, no fuel (rule TS-6).
+    /// A head match, then the plan's `Bind` steps to fix every impl argument;
+    /// no proof, no depth limit, no fuel (rule TS-6, section 8.3).
     fn select(&self, tref: ConcreteTraitRef) -> Selection;
 
     /// Codegen's entry for associated types at an instance.
@@ -235,7 +237,9 @@ when the answer has learned bindings or stalls.
 | `Env` (mine) | parameters, but no placeholder, no local type, no existential | the run's global memo | the canonical goal and the item's `EnvKey` |
 | `Body` | any placeholder, local type or existential | the body's memo | the canonical goal and the visible local impls |
 
-A `Methods` goal adds the module's `AvailKey` in every scope.
+A `Methods` goal adds the module's `AvailKey` in every scope. An
+`Instantiations` or `Methods` goal adds the context's `ImplUniverseId`
+in every scope (section 3.2).
 
 **Why parameters may go global.** With the `EnvKey` in the key, a goal
 that mentions `T` is still a pure function of its key, and the members of
@@ -354,15 +358,45 @@ The fix is a **candidate directory**, after the review's proposal:
    target head key, and keeps only rows whose folder is in the asking
    module's **dependency closure** (a bit set per module, built in M1).
    The owner confirmed the closure rule (2026-10-07).
-4. **Cache key (incremental soundness).** A module's `check` key gains
-   `arg_impls_closure_hash`: a Merkle hash over the `arg_impls` section
-   hashes of every folder in the module's dependency closure, computed
-   bottom-up with the deep hashes. Adding `impl Pick[Product] for Receiver`
-   in a third folder changes that folder's section hash, so every module
-   whose closure holds it is rechecked. The hash is coarse, but such impls
-   are rare (`From` written by the source error's owner, `Add[Money] for
-   i32`), and the section hash changes only when such a head changes.
-   Section 16.4 change 21 states the change for cache.md.
+4. **Cache key (incremental soundness).** An argument-owned impl's trait
+   and target are nameable outside its module, so its head is in its
+   folder's `api_hash` and therefore in the deep hash
+   ([resolution-and-interfaces.md §4.10](resolution-and-interfaces.md#410-folder-interface-construction)).
+   A module's `check` key already holds the deep hash of every folder in
+   its closure, so adding `impl Pick[Product] for Receiver` in a third
+   folder rechecks every module whose closure holds it. No separate
+   `arg_impls` hash is needed (Codex re-review N-A1; the backend lane
+   removes `argc` from cache.md).
+
+**The impl universe (Codex re-review N1).** The closure filter makes an
+answer depend on who asks. Modules A and B may both ask `Instantiations
+{ Receiver, Pick }`, while only A's closure holds `impl Pick[Product] for
+Receiver`. The goal has no placeholder, so without more it would be one
+global memo entry, and whichever module asked first would decide the
+other's answer. So:
+
+- Every solving context carries an **`ImplUniverseId`** in `SolveCx`: the
+  interned, sorted list of the folders in its closure whose `arg_impls`
+  section is not empty. The driver computes it once per context, after
+  M1 builds the closure bit set. Contexts with equal lists share one id,
+  so most modules of a package share one.
+- The contexts are a module's bodies, the module's test overlay (its
+  closure includes test-only dependencies), a folder's `HeaderCheck(F)`
+  (the folder's closure), and a derive instance (its module's).
+- **The id is part of the key of every `Instantiations` and `Methods`
+  goal**, in every scope. These are the only goals that read the
+  directory.
+- An `Implements` or `Project` goal in `Global` or `Env` scope never reads
+  it: every trait argument is known, so its owner modules are fixed, and
+  the module that declares a known type lies in the closure of every
+  module that can name that type. Its bound-plan steps are `Implements`
+  and `Project` goals with known arguments too.
+- **Debug check.** Each frame keeps a "read the directory" bit. A frame
+  whose key has no universe and sets the bit is an internal error.
+
+The memo-invariance test (section 14.2) asks the A/B pair in both orders
+and on several threads, with equal trait availability and different
+closures.
 
 Why the closure, not the whole graph: a library's check result must not
 depend on which downstream packages a program adds. A downstream package
@@ -650,10 +684,27 @@ the trait that declares it. Projections come from:
    written on the bound for a supertrait's associated type
    ([`trait.binding.name-reach.meaning`](../../spec/lang/09-traits.md#r-trait.binding.name-reach.meaning))
    lands on that supertrait's clause.
-3. A trait reference already present is skipped. The supertrait graph is
-   acyclic (`supertrait-cycle` is a header error), so the walk ends, and
-   diamonds produce each trait once.
-4. Intern the clause list; its content hash is the `EnvKey`.
+3. **One clause per trait reference, with merged bindings (Codex
+   re-review N-T3).** Clauses are keyed by their `TraitRef`; bindings sit
+   beside it, so a reference met again may bring bindings the first
+   visit lacked. A diamond may reach `Supplier` once unbound and once
+   with `Item = i32`. On a second visit the walk merges binding by
+   binding: a binding not yet present is added, an equal one is a no-op,
+   and a different one is a conflict. The walk does not descend again:
+   the reference's supertraits were walked on the first visit, and a
+   supertrait binding that names this reference's projection is stored
+   as that projection, which normalization resolves through the merged
+   binding later (section 4.3). The result does not depend on the order
+   in which paths are met. The supertrait graph is acyclic
+   (`supertrait-cycle` is a header error), so the walk ends.
+4. **A conflict is a header error.** Two different bound types for one
+   projection make the bounds unsatisfiable, and inside the body the two
+   types would be equal. Resolution makes the same walk before any body
+   and reports `duplicate-associated-binding` on the parameter's bound
+   list (needs owner: the spec's
+   [`trait.binding.once`](../../spec/lang/09-traits.md#r-trait.binding.once)
+   covers only written bindings).
+5. Intern the clause list; its content hash is the `EnvKey`.
 
 Cost: linear in the size of the supertrait closure of the declared bounds.
 `Num`'s closure is about fifteen clauses, `Integer`'s about twenty-five.
@@ -684,8 +735,19 @@ rustc's lazy normalization does. The checker asks `Project`:
 | a parameter or existential with an environment binding for `Name` | the bound type: `I::Item` is `T` under `I < Supplier[Item = T]` |
 | a parameter or existential with a bound on `Tr` but no binding | the projection itself, as a rigid type. It equals only itself |
 | a trait value `Tr[A, Name = U]` or a subtrait's value that binds it | `U` ([`trait.dyn.bound.projection`](../../spec/lang/09-traits.md#r-trait.dyn.bound.projection)) |
-| known | select the impl by head (section 3.4), read its binding for `Name`, substitute the impl's arguments, and normalize the result once more |
-| known, but no impl | `Fails` |
+| known | prove `Implements { tref }` first, as its own memoized goal at the same depth. On `Holds` with `Impl` evidence, read that impl's binding for `Name`, substitute the impl's arguments, and normalize the result once more |
+| known, but `Implements` fails | `Fails`, with the `Implements` goal's `FailInfo`: `Box[NoDisplay]::Item` is no type when the impl for `Box[T]` needs `T < Display` |
+| known, but `Implements` stalls or overflows | the same answer |
+
+**Normalization proves applicability (Codex re-review N-T1).** A head
+match alone does not make an impl apply: its bounds must hold too. So a
+source-level `Project` on a known base always rests on a proof of the
+`Implements` goal. That goal is memoized, and most projections meet a
+goal that a use has already asked, so the extra cost is one memo hit.
+Rigid projections under a declared bound are unchanged. Codegen's
+`normalize_concrete` is a separate mode: at an instance the checker has
+already proven the goal, so it reads the binding after a head match and
+keeps its answers apart from the proof memo (section 8.3).
 
 - **One answer, no outer projection.** Each `Project` returns a type with
   no outer projection, by normalizing its result. A chain
@@ -824,7 +886,7 @@ struct Frame {                    // 24 bytes
     step: u16,                    // next bound-plan step
     depth: u8,                    // depth from the use (section 7.3)
     height: u8,                   // deepest relative level reached below
-    cost: u32,                    // intrinsic cost so far (section 7.4)
+    heads: u32,                   // heads matched in the probe (section 7.4)
     subst: u32,                   // range in the scratch buffer: the impl's parameters
     seen: u32,                    // range in the scratch buffer: distinct children so far
 }
@@ -919,11 +981,45 @@ wakes the obligation.
 matches `S` with all trait arguments open: the owner tables of `Tr` and
 `S`, and the candidate directory (section 3.2). For a parameter, it
 collects the environment clauses on `S` for `Tr`; for a trait value, the
-one instantiation the value names. The solver checks each candidate's
-bound plan and drops those that fail. The answer is `Holds` for one
-survivor, `Many` for several, in content order, and `Fails` for none. The
-checker's trial then chooses among `Many`
-([type-checking.md §2.5](type-checking.md#25-methods-and-operators)).
+one instantiation the value names.
+
+**Candidates are schemes with residual bounds (Codex re-review N-T4).**
+Matching `S` fixes only the impl parameters that occur in the target. A
+parameter that occurs only in the trait arguments, as `U` in
+`impl[U < Display] Pick[U] for Family`, stays open, and a bound on it
+cannot be decided yet. So each candidate is a **scheme**:
+
+```rust
+pub struct Candidate {
+    pub row: ImplRef,          // or the clause or trait value it came from
+    pub n_fresh: u8,           // impl parameters the target did not fix
+    pub args: TyListTemplate,  // the trait arguments, over the fixed types and the fresh parameters
+    pub residual: PlanRange,   // the plan steps that read a fresh parameter, in plan order
+}
+```
+
+- The solver runs every plan step whose parameters the target fixed. A
+  candidate whose step `Fails` is dropped. A step that overflows makes
+  the whole answer `Overflow`, since depth exhaustion is never a
+  failure.
+- The steps that read a fresh parameter are the candidate's
+  **residual obligations**. The solver does not run them.
+- The checker instantiates a scheme inside each trial: a fresh variable
+  per fresh parameter, unified with the call's argument types, then the
+  residual steps as obligations under that trial
+  ([type-checking.md §2.5](type-checking.md#25-methods-and-operators)).
+
+The outcomes, which the checker handles in one way:
+
+| Outcome | Answer |
+| --- | --- |
+| `S` holds a placeholder at a position the heads need | `Stalled` |
+| no candidate survives | `Fails` |
+| one or more survive | `Many`, in content order, even for one: the checker always instantiates the scheme and its residual obligations |
+| fuel runs out | `OutOfFuel` |
+
+A scheme is stored over the impl's parameters and global types, so it
+is memoizable as before.
 
 **`Methods { receiver, name }`** returns, in this order:
 
@@ -957,6 +1053,7 @@ is now part of the key, or makes the goal ineligible for the global memo:
 | GADT arm equalities | substituted before keying; existentials make the goal `Body` scope |
 | local impls, visible from their declaration point ([`trait.impl.local.lookup`](../../spec/lang/09-traits.md#r-trait.impl.local.lookup)) | `LocalVis`: the interned sorted list of visible local impls, in the `Body` key; a goal that names no local type or local trait cannot match a local impl and keys with `EMPTY` |
 | trait availability (`Methods` only) | the module's `AvailKey` plus the lexical scope's local traits |
+| which argument-owned impls the asking context sees (`Instantiations`, `Methods`) | the context's `ImplUniverseId` (section 3.2), in every scope |
 | coinductive assumptions | none exist (section 3.10) |
 | proof depth | the stored height, checked at each use (section 7.3) |
 | remaining fuel | never stored: `OutOfFuel` makes the frame and every ancestor in the same `solve` call ineligible |
@@ -988,10 +1085,10 @@ pub struct BodyMemo {                           // per body; owned by BodyCx, le
 #[repr(C)]
 pub struct MemoEntry {                          // 12 bytes
     answer: CanonAnswerRef,                     // u32: evidence and learned bindings over placeholders
-    cost: u32,                                  // intrinsic cost (7.4); saturating
+    children: u32,                              // range in the children arena: the proof DAG (7.4)
     height: u8,                                 // intrinsic height (7.3); 255: a cycle
     kind: u8,                                   // Holds | Fails | Stalled | Overflow | AtLeast
-    _pad: [u8; 2],
+    heads: u16,                                 // heads matched in the probe (7.4); saturating
 }
 ```
 
@@ -1046,30 +1143,36 @@ type-checking.md fixes the principle: fuel used is a pure function of the
 body and its frozen inputs
 ([type-checking.md §11.1](type-checking.md#111-what-counts)).
 
-**Intrinsic cost.** A goal's cost is computed when its entry is made:
+**Proof nodes, charged once per body (Codex re-review N-T2).** Each memo
+entry stores its **children**: the canonical goals its committed plan
+asked, in plan order, with repeats among its own children removed (as in
+`Pair[X, X]`, where both bound steps ask `X: Eq`). It also stores how
+many heads its probe matched (rows that survived the fast reject). The
+entries and their children form the goal's **proof DAG**. The children
+are a function of the goal (rule TS-1), so the DAG is the same whether
+an entry was computed now or found in a memo.
 
-```text
-cost(g) = 1                                (the goal)
-        + heads matched in its probe       (rows that survived the fast reject)
-        + sum of cost(c) over the distinct children c of g
-```
+An earlier version charged a stored recursive cost, `1 + heads + sum of
+the children's costs`. That sum counts a shared descendant once per path
+to it, so a DAG with two goals per level, each needing the same two
+goals at the next level, cost `2^n` for about `2n` goals. It is
+replaced.
 
-"Distinct" removes repeats among one goal's own children, as in
-`Pair[X, X]`, where both bound steps ask `X: Eq`. A child's cost is its
-entry's stored cost, whether the child was computed now or found in a
-memo. So `cost(g)` is a property of the goal alone. It saturates at
-`u32::MAX`.
+**Rule TS-5. Charge each proof node once per body (mine).** A body's
+`met` set records the canonical goals it has paid for. When a body asks a
+goal, the solver walks the goal's proof DAG depth first, in plan order.
+Each node not yet in `met` costs `1 + heads matched` and joins `met`
+before its children are walked. A node already in `met` costs nothing,
+and the walk does not enter it; the asked goal itself costs 1 when it is
+already met. A goal computed now is charged by the same walk, as its
+frames pop. So a body pays once for each distinct goal in the union of
+the proof DAGs it used, whatever the memo held. The sequence of goals a
+body asks is fixed by its source and its frozen inputs, so the charge,
+and the point where fuel runs out, are deterministic. A rollback refunds
+nothing and does not clear the `met` set. A cycle ends the walk, since a
+node joins `met` before its children.
 
-**Rule TS-5. Charge the intrinsic cost the first time a body meets a goal,
-and 1 for each repeat (mine).** A body's `met` set records which canonical
-goals it has been charged for. The first `solve` of a goal in a body
-charges `cost(g)`, whether the entry was in a memo or not. Each later
-`solve` of the same canonical goal in that body charges 1. The sequence of
-goals a body asks is fixed by its source and its frozen inputs, so "first
-time in this body" is deterministic. A rollback refunds nothing and does
-not clear the `met` set.
-
-Charging the full cost on every hit would bill the 1,600 `Cents::from(N)`
+Charging the full DAG on every hit would bill the 1,600 `Cents::from(N)`
 lines of the `pathological` metric 1,600 times for one goal. Charging only
 what was computed would make a warm memo cheaper than a cold one, so a
 body could pass its budget on one run and fail on the next (lesson 3 of
@@ -1080,7 +1183,7 @@ body could pass its budget on one run and fail on the next (lesson 3 of
 | Limit | Value | Counted by | Diagnostic |
 | --- | --- | --- | --- |
 | proof depth | 64, fixed by the spec | heights (7.3) | `trait-resolution-depth` at the use, showing the first three goals of the chain and the last |
-| body fuel | 2,000,000 steps per body | intrinsic costs (7.4) | `item-too-complex`, by the checker |
+| body fuel | 2,000,000 steps per body | proof nodes, once per body (7.4) | `item-too-complex`, by the checker |
 | type size | 10,000 nodes | `mk` | `type-too-large` (proposed), if a subgoal's argument grows |
 | placeholders per goal | 255 | canonicalization | none: the goal stalls, which ends as `cannot-infer-type` |
 | candidates in one `Many` | none | | none needed: bounded by the impls that exist |
@@ -1094,8 +1197,8 @@ body could pass its budget on one run and fail on the next (lesson 3 of
    once per run and found in the memo after that.
 3. No goal has more than one committed impl (rule TS-2), so no search
    explores alternatives.
-4. Shared subgoals are computed once and charged by intrinsic cost, so a
-   diamond costs about the size of its DAG.
+4. Shared subgoals are computed once and charged once per body as proof
+   nodes, so a diamond costs the size of its DAG.
 
 ### 7.6 Bounded Is Not Linear
 
@@ -1106,11 +1209,11 @@ near-linear; these are they, each with the input it is linear in:
 | Work | Algorithm | Linear in |
 | --- | --- | --- |
 | repeated goals | the memo, keyed canonically; repeats cost one lookup | distinct goals |
-| shared subgoals | memoized children, intrinsic DAG cost | distinct goals in the proof DAG |
+| shared subgoals | memoized children; each proof node charged once per body (rule TS-5) | distinct goals in the proof DAG |
 | impl lookup | head key, then first two argument keys; the fast path for non-generic traits | candidates that share both keys, usually one |
 | open trait arguments | the per-trait candidate directory, filtered by the closure bit set | argument-owned impls of that trait |
 | overlap | ground heads hashed; generic heads in a discrimination tree (section 5.2) | total head size, plus reported overlaps |
-| elaboration | once per item, skipping repeated trait references | the supertrait closure |
+| elaboration | once per item, one clause per trait reference, bindings merged | the supertrait closure |
 | canonicalization | one walk of the goal, charged one step per node | goal size |
 | normalization | one memoized `Project` per projection | distinct projections |
 | instantiation choice | prefilter candidates by the head of each known argument type before any trial (change 7); one trial per surviving candidate | surviving candidates |
@@ -1164,8 +1267,25 @@ instance is an `Impl` choice and needs none.
 type is concrete. Overlap is head-only, so at most one head matches a
 concrete trait reference, and the checker has already proven its bounds.
 `select` therefore matches heads in the owner modules and returns the impl
-and its arguments. It never solves a subgoal, has no depth limit, and
-charges no fuel. It is memoized in the global memo under `Global` scope.
+and its arguments. It never proves a subgoal, has no depth limit, and
+charges no fuel.
+
+**Selection, then reconstruction (Codex re-review N7).** A head match
+fixes only the impl parameters that occur in the head. In
+`impl[T < Display, I < Store[Item = T]] Summary for Feed[I]`, matching
+`Feed[ConcreteStore]` fixes `I` but not `T`, and the selected method's
+body needs `T`. So after the head match, `select` runs the plan's `Bind`
+steps (section 3.6), in plan order, with `normalize_concrete`: each one
+reads a binding at concrete types and fixes its target parameter. It
+skips the `Bound` steps, which the checker proved. This is deterministic
+normalization, not search: the plan order already exists, and every
+parameter is fixed by the head or by a `Bind` step, or resolution has
+rejected the impl as `unconstrained-impl-parameter`. The returned
+`Selection` holds every impl argument.
+
+`select` and `normalize_concrete` keep their answers in their own
+codegen table, not in the proof memo, since they assume proofs instead
+of making them. A proof entry and a selection entry never share a key.
 
 - **No depth limit at instances.** The spec's 64 counts from a use in
   source. An instance of generic code may need a deep concrete proof that
@@ -1378,7 +1498,7 @@ implements `Source[i32]` and `Source[string]`".
   fixed.
 
 **Purity and sharing.** Answers are functions of their keys (rule TS-1),
-and fuel is charged by intrinsic cost (rule TS-5), so a warm memo, a
+and fuel is charged per distinct proof node (rule TS-5), so a warm memo, a
 shuffled check order or another thread count changes no answer and no
 `fuel_used`. The only shared mutable state is the global memo, written
 first-writer-wins, and the interners. Impl tables, the candidate directory
@@ -1400,7 +1520,7 @@ entry.
 | `VtableShape` | trait record | 4 B per slot and per direct supertrait | the folder interface |
 | `ParamEnv` clause | per item, interned | 16 B: self 4, trait 4, args 4, bindings 4; plus 1 bit `mut` and 2 B origin | process (interned by `EnvKey`) |
 | canonical goal key | memo key arena | 20 B: kind and flags 4, trait 4, self 4, args 4, extra 4 | the memo |
-| `MemoEntry` | memo | 12 B | global: process; body: the body |
+| `MemoEntry` | memo | 12 B, plus 4 B per child in the children arena | global: process; body: the body |
 | canonical answer | memo answer arena | 4 B tag plus evidence words plus 8 B per learned binding | the memo |
 | `Frame` | solver stack | 24 B; at most about 64 goal frames plus their projection steps, a few KiB | one `solve` call |
 | scratch (substitutions, seen children) | the worker's scratch buffer | 4 B per word | truncated at each pop |
@@ -1433,7 +1553,7 @@ and ill-typed (section 14.2).
 | 1,600 `Cents::from(N)` over two `From` impls (F-626) | a search per call | one `Instantiations` entry, then hits; the checker's trials truncate | 1 computed goal, 1,599 hits; fuel about 5,000 steps; well under 100 ms in all |
 | 500 `From[X]` impls for one error type | `Instantiations` returns 500 candidates | sub-buckets by argument key make `Implements` with a known argument a binary search; `Many` is computed once per body | the checker's trial count, not the solver, dominates; section 16.4 change 7 lets the checker prefilter by argument head |
 | a supertrait chain 200 deep | elaboration per goal | elaboration once per item; clauses indexed by self type | 200 clauses per item; each goal one index probe |
-| diamond supertraits (`Error`'s three supertraits, `Num`'s eight) | duplicate clauses | elaboration skips a trait reference already present | linear in distinct supertraits |
+| diamond supertraits (`Error`'s three supertraits, `Num`'s eight) | duplicate clauses | elaboration keeps one clause per trait reference and merges its bindings | linear in distinct supertraits |
 | an associated-type chain 60 deep | normalization blowup | one `Project` per level, memoized; depth counts | 60 goals; at 65, `trait-resolution-depth` |
 | a recursive impl through a projection | a cycle | cycle detection on the stack, `Overflow` at the first repeat (rule TS-7) | the cycle's length |
 | a goal whose trait arguments grow on each step | unbounded search | depth 64 first, type size limit second | at most 64 levels |
@@ -1475,7 +1595,7 @@ conformance index, and lists rules with no fixture, per component.
 | solver unit snapshots | `hd debug solve` over small impl sets: goal in, answer, evidence, height and cost out. These are internal tests of the Rust crate, not conformance fixtures, so the fixture format stays implementation-neutral |
 | impl-set fuzzer (mine) | random traits (zero to two parameters, zero or one associated type), random data types, random impl heads that obey ownership, random goals. The oracle is a naive solver: recursive, no memo, no index, no fast path, over every impl in the program. Answers and top-level evidence must agree on every goal that the oracle finishes within the depth limit |
 | coherence fuzzer | random heads; the oracle enumerates ground types up to nesting 3 and reports two heads that both match one. Every oracle overlap must be reported, with a witness that matches both heads |
-| memo invariance | the same goal sequence with a cold memo, a warm memo, a shuffled body order and 1, 4 and 16 threads: identical answers, identical `fuel_used` per body (rules TS-1, TS-5) |
+| memo invariance | the same goal sequence with a cold memo, a warm memo, a shuffled body order and 1, 4 and 16 threads: identical answers, identical `fuel_used` per body (rules TS-1, TS-5). It includes two modules that ask one `Instantiations` goal with different closures, in both orders (section 3.2) |
 | canonicalization property | alpha-renamed goals get one key; goals that differ only in a variable's kind get different keys |
 | select soundness | in CI builds, every `select` at an instance re-solves the full goal and asserts `Holds` with the same impl (rule TS-6) |
 | pathological suite | each case of section 13, well-typed and ill-typed, within its fuel and wall-time budget, with its limit diagnostic; each also at sizes `n` and `2n`, failing when the observed exponent exceeds 1.2 (section 7.6) |
@@ -1581,8 +1701,8 @@ the backend lane's, listed in
    scope, `LocalVis`, `AvailKey`, a global memo per run, GADT arm
    equalities substituted before keying, and no global entry for a goal
    that met the depth cut or ran out of fuel.
-3. **§1.6 fuel and §11.1:** a goal charges its intrinsic cost the first
-   time a body meets it, and 1 on each repeat (rule TS-5).
+3. **§1.6 fuel and §11.1:** each proof node is charged once per body, and
+   a repeated ask costs 1 (rule TS-5).
 4. **§1.6 `Answer` and `Evidence`:** add `Normalized { ty, evidence,
    learned }` for `Project`; add `TraitValue { trait_ }`; drop
    `Coinductive`; a `Bound` index is a clause index in the elaborated
@@ -1649,10 +1769,11 @@ the backend lane's, listed in
 
 **cache.md**
 
-21. **The `check` key** gains `arg_impls_closure_hash`: a Merkle hash over
-    the `arg_impls` section hashes of every folder in the module's
-    dependency closure, computed bottom-up beside the deep hashes (section
-    3.2). The solver memo is never persisted and never part of a key.
+21. **The `check` key** covers argument-owned impls through the deep
+    hashes of the module's dependency closure; the `argc` hash that this
+    change first asked for is redundant and goes (Codex re-review N-A1,
+    section 3.2). The solver memo is never persisted and never part of a
+    key.
 
 ### 16.5 Codex Review
 

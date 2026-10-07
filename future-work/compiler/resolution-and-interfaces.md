@@ -191,6 +191,17 @@ a public signature
 ([`module.vis.signature`](../../spec/lang/10-modules.md#r-module.vis.signature)).
 So adding `impl Display for PrivateThing` rechecks no dependent.
 
+The rule covers impls owned through a trait argument too (Codex
+re-review N-A1). `impl Pick[Product] for Receiver` in `Product`'s module
+has a nameable trait and target, whatever `Product`'s visibility, so its
+head is in `api_hash`, and adding it changes the folder's deep hash. A
+module's `check` key holds the deep hash of every folder in its
+dependency closure, the same closure that filters the candidate
+directory (§4.12.1). So the deep hashes already cover every
+argument-owned impl a check can see, and a separate `arg_impls` closure
+hash would be redundant. The `arg_impls` section keeps its own hash only
+so the driver can rebuild the directory cheaply.
+
 **Complexity.** Linear in the folder's header tokens plus the use worklist.
 A folder task cannot be split, so one very large folder bounds the wall
 time of a cold run. That is a measured risk, not designed away.
@@ -220,8 +231,8 @@ contract. Every header rule runs in exactly one of three stages:
   policy ([commands.md](commands.md)), not the interface's.
 - **Caching.** Stage A's diagnostics are in the blob's `diags` section,
   outside every api hash. Stage B's are the `HeaderCheck(F)` task's
-  result; its key is F's interface key plus the deep hashes and the
-  `arg_impls` closure hash of its dependencies. That entry kind is the
+  result; its key is F's interface key plus the deep hashes of the
+  folders in F's dependency closure. That entry kind is the
   backend lane's ([cache.md](cache.md)).
 - **Fuel.** Each item's stage-B goals share one fuel budget per item, as
   a body's do, so one pathological header fails only itself.
@@ -357,9 +368,10 @@ bound misses (trait-solver.md §3.2):
   merges those sections into a per-trait **candidate directory**, frozen
   before any body that needs it. A goal with an open argument reads the
   directory, filtered to the asking module's dependency closure (owner,
-  2026-10-07). The module's `check` key gains a hash over the `arg_impls`
-  section hashes of that closure (trait-solver.md change 21, the backend
-  lane's).
+  2026-10-07). The deep hashes of that closure already cover those heads
+  (§4.10, "Two hashes, two readers"), so the `check` key needs no extra
+  hash. The solver memo keys the filtered view by an `ImplUniverseId`
+  (trait-solver.md §3.2).
 
 Every module consulted declares something the goal mentions, or holds a
 directory row from the dependency closure, so it lies in the asking

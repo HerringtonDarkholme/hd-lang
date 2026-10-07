@@ -226,7 +226,8 @@ It reserves in exactly four cases:
    statement.
 
 Slots live on the scratch stack, so a trial's rollback removes the slots
-it reserved. A slot still empty at the end of the body is a checker bug,
+it reserved. A trial never fills a slot reserved before it: that fill is
+deferred until no trial is open (section 3.5). A slot still empty at the end of the body is a checker bug,
 which `finish` reports as an internal error.
 
 **Constants have no span in TIR, and the checker needs none.** A literal
@@ -334,6 +335,7 @@ pub struct SolveCx<'a> {
     pub env: ArmEnv<'a>,            // the item's elaborated ParamEnv plus active arm equalities (§6.1)
     pub infer: &'a dyn InferRead,   // shallow resolution of inference variables
     pub avail: AvailKey,            // which traits are available in this module
+    pub universe: ImplUniverseId,   // the argument-owned impls this context sees (trait-solver.md §3.2)
     pub local_vis: LocalVis,        // the local impls visible at this point
     pub memo: &'a mut BodyMemo,     // per-body memo and `met` set; owned by BodyCx
 }
@@ -384,16 +386,18 @@ pub trait Solver: Sync {
   variables numbered by first occurrence. The memo key holds the
   canonical goal plus every input that can change the answer: the
   `EnvKey` when the goal names a parameter, the `LocalVis` when it can
-  match a local impl, and the `AvailKey` for `Methods`. A goal with no
+  match a local impl, the `AvailKey` for `Methods`, and the context's
+  `ImplUniverseId` for `Instantiations` and `Methods`. A goal with no
   variable, no local type and no existential goes to the run's global
   memo; any other goes to the body memo. A goal that met the depth cut
   or ran out of fuel is never published globally
   ([trait-solver.md §7.1](trait-solver.md#71-memo-keys-and-eligibility)).
   The checker never reads or writes memo entries itself.
 - **Fuel.** The checker passes its body's `Fuel`. The first time a body
-  meets a canonical goal, the solver charges the goal's intrinsic cost:
-  1, plus the heads it matched, plus the costs of its distinct children.
-  Each later ask of the same goal in that body costs 1. So the fuel a goal
+  meets a canonical goal, the solver walks the goal's proof DAG and
+  charges 1 plus the heads matched for each node the body has not met
+  yet. Each later ask of the same goal in that body costs 1. So a shared
+  subgoal is paid for once per body, and the fuel a goal
   costs is the same on every run, thread count and cache state (rule
   TS-5; lesson 3 of
   [Lessons For hd](prior-art-issues.md#lessons-for-hd)).
@@ -616,11 +620,18 @@ The solver returns the candidates in content order. The checker then:
 1. **Prefilters (change 7).** It drops each candidate whose parameter's
    head constructor cannot match an argument whose type is already
    known. No trial runs for those.
-2. **Tries each survivor.** Inside a trial (section 3.5) it checks the
-   arguments against the candidate's parameters. When the call has an
+2. **Tries each survivor.** Inside a trial (section 3.5) it instantiates
+   the candidate's scheme: a fresh variable for each impl parameter the
+   receiver did not fix, and the scheme's residual bounds as obligations
+   (trait-solver.md §6.5). It checks the arguments against the
+   candidate's parameters. When the call has an
    expected type, the trial then runs `coerce(result, want)`, still
-   inside the trial (change 9, review T4). A candidate **fits** if the
-   trial has no error. So `let n: i32 = money.pick()` picks `Pick[i32]`
+   inside the trial (change 9, review T4). Then it retries the residual
+   obligations once. A candidate **fits** if the trial has no error: a
+   residual that `Fails` is an error, and one that still stalls does not
+   rule the candidate out. The chosen candidate's stalled residuals stay
+   as ordinary obligations of the real check, so a residual bound that
+   fails later is still reported. So `let n: i32 = money.pick()` picks `Pick[i32]`
    when `Money` implements `Pick[i32]` and `Pick[string]`, as
    [`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.fits.expected)
    requires. Methods of two different traits are still `ambiguous-method`
@@ -839,10 +850,35 @@ field of section 13.
 
 | Class | Rollback | Fields |
 | --- | --- | --- |
-| **append-only column** | truncated to its checkpoint length | through the builder: TIR instructions, `extra`, labels, locals (one table with the checker's columns), sub-bodies, captures, side tables, reserved slots, the body-local pool and its `resolved` column. In the checker: buffered diagnostics, obligations, watch edges, the wake queue, row facts, pending call records, init facts, scope bindings, the arm-environment table, literal members, the "reported once" list |
-| **trailed slot** | the trail restores the old value | per variable: parent, rank, binding, kind, blame, birth, `watch_head`, literal-class data (signed, first span, held by a join, defaulted); per obligation: state; per local: flags and the definite-assignment bits; per scope: its newest binding; per pool row below the checkpoint: a `resolved` entry |
-| **balanced stack** | equal depth at the trial's end, asserted | `scopes`, `loops`, `fns`, `avail`, `restricted`, the open GADT arms, the open literal scopes, the divergence flag. A trial checks whole expressions, which push and pop in pairs |
+| **append-only column** | truncated to its checkpoint length | through the builder: TIR instructions, `extra`, labels, locals (one table with the checker's columns), sub-bodies, captures, side tables, reserved slots, the body-local pool and its `resolved` column. In the checker: buffered diagnostics, obligations, watch edges, the wake queue, row facts, pending call records, init facts, scope bindings, literal members, the statement's open literal classes, join items, deferred slot fills, the "reported once" list |
+| **trailed slot** | the trail restores the old value | per variable: parent, rank, binding, kind, blame, birth, `watch_head`, literal-class data (signed, first span, held by a join, defaulted); per obligation: state; per local: flags and the definite-assignment bits; per scope: its newest binding; per open `fns` or `loops` frame: the head of its join-item list; per pool row below the checkpoint: a `resolved` entry |
+| **balanced stack** | equal depth at the trial's end, asserted | `scopes`, `loops`, `fns`, `avail`, `restricted`, the divergence flag. A trial checks whole expressions, which push and pop in pairs. A frame's fields other than its join-item head never change after the push |
 | **kept on purpose** | never rolled back | fuel (rule TC-8); the solver's body memo and its `met` set (trait-solver.md rule TS-5); the trial memo (section 2.5); an M1 body checked during a trial, which runs in its own `BodyCx` and is final (TC-4) |
+
+**Contents, not only containers (Codex re-review N10).** Equal stack
+depth does not show that a frame that existed before the trial is
+unchanged. Two writes reach such state, and each now has a class:
+
+- **Join items.** A trial may check an argument that holds an early
+  `return` or `break`. That appends a join operand, and maybe a held
+  literal class (section 3.6), to an enclosing `fns` or `loops` frame
+  that is older than the trial. These items no longer live in the
+  frame. They are rows of one append-only `join_items` column, each
+  `(item, next)`, and the frame keeps only the trailed head of its list,
+  as watch edges do. Rollback truncates the rows and restores the head.
+- **Fills of older slots.** A trial may bind a variable that wakes an
+  obligation created before the trial, such as a stalled method call
+  (section 1.5, case 4). Retrying it may teach bindings, which are
+  trailed. But while any trial is open, the checker never fills a slot
+  reserved before the innermost open checkpoint. It appends the fill to
+  the `deferred_fills` column instead. Rollback truncates that column,
+  so a discarded candidate's callee is never installed. When no trial is
+  open, the checker applies the column in order and clears it. A slot
+  reserved inside the innermost trial is filled at once, since rollback
+  removes the slot with it.
+- **The statement's open literal classes** were a stack. A trial adds
+  classes to them, so they are now an append-only column, truncated
+  like the others.
 
 Three fields needed a new layout to fit a class:
 
@@ -870,7 +906,8 @@ ever cloned.
 pub struct Checkpoint {                  // the checker's part; `tir` holds the local pool's length
     trail: u32, diags: u32, errors: u32, obligations: u32, watch_edges: u32,
     wake_queue: u32, row_facts: u32, pending_calls: u32, init_facts: u32,
-    scope_binds: u32, arm_envs: u32, lit_members: u32, reported: u32,
+    scope_binds: u32, lit_members: u32, lit_open: u32, join_items: u32,
+    deferred_fills: u32, reported: u32,
     stacks: StackDepths,                 // asserted equal at rollback, not restored
     tir: tir::TirCheckpoint,
 }
@@ -879,7 +916,7 @@ enum Undo {                              // 8 bytes: tag + index; old value in `
     Parent(InferVar), Rank(InferVar), Bind(InferVar), Kind(InferVar),
     Blame(InferVar), Birth(InferVar), WatchHead(InferVar), LitClass(InferVar),
     ObState(ObId), LocalFlag(LocalId), Assigned(LocalId), ScopeHead(ScopeId),
-    Resolved(PoolRow),
+    JoinHead(FrameId), Resolved(PoolRow),
 }
 
 impl<B: TirSink> Checker<'_, B> {
@@ -910,10 +947,12 @@ impl<B: TirSink> Checker<'_, B> {
   steps it takes, so fuel bounds the product of nested trials.
 - **Debug check (mine).** In debug builds, `rollback` compares a content
   hash with the one taken at the checkpoint. The hash covers every
-  trailed slot, every column length, the stack depths, and the indices
-  that slots point at: no `watch_head`, obligation or scope head may
-  point past its column's length. A mismatch is an internal error naming
-  the trial's span. This is the verifier for TC-5.
+  trailed slot, every column length, the stack depths, the fields of
+  every open frame, and the fill state of every reserved slot older than
+  the checkpoint. It also checks the indices that slots point at: no
+  `watch_head`, join head, obligation or scope head may point past its
+  column's length. A mismatch is an internal error naming the trial's
+  span. This is the verifier for TC-5.
 
 ### 3.6 Literal Widths
 
@@ -952,10 +991,19 @@ So `return 0` early in a closure whose last value is an `i64` must give
 
 1. Each open join (a body with an omitted result, or a value loop with no
    expected type) keeps a list of the values it will join, and a list of
-   **held classes**.
-2. When a `return` or `break` operand's type is an open literal class,
-   the class is marked held (a trailed flag on its root) and added to the
-   join's list. Defaulting at the end of a statement skips held classes.
+   **held classes**. Both are rows of the `join_items` column, linked
+   from the join's frame (section 3.5).
+2. When a `return` or `break` operand is checked, every open literal
+   class reachable through its type is marked held (a trailed flag on
+   its root) and added to the join's list. That covers a bare literal,
+   and also one nested in a list, tuple, optional or any other type, as
+   in `return [0]` (Codex re-review N-T5;
+   [`types.literal.local.form.join-open`](../../spec/lang/04-type-system.md#r-types.literal.local.form.join-open)).
+   The walk visits only subterms with the `HAS_INFER` flag. Defaulting at
+   the end of a statement skips held classes, with one exception: a held
+   class that a `let` binding of the same statement also reaches takes
+   its default there, because the binding's type is fixed at the end of
+   its statement. The join then sees the defaulted type.
 3. At the join (the end of the body, or the end of the loop), the LCT
    fold of section 4.3 runs over the collected values. A held class meets
    the typed values there and binds. A held class still open after the
@@ -1170,8 +1218,9 @@ and pops it on exit. `available` is their union
   trial, with rigid parameters replaced by fresh variables. Then push.
 - `$.use(K)`: `K` must be in `available`, else `missing-requirement`.
   The result is `mut K` for a mutable requirement trait, else `K`.
-- A body with an inferred row (a closure or a private function) records
-  each key it uses outside its own `$.with` blocks as a row fact.
+- A private function with an inferred row records each key it uses
+  outside its own `$.with` blocks as a row fact. A closure with an
+  inferred row adds such keys to its own row instead (section 5.4).
 
 ### 5.3 Call Checking
 
@@ -1183,6 +1232,7 @@ For a call to a callee whose substituted row is `R`:
 | a row parameter `$R` of the callee | `R` was solved from an argument's function type (least solution, section 5.6), then as above |
 | the caller's own row parameter | entailed only if the caller's row lists it |
 | `RowVar(g)` of a private callee | a deferred check, recorded as a row fact (section 5.5) |
+| pending parts, in the row of a function value being called | each part as the call of that private callee: a deferred check (section 5.4) |
 
 A function value checked against an expected function type uses row
 subsumption: the expected row must entail every key of the value's row
@@ -1200,6 +1250,29 @@ its last statement is checked. If it calls a private callee with a row
 variable, its row holds that variable. With an expected row parameter,
 the inferred row unifies with it
 ([`req.row.omitted.expected-parameter`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.expected-parameter)).
+
+**A closure owns its row (Codex re-review N8).** Creating a closure value
+runs none of its body, so the closure's requirements belong to its
+function type, never to the body that creates it.
+
+- The closure's row is a `BodyRow` (section 5.1): the keys it uses, plus
+  one pending part for each private callee it calls. No row fact names
+  the creator.
+- A call inside the closure records its `PendingCall` with
+  `caller: Closure(sub_body)`. Its providers come from the closure's own
+  provider bundle, which the closure's caller passes at each invocation.
+- The creator takes part only where it **invokes** a function value. A
+  call of a value whose row holds pending parts is checked as a call of
+  each of those private callees (section 5.3), so the invoking body
+  records `Includes` or `Entails` facts for them. Returning, storing or
+  discarding the value adds nothing.
+- So a private factory that returns a closure calling private `tick`,
+  whose row is `{Clock}`, stays requirement-free. Its result type holds
+  the pending part `RowVar(tick)`, and the row sweep (section 5.5 step 6)
+  turns it into `{Clock}`.
+- A cold suspension is different. A plain call of a suspending callee
+  captures the caller's providers when the value is made (section 5.7),
+  so that call records its facts under the caller, as any call does.
 
 ### 5.5 Private Rows And The M3 Fixpoint
 
@@ -1224,15 +1297,14 @@ pub struct PendingCall {
     inst: Inst,                           // the call; its provider word holds `Pending(index of this record)`
     g: PendingRow,                        // what the callee needs, as seen from this call
     with: Range32,                        // (key, provider Ref) pairs of the `$.with` blocks around the call
-    caller: CallerRow,                    // Written(row) | Inferred(RowVar): where the other keys come from
+    caller: CallerRow,                    // Written(row) | Inferred(RowVar) | Closure(sub_body): where the other keys come from
 }
 ```
 
 The `with` pairs are the lexical provider environment at the call, so
-M3 can pick each provider without looking at the body again. A closure
-that calls an omitted-row function records its facts under the
-enclosing callable's `RowVar` when the closure's own row is inferred,
-since the closure's keys flow into the callable's row (section 5.4).
+M3 can pick each provider without looking at the body again. A call
+inside a closure names the closure as its caller, never the enclosing
+callable (section 5.4).
 
 **The solve, in M3, per module:**
 
@@ -1266,7 +1338,9 @@ since the closure's keys flow into the callable's row (section 5.4).
    `subst(row(g))` in canonical key order: if `k` is in `minus`, the
    provider is the matching `with` pair's `Ref`; otherwise it is the
    caller's own provider for `k`, which its written or solved row now
-   holds. M3 appends the `(key, provider)` pairs to the body's `extra` and
+   holds. A closure's solved row is its own keys plus its solved pending
+   parts; it is a plain function of the rows of step 1, since no row
+   variable names a closure, so it needs no fixpoint. M3 appends the `(key, provider)` pairs to the body's `extra` and
    patches the call's provider word to point at them. The count of pairs
    was unknown in M2, so the patch is one fixed word pointing at an
    appended range, not words written in place.
@@ -1866,7 +1940,7 @@ Every count is a language-level unit, never time or allocation (lesson
 | --- | --- |
 | an expression or pattern node checked | 1 |
 | a unification pair visited | 1 |
-| a goal the body meets for the first time | its intrinsic cost: 1, plus heads matched, plus its distinct children's costs (charged by the solver, rule TS-5) |
+| a goal the body meets for the first time | 1 plus heads matched for each node of its proof DAG that the body has not met yet (charged by the solver, rule TS-5) |
 | a goal the body has met before | 1 |
 | a trial started | 8, plus its steps |
 | a trial-memo hit (section 2.5) | 1 |
@@ -1987,7 +2061,6 @@ pub struct BodyCx<'f, B: TirSink> {
     // obligations, SoA; append-only except `ob_state`
     ob_goal: Vec<Goal>,                 // 16 B
     ob_span: Vec<SpanIdx>,              // 4 B
-    ob_env: Vec<ArmEnvId>,              // 4 B; the arm environment it was asked under (§6.1)
     ob_state: Vec<u8>,                  // 1 B; Pending | Woken | Done; trailed
     watch_edges: Vec<(InferVar, ObId, u32)>, // 12 B; (variable, obligation, next edge)
     wake_queue: Vec<ObId>,              // this round's woken obligations
@@ -1996,12 +2069,13 @@ pub struct BodyCx<'f, B: TirSink> {
     // scopes and contexts
     scopes: Vec<Scope>,                 // balanced stack; each scope's newest binding is trailed
     scope_binds: Vec<(Symbol, LocalId, u32)>, // append-only: name, local, previous binding
-    loops: Vec<LoopCx>,                 // break type slot, label, held literals, ~16 B
-    fns: Vec<FnCx>,                     // result slot, row, driver flag, held literals, ~28 B
+    loops: Vec<LoopCx>,                 // break type slot, label, join-item head (trailed), ~16 B
+    fns: Vec<FnCx>,                     // result slot, row, driver flag, join-item head (trailed), ~28 B
+    join_items: Vec<(JoinItem, u32)>,   // append-only: a join operand or held class, next item (§3.5)
+    deferred_fills: Vec<(SlotId, FillRef)>, // append-only: fills of older slots during a trial (§3.5)
     avail: Vec<RowId>,                  // the available stack (§5.2)
     restricted: u16,                    // §5.8 depth
-    arms: Vec<ArmFrame>,                // open GADT arms: birth mark, arm environment (§6.1)
-    literal_scope: Vec<InferVar>,       // open literal classes of the current statement
+    lit_open: Vec<InferVar>,            // append-only: open literal classes of the current statement
     lit_members: Vec<(InferVar, NodeIdx)>, // every literal and its node: range checks, hints
     assigned: BitStack,                 // definite assignment sets (§8.4)
     // outputs, append-only
@@ -2010,7 +2084,6 @@ pub struct BodyCx<'f, B: TirSink> {
     row_facts: Vec<RowFact>,
     pending_calls: Vec<PendingCall>,    // §5.5
     init_facts: Vec<InitFact>,
-    arm_envs: ArmEnvTable,              // equalities and existentials of every arm (§6.1)
     // reusable scratch, cleared per use, never shrunk within a body
     scratch_tys: Vec<Ty>, scratch_refs: Vec<Ref>, scratch_args: Vec<ArgSlot>,
     memo: BodyMemo,                     // lent to the solver per goal (§1.6); never rolled back
