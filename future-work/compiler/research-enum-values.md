@@ -531,8 +531,8 @@ Fixtures: section 4.9.
 
 ### 7.2 Interaction With The Queued Spec Pass
 
-The queued decision B list is in
-[codex-review-response.md](codex-review-response.md#spec-changes-for-the-spec-pass).
+Decision B's rule list (Codex review, finding 1) was applied in spec
+pass S1c; the table shows what this change does to each item.
 
 | B item | Rule | With this change |
 | --- | --- | --- |
@@ -594,7 +594,6 @@ arguments, so it is not folded in here.
 - WebAssembly GC: [Overview](https://github.com/WebAssembly/gc/blob/main/proposals/gc/Overview.md)
   (`i31ref`, `eqref`, `ref.eq`).
 - In this repository: [wasm-layout.md §15.2](wasm-layout.md#152-values),
-  [codex-review-response.md](codex-review-response.md#spec-changes-for-the-spec-pass),
   [open-questions.md §23.1](open-questions.md#231-open-questions-for-the-owner),
   [`types.sealed.anyref`](../../spec/lang/04-type-system.md#r-types.sealed.anyref-values),
   [`expr.is.box`](../../spec/lang/05-expressions.md#r-expr.is.box-values),

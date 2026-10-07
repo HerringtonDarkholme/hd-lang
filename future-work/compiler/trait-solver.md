@@ -1,8 +1,8 @@
 # New Compiler: The Trait Solver
 
 Status: Design, not decided. Frontend lane, 2026-10-07. Revised the same
-day with the owner's answers to section 16.1 and the frontend response to
-the Codex review ([codex-review-response-frontend.md](codex-review-response-frontend.md)).
+day with the owner's answers to section 16.1 and the Codex review of
+8bb6860d.
 Revised again for the Codex re-review through 54f249b7
 ([codex-rereview-response-frontend.md](codex-rereview-response-frontend.md)),
 the removal of GADTs and the `dyn` decisions.
@@ -1769,8 +1769,8 @@ owner disagrees.
 For the owners of those files to make. This document edits none of them.
 Status, 2026-10-07: changes 1 to 11 are applied in type-checking.md and
 changes 12 to 14 in resolution-and-interfaces.md. Changes 15 to 21 are
-the backend lane's, listed in
-[codex-review-response-frontend.md](codex-review-response-frontend.md).
+the backend lane's, applied in codegen.md, checking-and-tir.md, cache.md
+and data-structures.md.
 
 **type-checking.md**
 

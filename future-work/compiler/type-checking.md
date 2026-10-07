@@ -1,8 +1,7 @@
 # New Compiler: Type Checking
 
 Status: Design, not decided. Frontend lane, 2026-10-07. Revised the same
-day for the Codex review of 8bb6860d
-([frontend response](codex-review-response-frontend.md)), the changes that
+day for the Codex review of 8bb6860d, the changes that
 [trait-solver.md §16.4](trait-solver.md#164-changes-needed-in-type-checkingmd-and-the-other-design-files)
 asks for, and [data-structures.md](data-structures.md) §3.4, §3.9 and
 §3.18 to §3.19. Revised again for the Codex re-review through 54f249b7
@@ -2194,9 +2193,9 @@ inference table.
 
 COMPILER_DESIGN.md is now split into the files of the
 [README](README.md). These changes are for the backend lane to make in
-its files. This document edits none of them. The response file lists
-them too
-([codex-review-response-frontend.md](codex-review-response-frontend.md)).
+its files. This document edits none of them. Items 15 to 21 of the
+Codex review are in
+[trait-solver.md §16.4](trait-solver.md#164-changes-needed-in-type-checkingmd-and-the-other-design-files).
 
 1. **data-structures.md §3.4 and §3.9.2:** the projection type is
    `Assoc { assoc: DefId, tref }` (trait-solver.md change 15). A `Row`

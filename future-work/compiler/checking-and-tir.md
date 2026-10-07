@@ -16,9 +16,8 @@ item 4 in §4.13.3 and §4.13.10; item 5 in §4.13.4; item 6 in §4.13.6;
 items 7, 8 and 9 in §4.13.11; item 10 in §4.15. Item 1 is in
 [data-structures.md §3.4](data-structures.md#34-types).
 
-**Second pass** (backend lane, 2026-10-07), from
-[codex-review-response-frontend.md](codex-review-response-frontend.md#changes-for-the-backend-lane)
-items 16, 17 and 22 to 26 and the renumbered
+**Second pass** (backend lane, 2026-10-07), from Codex review items 16, 17 and 22 to 26 (trait-solver.md §16.4 and
+the renumbered
 [type-checking.md §17](type-checking.md#17-changes-needed-in-compilerdesignmd):
 the `TraitValue` choice, `Builtin` for sealed traits only and `CallDyn`
 evidence operands (§4.13.11); no coinductive assumption and the `HeaderCheck(F)` task (§4.13.9); the

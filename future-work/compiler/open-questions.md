@@ -23,7 +23,7 @@ Part of the [compiler design](README.md).
 | `is` on value types | a compile error on an operand whose static type is a value type and on function values; unspecified on an `Any` that holds a value (owner) |
 | literal width | decided per connected literal class (owner) |
 
-The Codex review of 8bb6860d and each finding's verdict: [codex-review-response.md](codex-review-response.md).
+Each finding's verdict on the Codex review of 8bb6860d is recorded where the finding was fixed. The re-review verdicts are in [codex-rereview-response.md](codex-rereview-response.md).
 
 ## 10. Open Questions For The Owner
 

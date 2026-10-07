@@ -4,9 +4,8 @@ Part of the [compiler design](README.md).
 
 ## Part D2: The Back Half
 
-**Second pass** (backend lane, 2026-10-07), from
-[codex-review-response-frontend.md](codex-review-response-frontend.md#changes-for-the-backend-lane)
-items 18 to 20 and 22, and the owner's answers of the day: collection
+**Second pass** (backend lane, 2026-10-07), from Codex review items 18 to 20 and 22
+([trait-solver.md §16.4](trait-solver.md#164-changes-needed-in-type-checkingmd-and-the-other-design-files)), and the owner's answers of the day: collection
 selects impls by a head match plus `Bind` steps, with no proof
 (§13.2); vtables follow the trait record's shape (§13.5); tuple traits
 are template instances (§13.6); defaults run per call and facts are

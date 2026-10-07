@@ -190,9 +190,12 @@ and primitive, string or tuple boxes have no identity. `is` is a compile
 error on an operand whose static type is a value type and on function
 values; since S1c that covers every enum, optionals and `Result`
 included. On an `Any` or trait value that holds a value at run time,
-the result is unspecified. The spec pass applies
-it; the rule list is in
-[codex-review-response.md](codex-review-response.md#spec-changes-for-the-spec-pass).
+the result is unspecified (Codex review, finding 1). The spec has this
+as
+[`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand),
+[`expr.is.box-values`](../../spec/lang/05-expressions.md#r-expr.is.box-values)
+and
+[`expr.is.box-unspecified`](../../spec/lang/05-expressions.md#r-expr.is.box-unspecified).
 The other option was to keep the spec and allocate one object per `.Some`
 and per box wherever identity could be observed. That costs one 16 to
 24 byte allocation per `.Some` that crosses a call, which `T?`-heavy code
