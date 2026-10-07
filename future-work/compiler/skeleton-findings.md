@@ -51,7 +51,7 @@ on the crates below it:
 | `hd_driver` | the run, counters, source loading, the Node runner, the bench | all of the above |
 
 `hd run FILE.hd`, `hd run DIR`, `hd build FILE -o OUT.wasm` and
-`hd bench N` are in `hd_cli`. A file is a module and its directory is its
+are in `hd_cli` (the bench is `cargo run -p hd_driver --example bench`). A file is a module and its directory is its
 folder. The JS host is `compiler/host/run.mjs`; the samples are in
 `compiler/samples`.
 

@@ -1,4 +1,4 @@
-//! `hd bench N`: a synthetic two-folder package with N functions per folder,
+//! `cargo run -p hd_driver --example bench N`: a synthetic two-folder package with N functions per folder,
 //! compiled cold, warm, after a private body edit and after a comment edit,
 //! each run timed. Eyeballed, not gated.
 

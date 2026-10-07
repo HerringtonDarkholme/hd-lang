@@ -13,8 +13,7 @@ use hd_syntax::parse;
 const USAGE: &str = "usage:
   hd parse FILE
   hd run FILE.hd|DIR
-  hd build FILE.hd|DIR -o OUT.wasm
-  hd bench [N]";
+  hd build FILE.hd|DIR -o OUT.wasm";
 
 fn usage() -> ExitCode {
     eprintln!("{USAGE}");
@@ -30,11 +29,6 @@ fn main() -> ExitCode {
         ("parse", [file]) => parse_command(Path::new(file)),
         ("run", [target]) => run_command(Path::new(target)),
         ("build", [target, flag, out]) if flag == "-o" => build_command(Path::new(target), Path::new(out)),
-        ("bench", []) => bench_command(200),
-        ("bench", [n]) => match n.to_str().and_then(|n| n.parse().ok()) {
-            Some(n) => bench_command(n),
-            None => usage(),
-        },
         _ => usage(),
     }
 }
@@ -120,19 +114,6 @@ fn build_command(target: &Path, out: &Path) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{}: {error}", out.display());
-            ExitCode::FAILURE
-        }
-    }
-}
-
-fn bench_command(n: usize) -> ExitCode {
-    match hd_driver::bench::bench(n) {
-        Ok((report, _)) => {
-            eprint!("{report}");
-            ExitCode::SUCCESS
-        }
-        Err(error) => {
-            eprintln!("error: {error}");
             ExitCode::FAILURE
         }
     }
