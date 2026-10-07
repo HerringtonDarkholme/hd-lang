@@ -153,24 +153,13 @@ design:
 - `Suspend[T]` values, `all!` and `race!` are typed as the spec says;
   their lowering is D2's.
 
-#### 4.13.6 GADT Refinement
+#### 4.13.6 GADT Refinement (Retired)
 
-- Per `match` arm, unify the variant's result type with the scrutinee's
-  type, first-order and nominal
-  ([Refinement Algorithm](../../spec/lang/13-gadts.md#refinement-algorithm)).
-- The equalities this yields on the scrutinee's type parameters go into
-  an append-only arm-environment table. They are consulted, never
-  written into types, and nothing is popped or undone at the arm's end.
-  An outer inference variable may be bound only to a type free of the
-  arm's refined parameters and existentials (rules TC-10 and TC-11 of
-  [type-checking.md §6.1](type-checking.md#61-arm-local-equalities)).
-- Where the arm's value has the refined type and its position expects
-  the parameter, the checker emits a `Refine` coercion naming the arm
-  environment (§4.13.11). It has no run-time effect
-  ([`gadt.unify.no-cast`](../../spec/lang/13-gadts.md#r-gadt.unify.no-cast)).
-- A variant whose result cannot unify is impossible. Exhaustiveness skips
-  it.
-- Existential parameters get fresh rigid variables per arm.
+GADTs are removed from the language (owner, 2026-10-07; the spec removal
+is S1e). Pattern refinement, existential variant parameters, the
+`Refine` coercion, `Evidence` callees and `NewVariant` evidence leave the
+checker and TIR with S1e. The frontend lane removes the matching parts
+of type-checking.md §6. Nothing in the back half depends on them.
 
 #### 4.13.7 Tuples, Varargs And Arity
 
@@ -184,8 +173,8 @@ evidence of the template at the tuple type, like any impl
 
 #### 4.13.8 Exhaustiveness
 
-Maranget's usefulness algorithm over the pattern matrix, with GADT
-impossibility (§4.13.6), literal ranges, `Option` and tuples.
+Maranget's usefulness algorithm over the pattern matrix, with literal
+ranges, `Option` and tuples.
 
 - Each matrix cell visited costs one fuel step, so a pathological match
   stops with the match limit diagnostic instead of hanging (§4.15).
@@ -378,8 +367,8 @@ choices of type-checking.md §17 are below.
 | `And`, `Or` | a: left, b: right `Block` | `bool`; the right block runs only when needed |
 | `Call` | a: `[callee]`, b: `[arguments, providers]` | the callee's result, substituted; `mut Suspend[T]` when the callee suspends and the call is plain (a cold call) |
 | `CallValue` | a: function value, b: `[arguments, context]` | the function type's result |
-| `CallDyn` | a: trait value, b: `[method, type arguments, evidence, arguments, providers]` | the method's result, substituted. The type arguments are the method's own. `evidence` holds one `Evidence` value per method-level bound, in the method's bound order, chosen by the checker at the call (codegen.md §13.5) |
-| `Is` | a: left, b: right | `bool`. Only on two operands of nominal reference types: data, enums other than `Option` and `Result`, `List`, `Map`, trait values, `Any`. The checker desugars `is` on optionals and results tag by tag (type-checking.md §2.2); codegen lowers it by layout (wasm-layout.md §15.2) |
+| `CallDyn` | a: trait value, b: `[method, type arguments, evidence, arguments, providers]` | the method's result, substituted. The type arguments are the method's own. `evidence` holds one `Evidence` value per method-level bound, in the method's bound order, chosen by the checker at the call. Codegen does not read it: a generic method gets a type witness built from the type arguments (codegen.md §13.5.1), so dropping the operand is a frontend cleanup |
+| `Is` | a: left, b: right | `bool`. Only on two operands whose types implement `AnyRef` (data, `List`, `Map`, an `AnyRef` type parameter), or on trait values and `Any`. `is` on an enum, optional, `Result`, tuple, primitive, string or function value is `identity-requires-references` before TIR (S1c, [`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)); codegen lowers it by layout (wasm-layout.md §15.2) |
 | `CallHost` | a: host method, b: `[arguments]` | the method's result; only in std's provider bodies (§17.1) |
 | `Intrinsic` | a: intrinsic, b: `[type arguments, arguments]` | the intrinsic's declared result |
 | `DefaultCall` | a: `[default body DefId, type arguments]`, b: `[earlier argument values]` | the parameter's or field's type, substituted. One per omitted argument, per call |
@@ -395,12 +384,12 @@ the type, so each is an explicit instruction and invariant 4 holds.
 | `Weaken` | `mut T` → `T` | none | none: a static view change |
 | `Variance` | `C[A]` → `C[B]` by declared variance, readonly outer type | none | none ([Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance)) |
 | `WrapSome` | `T` → `T?`, one layer | none | build `.Some` |
-| `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none | an adapter that passes only `R1`'s providers |
+| `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none | none: every function value takes a context and looks its keys up by id, so a context holding `R2`'s keys serves `R1` (codegen.md §12.4) |
 | `ToTraitValue` | `S` → `Tr`, `mut S` → `mut Tr` | the impl choice | box with its dispatch table |
 | `ToAny` | `S` → `Any` | none | box with its type id |
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
-| `Refine` | `R` → `T`, or `T` → `R`, where a GADT arm has `T ≡ R` | the `SwitchTag` case `Inst` whose variant gives the equality | none: static ([`gadt.unify.no-cast`](../../spec/lang/13-gadts.md#r-gadt.unify.no-cast)). The verifier recomputes the case's equalities from the variant's result type and checks that the two types are equal under them |
+| `Refine` | retired with GADTs (S1e) | | |
 
 **Default calls (Codex finding 4).** A default is evaluated at each call
 that omits it, after every explicit argument, in parameter declaration
@@ -434,9 +423,9 @@ D1's "readonly view" kind is `Weaken`, since the spec's marked form is
 `mut T` (data-structures.md §3.4).
 
 A **callee record** is one of `Item(DefId, type arguments)`,
-`TraitMethod(trait, method, self type, type arguments, choice)`, and
-`Evidence(value, bound, method)` for a call through a GADT existential's
-stored evidence. The **choice** is one word, a 2-bit kind and a 30-bit
+and `TraitMethod(trait, method, self type, type arguments, choice)`.
+The `Evidence` record for a GADT existential's stored evidence is
+retired with GADTs (S1e). The **choice** is one word, a 2-bit kind and a 30-bit
 value:
 
 | Choice | Value | Meaning |
@@ -542,7 +531,7 @@ record). Ordinary cleanup and cancellation therefore share one source.
 | `SwitchTag` | a: an enum or `Option` value, b: `[(variant, Block) cases, default Block or NONE]` | `never`: inside a decision tree, every path ends in `ToArm` or `Unreachable` |
 | `SwitchInt`, `SwitchChar` | a: value, b: `[(constant or range, Block) cases, default]` | as `SwitchTag` |
 | `SwitchStr` | a: value, b: `[(constant, Block) cases, default]` | as `SwitchTag` |
-| `Payload` | a: a value switched to a variant, b: `[variant, field]` | the payload field's type, refined by GADT matching |
+| `Payload` | a: a value switched to a variant, b: `[variant, field]` | the payload field's type |
 | `Unwrap` | a: an `Option` value switched to `.Some` | the inner type |
 | `Guard` | a: condition `Block`, b: `[arm, fail Block]` | `never`; the fail block continues with the remaining rows |
 | `ToArm` | a: arm number | `never`; the leaf has already bound the arm's locals with `LocalSet` |
@@ -697,8 +686,7 @@ The verifier checks each of these:
 14. No reserved slot is empty after `finish`.
 15. A `DefaultCall`'s operands are the `Ref`s its call passes for the
     earlier parameters, in order, and it precedes the call in the block.
-16. A `Refine` coercion's two types are equal under the equalities of
-    the `SwitchTag` case it names, and the coercion is inside that case.
+16. (Retired with GADTs, S1e.)
 17. A `CallDyn` has one evidence operand per method-level bound.
 
 ##### Lifetime And The `tir` Entry

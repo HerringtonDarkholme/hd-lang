@@ -15,9 +15,9 @@ struct or an array element.
 | `i32` | `i32` | `bool`, `char`, integers of 32 bits or less, `usize`, payloadless enums |
 | `i64` | `i64` | `i64`, `u64` |
 | `f32`, `f64` | `f32`, `f64` | floats |
-| `ref` | `(ref $T)` or `(ref null $T)` | data, enums with payloads other than the identity-free ones, `string`, lists, maps, closures, frames |
+| `ref` | `(ref $T)` or `(ref null $T)` | data, `string`, lists, maps, closures, frames, and an enum's box (over 4 Wasm values, or a self-recursive payload) |
 | `multi` | 2 to 4 Wasm values | `Option` of a scalar, `Result`, tuples, trait values (§15.2) |
-| `erased` | `anyref` | the payload of a trait value, `Any`, an existential payload |
+| `erased` | `anyref` | the payload of a trait value, `Any`, an open value in an erased method body (codegen.md §13.5.1) |
 | `void` | none | `void`, `()`, and `never` |
 
 In locals, parameters and results, a `multi` layout over 4 Wasm values
@@ -69,10 +69,13 @@ value that is always present costs nothing. A narrowing read is one
 `ref.as_non_null`, which cannot fail after the test. `struct.new_default`
 is valid for every frame type.
 
-**Enum layout per enum (mine).** The triage asks for a layout chosen per
-enum. The rule is deterministic, with no annotation: an enum is **flat**
-when its payload fields number at most 4 in total and no variant has an
-existential parameter. Otherwise it uses **subtypes**. Flat enums need no
+**Enum layout per enum (mine).** Every enum is an identity-free value
+(S1c) and normally uses the value layout of "One predicate for
+identity-free enums" below. The flat and subtype rows above are the
+shapes of its **box**, used past 4 Wasm values and for a self-recursive
+payload. The rule is deterministic, with no annotation: a box is
+**flat** when the enum's payload fields number at most 4 in total.
+Otherwise it uses **subtypes**. Flat enums need no
 cast on a match, and their payloadless variants need no allocation.
 Subtype enums cast once per matching arm, which the engine checks with
 one load and compare.
@@ -91,8 +94,8 @@ gives each `.Some(...)` and each primitive-to-`Any` box its own identity
 to change the language instead of the layouts. `.Some`, `.Ok`, `.Err`
 and primitive, string or tuple boxes have no identity. `is` is a compile
 error on an operand whose static type is a value type and on function
-values; `is` on optionals and results compares tag by tag, then
-payloads. On an `Any` or trait value that holds a value at run time,
+values; since S1c that covers every enum, optionals and `Result`
+included. On an `Any` or trait value that holds a value at run time,
 the result is unspecified. The spec pass applies
 it; the rule list is in
 [codex-review-response.md](codex-review-response.md#spec-changes-for-the-spec-pass).
@@ -116,9 +119,8 @@ So the layouts follow these rules:
    inline. When `T'` and `E'` are both references, the fields may share
    one `anyref`-typed slot cast by tag; the first release keeps them
    apart, which is simpler and costs one word.
-4. **Other enums** keep the flat or subtype layout above. Each payload
-   variant is one struct per construction, so their identity was never
-   at risk.
+4. **Other enums** are identity-free too (S1c). They follow the
+   predicate below; the flat and subtype shapes are only their boxes.
 
 **One predicate for identity-free enums (mine).** Layout, `is` lowering
 and the checker's value-type test read one predicate, `identity_free(E)`.
@@ -137,23 +139,16 @@ the operands' layout:
 
 | Operand layout | Wasm |
 | --- | --- |
-| `ref` (data, enums, lists, maps, closures, frames) | `ref.eq` |
-| `T?` with a reference `T` | `ref.eq` on the nullable references: null equals null |
-| `T??` with a reference `T`, `T?` with a trait-value `T` | both tags equal, then `is` on the payloads when present |
-| trait value, `Any` | `ref.eq` on the payloads, then the type ids equal; unspecified when the payload is a boxed value |
+| `ref` (data, lists, maps, an `AnyRef` type parameter's instance) | `ref.eq` |
+| trait value, `Any` | `ref.eq` on the payloads; unspecified when the payload is a boxed value |
 
-The checker desugars `is` on optionals and results tag by tag before TIR
-(type-checking.md §2.2), so the `Is` instruction itself never sees an
-`Option` or `Result` operand; the optional rows above are what that
-desugaring emits.
-
-The type-id test in the last row is needed even for references. A
-payload-free variant of a flat enum erases to the same `i31ref` tag as
-another enum's variant, but the two values are different. `is` on `i32?`,
-`(A, B)?` or `Result[i32, E]` has no row: such a value has no identity,
-and `is` on it is the compile error `identity-requires-references`
-(owner, 2026-10-07). `is` on a function value is
-`unsupported-function-identity`.
+An enum, optional, `Result`, tuple, primitive, string or function operand
+has no row: `is` on it is the compile error
+`identity-requires-references` (S1c,
+[`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)).
+No type-id test is needed in the last row. Two different objects are
+never `ref.eq`, and two equal `i31ref`s of different types are boxed
+values, whose result is unspecified.
 
 **Arrays.** `Array[T]` is the one compiler-known collection: `(array (mut
 T'))` with `T'` the element layout of the table. An array of a `multi`

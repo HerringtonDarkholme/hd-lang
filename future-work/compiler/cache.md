@@ -165,14 +165,23 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
   body above a declaration keeps them. Entries under such keys therefore
   store no absolute position. A span in an `iface`, `coh` or `init`
   entry, and a span in a `check` entry that points into another file,
-  is relative: a declaration's stable path plus an offset within that
-  declaration
+  is a **token anchor**: a declaration's stable path, the index of its
+  first token among that declaration's tokens, a token count, and byte
+  offsets inside the first and last token
   ([data-structures.md §3.7](data-structures.md#37-spans-and-files)).
-  Output resolves it through the current file's declaration table,
-  which the `locs` entry holds per file, keyed by the file's
-  `source_hash`. Any file whose bytes changed is parsed in this run, so
-  its `locs` entry exists. rustc's incremental mode keeps spans relative
-  to their item for the same reason.
+  Whitespace and comments are not tokens, so an edit that keeps a
+  declaration's API hash keeps every anchor into it, even an edit inside
+  the declaration (Codex re-review N9). A byte offset from the
+  declaration start would not: spaces inserted between a function's
+  name and its parameters shift every later offset under the same key.
+  Output resolves an anchor through the current file's `locs` entry,
+  keyed by the file's `source_hash`, which holds each declaration's
+  start; it re-lexes that declaration to find the token, which costs
+  microseconds and runs only for a printed diagnostic. Any file whose
+  bytes changed is parsed in this run, so its `locs` entry exists.
+  Recomputed `iface` bytes are then equal under an equal key, which
+  verify mode checks. rustc's incremental mode keeps spans relative to
+  their item for the same reason.
 
 ### 5.4 Entry Format And Atomic Publish
 
@@ -200,9 +209,12 @@ obj/
 - **No locks on reads.** Readers open and map files. Writers never modify
   a file in place.
 - **Dedup across processes** is not coordinated: two processes that miss
-  the same key both compute it. Module entries take milliseconds. This
-  conflicts with the proposed `cache-contention` target "each entry
-  computed once", which is open question 3.
+  the same key both compute it. Module entries take milliseconds. So the
+  `cache-contention` target bounds warm runs only: N concurrent warm
+  checks cost at most 1.5x the CPU of one, and N cold checks of one
+  package may cost up to N times one (open-questions.md, answered;
+  Codex re-review N-C3). Lock files come only if a measurement of D2's
+  expensive entries asks for them.
 - **Write failures** (read-only or full disk) produce one warning and the
   run continues uncached. A cache never makes a check fail.
 - **Large entries** (blobs over 64 KiB, D2's code) are memory-mapped.

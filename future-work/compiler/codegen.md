@@ -180,12 +180,11 @@ instance.
 | `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then bytes for strings; each arm once, in nested blocks that leaves branch to |
 | `Call` with an `Item` callee | `call`, relocated to the callee instance |
 | `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl selected by head at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
-| `Call` with an `Evidence` callee | a `call_ref` through the vtable stored in the variant (§13.5) |
-| `CallDyn` | `struct.get` of the vtable slot, then `call_ref`, passing one vtable per evidence operand (§13.5) |
+| `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1) |
 | `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
-| `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; readonly view, variance, `Refine` and row subsumption: nothing |
+| `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |
 | `Interp` | lengths summed first, one string allocated, parts copied; each `Display` part writes into the builder through its resolved callee |
 | `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
 | `ForRange`, `ForList`, `ForMap` | counted loops (§12.4) |
@@ -300,9 +299,18 @@ Requirement rows never become type arguments
 - **Extension** (`$.with(Logger=...)` around a call that needs `R +
   Logger`) pushes one node: one allocation per call into row-polymorphic
   code.
-- **A function value with a row** takes a context, because its caller may
-  not know its row's keys. TIR's `ContextFor` builds it once per calling
-  body.
+- **One callable ABI for function values (Codex re-review N-I2).** Every
+  closure's code has the signature `(env, args..., ctx: (ref null
+  $Ctx)) -> results`, whatever its row; an empty row ignores `ctx`, and
+  a caller with nothing to pass passes null. A function value's caller
+  may not know the value's row, and a context is looked up by key id,
+  so any context that holds `R1`'s keys serves a function of row `R1`.
+  Row subsumption `fn $ R1` to `fn $ R2` is therefore no instruction,
+  and the closure reference types of both are the same `$Fn_sig`, where
+  the signature leaves the row out. A named function used as a value
+  gets one generated adapter that reads its keys from `ctx` and calls
+  the function's direct entry, which takes one parameter per key. TIR's
+  `ContextFor` builds the context once per calling body.
 - **Own providers.** A provider pair whose provider is `NONE` passes the
   enclosing sub-body's own provider for that key, exactly as
   `ProviderGet` would. M3 writes such pairs for calls to private
@@ -401,8 +409,8 @@ as a task panic is (§6.4). The linked module is then validated by
 
 Owner's answer 8: code per concrete type, then merge byte-identical
 functions, the same in debug and release. Dictionaries exist only for
-trait values, GADT evidence and the method-level bound evidence of a
-`CallDyn` (§13.5).
+trait values and for the type witnesses of a generic method called
+through `dyn` (§13.5).
 
 ### 13.1 Roots
 
@@ -459,7 +467,8 @@ A worklist walk, as rustc's collector does:
    impl by head as in step 4, record the vtable `(type, trait)` and push
    every method of the trait at that type, supertraits' vtables
    included. A method with its own type parameters is pushed as its
-   erased instance (§13.5).
+   erased instance, and paired with every type-argument tuple that a
+   `CallDyn` of that method reaches, to push its thunks (§13.5.1).
 6. For each `DefaultCall`, push the default body with the call's type
    arguments.
 7. For each `Closure`, push the closure body with the parent's
@@ -478,7 +487,7 @@ parallel.
 ```text
 canon(T)      = structural encoding of a type over stable paths, with no IDs
                 (Prim | Adt(path, args) | Tuple(elems) | Optional(T) | Fn(params, result, row keys, suspends)
-                 | Erased(evidence index) (§13.5) | ...)
+                 | ...)
 
 instance_key  = H("inst", item stable path, sub-body index (closures),
                   [canon(arg) for each type argument])
@@ -519,7 +528,7 @@ growing type) has no finite instance set.
   recursion: M3 reports the same code at check time
   ([type-checking.md §5.5](type-checking.md#55-private-rows-and-the-m3-fixpoint)).
 
-### 13.5 Dictionaries: Trait Values And GADT Evidence
+### 13.5 Dictionaries: Trait Values And Type Witnesses
 
 - **Vtables follow the trait record's shape** (trait-solver.md §9.2,
   change 19). The shape is computed once per trait at interface time:
@@ -535,59 +544,160 @@ growing type) has no finite instance set.
 - **Trait values** are pairs: the value as `anyref` and its vtable
   (§15.2). A call through a trait value is one `struct.get` and one
   `call_ref`.
-- **GADT evidence.** A variant whose existential parameter has bounds
-  stores one vtable per bound as hidden fields of the variant struct,
-  filled at construction, where the concrete type is known
-  ([`gadt.runtime.evidence`](../../spec/lang/13-gadts.md#r-gadt.runtime.evidence)).
-  The existential payload is erased to `anyref`. The matching arm's code
-  calls through the stored vtables, so it is compiled once, not once per
-  hidden type.
-- **Generic methods called through a trait value.**
-  [Dynamic Safety](../../spec/lang/09-traits.md#dynamic-safety) allows a
-  method-level type parameter on a dynamically safe trait whatever its
-  bounds, and accepts any type argument for it
-  ([`types.trait.safe.method-type-arg`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg)).
-  Examples are `Error.find[T < Error]`, called with enum errors, and
-  `Inspectable.downcast[T]`. A vtable slot cannot hold one body per
-  concrete `T`, so these methods use **erased instances**, the
-  dictionary passing that the spec's
-  [Shapes and Generic Code](../../spec/lang/04-type-system.md#shapes-and-generic-code)
-  describes:
-  1. The vtable slot holds the impl method instantiated at its concrete
-     self type, with each method type parameter replaced by
-     `Erased(i)`. A value of type `Erased(i)` has the `erased` layout,
-     `anyref`. There is no `AnyRef` restriction: a value-typed argument
-     is boxed at the call, and the box has no identity, so the boxing is
-     not observable. Open (S1c): a `T` inside a container parameter, such
-     as `mut List[T]` with a packed `List[i32]`, cannot be boxed in place.
-  2. The erased instance takes one extra parameter per bound of each
-     method type parameter: that bound's vtable at the caller's `T`.
-     `T < Inspectable` passes the type id that vtables carry. Operations on
-     a `T` value inside the body call through these parameters, as GADT
-     arms do.
-  3. A call from an erased instance to another generic item passes
-     `Erased(i)` on as a type argument. The callee gets its own erased
-     instance, which takes the same evidence parameters. This chain is
-     bounded by the program's call graph, so it cannot grow types.
-  4. **The caller** is an ordinary monomorphized instance, so its `T` is
-     concrete. `CallDyn` carries the method's type arguments and one
-     evidence operand per method-level bound, chosen by the checker at
-     the call (checking-and-tir.md, `CallDyn`). Collection turns each
-     operand into an impl by head match at the concrete `T`, as for a
-     `TraitMethod` choice (§13.2 step 4), and records the vtable
-     constant. A `Bound` operand in generic code becomes concrete the
-     same way. Emission passes the vtables, upcasts reference `T`
-     arguments to `anyref`, and boxes value-typed ones. When the result
-     type mentions `T`, emission adds one `ref.cast` or unboxing to the
-     concrete type, which cannot fail. The slot's
-     type is the erased instance's signature: the receiver, the erased
-     arguments, then one vtable parameter per bound, in the method's
-     bound order (`dyn_bounds` of the shape).
-  5. Collection pushes the erased instance of every generic method when
-     it records a vtable `(type, trait)` (§13.2, step 5).
-- **Everything else is static.** A call through a bound on a type
-  parameter is a direct call in every instance. Erased instances exist
-  only behind a vtable slot and in their own callees.
+- **GADT evidence is retired.** GADTs are removed from the language
+  (owner, 2026-10-07; the spec removal is S1e). No variant stores
+  evidence, and the `Evidence` callee and the `Refine` coercion leave
+  TIR with S1e.
+- **Generic methods called through a `dyn` value** use the type-witness
+  ABI below.
+
+#### 13.5.1 The Erased Method ABI (Codex re-review N5)
+
+The owner's decision: a generic method called through a `dyn` value has
+one erased body per impl, accepts any type argument, and gets a type
+witness per call (goals.md, 2026-10-07). Everything else is
+monomorphized. Examples are a user trait's `fn visit[T](self, f:
+fn(T) -> T, out: mut List[T])` and `Inspectable.downcast[T]`. The
+inherent `dyn Error` methods `find`, `root_cause` and `chain` are
+ordinary generic functions over `T` with a `dyn` receiver, so they are
+monomorphized per `T` and need no witness.
+
+**Open types and open values.** In the erased body of `m` at impl `I`,
+a type is **open** when it mentions a method type parameter of `m`,
+including a projection such as `T::Item`. The impl's own parameters
+are concrete, since the erased body is instantiated at the impl's
+concrete self type. A value of an open type is always **the caller's
+concrete representation, viewed as `anyref`**:
+
+| Concrete layout of the value | As an open value |
+| --- | --- |
+| one reference, nullable or not (data, `List`, `Map`, string, closure, `T?` of a reference) | the same reference, upcast; no allocation |
+| a scalar | §15.2's erased form: `i31ref` up to 16 bits, else `$Box_i32`, `$Box_i64`, `$Box_f32`, `$Box_f64` |
+| a `multi` layout (a scalar's `T?`, `Result`, a value enum, a tuple, a trait value) | one immutable struct of its Wasm values |
+| `void` | `ref.null any` |
+
+Every boxed layout is identity-free (S1c), so boxing is not observable.
+A mutable container is a reference, so it is never boxed or copied:
+the erased body holds the caller's own `$List_i32`.
+
+**What the erased body emits.** Control stays in the erased body:
+blocks, loops, `if`, returns, locals and `defer` work on open values as
+plain `anyref` locals. Every other instruction whose operand or result
+type is open is an **open instruction**, and it is **outlined**:
+
+1. Emission numbers the body's open instructions in TIR order: `0, 1,
+   2, ...`. The numbering reads only this body's TIR, so it is the same
+   in every program.
+2. Open instruction `k` becomes `struct.get $Ops_I.m k`, then
+   `call_ref`. Its open operands and results cross as open values; the
+   others keep their layouts.
+3. A `Match` on an open enum outlines one tag read, and one payload read
+   per bound payload; the switch itself stays in the erased body.
+4. Its **thunk** is the same TIR instruction emitted at the caller's
+   concrete types, wrapped in `ref.cast` or unboxing on the way in and
+   upcast or boxing on the way out. The thunk is an ordinary instance
+   with instance key `H("thunk", I.m stable path, k, [canon(arg)...])`;
+   its code key is §13.8's, with `tir_hash(I.m)` as the item hash.
+
+Outlining is complete by construction: any instruction that emission
+can emit at concrete types can be a thunk, so the erased body has no
+list of supported operations. In particular:
+
+| Operation in the erased body | Its thunk at `T = i32` |
+| --- | --- |
+| `Buffer[T] { items: ..., len: 0 }` for a user `data Buffer[T]` | `struct.new $Buffer_i32` of the unboxed fields; returns the reference |
+| `out.push(x)` on a caller-owned `mut List[T]` | `ref.cast $List_i32`, unbox `x`, `call List[i32].push`; in place |
+| `x.show()` with `T < Display` | the impl selected by head at `i32` (rule TS-6), called directly |
+| `T::type_id()`, `downcast_val::[T](a)` | the concrete type id, the concrete cast |
+| a closure `fn(T) -> T` built in the body | a concrete `$Fn_i32_i32` closure whose code unboxes, calls the erased closure body, and boxes |
+| `f(x)` where `f: fn(T) -> T` came from the caller | `ref.cast` to the caller's closure type, unbox, `call_ref`, box |
+| a call of a generic item, `helper[T](x)` or `helper[List[T]](xs)` | a direct call of the monomorphized `helper[i32]` or `helper[List[i32]]` |
+| a `dyn` call of another generic method at `T` or `C[T]` | the same `CallDyn` at `i32` or `C[i32]`, with that witness constant |
+
+So **erasure is one level deep.** Only `I.m`'s own body is erased, with
+its closures, which are sub-bodies of it and capture `$Ops_I.m` like a
+local. Every callee is a monomorphized instance. There are no erased
+callee instances and no witness chains.
+
+**The witness.** A witness is a constant global per `(method m, concrete
+method type arguments)`:
+
+```text
+$Ops_I.m = (struct (field (ref $Thunk_0)) (field (ref $Thunk_1)) ...)   ;; one per open instruction of I.m
+$W_m     = (struct (field (ref null $Ops_I1.m)) (field (ref null $Ops_I2.m)) ...)
+                                                ;; one field per impl of m in the program
+```
+
+- **What it carries:** for each impl's erased body, the thunks of its
+  open instructions at the caller's types. That covers boxing and
+  unboxing (inside the thunks), construction of composites such as
+  `Buffer[T]`, container reads and writes in place, bound evidence,
+  type ids, and function adapters. It carries no size or layout class,
+  because no erased code ever lays out an open type.
+- **How it is built:** at link time, not at the caller. Collection
+  records each `(m, type arguments)` that a `CallDyn` reaches, and each
+  impl of `m`'s trait whose vtable is in the program (§13.2 step 5).
+  For each pair it pushes the thunks of that impl's erased body at those
+  type arguments. Link writes `$W_m(args)` as a constant expression of
+  `struct.new` and `ref.func`. A thunk that is itself a `CallDyn` adds
+  its `(m2, args2)` pair, so collection runs to a fixed point. A pair
+  whose type grows is polymorphic recursion, and the instantiation depth
+  limit reports it (§13.4).
+- **How it is passed:** the slot's signature is `(receiver, the
+  arguments with open ones as anyref, (ref $W_m), providers...)`. The
+  caller passes `global.get $W_m(args)`, upcasts or boxes its open
+  arguments, and unboxes or casts an open result, which cannot fail. The
+  erased body's prologue reads its own field, `struct.get $W_m f_I`,
+  and narrows it with `ref.as_non_null`. Link fills every field of
+  every witness, since any impl's value can reach any call site.
+- **Lifetime.** Witnesses are immutable globals. A closure or a stored
+  value that captured one can outlive the call, and nothing is freed.
+- **Relocations.** The field index `f_I` is assigned at link, so the
+  erased body records it as a `Field { at, sym: (m, I) }` relocation
+  (§13.8). Witness types and globals are `Type` and `Global` symbols
+  named by `(m, canon(args))`. So cached erased bodies and thunks do not
+  depend on which other impls the program has.
+- **Evidence operands.** Codegen no longer reads `CallDyn`'s evidence
+  operands: the bound calls are thunks, selected by head at the concrete
+  type. The shape's `dyn_bounds` drops out of the slot signature. Both
+  are frontend cleanups (codex-rereview-response.md).
+
+**Cost.**
+
+| What | Cost |
+| --- | --- |
+| a `dyn` generic call | one `global.get` for the witness, plus boxing of open value-layout arguments and unboxing of an open result |
+| erased body entry | one `struct.get` and one null check |
+| an open instruction | one `struct.get` and one `call_ref`, plus boxing of open value-layout results. Reference-layout values cross free; a wide scalar or a `multi` value allocates a 16 to 32 byte box per crossing |
+| code size | one erased body per `(impl, method)`; one thunk per `(impl, method, type arguments, open instruction)`; one witness per `(method, type arguments)`. Thunks are a few instructions and fold (§13.7) when layouts match |
+| compile time | collection's pair fixed point, linear in the pairs; emitting a thunk is emitting one instruction |
+
+The thunk count is the product of a method's impls, its distinct type
+arguments and its open instructions. A trait with 20 impls, 5 type
+arguments and 10 open instructions per body gives 1,000 thunks of about
+20 bytes each, before folding. Only user generic trait methods called
+through `dyn` pay it; std's `find` and `downcast` do not.
+
+**Later, if measured.** Outlining a whole basic block of consecutive
+open instructions as one thunk cuts crossings and boxes. Full
+monomorphization per `(impl, type arguments)`, with a type-id switch in
+the slot, would remove the erased path altogether. That is not the
+owner's decision, and it costs a whole body per pair.
+
+**Rejected alternatives.** A runtime "representation factory" that
+builds `Buffer[T]`'s layout from `T`'s witness, as Swift's metadata
+accessors do, cannot work on Wasm GC: a struct type cannot be created
+at run time. A uniform erased layout for every generic type that may
+reach erased code (`Buffer[T]` with `anyref` fields everywhere) would
+slow every monomorphized use of that type. Copying a caller's container
+into such a layout would break the identity of data values.
+
+**First test (build-order.md §22, slice 6b).** One `dyn` generic method
+takes a packed `T = i32` and a reference `T`, mutates a caller-owned
+`mut List[(T, T?)]`, constructs and returns a user `Buffer[T]`, calls a
+generic helper, and returns an escaping `fn(T) -> T`. It validates and
+runs on wasmtime and V8. The caller sees its own list mutated in place
+and the returned buffer's identity preserved.
 
 ### 13.6 Tuples, Arity And `all!`
 
@@ -680,6 +790,7 @@ pub enum Reloc {
     Global { at: u32, global: GlobalSym },    // module storage, constants, vtables, string literals
     Data { at: u32, bytes: Hash128 },         // a passive data segment, by content
     Site { at: u32, local: u32 },             // a site number, renumbered globally at link
+    Field { at: u32, sym: WitnessField },     // an impl's field in a dyn method's witness (§13.5.1)
 }
 ```
 

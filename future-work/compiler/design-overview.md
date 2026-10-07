@@ -175,7 +175,7 @@ crate ([Q1 risks](research.md#risks)). This refines
 | `hd_types` | type interner, local type arenas, rows, unification, poison, the trait solver core and its memo | `hd_iface` | yes |
 | `hd_resolve` | use resolution, folder interface builder, derived heads, orphan and visibility checks, interface validation | `hd_types`, `hd_project` | yes |
 | `hd_tir` | TIR: the generated tags, views and builder, the verifier, serialization (§4.13.11) | `hd_types` | yes |
-| `hd_check` | body checker emitting TIR, exhaustiveness, GADT refinement, templates, coherence, init order, facts | `hd_resolve`, `hd_tir` | yes |
+| `hd_check` | body checker emitting TIR, exhaustiveness, templates, coherence, init order, facts | `hd_resolve`, `hd_tir` | yes |
 | `hd_cache` | `CacheStore` trait, keys, entry framing, memory store, disk store (feature `disk`), stat manifest, trim | `hd_iface` | memory store only |
 | `hd_sched` | `Scheduler` trait, task graph, serial executor, thread pool executor (feature `threads`), budgets, memory cap | `hd_base`, `rayon` (feature) | serial only |
 | `hd_driver` | `Session`, command pipelines (check, test plan, doc, fix), output assembly | all of the above | yes |

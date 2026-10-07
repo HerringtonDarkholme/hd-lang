@@ -8,7 +8,7 @@ Part of the [compiler design](README.md).
 |---|---|
 | 10: where compiled entries live | `$HD_CACHE/obj/`; the `hd clean --cache` layout rule is amended (orchestrator's call) |
 | 10: default thread count | `min(cores, 8)`, with `--jobs` / `HD_JOBS` (orchestrator's call) |
-| 10: `cache-contention` target | no corruption, and N concurrent checks cost at most 1.5x the CPU of one (orchestrator's call) |
+| 10: `cache-contention` target | no corruption, and N concurrent warm checks cost at most 1.5x the CPU of one; concurrent cold misses of one key may each compute it, since misses are not coordinated (orchestrator's call, amended for Codex re-review N-C3) |
 | 10: templates calling private helpers | allowed, as hidden interface items (owner) |
 | 10: one code per limit | separate codes (orchestrator's call) |
 | 10: `hd fmt` on a file with syntax errors | the file is left untouched (orchestrator's call) |

@@ -60,10 +60,11 @@ byte. The edit vocabulary:
 | add or remove an impl for a private type | that module and the trait's coherence; no dependent |
 | add or remove `@derive`, edit a template body in another package | the modules that derive the trait |
 | edit a top-level statement read in a multi-module init group | that module and the folder's init order |
-| edit a doc comment or a comment | nothing |
+| edit a doc comment or a comment | that module rechecks under its new source hash; no dependent rechecks (Codex re-review N-C3) |
 | delete a file, then restore it with its old mtime | the right modules both times |
 | rewrite a file in place with the same length (one identifier or literal changed), then restore its old mtime | that module: `ctime` differs (§5.5) |
-| insert blank lines before a declaration that has a header or overlap diagnostic; lengthen a body above a later header | no semantic recheck; every printed line is the new one (§5.3) |
+| insert blank lines before a declaration that has a header or overlap diagnostic; lengthen a body above a later header | that module only; no dependent rechecks; every printed line is the new one (§5.3) |
+| insert spaces, a comment or a newline inside an exported signature, between a dependent diagnostic's anchor and the declaration start | that module only; the dependent's cached diagnostic points at the same token as a clean run (Codex re-review N9) |
 | rename the package, or change a manifest field that selects executables | everything; a manifest error stops before any cache lookup (§5.3) |
 | update a dependency without editing local files, then `hd test --affected` | the tests of programs that reach the dependency (§7.4) |
 | edit two modules, run `hd test --filter` for one, then `--affected` | the other module's programs still run (§7.4) |

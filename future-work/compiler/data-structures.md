@@ -318,7 +318,7 @@ pub enum TyView<'a> {                // decoded on demand; slices borrow `extra`
     Assoc { assoc: DefId, tref: TraitRefView<'a> },  // an unnormalized projection
     Mut(Ty),                         // the mutable view `mut T`; `T` alone is readonly
     Infer(InferVar),                 // body-local only; the variable's kind is in the inference table
-    Rigid(RigidVar),                 // body-local only; a GADT existential of one arm
+    Rigid(RigidVar),                 // body-local only; a GADT existential of one arm (retired with GADTs, S1e)
 }
 ```
 
@@ -448,14 +448,19 @@ pub struct SpanIdx(u32);   // body-local: an index into the body's span column, 
   into its own `(lo, hi)` columns. The file is implied by the body.
 - In a cache entry whose key includes the file's `source_hash` (`check`,
   `tir`, `code`), a span into that file is a byte range.
-- **Relative spans (Codex review, A3).** Every other span on disk is
-  `(declaration path row, lo, hi)`, with offsets from the start of that
-  declaration. That covers every span in an `iface`, `coh` or `init`
-  entry, whose keys ignore positions, and a `check` span into another
-  file. Output resolves it through the file's `locs` entry
-  ([cache.md §5.3](cache.md#53-key-composition)). So a blank line added
-  above a declaration changes no semantic key and leaves no stale line
-  number.
+- **Token anchors (Codex review A3, re-review N9).** Every other span on
+  disk is a `TokenAnchor { decl: path row, tok: u32, count: u32,
+  lo_in_tok: u16, hi_in_tok: u16 }`: the index of the first token among
+  the declaration's tokens (whitespace and comments are not tokens), the
+  number of tokens, and byte offsets inside the first and last token.
+  That covers every span in an `iface`, `coh` or `init` entry, whose
+  keys ignore positions, and a `check` span into another file. Output
+  resolves it through the file's `locs` entry and a re-lex of that one
+  declaration ([cache.md §5.3](cache.md#53-key-composition)). So a
+  blank line above a declaration, or spaces and comments inside it,
+  change no semantic key and leave no stale position. The API hash
+  covers the declaration's tokens, so an anchor is valid whenever the
+  key that stored it hits.
 - Doc tests map their spans back to the `##` line that holds them
   ([`cli.test.doc.location`](../../spec/cli/command-line.md#r-cli.test.doc.location)).
 - Offsets are `u32`, so a file is at most 4 GiB. The practical limit is
