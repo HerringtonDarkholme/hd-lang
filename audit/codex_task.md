@@ -83,35 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2b. Reconcile M2, And Three Fixture Conflicts
-
-M2 landed (187a85f8): one recursive-descent parser; lib/std 36/36;
-`compiler/KNOWN_FAILURES.tsv` empty. Run D2 for it, and record in
-`syntax.md` (citing "M2 gap n"): layout tokens kept as a side list, not
-zero-width tree tokens; `else:` accepted on the line after a same-line
-`if` body; typed views hand-written, not generated from `hd.ungram`; skim
-still the line scanner, not the item parser with a skip-body policy; no
-parser fuel (progress guards and a nesting limit of 160, new code
-`nesting-too-deep`); recovery stops after the first error per statement
-and after an unclosed delimiter. Decide each against the design and say
-which side changes.
-
-Also fix three fixtures M2 found contradicting the spec (fix the
-fixture, or the spec if the fixture shows the right rule; one line of
-reasoning each in the commit):
-
-1. `runtime/valid/mut-bound-value-passed-on.hd`: `T < Clear & mut Any`,
-   but `trait_bounds` allows `mut` only before the first bound.
-2. `typing/invalid/integration-tests-root-use.hd`: `use tests.common.{...}`
-   expects `unknown-module`, but `tests` is reserved and no use root, so
-   `grammar.use.needs-root` makes it a syntax error.
-3. `typing/invalid/qualified-string-prefix{,-call}.hd` and
-   `grammar-mutable-field-modifier.hd` are tagged phase `type` but expect
-   parse codes: fix the phase.
-
-Then remove their exclusions from `crates/hd_syntax/tests/corpus.rs`
-(the only compiler file you may touch here). Timebox 45 minutes; push.
-
 ### Q11. TIR Text Corpus: One Case Per Instruction
 
 `hd_tir` has 59 instruction tags with a text printer, a text parser and

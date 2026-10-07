@@ -1,7 +1,7 @@
-# test: there is no tests use root, so an integration test reaches a shared test module through self
-# Spec 10 Test Modules: module.test.no-tests-root (error-code proposal F5).
+# test: tests is not a use root, so this is not a use declaration
+# Spec 02 Use Declarations: grammar.use.needs-root.
 # fixture-package-tree: integration-shared/tests/checkout.hd
-use tests.common.{expected}  # diagnostic: unknown-module
+use tests.common.{expected}  # diagnostic: syntax-error
 
 pub fn label() -> string:
     expected()

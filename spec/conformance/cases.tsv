@@ -2169,8 +2169,8 @@ typing/valid/generic-bound-names-later-parameter.hd	type	accept	lang/04-type-sys
 typing/valid/generic-mutual-bounds.hd	type	accept	lang/04-type-system.md#r-types.generic.bound.mutual
 runtime/valid/generic-forward-bound-explicit-first-slot.hd	runtime	accept	lang/04-type-system.md#r-types.generic.bound.any-order
 typing/invalid/default-names-later-beside-forward-bound.hd	type	reject:binding-not-yet-visible	lang/03-names-and-scopes.md#r-names.generic.defaults.earlier
-typing/invalid/qualified-string-prefix.hd	type	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
-typing/invalid/qualified-string-prefix-call.hd	type	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
+typing/invalid/qualified-string-prefix.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
+typing/invalid/qualified-string-prefix-call.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
 parse/invalid/qualified-string-prefix-value.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
 runtime/valid/string-prefix-imported-by-name.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.literal-fn.bare-in-scope
 typing/valid/literal-first-use-while-len.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.operand
@@ -2695,7 +2695,7 @@ typing/invalid/continue-outside-loop.hd	type	reject:break-outside-loop	lang/06-c
 typing/invalid/root-mod-file.hd	type	reject:reserved-module-name	lang/10-modules.md#r-module.path.no-root-mod
 typing/invalid/module-file-and-directory-module.hd	type	reject:duplicate-module-name	lang/10-modules.md#r-module.path.unique
 typing/invalid/integration-file-beside-directory.hd	type	reject:duplicate-module-name	lang/10-modules.md#r-module.test.integration.beside-dir
-typing/invalid/integration-tests-root-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.test.no-tests-root
+typing/invalid/integration-tests-root-use.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.use.needs-root
 typing/invalid/relative-above-package-root.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.above-root
 typing/invalid/relative-path-into-std.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.no-cross
 typing/invalid/module-path-not-identifier.hd	type	reject:invalid-module-path	lang/10-modules.md#r-module.path.identifier
@@ -2803,7 +2803,7 @@ parse/invalid/backslash-line-continuation.hd	parse	reject:invalid-token	lang/01-
 parse/invalid/float-bare-leading-point.hd	parse	reject:invalid-token	lang/01-lexical-structure.md#r-lex.float.no-bare-point
 parse/invalid/character-multiple-scalars.hd	parse	reject:invalid-token	lang/01-lexical-structure.md#r-lex.char.one-scalar
 typing/invalid/grammar-assignment-nonplace.hd	type	reject:invalid-assignment-target	lang/02-grammar.md#r-grammar.stmt.assign-place
-typing/invalid/grammar-mutable-field-modifier.hd	type	reject:mutable-field-modifier	lang/02-grammar.md#r-grammar.data.no-mut-modifier
+typing/invalid/grammar-mutable-field-modifier.hd	parse	reject:mutable-field-modifier	lang/02-grammar.md#r-grammar.data.no-mut-modifier
 typing/invalid/indirect-top-level-forward-read.hd	type	reject:top-level-read-before-initialization	lang/03-names-and-scopes.md#r-names.init.whole-module
 parse/invalid/placeholder-in-ordinary-type.hd	parse	reject:syntax-error	lang/04-type-system.md#r-types.generic.placeholder.not-type
 typing/invalid/propagation-nearest-function-target.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function

@@ -2724,7 +2724,6 @@ typing/invalid/continue-outside-loop.hd	type
 typing/invalid/root-mod-file.hd	type
 typing/invalid/module-file-and-directory-module.hd	type
 typing/invalid/integration-file-beside-directory.hd	type
-typing/invalid/integration-tests-root-use.hd	type
 typing/invalid/relative-above-package-root.hd	type
 typing/invalid/relative-path-into-std.hd	type
 typing/invalid/module-path-not-identifier.hd	type

@@ -21,7 +21,7 @@ fn clear_outer[T < mut Clear](outer: T) -> void:
 fn keep_inner[U < mut Any](inner: U) -> void:
     pass
 
-fn clear_any[T < Clear & mut Any](value: T) -> void:
+fn clear_any[T < mut Clear & Any](value: T) -> void:
     keep_inner(value)
     value.clear()
 

@@ -100,9 +100,15 @@ impl LayoutCursor<'_> {
 3. A same-line suite closes at a logical line end, at a comma or closing
    delimiter of its depth, or before `else`, innermost first
    ([Same-Line Suites](../../spec/lang/01-lexical-structure.md#same-line-suites)).
-   The cursor emits the `SuiteEnd`s; the parser never counts them.
-4. Layout tokens enter the green tree as zero-width tokens, so the tree
-   records every layout decision and the formatter sees them.
+   The cursor emits the `SuiteEnd`s; the parser never counts them. An
+   `else:` on the next line still attaches after a same-line body. **M2 gap
+   2:** the implementation is right; this sentence makes the accepted form
+   explicit.
+4. Layout tokens enter the green tree's parallel `layout_at` and
+   `layout_kind` columns, not its real-token stream. They remain zero-width
+   positions between real tokens, so the formatter sees every decision.
+   **M2 gap 1:** the implementation is right; making virtual tokens ordinary
+   tree tokens would duplicate the compact side columns and blur `TokenIdx`.
 5. **Recovery.** `invalid-dedent`: report once, dedent to the nearest
    lower active level, go on. `unexpected-indentation`: report, then treat
    the line as part of the current suite. A closure end-rule violation:
@@ -164,6 +170,9 @@ pub struct Skeleton {
   module needs no check this run; full parse for changed files, missed
   modules, `hd fmt` and `hd fix`. A fully parsed file derives its skeleton
   from its tree, so no file is read twice.
+- **M2 gap 4.** The design stands. M2's `skim` is still a line scanner over
+  fully materialized tokens, not this item parser with `BodyPolicy::Skip`.
+  The implementation must converge on this path before skim is complete.
 
 ### 4.4 Parser And Green Tree
 
@@ -175,16 +184,21 @@ the flat tree in one pass.
   column 0 always starts a new top-level item, so one broken item never
   swallows the next (`errors-per-run`). Inside brackets, the closing
   delimiter and `,` are the recovery set. Junk is wrapped in an `ERROR`
-  node.
-- **Fuel.** Every loop that can fail to consume a token decrements a
-  counter that each consumed token resets. Running out is a compiler bug:
-  a debug build panics; a release build emits an `ERROR` node and skips a
-  token.
+  node. The parser reports only the first error in a statement. After the
+  lexer reports an unclosed delimiter, it suppresses parser diagnostics
+  past that opener because later lines remain inside the broken construct.
+  **M2 gap 6:** the implementation is right; these bounds prevent cascades
+  while preserving recovery into later independent statements.
+- **Progress.** Each repetition records its starting token and consumes one
+  token into an `ERROR` node if the grammar made no progress. Recursive
+  entry increments the shared depth counter. At 160 nested brackets,
+  blocks, closures or interpolations, the subtree becomes an `ERROR` node
+  with `nesting-too-deep`, and parsing skips its balanced remainder.
+  **M2 gap 5:** the implementation is right; local progress guards cover
+  parser bugs, while the input-controlled bound gets the specified limit
+  diagnostic. A separate parser-fuel counter adds no protection.
 - **Operators.** Precedence climbing with an explicit operand and operator
   stack, so a long chain of binary operators uses no native stack.
-- **Depth.** One counter for nested brackets, blocks, closures and
-  interpolations. Past the limit (§4.15) the subtree becomes an `ERROR`
-  node with the limit diagnostic, and parsing resumes after it.
 
 **Green tree.**
 
@@ -194,7 +208,8 @@ pub struct GreenTree {
     first_token: Vec<u32>,
     last_token: Vec<u32>,       // inclusive
     subtree_len: Vec<u32>,      // preorder: node i's subtree is i .. i + subtree_len[i]
-    layout: Vec<(TokenIdx, Layout)>,  // zero-width layout tokens, in order
+    layout_at: Vec<TokenIdx>,    // zero-width layout positions, in order
+    layout_kind: Vec<Layout>,
 }
 #[derive(Copy, Clone)]
 pub struct NodeRef<'t> { tree: &'t GreenTree, idx: NodeIdx }
@@ -208,6 +223,9 @@ pub struct NodeRef<'t> { tree: &'t GreenTree, idx: NodeIdx }
 - **Typed views** (`FnDecl`, `MatchExpr`, ...) are generated from one
   grammar file, `hd_syntax/hd.ungram`, by the codegen task. Each view is a
   `NodeRef` with accessors that find children by kind.
+- **M2 gap 3.** The design stands. M2 has hand-written generic `NodeRef`
+  accessors and no `hd.ungram`; the implementation must generate the named
+  Rust and JavaScript views before tools depend on the tree boundary.
 - **No red tree and no incremental reparse.** A whole file reparses in
   well under a millisecond at the target speed. An editor tier can add
   them later.

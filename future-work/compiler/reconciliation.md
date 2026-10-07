@@ -2,14 +2,17 @@
 
 Part of the [compiler design](README.md).
 
-Status: review, 2026-10-07, after M1 (`07c74892`). It compares `compiler/crates`
-with the design docs of this folder. It changes neither. Where the code
-is right and a doc is wrong, the verdict says "design wrong". Earlier
+Status: review, 2026-10-07, after M2 (`187a85f8`). It compares
+`compiler/crates` with the design docs of this folder and records the
+authorized corrections. Where the code is right and a doc is wrong, the
+verdict says "design wrong". Earlier
 findings are cited by ID (SK-1 to SK-15, SK-N1 to SK-N16) from
 [skeleton-findings.md](skeleton-findings.md).
 
-M1 made the designed architecture move end to end. The one driver now
-uses the full parser, `hd_project`, `hd_resolve`, `hd_types`,
+M1 made the designed architecture move end to end. M2 replaced the
+heuristic parser with one recursive-descent parser that accepts the full
+conformance and standard-library corpus. The one driver now uses the full
+parser, `hd_project`, `hd_resolve`, `hd_types`,
 `hd_tir::Body`, per-kind result slots, every executor, `CacheStore`,
 `hd_mono` and `hd_wasm`. The remaining findings are feature coverage,
 missing generated surfaces and incomplete cache/runtime details, not a
@@ -19,51 +22,50 @@ second compiler pipeline.
 
 Ranked by how much each blocks the next working language slice.
 
-1. **The parser rejects 395 accepted fixtures.** Q8 reduces the failures
-   to 34 minimal constructs. The two largest heuristics reject 264 files
-   for `and` or `or` in source text and 57 typed `let` forms with a nested
-   comma. The one driver now uses this parser, so these are direct build
-   blockers rather than a dormant alternate path.
-2. **Header checking and much of body checking still answer
+1. **Header checking and much of body checking still answer
    `NotImplemented`.** `BodyCx` uses `InternPool`, `SkeletonSolver`, fuel
    and `TirBuilder`, but unsupported expressions become a coded internal
    diagnostic. `header_check`, derived heads, test overlays and nontrivial
    coherence remain partial. This is safe now because the build stops.
-3. **The standard-library pack is not writable.** Folder interfaces can
+2. **The standard-library pack is not writable.** Folder interfaces can
    be built and the host prelude is represented in `hd_host_abi`, but
    `hd_stdpack::build_pack` still stops at header checking or the pack
    writer. Programs therefore cannot load the ordinary `lib/std` modules.
-4. **The complete diagnostic enum is generated but not integrated.** Q9
+3. **The complete diagnostic enum is generated but not integrated.** Q9
    writes all 233 spec codes and phase metadata to `hd_diag/src/codes.rs`.
    The task's one-file compiler restriction leaves `hd_diag::Code` in
    `lib.rs`, so the driver can emit only its hand-written subset plus
    `unsupported` until the module hook is authorized.
-5. **Cache framing is real, but the cache model is partial.** Interface,
+4. **Cache framing is real, but the cache model is partial.** Interface,
    check, code and link boundaries use `CacheStore` and framed entries;
    `hd_cli` opens `DiskStore`. The stat manifest, several entry kinds and
    key fields remain absent, a program miss decodes every module, and
    M1 over-invalidates both interface dependencies and a body moved by a
    header edit.
-6. **Skim still lexes whole files and over-collects uses.** It has no
+5. **Skim still lexes whole files and over-collects uses.** It has no
    header tree or skim-mode lexer and can treat identifier-led body lines
    as imports. The one driver filters the result, preserving the old cost
    and correctness risk.
-7. **Generated typed views and wire decoders remain hand-written or
-   absent.** The parser gained structured line nodes, but `hd.ungram`, the
-   schema generator and the green-tree JavaScript decoder do not exist.
+6. **Generated typed views and wire decoders remain hand-written or
+   absent.** The parser has generic `NodeRef` accessors, but `hd.ungram`,
+   named Rust views, the schema generator and the JavaScript decoder do
+   not exist.
    Browser consumers still lack the designed stable generated surface.
-8. **Emission follows the designed types but covers only a scalar slice.**
+7. **Emission follows the designed types but covers only a scalar slice.**
    It uses `hd_tir::Body`, `layout_of`, collected instances and the host ABI.
    Suspensions, GC aggregates, metadata, panic sites and many TIR forms
    still return `NotImplemented`.
-9. **Task-boundary panic isolation regressed.** The old architecture path
+8. **Task-boundary panic isolation regressed.** The old architecture path
    caught panics; the unified `Exec` calls tasks directly under serial and
    rayon executors. One task panic can unwind the build instead of becoming
    the designed internal diagnostic.
-10. **Stepping exists but the browser does not use it.** `hd_web` calls
+9. **Stepping exists but the browser does not use it.** `hd_web` calls
     `analyze_package` as one slice, while `SteppingScheduler` counts tasks,
     not body cursors. The playground therefore has neither the designed
     cooperative budget nor cancellation granularity.
+10. **The CLI has no `hd check` path.** `hd run` and `hd build` use the
+    unified driver, but a check-only command cannot stop before collection,
+    emission and linking.
 
 ## Findings
 
@@ -78,7 +80,7 @@ missed a case); **duplicate** (two code paths for one design thing);
 | Design thing | M1 survivor | Status | Remaining split |
 | --- | --- | --- | --- |
 | driver | `hd_driver::build` and `analyze_package` over one `Run` | fixed | none |
-| parser | `hd_syntax::parse` | fixed | no subset parser remains |
+| parser | `hd_syntax::parse` | fixed | M2 accepts the full corpus; no subset parser remains |
 | discovery and graph | `hd_project::{ModuleTable, FolderGraph, SourceSet}` | fixed | none |
 | resolution and interfaces | `hd_resolve::{ModuleScope, FolderIface}` | fixed | `hd_iface` was deleted |
 | IDs, symbols and types | `hd_base` IDs, `ShardedInterner`, `InternPool` | fixed | the body-local type pool remains absent |
@@ -102,6 +104,17 @@ missed a case); **duplicate** (two code paths for one design thing);
 | 5. `deep_hash` folds all used folders | `hd_resolve::iface::deep_hash`, driver reach hashes | cache §5.3 and interface §4.11.3 retain `mentions(F)` as the intended dependency set and name the current over-invalidation | implementation gap |
 | 6. Four diagnostic paths use sentinel spans | driver folder-cycle, overlapping-impl, missing-entry-point and unsupported paths | checking §4.14 now requires a real primary source span for every diagnostic and names these four gaps | implementation gap |
 
+### M2 Findings
+
+| Finding | Code evidence | Decision | Side that changes |
+| --- | --- | --- | --- |
+| M2 gap 1. Layout is stored in side columns, not as ordinary zero-width tree tokens | `GreenTree::{layout_at, layout_kind}` | Keep the compact side columns as the tree's zero-width layout positions | design wording changed in syntax §4.2 and data structures §3.12 to §3.13 |
+| M2 gap 2. A next-line `else:` attaches after a same-line `if` body | `Parser::at_else` consumes the one pending newline | This is accepted by the same-line-suite rules and keeps the construct contiguous | design clarified in syntax §4.2; implementation stays |
+| M2 gap 3. Typed views are hand-written rather than generated | only generic `NodeRef` accessors exist; no `hd.ungram` exists | Generated named Rust and JavaScript views remain the stable tool boundary | implementation changes in the codegen task; design stays |
+| M2 gap 4. Skim is a line scanner, not item parsing with `BodyPolicy::Skip` | `hd_syntax::skim::{body_ranges,use_ranges}` | One grammar path is required for exact headers and uses | implementation changes; design stays |
+| M2 gap 5. Progress guards and a nesting bound replace parser fuel | `Parser::statements`, `MAX_NESTING = 160`, `enter`, `skip_balanced` | Local progress guards cover stuck loops; the input limit emits `nesting-too-deep` | design replaces parser fuel; implementation stays |
+| M2 gap 6. Recovery reports once per statement and suppresses fallout after an unclosed delimiter | `stmt_errored`, `unclosed_from`, `recover_line` | Keep bounded reporting so one broken construct does not create cascades | design specifies the bounds; implementation stays |
+
 ### Findings Table
 
 | Design section | Code path | Finding | Verdict | Proposed fix |
@@ -120,7 +133,7 @@ missed a case); **duplicate** (two code paths for one design thing);
 | data-structures.md §3.3 | `hd_intern::ShardedInterner`, `hd_types::InternPool` | The string interner takes a global `append` mutex on every miss; the pool takes one global `Mutex<HashMap>` on every lookup, hit or miss, and allocates the key `Vec` first. The design has per-thread columns, 64 shards and a per-worker read-through table | impl wrong | One `ShardedInterner<C>` as §3.3 draws it, used by all three interners |
 | data-structures.md §3.4 | `InferTable::fresh`, `InternPool::intern_ty` | Inference variables are interned into the global pool (the code says so); the body-local pool with bit 31 does not exist | gap | Body-local pool owned by the body task |
 | data-structures.md §3.9.2, §3.9.4, §3.24 | audited unsafe `hd_base::AppendVec` | M1 implements dense never-moved chunks under the owner-approved exception and tests concurrent publication | both ok | Keep the unsafe surface confined to this module |
-| data-structures.md §3.13 | `hd_syntax::green::to_wire` | Wire form exists; no JS decoder anywhere in the repository | gap | Write the decoder with the playground (slice 5) |
+| data-structures.md §3.13, syntax.md §4.4 | `hd_syntax::green`, generic `NodeRef` | Wire form and compact tree exist; generated named Rust and JavaScript views do not | gap | Generate both view surfaces from `hd.ungram` with the playground task (M2 gap 3) |
 | data-structures.md §3.14, syntax.md §4.3 | `hd_syntax::skim` | Skim runs the full lexer, keeps no header tree (SK-N4), and records every line that starts with an identifier, body lines included, as a use. The driver filters by the text `use ` | impl wrong | Skim-mode lexer that skips bodies; header tree; `use` lines only |
 | data-structures.md §3.18, checking-and-tir.md §4.13.11 | `hd_tir::wire::{write_body, read_body, tir_hash}` | The surviving `Body` has stable remapping, round-trip tests and a content hash | both ok | None |
 | data-structures.md §3.20.2, SK-N9 | `hd_tir::write_tables` per body | The design has entry-local tables; the code gives each body its own tables, so a TIR hash depends only on its body | design wrong | §3.20.2: tables per body inside the entry; the later per-body reuse of §4.13.1 needs the same |
@@ -135,7 +148,9 @@ missed a case); **duplicate** (two code paths for one design thing);
 | scheduler.md §6.3 | `analyze_package` uses `SerialOrder::Priority`; caller selects the build executor | Serial priority is real, but the pool drains FIFO rather than priority order | impl wrong | Preserve priorities when publishing pool work |
 | scheduler.md §6.4 | unified `Exec` calls tasks directly | The old architecture path's panic catch was deleted during consolidation | gap | Catch unwind at the executor boundary and emit one internal diagnostic |
 | scheduler.md §6.2 rule 4, codegen.md §11.1, §11.3 | `Run::collect`, `ExtTask::Emit(u32)` | §11.3 says one `Emit` per code-entry miss; §6.2 rule 4 says batches per module group; the §11.1 diagram says per folder group. The code makes one task per instance, hits included | design wrong | One rule in both docs: `Emit(group)` per folder group with a miss (the `codepack` unit); hits are looked up in `Collect` |
-| syntax.md §4.4, build-order.md slice 1 | `hd_syntax::parser` | The one driver uses it, but it rejects 395 accepted fixtures; Q8 records 34 construct repros | gap | Replace raw-line heuristics with grammar nodes, starting with the 264 word-in-source false positives |
+| syntax.md §4.4, build-order.md slice 1 | `hd_syntax::parser` | M2's one recursive-descent parser accepts every non-reject fixture and all 36 standard-library files | both ok | Keep the corpus, snapshots and mutation tests |
+| syntax.md §4.4 (progress and depth) | `Parser::{statements,enter,skip_balanced}`, `MAX_NESTING` | Progress guards and `nesting-too-deep` cover the two failure classes without a second fuel mechanism | design wrong | Replace parser fuel with the implemented progress and depth rules (M2 gap 5) |
+| syntax.md §4.4 (recovery) | `stmt_errored`, `unclosed_from`, `recover_line` | Reporting stops after one error per statement and suppresses fallout past an unclosed delimiter | design wrong | State these cascade bounds explicitly (M2 gap 6) |
 | resolution-and-interfaces.md §4.7 | `ModuleTable::discover` and `FolderGraph` | The duplicate driver loader was deleted | both ok | None |
 | resolution-and-interfaces.md §4.9 | `hd_resolve::ModuleScope` and prelude bindings | The duplicate subset resolver was deleted; feature coverage remains incomplete | both ok | Extend the survivor only |
 | resolution-and-interfaces.md §4.10, §4.10.1 | `hd_resolve::iface`, `header_check`, `derive_heads` | Interface construction uses the full parser and designed types; stage B and derived heads remain stubs | gap | Complete header validation and derived heads |

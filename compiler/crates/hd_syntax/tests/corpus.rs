@@ -57,11 +57,6 @@ fn parse_rejects() -> BTreeSet<String> {
 /// Conformance sources outside the grammar of `02-grammar.md`, reported
 /// as fixture conflicts rather than fitted (M2 report).
 const SPEC_CONFLICTS: &[&str] = &[
-    // `Clear & mut Any`: `trait_bounds` takes `mut` only before the first bound.
-    "runtime/valid/mut-bound-value-passed-on.hd",
-    // `use tests.common`: `tests` is reserved and no use root
-    // (grammar.use.needs-root), yet the case expects `unknown-module`.
-    "typing/invalid/integration-tests-root-use.hd",
     // A CLI case whose source is deliberately unparsable (`cli.fmt.syntax-error`).
     "cli/fmt-syntax-error/src/lib.hd",
 ];

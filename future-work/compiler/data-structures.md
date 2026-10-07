@@ -1185,8 +1185,9 @@ heap, bounded by the nesting limit (§4.15).
 
 **Determinism.** Pure function of the tokens.
 
-**Wire form.** None. Its decisions are recorded as layout tokens in the
-tree.
+**Wire form.** None. Its decisions are recorded as zero-width positions in
+the tree's parallel layout columns, not as entries in the real-token stream
+(M2 gap 1).
 
 **Memory.** Under 1 KB per parse.
 
@@ -1208,7 +1209,7 @@ pub struct GreenTree {
     first_token: Vec<TokenIdx>,     // 4 B
     last_token:  Vec<TokenIdx>,     // 4 B; inclusive; first > last for an empty node
     subtree_len: Vec<u32>,          // 4 B; preorder: node i's subtree is i .. i + subtree_len[i]
-    // zero-width layout tokens, in order
+    // zero-width layout positions in side columns, in order
     layout_at:   Vec<TokenIdx>,     // 4 B; the token before which it sits
     layout_kind: Vec<Layout>,       // 1 B: Newline | Indent | Dedent | SuiteEnd
     // parse errors, in order

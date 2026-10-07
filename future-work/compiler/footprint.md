@@ -2,7 +2,7 @@
 
 Part of the [compiler design](README.md).
 
-Status: report, 2026-10-07, after M1 (`07c74892`). One row per
+Status: report, 2026-10-07, after M2 (`187a85f8`). One row per
 design-doc section: where its code is and how far it goes. **Real**: the
 structure or algorithm the section designs is implemented and tested,
 possibly over the subset. **Skeleton**: its types and entry points exist
@@ -14,6 +14,8 @@ change lists) count as missing, which is most of the missing rows of
 type-checking.md, trait-solver.md, live-execution.md and tiering.md.
 The stage counts on `lib/std` are in
 [skeleton-findings.md](skeleton-findings.md#architecture-skeleton-findings).
+M2 changes no category counts: parser §4.4 was already real, while skim and
+generated tree views remain skeletons.
 
 ## Totals
 
@@ -53,7 +55,7 @@ The stage counts on `lib/std` are in
 | data-structures.md §3.10 IR Abstraction Contracts | hd_tir::ir (verifier contract) | skeleton |
 | data-structures.md §3.11 Tokens And Line Tables | hd_syntax::lexer (`TokenBuf`) | real |
 | data-structures.md §3.12 Layout Cursor And Skim State | hd_syntax::layout (`LayoutCursor`); skim runs the full lexer, no skim state | skeleton |
-| data-structures.md §3.13 The Green Tree, Its Wire Format And The JS Decoder | hd_syntax::green (`GreenTree`, wire form); no JS decoder | skeleton |
+| data-structures.md §3.13 The Green Tree, Its Wire Format And The JS Decoder | hd_syntax::green (`GreenTree`, wire form, generic `NodeRef`); no generated named Rust views or JS decoder | skeleton |
 | data-structures.md §3.14 The Header Skeleton And The Item Index | hd_syntax::skim, parser (`ItemIndex`); no header tree, use list holds body lines | skeleton |
 | data-structures.md §3.15 Name-Resolution Tables | hd_resolve (`ModuleScope`, `Binding`, `FolderExports`), used by the one driver but incomplete | skeleton |
 | data-structures.md §3.16 The Folder Interface: In Memory And As A Blob | hd_resolve::iface (`FolderIface`, codec, deep hash); no zero-copy reader | skeleton |
@@ -69,7 +71,7 @@ The stage counts on `lib/std` are in
 | syntax.md §4.1 Lexer | hd_syntax::lexer | real |
 | syntax.md §4.2 Layout | hd_syntax::layout | real |
 | syntax.md §4.3 Skim Mode And The Header Pass | hd_syntax::skim runs the full lexer and builds no header tree | skeleton |
-| syntax.md §4.4 Parser And Green Tree | hd_syntax::parser, structure and green, used by the one driver; 395 accepted fixtures still report a parse diagnostic | real |
+| syntax.md §4.4 Parser And Green Tree | hd_syntax::parser and green, used by the one driver; M2 accepts the full non-reject fixture corpus and all 36 std files | real |
 | syntax.md §4.5 Header Extraction And The API Text Hash | hd_syntax::skim (`api_text_hash`) | real |
 | syntax.md §4.6 Item Index | hd_syntax::parser (`ItemIndex`) | real |
 | resolution-and-interfaces.md §4.7 Discovery, Module Identity And Folders | hd_project (`ModuleTable::discover`, `SourceSet`, manifest), used by the one driver | skeleton |
