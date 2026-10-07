@@ -11,6 +11,22 @@ layout rules themselves live in [wasm-layout.md](wasm-layout.md), the
 emission rules in [codegen.md](codegen.md). This file gives one entry per
 data type and per syntax form, with its cost on both axes.
 
+**Tiers are provisional (owner, 2026-10-07).** "We need very fast dev
+time compilation that crappy output is allowed, and blazingly fast/lean
+artifact for release build, which can be slow." Optimizations should be
+composable single passes. A separate tiering design will define the dev
+and release pipelines, the pass architecture, and possibly Binaryen or
+`wasm-opt` in release builds only. So this file fixes **representation**
+(layouts, the literal pool, type-only numbering) and a **baseline
+emission** per entry: the code that one unoptimized walk writes. Every
+optimization is a separately named pass in
+[Optimization Passes](#optimization-passes), with its inputs, outputs
+and cost, for the tiering design to compose. Every per-tier statement in
+this file and in the files it changed (one shared emission for both
+tiers, merging in both tiers, debug at Cranelift `Speed`, the
+`release-check-cost` reasoning behind them) is **provisional, pending the
+tiering design**.
+
 ## Changes In This Pass
 
 1. **Stable, type-only numbering** (compile study, rank 1). No code body
@@ -31,13 +47,17 @@ data type and per syntax form, with its cost on both axes.
    slot at a reference layout is stored as `eqref`, and move-only generic
    bodies get one instance per representation class (codegen.md §13.2).
 4. **Collection skips callees that are always inlined** (compile study,
-   change 2), unless one is used as a value or in a vtable slot.
-5. **Closure specialization** is a repeated pass of inline,
-   scalar-replace and devirtualize, once per stage, under a size cap per
-   caller (codegen.md §12.6). Known-vtable devirtualization joins it.
-6. **Merging** runs in both tiers, with a worklist for rounds after the
-   first (codegen.md §13.7). Debug uses Cranelift `Speed` unless S4 says
-   otherwise (engines-and-test-runner.md §18.1, §18.6).
+   change 2), unless one is used as a value or in a vtable slot. It
+   applies in any pipeline that runs the `inline-trivial` pass.
+5. **Optimizations are named passes** ([Optimization Passes](#optimization-passes)):
+   `inline-trivial`, `inline-bounded`, `escape`, `scalar-replace`,
+   `devirt-vtable`, `devirt-closure`, `hoist-constants`, `cse-getters`,
+   `const-fold`, `fold` and `leb-shrink`. Closure specialization is a
+   schedule of them, repeated once per stage under a size cap per caller.
+6. **Merging** uses a worklist for rounds after the first (codegen.md
+   §13.7). Which tiers run it, and the debug Cranelift level (S4 informs
+   it), are provisional, pending the tiering design
+   (engines-and-test-runner.md §18.1, §18.6).
 7. **Per-program packs** for code entries and Cranelift entries, read in
    one batch (cache.md §5.2, §5.4).
 8. **`--filter` builds only the selected test cases**
@@ -62,7 +82,9 @@ data type and per syntax form, with its cost on both axes.
     initial for `hd run`, decided by E9; runtime-and-host.md §17.8).
 14. **Size guards:** inliner budgets, a warning past 200 thunks for one
     method, and `hd build --size-report` (codegen.md §12.8).
-15. **A "Size Versus Speed Policy"** section in codegen.md (§12.8).
+15. **A "Size Versus Speed Policy"** section in codegen.md (§12.8): what
+    each pass buys and costs, the budgets, and the size guards. Its
+    per-tier rules are provisional.
 16. **Smaller fixes found in this pass:** trait-value payloads are
     `eqref`, not `anyref`, since `is` lowers to `ref.eq`; `Array[T]` slots
     past the count use the defaultable form; `Array[void]` has no Wasm
@@ -75,7 +97,9 @@ Each entry gives:
 - **Wasm:** the Wasm GC types and the shape of the emitted code, as a
   small WAT-like snippet. `$X` names a canonical type; `dflt(L)` is the
   defaultable form of layout `L` (wasm-layout.md §15.2).
-- **Speed:** allocations, indirect calls and casts on the hot path.
+- **Speed:** allocations, indirect calls and casts on the hot path of
+  the baseline emission. A figure that needs a pass names it ("with
+  `scalar-replace`").
 - **Size:** bytes per use or per instance, from the runtime study's pilot
   counts (Binaryen-encoded, unoptimized) where it has one; otherwise an
   estimate marked as one.
@@ -100,8 +124,8 @@ counts as one value toward an enclosing layout's bound.
 | A1, `eqref` storage for type-parameter slots at reference layouts, at collection | adopted; A2 (erased function types) not adopted | E1: adopt unless the wasmtime read penalty is over 1 ns per element or over 5 percent on the `sort` and `map` microbenchmarks with reference elements. S1 records the compile-side gain |
 | the boxing bound | 4 Wasm values after slot sharing, tag included | E2: the largest payload count where parallel arrays win the read-only kernel by more than 10 percent on wasmtime and `push` stays under 256 bytes |
 | string slicing | S1: `(array i8)`, a slice copies its bytes; needs the spec change of [Open Question 1](#1-string-slicing-s1-or-s2) | the owner, with E6's numbers |
-| debug Cranelift level | `OptLevel::Speed`, as release | S4: `None` only if it saves at least 25 percent compile CPU and debug stays within 1.3x release |
-| inliner caps | runtime study §9.2 budgets (codegen.md §12.8) | S6 sets the caller cap below the size where Cranelift time per byte doubles; E8 keeps the budgets unless the next level buys 5 percent speed for under 10 percent size |
+| debug Cranelift level | provisional, pending the tiering design; the studies' default was `Speed` | S4 gives the numbers: compile CPU at `Speed`, `None` and the single-pass allocator, and the runtime ratio to release |
+| inliner caps | runtime study §9.2 budgets (codegen.md §12.8), as pass parameters | S6 sets the caller cap below the size where Cranelift time per byte doubles; E8 keeps the budgets unless the next level buys 5 percent speed for under 10 percent size |
 | constant globals read directly | direct `global.get`, globals ordered by content key | S2: any perturbation under 95 percent hits moves that global kind behind getters |
 | the `array.new_fixed` threshold and eager pool fill | 4 bytes; lazy pool | E10 |
 | the initial GC heap of `hd run` | 64 MiB | E9 |
@@ -130,6 +154,74 @@ Every index space of the module, and what a code body holds for it:
 "Append-friendly order" for lazy globals would need a numbering kept from
 earlier builds. That makes the bytes depend on build history, which
 §15.8 forbids. So getters are the default, not a fallback.
+
+Stable numbering serves the per-function Cranelift cache, so it matters
+most to the dev pipeline. A release pipeline that runs `wasm-opt`
+afterwards may renumber freely: its output is not what the cache keys.
+
+## Baseline Emission
+
+The baseline is what one walk over an instance's TIR writes with no
+optimization pass: the representation of every value, and a direct
+translation of every instruction.
+
+- Every direct call stays a `call`; every `CallDyn` and `CallValue` is a
+  `call_ref`.
+- Every construction allocates: a closure, its cells, an `Iterator`, a
+  box over the bound, a `Range` value.
+- Every literal and fact read calls its getter.
+- Checks follow the spec's profile rules, which are semantics, not
+  optimization: overflow checked in debug and test, wrapping in release.
+- `for` over a range, a list or a map is a counted loop
+  ([Loops](#loops)). This is part of the baseline: it is no harder to
+  emit than an iterator call, and it allocates nothing.
+- A1, slot sharing, the bound and the literal pool are representation, so
+  they are part of the baseline too.
+
+## Optimization Passes
+
+Each pass is a single step with stated inputs and outputs, so the tiering
+design can compose them. "Compile cost" is the pass's own time; "Cranelift"
+is its effect on the engine's compile time through code size. Whether a
+pass runs as an analysis that steers the one emission walk (codegen.md
+§12.1 today) or as a transform over an intermediate form is the tiering
+design's question. Every pass keeps a function's output a function of
+its own code key's inputs: budgets are local to the caller.
+
+| Pass | Input | Output | Compile cost | Speed it buys | Size effect |
+| --- | --- | --- | --- | --- | --- |
+| `const-fold` | the instance's TIR, constants | folded constants, dead branches removed | one walk; near zero | small | negative |
+| `inline-trivial` | a call; the callee's TIR and `inline_summary` (at most 8 instructions, no loop, no suspension, no closure) | the callee's body in place | negative: fewer calls emitted; enables the collection skip, which removes 15 to 25 percent of instances | one call per small callee | none or negative |
+| `inline-bounded` | a call; the callee's TIR; the caller's size so far; budgets | the callee's body in place | the inlined TIR is walked per site; Cranelift time can grow super-linearly in a large caller, hence the caller cap | a call, and the chance for the passes below | up to the caller cap (default 2x or 2 KB) |
+| `escape` (analysis) | the instance's TIR after inlining | an escape bit per allocation; live sets | linear in instructions times loop depth | none by itself | none |
+| `scalar-replace` | escape bits | non-escaping closures, cells, boxes, `Iterator` and other data values as locals | linear | an allocation each; 0 per chain with the schedule below | usually negative |
+| `devirt-vtable` | a `CallDyn` whose vtable operand is a known constant global | a direct `call` | linear | one `call_ref`; on wasmtime, enables inlining (`mut dyn Hasher` above all) | none |
+| `devirt-closure` | a `CallValue` whose closure is a known literal after `scalar-replace` | a direct call of the closure's body, its environment fields as locals | linear | one `call_ref` and one cast | none |
+| `hoist-constants` | a box, enum or tuple construction whose payloads are constants | an immutable constant global | linear | an allocation per evaluation (`.Err(ParseError.Empty)`) | a global per constant |
+| `cse-getters` | getter calls (literals, facts) in a body | one call per dominating path; pure literal getters hoisted out of loops | linear | a call per repeated read | negative |
+| `fold` (link) | the program's code entries | classes of byte-identical functions, aliases in `hd.folds` | one hash per body, a worklist after round one; under 1 ms at 10k lines | none | 3 percent of functions under exact types, 15 to 25 percent with A1; Cranelift time saved in proportion |
+| `leb-shrink` (link) | padded 5-byte LEB immediates | minimal LEBs, with offset maps for sites and lines | linear | none | negative, several percent |
+
+**Closure specialization** is a schedule, not a pass:
+`inline-bounded`, `escape`, `scalar-replace`, `devirt-closure` and
+`devirt-vtable`, then `inline-bounded` again, one round per stage of an
+iterator chain, at most 4 rounds and at most 512 bytes of growth per
+chain site by default (codegen.md §12.6). It turns
+`xs.iter().map(fn x: x + 1).sum()` from about 7 allocations per chain
+and 3 `call_ref`s per element into a counted loop: about 0.3 ns per
+element on V8, against 1 to 5 ns with real indirect calls. E3 says
+whether release needs it (yes if the unspecialized form exceeds 3x
+Node's `for` loop on wasmtime).
+
+**Hasher fast paths** are a std change plus passes, not a pass of their
+own: the fixed-width `Hasher` writes remove the allocations in std's
+`Hash` impls in every pipeline; `devirt-vtable` and `inline-bounded` then
+remove the indirect calls and inline the mix where they run.
+
+**Not designed here:** bounds-check hoisting and loop-invariant code
+motion beyond `cse-getters`, which the engines do in part; whole-program
+passes, which would break the caller-local rule; and `wasm-opt` in
+release, which the tiering design decides.
 
 ## Data Types
 
@@ -246,8 +338,9 @@ Default S1 (pending the owner and E6):
 ```
 
 - **Speed:** within the bound, free: no allocation, values on the stack.
-  Over it, one allocation per construction, unless constant (an
-  immutable global) or scalar-replaced after inlining. Reading a boxed
+  Over it, one allocation per construction in the baseline; none with
+  `hoist-constants` (constant payloads) or `scalar-replace` (no
+  escape). Reading a boxed
   tuple from a list is a load, never an allocation, because the list
   stores the same box.
 - **Size:** about 2 to 4 bytes per extra value per pass-through within
@@ -364,9 +457,10 @@ and `eqref` with a cast after the tag test otherwise.
 (ref.cast (ref $Ev_Click) (local.get $e))      ;; once per matching arm
 ```
 
-- **Speed:** one immutable allocation per construction, unless hoisted
-  into a constant global (constant payloads) or scalar-replaced after
-  inlining (`match parse(s): .Ok(v) => ...` allocates nothing). Reading
+- **Speed:** one immutable allocation per construction in the baseline.
+  `hoist-constants` makes a box with constant payloads a constant
+  global; `inline-bounded` then `scalar-replace` make
+  `match parse(s): .Ok(v) => ...` allocate nothing. Reading
   one from a list is a load, never an allocation: the box is the value in
   every position.
 - **Payloadless variants** of a subtype box are constant singleton
@@ -425,9 +519,9 @@ and `eqref` with a cast after the tag test otherwise.
 
 - **Speed:** a coercion allocates nothing for a reference payload (a
   scalar or value payload is erased as above). A call is one load and
-  one `call_ref`. **Known-vtable devirtualization:** after inlining, a
-  `CallDyn` whose vtable is a constant global calls the slot's function
-  directly, and the inliner may inline it. This matters most for
+  one `call_ref`. With `devirt-vtable`, a `CallDyn` whose vtable is a
+  constant global (after inlining) calls the slot's function directly,
+  and `inline-bounded` may then inline it. This matters most for
   `mut dyn Hasher`.
 - **Size:** a 3-slot vtable is about 27 bytes beyond its functions; a call
   site about 8 bytes.
@@ -475,9 +569,9 @@ and `eqref` with a cast after the tag test otherwise.
   (skipped when the closure has no capture). Per construction, one
   allocation, plus one per shared cell. A capture-free closure is a
   constant global.
-- **Specialization** removes the call, the environment and the cells
-  together when a closure literal reaches a callee within budget
-  ([Closure Calls](#closure-calls)).
+- **With passes:** the closure specialization schedule removes the call,
+  the environment and the cells together when a closure literal reaches
+  a callee within budget ([Closure Calls](#closure-calls)).
 - **Size:** about 78 bytes for a small closure: type, code, construction.
 - **Engines:** V8 inlines a monomorphic call site; wasmtime pays the
   indirect call every time, and it blocks loop optimization across it.
@@ -532,9 +626,10 @@ JavaScript's deterministic `Map`:
 - **Speed:** a lookup hashes the key, probes `index`, compares the stored
   hash, then calls `Eq`. Removal writes a hole and a tombstone; growth
   compacts. Iteration walks entries and skips holes, in insertion order.
-  With the `Hasher` change and known-vtable devirtualization, an `i64`
-  key hashes with no allocation and no indirect call. Today it costs 3 to
-  5 allocations and 2 indirect calls per lookup.
+  Today it costs 3 to 5 allocations and 2 indirect calls per lookup. The
+  `Hasher` change removes the allocations in every pipeline; with
+  `devirt-vtable` and `inline-bounded`, an `i64` key also hashes with no
+  indirect call.
 - **Size:** about 12 methods per `(K, V)`, folding by class under A1 on
   the `V` side and for move-only paths.
 - **Bucketing:** `std-hash.default.map` fixes it to `hash_of` today; see
@@ -581,8 +676,8 @@ JavaScript's deterministic `Map`:
 ;; Heap[T] = { items: List[T] }: sift up and down over the list; pop shrinks it
 ```
 
-- **Speed:** a comparison is two array reads and the type's own `cmp`
-  after inlining; no `match` per read, no tag array.
+- **Speed:** a comparison is two array reads and a call of the type's own
+  `cmp` (inlined by `inline-bounded`); no `match` per read, no tag array.
 - **Engines:** no difference.
 - **Type-only:** yes.
 
@@ -591,18 +686,18 @@ JavaScript's deterministic `Map`:
 ```wat
 ;; Iterator[T] = data { step: fn() -> T? }   -> (ref $Iterator_T) holding (ref $Fn_unit_OptT)
 ;; for i in a..b, a..=b, a..  -> a counted loop; no range value exists (codegen.md §12.5)
-;; Range[T] as a value -> data { start, end, inclusive }; scalar-replaced when it does not escape
+;; Range[T] as a value -> data { start, end, inclusive }; one allocation in the baseline
 ```
 
-- **Speed:** without specialization, `xs.iter().map(f).sum()` costs about
-  7 allocations per chain (3 closures, 3 iterators, 1 cell) and 3
-  `call_ref`s, 3 casts and 2 option tests per element. With the
-  specialization pass the chain is a counted loop: about 0.3 ns per
+- **Speed:** in the baseline, `xs.iter().map(f).sum()` costs about 7
+  allocations per chain (3 closures, 3 iterators, 1 cell) and 3
+  `call_ref`s, 3 casts and 2 option tests per element. With the closure
+  specialization schedule the chain is a counted loop: about 0.3 ns per
   element on V8, against 1 to 5 ns with real indirect calls.
-- **Size:** 50 to 150 bytes per inlined stage at the call site, against
-  about 30 bytes for a call into shared adapters.
-- **Ranges in slices:** `items[1..3]` builds a `Range` data value that the
-  inlined `Index` impl consumes; scalar replacement removes it.
+- **Size:** about 30 bytes per call into shared adapters in the
+  baseline; 50 to 150 bytes per inlined stage when specialized.
+- **Ranges in slices:** `items[1..3]` builds a `Range` data value for the
+  `Index` impl; `inline-bounded` then `scalar-replace` remove it.
 - **Engines:** V8 hides one monomorphic `call_ref` per stage; wasmtime pays each one and loses loop optimizations across it, so the pass matters most there.
 - **Type-only:** yes; specialization makes code, never layouts.
 - **Pending:** E3 (the pass is required for release if the
@@ -680,7 +775,7 @@ JavaScript's deterministic `Map`:
 ```
 
 - **Speed:** per read, a direct call, a `global.get`, a test and a branch.
-  Reads are common-subexpression-eliminated inside one body.
+  `cse-getters` keeps one call per dominating path in a body.
 - **Size:** one getter of 30 to 50 bytes per fact; about 3 bytes per read
   in release.
 - **Flag:** a fact of one reference layout uses null as its flag; other
@@ -701,9 +796,9 @@ JavaScript's deterministic `Map`:
 ;; literals of at most 4 bytes: an immutable global of array.new_fixed
 ```
 
-- **Speed:** a direct call, an array read and a null test per use; a
-  function reads each literal once on a dominating path. A literal read
-  cannot panic, so it may be hoisted out of a loop.
+- **Speed:** a direct call, an array read and a null test per use.
+  `cse-getters` keeps one call per dominating path, and since a literal
+  read cannot panic, it hoists the call out of a loop.
 - **Size:** the bytes in one deduplicated passive segment, about
   16 bytes per literal for its getter, about 3 bytes per use in release,
   and one shared fill helper (about 79 bytes). As `array.new_fixed`, a
@@ -934,11 +1029,12 @@ with `else` produces a value.
 (call $Cart.total (local.get $cart))                 ;; an inherent or Impl choice
 (call $Point.Display.to_string (local.get $p))      ;; a Bound choice, selected at the instance's types
 (call_ref $Fn_m (local.get $payload) ... (struct.get $VT $m (local.get $vt)))   ;; a dyn call
-;; a dyn call whose vtable is a known constant global: a direct call, then possibly inlined
+;; with devirt-vtable, a dyn call whose vtable is a known constant global: a direct call
 ```
 
-- **Speed:** static and bound calls are direct and inlinable; a `dyn`
-  call is a load and a `call_ref`, unless devirtualized.
+- **Speed:** static and bound calls are direct, and `inline-trivial` or
+  `inline-bounded` may inline them; a `dyn` call is a load and a
+  `call_ref` in the baseline, a direct call with `devirt-vtable`.
 - **Size:** a direct call is about 3 bytes in release; a `dyn` call about
   8.
 - **Engines:** V8 inlines monomorphic `call_ref`s; wasmtime never does,
@@ -949,15 +1045,15 @@ with `else` produces a value.
 ### Closure Calls
 
 ```wat
-;; unspecialized: struct.get $code, call_ref with the closure first, cast in the callee
-;; specialized (a closure literal reaching a callee within budget):
-;;   inline the callee; scalar-replace its non-escaping Iterator and environment structs;
-;;   the call_ref target becomes a known closure literal: call its body directly; inline it
+;; baseline: struct.get $code, call_ref with the closure first, cast in the callee
+;; the closure specialization schedule (a closure literal reaching a callee within budget):
+;;   inline-bounded the callee; escape and scalar-replace its Iterator and environment structs;
+;;   devirt-closure: the call_ref target is a known literal, so call its body directly; inline it
 ;;   repeat per stage, at most 4 rounds, under the caller's size cap
 ```
 
-- **Speed:** unspecialized, one `call_ref` and one cast per call;
-  specialized, none, and no allocation for the chain.
+- **Speed:** baseline, one `call_ref` and one cast per call; with the
+  schedule, none, and no allocation for the chain.
 - **Size:** 50 to 150 bytes per specialized stage at the call site; at
   most 512 bytes of growth per chain site by default.
 - **Engines:** the pass matters on wasmtime; V8 already inlines
@@ -1093,16 +1189,18 @@ with `else` produces a value.
 
 ```wat
 ;; @derive(Debug, Eq, Hash) on data Point: ordinary instances of the templates;
-;; each member call (w.member(h, value)) is direct and trivially inlined, so no member instance
-;; is emitted on its own; member handles are constant globals
+;; each member call (w.member(h, value)) is a direct call; member handles are constant globals
+;; with inline-trivial, each member is inlined and collection emits no member instance
 (call $hasher_write_u32 ...)   ;; with the Hasher change, a field hash writes without allocating
 ```
 
-- **Speed:** straight-line code per derived impl. Derived hashing writes
-  through the new fixed-width `Hasher` methods, so it allocates nothing.
+- **Speed:** a direct call per member in the baseline; straight-line
+  code with `inline-trivial`. Derived hashing writes through the new
+  fixed-width `Hasher` methods, so it allocates nothing in any pipeline.
 - **Size:** derived code is about 27 percent of a 10k-line program's
-  instances today; skipping always-inlined callees at collection removes
-  the per-member instances.
+  instances today; in a pipeline with `inline-trivial`, skipping
+  always-inlined callees at collection removes the per-member instances.
+- **Engines:** no difference.
 - **Type-only:** yes.
 
 ### Explicit Panics And Unreachable Code
@@ -1122,7 +1220,8 @@ with `else` produces a value.
 
 | Topic | Runtime study | Compile study | Resolution |
 | --- | --- | --- | --- |
-| debug Cranelift level | debug and release run the same optimizer | `Speed` unless S4 shows `None` saves 25 percent | `Speed` by default; S4 decides; engines-and-test-runner.md §18.1 and §18.6 changed from `None` |
+| debug Cranelift level | debug and release run the same optimizer | `Speed` unless S4 shows `None` saves 25 percent | both studies assumed one shared emission; the owner's direction of 2026-10-07 (fast dev builds, crappy output allowed) makes every per-tier rule provisional, pending the tiering design. S4's numbers feed it |
+| what an optimization is | budgets inside one shared pipeline | the same | each optimization is a named pass with inputs, outputs and cost ([Optimization Passes](#optimization-passes)), for the tiering design to compose |
 | literal access | an inlined fast path at the use site, the pool index in it | lazy globals through getters, or append order | getters: an inlined pool index is a dense number in every reader, and append order needs build history, which §15.8 forbids |
 | facts in loops | inline the fast path at reads inside loops | getters | getters, with reads common-subexpression-eliminated in a body |
 | erased storage (A) | a layout rule for every type-parameter slot; a cast at the first exact use | A1 at collection by representation summaries, instance keys by class | both: the layout rule gives one type per class; the summary gives one instance per class for move-only bodies. Classes `REF` and `REF?` stay apart, since `T?` differs between them |

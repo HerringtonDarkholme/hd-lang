@@ -21,7 +21,11 @@ and the orchestrator's calls; the per-type and per-form costs are in
 §13.3); collection skips always-inlined callees (§13.2); closure
 specialization and known-vtable devirtualization (§12.6); a size versus
 speed policy with budgets and size guards (§12.8); merging by worklist
-(§13.7); per-program packs (§13.10).
+(§13.7); per-program packs (§13.10). Each optimization is a named pass
+with its inputs, outputs and cost. Per the owner's direction of the same
+day (fast dev builds with poor code allowed, lean release artifacts),
+every per-tier rule here is provisional, pending a tiering design
+(§12.6).
 
 D2 designs monomorphization, suspension lowering, Wasm GC emission, link,
 the runtime, the host interface and the test runner. It consumes these
@@ -359,6 +363,19 @@ that the debug build cost at most 1.3x the release build, and any
 optimization only one tier has counts against that ratio. The tiers
 differ only where the spec or a first-release feature says so.
 
+**Provisional (owner, 2026-10-07).** The owner asked for "very fast dev
+time compilation that crappy output is allowed, and blazingly fast/lean
+artifact for release build, which can be slow", with optimizations as
+composable single passes. A separate tiering design will redesign the
+dev and release pipelines and the pass architecture, possibly with
+Binaryen or `wasm-opt` in release only. Until then, the paragraph above,
+the Debug and Release columns below, and every per-tier rule in §12.8
+and §13.7 are provisional. What is not provisional: the layouts (one per
+type in every tier), the literal pool and stable numbering. Each
+optimization in this table is a named pass with its inputs, outputs and
+cost in [lowering-catalog.md](lowering-catalog.md#optimization-passes);
+the baseline emission without any pass is defined there too.
+
 | Rule | Debug | Release | Status |
 | --- | --- | --- | --- |
 | counted loops (§12.5) | yes | yes | first release |
@@ -382,17 +399,22 @@ emission state, never written into TIR.
 
 **Closure specialization (lowering pass).** An iterator adapter stores
 its closure in a field of a mutable `Iterator` struct, so inlining alone
-never reveals the `call_ref` target. The analysis passes of §12.1 run one
-round per stage of a chain:
+never reveals the `call_ref` target. Specialization is a schedule of the
+named single passes of
+[lowering-catalog.md](lowering-catalog.md#optimization-passes), one round
+per stage of a chain:
 
-1. **Inline** the adapter call (`map`): its body builds a closure and an
-   `Iterator`.
-2. **Scalar-replace** the `Iterator`: it does not escape, so its `step`
-   field becomes a local holding a known closure literal.
-3. **Devirtualize:** a `call_ref` whose target is a known closure literal,
-   or a `CallDyn` on a known vtable, becomes a direct call of that body,
-   with the environment fields as locals.
-4. **Inline** that body, then scalar-replace its environment and cells.
+1. **`inline-bounded`** the adapter call (`map`): its body builds a
+   closure and an `Iterator`.
+2. **`escape`, then `scalar-replace`** the `Iterator`: it does not
+   escape, so its `step` field becomes a local holding a known closure
+   literal.
+3. **`devirt-closure`:** a `call_ref` whose target is a known closure
+   literal becomes a direct call of that body, with the environment
+   fields as locals; **`devirt-vtable`** does the same for a `CallDyn` on
+   a known vtable.
+4. **`inline-bounded`** that body, then `scalar-replace` its environment
+   and cells.
 
 Rounds repeat to a fixed point, at most 4 by default, and stop at the
 caller's size cap (§12.8). Without a closure literal or a known vtable
@@ -426,12 +448,18 @@ copies and constant-building code, and it feeds download, instantiation,
 engine compile time, and the `size-startup-heap` and `dead-code` targets.
 This policy comes from the runtime study's section 9
 ([representation-runtime.md](representation-runtime.md#9-size-versus-speed)).
+Rule 1 is representation and holds in every pipeline. Rules 2 to 4 say
+how to set each pass's budget wherever it runs. Rule 5, and which passes
+each tier runs, are **provisional, pending the tiering design** (§12.6):
+the owner wants fast dev builds with poor code allowed, and lean, fast
+release artifacts that may build slowly.
 
 **Policy.**
 
-1. **Layouts are the same in debug and release.** A layout is part of
-   every instance's code; two layouts would double the cache and break
-   `release-check-cost` comparisons.
+1. **Layouts are the same in every tier.** A layout is part of every
+   instance's code; two layouts would double the cache, make a debug
+   run measure a different program, and break `release-check-cost`
+   comparisons.
 2. **Speed where it is hot, size everywhere else.** Specialize and inline
    inside loops and for closure literals; everything else is a shared,
    folded call.
@@ -440,14 +468,17 @@ This policy comes from the runtime study's section 9
 4. **Budgets are per function**, local to the caller, so one hot spot
    cannot blow up a module and one function's bytes never depend on
    another's (§12.6).
-5. **Debug and release run the same optimizer** with the same budgets.
-   Only checks differ, so `release-check-cost` (debug at most 1.3x
-   release) holds. Debug uses Cranelift `Speed` by default
-   (engines-and-test-runner.md §18.6).
+5. **Provisional:** both studies proposed that debug and release run the
+   same passes with the same budgets, only checks differing, so that
+   `release-check-cost` (debug at most 1.3x release) holds, with debug at
+   Cranelift `Speed` (engines-and-test-runner.md §18.6). The tiering
+   design may instead give dev builds the baseline emission plus cheap
+   passes, and release builds every pass.
 
-**Budgets.** Defaults, decided by the experiments named:
+**Budgets.** Defaults for each pass's parameters, decided by the
+experiments named:
 
-| Feature | Speed it buys | Size it costs | Budget |
+| Feature | Speed it buys | Size it costs | Budget, wherever the pass runs |
 | --- | --- | --- | --- |
 | trivial inlining | a call per small callee | none or negative | callee at most 8 TIR instructions, no loop |
 | bounded inlining | a call, plus later folding | callee size per site | callee at most 40 TIR instructions inside a loop, 15 outside; the caller grows at most 2x or 2 KB, whichever is smaller; an absolute caller cap set by S6 below the size where Cranelift's time per byte doubles |
@@ -479,7 +510,8 @@ time.
   bytes per source module. It reads the linked module and its custom
   sections, so it costs nothing in a normal build.
 
-**What the policy buys** (estimates; spike 0c and the slices measure):
+**What the policy buys** in a pipeline that runs every pass, as a release
+build will (estimates; spike 0c and the slices measure):
 
 | Target | Without these rules | With them |
 | --- | --- | --- |
@@ -533,8 +565,10 @@ A worklist walk, as rustc's collector does:
    column for calls, closures, coercions and host calls, substituting the
    instance's type arguments into each one's types.
 3. For each `Item` callee, push the callee with the substituted
-   arguments. **A callee that is always inlined is not pushed** (lowering
-   pass): when its `inline_summary` says it passes the trivial-inlining
+   arguments. **In a pipeline that runs `inline-trivial`, a callee that
+   is always inlined is not pushed** (lowering pass; the pipeline is part
+   of the tier, which is in the code key): when its `inline_summary` says
+   it passes the trivial-inlining
    test (§13.8), which reads only its own TIR, every caller inlines it, so
    collection scans its body in place under the composed substitution and
    pushes its callees instead. It is still pushed when it is used as a
@@ -899,9 +933,11 @@ comes only if the `dead-code` or tiny-size measurement shows real bytes
 left on the table.
 
 Every step works on content keys, so the result does not depend on
-threads or order. Merging runs in `Link`, in both tiers: it saves more
-Cranelift time than its hashing costs (under 1 ms at 10k lines), so a
-debug build without it would compile slower.
+threads or order. Merging runs in `Link`. Which tiers run it is
+provisional, pending the tiering design (§12.6). The compile study's
+input to that design: it saves more Cranelift time than its hashing
+costs (under 1 ms at 10k lines), so a dev build without it would compile
+slower; a release build might instead leave it to `wasm-opt`.
 
 ### 13.8 Code Entries
 

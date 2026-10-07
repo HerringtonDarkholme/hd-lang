@@ -10,7 +10,7 @@ Part of the [compiler design](README.md).
 | --- | --- | --- |
 | `wasm_gc`, `wasm_function_references` | on | on |
 | exceptions, threads, stack switching | off | off |
-| compiler | Cranelift, `OptLevel::Speed` by default, decided by S4 (§18.6) | Cranelift, `OptLevel::Speed` |
+| compiler | Cranelift; the level is provisional, pending the tiering design, with S4's numbers (§18.6) | Cranelift, `OptLevel::Speed` |
 | collector | the default copying collector | same |
 | initial GC heap | `hd run`: from the profile, default 64 MiB, decided by E9; `hd test`: the pooling allocator's small per-slot heaps, sized by `unit-test-perf` (§18.3) | the same, from the profile |
 | `epoch_interruption` | on | on |
@@ -105,15 +105,18 @@ part of `code_key` and nothing else.
 
 These engine settings are decided by measurements, not here:
 
-- the debug tier's Cranelift level: **default `Speed`, decided by S4**
-  of spike 0c (lowering pass). Register allocation dominates Cranelift's
-  time at either level, so `None` is expected to save only 10 to 25
-  percent, while its slower code eats the 1.3x `release-check-cost`
-  budget that overflow checks already use. Debug moves to `None` only if
-  it saves at least 25 percent of compile CPU and debug stays within 1.3x
-  release; the single-pass register allocator only if its runtime cost is
-  at most 1.1x and it saves at least 30 percent. Caching, stable
-  numbering, packs and filtered test programs are the latency levers;
+- the debug tier's Cranelift level: **provisional, pending the tiering
+  design** (codegen.md §12.6; owner, 2026-10-07: fast dev builds with
+  poor code allowed). S4 of spike 0c gives the numbers. The two
+  representation studies proposed `Speed` by default: register
+  allocation dominates Cranelift's time at either level, so `None` is
+  expected to save only 10 to 25 percent, while its slower code eats the
+  1.3x `release-check-cost` budget that overflow checks already use.
+  Their rule was `None` only if it saves at least 25 percent of compile
+  CPU and debug stays within 1.3x release, and the single-pass register
+  allocator only if its runtime cost is at most 1.1x and it saves at
+  least 30 percent. Caching, stable numbering, packs and filtered test
+  programs are the latency levers in any tier;
 - the initial GC heap of `hd run`: default 64 MiB, decided by E9.
   wasmtime's copying collector decides growth against the whole heap, so
   a long-lived set near the semi-space size is re-copied on every
