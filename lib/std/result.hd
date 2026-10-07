@@ -1,46 +1,64 @@
 # std.result: inherent methods on `Result[T, E]` (spec/std/result.md).
 
 impl[T, E] Result[T, E]:
+    ## `.Ok` of `transform(value)` for an `.Ok`, and the error unchanged for an `.Err`.
+    ## See [std-result.map](../../spec/std/result.md#r-std-result.map).
     pub fn map[U](self, transform: fn(T) -> U) -> Result[U, E]:
         match self:
             .Ok(value) => .Ok(transform(value))
             .Err(error) => .Err(error)
 
+    ## `.Err` of `transform(error)` for an `.Err`, and the value unchanged for an `.Ok`.
+    ## See [std-result.map-err](../../spec/std/result.md#r-std-result.map-err).
     pub fn map_err[F](self, transform: fn(E) -> F) -> Result[T, F]:
         match self:
             .Ok(value) => .Ok(value)
             .Err(error) => .Err(transform(error))
 
+    ## For an `.Ok`, `transform(value)`; for an `.Err`, the error unchanged.
+    ## See [std-result.and-then](../../spec/std/result.md#r-std-result.and-then).
     pub fn and_then[U](self, transform: fn(T) -> Result[U, E]) -> Result[U, E]:
         match self:
             .Ok(value) => transform(value)
             .Err(error) => .Err(error)
 
+    ## The value of an `.Ok` in `.Some`, and `.None` for an `.Err`.
+    ## See [std-result.ok](../../spec/std/result.md#r-std-result.ok).
     pub fn ok(self) -> T?:
         match self:
             .Ok(value) => .Some(value)
             .Err(_) => .None
 
+    ## The error of an `.Err` in `.Some`, and `.None` for an `.Ok`.
+    ## See [std-result.err](../../spec/std/result.md#r-std-result.err).
     pub fn err(self) -> E?:
         match self:
             .Ok(_) => .None
             .Err(error) => .Some(error)
 
+    ## True for an `.Ok`.
+    ## See [std-result.is-ok](../../spec/std/result.md#r-std-result.is-ok).
     pub fn is_ok(self) -> bool:
         match self:
             .Ok(_) => true
             .Err(_) => false
 
+    ## True for an `.Err`.
+    ## See [std-result.is-err](../../spec/std/result.md#r-std-result.is-err).
     pub fn is_err(self) -> bool:
         match self:
             .Ok(_) => false
             .Err(_) => true
 
+    ## The value of an `.Ok`, and `fallback` for an `.Err`.
+    ## See [std-result.unwrap-or](../../spec/std/result.md#r-std-result.unwrap-or).
     pub fn unwrap_or(self, fallback: T) -> T:
         match self:
             .Ok(value) => value
             .Err(_) => fallback
 
+    ## The value of an `.Ok`; for an `.Err` it panics, showing `message` and the error.
+    ## See [std-result.expect](../../spec/std/result.md#r-std-result.expect).
     pub fn expect(self, message: string) -> T:
         match self:
             .Ok(value) => value
