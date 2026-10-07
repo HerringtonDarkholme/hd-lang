@@ -5,7 +5,9 @@ day for the Codex review of 8bb6860d
 ([frontend response](codex-review-response-frontend.md)), the changes that
 [trait-solver.md §16.4](trait-solver.md#164-changes-needed-in-type-checkingmd-and-the-other-design-files)
 asks for, and [data-structures.md](data-structures.md) §3.4, §3.9 and
-§3.18 to §3.19.
+§3.18 to §3.19. Revised again for the Codex re-review through 54f249b7
+([frontend re-review response](codex-rereview-response-frontend.md)) and
+for the removal of GADTs.
 
 This document details the body checker of the new compiler. It refines
 these sections of [COMPILER_DESIGN.md](design-overview.md) (part D1):

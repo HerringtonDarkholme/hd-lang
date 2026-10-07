@@ -3,6 +3,9 @@
 Status: Design, not decided. Frontend lane, 2026-10-07. Revised the same
 day with the owner's answers to section 16.1 and the frontend response to
 the Codex review ([codex-review-response-frontend.md](codex-review-response-frontend.md)).
+Revised again for the Codex re-review through 54f249b7
+([codex-rereview-response-frontend.md](codex-rereview-response-frontend.md)),
+the removal of GADTs and the `dyn` decisions.
 
 This document details the trait solver of the new compiler. It implements
 the interface that [type-checking.md §1.6](type-checking.md#16-the-trait-solver-interface)
