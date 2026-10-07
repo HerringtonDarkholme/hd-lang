@@ -1,0 +1,2 @@
+pub fn triple(count: i32) -> i32:
+    count * 3

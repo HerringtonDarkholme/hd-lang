@@ -1,0 +1,6 @@
+# hd.toml declares executables, and none names src/main.hd. The diagnostic's
+# one fix-it adds a table to hd.toml, so its fixes field holds one fix-it
+# with one edit of hd.toml. The edit's offsets and text are not judged.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unlisted-entry","file":"hd.toml","fixes":[{"message":null,"edits":[{"file":"hd.toml","start":null,"end":null,"text":null}]}]},{"kind":"summary","errors":1,"status":101}]

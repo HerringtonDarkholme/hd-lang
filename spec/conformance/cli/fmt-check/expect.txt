@@ -1,0 +1,7 @@
+# The layout itself is the implementation's, so the case judges only what
+# holds for every layout: after hd fmt, every file is formatted.
+run: hd fmt
+file: src/lib.hd
+run: hd fmt --check
+stdout-json: []
+run: hd check

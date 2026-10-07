@@ -88,3 +88,9 @@ cap-env-notice	cli.cap.env.get,cli.cap.env.notice,cli.cap.env.notice.text,cli.ca
 wasm-run-built	cli.wasm.run,cli.wasm.mode,cli.wasm.host,cli.wasm.host.imports,cli.wasm.args,cli.wasm.status,cli.build.output,cli.run.file
 wasm-cap-flags-only	cli.wasm.grant,cli.wasm.total-deny,cli.cap.total.needs,cli.cap.total.refuse,cli.cap.total.status,cli.cap.total.any-module
 wasm-invalid	cli.wasm.invalid,cli.wasm.not-hd,cli.wasm.not-hd.detect,cli.exit.hd-failure
+build-library-only	cli.build.library-only,cli.build.directory,cli.profile.release,cli.run.default.one,cli.exit.hd-failure
+build-instantiation-too-deep	cli.build.only-errors,cli.check.no-build-errors,cli.json.lines.build,cli.json.diagnostic.file,cli.exit.hd-failure
+json-check-modules-checked	cli.json.summary.modules-checked,cli.json.summary.result
+json-diagnostic-fixes	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.exe.main-unlisted,cli.exit.hd-failure
+fmt-check	cli.fmt.package,cli.fmt.meaning,cli.fmt.idempotent,cli.fmt.check
+fmt-syntax-error	cli.fmt.syntax-error,cli.fmt.file,cli.fmt.check,cli.exit.hd-failure

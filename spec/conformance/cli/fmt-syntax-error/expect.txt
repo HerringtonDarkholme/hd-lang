@@ -1,0 +1,6 @@
+# src/lib.hd has a syntax error: hd fmt leaves it untouched and reports the
+# error, so it exits 101. It still formats src/util.hd.
+run: hd fmt
+exit: 101
+run: hd fmt --check src/util.hd
+stdout-json: []

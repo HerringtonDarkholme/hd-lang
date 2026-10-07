@@ -1,0 +1,3 @@
+## The price of a cart line.
+pub fn line_total(price: i64, count: i64) -> i64:
+    price * count   # a comment the formatter keeps

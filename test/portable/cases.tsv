@@ -2814,3 +2814,4 @@ cli/wasm-cap-flags-only	cli
 cli/wasm-invalid	cli
 typing/invalid/function-field-identity.hd	type
 typing/valid/literal-classes-separate-widths.hd	type
+cli/build-library-only	cli

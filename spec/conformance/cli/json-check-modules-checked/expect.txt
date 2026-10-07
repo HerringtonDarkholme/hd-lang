@@ -1,0 +1,5 @@
+# The summary of hd check counts the modules this run checked. Whether the
+# compiled cache already held them depends on earlier runs, so only the
+# field's presence is judged.
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0,"modules_checked":null}]

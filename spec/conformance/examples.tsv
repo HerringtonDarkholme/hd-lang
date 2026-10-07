@@ -194,7 +194,7 @@ lang/04-type-system.md	64	accept	runtime/valid/bound-inference-default.hd|runtim
 lang/04-type-system.md	65	mixed	runtime/valid/bound-inference-two-bounds.hd|typing/invalid/bound-inference-bounds-disagree.hd|typing/invalid/bound-inference-mixed-several-impls.hd
 lang/04-type-system.md	66	accept	typing/valid/type-default-calls.hd
 lang/04-type-system.md	67	mixed	typing/invalid/type-default-later-parameter.hd|typing/invalid/type-default-order.hd|typing/invalid/partial-generic-arguments.hd
-lang/04-type-system.md	68	mixed	typing/invalid/polymorphic-recursion.hd
+lang/04-type-system.md	68	mixed	cli/build-instantiation-too-deep/src/main.hd
 lang/04-type-system.md	69	accept	typing/valid/variance-permission-weakening.hd
 lang/04-type-system.md	70	mixed	typing/invalid/covariant-private-method-parameter.hd
 lang/04-type-system.md	71	mixed	typing/invalid/covariant-mut-self-method-parameter.hd

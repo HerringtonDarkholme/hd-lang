@@ -1,0 +1,11 @@
+# A package with no executable: hd build checks it and writes no .wasm file.
+run: hd build --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+no-file: build/debug/util.wasm
+no-file: build/debug/lib.wasm
+run: hd build --release
+no-file: build/release/util.wasm
+no-file: build/release/lib.wasm
+# It has no executable, so hd run has nothing to run.
+run: hd run
+exit: 101

@@ -2748,7 +2748,6 @@ runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
 runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
 runtime/valid/process-not-granted.hd	runtime	accept	lang/10-modules.md#r-module.process.not-granted
 runtime/valid/not-granted-display.hd	runtime	accept	std/fs.md#r-std-fs.error.not-granted.text
-typing/invalid/polymorphic-recursion.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.polymorphic-recursion
 typing/invalid/impl-head-projection.hd	type	reject:unconstrained-impl-parameter	lang/09-traits.md#r-trait.overlap.head-projection
 typing/invalid/function-field-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
 typing/valid/literal-classes-separate-widths.hd	type	accept	lang/04-type-system.md#r-types.literal.local.class.meet

@@ -1,0 +1,11 @@
+# hd check builds no program, so it does not report instantiation-too-deep.
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+# hd build instantiates nest with ever larger tuples, past any depth limit.
+run: hd build --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"instantiation-too-deep","file":"src/main.hd","line":3},{"kind":"summary","errors":1,"status":101}]
+no-file: build/debug/shop.wasm
+# hd run builds the program too, so it reports the error and runs nothing.
+run: hd run
+exit: 101
