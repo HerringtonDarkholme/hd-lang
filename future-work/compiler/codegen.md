@@ -227,7 +227,7 @@ instance.
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
 | `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |
 | `Interp` | one builder sized by the literal parts' bytes; literal parts copied from their pooled literal; each `Display` part writes into the builder through its resolved callee; one exact-size string at the end |
-| a string literal | a `call` of the literal's getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less; a literal passed straight to a host call takes the host fast path (wasm-layout.md §15.4) |
+| a string literal | `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less; a literal passed straight to a host call takes the host fast path (wasm-layout.md §15.4) |
 | an explicit panic, a failed check | a `call` of the category's stub with no site immediate; the call's code offset is the site (wasm-layout.md §15.5) |
 | `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
 | `ForRange`, `ForList`, `ForMap` | counted loops (§12.4) |
@@ -984,7 +984,7 @@ pub struct CodeEntry {
 }
 pub enum Reloc {
     Func { at: u32, target: FuncTarget },     // InstanceKey | Import(HostMethodId) | Intrinsic helper
-                                              // | Getter(GlobalSym): a literal's or a fact's getter, or a literal's span function
+                                              // | Getter(GlobalSym): a module's literal getter or span function, or a fact's getter
     Type { at: u32, ty: CanonWasmTy },        // a canonical Wasm type descriptor
     Global { at: u32, global: GlobalSym },    // module storage and immutable constants (vtables, closures, short literals)
     Field { at: u32, sym: WitnessField },     // an impl's field in a dyn method's witness (§13.5.1)
@@ -999,8 +999,12 @@ per-function cache abstracts, and the measured exceptions of
 direct constant globals, `ref.func`, witness fields). So there is no
 `Site` relocation: a site is the code offset of its stub call
 (wasm-layout.md §15.5). There is no `Data` relocation in a body: only the
-link-generated literal getters and span functions name the data segment.
-A lazily initialized global is reached through a `Getter` call target.
+link-generated module literal getters, span functions and the fill helper
+name the data segment. A lazily initialized global is reached through a
+`Getter` call target. A literal use also holds its module-local number,
+which depends only on its module's literal list (lowering-catalog.md,
+[Literals](lowering-catalog.md#literals)). So the relocation kinds are
+`Func`, `Type`, `Global` and `Field`; there is no `Site` and no `Data`.
 Context key ids and type ids are content hashes written as constants.
 Spike 0c's S2 measures each remaining index space and moves any that
 keeps fewer than 95 percent of functions hitting behind a getter.
@@ -1040,7 +1044,8 @@ code_key = H("code", toolchain_key, tier, instance_key, tir_hash(item),
              sorted [(impl stable path, impl interface hash)] of every impl collection
                     selected for it, for calls and for associated-type projections,
              sorted [(callee instance_key, inline_summary(callee))] of every direct callee,
-             sorted [(stable path, tir_hash)] of every item inlined into it)
+             sorted [(stable path, tir_hash)] of every item inlined into it,
+             sorted [(literal hash, module-local number)] of every pooled literal it reads)
 
 layout_hash(T)       = H(canonical Wasm layout descriptor of T, and of every type
                          reachable through its fields), memoized per type per run
@@ -1118,8 +1123,9 @@ numbering, packs and filtered test programs are the largest for latency.
 1. **Drop and fold.** An instance that no relocation names, because every
    caller inlined it, is dropped. Then the rest fold (§13.7).
 2. **Order functions.** Imports first, sorted by module and name. Then
-   the generated runtime helpers, sorted by name. Then the literal and
-   fact getters and literal span functions, by content. Then the
+   the generated runtime helpers, sorted by name. Then the module
+   literal getters and span functions, by module path, and the fact
+   getters, by content. Then the
    representatives in instance-key order. This order is deterministic,
    but it does not keep indices stable: inserting a function with a
    smaller key renumbers every later one (Codex re-review N-D2). That is
@@ -1130,15 +1136,17 @@ numbering, packs and filtered test programs are the largest for latency.
    immutable `funcref` global per closure code instead.
 3. **Types.** The canonical types the functions, globals and exports name
    (§15.3).
-4. **Globals.** First the fixed globals: the runtime's globals and the
-   literal pool. Then the immutable constants (vtables, closures without
+4. **Globals.** First the fixed globals: the runtime's globals. Then
+   one literal table per module that has pooled literals, by module path.
+   Then the immutable constants (vtables, closures without
    captures, payloadless variant singletons, member handles, witnesses,
    `TypeId` values, literals of at most 4 bytes), by kind and content
    key. Then module storage, by module path and binding index. Then fact
    storage, which only getters name (§15.4).
 5. **Data.** One passive segment holding every pooled literal once,
-   deduplicated by content, in content order. Only getters and span
-   functions name it. Key ids and type ids are checked for 64-bit
+   deduplicated by content, in content order, then each module's index
+   area of `(offset, length)` pairs. Only the literal getters, span
+   functions and the fill helper name it. Key ids and type ids are checked for 64-bit
    collisions here (§12.4).
 6. **Elements.** One declarative segment for every function used with
    `ref.func`. The reserved hot-reload table stays empty (§18.5).

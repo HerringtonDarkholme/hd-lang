@@ -34,8 +34,9 @@ tiering design**.
    index, which wasmtime's per-function cache abstracts. Panic stubs take
    no site immediate: the host maps the stub's caller by code offset.
    Context key ids and `TypeId` values are content hashes. Lazily
-   initialized globals (pooled literals, facts) are read through getter
-   functions. See [Numbering](#numbering) and codegen.md §13.10.
+   initialized globals are read through getter functions: one per fact,
+   and one per module for that module's table of pooled literals
+   ([Literals](#literals)). See [Numbering](#numbering) and codegen.md §13.10.
 2. **One representation per type in every position.** A type has the same
    Wasm values in a local, a parameter, a field and an array element.
    Value layouts over the boxing bound (default 4 Wasm values, decided by
@@ -65,7 +66,7 @@ tiering design**.
 9. **A compact `hd.names` section** replaces the standard `name` section
    in release builds (wasm-layout.md §15.5).
 10. **Constant strings:** one deduplicated passive data segment, a lazy
-    literal pool behind getters, a host fast path that copies a literal
+    literal table per module behind one getter per module, a host fast path that copies a literal
     from the segment into the exchange buffer with `memory.init`, and
     `array.new_fixed` only for literals of at most 4 bytes
     (default, decided by E10).
@@ -127,7 +128,7 @@ counts as one value toward an enclosing layout's bound.
 | debug Cranelift level | provisional, pending the tiering design; the studies' default was `Speed` | S4 gives the numbers: compile CPU at `Speed`, `None` and the single-pass allocator, and the runtime ratio to release |
 | inliner caps | runtime study §9.2 budgets (codegen.md §12.8), as pass parameters | S6 sets the caller cap below the size where Cranelift time per byte doubles; E8 keeps the budgets unless the next level buys 5 percent speed for under 10 percent size |
 | constant globals read directly | direct `global.get`, globals ordered by content key | S2: any perturbation under 95 percent hits moves that global kind behind getters |
-| the `array.new_fixed` threshold and eager pool fill | 4 bytes; lazy pool | E10 |
+| the `array.new_fixed` threshold and eager pool fill | 4 bytes; lazy per-module tables behind one getter per module ([Literals](#literals)) | E10; S2 says whether the getter may be inlined |
 | the initial GC heap of `hd run` | 64 MiB | E9 |
 | host byte copies | a Wasm loop with 8-byte loads | E4: host-side bulk fill only if 4x faster and the API exists |
 | a shared `poll` per result layout | one `poll` per frame | E11: share if it saves over 2 KB at under 5 ns per poll |
@@ -142,11 +143,12 @@ Every index space of the module, and what a code body holds for it:
 | defined functions | `call` index | imports, runtime helpers, then representatives by instance key | yes: the Cranelift cache abstracts call targets |
 | `ref.func` targets | the function index | as above | measured by S2; if it misses, one immutable `funcref` global per closure code |
 | Wasm types | type immediates in `struct.new`, `ref.cast`, `array.new`, block types | Kahn order, sorted ready set (§15.3) | measured by S2; fallback a per-type helper call |
-| fixed globals: the runtime's, the literal pool | `global.get` | first, in a fixed order | yes |
+| fixed globals: the runtime's | `global.get` | first, in a fixed order | yes |
+| module literal tables | nothing; only the module's getter reads one | after the fixed globals, by module path | readers yes; a getter's body changes when a module is added before it |
 | immutable constants: vtables, capture-free closures, witnesses, type ids, member handles, singletons, short literals | `global.get` | by kind, then content key | measured by S2 (default direct) |
 | module storage | `global.get`, `global.set` | by module path, then binding index | shifts only when a top-level binding is added or removed |
-| lazy globals: pooled literals, facts | a `call` of the getter | the getter holds the number | yes |
-| data segments | only getters and the host fast path name segment 0 | one deduplicated segment | yes |
+| lazy globals: module literal tables, facts | a `call` of the getter; a literal use adds its module-local number | the getter holds the number | yes; a module-local number changes only with that module's literals |
+| data segments | only the module literal getters, span functions and the fill helper name segment 0 | one deduplicated segment, then each module's index area | yes |
 | panic sites | nothing | `hd.sites` by function and code offset | yes |
 | context key ids, `TypeId` | `i64.const` of a content hash | none | yes |
 | witness fields `f_I` | `Field` relocation | per program | no: a known exception, erased bodies only |
@@ -169,7 +171,8 @@ translation of every instruction.
   `call_ref`.
 - Every construction allocates: a closure, its cells, an `Iterator`, a
   box over the bound, a `Range` value.
-- Every literal and fact read calls its getter.
+- Every literal read calls its module's literal getter, and every fact
+  read its fact's getter.
 - Checks follow the spec's profile rules, which are semantics, not
   optimization: overflow checked in debug and test, wrapping in release.
 - `for` over a range, a list or a map is a counted loop
@@ -787,27 +790,75 @@ JavaScript's deterministic `Map`:
 ### Literals
 
 ```wat
-;; integers and floats: immediates.  Strings:
-(global $pool (ref $Pool) (array.new_default $Pool (i32.const N)))       ;; fixed index; N literals
-(func $lit_k (result (ref $str))                                         ;; one getter per literal
+;; integers and floats: immediates.  Strings, per source module m:
+(global $lits_m (ref $LitTab)                                    ;; one immutable table per module
+  (struct.new $LitTab (array.new_default $Pool (i32.const N_m))  ;; N_m: m's pooled literals
+                      (i32.const base_m)))                       ;; m's index area in segment 0
+(func $lit_m (param $k i32) (result (ref $str))                  ;; one getter per module
   (block $hit (result (ref $str))
-    (br_on_non_null $hit (array.get $Pool (global.get $pool) (i32.const k)))
-    (call $lit_fill (i32.const k) (i32.const off) (i32.const len))))     ;; array.new_data from segment 0
+    (br_on_non_null $hit
+      (array.get $Pool (struct.get $LitTab 0 (global.get $lits_m)) (local.get $k)))
+    (call $lit_fill (global.get $lits_m) (local.get $k))))       ;; shared: reads (offset, length) at base_m + 8k,
+                                                                 ;; array.new_data from segment 0, stores the slot
+;; a use of m's literal number k:      (call $lit_m (i32.const k))
 ;; literals of at most 4 bytes: an immutable global of array.new_fixed
 ```
 
-- **Speed:** a direct call, an array read and a null test per use.
-  `cse-getters` keeps one call per dominating path, and since a literal
-  read cannot panic, it hoists the call out of a loop.
-- **Size:** the bytes in one deduplicated passive segment, about
-  16 bytes per literal for its getter, about 3 bytes per use in release,
-  and one shared fill helper (about 79 bytes). As `array.new_fixed`, a
-  16-byte literal is 65 bytes of code.
-- **Host fast path:** `println` of a literal calls a per-literal span
-  function that copies the bytes from segment 0 into the exchange buffer
-  with `memory.init` and returns the length; the import then reads the
-  buffer as usual. No array is built, the offset stays inside the span
-  function, and hello world needs no pool.
+**One table per module, not one getter per literal** (orchestrator,
+2026-10-07, after the systems review). The lowering pass first gave each
+literal its own getter. At 10k lines that is about 2,000 tiny functions,
+and each one pays Cranelift's fixed cost per function and a member of the
+Cranelift cache. wasmtime does not inline across functions, so nothing
+removes them. Now each module's literals are slots of one table,
+numbered locally:
+
+- **Module-local numbers.** m's pooled literals are numbered in content
+  order (by their bytes) within m. The list is part of m's TIR content
+  hash. A number changes only when m's own set of literals changes.
+- **What a body holds.** A use is `i32.const k` and a call of `$lit_m`.
+  The call target is abstracted by wasmtime's per-function cache, and `k`
+  depends only on m. So no body holds a program-wide number. The code key
+  of an instance lists `(literal hash, module-local number)` for every
+  literal it reads, its own or an inlined callee's (codegen.md §13.8).
+- **What only the getter holds.** The index of `$lits_m` and, through
+  the table, `base_m`, which depend on the program. They live in one
+  function per module, emitted at link like the old getters.
+- **Speed:** a direct call with one argument, an array read with a bounds
+  check (the index is no longer a constant inside the getter) and a null
+  test per use. `cse-getters` keeps one call per dominating path, and
+  since a literal read cannot panic, it hoists the call out of a loop.
+- **Size:** the bytes in one deduplicated passive segment, plus an index
+  area of 8 bytes per module-local literal; about 40 bytes per module
+  for its getter; about 5 bytes per use in release; and one shared fill
+  helper (about 90 bytes). As `array.new_fixed`, a 16-byte literal is 65
+  bytes of code.
+- **Host fast path:** `println` of a literal calls its module's span
+  function, `$span_m(k)`, which copies the bytes from segment 0 into the
+  exchange buffer with `memory.init` and returns the length; the import
+  then reads the buffer as usual. No array is built, the offset stays
+  inside the span function, and hello world needs no pool.
+
+**The comparison** (`ordinary-10k`: about 2,000 pooled literals, an
+estimated 3,000 uses, 100 modules plus about 40 std modules reached;
+Cranelift's fixed cost per function is an estimate of 10 to 30 µs until
+S3 measures it):
+
+| Cost | One getter per literal | One table per module (chosen) | Table read inline, no getter |
+| --- | --- | --- | --- |
+| functions added | about 2,000 | about 140 | none |
+| code bytes | 2,000 × 16 + 3,000 × 3 ≈ 41 KB | 140 × 40 + 3,000 × 5 + the index area 16 KB ≈ 37 KB | 3,000 × 12 + 16 KB ≈ 52 KB |
+| Cranelift, cold | 2,000 × 10 to 30 µs = 20 to 60 ms of CPU | 1.4 to 4 ms | none |
+| Cranelift cache members | +2,000 | +140 | none |
+| a literal added in module m | getters after it in program order renumber: about 1,000 misses, 10 to 30 ms | m's instances that read a renumbered literal re-emit and recompile: an estimated 10 to 25, 2 to 6 ms | as the table, plus every reader of `$lits_m` if globals shift |
+| a literal added elsewhere | the same 1,000 misses | nothing in m | nothing, if S2 shows global indices stable |
+| hit path | call, array read, null test | call, array read with bounds check, null test | array read, null test |
+
+The inline variant puts the program-dense index of `$lits_m` into every
+reader. That is the same exposure as the direct constant globals, which
+S2 measures. If S2 shows immutable globals keep at least 95 percent of
+functions hitting, the getter may be inlined later as a pass
+(`inline-trivial` already fits it). E10 sets the `array.new_fixed`
+threshold and eager filling; S2 and E10 give the final numbers.
 - **List and map literals** build fresh values each evaluation, since
   lists and maps are mutable: `array.new_fixed` for a short list,
   `array.new_data` for a long constant scalar list.
@@ -1222,7 +1273,7 @@ with `else` produces a value.
 | --- | --- | --- | --- |
 | debug Cranelift level | debug and release run the same optimizer | `Speed` unless S4 shows `None` saves 25 percent | both studies assumed one shared emission; the owner's direction of 2026-10-07 (fast dev builds, crappy output allowed) makes every per-tier rule provisional, pending the tiering design. S4's numbers feed it |
 | what an optimization is | budgets inside one shared pipeline | the same | each optimization is a named pass with inputs, outputs and cost ([Optimization Passes](#optimization-passes)), for the tiering design to compose |
-| literal access | an inlined fast path at the use site, the pool index in it | lazy globals through getters, or append order | getters: an inlined pool index is a dense number in every reader, and append order needs build history, which §15.8 forbids |
+| literal access | an inlined fast path at the use site, the pool index in it | lazy globals through getters, or append order | one table and one getter per module, with module-local numbers (orchestrator, after the systems review): an inlined program-wide index is a dense number in every reader, append order needs build history, which §15.8 forbids, and a getter per literal adds about 2,000 functions at 10k lines |
 | facts in loops | inline the fast path at reads inside loops | getters | getters, with reads common-subexpression-eliminated in a body |
 | erased storage (A) | a layout rule for every type-parameter slot; a cast at the first exact use | A1 at collection by representation summaries, instance keys by class | both: the layout rule gives one type per class; the summary gives one instance per class for move-only bodies. Classes `REF` and `REF?` stay apart, since `T?` differs between them |
 | `TypeId` hash | a link-time number; `Hash` writes the name bytes | a content hash | a content hash; `Hash` writes the 64-bit id, which is already independent of link order |

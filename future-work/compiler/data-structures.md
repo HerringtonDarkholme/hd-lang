@@ -1951,17 +1951,25 @@ pub struct InstanceTable {                 // per program; columns by InstId
 | Section | Row | Bytes |
 | --- | --- | --- |
 | `body` | Wasm locals and instructions; index immediates as 5-byte padded LEBs | bytes |
-| `relocs` | `at u32, kind u8, pad 3, target u32` sorted by `at` | 12 on disk, 9 in memory (packed) |
-| `targets` | `Hash128` instance keys and host method keys, deduplicated | 16 |
+| `relocs` | `at u32, kind u8, pad 3, target u32` sorted by `at`; `kind` is `Func`, `Type`, `Global` or `Field` (codegen.md §13.8) | 12 on disk, 9 in memory (packed) |
+| `targets` | `Hash128` instance keys, host method keys and getter symbols (a module's literal getter or span function, a fact's getter), deduplicated | 16 |
+| `symbols` | global symbols (module storage, immutable constants) and witness fields, as path and content-key rows | varies |
 | `wasm_types` | canonical Wasm type descriptors, as a small type table | varies |
-| `sites` | `at u32, kind u8, pad 3, span_lo u32, span_hi u32, file u32` | 20 |
-| `lines` | `at u32, span_lo u32` | 8 |
+| `literals` | `(literal hash, module-local number)` of every pooled literal the body reads, for the code key | 20 |
+| `sites` | `at u32, kind u8, pad 3, item u32, inst u32`: an anchor, the item's path row and a TIR instruction index (codegen.md §13.8, "Positions") | 16 |
+| `lines` | `at u32, item u32, inst u32` | 12 |
 | `sig` | the canonical signature, one row | small |
 
-- A relocation's `target` indexes `targets`, `wasm_types`, or the
-  entry's global and data symbol rows by its `kind`. So a relocation is
-  9 bytes, and an instance key is stored once per entry, not once per
-  call site.
+- A relocation's `target` indexes `targets` (for `Func`), `wasm_types`
+  (for `Type`) or `symbols` (for `Global` and `Field`), by its `kind`.
+  So a relocation is 9 bytes, and an instance key is stored once per
+  entry, not once per call site.
+- **No `Site` and no `Data` relocation** (lowering pass). A site is the
+  code offset of its stub call, and only link-generated functions name
+  the data segment. A literal use holds its module-local number as a
+  plain immediate, since that number depends only on its module.
+- Code entries are stored only as members of a `codepack` (§3.20.4,
+  cache.md §5.4), never as files of their own.
 
 **Identity.** `InstId` per program, `NONE` for absent. On disk, instance
 keys.

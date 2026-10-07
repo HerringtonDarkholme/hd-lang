@@ -260,10 +260,11 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 
 | Global | Wasm | Initialized by | A reader holds |
 | --- | --- | --- | --- |
-| runtime state: panic category, the wake table, the forbidden-context counter; the literal pool | mutable; the pool is `(ref $Pool)`, an `(array (mut (ref null $str)))` with one slot per pooled literal | constants; the pool by `array.new_default` | `global.get` of a fixed low index |
+| runtime state: panic category, the wake table, the forbidden-context counter | mutable | constants | `global.get` of a fixed low index |
+| one literal table per source module | immutable `(ref $LitTab)`: a `(ref $Pool)`, an `(array (mut (ref null $str)))` with one slot per pooled literal of the module, and the module's index-area offset | a constant expression (`struct.new`, `array.new_default`) | nothing: only the module's literal getter reads it |
 | vtables, capture-free closures, payloadless variant singletons, member handles, witnesses, `TypeId` values | immutable | a constant expression (`struct.new` and `ref.func` are constant in Wasm GC) | `global.get`; globals of a kind ordered by content key |
 | string literals of 4 bytes or less (default, decided by E10) | immutable | a constant expression (`array.new_fixed`) | `global.get` |
-| other string literals | a slot of the pool | lazily: the literal's getter runs `array.new_data` on segment 0 at its offset | a `call` of the literal's getter |
+| other string literals | a slot of their module's table | lazily: the module's getter runs `array.new_data` on segment 0 at the literal's offset | `i32.const` of the module-local number and a `call` of the module's getter |
 | module storage (top-level bindings) | mutable, nullable or zero | the group's init function | `global.get`, `global.set`; ordered by module path, then binding index |
 | fact values, metadata, shared enum data | mutable, nullable; null is the flag for a one-reference layout, else an `i32` flag | lazily: a getter runs the fact's body on the first read (codegen.md §12.3) | a `call` of the getter |
 
@@ -277,16 +278,22 @@ global kind behind getters if adding one global leaves fewer than 95
 percent of functions hitting the cache. The full table of index spaces is
 in [lowering-catalog.md](lowering-catalog.md#numbering).
 
-**Constant strings (lowering pass).** All pooled literals share one
-passive data segment, deduplicated by content, so the program has one
-data segment. Each literal's getter reads its pool slot, and on null
-calls one shared fill helper with the literal's slot, offset and length.
-A function reads each literal once on a dominating path. A host call
-whose argument is a literal, such as `println("hello")`, takes the host
-fast path: a small per-literal span function copies the bytes from
-segment 0 into the exchange buffer with `memory.init` and returns the
-length, so no array is built at all, and the offset stays inside that
-function. Eager filling of the pool in `hd.init` is measured by E10.
+**Constant strings (lowering pass; per-module tables after the systems
+review).** All pooled literals share one passive data segment,
+deduplicated by content, so the program has one data segment. After the
+bytes come each module's index area: an `(offset, length)` pair per
+module-local literal number. Each module has one literal table and one
+getter, `$lit_m(k)`, which reads slot `k` and on null calls one shared
+fill helper. Module-local numbers depend only on the module's own
+literals, so they are stable under every edit elsewhere
+([lowering-catalog.md](lowering-catalog.md#literals) compares this with
+one getter per literal). A function reads each literal once on a
+dominating path. A host call whose argument is a literal, such as
+`println("hello")`, takes the host fast path: the module's span function
+copies the bytes from segment 0 into the exchange buffer with
+`memory.init` and returns the length, so no array is built at all, and
+the offset stays inside that function. Eager filling of the tables in
+`hd.init` is measured by E10.
 
 - **Init order.** The `hd.init` export calls each reachable group's init
   function once, in D1's order (`InitOrder` and M3), after every group it
