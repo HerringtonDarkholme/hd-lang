@@ -1273,6 +1273,7 @@ echo 'println(1 + 2)' | hd    # prints 3
 15. r[cli.repl.panic] When an input panics, the REPL reports the panic, and the session continues with the next input.
 16. r[cli.repl.panic.binding] An input that panics adds no binding to the session.
 17. r[cli.repl.panic.mutations] Changes that the input made before the panic, to values that earlier inputs bound, remain. So do its host calls, by [`cli.repl.host.once`](#r-cli.repl.host.once).
+18. r[cli.repl.panic.declarations] An input that panics adds no declaration to the session either.
 
 ```sh
 hd> let log: mut List[string] = []
@@ -1306,6 +1307,55 @@ hd> read_text!("notes.txt")   # reads ./notes.txt
 > **Why.** A session is where a call is tried before a program makes it,
 > so it binds what `hd FILE` binds. Python's REPL likewise reads files and
 > the clock, with an empty `sys.argv[0]`.
+
+### Redefinition
+
+```sh
+hd> rate := +3
+hd> fn price(n: i32) -> i32: n * rate          # reads an earlier input's binding
+hd> fn total() -> i32: price(+2)
+hd> fn price(n: i32) -> i32: n * rate + 1      # shadows price; reports that total still uses the earlier price
+hd> total()
+6 : i32
+hd> price(+2)
+7 : i32
+```
+
+1. r[cli.repl.declarations.bindings] A declaration in an input may read and use the top-level bindings of earlier inputs.
+2. r[cli.repl.redefine.shadow] A name that an input declares again shadows the earlier declaration for later inputs. Earlier items, closures, and values keep the earlier declaration.
+3. r[cli.repl.redefine.shadow.report] When earlier items still use the shadowed declaration, the REPL reports which ones.
+4. r[cli.repl.redefine.impl] An implementation in an input that overlaps an implementation of an earlier input is an error, as in one module. Error: `overlapping-impl`.
+
+> **Note.** A redefined `data` or `enum` type is a new type. A value made
+> before the redefinition keeps the earlier type, and the REPL shows which
+> input declared it.
+
+> **Why.** Shadowing is what GHCi, OCaml, Scala, Kotlin, and Swift
+> REPLs do. Every earlier item stays checked against exactly what it
+> calls, so no input changes the type of another, by
+> [`cli.repl.input-types`](#r-cli.repl.input-types).
+
+### Interrupting An Input
+
+1. r[cli.repl.cancel] Interrupting an input, as Ctrl-C does, while it waits on the host cancels it by [`req.cancel.steps`](../lang/11-requirements-and-suspension.md#r-req.cancel.steps). It then ends as a panicking input does.
+2. r[cli.repl.stop] Interrupting an input while it computes stops it. It then ends as a panicking input does.
+
+> **Note.** "Ends as a panicking input does" means
+> [`cli.repl.panic.binding`](#r-cli.repl.panic.binding),
+> [`cli.repl.panic.declarations`](#r-cli.repl.panic.declarations), and
+> [`cli.repl.panic.mutations`](#r-cli.repl.panic.mutations) apply: the
+> input adds nothing, and its earlier changes and host calls remain.
+
+### Rebuilding A Session
+
+1. r[cli.repl.rebuild] An implementation may rebuild a session by running its inputs again in order, with each host call's result served from a record of the first run. A rebuild repeats no host call.
+2. r[cli.repl.rebuild.prefix] A rebuild keeps the longest prefix of inputs that still check and make the same host calls as before. The first input that does not, and every later input, is dropped, and the REPL reports the first one.
+3. r[cli.repl.rebuild.stopped] A rebuild skips an input that was stopped, so that input's changes to earlier values may be lost. The REPL reports each stopped input that a rebuild skipped.
+
+> **Note.** A browser session is rebuilt after a Stop of a busy input or
+> a page reload, and a session is rebuilt after its package's files
+> change. A stopped input stopped at an arbitrary point that no record
+> marks, so running it again could differ or never end.
 
 ## Dependencies
 

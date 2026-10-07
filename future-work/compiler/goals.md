@@ -73,10 +73,13 @@ Detailed design: [README.md](README.md)
   hold anything a global can. This removes the compile-time fact
   evaluator, its budget, the `fact` cache entry and value-graph
   serialization (Codex re-review N6, questions 3 and 4). Requirement-free
-  and the direct `block_on`/`println` ban still apply.
+  and the direct `block_on`/`println` ban still apply. Applied in S1e:
+  [Facts](../../spec/lang/14-annotations.md#facts).
 - REPL redefinition is shadowing: earlier items keep the old definition
   (`live-execution.md`). A rebuild may lose a stopped (busy, interrupted)
-  input's changes, with a spec rule and a REPL report.
+  input's changes, with a spec rule and a REPL report. Applied in S1e:
+  [Redefinition](../../spec/cli/command-line.md#redefinition),
+  [Rebuilding A Session](../../spec/cli/command-line.md#rebuilding-a-session).
 - Associated types: a `dyn` type must bind every associated type (Rust
   style, `trait.dyn.binding.complete` unchanged). When two supertrait paths
   bind the same associated type, equal bindings merge and different ones
@@ -85,7 +88,8 @@ Detailed design: [README.md](README.md)
   every refinement rule). Typed request/response APIs use traits with
   associated types; typed interpreters use a runtime value enum or traits.
   This removes pattern refinement, existential variant parameters and the
-  runtime path they needed (the GX research is cancelled).
+  runtime path they needed (the GX research is cancelled). Applied in
+  S1e: [`grammar.enum.no-result-type`](../../spec/lang/02-grammar.md#r-grammar.enum.no-result-type).
 - A private item that a derive template names follows the public signature
   rules (explicit result type, `$` clause or the empty row); the private
   types it names are exported as hidden items too.

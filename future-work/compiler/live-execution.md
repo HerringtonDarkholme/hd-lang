@@ -827,6 +827,14 @@ Listed, not made.
 
 ### 11.1 Spec
 
+The REPL rows below were applied in spec pass S1e (owner, 2026-10-07),
+as [Redefinition](../../spec/cli/command-line.md#redefinition),
+[Interrupting An Input](../../spec/cli/command-line.md#interrupting-an-input)
+and [Rebuilding A Session](../../spec/cli/command-line.md#rebuilding-a-session);
+`cli.repl.panic.binding` was extended by a sibling rule,
+`cli.repl.panic.declarations`. The running (Later) and Determinism rows
+are not applied.
+
 | Where | Change |
 | --- | --- |
 | `spec/cli/command-line.md`, REPL | new rule `cli.repl.declarations.bindings`: a declaration in an input may use the top-level bindings of earlier inputs |
