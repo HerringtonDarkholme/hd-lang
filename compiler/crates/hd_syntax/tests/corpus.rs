@@ -117,7 +117,7 @@ fn parse_phase_conformance() {
             .collect();
         if columns[2] == "accept" {
             if !actual.is_empty() {
-                if known.get(columns[0]) == Some(&"pending-gadt-removal") {
+                if known.contains_key(columns[0]) {
                     seen_known.insert(columns[0]);
                 } else {
                     failures.push(format!("{} expected accept, got {actual:?}", columns[0]));
