@@ -4,6 +4,8 @@
 use std.format.DebugWriter
 use std.error.Error
 
+## The error of a closable runtime handle: the operation's own error, or `Disposed`.
+## See [module.resource.error](../../spec/lang/10-modules.md#r-module.resource.error).
 pub enum ResourceError[E]:
     Operation(error: E)
     Disposed
