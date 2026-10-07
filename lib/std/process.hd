@@ -8,8 +8,12 @@
 use std.format.DebugWriter
 use std.error.Error
 
+## The exit status a `main` returns: a small integer the process exits with.
+## See [module.entry.exit-code](../../spec/lang/10-modules.md#r-module.entry.exit-code).
 pub type ExitCode(u8)
 
+## What a `main` may return: `void`, an `ExitCode`, or a `Result` whose error is reported.
+## See [module.entry.termination](../../spec/lang/10-modules.md#r-module.entry.termination).
 pub trait Termination:
     fn report(self) -> ExitCode
 
@@ -28,30 +32,46 @@ impl[T < Termination, E < Display] Termination for Result[T, E]:
             .Err(_) => ExitCode(1)
 
 # The host capability to start a program (spec/lang/10-modules.md#processes).
+## What `run!` returns for a started program: its output and exit status.
+## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
 pub data ProcessOutput:
+    ## The text the program wrote to standard output.
+    ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
     pub stdout: string
+    ## The text the program wrote to standard error.
+    ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
     pub stderr: string
+    ## The status the program exited with; non-zero is still an ordinary `.Ok`.
+    ## See [module.process.nonzero-ok](../../spec/lang/10-modules.md#r-module.process.nonzero-ok).
     pub status: i32
 
 # Why a program did not start (r-module.process.declares). A program that
 # started and exited non-zero is `.Ok` (r-module.process.nonzero-ok).
+## Why a program did not start: not found, denied, not granted, or another reason with a message.
+## See [module.process.declares](../../spec/lang/10-modules.md#r-module.process.declares).
 pub enum ProcessError:
     NotFound
     PermissionDenied
     NotGranted
     Other(message: string)
 
+## The host capability to start a program with arguments and standard input, and wait for it to exit.
+## See [module.process.declares](../../spec/lang/10-modules.md#r-module.process.declares).
 pub trait Process:
     fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]
 
 # Answers each program with the output scripted for it
 # (r-std-process.scripted.decl).
+## The deterministic `Process` provider: it answers each program from a table, with no host access.
+## See [std-process.scripted.decl](../../spec/std/process.md#r-std-process.scripted.decl).
 pub data ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
 impl ScriptedProcess:
     # A provider that answers each program in `outputs`
     # (r-std-process.scripted.new).
+    ## Returns the provider that answers each program with `outputs`' entry for it.
+    ## See [std-process.scripted.new](../../spec/std/process.md#r-std-process.scripted.new).
     pub fn new(outputs: Map[string, ProcessOutput]) -> mut ScriptedProcess:
         ScriptedProcess { outputs: outputs }
 
