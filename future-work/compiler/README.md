@@ -11,7 +11,7 @@ The design documents of the new compiler, in reading order.
 - [resolution-and-interfaces.md](resolution-and-interfaces.md): discovery, folder graph, name resolution, folder interface, blob, traits and coherence (§4.7 to §4.12).
 - [checking-and-tir.md](checking-and-tir.md): body checking summary, the TIR definition, diagnostics and limits (§4.13 to §4.15).
 - [type-checking.md](type-checking.md): the detailed type-checking design (frontend lane).
-- trait-solver.md: the trait solver design, in progress (frontend lane).
+- [trait-solver.md](trait-solver.md): the trait solver design (frontend lane).
 - [cache.md](cache.md): the cache (§5).
 - [scheduler.md](scheduler.md): the scheduler and task graph (§6).
 - [commands.md](commands.md): command flows (§7 and §20).
