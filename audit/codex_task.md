@@ -71,39 +71,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### C1. New Compiler, Slice 1a: Workspace, Lexer, Layout, Skim Mode
-
-The new compiler is written in Rust (owner decision). The design is in
-`future-work/compiler/`: start with `README.md`, `design-overview.md`
-(§1 pipeline, §2 crate graph), `syntax.md` (§4.1 lexer, §4.2 layout, §4.3
-skim mode and the header pass), `data-structures.md` (§3.1 IDs, §3.3
-interners, §3.7 spans, §3.8 diagnostics, §3.9 encoding, §3.11 tokens,
-§3.12 layout cursor, §3.14 skeleton) and `build-order.md` (slice 1). The
-language is in `spec/lang/01-lexical-structure.md` and `02-grammar.md`.
-Recent owner decisions in `goals.md`: trait value types are written
-`dyn Trait` (`dyn` is a keyword); GADTs are removed (no variant `->`
-result types).
-
-- Create a Cargo workspace at `compiler/` with the crates `hd_base`,
-  `hd_intern`, `hd_diag` and `hd_syntax` as `design-overview.md` §2 names
-  them (adjust names only if the design says otherwise). Rust stable;
-  `rust-toolchain.toml` pinning the current stable; `cargo fmt` and
-  `cargo clippy -D warnings` clean.
-- `hd_syntax`: the lexer (token columns as `data-structures.md` §3.11),
-  the layout cursor (§3.12, `syntax.md` §4.2), and skim mode with the
-  header skeleton (§4.3, §3.14). Data-oriented: flat columns, `u32`
-  indices, no `Box` trees.
-- Tests: every `.hd` file under `spec/conformance/` and `lib/std/` lexes
-  without panic and its tokens plus trivia reproduce the file byte for
-  byte; skim mode finds the same body ranges as a reference you derive
-  from the layout tokens; a `cargo test` run.
-- CI: add a job to `.github/workflows/test.yml` that runs `cargo fmt
-  --check`, `cargo clippy -- -D warnings` and `cargo test` in `compiler/`,
-  and `cargo build -p hd_syntax --target wasm32-unknown-unknown`. Don't
-  change the existing JS jobs. Don't trigger workflows by hand.
-- Record lexing and skimming throughput (MB/s) on `lib/std` in the commit
-  message. No footprint numbers are needed for `compiler/` work.
-
 ### C2. New Compiler, Slice 1b: Parser, Green Tree, `hd parse`
 
 After C1. Same design files, plus `syntax.md` §4.4 (parser and green
@@ -140,4 +107,8 @@ those files). Run `bash spec/check.sh` (it checks links) before pushing.
 
 ## Questions
 
-(none)
+- C1 validation: `pnpm run test:ui` consistently fails the existing test
+  `hd repl in a terminal indents continuation lines but not pasted ones` because
+  its simulated Backspace reaches the parser as DEL (`U+007F`). The other 84 UI
+  tests pass, and C1 changes no REPL or TypeScript code. Should a later job fix
+  this mainline terminal-test failure?

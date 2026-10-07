@@ -20,6 +20,32 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  compiler:
+    name: Rust compiler front end
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: compiler
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Install browser target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build browser-safe syntax crate
+        run: cargo build -p hd_syntax --target wasm32-unknown-unknown
+
   check:
     name: Check (types, lint, format, tests, spec)
     runs-on: ubuntu-latest
