@@ -1,0 +1,21 @@
+use std.cmp.Ordering
+
+pub data Score:
+    pub points: i32
+    pub bonus: i32
+
+impl Eq for Score:
+    fn eq(self, other: Score) -> bool:
+        self.points == other.points
+
+## How many scores a page shows; the list and the optional page size are
+## std types in the signature.
+pub fn shown(scores: List[Score], page: i32?) -> i32:
+    10
+
+## The rank a board gives a score, by its order against the leader.
+pub fn rank(order: Ordering, board: Map[string, List[Score]]) -> i32:
+    1
+
+pub fn total(s: Score) -> i32:
+    s.points + s.bonus

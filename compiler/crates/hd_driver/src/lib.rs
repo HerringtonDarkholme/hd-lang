@@ -140,6 +140,8 @@ pub struct Output {
     pub files: Vec<String>,
     pub counters: Counters,
     pub report: PipelineReport,
+    /// Each built folder interface's blob, by folder path.
+    pub ifaces: Vec<(String, Arc<[u8]>)>,
 }
 
 impl Output {
@@ -333,12 +335,19 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
     } else {
         run.wasm.get().cloned()
     };
+    let ifaces = run
+        .table
+        .folders
+        .iter()
+        .filter_map(|f| Some((f.path.clone(), run.iface_of(f.id)?.blob.clone())))
+        .collect();
     Output {
         wasm,
         diags,
         files: run.table.files.clone(),
         counters,
         report,
+        ifaces,
     }
 }
 

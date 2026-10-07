@@ -33,7 +33,7 @@ fn hd_run(cache_dir: &Path, target: &Path) -> String {
     String::from_utf8(output.stdout).expect("UTF-8")
 }
 
-const CASES: [(&str, &str); 7] = [
+const CASES: [(&str, &str); 8] = [
     ("hello/hello.hd", "42\n"),
     ("hello", "42\n"),
     ("arith", "7\n9\n3\n55\n-1\n0\n1\n16\n-10\n"),
@@ -41,6 +41,7 @@ const CASES: [(&str, &str); 7] = [
     ("generic", "1\n6\n5\n"),
     ("trait/main.hd", "12\n13\n101\n7\n"),
     ("fib/main.hd", "6765\n"),
+    ("std_types", "42\n"),
 ];
 
 #[test]
