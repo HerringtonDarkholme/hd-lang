@@ -41,6 +41,11 @@ Detailed design: [README.md](README.md)
   `find` becomes the free function `std.error.find[T < Error](error) -> T?`,
   which matches by `TypeId` and returns values through `downcast_val`;
   data-type errors still downcast by reference.
+- Generics are fully monomorphized. The one erased path, a generic method
+  called through a trait value, accepts any type argument: value-typed
+  arguments are boxed at that call (boxes have no identity), so the
+  `T < AnyRef` restriction of `types.trait.safe.method-type-param-implied`
+  is dropped.
 - A private item that a derive template names follows the public signature
   rules (explicit result type, `$` clause or the empty row); the private
   types it names are exported as hidden items too.
