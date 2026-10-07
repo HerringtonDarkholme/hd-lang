@@ -42,6 +42,15 @@ The cases are the conformance suite, std, and three generated packages of
 1k, 10k and 50k lines. CI runs a sample of the product on each change and
 the full product nightly.
 
+**Impl universes in both orders (Codex re-review N1).** Modules A and B
+both ask `Instantiations { Receiver, Pick }`. Only A's closure holds
+`impl Pick[Product] for Receiver`. The case runs twice in the serial
+scheduler with one shared solver memo: A's body first, then B's first.
+It also runs in every thread count of the matrix. Every run gives A the
+impl and B none, with the same diagnostics and the same `fuel_used`. A
+third variant puts the impl in a test-only dependency of B: B's test
+overlay sees it, and B's bodies do not.
+
 ### 8.2 Incremental Soundness
 
 An edit-script fuzzer applies random edits to a generated or fixture
@@ -58,7 +67,12 @@ byte. The edit vocabulary:
 | add, remove or redirect a `pub use` in a chain | every module that uses the re-exported name |
 | add or remove an impl for a public type; a blanket impl | dependents, and that trait's coherence |
 | add or remove an impl for a private type | that module and the trait's coherence; no dependent |
+| add an argument-owned impl, `impl Pick[Product] for Receiver`, in a folder that module A reaches only through another folder's body uses | A, whose `Instantiations` answer gains the impl; not module B, whose closure lacks the folder (Codex re-review N-A1) |
+| swap two overlapping impls of one trait, so that the other one ranks later | that trait's `Coherence` reruns, and its report names the new later impl, as a clean run does (Codex re-review N-D1) |
+| lengthen a function body above an impl that has an overlap report | that module only; the trait's `coh` key hits, since the rank is an item index |
 | add or remove `@derive`, edit a template body in another package | the modules that derive the trait |
+| inside a kept template body, move a statement out of an `if` to after it: equal tokens, different indentation | the trait's folder gets a new api text hash; every module that derives the trait rechecks and matches a clean run (Codex re-review N-A3) |
+| re-indent a whole template declaration by one level | that module only; layout tokens are relative, so the api text hash is unchanged |
 | edit a top-level statement read in a multi-module init group | that module and the folder's init order |
 | edit a doc comment or a comment | that module rechecks under its new source hash; no dependent rechecks (Codex re-review N-C3) |
 | delete a file, then restore it with its old mtime | the right modules both times |
@@ -90,6 +104,16 @@ edits in a scripted session that recheck more than one module.
 - **Header pass against full parse** on every fixture and std file (§4.3).
 - **Pathological suite** with an ill-typed variant of each case (Swift's
   lesson), each within its time budget and with its limit diagnostic.
+  It includes the nested trial cases of
+  [type-checking.md §2.5](type-checking.md#25-methods-and-operators)
+  (Codex re-review N-T7):
+  - nested choices whose outer candidates give an inner call the same
+    expected type: the trial count stays at sites × candidates;
+  - nested choices whose outer candidates give distinct expected types,
+    so the contexts double per level;
+  - a tainted closure argument, whose trials are never cached.
+
+  The last two expect `item-too-complex` from fuel, not a time limit.
 - **Fuzzing.** `cargo fuzz` on the lexer, layout and parser for panics and
   round-trip failures. Program generators live under `test/` as portable
   tools that take any `hd` binary.
