@@ -1199,12 +1199,11 @@ record stores one flag and the first reason it fails:
 | --- | --- |
 | an associated function in the trait or a supertrait | [`trait.dyn.safe.assoc-function`](../../spec/lang/09-traits.md#r-trait.dyn.safe.assoc-function) |
 | `Self` outside the receiver | [`trait.dyn.safe.self`](../../spec/lang/09-traits.md#r-trait.dyn.safe.self) |
-| a method-level type parameter whose elaborated bounds do not include `AnyRef` | [`trait.dyn.safe.implied-anyref-param`](../../spec/lang/09-traits.md#r-trait.dyn.safe.implied-anyref-param) |
 | at the value type: an associated type left unbound | [`trait.dyn.binding.complete`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete) |
 
-The method-level check uses `elaborate`: `T < Error` implies `AnyRef`,
-because `Error` has `AnyRef` as a supertrait. Requirement keys reuse the
-flag ([`req.key.dynamically-safe`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.dynamically-safe)).
+A method-level type parameter never makes a trait unsafe, whatever its
+bounds ([`trait.dyn.safe.method-type-param`](../../spec/lang/09-traits.md#r-trait.dyn.safe.method-type-param),
+S1c). Requirement keys reuse the flag ([`req.key.dynamically-safe`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.dynamically-safe)).
 
 ### 9.2 Vtable Shapes
 
@@ -1221,21 +1220,22 @@ pub struct VtableShape {
 ```
 
 - **Supertraits by pointer, not by copying their slots.** A diamond such as
-  `Error < Display & Inspectable & AnyRef` shares one vtable per
+  `Error < Display & Inspectable` shares one vtable per
   supertrait. Widening to a supertrait value reads one pointer
   ([`trait.dyn.widen`](../../spec/lang/09-traits.md#r-trait.dyn.widen)).
 - **Method-level bounds.** A dynamically safe method may have a parameter
-  `T < AnyRef & Display`. Its one body takes the evidence for `Display`
-  with each call
-  ([`types.trait.safe.one-body`](../../spec/lang/04-type-system.md#r-types.trait.safe.one-body)).
+  `T < Display`, with any type argument. Its one body takes the evidence
+  for `Display` with each call
+  ([`types.trait.safe.method-type-arg`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg)).
   So a `CallDyn` carries one vtable per such bound, chosen by the checker
   at the call. This is the one place outside GADTs where a dictionary is
   passed at run time.
 - **The slot's ABI (review blocker 5).** The slot's body is the impl
   method compiled once with each method-level parameter erased to the
-  reference shape (`anyref`), which `AnyRef` guarantees, and one vtable
-  parameter per bound. A caller that knows `T` casts the result back to
-  `T`. Statically dispatched calls of the same method stay monomorphized;
+  reference shape (`anyref`), and one vtable parameter per bound. A caller
+  passing a value-typed argument boxes it at the call; the box has no
+  identity ([`types.trait.safe.method-type-arg.box`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg.box)).
+  A caller that knows `T` casts or unboxes the result back to `T`. Statically dispatched calls of the same method stay monomorphized;
   only the vtable slot uses the erased instance. `Inspectable.downcast[T]`
   is the std case: its `T < AnyRef & Inspectable` evidence carries the
   `TypeId` it compares.
@@ -1663,7 +1663,7 @@ before it was accepted.
 | Finding | Verdict | Where |
 | --- | --- | --- |
 | Blocker 3: owner lookup cannot enumerate unknown trait arguments; std's inherent exception | **Accepted, fixed.** Verified: [`trait.own.argument`](../../spec/lang/09-traits.md#r-trait.own.argument) allows argument-owned impls, and [`trait.own.module.inherent.std`](../../spec/lang/09-traits.md#r-trait.own.module.inherent.std) allows any std module. Taken: the per-run, per-trait candidate directory and a coarse hash in the check key. Changed: the directory is filtered by the asking module's dependency closure, so a downstream package cannot change a library's result (question 1) | sections 3.2, 5.3; changes 12, 21 |
-| Blocker 5: dynamically safe generic methods lack a codegen strategy | **Accepted, fixed** for the solver's part. Verified against [`types.trait.safe.one-body`](../../spec/lang/04-type-system.md#r-types.trait.safe.one-body): an erased slot instance with one vtable parameter per bound | section 9.2; changes 16, 19 |
+| Blocker 5: dynamically safe generic methods lack a codegen strategy | **Accepted, fixed** for the solver's part. Verified against [`types.trait.safe.method-type-arg`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg): an erased slot instance with one vtable parameter per bound | section 9.2; changes 16, 19 |
 | Blocker 8: memo entries are not functions of their keys | **Accepted, fixed.** Keys now hold the environment, visible local impls, availability, and a per-run memo; depth is a stored height with lower-bound entries; fuel and depth exhaustion are never cached as failures; completion before publication is the SCC rule. Not needed: a key for coinductive assumptions, since none exist | sections 6.3, 7.1, 7.3; change 2 |
 | T1: projections cannot represent their inputs or return outputs | **Accepted, fixed.** Verified: D1's `Assoc` drops the trait arguments, and §1.6's answers had no normalized type. Projections now name the associated item and the instantiated trait reference; `Project` answers `Normalized`; normalization cycles, the occurs check and aliases are specified | sections 2.1, 4.3; changes 1, 4, 11, 15 |
 | T4: candidate trials omit expected-result filtering | **Accepted.** Verified: [`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.fits.expected). The trial is the checker's; the change is stated for type-checking.md | change 9 |

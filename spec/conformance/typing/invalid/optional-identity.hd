@@ -1,0 +1,7 @@
+# test: an optional is an enum without identity, so `is` on two optionals is an error even when the payload is a data value
+# Spec 04 Optional Identity And Variance: types.option.value, types.option.identity-error.
+data User:
+    name: string
+
+fn users(left: User?, right: User?) -> bool:
+    left is right  # diagnostic: identity-requires-references

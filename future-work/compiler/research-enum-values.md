@@ -196,7 +196,7 @@ mutable node on a cycle is `AnyRef`, before and after this change.
 
 | Operation | Rule | On a cycle |
 | --- | --- | --- |
-| `dbg` | [`module.dbg.cycle`](../../spec/lang/10-modules.md#r-module.dbg.cycle) | prints `<cycle>`; the 10-level depth limit is a backstop |
+| `dbg` | [`module.dbg.cycle`](../../spec/lang/10-modules.md#r-module.dbg.cycle.tracked) | prints `<cycle>`; the 10-level depth limit is a backstop |
 | derived `Eq` | [`std-cmp.derive.eq.cycles`](../../spec/std/cmp.md#r-std-cmp.derive.eq.cycles), `std-cmp.derive.eq.stack` | no detection; may exhaust the stack |
 | derived `Hash` | [`std-hash.derive.hash.cycles`](../../spec/std/hash.md#r-std-hash.derive.hash.cycles) | same as `Eq` |
 | derived `Ord`, `Display`, serde, `Structure` walk | no rule | recursion without detection, so the same as `Eq` |
@@ -270,7 +270,7 @@ No change.
 
 A method of a dynamically safe trait may have a type parameter only if
 its bounds imply `AnyRef`
-([`trait.dyn.safe.implied-anyref-param`](../../spec/lang/09-traits.md#r-trait.dyn.safe.implied-anyref-param)).
+([`trait.dyn.safe.implied-anyref-param`](../../spec/lang/09-traits.md#r-trait.dyn.safe.method-type-param)).
 The reason is representation, not identity: the one shared body receives
 `T` as `anyref`, and so must every `List[T]` it touches
 ([codegen.md §13.5](codegen.md#135-dictionaries-trait-values-and-gadt-evidence)).
@@ -362,7 +362,7 @@ unchanged.
 
 ### 4.8 Canonical Payload-Free Variants
 
-[`expr.is.canonical`](../../spec/lang/05-expressions.md#r-expr.is.canonical)
+[`expr.is.canonical`](../../spec/lang/05-expressions.md#r-expr.is.canonical-data)
 says a payload-free enum value is canonical for its variant. With no
 enum identity, this is moot: two equal variants are the same value by
 definition. The rule keeps only its fieldless-data half. `expr.is.none`
@@ -596,6 +596,6 @@ arguments, so it is not folded in here.
 - In this repository: [wasm-layout.md §15.2](wasm-layout.md#152-values),
   [codex-review-response.md](codex-review-response.md#spec-changes-for-the-spec-pass),
   [open-questions.md §23.1](open-questions.md#231-open-questions-for-the-owner),
-  [`types.sealed.anyref`](../../spec/lang/04-type-system.md#r-types.sealed.anyref),
-  [`expr.is.box`](../../spec/lang/05-expressions.md#r-expr.is.box),
-  [`trait.error.supertraits-anyref`](../../spec/lang/09-traits.md#r-trait.error.supertraits-anyref).
+  [`types.sealed.anyref`](../../spec/lang/04-type-system.md#r-types.sealed.anyref-values),
+  [`expr.is.box`](../../spec/lang/05-expressions.md#r-expr.is.box-values),
+  [`trait.error.supertraits-anyref`](../../spec/lang/09-traits.md#r-trait.error.supertraits).

@@ -2808,3 +2808,4 @@ typing/invalid/enum-identity.hd	type
 typing/invalid/function-anyref-bound.hd	type
 typing/valid/error-value-newtype.hd	type
 typing/valid/generic-method-dynamically-safe.hd	type
+typing/invalid/optional-identity.hd	type

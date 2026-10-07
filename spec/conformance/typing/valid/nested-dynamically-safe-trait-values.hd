@@ -1,5 +1,5 @@
 # test: a dynamically safe trait is a valid value type in fields, lists, options, and function types
-# Spec 09 Dynamic Safety: trait.dyn.safe, trait.dyn.safe.implied-anyref-param.
+# Spec 09 Dynamic Safety: trait.dyn.safe, trait.dyn.safe.method-type-param.
 
 trait Visitor:
     fn visit[T < AnyRef](self, value: T) -> void

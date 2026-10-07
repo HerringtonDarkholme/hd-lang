@@ -315,7 +315,7 @@ function createEnumVariantDeclarations(
       // Shared data is a per-variant constant (08-data-and-enums.md#r-data.shared.per-variant):
       // `$enum-shared` computes it once, without the payload in scope
       // (r[data.shared.no-payload]), and the emitter caches its result, so a
-      // payload-free variant is canonical (05 r[expr.is.shared-data-canonical]).
+      // payload-free variant stores no data (08 r[data.shared.not-stored]).
       // A payload variant copies the cached data next to its payload.
       const sharedName = `$enum-shared.${declaration.name}.${variant.name}`;
       body.push({

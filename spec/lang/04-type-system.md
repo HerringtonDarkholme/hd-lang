@@ -514,7 +514,7 @@ data PostId:
 ### Tuple Types
 
 A tuple is an immutable value without identity, so it implements `AnyVal`,
-as [`types.sealed.anyval-types`](#r-types.sealed.anyval-types) states. No
+as [`types.sealed.anyval-values`](#r-types.sealed.anyval-values) states. No
 element of it is a place, as
 [`expr.place.tuple-element`](05-expressions.md#r-expr.place.tuple-element)
 states.

@@ -103,13 +103,14 @@ So the layouts follow these rules:
 
 **One predicate for identity-free enums (mine).** Layout, `is` lowering
 and the checker's value-type test read one predicate, `identity_free(E)`.
-Today it holds for `Option` and `Result` only. An identity-free enum
+Since the S1c spec pass it holds for every enum
+([`types.sealed.anyval-values`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-values)).
+An identity-free enum
 uses a value layout: a nullable reference when it has one reference
 payload and one payloadless variant (`T?`), else `(i32 tag, payload
 fields...)` as `multi`, boxed in one immutable struct past 4 Wasm values
-as §15.1 says. Whether all enums become value types is being
-researched; if so, only this predicate and the flat-versus-subtype rule
-change.
+as §15.1 says. A self-recursive payload stays a reference, as the flat
+or subtype layout above has it.
 
 **Emitting `is`.** The TIR `Is` instruction
 ([checking-and-tir.md](checking-and-tir.md#instruction-catalog)) lowers by

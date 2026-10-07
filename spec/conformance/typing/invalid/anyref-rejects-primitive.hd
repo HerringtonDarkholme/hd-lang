@@ -1,5 +1,5 @@
 # test: primitives do not implement AnyRef
-# Spec 10 Value-Category Traits: module.prelude.anyref-not.
+# Spec 10 Value-Category Traits: module.prelude.anyref-excludes.
 fn same_parcel[T < AnyRef](left: T, right: T) -> bool:
     left is right
 

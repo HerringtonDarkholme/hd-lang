@@ -544,9 +544,10 @@ growing type) has no finite instance set.
   hidden type.
 - **Generic methods called through a trait value.**
   [Dynamic Safety](../../spec/lang/09-traits.md#dynamic-safety) allows a
-  method-level type parameter on a dynamically safe trait when its bounds
-  imply `AnyRef`, and asks for one shared body with the bound evidence
-  passed at each call. Examples are `Registry.lookup[T < Error]` and
+  method-level type parameter on a dynamically safe trait whatever its
+  bounds, and accepts any type argument for it
+  ([`types.trait.safe.method-type-arg`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg)).
+  Examples are `Error.find[T < Error]`, called with enum errors, and
   `Inspectable.downcast[T]`. A vtable slot cannot hold one body per
   concrete `T`, so these methods use **erased instances**, the
   dictionary passing that the spec's
@@ -555,7 +556,10 @@ growing type) has no finite instance set.
   1. The vtable slot holds the impl method instantiated at its concrete
      self type, with each method type parameter replaced by
      `Erased(i)`. A value of type `Erased(i)` has the `erased` layout,
-     `anyref`. Every such `T` is a reference type, so nothing is boxed.
+     `anyref`. There is no `AnyRef` restriction: a value-typed argument
+     is boxed at the call, and the box has no identity, so the boxing is
+     not observable. Open (S1c): a `T` inside a container parameter, such
+     as `mut List[T]` with a packed `List[i32]`, cannot be boxed in place.
   2. The erased instance takes one extra parameter per bound of each
      method type parameter: that bound's vtable at the caller's `T`.
      `T < Inspectable` passes the type id that vtables carry. Operations on
@@ -572,9 +576,10 @@ growing type) has no finite instance set.
      operand into an impl by head match at the concrete `T`, as for a
      `TraitMethod` choice (§13.2 step 4), and records the vtable
      constant. A `Bound` operand in generic code becomes concrete the
-     same way. Emission passes the vtables and upcasts the `T` arguments
-     to `anyref`. When the result type mentions `T`, emission adds one
-     `ref.cast` to the concrete type, which cannot fail. The slot's
+     same way. Emission passes the vtables, upcasts reference `T`
+     arguments to `anyref`, and boxes value-typed ones. When the result
+     type mentions `T`, emission adds one `ref.cast` or unboxing to the
+     concrete type, which cannot fail. The slot's
      type is the erased instance's signature: the receiver, the erased
      arguments, then one vtable parameter per bound, in the method's
      bound order (`dyn_bounds` of the shape).

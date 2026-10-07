@@ -1,5 +1,5 @@
 # test: tuples do not implement AnyRef
-# Spec 10 Value-Category Traits: module.prelude.anyref-not.
+# Spec 10 Value-Category Traits: module.prelude.anyref-excludes.
 fn keep[T < AnyRef](value: T) -> T:
     value
 

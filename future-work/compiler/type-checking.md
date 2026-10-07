@@ -503,27 +503,21 @@ uses `want`. "Infer" means it synthesizes and the caller coerces.
 | `_` | check | records `want` for the hole diagnostic | `placeholder-outside-pipe` (section 10.4) |
 
 **Identity `is`** ([Allocation Identity](../../spec/lang/05-expressions.md#allocation-identity),
-with the owner's answers of 2026-10-07, which the spec pass applies).
+as the S1c spec pass applied the owner's answers of 2026-10-07).
 After inferring both operands, the checker:
 
 1. Strips `mut` at every level of both types.
-2. Rejects a function type: `unsupported-function-identity`. Generic code
-   over `T < AnyRef` may still compare, with an unspecified result.
-3. Rejects a value type: `identity-requires-references`. An optional
-   takes its payload's category, so `i32?` and `(i32, i32)?` are rejected
-   too. Only `AnyRef` types pass: data, enums, `List`, `Map`, trait values
-   and `Any`, and optionals of those. This design reads `Result[T, E]`
-   the same way: it passes only when both `T` and `E` pass (section 16.1
-   reading 3).
-4. Requires compatible types: equal, or one a trait value or `Any` that
+2. Rejects any operand type that does not implement `AnyRef`:
+   `identity-requires-references`. That covers primitives, strings,
+   tuples, every enum (optionals and `Result` included) and function
+   types ([`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)).
+   Only data, `List`, `Map`, trait values, `Any`, suspensions, handles and
+   `T < AnyRef` parameters pass. A function never reaches `T < AnyRef`,
+   because the bound check rejects it (`unsatisfied-trait-bound`).
+3. Requires compatible types: equal, or one a trait value or `Any` that
    the other converts to. Otherwise `incompatible-identity-operands`.
-5. Emits the comparison desugared for optionals and results.
-   `.Some(...)`, `.Ok(...)` and `.Err(...)` have no identity of their
-   own, so `a is b` on two optionals is a `SwitchTag` on both: two
-   `.None`s give `true`, two `.Some`s give `is` on the payloads, and mixed
-   tags give `false`. Results compare the same way, tag by tag. TIR's
-   `Is` instruction therefore only ever sees two operands of nominal
-   reference types.
+4. Emits `Is` with two operands of reference types; no desugaring for
+   optionals or results remains.
 
 When an `Any` or trait value holds a value type at run time, the result
 is unspecified. That is codegen's concern, not the checker's.
