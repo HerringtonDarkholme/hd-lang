@@ -33,9 +33,20 @@ Detailed design: [README.md](README.md)
   tuple boxes have no identity. `is` is a compile error on any operand whose
   static type is a value type (an optional or `Result` takes its payload's
   category) and on function values; on a value known only dynamically as
-  `Any`, the result is unspecified. Whether every enum becomes a value type
-  is under research
-  ([research-enum-values.md](research-enum-values.md), pending).
+  `Any`, the result is unspecified.
+- **Every enum is an identity-free value type** (`Option`, `Result` and user
+  enums; [research-enum-values.md](research-enum-values.md)). Enums and
+  function types move to `AnyVal`; `is` on an enum or a function value is
+  `identity-requires-references`. `Error` drops its `AnyRef` bound, and
+  `find` becomes the free function `std.error.find[T < Error](error) -> T?`,
+  which matches by `TypeId` and returns values through `downcast_val`;
+  data-type errors still downcast by reference.
+- A private item that a derive template names follows the public signature
+  rules (explicit result type, `$` clause or the empty row); the private
+  types it names are exported as hidden items too.
+- Accepted readings of the type-checking design: cross-statement literal
+  joins also cover private functions with omitted results; a GADT arm's
+  outer variables bind only to types free of the arm's refinements.
 - Literal widths are decided once per connected literal class; no
   per-statement retry.
 - An impl head may not project an impl parameter
