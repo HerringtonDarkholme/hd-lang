@@ -233,7 +233,13 @@ cancel function (§14.6).
      a shared-data access. Each one is an `EvalFact(fact)` task (§11.3),
      run in parallel after `Collect` and before `Emit` needs the value.
      `hd check` does not evaluate facts, as it does not collect
-     (open question 23.1-8).
+     (open question 23.1-8). Evaluation is **demand-driven**: a fact
+     that no built program reads is never evaluated, so its panic is
+     not reported. That needs a spec note (open question 23.1-9, needs
+     owner approval). A fact expression that reads another fact through
+     `facts_of` depends on that fact's `EvalFact` task and sees its
+     value, objects included; a cycle of such reads is
+     `fact-evaluation-failed` with the reason "fact cycle".
   2. **How.** A TIR interpreter in `hd_mono` walks the fact body's
      generic TIR under a substitution, as emission does, with values in
      an arena of its own. A body that is a tree of constants and
@@ -249,21 +255,56 @@ cancel function (§14.6).
      per fact, counted in language units, so the outcome is the same on
      every run (checking-and-tir.md §4.15). The limits are semantic and
      join `toolchain_key`.
-  5. **Result.** The value is converted to a global pool constant
-     (`Aggregate`, `Int`, `Str`, `ItemConst`). It may hold scalars,
-     strings, data and enum values, tuples, lists, maps and capture-free
-     functions. Shared structure stays shared, so a value that two
-     fields reach is one global.
-  6. **Failure.** A panic, an exhausted budget, a forbidden call, a
-     cycle, or a value with no constant form (a closure with captures, a
-     suspension, a handle) is `fact-evaluation-failed` (proposed). It is
-     reported on the fact expression with the reason and, for a panic,
-     the interpreter's backtrace. It is a build error.
-  7. **Cache.** A `fact` entry holds the value as an entry-local
-     constant row, under `H("fact", toolchain_key, fact stable path,
-     sorted [(module path, tir key)] of the modules reachable from the
-     fact's module in the use graph)`. The key is coarse and sound, as
-     `prog_key` is. The value's content hash joins `link_key` (§13.10).
+  5. **Result: a value graph (Codex re-review N6, N-S2).** Interning
+     would erase identity: two equal data objects that a fact keeps
+     apart must stay two objects, and one object reached twice must
+     stay one. So the result is serialized as a graph, not as pool
+     constants:
+     - **Leaves** are identity-free values that hold no allocation:
+       scalars, strings, enums, tuples and capture-free function values
+       (`ItemConst`). Only these are interned in the pool, by value. An
+       enum or tuple that holds an allocation is a value record that
+       names the allocation by number; it may be copied freely, but
+       the allocation may not (wasm-layout.md §15.2, representation
+       equivalence).
+     - **Allocations** are the data objects, lists, maps and arrays the
+       evaluation created. Each gets an allocation number in the
+       interpreter's allocation order, which is deterministic. A
+       record holds its type and its fields, each a leaf or an
+       allocation number. Equal records are never merged.
+     - **Roots** are the fact's value. An allocation of another fact,
+       read through `facts_of`, is named as `(fact, number)`, so it is
+       the same object in both.
+     Link emits one immutable global per allocation, in allocation
+     order, each a constant `struct.new` or `array.new_fixed` over
+     earlier globals and leaves. Two facts never share an allocation
+     unless one read the other.
+  6. **The compile-time value domain (needs owner approval, open
+     question 23.1-10).** A value with captures cannot be rebuilt by a
+     constant expression without also rebuilding its environment, and
+     a cycle cannot be built by constant `struct.new` at all. So the
+     first release accepts leaves and an acyclic graph of fresh
+     allocations. A closure with captures, a suspension, a handle, or
+     a cyclic graph is `fact-evaluation-failed`, with the reason
+     named. The interpreter finds a cycle while serializing, by a
+     visited mark per allocation.
+  7. **Failure.** A panic, an exhausted budget, a forbidden call, a
+     fact cycle, or a value outside the domain is
+     `fact-evaluation-failed`. It is reported on the fact expression
+     with the reason and, for a panic, the interpreter's backtrace. It
+     is a build error.
+  8. **Cache.** A `fact` entry holds the serialized graph, under
+     `H("fact", toolchain_key, fact stable path, sorted [(module path,
+     tir key)] of the modules reachable from the fact's module in the
+     use graph)`. The key is coarse and sound, as `prog_key` is. The
+     graph's content hash joins `link_key` (§13.10).
+  9. **No code specializes on a fact's value (Codex re-review N-A2).**
+     Emitted code reads a fact only through `global.get` of its root
+     global, a `Global` relocation. Constant folding, dead-branch
+     elimination and inlining stop at that read, so no code key needs
+     the value hash, and a changed fact only relinks. A test edits a
+     fact's private helper in another module, flips a boolean fact, and
+     checks that the consumer's branch follows without re-emission.
 - **Derives.** Derive instances, including the generated `walk`,
   `describe` and `build`, are ordinary bodies (§4.13.9). With the
   walker's type known at each instance, every `w.member(h, value)` call is
@@ -376,7 +417,7 @@ differ only where the spec or a first-release feature says so.
 | counted loops (§12.5) | yes | yes | first release |
 | `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values (§15.1); decision B, extended to `Result` (owner, 2026-10-07) | yes | yes | first release |
 | capture-free closures as constants | yes | yes | first release |
-| constant folding and dead branches during the walk | yes | yes | first release |
+| constant folding and dead branches during the walk; never on a fact's value (§12.3) | yes | yes | first release |
 | trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | yes | yes | first release (mine) |
 | bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters | yes | yes | first release (owner, 2026-10-07) |
 | scalar replacement: a non-escaping closure, cell or small data value after inlining becomes locals; an escape analysis in the analysis passes of §12.1, before emission | yes | yes | first release (owner, 2026-10-07) |

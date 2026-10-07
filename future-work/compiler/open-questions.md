@@ -222,6 +222,29 @@ editing D1 in place:
    in `hd check` too, makes a check's result depend on other modules'
    bodies, which its cache key does not cover.
 
+9. **Must an unread fact that panics fail the build?** (new,
+   2026-10-07, from Codex re-review N-C2 and question 3.) The spec says
+   a fact "is evaluated once, at compile time", and a panic during
+   evaluation is a build error. It does not say whether a fact that no
+   program reads is evaluated. **Recommendation:** demand-driven. Only
+   the facts a built program reads are evaluated (codegen.md §12.3), and
+   a spec note says so: an unread fact's panic is not reported. The
+   cost is that adding a read can surface an old panic; a panicking fact
+   is rare and contrived. Eager evaluation of every attached fact in the
+   program's modules is the alternative; it costs interpreter time for
+   facts nobody reads.
+10. **Which values can a compile-time value hold?** (new, 2026-10-07,
+   from Codex re-review N6, N-C2 and question 4.)
+   [`annot.metadata.any-value`](../../spec/lang/14-annotations.md#r-annot.metadata.any-value)
+   says "any compile-time value" without defining the term.
+   **Recommendation:** define it as identity-free values (primitives,
+   strings, enums, tuples, capture-free function values) plus an
+   acyclic graph of data, list, map and array objects allocated during
+   the evaluation, whose sharing and distinctness are kept. A closure
+   with captures, a suspension, a handle or a cycle is
+   `fact-evaluation-failed`. Each is rejected because a constant
+   expression cannot rebuild it, and no known template needs one.
+
 ### 23.2 Inconsistencies Found In The Inputs
 
 1. **Folding reference instances.** The research says `List[Point].push`

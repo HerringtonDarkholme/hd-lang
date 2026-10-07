@@ -653,7 +653,7 @@ intern time.
 | `Bool`, `Unit` | the value | none; pre-seeded | |
 | `Char` | the scalar | none | |
 | `Str` | offset | `[byte offset, length]` into `bytes` | |
-| `Aggregate` | offset | `[ty, count, value Index × count]` | |
+| `Aggregate` | offset | `[ty, count, value Index × count]` | identity-free values only (tuples, enums); a fact's data, list and map objects are allocation records of its value graph, never `Aggregate`s (codegen.md §12.3) |
 | `ItemConst` | offset | `[DefId, type args TyList]`: a function or a payloadless variant as a value | |
 
 - **Constant encoding fixed.** D1's `IntSmall` put the value in `data` and

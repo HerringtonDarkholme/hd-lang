@@ -133,6 +133,15 @@ fields...)` as `multi`, boxed in one immutable struct past 4 Wasm values
 as §15.1 says. A self-recursive payload stays a reference, as the flat
 or subtype layout above has it.
 
+**Representation equivalence (Codex re-review N-B2).** Identity-free
+means the enum's own shell may be copied, deduplicated or hoisted into a
+constant. It does not mean a referenced object may be replaced by an
+equal one. Two enum values are interchangeable only when their value
+components are equal by representation and their reference components
+are the same objects (`ref.eq`); hd's `Eq` is never the test. Constant
+hoisting, enum hash-consing and the fact graph (codegen.md §12.3) all
+use this rule.
+
 **Emitting `is`.** The TIR `Is` instruction
 ([checking-and-tir.md](checking-and-tir.md#instruction-catalog)) lowers by
 the operands' layout:
@@ -197,7 +206,7 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 | vtables, capture-free closures, payloadless variant singletons, member handles | immutable | a constant expression (`struct.new` and `ref.func` are constant in Wasm GC) |
 | short string literals (16 bytes or less) | immutable | a constant expression (`array.new_fixed`) |
 | other string literals | mutable, nullable | lazily: the first use runs `array.new_data` |
-| fact values, metadata, shared enum data | immutable | a constant expression built from the compile-time value (codegen.md §12.3); no fact has a getter |
+| fact values, metadata, shared enum data | immutable | one global per allocation of the value graph, in allocation order, each a constant expression over earlier ones (codegen.md §12.3); no fact has a getter |
 | runtime state: panic category and site, the wake table, the forbidden-context counter | mutable | constants |
 
 - **Init order.** The `hd.init` export calls each reachable group's init
