@@ -94,6 +94,19 @@ verifier and printer.
 | 9. The browser | the JS glue, the program worker, synchronous mode, the headless-browser adapter | the runtime cases pass on wasmtime and in the browser with one known-failures list | browser size recorded; `allocations` on V8 through the glue |
 | 10. The optimized pipeline | the pass manager and the optimized pipeline of [tiering.md](tiering.md): bounded inlining, closure specialization, devirtualization and scalar replacement, which the dev pipeline does not run; the measured engine choices (§18.6, spike T1); spike T2 decides Binaryen | no conformance regression; every runtime case passes on both pipelines with the same output (tiering.md §4.3); Wasm still deterministic; GC collections, total and max pause per `runtime-suite` case, and the p99 pause and request latency of `long-run-memory`, reported against the pause budget once set | `runtime` (≤ 1.5x Node), `allocations` (chains ≤ 1), `serde-throughput`, `long-run-memory` |
 
+**Wasm first (owner, 2026-10-07: "let's first focus on wasm").** The
+back half first produces correct, deterministic Wasm GC and runs it on
+V8 through Node, the engine the browser and the playground use. Until
+the Wasm path passes slice 7's runtime cases:
+
+- wasmtime is embedded with its default configuration only, as the
+  runner behind `hd run`; no Cranelift level or allocator choice (spike
+  T1), no `cwasm` entries or precompiling, no native code packs;
+- Binaryen (T2), test-run laziness (T3), dev inlining (T4) and pass
+  fusion (T5) wait for slice 10;
+- slice 6's "Cranelift time recorded" and `cwasm` entry, and slice 8's
+  Cranelift and `cwasm` counts, are deferred with them.
+
 ### 22.1 How The Pillar 3 Targets Are Met
 
 | Metric | Target | How | Status |
