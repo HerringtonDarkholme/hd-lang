@@ -6,6 +6,8 @@ use std.error.Error
 
 # Why decoding failed, at a byte offset into the text
 # (r-std-encoding.error.position-bytes).
+## Why decoding failed: the kind, and the byte position.
+## See [std-encoding.error.declared](../../spec/std/encoding.md#r-std-encoding.error.declared).
 pub enum DecodeError:
     # A character outside the alphabet.
     InvalidCharacter(position: usize)
@@ -33,6 +35,8 @@ impl Display for DecodeError:
 impl Error for DecodeError
 
 # Lowercase hex, two digits per byte (r-std-encoding.hex.encode).
+## The bytes as lowercase hex text, two digits per byte.
+## See [std-encoding.hex.encode](../../spec/std/encoding.md#r-std-encoding.hex.encode).
 pub fn hex_encode(bytes: List[u8]) -> string:
     let codes: mut List[u8] = []
     for byte in bytes:
@@ -42,6 +46,8 @@ pub fn hex_encode(bytes: List[u8]) -> string:
 
 # Either case; the length is checked first, then each character from the
 # left (r-std-encoding.hex.decode.order).
+## Reads hex text into bytes, or returns the first error.
+## See [std-encoding.hex.decode](../../spec/std/encoding.md#r-std-encoding.hex.decode).
 pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
     codes := ascii_codes(text)
     size := codes.len()
@@ -62,6 +68,8 @@ pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
 
 # The RFC 4648 standard alphabet with `=` padding
 # (r-std-encoding.base64.encode).
+## The bytes as base64 text with padding.
+## See [std-encoding.base64.encode](../../spec/std/encoding.md#r-std-encoding.base64.encode).
 pub fn base64_encode(bytes: List[u8]) -> string:
     let codes: mut List[u8] = []
     size := bytes.len()
@@ -90,6 +98,8 @@ pub fn base64_encode(bytes: List[u8]) -> string:
 
 # Canonical text only: the length is checked first, then the characters
 # from the left, then the pad bits (r-std-encoding.base64.decode.order).
+## Reads base64 text into bytes, or returns the first error.
+## See [std-encoding.base64.decode](../../spec/std/encoding.md#r-std-encoding.base64.decode).
 pub fn base64_decode(text: string) -> Result[List[u8], DecodeError]:
     codes := ascii_codes(text)
     size := codes.len()
