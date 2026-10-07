@@ -53,7 +53,22 @@ tests:
 
 A key that is present wins over the declared default; a key that is
 missing with no default is an error. For the compact text of a value,
-`encode` writes it; `decode` reads it back.
+`encode` writes it; `decode` reads it back. Declare a count you will
+compare with `len()` as `usize`, the type `len()` returns: a signed
+field such as `i32` does not mix with a `usize` without a cast.
+
+When the caller itself returns a `Result` of the same error, `?` passes
+the error up, so no `match` is needed:
+
+```hd
+fn retry_limit(text: string) -> Result[i32, JsonError]:
+    config := decode::[Config](text)?
+    .Ok(config.limits.retries)
+```
+
+The error must be the function's own error type, so two different ones,
+such as a time parse and a number parse in one scanner, still need a
+`match`.
 
 ## Documentation That Runs As Tests
 
@@ -81,7 +96,10 @@ pub fn total(prices: List[i32]) -> i32:
 ```
 
 A doc test is its own program: it imports what it uses, from the package
-under `pkg` or from `std`. Run it with `hd test` in the package.
+under `pkg` or from `std`. Run it with `hd test` in the package. The
+file's own `use` lines go above the doc comment: the comment attaches to
+the declaration immediately after it, so it cannot stand on a `use`
+line, and no blank line may separate it from its declaration.
 
 ## Concurrent Work With A Timeout
 
@@ -91,7 +109,14 @@ order; `race!` returns the first to finish and cancels the rest. Both take
 cold suspensions — plain calls, not bang calls — so `race!(fetch_user(),
 slow())` starts two candidates and keeps one. A test binds a fake store
 and a manual clock, so the timeout never actually fires. The exact rules
-are in [Tasks](../spec/std/task.md):
+are in [Tasks](../spec/std/task.md). Two bounds of the pattern are worth
+knowing before you extend it. An implementation's method must repeat the
+trait's signature, row included, so a fake store that itself suspends —
+a slow one — needs the trait to declare the row, as in
+`fn lookup!(self, key: string) -> string $ Clock`. And a `ManualClock`'s
+`sleep!` never waits: it completes at once and advances the virtual
+time, so a test can check the fast path and the clock's reads, but not
+which of two sleeps finishes first.
 
 ```hd
 use std.task.{all, race}
