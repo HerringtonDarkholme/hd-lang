@@ -10,4 +10,6 @@
 # `(A,)`, and a tuple with a rest element included
 # (r-fn.type.ctor.tuple-trait, r-fn.type.ctor.tuple-trait.rest). Only the
 # compiler implements it, as it does `Inspectable` (r-trait.sealed.tuple).
+## The empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
+## See [fn.type.ctor.tuple-trait](../../spec/lang/07-functions.md#r-fn.type.ctor.tuple-trait).
 pub trait Tuple
