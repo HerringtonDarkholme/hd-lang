@@ -1,4 +1,9 @@
 # test: match guards
+# Spec 06 Match Guards: flow.match.subject, flow.match.guard,
+# flow.match.guard.eval, flow.match.guard.result,
+# flow.match.guard.skipped, flow.match.body,
+# flow.match.guard.coverage, flow.match.guard.later-arm,
+# flow.match.catch-all.guarded, flow.match.duplicate.guarded.
 
 use std.testing.assert_equal
 

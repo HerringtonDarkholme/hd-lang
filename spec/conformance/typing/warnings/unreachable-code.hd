@@ -1,3 +1,6 @@
+# Spec 06 Unreachable Code: flow.unreachable.def,
+# flow.unreachable.warning, flow.unreachable.checked,
+# flow.unreachable.policy.
 fn example() -> i32:
     return 1
     2  # warning: unreachable-code

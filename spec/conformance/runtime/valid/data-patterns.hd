@@ -1,4 +1,9 @@
 # test: data patterns destructure nested fields and test literals
+# Spec 06 Data Patterns: flow.match.data, flow.match.data.bind,
+# flow.match.data.literal, flow.match.data.unlisted, flow.match.data.label,
+# flow.match.data.fields, flow.match.data.public,
+# flow.match.data.nominal, flow.match.data.bind-primitive,
+# flow.match.data.bind-composite, flow.match.nested.
 # Spec 08 Data Patterns: data.pattern.form, data.pattern.subset, data.pattern.fields.
 
 use std.testing.assert_equal

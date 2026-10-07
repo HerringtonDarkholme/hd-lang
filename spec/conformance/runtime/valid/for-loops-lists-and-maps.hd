@@ -1,4 +1,11 @@
 # test: for loops iterate lists and maps with continue, destructuring, and else values
+# Spec 06 For Loops: flow.for.iterable-once, flow.for.fresh-iterator,
+# flow.for.binding, flow.for.iterator-next, flow.for.iterator-exhausted,
+# flow.for.iterable, flow.for.list, flow.for.map.entries,
+# flow.for.map.value, flow.continue, flow.break.boundary,
+# flow.loop.else.value, flow.loop.else.break-value,
+# flow.loop.else.exhaustion, flow.loop.else.plain-break,
+# flow.loop.else.continue.
 
 use std.testing.assert_equal
 

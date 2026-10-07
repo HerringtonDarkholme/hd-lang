@@ -1,4 +1,7 @@
 # test: while else break value
+# Spec 06 Loop Values: flow.loop.else.value,
+# flow.loop.else.break-value, flow.loop.else.type,
+# flow.loop.else.skipped.
 
 use std.testing.assert_equal
 

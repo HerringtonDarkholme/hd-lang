@@ -1,3 +1,6 @@
+# Spec 06 Deferred Cleanup: flow.defer.register, flow.defer.run,
+# flow.defer.result-saved, flow.defer.operands, flow.defer.captures,
+# flow.defer.scopes, flow.defer.void.
 use std.testing.assert_equal
 
 data Trace:

@@ -1,4 +1,6 @@
 # test: a let-else block may end in continue, break, a panic, or an if whose branches diverge
+# Spec 06 Let-Else: flow.let.bind, flow.let.else.order,
+# flow.let.else.diverge.
 # Spec 06 Let Patterns: flow.let.else.diverge.forms (owner decision LP1, batch 26, 2026-09-30).
 enum Shape:
     Dot(x: i32)

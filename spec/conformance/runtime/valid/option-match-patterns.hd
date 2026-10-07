@@ -1,4 +1,10 @@
 # test: optionals are matched with ordinary enum patterns
+# Spec 06 Optional Patterns: flow.match.optional,
+# flow.match.optional.some, flow.match.optional.none,
+# flow.match.optional.qualified, flow.match.optional.bare,
+# flow.match.optional.nested, flow.match.contextual,
+# flow.match.payload.parentheses, flow.match.payload.required,
+# flow.match.literal-payload.
 use std.testing.assert_equal
 
 fn describe(value: i32?) -> string:

@@ -1,4 +1,6 @@
 # test: while break and continue
+# Spec 06 While Loops: flow.while.condition, flow.continue,
+# flow.break.boundary, flow.loop.void.type, flow.loop.void.break.
 
 use std.testing.assert_equal
 

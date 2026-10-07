@@ -1,6 +1,9 @@
 # test: a spread pattern binds a rest tuple's rest element to its list in let, for, and match
 # expect: test
 # Spec 06 Spread Patterns: flow.match.spread.bind (owner decision Q6, batch 34, 2026-10-01).
+# Also exercises flow.match.spread.rest, flow.match.spread.cover,
+# flow.match.literal-payload.rest, flow.match.bind.primitive,
+# flow.match.bind.composite, flow.match.bind.tuple, and flow.match.nested.
 use std.testing.assert_equal
 
 fn total(t: (usize, usize, List[i32]...)) -> usize:

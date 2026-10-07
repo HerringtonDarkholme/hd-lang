@@ -1,4 +1,7 @@
 # test: defer runs after a return value is evaluated
+# Spec 06 Return And Defer: flow.return.value, flow.return.type,
+# flow.defer.register, flow.defer.run, flow.defer.result-saved,
+# flow.defer.operands.
 
 use std.testing.assert_equal
 
