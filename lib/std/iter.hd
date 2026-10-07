@@ -19,16 +19,24 @@
 
 use std.num.Num
 
+## A cursor that yields items of `T` one at a time: what `Iterable.iter` returns and `for` accepts directly.
+## See [flow.for.iterator-type](../../spec/lang/06-control-flow.md#r-flow.for.iterator-type).
 pub data Iterator[T]:
     step: fn() -> T?
 
 impl[T] Iterator[T]:
+    ## Builds an iterator whose items are what `step` returns, ending at its first `.None`.
+    ## See [flow.for.iterator-from-fn](../../spec/lang/06-control-flow.md#r-flow.for.iterator-from-fn).
     pub fn from_fn(step: fn() -> T?) -> mut Iterator[T]:
         Iterator::[T] { step: step }
 
+    ## Advances the iterator: the next item, or `.None` at the end.
+    ## See [flow.for.iterator-next](../../spec/lang/06-control-flow.md#r-flow.for.iterator-next).
     pub fn next(mut self) -> T?:
         (self.step)()
 
+    ## A new iterator over the items of `self` for which `keep` returns `true`.
+    ## See [std-iter.adapter.filter](../../spec/std/iter.md#r-std-iter.adapter.filter).
     pub fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
         Iterator::from_fn(fn() -> T?:
             while true:
@@ -39,6 +47,8 @@ impl[T] Iterator[T]:
                     .None => return .None
         )
 
+    ## A new iterator over the first `count` items of `self`, or fewer when `self` ends first.
+    ## See [std-iter.adapter.take-first](../../spec/std/iter.md#r-std-iter.adapter.take-first).
     pub fn take(mut self, count: usize) -> mut Iterator[T]:
         let left = count
         Iterator::from_fn(fn() -> T?:
@@ -48,6 +58,8 @@ impl[T] Iterator[T]:
             self.next()
         )
 
+    ## A new iterator over `(index, item)` pairs, with `usize` indices counting from `0`.
+    ## See [std-iter.adapter.enumerate-usize](../../spec/std/iter.md#r-std-iter.adapter.enumerate-usize).
     pub fn enumerate(mut self) -> mut Iterator[(usize, T)]:
         let index: usize = 0
         Iterator::from_fn(fn() -> (usize, T)?:
@@ -59,6 +71,8 @@ impl[T] Iterator[T]:
                 .None => .None
         )
 
+    ## A new iterator over `transform(item)` for each item of `self`, in order.
+    ## See [std-iter.adapter.map](../../spec/std/iter.md#r-std-iter.adapter.map).
     pub fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]:
         Iterator::from_fn(fn() -> U?:
             match self.next():
@@ -67,6 +81,8 @@ impl[T] Iterator[T]:
         )
 
     # Skips the first `count` items on its own first `next` call.
+    ## A new iterator over the items of `self` after the first `count`.
+    ## See [std-iter.adapter.skip-first](../../spec/std/iter.md#r-std-iter.adapter.skip-first).
     pub fn skip(mut self, count: usize) -> mut Iterator[T]:
         let left = count
         Iterator::from_fn(fn() -> T?:
@@ -80,6 +96,8 @@ impl[T] Iterator[T]:
 
     # The items while `keep` holds; the first item it rejects is consumed
     # and dropped, and no item after it is read.
+    ## A new iterator over the items of `self` before the first one for which `keep` returns `false`.
+    ## See [std-iter.adapter.take-while](../../spec/std/iter.md#r-std-iter.adapter.take-while).
     pub fn take_while(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
         let open = true
         Iterator::from_fn(fn() -> T?:
@@ -97,6 +115,8 @@ impl[T] Iterator[T]:
     # Pairs by position. It calls `other.iter()` once, when `zip` is
     # called. It pulls `self` first and stops when either ends, so `other`
     # is not read past the end of `self`.
+    ## A new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends.
+    ## See [std-iter.adapter.zip-iterable](../../spec/std/iter.md#r-std-iter.adapter.zip-iterable).
     pub fn zip[U, I < Iterable[U]](mut self, other: I) -> mut Iterator[(T, U)]:
         let mut rest = other.iter()
         Iterator::from_fn(fn() -> (T, U)?:
@@ -110,6 +130,8 @@ impl[T] Iterator[T]:
 
     # The items of `self`, then those of `other`. It calls `other.iter()`
     # once, when `chain` is called.
+    ## A new iterator over the items of `self`, then those of `other`.
+    ## See [std-iter.adapter.chain-iterable](../../spec/std/iter.md#r-std-iter.adapter.chain-iterable).
     pub fn chain[I < Iterable[T]](mut self, other: I) -> mut Iterator[T]:
         let mut rest = other.iter()
         let first = true
@@ -122,6 +144,8 @@ impl[T] Iterator[T]:
         )
 
     # The items of each list `transform` returns, in order.
+    ## A new iterator over the elements of each list that `transform(item)` returns, in order.
+    ## See [std-iter.adapter.flat-map](../../spec/std/iter.md#r-std-iter.adapter.flat-map).
     pub fn flat_map[U](mut self, transform: fn(T) -> List[U]) -> mut Iterator[U]:
         let part: List[U] = []
         let at: usize = 0
@@ -137,6 +161,8 @@ impl[T] Iterator[T]:
         )
 
     # Stops at the first item that passes, leaving the rest unread.
+    ## True when `test` accepts an item; it stops at the first one.
+    ## See [std-iter.adapter.any](../../spec/std/iter.md#r-std-iter.adapter.any).
     pub fn any(mut self, test: fn(T) -> bool) -> bool:
         while true:
             match self.next():
@@ -147,6 +173,8 @@ impl[T] Iterator[T]:
         false
 
     # Stops at the first item that fails, leaving the rest unread.
+    ## True when `test` accepts every item; it stops at the first one it rejects.
+    ## See [std-iter.adapter.all](../../spec/std/iter.md#r-std-iter.adapter.all).
     pub fn all(mut self, test: fn(T) -> bool) -> bool:
         while true:
             match self.next():
@@ -157,6 +185,8 @@ impl[T] Iterator[T]:
         true
 
     # The first item that passes, leaving the rest unread.
+    ## The first item that `test` accepts, in `.Some`, or `.None`.
+    ## See [std-iter.adapter.find](../../spec/std/iter.md#r-std-iter.adapter.find).
     pub fn find(mut self, test: fn(T) -> bool) -> T?:
         while true:
             match self.next():
@@ -167,6 +197,8 @@ impl[T] Iterator[T]:
         .None
 
     # The number of remaining items; it drains `self`.
+    ## The number of remaining items; it drains the iterator.
+    ## See [std-iter.adapter.count.drain](../../spec/std/iter.md#r-std-iter.adapter.count.drain).
     pub fn count(mut self) -> usize:
         let found: usize = 0
         while true:
@@ -175,6 +207,8 @@ impl[T] Iterator[T]:
                 .None => break
         found
 
+    ## Folds the remaining items into `initial`: `step(accumulator, item)` per item, in order.
+    ## See [std-iter.adapter.fold](../../spec/std/iter.md#r-std-iter.adapter.fold).
     pub fn fold[A, $R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         let total = initial
         while true:
@@ -186,12 +220,16 @@ impl[T] Iterator[T]:
     # The target is solved from the expected type or an explicit type
     # argument, and is `List[T]` when nothing determines it
     # (spec/std/iter.md#collect-targets).
+    ## A `C` built from the remaining items of `self`; a list when the target type is not named.
+    ## See [std-iter.adapter.collect-defaulted](../../spec/std/iter.md#r-std-iter.adapter.collect-defaulted).
     pub fn collect[C < FromIterator[T] = List[T]](mut self) -> C:
         C::from_iter(self)
 
 # The total of a numeric iterator (r-std-iter.adapter.sum.order). It starts at zero and
 # adds with `+`, so an integer total that overflows panics like any sum.
 impl[T < Num] Iterator[T]:
+    ## The sum of the remaining items, which a `Num` item type supports.
+    ## See [std-iter.adapter.sum](../../spec/std/iter.md#r-std-iter.adapter.sum).
     pub fn sum(mut self) -> T:
         let total = T::zero()
         while true:
@@ -201,6 +239,8 @@ impl[T < Num] Iterator[T]:
         total
 
 # A collection built from the items of an iterator. It is not a prelude name.
+## What `collect` builds: a target that gathers items of `T`.
+## See [std-iter.collect.trait](../../spec/std/iter.md#r-std-iter.collect.trait).
 pub trait FromIterator[T]:
     fn from_iter(items: mut Iterator[T]) -> Self
 
@@ -264,6 +304,8 @@ impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
 
 # A value that a `for` loop or a comprehension clause iterates
 # (spec/lang/06-control-flow.md#iteration-protocols).
+## What `for` iterates: a type whose `iter` returns an iterator of its items.
+## See [flow.for.iterable](../../spec/lang/06-control-flow.md#r-flow.for.iterable).
 pub trait Iterable[T]:
     fn iter(self) -> mut Iterator[T]
 
