@@ -75,6 +75,10 @@ Detailed design: [README.md](README.md)
 - REPL redefinition is shadowing: earlier items keep the old definition
   (`live-execution.md`). A rebuild may lose a stopped (busy, interrupted)
   input's changes, with a spec rule and a REPL report.
+- Associated types: a `dyn` type must bind every associated type (Rust
+  style, `trait.dyn.binding.complete` unchanged). When two supertrait paths
+  bind the same associated type, equal bindings merge and different ones
+  are `duplicate-associated-binding` at the declaring trait.
 - **GADTs are removed from the language** (chapter 13, its fixtures and
   every refinement rule). Typed request/response APIs use traits with
   associated types; typed interpreters use a runtime value enum or traits.
