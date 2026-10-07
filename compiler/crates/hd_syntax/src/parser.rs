@@ -5,7 +5,7 @@ use hd_diag::{Code, Diagnostic};
 use hd_intern::Interner;
 
 use crate::green::{Event, build};
-use crate::{GreenTree, Layout, SyntaxKind, TokenBuf, TokenKind, lex, skeleton_from_layout};
+use crate::{GreenTree, Layout, SyntaxKind, TokenBuf, TokenKind, lex};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -78,6 +78,7 @@ pub fn parse(source: &[u8]) -> Parse {
 struct Parser<'t> {
     source: &'t str,
     tokens: &'t TokenBuf,
+    line_end: Vec<usize>,
     events: Vec<Event>,
 }
 
@@ -86,6 +87,7 @@ impl<'t> Parser<'t> {
         Self {
             source,
             tokens,
+            line_end: tokens.line_token_ends(),
             events: Vec::with_capacity(tokens.len() * 2),
         }
     }
@@ -208,14 +210,7 @@ impl<'t> Parser<'t> {
 
     fn line_tokens(&self, line: usize) -> Option<(usize, usize)> {
         let first = self.tokens.line_tok[line].get()?.idx();
-        let end = self
-            .tokens
-            .line_tok
-            .iter()
-            .skip(line + 1)
-            .find_map(|token| token.get())
-            .map_or(self.tokens.len(), TokenIdx::idx);
-        Some((first, end))
+        Some((first, self.line_end[line]))
     }
 
     fn next_token_line(&self, from: usize) -> Option<usize> {
@@ -238,7 +233,8 @@ fn collect_layout(tokens: &TokenBuf) -> Vec<(TokenIdx, Layout)> {
     let mut result = Vec::new();
     let mut indents = vec![0_u16];
     let mut first_line = true;
-    for line in 0..tokens.line_tok.len() {
+    let line_end = tokens.line_token_ends();
+    for (line, &end) in line_end.iter().enumerate() {
         let Some(first) = tokens.line_tok[line].get() else {
             continue;
         };
@@ -256,12 +252,6 @@ fn collect_layout(tokens: &TokenBuf) -> Vec<(TokenIdx, Layout)> {
                 result.push((first, Layout::Dedent));
             }
         }
-        let end = tokens
-            .line_tok
-            .iter()
-            .skip(line + 1)
-            .find_map(|token| token.get())
-            .map_or(tokens.len(), TokenIdx::idx);
         if let Some(colon) =
             (first.idx()..end).rfind(|&index| tokens.kind[index] == TokenKind::Colon)
             && colon + 1 < end
@@ -344,17 +334,12 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
     validate_indentation(tokens, &mut diagnostics);
     let mut enum_indent = None;
     let mut container = None;
-    for line in 0..tokens.line_tok.len() {
+    let line_end = tokens.line_token_ends();
+    for (line, &end) in line_end.iter().enumerate() {
         let Some(first) = tokens.line_tok[line].get() else {
             continue;
         };
         let start = first.idx();
-        let end = tokens
-            .line_tok
-            .iter()
-            .skip(line + 1)
-            .find_map(|token| token.get())
-            .map_or(tokens.len(), TokenIdx::idx);
         let kinds = &tokens.kind[start..end];
         let word = tokens.text(first, source);
         let indent = tokens.line_indent[line];
@@ -456,10 +441,74 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
                 tokens.end[end - 1],
             );
         }
-        validate_line(source, tokens, start, end, &mut diagnostics);
+        let line_text = &source[tokens.start[start] as usize..tokens.end[end - 1] as usize];
+        let string_needs_validation = kinds.contains(&TokenKind::String)
+            && (line_text.contains('$')
+                || line_text.starts_with("if\"")
+                || line_text.starts_with("for\"")
+                || line_text.starts_with("let\"")
+                || line_text.starts_with("match\"")
+                || line_text.starts_with("return\"")
+                || line_text.starts_with("true\"")
+                || line_text.starts_with("false\""));
+        let dot_needs_validation = kinds
+            .windows(2)
+            .any(|pair| pair == [TokenKind::Dot, TokenKind::Number])
+            || line_text.contains(".type");
+        let eq_needs_validation = kinds.contains(&TokenKind::Eq)
+            && (kinds.contains(&TokenKind::Comma)
+                || kinds.contains(&TokenKind::StarStar)
+                || (kinds.contains(&TokenKind::Colon) && kinds.contains(&TokenKind::String))
+                || line_text.starts_with("i32 "));
+        if word == "use"
+            || kinds == [TokenKind::Colon]
+            || string_needs_validation
+            || dot_needs_validation
+            || eq_needs_validation
+            || line_needs_validation(kinds)
+        {
+            validate_line(source, tokens, start, end, &mut diagnostics);
+        }
     }
-    let _ = skeleton_from_layout(source, tokens);
     diagnostics
+}
+
+fn line_needs_validation(kinds: &[TokenKind]) -> bool {
+    kinds.iter().any(|kind| {
+        matches!(
+            kind,
+            TokenKind::KwData
+                | TokenKind::KwDefer
+                | TokenKind::KwDyn
+                | TokenKind::KwEnum
+                | TokenKind::KwFn
+                | TokenKind::KwFor
+                | TokenKind::KwIf
+                | TokenKind::KwImpl
+                | TokenKind::KwLet
+                | TokenKind::KwMut
+                | TokenKind::KwPub
+                | TokenKind::KwTests
+                | TokenKind::KwTrait
+                | TokenKind::KwType
+                | TokenKind::DotDot
+                | TokenKind::DotDotEq
+                | TokenKind::Ellipsis
+                | TokenKind::EllipsisEq
+                | TokenKind::StarStar
+                | TokenKind::EqEq
+                | TokenKind::NotEq
+                | TokenKind::Lt
+                | TokenKind::LtEq
+                | TokenKind::Gt
+                | TokenKind::GtEq
+                | TokenKind::ColonEq
+                | TokenKind::ColonColon
+                | TokenKind::Question
+                | TokenKind::Dollar
+                | TokenKind::At
+        )
+    })
 }
 
 fn comparison_chains(kinds: &[TokenKind]) -> bool {
@@ -523,6 +572,7 @@ fn validate_line(
     let hi = tokens.end[end - 1];
     let raw = source[lo as usize..hi as usize].trim();
     let kinds = &tokens.kind[start..end];
+    let has = |kind| kinds.contains(&kind);
     let syntax = |output: &mut Vec<Diagnostic>| push_diag(output, Code::SyntaxError, lo, hi);
 
     if comparison_chains(kinds) {
@@ -622,31 +672,36 @@ fn validate_line(
         }
     }
 
-    let forbidden = [
-        "$.with(...",
-        "$.context(...",
-        "-> mut fn",
-        ":= mut fn",
-        "[reified ",
-        " $ mut ",
-        "type Both = $",
-        "for mut ",
-        "fn[T]",
-        " - Logger",
-    ];
-    if forbidden.iter().any(|needle| raw.contains(needle)) {
+    if (has(TokenKind::Dollar)
+        && has(TokenKind::Ellipsis)
+        && (raw.contains("$.with(...") || raw.contains("$.context(...")))
+        || (has(TokenKind::KwMut)
+            && ((has(TokenKind::KwFn) && (raw.contains("-> mut fn") || raw.contains(":= mut fn")))
+                || (has(TokenKind::Dollar) && raw.contains(" $ mut "))
+                || (has(TokenKind::KwFor) && raw.contains("for mut "))))
+        || (has(TokenKind::KwType) && has(TokenKind::Dollar) && raw.contains("type Both = $"))
+        || (has(TokenKind::KwFn) && raw.contains("fn[T]"))
+        || (has(TokenKind::Minus) && raw.contains(" - Logger"))
+        || raw.contains("[reified ")
+    {
         syntax(diagnostics);
     }
-    if (start..end).any(|index| {
-        matches!(tokens.kind[index], TokenKind::Ident | TokenKind::RawIdent)
-            && tokens.text(TokenIdx::from_raw(as_u32(index)), source) == "where"
-    }) {
+    if has(TokenKind::KwImpl)
+        && (start..end).any(|index| {
+            matches!(tokens.kind[index], TokenKind::Ident | TokenKind::RawIdent)
+                && tokens.text(TokenIdx::from_raw(as_u32(index)), source) == "where"
+        })
+    {
         syntax(diagnostics);
     }
-    if raw.starts_with("pub use ") && !raw.contains(".{") {
+    if kinds.first() == Some(&TokenKind::KwPub)
+        && raw.starts_with("pub use ")
+        && !raw.contains(".{")
+    {
         syntax(diagnostics);
     }
-    if raw.starts_with("use ")
+    if kinds.first() == Some(&TokenKind::Ident)
+        && raw.starts_with("use ")
         && !(raw.starts_with("use pkg.")
             || raw.starts_with("use std.")
             || raw.starts_with("use dep.")
@@ -655,53 +710,57 @@ fn validate_line(
     {
         syntax(diagnostics);
     }
-    if raw.starts_with("pub ") && raw.contains(":=") {
+    if kinds.first() == Some(&TokenKind::KwPub) && has(TokenKind::ColonEq) {
         syntax(diagnostics);
     }
-    if raw.contains(".*")
-        || raw.contains("**=")
-        || raw.contains(" = 0...")
-        || raw.contains("... =")
-        || (raw.contains("::[") && raw.contains("]!("))
+    if (has(TokenKind::Dot) && has(TokenKind::Star) && raw.contains(".*"))
+        || (has(TokenKind::StarStar) && has(TokenKind::Eq))
+        || (has(TokenKind::Ellipsis) && (raw.contains(" = 0...") || raw.contains("... =")))
+        || (has(TokenKind::ColonColon)
+            && has(TokenKind::Bang)
+            && raw.contains("::[")
+            && raw.contains("]!("))
     {
         syntax(diagnostics);
     }
-    if raw.contains("{ ") && raw.contains(", ...") {
+    if has(TokenKind::Ellipsis) && has(TokenKind::LBrace) && raw.contains(", ...") {
         syntax(diagnostics);
     }
-    if raw.starts_with("fn ") && raw.contains("[T:") {
+    if kinds.first() == Some(&TokenKind::KwFn) && raw.contains("[T:") {
         syntax(diagnostics);
     }
-    if raw.starts_with("trait ") && raw.contains(": ") && !raw.ends_with(':') {
+    if kinds.first() == Some(&TokenKind::KwTrait) && raw.contains(": ") && !raw.ends_with(':') {
         syntax(diagnostics);
     }
-    if raw.starts_with("i32 ") && raw.contains(" = ") {
+    if kinds.first() == Some(&TokenKind::Ident) && has(TokenKind::Eq) && raw.starts_with("i32 ") {
         syntax(diagnostics);
     }
-    if raw.contains("r'")
-        || raw.contains(".type(")
-        || raw.contains(".type ")
-        || raw.strip_suffix(".type").is_some()
-        || raw.contains("number?")
+    if (has(TokenKind::Char) && raw.contains("r'"))
+        || (has(TokenKind::Dot)
+            && (raw.contains(".type(")
+                || raw.contains(".type ")
+                || raw.strip_suffix(".type").is_some()))
+        || (has(TokenKind::Question) && raw.contains("number?"))
     {
         syntax(diagnostics);
     }
-    if raw.contains(": if ") && raw.matches(':').count() > 2 {
+    if has(TokenKind::KwIf) && raw.contains(": if ") && raw.matches(':').count() > 2 {
         syntax(diagnostics);
     }
-    if raw.starts_with("fn ") && raw.contains(": if ") {
+    if kinds.first() == Some(&TokenKind::KwFn) && raw.contains(": if ") {
         syntax(diagnostics);
     }
-    if raw.contains("defer: if ") {
+    if has(TokenKind::KwDefer) && has(TokenKind::KwIf) && raw.contains("defer: if ") {
         syntax(diagnostics);
     }
-    if raw.starts_with("impl") && raw.contains("[Item =") {
+    if has(TokenKind::KwImpl) && raw.contains("[Item =") {
         syntax(diagnostics);
     }
-    if raw.contains("Supplier::[Item =") {
+    if has(TokenKind::ColonColon) && raw.contains("Supplier::[Item =") {
         syntax(diagnostics);
     }
-    if raw.starts_with("let ")
+    if has(TokenKind::KwLet)
+        && raw.starts_with("let ")
         && raw
             .split_once('=')
             .is_some_and(|(pattern, _)| pattern.contains(','))
@@ -709,7 +768,8 @@ fn validate_line(
     {
         syntax(diagnostics);
     }
-    if raw.contains(": let ")
+    if has(TokenKind::KwLet)
+        && raw.contains(": let ")
         && raw
             .split_once('=')
             .is_some_and(|(pattern, _)| pattern.contains(','))
@@ -717,14 +777,16 @@ fn validate_line(
     {
         syntax(diagnostics);
     }
-    if raw.starts_with("for ")
+    if has(TokenKind::KwFor)
+        && raw.starts_with("for ")
         && raw[..raw.find(" in ").unwrap_or(raw.len())].contains(',')
         && !raw[..raw.find(" in ").unwrap_or(raw.len())].contains('{')
         && !raw.starts_with("for (")
     {
         syntax(diagnostics);
     }
-    if raw.contains("[for ")
+    if has(TokenKind::KwFor)
+        && raw.contains("[for ")
         && raw
             .split_once(" =>")
             .map_or(raw, |(head, _)| head)
@@ -737,7 +799,8 @@ fn validate_line(
     {
         syntax(diagnostics);
     }
-    if raw.contains(" := ")
+    if has(TokenKind::ColonEq)
+        && raw.contains(" := ")
         && ((raw.starts_with('(')
             && raw
                 .find(" := ")
@@ -747,13 +810,20 @@ fn validate_line(
     {
         push_diag(diagnostics, Code::MissingLet, lo, hi);
     }
-    if raw.ends_with("..=") {
+    if has(TokenKind::DotDotEq) && raw.ends_with("..=") {
         syntax(diagnostics);
     }
-    if raw.contains("'..") {
+    if has(TokenKind::Char)
+        && (has(TokenKind::DotDot) || has(TokenKind::DotDotEq))
+        && raw.contains("'..")
+    {
         syntax(diagnostics);
     }
-    if raw.starts_with("fn run[$") && raw.contains(" < ") {
+    if has(TokenKind::KwFn)
+        && has(TokenKind::Dollar)
+        && has(TokenKind::Lt)
+        && raw.starts_with("fn run[$")
+    {
         syntax(diagnostics);
     }
     if raw.starts_with("data ") || raw.starts_with("enum ") {
@@ -870,7 +940,8 @@ fn validate_delimiters(tokens: &TokenBuf, diagnostics: &mut Vec<Diagnostic>) {
 fn validate_indentation(tokens: &TokenBuf, diagnostics: &mut Vec<Diagnostic>) {
     let mut active = vec![0_u16];
     let mut depth = 0_i32;
-    for line in 0..tokens.line_tok.len() {
+    let line_end = tokens.line_token_ends();
+    for (line, &end) in line_end.iter().enumerate() {
         let Some(first) = tokens.line_tok[line].get() else {
             continue;
         };
@@ -893,12 +964,6 @@ fn validate_indentation(tokens: &TokenBuf, diagnostics: &mut Vec<Diagnostic>) {
                 }
             }
         }
-        let end = tokens
-            .line_tok
-            .iter()
-            .skip(line + 1)
-            .find_map(|token| token.get())
-            .map_or(tokens.len(), TokenIdx::idx);
         for &kind in &tokens.kind[first.idx()..end] {
             if kind.is_open_delimiter() {
                 depth += 1;

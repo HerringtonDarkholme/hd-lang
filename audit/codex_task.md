@@ -71,24 +71,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### C2a. Review Fixes For C1 (b224b04c)
-
-Review of C1 (tests and clippy pass; 7 tests):
-
-1. Non-blocking. A non-UTF-8 corpus file silently skips the round-trip
-   check. Assert every corpus file is UTF-8, or compare bytes.
-2. Non-blocking. `hd_syntax` has 4 unit tests. Add focused tests for
-   `"""` strings, raw strings, nested `${...}` interpolation, number
-   forms, bracket continuation, comment-only lines and tabs, and the
-   error token for an unterminated string.
-3. Non-blocking. Skim runs at 46.7 MB/s, slower than lexing alone
-   (116.3 MB/s). Skim should cost no more than lexing. Profile it and
-   fix, or explain the cost in the commit message.
-4. Speed targets (release build, `lib/std`): lexing at least 300 MB/s,
-   skimming at least as fast as lexing, and (in C2) a full parse to the
-   green tree at least 100 MB/s. Keep the throughput example as a
-   benchmark, report all three numbers in each commit message, and treat
-   a drop of more than 10% as a regression to explain.
 ### C2c. A Complete Parser (Before C3)
 
 Owner, 2026-10-07: "the parser isn't full and the parse speed is slow".

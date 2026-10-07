@@ -230,4 +230,25 @@ mod tests {
         );
         assert!(layouts.contains(&Layout::Dedent));
     }
+
+    #[test]
+    fn bracket_continuation_suppresses_layout() {
+        let lexed = lex(b"values := [\n    +1,\n    +2,\n]\nnext := +3\n");
+        let mut cursor = LayoutCursor::new(&lexed.tokens);
+        let mut newlines = 0;
+        loop {
+            match cursor.peek() {
+                TokenOrLayout::Layout {
+                    kind: Layout::Newline,
+                    ..
+                } => {
+                    newlines += 1;
+                    cursor.bump();
+                }
+                TokenOrLayout::Token(_) | TokenOrLayout::Layout { .. } => cursor.bump(),
+                TokenOrLayout::Eof => break,
+            }
+        }
+        assert_eq!(newlines, 2, "one statement break plus the final newline");
+    }
 }

@@ -192,6 +192,18 @@ impl TokenBuf {
             .saturating_sub(1)
     }
 
+    pub(crate) fn line_token_ends(&self) -> Vec<usize> {
+        let mut ends = vec![self.len(); self.line_tok.len()];
+        let mut next = self.len();
+        for line in (0..self.line_tok.len()).rev() {
+            ends[line] = next;
+            if let Some(first) = self.line_tok[line].get() {
+                next = first.idx();
+            }
+        }
+        ends
+    }
+
     #[must_use]
     pub fn reconstruct(&self, source: &str) -> String {
         let mut output = String::with_capacity(source.len());
@@ -256,11 +268,20 @@ struct Lexer<'s> {
 impl<'s> Lexer<'s> {
     fn new(source: &'s str) -> Self {
         let mut tokens = TokenBuf::default();
+        let line_capacity = source.len() / 32 + 1;
+        tokens.line_start.reserve(line_capacity);
+        tokens.line_tok.reserve(line_capacity);
+        tokens.line_indent.reserve(line_capacity);
+        tokens.line_flags.reserve(line_capacity);
         build_lines(source.as_bytes(), &mut tokens);
         let token_capacity = source.len() / 4;
         tokens.kind.reserve(token_capacity);
         tokens.start.reserve(token_capacity);
         tokens.end.reserve(token_capacity);
+        tokens.line_first.reserve(token_capacity / 32 + 1);
+        tokens.com_start.reserve(line_capacity / 4 + 1);
+        tokens.com_end.reserve(line_capacity / 4 + 1);
+        tokens.com_kind.reserve(line_capacity / 4 + 1);
         Self {
             source,
             bytes: source.as_bytes(),
@@ -348,7 +369,7 @@ impl<'s> Lexer<'s> {
         let content_end = self.pos;
         self.pos += 1;
         let content = &self.source[content_start..content_end];
-        if content == "_" || !is_nfc(content) {
+        if content == "_" || (!content.is_ascii() && !is_nfc(content)) {
             self.error(Code::InvalidToken, start, self.pos);
         }
         self.tokens
@@ -370,7 +391,7 @@ impl<'s> Lexer<'s> {
                 TokenKind::Ident
             }
         });
-        if !is_nfc(text) {
+        if !text.is_ascii() && !is_nfc(text) {
             self.error(Code::InvalidToken, start, self.pos);
         }
         self.tokens.push(kind, start, self.pos, self.line);
@@ -378,13 +399,33 @@ impl<'s> Lexer<'s> {
 
     fn consume_identifier_chars(&mut self) -> bool {
         let start = self.pos;
+        let first_byte = self.bytes[self.pos];
+        if first_byte.is_ascii() {
+            if first_byte != b'_' && !first_byte.is_ascii_alphabetic() {
+                return false;
+            }
+            self.pos += 1;
+            while self
+                .peek_byte(0)
+                .is_some_and(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
+            {
+                self.pos += 1;
+            }
+            if self.peek_byte(0).is_none_or(|byte| byte.is_ascii()) {
+                return true;
+            }
+        }
         let Some(first) = self.source[self.pos..].chars().next() else {
-            return false;
+            return self.pos > start;
         };
-        if first != '_' && !is_xid_start(first) {
+        if self.pos == start && first != '_' && !is_xid_start(first) {
             return false;
         }
-        self.pos += first.len_utf8();
+        if self.pos == start || is_xid_continue(first) {
+            self.pos += first.len_utf8();
+        } else {
+            return true;
+        }
         for ch in self.source[self.pos..].chars() {
             if ch == '_' || is_xid_continue(ch) {
                 self.pos += ch.len_utf8();
@@ -533,6 +574,10 @@ impl<'s> Lexer<'s> {
             if byte == b'\t' {
                 self.error(Code::TabWhitespace, self.pos, self.pos + 1);
             }
+            if byte == b'$' && self.peek_byte(1) == Some(b'{') && !escaped {
+                self.interpolation();
+                continue;
+            }
             if !prefixed && byte == b'\\' && !escaped {
                 if !valid_escape(self.bytes, self.pos) {
                     self.error(
@@ -559,8 +604,93 @@ impl<'s> Lexer<'s> {
                 self.tokens.line_flags[line].0 |= LineFlags::CONTINUES_STRING;
             }
         }
-        self.tokens
-            .push(TokenKind::String, start, self.pos, start_line);
+        self.tokens.push(
+            if closed {
+                TokenKind::String
+            } else {
+                TokenKind::Error
+            },
+            start,
+            self.pos,
+            start_line,
+        );
+    }
+
+    fn interpolation(&mut self) {
+        self.pos += 2;
+        let mut braces = 1_u32;
+        while self.pos < self.bytes.len() && braces > 0 {
+            match self.bytes[self.pos] {
+                b'{' => {
+                    braces += 1;
+                    self.pos += 1;
+                }
+                b'}' => {
+                    braces -= 1;
+                    self.pos += 1;
+                }
+                b'"' => self.interpolation_string(),
+                b'\'' => self.interpolation_character(),
+                b'\n' => {
+                    self.line += 1;
+                    self.pos += 1;
+                }
+                b'\r' if self.peek_byte(1) == Some(b'\n') => {
+                    self.line += 1;
+                    self.pos += 2;
+                }
+                b'\t' => {
+                    self.error(Code::TabWhitespace, self.pos, self.pos + 1);
+                    self.pos += 1;
+                }
+                _ => self.pos += char_len(self.source, self.pos),
+            }
+        }
+    }
+
+    fn interpolation_string(&mut self) {
+        let multiline = self.bytes.get(self.pos..self.pos.saturating_add(3)) == Some(b"\"\"\"");
+        let delimiter = if multiline { 3 } else { 1 };
+        self.pos += delimiter;
+        let mut escaped = false;
+        while self.pos < self.bytes.len() {
+            if !escaped
+                && self.bytes.get(self.pos..self.pos + delimiter) == Some(&b"\"\"\""[..delimiter])
+            {
+                self.pos += delimiter;
+                return;
+            }
+            let byte = self.bytes[self.pos];
+            if !multiline && matches!(byte, b'\n' | b'\r') {
+                return;
+            }
+            if byte == b'\n' {
+                self.line += 1;
+            } else if byte == b'\r' && self.peek_byte(1) == Some(b'\n') {
+                self.line += 1;
+                self.pos += 1;
+            } else if byte == b'\t' {
+                self.error(Code::TabWhitespace, self.pos, self.pos + 1);
+            }
+            escaped = byte == b'\\' && !escaped;
+            self.pos += 1;
+        }
+    }
+
+    fn interpolation_character(&mut self) {
+        self.pos += 1;
+        let mut escaped = false;
+        while self.pos < self.bytes.len() {
+            let byte = self.bytes[self.pos];
+            if matches!(byte, b'\n' | b'\r') {
+                return;
+            }
+            self.pos += 1;
+            if byte == b'\'' && !escaped {
+                return;
+            }
+            escaped = byte == b'\\' && !escaped;
+        }
     }
 
     fn character(&mut self) {
@@ -604,74 +734,71 @@ impl<'s> Lexer<'s> {
 
     fn punctuation_or_error(&mut self) {
         let start = self.pos;
-        let candidates: &[(&[u8], TokenKind)] = &[
-            (b"...=", TokenKind::EllipsisEq),
-            (b"<<=", TokenKind::ShlEq),
-            (b">>=", TokenKind::ShrEq),
-            (b"...", TokenKind::Ellipsis),
-            (b"..=", TokenKind::DotDotEq),
-            (b"**", TokenKind::StarStar),
-            (b"&&", TokenKind::AndAnd),
-            (b"||", TokenKind::OrOr),
-            (b"|>", TokenKind::PipeGt),
-            (b"==", TokenKind::EqEq),
-            (b"!=", TokenKind::NotEq),
-            (b"<=", TokenKind::LtEq),
-            (b">=", TokenKind::GtEq),
-            (b":=", TokenKind::ColonEq),
-            (b"->", TokenKind::Arrow),
-            (b"=>", TokenKind::FatArrow),
-            (b"::", TokenKind::ColonColon),
-            (b"+=", TokenKind::PlusEq),
-            (b"-=", TokenKind::MinusEq),
-            (b"*=", TokenKind::StarEq),
-            (b"/=", TokenKind::SlashEq),
-            (b"%=", TokenKind::PercentEq),
-            (b"&=", TokenKind::AmpEq),
-            (b"|=", TokenKind::PipeEq),
-            (b"^=", TokenKind::CaretEq),
-            (b"<<", TokenKind::Shl),
-            (b">>", TokenKind::Shr),
-            (b"..", TokenKind::DotDot),
-        ];
-        if let Some(&(spelling, kind)) = candidates
-            .iter()
-            .find(|(spelling, _)| self.bytes[self.pos..].starts_with(spelling))
-        {
-            self.pos += spelling.len();
-            self.tokens.push(kind, start, self.pos, self.line);
-            return;
-        }
-        let kind = match self.bytes[self.pos] {
-            b'(' => TokenKind::LParen,
-            b')' => TokenKind::RParen,
-            b'[' => TokenKind::LBracket,
-            b']' => TokenKind::RBracket,
-            b'{' => TokenKind::LBrace,
-            b'}' => TokenKind::RBrace,
-            b',' => TokenKind::Comma,
-            b'.' => TokenKind::Dot,
-            b':' => TokenKind::Colon,
-            b';' => TokenKind::Semicolon,
-            b'+' => TokenKind::Plus,
-            b'-' => TokenKind::Minus,
-            b'*' => TokenKind::Star,
-            b'/' => TokenKind::Slash,
-            b'%' => TokenKind::Percent,
-            b'&' => TokenKind::Amp,
-            b'|' => TokenKind::Pipe,
-            b'^' => TokenKind::Caret,
-            b'~' => TokenKind::Tilde,
-            b'=' => TokenKind::Eq,
-            b'<' => TokenKind::Lt,
-            b'>' => TokenKind::Gt,
-            b'?' => TokenKind::Question,
-            b'!' => TokenKind::Bang,
-            b'$' => TokenKind::Dollar,
-            b'@' => TokenKind::At,
-            _ => TokenKind::Error,
+        let first = self.bytes[self.pos];
+        let second = self.peek_byte(1);
+        let third = self.peek_byte(2);
+        let fourth = self.peek_byte(3);
+        let (kind, width) = match (first, second, third, fourth) {
+            (b'.', Some(b'.'), Some(b'.'), Some(b'=')) => (TokenKind::EllipsisEq, 4),
+            (b'.', Some(b'.'), Some(b'.'), _) => (TokenKind::Ellipsis, 3),
+            (b'.', Some(b'.'), Some(b'='), _) => (TokenKind::DotDotEq, 3),
+            (b'<', Some(b'<'), Some(b'='), _) => (TokenKind::ShlEq, 3),
+            (b'>', Some(b'>'), Some(b'='), _) => (TokenKind::ShrEq, 3),
+            (b'*', Some(b'*'), _, _) => (TokenKind::StarStar, 2),
+            (b'&', Some(b'&'), _, _) => (TokenKind::AndAnd, 2),
+            (b'|', Some(b'|'), _, _) => (TokenKind::OrOr, 2),
+            (b'|', Some(b'>'), _, _) => (TokenKind::PipeGt, 2),
+            (b'=', Some(b'='), _, _) => (TokenKind::EqEq, 2),
+            (b'!', Some(b'='), _, _) => (TokenKind::NotEq, 2),
+            (b'<', Some(b'='), _, _) => (TokenKind::LtEq, 2),
+            (b'>', Some(b'='), _, _) => (TokenKind::GtEq, 2),
+            (b':', Some(b'='), _, _) => (TokenKind::ColonEq, 2),
+            (b'-', Some(b'>'), _, _) => (TokenKind::Arrow, 2),
+            (b'=', Some(b'>'), _, _) => (TokenKind::FatArrow, 2),
+            (b':', Some(b':'), _, _) => (TokenKind::ColonColon, 2),
+            (b'+', Some(b'='), _, _) => (TokenKind::PlusEq, 2),
+            (b'-', Some(b'='), _, _) => (TokenKind::MinusEq, 2),
+            (b'*', Some(b'='), _, _) => (TokenKind::StarEq, 2),
+            (b'/', Some(b'='), _, _) => (TokenKind::SlashEq, 2),
+            (b'%', Some(b'='), _, _) => (TokenKind::PercentEq, 2),
+            (b'&', Some(b'='), _, _) => (TokenKind::AmpEq, 2),
+            (b'|', Some(b'='), _, _) => (TokenKind::PipeEq, 2),
+            (b'^', Some(b'='), _, _) => (TokenKind::CaretEq, 2),
+            (b'<', Some(b'<'), _, _) => (TokenKind::Shl, 2),
+            (b'>', Some(b'>'), _, _) => (TokenKind::Shr, 2),
+            (b'.', Some(b'.'), _, _) => (TokenKind::DotDot, 2),
+            (b'(', _, _, _) => (TokenKind::LParen, 1),
+            (b')', _, _, _) => (TokenKind::RParen, 1),
+            (b'[', _, _, _) => (TokenKind::LBracket, 1),
+            (b']', _, _, _) => (TokenKind::RBracket, 1),
+            (b'{', _, _, _) => (TokenKind::LBrace, 1),
+            (b'}', _, _, _) => (TokenKind::RBrace, 1),
+            (b',', _, _, _) => (TokenKind::Comma, 1),
+            (b'.', _, _, _) => (TokenKind::Dot, 1),
+            (b':', _, _, _) => (TokenKind::Colon, 1),
+            (b';', _, _, _) => (TokenKind::Semicolon, 1),
+            (b'+', _, _, _) => (TokenKind::Plus, 1),
+            (b'-', _, _, _) => (TokenKind::Minus, 1),
+            (b'*', _, _, _) => (TokenKind::Star, 1),
+            (b'/', _, _, _) => (TokenKind::Slash, 1),
+            (b'%', _, _, _) => (TokenKind::Percent, 1),
+            (b'&', _, _, _) => (TokenKind::Amp, 1),
+            (b'|', _, _, _) => (TokenKind::Pipe, 1),
+            (b'^', _, _, _) => (TokenKind::Caret, 1),
+            (b'~', _, _, _) => (TokenKind::Tilde, 1),
+            (b'=', _, _, _) => (TokenKind::Eq, 1),
+            (b'<', _, _, _) => (TokenKind::Lt, 1),
+            (b'>', _, _, _) => (TokenKind::Gt, 1),
+            (b'?', _, _, _) => (TokenKind::Question, 1),
+            (b'!', _, _, _) => (TokenKind::Bang, 1),
+            (b'$', _, _, _) => (TokenKind::Dollar, 1),
+            (b'@', _, _, _) => (TokenKind::At, 1),
+            _ => (TokenKind::Error, 1),
         };
-        self.pos += char_len(self.source, self.pos);
+        self.pos += width;
+        if kind == TokenKind::Error && width == 1 {
+            self.pos = start + char_len(self.source, start);
+        }
         if kind == TokenKind::Error {
             self.error(
                 if self.source[start..self.pos].starts_with('\u{feff}') {
@@ -701,20 +828,22 @@ fn build_lines(source: &[u8], tokens: &mut TokenBuf) {
     let mut start = 0;
     loop {
         let mut end = start;
-        while end < source.len() && !matches!(source[end], b'\n' | b'\r') {
-            end += 1;
-        }
         let mut indent = 0_usize;
-        while start + indent < end && source[start + indent] == b' ' {
-            indent += 1;
-        }
-        let slice = &source[start..end];
         let mut flags = 0;
-        if slice.iter().any(|byte| !byte.is_ascii()) {
-            flags |= LineFlags::NON_ASCII;
-        }
-        if slice.contains(&b'\t') {
-            flags |= LineFlags::HAS_TAB;
+        let mut leading = true;
+        while end < source.len() && !matches!(source[end], b'\n' | b'\r') {
+            let byte = source[end];
+            if leading && byte == b' ' {
+                indent += 1;
+            } else {
+                leading = false;
+            }
+            if !byte.is_ascii() {
+                flags |= LineFlags::NON_ASCII;
+            } else if byte == b'\t' {
+                flags |= LineFlags::HAS_TAB;
+            }
+            end += 1;
         }
         tokens.line_start.push(to_u32(start));
         tokens.line_tok.push(TokenIdx::from_raw(NONE));
@@ -784,7 +913,13 @@ fn is_nfc(text: &str) -> bool {
 }
 
 fn digit_for_radix(byte: u8, radix: u32) -> bool {
-    (byte as char).is_digit(radix)
+    match radix {
+        2 => matches!(byte, b'0' | b'1'),
+        8 => matches!(byte, b'0'..=b'7'),
+        10 => byte.is_ascii_digit(),
+        16 => byte.is_ascii_hexdigit(),
+        _ => false,
+    }
 }
 
 fn valid_escape(source: &[u8], pos: usize) -> bool {
@@ -836,7 +971,7 @@ fn to_u32(value: usize) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{CommentKind, TokenKind, lex};
+    use super::{CommentKind, LineFlags, TokenKind, lex};
 
     #[test]
     fn lexes_losslessly() {
@@ -866,6 +1001,64 @@ mod tests {
                 TokenKind::StarStar,
                 TokenKind::Eq
             ]
+        );
+    }
+
+    #[test]
+    fn lexes_multiline_raw_and_nested_interpolation_strings() {
+        let source = "\"\"\"first\nsecond\"\"\" r\"\\q\" \"outer ${call(\"inner ${x}\")}\"";
+        let lexed = lex(source.as_bytes());
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        assert_eq!(
+            lexed.tokens.kind,
+            [TokenKind::String, TokenKind::String, TokenKind::String]
+        );
+        assert_eq!(lexed.tokens.reconstruct(source), source);
+        assert_ne!(
+            lexed.tokens.line_flags[1].0 & LineFlags::CONTINUES_STRING,
+            0
+        );
+    }
+
+    #[test]
+    fn lexes_every_number_family() {
+        let source = "0 1_000 0b1010 0o755 0xCAFE 1.25 6e23 9.0e-2";
+        let lexed = lex(source.as_bytes());
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        assert!(
+            lexed
+                .tokens
+                .kind
+                .iter()
+                .all(|kind| *kind == TokenKind::Number)
+        );
+    }
+
+    #[test]
+    fn records_comment_only_lines_and_tabs() {
+        let source = "# plain\n    # indented\n\tname\n";
+        let lexed = lex(source.as_bytes());
+        assert!(lexed.tokens.line_tok[0].get().is_none());
+        assert!(lexed.tokens.line_tok[1].get().is_none());
+        assert_eq!(lexed.tokens.line_indent[1], 4);
+        assert_ne!(lexed.tokens.line_flags[2].0 & LineFlags::HAS_TAB, 0);
+        assert!(
+            lexed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_str() == "tab-whitespace")
+        );
+    }
+
+    #[test]
+    fn unterminated_string_is_an_error_token() {
+        let lexed = lex(b"\"unfinished");
+        assert_eq!(lexed.tokens.kind, [TokenKind::Error]);
+        assert!(
+            lexed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_str() == "unterminated-string")
         );
     }
 }

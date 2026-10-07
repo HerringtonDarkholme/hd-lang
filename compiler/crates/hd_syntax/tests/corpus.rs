@@ -42,14 +42,14 @@ fn every_source_lexes_without_panic_and_round_trips() {
         let source =
             fs::read(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
         let lexed = lex(&source);
-        if let Ok(text) = std::str::from_utf8(&source) {
-            assert_eq!(
-                lexed.tokens.reconstruct(text).as_bytes(),
-                source,
-                "{}",
-                path.display()
-            );
-        }
+        let text = std::str::from_utf8(&source)
+            .unwrap_or_else(|error| panic!("UTF-8 {}: {error}", path.display()));
+        assert_eq!(
+            lexed.tokens.reconstruct(text).as_bytes(),
+            source,
+            "{}",
+            path.display()
+        );
     }
 }
 

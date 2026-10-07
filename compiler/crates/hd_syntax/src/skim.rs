@@ -62,17 +62,12 @@ pub fn skeleton_from_layout(source: &str, tokens: &TokenBuf) -> Vec<BodyRange> {
 
 fn body_ranges(source: &str, tokens: &TokenBuf) -> Vec<BodyRange> {
     let mut ranges = Vec::new();
-    for line in 0..tokens.line_start.len() {
+    let line_end = tokens.line_token_ends();
+    for (line, &next_line_token) in line_end.iter().enumerate() {
         let Some(first) = tokens.line_tok[line].get() else {
             continue;
         };
         let first_idx = first.idx();
-        let next_line_token = tokens
-            .line_tok
-            .iter()
-            .skip(line + 1)
-            .find_map(|token| token.get())
-            .map_or(tokens.len(), hd_base::TokenIdx::idx);
         if first_idx >= next_line_token {
             continue;
         }
@@ -179,17 +174,12 @@ fn header_kind(kind: TokenKind) -> HeaderKind {
 
 fn use_ranges(tokens: &TokenBuf) -> Vec<(u32, u32)> {
     let mut result = Vec::new();
-    for line in 0..tokens.line_start.len() {
+    let line_end = tokens.line_token_ends();
+    for (line, &next) in line_end.iter().enumerate() {
         let Some(first) = tokens.line_tok[line].get() else {
             continue;
         };
         let first = first.idx();
-        let next = tokens
-            .line_tok
-            .iter()
-            .skip(line + 1)
-            .find_map(|token| token.get())
-            .map_or(tokens.len(), hd_base::TokenIdx::idx);
         let is_use = tokens
             .kind
             .get(first)
@@ -205,15 +195,23 @@ fn use_ranges(tokens: &TokenBuf) -> Vec<(u32, u32)> {
 fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
     let mut bytes = Vec::new();
     let mut indents = vec![0_u16];
-    'tokens: for index in 0..tokens.len() {
+    let mut hidden_bodies = bodies
+        .iter()
+        .filter(|body| matches!(body.kind, HeaderKind::Function | HeaderKind::Tests))
+        .peekable();
+    for index in 0..tokens.len() {
         let start = tokens.start[index];
-        for body in bodies {
-            if start >= body.body_start
-                && start < body.body_end
-                && matches!(body.kind, HeaderKind::Function | HeaderKind::Tests)
-            {
-                continue 'tokens;
-            }
+        while hidden_bodies
+            .peek()
+            .is_some_and(|body| start >= body.body_end)
+        {
+            hidden_bodies.next();
+        }
+        if hidden_bodies
+            .peek()
+            .is_some_and(|body| start >= body.body_start && start < body.body_end)
+        {
+            continue;
         }
         let token = hd_base::TokenIdx::from_raw(u32::try_from(index).unwrap_or(u32::MAX - 1));
         if tokens.is_line_first(token) {
