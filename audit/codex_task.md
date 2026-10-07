@@ -31,6 +31,8 @@ When the queue is empty, report that and wait.
   `pnpm run check`, and push again. Never force-push.
 - A job is done only when its commit is on `origin/main`. A local commit
   is not done: push it.
+- **No more fixture jobs** (owner, 2026-10-07: "kill all codex's fixture
+  jobs"). Don't write conformance fixtures unless a job explicitly asks.
 - **Fixture jobs also run the Rust parse tests:** after adding or
   changing any `spec/conformance/parse/` case, run `cd compiler && cargo
   test -p hd_syntax --test corpus`. The old Rust parser is being replaced,
@@ -111,15 +113,6 @@ each distinct construct that fails, write a minimal `.hd` repro under
 the `02-grammar.md` rule and the std file and line it came from). Add a
 `README.md` there: a table of construct, rule, std files affected,
 count. Don't edit `compiler/crates/`. Timebox 30 minutes; push.
-
-### Q6. Fixtures: Stdlib Modules Under 60%
-
-`pnpm run spec coverage` shows `path` 35%, `task` 39%, `host` 40%,
-`format` 41%, `digest` 43%, `num` 46%, `option` 54%, `collections` 55%,
-`ops` 57%, `console` 59%. Raise each to at least 60% the same way as S4
-(runtime-valid fixtures with expected output, citation lines on existing
-fixtures, KNOWN_FAILURES rows for prototype disagreements). Timebox 45
-minutes; push one commit.
 
 ### Q7. Profile The Foundation Commit
 
