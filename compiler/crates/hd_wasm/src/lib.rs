@@ -3,6 +3,8 @@
 //! relocations (callees by instance key, struct types by stable path); `Link`
 //! assigns indices. It reads TIR and collection output only, never syntax.
 
+pub mod meta;
+
 use std::collections::{BTreeMap, HashMap};
 
 use hd_base::Hash128;

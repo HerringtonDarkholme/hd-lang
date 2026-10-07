@@ -11,6 +11,7 @@ hd_base = { path = "../hd_base" }
 hd_iface = { path = "../hd_iface" }
 hd_tir = { path = "../hd_tir" }
 hd_mono = { path = "../hd_mono" }
+hd_host_abi = { path = "../hd_host_abi" }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std"] }
 
 [lints]

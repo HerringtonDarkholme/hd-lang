@@ -73,6 +73,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hd_host_abi"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+]
+
+[[package]]
 name = "hd_iface"
 version = "0.0.0"
 dependencies = [
@@ -143,6 +150,7 @@ name = "hd_wasm"
 version = "0.0.0"
 dependencies = [
  "hd_base",
+ "hd_host_abi",
  "hd_iface",
  "hd_mono",
  "hd_tir",
