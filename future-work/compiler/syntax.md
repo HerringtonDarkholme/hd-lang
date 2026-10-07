@@ -226,6 +226,16 @@ pub struct NodeRef<'t> { tree: &'t GreenTree, idx: NodeIdx }
   typed-array views without building objects.
 - **Recovery by truncation.** The parser's event vector is append-only.
   A speculative or failed parse truncates it to its checkpoint (§3.9.5).
+- **`dyn` types (owner, 2026-10-07; spec change pending as S1d).** `dyn`
+  followed by a trait path, its arguments and bindings is a type form, a
+  `DYN_TYPE` node, as in `dyn Supplier[Item = i32]`. A bare trait name in
+  type position still parses as a named type: only resolution knows that
+  the name is a trait, so resolution reports it, with a fix-it that
+  inserts `dyn`.
+- **No GADT forms.** GADTs are removed (owner, 2026-10-07; spec removal
+  pending as S1e), so a variant has no result-type annotation. Until
+  S1e lands, the grammar file keeps no such production and chapter 13's
+  fixtures are known failures.
 
 ### 4.5 Header Extraction And The API Text Hash
 

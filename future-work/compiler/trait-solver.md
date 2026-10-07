@@ -82,7 +82,7 @@ right.
 
 | Component | Owns | Does not own |
 | --- | --- | --- |
-| Resolution (`hd_resolve`) | impl heads, bound plans and derived heads in the interface; every header check that needs no solver: orphan, module ownership, targets, unconstrained parameters, sealed traits, dynamic safety, template placement | goals |
+| Resolution (`hd_resolve`) | impl heads, bound plans and derived heads in the interface; every header check that needs no solver: orphan, module ownership, targets, unconstrained parameters, sealed traits, per-member `dyn` availability, template placement | goals |
 | **Trait solver (`hd_types::solve`, this document)** | the four goals; parameter-environment elaboration; normalization of projections; canonical goals and the memo; impl selection for codegen; `FailInfo` | inference variables (it reads them, never writes them), diagnostics text, spans |
 | Impl checks (`HeaderCheck(F)`, one task per folder, before bodies need it) | each impl's supertrait and binding checks, newtype bases, delegation targets: goals under the impl's environment, asked through the solver ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)) | the answers |
 | Derive instances (body tasks in M2) | derive member obligations, checked with the instance body | the answers |
@@ -198,20 +198,17 @@ A goal is canonicalized before any memo lookup:
 
 1. **Resolve shallowly.** Each inference variable is replaced by its
    binding, recursively, through the checker's `InferRead`.
-2. **Apply arm equalities (mine).** Inside a GADT arm, a rigid parameter
-   with an equality `T ≡ R` is replaced by `R`. So `T: Display` in an arm
-   where `T ≡ i32` becomes the global goal `i32: Display`, not a body-local
-   one.
-3. **Normalize concrete projections.** A projection whose base is known is
+2. **Normalize concrete projections.** A projection whose base is known is
    replaced by its normal form (section 4.3). Projections on parameters
    stay as rigid types.
-4. **Number the variables.** The remaining inference variables are
+3. **Number the variables.** The remaining inference variables are
    replaced by canonical placeholders `Canon(0)`, `Canon(1)`, ... in order
    of first occurrence in a fixed pre-order walk: self type first, then
    trait arguments left to right, then bindings in name order. Each
    placeholder keeps its variable's kind: general, integer literal or float
    literal.
-5. **Pick the key's scope.** See the table below.
+4. **Pick the key's scope.** See the table below. (An earlier step that
+   applied GADT arm equalities is removed with GADTs.)
 
 ```rust
 pub struct CanonGoal {
@@ -233,9 +230,9 @@ when the answer has learned bindings or stalls.
 
 | Scope | When | Memo | Key (section 7.1) |
 | --- | --- | --- | --- |
-| `Global` | no placeholder, no parameter, no local type, no existential | the run's global memo, shared by every body and by codegen | the canonical goal |
-| `Env` (mine) | parameters, but no placeholder, no local type, no existential | the run's global memo | the canonical goal and the item's `EnvKey` |
-| `Body` | any placeholder, local type or existential | the body's memo | the canonical goal and the visible local impls |
+| `Global` | no placeholder, no parameter, no local type | the run's global memo, shared by every body and by codegen | the canonical goal |
+| `Env` (mine) | parameters, but no placeholder, no local type | the run's global memo | the canonical goal and the item's `EnvKey` |
+| `Body` | any placeholder or local type | the body's memo | the canonical goal and the visible local impls |
 
 A `Methods` goal adds the module's `AvailKey` in every scope. An
 `Instantiations` or `Methods` goal adds the context's `ImplUniverseId`
@@ -258,7 +255,7 @@ valid after a rollback because it names no particular variable.
 ```rust
 pub struct ParamEnv {            // SoA, built by `elaborate`, frozen per item
     pub key: EnvKey,             // interned: equal environments get equal keys
-    clause_self: Box<[Ty]>,      // a Param, or an existential's placeholder
+    clause_self: Box<[Ty]>,      // a Param
     clause_trait: Box<[DefId]>,
     clause_args: Box<[TyList]>,
     clause_bindings: Box<[AssocList]>,
@@ -266,7 +263,6 @@ pub struct ParamEnv {            // SoA, built by `elaborate`, frozen per item
     clause_origin: Box<[u16]>,   // declared bound index, or the supertrait path's first step
     by_self: Box<[(Ty, u32, u32)]>,  // sorted index: self type -> clause range
 }
-pub struct ArmEnv<'a> { pub base: &'a ParamEnv, pub eqs: &'a [(ParamRef, Ty)], pub existentials: &'a ParamEnv }
 ```
 
 A clause's index is its position in the elaborated list. TIR's
@@ -283,7 +279,7 @@ this order:
 
 | Order | Source | When it applies |
 | --- | --- | --- |
-| 1 | the parameter environment (section 4.2) | `S` is a parameter or an existential, after arm equalities |
+| 1 | the parameter environment (section 4.2) | `S` is a parameter |
 | 2 | a trait value as self (section 9.3) | `S` is a trait value type of `Tr` or of a subtrait |
 | 3 | compiler-supplied impls (section 3.9) | `Tr` is sealed: `Any`, `AnyVal`, `AnyRef`, `Inspectable`, `Tuple`, `Num`, `Integer`, `Float`, `Suspend`, `Structure` |
 | 4 | impl tables of the owner modules (section 3.2) | written impls, derived impls, delegations, numeric families, tuple templates |
@@ -735,8 +731,8 @@ rustc's lazy normalization does. The checker asks `Project`:
 | `S` is | Answer |
 | --- | --- |
 | an inference variable, or holds one at a position the head needs | `Stalled` |
-| a parameter or existential with an environment binding for `Name` | the bound type: `I::Item` is `T` under `I < Supplier[Item = T]` |
-| a parameter or existential with a bound on `Tr` but no binding | the projection itself, as a rigid type. It equals only itself |
+| a parameter with an environment binding for `Name` | the bound type: `I::Item` is `T` under `I < Supplier[Item = T]` |
+| a parameter with a bound on `Tr` but no binding | the projection itself, as a rigid type. It equals only itself |
 | a trait value `Tr[A, Name = U]` or a subtrait's value that binds it | `U` ([`trait.dyn.bound.projection`](../../spec/lang/09-traits.md#r-trait.dyn.bound.projection)) |
 | known | prove `Implements { tref }` first, as its own memoized goal at the same depth. On `Holds` with `Impl` evidence, read that impl's binding for `Name`, substitute the impl's arguments, and normalize the result once more |
 | known, but `Implements` fails | `Fails`, with the `Implements` goal's `FailInfo`: `Box[NoDisplay]::Item` is no type when the impl for `Box[T]` needs `T < Display` |
@@ -1069,7 +1065,6 @@ is now part of the key, or makes the goal ineligible for the global memo:
 | --- | --- |
 | the goal's types, with variables | the canonical goal; placeholders keep their kinds (section 2.2) |
 | declared bounds and supertrait bindings | `EnvKey`, the interned elaborated environment; `EMPTY` when the goal names no parameter |
-| GADT arm equalities | substituted before keying; existentials make the goal `Body` scope |
 | local impls, visible from their declaration point ([`trait.impl.local.lookup`](../../spec/lang/09-traits.md#r-trait.impl.local.lookup)) | `LocalVis`: the interned sorted list of visible local impls, in the `Body` key; a goal that names no local type or local trait cannot match a local impl and keys with `EMPTY` |
 | trait availability (`Methods` only) | the module's `AvailKey` plus the lexical scope's local traits |
 | which argument-owned impls the asking context sees (`Instantiations`, `Methods`) | the context's `ImplUniverseId` (section 3.2), in every scope |
@@ -1270,9 +1265,7 @@ head (rule TS-6). The solver keeps the nested proof only in the memo, for
 | Use | TIR | Evidence recorded |
 | --- | --- | --- |
 | a trait method call with a known self type or a bound | `Call` with a `TraitMethod` callee | the choice: `Impl`, `Bound`, `TraitValue` or `Builtin` |
-| a call through a GADT existential | `Call` with an `Evidence` callee | the matched value and the clause index of the existential's bound |
 | a conversion to a trait value | `Coerce` of kind to-trait-value | the concrete type, the trait reference and the `Impl` choice |
-| a variant construction with bounded existentials | `NewVariant` evidence choices | one `Evidence` per bound, at the construction's types |
 | a call through a trait value whose method has bounded method-level parameters | `CallDyn` | one `Evidence` per method-level bound (section 9.2) |
 
 The `TraitMethod` choice in D2's catalog is "the impl's `DefId` or the
@@ -1328,21 +1321,52 @@ of making them. A proof entry and a selection entry never share a key.
 
 ### 9.1 Which Traits Can Be Values
 
-Dynamic safety is a property of the trait declaration and of the value
-type's bindings. So resolution decides it at interface time from headers;
-the solver does not
-([Dynamic Safety](../../spec/lang/09-traits.md#dynamic-safety)). The trait
-record stores one flag and the first reason it fails:
+**Every trait can be a `dyn` type** (owner, 2026-10-07, in
+[goals.md](goals.md#summary); the spec change is pending as S1d). The
+per-trait dynamic-safety gate of
+[Dynamic Safety](../../spec/lang/09-traits.md#dynamic-safety) is
+dropped, Swift 5.7 style. A trait value type is written `dyn Tr`
+([syntax.md §4.4](syntax.md#44-parser-and-green-tree)). What cannot work dynamically is decided **per member**,
+and the error is at the call, not at the type.
 
-| Reason it is not safe | Rule |
+Resolution computes, per trait member at interface time, from headers:
+
+| Member | On a `dyn` value |
 | --- | --- |
-| an associated function in the trait or a supertrait | [`trait.dyn.safe.assoc-function`](../../spec/lang/09-traits.md#r-trait.dyn.safe.assoc-function) |
-| `Self` outside the receiver | [`trait.dyn.safe.self`](../../spec/lang/09-traits.md#r-trait.dyn.safe.self) |
-| at the value type: an associated type left unbound | [`trait.dyn.binding.complete`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete) |
+| an associated function | unavailable |
+| a method with `Self` outside the receiver | unavailable |
+| a method with method-level type parameters, whatever their bounds | available, through the erased slot (section 9.2; [`trait.dyn.safe.method-type-param`](../../spec/lang/09-traits.md#r-trait.dyn.safe.method-type-param), S1c) |
+| a method whose signature mentions an associated type | available when the `dyn` type binds that type; otherwise see below |
 
-A method-level type parameter never makes a trait unsafe, whatever its
-bounds ([`trait.dyn.safe.method-type-param`](../../spec/lang/09-traits.md#r-trait.dyn.safe.method-type-param),
-S1c). Requirement keys reuse the flag ([`req.key.dynamically-safe`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.dynamically-safe)).
+The trait record stores, per member, an "unavailable" flag with its
+reason and a small set of the associated items its signature mentions.
+The checker reads both at a call through a `dyn` value: a cheap test, no
+solver goal.
+
+**An unbound associated type (Codex re-review, authors' question 2).**
+Today [`trait.dyn.binding.complete`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete)
+requires a `dyn` type to bind every associated type. With the gate gone,
+this design recommends, as an owner question, the per-member rule
+instead of existentials:
+
+- A `dyn Tr` that leaves `Item` unbound is a valid type. Every member
+  whose signature mentions `Item` is unavailable on it, with the error at
+  the call and a fix-it that adds `Item = ...` to the type. Members that
+  do not mention it work.
+- Such a type satisfies no bound on `Tr`, or on a trait that reaches
+  `Item` (Swift's "an existential does not conform to its protocol").
+  Generic code under `T < Tr` may name `T::Item`, and
+  `<dyn Tr as Tr>::Item` has no normal form, so `Project` on it `Fails`.
+- No call produces an existential value, and no member is opened.
+
+The alternative keeps `trait.dyn.binding.complete` unchanged, as Rust
+does: the type itself is an error. It needs no language change, but it
+is the one remaining per-type gate. Either way the solver's part is the
+same table; only where the error lands differs.
+
+Requirement keys
+([`req.key.dynamically-safe`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.dynamically-safe))
+follow the same per-member rule once S1d lands.
 
 ### 9.2 Vtable Shapes
 
@@ -1362,16 +1386,21 @@ pub struct VtableShape {
   `Error < Display & Inspectable` shares one vtable per
   supertrait. Widening to a supertrait value reads one pointer
   ([`trait.dyn.widen`](../../spec/lang/09-traits.md#r-trait.dyn.widen)).
-- **Method-level bounds.** A dynamically safe method may have a parameter
+- **Method-level bounds.** A method available on `dyn` may have a parameter
   `T < Display`, with any type argument. Its one body takes the evidence
   for `Display` with each call
   ([`types.trait.safe.method-type-arg`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg)).
   So a `CallDyn` carries one vtable per such bound, chosen by the checker
-  at the call. This is the one place outside GADTs where a dictionary is
+  at the call. This is the one place where a dictionary is
   passed at run time.
 - **The slot's ABI (review blocker 5).** The slot's body is the impl
   method compiled once with each method-level parameter erased to the
-  reference shape (`anyref`), and one vtable parameter per bound. A caller
+  reference shape (`anyref`), one type witness per method-level type
+  parameter (owner, 2026-10-07, in [goals.md](goals.md#summary): layout
+  operations for the caller's concrete type, so containers of `T` are
+  used in place), and one vtable parameter per bound. The witness record
+  and its ABI are the backend lane's (Codex re-review N5); the solver's
+  part is only the evidence per bound. A caller
   passing a value-typed argument boxes it at the call; the box has no
   identity ([`types.trait.safe.method-type-arg.box`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg.box)).
   A caller that knows `T` casts or unboxes the result back to `T`. Statically dispatched calls of the same method stay monomorphized;
@@ -1473,7 +1502,7 @@ With `--verbose`, a note lists the chain: "`impl[T < Eq] Eq for Box[T]`
 60-token target of the `mistakes` metric.
 
 **Missing-derive fix-it.** When the leaf is `X: Tr`, `X` is a data type,
-enum or newtype of the user's own package, not a GADT, and `Tr` has a
+enum or newtype of the user's own package, and `Tr` has a
 template, the fix-it inserts `@derive(Tr)` or extends an existing list. It
 adds missing law partners, since `@derive(Hash)` alone is
 `mixed-derived-law` ([Law Partners](../../spec/lang/09-traits.md#law-partners)),
@@ -1637,7 +1666,7 @@ From [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md), its history, the
 | `TypeId` spelled by bare name; two same-named types of different modules could share an identity | F-620 | `Inspectable` evidence names the type, and codegen derives identity from the canonical type over stable paths ([§13.3](codegen.md#133-instance-keys)) |
 | `Trait::method(item)` with a parameter receiver searched impls only | F-624 | one goal for every source, the environment first (section 3.1) |
 | impl matching on canonical type strings | [CA-02](../../audit/compiler/findings-2026-10-04.md#ca-02-textual-types-and-semantic-cycles) | heads in the pool; the head index; TC-2 |
-| dictionary plans in HIR, an erased-dictionary ABI shared with the emitter | [CA-04](../../audit/compiler/findings-2026-10-04.md#ca-04-cross-stage-representation-and-distributed-abi) | TIR records only the top choice; codegen selects by head (TS-6); dictionaries only for trait values, GADT evidence and `CallDyn` bounds |
+| dictionary plans in HIR, an erased-dictionary ABI shared with the emitter | [CA-04](../../audit/compiler/findings-2026-10-04.md#ca-04-cross-stage-representation-and-distributed-abi) | TIR records only the top choice; codegen selects by head (TS-6); dictionaries only for trait values and `CallDyn` bounds (GADT evidence is removed with GADTs) |
 | derivation diagnostics in process-global registries keyed by span | [CS-02](../../audit/compiler/findings-2026-10-04.md#cs-02-derivation-diagnostic-registries-reuse-keys-without-compilation-identity) | `FailInfo` carries the impl's origin; diagnostics are values in the body result |
 | derives through generated source that is parsed again | checker audit, Derivation And Std Integration | the solver sees derived heads only; template bodies are token text with a resolution table, checked as derive instances |
 | bound inference repeats until no solution changes | checker audit, `bound-inference.ts` | the spec's bounded loop stays in the checker; the solver has no fixpoint (TS-7) |
@@ -1719,8 +1748,8 @@ the backend lane's, listed in
    wrap the self type and arguments in a `TraitRef`; `Project` names the
    associated item's `DefId` (section 2.1).
 2. **§1.6 memo:** the keys and eligibility of section 7.1: the `Env`
-   scope, `LocalVis`, `AvailKey`, a global memo per run, GADT arm
-   equalities substituted before keying, and no global entry for a goal
+   scope, `LocalVis`, `AvailKey`, a global memo per run, and no global
+   entry for a goal
    that met the depth cut or ran out of fuel.
 3. **§1.6 fuel and §11.1:** each proof node is charged once per body, and
    a repeated ask costs 1 (rule TS-5).
@@ -1756,7 +1785,7 @@ the backend lane's, listed in
     std's synthetic table for built-in targets, inherent impls included.
 13. **§4.10 step 5:** compute each impl's bound plan; reject projections
     of impl parameters in heads (question 2); store each trait's
-    dynamic-safety flag and vtable shape; list tuple templates in the
+    per-member `dyn` availability and vtable shape; list tuple templates in the
     `heads` section with head key `TupleAny`.
 14. **§4.12.3:** replace pairwise bucket unification with the hash set and
     discrimination tree of section 5.2, and report a witness type.
@@ -1770,7 +1799,7 @@ the backend lane's, listed in
 
 16. **§4.13.11 catalog:** the `TraitMethod` choice gains `TraitValue` and
     `Builtin`; `CallDyn` gains one evidence operand per method-level
-    bound; `NewVariant`'s evidence choices are `Evidence` values.
+    bound. (`NewVariant` evidence choices are removed with GADTs.)
 17. **§4.13.9:** a derive instance needs no coinductive assumption
     (section 3.10). Supertraits, supertrait bindings, delegation parts
     and newtype bases are checked by the folder's `HeaderCheck(F)` task

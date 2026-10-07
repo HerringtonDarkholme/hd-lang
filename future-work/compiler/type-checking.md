@@ -70,14 +70,14 @@ choices of this document.
 | Component | Owns | Does not own |
 | --- | --- | --- |
 | Resolution (`hd_resolve`, before) | uses, module scope, paths in headers, folder interfaces, impl tables, derived heads, header checks | anything in a body except path lookup through the frozen scope |
-| **Type checker (`hd_check`, this document)** | name lookup of locals, every expression, statement and pattern in a body; inference variables; coercions; rows used by bodies; suspension checks; GADT refinement; exhaustiveness and decision trees; mutability; definite initialization; omitted results and rows; body diagnostics; calls to the TIR builder | trait impl search, impl matching, coherence, TIR encoding, instantiation |
+| **Type checker (`hd_check`, this document)** | name lookup of locals, every expression, statement and pattern in a body; inference variables; coercions; rows used by bodies; suspension checks; exhaustiveness and decision trees; mutability; definite initialization; omitted results and rows; body diagnostics; calls to the TIR builder | trait impl search, impl matching, coherence, TIR encoding, instantiation |
 | Trait solver (`hd_types::solve`, beside) | goals of the form "type implements trait", projections, the instantiations of a generic trait, method candidates, its memo | inference variables (it reads them, never writes them), diagnostic text |
 | TIR builder (D2's `hd_tir`, called by the checker) | the instruction encoding, scratch checkpoints, the final type sweep, the TIR verifier | types, names, any decision the checker makes |
 | Collection and emission (D2, after) | instances, layout, Wasm | re-deriving anything TIR states |
 
 **Rule TC-1. The checker decides; the builder records.** Every semantic
 choice is made in the checker: which callee, which impl or bound, which
-coercion, which literal width, which arm is impossible. TIR states it.
+coercion, which literal width. TIR states it.
 D2 never consults names, scopes or the solver to reconstruct a choice.
 
 ### 1.2 Inputs
@@ -143,7 +143,6 @@ pub enum TyView<'a> {            // a typed view; borrowed, never stored
     Assoc { assoc: DefId, tref: TraitRef },  // a projection; trait-solver.md §2.1
     Mut(Ty),                     // the mutable view `mut T`; `T` alone is readonly
     Infer(InferVar),             // body-local only
-    Rigid(RigidVar),             // body-local only: a GADT existential of one arm (§6.1)
 }
 
 pub trait TyRead {
@@ -161,11 +160,6 @@ pub trait TyBuild: TyRead {
   ([Views](../../spec/lang/04-type-system.md#views)).
   [data-structures.md §3.4](data-structures.md#34-types) now uses `Mut`
   too.
-- **`Rigid` for existentials.** Each GADT arm gives each existential a
-  fresh rigid placeholder. It unifies only with itself and lives in the
-  body-local pool, as data-structures.md §3.4 has it. The pool sets
-  `HAS_RIGID` on every type that holds one, so the escape test of
-  section 6.1 is one load for most types.
 - **Projections name their item.** `Assoc` holds the associated type's
   own `DefId` and the instantiated trait reference, so
   `<S as Add[i32]>::Out` and `<S as Add[i64]>::Out` are different types
@@ -332,7 +326,7 @@ pub enum Evidence {
 }
 
 pub struct SolveCx<'a> {
-    pub env: ArmEnv<'a>,            // the item's elaborated ParamEnv plus active arm equalities (§6.1)
+    pub env: &'a ParamEnv,          // the item's elaborated environment
     pub infer: &'a dyn InferRead,   // shallow resolution of inference variables
     pub avail: AvailKey,            // which traits are available in this module
     pub universe: ImplUniverseId,   // the argument-owned impls this context sees (trait-solver.md §3.2)
@@ -388,7 +382,7 @@ pub trait Solver: Sync {
   `EnvKey` when the goal names a parameter, the `LocalVis` when it can
   match a local impl, the `AvailKey` for `Methods`, and the context's
   `ImplUniverseId` for `Instantiations` and `Methods`. A goal with no
-  variable, no local type and no existential goes to the run's global
+  variable and no local type goes to the run's global
   memo; any other goes to the body memo. A goal that met the depth cut
   or ran out of fuel is never published globally
   ([trait-solver.md §7.1](trait-solver.md#71-memo-keys-and-eligibility)).
@@ -736,8 +730,7 @@ functions and itself, so the only cycle is self-recursion, which is
 | private row variable | in M3, then the row sweep (section 5.5) | never open |
 
 **Obligations.** A stalled goal goes on the body's obligation list with
-the variables it waits on and the arm environment it was asked under
-(section 6.1). Each variable it waits on gets one **watch edge**, a row
+the variables it waits on. Each variable it waits on gets one **watch edge**, a row
 `(variable, obligation, next)` in an append-only table; the variable's
 `watch_head` points at its newest edge (section 13). One obligation that
 waits on three variables has three edges, one in each list.
@@ -792,9 +785,6 @@ expected type, and a placeholder slot `_` in an explicit list.
 - Each root also holds a **blame span**: the span of the first
   unification that bound it. A mismatch message names it ("expected
   `i64` because of this argument").
-- Each root holds a **birth**: the creation index of the oldest variable
-  in its class. Union keeps the smaller. Section 6.1 uses it to tell a
-  variable from outside a GADT arm from one made inside it.
 - A union wakes the watchers of the root that stops being a root, so
   their obligations re-stall on the new root (section 2.7).
 - `unify(a, b)` resolves both sides shallowly, then:
@@ -860,7 +850,7 @@ field of section 13.
 | Class | Rollback | Fields |
 | --- | --- | --- |
 | **append-only column** | truncated to its checkpoint length | through the builder: TIR instructions, `extra`, labels, locals (one table with the checker's columns), sub-bodies, captures, side tables, reserved slots, the body-local pool and its `resolved` column. In the checker: buffered diagnostics, obligations, watch edges, the wake queue, row facts, pending call records, init facts, scope bindings, literal members, the statement's open literal classes, join items, deferred slot fills, the "reported once" list |
-| **trailed slot** | the trail restores the old value | per variable: parent, rank, binding, kind, blame, birth, `watch_head`, literal-class data (signed, first span, held by a join, defaulted); per obligation: state; per local: flags and the definite-assignment bits; per scope: its newest binding; per open `fns` or `loops` frame: the head of its join-item list; per pool row below the checkpoint: a `resolved` entry |
+| **trailed slot** | the trail restores the old value | per variable: parent, rank, binding, kind, blame, `watch_head`, literal-class data (signed, first span, held by a join, defaulted); per obligation: state; per local: flags and the definite-assignment bits; per scope: its newest binding; per open `fns` or `loops` frame: the head of its join-item list; per pool row below the checkpoint: a `resolved` entry |
 | **balanced stack** | equal depth at the trial's end, asserted | `scopes`, `loops`, `fns`, `avail`, `restricted`, the divergence flag. A trial checks whole expressions, which push and pop in pairs. A frame's fields other than its join-item head never change after the push |
 | **kept on purpose** | never rolled back | fuel (rule TC-8); the solver's body memo and its `met` set (trait-solver.md rule TS-5); the trial memo (section 2.5); an M1 body checked during a trial, which runs in its own `BodyCx` and is final (TC-4) |
 
@@ -923,7 +913,7 @@ pub struct Checkpoint {                  // the checker's part; `tir` holds the 
 
 enum Undo {                              // 8 bytes: tag + index; old value in `trail_old`
     Parent(InferVar), Rank(InferVar), Bind(InferVar), Kind(InferVar),
-    Blame(InferVar), Birth(InferVar), WatchHead(InferVar), LitClass(InferVar),
+    Blame(InferVar), WatchHead(InferVar), LitClass(InferVar),
     ObState(ObId), LocalFlag(LocalId), Assigned(LocalId), ScopeHead(ScopeId),
     JoinHead(FrameId), Resolved(PoolRow),
 }
@@ -951,7 +941,7 @@ impl<B: TirSink> Checker<'_, B> {
 - **Users of `trial`:** the expected-result attempt (section 2.4), the
   instantiation choice (section 2.5), LCT joins (section 4.3), key
   collision checks (section 5.2), and hole candidates (section 10.4). No
-  other code rolls back. GADT arms do not roll back at all (section 6.1).
+  other code rolls back.
 - **Trials nest, within fuel.** Every trial charges a fixed cost plus the
   steps it takes, so fuel bounds the product of nested trials.
 - **Debug check (mine).** In debug builds, `rollback` compares a content
@@ -1433,102 +1423,16 @@ item 6). Section 16.2 lists the spec text that still says "transitive".
 
 ### 6.1 Arm-Local Equalities
 
-For a `match` on `E[S1..Sn]` and an arm whose variant result is
-`E[R1..Rn]` ([Refinement Algorithm](../../spec/lang/13-gadts.md#refinement-algorithm)):
-
-1. Note the arm's **birth mark**: the number of inference variables made
-   so far. A variable whose class birth is below the mark is **outer** to
-   the arm.
-2. Give each variant-local parameter that does not occur in the result a
-   fresh `Rigid` placeholder (an existential). Give each one that occurs
-   a fresh variable.
-3. Unify each `Si` with `Ri`, first-order and nominal, after alias
-   expansion. Where `Si` is a rigid parameter `T` of the enclosing
-   declaration, record an **arm equality** `T ≡ Ri` instead of failing.
-   The equalities and existentials go into an append-only **arm
-   environment** table, and the arm pushes its entry on the open-arms
-   stack.
-4. A contradiction makes the arm impossible: two different nominal
-   heads, or `T ≡ A` and `T ≡ B` with `A ≠ B`. That is
-   `impossible-gadt-pattern` on the arm, and exhaustiveness skips the
-   variant.
-5. Check the arm's patterns, guard and body with the equalities active,
-   under the two rules below.
-6. Check the arm's result against the match's type. A result type that
-   mentions an existential is `type-mismatch`
-   ([`gadt.existential.no-escape`](../../spec/lang/13-gadts.md#r-gadt.existential.no-escape)).
-7. At the arm's end, pop the open-arms stack. Nothing is undone: the
-   arm-environment entry stays in its table, because obligations made in
-   the arm still name it.
-
-**Rule TC-10. Equalities are consulted, never written into types
-(mine).** Shallow resolution never replaces a refined parameter `T` by
-its equal. When unification meets `T` against another type, it looks up
-`T ≡ R` and continues with `R`, without recording `R` anywhere. Method
-lookup and the solver substitute equalities for their own queries only
-(trait-solver.md §2.2 step 2). So a type stored by the arm still says
-`T` where the source said `T`.
-
-**Rule TC-11. An outer variable is bound only to what holds outside the
-arm (mine, after GHC's untouchable variables).** Inside an arm with an
-equality or an existential, binding an outer variable `?a := τ`, or
-uniting an outer root with a bound root of value `τ`, requires that `τ`
-mention no parameter refined by this arm and no existential of it. The
-test reads the `HAS_PARAM` and `HAS_RIGID` flags first, so most types
-cost one load. A failure is `type-mismatch` on the expression that
-needed it ("the arm's type equality would escape the arm"), with a fix-it
-that annotates the binding or gives the `match` an expected type
-([`gadt.check.no-escape`](../../spec/lang/13-gadts.md#r-gadt.check.no-escape)).
-Uniting two unbound variables needs no test: the united class is outer
-if either was, by its birth.
-
-**Why this is sound (review T3).** The first version kept the arm's
-bindings and scanned them afterward for escapes. The review showed two
-holes: a binding made through an equality (`?a := i32` under `T ≡ i32`)
-no longer mentions `T`, and a union changes a class without a `Bind`
-entry. Both are closed by construction:
-
-- Every binding of an outer variable made in the arm has a value that
-  is well formed and means the same with or without the arm's
-  equalities, by TC-11. So no fact that needs an equality reaches code
-  outside the arm.
-- No binding is ever made *through* an equality, by TC-10: the unifier
-  binds a variable only to a type it was given, and a given type that
-  names `T` fails TC-11's test.
-- Bindings of variables born inside the arm stay inside it, unless one
-  is united with an outer class, which TC-11 checks.
-- Obligations that the arm leaves stalled keep their arm environment
-  (section 2.7). A retry after the arm ends is asked under that
-  environment, which is exactly the context where the goal arose.
-
-So there is one transaction semantics, the trial's. A GADT arm is not a
-transaction: it adds facts that hold everywhere, and it consults
-equalities that hold only inside it. This is the "commit only
-constraints proven independent of the arm" option of the review.
-
-**What it rejects.** An arm under `T ≡ i32` whose value flows into an
-outer variable as `T` or as `i32` is ambiguous: both choices type the
-arm, and they differ outside it. GHC rejects the same programs, and the
-spec's own examples give the `match` an expected type
-([`gadt.refine.match-type`](../../spec/lang/13-gadts.md#r-gadt.refine.match-type)),
-where no outer variable is involved. Section 16.1 reading 2 asks to
-confirm this reading of `gadt.check.no-escape`.
-
-**In TIR.** An arm under `T ≡ i32` may return an `i32` where `T` is
-expected. TIR's invariant 4 needs an explicit step there: a static
-`Refine` coercion naming the arm environment, which has no run-time
-effect ([`gadt.unify.no-cast`](../../spec/lang/13-gadts.md#r-gadt.unify.no-cast)).
-The coercion kind is the backend lane's (section 17).
-
-Nested GADT patterns compose their equalities within one arm
-([`gadt.unify.nested`](../../spec/lang/13-gadts.md#r-gadt.unify.nested)):
-an inner arm's birth mark and refined set are checked as well as the
-outer arm's.
-
-An existential with bounds carries its evidence in the value
-([`gadt.runtime.evidence`](../../spec/lang/13-gadts.md#r-gadt.runtime.evidence)).
-A trait call through the existential is emitted with TIR's `Evidence`
-callee, which names the matched value, the bound and the method.
+**Removed with GADTs** (owner, 2026-10-07, in
+[goals.md](goals.md#summary); the spec removal is pending as S1e). The
+language has no pattern refinement and no existential variant
+parameters, so the checker has none of the machinery an earlier version
+of this section designed: arm equalities, `Rigid` existential
+placeholders, birth marks, the open-arms stack, the arm-environment
+table, rules TC-10 and TC-11, the `Refine` coercion and the `Evidence`
+callee for calls through an existential. A `match` arm is checked like
+any other block. Until S1e lands, chapter 13's fixtures are known
+failures of the new compiler.
 
 ### 6.2 Tuples, Varargs And Spreads
 
@@ -1559,7 +1463,7 @@ Patterns are checked against the scrutinee's type with no coercion
 | Pattern | Rule |
 | --- | --- |
 | `_`, a bare name | catch-all; a name binds the subject's type; a name that resolves to a variant of the subject enum is `bare-variant-pattern` |
-| `.V(p..)`, `E.V(p..)` | the subject's enum must be known (`missing-contextual-enum-type`); payload arity (`pattern-arity`); named payloads; GADT refinement (section 6.1) |
+| `.V(p..)`, `E.V(p..)` | the subject's enum must be known (`missing-contextual-enum-type`); payload arity (`pattern-arity`); named payloads |
 | literal | checked with the subject type as its expected type, so `integer-literal-range` applies |
 | range `a..=b` | the subject must be an integer type; each bound is checked against it |
 | tuple `(p, q)`, spread `(p, xs...)` | arity and rest rules of [Spread Patterns](../../spec/lang/06-control-flow.md#spread-patterns) |
@@ -1579,9 +1483,8 @@ over the pattern matrix, as rustc and OCaml do.
 1. Rows are the arms in source order. A guarded arm adds no coverage
    ([`flow.match.guard.coverage`](../../spec/lang/06-control-flow.md#r-flow.match.guard.coverage)),
    but its own usefulness is still checked.
-2. The constructors of a type: the variants that can inhabit the subject
-   (GADT-impossible ones removed); `true` and `false`; one tuple or data
-   constructor; `()`; and for integers, **disjoint ranges** split from
+2. The constructors of a type: the enum's variants; `true` and `false`;
+   one tuple or data constructor; `()`; and for integers, **disjoint ranges** split from
    the literals and ranges present, as rustc splits them. Strings and
    chars are infinite, so only a catch-all covers them.
 3. An arm that is not useful is `unreachable-match-arm`. That is an
@@ -2062,7 +1965,6 @@ pub struct BodyCx<'f, B: TirSink> {
     kind: Vec<VarKind>,                 // 1 B; General | IntLit{signed} | FloatLit
     value: Vec<Ty>,                     // 4 B; Ty::NONE when unbound
     blame: Vec<SpanIdx>,                // 4 B; first deciding span
-    birth: Vec<u32>,                    // 4 B; oldest variable of the class (§6.1)
     watch_head: Vec<u32>,               // 4 B; newest watch edge of this var
     lit_flags: Vec<u8>,                 // 1 B; held by a join, defaulted (§3.6)
     // trail
@@ -2102,7 +2004,7 @@ pub struct BodyCx<'f, B: TirSink> {
 }
 ```
 
-- **Inference table:** 23 bytes per variable. A typical body has tens to
+- **Inference table:** 19 bytes per variable. A typical body has tens to
   hundreds of variables, so the table fits in a few cache lines. The
   count comes from the column widths. Whether columns or a small struct
   per variable is faster is measured in slice 3
@@ -2110,8 +2012,7 @@ pub struct BodyCx<'f, B: TirSink> {
 - **Trail:** 8 bytes per entry, plus 4 for an old value. Entries exist
   only while a trial is open, or since the last statement boundary; the
   trail is cleared at each statement boundary outside trials, since
-  nothing can roll back past a finished statement. GADT arms add no
-  trail entries.
+  nothing can roll back past a finished statement.
 - **One local table.** The builder owns the locals' columns, and the
   checker reads them (data-structures.md §3.19). Locals are truncated
   with the builder's checkpoint.
@@ -2151,7 +2052,6 @@ rules with no fixture, per component.
 | [Traits](../../spec/lang/09-traits.md) (body side) | `method`, the solver interface |
 | [Modules](../../spec/lang/10-modules.md) (initialization) | `init` |
 | [Requirements And Suspension](../../spec/lang/11-requirements-and-suspension.md) | `row`, `m3`, `suspend` |
-| [GADTs](../../spec/lang/13-gadts.md) | `gadt`, `usefulness` |
 | [Annotations](../../spec/lang/14-annotations.md) (templates, facts, `@error`) | `derive`, `fact` |
 
 ### 14.2 Test Kinds
@@ -2237,12 +2137,8 @@ unless the owner disagrees.
    the same LCT site (section 3.6). Without it, `return 0` before a final
    `i64` value would default to `usize` and fail in a private function
    but not in a closure.
-2. **GADT arms and outer inference variables.** Section 6.1 rejects an
-   arm that binds a variable from outside the arm to a type that names
-   one of the arm's refined parameters or existentials (rule TC-11).
-   This reads [`gadt.check.no-escape`](../../spec/lang/13-gadts.md#r-gadt.check.no-escape)
-   strictly, as GHC does. The spec's examples all give the `match` an
-   expected type, which the rule never rejects.
+2. **GADT arms and outer inference variables.** Removed with GADTs
+   (section 6.1).
 3. **`is` on results.** With `.Ok` and `.Err` free of identity, this
    design lets `is` compare two results only when both payload types are
    reference types, the same category rule as for optionals (section
@@ -2273,9 +2169,9 @@ unless the owner disagrees.
    checking independent of emission (TC-3), and it reports with the
    syntax still at hand.
 5. **Coercion kinds.** TIR's `Coerce` has no kind for a declared
-   variance conversion, a supertrait widening or a GADT refinement, yet
-   each changes the type, so invariant 4 needs them (sections 4.2 and
-   6.1).
+   variance conversion or a supertrait widening, yet each changes the
+   type, so invariant 4 needs them (section 4.2). The GADT `Refine` kind
+   is removed with GADTs.
 6. **Ambiguity codes.** D1 §4.13.2 says an unsolved variable is "an
    ambiguity error". The spec separates `cannot-infer-type` (no solution)
    from `ambiguous-type` (several).
@@ -2316,15 +2212,14 @@ them too
    `Pending(row variable)` provider with section 5.5's `PendingRow` (with
    its substitution), `PendingCall` record, per-variable worklist solve
    and row sweep. Keep the M2 limit of section 5.6.
-7. **checking-and-tir.md §4.13.6:** replace the scoped pop with rules
-   TC-10 and TC-11 of section 6.1: no rollback at an arm's end, arm
-   environments in an append-only table.
+7. **checking-and-tir.md §4.13.6:** removed with GADTs: drop GADT
+   refinement, arm environments and the scoped pop (section 6.1).
 8. **checking-and-tir.md §4.13.11, catalog:** replace `Default` with a
    default call: the default body's `DefId`, the callee's type arguments
    and the earlier argument values, emitted per call after the explicit
    arguments (section 1.7; review finding 4). Add `Coerce` kinds for
-   declared variance, supertrait widening and GADT refinement (`Refine`,
-   static). Facts, metadata and shared enum data need a compile-time
+   declared variance and supertrait widening; no `Refine` kind, which
+   was removed with GADTs. Facts, metadata and shared enum data need a compile-time
    evaluator with its own budget, whose failure is a compile-time
    diagnostic; that design is the backend lane's (codegen.md §12.3).
 9. **checking-and-tir.md §4.13.11, builder:** `konst` must accept a

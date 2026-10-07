@@ -119,7 +119,7 @@ are frozen:
 3. Lower every header to interface types: generics with bounds, variance
    and defaults; parameters with default presence; results; rows,
    normalized after alias expansion; `!`; fields; variants with payloads
-   and GADT result types; trait members, associated types, supertraits and
+   (GADT result types are removed with GADTs); trait members, associated types, supertraits and
    default presence; impl heads with `by` delegation; aliases and
    newtypes.
 4. Build derived heads. For `@derive(X)`, the impl of `X` with `T < X` for
@@ -134,7 +134,8 @@ are frozen:
    every private item that a template body names must have a written
    signature (§4.10.1, the hidden-helper rule). In the same pass, compute
    each impl's **bound plan** (trait-solver.md §3.6), each trait's
-   dynamic-safety flag with its first failing reason and its **vtable
+   per-member `dyn` availability (an unavailable flag with its reason,
+   and the associated items each member mentions) and its **vtable
    shape** (trait-solver.md §9.1 and §9.2), and list each tuple template
    in the `heads` section with head key `TupleAny` (trait-solver.md
    §3.9).
@@ -384,8 +385,8 @@ run while unrelated folders are still being resolved.
 
 The solver is designed in [trait-solver.md](trait-solver.md). In short:
 
-- **Goals** are canonical: variables resolved, arm equalities
-  substituted, concrete projections normalized, the rest numbered by
+- **Goals** are canonical: variables resolved, concrete projections
+  normalized, the rest numbered by
   first occurrence (trait-solver.md §2.2).
 - **Candidates,** in order: the parameter environment, a trait value as
   self, compiler-supplied impls of sealed traits, owner tables and the
