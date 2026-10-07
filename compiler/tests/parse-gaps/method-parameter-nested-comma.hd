@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (method_decl/value_parameter productions).
+# From lib/std/cmp.hd:229,243 and iter.hd:259,270.
+impl Eq for Value:
+    fn eq(self, other: Result[i32, string]) -> bool: true

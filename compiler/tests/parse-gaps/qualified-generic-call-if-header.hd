@@ -1,0 +1,6 @@
+# 02-grammar.md rule: r[grammar.expr.type-arguments.marker].
+# From lib/std/num.hd:135,137,145,147,174.
+fn below_limit(value: i32) -> bool:
+    if value < limit::[i32]():
+        true
+    false

@@ -1,0 +1,3 @@
+# 02-grammar.md rule: r[grammar.generic.default].
+# From lib/std/annotation.hd:56, iter.hd:225, and ops.hd:76-142.
+pub trait Add[Rhs = Self]

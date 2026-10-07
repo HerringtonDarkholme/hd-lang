@@ -83,16 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q5. Parse-Gap Repros From lib/std
-
-The new compiler's full parser rejects 19 of the 36 `lib/std` files
-(`cargo run -p hd_driver --example stages`, footprint.md "SK-6"). For
-each distinct construct that fails, write a minimal `.hd` repro under
-`compiler/tests/parse-gaps/` (one construct per file, a comment naming
-the `02-grammar.md` rule and the std file and line it came from). Add a
-`README.md` there: a table of construct, rule, std files affected,
-count. Don't edit `compiler/crates/`. Timebox 30 minutes; push.
-
 ### Q7. Profile The Foundation Commit
 
 Run P1 on b4c14e39 (the architecture foundation): the samples, your

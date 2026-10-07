@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (string_expression production).
+# From lib/std/fs.hd:56 and testing.hd:628.
+fn message() -> string:
+    "one or two"

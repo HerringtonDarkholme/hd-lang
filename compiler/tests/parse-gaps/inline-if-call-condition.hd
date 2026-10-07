@@ -1,0 +1,5 @@
+# 02-grammar.md rule: r[grammar.flow.if-else].
+# From lib/std/collections.hd:94,243; num.hd:503; regex.hd:264,619;
+# testing.hd:484,489; text.hd:400,405.
+fn choose() -> i32:
+    if ready(): +1 else: +0

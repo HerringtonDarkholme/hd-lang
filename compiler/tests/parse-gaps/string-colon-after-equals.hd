@@ -1,0 +1,5 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (string_expression production).
+# From lib/std/cli.hd:144.
+fn usage() -> string:
+    let text = "usage: command"
+    text

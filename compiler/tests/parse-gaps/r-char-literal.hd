@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (literal/char_literal productions).
+# From lib/std/format.hd:565 and regex.hd:523,524.
+fn is_r(c: char) -> bool:
+    if c == 'r': true else: false

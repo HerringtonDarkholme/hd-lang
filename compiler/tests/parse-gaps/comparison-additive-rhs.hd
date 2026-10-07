@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.generic.bound.and.types-only].
+# From lib/std/text.hd:713 and time.hd:412,427,465,470.
+fn before(index: i32, start: i32, width: i32) -> bool:
+    index < start + width

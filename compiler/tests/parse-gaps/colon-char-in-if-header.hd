@@ -1,0 +1,6 @@
+# 02-grammar.md rule: r[grammar.closed.header-positions].
+# From lib/std/regex.hd:457.
+fn has_colon(text: string) -> bool:
+    if text.has(+0, ':'):
+        true
+    false

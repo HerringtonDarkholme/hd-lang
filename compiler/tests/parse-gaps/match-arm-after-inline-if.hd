@@ -1,0 +1,6 @@
+# 02-grammar.md rule: r[grammar.flow.if-else] (match_arm/arm_body productions).
+# From lib/std/path.hd:55.
+fn positive(value: i32?) -> i32?:
+    match value:
+        .Some(item) => if item > +0: .Some(item) else: .None
+        .None => .None

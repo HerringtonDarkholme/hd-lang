@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.inline.else-if].
+# From lib/std/time.hd:396.
+fn fits(need: i32, code: i32) -> bool:
+    if need == +1: code >= +0 && code <= +9 else if need == +2: code == +2 else: false

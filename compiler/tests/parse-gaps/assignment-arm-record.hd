@@ -1,0 +1,7 @@
+# 02-grammar.md rule: r[grammar.stmt.assign-place] (match_arm/arm_body productions).
+# From lib/std/regex.hd:874.
+fn update(value: i32?) -> void:
+    let out = +0
+    match value:
+        .Some(item) => out = Pair { left: item, right: +0 }
+        .None => pass

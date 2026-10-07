@@ -1,0 +1,3 @@
+# 02-grammar.md rule: r[grammar.fn.semantic] (value_parameter production).
+# From lib/std/testing.hd:625 and text.hd:477,483.
+pub fn pad(width: usize = +0) -> usize: width

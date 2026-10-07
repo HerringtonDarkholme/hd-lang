@@ -1,0 +1,4 @@
+# 02-grammar.md rule: r[grammar.data.default].
+# From lib/std/http.hd:29,35,38,41.
+pub data Request:
+    pub timeout: Duration? = .None

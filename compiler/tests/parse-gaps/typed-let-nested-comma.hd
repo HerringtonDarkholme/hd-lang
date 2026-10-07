@@ -1,0 +1,6 @@
+# 02-grammar.md rule: r[grammar.stmt.let-pattern] (let_statement production).
+# From lib/std/cli.hd:78; collections.hd:196,210,225,231,365,632;
+# console.hd:117,128; fs.hd:195,301; iter.hd:260; json.hd:35,36;
+# serde.hd:88,113,331; testing.hd:230,290.
+fn collect() -> void:
+    let entries: mut Map[string, string] = {}

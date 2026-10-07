@@ -1,0 +1,3 @@
+# 02-grammar.md rule: r[grammar.generic.binding.positions-key].
+# From lib/std/num.hd:13,20,24.
+pub trait Numeric < Add[Out = Self]

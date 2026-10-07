@@ -1,0 +1,7 @@
+# 02-grammar.md rule: r[grammar.scope.syntax] (unary_expression production).
+# From lib/std/encoding.hd:147,173, json.hd:573, and text.hd:135.
+fn decode(ok: bool) -> i32:
+    if ok:
+        zero()
+    else:
+        -1
