@@ -317,9 +317,10 @@ pub struct TirBody {                    // one body in the module result; the wo
     pub susp:   Col<SuspRow>,           // 16 B: inst, scope chain Range32 in extra, hook site
     pub origin: Col<(Inst, u32)>,       // generated code -> origin record in extra
     pub hole:   Col<(Inst, Range32)>,   // typed-hole candidates (DefIds and LocalIds) in extra
+    pub consts: Col<(Ty, u64)>,         // body-local literal table, by constant Ref
 }
 #[derive(Copy, Clone)] pub struct Inst(u32);
-#[derive(Copy, Clone)] pub struct Ref(u32);   // bit 31 clear: an Inst's value; set: a global pool constant (bits 0..30)
+#[derive(Copy, Clone)] pub struct Ref(u32);   // bit 31 clear: an Inst's value; set: a row in this body's consts
 pub struct LocalId(u32); pub struct SubId(u32); pub struct CaptureId(u32); pub struct LabelId(u32);
 #[repr(u8)] pub enum TirTag { /* generated from tir.ir */ }
 
@@ -340,15 +341,20 @@ const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
 - **Values are instructions.** An instruction's result is its value, used
   by later instructions through a `Ref`. Mutable user bindings are locals
   read with `LocalGet` and written with `LocalSet`.
-- **Constants are `Ref`s, not instructions (mine).** A global constant's
-  pool `Index` uses at most 31 bits (data-structures.md §3.9.2), so a
-  `Ref` with bit 31 set names it directly. D1's `consts` column and the
-  `Const` tag are gone: one form for constants, no instruction per
-  literal. A literal's span, which only diagnostics need, is known to
-  the checker when it reports.
+- **Constants are `Ref`s, not instructions (M1 finding 2).** A `Ref` with
+  bit 31 set names a row in that body's `consts` table. Each row holds
+  the constant's global `Ty` and 64 value bits. There is no `Const`
+  instruction; a literal's span, which only diagnostics need, is known
+  to the checker when it reports.
 - **Blocks list instructions.** A `Block` holds a `{start, len}` range in
-  `extra` of the instructions it runs, in order. Every instruction is in
-  exactly one block. The order of a block's list is evaluation order.
+  `extra` of the instructions it runs, in order. Every ordinary
+  instruction is in exactly one block; a child `Block` instead has the
+  structural owner described next. A block list's order is evaluation
+  order.
+- **Owned blocks are not siblings (M1 finding 3).** A `Block` named by an
+  `If`, `Match` or `Loop` child-block operand is owned by that instruction
+  and does not also occur in the enclosing block's instruction list. The
+  owner instruction occupies the enclosing list position.
 - **Types** are pool indices (data-structures.md §3.9.2). While a body is
   checked they may be body-local; the final sweep makes them global.
 - **Records in `extra`** have fixed word counts, generated and asserted
@@ -684,7 +690,11 @@ The verifier checks each of these:
 1. Every **value** operand precedes its user, and is visible where it is
    used: in the same block earlier, or in an enclosing block. Child
    blocks, labels and locals follow their own rules (5 and 10).
-2. Every instruction is in exactly one block list.
+2. Every non-root instruction has exactly one structural owner: either
+   one block list or one `If`, `Match` or `Loop` child-block operand,
+   never both (M1 finding 3). Each owned block's instructions in turn
+   have exactly one owner. The verifier builds this ownership map and
+   rejects missing, duplicate and cyclic ownership.
 3. After `finish`, every type is global or in a row tier (data-structures.md
    §3.4), and after M3 every type is global. `Hole` and `Poison` occur
    only in a module with errors, which D2 does not lower.
@@ -710,8 +720,8 @@ The verifier checks each of these:
     after `finish` every capture has a mode.
 11. Every switch in a decision tree has a case for each value of its
     type, or a default.
-12. A constant `Ref` names a global pool constant whose type equals the
-    type its position expects; no constant is body-local.
+12. A constant `Ref` names a row in this body's constant table whose
+    global type equals the type its position expects (M1 finding 2).
 13. A `Builtin` choice names a `BuiltinImpl` whose trait is the callee's
     trait.
 14. No reserved slot is empty after `finish`.
@@ -774,6 +784,11 @@ The verifier checks each of these:
   ([reconciliation, item 7](reconciliation.md#design-changes-proposed)).
 - **Reading.** Emission maps the entry and casts each section. It interns
   a type row into the pool on first use, as an interface reader does.
+- **Semantic hash (M1 finding 1).** The per-body TIR hash covers the wire
+  bytes through the constant table and excludes the trailing `syn` and
+  `local_syn` location columns. Moving a body, or changing a header so
+  later syntax-node indices shift, must therefore preserve the hash and
+  reuse its emitted code.
 
 ### 4.14 Diagnostics
 
@@ -787,6 +802,13 @@ The verifier checks each of these:
    failed import once per use.
 4. A header error in module `m` is reported in `m`, never again in its
    dependents, which see poison.
+
+**A real primary span (M1 finding 6).** Every diagnostic carries a
+primary span into source text; a sentinel file or zero-width synthetic
+placeholder is not a publishable diagnostic. M1 still lacks such spans
+for folder-cycle, overlapping-impl, missing-entry-point and internal
+unsupported diagnostics. Those stages must retain or recover the source
+site before they are complete.
 
 **Order.** Every diagnostic is sorted by package order, file stable path,
 start offset, end offset, code and rendered message. The key is total, so

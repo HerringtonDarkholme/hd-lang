@@ -491,6 +491,10 @@ After the probe:
 | any `Maybe` | `Stalled` on the placeholders, unless every `Maybe` row's arguments are already ruled out by the fast reject |
 | two `Yes` | only possible with an overlap error elsewhere: take the first in content order and continue. Coherence reports the overlap (section 5.4); the solver reports nothing |
 
+- **Exact exhaustion (M1 finding 4).** When every candidate head is exact
+  and none matches, the answer is `Fails(FailInfo { reason: NoImpl,
+  ... })`; it does not stall and is not an internal error.
+
 ### 3.6 Bounds As Subgoals
 
 An impl's bounds become subgoals after its head matched. Resolution stores

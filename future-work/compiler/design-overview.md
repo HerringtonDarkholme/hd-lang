@@ -184,12 +184,11 @@ crate ([Q1 risks](research.md#risks)). This refines
 | `hd_syntax` | lexer with skim mode, layout cursor, parser, green tree, typed views, skeletons | `hd_base`, `hd_intern`, `hd_diag` | yes |
 | `hd_fmt` | the formatter on the green tree | `hd_syntax` | yes |
 | `hd_project` | manifests, module discovery and identity, folders, folder and package graphs, the `SourceSet` trait | `hd_syntax`, `toml` | yes |
-| `hd_iface` | blob writer, zero-copy reader, validator, per-item and deep hashes, the std pack format | `hd_base`, `hd_intern` | yes |
-| `hd_types` | type interner, local type arenas, rows, unification, poison, the trait solver core and its memo | `hd_iface` | yes |
-| `hd_resolve` | use resolution, folder interface builder, derived heads, orphan and visibility checks, interface validation | `hd_types`, `hd_project` | yes |
+| `hd_types` | type interner, local type arenas, rows, unification, poison, the trait solver core and its memo | `hd_base`, `hd_intern` | yes |
+| `hd_resolve` | use resolution, folder interface builder and codec, per-item and deep hashes, derived heads, orphan and visibility checks | `hd_types`, `hd_project` | yes |
 | `hd_tir` | TIR: the generated tags, views and builder, the verifier, serialization (§4.13.11) | `hd_types` | yes |
 | `hd_check` | body checker emitting TIR, exhaustiveness, templates, coherence, init order, facts | `hd_resolve`, `hd_tir` | yes |
-| `hd_cache` | `CacheStore` trait, keys, entry framing, memory store, disk store (feature `disk`), stat manifest, trim | `hd_iface` | memory store only |
+| `hd_cache` | `CacheStore` trait, keys, entry framing, memory store, disk store (feature `disk`), stat manifest, trim | `hd_base` | memory store only |
 | `hd_sched` | `Scheduler` trait, task graph, serial executor, thread pool executor (feature `threads`), budgets, memory cap | `hd_base`, `rayon` (feature) | serial only |
 | `hd_driver` | `Session`, command pipelines (check, test plan, doc, fix), output assembly | all of the above | yes |
 | `hd_doc` | `hd doc` rendering ([HD_DOC.md](../HD_DOC.md)) | `hd_driver` | yes |
@@ -204,8 +203,8 @@ crate ([Q1 risks](research.md#risks)). This refines
 hd_base ─► hd_intern ─► hd_diag ─► hd_syntax ─► hd_fmt
                 │                     │
                 │                     └──► hd_project ─┐
-                └──► hd_iface ─► hd_types ─────────────┴─► hd_resolve ─► hd_check ─┐
-                         └──► hd_cache                                              │
+                └────────────► hd_types ─────────────┴─► hd_resolve ─► hd_check ─┐
+                └────────────► hd_cache                                            │
 hd_base ─► hd_sched ────────────────────────────────────────────────────────────────┤
                                                                                      ▼
                                           hd_driver ─► hd_doc ────────────────► hd_cli ◄─ hd_run_wasmtime

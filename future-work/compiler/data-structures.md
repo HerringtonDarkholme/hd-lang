@@ -1636,11 +1636,14 @@ exact-size copy per body in the module result:
 | locals: `local_ty`, `local_name`, `local_syn`, `local_flags` | | 13 per local | emission (Wasm locals), the program database |
 | subs: `sub_root`, `sub_params`, `sub_parent`, `sub_flags` | | 17 per sub-body | emission of closures |
 | captures: `cap_local`, `cap_mode` | | 5 per capture | emission of closures |
+| `consts` | `(Ty, u64)` | 12 per constant | emission; indexed by a constant `Ref` |
 | side: suspension points, origins, hole candidates | sorted by `Inst` | 12 to 16 per row | suspension lowering, tools |
 
 **Identity.** `Inst`, `LocalId`, `SubId`, `CaptureId` and `LabelId` are
-body-local `u32`s. A `Ref` is an `Inst` below 2^31, or a global pool constant with
-bit 31 set, so constants need no instruction and no column (mine).
+body-local `u32`s. A `Ref` is an `Inst` below 2^31, or, with bit 31 set,
+a row in the body's `consts` table (M1 finding 2). A constant row holds
+its global `Ty` and 64 value bits, so constants need no instruction and
+cannot alias another body's table.
 
 **Lifetime and owner.** The worker's columns, truncated to empty at each
 body's start; the body's copy in the module result, with its carry of
@@ -2131,7 +2134,7 @@ wire codec with the ID remap, and, for the tree, the JavaScript decoder.
 | `hd_syntax/hd.ungram` | syntax kinds, typed views in Rust and JS | `hd_syntax` |
 | `hd_syntax/tree.ir` | the tree wire format, its JS decoder | `hd_syntax` |
 | `hd_types/pool.ir` | pool tags, `TyView`, `mk`, meta computation, the type-table codec | `hd_types` |
-| `hd_iface/iface.ir` | blob sections, `IfaceReader`, `IfaceWriter` | `hd_iface` |
+| `hd_resolve/iface.ir` | blob sections, `IfaceReader`, `IfaceWriter` | `hd_resolve` |
 | `hd_tir/tir.ir` | `TirTag`, `TirView`, builder helpers, verifier, printer, `tir` entry codec | `hd_tir` |
 | `hd_cache/entries.ir` | the container, section kinds, manifest, `check`, `code` entries | `hd_cache` |
 | `hd_diag/codes.ir` | `Code`, message templates and their typed builders | `hd_diag`; read from the spec's code list |

@@ -310,6 +310,10 @@ deep_hash(F) = H("deep", api_hash(F), sorted [(path(G), deep_hash(G)) for G in m
 - `mentions(F)` is every folder, in any package or in std, whose items
   `F`'s api sections name: in signatures, field types, bounds, re-export
   targets, template bodies and hidden items.
+- **Implementation gap (M1 finding 5).** M1 currently supplies every
+  folder reached by F's `use`s to `deep_hash`, rather than only this
+  `mentions(F)` set. That is sound but over-invalidates; interface
+  construction must emit the mention set and the hash must fold only it.
 - The folder and package graphs are acyclic, so this is a Merkle hash
   computed bottom-up in the order the tasks already run. A cyclic SCC, an
   error, is hashed as one unit.

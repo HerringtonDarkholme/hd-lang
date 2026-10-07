@@ -112,6 +112,19 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
                   file, sorted dependency keys, command mode)
 ```
 
+- **Interface reach, not import reach (M1 finding 5).** The intended
+  `iface_key(F)` dependency set is `mentions(F)` from §4.11.3: folders
+  named by F's public interface, not every folder reached by F's `use`s.
+  M1's `deep_hash` currently folds all used folders and therefore
+  over-invalidates. This is an open implementation gap; narrow the
+  input when interface mention extraction lands.
+- **TIR locations do not invalidate code (M1 finding 1).** A body's TIR
+  hash excludes its trailing `syn` and `local_syn` columns. A header edit
+  that only shifts later node indices must keep the body hash and reuse
+  its code entry. M1 recomputed that code in this case, so the lookup and
+  publication path still has an open invalidation bug even though the
+  wire hash has the required boundary.
+
 - **Code keys hold the callees' representation summaries (walking
   skeleton, SK-3).** A callee's A1 summary picks the symbol its caller
   relocates to and whether the caller casts the result. So the caller's

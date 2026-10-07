@@ -33,7 +33,7 @@ interfaces from D1 and does not reach around them:
 | --- | --- | --- |
 | TIR per body (§4.13.11) | `hd_check` through `hd_tir` | the one typed IR: desugared, generic bodies with explicit coercions, dispatch, decision trees, cleanup scopes, suspension and hook points; read from the `tir` entry |
 | `ModuleResult` | `hd_check` | init summary, fact records, diagnostics; whether the module has errors |
-| folder interfaces (§4.10, §4.11) | `hd_resolve`, `hd_iface` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes for instance keys |
+| folder interfaces (§4.10, §4.11) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes for instance keys |
 | types and rows | `hd_types` | the InternPool (§3.9.2), stable paths for every `DefId`, and `StableHash` |
 | init order | `InitOrder` | statement order per initialization group |
 | test plan (§7.3) | `hd_driver` | test programs and their statically registered cases |
