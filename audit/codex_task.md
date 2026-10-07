@@ -83,24 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q10. Std Bootstrap Inventory (For M3)
-
-Research only, one doc: `future-work/compiler/std-bootstrap.md`. What
-the new compiler needs so `lib/std` reaches programs, read from
-`lib/std/*.hd`, the spec's prelude and intrinsic rules, and
-`compiler/crates/hd_host_abi`:
-
-- every `@intrinsic` (or equivalent) in lib/std: name, signature, which
-  design section owns its lowering, and whether `hd_host_abi::TABLE`
-  has it;
-- the prelude: which names every program sees, and from which modules;
-- every derive and annotation lib/std uses, with the design section
-  that handles it;
-- the folder graph of lib/std (which folders, their uses, any cycles);
-- a dependency order for M3: which pieces unblock the most.
-
-Tables, not prose. Don't edit code. Timebox 45 minutes; push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
@@ -141,3 +123,10 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
   codes::{Code, Phase};`? The job permits only generated `codes.rs` under
   `compiler/crates/`, but without that one-line module hook the generated enum
   cannot become `hd_diag::Code`.
+- **Q10 std folder cycle.** M3's folder graph rejects the current
+  `std -> std.testing -> std` loop before it can build std interfaces. Should
+  `With` and `with` move into `std.testing` (changing
+  `use std.testing.arbitrary.with` to `use std.testing.with`), should std get
+  a bootstrap-only SCC exception, or should the prerequisite modules move to
+  lower folders so the public child module can remain? Example:
+  `use std.testing.arbitrary.with` is the current public path across the loop.
