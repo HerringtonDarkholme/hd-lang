@@ -17,11 +17,6 @@ export function traitIsDynamicallySafe(
     trait.methods.some(
       (method) =>
         method.associated ||
-        method.genericParameters.some(
-          (parameter) =>
-            !(method.referenceParameters ?? []).includes(parameter) &&
-            !(method.rowParameters ?? []).includes(parameter),
-        ) ||
         // A projection `Self::Item` is the bound type, not `Self`.
         method.parameters.some((parameter) => /generic:Self(?!::)/.test(parameter)) ||
         /generic:Self(?!::)/.test(method.result),

@@ -66,19 +66,24 @@ export function typeSatisfiesValueCategory(
     return typeSatisfiesValueCategory(base, category, environment, next);
   }
 
-  const reference =
-    type.startsWith("trait:") ||
+  // Enums (optionals and `Result` included) and function types are
+  // identity-free values (04-type-system.md#r-types.sealed.anyval-values).
+  const value =
+    type === "void" ||
+    PRIMITIVE_TYPES.has(type) ||
+    tupleParts(type) !== undefined ||
     optionalInner(type) !== undefined ||
     functionParts(type) !== undefined ||
+    environment.enumTypes.has(name);
+  if (value) return category === "AnyVal";
+  const reference =
+    type.startsWith("trait:") ||
     storedSuspensionParts(type) !== undefined ||
     suspensionParts(type) !== undefined ||
     traitSuspensionParts(type) !== undefined ||
     contextKeys(type) !== undefined ||
     name === "List" ||
     name === "Map" ||
-    environment.dataTypes.has(name) ||
-    environment.enumTypes.has(name);
-  if (reference) return category === "AnyRef";
-  const value = type === "void" || PRIMITIVE_TYPES.has(type) || tupleParts(type) !== undefined;
-  return value && category === "AnyVal";
+    environment.dataTypes.has(name);
+  return reference && category === "AnyRef";
 }

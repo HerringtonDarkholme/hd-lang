@@ -496,23 +496,27 @@ export function debugPrinters(
       case "list":
       case "map": {
         const [opening, closing] = shape.kind === "list" ? ["[", "]"] : ["{", "}"];
-        add(0, "if hd__out.open():");
-        add(1, "let hd__count: usize = 0");
+        // Lists and maps can change after construction, so a cycle may pass
+        // through them: they are tracked (r-module.dbg.cycle.tracked).
+        add(0, "if hd__out.enter(hd__value):");
+        add(1, "if hd__out.open():");
+        add(2, "let hd__count: usize = 0");
         add(
-          1,
+          2,
           shape.kind === "list"
             ? "for hd__item in hd__value:"
             : "for (hd__key, hd__item) in hd__value:",
         );
-        add(2, `if hd__out.entry_item(hd__count, ${out.string(opening)}):`);
+        add(3, `if hd__out.entry_item(hd__count, ${out.string(opening)}):`);
         if (shape.kind === "map") {
-          add(3, part(shape.key, "hd__key"));
-          add(3, `hd__out.write(${out.string(": ")})`);
-          add(3, part(shape.value, "hd__item"));
-        } else add(3, part(shape.element, "hd__item"));
-        add(3, "hd__out.end_item()");
-        add(2, "hd__count = hd__count + 1");
-        add(1, `hd__out.entry_close(hd__count, ${out.string(opening)}, ${out.string(closing)})`);
+          add(4, part(shape.key, "hd__key"));
+          add(4, `hd__out.write(${out.string(": ")})`);
+          add(4, part(shape.value, "hd__item"));
+        } else add(4, part(shape.element, "hd__item"));
+        add(4, "hd__out.end_item()");
+        add(3, "hd__count = hd__count + 1");
+        add(2, `hd__out.entry_close(hd__count, ${out.string(opening)}, ${out.string(closing)})`);
+        add(1, "hd__out.leave()");
         break;
       }
       case "tuple":
@@ -558,24 +562,24 @@ export function debugPrinters(
         break;
       }
       case "enum":
-        add(0, "if hd__out.enter(hd__value):");
-        add(1, "match hd__value:");
+        // An enum value has no identity and never closes a cycle by itself,
+        // so it is not tracked (r-module.dbg.cycle.tracked).
+        add(0, "match hd__value:");
         const owner = displayType(shape.name);
         for (const each of shape.variants) {
           const qualified = `${owner}.${each.name}`;
           const binders = each.fields.map((_, index) => `hd__field${index}`);
           if (binders.length === 0) {
-            add(2, `.${each.name} => hd__out.write(${out.string(qualified)})`);
+            add(1, `.${each.name} => hd__out.write(${out.string(qualified)})`);
             continue;
           }
-          add(2, `.${each.name}(${binders.join(", ")}) =>`);
+          add(1, `.${each.name}(${binders.join(", ")}) =>`);
           variant(
-            3,
+            2,
             qualified,
             each.fields.map((field, index) => ({ ...field, value: binders[index]! })),
           );
         }
-        add(1, "hd__out.leave()");
         break;
     }
     out.add(`fn ${names.get(type)}(hd__value: ${out.type(type)}, hd__out: ${writerType}) -> void:`);

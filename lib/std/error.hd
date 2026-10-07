@@ -4,7 +4,7 @@
 # `Error` is not a prelude name (module.prelude.from-error). It extends
 # `Inspectable`, so its users need not import it
 # (module.prelude.error-inspectable).
-use std.inspect.{Inspectable}
+use std.inspect.{Inspectable, downcast_val}
 use std.format.DebugWriter
 use std.num.ParseNumberError
 use std.text.Utf8Error
@@ -12,7 +12,7 @@ use std.console.ConsoleError
 
 ## The standard error trait: a displayable, inspectable failure that may name its cause.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
-pub trait Error < Display & Inspectable & AnyRef:
+pub trait Error < Display & Inspectable:
     fn cause(self) -> Error?: .None
 
     # The last error of `chain(self)` (r-std-error.root-cause).
@@ -20,15 +20,14 @@ pub trait Error < Display & Inspectable & AnyRef:
         errors := chain(self)
         errors[errors.len() - 1]
 
-    # The first error of `chain(self)` whose recorded type is `T`, through
-    # the `downcast` method, so it is the same reference (r-std-error.find).
-    # The specified bound is `T < Error`, which implies `AnyRef` and
-    # `Inspectable`. The prototype needs both written out: its dynamic-safety
-    # check (src/checker/program-signatures.ts) and its downcast target check
-    # (src/checker/expression-inspect.ts) read only a direct bound.
-    fn find[T < AnyRef & Inspectable & Error](self) -> T?:
+    # The first error of `chain(self)` whose recorded type is `T`, recovered
+    # through `downcast_val`: an enum error comes back as an equal value, and
+    # a data error as the same reference (r-std-error.find.value). `T` may be
+    # any error type, a value type included, by
+    # spec/lang/09-traits.md#r-trait.dyn.safe.method-type-param.
+    fn find[T < Error](self) -> T?:
         for error in chain(self):
-            match error.downcast::[T]():
+            match downcast_val::[T](error):
                 .Some(found) => return .Some(found)
                 .None => pass
         .None

@@ -81,11 +81,10 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
     const generic = genericTypeName(type);
     if (generic) return (this.signature.referenceParameters ?? []).includes(generic);
     if (type.startsWith("trait:")) return true;
-    // An optional is an ordinary enum value (04 Optional Types): `.None` is
-    // canonical and each `.Some` construction has its own identity.
-    if (optionalInner(type) !== undefined) return true;
+    // Enums, optionals included, and function types are identity-free
+    // values (04-type-system.md#r-types.sealed.anyval-values).
+    if (optionalInner(type) !== undefined || functionParts(type)) return false;
     if (
-      functionParts(type) ||
       storedSuspensionParts(type) ||
       suspensionParts(type) ||
       traitSuspensionParts(type) ||
@@ -94,9 +93,8 @@ export abstract class PatternChecker extends MemberVisibilityChecker {
       return true;
     const nominal = nominalGenericParts(type);
     if (nominal?.name === "List" || nominal?.name === "Map") return true;
-    if (nominal && (this.dataTypes.has(nominal.name) || this.enumTypes.has(nominal.name)))
-      return true;
-    return this.dataTypes.has(type) || this.enumTypes.has(type);
+    if (nominal && this.dataTypes.has(nominal.name)) return true;
+    return this.dataTypes.has(type);
   }
 
   /**

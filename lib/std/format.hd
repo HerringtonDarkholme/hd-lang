@@ -37,7 +37,7 @@ pub data DebugWriter:
     pretty: bool
     # How many parts the value being written is inside.
     depth: usize
-    # The data and enum values being written, to find a cycle.
+    # The data values, lists and maps being written, to find a cycle.
     active: mut List[Any]
 
 impl DebugWriter:
@@ -189,9 +189,11 @@ impl DebugWriter:
             self.write(self.margin())
         self.write(closing)
 
-    # Starts writing `value`, a data or enum value. Under `dbg`'s limits, a
-    # value that is already being written is part of a cycle: this writes
-    # `<cycle>` and returns false (spec/lang/10-modules.md#r-module.dbg.cycle).
+    # Starts writing `value`, a data value with fields, a list or a map: the
+    # values that have identity and can change, so every cycle passes one.
+    # A value that is already being written is part of a cycle: this writes
+    # `<cycle>` and returns false (spec/lang/10-modules.md#r-module.dbg.cycle.tracked).
+    # Enum values are never passed here: they have no identity.
     fn enter(mut self, value: Any) -> bool:
         for seen in self.active:
             if seen is value:
