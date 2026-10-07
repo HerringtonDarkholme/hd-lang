@@ -1,5 +1,6 @@
 # test: positional arguments come first, named arguments follow, closures omit parameter types only where the expected type supplies them, and a standalone closure annotates its type
 # Spec 02 Calls And Arguments: grammar.call.positional-first.
+# Spec 05 Calls And Closures: expr.call.positional-first, expr.closure.
 # Spec 02 Closures: grammar.closure.parameter-types, grammar.closure.annotations.
 # Spec 02 Functions: grammar.fn.semantic, grammar.fn.receiver.
 # expect-stdout: 12 20 4

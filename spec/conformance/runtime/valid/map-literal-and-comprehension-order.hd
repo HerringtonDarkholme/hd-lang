@@ -1,5 +1,6 @@
 # test: map literals evaluate key then value; comprehension filters run in place
 # expect: test
+# Spec 05 Map Iteration: expr.map.iteration.order.
 use std.testing.assert_equal
 
 data Log:

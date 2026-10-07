@@ -1,4 +1,7 @@
 # test: collections / maps / lookup replacement
+# Spec 05 Map Literals: expr.map.order, expr.map.duplicate.last,
+# expr.map.keys, expr.collection.expected,
+# expr.collection.inferred, expr.collection.inferred.rows.
 
 use std.testing.assert_equal
 

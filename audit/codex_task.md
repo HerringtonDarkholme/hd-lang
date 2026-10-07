@@ -82,11 +82,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S3. Fixtures: Chapters 06, 04 And 05
-
-The same as S2 for chapter 06 (control flow, 30%), 04 (type system,
-33%) and 05 (expressions, 35%).
-
 ### S4. Fixtures: Thin Stdlib Modules
 
 The same for the stdlib modules under 35%: `net` (16%), `http` (20%),

@@ -1,5 +1,9 @@
 # test: the piped value is evaluated once, before the step and its callee
 # Spec 05 Pipe Expressions: expr.pipe.order, expr.pipe.slot.meaning, expr.pipe.bare.call, expr.pipe.left-assoc (Pipe PL6, PL7).
+# Also exercises expr.pipe.precedence, expr.pipe.step-kinds,
+# expr.pipe.value, expr.pipe.slot.one, expr.pipe.bare.form,
+# expr.pipe.single-line.inline, expr.pipe.placeholder-only,
+# and expr.pipe.no-partial.
 use std.testing.assert_equal
 
 data Log:

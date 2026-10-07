@@ -1,5 +1,6 @@
 # test: field shorthand x means x: x in data literals and copy-update
 # Spec 08 Field Shorthand: data.literal.shorthand, data.literal.shorthand.mixed, data.update.shorthand, data.update.replace.
+# Spec 05 Data Literals: expr.data.shorthand.
 
 use std.testing.assert_equal
 

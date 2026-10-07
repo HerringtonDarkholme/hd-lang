@@ -2,6 +2,9 @@
 # Spec 02 Comprehensions: grammar.comprehension.first-for, grammar.comprehension.order, grammar.comprehension.no-let.
 # Spec 02 Control-Flow Expressions: grammar.flow.for-in-brackets, grammar.flow.for-pattern.
 # Spec 02 Expressions Followed By Another Token: grammar.continued.positions, grammar.continued.position-list.
+# Spec 05 Comprehensions: expr.comp.list, expr.comp.shape,
+# expr.comp.visibility, expr.comp.map, expr.comp.map.duplicate,
+# expr.comp.eager, expr.comp.no-jumps, expr.comp.no-let.
 # expect-stdout: 8 12 2
 # expect-stdout: 1x2 1y2 3x4 3y4
 # expect-stdout: 2 4

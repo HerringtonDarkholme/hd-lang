@@ -1,4 +1,5 @@
 # test: a direct `is` on a named function value is an error
+# Spec 05 Identity: expr.is.function-none, expr.is.function-sharing.
 fn inc(value: i32) -> i32: value + 1
 
 fn same() -> bool:

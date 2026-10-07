@@ -1,6 +1,10 @@
 # test: postfix ? on a Result evaluates its operand once; Err returns early, Ok yields the payload
 # Spec 05 Propagation: "for `Result[T, E]`, `.Ok(value)` produces the declared `T` ...; `.Err(error)`
 # immediately returns a compatible `.Err` from the nearest function." and "The operand is evaluated once."
+# Rules: expr.try.result, expr.try.once, expr.try.no-panic,
+# expr.try.convert.assignable, expr.try.convert.none,
+# expr.try.convert.assignable.covers, expr.try.convert.one-step,
+# expr.try.convert.single-rule, expr.try.convert.only-try.
 use std.testing.assert_equal
 
 data Log:

@@ -1,5 +1,8 @@
 # test: named arguments source evaluation order
 # Spec 07 Arguments: fn.arg.mix, fn.arg.labels, fn.arg.once.
+# Spec 05 Calls: expr.call.order, expr.call.callable,
+# expr.call.positional-first, expr.call.named, expr.call.exactly-once,
+# expr.call.source-order.
 
 use std.testing.assert_equal
 

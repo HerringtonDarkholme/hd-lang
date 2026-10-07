@@ -1,5 +1,9 @@
 # test: a list element ending in '...' inserts a list's elements in place
 # expect: test
+# Spec 05 List Literals: expr.list.order, expr.list.type,
+# expr.list.spread, expr.list.spread.once, expr.list.spread.type,
+# expr.list.spread.insert, expr.list.spread.position,
+# expr.list.spread.expected, expr.list.spread.inferred.
 
 use std.testing.assert_equal
 

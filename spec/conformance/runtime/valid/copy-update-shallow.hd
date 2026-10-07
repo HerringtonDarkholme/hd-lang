@@ -1,6 +1,10 @@
 # test: copy-update is shallow and does not re-evaluate field defaults
 # expect: test
 # Spec 08 Copy-Update Literals: data.update.new-value, data.update.no-defaults, data.update.mutable-result; Field Defaults: data.default.eval.
+# Spec 05 Copy-Update: expr.update.form, expr.update.one-spread,
+# expr.update.spread-first, expr.update.exact-type, expr.update.access-view,
+# expr.update.readonly-source, expr.update.readonly-fill,
+# expr.update.mutable-source, expr.update.shallow, expr.update.no-upgrade.
 use std.testing.{assert, assert_equal}
 
 data Child:

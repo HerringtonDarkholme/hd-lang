@@ -1,6 +1,7 @@
 # test: ? never chains conversions
 # Spec 05 Propagation: with `impl From[A] for B` and `impl From[B] for C`, a `?` on
 # `Result[T, A]` in a function returning `Result[U, C]` is `invalid-result-propagation`.
+# Rules: expr.try.convert.no-chain, expr.try.convert.no-combine.
 use std.convert.From
 
 enum LowError:

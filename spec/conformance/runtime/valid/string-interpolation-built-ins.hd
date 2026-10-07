@@ -1,4 +1,7 @@
 # test: string interpolation displays built-ins from left to right
+# Spec 05 Interpolation: expr.interp.forms, expr.interp.order,
+# expr.interp.display, expr.interp.append,
+# expr.interp.no-fallback, expr.interp.std, expr.interp.constant.
 
 use std.testing.assert_equal
 

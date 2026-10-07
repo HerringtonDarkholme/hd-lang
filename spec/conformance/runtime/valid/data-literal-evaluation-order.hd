@@ -1,5 +1,7 @@
 # test: explicit field expressions run in source order, then omitted defaults in declaration order
 # Spec 08 Data Literals: data.literal.eval-explicit, data.literal.eval-defaults; Field Defaults: data.default.scope.
+# Spec 05 Data Literals: expr.data.required, expr.data.once,
+# expr.data.eval.
 use std.testing.assert_equal
 
 let trace = +0

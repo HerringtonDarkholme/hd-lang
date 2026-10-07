@@ -1,6 +1,7 @@
 # test: ? never follows a From conversion with an optional injection
 # Spec 05 Propagation: a `?` on `Result[T, A]` in a function returning `Result[U, B?]` is
 # `invalid-result-propagation`, because the conversion to `B` would need an injection after it.
+# Rules: expr.try.convert.no-injection.
 use std.convert.From
 
 enum FsError:

@@ -1,4 +1,7 @@
 # test: reference identity
+# Spec 05 Identity: expr.is.no-user-code, expr.is.heap-values,
+# expr.is.conversion, expr.is.no-wrapper, expr.is.canonical-data,
+# expr.is.canonical.same, expr.is.compatible, expr.is.permissions.
 
 use std.testing.assert_equal
 

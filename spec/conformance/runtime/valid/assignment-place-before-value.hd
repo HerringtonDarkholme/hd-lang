@@ -1,5 +1,11 @@
 # test: assignments evaluate the place before the right-hand side
 # expect: test
+# Spec 05 Evaluation And Assignment: expr.evaluated,
+# expr.order.left-to-right, expr.order.applies, expr.category.value,
+# expr.category.place, expr.place.field, expr.place.index,
+# expr.place.receiver, expr.place.call-update, expr.assign.statement,
+# expr.assign.target, expr.assign.order, expr.assign.order.field,
+# expr.assign.order.index, expr.assign.order.call.
 use std.testing.assert_equal
 
 data Log:

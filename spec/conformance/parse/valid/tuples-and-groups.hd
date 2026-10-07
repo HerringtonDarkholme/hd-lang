@@ -1,4 +1,5 @@
 # test: parser distinguishes grouped expressions from tuple types and literals
+# Spec 05 Tuple Expressions: expr.paren.group, expr.tuple.single.
 
 fn pair(value: (i32, string)) -> (i32,): (value._0,)
 empty := ()
