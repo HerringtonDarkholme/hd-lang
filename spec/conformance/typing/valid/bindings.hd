@@ -1,3 +1,11 @@
+# Spec 04 Assignability, Views, And Bindings: types.static,
+# types.local-inference, types.assign, types.assign.identical,
+# types.assign.weaken, types.assign.binding-type, types.assign.let-declared,
+# types.composite.kinds, types.composite.shared, types.view.readonly,
+# types.view.mutable, types.view.term, types.view.non-reassignable,
+# types.mut.permission, types.mut.no-field-reassign, types.mut.weaken,
+# types.bind.short, types.bind.let-mut, types.param.readonly,
+# types.param.mut, types.return.readonly.
 data User:
     name: string
 

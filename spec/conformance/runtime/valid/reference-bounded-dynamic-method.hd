@@ -1,3 +1,11 @@
+# Spec 04 Trait Values And Sealed Markers: types.trait.explicit,
+# types.trait.static, types.trait.value, types.trait.value.contents,
+# types.trait.value.bound, types.trait.value.bound.available,
+# types.trait.safe.method-type-arg.any-use,
+# types.trait.safe.method-type-arg.box, types.any,
+# types.any.erase, types.any.one-way, types.sealed.decl,
+# types.sealed.markers, types.sealed.anyref-values,
+# types.sealed.type-parameter, types.sealed.bounds.
 use std.testing.assert_equal
 
 data User:

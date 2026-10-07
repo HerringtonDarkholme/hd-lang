@@ -1,4 +1,8 @@
 # test: Result is an ordinary prelude enum; .Ok, .Err, Result.Ok, and Result.Err build and match it
+# Spec 04 Result Construction: types.result.decl,
+# types.result.prelude-name, types.result.construction,
+# types.result.ok-context, types.result.bare-variant,
+# types.result.patterns, types.result.unit-pattern.
 use std.testing.assert_equal
 
 fn contextual_ok(value: i32) -> Result[i32, string]:

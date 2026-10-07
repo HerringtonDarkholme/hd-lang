@@ -1,3 +1,9 @@
+# Spec 04 Variance: types.assign.variance, types.generic.sharing,
+# types.variance.markers, types.polarity, types.polarity.positive,
+# types.polarity.both, types.variance.unmarked,
+# types.variance.readonly-only, types.variance.mut-invariant,
+# types.variance.repr.covariant, types.variance.repr.contravariant,
+# types.variance.repr.weakening, types.variance.no-insertion.
 data User:
     name: string
 

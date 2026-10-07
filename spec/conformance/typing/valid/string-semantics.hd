@@ -1,3 +1,5 @@
+# Spec 04 Strings: types.string.utf8-bytes, types.string.valid-utf8,
+# types.string.compare-bytes, types.string.len-bytes.
 fn byte_length(value: string) -> usize:
     value.len()
 

@@ -1,5 +1,9 @@
 # test: optional injection contributes one layer to the least common type
 # Spec 04 Least Common Type: types.lct.optional; an i32 and an i32? join to i32? in if, match, list literals, and inferred results.
+# Also exercises types.lct.uses, types.lct.no-combine,
+# types.lct.contextual, types.lct.contextual.expected,
+# types.infer.sites, types.infer.body-result.private,
+# and types.infer.named-fn.
 use std.testing.assert_equal
 
 fn pick(flag: bool, count: i32, found: i32?):

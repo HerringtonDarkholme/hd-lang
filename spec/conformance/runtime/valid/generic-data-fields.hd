@@ -1,4 +1,8 @@
 # test: generic data fields
+# Spec 04 Generics: types.generic.complete, types.generic.naming,
+# types.generic.kind, types.generic.direct, types.generic.explicit,
+# types.generic.sharing, types.generic.interfaces,
+# types.generic.identity.primitive.
 
 use std.testing.assert_equal
 

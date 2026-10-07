@@ -1,3 +1,10 @@
+# Spec 04 Option And Result Propagation: types.option.decl,
+# types.option.sugar, types.option.distinct, types.option.propagate,
+# types.option.propagate.one-layer, types.option.propagate.permission,
+# types.option.ordinary, types.result.decl, types.result.propagate,
+# types.result.propagate.enclosing, types.result.propagate.one-step,
+# types.result.err-value, types.result.propagate.permission,
+# types.result.no-effects.
 data ParseError:
     message: string
 

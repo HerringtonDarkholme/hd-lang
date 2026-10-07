@@ -1,3 +1,8 @@
+# Spec 04 Nominal Types, Newtypes, And Casts: types.nominal.distinct,
+# types.nominal.shape, types.newtype.decl, types.newtype.distinct,
+# types.newtype.construct, types.newtype.no-implicit,
+# types.newtype.no-inherit, types.newtype.construct-value,
+# types.cast.syntax, types.cast.precision, types.cast.nonnumeric.
 type Mile(i32)
 
 let small: i8 = 1

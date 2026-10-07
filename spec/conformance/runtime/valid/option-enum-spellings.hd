@@ -1,4 +1,9 @@
 # test: T? is Option[T]; .None, Option.None, .Some, and Option.Some build optionals
+# Spec 04 Option Construction: types.option.decl, types.option.sugar,
+# types.option.prelude-name, types.option.bare-variant, types.option.none,
+# types.option.some, types.option.construction, types.option.none-context,
+# types.option.wrap, types.option.wrap.sites, types.option.wrap.once,
+# types.option.wrap.one-layer, types.option.ordinary.
 use std.testing.{assert, assert_equal}
 
 fn absent() -> Option[i32]:

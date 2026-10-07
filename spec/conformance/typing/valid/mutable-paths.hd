@@ -1,4 +1,12 @@
 # Spec 08 Field Access: data.access.syntax, data.access.mut-root, data.access.nested; Fields: data.field.mut-type.
+# Spec 04 Mutable Paths: types.path.access-type, types.path.root,
+# types.path.call, types.path.field, types.path.field.mutable-edge,
+# types.path.field.readonly-edge, types.path.field.generic,
+# types.path.field.substituted, types.path.access.mut-type,
+# types.path.access.mut-self, types.path.mutation,
+# types.path.mutation.needs-access, types.path.mutation.only,
+# types.path.store-mut-edge, types.path.store-readonly,
+# types.path.reassign, types.path.reassign.old-value.
 data Profile:
     name: string
 

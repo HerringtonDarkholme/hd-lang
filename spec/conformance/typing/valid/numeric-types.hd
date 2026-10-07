@@ -1,3 +1,13 @@
+# Spec 04 Primitive And Literal Types: types.prim.set,
+# types.prim.decimal, types.prim.no-byte, types.prim.by-value,
+# types.literal.int-local, types.literal.int-no-widen,
+# types.literal.unary-plus, types.literal.negation,
+# types.literal.negation.minimum, types.literal.float-local,
+# types.literal.float-expected, types.literal.float-finite,
+# types.literal.local.expected, types.num.families,
+# types.num.no-sign-change, types.num.no-int-float,
+# types.num.binary.no-mix, types.num.binary.cast, types.cast.syntax,
+# types.cast.int-float.
 float_default := 0.5
 large_float := 1e9
 small_float := 1.5e-6
