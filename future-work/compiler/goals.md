@@ -29,6 +29,19 @@ Detailed design: [README.md](README.md)
 
 **Decided (owner, 2026-10-07):**
 
+- Identity (option B, extended): `.Some`, `.Ok`, `.Err` and primitive or
+  tuple boxes have no identity. `is` is a compile error on any operand whose
+  static type is a value type (an optional or `Result` takes its payload's
+  category) and on function values; on a value known only dynamically as
+  `Any`, the result is unspecified. Whether every enum becomes a value type
+  is under research
+  (research-enum-values.md, pending).
+- Literal widths are decided once per connected literal class; no
+  per-statement retry.
+- An impl head may not project an impl parameter
+  (`unconstrained-impl-parameter`).
+- Implementation of the new compiler runs one agent at a time.
+
 - Bounded inlining and scalar replacement of small non-escaping values are
   in the first release, the same in debug and release builds, so the
   `runtime` and `allocations` targets can be met.
