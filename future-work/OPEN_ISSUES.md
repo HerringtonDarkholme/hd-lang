@@ -337,7 +337,12 @@ These items remain required but do not currently require new core syntax:
   test grant in
   [Test Environments](../spec/cli/command-line.md#test-environments), and
   [Http](../spec/std/http.md), [Net](../spec/std/net.md) and
-  [Sys](../spec/std/sys.md). These points stay open:
+  [Sys](../spec/std/sys.md). The v1 host ABI is hd's own core-Wasm
+  imports, not the Component Model, which can't carry Wasm GC values
+  (owner, 2026-10-06,
+  [research](COMPILER_ARCHITECTURE_RESEARCH.md#open-questions-for-the-owner)).
+  Where a point below names the component ABI, read it as the hd host ABI.
+  These points stay open:
   - **Runtime code loading (parked, 2026-10-06).** A host trait `Loader`
     would load a built `.wasm` plugin at run time. It would check the
     plugin's exports against an hd interface trait, bind its row from an
