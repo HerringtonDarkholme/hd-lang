@@ -82,6 +82,11 @@ Review of C2, built on f0e4b2b1 with S1d's new fixtures:
    error. Fix the parser, run the whole conformance ledger again against
    current main (S1d migrated 243 fixtures to `dyn`), and push. The Rust
    CI job will be red until this lands.
+   S1e (294e2265) removed GADTs: also emit `variant-result-type-removed`
+   for `parse/invalid/variant-result-type-removed.hd` and
+   `variant-type-parameters-removed.hd` (a variant `->` result type or a
+   variant type parameter list), and delete the ledger rows for the two
+   deleted `gadt-named-*-before-positional` fixtures.
 2. Non-blocking. Full parse runs at 49.4 MB/s; the target is at least
    100 MB/s (see C2a item 4).
 
