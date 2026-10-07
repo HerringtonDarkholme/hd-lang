@@ -4,7 +4,7 @@
 // `node --experimental-strip-types bin/hd.js`. Nothing here imports the
 // prototype; every measurement goes through a child process.
 
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { platform } from "node:process";
@@ -233,3 +233,141 @@ export const summaryOf = (text: string): Record<string, unknown> | undefined =>
   jsonLines(text)
     .filter((record) => record.kind === "summary")
     .at(-1);
+
+/**
+ * The summed resident set size, in bytes, of the processes in group
+ * `pgid`, from the output of `ps -A -o pgid=,rss=` (kilobytes, on macOS and
+ * Linux alike). Undefined when no process of the group is listed.
+ */
+export function parsePsRss(text: string, pgid: number): number | undefined {
+  let total: number | undefined;
+  for (const line of text.split("\n")) {
+    const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+    if (match && Number(match[1]) === pgid) total = (total ?? 0) + Number(match[2]) * 1024;
+  }
+  return total;
+}
+
+/** The current resident set size of process group `pgid`, by `ps`; undefined when unknown. */
+export function groupRssBytes(pgid: number): Promise<number | undefined> {
+  return new Promise((done) => {
+    execFile("ps", ["-A", "-o", "pgid=,rss="], { timeout: 10_000 }, (error, stdout) =>
+      done(error ? undefined : parsePsRss(stdout, pgid)),
+    );
+  });
+}
+
+export interface SessionStep {
+  /** Text written to the session's standard input. */
+  readonly input: string;
+  /** Holds once the session's standard output shows that the input was handled. */
+  readonly done: (stdout: string) => boolean;
+}
+
+export interface SessionResult {
+  /** The resident set size of the session's process group after each completed step. */
+  readonly rssBytes: readonly (number | undefined)[];
+  /** Why the session stopped early: a timeout, or an exit before a step was done. */
+  readonly problem?: string;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/**
+ * Runs one long-lived process, such as a REPL, fed in steps. Each step's
+ * input is written; the run then waits until the step's `done` holds for the
+ * standard output so far, and samples the resident set size of the process
+ * group. Standard input closes after the last step. The whole session shares
+ * one timeout, and waiting is woken by output, not by polling.
+ */
+export function runSession(
+  argv: readonly string[],
+  options: {
+    readonly cwd: string;
+    readonly env?: Readonly<Record<string, string>>;
+    readonly timeoutMs: number;
+    readonly steps: readonly SessionStep[];
+  },
+): Promise<SessionResult> {
+  const child = spawn(argv[0]!, argv.slice(1), {
+    cwd: options.cwd,
+    env: { ...process.env, NO_COLOR: "1", ...options.env },
+    detached: true,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const pid = child.pid;
+  if (pid !== undefined) live.add(pid);
+  let stdout = "";
+  let stderr = "";
+  let exit: number | null | undefined;
+  let wake: (() => void) | undefined;
+  child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+    stdout += chunk;
+    wake?.();
+  });
+  child.stderr.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
+  child.stdin.on("error", () => {});
+  const closed = new Promise<void>((done) => {
+    child.on("error", () => {
+      exit ??= null;
+      wake?.();
+      done();
+    });
+    child.on("close", (status) => {
+      exit = status;
+      if (pid !== undefined) live.delete(pid);
+      wake?.();
+      done();
+    });
+  });
+  const started = performance.now();
+  const deadline = started + options.timeoutMs;
+  const waitFor = async (test: () => boolean): Promise<boolean> => {
+    while (!test() && exit === undefined) {
+      const left = deadline - performance.now();
+      if (left <= 0) return false;
+      await new Promise<void>((done) => {
+        const timer = setTimeout(done, left);
+        wake = () => {
+          clearTimeout(timer);
+          done();
+        };
+      });
+      wake = undefined;
+    }
+    return test();
+  };
+  const kill = (): void => {
+    try {
+      process.kill(-pid!, "SIGKILL");
+    } catch {
+      child.kill("SIGKILL");
+    }
+  };
+  return (async () => {
+    const rssBytes: (number | undefined)[] = [];
+    let problem = pid === undefined ? "the session did not start" : undefined;
+    for (const [index, step] of options.steps.entries()) {
+      if (problem) break;
+      child.stdin.write(step.input);
+      if (await waitFor(() => step.done(stdout))) {
+        rssBytes.push(await groupRssBytes(pid!));
+        continue;
+      }
+      const seconds = ((performance.now() - started) / 1000).toFixed(0);
+      const where = `step ${index + 1} of ${options.steps.length}`;
+      problem =
+        exit === undefined
+          ? `timed out after ${seconds} s at ${where}`
+          : `exited ${String(exit)} before ${where} was done`;
+    }
+    child.stdin.end();
+    if (exit === undefined) {
+      const left = problem ? 0 : Math.max(deadline - performance.now(), 1000);
+      const timer = setTimeout(kill, left);
+      await closed;
+      clearTimeout(timer);
+    }
+    return { rssBytes, ...(problem === undefined ? {} : { problem }), stdout, stderr };
+  })();
+}

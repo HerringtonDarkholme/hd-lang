@@ -1,20 +1,28 @@
 // Unit tests of the metric harness helpers. They run no hd.
 
 import assert from "node:assert/strict";
+import { chmodSync, existsSync, linkSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { CASES } from "./pathological/cases.ts";
 import { formatTable, selectMetrics } from "./run.ts";
+import { findCacheCap, findThreadControl } from "./lib/capability.ts";
 import { loadMistakes, parseMistake } from "./lib/corpus.ts";
 import { applyEdits, fixOf } from "./lib/fixit.ts";
 import { dependentsOf, editBody, editSignature, generatePackage, makeRandom } from "./lib/gen.ts";
-import { parseTimeReport, splitCommand } from "./lib/hd.ts";
+import { parsePsRss, parseTimeReport, runSession, splitCommand } from "./lib/hd.ts";
 import { judge } from "./lib/metric.ts";
 import { estimateTokens, growthExponent, p50, p95, percentile } from "./lib/stats.ts";
+import { makeTempDir, removeTempDir, treeBytes } from "./lib/tmp.ts";
+import { parseStrace } from "./lib/trace.ts";
+import { latencyBound } from "./scripts/concurrency.ts";
+import { toolchainOf } from "./scripts/disk.ts";
 import { assemble, FILES } from "./scripts/errors-per-run.ts";
 import { newErrors } from "./scripts/fixit-safety.ts";
 import { METRICS } from "./scripts/index.ts";
+import { under } from "./scripts/io-per-check.ts";
+import { growthFrom, replInput, replSteps } from "./scripts/long-session.ts";
 
 describe("stats", () => {
   it("takes nearest-rank percentiles", () => {
@@ -174,7 +182,23 @@ describe("runner", () => {
       selectMetrics(METRICS, ["fmt,mistakes"], undefined).map((metric) => metric.name),
       ["mistakes", "fmt"],
     );
-    assert.equal(selectMetrics(METRICS, [], "1").length, METRICS.length);
+    assert.equal(selectMetrics(METRICS, [], "1").length, 14);
+    assert.deepEqual(
+      selectMetrics(METRICS, [], "2").map((metric) => metric.name),
+      [
+        "resources",
+        "long-session",
+        "startup",
+        "concurrency",
+        "disk",
+        "suite-cpu",
+        "parallel-speedup",
+        "cache-contention",
+        "cache-growth",
+        "io-per-check",
+        "fetch-dedup",
+      ],
+    );
     assert.throws(() => selectMetrics(METRICS, ["nope"], undefined), /unknown metric/);
   });
 
@@ -189,5 +213,111 @@ describe("runner", () => {
     assert.equal(judge("m", "t", 40, 50, "ms").status, "pass");
     assert.equal(judge("m", "t", 0.9, 0.95, "%", "at-least").status, "fail");
     assert.equal(judge("m", "t", Number.NaN, 1, "x").status, "fail");
+  });
+});
+
+describe("pillar 2 helpers", () => {
+  it("sums the RSS of one process group from ps", () => {
+    const text = "    1  18112\n  367  16672\n  367   9920\n 3670     10\n";
+    assert.equal(parsePsRss(text, 367), (16672 + 9920) * 1024);
+    assert.equal(parsePsRss(text, 42), undefined);
+  });
+
+  it("samples a paced session after each step", async () => {
+    // A stand-in REPL: echoes each line it reads, upper-cased.
+    const echo = [
+      process.execPath,
+      "-e",
+      'require("readline").createInterface({ input: process.stdin }).on("line", (l) => console.log(l.toUpperCase()))',
+    ];
+    const steps = ["a", "b"].map((word) => ({
+      input: `${word}\n`,
+      done: (stdout: string) => stdout.includes(word.toUpperCase()),
+    }));
+    const result = await runSession(echo, { cwd: process.cwd(), timeoutMs: 20_000, steps });
+    assert.equal(result.problem, undefined);
+    assert.equal(result.rssBytes.length, 2);
+    assert.ok(result.rssBytes.every((value) => value !== undefined && value > 0));
+    const stuck = await runSession(echo, {
+      cwd: process.cwd(),
+      timeoutMs: 1_000,
+      steps: [{ input: "a\n", done: () => false }],
+    });
+    assert.match(stuck.problem ?? "", /timed out .* step 1 of 1/);
+  });
+
+  it("counts hard-linked files once and removes read-only trees", () => {
+    const dir = makeTempDir("unit");
+    mkdirSync(join(dir, "entry"));
+    writeFileSync(join(dir, "entry", "a.txt"), "12345");
+    linkSync(join(dir, "entry", "a.txt"), join(dir, "b.txt"));
+    writeFileSync(join(dir, "c.txt"), "123");
+    assert.deepEqual(treeBytes(dir), { bytes: 8, files: 2 });
+    chmodSync(join(dir, "entry"), 0o555);
+    removeTempDir(dir);
+    assert.equal(existsSync(dir), false);
+  });
+
+  it("finds documented thread controls and cache caps", () => {
+    const flag = findThreadControl("flags:\n  -j, --jobs N  threads to use\n", "");
+    assert.deepEqual(flag?.args(4), ["--jobs=4"]);
+    const variable = findThreadControl("flags:\n  --tests\n", "HD_THREADS sets the thread count");
+    assert.deepEqual(variable?.env(2), { HD_THREADS: "2" });
+    assert.equal(findThreadControl("  -p, --package NAME\n", "HD_CACHE"), undefined);
+    assert.equal(findCacheCap("HD_CACHE_MAX_BYTES caps the cache"), "HD_CACHE_MAX_BYTES");
+    assert.equal(findCacheCap("Fetched versions go to HD_CACHE when it is set."), undefined);
+  });
+
+  it("reads file calls from an strace log", () => {
+    const log = [
+      '101 openat(AT_FDCWD, "/p/src/m001.hd", O_RDONLY|O_CLOEXEC) = 3',
+      '101 openat(AT_FDCWD, "/p/build/out", O_WRONLY|O_CREAT, 0644) = 4',
+      '[pid 102] newfstatat(AT_FDCWD, "/p/src/m002.hd", {st_mode=S_IFREG|0644}, 0) = 0',
+      '102 openat(AT_FDCWD, "/p/src/gone.hd", O_RDONLY) = -1 ENOENT (No such file or directory)',
+      '102 stat("src/m003.hd", {st_mode=S_IFREG|0644}) = 0',
+      '102 newfstatat(3, "", {st_mode=S_IFREG|0644}, AT_EMPTY_PATH) = 0',
+      "102 <... openat resumed>) = 5",
+    ].join("\n");
+    const access = parseStrace(log);
+    assert.deepEqual([...access.reads], ["/p/src/m001.hd"]);
+    assert.deepEqual([...access.stats].sort(), [
+      "/p/build/out",
+      "/p/src/gone.hd",
+      "/p/src/m002.hd",
+      "src/m003.hd",
+    ]);
+    assert.deepEqual(under(access.stats, ["/p/src"], "/p"), [
+      "/p/src/gone.hd",
+      "/p/src/m002.hd",
+      "/p/src/m003.hd",
+    ]);
+  });
+
+  it("bounds concurrent latency by the core count", () => {
+    assert.equal(latencyBound(4, 8), 1.5);
+    assert.equal(latencyBound(8, 8), 1.5);
+    assert.equal(latencyBound(16, 8), 3);
+  });
+
+  it("marks every REPL input with its own index", () => {
+    assert.equal(replInput(0), "w0 := +1000000");
+    assert.equal(replInput(7), "w6 + 1");
+    const steps = replSteps(120, 50);
+    assert.equal(steps.length, 3);
+    assert.equal(steps[2]!.input.split("\n").filter(Boolean).length, 20);
+    assert.ok(steps[0]!.done("1000049 : i32\n"));
+    assert.ok(!steps[0]!.done("1000048 : i32\n"));
+    assert.equal(growthFrom([5, 9, 12, 10], 1), 3);
+    assert.ok(Number.isNaN(growthFrom([5], 1)));
+  });
+
+  it("takes node_modules as the toolchain of a Node hd", () => {
+    const root = join(import.meta.dirname, "..", "..");
+    const toolchain = toolchainOf([
+      "node",
+      "--experimental-strip-types",
+      join(root, "bin", "hd.js"),
+    ]);
+    assert.equal(toolchain.kind, "node_modules");
   });
 });

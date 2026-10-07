@@ -26,6 +26,7 @@ pnpm run metrics -- --only edit-latency,fmt       # several
 pnpm run metrics -- --pillar 1                    # one pillar
 pnpm run metrics -- --list                        # list the metrics
 pnpm run metrics -- --hd "/path/to/hd" --only cold-check
+pnpm run metrics -- --pillar 2 --suite --max      # with the slow and large runs
 ```
 
 - `--hd COMMAND` is the `hd` under test. The default is
@@ -33,6 +34,9 @@ pnpm run metrics -- --hd "/path/to/hd" --only cold-check
   command that names an existing file is made absolute, so relative paths
   work from the repository root. `HD_METRICS_COMMAND` also sets it.
 - `--keep-temp` keeps the temporary directories, for debugging a script.
+- `--suite` runs `suite-cpu`, which takes minutes; without it, that line
+  is `n/a` with "run with --suite".
+- `--max` adds the largest scale: 64 concurrent checks in `concurrency`.
 
 The runner prints one line per target as it is judged, then a summary
 table, then the counts. It exits 1 when any target fails, and 2 on a usage
@@ -95,6 +99,62 @@ Notes on the choices:
 - **`mistakes`** checks with `hd check --tests FILE`, so a mistake inside a
   `tests:` block is checked too
   ([`cli.check.tests`](../../spec/cli/command-line.md#r-cli.check.tests)).
+
+## Pillar 2 Metrics
+
+| Script | Measures | Target | n/a when |
+| --- | --- | --- | --- |
+| `resources` | CPU time and peak RSS of `hd check`, `hd test` and `hd build` on the small, 10k and 50k packages, each cold (fresh copy, empty `HD_CACHE`) then warm; one line per run | warm check of 10k lines ≤ 0.2 CPU-s and ≤ 50 MB; every other run completes within its timeout | no `/usr/bin/time` |
+| `long-session` | RSS of one `hd repl` session over 1,000 inputs, sampled with `ps` every 50 inputs; without such a REPL, peak RSS over 50 rechecks after edits | growth from input 100 (or recheck 10) ≤ 10 MB | no REPL and no `/usr/bin/time` |
+| `startup` | wall time, CPU time and peak RSS of `hd --version` (or `hd version`, else `hd help`) and of `hd check empty.hd`, median of 5 | ≤ 20 ms; ≤ 10 MB | CPU and RSS lines: no `/usr/bin/time` |
+| `concurrency` | N = 1, 4, 16 (and 64 with `--max`) `hd check` processes at once, each in its own copy of the small package, one shared empty `HD_CACHE` | p95 ≤ 1.5x of N = 1 up to N = cores; total CPU sublinear in N | CPU line: no `/usr/bin/time` |
+| `disk` | files `hd check`, `hd test` and `hd build` add to the small package, plus the toolchain | ≤ 10 MB | never |
+| `suite-cpu` | CPU time of `test/run-portable.ts --suite conformance --compiler HD` | ≤ 60 s | without `--suite` |
+| `parallel-speedup` | cold check of the 50k package (10k when 50k times out) with 1 thread, then with one per core | ≥ 0.6 × cores, up to 8 cores | no documented thread count |
+| `cache-contention` | 8 checks at once that fetch one dependency into one empty cache; the same for a compilation cache | no corruption; fetched or written once | no git, `hd add` or `HD_CACHE`; no compilation cache |
+| `cache-growth` | compilation cache size after 100 edits and checks, with the documented cap set to 5 MB | ≤ 5 MB | no compilation cache, or no documented cap |
+| `io-per-check` | source files a warm check opens for reading after a one-module edit, by `strace` | ≤ 1 | no unprivileged tracer (always on macOS); no compilation cache |
+| `fetch-dedup` | connections to a local remote when 4 worktrees check, one after another, with one shared cache | as many as the first worktree's | no git, `hd add` or `HD_CACHE` |
+
+Notes on the choices:
+
+- **Timeouts.** `resources` gives each run 30 s at small and 10k lines, and
+  150 s at 50k. A command is skipped, as a failing line, at a size above
+  one where it timed out. Every command is skipped at a size where
+  `hd check` timed out, since test and build type-check too.
+- **Bounds this harness proposes.** `long-session` allows 10 MB of growth,
+  and `concurrency` scales its bound past the core count to
+  1.5x × N / cores. The owner may change both.
+- **`suite-cpu`** counts the conformance runner's own CPU time with the
+  hd processes it waits for. It does not judge the suite's pass or fail;
+  the note gives its exit status. Its timeout is 30 minutes.
+- **`startup`** judges CPU time against the 20 ms wall target too. Its wall
+  time includes `/usr/bin/time`'s own start, about 1 ms.
+- **`long-session`** feeds the REPL inputs that each show the value
+  1000000 + i (`cli.repl.value`), so the run knows how far the session
+  got. A REPL "reads standard input" when `hd repl` fed `1 + 2` shows 3.
+- **Toolchain.** When a file the `--hd` command names lies in a Node
+  package with `node_modules`, that folder is the toolchain, and the `disk`
+  line says so. Otherwise it is the program on PATH and the files the
+  command names. A hard-linked file counts once. `HD_CACHE` is shared per
+  user ([`cli.cache.shared`](../../spec/cli/command-line.md#r-cli.cache.shared)),
+  so the note gives its size but the total leaves it out.
+- **Dependencies without a network.** [`lib/deps.ts`](lib/deps.ts) makes a
+  local repository and a temporary `GIT_CONFIG_GLOBAL` whose `insteadOf`
+  maps `https://hd-metrics.invalid/` to git's `ext::` transport. That
+  transport runs a script that logs each connection and serves the
+  repository with `git upload-pack`. `GIT_ALLOW_PROTOCOL=ext` blocks every
+  other transport. hd fetches with the system's git
+  ([`cli.dep.git`](../../spec/cli/command-line.md#r-cli.dep.git)), so the
+  log counts any hd's fetches.
+- **A compilation cache** is found by checking the small package, which has
+  no dependencies, with an empty `HD_CACHE`. Files written there, or
+  inside the package, are the cache.
+- **Documented controls.** A thread count is a `--jobs`, `--threads` or `-j`
+  flag in `hd help check`, or `HD_THREADS`, `HD_JOBS` or `HD_PARALLELISM`
+  in any help text. A cache cap is an `HD_CACHE_…_MAX`, `_CAP` or `_LIMIT`
+  variable in a help text, set to a byte count. These names are this
+  harness's convention; the CLI specification names none yet.
 
 ## Mistake Corpus
 
@@ -163,13 +223,16 @@ To print one program: `node --experimental-strip-types test/metrics/pathological
 | --- | --- |
 | `run.ts` | the runner |
 | `scripts/` | one file per metric, and `index.ts`, the list the runner reads |
-| `lib/hd.ts` | running `hd`: command parsing, timeouts, CPU time and peak RSS, JSON lines |
+| `lib/hd.ts` | running `hd`: command parsing, timeouts, CPU time and peak RSS, JSON lines, paced sessions sampled with `ps` |
 | `lib/gen.ts` | the seeded package generator: small, 10k and 50k lines |
-| `lib/fixture.ts` | generated packages in temporary directories, timed series |
+| `lib/fixture.ts` | generated packages in temporary directories, an added executable, timed series |
 | `lib/stats.ts` | percentiles, growth exponents, token estimates |
-| `lib/tmp.ts` | temporary directories |
+| `lib/tmp.ts` | temporary directories, including read-only cache entries; tree sizes |
 | `lib/metric.ts` | the metric contract and target judging |
 | `lib/corpus.ts`, `lib/mistake-run.ts`, `lib/fixit.ts` | the mistake corpus, its shared run, fix-it application |
+| `lib/capability.ts` | probes of what this `hd` offers: help text, thread control, cache cap, compilation cache, REPL |
+| `lib/deps.ts` | the local remote that counts fetches, and a dependent package |
+| `lib/trace.ts` | `strace` file-call tracing and its parser |
 | `mistakes/`, `pathological/` | the corpora |
 | `metrics.test.ts` | unit tests of the helpers: `node --test --experimental-strip-types test/metrics/metrics.test.ts` |
 
@@ -191,14 +254,14 @@ gains a defaulted parameter so its callers still type-check.
 
 ## Adding A Metric
 
-Pillar 2, pillar 3 and the correctness gate add their scripts the same way:
+Pillar 3 and the correctness gate add their scripts the same way:
 
 1. Write `scripts/NAME.ts` exporting a `Metric`: its name, its pillar, a
    one-line summary, and `run(context)`, which returns one `TargetResult`
    per target. Use `judge`, `judgeBool`, `notApplicable` and `failed` from
    `lib/metric.ts`.
 2. Add it to `scripts/index.ts`, in the order of the Goal Metrics tables.
-3. Add a row to the table above, with its n/a condition.
+3. Add a row to its pillar's table above, with its n/a condition.
 
 `runProcess` with `measure: true` gives CPU time and peak RSS, and
 `materialize("50k", seed)` the large package, for the resource metrics.

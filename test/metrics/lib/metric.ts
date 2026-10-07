@@ -34,6 +34,10 @@ export interface MetricContext {
   readonly repoRoot: string;
   /** Prints a progress line to stderr. */
   readonly log: (line: string) => void;
+  /** `--suite`: run the metrics that take minutes, such as `suite-cpu`. */
+  readonly suite?: boolean;
+  /** `--max`: also run the largest scales, such as 64 concurrent processes. */
+  readonly max?: boolean;
 }
 
 export interface Metric {
@@ -44,13 +48,15 @@ export interface Metric {
   readonly run: (context: MetricContext) => Promise<TargetResult[]>;
 }
 
-export type Unit = "ms" | "%" | "bytes" | "MB" | "tokens" | "count" | "x" | "exponent";
+export type Unit = "ms" | "s" | "%" | "bytes" | "MB" | "tokens" | "count" | "x" | "exponent";
 
 export function formatValue(value: number, unit: Unit): string {
   if (!Number.isFinite(value)) return String(value);
   switch (unit) {
     case "ms":
       return `${value < 10 ? value.toFixed(1) : Math.round(value)} ms`;
+    case "s":
+      return `${value.toFixed(1)} s`;
     case "%":
       return `${(value * 100).toFixed(1)}%`;
     case "bytes":

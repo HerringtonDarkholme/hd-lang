@@ -1,8 +1,17 @@
 // Temporary directories. Every file a metric writes lives in one of these,
 // never in the repository: generated packages, edited copies, and caches.
 
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { mkdirSync } from "node:fs";
+import {
+  chmodSync,
+  cpSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 
@@ -21,10 +30,32 @@ export function makeTempDir(label: string): string {
   return dir;
 }
 
+/** Gives the owner write access to every directory and file under `root`. */
+function makeWritable(root: string): void {
+  const stats = lstatSync(root, { throwIfNoEntry: false });
+  if (!stats || stats.isSymbolicLink()) return;
+  chmodSync(root, stats.mode | (stats.isDirectory() ? 0o700 : 0o600));
+  if (stats.isDirectory()) for (const entry of readdirSync(root)) makeWritable(join(root, entry));
+}
+
+/**
+ * Removes a directory tree. A dependency cache makes its entries read-only
+ * (cli.cache.read-only), so a failed removal retries after restoring write
+ * access.
+ */
+export function removeTree(dir: string): void {
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch {
+    makeWritable(dir);
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** Removes one directory made by `makeTempDir`, unless directories are kept. */
 export function removeTempDir(dir: string): void {
   made.delete(dir);
-  if (!keep) rmSync(dir, { recursive: true, force: true });
+  if (!keep) removeTree(dir);
 }
 
 /** Removes every directory still left, as at the runner's exit. */
@@ -73,4 +104,28 @@ export function listTree(root: string): string[] {
 /** The text of every file under `root`, keyed by relative path. */
 export function readTree(root: string): Map<string, string> {
   return new Map(listTree(root).map((path) => [path, readFileSync(join(root, path), "utf8")]));
+}
+
+/**
+ * The bytes of the regular files under `root`, as their sizes add up. A
+ * symbolic link is not followed, and a file with several hard links in the
+ * tree counts once. A missing root is 0 bytes.
+ */
+export function treeBytes(root: string): { readonly bytes: number; readonly files: number } {
+  const seen = new Set<string>();
+  let bytes = 0;
+  const walk = (path: string): void => {
+    const stats = lstatSync(path, { throwIfNoEntry: false, bigint: false });
+    if (!stats) return;
+    if (stats.isDirectory()) {
+      for (const entry of readdirSync(path)) walk(join(path, entry));
+    } else if (stats.isFile()) {
+      const key = `${stats.dev}:${stats.ino}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      bytes += stats.size;
+    }
+  };
+  walk(root);
+  return { bytes, files: seen.size };
 }

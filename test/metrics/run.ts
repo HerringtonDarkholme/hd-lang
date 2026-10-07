@@ -3,6 +3,7 @@
 //
 // Usage: node --experimental-strip-types test/metrics/run.ts
 //          [--hd "COMMAND"] [--only NAME[,NAME...]] [--pillar N] [--list] [--keep-temp]
+//          [--suite] [--max]
 //
 // It prints one line per target as it is judged, then a summary table, and
 // exits 1 when any target fails. An n/a target never fails the run.
@@ -23,12 +24,15 @@ const STATUS_LABEL = { pass: "PASS", fail: "FAIL", "n/a": "N/A " } as const;
 function usage(): string {
   return [
     "usage: run.ts [--hd COMMAND] [--only NAME[,NAME...]] [--pillar N] [--list] [--keep-temp]",
+    "              [--suite] [--max]",
     "",
     `--hd COMMAND   the hd under test (default: ${DEFAULT_HD}, from the repository root)`,
     "--only NAMES   run only these metrics; repeatable or comma-separated",
     "--pillar N     run only the metrics of pillar N (1, 2, 3, or gate)",
     "--list         list the metrics and exit",
     "--keep-temp    keep temporary directories, for debugging",
+    "--suite        also run the metrics that take minutes (suite-cpu)",
+    "--max          also run the largest scales (64 concurrent checks)",
   ].join("\n");
 }
 
@@ -82,6 +86,8 @@ async function main(): Promise<number> {
       pillar: { type: "string" },
       list: { type: "boolean" },
       "keep-temp": { type: "boolean" },
+      suite: { type: "boolean" },
+      max: { type: "boolean" },
       help: { type: "boolean" },
     },
   });
@@ -103,7 +109,13 @@ async function main(): Promise<number> {
   keepTempDirs(values["keep-temp"] ?? false);
   const hd = parseHdCommand(values.hd ?? process.env.HD_METRICS_COMMAND ?? DEFAULT_HD, REPO_ROOT);
   console.log(`hd under test: ${hd.display}`);
-  const context = { hd, repoRoot: REPO_ROOT, log: (line: string) => console.error(`  ${line}`) };
+  const context = {
+    hd,
+    repoRoot: REPO_ROOT,
+    log: (line: string) => console.error(`  ${line}`),
+    suite: values.suite ?? false,
+    max: values.max ?? false,
+  };
   const results: TargetResult[] = [];
   for (const metric of selected) {
     const started = performance.now();

@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { generatePackage, SIZES, type GeneratedPackage, type SizeName } from "./gen.ts";
 import { runHd, type HdCommand, type RunOptions, type RunResult } from "./hd.ts";
-import { makeTempDir, writeTree } from "./tmp.ts";
+import { copyTree, makeTempDir, writeTree } from "./tmp.ts";
 
 /** Writes a generated package of a named size into a fresh temporary directory. */
 export function materialize(
@@ -16,6 +16,37 @@ export function materialize(
   const dir = makeTempDir(`pkg-${size}`);
   writeTree(dir, pkg.files);
   return { dir, pkg };
+}
+
+/**
+ * Adds the executable `src/main.hd` to a generated package, so `hd build`
+ * has a program to write. It prints the total of one item through the
+ * package's library.
+ */
+export function addExecutable(dir: string): void {
+  writeTree(
+    dir,
+    new Map([
+      [
+        "src/main.hd",
+        [
+          "use pkg.{one_total}",
+          "use pkg.m000.Item0",
+          "",
+          "pub fn main() -> void $ Console:",
+          '    println(one_total(Item0 { name: "pen", price: 2, count: 3 }))',
+          "",
+        ].join("\n"),
+      ],
+    ]),
+  );
+}
+
+/** A fresh temporary copy of a package directory. */
+export function copyPackage(source: string, label: string): string {
+  const dir = makeTempDir(label);
+  copyTree(source, dir);
+  return dir;
 }
 
 /** Rewrites one file of a package directory in place. */
