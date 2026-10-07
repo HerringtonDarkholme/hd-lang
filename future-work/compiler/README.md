@@ -28,4 +28,5 @@ The design documents of the new compiler, in reading order.
 - [engines-and-test-runner.md](engines-and-test-runner.md): execution engines, tiers and the test runner (§18 to §19).
 - [skeleton-findings.md](skeleton-findings.md): what the walking skeleton (a tiny subset through every stage to Wasm GC on V8) found about the design, 2026-10-07.
 - [footprint.md](footprint.md): where the code stands, one row per design-doc section (real, skeleton or missing), with totals per doc, 2026-10-07.
+- [reconciliation.md](reconciliation.md): code against design at b4c14e39: the top 10 issues for compiling end to end through the designed architecture, gaps, divergences, duplicate paths, layering, cost-model contradictions, proposed design changes and footprint corrections, 2026-10-07.
 - [live-execution.md](live-execution.md): live execution: the REPL session model, redefinition, the execution journal, replay and resume (design, not decided).
