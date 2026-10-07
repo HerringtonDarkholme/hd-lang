@@ -262,7 +262,10 @@ export async function runProject(
       current = `test case "${test.testOptions?.name ?? test.name}"`;
       const outcome = await runSelected([test], instance.exports, fresh);
       if (outcome.kind !== "passed") {
-        const subject = outcome.kind === "failed" ? outcome.subject : current;
+        const subject =
+          outcome.kind === "failed"
+            ? [outcome.subject, outcome.outcome].filter(Boolean).join(" ")
+            : current;
         return finish("failure", diagnostics, `${subject} failed`);
       }
       passed += outcome.count;
