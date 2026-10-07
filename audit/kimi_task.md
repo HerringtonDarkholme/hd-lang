@@ -102,6 +102,29 @@ and list it under Questions.
 
 ## Jobs
 
+### K23. Guide: Calling An HTTP API, And Granting Capabilities
+
+The host capabilities work (spec/cli/command-line.md, sections on
+capabilities; spec/std/http.md, net.md, sys.md) has no guide coverage.
+Add one section to `guide/WORKING_WITH_DATA.md`, "Calling An HTTP API",
+in the page's style (a realistic task first, then the code, then the
+rules). Cover:
+
+- sending a request with `std.http` and decoding a JSON response;
+- the error cases a caller handles, including `NotGranted`;
+- testing it with the scripted fake (`ScriptedHttp`), no network;
+- granting and denying: the `[capabilities]` table in `hd.toml`, the
+  `--cap` flag overriding it, grant-all by default, and what a total deny
+  does at startup.
+
+Every new code block must run with hd (tests must pass without network:
+use the fake, or a 127.0.0.1 server only if the spec's own examples do).
+Link the spec rules. Then add a one-line entry for `--cap` to
+`guide/COMMANDS.md` if it is missing. One commit per page. Run
+`pnpm run website:build`,
+`node --test --experimental-strip-types website/test/site.test.ts`, and
+the full `pnpm run check` before pushing.
+
 ## Questions
 
 (none)
