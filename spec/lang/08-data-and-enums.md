@@ -682,6 +682,8 @@ enum ToolError:
 5. r[data.enum.payload.no-field-blocks] Variant field blocks are not part of the language.
 6. r[data.enum.immutable] An enum value never changes once built: its variant and its payload values are fixed at construction.
 7. r[data.enum.immutable.shallow] The rule is shallow. A payload declared `mut U` still refers to a mutable object, which may change through that reference.
+8. r[data.enum.no-identity] An enum value has no identity, so every enum type implements `AnyVal`, as [`types.sealed.anyval-values`](04-type-system.md#r-types.sealed.anyval-values) states.
+9. r[data.enum.no-identity.is] `is` with an enum operand is an error. Error: `identity-requires-references`.
 
 ### Variant Construction
 
@@ -805,7 +807,7 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 5. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
 6. r[data.shared.compile-time] Each variant's constructor expression is evaluated once, at compile time, as a [fact expression](14-annotations.md#r-annot.fact.eval) is, and it must be requirement-free.
 7. r[data.shared.no-payload] The variant's payload parameters are not in scope in its constructor expression.
-8. r[data.shared.not-stored] Shared data is stored once per variant and never in an enum value, so it adds nothing to a value's size or identity.
+8. r[data.shared.not-stored] Shared data is stored once per variant and never in an enum value, so it adds nothing to a value's size.
 
 > **Why.** Shared data describes a variant, like a Java or Kotlin enum
 > constant's constructor arguments. Data that differs from value to value

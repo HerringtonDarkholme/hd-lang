@@ -922,10 +922,11 @@ fn audit(account: Account) -> Account:
 #### Large Values
 
 1. r[module.dbg.layout] A value prints on its line when the whole line fits in about 80 columns. Otherwise it prints over several lines, each field or entry on its own line and indented by its depth.
-2. r[module.dbg.cycle] A value that is reached again while it is being printed, through a cycle of references, prints `<cycle>`.
-3. r[module.dbg.limit.entries] A list or map prints at most its first 100 entries, then `… N more` for the N entries it leaves out.
-4. r[module.dbg.limit.depth] A part nested more than 10 levels deep prints `…`.
-5. r[module.dbg.limit.string] A string longer than 1000 characters prints its first 1000 characters, then `…`.
+2. r[module.dbg.cycle.tracked] A data value with fields, a list, or a map that is reached again while it is being printed, through a cycle of references, prints `<cycle>`.
+3. r[module.dbg.cycle.untracked] Other values, enums included, are not tracked, and print again each time they are reached.
+4. r[module.dbg.limit.entries] A list or map prints at most its first 100 entries, then `… N more` for the N entries it leaves out.
+5. r[module.dbg.limit.depth] A part nested more than 10 levels deep prints `…`.
+6. r[module.dbg.limit.string] A string longer than 1000 characters prints its first 1000 characters, then `…`.
 
 ```hd
 fn demo(items: List[i32]) -> void:
@@ -933,7 +934,9 @@ fn demo(items: List[i32]) -> void:
 ```
 
 > **Note.** The limits keep one `dbg` call of a large or cyclic value
-> readable, and keep it from running without end.
+> readable, and keep it from running without end. Every cycle passes through
+> a data value, a list, or a map, because an enum never refers to a value
+> built after it, so `<cycle>` still ends each one.
 
 #### Release Builds And Dependencies
 
@@ -1130,9 +1133,9 @@ fn version!() -> string $ Process:
 ### Value-Category Traits
 
 1. r[module.prelude.any-subtraits] `AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`.
-2. r[module.prelude.anyref] `AnyRef` is implemented by data values, stored enum values (optionals included), lists, maps, dynamic trait values, and `Any`. It is also implemented by closures, suspensions, payload-free enum values with canonical variant identity, and those runtime handles that have identity.
-3. r[module.prelude.anyref-not] `AnyRef` is not implemented by primitives or tuples.
-4. r[module.prelude.anyval-types] `AnyVal` is implemented by exactly the primitives, tuples (`void` included), and newtypes whose base type implements `AnyVal`.
+2. r[module.prelude.anyref-values] `AnyRef` is implemented by data values, lists, maps, dynamic trait values, and `Any`. It is also implemented by suspensions and those runtime handles that have identity.
+3. r[module.prelude.anyref-excludes] `AnyRef` is not implemented by primitives, tuples, enums (optionals included), or functions.
+4. r[module.prelude.anyval-values] `AnyVal` is implemented by exactly the primitives, `string`, tuples (`void` included), enums (optionals and `Result` included), function types, and newtypes whose base type implements `AnyVal`.
 5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
 6. r[module.prelude.any-sealed] User code cannot implement either.
 
@@ -1803,10 +1806,18 @@ use std.json.parse
 2. r[module.package.annotated.parts] That signature includes parameter and result types, requirement rows, suspension, and generic parameters with their bounds and variance. It also includes the types of public fields and enum data.
 3. r[module.package.no-inference] Nothing in a public signature is inferred from a function body.
 4. r[module.package.no-pub-binding] Top-level bindings cannot be public. A `pub` binding is an error. Error: `syntax-error`.
+5. r[module.package.template-helper] A private item that a [template](14-annotations.md#r-annot.template.form) body names is a **template helper**. It follows the signature rules of a public declaration.
+6. r[module.package.template-helper.result] So a template helper function must declare its result type. Omitting it is an error. Error: `missing-result-type`.
+7. r[module.package.template-helper.row] A template helper function without a requirement clause has the empty row, as [`req.row.omitted.empty-pub`](11-requirements-and-suspension.md#r-req.row.omitted.empty-pub) states for a public function.
+8. r[module.package.template-helper.no-binding] A template body must not name a top-level binding.
 
 ```text
 pub answer := 42  # error: syntax-error
 ```
+
+> **Why.** A template is instantiated in the target's module, often in
+> another package. Its helpers therefore reach that package's checking
+> through the interface, which holds signatures, not inferred results.
 
 ### Package Interfaces
 
@@ -1821,16 +1832,18 @@ A package interface must contain:
 | associated types |
 | every module-level implementation head, for coherence |
 | each fact's expression and its type |
+| each template helper and each private type it names, as a hidden item |
 
 1. r[module.interface.contents] A package interface must contain every item in the table.
-2. r[module.interface.generic-bodies] An interface may also carry ordinary generic bodies to enable inlining, but downstream compilation must not require them.
-3. r[module.interface.generic-compilation] How generic code is compiled across packages is not observable, as [`types.generic.unobservable`](04-type-system.md#r-types.generic.unobservable) says. An interface fixes no strategy for it.
-4. r[module.interface.fact-expressions] A package interface records each [fact](14-annotations.md#r-annot.fact.eval) of its declarations by the fact's expression and type, not by its value.
-5. r[module.interface.fact-build] The value of a fact is computed when the program is built, not when an interface is made.
-6. r[module.interface.syntax-only] A package interface's signatures and facts therefore come from the package's declarations alone. They depend on no checked function body.
-7. r[module.interface.early] A downstream package can be checked as soon as the interfaces of its dependencies are known. It need not wait for their function bodies to be checked or compiled.
-8. r[module.interface.coherence] Coherence is checked at link time over the complete set of resolved interface files.
-9. r[module.interface.link-reject] Linking may therefore reject a graph even when each package compiled independently.
+2. r[module.interface.hidden-item] A **hidden item** is in the interface, but only the code of an instantiated template may name it. Downstream source cannot name it.
+3. r[module.interface.generic-bodies] An interface may also carry ordinary generic bodies to enable inlining, but downstream compilation must not require them.
+4. r[module.interface.generic-compilation] How generic code is compiled across packages is not observable, as [`types.generic.unobservable`](04-type-system.md#r-types.generic.unobservable) says. An interface fixes no strategy for it.
+5. r[module.interface.fact-expressions] A package interface records each [fact](14-annotations.md#r-annot.fact.eval) of its declarations by the fact's expression and type, not by its value.
+6. r[module.interface.fact-build] The value of a fact is computed when the program is built, not when an interface is made.
+7. r[module.interface.syntax-only] A package interface's signatures and facts therefore come from the package's declarations alone. They depend on no checked function body.
+8. r[module.interface.early] A downstream package can be checked as soon as the interfaces of its dependencies are known. It need not wait for their function bodies to be checked or compiled.
+9. r[module.interface.coherence] Coherence is checked at link time over the complete set of resolved interface files.
+10. r[module.interface.link-reject] Linking may therefore reject a graph even when each package compiled independently.
 
 ```hd
 pub fn total(items: List[i32]) -> usize:
@@ -2074,8 +2087,9 @@ See also: [Error Trait](09-traits.md#error-trait).
 
 1. r[module.boundary.tree] Boundary values have tree semantics.
 2. r[module.boundary.cycle] Encoding a cycle is a boundary error. Boundary failure: `boundary-cycle`.
-3. r[module.boundary.sharing] When an acyclic graph shares a node, each incoming path encodes a duplicate tree value, and decoding does not restore sharing.
-4. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
+3. r[module.boundary.cycle.tracked] The encoder finds a cycle at a data value with fields, a list, or a map that it reaches again on its path. It does not track enum values.
+4. r[module.boundary.sharing] When an acyclic graph shares a node, each incoming path encodes a duplicate tree value, and decoding does not restore sharing.
+5. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
 
 ```hd
 use std.hash.Hash

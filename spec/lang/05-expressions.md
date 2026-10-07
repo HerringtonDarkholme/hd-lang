@@ -1673,19 +1673,15 @@ fn demo(a: List[i32], b: List[i32]) -> bool:
 
 #### Allocation Identity
 
-1. r[expr.is.heap] Data values, stored enum payloads, lists, maps, and other heap composites have allocation identity; access permission (`mut`) does not change it.
+1. r[expr.is.heap-values] Data values, lists, maps, and other heap composites have allocation identity; access permission (`mut`) does not change it.
 2. r[expr.is.conversion] Converting such a value to a trait value or `Any` preserves the underlying identity.
-3. r[expr.is.function-unspecified] A function value has no identity that a program can rely on. This covers named functions, generic instantiations, one-payload variant constructors, and closures.
-4. r[expr.is.function-sharing] An implementation may share one function value between evaluations or allocate a new one at each evaluation. Only `is` in generic code can observe the choice, and its result there is unspecified.
-5. r[expr.is.box] A conversion of a primitive or tuple value to a dynamic trait value or `Any` allocates one fresh immutable box.
-6. r[expr.is.box.identity] The resulting trait or `Any` value has that box's identity, and aliases of the converted value share it.
-7. r[expr.is.box.distinct] Repeating the conversion allocates a distinct box even when the source values compare equal.
-8. r[expr.is.no-wrapper] A direct conversion of a heap composite continues to preserve the composite's underlying identity and does not allocate an identity wrapper.
-9. r[expr.is.canonical] A payload-free enum value is canonical for its variant, and a fieldless data value is canonical for its data type.
-10. r[expr.is.canonical.same] Two occurrences of the same such value have the same identity, and constructing one allocates nothing.
-11. r[expr.is.shared-data-canonical] Shared constructor data is not stored in enum values, so a variant without a payload is canonical even when its enum declares shared data.
-12. r[expr.is.none] Optionals follow the same enum rules: `.None` is payload-free and canonical, so every `.None` of one optional type is the same value.
-13. r[expr.is.some] Each construction of `.Some(value)`, including the implicit wrap of a `T` where `T?` is expected, has its own identity, distinct from its payload's.
+3. r[expr.is.function-none] A function value has no identity. This covers named functions, generic instantiations, one-payload variant constructors, and closures.
+4. r[expr.is.function-sharing] An implementation may share one function value between evaluations or allocate a new one at each evaluation. No program can observe the choice.
+5. r[expr.is.box-values] A conversion of a primitive, string, tuple, enum, or function value to a dynamic trait value or `Any` may box the value. The box has no identity.
+6. r[expr.is.box-unspecified] `is` between two trait or `Any` values has an unspecified result when either holds such a value at run time.
+7. r[expr.is.no-wrapper] A direct conversion of a heap composite continues to preserve the composite's underlying identity and does not allocate an identity wrapper.
+8. r[expr.is.canonical-data] A fieldless data value is canonical for its data type.
+9. r[expr.is.canonical.same] Two occurrences of the same such value have the same identity, and constructing one allocates nothing.
 
 ```hd
 fn demo() -> bool:
@@ -1697,12 +1693,12 @@ fn demo() -> bool:
 #### Identity Operands
 
 1. r[expr.is.tuple] Tuples have no identity, and using `is` with a tuple is an error even if it contains references. Error: `identity-requires-references`.
-2. r[expr.is.primitive] Primitive values likewise cannot be compared with `is`: an operand type must implement `AnyRef`, not `AnyVal`. Error: `identity-requires-references`.
+2. r[expr.is.value-operand] Primitive values, strings, enum values, optionals included, and function values likewise cannot be compared with `is`: an operand type must implement `AnyRef`, not `AnyVal`. Error: `identity-requires-references`.
 3. r[expr.is.compatible] Both operands must otherwise have compatible composite reference types. Two such types are compatible when, after removing `mut` at every level, they are equal. They are also compatible when one is a trait value or `Any` type that the other converts to.
 4. r[expr.is.permissions] Permissions never affect identity, so `List[User]` and `mut List[mut User]` are compatible.
 5. r[expr.is.incompatible] Two composite reference operands that are not compatible, such as `List[User]` and `List[Order]`, are an error. Error: `incompatible-identity-operands`.
 6. r[expr.is.function.operand] An `is` with an operand whose static type is a function type is an error, as for a value type. Error: `identity-requires-references`.
-7. r[expr.is.function.generic] Generic code over `T < AnyRef` may still compare function values with `is`, and the result is unspecified.
+7. r[expr.is.function.bound] A function type does not implement `AnyRef`, so generic code over `T < AnyRef` never receives a function value. Error: `unsatisfied-trait-bound`.
 
 ```text
 data User:
@@ -1715,6 +1711,13 @@ fn same(user: User, order: Order) -> bool:
     user is order  # error: incompatible-identity-operands
 
 fn tuples(left: (i32, i32), right: (i32, i32)) -> bool:
+    left is right  # error: identity-requires-references
+
+enum Color:
+    Red
+    Green
+
+fn colors(left: Color, right: Color) -> bool:
     left is right  # error: identity-requires-references
 ```
 
@@ -1729,9 +1732,10 @@ fn aliases() -> bool:
 > remove a registered callback keeps a handle returned at registration
 > instead of comparing function values.
 
-> **Why.** Function identity is unspecified so that an implementation may
-> share or allocate function values freely. A direct comparison would expose
-> that choice.
+> **Why.** Enum and function values have no identity, so an implementation
+> may copy, share, or allocate them freely. A comparison would expose that
+> choice. An enum never closes a reference cycle by itself, so cycle checks
+> need no enum identity either.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 

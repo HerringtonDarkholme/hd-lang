@@ -221,6 +221,7 @@ The stdlib chapters' terms are in the
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](lang/10-modules.md#r-module.cycle.folder-edge). |
 | **generic field** | A field whose declared type is a generic parameter; reading it yields the substituted type unchanged. See [`types.path.field.generic`](lang/04-type-system.md#r-types.path.field.generic). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](lang/14-annotations.md#handles). |
+| **hidden item** | An item in a package interface that only the code of an instantiated template may name. See [`module.interface.hidden-item`](lang/10-modules.md#r-module.interface.hidden-item). |
 | **hides** | A member hides every member with the same name at a greater depth, in the same namespace. See [`names.hide.depth`](lang/03-names-and-scopes.md#r-names.hide.depth). |
 | **infinite loop** | A `while` loop whose condition is the literal `true`. It completes normally only through a `break` that targets it. See [`flow.while.infinite`](lang/06-control-flow.md#r-flow.while.infinite). |
 | **inherent associated function** | A member of an inherent implementation without a `self` parameter, called through the type, as in `User::guest()`. See [Inherent Members](lang/09-traits.md#inherent-members). |
@@ -303,6 +304,7 @@ The stdlib chapters' terms are in the
 | **take part** | The members of a type that lookup considers: its own fields and inherent methods, whatever their visibility, and its promoted members. See [`names.take-part.definition`](lang/03-names-and-scopes.md#r-names.take-part.definition). |
 | **task** | A development program of a package, a file `tasks/NAME.hd` that `hd run NAME` runs and the package never ships. See [Tasks](cli/command-line.md#tasks). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](lang/14-annotations.md#templates). |
+| **template helper** | A private item that a template body names; it follows the signature rules of a public declaration. See [`module.package.template-helper`](lang/10-modules.md#r-module.package.template-helper). |
 | **test grant** | The capability grant of an integration test case or a doc test, built from `[test.capabilities]`, the flags of `hd test`, and fixed file system entries. See [`cli.test.env.grant`](cli/command-line.md#r-cli.test.env.grant). |
 | **totally denied** | A trait whose grant is `false`; a module that imports it never starts. See [Total Deny](cli/command-line.md#total-deny). |
 | **tuple template** | A trait's derivation for every tuple type, written `impl[T < Tuple] Trait for T by Structure:` in the trait's module. See [Tuple Templates](lang/14-annotations.md#tuple-templates). |

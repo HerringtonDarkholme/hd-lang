@@ -478,11 +478,11 @@ The standard library declares the standard error trait `Error` in
 `std.error`.
 
 1. r[trait.error.module] The standard library declares the standard error trait `Error` in `std.error`.
-2. r[trait.error.supertraits-anyref] `Error` is dynamically safe and has `Display`, the sealed `Inspectable`, and the sealed `AnyRef` as supertraits, as in `trait Error < Display & Inspectable & AnyRef`.
+2. r[trait.error.supertraits] `Error` is dynamically safe and has `Display` and the sealed `Inspectable` as supertraits, as in `trait Error < Display & Inspectable`.
 3. r[trait.error.defaults] Every member `Error` declares has a default, so an implementation needs no body.
-4. r[trait.error.complete-reference] `impl Error for FsError` is complete when the enum `FsError` implements `Display`, because the compiler supplies `Inspectable` and `AnyRef` for it.
+4. r[trait.error.complete] `impl Error for FsError` is complete when the enum `FsError` implements `Display`, because the compiler supplies `Inspectable` for it.
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
-6. r[trait.error.not-anyref] An `impl Error` whose target is an `AnyVal` type, such as a newtype over `string`, is an error, by [`trait.sealed.extend.missing`](#r-trait.sealed.extend.missing). Error: `missing-supertrait-implementation`.
+6. r[trait.error.value-types] A value type may implement `Error`, as an enum or a newtype over `string` does.
 7. r[trait.error.cause] `Error` declares `fn cause(self) -> Error?`, which returns the error that caused this one. Its default returns `.None`.
 8. r[trait.error.chain-methods] `Error` also declares the default methods `fn root_cause(self) -> Error` and `fn find[T < Error](self) -> T?`.
 9. r[trait.error.std-api] What `root_cause` and `find` return, and the error-chain helpers such as `chain`, are standard-library API.
@@ -502,18 +502,11 @@ fn local() -> void:
 
     impl Error for LocalError  # error: missing-supertrait-implementation
     pass
-
-type Message(string)
-
-impl Display for Message:
-    fn to_string(self) -> string: string(self)
-
-impl Error for Message  # error: missing-supertrait-implementation
 ```
 
-> **Why.** With `AnyRef` as a supertrait, the bound `T < Error` of `find`
-> implies `AnyRef`, so `Error` stays dynamically safe. Every data type and
-> enum is already a reference, so `@error` types are unaffected.
+> **Why.** Most errors are enums, which are values without identity, so
+> `Error` has no `AnyRef` supertrait. `find` still works through an erased
+> `Error`, because a method type parameter may take any type argument.
 
 See also: [Sealed Traits](#sealed-traits),
 [Error Derivation](14-annotations.md#error-derivation),
@@ -527,7 +520,7 @@ See also: [Sealed Traits](#sealed-traits),
 3. r[trait.error.entry-point] A dynamic trait value satisfies bounds on its own trait and its supertraits. `Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, Error]` is a valid entry point.
 4. r[trait.error.boundary] Like every dynamic trait value, an erased `Error` is not boundary-safe and never crosses a registered boundary.
 5. r[trait.error.convert-first] Code converts an erased `Error` explicitly to a boundary-safe error type first.
-6. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `Error` inherits the `downcast` methods, so `error.downcast::[FsError]()` recovers the concrete error.
+6. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `Error` can recover its concrete error: `downcast_val::[FsError](error)` recovers an enum error, and the inherited `downcast` method recovers a data error.
 
 ```text
 use std.error.Error
@@ -1603,10 +1596,10 @@ The one-copy rule has these consequences:
 | --- | --- | --- |
 | r[trait.dyn.safe.assoc-type] Associated types | an associated type of the trait or a supertrait | yes when the value type binds it, as `Supplier[Item = i32]` does; no when it is unbound |
 | r[trait.dyn.safe.assoc-function] Associated functions | an associated function in the trait or a supertrait | no |
-| r[trait.dyn.safe.implied-anyref-param] Method type parameters | a method-level type parameter whose bounds imply `AnyRef`, directly as in `T < AnyRef & Display`, or through a supertrait as in `T < Error` | yes; any other method-level type parameter is not |
+| r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | yes; a call through the trait value may pass any type argument, a value type included |
 | r[trait.dyn.safe.self] `Self` | `Self` as a method receiver | yes; `Self` anywhere else is not |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | yes |
-| r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter, which needs no `AnyRef` bound | yes |
+| r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter | yes |
 
 4. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
 5. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
@@ -1620,8 +1613,8 @@ fn valid(runner: Runner) -> void:
     pass
 ```
 
-`Error` has `AnyRef` as a supertrait, so a parameter bounded by `Error`
-alone keeps a trait dynamically safe:
+A method type parameter bounded by `Error`, whose argument may be an enum,
+keeps a trait dynamically safe:
 
 ```text
 use std.error.Error
@@ -1635,8 +1628,9 @@ fn valid(registry: Registry) -> void:
 
 > **Why.** A method called through a trait value has exactly one body at run
 > time. A bound associated type makes every signature that uses it
-> concrete. An `AnyRef`-bounded parameter shares the reference shape, and a
-> suspending method's frame is a reference-shaped heap value. A row
+> concrete. A value-typed argument for a method type parameter is boxed at
+> the call, and the box has no identity. A suspending method's frame is a
+> reference-shaped heap value. A row
 > parameter's providers arrive as one bundle. Each keeps one body. An
 > associated function has no receiver to dispatch on.
 
@@ -1805,7 +1799,7 @@ compiler and the standard library supply.
 | Rule | Trait | Implemented for |
 | --- | --- | --- |
 | r[trait.sealed.any] Any | `Any` | every value type ([`Any`](#any)) |
-| r[trait.sealed.anyval-types] AnyVal | `AnyVal` | the primitive types, `string`, tuples (`void` included), and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| r[trait.sealed.anyval-values] AnyVal | `AnyVal` | the primitive types, `string`, tuples (`void` included), enums (optionals and `Result` included), function types, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.anyref] AnyRef | `AnyRef` | the reference values ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.suspend] Suspend | `Suspend[T]` | compiler-generated suspension frames and `std.task` types ([`Suspend[T]` Protocol](11-requirements-and-suspension.md#suspendt-protocol)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
@@ -1994,7 +1988,7 @@ pub fn downcast_val[T < Inspectable](value: Inspectable) -> T?
 ### `Inspectable` And `TypeId`
 
 1. r[trait.inspect.sealed] `Inspectable` is a sealed trait.
-2. r[trait.inspect.safe] `Inspectable` is dynamically safe: the method-level parameter of `downcast` and `downcast_mut` is bounded by `AnyRef`, which the dynamic-safety rule permits.
+2. r[trait.inspect.safe] `Inspectable` is dynamically safe, as the dynamic-safety rule permits a method-level parameter such as that of `downcast` and `downcast_mut`.
 3. r[trait.inspect.supplied] The compiler supplies its implementation for every [inspectable type](#inspectable-types).
 4. r[trait.inspect.supplied.members] The implementation provides `runtime_type` and keeps the two default methods.
 5. r[trait.inspect.runtime-type] `value.runtime_type()` returns the `TypeId` of the value's recorded type.
@@ -2194,11 +2188,11 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 
 1. r[trait.downcast.some] `value.downcast::[T]()` returns `.Some` of the value exactly when the value's recorded type has the same runtime identity as `T`, and `.None` otherwise.
 2. r[trait.downcast.mut] `value.downcast_mut::[T]()` does the same through a mutable receiver and returns `mut T?`.
-3. r[trait.downcast.val] `downcast_val::[T](value)` does the same for any inspectable `T`, including the value types that `AnyRef` excludes, such as scalars, `string`, and tuples.
+3. r[trait.downcast.val] `downcast_val::[T](value)` does the same for any inspectable `T`, including the value types that `AnyRef` excludes, such as scalars, `string`, tuples, and enums.
 4. r[trait.downcast.val.readonly] The result of `downcast_val` is readonly.
 5. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[Error]`.
 6. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
-7. r[trait.downcast.optional] An erased `User?` therefore downcasts to `User?`, giving a `User??`, and never to `User`.
+7. r[trait.downcast.optional] An erased `User?` is therefore recovered as `User?` with `downcast_val`, giving a `User??`, and never as `User`.
 8. r[trait.downcast.same-reference] A recovered reference value is the same reference that was erased, so `is` holds between them.
 9. r[trait.downcast.unboxed] A value without identity is unboxed.
 
@@ -2234,7 +2228,7 @@ fn number(value: Inspectable) -> i32:
 8. r[trait.downcast.target] The target `T` is written, or inferred from the expected type, at the call.
 9. r[trait.downcast.visibility] The target must be nameable there under ordinary visibility, so a private type of another module cannot be recovered outside it.
 10. r[trait.downcast.bound] A target that fails a bound is an error. Error: `unsatisfied-trait-bound`.
-11. r[trait.downcast.bound.examples] `Any`, `Display`, and function types fail `Inspectable` everywhere. `i32`, `string`, and tuples fail `AnyRef`, so they are recovered with `downcast_val`.
+11. r[trait.downcast.bound.examples] `Any`, `Display`, and function types fail `Inspectable` everywhere. `i32`, `string`, tuples, and enums fail `AnyRef`, so they are recovered with `downcast_val`.
 
 ```hd
 use std.inspect.Inspectable

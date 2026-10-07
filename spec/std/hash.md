@@ -31,7 +31,7 @@ fn lookup_status(items: Map[Status, i32], status: Status) -> i32?:
 1. r[std-hash.derive.hash.template] `std.hash` declares the [template](../lang/14-annotations.md#templates) of `Hash`, which `@derive(Hash)` instantiates.
 2. r[std-hash.derive.hash.support] `@derive(Hash)` supports data and enums.
 3. r[std-hash.derive.hash.data] It hashes every declared data field in declaration order, including embedded fields.
-4. r[std-hash.derive.hash.enum] For an enum, it hashes the variant identity, then shared enum data in declaration order, then that variant's payload fields in declaration order.
+4. r[std-hash.derive.hash.enum] For an enum, it hashes the variant, then shared enum data in declaration order, then that variant's payload fields in declaration order.
 5. r[std-hash.derive.hash.fields] Every hashed field must implement `Hash`; no field is implicitly excluded.
 6. r[std-hash.derive.hash.cycles] Like derived equality, derived hashing does not detect cycles, so hashing a cyclic graph may exhaust the execution stack.
 

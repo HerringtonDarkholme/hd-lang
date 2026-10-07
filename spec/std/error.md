@@ -93,10 +93,11 @@ For `SaveError.Write("notes.txt", DiskError { free: 0 })`, `innermost`
 returns `"disk full"`, and `free_space` returns `.Some(0)`.
 
 1. r[std-error.root-cause] `e.root_cause()` returns the last error of `chain(e)`, so an error without a cause is its own root cause.
-2. r[std-error.find] `e.find::[T]()` returns `.Some` of the first error of `chain(e)`, in order, whose `downcast::[T]()` returns `.Some`, and `.None` when no error does.
-3. r[std-error.find.same-reference] The found error is recovered by `downcast`, so it is the same reference that the chain holds and is readonly, by [`trait.downcast.same-reference`](../lang/09-traits.md#r-trait.downcast.same-reference).
-4. r[std-error.find.exact] Types match exactly, by [`trait.downcast.exact`](../lang/09-traits.md#r-trait.downcast.exact). No supertrait search takes place, so `e.find::[Error]()` returns `.None`.
-5. r[std-error.find.bound] `T` must implement `Error`, so a target such as `i32` is an error. Error: `unsatisfied-trait-bound`.
+2. r[std-error.find.first] `e.find::[T]()` returns `.Some` of the first error of `chain(e)`, in order, whose recorded type is `T`, and `.None` when no error does.
+3. r[std-error.find.value] The found error is recovered as `downcast_val::[T]` recovers it, so it is readonly. An enum error comes back as an equal value.
+4. r[std-error.find.reference] When `T` implements `AnyRef`, as a data error type does, the found error is the same reference that the chain holds, by [`trait.downcast.same-reference`](../lang/09-traits.md#r-trait.downcast.same-reference).
+5. r[std-error.find.exact] Types match exactly, by [`trait.downcast.exact`](../lang/09-traits.md#r-trait.downcast.exact). No supertrait search takes place, so `e.find::[Error]()` returns `.None`.
+6. r[std-error.find.bound] `T` must implement `Error`, so a target such as `i32` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.error.Error

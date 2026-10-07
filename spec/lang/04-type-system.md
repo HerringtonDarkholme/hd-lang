@@ -732,12 +732,11 @@ fn demo(items: List[i32]) -> i32?:
 
 1. r[types.option.ordinary] Optionals follow the ordinary enum rules in every other respect.
 2. r[types.option.any] An optional value may be erased to `Any` like any other enum value.
-3. r[types.option.identity] `is` compares optionals as it compares other enum values.
-4. r[types.option.identity.none] `.None` is payload-free and has one canonical identity.
-5. r[types.option.identity.some] Each construction of `.Some(value)`, including an implicit wrap, has its own identity.
-6. r[types.option.invariant] `Option` declares its parameter unmarked, so an optional is invariant in its contained type, as every unmarked parameter is.
-7. r[types.option.invariant.result] `Result[T, E]` likewise declares both parameters unmarked, so it is invariant in both `T` and `E`.
-8. r[types.option.variance.mutable] As with every generic composite, a mutable outer view is invariant.
+3. r[types.option.value] An optional is an enum, so it is a value without identity and implements `AnyVal`, whatever its payload type.
+4. r[types.option.identity-error] `is` with an optional operand is an error, as for every enum. Error: `identity-requires-references`.
+5. r[types.option.invariant] `Option` declares its parameter unmarked, so an optional is invariant in its contained type, as every unmarked parameter is.
+6. r[types.option.invariant.result] `Result[T, E]` likewise declares both parameters unmarked, so it is invariant in both `T` and `E`.
+7. r[types.option.variance.mutable] As with every generic composite, a mutable outer view is invariant.
 
 ```text
 data User:
@@ -1797,7 +1796,7 @@ describes the reference strategy.
 ### Identity On Type Parameters
 
 1. r[types.generic.identity] Identity comparison `is` on a type parameter is permitted only with the sealed `T < AnyRef` bound. Without it, the comparison is an error. Error: `identity-requires-references`.
-2. r[types.generic.identity.primitive] An unconstrained type parameter may be primitive after substitution and therefore cannot be used with `is`.
+2. r[types.generic.identity.primitive] An unconstrained type parameter may be a value type after substitution, such as a primitive or an enum, and therefore cannot be used with `is`.
 
 ```hd
 fn same[T < AnyRef](a: T, b: T) -> bool:
@@ -2038,9 +2037,9 @@ gives the rule.
 2. r[types.trait.safe.one-copy] Dynamic safety is defined by the one-copy rule, [`trait.dyn.safe.one-copy`](09-traits.md#r-trait.dyn.safe.one-copy); the rules below restate its consequences.
 3. r[types.trait.safe.members-bound] A dynamically safe trait and every supertrait must have no associated functions, and `Self` may appear only as the receiver type.
 4. r[types.trait.safe.assoc-bound] The trait value type must bind each associated type of the trait and its supertraits, as in `Supplier[Item = i32]`.
-5. r[types.trait.safe.method-type-param-implied] A method-level type parameter is permitted only when its bounds imply `AnyRef`, directly as in `T < AnyRef & Display`, or through a supertrait as in `T < Error`.
-6. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
-7. r[types.trait.safe.convert-value] A caller converts a primitive or tuple value explicitly before passing it.
+5. r[types.trait.safe.method-type-param] A method-level type parameter is permitted whatever its bounds, as in `T < Display` or an unbounded `T`.
+6. r[types.trait.safe.method-type-arg] A call through a trait value may pass any type argument for such a parameter, including an `AnyVal` type such as `i32` or an enum.
+7. r[types.trait.safe.method-type-arg.box] An implementation may box a value-typed argument at that call. The box has no identity, so the boxing is not observable.
 8. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
 9. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
 
@@ -2116,8 +2115,8 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 | Trait | Types | Identity |
 | --- | --- | --- |
-| r[types.sealed.anyval-types] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, and tuples, `void` included | These values have no identity. |
-| r[types.sealed.anyref] `AnyRef` | data types, enums (including optionals and `Result`), `List`, `Map`, function types, dynamic trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
+| r[types.sealed.anyval-values] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), and function types | These values have no identity. |
+| r[types.sealed.anyref-values] `AnyRef` | data types, `List`, `Map`, dynamic trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
 
 5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(User)` implements `AnyRef`.
 6. r[types.sealed.never] `never` implements neither, because it has no values.
@@ -2362,19 +2361,20 @@ Runtime values fall into three categories:
 | Category | Types | Identity |
 | --- | --- | --- |
 | Scalar values | `bool`, `char`, the integer types, `f32`, `f64` | none |
-| Identity-free composites | `string`, tuples | none |
-| Reference values | data values, stored enum values (including `Result` and optionals), lists, maps, closures, trait values, `Any`, suspensions, runtime handles | allocation identity, or one canonical identity for values that store no data |
+| Identity-free composites | `string`, tuples, enum values (including `Result` and optionals), function values | none |
+| Reference values | data values, lists, maps, trait values, `Any`, suspensions, runtime handles | allocation identity, or one canonical identity for a fieldless data value |
 
 The reference values are exactly the implementers of the sealed `AnyRef`
 trait. The scalar values and identity-free composites are exactly the
 implementers of the sealed `AnyVal` trait.
 
-Values without identity are immutable, so storing one by copy or by
-reference cannot be observed. A payload-free enum value and a fieldless data
-value store no data and have one canonical identity each.
+Values without identity are immutable at their top level, so storing one by
+copy or by reference cannot be observed. An implementation may copy, share,
+or deduplicate such a value freely. A fieldless data value stores no data and
+has one canonical identity.
 
-Converting a value without identity to a trait value or `Any` allocates a box
-with its own identity, as
+Converting a value without identity to a trait value or `Any` may box it.
+The box has no identity of its own, as
 [Expressions](05-expressions.md#unary-and-binary-operators) specifies.
 
 See also: [Trait Values And `Any`](#trait-values-and-any).
@@ -2397,9 +2397,11 @@ stays possible:
 | [`types.generic.polymorphic-recursion`](#r-types.generic.polymorphic-recursion) | the number of instantiations, which is always finite |
 | [Dynamic Safety](09-traits.md#dynamic-safety) | the body behind a trait value's method, which is one per implementation |
 
-The dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
-limits method-level type parameters of dynamically safe traits to
-reference types. A row parameter passes its providers as one bundle.
+A method of a trait value has one body per implementation, so a
+method-level type parameter there is the one erased path. A value-typed
+argument for it is boxed at the call, which no program can observe, as
+[Trait Values And `Any`](#trait-values-and-any) states. A row parameter
+passes its providers as one bundle.
 
 A value with a value layout may stay unboxed in locals, fields,
 parameters, generic code, and containers. A program cannot tell a packed
@@ -2411,26 +2413,21 @@ See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across
 
 - A data type is a record of its fields. A field whose type has a value
   layout is stored unboxed.
-- Every enum uses the reference shape, with one representation. A
-  payload-free variant, in any enum, is an `i31ref` holding its tag: it
-  allocates nothing, and `ref.eq` on it is its canonical identity. A variant
-  with a payload is a GC struct, one struct subtype per variant of the
-  enum's base type. An enum-typed slot is an `eqref`, and `match` tests for
-  `i31` first, then reads the struct's tag. There is no separate `i32` form.
+- An enum has a value layout that the implementation chooses. A small
+  enum may be a tag and a few unboxed slots, and a larger one an immutable
+  record. A payload of the enum's own type, directly or through other
+  enums, is a reference, so the layout stays finite.
 - Shared constructor data is a per-variant constant, stored once in a table
-  indexed by the tag and never in an enum value. A payload-free variant
-  therefore stays an `i31ref` tag even when its enum declares shared data.
-- `T?` is an enum like any other: `.None` is a canonical constant, which
-  the `i31ref` tag or a null reference may represent. `.Some(value)` is a
-  tagged record holding the value, unboxed when `T` has a value layout. Because each `.Some` construction has
-  its own identity, a present value cannot be represented by the payload
-  itself.
+  indexed by the tag and never in an enum value.
+- `T?` is an enum like any other. Because an optional has no identity, a
+  present value may be represented by the payload itself, and `.None` by a
+  null reference or a tag.
 - A list is a growable array of its element shape, with value-layout
   elements unboxed. A map is expected to use
   hashing, with insertion order kept separately.
 - A closure is a function reference plus an environment record. A closure
-  without captures needs no environment. Because function identity is
-  unspecified, an implementation may share one value for a named function or
+  without captures needs no environment. Because a function value has no
+  identity, an implementation may share one value for a named function or
   allocate one at each use.
 - A dynamic trait value is the underlying reference plus a shared method
   table for the implementation. For `Inspectable` and the traits that
