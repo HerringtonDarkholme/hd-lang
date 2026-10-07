@@ -1,4 +1,7 @@
 # test: discarded property cases do not count toward cases, and a Debug input type runs
+# Spec std/testing Property Reporting: std-testing.prop.report,
+# std-testing.prop.discard-limit, std-testing.runner.discard-panic,
+# and std-testing.runner.discard-read.
 use std.testing.{assert, Arbitrary, Choices, it_prop, it_prop_with}
 
 @derive(Debug)

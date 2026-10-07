@@ -1,5 +1,11 @@
 # test: it_prop and it_prop_with run generated scalar cases whose draws obey the bounds of int and the default generators
 # Spec std/testing Choices And Arbitrary: std-testing.choices.int-generic, std-testing.arbitrary.std, std-testing.arbitrary.float, std-testing.prop.discard.
+# Also covers std-testing.choices.float-generic, std-testing.choices.bool,
+# std-testing.choices.string-max-chars, std-testing.choices.assume,
+# std-testing.choices.draw, std-testing.choices.from-case,
+# std-testing.choices.no-size, std-testing.choices.string-limit,
+# std-testing.arbitrary, std-testing.it-prop,
+# std-testing.prop.body-no-discard, and std-testing.edge.int-type.
 use std.testing.{assert, Choices, it_prop, it_prop_with}
 
 fn small(c: mut Choices) -> i64:

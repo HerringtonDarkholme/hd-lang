@@ -1,5 +1,10 @@
 # test: each DecodeError case, its position as a byte offset, and the order in which errors are checked
 # Spec std/encoding Decode Errors: std-encoding.error.declared, std-encoding.hex.decode.order, std-encoding.base64.decode.order (ENCODING-SURFACE; task #224).
+# Also covers std-encoding.hex.decode.length-bytes,
+# std-encoding.hex.decode.character, std-encoding.base64.decode.length-bytes,
+# std-encoding.base64.decode.padding, std-encoding.base64.decode.character,
+# std-encoding.base64.decode.pad-bits, std-encoding.error.position-bytes,
+# and std-encoding.error.traits.
 use std.encoding.{base64_decode, hex_decode, DecodeError}
 use std.testing.{assert, assert_equal}
 

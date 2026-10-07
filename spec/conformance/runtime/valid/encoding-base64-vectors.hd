@@ -1,5 +1,8 @@
 # test: base64_encode and base64_decode match the RFC 4648 section 10 test vectors
 # Spec std/encoding Base64: std-encoding.base64.encode.padding, std-encoding.base64.decode.value (ENCODING-SURFACE; task #224).
+# Also covers std-encoding.import, std-encoding.no-panic,
+# std-encoding.base64.encode, std-encoding.base64.decode,
+# std-encoding.base64.encode.groups, and std-encoding.base64.encode.pad-bits.
 use std.encoding.{base64_decode, base64_encode, DecodeError}
 use std.testing.assert_equal
 

@@ -82,13 +82,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S4. Fixtures: Thin Stdlib Modules
-
-The same for the stdlib modules under 35%: `net` (16%), `http` (20%),
-`sys` (27%), `fs` (29%), `encoding` (30%), `testing` (34%). Host-backed
-modules use the portable runner's fake hosts; read how existing fs and
-http fixtures do it first.
-
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move

@@ -1,5 +1,9 @@
 # test: MapSys answers each Sys method from its key, reads cpu_count as a count, and reports a missing key as Unsupported
 # Spec std/sys Map Sys: std-sys.map.new, std-sys.map.cpu-count, std-sys.map.missing, std-sys.error.not-granted.text.
+# Also covers std-sys.decl, std-sys.os, std-sys.arch,
+# std-sys.hostname, std-sys.cpu-count, std-sys.plain,
+# std-sys.unsupported, std-sys.error.traits, std-sys.map.decl,
+# and std-sys.map.no-host.
 # expect: test
 use std.sys.{MapSys, Sys, SysError}
 use std.testing.assert_equal

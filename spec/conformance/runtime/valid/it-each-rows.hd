@@ -1,6 +1,7 @@
 # test: it_each registers one test case per row
 # Spec std/testing Table-Test Rows: std.testing.it_each runs its body once per element, as the cases
 # doubles[0], doubles[1], and doubles[2].
+# Rules: std-testing.it-each.name, std-testing.it-each.rows-at-run.
 use std.testing.{assert_equal, it_each}
 
 fn double(value: i32) -> i32: value * 2

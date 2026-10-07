@@ -1,5 +1,8 @@
 # test: Choices.choose draws one of its items, and panics on an empty list
 # Spec std/testing Property Tests: std-testing.choices.choose, std-testing.choices.choose.empty (spec pass 89, audit item 9).
+# Also covers std-testing.budget.simplest.choose,
+# std-testing.edge.cases, std-testing.edge.plan, std-testing.edge.replay,
+# and std-testing.edge.coverage.
 use std.testing.{Arbitrary, Choices, assert, it_prop}
 
 @derive(Debug)

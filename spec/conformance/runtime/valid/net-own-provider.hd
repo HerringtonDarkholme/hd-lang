@@ -1,5 +1,9 @@
 # test: a unit test binds its own Net provider, and NetError names the flag for a refused address
 # Spec std/net Net Providers: std-net.provider.none, std-net.trait.decl, std-net.lookup, std-net.error.not-granted.text.
+# Also covers std-net.error.decl, std-net.error.traits,
+# std-net.error.address, std-net.error.not-granted, std-net.error.dns,
+# std-net.error.refused, std-net.connect, std-net.listen,
+# std-net.bind-udp, std-net.mut, and std-net.handles.decl.
 # expect: test
 use std.net.{Net, NetError, TcpListener, TcpStream, UdpSocket}
 use std.testing.assert_equal

@@ -1,5 +1,6 @@
 # test: hex_encode writes lowercase digits, and hex_decode reads the RFC 4648 section 10 vectors in either case
 # Spec std/encoding Hex: std-encoding.hex.encode.digits, std-encoding.hex.decode.case (ENCODING-SURFACE; task #224).
+# Also covers std-encoding.hex.encode and std-encoding.hex.decode.
 use std.encoding.{hex_decode, hex_encode}
 use std.testing.assert_equal
 

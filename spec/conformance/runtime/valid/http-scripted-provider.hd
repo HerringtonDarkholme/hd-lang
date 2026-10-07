@@ -1,5 +1,11 @@
 # test: ScriptedHttp answers a URL by its exact text, whatever the method, and records every request in order
 # Spec std/http Scripted Http: std-http.scripted.new, std-http.scripted.send, std-http.scripted.sent, std-http.send.status, std-http.helper.get, std-http.response.text.
+# Also covers std-http.types.decl, std-http.types.traits,
+# std-http.request.defaults, std-http.headers.pairs,
+# std-http.error.decl, std-http.error.traits, std-http.error.other,
+# std-http.trait.decl, std-http.send, std-http.send.mut,
+# std-http.bodies, std-http.helper.send, std-http.scripted.decl,
+# and std-http.scripted.no-host.
 # expect: test
 use std.http.{Http, HttpError, Method, Request, Response, ScriptedHttp, get, send}
 use std.testing.assert_equal

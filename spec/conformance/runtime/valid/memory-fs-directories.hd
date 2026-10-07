@@ -1,5 +1,8 @@
 # test: MemoryFs directories follow from file paths and create_dir_all!, list in byte order, and move and fail as the chapter's table says
 # Spec std/fs Memory File System: std-fs.memory.dirs, std-fs.memory.create-dir-all, std-fs.memory.entry, std-fs.memory.list-order, std-fs.memory.rename, and the std-fs.memory.error rows (PROVIDER-SHAPES; task #220).
+# Rules exercised include std-fs.entry.size, std-fs.memory.decl,
+# std-fs.memory.no-host, std-fs.memory.error.is-directory,
+# std-fs.memory.error.not-directory, and std-fs.memory.error.not-empty.
 use std.fs.{Entry, EntryKind, FsError, MemoryFs}
 use std.path.Path
 use std.testing.{assert, assert_equal}

@@ -1,5 +1,6 @@
 # test: ScriptedHttp answers an unknown URL with a Connect error that names it, and still records the request
 # Spec std/http Scripted Http: std-http.scripted.unknown, std-http.scripted.sent, std-http.error.not-granted.text.
+# Also covers std-http.error.not-granted, std-http.error.connect.
 # expect: test
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
 use std.testing.assert_equal

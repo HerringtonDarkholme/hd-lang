@@ -1,5 +1,14 @@
 # test: TestRunner is a host capability trait whose methods are plain calls
 # Spec std Testing, Runner Capabilities: std-testing.runner.declares, std-testing.runner.plain, std-testing.runner.snapshot-check, and std-testing.runner.temp-dir.
+# Also covers std-testing.runner.binding, std-testing.runner.row,
+# std-testing.runner.timeout, std-testing.runner.start-case,
+# std-testing.runner.show, std-testing.runner.case.example,
+# std-testing.runner.case.seed, std-testing.runner.case.size,
+# std-testing.runner.case.replay, std-testing.runner.examples-done,
+# std-testing.runner.show-before-body, std-testing.runner.choices,
+# std-testing.runner.replay, std-testing.runner.record-every,
+# std-testing.runner.random, std-testing.runner.case.size-count,
+# and std-testing.runner.case.seed-step.
 use std.testing.TestRunner
 
 data FirstRow:

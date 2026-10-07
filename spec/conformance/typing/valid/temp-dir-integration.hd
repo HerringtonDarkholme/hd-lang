@@ -1,6 +1,8 @@
 # fixture-test-layout: integration
 # test: an integration test case reads a package file and writes into its own temporary directory with the profile's FsRead and FsWrite
 # Spec std Testing, Temporary Directories: std-testing.temp-dir.decl, std-testing.temp-dir.fresh; Command Line: cli.test.env.integration (task #321).
+# Also covers std-testing.temp-dir.same, std-testing.temp-dir.per-run,
+# and std-testing.temp-dir.removed.
 use std.fs.{read_text, write_text}
 use std.path.Path
 use std.testing.{assert_equal, temp_dir}
