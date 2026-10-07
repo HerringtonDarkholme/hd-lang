@@ -116,6 +116,39 @@ rule:
 Update `reconciliation.md` and `footprint.md`. Docs only; timebox 45
 minutes; push.
 
+### D2e. Reconcile M4b
+
+M4b landed (74e2f624): collection crosses into std; the emitter is
+rewritten on the layouts; a std-using exit program runs on V8. Run D2
+for it, and record (citing "M4b gap n") with the intended rule:
+
+1. Suspension is cut down: `$Suspend_L` is only a poll function
+   reference (no state, flags, driver fields, wakers, cancel);
+   `block_on` polls then calls `hd:rt.block` (suspension.md).
+2. Vtables are `struct.new` at each coercion, not constant globals;
+   supertrait vtable fields are not built (codegen.md, wasm-layout.md).
+3. Erased scalars are always boxed: the `i31ref` fast path the design
+   requires (wasm-layout.md, "Erased scalars") is missing.
+4. Code keys lack the full §13.8 dependency list (impl interface hashes,
+   inline summaries) (codegen.md §13.8, cache.md).
+5. No panic sites: no `hd.sites`/`hd.folds`/`hd.runtime` sections, no
+   fold step (runtime-and-host.md, codegen.md).
+6. Every local is nullable and narrowed on read (wasm-layout.md).
+7. Emission trusts TIR (indexes records directly).
+8. Tiny-program size: hello is 4.8 KB with the name section; the 2 KB
+   target is missed (std number formatting and helpers come along).
+9. Checker bug for the M4 follow-up list: `"${ages["cy"]}"` leaks the
+   index key's literal into the interpolation parts.
+10. Still `unsupported` in emission: GlobalGet/GlobalSet (module init),
+    all Await tags (state machines), With/ContextNew/ContextFor,
+    ItemRef, Is, CallHost, DefaultCall, CopyData, SwitchStr, the For
+    tags, Scope with defer, MapRemove/MapIter/StrIndex, ToAny,
+    Supertrait, f32 arithmetic, wider conversions, shared captures,
+    `dyn` generic methods, recursive types.
+
+Update `reconciliation.md` and `footprint.md`. Docs only; timebox 45
+minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
