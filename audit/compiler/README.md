@@ -15,4 +15,4 @@ Open prototype defects, speed findings included, are tracked by tag in
 `test/portable/KNOWN_FAILURES.tsv` and by F-id in
 [`src/KNOWN_ISSUES.md`](../../src/KNOWN_ISSUES.md). Notes for the new
 compiler are in
-[`future-work/NEW_COMPILER_ARCHITECTURE.md`](../../future-work/NEW_COMPILER_ARCHITECTURE.md).
+[`future-work/compiler/goals.md`](../../future-work/compiler/goals.md).

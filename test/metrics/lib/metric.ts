@@ -2,7 +2,7 @@
 //
 // A metric script exports one `Metric`. It measures, never writes to the
 // repository, and returns one result per target in its row of the Goal
-// Metrics tables (future-work/NEW_COMPILER_ARCHITECTURE.md). A target the
+// Metrics tables (future-work/compiler/goals.md). A target the
 // `hd` under test cannot be measured on, such as `hd fmt` on an `hd` with
 // no formatter, is `n/a` with a reason: it never fails the run and never
 // gets a made-up value.

@@ -173,7 +173,7 @@ Inputs include source, imported declarations, relevant compiler options, std def
 
 Cross-edit reuse, persistent storage, and parallel scheduling can follow once those dependencies are correct and measured. They should share the same invalidation contract.
 
-The owner has [deferred a checked-stdlib cache](../../future-work/NEW_COMPILER_ARCHITECTURE.md) (task P4c). This recommendation does not introduce one or reopen that decision.
+The owner has [deferred a checked-stdlib cache](../../future-work/compiler/goals.md) (task P4c). This recommendation does not introduce one or reopen that decision.
 
 The roadmap's compiler-written SQL program database also remains on hold. In-process semantic APIs do not require that product or storage format.
 

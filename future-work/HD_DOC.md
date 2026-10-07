@@ -36,7 +36,7 @@ Under review:
   [Documentation Comments](../spec/lang/01-lexical-structure.md#documentation-comments),
   which this design keeps unchanged;
 - the `answer-size` metric of
-  [Goal Metrics](NEW_COMPILER_ARCHITECTURE.md#goal-metrics-proposal-2026-10-06-awaiting-the-owners-edits).
+  [Goal Metrics](compiler/goals.md#goal-metrics-proposal-2026-10-06-awaiting-the-owners-edits).
 
 ## Summary
 

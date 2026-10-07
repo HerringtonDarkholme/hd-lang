@@ -3,7 +3,7 @@
 Date: 2026-10-06. Source: `audit/hd-writing-log.md` — 111 rows whose
 Helped? is `no` or `partly`, from Haiku, Sonnet, Opus, GPT, and Kimi
 writing hd. The new compiler is judged by retries per program
-(future-work/NEW_COMPILER_ARCHITECTURE.md, "Arena", pillar 1). Each
+(future-work/compiler/goals.md, "Arena", pillar 1). Each
 today-message was re-run with the compiler at 8f9b0fe1.
 
 Already fixed on 2026-10-06 (verified by re-running, then left out of the

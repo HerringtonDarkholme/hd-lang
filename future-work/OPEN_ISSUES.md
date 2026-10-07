@@ -340,7 +340,7 @@ These items remain required but do not currently require new core syntax:
   [Sys](../spec/std/sys.md). The first release's host ABI is hd's own core-Wasm
   imports, not the Component Model, which can't carry Wasm GC values
   (owner, 2026-10-06,
-  [research](COMPILER_ARCHITECTURE_RESEARCH.md#open-questions-for-the-owner)).
+  [research](compiler/research.md#open-questions-for-the-owner)).
   Where a point below names the component ABI, read it as the hd host ABI.
   These points stay open:
   - **Runtime code loading (parked, 2026-10-06).** A host trait `Loader`

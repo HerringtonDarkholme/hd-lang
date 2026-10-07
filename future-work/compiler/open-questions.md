@@ -1,0 +1,207 @@
+# New Compiler Design: Open Questions
+
+Part of the [compiler design](../README.md).
+
+## 10. Open Questions For The Owner
+
+Settled by the owner on 2026-10-07 and used above, not asked again: no
+default memory cap, with an opt-in cap and a hard-limit diagnostic naming
+the stage (§4.15); a 10 GB LRU shared cache with automatic eviction and
+`hd cache gc` (§5.7); `hd build` on a library-only package writes only its
+interface and cache entries (§7.5).
+
+1. **Where compiled cache entries live.** `hd clean --cache` refuses a
+   cache directory holding anything but `pkg`, `hash` and `tmp`
+   ([`cli.clean.cache.layout`](../../spec/cli/command-line.md#r-cli.clean.cache.layout)).
+   **Recommendation:** put entries in `$HD_CACHE/obj/`, add `obj` to the
+   rule's list, and let `hd clean --cache` remove it too, since it holds
+   only derived data. The alternative, a per-package `build/cache`,
+   loses sharing across worktrees, which pillar 2 depends on.
+2. **Default thread count.** Many agents run `hd` at once on one machine,
+   and too many threads slowed the prototype's suite about 9x.
+   **Recommendation:** `min(cores, 8)` by default, `--jobs N` and
+   `HD_JOBS` to change it, and `--jobs 1` as the serial mode. The
+   `parallel-speedup` metric already stops at 8 cores.
+3. **The `cache-contention` target.** The proposed metric says "each entry
+   computed once" across N processes. The no-daemon cache gives "no
+   corruption" for free, but "computed once" needs lock files.
+   **Recommendation:** change the target to "no corruption, and N
+   concurrent identical checks cost at most 1.5x the CPU of one". Add lock
+   files later only for D2's expensive entries if a measurement asks.
+4. **Templates that call private helpers (mine).** The spec does not say
+   whether a template body may name private items of its trait's module.
+   If it may, a dependent's check of the instantiated template needs their
+   signatures. **Recommendation:** allow it. The interface carries those
+   items as hidden items, which user code cannot name and which the
+   interface validator accepts only when a template names them.
+5. **Diagnostic codes for limits.** Answer 5 left the names to the
+   orchestrator. This design proposes `file-too-large`, `nesting-too-deep`,
+   `item-too-complex`, `type-too-large`, `match-too-complex` and
+   `memory-limit` (§4.15). No owner question unless the owner wants fewer
+   codes, for example one `limit-exceeded` with the limit named in the
+   message. **Recommendation:** separate codes, as the Day 1 list asks.
+6. **`hd fmt` on a file with a syntax error.** **Recommendation:** leave
+   the file untouched and report its first syntax error, as gofmt does.
+   Formatting around error nodes, as Biome does, risks rewriting code the
+   parser misunderstood.
+
+### 10.1 Inconsistencies Found In The Inputs
+
+1. **Layout.** The research says layout needs no parser feedback; the spec
+   says layout and parsing cooperate at suite colons and for `SUITE_END`.
+   Resolved by the parser-driven layout cursor (§4.2).
+2. **Pack bodies.** [`module.interface.contents`](../../spec/lang/10-modules.md#r-module.interface.contents)
+   lists "the bodies of pack code", but packs were removed
+   ([chapter 12](../../spec/lang/12-variadic-generics.md)).
+3. **Dictionaries.** [`module.interface.dictionaries`](../../spec/lang/10-modules.md#r-module.interface.dictionaries)
+   still says generic functions compile once with dictionaries, against
+   answer 8 (code per concrete type).
+4. **Local impl heads.** The same table lists local impl heads "needed for
+   coherence". A local impl must involve a local type or trait, so no
+   other module can overlap it. The research's Q4b noted this too.
+5. **Fact values.** [`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-values)
+   puts fact values in the package interface; the check interface here
+   keeps expressions and their types, and D2 computes values (the
+   research's Q4b contradiction 2).
+6. **Cache directory.** The CLI spec's clean rule allows only `pkg`,
+   `hash` and `tmp` under `HD_CACHE` (question 1).
+7. **Drive summaries.** The research's Q3 step 5 and Q7 slices 3 and 4
+   still mention drive summaries and their hash, which answer 13 removed.
+8. **Initialization order** needs bodies across the modules of an
+   initialization group, a cross-module body fact not listed in the
+   research. Handled inside the folder by init summaries (§4.13.10).
+9. **"Query engine."** The Day 1 list says "incremental checking on a
+   query engine", while the decision is a per-module cache with no salsa.
+   The wording should follow the decision.
+10. **CLI surface.** `hd fmt`, `hd fix`, `hd test --affected`,
+    `--max-errors`, `--jobs`, `modules_checked` and the JSON `fixes` field
+    are triaged or answered but not yet in the CLI spec. The spec pass
+    adds them.
+
+### Changes To D1
+
+The owner reviewed D1 while D2 was written and asked three questions:
+how abstract the checked IR is, whether the design is truly
+data-oriented, and whether all these IRs are needed. D2 answers them by
+editing D1 in place:
+
+1. **§3.9 Data-Oriented Encoding (new).** The InternPool for types and
+   constants; one dense tag + data + `extra` encoding; struct-of-arrays
+   tables with hash maps only as indexes; the scratch buffer and rollback
+   by truncation; one schema per IR generating typed views, builders,
+   verifiers and printers; byte budgets; what it buys. Credits Zig,
+   Carbon, Yuku and Vx.
+2. **§3.10 IR Abstraction Contracts (new).** For each IR: what is
+   resolved in it and what is deliberately not, its lifetime and bytes per
+   source line, peak memory for a check and a build, its verifier, and a
+   table mapping each prototype failure in the audit to the rule that
+   prevents it.
+3. **One typed IR.** THIR and the planned MIR are merged into **TIR**,
+   one typed IR per body that the checker emits directly (§4.13.11, which
+   now holds its full instruction catalog, desugaring table, builder API
+   and invariants). No instance is ever materialized as IR: emission walks
+   the generic TIR under a substitution (§13.8). The chain is tokens,
+   syntax tree, interface, TIR, Wasm.
+4. **§3.3, §3.4, §3.5.** Types, rows and constants live in the InternPool;
+   `TyKind` is a decoded view; body arenas are reused column sets.
+5. **§4.1, §4.4.** Token classes and keyword hashing after Yuku; the
+   syntax tree's named-field views at its boundary, its wire format, and
+   recovery by truncation.
+6. **§4.6** is now the item index: an index over the syntax tree and the
+   interface, not a copy.
+7. **§4.10, §4.12.1.** The interface is its blob read in place; impl
+   tables are sorted columns with a hash index.
+8. **§1.1, §1.2, §2.1, §3.1, §4.13, §5.1, §5.2, §9.** Renamed to TIR; the
+   crate `hd_tir` added; the `tir` cache entry added; D2's rows filled in.
+9. **§4.15.** The instantiation depth row is filled in (§13.4).
+10. **§7.3.** The test plan lists each program's statically registered
+    test cases, since registration names are string literals
+    ([`module.testing.reg.name`](../../spec/lang/10-modules.md#r-module.testing.reg.name)).
+    Only `it_each` row counts are learned at run time (§19.2).
+11. **§7.3 and §7.5** end with a pointer to §20, which finishes them.
+
+## 23. Open Questions And Inconsistencies
+
+### 23.1 Open Questions For The Owner
+
+1. **Bounded inlining and scalar replacement in the first release.** The
+   triage put inlining and escape analysis in Later, but `allocations`
+   (at most 1 per iterator chain) and `runtime` (1.5x Node) need them for
+   iterator chains and closures. **Recommendation:** pull a bounded
+   version into slice 10: inline callees under a size budget and closures
+   passed to known callees, and replace non-escaping closures and cells by
+   locals. Both run in the one shared emission (§12.6).
+2. **Polymorphic recursion: error or boxed fallback.** Answer 8's
+   research proposed an error at an instantiation depth limit; the spec's
+   [Shapes and Generic Code](../../spec/lang/04-type-system.md#shapes-and-generic-code)
+   says such code falls back to shared boxed bodies. A fallback needs a
+   second, erased code path. **Recommendation:** the error,
+   `instantiation-too-deep`, reported by `hd build`, `hd run` and
+   `hd test` (§13.4); it is contrived code with a simple fix. The spec
+   pass rewrites that section to answer 8.
+3. **Two panic categories.** A deadlocked entry (§14.8) and an indirect
+   `block_on` or `println` in a forbidden context (§14.9) have no stable
+   category. **Recommendation:** add `suspension-deadlock` and
+   `suspension-forbidden-context`, the latter matching the check-time
+   code, as answer 11 added two.
+4. **Resource limit flags.** `--max-heap` is named in the triage; the
+   time limit has no flag. **Recommendation:** `--max-heap SIZE` and
+   `--time-limit DURATION` on `hd run`, `hd FILE`, `hd FILE.wasm` and
+   `hd test` (where it caps each case), with no default limit.
+5. **The property-test base seed.** The `determinism` metric wants equal
+   output on every run, but a fixed seed explores the same cases each
+   time. **Recommendation:** derive each property's first seed from its
+   test's stable name, so runs are reproducible, and add `--seed N` to
+   vary it.
+6. **A panic in the REPL.** The REPL chapter does not say what a panic
+   does to the session. **Recommendation:** report it and keep the
+   session; the panicking input adds no binding, and mutations it made
+   before the panic remain. The spec pass adds a rule.
+
+### 23.2 Inconsistencies Found In The Inputs
+
+1. **Folding reference instances.** The research says `List[Point].push`
+   and `List[User].push` fold. With exact Wasm types they fold only when
+   `Point` and `User` have the same layout (§13.7); folding them always
+   needs erased element storage and a cast per read.
+2. **Shapes in the spec.** The type-system chapter's
+   [Shapes and Generic Code](../../spec/lang/04-type-system.md#shapes-and-generic-code)
+   describes one shared body for reference types, dictionaries for trait
+   bounds, a boxed fallback for polymorphic recursion, and one reference
+   shape for every enum. Answer 8 replaced that strategy. D1 listed only
+   `module.interface.dictionaries` (§10.1, item 3).
+3. **The transitive `block_on` ban** remains in
+   [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive)
+   and [`flow.defer.block-on`](../../spec/lang/06-control-flow.md#r-flow.defer.block-on),
+   though answer 13 made it direct-only.
+4. **The Component Model** is still named by
+   [`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)
+   and by HOST_CAPABILITIES' boundary table, against answer 7.
+5. **Resource limits.** The stable panic categories lack
+   `heap-exhausted` and `time-limit`
+   ([`flow.panic.stable-categories`](../../spec/lang/06-control-flow.md#r-flow.panic.stable-categories)),
+   though answer 11 added them, and the CLI chapter has no limit flags.
+6. **The `allocations` metric** reads V8's heap statistics, while the
+   first release runs programs on wasmtime. It can run the release
+   `.wasm` under Node through the generated glue (§17.10), or count
+   through a stats build's allocation hooks (§16.3).
+7. **Start to first output.** `size-startup-heap` asks for at most 5 ms,
+   measured through a process, while `startup` allows 20 ms for
+   `hd --version`. The 5 ms can only hold for instantiation to output,
+   not for a cold process.
+8. **One instance per property test** (a first-release feature) meets
+   [`flow.panic.poison`](../../spec/lang/06-control-flow.md#r-flow.panic.poison):
+   a discard is a panic, so each discard costs a fresh instance (§19.4).
+   Not a contradiction, but a cost the feature text does not mention.
+9. **D1's test plan** said cases are registered only at run time; the
+   spec lists them statically. Fixed in §7.3.
+10. **The research's crates** `hd_mir` and `hd_opt` and its MIR stage are
+    superseded by the one-IR decision (§3.9.1, §11.4).
+11. **The triage** keeps inlining and escape analysis in Later while two
+    goal metrics depend on them (question 1).
+
+### 23.3 What Was Kept Brief
+
+Sections 21 to 23 are brief by plan. Two designs need a measurement
+before more text: the debug tier's Cranelift level and the null collector
+for tests (§18.6).

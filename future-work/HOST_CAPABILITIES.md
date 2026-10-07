@@ -89,7 +89,7 @@ Under review:
   [Open Issues](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work), which
   this record would replace;
 - the goal metrics of
-  [New Compiler: Architecture Notes](NEW_COMPILER_ARCHITECTURE.md#goal-metrics-proposal-2026-10-06-awaiting-the-owners-edits).
+  [New Compiler: Architecture Notes](compiler/goals.md#goal-metrics-proposal-2026-10-06-awaiting-the-owners-edits).
 
 ## Owner's Words (2026-10-06)
 

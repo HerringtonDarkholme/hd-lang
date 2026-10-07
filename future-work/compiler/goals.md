@@ -3,18 +3,18 @@
 The owner's direction for the new compiler and CLI, recorded as given, with
 the orchestrator's proposals kept apart. Last restructured 2026-10-06.
 
-- The [specification](../spec/README.md) stays authoritative. Nothing here
+- The [specification](../../spec/README.md) stays authoritative. Nothing here
   is spec, and anything that changes language behavior goes through it.
 - Every section says whose text it is: the owner's, or the orchestrator's.
 - Measured state of the prototype:
-  [baseline report](../audit/compiler/baseline-2026-10-06.md).
+  [baseline report](../../audit/compiler/baseline-2026-10-06.md).
 - Earlier analysis:
-  [architecture directions, 2026-10-05](../audit/compiler/architecture-directions-2026-10-05.md),
-  [status quo](../audit/compiler/status-quo-2026-10-04.md).
+  [architecture directions, 2026-10-05](../../audit/compiler/architecture-directions-2026-10-05.md),
+  [status quo](../../audit/compiler/status-quo-2026-10-04.md).
 
 ## Summary
 
-Detailed design: [COMPILER_DESIGN.md](COMPILER_DESIGN.md)
+Detailed design: [README.md](README.md)
 
 **Goals (owner, 2026-10-06):**
 
@@ -29,7 +29,7 @@ Detailed design: [COMPILER_DESIGN.md](COMPILER_DESIGN.md)
 
 **Decided (owner, 2026-10-06):**
 
-- **Architecture, after [the research](COMPILER_ARCHITECTURE_RESEARCH.md#open-questions-for-the-owner):**
+- **Architecture, after [the research](research.md#open-questions-for-the-owner):**
   the compiler is written in Rust; incremental checking uses a per-module
   on-disk cache (no salsa, no daemon); generic code is generated per
   concrete type, then byte-identical functions are merged; the browser
@@ -47,8 +47,8 @@ Detailed design: [COMPILER_DESIGN.md](COMPILER_DESIGN.md)
   storage interface without a file system, checking must also work on one
   thread, and the host interface has a JS implementation.
 
-- The prototype in [`src/`](../src/README.md) is frozen as a test oracle
-  ([Roadmap](ROADMAP.md#order)); the new compiler starts now.
+- The prototype in [`src/`](../../src/README.md) is frozen as a test oracle
+  ([Roadmap](../ROADMAP.md#order)); the new compiler starts now.
   See [Prototype Baselines](#prototype-baselines-to-beat-2026-10-06).
 - Multiple backends: **Wasm** and **Cranelift** first, **LLVM** and **JS**
   at low priority. See [Toolchain-Wide Features](#toolchain-wide-features).
@@ -66,8 +66,8 @@ Detailed design: [COMPILER_DESIGN.md](COMPILER_DESIGN.md)
 - `usize` is target-defined: 32 bits on Wasm32.
 - `defer` is kept for the first release. See
   [Follow-Up Questions](#follow-up-questions).
-- `hd doc` is decided: [HD_DOC.md](HD_DOC.md).
-- Host capabilities are decided: [HOST_CAPABILITIES.md](HOST_CAPABILITIES.md).
+- `hd doc` is decided: [HD_DOC.md](../HD_DOC.md).
+- Host capabilities are decided: [HOST_CAPABILITIES.md](../HOST_CAPABILITIES.md).
   See [Host Capabilities](#host-capabilities-what-the-new-compiler-inherits-2026-10-06).
 - `Http` is its own trait.
 
@@ -255,7 +255,7 @@ now.
 - typed holes: `_` / `todo()` report the expected type and the names in
   scope that fit;
 - a pathology fuzzer in CI that flags superlinear growth;
-- `hd doc` ✓ (HTML and Markdown, [HD_DOC.md](HD_DOC.md)).
+- `hd doc` ✓ (HTML and Markdown, [HD_DOC.md](../HD_DOC.md)).
 
 **Later:**
 
@@ -452,7 +452,7 @@ after.
   design pass later (owner, 2026-10-06).
 
 **Deferred** (owner, 2026-10-06): an API compatibility checker (see
-[API Compatibility Checking](OPEN_ISSUES.md#api-compatibility-checking-from-the-deleted-packagesmd)),
+[API Compatibility Checking](../OPEN_ISSUES.md#api-compatibility-checking-from-the-deleted-packagesmd)),
 `migrate` codemods, and a per-dependency capability audit. Whether each
 becomes an `hd` command or a third-party tool is decided later; either way
 it can read the public surface from `build/doc/md`, and from the program
@@ -576,7 +576,7 @@ medians in ms, release builds, after the P1e/P1f string fixes:
   indirect calls and per-step `Option` structs remain.
 
 **Compile and check latency (Arena pillar 1).** From the
-[baseline report](../audit/compiler/baseline-2026-10-06.md), as CLI wall
+[baseline report](../../audit/compiler/baseline-2026-10-06.md), as CLI wall
 time with process startup included:
 
 | program | `hd check` | `hd build` | Wasm |
@@ -602,14 +602,14 @@ records were deleted (2026-10-06). The spec decides behavior; these say how.
 ### Literal Inference
 
 From the Standard Library Plan's compiler handoff, for the open literal
-variables of [Open Literal Width](../spec/lang/04-type-system.md#open-literal-width):
+variables of [Open Literal Width](../../spec/lang/04-type-system.md#open-literal-width):
 
 1. Check bidirectionally first. A literal with an expected type gets its concrete type on the spot, and a binary operator checks its non-literal operand first, on either side. Only a literal with no expected type gets a variable.
 2. Keep variables as integer IDs in flat per-body arrays: a union-find parent with path halving and rank, a binding (a width or none), and the first deciding span for blame. Free the arena after the body.
 3. Unify in O(α). Detect a conflict at union time, with the stored blame span.
 4. Sweep only what is open: a has-vars bit on interned types, and a per-body list of nodes whose types hold variables. The end-of-body sweep walks only that list.
 5. Keep obligations in an append-only list of (node, kind). After the fallback, process each once and patch the result into a side table, with no argument re-check.
-6. For speculation, push union-find bindings on a trail (an undo log), and roll back by popping it. Never copy checker state (the prototype's F-626 in [src/KNOWN_ISSUES.md](../src/KNOWN_ISSUES.md)).
+6. For speculation, push union-find bindings on a trail (an undo log), and roll back by popping it. Never copy checker state (the prototype's F-626 in [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md)).
 7. Bodies are independent: check the top-level body first, then function bodies in any order, in parallel or lazily. An edit re-checks only its body.
 8. Queue a generic instantiation that meets an open variable until after the sweep, then deduplicate it through the instantiation cache by concrete types. Codegen sees only concrete types.
 9. The cost is O(n·α) per body, and nothing extra for a literal with an expected type.
@@ -619,7 +619,7 @@ variables of [Open Literal Width](../spec/lang/04-type-system.md#open-literal-wi
 From the deferred Wake-Driven Host Entries proposal. The prototype's
 suspending entry export polls until Ready and blocks the JavaScript event
 loop (F-555), against
-[`req.entry.busy-poll`](../spec/lang/11-requirements-and-suspension.md#r-req.entry.busy-poll).
+[`req.entry.busy-poll`](../../spec/lang/11-requirements-and-suspension.md#r-req.entry.busy-poll).
 
 - The embedding exposes a JavaScript host entry interface apart from the
   raw Wasm exports: ordinary entries return directly, and suspending
@@ -658,7 +658,7 @@ which the prototype doesn't:
     latency on a small edit matters more than full-build speed. This is
     where incremental builds pay.
   - Diagnostics that name the fix cut retries, and so cut tokens. The
-    [hd writing log](../audit/hd-writing-log.md) records which messages
+    [hd writing log](../../audit/hd-writing-log.md) records which messages
     failed agents.
   - Deterministic, machine-readable output (`--format json`) keeps an
     agent from re-running commands to parse them.
@@ -680,7 +680,7 @@ which the prototype doesn't:
     gate.
   - Runtime performance and executable size are what the prototype does
     worst: 2.5–11x slower than Node outside recursion
-    ([baseline](../audit/compiler/baseline-2026-10-06.md)).
+    ([baseline](../../audit/compiler/baseline-2026-10-06.md)).
 
 ## Follow-Up Questions
 

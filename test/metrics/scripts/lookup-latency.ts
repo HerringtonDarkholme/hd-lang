@@ -6,7 +6,7 @@
 // needs a capability; the package has none, which is an answer too).
 // Target (Pillar 1): p95 ≤ 100 ms for each query.
 // n/a: a query whose `hd help COMMAND` fails. Neither command is in the CLI
-// specification yet; the names come from NEW_COMPILER_ARCHITECTURE.md.
+// specification yet; the names come from compiler/goals.md.
 
 import { materialize, runProblem } from "../lib/fixture.ts";
 import { runHd, supportsCommand } from "../lib/hd.ts";

@@ -4,7 +4,7 @@ Status: Research, not decided. Both parts are done: Part 1, the front half,
 and Part 2, the back half, 2026-10-06. Q4b, on pre-parsing, was added the
 same day as a revisit of the front half.
 
-Known issues of prior implementations: [COMPILER_PRIOR_ART_ISSUES.md](COMPILER_PRIOR_ART_ISSUES.md)
+Known issues of prior implementations: [prior-art-issues.md](prior-art-issues.md)
 
 This document surveys prior art for the front half of the new compiler:
 the implementation language, the incremental model, parallel checking, the
@@ -17,7 +17,7 @@ back-half crates.
 Fixed inputs, not reopened here:
 
 - The goals, the Arena pillars, the goal metrics, and the feature triage in
-  [NEW_COMPILER_ARCHITECTURE.md](NEW_COMPILER_ARCHITECTURE.md).
+  [goals.md](goals.md).
 - The owner's decisions listed there: Wasm-only v1 run on wasmtime inside
   `hd`, no daemon, parallel and incremental checking as must-haves, a
   lossless CST with recovery, per-item recovery with poison types, the CLI as
@@ -63,7 +63,7 @@ high (I would bet on it), medium (likely, with a named risk), or low (a lean).
 The owner's requirement (2026-10-06): the compiler runs in a browser tab, and
 the user's program runs on V8 there. Today's prototype does this from a
 14.6 MB worker bundle, mostly Binaryen's JavaScript build
-([playground README](../website/playground/README.md#how-it-works)).
+([playground README](../../website/playground/README.md#how-it-works)).
 
 The constraints, and how each recommendation meets them:
 
@@ -239,8 +239,8 @@ Lessons from the table:
 
 - **Explicit public signatures.** Public functions, methods and trait
   methods must write their result type and row
-  ([functions](../spec/lang/07-functions.md#parameter-and-result-types),
-  [rows](../spec/lang/11-requirements-and-suspension.md#omitted-requirement-clauses)).
+  ([functions](../../spec/lang/07-functions.md#parameter-and-result-types),
+  [rows](../../spec/lang/11-requirements-and-suspension.md#omitted-requirement-clauses)).
   A body edit cannot change a module's interface. (Corrected in
   [Q4b](#contradictions-with-part-1-and-part-2): the transitive `block_on`
   ban makes some body edits visible to dependents, and template bodies
@@ -249,13 +249,13 @@ Lessons from the table:
   loops, but folders form a DAG, and the spec says why: "a folder then
   compiles from the signatures of the folders it uses, as a Go package
   compiles from its imports' export data"
-  ([folder graph](../spec/lang/10-modules.md#folder-graph)).
+  ([folder graph](../../spec/lang/10-modules.md#folder-graph)).
 - **No wildcard imports.** A module's uses name exactly which declarations
   it reads, so dependency edges are known from syntax.
 - **Inference stays inside a module.** Only private functions may omit a
   result type or row, and the inferred type never crosses the module.
 - **Template bodies are interface.** A package interface carries each
-  derivation template's body ([limits](../spec/lang/14-annotations.md#limits)).
+  derivation template's body ([limits](../../spec/lang/14-annotations.md#limits)).
   So an edit to a template body changes the interface, as an edit to an
   inline function's body does in C++ or Swift.
 
@@ -491,8 +491,8 @@ rule pushes contexts from the parser, with the same coupling.
 
 hd's layout is Python's kind. The lexer emits `NEWLINE`, `INDENT`, `DEDENT`
 and `SUITE_END` from logical lines, with a delimiter stack for suites nested
-inside brackets ([indentation levels](../spec/lang/01-lexical-structure.md#indentation-levels),
-[suites inside delimiters](../spec/lang/01-lexical-structure.md#suites-inside-delimiters)).
+inside brackets ([indentation levels](../../spec/lang/01-lexical-structure.md#indentation-levels),
+[suites inside delimiters](../../spec/lang/01-lexical-structure.md#suites-inside-delimiters)).
 As far as I can tell from the rules, no layout decision needs the parser.
 That is worth keeping, and worth confirming against the nested-suite rules
 while writing the lexer.
@@ -532,7 +532,7 @@ Confidence: high.
 - A custom tree is more work than rowan. The flat tree is simpler, but
   agents must not write per-node allocations into it. Keep the API small.
 - Closures inside brackets have stricter end rules
-  ([closures inside delimiters](../spec/lang/01-lexical-structure.md#closures-inside-delimiters)).
+  ([closures inside delimiters](../../spec/lang/01-lexical-structure.md#closures-inside-delimiters)).
   If any of them turns out to need parser feedback, keep the feedback to one
   narrow, tested hook.
 
@@ -573,7 +573,7 @@ Lessons:
 
 - **Every system that skips bodies needs explicit signatures at the
   boundary.** TypeScript and Flow had to add the rule. hd already has it
-  ([`module.package.annotated`](../spec/lang/10-modules.md#r-module.package.annotated)).
+  ([`module.package.annotated`](../../spec/lang/10-modules.md#r-module.package.annotated)).
 - **What breaks skipping is code that runs at compile time.** Java's
   constants, Dart's const expressions, Rust's `const fn` and macros, and
   Swift's and Kotlin's inline bodies are the exceptions in every system.
@@ -591,29 +591,29 @@ the declaring module.
 
 | Construct | Needed by dependents | Header pass handles it | Spec change |
 | --- | --- | --- | --- |
-| `use` and `pub use` | yes: edges and re-exports | yes; uses are top-level items only ([`grammar.suite.use-top-level`](../spec/lang/02-grammar.md#r-grammar.suite.use-top-level)); chains are resolved per folder | none |
-| uses in `tests:` blocks and doc tests | only by `hd test`; they make no folder edge ([`module.cycle.test-code`](../spec/lang/10-modules.md#r-module.cycle.test-code)) | yes, marked test-only | none |
-| parameter, field and shared-parameter defaults | the presence of a default; the expression runs per call ([`fn.default.eval`](../spec/lang/07-functions.md#r-fn.default.eval)) | token range; compile it as a callee-side default thunk (mine), so it is never inlined into a caller | none |
-| enum shared constructor data, `NotFound -> StatusCode(404)` | its type only; the value is evaluated at compile time ([`data.shared.compile-time`](../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)) | token range | none |
-| facts, decorators, member lines | the type for checking; the value for builds ([`module.interface.fact-values`](../spec/lang/10-modules.md#r-module.interface.fact-values)) | token range in the check interface; values evaluated at build time from MIR | none, but see contradiction 2 below |
-| `@derive(X)` | the generated impl head and its bounds | yes: bounds come from member types and omitted members ([`annot.bound.params`](../spec/lang/14-annotations.md#r-annot.bound.params)), after name resolution | none |
-| `@error`, `@from`, `@source` | the `Display`, `Error` and `From[P]` heads and their bounds | yes: bounds depend on which members a message interpolates ([`annot.error.bound.display`](../spec/lang/14-annotations.md#r-annot.error.bound.display)), which the lexer sees in the message string | none |
-| derivation templates, `impl[T] X for T by Structure` | the body: a dependent checks the instantiated template at its opt-in ([`annot.limit.interfaces`](../spec/lang/14-annotations.md#r-annot.limit.interfaces)) | yes: the header names it, and the template must sit in the trait's module ([`annot.template.module`](../spec/lang/14-annotations.md#r-annot.template.module)); keep the body as an interface body | none |
+| `use` and `pub use` | yes: edges and re-exports | yes; uses are top-level items only ([`grammar.suite.use-top-level`](../../spec/lang/02-grammar.md#r-grammar.suite.use-top-level)); chains are resolved per folder | none |
+| uses in `tests:` blocks and doc tests | only by `hd test`; they make no folder edge ([`module.cycle.test-code`](../../spec/lang/10-modules.md#r-module.cycle.test-code)) | yes, marked test-only | none |
+| parameter, field and shared-parameter defaults | the presence of a default; the expression runs per call ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)) | token range; compile it as a callee-side default thunk (mine), so it is never inlined into a caller | none |
+| enum shared constructor data, `NotFound -> StatusCode(404)` | its type only; the value is evaluated at compile time ([`data.shared.compile-time`](../../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)) | token range | none |
+| facts, decorators, member lines | the type for checking; the value for builds ([`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-values)) | token range in the check interface; values evaluated at build time from MIR | none, but see contradiction 2 below |
+| `@derive(X)` | the generated impl head and its bounds | yes: bounds come from member types and omitted members ([`annot.bound.params`](../../spec/lang/14-annotations.md#r-annot.bound.params)), after name resolution | none |
+| `@error`, `@from`, `@source` | the `Display`, `Error` and `From[P]` heads and their bounds | yes: bounds depend on which members a message interpolates ([`annot.error.bound.display`](../../spec/lang/14-annotations.md#r-annot.error.bound.display)), which the lexer sees in the message string | none |
+| derivation templates, `impl[T] X for T by Structure` | the body: a dependent checks the instantiated template at its opt-in ([`annot.limit.interfaces`](../../spec/lang/14-annotations.md#r-annot.limit.interfaces)) | yes: the header names it, and the template must sit in the trait's module ([`annot.template.module`](../../spec/lang/14-annotations.md#r-annot.template.module)); keep the body as an interface body | none |
 | walker, describer and source bodies a template names | only for codegen | no, but builds read MIR anyway | none |
-| trait default methods | that a default exists | yes; the body is checked once in the trait ([`trait.default.checked-once`](../spec/lang/09-traits.md#r-trait.default.checked-once)) | none |
+| trait default methods | that a default exists | yes; the body is checked once in the trait ([`trait.default.checked-once`](../../spec/lang/09-traits.md#r-trait.default.checked-once)) | none |
 | impl heads, intrinsic methods, delegation `by E` | yes, for coherence and lookup | yes | none |
-| local declarations and impls inside bodies | no: a local impl must involve a local type or trait ([`names.local-impl.involve`](../spec/lang/03-names-and-scopes.md#r-names.local-impl.involve)), which no other module can name | skipped with the body | none, but [`module.interface.contents`](../spec/lang/10-modules.md#r-module.interface.contents) lists local impl heads "needed for coherence"; I believe none are |
-| top-level statements | no: their bindings cannot be used ([`names.exec.not-usable`](../spec/lang/03-names-and-scopes.md#r-names.exec.not-usable)) | skipped like bodies | none |
+| local declarations and impls inside bodies | no: a local impl must involve a local type or trait ([`names.local-impl.involve`](../../spec/lang/03-names-and-scopes.md#r-names.local-impl.involve)), which no other module can name | skipped with the body | none, but [`module.interface.contents`](../../spec/lang/10-modules.md#r-module.interface.contents) lists local impl heads "needed for coherence"; I believe none are |
+| top-level statements | no: their bindings cannot be used ([`names.exec.not-usable`](../../spec/lang/03-names-and-scopes.md#r-names.exec.not-usable)) | skipped like bodies | none |
 | private functions without a result type | no: inference stays in the module | the header pass records "result omitted", so the scheduler orders them (Q3 step 6) | none |
-| doc comments | `doc` values of members and variants ([`lex.doc.field`](../spec/lang/01-lexical-structure.md#r-lex.doc.field)), read by the module's own derivations; `hd doc` | kept as trivia text; outside the interface hash | none |
+| doc comments | `doc` values of members and variants ([`lex.doc.field`](../../spec/lang/01-lexical-structure.md#r-lex.doc.field)), read by the module's own derivations; `hd doc` | kept as trivia text; outside the interface hash | none |
 | the transitive `block_on` and `println` ban | **yes, and it is body-derived** | **no** | see below |
 
 **The one real exception.** `block_on`, and `println` which drives a
 call with it, are forbidden in default expressions, `defer` suites,
 non-entry module initialization, and fact and metadata expressions. The
 ban is "transitive through the statically known call graph"
-([`req.drive.block-on.transitive`](../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive),
-[`module.console.println-block-on.contexts`](../spec/lang/10-modules.md#r-module.console.println-block-on.contexts)).
+([`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive),
+[`module.console.println-block-on.contexts`](../../spec/lang/10-modules.md#r-module.console.println-block-on.contexts)).
 So a `defer` suite that calls `log.flush()` from another package is legal
 only if `flush`'s body, and every body it calls, never reaches `block_on`.
 That is a property of bodies in other modules. Adding a `println` to a
@@ -654,8 +654,8 @@ byte, but builds no tokens and no tree. The rule alone is not enough:
 | --- | --- | --- |
 | multiline strings | `std/text.hd` holds a `"""` Unicode table whose 115 lines start at column 0 inside a body | string mode, including `"""` and prefixed raw strings, where `\"` does not end the string |
 | interpolation | `"${f("a)")}"` nests code and strings | a stack of code and string frames |
-| bracket continuation | a closure body or `)` left of its statement ([`lex.nested.body-depth`](../spec/lang/01-lexical-structure.md#r-lex.nested.body-depth)); three conformance fixtures do this | bracket depth; any line inside brackets belongs to the body |
-| comments and blank lines | a `#` line at column 0 inside a body does not end it ([`lex.indent.blank`](../spec/lang/01-lexical-structure.md#r-lex.indent.blank)) | comment-only and blank lines are ignored |
+| bracket continuation | a closure body or `)` left of its statement ([`lex.nested.body-depth`](../../spec/lang/01-lexical-structure.md#r-lex.nested.body-depth)); three conformance fixtures do this | bracket depth; any line inside brackets belongs to the body |
+| comments and blank lines | a `#` line at column 0 inside a body does not end it ([`lex.indent.blank`](../../spec/lang/01-lexical-structure.md#r-lex.indent.blank)) | comment-only and blank lines are ignored |
 | char literals | `'"'` and `'#'` | the `'` literal form |
 | same-line suites | `fn f() -> i32: +1` | the first suite colon at bracket depth zero; the rest of the logical line is the body |
 | leading-dot and `\|>` lines | always deeper than their statement, so never a body end | nothing extra |
@@ -807,7 +807,7 @@ use stable paths and source order, and the hash never sees interned IDs.
    edit able to break a dependent. The fix is the drive summary with its
    own hash, and an interface hash over exported items only.
 2. **Facts in the interface.** The spec's package interface records fact
-   *values* ([`module.interface.fact-values`](../spec/lang/10-modules.md#r-module.interface.fact-values)),
+   *values* ([`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-values)),
    and a value can depend on a body in another file. Checking needs only a
    fact's type, so the check interface keeps the expression. Values are
    computed at build time from MIR and reach the codegen cache through
@@ -817,7 +817,7 @@ use stable paths and source order, and the hash never sees interned IDs.
    `defer`, defaults, facts or module initialization also read drive
    summaries of the folders they call into. Only that late check waits.
 4. **Day 1, "dependency bodies skipped".** True warm, not cold, as above.
-5. **Outside this question:** [`module.interface.dictionaries`](../spec/lang/10-modules.md#r-module.interface.dictionaries)
+5. **Outside this question:** [`module.interface.dictionaries`](../../spec/lang/10-modules.md#r-module.interface.dictionaries)
    says each generic function compiles once in its defining package with
    dictionaries, which Q8's monomorphization contradicts. Open question 8
    should cover that rule when the owner answers it.
@@ -897,7 +897,7 @@ Lessons from systems that got this wrong:
 hd's rules keep the problem small. Impls live in the module of the trait or
 the target, overlap is decided from heads alone, bounds never prove
 disjointness, and there is no specialization
-([overlap](../spec/lang/09-traits.md#overlap)).
+([overlap](../../spec/lang/09-traits.md#overlap)).
 
 **Recommendation.** Confidence: medium-high.
 
@@ -924,7 +924,7 @@ compilation throughput went from 8,580 to 15,917 lines/s
 
 hd's rows are simpler than all three. They are sets, a pattern has at most
 one unknown row parameter, and entailment is membership
-([entailment](../spec/lang/11-requirements-and-suspension.md#entailment)).
+([entailment](../../spec/lang/11-requirements-and-suspension.md#entailment)).
 **Recommendation:** represent a row as a small sorted vector of interned keys
 plus an optional row parameter. Union and membership are linear merges.
 Inferred private rows form a least fixpoint over each call cycle in a
@@ -934,22 +934,22 @@ needs no inference, because `!` is in the name. Confidence: high.
 ### GADTs, Tuples And Templates
 
 - **GADTs:** first-order nominal unification per arm, with arm-local
-  equalities that never escape ([refinement](../spec/lang/13-gadts.md#refinement-algorithm)).
+  equalities that never escape ([refinement](../../spec/lang/13-gadts.md#refinement-algorithm)).
   Cost is linear in the pattern. Store equalities in the body's trail and
   pop them at the arm's end.
 - **Exhaustiveness:** Maranget's usefulness algorithm, as rustc and OCaml
   use. It can blow up on wide nested patterns, so it needs a size limit with
   a diagnostic.
-- **Variadic generics are gone** ([chapter 12](../spec/lang/12-variadic-generics.md));
+- **Variadic generics are gone** ([chapter 12](../../spec/lang/12-variadic-generics.md));
   `Args < Tuple` is ordinary tuple unification. No pack machinery.
 - **Derive templates:** each derivation instantiates the template once, as an
   ordinary impl in the target's module, checked there
-  ([templates](../spec/lang/14-annotations.md#templates)). Its result is part
+  ([templates](../../spec/lang/14-annotations.md#templates)). Its result is part
   of that module's cache entry. Because template bodies are in the trait's
   interface, a template edit changes that interface hash and rechecks every
   module that derives it.
 - **Literal widths:** the union-find plan already recorded under
-  [Literal Inference](NEW_COMPILER_ARCHITECTURE.md#literal-inference) fits
+  [Literal Inference](goals.md#literal-inference) fits
   this design as is: per-body arrays, a trail for speculation, and no copied
   checker state.
 
@@ -1024,9 +1024,9 @@ The back half (lowering, Wasm emission, the host interface) slots between
 
 The portable suite runs any `hd` that answers `parse`, `check` and `test`
 with exit codes and `code:` diagnostics
-([portable README](../test/portable/README.md)). By the 2026-10-06
+([portable README](../../test/portable/README.md)). By the 2026-10-06
 baseline it selects 261 parse cases and 1,389 type cases
-([baseline](../audit/compiler/baseline-2026-10-06.md#21-full-run)).
+([baseline](../../audit/compiler/baseline-2026-10-06.md#21-full-run)).
 
 1. **Slice 1, syntax.** Lexer, layout, parser and CST, behind `hd parse FILE`.
    Exit: the parse-phase cases pass, every fixture and `lib/std` file
@@ -1096,10 +1096,10 @@ the question texts stay for their reasoning.
    its own diagnostic as the Day 1 list asks.
 6. **`modules_checked` in the JSON summary.** The metrics harness reads it,
    but the CLI spec does not define it
-   ([metrics README](../test/metrics/README.md#pillar-1-metrics)).
+   ([metrics README](../../test/metrics/README.md#pillar-1-metrics)).
    Recommendation: specify it.
 7. **`host_wait!` and the Component Model.** The spec rule
-   [`req.host-wait.leaf`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)
+   [`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)
    names the Component Model async ABI, and HOST_CAPABILITIES' boundary
    table names the Component Model as the official runtime. Neither works
    for a Wasm GC program until the canonical ABI gets a GC option (Q12).
@@ -1151,7 +1151,7 @@ Measured costs of the frozen prototype that Part 2 explains:
 
 | Cost | Value | Cause, read from `src/` and `lib/std` |
 | --- | --- | --- |
-| `sum` loop vs Node | 11x in the [baseline](../audit/compiler/baseline-2026-10-06.md#62-runtime-microbenchmarks); 17x in the M1c metrics run (reported to this research, not in the repo) | the range loop runs the iterator protocol with boxed `i32` cells and an `Option` struct per step ([Prototype Baselines](NEW_COMPILER_ARCHITECTURE.md#prototype-baselines-to-beat-2026-10-06)) |
+| `sum` loop vs Node | 11x in the [baseline](../../audit/compiler/baseline-2026-10-06.md#62-runtime-microbenchmarks); 17x in the M1c metrics run (reported to this research, not in the repo) | the range loop runs the iterator protocol with boxed `i32` cells and an `Option` struct per step ([Prototype Baselines](goals.md#prototype-baselines-to-beat-2026-10-06)) |
 | counted loop allocations | 80 B per iteration (M1c run) | the same boxes |
 | JSON vs Node | 3 to 4% (M1c run) | `List[u8]` stores one boxed `anyref` per byte (F-505), `encode` builds a whole `Json` tree before writing text, and trait calls go through rebuilt dictionaries (F-502) |
 | `list_dir!` per call | 52 µs (M1c run) | structured values cross as node trees, and strings cross one host call per byte (F-558) |
@@ -1225,7 +1225,7 @@ then fold identical bodies.**
 4. **Dictionaries exist only where the spec needs runtime evidence:** trait
    values carry a vtable struct, and a GADT variant with a bounded
    existential stores its evidence in the value
-   ([`gadt.runtime.evidence`](../spec/lang/13-gadts.md#r-gadt.runtime.evidence)).
+   ([`gadt.runtime.evidence`](../../spec/lang/13-gadts.md#r-gadt.runtime.evidence)).
    Both are Swift-style witness tables built once per (type, trait) pair as
    immutable globals.
 5. **Polymorphic recursion** (a generic call that instantiates itself at a
@@ -1234,7 +1234,7 @@ then fold identical bodies.**
    limit without a code ([Hard Limits](#hard-limits)).
 6. **GADTs** need nothing special: refinements are compile-time facts and
    values keep their ordinary tag
-   ([`gadt.runtime.tag`](../spec/lang/13-gadts.md#r-gadt.runtime.tag)).
+   ([`gadt.runtime.tag`](../../spec/lang/13-gadts.md#r-gadt.runtime.tag)).
    **Variadic generics** are gone; `Args < Tuple` instantiates like any
    other type, and `all!` gets one frame type per tuple of child types.
 
@@ -1333,9 +1333,9 @@ The spec describes a poll-based, cold, one-shot protocol: a plain call
 builds a cold suspension that captures arguments and providers; a bang call
 drives it; `cancel` is synchronous and runs registered `defer` suites; and
 `fn name!` "is source sugar for a compiler-generated cold state machine"
-([Compilation Strategy](../spec/lang/11-requirements-and-suspension.md#compilation-strategy)).
+([Compilation Strategy](../../spec/lang/11-requirements-and-suspension.md#compilation-strategy)).
 The representation may differ only if it keeps those behaviors
-([`req.lowering.representation`](../spec/lang/11-requirements-and-suspension.md#r-req.lowering.representation)).
+([`req.lowering.representation`](../../spec/lang/11-requirements-and-suspension.md#r-req.lowering.representation)).
 
 ### Prior Art
 
@@ -1382,7 +1382,7 @@ state machines, medium for the lazy frame.
    their benefit.
 5. **Cancellation** reads the state and runs that state's registered
    `defer` suites, innermost frame first, after cancelling the child, as
-   [`req.cancel.defer`](../spec/lang/11-requirements-and-suspension.md#r-req.cancel.defer)
+   [`req.cancel.defer`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.defer)
    orders. The emitter generates one cleanup table per suspending body.
 6. **`all!` and `race!`** are intrinsic frames holding their children.
    `all!` polls children in argument order and records results in the
@@ -1402,7 +1402,7 @@ state machines, medium for the lazy frame.
    `hd_wake(id)`. The host calls `hd_poll_main`; on Pending it returns to
    its event loop; a host completion calls `hd_wake` and polls again. Wakes
    are coalesced, as
-   [`req.waker.coalesced`](../spec/lang/11-requirements-and-suspension.md#r-req.waker.coalesced)
+   [`req.waker.coalesced`](../../spec/lang/11-requirements-and-suspension.md#r-req.waker.coalesced)
    says. This is the stackless callback ABI of WASI 0.3 in hd's own core
    imports, so a later move to the Component Model is a re-encoding, not a
    redesign (Q12).
@@ -1410,7 +1410,7 @@ state machines, medium for the lazy frame.
 ### The `block_on` Problem
 
 `block_on` drives a suspension synchronously from non-suspending code
-([`req.drive.block-on`](../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on)).
+([`req.drive.block-on`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on)).
 When its argument waits on the host, the Wasm stack must stay intact while
 the host does I/O:
 
@@ -1472,9 +1472,9 @@ Scala.js and MoonBit get by without it.
 
 | hd value | Wasm GC representation | Why |
 | --- | --- | --- |
-| `data` | an immutable or mutable struct per type, exact `(ref $T)` | shared reference semantics ([`data.ref.shared`](../spec/lang/08-data-and-enums.md#r-data.ref.shared)) |
+| `data` | an immutable or mutable struct per type, exact `(ref $T)` | shared reference semantics ([`data.ref.shared`](../../spec/lang/08-data-and-enums.md#r-data.ref.shared)) |
 | payloadless enum | `i32` | no allocation |
-| `Option` of a reference | `(ref null $T)`, null is `.None` | v1 decision; nested `T??` keeps an outer tagged pair, since [`types.option.nest`](../spec/lang/04-type-system.md#r-types.option.nest) must tell `.None` from `.Some(.None)` |
+| `Option` of a reference | `(ref null $T)`, null is `.None` | v1 decision; nested `T??` keeps an outer tagged pair, since [`types.option.nest`](../../spec/lang/04-type-system.md#r-types.option.nest) must tell `.None` from `.Some(.None)` |
 | `Option` of a scalar | a `pair` (`i32` tag plus the value) in locals and results; two fields in a struct | v1 decision |
 | `Result[T, E]` | a `pair` or triple in returns; a struct only when stored | every `?` and every serde call returns one (mine: the same treatment as `Option`) |
 | enum with payloads | an abstract base struct with an `i32` tag and the shared fields, one subtype per variant; `match` is a `br_table` on the tag, then a `ref.cast` the engine knows succeeds | the dart2wasm class-id pattern; the owner's per-enum choice stays open for small enums |
@@ -1482,7 +1482,7 @@ Scala.js and MoonBit get by without it.
 | `string` | an immutable `(array i8)` | see Q13 |
 | `List[T]` | a struct with a length and a `(ref (array (mut T')))` where `T'` is the element's layout: `i8` for `u8`, `i32`, `f64`, or a reference | fixes F-505; JSON's `List[u8]` becomes a byte array |
 | trait value | a struct of `anyref` plus a vtable reference | erased position; scalars as `i31ref` |
-| panic | record the category and site in globals, then `unreachable` | panics are not catchable and poison the instance ([`flow.panic.poison`](../spec/lang/06-control-flow.md#r-flow.panic.poison)) |
+| panic | record the category and site in globals, then `unreachable` | panics are not catchable and poison the instance ([`flow.panic.poison`](../../spec/lang/06-control-flow.md#r-flow.panic.poison)) |
 
 **No Wasm exceptions in v1.** hd has no exceptions, `?` is result-based, and
 a panic ends the instance. Exceptions are on in wasmtime 47, but nothing in
@@ -1629,7 +1629,7 @@ medium-high.
 
 1. **One import per host method**, named `hd:<trait>/<method>`, as the
    prototype already does. Startup refusal keeps reading the import list
-   ([`cli.cap.total.needs`](../spec/cli/command-line.md#r-cli.cap.total.needs)),
+   ([`cli.cap.total.needs`](../../spec/cli/command-line.md#r-cli.cap.total.needs)),
    and dead-code removal keeps that list exact.
 2. **Scalars cross as Wasm values.** A `println` of a string is one call.
 3. **Structured values cross as bytes in one exchange buffer.** The module
@@ -1663,11 +1663,11 @@ medium-high.
    they exist (`wasi:filesystem`, `wasi:http`), so a `--target wasi`
    adapter can map them once the GC ABI lands.
 
-**This contradicts two texts.** [HOST_CAPABILITIES](HOST_CAPABILITIES.md#boundary-abi)
+**This contradicts two texts.** [HOST_CAPABILITIES](../HOST_CAPABILITIES.md#boundary-abi)
 labels its second column "Official runtime (Component Model)", and the spec
 says `host_wait!` "maps an opaque host wait operation to the WebAssembly
 Component Model async ABI as used by WASI 0.3"
-([`req.host-wait.leaf`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)).
+([`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)).
 Neither is reachable for a Wasm GC program in v1. See the
 [open questions](#open-questions-for-the-owner).
 
@@ -1706,7 +1706,7 @@ Strings, maps, serde, panics, backtraces and debug checks, more briefly.
 The spec fixes the representation: valid UTF-8 bytes, `len()` in bytes in
 constant time, and "at every Wasm host boundary, a string crosses as its
 UTF-8 bytes with no conversion"
-([`types.string.host-bytes`](../spec/lang/04-type-system.md#r-types.string.host-bytes)).
+([`types.string.host-bytes`](../../spec/lang/04-type-system.md#r-types.string.host-bytes)).
 JS string builtins are UTF-16 and exist only in browsers (Chrome, Firefox,
 and Safari since 26.2, [WebKit](https://webkit.org/blog/18178/webkit-features-for-safari-26-6/)),
 not in wasmtime. They cannot carry hd's semantics. A UTF-8 text-encoding
@@ -1718,7 +1718,7 @@ immutable `(array i8)`. Substrings copy, as Java has since 7u6; the
 prototype's struct of array, start and length costs an extra indirection on
 every access. A `StringBuilder` is a growable `(array (mut i8))` with a
 length, copied once at the end, and `join` sums lengths first, which fixes
-the O(L log n) join of the [baseline](../audit/compiler/baseline-2026-10-06.md#81-string-join-is-ol-log-n).
+the O(L log n) join of the [baseline](../../audit/compiler/baseline-2026-10-06.md#81-string-join-is-ol-log-n).
 In the browser, `TextDecoder` and `TextEncoder` convert at the boundary.
 
 ### Maps And Hashing
@@ -1823,7 +1823,7 @@ when hot reload is built, after a measurement.
 
   **Recommendation (low-medium):** start with a non-moving or sticky-Immix
   collector through MMTk, since hd instances run on one thread
-  ([`req.schedule.one-thread`](../spec/lang/11-requirements-and-suspension.md#r-req.schedule.one-thread))
+  ([`req.schedule.one-thread`](../../spec/lang/11-requirements-and-suspension.md#r-req.schedule.one-thread))
   and need no concurrent collector. Keep stack maps from day one so a
   moving collector stays possible.
 - **Async I/O.** The same start-and-poll host ABI (Q12) over epoll or
@@ -1871,12 +1871,12 @@ Part 1 ended at slice 5. The back half adds:
 8. **Slice 8, suspension and the host.** State machines, `all!`, `race!`,
    cancellation, the reactor, capabilities and startup refusal, `hd test`.
    Exit: the suspension and capability cases, the CLI cases of
-   [`cli-cases.tsv`](../spec/conformance/cli-cases.tsv), and
+   [`cli-cases.tsv`](../../spec/conformance/cli-cases.tsv), and
    `suspension-overhead` and `host-call-overhead`.
 9. **Slice 9, the same Wasm in the browser.** `hd_web` builds and runs a
    program on V8 through the generated JS host. A browser adapter runs the
    portable runtime cases in a headless browser, as the playground's
-   [e2e test](../website/playground/e2e.ts) drives a page today.
+   [e2e test](../../website/playground/e2e.ts) drives a page today.
    Exit: the runtime cases pass on wasmtime and in the browser with the
    same known-failures list, which is the Day 1 cross-backend rule.
 10. **Slice 10, the optimizing passes.** `hd_opt` against the pillar 3

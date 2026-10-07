@@ -21,7 +21,7 @@ Planning and backlog:
 
 Compiler:
 
-- [New Compiler: Architecture Notes](NEW_COMPILER_ARCHITECTURE.md) holds
+- [New Compiler: Architecture Notes](compiler/goals.md) holds
   the owner's goals for the new compiler and CLI, and implementation
   notes carried over from the prototype's records. The prototype in
   [`src/`](../src/README.md) is frozen as a test oracle.

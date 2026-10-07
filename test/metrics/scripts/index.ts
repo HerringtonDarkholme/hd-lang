@@ -1,5 +1,5 @@
 // Every metric script, in the order of the Goal Metrics tables
-// (future-work/NEW_COMPILER_ARCHITECTURE.md): pillars 1, 2 and 3, then the
+// (future-work/compiler/goals.md): pillars 1, 2 and 3, then the
 // correctness gate.
 
 import type { Metric } from "../lib/metric.ts";

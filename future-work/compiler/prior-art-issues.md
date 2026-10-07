@@ -5,7 +5,7 @@ Status: Research, not decided. Part A of 2: front ends, 2026-10-06.
 This document surveys the newest front ends, type checkers and incremental
 engines, and above all their documented problems. It checks each problem
 against the recommendations in
-[COMPILER_ARCHITECTURE_RESEARCH.md](COMPILER_ARCHITECTURE_RESEARCH.md) and
+[research.md](research.md) and
 says whether we avoid it, inherit it, or ignore it. Part B (back ends, Wasm
 and runtimes) comes later.
 
@@ -102,7 +102,7 @@ repository was archived on 2026-09-01 and work moved to microsoft/TypeScript
 - **Heap cap: we inherit it.** Rust has no heap limit either. Add one.
 - **Stale incremental results: we inherit #64386's shape.** hd has `pub
   use` re-exports in `mod.hd` facades
-  ([modules](../spec/lang/10-modules.md#r-module.pub-use.facade)). See
+  ([modules](../../spec/lang/10-modules.md#r-module.pub-use.facade)). See
   [Go](#go-gotypes-the-build-cache-and-gopls) for the fix.
 - **Options in keys: covered.** Q2 puts "the options that change checking"
   in the key. #64552 shows the failure: an option that changes the *input
@@ -375,7 +375,7 @@ builds and up to 376% faster analysis on one project (secondary summary of
 - **Keep** explicit phases. Q3's task graph is K2's phase model with the
   phase order fixed per folder.
 - **No compiler plugins: keep.** hd derives through templates written in hd
-  ([templates](../spec/lang/14-annotations.md#templates)), not compiler
+  ([templates](../../spec/lang/14-annotations.md#templates)), not compiler
   plugins. Kotlin's plugin churn is a cost we do not take on.
 
 ## Swift
@@ -402,7 +402,7 @@ build graph. Incremental builds track per-file interface hashes.
 ### Verdict For hd
 
 - **Exponential checking: we avoid it by design.** hd has no overloading
-  ([types.infer.no-overload](../spec/lang/04-type-system.md#r-types.infer.no-overload)),
+  ([types.infer.no-overload](../../spec/lang/04-type-system.md#r-types.infer.no-overload)),
   no user operators, and literal widths resolved by union-find, not
   disjunctions. Keep it so. Any proposal that adds overloading or
   literal-driven choice should cite this table.
@@ -609,7 +609,7 @@ Concrete edits for the owner to approve. I have not made them.
    is deep: it includes the interface hashes of every folder its blob
    mentions, so re-exports and types reached through signatures are
    covered."
-2. **[Q2](COMPILER_ARCHITECTURE_RESEARCH.md#q2-incremental-model),
+2. **[Q2](research.md#q2-incremental-model),
    Recommendation item 2:** add "The blob also stores a hash per exported
    item, covering its signature and the item hashes it mentions. v1 keys by
    folder; per-item keys are a later switch with no format change
@@ -634,7 +634,7 @@ Concrete edits for the owner to approve. I have not made them.
    private inference, inferred rows) runs as one serial pass per strongly
    connected component, with a monotone join and an iteration bound that
    reports a diagnostic (salsa's 2026 cycle bugs)."
-8. **[Q3](COMPILER_ARCHITECTURE_RESEARCH.md#q3-parallel-checking), "No IDs
+8. **[Q3](research.md#q3-parallel-checking), "No IDs
    in output":** extend with items 1 and 2 of
    [Budgets And Schedule Independence](#budgets-and-schedule-independence),
    and add "a cycle diagnostic points at the first function of the cycle in
@@ -643,7 +643,7 @@ Concrete edits for the owner to approve. I have not made them.
    about 8x checker memory at four threads. Target: peak RSS at 8 threads at
    most 1.5x peak RSS at 1 thread on the 50k-line `parallel-speedup` case"
    (the ratio is mine).
-10. **[Q5](COMPILER_ARCHITECTURE_RESEARCH.md#q5-checker-structure), Trait
+10. **[Q5](research.md#q5-checker-structure), Trait
     Resolution:** add item 3 of the budgets note (memo hits charge stored
     steps), and "cache 'T satisfies B' per body and globally (Go #66699)."
 11. **Q5, Hard Limits:** add rows for the process heap cap and the per-body
@@ -651,11 +651,11 @@ Concrete edits for the owner to approve. I have not made them.
 12. **Q5, new paragraph:** "Interface validation. When a blob is written,
     check that exported signatures, impl heads and template bodies mention
     only exported items (Lean #15401)."
-13. **[Q6](COMPILER_ARCHITECTURE_RESEARCH.md#q6-program-database-hook):**
+13. **[Q6](research.md#q6-program-database-hook):**
     add "Scanning per-module records is slow for global queries; gopls's
     find-implementations got 14x slower after its move to per-package
     files. Build a merged index before `hd callers` ships."
-14. **[Q7](COMPILER_ARCHITECTURE_RESEARCH.md#q7-crate-layout-and-build-order),
+14. **[Q7](research.md#q7-crate-layout-and-build-order),
     slice 4 exit:** the `determinism` run varies threads, hasher seeds,
     checkout path and cache warmth; `pathological` includes ill-typed
     variants (Swift).

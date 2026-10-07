@@ -2,7 +2,7 @@
 
 Scripts that check the goal metrics of the new compiler, as listed in the
 Goal Metrics section of
-[NEW_COMPILER_ARCHITECTURE.md](../../future-work/NEW_COMPILER_ARCHITECTURE.md).
+[goals.md](../../future-work/compiler/goals.md).
 Each metric is one script, judged against its target with no AI and no
 agent run.
 
