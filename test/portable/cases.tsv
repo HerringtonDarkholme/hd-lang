@@ -2762,3 +2762,9 @@ parse/invalid/dyn-mut-order.hd	parse
 runtime/valid/dyn-inherent-methods.hd	runtime
 runtime/valid/error-chain-method.hd	runtime
 runtime/valid/fact-unread-never-evaluated.hd	runtime
+runtime/valid/shared-enum-fact-evaluation.hd	runtime
+typing/invalid/shared-enum-readonly-collection.hd	type
+typing/invalid/copy-update-readonly-source-mut-field.hd	type
+runtime/valid/enum-value-fixed-at-construction.hd	runtime
+runtime/valid/derive-members-of-data-and-enums.hd	runtime
+runtime/valid/reference-cycles-are-ordinary-data.hd	runtime

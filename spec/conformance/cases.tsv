@@ -2734,3 +2734,9 @@ parse/invalid/variant-result-type-removed.hd	parse	reject:variant-result-type-re
 parse/invalid/variant-type-parameters-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-type-params
 runtime/panic/fact-evaluation-panics-on-read.hd	runtime	panic:fact-evaluation-failed	lang/14-annotations.md#r-annot.fact.eval.panic-runtime
 runtime/valid/fact-unread-never-evaluated.hd	runtime	accept	lang/14-annotations.md#r-annot.fact.eval.unread
+runtime/valid/shared-enum-fact-evaluation.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.eval-as-fact
+typing/invalid/shared-enum-readonly-collection.hd	type	reject:mutable-receiver-required	lang/08-data-and-enums.md#r-data.shared.readonly
+typing/invalid/copy-update-readonly-source-mut-field.hd	type	reject:mutable-upgrade	lang/08-data-and-enums.md#r-data.update.access-view
+runtime/valid/enum-value-fixed-at-construction.hd	runtime	accept	lang/08-data-and-enums.md#r-data.enum.immutable
+runtime/valid/derive-members-of-data-and-enums.hd	runtime	accept	lang/08-data-and-enums.md#typed-derivation-of-data-and-enums
+runtime/valid/reference-cycles-are-ordinary-data.hd	runtime	accept	lang/08-data-and-enums.md#r-data.repr.gc

@@ -1,0 +1,36 @@
+# test: an enum value never changes once built, so a copy taken earlier keeps its variant and payload
+# Spec 08 Variant Payloads: data.enum.immutable, data.enum.immutable.shallow.
+use std.testing.assert_equal
+
+data Worker:
+    name: string
+    done: i32
+
+enum Job:
+    Queued(attempts: i32)
+    Running(worker: mut Worker)
+    Finished
+
+fn describe(job: Job) -> string:
+    match job:
+        .Queued(attempts) => "queued after $attempts"
+        .Running(worker) => "running on ${worker.name} with ${worker.done} done"
+        .Finished => "finished"
+
+tests:
+    it("replacing a binding builds a new value and leaves earlier copies alone"):
+        let current = Job.Queued(attempts=1)
+        before := current
+        current = Job.Queued(attempts=2)
+        assert_equal(describe(before), "queued after 1", reason="the copy keeps its payload")
+        assert_equal(describe(current), "queued after 2", reason="the binding holds the new value")
+        current = Job.Finished
+        assert_equal(describe(before), "queued after 1", reason="the copy keeps its variant")
+
+    it("a mut payload is the exception: the enum keeps its reference, not a frozen object"):
+        let mut ada = Worker { name: "Ada", done: 0 }
+        job := Job.Running(ada)
+        copy := job
+        ada.done = 3
+        assert_equal(describe(job), "running on Ada with 3 done", reason="the payload refers to the worker")
+        assert_equal(describe(copy), "running on Ada with 3 done", reason="a copy refers to the same worker")

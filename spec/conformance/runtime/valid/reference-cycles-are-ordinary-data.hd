@@ -1,0 +1,27 @@
+# test: reference cycles are ordinary values, so a program may build many without freeing anything by hand
+# Spec 08 Representation: data.repr.gc.
+use std.testing.assert_equal
+
+data Stop:
+    name: string
+    next: mut Stop?
+
+fn ring(size: i32) -> i32:
+    let visited = +0
+    let round = +0
+    while round < size:
+        let mut first = Stop { name: "first", next: .None }
+        let mut second = Stop { name: "second", next: .None }
+        first.next = second
+        second.next = first
+        match first.next:
+            .Some(stop) =>
+                if stop.name == "second":
+                    visited = visited + 1
+            .None => pass
+        round = round + 1
+    visited
+
+tests:
+    it("every cycle can be walked and none needs freeing"):
+        assert_equal(ring(2000), 2000, reason="each of 2000 rings reaches its second stop")

@@ -1,0 +1,31 @@
+# test: a variant's shared data is evaluated once, on first read, explicit arguments before omitted defaults
+# Spec 08 Shared Enum Constructor Data: data.shared.eval-as-fact.
+# Spec 08 Shared Parameter Defaults: data.shared.default.eval-order.
+use std.testing.assert_equal
+
+let trace = ""
+
+fn note(label: string, amount: i32) -> i32:
+    trace = trace + label + ";"
+    amount
+
+enum Shipping(base: i32, tax: i32 = note("tax", 5), handling: i32 = note("handling", 2)):
+    Standard -> Shipping(note("standard", 10))
+    Express -> Shipping(note("express", 30), handling=note("express-handling", 9))
+    Freight -> Shipping(note("freight", 100))
+
+tests:
+    it("nothing is evaluated until a variant's shared data is read"):
+        assert_equal(trace, "", reason="declaring the enum evaluates nothing")
+
+    it("explicit arguments run first, then omitted defaults in declaration order"):
+        assert_equal(Shipping.Standard.base, 10, reason="explicit base")
+        assert_equal(trace, "standard;tax;handling;", reason="explicit, then tax, then handling")
+        assert_equal(Shipping.Express.base, 30, reason="express base")
+        assert_equal(trace, "standard;tax;handling;express;express-handling;tax;", reason="a variant evaluates its own defaults")
+
+    it("each variant evaluates once, and an unread variant never evaluates"):
+        assert_equal(Shipping.Standard.tax, 5, reason="first read")
+        assert_equal(Shipping.Standard.handling, 2, reason="second read")
+        assert_equal(Shipping.Standard.base, 10, reason="third read")
+        assert_equal(trace, "standard;tax;handling;", reason="one evaluation for three reads")

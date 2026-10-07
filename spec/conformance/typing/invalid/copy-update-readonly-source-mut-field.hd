@@ -1,0 +1,11 @@
+# test: a mut copy of a readonly original cannot copy a direct mut field, because the field is checked through the original's readonly view
+# Spec 08 Copy-Update Literals: data.update.access-view.
+data Address:
+    city: string
+
+data Customer:
+    name: string
+    address: mut Address
+
+fn rename(source: Customer) -> mut Customer:
+    Customer { ...source, name: "Ada" }  # diagnostic: mutable-upgrade

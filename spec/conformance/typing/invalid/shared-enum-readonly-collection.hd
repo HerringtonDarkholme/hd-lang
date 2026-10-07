@@ -1,0 +1,8 @@
+# test: a shared field read through a readonly enum is readonly, so a collection in it cannot be changed
+# Spec 08 Shared Fields: data.shared.permissions, data.shared.readonly.
+enum Plan(label: string, features: List[string]):
+    Free -> Plan("free", ["export"])
+    Team -> Plan("team", ["export", "sso"])
+
+fn add_feature(plan: Plan) -> void:
+    plan.features.push("audit-log")  # diagnostic: mutable-receiver-required
