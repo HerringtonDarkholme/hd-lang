@@ -23,9 +23,9 @@ Edits in this file:
    chunked `AppendVec` of §3.9.4.
 4. **Types (§3.4, §3.9.2)**, from type-checking.md §17 item 1:
    `Readonly(Ty)` becomes `Mut(Ty)`; `IntLit` is gone, and one `Infer`
-   form keeps its kind in the inference table; a body-local `Rigid` tag
-   holds GADT existentials. The decoded view is `TyView`, the accessor
-   API of [type-checking.md §1.4](type-checking.md#14-the-type-accessor-api).
+   form keeps its kind in the inference table. (A body-local `Rigid`
+   tag for GADT existentials was removed with GADTs.) The decoded view
+   is `TyView`, the accessor API of [type-checking.md §1.4](type-checking.md#14-the-type-accessor-api).
 5. **InternPool (§3.9.2)**: a `meta` column (flags and node count), a
    corrected constant encoding, interned lists and rows, and no
    hash-consing in the body-local pool (mine).
@@ -51,6 +51,14 @@ and numeric families are impl rows; only sealed traits are `Builtin`
 (§3.17). The schema gains the `TraitValue` choice and the `Providers`
 record (§3.25), and the entry table the `hdr` and `fact` kinds
 (§3.20.4).
+
+**Third pass (backend lane, 2026-10-07), from
+[codex-rereview-response-frontend.md](codex-rereview-response-frontend.md#changes-for-the-backend-lane)
+items 5 and 7.** A slot reserved before a trial's checkpoint keeps its
+identity until no trial is open, and its fill waits in the checker's
+`deferred_fills` column; the builder's fill log is gone (§3.9.5). GADTs
+are removed: `Rigid`, `HAS_RIGID`, the GADT refinements in TIR and the
+`Evidence` callee record are gone (§3.4, §3.9.2, §3.10.1, §3.25).
 
 Edits in other files:
 
@@ -325,7 +333,6 @@ pub enum TyView<'a> {                // decoded on demand; slices borrow `extra`
     Assoc { assoc: DefId, tref: TraitRefView<'a> },  // an unnormalized projection
     Mut(Ty),                         // the mutable view `mut T`; `T` alone is readonly
     Infer(InferVar),                 // body-local only; the variable's kind is in the inference table
-    Rigid(RigidVar),                 // body-local only; a GADT existential of one arm (retired with GADTs, S1e)
 }
 ```
 
@@ -346,9 +353,6 @@ pub enum TyView<'a> {                // decoded on demand; slices borrow `extra`
   (general, integer literal, float literal) lives in the inference table
   (§3.19), because unification merges kinds. So there is no `IntLit`
   and no float-literal tag.
-- **`Rigid` (mine, for type-checking.md §6.1).** An existential gets a
-  fresh rigid placeholder per arm. It never unifies with anything but
-  itself and cannot escape the arm, so it lives only in the local pool.
 - `TyList`, `AssocList` and `RowId` are interned slices, so type equality
   is one integer comparison for global types.
 - A global type never contains a local one. Interning into the global
@@ -401,8 +405,8 @@ variable lives in a **row tier** until `ModuleFinish` ends (mine):
 - **Never on disk.** M3 replaces every row-tier type before the `tir`
   and `check` entries are written. The wire writer asserts that no
   pending part and no non-global index reaches an entry or an interface.
-- `mk` interns a type in the global pool only when it has none of
-  `HAS_INFER`, `HAS_RIGID` and `HAS_ROWVAR`.
+- `mk` interns a type in the global pool only when it has neither
+  `HAS_INFER` nor `HAS_ROWVAR`.
 
 ### 3.5 Arenas And Lifetimes
 
@@ -628,7 +632,7 @@ pub struct PoolCols {
     extra: AppendVec<u32>,       // variable parts
     bytes: AppendVec<u8>,        // string and byte constants
 }
-#[repr(transparent)] pub struct Meta(u32);   // HAS_INFER | HAS_RIGID | HAS_POISON | HAS_PARAM | HAS_ROWVAR | HAS_ASSOC | HAS_LOCAL | IS_CONST
+#[repr(transparent)] pub struct Meta(u32);   // HAS_INFER | HAS_POISON | HAS_PARAM | HAS_ROWVAR | HAS_ASSOC | HAS_LOCAL | IS_CONST
 pub struct Index(u32);   // bit 31 clear: global, bits 25..30 owner (63 reserved), bits 0..24 row
                          // bit 31 set: not global, bits 29..30 tier (local, carry, module), bits 0..28 row
 const _: () = assert!(core::mem::size_of::<PoolTag>() == 1);
@@ -645,7 +649,6 @@ intern time.
 | `Never`, `Poison` | 0 | none | |
 | `Option`, `Mut` | the inner `Ty` | none | |
 | `Infer` | the `InferVar` | none | yes |
-| `Rigid` | the `RigidVar` | none | yes |
 | `Param` | offset | `[owner DefId, index]` | |
 | `Adt` | offset | `[DefId, args TyList]` | |
 | `Tuple` | offset | `[elems TyList, rest Ty or NONE]` | |
@@ -870,20 +873,34 @@ interner costs nothing but its header.
     `extra`, and the slot becomes `Splice { list }`. Emission and the
     verifier read a `Splice` as its instructions in place, with no
     scope of its own.
-  A slot reserved after a checkpoint is truncated with `insts`. A slot
-  reserved before a checkpoint and filled during a trial is recorded in
-  the `fills` log, whose length is in the checkpoint; rollback empties
-  each logged slot again. So a failed trial never leaves its callee or
-  coercion in an older slot.
+- **A slot keeps its identity until no trial is open (Codex re-review
+  N10, with N-I1).** A slot reserved after the innermost open
+  checkpoint is filled at once; rollback truncates it with `insts`. A
+  slot reserved before that checkpoint is never filled during the
+  trial. The checker appends the fill to its `deferred_fills` column
+  instead, as a `(slot Inst, fill)` pair
+  ([type-checking.md §3.5](type-checking.md#35-the-trail-and-the-one-rollback-contract)).
+  Rollback truncates that column, so a discarded candidate's callee or
+  coercion never reaches an older slot. When no trial is open, the
+  checker applies the column in order through `fill` and clears it.
+  - So a slot whose fill may be deferred must still name the same
+    instruction when the fill is applied, after every trial has closed.
+    A durable `Slot` instruction gives that: its `Inst` is older than
+    the checkpoint, and no rollback or scratch flush moves it.
+  - A deferred `Splice` fill names instructions that the trial
+    appended. If the trial is kept, they stay in `insts` and the fill
+    applies. If it is rolled back, both go together.
+  - So no filled slot is ever emptied again, and the builder keeps no
+    fill log. An earlier draft logged pre-checkpoint fills and emptied
+    them on rollback; that log is gone.
 
 ```rust
 #[derive(Copy, Clone)]
 pub struct TirCheckpoint {          // the builder's part; the checker adds its own (type-checking.md §3.5)
     insts: u32, extra: u32, scratch: u32, locals: u32, captures: u32,
     subs: u32, labels: u32, side_susp: u32, side_origin: u32, side_hole: u32, local_pool: u32,
-    fills: u32,                     // length of the log of pre-checkpoint slots filled since
-}
-const _: () = assert!(core::mem::size_of::<TirCheckpoint>() == 48);
+}                                   // deferred slot fills are the checker's column, in its `Checkpoint`
+const _: () = assert!(core::mem::size_of::<TirCheckpoint>() == 44);
 ```
 
 #### 3.9.6 One Schema, Generated Accessors
@@ -957,7 +974,7 @@ establish the contract of its output.
 | syntax tree | full syntax, every layout token, every comment by position | names, types, desugaring |
 | item index | which syntax node or interface record each item is, its parent, its name lookup | anything the node or record already holds |
 | folder interface | every public signature as pool-encoded types; re-exports followed to the real declaration; impl heads; templates with resolution tables; per-item hashes | bodies, private items (except hidden template items), fact values, doc text, layouts |
-| TIR | every name as a `DefId` or a local; every type; every callee (static, trait method with its bound, impl or builtin choice, trait value, function value); every coercion as an instruction; operators on primitives as primitive instructions and all others as trait calls; indexing as calls; pipe, interpolation, string prefixes, literal suffixes, compound assignment, comprehensions and `?` desugared; evaluation order as instruction order; default arguments; named arguments mapped to parameter slots; `for` over std ranges, lists and maps as dedicated loops, and every other `for` desugared to the protocol; match decision trees as switch instructions; GADT refinements; cleanup scopes with their `defer` suites; suspension points; hook points; providers per call; closure captures with their sharing mode; structured control flow | layouts; boxing; capture cells; vtables and dictionaries; frame layouts and state-machine dispatch; overflow and bounds check sequences (a profile choice); instantiation |
+| TIR | every name as a `DefId` or a local; every type; every callee (static, trait method with its bound, impl or builtin choice, trait value, function value); every coercion as an instruction; operators on primitives as primitive instructions and all others as trait calls; indexing as calls; pipe, interpolation, string prefixes, literal suffixes, compound assignment, comprehensions and `?` desugared; evaluation order as instruction order; default arguments; named arguments mapped to parameter slots; `for` over std ranges, lists and maps as dedicated loops, and every other `for` desugared to the protocol; match decision trees as switch instructions; cleanup scopes with their `defer` suites; suspension points; hook points; providers per call; closure captures with their sharing mode; structured control flow | layouts; boxing; capture cells; vtables and dictionaries; frame layouts and state-machine dispatch; overflow and bounds check sequences (a profile choice); instantiation |
 | Wasm code entry | instructions, locals, Wasm types as canonical descriptors | indices (symbolic relocations), folding, section layout |
 
 Everything in TIR's right column is decided during emission, per instance
@@ -2065,7 +2082,6 @@ kind list<K>     range     # {start, len} into extra, elements of kind K
 
 record Callee  = Item { def: def, targs: list<ty> }
                | TraitMethod { trait: def, method: sym, self_ty: ty, targs: list<ty>, choice: Choice }
-               | Evidence { value: ref, bound: u16, method: sym }
 record Choice  = Impl { def: def } | Bound { index: u16 } | TraitValue { trait: def } | Builtin { which: BuiltinImpl }
 record Providers = Keys { pairs: list<(ty, ref)> } | Context { ctx: ref } | Pending { call: u32 }   # 3 words
 

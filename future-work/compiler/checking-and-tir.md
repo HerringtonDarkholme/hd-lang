@@ -20,13 +20,18 @@ items 7, 8 and 9 in §4.13.11; item 10 in §4.15. Item 1 is in
 [codex-review-response-frontend.md](codex-review-response-frontend.md#changes-for-the-backend-lane)
 items 16, 17 and 22 to 26 and the renumbered
 [type-checking.md §17](type-checking.md#17-changes-needed-in-compilerdesignmd):
-the `TraitValue` choice, `Builtin` for sealed traits only, `CallDyn`
-evidence operands and `Evidence` values in `NewVariant` (§4.13.11); no
-coinductive assumption and the `HeaderCheck(F)` task (§4.13.9); the
+the `TraitValue` choice, `Builtin` for sealed traits only and `CallDyn`
+evidence operands (§4.13.11); no coinductive assumption and the `HeaderCheck(F)` task (§4.13.9); the
 `DefaultCall` instruction in place of `Default` (§4.13.11); the M3
-worklist solve, provider patch and row sweep (§4.13.1, §4.13.4); the
-`Refine` coercion and no scoped pop (§4.13.6); and `konst` for a literal
-whose width is still open (§4.13.11, builder).
+worklist solve, provider patch and row sweep (§4.13.1, §4.13.4); and
+`konst` for a literal whose width is still open (§4.13.11, builder).
+That pass also added GADT evidence in `NewVariant` and a `Refine`
+coercion; both are removed with GADTs (owner, 2026-10-07).
+
+**Third pass** (backend lane, 2026-10-07), from
+[codex-rereview-response-frontend.md](codex-rereview-response-frontend.md#changes-for-the-backend-lane)
+items 4 and 7: closure rows and `CallerRow` (§4.13.4), and the rest of
+the GADT removal (§4.13.6 and the catalog).
 
 ### 4.13 Body Checking
 
@@ -132,6 +137,19 @@ design:
   A row pattern whose keys mention a type parameter cannot be matched
   against a pending row in M2; that is `cannot-infer-type` with a fix-it
   that writes the callee's `$` clause (type-checking.md §5.6).
+- **Closures own their rows (Codex re-review N8;
+  [type-checking.md §5.4](type-checking.md#54-closure-rows)).** A
+  `PendingCall` names its caller as a `CallerRow`: `Written(row)`,
+  `Inferred(RowVar)` or `Closure(sub_body)`. A call inside a closure
+  names `Closure(sub_body)`, never the enclosing callable. M3 fills its
+  providers from the closure's own provider bundle, which each caller
+  of the closure passes. A closure's row belongs to its function type:
+  its keys plus a pending part per private callee it calls. Creating,
+  returning or storing the closure records no fact. A body records
+  facts only where it invokes a function value whose row holds pending
+  parts, as a call of each of those callees. No fact ever puts a
+  closure's keys into its creator's row. The row sweep turns the
+  pending parts in a returned closure's type into keys.
 - Printing and hashing re-sort keys by stable content, never by `Ty` value
   (the tsgo lesson).
 - Entailment is membership after alias expansion
@@ -155,11 +173,7 @@ design:
 
 #### 4.13.6 GADT Refinement
 
-GADTs are removed from the language (owner, 2026-10-07; the spec removal
-is S1e). Pattern refinement, existential variant parameters, the
-`Refine` coercion, `Evidence` callees and `NewVariant` evidence leave the
-checker and TIR with S1e. The frontend lane removes the matching parts
-of type-checking.md §6. Nothing in the back half depends on them.
+Removed with GADTs (owner, 2026-10-07).
 
 #### 4.13.7 Tuples, Varargs And Arity
 
@@ -389,7 +403,6 @@ the type, so each is an explicit instruction and invariant 4 holds.
 | `ToAny` | `S` → `Any` | none | box with its type id |
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
-| `Refine` | retired with GADTs (S1e) | | |
 
 **Default calls (Codex finding 4).** A default is evaluated at each call
 that omits it, after every explicit argument, in parameter declaration
@@ -422,10 +435,9 @@ use, which evaluated a default once per program. It is replaced:
 D1's "readonly view" kind is `Weaken`, since the spec's marked form is
 `mut T` (data-structures.md §3.4).
 
-A **callee record** is one of `Item(DefId, type arguments)`,
-and `TraitMethod(trait, method, self type, type arguments, choice)`.
-The `Evidence` record for a GADT existential's stored evidence is
-retired with GADTs (S1e). The **choice** is two words: a kind, and a
+A **callee record** is one of `Item(DefId, type arguments)` and
+`TraitMethod(trait, method, self type, type arguments, choice)`. The
+**choice** is two words: a kind, and a
 full 32-bit value. An earlier draft packed both into one word with a
 30-bit value, which cannot hold a `DefId` interned by owner thread 32
 or above (Codex re-review N-I3; data-structures.md §3.3):
@@ -439,8 +451,8 @@ or above (Codex re-review N-I3; data-structures.md §3.3):
 
 These are the solver's `Evidence` values
 ([trait-solver.md §8.1](trait-solver.md#81-what-a-holds-answer-carries))
-written into TIR. A `NewVariant` evidence choice and a `CallDyn`
-evidence operand use the same encoding. Tuple `Eq`, `Ord`, `Hash` and
+written into TIR. A `CallDyn` evidence operand uses the same
+encoding. Tuple `Eq`, `Ord`, `Hash` and
 `Debug` are `Impl` choices of std's tuple templates, not `Builtin`
 (trait-solver.md change 20). A `Builtin` callee has no TIR body.
 Collection maps `(BuiltinImpl, concrete self type)` to a body that D2
@@ -486,7 +498,7 @@ it (§14.2).
 | --- | --- | --- |
 | `NewData` | b: `[field values]` in declaration order | the data type in `ty` |
 | `CopyData` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals and part copies; every part not replaced is copied too ([`data.part.copy-update`](../../spec/lang/08-data-and-enums.md#r-data.part.copy-update)) |
-| `NewVariant` | a: variant `DefId`, b: `[payload values]` | the enum type in `ty`. The evidence choices for existential parameters are retired with GADTs (S1e) |
+| `NewVariant` | a: variant `DefId`, b: `[payload values]` | the enum type in `ty` |
 | `NewTuple` | b: `[elements]` | the tuple type |
 | `NewList` | b: `[elements, spread bits]` | `List[T]` |
 | `NewMap` | b: `[key, value pairs]` | `Map[K, V]` |
@@ -688,7 +700,7 @@ The verifier checks each of these:
 14. No reserved slot is empty after `finish`.
 15. A `DefaultCall`'s operands are the `Ref`s its call passes for the
     earlier parameters, in order, and it precedes the call in the block.
-16. (Retired with GADTs, S1e.)
+16. Removed with GADTs (owner, 2026-10-07).
 17. A `CallDyn` has one evidence operand per method-level bound.
 
 ##### Lifetime And The `tir` Entry
