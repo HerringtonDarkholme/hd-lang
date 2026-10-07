@@ -648,6 +648,14 @@ latency, the bigger levers are numbering and file counts.
 
 ## 6. Debug Versus Release
 
+> **Superseded by [tiering.md](tiering.md) (2026-10-07).** The owner
+> chose a dev pipeline and an optimized pipeline. Bounded inlining,
+> scalar replacement and closure specialization run in the optimized
+> pipeline only. The dev pipeline's Cranelift setting is decided by spike
+> T1, not S4, against `dev-speed`. `release-check-cost` became
+> `check-cost` and `dev-speed`. The table, the verdict and change 7 below
+> are kept as the study's record.
+
 `release-check-cost` compares the runtime of debug and release on one
 test suite (debug ≤ 1.3x release). Anything that lowers debug
 differently counts against that ratio. Things that do not change the
@@ -683,7 +691,7 @@ The decision rule is in S4.
 | 4 | **Filtered test programs:** with `--filter`, the roots are the selected cases plus the module's init groups | about half the functions to compile and look up for `test-latency` | one more program variant per filter; it shares every code entry; see question 3 | S3 |
 | 5 | **A1 at collection:** representation summaries in TIR; instance keys by class for move-only bodies | −12% instances, −43% types, −9% code, smaller edit fan-out for `data` edits | one bit set per type parameter per item; casts at readers (runtime study) | S1, plus the runtime study |
 | 6 | **Compact names:** `hd.names` as indices into a path table and a type-argument table; the standard `name` section only in debug | about −120 KB at 10k lines, a quarter of the module | the backtrace symbolizer reads the new section | the size measurements |
-| 7 | **Folding in both tiers; debug at Cranelift `Speed` by default** | avoids a debug tier that is both slower to run and barely faster to compile | none | S4 |
+| 7 | **Folding in both tiers; debug at Cranelift `Speed` by default** (superseded by tiering.md, 2026-10-07: folding stays in both pipelines; the dev Cranelift setting is decided by T1) | avoids a debug tier that is both slower to run and barely faster to compile | none | S4 |
 | 8 | **Fold rounds by worklist** | linear link under deep call chains | small | none |
 | 9 | **B with a type-only threshold**, reusing the 4-value `multi` bound | neutral for compile time; one cascade rule instead of two | none | the runtime study |
 | 10 | **C with a caller-local budget** that caps the caller's size after inlining | runtime; neutral for compile time | larger edit fan-out for generic functions that take closures | S6 |
@@ -709,7 +717,7 @@ and Node for V8.
 | S1 | 50 collection element types × 10 `List` methods and 10 `Map` methods, plus 20 iterator chains, emitted twice: exact types, and A1 (`eqref` storage, casts at readers). Also 200 and 1,000 element types | Cranelift CPU at `None` and `Speed`; µs per function and per byte; type count; module load time (type registration); V8 Liftoff and TurboFan compile in Node | adopt A1 at collection if it cuts Cranelift CPU ≥ 10% at 200 types, or module load ≥ 20%, and the runtime study finds the casts within budget. Record µs per byte; if it is > 3 µs at `Speed`, revisit section 2.4 |
 | S2 | a 1,000-function module, compiled with the incremental cache, then perturbed one way at a time: insert a function at the front; insert one in the middle; add one Wasm type that sorts first; add a global; add a passive data segment; renumber every site constant by +1; add a `ref.func` target before others; add an import | Cranelift cache hits per perturbation | any perturbation with < 95% hits and a type-only fix in section 3.3 gets that fix in the first release. For type indices, if < 90% hits, open the upstream question or use helper calls |
 | S3 | the same module with 100% expected hits; a module from 100 to 5,000 functions; `CacheStore` with one file per entry, and with one pack per program | wall and CPU time of a full-hit `precompile`, as a share of a cold compile; per-entry I/O cost on macOS and Linux | if a hit costs > 40% of a compile, raise split modules (section 7.1) as an owner question; if per-file I/O is > 10 µs per entry, build packs (change 3) |
-| S4 | the `runtime` microbenchmarks and a generated unit-test suite, at `Speed`, `None`, and `Speed` with the single-pass allocator, with debug checks on | compile CPU per level; runtime ratio against release (`Speed`, no checks) | debug uses `None` only if it saves ≥ 25% compile CPU and the ratio stays ≤ 1.3x; the single-pass allocator only if its runtime cost is ≤ 1.1x and it saves ≥ 30% |
+| S4 (superseded by T1 of tiering.md, 2026-10-07) | the `runtime` microbenchmarks and a generated unit-test suite, at `Speed`, `None`, and `Speed` with the single-pass allocator, with debug checks on | compile CPU per level; runtime ratio against release (`Speed`, no checks) | debug uses `None` only if it saves ≥ 25% compile CPU and the ratio stays ≤ 1.3x; the single-pass allocator only if its runtime cost is ≤ 1.1x and it saves ≥ 30% |
 | S5 | modules with 0, 500 and 2,000 immutable globals that run `struct.new` in their initializer | instantiation time per instance with the pooling allocator; V8 instantiate time | if > 50 µs per 1,000 globals, short literals and vtables become lazy in the runtime study's terms; report it to the `unit-test-perf` budget |
 | S6 | one function grown by inlining from 1 KB to 64 KB of Wasm: straight-line code, a loop with closures inlined, and a `br_table` state machine | Cranelift time per byte against function size, at both levels | set the inliner's caller cap below the size where the time per byte doubles |
 | S7 | the 10k-line application model as a generated program (or the largest available hd program), release | bytes per section: code, types, `name`, `hd.sites`, `hd.lines`, data | confirm or correct section 1.4's rates; if names are > 15% of bytes, do change 6; feed the numbers to question 1 |

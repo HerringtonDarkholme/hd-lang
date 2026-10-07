@@ -22,10 +22,9 @@ and the orchestrator's calls; the per-type and per-form costs are in
 specialization and known-vtable devirtualization (§12.6); a size versus
 speed policy with budgets and size guards (§12.8); merging by worklist
 (§13.7); per-program packs (§13.10). Each optimization is a named pass
-with its inputs, outputs and cost. Per the owner's direction of the same
-day (fast dev builds with poor code allowed, lean release artifacts),
-every per-tier rule here is provisional, pending a tiering design
-(§12.6).
+with its inputs, outputs and cost. Which passes run where follows the
+tiering decision ([tiering.md](tiering.md), owner, 2026-10-07): a dev
+pipeline and an optimized pipeline (§12.6).
 
 D2 designs monomorphization, suspension lowering, Wasm GC emission, link,
 the runtime, the host interface and the test runner. It consumes these
@@ -65,7 +64,7 @@ interfaces from D1 and does not reach around them:
                                   │
             ┌─────────────────────┴──────────────────────────┐
             ▼ native (hd_run_wasmtime)                        ▼ browser (hd_web + generated JS glue)
-   Precompile(P, tier) ═► [cwasm entry]             program worker: WebAssembly.compile
+   Precompile(P, pipe) ═► [cwasm entry]             program worker: WebAssembly.compile
    InstancePre + pooling allocator                  imports from the JS host
    Store per run / per test case                    poll/wake loop on the worker's event loop
    poll/wake driver + host reactor                  JSPI or sync XHR for block_on
@@ -84,7 +83,7 @@ This continues D1's table (§1.2).
 | Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set | program | serial per program; programs in parallel | inside `link` | none |
 | Emit | one instance: generic TIR, its substitution, the TIR of callees it inlines | Wasm body bytes, relocations, site and line records | instance | yes | `code` | §13.8 |
 | Link | code entries of the instance set | one Wasm module with its custom sections | program | serial per program; fold hashing in parallel | `link` | §13.10 |
-| Precompile | Wasm bytes, engine config | wasmtime's serialized module | program and tier | Cranelift compiles functions in parallel | `cwasm` | `H("cwasm", hash of the Wasm, wasmtime version, config hash, target)` |
+| Precompile | Wasm bytes, engine config | wasmtime's serialized module | program and pipeline | Cranelift compiles functions in parallel | `cwasm` | `H("cwasm", hash of the Wasm, wasmtime version, config hash, target)` |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
 
 There is no MIR stage: the checker's TIR is the input of `Collect` and
@@ -99,7 +98,7 @@ pub enum ExtTask {
     Collect(ProgramId),          // after the tir entry of every module the program can reach
     Emit(InstanceSlot),          // created by Collect, one per code-entry miss
     Link(ProgramId),             // after every Emit of its program
-    Precompile(ProgramId, Tier), // native only
+    Precompile(ProgramId, PipelineId), // native only; the pipeline gives the engine config
     RunCase(ProgramId, CaseIdx), // test runner (§19); the browser runs cases in its worker instead
 }
 ```
@@ -112,7 +111,7 @@ pub enum ExtTask {
   review, finding 4).** Before `Collect`, D2 computes
 
   ```text
-  prog_key            = H("prog", toolchain_key, tier, profile, root description,
+  prog_key            = H("prog", toolchain_key, pipeline_hash, profile, root description,
                           sorted [(module path, tir_content_hash(m))] of the modules
                           reachable in the use graph)
   tir_content_hash(m) = H(sorted [(item path, TIR hash, inline summary, dependency list)]
@@ -187,9 +186,11 @@ point. Deciding those during emission alone could be wrong.
   (§14.2). Inlining decisions and the inlined callees' instructions join
   the analysed region before any choice is made.
 - **Bounds.** Each pass is linear in the instance's instructions times
-  the loop nesting depth, and runs only when the instance has an
-  allocation, a closure, a loop with a candidate, or a suspension point.
-  A trivial instance skips them.
+  the loop nesting depth. Analyses are passes in a pipeline (§12.6,
+  [tiering.md §6](tiering.md#6-a-pass-manager-for-hd)), each gated by the
+  instance's summary bits: an allocation, a closure, a loop with a
+  candidate, or a suspension point. A trivial instance skips them. The
+  dev pipeline runs only suspension liveness.
 - **What this is not.** The fixed decision forbids a monomorphized copy
   of the IR. Side tables and repeated reads of TIR are allowed.
 
@@ -342,7 +343,7 @@ Requirement rows never become type arguments
 
 ### 12.5 Counted Loops And Checks
 
-`ForRange`, `ForList` and `ForMap` are emitted as counters in both tiers
+`ForRange`, `ForList` and `ForMap` are emitted as counters in both pipelines
 (mine). A loop that allocates per step fails the `allocations` target, so
 this is a lowering rule, not an optimization:
 
@@ -380,46 +381,57 @@ each step, panicking with `iterator-invalidated`
 The overflow sequences are those of the research
 ([Debug-Tier Checks](research.md#debug-tier-checks)).
 `i64` multiplication has no wide multiply in core Wasm, so its check
-divides back, which costs about 20 cycles. The `release-check-cost` metric
-watches it.
+divides back, which costs about 20 cycles. The `check-cost` metric
+(the optimized pipeline, checks on against off) watches it.
 
 ### 12.6 Tiers And Optimizations
 
-The triage put the optimizing tier after the first release
-([Pillar 3 features](goals.md#pillar-3-features-artifact-quality)).
-D2 keeps one emission for both tiers (mine): `release-check-cost` asks
-that the debug build cost at most 1.3x the release build, and any
-optimization only one tier has counts against that ratio. The tiers
-differ only where the spec or a first-release feature says so.
+**Decided (owner, 2026-10-07; [tiering.md](tiering.md)).** There are two
+pipelines, and the pipeline is separate from the profile:
 
-**Provisional (owner, 2026-10-07).** The owner asked for "very fast dev
-time compilation that crappy output is allowed, and blazingly fast/lean
-artifact for release build, which can be slow", with optimizations as
-composable single passes. A separate tiering design will redesign the
-dev and release pipelines and the pass architecture, possibly with
-Binaryen or `wasm-opt` in release only. Until then, the paragraph above,
-the Debug and Release columns below, and every per-tier rule in §12.8
-and §13.7 are provisional. What is not provisional: the layouts (one per
-type in every tier), the literal pool and stable numbering. Each
-optimization in this table is a named pass with its inputs, outputs and
-cost in [lowering-catalog.md](lowering-catalog.md#optimization-passes);
+- The **profile** is observable: checked (debug, test) or wrapping
+  (release). It decides overflow and shift checks and the debug-only
+  checks ([`cli.profile.test`](../../spec/cli/command-line.md#r-cli.profile.test)).
+- The **pipeline** is not observable: dev or optimized. It decides which
+  optimization passes run and the Cranelift setting. A program's output,
+  panic categories and sites, effect order, `is` and type ids are the
+  same in both (tiering.md §4).
+- `hd run`, `hd test` and the REPL use the **dev pipeline**: almost no
+  hd passes, then Cranelift `None` with the single-pass register
+  allocator if spike T1 confirms it (engines-and-test-runner.md §18.6).
+- `--release` selects the **optimized pipeline**: bounded inlining,
+  closure specialization, devirtualization and scalar replacement, then
+  Cranelift `Speed`. On `hd build`, `hd run` and `hd FILE` it also
+  selects the release profile; `hd test --release` keeps the test
+  profile.
+- Bounded inlining, scalar replacement, closure specialization and
+  devirtualization run **in the optimized pipeline only**. This reverses
+  the earlier "the same in debug and release" rule. The `runtime` and
+  `allocations` targets measure optimized artifacts, so they still apply.
+- What both pipelines share: the layouts (one per type), counted loops,
+  `multi` layouts, the literal pool, stable numbering, folding during the
+  walk and merging at link. Binaryen in the optimized pipeline is decided
+  after spike T2.
+
+Each optimization in this table is a named pass with its inputs, outputs
+and cost in [lowering-catalog.md](lowering-catalog.md#optimization-passes);
 the baseline emission without any pass is defined there too.
 
-| Rule | Debug | Release | Status |
+| Rule | Dev pipeline | Optimized pipeline | Status |
 | --- | --- | --- | --- |
 | counted loops (§12.5) | yes | yes | first release |
 | `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values (§15.1); decision B, extended to `Result` (owner, 2026-10-07); one representation per type in every position, boxed over the bound (lowering pass) | yes | yes | first release |
 | capture-free closures as constants | yes | yes | first release |
 | constant folding and dead branches during the walk (a fact's value is a run-time read, §12.3) | yes | yes | first release |
 | constant hoisting: an enum or tuple box whose payloads are constants is an immutable global, so `.Err(ParseError.Empty)` never allocates | yes | yes | first release (lowering pass) |
-| trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | yes | yes | first release (mine) |
-| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters (budgets in §12.8) | yes | yes | first release (owner, 2026-10-07) |
-| scalar replacement: a non-escaping closure, cell, box or data value after inlining becomes locals, mutable data included (an `Iterator` whose identity no one observes); an escape analysis in the analysis passes of §12.1, before emission | yes | yes | first release (owner, 2026-10-07) |
-| known-vtable devirtualization: a `CallDyn` on a value whose vtable is a constant global becomes a direct call | yes | yes | first release (lowering pass) |
-| closure specialization: inline, scalar-replace, devirtualize, repeated (below) | yes | yes | first release (lowering pass) |
-| overflow checks | checked | wrap | spec |
+| trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | if spike T4 keeps it (default on) | yes | first release (mine) |
+| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters (budgets in §12.8) | no | yes | first release (owner, 2026-10-07) |
+| scalar replacement: a non-escaping closure, cell, box or data value after inlining becomes locals, mutable data included (an `Iterator` whose identity no one observes); an escape analysis in the analysis passes of §12.1, before emission | no | yes | first release (owner, 2026-10-07) |
+| known-vtable devirtualization: a `CallDyn` on a value whose vtable is a constant global becomes a direct call | no | yes | first release (lowering pass) |
+| closure specialization: inline, scalar-replace, devirtualize, repeated (below) | no | yes | first release (lowering pass) |
+| overflow and shift checks | by profile | by profile | spec: checked in debug and test, wrapping in release |
 | hook points (§14.7) | dropped | dropped | emitted only by hook builds (Later) |
-| debug-only checks: closed handles, deadlock reports with frame lists (§14.8) | yes | no | first release |
+| debug-only checks: closed handles, deadlock reports with frame lists (§14.8) | by profile | by profile | first release: on in debug and test, off in release |
 
 Inlining walks the callee's generic TIR, mapped from its module's entry,
 under the composed substitution. The inlined items' TIR hashes join the
@@ -478,16 +490,14 @@ engine compile time, and the `size-startup-heap` and `dead-code` targets.
 This policy comes from the runtime study's section 9
 ([representation-runtime.md](representation-runtime.md#9-size-versus-speed)).
 Rule 1 is representation and holds in every pipeline. Rules 2 to 4 say
-how to set each pass's budget wherever it runs. Rule 5, and which passes
-each tier runs, are **provisional, pending the tiering design** (§12.6):
-the owner wants fast dev builds with poor code allowed, and lean, fast
-release artifacts that may build slowly.
+how to set each pass's budget wherever it runs. Rule 5 says which
+pipeline runs the passes (§12.6).
 
 **Policy.**
 
-1. **Layouts are the same in every tier.** A layout is part of every
-   instance's code; two layouts would double the cache, make a debug
-   run measure a different program, and break `release-check-cost`
+1. **Layouts are the same in every pipeline.** A layout is part of every
+   instance's code; two layouts would double the cache, make a dev run
+   measure a different program, and break `check-cost` and `dev-speed`
    comparisons.
 2. **Speed where it is hot, size everywhere else.** Specialize and inline
    inside loops and for closure literals; everything else is a shared,
@@ -497,12 +507,12 @@ release artifacts that may build slowly.
 4. **Budgets are per function**, local to the caller, so one hot spot
    cannot blow up a module and one function's bytes never depend on
    another's (§12.6).
-5. **Provisional:** both studies proposed that debug and release run the
-   same passes with the same budgets, only checks differing, so that
-   `release-check-cost` (debug at most 1.3x release) holds, with debug at
-   Cranelift `Speed` (engines-and-test-runner.md §18.6). The tiering
-   design may instead give dev builds the baseline emission plus cheap
-   passes, and release builds every pass.
+5. **The optimized pipeline runs every pass; the dev pipeline runs the
+   baseline emission** plus suspension liveness, folding during the walk
+   and, if spike T4 keeps it, trivial inlining (owner, 2026-10-07;
+   [tiering.md](tiering.md)). The budgets below apply in the optimized
+   pipeline. `dev-speed` (dev at most 4x optimized, geomean, no case over
+   10x) guards how slow dev code may get.
 
 **Budgets.** Defaults for each pass's parameters, decided by the
 experiments named:
@@ -553,7 +563,7 @@ build will (estimates; spike 0c and the slices measure):
 ## 13. Monomorphization And Merging
 
 Owner's answer 8: code per concrete type, then merge byte-identical
-functions, the same in debug and release. Dictionaries exist only for
+functions, in both pipelines. Dictionaries exist only for
 trait values and for the type witnesses of a generic method called
 through `dyn` (§13.5).
 
@@ -594,8 +604,8 @@ A worklist walk, as rustc's collector does:
    instance's type arguments into each one's types.
 3. For each `Item` callee, push the callee with the substituted
    arguments. **In a pipeline that runs `inline-trivial`, a callee that
-   is always inlined is not pushed** (lowering pass; the pipeline is part
-   of the tier, which is in the code key): when its `inline_summary` says
+   is always inlined is not pushed** (lowering pass; the pipeline hash is
+   in the code key): when its `inline_summary` says
    it passes the trivial-inlining
    test (§13.8), which reads only its own TIR, every caller inlines it, so
    collection scans its body in place under the composed substitution and
@@ -962,11 +972,10 @@ comes only if the `dead-code` or tiny-size measurement shows real bytes
 left on the table.
 
 Every step works on content keys, so the result does not depend on
-threads or order. Merging runs in `Link`. Which tiers run it is
-provisional, pending the tiering design (§12.6). The compile study's
-input to that design: it saves more Cranelift time than its hashing
-costs (under 1 ms at 10k lines), so a dev build without it would compile
-slower; a release build might instead leave it to `wasm-opt`.
+threads or order. Merging runs in `Link`, in both pipelines (§12.6): it
+saves more Cranelift time than its hashing costs (under 1 ms at 10k
+lines), so a dev build without it would compile slower. Whether the
+optimized pipeline adds `wasm-opt` on top is decided after spike T2.
 
 ### 13.8 Code Entries
 
@@ -1038,7 +1047,7 @@ So a comment edit above a panic changes the line it reports and nothing
 that is compiled or cached.
 
 ```text
-code_key = H("code", toolchain_key, tier, instance_key, tir_hash(item),
+code_key = H("code", toolchain_key, pipeline_hash, profile, instance_key, tir_hash(item),
              sorted [(stable path, per-item interface hash)] of every item its TIR names,
              sorted [layout_hash(T)] of every type the instance lays out,
              sorted [(impl stable path, impl interface hash)] of every impl collection
@@ -1051,7 +1060,14 @@ layout_hash(T)       = H(canonical Wasm layout descriptor of T, and of every typ
                          reachable through its fields), memoized per type per run
 inline_summary(f)    = H("no-inline") when the trivial-inlining test (§12.6) fails on f's TIR,
                        else H("inline", tir_hash(f)); stored per item in the `tir` entry
+pipeline_hash        = H(pipeline name, each pass's name, version and parameters,
+                         emit options, engine options)   (tiering.md §6.4)
 ```
+
+`pipeline_hash` replaces the earlier `tier` key part, and the profile is
+a separate part, since `hd test --release` pairs the test profile with
+the optimized pipeline. A pass version bump misses only the pipeline that
+holds the pass.
 
 **The dependency set is what collection and emission read, not what the
 generic TIR names.** Generic TIR does not name the concrete types,
@@ -1155,23 +1171,26 @@ numbering, packs and filtered test programs are the largest for latency.
    with tests instead of one `hd.init`; each runs exactly the init groups
    its module reaches, in D1's order (engines-and-test-runner.md §19.1).
 8. **Code.** Copy each representative's body and patch its relocations in
-   place. In a release build, re-encode the padded LEBs at minimal width
-   (mine); the debug build keeps them, since size does not matter there.
+   place. In the optimized pipeline, re-encode the padded LEBs at minimal
+   width (mine, the `leb_compact` pass); the dev pipeline keeps them, since
+   size does not matter there.
    Re-encoding moves every later byte, so the encoder builds an
    old-to-new offset map per body as it goes (a sorted list of
    `(old offset, bytes removed so far)`, one row per shrunk immediate)
    and rewrites the offsets of `sites`, `lines` and the source map
    through it before writing `hd.sites` and `hd.lines` (Codex re-review
-   N-B8). A test panics after a shrunk immediate in release and checks
-   the reported site against debug.
-9. **Custom sections**: `hd.names` (release) or `name` (debug),
+   N-B8). A test panics after a shrunk immediate in the optimized
+   pipeline and checks the reported site against the dev pipeline.
+9. **Custom sections**: the compact `hd.names` in the optimized pipeline,
+   so release builds omit the standard `name` section (owner,
+   2026-10-07), or `name` in the dev pipeline; then
    `hd.runtime`, `hd.sites`, `hd.lines`, `hd.folds` (§15.5, §16.4).
    `hd.sites` and `hd.lines` hold anchors here; `hd build` resolves them
    to positions in the file it writes (§13.8, "Positions").
 
 ```text
 link_key = prog_key (§11.3), and on a prog_key miss
-           H("link", toolchain_key, tier, profile, root description, sorted code keys)
+           H("link", toolchain_key, pipeline_hash, profile, root description, sorted code keys)
 ```
 
 A program is written under both keys, so the next warm run hits the

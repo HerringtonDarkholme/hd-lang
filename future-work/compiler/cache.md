@@ -343,13 +343,13 @@ obj/
     group, holding the compiled functions of that group's members. A
     10k-line program has about 30 groups (20 of its own folders and
     about 10 of std's).
-  - **Keys.** A pack's key is `H(kind, tier, sorted member keys)`, a pure
+  - **Keys.** A pack's key is `H(kind, pipeline_hash, profile, sorted member keys)`, a pure
     function of its content, so equal groups are shared by every program
     and worktree.
   - **Finding packs.** The last-run record (§5.5.1) names, per program,
     the packs of its last link. A worktree without one reads the
     program's `packhint` entry, keyed by `H("packhint", toolchain_key,
-    tier, package key, root description)`, which names the packs of
+    pipeline_hash, profile, package key, root description)`, which names the packs of
     that program's last link in any worktree. `Link` maps every named
     pack once, builds one in-memory index by code key, and takes every
     member whose key is still wanted. A wanted key that no named pack

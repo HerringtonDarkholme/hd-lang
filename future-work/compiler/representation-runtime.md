@@ -848,6 +848,12 @@ the element's exact type. **Recommendation (high).** Keep.
    Only checks differ, so `release-check-cost` (debug ≤ 1.3x release)
    holds.
 
+> **Superseded by [tiering.md](tiering.md) (2026-10-07).** Policy 5 no
+> longer holds. Layouts stay the same in both pipelines (policy 1), but
+> the optimizers differ: the dev pipeline runs almost no passes, and the
+> optimized pipeline runs every pass with these budgets.
+> `release-check-cost` became `check-cost` and `dev-speed`.
+
 ### 9.2 Per-Feature Budgets (proposed, to be tuned by spike 0c)
 
 | Feature | Speed it buys | Size it costs | Budget |

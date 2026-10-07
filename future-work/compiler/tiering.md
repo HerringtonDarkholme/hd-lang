@@ -1,16 +1,17 @@
 # Tiered Compilation And The Pass Architecture
 
-Status: Investigation and design, not decided, 2026-10-07.
+Status: Decided (owner, 2026-10-07). The two pipelines and the pass
+architecture are adopted; the questions of section 8.1 are answered
+there. Binaryen in release builds is decided after spike T2. The
+statements of section 8.2 are applied to the other design files.
 
 Part of the [compiler design](README.md). This file investigates the
 owner's direction of 2026-10-07 and proposes a pass architecture and two
-pipelines. It edits no other design file. The lowering pass is editing
-[wasm-layout.md](wasm-layout.md), [codegen.md](codegen.md),
-[cache.md](cache.md), [engines-and-test-runner.md](engines-and-test-runner.md)
-and [runtime-and-host.md](runtime-and-host.md) at the same time, so a
-statement quoted from them may already be stale. Proposals marked "mine"
-come from this study, not from the owner. Numbers marked "estimate" are
-not measurements; the spike experiments in section 7 measure them.
+pipelines. Statements quoted below from other design files are as they
+stood before the decision; section 8.2 lists where each now reads
+differently. Proposals marked "mine" come from this study, not from the
+owner. Numbers marked "estimate" are not measurements; the spike
+experiments in section 7 measure them.
 
 The owner's words (2026-10-07):
 
@@ -85,12 +86,13 @@ decision.
 checked profile, so a "release test" must keep the checks. The study
 separates the **profile** (checked or wrapping, observable) from the
 **pipeline** (dev or optimized, not observable), as Zig's `ReleaseSafe`
-does. It proposes `hd test --optimized` and no automatic mid tier.
+does. Decided: `hd test --release` selects the optimized pipeline and
+keeps the checks; there is no automatic mid tier.
 
-**`release-check-cost`.** Split it in two (question 1): `check-cost`
-(checks on against off, same pipeline, ≤ 1.3x) and `dev-speed` (dev
-pipeline against optimized, same profile, a loose guard of ≤ 4x
-geomean).
+**`release-check-cost`.** Decided: split in two (question 1):
+`check-cost` (checks on against off, the optimized pipeline, ≤ 1.3x) and
+`dev-speed` (dev pipeline against optimized, same profile, ≤ 4x geomean,
+no case over 10x).
 
 **Statements that must change** are listed in section 8.2. The largest
 are codegen.md §12.6 ("one emission for both tiers"), the owner's
@@ -518,10 +520,12 @@ program's tests run more than about 0.3 s of compute.
 - **Separate the profile from the pipeline** (mine). The profile is
   observable: checked or wrapping. The pipeline is not: dev or optimized.
   `--release` keeps meaning "release profile, optimized pipeline".
-- **Add `hd test --optimized`**: the test profile (checks on) with the
-  optimized pipeline, as Zig's `ReleaseSafe`. It is a CLI addition, so
-  the owner decides (question 4). `hd run --optimized` falls out of the
-  same switch.
+- **`hd test --release`** (owner, 2026-10-07; this study proposed a new
+  `--optimized` flag): the test profile (checks on) with the optimized
+  pipeline, as Zig's `ReleaseSafe`. On `hd build`, `hd run` and `hd FILE`,
+  `--release` selects the optimized pipeline and the wrapping release
+  profile together
+  ([`cli.profile.pipeline.release`](../../spec/cli/command-line.md#r-cli.profile.pipeline.release)).
 - **No automatic mid tier.** A tier chosen by heuristics makes test
   timing unpredictable, and a miscompile would appear only sometimes.
   wasmtime cannot tier up at run time anyway.
@@ -597,9 +601,9 @@ optimized:
   engine: cranelift opt=speed, regalloc=backtracking
 ```
 
-`--release` selects the release profile and the optimized pipeline.
-`hd test --optimized` would select the test profile and the optimized
-pipeline.
+`--release` on `hd build`, `hd run` and `hd FILE` selects the release
+profile and the optimized pipeline. `hd test --release` selects the test
+profile and the optimized pipeline.
 
 ### 6.4 Keys And Determinism
 
@@ -653,7 +657,7 @@ appears only in the report, never in a key.
 
 ### 7.1 The Pipelines
 
-| | Dev (`hd run`, `hd test`, REPL) | Optimized (`--release`, proposed `--optimized`) |
+| | Dev (`hd run`, `hd test`, REPL) | Optimized (`--release`, including `hd test --release`) |
 | --- | --- | --- |
 | profile | debug or test: checks on | release (wrap) or test (checks on) |
 | TIR passes | suspension liveness only | the seven of section 6.3 |
@@ -693,11 +697,12 @@ runs on the pinned wasmtime; T2 also runs on V8 through Node.
    (≤ 1.3x; this keeps its first purpose, pricing the overflow sequences),
    and `dev-speed`, the dev pipeline against the optimized one in the same
    profile (≤ 4x geomean, no case > 10x; a guard so tests don't crawl).
-   **Recommendation: (c).**
+   **Recommendation: (c).** **Decided (owner, 2026-10-07): (c).**
 2. **Binaryen in release builds.** **Recommendation:** not in the first
    release. Decide after T2, once our release passes exist. If it is
    adopted, embed it in the native `hd` only (never the playground), pin
-   its version, and never use `-tnh`.
+   its version, and never use `-tnh`. **Decided (owner, 2026-10-07):**
+   decided after spike T2.
 3. **Optimizations only in the optimized pipeline.** The owner decided on
    2026-10-07 that bounded inlining and scalar replacement are "the same
    in debug and release builds, so the `runtime` and `allocations` targets
@@ -705,11 +710,16 @@ runs on the pinned wasmtime; T2 also runs on V8 through Node.
    passes still meet them. **Recommendation:** move bounded inlining,
    closure specialization, devirtualization and scalar replacement to the
    optimized pipeline. Keep counted loops, layouts and folding in both.
+   **Decided (owner, 2026-10-07):** as recommended.
 4. **`hd test --optimized`.** The spec says `hd test` always uses the
    checked test profile and that no other command takes `--release`
-   ([`cli.profile.flag-only`](../../spec/cli/command-line.md#r-cli.profile.flag-only)).
+   (`cli.profile.flag-only`, since retired).
    **Recommendation:** add `--optimized` to `hd test` and `hd run`: the
    same checks, the optimized pipeline. No automatic mid tier.
+   **Decided (owner, 2026-10-07):** no new flag. `hd test --release`
+   selects the optimized pipeline and keeps the checks; on `hd build`,
+   `hd run` and `hd FILE`, `--release` also selects the wrapping release
+   profile. No automatic mid tier.
 5. **No instance IR for the optimized pipeline.** The design walks generic
    TIR under a substitution and forbids materializing instance IR. That
    suits decision passes and fused rewrites (section 6). A full rewriting
@@ -718,6 +728,11 @@ runs on the pinned wasmtime; T2 also runs on V8 through Node.
    passes that need rewriting, such as repeated inlining with cleanup.
 
 ### 8.2 Design Statements That Must Change If Adopted
+
+Applied (2026-10-07). Each file now states the decided rule; the dated
+study records ([representation-compile.md](representation-compile.md),
+[representation-runtime.md](representation-runtime.md)) carry a
+"superseded by tiering.md" note instead of a rewrite.
 
 | File | Statement | Change |
 | --- | --- | --- |
@@ -734,7 +749,7 @@ runs on the pinned wasmtime; T2 also runs on V8 through Node.
 | [build-order.md](build-order.md) slice 10 and §22.1 | "Optimization within the shared tier"; the `release-check-cost` row | "the optimized pipeline"; the two new metrics |
 | [research.md](research.md) Q10, Q11 | "No Binaryen" (confidence high); "The optimizing tier is ours" | unchanged for the first release; Binaryen becomes a T2 decision |
 | [wasm-layout.md](wasm-layout.md) §15.5 | panic and line mapping by code offset | must survive any Wasm-level pass; record inline call sites for backtraces |
-| [spec/cli/command-line.md](../../spec/cli/command-line.md) | `cli.profile.flag-only` | only if question 4 adds `--optimized` |
+| [spec/cli/command-line.md](../../spec/cli/command-line.md) | `cli.profile.flag-only` | retired; replaced by [`cli.profile.release.commands`](../../spec/cli/command-line.md#r-cli.profile.release.commands), [`cli.profile.test.release`](../../spec/cli/command-line.md#r-cli.profile.test.release) and the [Pipelines](../../spec/cli/command-line.md#pipelines) rules |
 
 ## Sources
 

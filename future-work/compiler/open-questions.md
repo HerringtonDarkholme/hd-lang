@@ -298,5 +298,6 @@ editing D1 in place:
 ### 23.3 What Was Kept Brief
 
 Sections 21 to 23 are brief by plan. Two designs need a measurement
-before more text: the debug tier's Cranelift level and the null collector
+before more text: the dev pipeline's Cranelift setting (spike T1 of
+tiering.md) and the null collector
 for tests (§18.6).

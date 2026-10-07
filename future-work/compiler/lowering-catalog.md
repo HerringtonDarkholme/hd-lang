@@ -11,21 +11,18 @@ layout rules themselves live in [wasm-layout.md](wasm-layout.md), the
 emission rules in [codegen.md](codegen.md). This file gives one entry per
 data type and per syntax form, with its cost on both axes.
 
-**Tiers are provisional (owner, 2026-10-07).** "We need very fast dev
-time compilation that crappy output is allowed, and blazingly fast/lean
-artifact for release build, which can be slow." Optimizations should be
-composable single passes. A separate tiering design will define the dev
-and release pipelines, the pass architecture, and possibly Binaryen or
-`wasm-opt` in release builds only. So this file fixes **representation**
-(layouts, the literal pool, type-only numbering) and a **baseline
-emission** per entry: the code that one unoptimized walk writes. Every
-optimization is a separately named pass in
-[Optimization Passes](#optimization-passes), with its inputs, outputs
-and cost, for the tiering design to compose. Every per-tier statement in
-this file and in the files it changed (one shared emission for both
-tiers, merging in both tiers, debug at Cranelift `Speed`, the
-`release-check-cost` reasoning behind them) is **provisional, pending the
-tiering design**.
+**Tiers (owner, 2026-10-07; [tiering.md](tiering.md)).** "We need very
+fast dev time compilation that crappy output is allowed, and blazingly
+fast/lean artifact for release build, which can be slow." Optimizations
+are composable single passes. This file fixes **representation**
+(layouts, the literal pool, type-only numbering), which is the same in
+both pipelines, and a **baseline emission** per entry: the code that one
+unoptimized walk writes. Every optimization is a separately named pass
+in [Optimization Passes](#optimization-passes), with its inputs, outputs
+and cost. The **dev pipeline** (`hd run`, `hd test`, the REPL) runs the
+baseline plus `const-fold`, `fold` and, if spike T4 keeps it,
+`inline-trivial`. The **optimized pipeline** (`--release`) runs every
+pass. Merging runs in both; Binaryen is decided after spike T2.
 
 ## Changes In This Pass
 
@@ -56,9 +53,9 @@ tiering design**.
    `const-fold`, `fold` and `leb-shrink`. Closure specialization is a
    schedule of them, repeated once per stage under a size cap per caller.
 6. **Merging** uses a worklist for rounds after the first (codegen.md
-   §13.7). Which tiers run it, and the debug Cranelift level (S4 informs
-   it), are provisional, pending the tiering design
-   (engines-and-test-runner.md §18.1, §18.6).
+   §13.7). It runs in both pipelines; the dev pipeline's Cranelift
+   setting is decided by spike T1 (engines-and-test-runner.md §18.1,
+   §18.6).
 7. **Per-program packs** for code entries and Cranelift entries, read in
    one batch (cache.md §5.2, §5.4).
 8. **`--filter` builds only the selected test cases**
@@ -84,8 +81,8 @@ tiering design**.
 14. **Size guards:** inliner budgets, a warning past 200 thunks for one
     method, and `hd build --size-report` (codegen.md §12.8).
 15. **A "Size Versus Speed Policy"** section in codegen.md (§12.8): what
-    each pass buys and costs, the budgets, and the size guards. Its
-    per-tier rules are provisional.
+    each pass buys and costs, the budgets, and the size guards. The
+    budgets apply in the optimized pipeline.
 16. **Smaller fixes found in this pass:** trait-value payloads are
     `eqref`, not `anyref`, since `is` lowers to `ref.eq`; `Array[T]` slots
     past the count use the defaultable form; `Array[void]` has no Wasm
@@ -125,7 +122,7 @@ counts as one value toward an enclosing layout's bound.
 | A1, `eqref` storage for type-parameter slots at reference layouts, at collection | adopted; A2 (erased function types) not adopted | E1: adopt unless the wasmtime read penalty is over 1 ns per element or over 5 percent on the `sort` and `map` microbenchmarks with reference elements. S1 records the compile-side gain |
 | the boxing bound | 4 Wasm values after slot sharing, tag included | E2: the largest payload count where parallel arrays win the read-only kernel by more than 10 percent on wasmtime and `push` stays under 256 bytes |
 | string slicing | S1: `(array i8)`, a slice copies its bytes; needs the spec change of [Open Question 1](#1-string-slicing-s1-or-s2) | the owner, with E6's numbers |
-| debug Cranelift level | provisional, pending the tiering design; the studies' default was `Speed` | S4 gives the numbers: compile CPU at `Speed`, `None` and the single-pass allocator, and the runtime ratio to release |
+| dev Cranelift setting | `None` with the single-pass allocator | spike T1 of [tiering.md](tiering.md#72-spike-0c-additions): falls back to `None` with backtracking, then `Speed`, if it fails a runtime case, saves too little or breaks `dev-speed` |
 | inliner caps | runtime study §9.2 budgets (codegen.md §12.8), as pass parameters | S6 sets the caller cap below the size where Cranelift time per byte doubles; E8 keeps the budgets unless the next level buys 5 percent speed for under 10 percent size |
 | constant globals read directly | direct `global.get`, globals ordered by content key | S2: any perturbation under 95 percent hits moves that global kind behind getters |
 | the `array.new_fixed` threshold and eager pool fill | 4 bytes; lazy per-module tables behind one getter per module ([Literals](#literals)) | E10; S2 says whether the getter may be inlined |
@@ -183,13 +180,14 @@ translation of every instruction.
 
 ## Optimization Passes
 
-Each pass is a single step with stated inputs and outputs, so the tiering
-design can compose them. "Compile cost" is the pass's own time; "Cranelift"
-is its effect on the engine's compile time through code size. Whether a
-pass runs as an analysis that steers the one emission walk (codegen.md
-§12.1 today) or as a transform over an intermediate form is the tiering
-design's question. Every pass keeps a function's output a function of
-its own code key's inputs: budgets are local to the caller.
+Each pass is a single step with stated inputs and outputs, so the
+pipelines of [tiering.md](tiering.md) compose them. "Compile cost" is
+the pass's own time; "Cranelift" is its effect on the engine's compile
+time through code size. Analyses and decisions write side tables that
+steer the one emission walk (codegen.md §12.1); local rewrites are fused
+into the walk; no pass materializes instance IR (tiering.md §6). Every
+pass keeps a function's output a function of its own code key's inputs:
+budgets are local to the caller.
 
 | Pass | Input | Output | Compile cost | Speed it buys | Size effect |
 | --- | --- | --- | --- | --- | --- |
@@ -213,8 +211,8 @@ chain site by default (codegen.md §12.6). It turns
 `xs.iter().map(fn x: x + 1).sum()` from about 7 allocations per chain
 and 3 `call_ref`s per element into a counted loop: about 0.3 ns per
 element on V8, against 1 to 5 ns with real indirect calls. E3 says
-whether release needs it (yes if the unspecialized form exceeds 3x
-Node's `for` loop on wasmtime).
+whether the optimized pipeline needs it (yes if the unspecialized form
+exceeds 3x Node's `for` loop on wasmtime).
 
 **Hasher fast paths** are a std change plus passes, not a pass of their
 own: the fixed-width `Hasher` writes remove the allocations in std's
@@ -224,7 +222,7 @@ remove the indirect calls and inline the mix where they run.
 **Not designed here:** bounds-check hoisting and loop-invariant code
 motion beyond `cse-getters`, which the engines do in part; whole-program
 passes, which would break the caller-local rule; and `wasm-opt` in
-release, which the tiering design decides.
+release, which spike T2 decides.
 
 ## Data Types
 
@@ -886,13 +884,13 @@ keeps that. None reads a program-wide number (see [Numbering](#numbering)).
 
 - **Speed:** release is the bare instruction. Debug adds a few ALU
   operations and a predictable branch; the `i64` multiplication check
-  costs about 20 cycles. `release-check-cost` (debug at most 1.3x)
-  watches the total.
+  costs about 20 cycles. `check-cost` (the optimized pipeline, checked
+  at most 1.3x unchecked) watches the total.
 - **Size:** about 10 to 14 bytes per checked operation in debug. Each
   check keeps its own `call`, since its code offset names its site.
 - **Engines:** no difference.
 - **Type-only:** yes. The sequence depends on the operand type and the
-  tier.
+  profile.
 
 ### Division, Remainder And Shifts
 
@@ -900,7 +898,7 @@ keeps that. None reads a program-wide number (see [Numbering](#numbering)).
 ;; a / b on i32: a zero divisor traps in the engine; the trap maps to integer-division-by-zero
 (if (i32.and (i32.eq (local.get $a) (i32.const 0x80000000)) (i32.eq (local.get $b) (i32.const -1)))
     (then (call $panic_overflow)))        ;; debug; release returns INT_MIN, since div_s would trap
-;; x << n: n >= width panics invalid-shift in every tier; Wasm masks the count otherwise
+;; x << n: n >= width panics invalid-shift in every profile; Wasm masks the count otherwise
 (if (i32.ge_u (local.get $n) (i32.const 32)) (then (call $panic_shift)))
 ```
 
@@ -1033,7 +1031,7 @@ keeps that. None reads a program-wide number (see [Numbering](#numbering)).
 ;; while c: (block $exit (loop $top (br_if $exit (i32.eqz c)) body (br $top)))
 ```
 
-- **Speed:** counted loops allocate nothing in either tier; this is a
+- **Speed:** counted loops allocate nothing in either pipeline; this is a
   lowering rule, not an optimization. A loop over a list under A1 casts
   each element only where the body needs its exact type.
 - **Size:** about 20 to 30 bytes of loop scaffolding.
@@ -1271,8 +1269,8 @@ with `else` produces a value.
 
 | Topic | Runtime study | Compile study | Resolution |
 | --- | --- | --- | --- |
-| debug Cranelift level | debug and release run the same optimizer | `Speed` unless S4 shows `None` saves 25 percent | both studies assumed one shared emission; the owner's direction of 2026-10-07 (fast dev builds, crappy output allowed) makes every per-tier rule provisional, pending the tiering design. S4's numbers feed it |
-| what an optimization is | budgets inside one shared pipeline | the same | each optimization is a named pass with inputs, outputs and cost ([Optimization Passes](#optimization-passes)), for the tiering design to compose |
+| debug Cranelift level | debug and release run the same optimizer | `Speed` unless S4 shows `None` saves 25 percent | both studies assumed one shared emission; the owner's tiering decision of 2026-10-07 gives a dev and an optimized pipeline, and spike T1 sets the dev Cranelift setting ([tiering.md](tiering.md)) |
+| what an optimization is | budgets inside one shared pipeline | the same | each optimization is a named pass with inputs, outputs and cost ([Optimization Passes](#optimization-passes)); the optimized pipeline runs them all |
 | literal access | an inlined fast path at the use site, the pool index in it | lazy globals through getters, or append order | one table and one getter per module, with module-local numbers (orchestrator, after the systems review): an inlined program-wide index is a dense number in every reader, append order needs build history, which §15.8 forbids, and a getter per literal adds about 2,000 functions at 10k lines |
 | facts in loops | inline the fast path at reads inside loops | getters | getters, with reads common-subexpression-eliminated in a body |
 | erased storage (A) | a layout rule for every type-parameter slot; a cast at the first exact use | A1 at collection by representation summaries, instance keys by class | both: the layout rule gives one type per class; the summary gives one instance per class for move-only bodies. Classes `REF` and `REF?` stay apart, since `T?` differs between them |

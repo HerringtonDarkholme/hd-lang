@@ -339,7 +339,7 @@ code and its code offset:
 
 | Section | Holds | Release |
 | --- | --- | --- |
-| `name` | function names: printed stable path plus type arguments, as `shop.cart/Cart.total` or `std.list/List.push[i32]` | debug only (lowering pass) |
+| `name` | function names: printed stable path plus type arguments, as `shop.cart/Cart.total` or `std.list/List.push[i32]` | no: the dev pipeline only (owner, 2026-10-07) |
 | `hd.names` | per function: an index into a path table and a list of indices into a type-argument table; the symbolizer prints the same names as `name` | yes; about 30 KB instead of 150 KB at 10k lines |
 | `hd.sites` | per site, keyed by function index and code offset: category or kind, and an anchor (item path index, TIR instruction index); in a file that `hd build` writes, the anchor is resolved to a file index, line and column, plus a file table of package-relative paths (codegen.md §13.8, "Positions") | yes |
 | `hd.lines` | per function: sorted code offsets with an anchor each, for every statement that can call or trap; resolved to delta-encoded lines in a written file | yes |
@@ -353,11 +353,24 @@ stale line cannot survive.
 **Backtraces.** wasmtime's `WasmBacktrace` gives each frame's function
 index and module offset. V8's `Error.stack` gives
 `wasm-function[i]:0xOFF` frames. `hd_run` maps both through `hd.lines`,
-`hd.sites` and `hd.names` (or `name` in debug) to `file:line function`,
+`hd.sites` and `hd.names` (or `name` in the dev pipeline) to `file:line function`,
 and prints the panic's own site first: for an explicit panic, the frame
 that called the stub.
 Release builds keep these sections, so release backtraces are symbolized,
-as the first-release feature list asks.
+as the first-release feature list asks. They omit the standard `name`
+section (owner, 2026-10-07), so external tools such as browser devtools,
+`wasm-objdump` and native profilers show unnamed functions for a release
+module; a dev build keeps `name` for them.
+
+**Mapping must survive every Wasm-level pass (owner, 2026-10-07).**
+`hd.sites`, `hd.lines` and engine-trap mapping key on code offsets. So
+any pass that rewrites the code section after emission must carry the
+offsets through. LEB compaction already does, with its offset map
+(codegen.md §13.10, step 8). A Binaryen pass, if spike T2 adopts one,
+must round-trip them through a source map (`--input-source-map`,
+`--output-source-map`), or it does not run. The optimized pipeline's
+inliner records each inlined call site in `hd.lines`, a few bytes per
+site, so backtraces keep the inlined frames ([tiering.md §4](tiering.md#4-divergence-between-tiers)).
 
 **Browser devtools (mine).** The program worker builds a source map from
 `hd.lines` when the page asks for it, and serves it through a

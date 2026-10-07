@@ -74,7 +74,8 @@ target, so a slow `hd` fails fast instead of holding the run for minutes.
 | `fixit-safety` | the mistake corpus: errors after applying each offered fix-it | 100% add no new error code | no `fix` field, or no fix-it offered |
 | `lookup-latency` | 10k-line package: canned program-database queries `hd callers NAME` and `hd needs Http`, 10 runs each after a warm-up | p95 ≤ 100 ms each | a query whose `hd help COMMAND` fails |
 | `fmt` | `hd fmt` on a copy of the 10k-line package, then a second `hd fmt` | ≤ 200 ms; the second run changes nothing | no `hd fmt` |
-| `release-check-cost` | a checked-arithmetic loop run with `hd run` and `hd run --release` at two sizes; each profile's time is large minus small | debug ≤ 1.3x release | `hd help run` names no `--release` |
+| `check-cost` | a checked-arithmetic loop in the optimized pipeline with checks on (a test case run by `hd test --release`) and off (an executable run by `hd run --release`), at two sizes; each time is large minus small | checked ≤ 1.3x unchecked | `hd help test` names no `--release` |
+| `dev-speed` | the `runtime` micro cases as test cases in the test profile, run by `hd test` (dev pipeline) and `hd test --release` (optimized pipeline), at two sizes; each time is large minus small | dev ≤ 4x optimized, geomean; no case > 10x | `hd help test` names no `--release` |
 
 Notes on the choices:
 
@@ -84,10 +85,18 @@ Notes on the choices:
   agent needs to read: a 60-token diagnostic is about 240 bytes of text,
   and a JSON object about 2.5x its text. The owner may change them. A JSON
   object is measured as `JSON.stringify` writes it, compact.
-- **`release-check-cost`** uses an executable because the CLI gives
-  `hd test` no `--release` flag
-  ([`cli.profile.flag-only`](../../spec/cli/command-line.md#r-cli.profile.flag-only)).
-  Release work under 50 ms is within noise and fails.
+- **`check-cost` and `dev-speed`** replace `release-check-cost` (owner,
+  2026-10-07; [tiering.md](../../future-work/compiler/tiering.md)). The
+  profile (checked or wrapping) is observable; the pipeline (dev or
+  optimized) is not, and `hd test --release` pairs the test profile with
+  the optimized pipeline
+  ([`cli.profile.test.release`](../../spec/cli/command-line.md#r-cli.profile.test.release)).
+  `check-cost` prices the checks with the pipeline fixed; `dev-speed`
+  guards how slow dev code may run with the profile fixed. Work under
+  50 ms is within noise and fails. **Follow-up:** the script still
+  measures the old pair under its old name
+  ([`release-check-cost.ts`](scripts/release-check-cost.ts)); it needs
+  splitting into `check-cost.ts` and `dev-speed.ts`.
 - **`recheck-precision`** reads `modules_checked`, a number in the summary
   object of `hd check --format json`: the modules the run type-checked
   rather than reused. The CLI specification has no such field yet; the name
@@ -173,7 +182,7 @@ Notes on the choices:
 | `suspension-overhead` | a loop of `echo!(i)`, `all!` or `race!` of two ready tasks minus a loop of plain calls | ≤ 100 ns per await; ≥ 1M tasks/s | never |
 | `serde-throughput` | `std.json.encode` and `decode` of a 45 KB list of derived records, at 2 and 32 repeats, against Node's `JSON` | ≥ 0.5x Node's MB/s | never |
 | `text-throughput` | `StringBuilder` building, `split` and `Regex.find_all` over `word-I` text, at two sizes, against Node | ≥ 0.5x Node's MB/s | never |
-| `dead-code` | release size of the 1k and 10k generated packages with an executable that calls every module; a std-free program with and without unused `use` of 5 std modules | ≤ 10 KB per 1,000 lines; no unused std | never |
+| `dead-code` | release size of the 1k and 10k generated packages with an executable that calls every module; a std-free program with and without unused `use` of 5 std modules | re-based after spike S7 measures real section sizes (the script still gates ≤ 10 KB per 1,000 lines); no unused std | never |
 | `long-run-memory` | RSS of a simulated JSON service, sampled 30 times over 60 s (10 min with `--long`) | growth after the first quarter ≤ 10 MB | never |
 
 Notes on the choices:

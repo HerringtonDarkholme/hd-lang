@@ -6,11 +6,16 @@ Part of the [compiler design](README.md).
 
 ### 18.1 wasmtime Configuration
 
-| Setting | Debug and test | Release |
+The columns are the two pipelines of [tiering.md](tiering.md) (owner,
+2026-10-07). `hd run`, `hd test` and the REPL use the dev pipeline;
+`--release` selects the optimized one, also for `hd test --release`,
+which keeps the test profile's checks.
+
+| Setting | Dev pipeline | Optimized pipeline |
 | --- | --- | --- |
 | `wasm_gc`, `wasm_function_references` | on | on |
 | exceptions, threads, stack switching | off | off |
-| compiler | Cranelift; the level is provisional, pending the tiering design, with S4's numbers (§18.6) | Cranelift, `OptLevel::Speed` |
+| compiler | Cranelift `OptLevel::None` with the single-pass register allocator, if spike T1 confirms it; else the fallback of §18.6 | Cranelift, `OptLevel::Speed`, backtracking allocator |
 | collector | the default copying collector | same |
 | initial GC heap | `hd run`: from the profile, default 64 MiB, decided by E9; `hd test`: the pooling allocator's small per-slot heaps, sized by `unit-test-perf` (§18.3) | the same, from the profile |
 | `epoch_interruption` | on | on |
@@ -20,7 +25,7 @@ Part of the [compiler design](README.md).
 | allocation strategy | pooling (§18.3) | pooling for `hd test`; on-demand for one `hd run` |
 | parallel compilation | on, capped at the `--jobs` budget | same |
 
-Winch cannot be the debug tier: it supports no GC. Both tiers are
+Winch cannot be the dev tier: it supports no GC. Both pipelines use
 Cranelift, as the research found.
 
 ### 18.2 Compile Caches
@@ -99,25 +104,24 @@ Hot reload is Later. The emitter reserves its hook now
   the next build gives the same layouts the same Wasm types;
 - with the switch on, module storage globals are exported.
 
-The switch is off in the first release. Turning it on changes the tier
-part of `code_key` and nothing else.
+The switch is off in the first release. Turning it on changes the
+`pipeline_hash` part of `code_key` and nothing else.
 
 ### 18.6 Measured Choices
 
 These engine settings are decided by measurements, not here:
 
-- the debug tier's Cranelift level: **provisional, pending the tiering
-  design** (codegen.md §12.6; owner, 2026-10-07: fast dev builds with
-  poor code allowed). S4 of spike 0c gives the numbers. The two
-  representation studies proposed `Speed` by default: register
-  allocation dominates Cranelift's time at either level, so `None` is
-  expected to save only 10 to 25 percent, while its slower code eats the
-  1.3x `release-check-cost` budget that overflow checks already use.
-  Their rule was `None` only if it saves at least 25 percent of compile
-  CPU and debug stays within 1.3x release, and the single-pass register
-  allocator only if its runtime cost is at most 1.1x and it saves at
-  least 30 percent. Caching, stable numbering, packs and filtered test
-  programs are the latency levers in any tier;
+- the dev pipeline's Cranelift setting, by spike T1
+  ([tiering.md §7.2](tiering.md#72-spike-0c-additions); owner,
+  2026-10-07: fast dev builds with poor code allowed). The dev pipeline
+  uses `None` with the single-pass allocator if that saves at least 30
+  percent of Cranelift CPU, passes every runtime conformance case, and
+  keeps dev code within `dev-speed` (at most 4x the optimized pipeline,
+  geomean, no case over 10x). Else it uses `None` with the backtracking
+  allocator if that saves at least 10 percent; else `Speed`. The earlier
+  rule, that debug moves to `Speed` if it costs more than 1.3x release,
+  is retired with `release-check-cost`. Caching, stable numbering, packs
+  and filtered test programs remain the latency levers in any pipeline;
 - the initial GC heap of `hd run`: default 64 MiB, decided by E9.
   wasmtime's copying collector decides growth against the whole heap, so
   a long-lived set near the semi-space size is re-copied on every

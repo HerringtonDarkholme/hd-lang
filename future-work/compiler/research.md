@@ -51,7 +51,7 @@ high (I would bet on it), medium (likely, with a named risk), or low (a lean).
 | 13 | Instances live in a **content-addressed codegen cache** keyed by MIR hash and type arguments; a per-program link step patches relocations. | medium |
 | 14 | Suspension: **state machines with lazily materialized frames** (C#-style; no allocation on the ready path), hook points as MIR instructions that normal builds drop, and a poll-and-wake entry driver. | high (state machines), medium (lazy frames) |
 | 15 | Wasm GC values: exact struct types, `Option` as a nullable reference or a scalar pair, `Result` returned as values, enums as tagged subtype hierarchies, per-layout lists, UTF-8 strings as `(array i8)`, panics as traps with a site table, no Wasm exceptions. | medium-high |
-| 16 | **No Binaryen.** Emit binary with `wasm-encoder`; the optimizing tier is our own MIR passes; `wasm-opt` stays a Later option. | high |
+| 16 | **No Binaryen in the first pipeline.** Emit binary with `wasm-encoder`; the optimizing tier is our own passes. Binaryen in release builds is **decided after spike T2** (owner, 2026-10-07; [tiering.md §3.3](tiering.md#33-embedding-binaryen-or-not)). | high |
 | 17 | **wasmtime with Cranelift** for both tiers (Winch lacks GC); precompiled-module and per-function caches through `CacheStore`; epochs for time limits, a `ResourceLimiter` for the heap. | medium |
 | 18 | Host interface: a **hand-rolled core-Wasm ABI** shaped after WASI 0.3, structured values through one exchange buffer, start-and-poll async on both engines, JS glue generated from one description. The Component Model waits for GC support. | medium-high |
 | 19 | Native backend after v1: the MIR, layouts, state machines and host ABI carry over; Cranelift user stack maps; a first collector through MMTk. | low-medium |
@@ -1495,9 +1495,13 @@ per test without re-instantiating.
 `wasm-encoder` ([docs](https://docs.rs/wasm-encoder)), validate in debug
 builds of the compiler with `wasmparser`, and print WAT for the playground's
 view with `wasmprinter`. All three are small Rust crates. Do the
-optimizations that matter (Q11) in the MIR. Leave `wasm-opt` as the Later
-feature it already is in the triage. Dropping Binaryen alone frees most of
-the playground's 14.6 MB.
+optimizations that matter (Q11) in the MIR. Dropping Binaryen alone frees
+most of the playground's 14.6 MB.
+
+**Update (owner, 2026-10-07).** "No Binaryen" became "decided after spike
+T2" ([tiering.md](tiering.md), question 2). T2 measures what `wasm-opt`
+adds on top of the optimized pipeline. If it is adopted, it runs in
+native release builds only, never in the playground.
 
 ### Risks
 

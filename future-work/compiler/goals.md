@@ -126,8 +126,10 @@ Detailed design: [README.md](README.md)
 - Implementation of the new compiler runs one agent at a time.
 
 - Bounded inlining and scalar replacement of small non-escaping values are
-  in the first release, the same in debug and release builds, so the
-  `runtime` and `allocations` targets can be met.
+  in the first release, so the `runtime` and `allocations` targets can be
+  met. They run in the optimized pipeline only (superseded by the Tiers
+  decision above: "the same in debug and release builds" no longer
+  holds; both targets measure release artifacts).
 - Polymorphic recursion is a build error at the instantiation depth limit
   (`instantiation-too-deep`); there is no boxed fallback.
 - A derive template may call private helpers of its trait's module; the
@@ -257,7 +259,8 @@ here (owner, 2026-10-06).
 | `fixit-safety` | applying a fix-it (in a temp copy) never adds a new error | 100% |
 | `lookup-latency` | canned program-database queries (`hd callers`, `hd needs Http`) wall time; N/A until the program database ships (Later) | p95 ≤ 100 ms |
 | `fmt` | `hd fmt` time on the 10k-line package, and idempotence (if hd has a formatter) | ≤ 200 ms; idempotent |
-| `release-check-cost` | runtime cost of overflow and bounds checks: the same test suite in a debug vs a release build, since agents run tests in debug | debug ≤ 1.3x release |
+| `check-cost` | runtime cost of overflow and shift checks: the same suite in the optimized pipeline with checks on (`hd test --release`) vs off (the wrapping release profile) ([tiering.md](tiering.md), question 1) | checked ≤ 1.3x unchecked |
+| `dev-speed` | how slow dev-pipeline code runs: the same suite in one profile, dev pipeline vs optimized pipeline, so tests don't crawl | ≤ 4x geomean; no case > 10x |
 
 ### Pillar 2: Agent scalability (compiler CPU and memory)
 
@@ -293,7 +296,7 @@ toolchain helps make it correct.
 | `suspension-overhead` | cost per `!` await; `all!`/`race!` task throughput | budget per await; tasks/s target |
 | `serde-throughput` | JSON encode/decode MB/s on fixed documents | within 2x of Node's JSON |
 | `text-throughput` | string building, splitting and regex MB/s on fixed inputs | within 2x of Node |
-| `dead-code` | Wasm bytes per 1,000 lines; unused std excluded | budget per size; no unused std in the binary |
+| `dead-code` | Wasm bytes per 1,000 lines; unused std excluded | re-based after spike S7 measures real section sizes; no unused std in the binary |
 | `long-run-memory` | a simulated service for 10 minutes: heap over time; GC pause length (max and p99) and the p99 latency of its request loop (systems review, finding 10) | flat after warm-up; pause and p99 latency reported, gated once a budget is set |
 
 `proptest-perf`, `unit-test-perf` and `integration-test-perf` matter for
@@ -348,9 +351,9 @@ now.
 **v1:**
 
 - std checked in advance and built into the binary;
-- a fast debug tier (the first tier of tiered compilation): lightly
-  optimized, with cheap overflow and bounds checks, for `hd run` and
-  `hd test`;
+- a fast dev pipeline (the first tier of tiered compilation): almost no
+  hd passes and a fast Cranelift setting, with every overflow and bounds
+  check, for `hd run` and `hd test` ([tiering.md](tiering.md));
 - one diagnostic per root cause;
 - exact-edit fix-its and `hd fix`, which applies every safe fix-it in one
   command; did-you-mean, import and `let mut` hints;
@@ -376,8 +379,9 @@ now.
   diagnostics. Canned queries (`hd callers`, `hd needs Http`) sit on it.
   Day 1 hook: the engine keeps its facts queryable. The schema waits until
   the engine settles, because it becomes a public API.
-- **The optimizing tier** of tiered compilation (optimized Cranelift, later
-  LLVM). Day 1 hook: the IR boundary between tiers.
+- **LLVM** for the optimizing tier. The optimized pipeline itself (hd's
+  own passes, then Cranelift `Speed`) is in the first release
+  ([tiering.md](tiering.md)). Day 1 hook: the IR boundary between tiers.
 - **Module hot reload** (owner), for server and frontend programs. It needs
   a design pass after v1. Starting point, as Dart and the JVM ship: swap
   function bodies only, and restart on a signature or `data` layout

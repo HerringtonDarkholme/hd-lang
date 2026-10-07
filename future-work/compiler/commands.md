@@ -84,7 +84,7 @@ fingerprint would rerun every unit test after any edit, so the
 fingerprint is per group:
 
 ```text
-group_fp(g) = H("affected", toolchain_key, tier, profile, test options,
+group_fp(g) = H("affected", toolchain_key, pipeline_hash, profile, test options,
                 the overlay's TIR content hash for g's module (or g's file),
                 sorted [(module path, tir_content_hash)] of the modules g's
                 cases and init reach in the use graph)
@@ -233,7 +233,8 @@ Continuing D1's §7.3 at step 4:
 
 ### 20.2 `hd run` And `hd FILE`
 
-1. Check (D1 §7.5), build the program in the debug or release tier, and
+1. Check (D1 §7.5), build the program in the dev pipeline, or with `--release` in the
+   optimized pipeline and the release profile, and
    load its `cwasm` entry.
 2. Read the import list; refuse a totally denied need with status 101.
 3. Instantiate with the default profile's providers and the grant.
