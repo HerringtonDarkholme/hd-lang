@@ -7,6 +7,8 @@ use std.host.Args
 
 # A command line's declared arguments (r-std-cli.cli.decl). Each builder
 # method returns a new `Cli` with one more declaration, in order.
+## The declaration of a command line: its program name, flags, options, and positionals.
+## See [std-cli.cli.decl](../../spec/std/cli.md#r-std-cli.cli.decl).
 pub data Cli:
     program: string
     options: List[CliOption]
@@ -25,15 +27,23 @@ data CliPositional:
     help: string
 
 impl Cli:
+    ## Starts the declaration of a command line whose program is `program`.
+    ## See [std-cli.cli.new](../../spec/std/cli.md#r-std-cli.cli.new).
     pub fn new(program: string) -> Cli:
         Cli { program: program, options: [], positionals: [] }
 
+    ## Declares a flag: a long form `--name`, and a short form `-c` when `short` is `.Some`.
+    ## See [std-cli.cli.flag](../../spec/std/cli.md#r-std-cli.cli.flag).
     pub fn flag(self, name: string, short: char?, help: string) -> Cli:
         self.with_option(CliOption { name: name, short: short, takes_value: false, help: help })
 
+    ## Declares an option, which takes a value: a long form `--name`, and a short form `-c` when `short` is `.Some`.
+    ## See [std-cli.cli.option](../../spec/std/cli.md#r-std-cli.cli.option).
     pub fn option(self, name: string, short: char?, help: string) -> Cli:
         self.with_option(CliOption { name: name, short: short, takes_value: true, help: help })
 
+    ## Declares a positional argument, which a later positional follows.
+    ## See [std-cli.cli.positional](../../spec/std/cli.md#r-std-cli.cli.positional).
     pub fn positional(self, name: string, help: string) -> Cli:
         for declared in self.positionals:
             if declared.name == name:
@@ -61,6 +71,8 @@ impl Cli:
 
     # Reads `arguments` from left to right (spec/std/cli.md#parsing). The
     # first error in that order wins; a missing positional is found last.
+    ## Parses `arguments` against the declaration, or returns the first error.
+    ## See [std-cli.parse.decl](../../spec/std/cli.md#r-std-cli.parse.decl).
     pub fn parse(self, arguments: List[string]) -> Result[Parsed, CliError]:
         let flags: mut List[string] = []
         let values: mut Map[string, string] = {}
@@ -106,6 +118,8 @@ impl Cli:
         .Ok(Parsed { flags: flags, values: values, positionals: positionals })
 
     # `parse` over the program's arguments (r-std-cli.parse-args).
+    ## Parses the process's own arguments, without the program name.
+    ## See [std-cli.parse-args](../../spec/std/cli.md#r-std-cli.parse-args).
     pub fn parse_args(self) -> Result[Parsed, CliError] $ Args:
         self.parse($.use(Args).list())
 
@@ -124,6 +138,8 @@ impl Cli:
     # The help text (spec/std/cli.md#usage-text): a usage line, then an
     # `arguments:` and an `options:` section, each entry's help in one
     # column.
+    ## The command line's usage text: its forms and its entries with their help.
+    ## See [std-cli.usage.decl](../../spec/std/cli.md#r-std-cli.usage.decl).
     pub fn usage(self) -> string:
         let text = "usage: ${self.program}"
         if self.options.len() > 0:
@@ -165,15 +181,27 @@ fn entry(term: string, help: string, width: usize) -> string:
     "  ${term.pad_end(width, ' ')}  ${help}"
 
 # What `parse` read (r-std-cli.parsed.decl).
+## What a successful parse returns: the flags present, the option values, and the positional arguments.
+## See [std-cli.parsed.decl](../../spec/std/cli.md#r-std-cli.parsed.decl).
 pub data Parsed:
+    ## The names of the flags present, in argument order.
+    ## See [std-cli.parsed.flags](../../spec/std/cli.md#r-std-cli.parsed.flags).
     pub flags: List[string]
+    ## The options' values by name; a repeated option keeps its last value.
+    ## See [std-cli.parsed.values](../../spec/std/cli.md#r-std-cli.parsed.values).
     pub values: Map[string, string]
+    ## The positional arguments, in argument order.
+    ## See [std-cli.parsed.positionals](../../spec/std/cli.md#r-std-cli.parsed.positionals).
     pub positionals: List[string]
 
 impl Parsed:
+    ## True when the flag `name` was present.
+    ## See [std-cli.parsed.flag](../../spec/std/cli.md#r-std-cli.parsed.flag).
     pub fn flag(self, name: string) -> bool:
         self.flags.contains(name)
 
+    ## The value of the option `name`, in `.Some`, or `.None` when it was absent.
+    ## See [std-cli.parsed.value](../../spec/std/cli.md#r-std-cli.parsed.value).
     pub fn value(self, name: string) -> string?:
         self.values.get(name)
 
@@ -182,6 +210,8 @@ impl Eq for Parsed:
         self.flags == other.flags && self.values == other.values && self.positionals == other.positionals
 
 # Why `parse` failed (r-std-cli.error.decl).
+## Why parsing failed: an unknown or repeated argument, a missing value or positional, an unexpected value, or a help request.
+## See [std-cli.error.decl](../../spec/std/cli.md#r-std-cli.error.decl).
 pub enum CliError:
     UnknownOption(text: string)
     MissingValue(name: string)
