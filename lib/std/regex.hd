@@ -9,6 +9,8 @@ use std.error.Error
 
 # A compiled pattern (r-std-regex.regex.decl). `names[i]` is the name of
 # group i, or "" for an unnamed group and for group 0.
+## A compiled regular expression: immutable, and every match runs in time linear in the text.
+## See [std-regex.regex.decl](../../spec/std/regex.md#r-std-regex.regex.decl).
 pub data Regex:
     text: string
     program: List[Inst]
@@ -16,12 +18,22 @@ pub data Regex:
 
 # Where a match is: byte offsets into the searched text, and its text
 # (r-std-regex.match.decl).
+## One match of a regex in a text.
+## See [std-regex.match.decl](../../spec/std/regex.md#r-std-regex.match.decl).
 pub data Match:
+    ## The byte offset where the match starts.
+    ## See [std-regex.match.offsets](../../spec/std/regex.md#r-std-regex.match.offsets).
     pub start: usize
+    ## The byte offset one past the match's end.
+    ## See [std-regex.match.offsets](../../spec/std/regex.md#r-std-regex.match.offsets).
     pub end: usize
+    ## The matched text.
+    ## See [std-regex.match.text](../../spec/std/regex.md#r-std-regex.match.text).
     pub text: string
 
 # Why a pattern does not compile (r-std-regex.error.declared).
+## Which kind of error a pattern holds.
+## See [std-regex.error.declared](../../spec/std/regex.md#r-std-regex.error.declared).
 pub enum RegexErrorKind:
     MissingParen
     UnmatchedParen
@@ -39,16 +51,26 @@ pub enum RegexErrorKind:
 # (r-std-regex.error.position).
 # The groups of one match (r-std-regex.captures.decl): two optional byte
 # offsets per group; `.None` means that the group took no part.
+## The capture groups of one match: group 0 is the whole match.
+## See [std-regex.captures.decl](../../spec/std/regex.md#r-std-regex.captures.decl).
 pub data Captures:
     text: string
     slots: List[usize?]
     names: List[string]
 
+## Why a pattern failed to compile: the kind, and the byte position.
+## See [std-regex.error.declared](../../spec/std/regex.md#r-std-regex.error.declared).
 pub data RegexError:
+    ## Which kind of error the pattern holds.
+    ## See [std-regex.error.declared](../../spec/std/regex.md#r-std-regex.error.declared).
     pub kind: RegexErrorKind
+    ## The byte offset of the error in the pattern.
+    ## See [std-regex.error.position](../../spec/std/regex.md#r-std-regex.error.position).
     pub position: usize
 
 impl Regex:
+    ## Compiles `pattern`, or returns the first error it holds.
+    ## See [std-regex.regex.new](../../spec/std/regex.md#r-std-regex.regex.new).
     pub fn new(pattern: string) -> Result[Regex, RegexError]:
         source := Pattern::of(pattern)
         let names: mut List[string] = [""]
@@ -63,15 +85,21 @@ impl Regex:
         .Ok(Regex { text: pattern, program: program, names: names })
 
     # The pattern as written.
+    ## The pattern the regex was compiled from.
+    ## See [std-regex.regex.pattern](../../spec/std/regex.md#r-std-regex.regex.pattern).
     pub fn pattern(self) -> string:
         self.text
 
     # Whether some part of `text` matches (r-std-regex.is-match).
+    ## True when the regex matches anywhere in `text`.
+    ## See [std-regex.is-match](../../spec/std/regex.md#r-std-regex.is-match).
     pub fn is_match(self, text: string) -> bool:
         self.find(text).is_some()
 
     # The leftmost match, and among those that start there, the one the
     # pattern prefers (r-std-regex.find.leftmost-first).
+    ## The leftmost match in `text`; of several starting there, the first the pattern's alternation order prefers.
+    ## See [std-regex.find](../../spec/std/regex.md#r-std-regex.find).
     pub fn find(self, text: string) -> Match?:
         hay := Haystack::of(text)
         match run(self.program, hay, 0, 2):
@@ -79,6 +107,8 @@ impl Regex:
             .None => .None
 
     # Every match, left to right, none overlapping (r-std-regex.find-all).
+    ## Every non-overlapping match in `text`, from left to right.
+    ## See [std-regex.find-all](../../spec/std/regex.md#r-std-regex.find-all).
     pub fn find_all(self, text: string) -> List[Match]:
         hay := Haystack::of(text)
         let found: mut List[Match] = []
@@ -87,6 +117,8 @@ impl Regex:
         found
 
     # The groups of the first match (r-std-regex.captures).
+    ## The capture groups of the leftmost match, or `.None`.
+    ## See [std-regex.captures](../../spec/std/regex.md#r-std-regex.captures).
     pub fn captures(self, text: string) -> Captures?:
         hay := Haystack::of(text)
         match run(self.program, hay, 0, self.slot_count()):
@@ -95,6 +127,8 @@ impl Regex:
 
     # The groups of each match that `find_all` returns
     # (r-std-regex.captures-all).
+    ## The capture groups of every non-overlapping match, from left to right.
+    ## See [std-regex.captures-all](../../spec/std/regex.md#r-std-regex.captures-all).
     pub fn captures_all(self, text: string) -> List[Captures]:
         hay := Haystack::of(text)
         let found: mut List[Captures] = []
@@ -103,6 +137,8 @@ impl Regex:
         found
 
     # `text` with its first match replaced (r-std-regex.replace).
+    ## The text with its leftmost match replaced by `replacement`, whose `$` forms expand groups.
+    ## See [std-regex.replace](../../spec/std/regex.md#r-std-regex.replace).
     pub fn replace(self, text: string, replacement: string) -> string:
         hay := Haystack::of(text)
         match run(self.program, hay, 0, self.slot_count()):
@@ -116,6 +152,8 @@ impl Regex:
 
     # `text` with each match that `find_all` returns replaced
     # (r-std-regex.replace-all).
+    ## The text with every non-overlapping match replaced by `replacement`, whose `$` forms expand groups.
+    ## See [std-regex.replace-all](../../spec/std/regex.md#r-std-regex.replace-all).
     pub fn replace_all(self, text: string, replacement: string) -> string:
         hay := Haystack::of(text)
         template := Pattern::of(replacement)
@@ -134,6 +172,8 @@ impl Regex:
 
     # The pieces of `text` around each match that `find_all` returns
     # (r-std-regex.split).
+    ## The text's pieces between the matches, in order.
+    ## See [std-regex.split](../../spec/std/regex.md#r-std-regex.split).
     pub fn split(self, text: string) -> List[string]:
         hay := Haystack::of(text)
         let pieces: mut List[string] = []
@@ -158,11 +198,15 @@ fn matched(slots: List[usize?], index: usize) -> usize:
 impl Captures:
     # The number of groups, plus one for the whole match
     # (r-std-regex.captures.len).
+    ## The number of capture groups, the whole match included.
+    ## See [std-regex.captures.len](../../spec/std/regex.md#r-std-regex.captures.len).
     pub fn len(self) -> usize:
         self.names.len()
 
     # Group `index`, or `.None` when it took no part
     # (r-std-regex.captures.get).
+    ## The match of group `index`, or `.None` when it took no part or is out of range.
+    ## See [std-regex.captures.get](../../spec/std/regex.md#r-std-regex.captures.get).
     pub fn get(self, index: usize) -> Match?:
         if index >= self.names.len():
             return .None
@@ -174,6 +218,8 @@ impl Captures:
                     .Some(end) => .Some(Match { start: start, end: end, text: self.text.slice(start, end) })
 
     # The group named `name` (r-std-regex.captures.name).
+    ## The match of the group named `name`, or `.None` when there is no such group or it took no part.
+    ## See [std-regex.captures.name](../../spec/std/regex.md#r-std-regex.captures.name).
     pub fn name(self, name: string) -> Match?:
         if name == "":
             return .None
