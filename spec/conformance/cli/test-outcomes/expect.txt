@@ -11,3 +11,7 @@ stdout: card declined: limit
 stdout: src/lib.hd: test "fails when the expected panic never comes" expecting panic index-out-of-bounds
 stdout: src/lib.hd: 2 passed, 4 failed
 stderr: src/lib.hd:33:9: explicit-panic: not an index error
+run: hd test --format json --filter body
+stdout-json: [{"kind":"test","name":"passes when the body completes","outcome":"passed"},{"kind":"summary","passed":1,"failed":0,"status":0}]
+run: hd test --format json --filter absent
+stdout-json: [{"kind":"summary","passed":0,"failed":0,"status":0}]

@@ -1,0 +1,41 @@
+run: hd --help
+stdout: usage: hd COMMAND [FLAGS] [ARGS]
+stdout:
+stdout: commands:
+stdout:   FILE       run FILE as a single-file program, which may use only std
+stdout:   FILE.wasm  run a module that hd build wrote
+stdout:   build      build the package's executables, or the module of one FILE in the package
+stdout:   run        run the package's executable, or the executable or task named NAME
+stdout:   test       run the test cases of the package, or of FILE
+stdout:   check      type-check the package, or FILE, without running it
+stdout:   new        create a package in PATH, or in the current directory
+stdout:   add        require the dependency NAME at PATH@VERSION, fetch it, and record its hash
+stdout:   update     move dependencies to the newest release on their compatibility line
+stdout:   remove     delete the dependency NAME and its hd.sum entries
+stdout:   fetch      fetch every selected dependency version the cache lacks, as CI does
+stdout:   clean      remove the package's build directory, or with --cache the dependency cache
+stdout:   explain    print what the specification says about a diagnostic code
+stdout:   doc        print a symbol's definition, documentation, and members
+stdout:   def        print where a symbol is defined, with its signature
+stdout:   repl       start an interactive session
+stdout:   debug      print internal compiler output: parse, hir
+stdout:   help       print the commands, or one command's flags
+stdout:
+stdout: global flag:
+stdout:   --format FORMAT  print diagnostics as text (the default) or as JSON lines
+stdout:
+stdout: Run 'hd help COMMAND' for a command's flags.
+run: hd help run
+stdout: usage: hd run [--release] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]
+stdout:
+stdout: Run the package's executable, or the executable or task named NAME.
+stdout:
+stdout: The package is the one whose hd.toml is nearest above the current directory; at a workspace root, every member.
+stdout: Without NAME, the package must have exactly one executable: src/main.hd, or
+stdout: one [[executable]] table of hd.toml. Words after -- are the program's arguments.
+stdout:
+stdout: flags:
+stdout:   --release           build for release: integer overflow wraps instead of panicking
+stdout:   -p, --package NAME  act on the workspace member NAME only; may be repeated
+stdout:   --cap NAME=VALUE    grant the capability NAME: true, false, or a comma-separated list, as in Http=api.example.com
+stdout:   --format FORMAT     print diagnostics as text (the default) or as JSON lines

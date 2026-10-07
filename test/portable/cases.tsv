@@ -2310,6 +2310,7 @@ cli/json-test-fail	cli
 cli/json-test-ignored	cli
 cli/json-test-order	cli
 cli/exit-usage-error	cli
+cli/command-help	cli
 typing/valid/literal-first-use-while-len.hd	type
 typing/valid/literal-first-use-float-argument.hd	type
 typing/invalid/literal-first-use-conflict.hd	type

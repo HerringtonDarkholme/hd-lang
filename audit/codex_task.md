@@ -81,13 +81,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q2. Fixtures: CLI Cases (37%)
-
-The same for `cli/command-line.md` through `spec/conformance/cli-cases.tsv`
-and `spec/conformance/cli/`. Read how existing CLI cases are written
-first. Skip rules marked Later or about the new compiler's cache
-internals. Timebox 45 minutes; push.
-
 ### Q3. Spec Fixes From The Fixture Passes
 
 Small spec text fixes, one commit, in `spec/lang/02-grammar.md` and
