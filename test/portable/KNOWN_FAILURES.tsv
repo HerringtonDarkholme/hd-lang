@@ -30,3 +30,4 @@ cli/json-check-modules-checked	the summary of `hd check --format json` has no `m
 cli/json-diagnostic-fixes	`fixes` is [] for unlisted-entry, whose fix-it the prototype puts only in the message (cli.exe.main-unlisted); its other fix-its' edits hold `span` and `replacement`, not `file`, `start`, `end`, and `text` (cli.json.fix.edit)	S1B
 cli/fmt-check	the prototype has no `hd fmt`: it exits 101 with an unknown command (cli.fmt.package, cli.fmt.check)	S1B
 cli/fmt-syntax-error	the prototype has no `hd fmt`: it exits 101 with an unknown command, so `hd fmt --check src/util.hd` fails too (cli.fmt.syntax-error)	S1B
+typing/invalid/template-helper-missing-result.hd	check exits 0: the prototype applies no public signature rules to a private helper that a template names (module.package.template-helper.result)	S1C

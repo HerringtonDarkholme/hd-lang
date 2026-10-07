@@ -359,7 +359,7 @@ variants. It does not detect reference cycles, so comparison may exhaust the
 stack when it repeatedly traverses one.
 Derived ordering compares data fields in declaration order. Enum variants
 compare by declaration order before their shared data and payload fields.
-Derived `Hash` hashes every declared data field, or the enum variant identity
+Derived `Hash` hashes every declared data field, or the enum variant
 followed by its shared data and payload fields. Each such field needs `Hash`;
 `Eq & Hash` lets a user-defined type serve as a map key. This holds for a
 payload-free enum too: it gets no automatic `Eq` or `Hash`, although `is`
@@ -1465,8 +1465,8 @@ impl Describe for Fn[(i32,), i32, $()]:
         "integer step"
 ```
 
-Function values have no `Eq`, and their identity is unspecified, so `==` and a
-direct `is` on them are errors.
+Function values have no `Eq` and no identity, so `==` and `is` on them are
+errors.
 
 When a function's final parameter is a zero-argument callback, an indented trailing block can supply it without writing `fn()` or its return type:
 
@@ -2227,7 +2227,7 @@ fn preserve[T < Any](value: T) -> T:
     value
 ```
 
-`Any` has two sealed subtraits, and every value type implements exactly one. `AnyVal` covers the values without identity: primitives, `string`, and tuples. `AnyRef` covers the values with identity: data, enums, lists, maps, function values (whose identity is unspecified), and trait values. `is` on a type parameter needs `T < AnyRef`:
+`Any` has two sealed subtraits, and every value type implements exactly one. `AnyVal` covers the values without identity: primitives, `string`, tuples, enums (optionals and `Result` included), and function values. `AnyRef` covers the values with identity: data, lists, maps, and trait values. `is` on a type parameter needs `T < AnyRef`:
 
 ```text
 fn same[T < AnyRef](left: T, right: T) -> bool:

@@ -1,0 +1,28 @@
+# test: a private function that a template body names follows the public signature rules, so it must declare its result type
+# Spec 10 Fully Annotated Declarations: module.package.template-helper, module.package.template-helper.result.
+use std.structure.{Structure, Field, Variant, Describer}
+
+trait Named:
+    fn title() -> string
+
+data MemberCount:
+    count: i32
+
+impl[S] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.count = self.count + 1
+        .Ok(())
+
+fn titled(name: string, count: i32):  # diagnostic: missing-result-type
+    "The ${name}/${count}"
+
+impl[T] Named for T by Structure:
+    fn title() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        titled(Structure::name(), d.count)

@@ -2745,3 +2745,4 @@ typing/invalid/function-anyref-bound.hd	type	reject:unsatisfied-trait-bound	lang
 typing/valid/error-value-newtype.hd	type	accept	lang/09-traits.md#r-trait.error.value-types
 typing/valid/generic-method-dynamically-safe.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 typing/invalid/optional-identity.hd	type	reject:identity-requires-references	lang/04-type-system.md#r-types.option.identity-error
+typing/invalid/template-helper-missing-result.hd	type	reject:missing-result-type	lang/10-modules.md#r-module.package.template-helper.result
