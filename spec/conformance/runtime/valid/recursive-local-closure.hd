@@ -1,4 +1,9 @@
 # test: explicitly typed local closures recurse through their current environment
+# Spec 07 Recursive Closures: fn.recursion.closure.no-self-name,
+# fn.recursion.closure.binding, fn.recursion.closure.result,
+# fn.recursion.closure.parameters, fn.recursion.closure.check,
+# fn.recursion.closure.outer, fn.recursion.closure.ordinary-binding,
+# fn.recursion.closure.initialized.
 
 use std.testing.assert_equal
 

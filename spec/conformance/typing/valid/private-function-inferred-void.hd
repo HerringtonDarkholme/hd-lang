@@ -1,4 +1,6 @@
 # test: functions / declarations / omitted result with no value is void
+# Spec 07 Result Inference: fn.decl.result-inferred,
+# fn.decl.result-inferred.void, fn.body.void-final.
 
 fn note(value: i32):
     _ := value

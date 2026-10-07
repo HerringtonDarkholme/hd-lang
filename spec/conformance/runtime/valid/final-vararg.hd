@@ -1,3 +1,5 @@
+# Spec 07 Varargs: fn.vararg.form, fn.vararg.type, fn.vararg.collect,
+# fn.vararg.collect.list, fn.vararg.final, fn.vararg.named.
 use std.testing.assert_equal
 
 fn scaled(factor: i32, values...: List[i32]) -> i32:

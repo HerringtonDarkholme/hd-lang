@@ -1,4 +1,6 @@
 # test: callbacks / function values
+# Spec 07 Function Values: fn.type.values, fn.type.form, fn.type.positional,
+# fn.type.parts, fn.type.no-permission, fn.type.named-value.
 
 use std.testing.assert_equal
 

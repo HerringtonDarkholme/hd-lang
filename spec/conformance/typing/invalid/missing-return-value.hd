@@ -1,3 +1,5 @@
+# Spec 07 Function Bodies: fn.body.early-return, fn.body.paths,
+# fn.body.value-less-fallthrough.
 fn invalid(flag: bool) -> i32:
     if flag:  # diagnostic: missing-return-value
         return 1

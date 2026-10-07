@@ -1,4 +1,6 @@
 # test: functions / declarations / private function infers its result
+# Spec 07 Result Inference: fn.decl.result-inferred,
+# fn.decl.result-inferred.common, fn.body.final-value, fn.body.paths.
 
 use std.testing.assert_equal
 

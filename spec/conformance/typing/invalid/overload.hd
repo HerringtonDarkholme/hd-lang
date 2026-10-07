@@ -1,3 +1,4 @@
 # Spec 03 Module Names: names.module.unique, names.module.no-overloading.
+# Spec 07 Function Names: fn.name.unique, fn.name.no-overloading.
 fn value(input: i32) -> i32: input
 fn value(input: string) -> string: input  # diagnostic: duplicate-module-name

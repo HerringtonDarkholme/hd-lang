@@ -1,4 +1,5 @@
 # test: a final function-typed parameter may follow defaulted parameters
+# Spec 07 Defaults: fn.default.order-final-function.
 # Spec 07 Default Values: a trailing block or a named argument supplies the final parameter.
 fn retry(times: i32, backoff: i32 = 100, body: fn() -> void) -> void:
     body()

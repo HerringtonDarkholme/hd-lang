@@ -1,4 +1,5 @@
 # test: closures / captures
+# Spec 07 Captures: fn.capture.access.
 
 use std.testing.assert_equal
 

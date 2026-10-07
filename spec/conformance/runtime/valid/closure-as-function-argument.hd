@@ -1,4 +1,6 @@
 # test: closure as function argument
+# Spec 07 Closures: fn.closure.form, fn.closure.one-line,
+# fn.closure.monomorphic, fn.closure.result-expected.
 
 use std.testing.assert_equal
 

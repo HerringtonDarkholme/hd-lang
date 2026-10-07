@@ -1,4 +1,6 @@
 # test: suspending parameter default
+# Spec 07 Defaults: fn.default.requirement-free,
+# fn.default.requirement-free.calls, fn.default.suspends.
 
 fn wait!() -> i32: 1
 fn bad(value: i32 = wait!()) -> i32: value  # diagnostic: suspension-forbidden-context

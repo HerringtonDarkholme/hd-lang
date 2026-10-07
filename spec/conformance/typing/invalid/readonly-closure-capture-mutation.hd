@@ -1,4 +1,5 @@
 # test: a closure body cannot reassign a field through a captured readonly root
+# Spec 07 Captures: fn.capture.access, fn.capture.readonly.
 data User:
     name: string
 

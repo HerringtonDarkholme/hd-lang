@@ -1,4 +1,6 @@
 # test: function parameter defaults evaluate after explicit arguments
+# Spec 07 Defaults: fn.default.allowed, fn.default.omit, fn.default.eval,
+# fn.default.scope.
 
 use std.testing.assert_equal
 

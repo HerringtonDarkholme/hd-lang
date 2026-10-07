@@ -1,4 +1,5 @@
 # test: return inside a trailing block returns from the generated callback, not the enclosing function
+# Spec 07 Trailing Blocks: fn.trailing.return.
 # Spec 07 Trailing Callback Blocks: "`return` inside the block returns from the generated callback, not
 # from the enclosing function."
 use std.testing.assert_equal

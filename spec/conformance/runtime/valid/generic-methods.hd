@@ -1,4 +1,8 @@
 # test: generic methods
+# Spec 07 Generic Functions: fn.generic.parameters, fn.generic.bounds-and,
+# fn.generic.call-list, fn.generic.call-marker, fn.generic.methods,
+# fn.generic.qualified, fn.generic.qualified.member-list,
+# fn.generic.method-inference.
 
 use std.testing.assert_equal
 

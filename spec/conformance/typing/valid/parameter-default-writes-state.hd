@@ -1,3 +1,4 @@
+# Spec 07 Defaults: fn.default.effects.
 let sequence = +0
 
 fn next() -> i32:

@@ -1,5 +1,7 @@
 # test: after use std.text, text.StringBuilder::new() calls the associated function of the module's type
-# Spec Functions, Methods: fn.method.associated; the Type of Type::function(...) is a qualified name, here selected through a module namespace.
+# Spec Functions, Methods: fn.method.associated, fn.generic.qualified;
+# the Type of Type::function(...) is a
+# qualified name, here selected through a module namespace.
 use std.testing.assert_equal
 use std.text
 

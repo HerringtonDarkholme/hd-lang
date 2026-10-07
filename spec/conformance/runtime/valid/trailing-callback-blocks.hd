@@ -1,4 +1,7 @@
 # test: callbacks / trailing
+# Spec 07 Trailing Blocks: fn.trailing.form, fn.trailing.arguments,
+# fn.trailing.empty-parentheses, fn.trailing.closure, fn.trailing.position,
+# fn.trailing.parameterized.
 
 use std.testing.assert_equal
 

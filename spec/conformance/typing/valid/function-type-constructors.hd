@@ -1,4 +1,7 @@
 # test: the spelled constructors Fn and SuspendFn name the same types as the fn sugar
+# Spec 07 Function Type Constructors: fn.type.ctor.decl, fn.type.ctor.inputs,
+# fn.type.ctor.no-flatten, fn.type.ctor.row, fn.type.ctor.anywhere,
+# fn.type.ctor.imports.
 use std.function.{Fn, SuspendFn}
 
 trait Database

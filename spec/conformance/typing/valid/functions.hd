@@ -1,3 +1,12 @@
+# Spec 07 Declarations And Calls: fn.kind.ordinary, fn.decl.suspending,
+# fn.decl.requirements, fn.decl.parameter-types, fn.decl.row-omitted,
+# fn.decl.suspension-not-inferred, fn.body.final-value, fn.param.init-order,
+# fn.param.access, fn.param.primitive, fn.param.composite, fn.arg.mix,
+# fn.arg.positional-first, fn.arg.labels, fn.default.allowed,
+# fn.default.omit, fn.vararg.form,
+# fn.vararg.type, fn.vararg.collect, fn.vararg.collect.list, fn.vararg.final,
+# fn.type.values, fn.type.form, fn.type.positional,
+# fn.generic.parameters, fn.generic.call-list, fn.generic.call-marker.
 data User:
     name: string
 

@@ -1,4 +1,6 @@
 # test: a parameter default must not call a function with a requirement row
+# Spec 07 Defaults: fn.default.requirement-free,
+# fn.default.requirement-free.calls, fn.default.provider.
 
 trait Clock:
     fn now(self) -> i32
