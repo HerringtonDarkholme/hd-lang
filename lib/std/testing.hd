@@ -25,6 +25,8 @@ use std.path.Path
 # capabilities for the body that the compiler gives an `it_each`, `it_prop`,
 # or `it_prop_with` test case or a `timeout` option, never for the test
 # body itself (src/test-runner.ts).
+## The host capability of the test runner: it reports the run and answers the checks of a test case.
+## See [std-testing.runner.declares](../../spec/std/testing.md#r-std-testing.runner.declares).
 pub trait TestRunner:
     # The table has `count` rows; the index of the row this case runs.
     fn row(mut self, count: usize) -> usize
@@ -40,14 +42,26 @@ pub trait TestRunner:
 
 # What a property runner's `start` returns for one case
 # (r-std-testing.runner.case-type).
+## What a property runner's `start` returns for one case.
+## See [std-testing.runner.case-type](../../spec/std/testing.md#r-std-testing.runner.case-type).
 pub data PropertyCase:
+    ## The index of the example that the case runs, or `.None` for a generated case.
+    ## See [std-testing.runner.case.example](../../spec/std/testing.md#r-std-testing.runner.case.example).
     pub example: usize?
+    ## The seed of the case's fresh draws.
+    ## See [std-testing.runner.case.seed](../../spec/std/testing.md#r-std-testing.runner.case.seed).
     pub seed: i64
+    ## How far the case's fresh draws reach, which grows from case to case.
+    ## See [std-testing.runner.case.size](../../spec/std/testing.md#r-std-testing.runner.case.size).
     pub size: i32
+    ## The recorded draws that the case replays or shrinks, in order; empty for a fresh case.
+    ## See [std-testing.runner.case.replay](../../spec/std/testing.md#r-std-testing.runner.case.replay).
     pub replay: List[i64]
 
 # The property runner records and shrinks each case's draws
 # (src/property-tests.ts); `Choices` replays them.
+## The host capability of a property runner: it records and shrinks each case's draws.
+## See [std-testing.runner.declares](../../spec/std/testing.md#r-std-testing.runner.declares).
 pub trait PropertyRunner:
     # Reports the caps and the example count, and returns the case to run
     # (r-std-testing.runner.start-case). Once every example has run, the
@@ -72,6 +86,8 @@ pub trait PropertyRunner:
 # the draw budget, every member returns its simplest value without drawing
 # (spec/std/testing.md#draw-budget). The fresh draws of the first generated
 # cases take edge values (spec/std/testing.md#edge-values).
+## The source of one case's drawn values, which the runner records so it can replay and shrink the case.
+## See [std-testing.choices.declare](../../spec/std/testing.md#r-std-testing.choices.declare).
 pub data Choices:
     runner: mut PropertyRunner
     random: mut Random
@@ -152,6 +168,8 @@ impl Choices:
         if self.next(1) == 0: self.between(lo, -1) else: self.between(0, hi)
 
     # An integer from `lo` to `hi`; the simplest is 0, or the bound nearest 0.
+    ## Draws an integer from `lo` to `hi`.
+    ## See [std-testing.choices.int-generic](../../spec/std/testing.md#r-std-testing.choices.int-generic).
     pub fn int[N < Integer](mut self, lo: N, hi: N) -> N:
         if hi <= lo:
             return lo
@@ -162,6 +180,8 @@ impl Choices:
 
     # A finite float from `lo` to `hi`; the simplest is 0.0, or the bound
     # nearest 0.0.
+    ## Draws a finite float from `lo` to `hi`.
+    ## See [std-testing.choices.float-generic](../../spec/std/testing.md#r-std-testing.choices.float-generic).
     pub fn float[F < Float](mut self, lo: F, hi: F) -> F:
         if !(lo < hi):
             return lo
@@ -173,6 +193,8 @@ impl Choices:
         value := lo * (F::one() - t) + hi * t
         if value < lo: lo else if value > hi: hi else: value
 
+    ## Draws a `bool`.
+    ## See [std-testing.choices.bool](../../spec/std/testing.md#r-std-testing.choices.bool).
     pub fn bool(mut self) -> bool:
         if self.spent():
             return false
@@ -180,6 +202,8 @@ impl Choices:
 
     # One of `items`; earlier items shrink first, and the simplest is the first.
     # An empty list panics (r-std-testing.choices.choose.empty).
+    ## Draws one of `items`; earlier items shrink first.
+    ## See [std-testing.choices.choose](../../spec/std/testing.md#r-std-testing.choices.choose).
     pub fn choose[T](mut self, items: List[T]) -> T:
         if items.len() == 0:
             panic("Choices.choose: no items to choose from")
@@ -187,6 +211,8 @@ impl Choices:
             return items[0]
         items[usize(self.next(i64(items.len() - 1)))]
 
+    ## Draws at most `max` items, each drawn by `item`.
+    ## See [std-testing.choices.list-max](../../spec/std/testing.md#r-std-testing.choices.list-max).
     pub fn list[T](mut self, max: usize, item: fn(mut Choices) -> T) -> List[T]:
         let items: mut List[T] = []
         if self.spent():
@@ -198,6 +224,8 @@ impl Choices:
 
     # At most `max` entries, each key drawn before its value. A key drawn
     # again keeps the later value (r-std-testing.choices.map.duplicate).
+    ## Draws at most `max` entries, each key drawn by `key` and its value by `value`.
+    ## See [std-testing.choices.map-max](../../spec/std/testing.md#r-std-testing.choices.map-max).
     pub fn map[K < Eq & Hash, V](mut self, max: usize, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]:
         let entries: mut Map[K, V] = {}
         if self.spent():
@@ -211,6 +239,8 @@ impl Choices:
         entries
 
     # At most `max_chars` chars (r-std-testing.choices.string-limit).
+    ## Draws a string of at most `max_chars` chars.
+    ## See [std-testing.choices.string-max-chars](../../spec/std/testing.md#r-std-testing.choices.string-max-chars).
     pub fn string(mut self, max_chars: usize) -> string:
         if self.spent():
             return ""
@@ -234,10 +264,14 @@ impl Choices:
     # A false `ok` discards the case with the discard panic, which the
     # runner reads as a discard before `show`
     # (r-std-testing.runner.discard-panic).
+    ## Discards the case when `ok` is false.
+    ## See [std-testing.choices.assume](../../spec/std/testing.md#r-std-testing.choices.assume).
     pub fn assume(mut self, ok: bool) -> void:
         if !ok:
             panic("std.testing: case discarded")
 
+    ## Draws `T::arbitrary(self)`, the type's default generator.
+    ## See [std-testing.choices.draw](../../spec/std/testing.md#r-std-testing.choices.draw).
     pub fn draw[T < Arbitrary](mut self) -> T:
         T::arbitrary(self)
 
@@ -272,6 +306,8 @@ fn wide[N < Integer](n: N) -> i64:
         .Err(_) => 9223372036854775807
 
 # A type's default generator (spec/std/testing.md#property-tests).
+## A type's default generator, which `it_prop` and `Choices.draw` use.
+## See [std-testing.arbitrary](../../spec/std/testing.md#r-std-testing.arbitrary).
 pub trait Arbitrary:
     fn arbitrary(c: mut Choices) -> Self
 
@@ -528,6 +564,8 @@ fn case_timeout(limit: Duration) -> void $ TestRunner:
 # A false `condition` is a failed assertion, a checked runtime panic
 # (spec/lang/10-modules.md#r-module.testing.assert-panic) that shows
 # `reason` (spec/lang/10-modules.md#r-module.testing.shows-reason).
+## A false `condition` is a failed assertion: a checked runtime panic that shows `reason`.
+## See [module.testing.assert-panic](../../spec/lang/10-modules.md#r-module.testing.assert-panic).
 pub fn assert(condition: bool, reason: string) -> void:
     if !condition:
         panic_with("assertion-failed", reason)
@@ -555,14 +593,24 @@ fn panic_with(category: string, message: string) -> void:
 # panics with `assertion-failed`, as `assert_equal` does. The check runs on
 # the `TestRunner` provider that covers the call
 # (r-std-testing.snapshot-file.runner).
+## Compares `text` with the snapshot file the runner names from the running test case; a mismatch or a missing file is a failed assertion.
+## See [std-testing.snapshot-file](../../spec/std/testing.md#r-std-testing.snapshot-file).
 pub fn snapshot_file(text: string) -> void $ TestRunner:
     problem := $.use(TestRunner).snapshot_check(text)
     assert(problem == "", problem)
 
 # What `hd_run!` returns (spec/std/testing.md#running-executables).
+## What `hd_run!` returns: the program's output and exit status.
+## See [std-testing.hd-run.output](../../spec/std/testing.md#r-std-testing.hd-run.output).
 pub data RunOutput:
+    ## The text the program wrote to standard output.
+    ## See [std-testing.hd-run.output](../../spec/std/testing.md#r-std-testing.hd-run.output).
     pub stdout: string
+    ## The text the program wrote to standard error.
+    ## See [std-testing.hd-run.output](../../spec/std/testing.md#r-std-testing.hd-run.output).
     pub stderr: string
+    ## The exit status the program exited with.
+    ## See [std-testing.hd-run.output](../../spec/std/testing.md#r-std-testing.hd-run.output).
     pub status: i32
 
 # Runs the package's executable or task `name` through the `Process`
@@ -572,6 +620,8 @@ pub data RunOutput:
 # does one that does not start (r-std-testing.hd-run.start-failure). The
 # integration-only check (r-std-testing.hd-run.integration-only) is not
 # implemented yet (src/KNOWN_ISSUES.md).
+## Runs the package's executable or task `name` with `args` and `stdin`, and waits for it to exit.
+## See [std-testing.hd-run.runs](../../spec/std/testing.md#r-std-testing.hd-run.runs).
 pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
     match $.use(Process).run!(name, args, stdin):
         .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
@@ -580,6 +630,8 @@ pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> Run
 
 # The running test case's own temporary directory, which the runner
 # removes once the run ends (spec/std/testing.md#temporary-directories).
+## Returns the absolute path of a fresh, empty directory that belongs to the running test case alone.
+## See [std-testing.temp-dir.decl](../../spec/std/testing.md#r-std-testing.temp-dir.decl).
 pub fn temp_dir() -> Path $ TestRunner:
     Path($.use(TestRunner).temp_dir())
 
