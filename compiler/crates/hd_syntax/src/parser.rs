@@ -371,7 +371,6 @@ fn item_name<'s>(
     None
 }
 
-#[allow(clippy::too_many_lines)]
 fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     validate_delimiters(tokens, &mut diagnostics);
@@ -618,7 +617,6 @@ fn mut_parameter(kinds: &[TokenKind]) -> bool {
     })
 }
 
-#[allow(clippy::too_many_lines)]
 fn validate_line(
     source: &str,
     tokens: &TokenBuf,
@@ -1293,7 +1291,6 @@ fn validate_comments(source: &str, tokens: &TokenBuf, diagnostics: &mut Vec<Diag
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn validate_continuations(_source: &str, tokens: &TokenBuf, diagnostics: &mut Vec<Diagnostic>) {
     let ends = tokens.line_token_ends();
     let mut delimiter_depth = 0_i32;
