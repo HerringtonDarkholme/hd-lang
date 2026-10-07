@@ -11,6 +11,8 @@ use std.format.DebugWriter
 
 # The host console capability; `write_line!` takes `mut self`, so it is a
 # mutable requirement trait.
+## The host capability to write a line of output, and a line of error output.
+## See [module.console.host-trait](../../spec/lang/10-modules.md#r-module.console.host-trait).
 pub trait Console:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]
 
@@ -22,41 +24,57 @@ pub trait Console:
 
 # `read_line!` takes `mut self`, so a scripted provider can advance
 # through its lines (spec/std/console.md#r-std-console.input.mut).
+## The host capability to read a line of input.
+## See [std-console.input.decl](../../spec/std/console.md#r-std-console.input.decl).
 pub trait ConsoleInput:
     fn read_line!(mut self) -> Result[string?, ConsoleError]
 
 # The next line of the covering provider's input
 # (spec/std/console.md#r-std-console.input.helper).
+## Returns the next line of input without its line ending, or `.None` at the end of input.
+## See [std-console.input.read-line](../../spec/std/console.md#r-std-console.input.read-line).
 pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
     let mut input = $.use(ConsoleInput)
     input.read_line!()
 
 # The recording `Console` provider (spec/std/console.md#buffer-console).
 # It keeps error lines apart from output lines.
+## The recording `Console` provider: it keeps the lines in memory for a test to read.
+## See [std-console.buffer.decl](../../spec/std/console.md#r-std-console.buffer.decl).
 pub data BufferConsole:
     lines: mut List[string]
     error_lines: mut List[string]
 
 impl BufferConsole:
+    ## Returns an empty recording provider.
+    ## See [std-console.buffer.new](../../spec/std/console.md#r-std-console.buffer.new).
     pub fn new() -> mut BufferConsole:
         BufferConsole { lines: [], error_lines: [] }
 
     # The lines `write_line!` received, in order (r-std-console.buffer.output).
+    ## The lines written through `write_line!`, in order.
+    ## See [std-console.buffer.output](../../spec/std/console.md#r-std-console.buffer.output).
     pub fn output(self) -> List[string]:
         self.lines
 
     # The lines `write_error_line!` received, in order
     # (r-std-console.buffer.error-output).
+    ## The lines written through `write_error_line!`, in order.
+    ## See [std-console.buffer.error-output](../../spec/std/console.md#r-std-console.buffer.error-output).
     pub fn error_output(self) -> List[string]:
         self.error_lines
 
 # The scripted `ConsoleInput` provider (spec/std/console.md#scripted-input):
 # it returns its lines in order, then `.None`.
+## The deterministic `ConsoleInput` provider: it answers from a list of lines, with no host access.
+## See [std-console.scripted.decl](../../spec/std/console.md#r-std-console.scripted.decl).
 pub data ScriptedInput:
     lines: List[string]
     next: usize
 
 impl ScriptedInput:
+    ## Returns the provider that answers `lines` in order, then the end of input.
+    ## See [std-console.scripted.new](../../spec/std/console.md#r-std-console.scripted.new).
     pub fn new(lines: List[string]) -> mut ScriptedInput:
         ScriptedInput { lines: lines, next: 0 }
 
@@ -92,6 +110,8 @@ impl Console for BufferConsole:
 # `block_on`'s rules. Under an active driver, such as `main!` or a test
 # body, it drives only its own write, and it is rejected in a `defer` suite
 # or a default expression. An `.Err` is an ordinary panic.
+## Writes `value`'s `Display` text and a line ending to the `Console` provider that covers the call; it panics when the write fails.
+## See [module.console.println-write](../../spec/lang/10-modules.md#r-module.console.println-write).
 pub fn println[T < Display](value: T) -> void $ Console:
     let mut console = $.use(Console)
     let call: mut Suspend[Result[void, ConsoleError]] = console.write_line("$value")
@@ -101,6 +121,8 @@ pub fn println[T < Display](value: T) -> void $ Console:
 
 # `eprintln` (spec/std/console.md#standard-error) drives the covering
 # provider's `write_error_line!` as `println` drives `write_line!`.
+## Like `println`, but it writes the line as error output.
+## See [std-console.eprintln.decl](../../spec/std/console.md#r-std-console.eprintln.decl).
 pub fn eprintln[T < Display](value: T) -> void $ Console:
     let mut console = $.use(Console)
     let call: mut Suspend[Result[void, ConsoleError]] = console.write_error_line("$value")
@@ -109,6 +131,8 @@ pub fn eprintln[T < Display](value: T) -> void $ Console:
         .Err(_) => panic("eprintln: write_error_line! returned .Err(ConsoleError)")
 
 # The error of a console write or read (spec/lang/10-modules.md#r-module.console.error.closed).
+## The console's error type, with one variant, the payload-free `Closed`.
+## See [module.console.error.closed](../../spec/lang/10-modules.md#r-module.console.error.closed).
 pub enum ConsoleError:
     Closed
 
