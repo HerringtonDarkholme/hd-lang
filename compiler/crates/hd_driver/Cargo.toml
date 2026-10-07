@@ -11,6 +11,7 @@ hd_base = { path = "../hd_base" }
 hd_cache = { path = "../hd_cache" }
 hd_check = { path = "../hd_check" }
 hd_diag = { path = "../hd_diag" }
+hd_host_abi = { path = "../hd_host_abi" }
 hd_intern = { path = "../hd_intern" }
 hd_mono = { path = "../hd_mono" }
 hd_project = { path = "../hd_project" }

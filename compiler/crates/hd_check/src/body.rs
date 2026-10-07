@@ -562,34 +562,6 @@ impl Ck<'_, '_> {
             .filter_map(|a| a.children().next())
             .collect();
         match self.cx.scope.lookup(s) {
-            Some(b) if b.kind == BindingKind::Prelude => {
-                let Some(p) = hd_host_abi::PRELUDE_IMPORTS.get(b.value as usize) else {
-                    return unsupported("a prelude function without an import");
-                };
-                if arg_nodes.len() != p.params.len() {
-                    self.err(
-                        Code::ArgumentCount,
-                        n,
-                        &format!(
-                            "argument-count: `{}` takes {} arguments",
-                            p.name,
-                            p.params.len()
-                        ),
-                    );
-                }
-                let mut refs = Vec::new();
-                for e in &arg_nodes {
-                    let (r, t) = self.expr(*e)?;
-                    self.expect(t, Ty::I32, *e, "argument");
-                    refs.push(r);
-                }
-                let rec = self.b.refs_record(&refs);
-                Ok((
-                    self.b
-                        .emit(Tag::CallHost, b.value, rec, Ty::VOID, n.index()),
-                    Ty::VOID,
-                ))
-            }
             Some(b) if b.kind == BindingKind::Item => {
                 let def = DefId::from_raw(b.value);
                 let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| i.data.clone())
@@ -647,7 +619,22 @@ impl Ck<'_, '_> {
     /// A bound at a use site: `ty: trait_` must hold (trait-solver.md §1.2).
     fn require(&mut self, trait_: DefId, ty: Ty, at: NodeRef<'_>) -> StageResult<()> {
         let pool = self.cx.names.pool;
+        // A bare literal meets a bound at its default type (type-checking.md
+        // §3.6): `println(42)` needs `i32: Display`.
+        let default = match self.infer.kind_of(pool, ty) {
+            Some(VarKind::IntLit) => Some(Ty::I32),
+            Some(VarKind::FloatLit) => Some(Ty::prim(hd_types::Prim::F64)),
+            _ => None,
+        };
+        if let Some(d) = default {
+            let _ = self.infer.unify(pool, ty, d);
+        }
         let ty = self.infer.resolve(pool, ty);
+        if pool.has_infer(ty) && self.diags.has_errors() {
+            // The type is unknown because of an error already reported
+            // (an unknown name's `never`): the bound adds nothing.
+            return Ok(());
+        }
         if pool.has_infer(ty) {
             return unsupported("a bound on a type that is not yet known");
         }
@@ -700,7 +687,9 @@ impl Ck<'_, '_> {
         let rt = self.infer.resolve(pool, rt);
         let has_method = |d: DefId| -> Option<DefId> {
             match self.cx.lookup.item(d).map(|i| &i.data) {
-                Some(ItemData::Trait(ms)) => ms.iter().find(|(m, _)| *m == msym).map(|(_, d)| *d),
+                Some(ItemData::Trait(t)) => {
+                    t.methods.iter().find(|(m, _)| *m == msym).map(|(_, d)| *d)
+                }
                 _ => None,
             }
         };

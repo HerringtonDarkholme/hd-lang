@@ -8,15 +8,23 @@
 
 use std::collections::HashMap;
 
-use hd_base::{DefId, ModuleId, NotImplemented, Stage, StageResult, Symbol};
+use hd_base::{DefId, ModuleId, Symbol};
 
+pub mod header;
 pub mod iface;
+pub mod lower;
+pub mod seed;
 pub mod view;
 
+pub use header::{Finding, Universe};
 pub use iface::{
-    Field, FnSig, FolderIface, Generic, Head, HeadKind, Item, ItemData, Kinds, Lookup, Names,
-    UseDecl, body_nodes, decode_items, deep_hash, encode_items, folder_iface, heads, impl_table,
-    interface_items, lower_items, module_scope, use_decls,
+    Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Lookup, Names,
+    TraitData, Variant, decode_items, deep_hash, encode_items, folder_iface, impl_table,
+    interface_items, mentioned_defs, show_ty,
+};
+pub use lower::{
+    Cx, FolderOut, Head, Kinds, ModIn, ModOut, PRELUDE, UseDecl, World, body_nodes, build_folder,
+    heads, prelude_modules, use_decls,
 };
 pub use view::Src;
 
@@ -59,6 +67,8 @@ pub struct ModuleScope {
     pub use_row: Vec<u32>,
     pub index: HashMap<Symbol, u32>,
     pub def: Vec<DefId>,
+    /// Module paths that `Module` bindings name, by binding value.
+    pub modules: Vec<String>,
 }
 
 impl ModuleScope {
@@ -115,40 +125,6 @@ pub fn orphan_ok(
     self_head_module: Option<ModuleId>,
 ) -> bool {
     trait_module == Some(impl_module) || self_head_module == Some(impl_module)
-}
-
-/// Header validation stage B (§4.10.1; scheduler.md §6.1 `HeaderCheck(F)`):
-/// bounds of written header types, impl supertraits, newtype bases and
-/// delegation targets. Items without type arguments, supertraits,
-/// newtypes or delegation have nothing to check; the rest is not
-/// implemented yet.
-pub fn header_check(pool: &hd_types::InternPool, items: &[Item]) -> StageResult<()> {
-    let has_args = |t: hd_types::Ty| matches!(pool.get(t), hd_types::TyData::Adt { args, .. } if args != hd_types::TyList::EMPTY);
-    for it in items {
-        let tys: Vec<hd_types::Ty> = match &it.data {
-            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => {
-                s.params.iter().map(|p| p.1).chain([s.ret]).collect()
-            }
-            ItemData::Data(fs) => fs.iter().map(|f| f.ty).collect(),
-            ItemData::Impl { self_ty, .. } => vec![*self_ty],
-            ItemData::Trait(_) => vec![],
-        };
-        if tys.into_iter().any(has_args) {
-            return Err(NotImplemented::new(
-                Stage::HeaderCheck,
-                "bounds of header types with arguments",
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// Derived impl heads (§4.10): `derive` lines become impl heads in the interface.
-pub fn derive_heads(folder: &str) -> StageResult<Vec<String>> {
-    Err(NotImplemented::new(
-        Stage::FolderIface,
-        format!("derived heads of folder {folder}"),
-    ))
 }
 
 #[cfg(test)]

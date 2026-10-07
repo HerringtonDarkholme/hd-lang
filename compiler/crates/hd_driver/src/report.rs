@@ -88,6 +88,8 @@ pub struct Counters {
     pub emitted: usize,
     pub stage_ns: BTreeMap<&'static str, u64>,
     pub deep_hashes: BTreeMap<String, Hash128>,
+    /// Per folder: the hash of its interface blob bytes.
+    pub iface_blobs: BTreeMap<String, Hash128>,
     pub check_keys: BTreeMap<String, Hash128>,
 }
 

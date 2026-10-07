@@ -71,7 +71,6 @@ version = "0.0.0"
 dependencies = [
  "hd_base",
  "hd_diag",
- "hd_host_abi",
  "hd_resolve",
  "hd_syntax",
  "hd_tir",
@@ -112,6 +111,7 @@ dependencies = [
  "hd_cache",
  "hd_check",
  "hd_diag",
+ "hd_host_abi",
  "hd_intern",
  "hd_mono",
  "hd_project",

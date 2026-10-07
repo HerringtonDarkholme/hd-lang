@@ -8,7 +8,6 @@ rust-version.workspace = true
 [dependencies]
 hd_base = { path = "../hd_base" }
 hd_diag = { path = "../hd_diag" }
-hd_host_abi = { path = "../hd_host_abi" }
 hd_resolve = { path = "../hd_resolve" }
 hd_syntax = { path = "../hd_syntax" }
 hd_tir = { path = "../hd_tir" }

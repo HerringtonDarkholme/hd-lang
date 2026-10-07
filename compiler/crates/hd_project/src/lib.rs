@@ -114,6 +114,8 @@ pub struct Module {
     pub path: String,
     pub folder: FolderId,
     pub role: Role,
+    /// Index into `ModuleTable::packages`: 0 is the root package.
+    pub package: u16,
 }
 
 /// One folder: the interface unit.
@@ -122,13 +124,21 @@ pub struct Folder {
     pub id: FolderId,
     pub path: String,
     pub modules: Vec<ModuleId>,
+    pub package: u16,
 }
 
-/// Modules and folders of one package, in path order (§4.7).
+/// Modules and folders of the root package and the packages it reaches
+/// (std among them), in path order (§4.7).
 #[derive(Clone, Debug, Default)]
 pub struct ModuleTable {
     pub package: String,
+    /// Package names: the root, then each dependency.
+    pub packages: Vec<String>,
+    /// Display paths by `FileId`: package-relative for the root package,
+    /// `<pkg>/path` for a dependency.
     pub files: Vec<String>,
+    /// Where each file's text comes from: (package index, relative path).
+    pub sources: Vec<(u16, String)>,
     pub modules: Vec<Module>,
     pub folders: Vec<Folder>,
     by_path: BTreeMap<String, ModuleId>,
@@ -144,45 +154,80 @@ pub fn module_path(package: &str, file: &str) -> String {
 }
 
 /// The folder path of a module path: everything before its last segment.
+/// A module with child modules is in its own folder instead
+/// (`module.folder.parent-file`); `ModuleTable` applies that rule.
 #[must_use]
 pub fn folder_of(module: &str) -> &str {
     module.rsplit_once('.').map_or(module, |(f, _)| f)
 }
 
 impl ModuleTable {
-    /// Discovery (§4.7): every `.hd` file is a module; its directory is its folder.
+    /// Discovery (§4.7) of one package.
     #[must_use]
     pub fn discover(package: &str, sources: &dyn SourceSet) -> Self {
+        Self::discover_all(&[(package, sources)])
+    }
+
+    /// Discovery (§4.7) of the root package (first) and its dependencies:
+    /// every `.hd` file is a module; its directory is its folder, except
+    /// that `x.hd` beside a directory `x/` of source files is in folder `x/`
+    /// (`module.folder.parent-file`), and `x/mod.hd` is module `x`.
+    #[must_use]
+    pub fn discover_all(packages: &[(&str, &dyn SourceSet)]) -> Self {
         let mut t = ModuleTable {
-            package: package.to_owned(),
+            package: packages.first().map_or("", |p| p.0).to_owned(),
+            packages: packages.iter().map(|p| p.0.to_owned()).collect(),
             ..Self::default()
         };
-        let mut folders: BTreeMap<String, Vec<ModuleId>> = BTreeMap::new();
-        let mut entries = sources.list();
-        entries.sort_by(|a, b| a.path.cmp(&b.path));
-        for (i, e) in entries.iter().enumerate() {
-            let path = module_path(package, &e.path);
-            let id = ModuleId::from_raw(u32::try_from(i).expect("modules"));
-            folders
-                .entry(folder_of(&path).to_owned())
-                .or_default()
-                .push(id);
-            t.by_path.insert(path.clone(), id);
-            t.files.push(e.path.clone());
-            let role = if e.path.ends_with("_test.hd") {
-                Role::Test
-            } else {
-                Role::Lib
-            };
-            t.modules.push(Module {
-                id,
-                file: FileId::from_raw(id.raw()),
-                path,
-                folder: FolderId::NONE,
-                role,
-            });
+        let mut folders: BTreeMap<String, (u16, Vec<ModuleId>)> = BTreeMap::new();
+        for (pi, (package, sources)) in packages.iter().enumerate() {
+            let pi = u16::try_from(pi).expect("packages");
+            let mut entries = sources.list();
+            entries.sort_by(|a, b| a.path.cmp(&b.path));
+            let mut dirs = std::collections::BTreeSet::new();
+            for e in &entries {
+                let mut d = e.path.as_str();
+                while let Some((parent, _)) = d.rsplit_once('/') {
+                    dirs.insert(parent.to_owned());
+                    d = parent;
+                }
+            }
+            for e in &entries {
+                let raw = module_path(package, &e.path);
+                let id = ModuleId::from_raw(u32::try_from(t.modules.len()).expect("modules"));
+                let stem = e.path.trim_end_matches(".hd");
+                let (path, folder) = if let Some(m) = raw.strip_suffix(".mod") {
+                    (m.to_owned(), m.to_owned())
+                } else if dirs.contains(stem) {
+                    (raw.clone(), raw)
+                } else {
+                    let f = folder_of(&raw).to_owned();
+                    (raw, f)
+                };
+                folders.entry(folder).or_insert((pi, Vec::new())).1.push(id);
+                t.by_path.insert(path.clone(), id);
+                t.files.push(if pi == 0 {
+                    e.path.clone()
+                } else {
+                    format!("<{package}>/{}", e.path)
+                });
+                t.sources.push((pi, e.path.clone()));
+                let role = if e.path.ends_with("_test.hd") {
+                    Role::Test
+                } else {
+                    Role::Lib
+                };
+                t.modules.push(Module {
+                    id,
+                    file: FileId::from_raw(id.raw()),
+                    path,
+                    folder: FolderId::NONE,
+                    role,
+                    package: pi,
+                });
+            }
         }
-        for (i, (path, mods)) in folders.into_iter().enumerate() {
+        for (i, (path, (package, mods))) in folders.into_iter().enumerate() {
             let id = FolderId::from_raw(u32::try_from(i).expect("folders"));
             for &m in &mods {
                 t.modules[m.idx()].folder = id;
@@ -191,6 +236,7 @@ impl ModuleTable {
                 id,
                 path,
                 modules: mods,
+                package,
             });
         }
         t
@@ -199,6 +245,12 @@ impl ModuleTable {
     #[must_use]
     pub fn module(&self, path: &str) -> Option<ModuleId> {
         self.by_path.get(path).copied()
+    }
+
+    /// The folder of a module path, if the module exists.
+    #[must_use]
+    pub fn folder_of_module(&self, path: &str) -> Option<FolderId> {
+        self.module(path).map(|m| self.modules[m.idx()].folder)
     }
 
     /// The module a `use` path names: its longest prefix that is a module.
@@ -420,6 +472,26 @@ mod tests {
             0,
             "named from the first member in path order"
         );
+    }
+
+    #[test]
+    fn a_parent_file_lives_in_its_children_folder() {
+        let mut s = MemorySources::default();
+        s.insert("testing.hd", "");
+        s.insert("testing/arbitrary.hd", "");
+        s.insert("text.hd", "");
+        s.insert("shop/mod.hd", "");
+        s.insert("shop/cart.hd", "");
+        let t = ModuleTable::discover("std", &s);
+        let folder = |m: &str| {
+            let id = t.module(m).expect(m);
+            t.folders[t.modules[id.idx()].folder.idx()].path.clone()
+        };
+        assert_eq!(folder("std.testing"), "std.testing");
+        assert_eq!(folder("std.testing.arbitrary"), "std.testing");
+        assert_eq!(folder("std.text"), "std");
+        assert_eq!(folder("std.shop"), "std.shop");
+        assert_eq!(folder("std.shop.cart"), "std.shop");
     }
 
     #[test]

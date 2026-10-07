@@ -413,6 +413,11 @@ impl Em<'_> {
                 let Some(target) = self.calls.get(&i).copied() else {
                     return unsupported("a call that collection did not resolve");
                 };
+                if let Some(ix) = target.import {
+                    self.out.push(W::CallImport(ix));
+                    self.store(i)?;
+                    return Ok(());
+                }
                 self.out.push(W::Call(target.key));
                 let want = self.vt(self.b.ty[i as usize])?;
                 let got = vt_of(self.pool, self.env, self.path, target.ret)?;
@@ -565,7 +570,7 @@ pub type StructDef = (String, Vec<(VT, bool)>);
 
 /// `Link(P)`: index assignment, type section, relocation patching. Inputs
 /// are in content order, so the bytes are deterministic. Imports come from
-/// `hd_host_abi::PRELUDE_IMPORTS` by index.
+/// `hd_host_abi::STD_LOWERINGS` by index.
 pub fn link(
     codes: &[(Hash128, Code)],
     root: Hash128,
@@ -641,7 +646,7 @@ pub fn link(
     let mut imps = ImportSection::new();
     let mut import_idx = HashMap::new();
     for (n, &imp) in imports.iter().enumerate() {
-        let Some(p) = hd_host_abi::PRELUDE_IMPORTS.get(imp as usize) else {
+        let Some(p) = hd_host_abi::STD_LOWERINGS.get(imp as usize) else {
             return unsupported("an unknown import");
         };
         let params: Vec<VT> = p

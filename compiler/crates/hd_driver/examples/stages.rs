@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use hd_driver::analyze_package;
+use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 
 fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {
@@ -36,8 +36,21 @@ fn main() {
     let package = args.get(1).map_or("std", String::as_str);
     let mut sources = MemorySources::default();
     walk(&root, &root, &mut sources);
-    let report = analyze_package(package, &sources);
+    let store = hd_cache::MemoryStore::default();
+    let host = Host {
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+    };
+    let out = build(&host, package, &Goal::Analyze);
+    let report = out.report.clone();
     print!("{}", report.render());
+    let lines: Vec<String> = out.render().lines().map(str::to_owned).collect();
+    println!("\n{} diagnostics", lines.len());
+    for l in lines.iter().take(40) {
+        println!("  {l}");
+    }
     println!("\nmost frequent not-implemented reasons:");
     let mut reasons: Vec<(&String, &usize)> = report.reasons.iter().collect();
     reasons.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));

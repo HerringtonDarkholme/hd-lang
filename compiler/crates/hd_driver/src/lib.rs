@@ -27,13 +27,13 @@ use hd_cache::{
     toolchain_key,
 };
 use hd_check::BodyCx;
-use hd_check::stages::{ModuleFacts, coherence, init_order, test_overlay};
+use hd_check::stages::{ModuleFacts, init_order, test_overlay};
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_mono::layout::LayoutEnv;
 use hd_mono::{Collected, ProgramEnv};
-use hd_project::{FolderGraph, ModuleTable, SourceSet};
-use hd_resolve::{FolderIface, Item, ItemData, Lookup, Names, Src};
+use hd_project::{FolderGraph, MemorySources, ModuleTable, SourceSet};
+use hd_resolve::{FolderIface, Item, ItemData, Lookup, ModOut, Names, Src};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
@@ -43,6 +43,48 @@ use hd_wasm::Code as WasmCode;
 
 pub mod bench;
 mod report;
+
+include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
+
+/// The std sources every run reads: `lib/std` as embedded at build time,
+/// plus the virtual `core.hd` of the compiler-supplied `std.core`.
+#[must_use]
+pub fn std_sources() -> MemorySources {
+    let mut s = MemorySources::default();
+    for (path, text) in STD_FILES {
+        s.insert(path, text);
+    }
+    s.insert("core.hd", hd_resolve::seed::CORE_SOURCE);
+    s
+}
+
+/// A source set with the virtual `core.hd` added when it is missing: a
+/// run whose root package is std itself.
+fn with_core(sources: &dyn SourceSet) -> MemorySources {
+    let mut s = MemorySources::default();
+    for e in sources.list() {
+        if let Some(b) = sources.read(&e.path) {
+            s.insert(&e.path, &String::from_utf8_lossy(&b));
+        }
+    }
+    if sources.read("core.hd").is_none() {
+        s.insert("core.hd", hd_resolve::seed::CORE_SOURCE);
+    }
+    s
+}
+
+/// The hash of a source set's paths and texts (the std part of the
+/// toolchain key, cache.md §5.3).
+fn sources_hash(sources: &dyn SourceSet) -> Hash128 {
+    let mut h = hd_base::StableHasher::new("std-sources");
+    for e in sources.list() {
+        h.str(&e.path);
+        if let Some(b) = sources.read(&e.path) {
+            h.bytes(&b);
+        }
+    }
+    h.finish()
+}
 
 pub use report::{Counters, PipelineReport, Tally};
 
@@ -104,8 +146,12 @@ impl Output {
     /// Diagnostics as `file:lo..hi: error code: message`, in content order.
     #[must_use]
     pub fn render(&self) -> String {
-        self.diags
-            .render_compact(&|s: Span| self.files.get(s.file.idx()).cloned().unwrap_or_default())
+        self.diags.render_compact(&|s: Span| {
+            s.file
+                .get()
+                .and_then(|_| self.files.get(s.file.idx()).cloned())
+                .unwrap_or_default()
+        })
     }
 }
 
@@ -126,6 +172,9 @@ struct PrepOut {
     items: Vec<Item>,
     diags: DiagBuf,
 }
+
+/// A folder's stage-A diagnostics, with the module each belongs to.
+type IfaceDiags = Vec<(usize, Code, u32, u32, String)>;
 
 /// A module's TIR and body diagnostics after `Body(m)`.
 type BodyOut = (Vec<Body>, DiagBuf);
@@ -189,19 +238,33 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// One run with the caller's sources, store, executor and clock.
 #[must_use]
 pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
-    let table = ModuleTable::discover(package, host.sources);
+    let std = if package == "std" {
+        with_core(host.sources)
+    } else {
+        std_sources()
+    };
+    let table = if package == "std" {
+        ModuleTable::discover_all(&[("std", &std)])
+    } else {
+        ModuleTable::discover_all(&[(package, host.sources), ("std", &std)])
+    };
     let texts: Vec<Arc<str>> = table
-        .files
+        .sources
         .iter()
-        .map(|p| {
-            Arc::from(
+        .map(|(pi, p)| {
+            let set: &dyn SourceSet = if *pi == 0 && package != "std" {
                 host.sources
-                    .read(p)
+            } else {
+                &std
+            };
+            Arc::from(
+                set.read(p)
                     .map(|b| String::from_utf8_lossy(&b).into_owned())
                     .unwrap_or_default(),
             )
         })
         .collect();
+    let std_hash = sources_hash(&std);
     let n = table.modules.len();
     let nf = table.folders.len();
     let pipeline = hd_mono::passes::validate(&hd_mono::passes::DEV).unwrap_or_default();
@@ -215,7 +278,11 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
         syms: ShardedInterner::default(),
         universes: ImplUniverses::default(),
         memo: GlobalMemo::default(),
-        toolchain: toolchain_key(COMPILER, TARGET, "a1=bounded"),
+        toolchain: toolchain_key(
+            COMPILER,
+            TARGET,
+            &format!("a1=bounded;std={:032x}", std_hash.0),
+        ),
         package_key: hd_cache::package_key(package),
         pipeline,
         skim: (0..n).map(|_| OnceLock::new()).collect(),
@@ -404,17 +471,21 @@ impl Run<'_> {
     fn skim_now(&self, m: usize) -> SkimOut {
         let text = &self.texts[m];
         let sk = skim(text.as_bytes());
+        let module = &self.table.modules[m].path;
+        let package = &self.table.packages[usize::from(self.table.modules[m].package)];
         let mut uses = Vec::new();
         for &(lo, hi) in &sk.uses {
             let line = text.get(lo as usize..hi as usize).unwrap_or("").trim();
-            if let Some(rest) = line.strip_prefix("use ") {
-                let path = rest.split(".{").next().unwrap_or(rest).trim();
-                let path = match path.strip_prefix("pkg.") {
-                    Some(p) => format!("{}.{p}", self.package),
-                    None => path.to_owned(),
-                };
-                uses.push(path);
+            let rest = line.strip_prefix("pub ").unwrap_or(line);
+            if let Some(rest) = rest.strip_prefix("use ") {
+                let path = rest.split(".{").next().unwrap_or(rest);
+                let path = path.split(" as ").next().unwrap_or(path).trim();
+                uses.push(absolute_use(path, package, module));
             }
+        }
+        // The prelude's fixed uses (`module.prelude.fixed-uses`).
+        if module != "std.core" {
+            uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));
         }
         let facts = ModuleFacts {
             path: self.table.modules[m].path.clone(),
@@ -487,6 +558,9 @@ impl Run<'_> {
         let graph = FolderGraph::build(&self.table, &uses);
         lock(&self.report).ok(Stage::FolderGraph);
         for c in &graph.cycles {
+            if c.iter().any(|f| self.table.folders[f.idx()].package != 0) {
+                continue;
+            }
             let names: Vec<&str> = c
                 .iter()
                 .map(|f| self.table.folders[f.idx()].path.as_str())
@@ -530,6 +604,9 @@ impl Run<'_> {
         let coh = sp.add(TaskKind::Coherence, &all);
         sp.edge(coh, pr);
         for (m, module) in self.table.modules.iter().enumerate() {
+            if module.package != 0 {
+                continue;
+            }
             let deps: Vec<TaskId> = g.closure[module.folder.idx()]
                 .iter()
                 .filter_map(|c| iface_task[c.idx()])
@@ -555,20 +632,65 @@ impl Run<'_> {
             .flatten()
     }
 
-    fn iface_by_path(&self, path: &str) -> Option<Arc<FolderIface>> {
-        let f = self.table.folders.iter().find(|x| x.path == path)?;
-        self.iface_of(f.id)
+    /// The package key of a folder's package.
+    fn package_key_of(&self, package: u16) -> Hash128 {
+        if package == 0 {
+            self.package_key
+        } else {
+            hd_cache::package_key(&self.table.packages[usize::from(package)])
+        }
+    }
+
+    /// The other folders an interface names, with their deep hashes
+    /// (§4.11.3): `None` when one of them is not built.
+    fn mentions(
+        &self,
+        fid: FolderId,
+        items: &[Item],
+        exports: &[hd_resolve::Export],
+    ) -> Option<Vec<(String, Hash128)>> {
+        let names = self.names();
+        let mut folders = std::collections::BTreeSet::new();
+        for d in hd_resolve::mentioned_defs(&self.pool, items, exports) {
+            if let Some(f) = self.table.folder_of_module(&names.module_of(d))
+                && f != fid
+            {
+                folders.insert(f.raw());
+            }
+        }
+        folders
+            .into_iter()
+            .map(|f| {
+                let f = FolderId::from_raw(f);
+                Some((
+                    self.table.folders[f.idx()].path.clone(),
+                    self.iface_of(f)?.deep_hash,
+                ))
+            })
+            .collect()
+    }
+
+    /// Re-emits a folder's stage-A diagnostics against this run's files.
+    fn emit_iface_diags(&self, fi: usize, diags: &IfaceDiags) {
+        let folder = &self.table.folders[fi];
+        let mut d = lock(&self.diags);
+        for (m, code, lo, hi, msg) in diags {
+            let Some(mid) = folder.modules.get(*m) else {
+                continue;
+            };
+            let span = Span {
+                file: FileId::from_raw(mid.raw()),
+                lo: *lo,
+                hi: *hi,
+            };
+            d.push(*code, Severity::Error, span, msg, None);
+        }
     }
 
     /// `FolderIface(F)` (resolution-and-interfaces.md §4.10).
     fn folder_iface(&self, fi: usize) {
         let folder = &self.table.folders[fi];
         let fid = folder.id;
-        let uses: Vec<FolderId> = self
-            .graph
-            .get()
-            .map(|g| g.graph.uses[fi].clone())
-            .unwrap_or_default();
         let reach: Vec<FolderId> = self
             .closure(fid)
             .into_iter()
@@ -595,53 +717,78 @@ impl Run<'_> {
             .collect();
         let key = iface_key(
             self.toolchain,
-            self.package_key,
+            self.package_key_of(folder.package),
             &folder.path,
             &apis,
             &reach_hashes,
         );
-        let used_deep: Vec<Hash128> = uses
-            .iter()
-            .filter_map(|u| self.iface_of(*u))
-            .map(|i| i.deep_hash)
-            .collect();
         let names = self.names();
         if let Some(sections) = self.lookup(EntryKind::Iface, key)
-            && let Some(blob) = sections.first()
-            && let Some(items) = hd_resolve::decode_items(&names, blob)
+            && let (Some(blob), Some(dsec)) = (sections.first(), sections.get(1))
+            && let Some((items, exports)) = hd_resolve::decode_items(&names, blob)
+            && let Some(diags) = decode_iface_diags(dsec)
+            && let Some(mentions) = self.mentions(fid, &items, &exports)
         {
             let iface = hd_resolve::folder_iface(
                 &folder.path,
                 items,
+                exports,
                 Arc::from(blob.as_slice()),
-                &used_deep,
+                &mentions,
             );
-            lock(&self.counters)
-                .deep_hashes
-                .insert(folder.path.clone(), iface.deep_hash);
+            self.emit_iface_diags(fi, &diags);
+            self.note_iface(&folder.path, &iface, false);
             lock(&self.report).ok(Stage::FolderIface);
             let _ = self.iface[fi].set(Some(Arc::new(iface)));
             return;
         }
-        let mut items = Vec::new();
         for m in &folder.modules {
-            let m = m.idx();
-            if !self.parse_of(m).is_ok() {
+            if !self.parse_of(m.idx()).is_ok() {
                 self.blocked(Stage::FolderIface);
                 let _ = self.iface[fi].set(None);
                 return;
             }
-            let mut scratch = DiagBuf::default();
-            match self.lower_module(m, Stage::FolderIface, &mut scratch) {
-                Ok(own) => items.extend(hd_resolve::interface_items(&own)),
-                Err(e) => {
-                    self.stage::<()>(Stage::FolderIface, Err(e));
-                    let _ = self.iface[fi].set(None);
-                    return;
-                }
+        }
+        let mods: Vec<hd_resolve::ModIn<'_>> = folder
+            .modules
+            .iter()
+            .map(|m| self.mod_in(m.idx()))
+            .collect();
+        let cx = hd_resolve::Cx {
+            names,
+            package: &self.table.packages[usize::from(folder.package)],
+            folder: fid.raw(),
+            world: self,
+        };
+        let mut diags = DiagBuf::default();
+        let out = match hd_resolve::build_folder(&cx, &mods, None, Stage::FolderIface, &mut diags) {
+            Ok(o) => o,
+            Err(e) => {
+                self.stage::<()>(Stage::FolderIface, Err(e));
+                let _ = self.iface[fi].set(None);
+                return;
+            }
+        };
+        let all: Vec<Item> = out.modules.into_iter().flat_map(|m| m.items).collect();
+        for it in &all {
+            if let Some(k) = it.intrinsic
+                && hd_host_abi::intrinsic(names.text(k)).is_none()
+            {
+                let msg = format!(
+                    "unsupported: `{}` names the unknown intrinsic `{}`",
+                    names.path(it.def),
+                    names.text(k)
+                );
+                let span = Span {
+                    file: FileId::from_raw(folder.modules[0].raw()),
+                    lo: 0,
+                    hi: 0,
+                };
+                diags.error(Code::Unsupported, span, &msg);
             }
         }
-        let blob = match hd_resolve::encode_items(&names, &items) {
+        let items = hd_resolve::interface_items(&all);
+        let blob = match hd_resolve::encode_items(&names, &items, &out.exports) {
             Ok(b) => b,
             Err(e) => {
                 self.stage::<()>(Stage::FolderIface, Err(e));
@@ -649,44 +796,119 @@ impl Run<'_> {
                 return;
             }
         };
-        self.put(EntryKind::Iface, key, &[&blob]);
-        let iface = hd_resolve::folder_iface(&folder.path, items, Arc::from(blob), &used_deep);
-        {
-            let mut c = lock(&self.counters);
-            c.ifaces_built.push(folder.path.clone());
-            c.deep_hashes.insert(folder.path.clone(), iface.deep_hash);
-        }
+        let idiags: IfaceDiags = (0..diags.len())
+            .map(|i| {
+                let sp = diags.primary[i];
+                let m = folder
+                    .modules
+                    .iter()
+                    .position(|x| x.raw() == sp.file.raw())
+                    .unwrap_or(0);
+                (
+                    m,
+                    diags.code[i],
+                    sp.lo,
+                    sp.hi,
+                    diags.get_text(diags.message[i]).to_owned(),
+                )
+            })
+            .collect();
+        let dsec = encode_iface_diags(&idiags);
+        self.put(EntryKind::Iface, key, &[&blob, &dsec]);
+        let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
+            self.blocked(Stage::FolderIface);
+            let _ = self.iface[fi].set(None);
+            return;
+        };
+        let iface =
+            hd_resolve::folder_iface(&folder.path, items, out.exports, Arc::from(blob), &mentions);
+        lock(&self.diags).append(&diags);
+        self.note_iface(&folder.path, &iface, true);
         lock(&self.report).ok(Stage::FolderIface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
     }
 
-    /// Heads, scope and items of one module.
-    fn lower_module(&self, m: usize, stage: Stage, diags: &mut DiagBuf) -> StageResult<Vec<Item>> {
-        let names = self.names();
-        let src = self.src(m);
-        let module = &self.table.modules[m].path;
-        let heads = hd_resolve::heads(&names, &src, module);
-        let (scope, kinds) = hd_resolve::module_scope(
-            &names,
-            &src,
-            &self.package,
-            module,
-            &heads,
-            &|f| self.iface_by_path(f),
-            stage,
-            diags,
-        )?;
-        hd_resolve::lower_items(&names, &src, &heads, &scope, &kinds, stage, diags)
+    fn note_iface(&self, path: &str, iface: &FolderIface, built: bool) {
+        let mut c = lock(&self.counters);
+        if built {
+            c.ifaces_built.push(path.to_owned());
+        }
+        c.deep_hashes.insert(path.to_owned(), iface.deep_hash);
+        c.iface_blobs
+            .insert(path.to_owned(), hd_base::hash128(&iface.blob));
     }
 
-    fn header_check(&self, fi: usize) {
-        match self.iface.get(fi).and_then(|s| s.get()).cloned().flatten() {
-            Some(i) => {
-                let r = hd_resolve::header_check(&self.pool, &i.items);
-                self.stage(Stage::HeaderCheck, r);
-            }
-            None => self.blocked(Stage::HeaderCheck),
+    fn mod_in(&self, m: usize) -> hd_resolve::ModIn<'_> {
+        let path = self.table.modules[m].path.clone();
+        let seeds = hd_resolve::seed::items(&self.names(), &path);
+        hd_resolve::ModIn {
+            path,
+            src: self.src(m),
+            seeds,
         }
+    }
+
+    /// One module's items (private ones included), scope and kinds,
+    /// against its folder's frozen interface. Use and header diagnostics
+    /// are the folder interface's, so `diags` here is the caller's to drop.
+    fn lower_module(
+        &self,
+        m: usize,
+        stage: Stage,
+        diags: &mut DiagBuf,
+    ) -> StageResult<Option<ModOut>> {
+        let module = &self.table.modules[m];
+        let Some(own) = self.iface_of(module.folder) else {
+            return Ok(None);
+        };
+        let cx = hd_resolve::Cx {
+            names: self.names(),
+            package: &self.table.packages[usize::from(module.package)],
+            folder: module.folder.raw(),
+            world: self,
+        };
+        let mods = [self.mod_in(m)];
+        let out = hd_resolve::build_folder(&cx, &mods, Some(own), stage, diags)?;
+        Ok(out.modules.into_iter().next())
+    }
+
+    /// Every interface of a folder's closure (its own included).
+    fn closure_ifaces(&self, fid: FolderId) -> Option<Vec<Arc<FolderIface>>> {
+        self.closure(fid)
+            .into_iter()
+            .map(|c| self.iface_of(c))
+            .collect()
+    }
+
+    /// The span of an item's module file, for interface-level findings.
+    fn item_span(&self, d: DefId) -> Span {
+        let file = self
+            .table
+            .module(&self.names().module_of(d))
+            .map_or(u32::MAX, |m| self.table.modules[m.idx()].file.raw());
+        Span {
+            file: FileId::from_raw(file),
+            lo: 0,
+            hi: 0,
+        }
+    }
+
+    /// `HeaderCheck(F)`: stage B (§4.10.1) over F's interface, against the
+    /// interfaces of its closure.
+    fn header_check(&self, fi: usize) {
+        let fid = self.table.folders[fi].id;
+        let (Some(own), Some(all)) = (self.iface_of(fid), self.closure_ifaces(fid)) else {
+            self.blocked(Stage::HeaderCheck);
+            return;
+        };
+        let u = hd_resolve::Universe::new(self.names(), all.iter().flat_map(|i| i.items.iter()));
+        let findings = u.stage_b(&own.items);
+        let mut d = lock(&self.diags);
+        for f in findings {
+            d.error(f.code, self.item_span(f.item), &f.message);
+        }
+        drop(d);
+        lock(&self.report).ok(Stage::HeaderCheck);
     }
 
     fn init_order(&self, fi: usize) {
@@ -700,35 +922,30 @@ impl Run<'_> {
         self.stage(Stage::InitOrder, r);
     }
 
-    /// `Coherence`: the overlap check over every interface's impl heads.
+    /// `Coherence`: the overlap check (§4.12.3) over the impl heads of
+    /// every interface of the program graph, std's included.
     fn coherence(&self) {
-        let mut heads = Vec::new();
+        let mut all = Vec::new();
         for f in 0..self.table.folders.len() {
-            let Some(i) = self.iface.get(f).and_then(|s| s.get()).cloned().flatten() else {
+            let Some(i) = self.iface_of(FolderId::from_raw(u32_of(f))) else {
                 self.blocked(Stage::Coherence);
                 return;
             };
-            for it in &i.items {
-                if let ItemData::Impl {
-                    trait_, self_ty, ..
-                } = it.data
-                {
-                    heads.push((trait_, self_ty, it.def));
-                }
-            }
+            all.push(i);
         }
-        heads.sort_by_key(|h| self.names().path_hash(h.2));
-        if let Some(pairs) = self.stage(Stage::Coherence, coherence(&self.pool, &heads)) {
-            let names = self.names();
-            for (a, b) in pairs {
-                let span = Span {
-                    file: FileId::from_raw(u32::MAX),
-                    lo: 0,
-                    hi: 0,
-                };
-                let msg = format!("overlapping-impl: {} and {}", names.path(a), names.path(b));
-                lock(&self.diags).error(Code::OverlappingImpl, span, &msg);
-            }
+        let names = self.names();
+        let u = hd_resolve::Universe::new(names, all.iter().flat_map(|i| i.items.iter()));
+        let order = |d: DefId| names.path(d);
+        let overlaps = u.overlaps(&order);
+        lock(&self.report).ok(Stage::Coherence);
+        let mut d = lock(&self.diags);
+        for (a, b, witness) in overlaps {
+            let msg = format!(
+                "overlapping-impl: {} and {} both apply to {witness}",
+                names.path(a),
+                names.path(b)
+            );
+            d.error(Code::OverlappingImpl, self.item_span(b), &msg);
         }
     }
 
@@ -781,16 +998,21 @@ impl Run<'_> {
             let _ = self.check[mi].set(None);
             return;
         }
-        let mut diags = DiagBuf::default();
-        let items = self.lower_module(mi, Stage::ModulePrep, &mut diags);
-        let Some(items) = self.stage(Stage::ModulePrep, items) else {
+        let mut scratch = DiagBuf::default();
+        let items = self
+            .lower_module(mi, Stage::ModulePrep, &mut scratch)
+            .map(|o| o.map(|o| o.items));
+        let Some(Some(items)) = self.stage(Stage::ModulePrep, items) else {
             self.blocked(Stage::Body);
             self.blocked(Stage::ModuleFinish);
             let _ = self.prep[mi].set(None);
             let _ = self.check[mi].set(None);
             return;
         };
-        let _ = self.prep[mi].set(Some(PrepOut { items, diags }));
+        let _ = self.prep[mi].set(Some(PrepOut {
+            items,
+            diags: DiagBuf::default(),
+        }));
         let Some(pr) = self.graph.get().map(|g| g.package_result) else {
             return;
         };
@@ -845,20 +1067,12 @@ impl Run<'_> {
         let names = self.names();
         let src = self.src(m);
         let heads = hd_resolve::heads(&names, &src, &module.path);
-        let Ok((scope, _)) = hd_resolve::module_scope(
-            &names,
-            &src,
-            &self.package,
-            &module.path,
-            &heads,
-            &|f| self.iface_by_path(f),
-            Stage::Body,
-            &mut DiagBuf::default(),
-        ) else {
+        let Ok(Some(lowered)) = self.lower_module(m, Stage::Body, &mut DiagBuf::default()) else {
             self.blocked(Stage::Body);
             let _ = self.body[m].set(None);
             return;
         };
+        let scope = lowered.scope;
         let universe = self.universes.intern(&closure);
         let solver = SkeletonSolver;
         let cx = BodyCx {
@@ -928,7 +1142,7 @@ impl Run<'_> {
         }
         let mut meta = Writer::default();
         meta.hash(content.finish());
-        let items = match hd_resolve::encode_items(&names, &prep.items) {
+        let items = match hd_resolve::encode_items(&names, &prep.items, &[]) {
             Ok(x) => x,
             Err(e) => {
                 self.stage::<()>(Stage::ModuleFinish, Err(e));
@@ -1011,6 +1225,9 @@ impl Run<'_> {
         let mut bodies = HashMap::new();
         let mut decoded = Vec::new();
         for m in 0..self.table.modules.len() {
+            if self.table.modules[m].package != 0 {
+                continue;
+            }
             let Some(Some(c)) = self.check[m].get() else {
                 return None;
             };
@@ -1018,7 +1235,7 @@ impl Run<'_> {
                 return None;
             }
             let sections = split_sections(&c.entry)?;
-            for it in hd_resolve::decode_items(&names, sections.get(2)?)? {
+            for it in hd_resolve::decode_items(&names, sections.get(2)?)?.0 {
                 items.insert(it.def, it);
             }
             let mut r = Reader::new(sections.get(3)?);
@@ -1063,6 +1280,9 @@ impl Run<'_> {
         let entry_module = format!("{}.{entry}", self.package);
         let mut modules: Vec<(&str, Hash128)> = Vec::new();
         for (m, module) in self.table.modules.iter().enumerate() {
+            if module.package != 0 {
+                continue;
+            }
             let Some(Some(c)) = self.check[m].get() else {
                 self.blocked(Stage::Collect);
                 return;
@@ -1227,6 +1447,68 @@ impl Run<'_> {
     }
 }
 
+impl hd_resolve::World for Run<'_> {
+    fn module_folder(&self, module: &str) -> Option<u32> {
+        self.table.folder_of_module(module).map(FolderId::raw)
+    }
+    fn iface(&self, folder: u32) -> Option<Arc<FolderIface>> {
+        self.iface_of(FolderId::from_raw(folder))
+    }
+}
+
+/// A use path made absolute: `pkg` is the package, `self` the module,
+/// each leading `super` its parent.
+fn absolute_use(path: &str, package: &str, module: &str) -> String {
+    let mut segs = path.split('.');
+    match segs.next() {
+        Some("pkg") => std::iter::once(package)
+            .chain(segs)
+            .collect::<Vec<_>>()
+            .join("."),
+        Some("self") => std::iter::once(module)
+            .chain(segs)
+            .collect::<Vec<_>>()
+            .join("."),
+        Some("super") => {
+            let mut base: Vec<&str> = module.split('.').collect();
+            base.pop();
+            let mut rest: Vec<&str> = segs.collect();
+            while rest.first() == Some(&"super") {
+                rest.remove(0);
+                base.pop();
+            }
+            base.extend(rest);
+            base.join(".")
+        }
+        _ => path.to_owned(),
+    }
+}
+
+fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(d);
+    for (m, code, lo, hi, msg) in d {
+        w.u32(u32_of(*m));
+        w.str(code.as_str());
+        w.u32(*lo);
+        w.u32(*hi);
+        w.str(msg);
+    }
+    w.bytes
+}
+
+fn decode_iface_diags(b: &[u8]) -> Option<IfaceDiags> {
+    let mut r = Reader::new(b);
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let m = r.u32() as usize;
+        let code = Code::from_name(r.str()).unwrap_or(Code::Unsupported);
+        let (lo, hi) = (r.u32(), r.u32());
+        out.push((m, code, lo, hi, r.str().to_owned()));
+    }
+    r.ok().then_some(out)
+}
+
 /// Sections are kept joined (length-prefixed) as one `Arc`, so a slot
 /// holds one allocation per module.
 fn join_sections(sections: &[Vec<u8>]) -> Vec<u8> {
@@ -1260,6 +1542,33 @@ impl LayoutEnv for Env<'_> {
 impl ProgramEnv for Env<'_> {
     fn body(&self, def: DefId) -> Option<&Body> {
         self.p.bodies.get(&def).map(|b| &b.0)
+    }
+    fn lowering(&self, def: DefId, args: TyList) -> Option<u32> {
+        if self.p.bodies.contains_key(&def) {
+            return None;
+        }
+        let names = self.run.names();
+        let module = names.module_of(def);
+        if !module.starts_with("std.") && module != "std" {
+            return None;
+        }
+        let path = format!(
+            "{module}.{}",
+            self.run.paths.segment(hd_base::PathId::from_raw(def.raw()))
+        );
+        let scalars: Option<Vec<hd_host_abi::Scalar>> = self
+            .run
+            .pool
+            .list_items(args)
+            .into_iter()
+            .map(|t| match self.run.pool.get(t) {
+                hd_types::TyData::Prim(hd_types::Prim::I32) => Some(hd_host_abi::Scalar::I32),
+                hd_types::TyData::Prim(hd_types::Prim::I64) => Some(hd_host_abi::Scalar::I64),
+                hd_types::TyData::Prim(hd_types::Prim::F64) => Some(hd_host_abi::Scalar::F64),
+                _ => None,
+            })
+            .collect();
+        hd_host_abi::std_lowering(&path, &scalars?)
     }
     fn bounded(&self, def: DefId) -> Option<Vec<bool>> {
         self.p

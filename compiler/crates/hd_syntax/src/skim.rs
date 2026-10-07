@@ -180,6 +180,11 @@ fn use_ranges(tokens: &TokenBuf) -> Vec<(u32, u32)> {
             continue;
         };
         let first = first.idx();
+        let first = if tokens.kind.get(first) == Some(&TokenKind::KwPub) && next > first + 1 {
+            first + 1
+        } else {
+            first
+        };
         let is_use = tokens
             .kind
             .get(first)

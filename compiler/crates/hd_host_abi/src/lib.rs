@@ -195,33 +195,91 @@ pub const RUNTIME_MODULES: &[&str] = &["hd:rt", "hd:TestRunner", "hd:PropertyRun
 pub const RUNTIME_IMPORTS: &[(&str, &str)] =
     &[("hd:rt", "block"), ("hd:rt", "abort"), ("hd:rt", "stderr")];
 
-/// A prelude function bound straight to a host import. Until std's
-/// `Console` reaches programs, `println` of an `i32` is the one such
-/// function; it is part of this table so the emitter, the linker and the
-/// JS host read one description (§17.1).
+/// How the compiler supplies an `@intrinsic("key")` body of std
+/// (std-bootstrap.md, "Primitive Functions"; codegen.md §12.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lowering {
+    /// Inline code the emitter writes (string and list kernels, `dbg`,
+    /// panics, task frames, facts).
+    Compiler,
+    /// A host primitive import of module `hd:prim`, by name.
+    HostPrimitive(&'static str),
+}
+
+/// Every intrinsic key std may name, and its lowering. The keys are the
+/// declarations' `@intrinsic` arguments; `panic_message`, `task_all` and
+/// `test_case` belong to the compiler-supplied `std.core.panic`,
+/// `std.task.all` and `std.testing.it`.
+pub static INTRINSICS: &[(&str, Lowering)] = &[
+    ("bytes_len", Lowering::Compiler),
+    ("bytes_at", Lowering::Compiler),
+    ("bytes_slice", Lowering::Compiler),
+    ("bytes_concat", Lowering::Compiler),
+    ("string_from_bytes", Lowering::Compiler),
+    ("char_scalar", Lowering::Compiler),
+    ("char_from_scalar", Lowering::Compiler),
+    ("list_truncate", Lowering::Compiler),
+    ("panic", Lowering::Compiler),
+    ("panic_message", Lowering::Compiler),
+    ("facts_of", Lowering::Compiler),
+    ("downcast_val", Lowering::Compiler),
+    ("task_race_frame", Lowering::Compiler),
+    ("task_all_frame", Lowering::Compiler),
+    ("task_all", Lowering::Compiler),
+    ("test_case", Lowering::Compiler),
+    ("dbg", Lowering::Compiler),
+    ("dbg_text", Lowering::Compiler),
+    ("dbg_write", Lowering::HostPrimitive("dbg_write")),
+    ("format_f64", Lowering::HostPrimitive("format_f64")),
+    ("format_f32", Lowering::HostPrimitive("format_f32")),
+    ("string_lower", Lowering::HostPrimitive("string_lower")),
+    ("string_upper", Lowering::HostPrimitive("string_upper")),
+    ("parse_f64", Lowering::HostPrimitive("parse_f64")),
+    (
+        "format_f64_fixed",
+        Lowering::HostPrimitive("format_f64_fixed"),
+    ),
+];
+
+/// The lowering of an intrinsic key, if std may name it.
+#[must_use]
+pub fn intrinsic(key: &str) -> Option<Lowering> {
+    INTRINSICS.iter().find(|(k, _)| *k == key).map(|(_, l)| *l)
+}
+
+/// A compiler-provided lowering of one instance of an ordinary std
+/// function, used while std bodies do not compile yet (M3): a call of
+/// `item` at `type_args` becomes the host import `module.field`. The
+/// emitter, the linker and the JS host read this one description (§17.1).
 #[derive(Debug)]
-pub struct PreludeImport {
-    pub name: &'static str,
+pub struct StdLowering {
+    /// The std function's dotted path, as `std.console.println`.
+    pub item: &'static str,
+    pub type_args: &'static [Scalar],
     pub module: &'static str,
     pub field: &'static str,
     pub params: &'static [Scalar],
     pub result: Codec,
 }
 
-pub static PRELUDE_IMPORTS: &[PreludeImport] = &[PreludeImport {
-    name: "println",
+/// `std.console.println` of an `i32`: until std's `Console` path
+/// (`$.use(Console)`, `write_line!` and `block_on`) compiles, its instance
+/// at `i32` is this host import.
+pub static STD_LOWERINGS: &[StdLowering] = &[StdLowering {
+    item: "std.console.println",
+    type_args: &[Scalar::I32],
     module: "hd",
     field: "println_i32",
     params: &[Scalar::I32],
     result: Codec::Void,
 }];
 
-/// The prelude import a name binds to, by index into `PRELUDE_IMPORTS`.
+/// The std lowering of an instance, by index into `STD_LOWERINGS`.
 #[must_use]
-pub fn prelude_import(name: &str) -> Option<u32> {
-    PRELUDE_IMPORTS
+pub fn std_lowering(item: &str, type_args: &[Scalar]) -> Option<u32> {
+    STD_LOWERINGS
         .iter()
-        .position(|p| p.name == name)
+        .position(|l| l.item == item && l.type_args == type_args)
         .and_then(|i| u32::try_from(i).ok())
 }
 
@@ -261,9 +319,13 @@ pub fn is_known_import(module: &str, name: &str) -> bool {
     RUNTIME_IMPORTS
         .iter()
         .any(|(m, n)| *m == module && *n == name)
-        || PRELUDE_IMPORTS
+        || STD_LOWERINGS
             .iter()
             .any(|p| p.module == module && p.field == name)
+        || (module == "hd:prim"
+            && INTRINSICS
+                .iter()
+                .any(|(_, l)| matches!(l, Lowering::HostPrimitive(n) if *n == name)))
         || (RUNTIME_MODULES.contains(&module) && module != "hd:rt")
         || TABLE.iter().any(|t| {
             t.methods.iter().any(|m| {
@@ -312,7 +374,7 @@ pub fn generate_js_glue() -> StageResult<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Handle, TABLE, imports_of, is_known_import};
+    use super::{Handle, INTRINSICS, TABLE, imports_of, intrinsic, is_known_import};
 
     #[test]
     fn waiting_methods_import_a_start_finish_pair() {
@@ -335,6 +397,39 @@ mod tests {
         assert_eq!(h.slot(), 0xF_FFFF);
         assert_eq!(h.generation(), 0x7FF);
         assert!(i32::try_from(h.0).is_ok(), "never negative");
+    }
+
+    #[test]
+    fn every_std_intrinsic_key_has_a_lowering() {
+        let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
+        let mut stack = vec![std];
+        let mut keys = Vec::new();
+        while let Some(dir) = stack.pop() {
+            for e in std::fs::read_dir(&dir).expect("std dir").flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else if p.extension().is_some_and(|x| x == "hd") {
+                    let text = std::fs::read_to_string(&p).expect("std file");
+                    for line in text.lines() {
+                        if let Some(rest) = line.trim().strip_prefix("@intrinsic(\"") {
+                            keys.push(rest.trim_end_matches("\")").to_owned());
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            keys.len() > 20,
+            "std's intrinsic declarations were not found"
+        );
+        for k in &keys {
+            assert!(
+                intrinsic(k).is_some(),
+                "@intrinsic(\"{k}\") has no lowering"
+            );
+        }
+        assert!(INTRINSICS.iter().all(|(k, _)| !k.is_empty()));
     }
 
     #[test]

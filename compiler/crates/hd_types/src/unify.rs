@@ -87,6 +87,15 @@ impl InferTable {
         t
     }
 
+    /// The kind of an unbound variable, if `t` is one.
+    #[must_use]
+    pub fn kind_of(&self, pool: &InternPool, t: Ty) -> Option<VarKind> {
+        match pool.get(self.shallow(pool, t)) {
+            TyData::Infer(v) => Some(self.kind[self.root(v.raw()) as usize]),
+            _ => None,
+        }
+    }
+
     /// Resolves every variable it can, recursively.
     #[must_use]
     pub fn resolve(&self, pool: &InternPool, t: Ty) -> Ty {

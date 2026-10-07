@@ -22,6 +22,9 @@ use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, instance_key};
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
     fn body(&self, def: DefId) -> Option<&Body>;
+    /// The compiler-provided lowering of an instance whose item has no
+    /// TIR of its own (`hd_host_abi::std_lowering`).
+    fn lowering(&self, def: DefId, args: TyList) -> Option<u32>;
     /// Per type parameter: has a bound (A1, codegen.md §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
     /// The declared result type.
@@ -52,6 +55,9 @@ pub fn is_class_ref(pool: &InternPool, t: Ty) -> bool {
 pub struct CallTarget {
     pub key: Hash128,
     pub ret: Ty,
+    /// A compiler-provided lowering: the call is this host import
+    /// (`hd_host_abi::STD_LOWERINGS` index) instead of an instance.
+    pub import: Option<u32>,
 }
 
 /// The output of `Collect` (codegen.md §11.3).
@@ -222,6 +228,19 @@ pub fn collect(
                             (m, TyList::EMPTY)
                         }
                     };
+                    if let Some(ix) = env.lowering(callee, cargs) {
+                        out.imports.insert(ix);
+                        calls.insert(
+                            u32::try_from(i).expect("insts"),
+                            CallTarget {
+                                key: Hash128(0),
+                                ret: Ty::VOID,
+                                import: Some(ix),
+                            },
+                        );
+                        reps.hash(env.path_hash(callee));
+                        continue;
+                    }
                     let key = instance_key(pool, &ph, callee, 0, &key_args(pool, cargs));
                     let (cid, new) =
                         out.table
@@ -230,7 +249,14 @@ pub fn collect(
                         work.push(cid);
                     }
                     let ret = subst(pool, callee, cargs, env.ret(callee).unwrap_or(Ty::VOID));
-                    calls.insert(u32::try_from(i).expect("insts"), CallTarget { key, ret });
+                    calls.insert(
+                        u32::try_from(i).expect("insts"),
+                        CallTarget {
+                            key,
+                            ret,
+                            import: None,
+                        },
+                    );
                     reps.hash(env.path_hash(callee));
                     for b in env.bounded(callee).unwrap_or_default() {
                         reps.u8(u8::from(b));

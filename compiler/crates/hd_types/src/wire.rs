@@ -9,7 +9,7 @@ use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, NotImplemented, PathId, Stage, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 
-use crate::pool::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
+use crate::pool::{InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
 const NONE: u32 = u32::MAX;
 
@@ -23,6 +23,7 @@ pub struct TableWriter<'a> {
     ty_rows: Vec<(u8, Vec<u32>)>,
     ty_index: HashMap<u32, u32>,
     list_index: HashMap<u32, u32>,
+    row_index: HashMap<u32, u32>,
     sym_rows: Vec<String>,
     sym_index: HashMap<Symbol, u32>,
 }
@@ -40,6 +41,10 @@ mod tag {
     pub const FN: u8 = 8;
     pub const LIST: u8 = 9;
     pub const CANON: u8 = 10;
+    pub const TUPLE_REST: u8 = 11;
+    pub const TRAIT_VALUE: u8 = 12;
+    pub const ASSOC: u8 = 13;
+    pub const ROW: u8 = 14;
 }
 
 impl<'a> TableWriter<'a> {
@@ -54,6 +59,7 @@ impl<'a> TableWriter<'a> {
             ty_rows: Vec::new(),
             ty_index: HashMap::new(),
             list_index: HashMap::new(),
+            row_index: HashMap::new(),
             sym_rows: Vec::new(),
             sym_index: HashMap::new(),
         }
@@ -110,6 +116,25 @@ impl<'a> TableWriter<'a> {
         Ok(row)
     }
 
+    /// A row (§3.4): sorted keys, then row parameters as (owner, index).
+    pub fn row_id(&mut self, r: RowId) -> StageResult<u32> {
+        if let Some(&x) = self.row_index.get(&r.0) {
+            return Ok(x);
+        }
+        let d = self.pool.row_data(r);
+        let mut words = vec![u32::try_from(d.keys.len()).expect("row keys")];
+        for k in &d.keys {
+            words.push(self.ty(*k)?);
+        }
+        for p in &d.params {
+            words.push(self.def(p.owner));
+            words.push(u32::from(p.index));
+        }
+        let row = self.row(tag::ROW, words);
+        self.row_index.insert(r.0, row);
+        Ok(row)
+    }
+
     pub fn ty(&mut self, t: Ty) -> StageResult<u32> {
         if let Some(&r) = self.ty_index.get(&t.0) {
             return Ok(r);
@@ -120,6 +145,10 @@ impl<'a> TableWriter<'a> {
             TyData::Poison => (tag::POISON, vec![]),
             TyData::Adt { def, args } => (tag::ADT, vec![self.def(def), self.list(args)?]),
             TyData::Tuple { elems, rest: None } => (tag::TUPLE, vec![self.list(elems)?]),
+            TyData::Tuple {
+                elems,
+                rest: Some(r),
+            } => (tag::TUPLE_REST, vec![self.list(elems)?, self.ty(r)?]),
             TyData::Option(i) => (tag::OPTION, vec![self.ty(i)?]),
             TyData::Param(p) => (tag::PARAM, vec![self.def(p.owner), u32::from(p.index)]),
             TyData::Mut(i) => (tag::MUT, vec![self.ty(i)?]),
@@ -127,10 +156,44 @@ impl<'a> TableWriter<'a> {
                 params,
                 result,
                 row,
-                suspends: false,
-            } if row == RowId::EMPTY => (tag::FN, vec![self.list(params)?, self.ty(result)?]),
+                suspends,
+            } => (
+                tag::FN,
+                vec![
+                    self.list(params)?,
+                    self.ty(result)?,
+                    self.row_id(row)?,
+                    u32::from(suspends),
+                ],
+            ),
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => {
+                let mut w = vec![self.def(def), self.list(args)?];
+                for (d, b) in bindings {
+                    w.push(self.def(d));
+                    w.push(self.ty(b)?);
+                }
+                (tag::TRAIT_VALUE, w)
+            }
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => (
+                tag::ASSOC,
+                vec![
+                    self.def(assoc),
+                    self.def(trait_),
+                    self.ty(self_ty)?,
+                    self.list(args)?,
+                ],
+            ),
             TyData::Canon(i) => (tag::CANON, vec![u32::from(i)]),
-            other => {
+            other @ TyData::Infer(_) => {
                 return Err(NotImplemented::new(
                     Stage::ModuleFinish,
                     format!("entry-local type row for {other:?}"),
@@ -240,8 +303,56 @@ impl Tables {
                     pool.intern_ty(&TyData::Fn {
                         params: TyList(row(0)?),
                         result: Ty(row(1)?),
-                        row: RowId::EMPTY,
-                        suspends: false,
+                        row: RowId(row(2)?),
+                        suspends: *words.get(3)? != 0,
+                    })
+                    .0
+                }
+                tag::TUPLE_REST => {
+                    pool.intern_ty(&TyData::Tuple {
+                        elems: TyList(row(0)?),
+                        rest: Some(Ty(row(1)?)),
+                    })
+                    .0
+                }
+                tag::TRAIT_VALUE => {
+                    let mut bindings = Vec::new();
+                    let mut i = 2;
+                    while i + 1 < words.len() {
+                        bindings.push((def(i)?, Ty(row(i + 1)?)));
+                        i += 2;
+                    }
+                    pool.intern_ty(&TyData::TraitValue {
+                        def: def(0)?,
+                        args: TyList(row(1)?),
+                        bindings,
+                    })
+                    .0
+                }
+                tag::ASSOC => {
+                    pool.intern_ty(&TyData::Assoc {
+                        assoc: def(0)?,
+                        trait_: def(1)?,
+                        self_ty: Ty(row(2)?),
+                        args: TyList(row(3)?),
+                    })
+                    .0
+                }
+                tag::ROW => {
+                    let n = *words.first()? as usize;
+                    let keys: Option<Vec<Ty>> = (1..=n).map(|i| row(i).map(Ty)).collect();
+                    let mut params = Vec::new();
+                    let mut i = n + 1;
+                    while i + 1 < words.len() {
+                        params.push(RowParamRef {
+                            owner: def(i)?,
+                            index: u16::try_from(*words.get(i + 1)?).ok()?,
+                        });
+                        i += 2;
+                    }
+                    pool.row(&RowData {
+                        keys: keys?,
+                        params,
                     })
                     .0
                 }
