@@ -10,6 +10,7 @@ name = "hd"
 path = "src/main.rs"
 
 [dependencies]
+hd_driver = { path = "../hd_driver" }
 hd_syntax = { path = "../hd_syntax" }
 
 [lints]

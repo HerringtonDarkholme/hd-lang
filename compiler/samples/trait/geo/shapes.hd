@@ -1,0 +1,24 @@
+pub data Point:
+    pub x: i32
+    pub y: i32
+
+pub trait Shape:
+    fn area(self) -> i32
+
+impl Shape for Point:
+    fn area(self) -> i32:
+        self.x * self.y
+
+pub fn make(x: i32, y: i32) -> Point:
+    Point { x: x, y: y }
+
+pub fn manhattan(p: Point) -> i32:
+    return abs(p.x) + abs(p.y)
+
+pub fn first[T](a: T, b: T) -> T:
+    return a
+
+fn abs(v: i32) -> i32:
+    if v < 0:
+        return -v
+    return v

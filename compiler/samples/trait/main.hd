@@ -1,0 +1,14 @@
+use pkg.geo.shapes.{Point, Shape, make, first}
+
+fn total[T < Shape](s: T) -> i32:
+    return s.area() + 1
+
+fn relay[T < Shape](a: T, b: T) -> i32:
+    return total(first(b, a))
+
+fn main():
+    p := make(3, 4)
+    println(p.area())
+    println(total(p))
+    println(total(make(10, 10)))
+    println(relay(make(1, 1), make(2, 3)))

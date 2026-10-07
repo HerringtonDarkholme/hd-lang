@@ -1,0 +1,15 @@
+pub data Rect:
+    pub w: i32
+    pub h: i32
+
+pub trait Area:
+    fn area(self) -> i32
+
+impl Area for Rect:
+    fn area(self) -> i32:
+        self.w * self.h
+
+pub fn bigger[T < Area](a: T, b: T) -> T:
+    if a.area() >= b.area():
+        return a
+    return b

@@ -46,6 +46,7 @@ dependencies = [
 name = "hd_cli"
 version = "0.0.0"
 dependencies = [
+ "hd_driver",
  "hd_syntax",
 ]
 

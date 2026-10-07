@@ -1,0 +1,9 @@
+use pkg.geo.shapes.{Point, make, manhattan}
+
+fn main():
+    p := make(3, -4)
+    println(p.x)
+    println(p.y)
+    println(manhattan(p))
+    q := Point { y: 10, x: 20 }
+    println(q.x + q.y)
