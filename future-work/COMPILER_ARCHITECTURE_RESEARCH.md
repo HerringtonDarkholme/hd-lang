@@ -1049,6 +1049,26 @@ Runtime and CLI cases (903 and 51) need the back half and wait for Part 2.
 
 ## Open Questions For The Owner
 
+**Answered (owner, 2026-10-06).** The answers below settle questions 1–14;
+the question texts stay for their reasoning.
+
+| # | Answer |
+|---|---|
+| 1 | Rust. |
+| 2 | A per-module on-disk cache; no salsa, no daemon. |
+| 3 | Single-threaded in the browser for v1. |
+| 4 | No download budget yet; set it after the first browser slice is measured. |
+| 5 | Add diagnostic codes for the hard limits (orchestrator's call). |
+| 6 | Specify `modules_checked` (orchestrator's call). |
+| 7 | Reword `req.host-wait.leaf`: the host ABI is an implementation detail; v1 uses hd's own core-Wasm imports. |
+| 8 | Code per concrete type, then merge byte-identical functions; the same in debug and release. |
+| 9 | In the browser: JSPI where present; else a synchronous same-origin XHR for HTTP; else a `host-contract` panic. |
+| 10 | The `disk` metric counts per-worktree artifacts; the `hd` binary gets its own budget once measured (orchestrator's call). |
+| 11 | Add `heap-exhausted` and `time-limit` panic categories (orchestrator's call). |
+| 12 | Require Wasm GC only (orchestrator's call). |
+| 13 | The ban becomes direct-only: a direct `block_on` or `println` in `defer`, defaults, facts or module initialization is rejected; an indirect one panics at run time, as Rust's tokio does. Interfaces come from syntax alone. |
+| 14 | Moot after 13. |
+
 1. **Implementation language.** Recommendation: Rust. Go is the fallback if
    Rust's build loop proves too slow for agents (Q1).
 2. **Incremental model.** Recommendation: a per-module on-disk cache keyed by

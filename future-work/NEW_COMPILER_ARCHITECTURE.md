@@ -27,6 +27,17 @@ the orchestrator's proposals kept apart. Last restructured 2026-10-06.
 
 **Decided (owner, 2026-10-06):**
 
+- **Architecture, after [the research](COMPILER_ARCHITECTURE_RESEARCH.md#open-questions-for-the-owner):**
+  the compiler is written in Rust; incremental checking uses a per-module
+  on-disk cache (no salsa, no daemon); generic code is generated per
+  concrete type, then byte-identical functions are merged; the browser
+  build is single-threaded in v1; a browser `block_on` that waits on the
+  host uses JSPI, else a synchronous same-origin XHR for HTTP, else a
+  `host-contract` panic; the host ABI is hd's own core-Wasm imports, not
+  the Component Model; the `block_on` ban in `defer`, defaults, facts and
+  module initialization becomes direct-only, with a run-time panic for an
+  indirect call.
+
 - **The compiler runs in the web playground.** It is compiled to Wasm and
   checks, builds and tests in a browser tab, as the prototype does today.
   The playground runs the user's program on the browser's engine. So the
