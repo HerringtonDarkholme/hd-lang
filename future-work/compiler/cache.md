@@ -62,20 +62,13 @@ iface_key(F)  = H("iface", toolchain_key, package key, folder path,
                   sorted [(folder path, deep_hash) for each folder that F's uses reach])
 
 check_key(m)  = H("check", toolchain_key, package key, module path, role, source_hash(m),
-                  deep_hash(own folder),
-                  sorted [(folder path, deep_hash) for each folder that m's uses reach],
-                  arg_impls_closure_hash(m))
-
-argc(F)       = H("argc", arg_impls section hash of F,
-                  sorted [(folder path, argc(D)) for each folder D that F's uses reach])
-arg_impls_closure_hash(m) = H("argc-m", argc(own folder),
-                  sorted [(folder path, argc(D)) for each folder D that m's uses reach])
+                  sorted [(folder path, deep_hash) for each folder in closure(m)])
 
 hdr_key(F)    = H("hdr", iface_key(F),
-                  sorted [(folder path, deep_hash, argc) for each folder that F's uses reach])
+                  sorted [(folder path, deep_hash) for each folder in closure(F)])
 
 test_key(m)   = H("check-test", check_key(m), source_hash(m),
-                  sorted [(folder path, deep_hash) for each folder the test code uses],
+                  sorted [(folder path, deep_hash) for each folder in test_closure(m)],
                   sorted dev-dependency keys)
 
 coh_key(T)    = H("coh", toolchain_key, stable path of T, sorted head hashes of T's impls)
@@ -86,25 +79,52 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
                   file, sorted dependency keys, command mode)
 ```
 
-- **The candidate directory (trait-solver.md change 21).** A goal with
-  an open trait argument reads impls owned only through a trait
-  argument, from any folder in the asking module's dependency closure
+- **Dependency closures.** `closure(m)` is m's own folder plus every
+  folder reachable from it through the folder graph's use edges. It is
+  the transitive closure, not only the folders m names. `closure(F)` is
+  the same for a folder. `test_closure(m)` adds every folder that the
+  test code's uses reach, dev dependencies included. These are the bit
+  sets the driver builds per context (scheduler.md §6.1), the same sets
+  that filter the candidate directory. So each key lists every folder
+  whose impls its check can see.
+- **Argument-owned impls need no extra hash (Codex re-review N-A1).** A
+  goal with an open trait argument reads impls owned only through a
+  trait argument, from any folder in the asking context's closure
   ([trait-solver.md §3.2](trait-solver.md#32-owner-modules)). Such an
-  impl may live in a folder whose public API, and so whose deep hash,
-  does not change when the impl is added. `argc` is a Merkle hash over
-  the `arg_impls` section hashes of the closure, computed bottom-up
-  beside the deep hashes, so adding `impl Pick[Product] for Receiver`
-  in a third folder rechecks exactly the modules whose closure holds
-  it. The section hash changes only when such a head changes, which is
-  rare.
+  impl has a nameable trait and target, so its head is in its folder's
+  `api_hash` and deep hash
+  ([resolution-and-interfaces.md §4.10](resolution-and-interfaces.md#410-folder-interface-construction)).
+  The closure lists hold that deep hash. So adding `impl Pick[Product]
+  for Receiver` in a third folder rechecks exactly the contexts whose
+  closure holds it. An earlier draft added `argc`, a Merkle hash over
+  the closure's `arg_impls` sections, to `check_key` and `hdr_key`. It
+  was needed only while the lists named direct uses. With closure lists
+  it is redundant, so it is removed.
+- **What the closure list costs.** Before, a folder that m reached only
+  through another folder's bodies entered m's key only through API
+  mentions in deep hashes. Now any public API edit in it rechecks m.
+  Public API edits are much rarer than body edits, and the
+  `recheck-precision` metric counts them
+  ([testing-the-compiler.md §8.2](testing-the-compiler.md#82-incremental-soundness)).
 - **The solver memo is never persisted** and is never part of a key. It
   lives for one run (trait-solver.md §7.1). A `check` entry is a
   function of its key because the memo's answers are functions of
-  their goals.
+  their goals. A goal that reads the candidate directory holds its
+  context's `ImplUniverseId`, which is a function of the closure that
+  the key lists.
 - **Header checks (stage B).** `HeaderCheck(F)` runs the solver over
   F's frozen impl tables and its dependencies'. Its inputs are F's
-  interface, its dependencies' interfaces and their `arg_impls`
-  sections, which `hdr_key` names. Its entry holds only diagnostics.
+  interface and the interfaces of `closure(F)`, their `arg_impls`
+  sections included, which `hdr_key` names by deep hash. Its entry
+  holds only diagnostics.
+- **Head hashes (Codex re-review N-D1).** A head hash in `coh_key` is
+  `H(canonical head, rank)`. The canonical head is the impl's
+  parameters, target and trait arguments. The rank is its content rank
+  `(package, module path, item index)`
+  ([trait-solver.md §5.3](trait-solver.md#53-why-no-global-index)).
+  The report names the later impl of a pair by rank, so swapping two
+  overlapping impls must miss. The rank uses the item index, not a byte
+  offset, so a body edit above an impl keeps the key.
 - **Package key.** `H("root", manifest_key)` for the package being built,
   never its path.
   A fetched dependency is `HOST_PATH@VERSION` plus its tree hash. A path

@@ -50,6 +50,24 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
   (§11.3) for the folders its program reaches, so no program is built
   over an unchecked header. Its cache entry is `hdr` (cache.md §5.2),
   looked up before it runs like any other.
+- **Closures and impl universes (Codex re-review N1).** Once the folder
+  graphs are built, the driver computes each folder's closure as a bit
+  set over the program graph's folders, bottom-up. `ModulePrep(m)` (M1)
+  builds `closure(m)` from its own folder and its file's non-test uses,
+  and `TestOverlay(m)` builds `test_closure(m)` with the test uses
+  added (cache.md §5.3). Then each solving context gets one
+  `ImplUniverseId`: the sorted list of the folders in its closure whose
+  `arg_impls` section is not empty, interned once per run
+  ([trait-solver.md §3.2](trait-solver.md#32-owner-modules)).
+  - The contexts: each module's bodies, computed in M1 before any
+    `Body(m, i)` starts; each module's test overlay; each
+    `HeaderCheck(F)`, from `closure(F)` when the task starts; and each
+    derive instance, which uses its module's id.
+  - Equal lists get one id, so most modules of a package share one.
+  - The id is a run ID. It keys the solver memo and never reaches a
+    cache key or output; the keys hash the closure lists instead.
+  - Every folder in a context's closure is already a dependency of its
+    task, through the `FolderIface` chain, so universes add no edge.
 - **Cache checks are tasks too.** A key can be computed only when the
   deep hashes it names are known, so "compute key, look up, skip or run"
   is the first step of each `FolderIface` and `ModuleFinish` path. A hit

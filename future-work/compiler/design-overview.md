@@ -98,7 +98,7 @@ in-memory ID.
 | Folder graph | use lists of every file | folder DAG, `folder-cycle` | package | serial (tiny) | inside `pkgres` | none |
 | Folder interface | skeletons of the folder, deep interfaces of used folders | `FolderIface`, blob, deep hash, header diagnostics | folder | yes, in DAG order | `iface` | [§5.3](cache.md#53-key-composition) |
 | Header check (stage B) | a folder's interface, its dependencies' interfaces and impl tables | header bound, supertrait, newtype-base and delegation diagnostics | folder | yes | `hdr` | [§5.3](cache.md#53-key-composition) |
-| Module prep | module CST, own folder interface, used interfaces | module scope, private signatures, inferred results | module | yes, across modules | inside `check` | none |
+| Module prep | module CST, own folder interface, used interfaces | module scope, private signatures, inferred results, the closure bit set and `ImplUniverseId` | module | yes, across modules | inside `check` | none |
 | Body check | body CST, frozen tables | TIR (§4.13.11), diagnostics, facts | body | yes | inside `check`; TIR in `tir` | none |
 | Module finish | the module's body results | `ModuleResult` | module | yes, across modules | `check` | [§5.3](cache.md#53-key-composition) |
 | Test overlay | `tests:` block and doc tests of a module | TIR, diagnostics | module | yes | `check-test` | check key plus test uses |
@@ -122,6 +122,10 @@ Parse(f) ──────┼──────────────┼─�
 - A `HeaderCheck(F)` task (stage B) waits for the same interfaces as
   `FolderIface(F)` plus F's own. No check waits for it; `PackageResult`
   and codegen's `Collect` do (scheduler.md §6.1).
+- After M1 builds a module's closure bit set, the driver interns one
+  `ImplUniverseId` per solving context: the module's bodies, its test
+  overlay, each `HeaderCheck(F)` and each derive instance
+  (scheduler.md §6.1). It adds no edge to the graph.
 - A `Body` task waits only for its `ModulePrep`. Bodies never wait on each
   other, with one exception: a private function with an omitted result
   type, which `ModulePrep` infers first (§4.13.1).
