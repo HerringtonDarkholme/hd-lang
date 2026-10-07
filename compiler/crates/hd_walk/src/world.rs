@@ -24,6 +24,9 @@ pub enum TyKind {
     /// `Self` inside a trait.
     SelfTy,
     Adt(DefId),
+    /// The `REF` class: a type argument erased to "one non-null reference"
+    /// in a move-only generic instance (codegen.md §13.2, A1).
+    ClassRef,
 }
 
 /// The content form of a type: stable paths, no IDs. Interfaces, entries and
@@ -37,6 +40,7 @@ pub enum CTy {
     Param(u32),
     SelfTy,
     Adt(String),
+    ClassRef,
 }
 
 impl CTy {
@@ -55,6 +59,7 @@ impl CTy {
                 out.push(6);
                 put_str(out, path);
             }
+            CTy::ClassRef => out.push(7),
         }
     }
     pub fn decode(r: &mut Reader<'_>) -> CTy {
@@ -66,6 +71,7 @@ impl CTy {
             4 => CTy::Param(r.u32()),
             5 => CTy::SelfTy,
             6 => CTy::Adt(r.str()),
+            7 => CTy::ClassRef,
             t => panic!("bad type tag {t}"),
         }
     }
@@ -162,6 +168,7 @@ impl World {
             TyKind::Param(i) => CTy::Param(*i),
             TyKind::SelfTy => CTy::SelfTy,
             TyKind::Adt(d) => CTy::Adt(self.path(*d).to_owned()),
+            TyKind::ClassRef => CTy::ClassRef,
         }
     }
     pub fn intern_canon(&mut self, c: &CTy) -> Ty {
@@ -173,6 +180,7 @@ impl World {
             CTy::Param(i) => TyKind::Param(*i),
             CTy::SelfTy => TyKind::SelfTy,
             CTy::Adt(p) => TyKind::Adt(self.def(p)),
+            CTy::ClassRef => TyKind::ClassRef,
         };
         self.ty(kind)
     }
@@ -193,6 +201,7 @@ impl World {
             TyKind::Param(i) => format!("T{i}"),
             TyKind::SelfTy => "Self".into(),
             TyKind::Adt(d) => self.path(*d).to_owned(),
+            TyKind::ClassRef => "REF".into(),
         }
     }
 }

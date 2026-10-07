@@ -65,6 +65,7 @@ pub fn check_fn(w: &mut World, cst: &Cst<'_>, scope: &Scope, def: DefId, f: Node
     let ret_void = matches!(ck.w.kind(sig.ret), TyKind::Void);
     let root = ck.block(body, !ret_void);
     ck.b.sub_root.push(root);
+    ck.b.rep_exact = rep_summary(ck.w, &ck.b, &sig);
     Checked { body: ck.b, errors: ck.errors, deps: ck.deps.into_iter().collect() }
 }
 
@@ -496,4 +497,28 @@ impl Ck<'_, '_> {
         let b = self.b.list(&refs);
         (self.emit(TirTag::Call, a, b, ret, n), ret)
     }
+}
+
+/// The representation summary (codegen.md §13.2, A1), from the body's own
+/// TIR: a type parameter needs its exact representation when the body makes
+/// a trait call on it. Without the `a1-literal` feature, the skeleton adds a
+/// fix: a bounded parameter is always exact, since passing it to a bounded
+/// callee needs the exact type there too (skeleton-findings.md).
+fn rep_summary(w: &World, b: &TirBody, sig: &FnSig) -> Vec<u8> {
+    let mut exact: Vec<u8> = sig
+        .generics
+        .iter()
+        .map(|(_, bound)| u8::from(bound.is_some() && !cfg!(feature = "a1-literal")))
+        .collect();
+    for i in 0..b.tags.len() {
+        if b.tags[i] == TirTag::Call {
+            let rec = b.get_list(b.data[i][0]);
+            if rec[0] == CALLEE_TRAIT_METHOD {
+                if let TyKind::Param(p) = *w.kind(Ty(rec[3])) {
+                    exact[p as usize] = 1;
+                }
+            }
+        }
+    }
+    exact
 }

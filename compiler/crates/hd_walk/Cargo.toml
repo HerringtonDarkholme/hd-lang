@@ -12,5 +12,10 @@ hd_intern = { path = "../hd_intern" }
 hd_syntax = { path = "../hd_syntax" }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std"] }
 
+[features]
+# The A1 representation summary exactly as codegen.md §13.2 words it (shows
+# the gap the skeleton found; see skeleton-findings.md).
+a1-literal = []
+
 [lints.rust]
 unsafe_code = "forbid"

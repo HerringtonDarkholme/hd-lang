@@ -57,6 +57,19 @@ pub fn resolve_method(w: &mut World, rec: &[u32], args: &[Ty]) -> Instance {
     Instance { item: method, ty_args: Vec::new() }
 }
 
+/// A1 at collection: a move-only type argument with a one-reference layout is
+/// replaced by its class `REF`.
+pub fn classify(w: &mut World, bodies: &HashMap<DefId, TirBody>, mut inst: Instance) -> Instance {
+    let Some(b) = bodies.get(&inst.item) else { return inst };
+    for (i, t) in inst.ty_args.iter_mut().enumerate() {
+        let move_only = b.rep_exact.get(i).copied() == Some(0);
+        if move_only && matches!(w.kind(*t), TyKind::Adt(_) | TyKind::ClassRef) {
+            *t = w.ty(TyKind::ClassRef);
+        }
+    }
+    inst
+}
+
 pub fn collect(w: &mut World, bodies: &HashMap<DefId, TirBody>, root: DefId) -> InstanceSet {
     let mut seen: HashSet<Instance> = HashSet::new();
     let mut work = vec![Instance { item: root, ty_args: Vec::new() }];
@@ -83,6 +96,7 @@ pub fn collect(w: &mut World, bodies: &HashMap<DefId, TirBody>, root: DefId) -> 
                     } else {
                         resolve_method(w, &rec, &inst.ty_args)
                     };
+                    let callee = classify(w, bodies, callee);
                     work.push(callee);
                 }
                 TirTag::Intrinsic => {

@@ -7,18 +7,20 @@ use std::collections::{BTreeMap, HashMap};
 use hd_base::Hash128;
 use wasm_encoder::{
     BlockType, CodeSection, CompositeInnerType, CompositeType, EntityType, ExportKind,
-    ExportSection, FieldType, Function, FunctionSection, HeapType, ImportSection, Module, RefType,
+    ExportSection, FieldType, FunctionSection, HeapType, ImportSection, Module, RefType,
     StorageType, StructType, SubType, TypeSection, ValType,
 };
 
-use crate::mono::{Instance, instance_key, resolve_method};
+use crate::mono::{Instance, classify, instance_key, resolve_method};
 use crate::tir::{CALLEE_ITEM, CONST_BIT, NONE, PrimOp, TirBody, TirTag};
-use crate::world::{DefKind, Ty, TyKind, World};
+use crate::world::{DefId, DefKind, Ty, TyKind, World};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum VT {
     I32,
     Ref(String),
+    /// `eqref`: the erased layout of the `REF` class (wasm-layout.md §15.1).
+    Eq,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,14 +41,118 @@ pub enum W {
     Br(u32),
     Return,
     Unreachable,
+    /// `ref.cast (ref $T)`: the reader of an erased value casts at first use.
+    Cast(String),
 }
 
+/// A relocation target (codegen.md §13.8 `Reloc`, the kinds the subset uses).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Reloc {
+    Func(Hash128),
+    Import(u32),
+    Type(String),
+}
+
+/// A code entry (codegen.md §13.8): locals and instructions as bytes, index
+/// immediates as 5-byte padded LEBs, with relocations sorted by offset.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Code {
     pub params: Vec<VT>,
     pub results: Vec<VT>,
-    pub locals: Vec<VT>,
-    pub body: Vec<W>,
+    pub body: Vec<u8>,
+    pub relocs: Vec<(u32, Reloc)>,
+}
+
+fn padded(out: &mut Vec<u8>, v: u32) {
+    for k in 0..4 {
+        out.push(u8::try_from((v >> (7 * k)) & 0x7f).expect("7 bits") | 0x80);
+    }
+    out.push(u8::try_from((v >> 28) & 0x7f).expect("7 bits"));
+}
+fn slot(out: &mut Vec<u8>, relocs: &mut Vec<(u32, Reloc)>, r: Reloc) {
+    relocs.push((u32::try_from(out.len()).expect("offset"), r));
+    padded(out, 0);
+}
+fn val_bytes(out: &mut Vec<u8>, relocs: &mut Vec<(u32, Reloc)>, vt: &VT) {
+    match vt {
+        VT::I32 => out.push(0x7f),
+        VT::Eq => out.push(0x6d),
+        VT::Ref(p) => {
+            out.push(0x64);
+            slot(out, relocs, Reloc::Type(p.clone()));
+        }
+    }
+}
+
+/// Encodes a body: plain instructions through `wasm-encoder`, relocated
+/// immediates as raw opcode bytes plus a padded slot.
+fn encode(locals: &[VT], ws: &[W]) -> (Vec<u8>, Vec<(u32, Reloc)>) {
+    let mut out = Vec::new();
+    let mut relocs = Vec::new();
+    let n = u32::try_from(locals.len()).expect("locals");
+    wasm_encoder::Encode::encode(&n, &mut out);
+    for l in locals {
+        out.push(1);
+        val_bytes(&mut out, &mut relocs, l);
+    }
+    for w in ws {
+        match w {
+            W::Call(k) => {
+                out.push(0x10);
+                slot(&mut out, &mut relocs, Reloc::Func(*k));
+            }
+            W::CallImport(i) => {
+                out.push(0x10);
+                slot(&mut out, &mut relocs, Reloc::Import(*i));
+            }
+            W::StructNew(p) => {
+                out.extend_from_slice(&[0xfb, 0x00]);
+                slot(&mut out, &mut relocs, Reloc::Type(p.clone()));
+            }
+            W::StructGet(p, f, packed) => {
+                out.extend_from_slice(&[0xfb, if *packed { 0x04 } else { 0x02 }]);
+                slot(&mut out, &mut relocs, Reloc::Type(p.clone()));
+                wasm_encoder::Encode::encode(f, &mut out);
+            }
+            W::Cast(p) => {
+                out.extend_from_slice(&[0xfb, 0x16]);
+                slot(&mut out, &mut relocs, Reloc::Type(p.clone()));
+            }
+            other => {
+                let mut s = wasm_encoder::InstructionSink::new(&mut out);
+                match other {
+                    W::I32(v) => s.i32_const(*v),
+                    W::LGet(l) => s.local_get(*l),
+                    W::LSet(l) => s.local_set(*l),
+                    W::Prim(op) => match PrimOp::from_u32(*op) {
+                        PrimOp::Add => s.i32_add(),
+                        PrimOp::Sub | PrimOp::Neg => s.i32_sub(),
+                        PrimOp::Mul => s.i32_mul(),
+                        PrimOp::Div => s.i32_div_s(),
+                        PrimOp::Rem => s.i32_rem_s(),
+                        PrimOp::Eq => s.i32_eq(),
+                        PrimOp::Ne => s.i32_ne(),
+                        PrimOp::Lt => s.i32_lt_s(),
+                        PrimOp::Le => s.i32_le_s(),
+                        PrimOp::Gt => s.i32_gt_s(),
+                        PrimOp::Ge => s.i32_ge_s(),
+                        PrimOp::And => s.i32_and(),
+                        PrimOp::Or => s.i32_or(),
+                    },
+                    W::If => s.if_(BlockType::Empty),
+                    W::Else => s.else_(),
+                    W::End => s.end(),
+                    W::Block => s.block(BlockType::Empty),
+                    W::Loop => s.loop_(BlockType::Empty),
+                    W::Br(d) => s.br(*d),
+                    W::Return => s.return_(),
+                    W::Unreachable => s.unreachable(),
+                    _ => unreachable!(),
+                };
+            }
+        }
+    }
+    (out, relocs)
 }
 
 /// The layout of a type (wasm-layout.md §15.1): `None` for `void`/`never`.
@@ -55,12 +161,14 @@ fn layout(w: &World, t: Ty) -> Option<VT> {
         TyKind::Void | TyKind::Never => None,
         TyKind::Bool | TyKind::I32 => Some(VT::I32),
         TyKind::Adt(d) => Some(VT::Ref(w.path(*d).to_owned())),
+        TyKind::ClassRef => Some(VT::Eq),
         TyKind::Param(_) | TyKind::SelfTy => panic!("layout of an unsubstituted type"),
     }
 }
 
 struct Em<'a> {
     w: &'a mut World,
+    bodies: &'a HashMap<DefId, TirBody>,
     b: &'a TirBody,
     args: &'a [Ty],
     out: Vec<W>,
@@ -147,7 +255,18 @@ impl Em<'_> {
                 } else {
                     resolve_method(self.w, &rec, self.args)
                 };
+                let callee = classify(self.w, self.bodies, callee);
                 self.out.push(W::Call(instance_key(self.w, &callee)));
+                // An erased result is cast back where the exact type is needed.
+                let cret = match self.w.defs.get(&callee.item) {
+                    Some(DefKind::Fn(s) | DefKind::ImplMethod { sig: s, .. }) => s.ret,
+                    _ => panic!("callee"),
+                };
+                let cret = self.w.subst(cret, &callee.ty_args, None);
+                let want = self.sub(self.b.ty[i as usize]);
+                if let (Some(VT::Eq), Some(VT::Ref(p))) = (layout(self.w, cret), layout(self.w, want)) {
+                    self.out.push(W::Cast(p));
+                }
                 self.store(i);
             }
             TirTag::NewData => {
@@ -214,7 +333,7 @@ impl Em<'_> {
 }
 
 /// `Emit(inst)`: walks the generic TIR under the substitution.
-pub fn emit(w: &mut World, b: &TirBody, inst: &Instance) -> Code {
+pub fn emit(w: &mut World, bodies: &HashMap<DefId, TirBody>, b: &TirBody, inst: &Instance) -> Code {
     let mut params = Vec::new();
     let mut local_map = Vec::new();
     let mut user_locals = Vec::new();
@@ -244,6 +363,7 @@ pub fn emit(w: &mut World, b: &TirBody, inst: &Instance) -> Code {
     let root = b.sub_root[0].0;
     let mut em = Em {
         w,
+        bodies,
         b,
         args: &inst.ty_args,
         out: Vec::new(),
@@ -263,7 +383,8 @@ pub fn emit(w: &mut World, b: &TirBody, inst: &Instance) -> Code {
         em.load(tail);
     }
     em.out.push(W::End);
-    Code { params, results, locals: em.locals, body: em.out }
+    let (body, relocs) = encode(&em.locals, &em.out);
+    Code { params, results, body, relocs }
 }
 
 // ------------------------------------------------------------------- link
@@ -289,6 +410,7 @@ pub fn link(
     let val = |vt: &VT| -> ValType {
         match vt {
             VT::I32 => ValType::I32,
+            VT::Eq => ValType::Ref(RefType::EQREF),
             VT::Ref(p) => ValType::Ref(RefType {
                 nullable: false,
                 heap_type: HeapType::Concrete(struct_idx[p]),
@@ -358,49 +480,19 @@ pub fn link(
     for (_, c) in codes {
         let t = sig_of(&mut types, &c.params, &c.results);
         funcs.function(t);
-        let mut f = Function::new_with_locals_types(c.locals.iter().map(val));
-        let mut s = f.instructions();
-        for op in &c.body {
-            match op {
-                W::I32(v) => s.i32_const(*v),
-                W::LGet(l) => s.local_get(*l),
-                W::LSet(l) => s.local_set(*l),
-                W::Call(k) => s.call(func_idx[k]),
-                W::CallImport(i) => s.call(import_idx[i]),
-                W::StructNew(p) => s.struct_new(struct_idx[p]),
-                W::StructGet(p, f, packed) => {
-                    if *packed {
-                        s.struct_get_u(struct_idx[p], *f)
-                    } else {
-                        s.struct_get(struct_idx[p], *f)
-                    }
-                }
-                W::Prim(op) => match PrimOp::from_u32(*op) {
-                    PrimOp::Add => s.i32_add(),
-                    PrimOp::Sub | PrimOp::Neg => s.i32_sub(),
-                    PrimOp::Mul => s.i32_mul(),
-                    PrimOp::Div => s.i32_div_s(),
-                    PrimOp::Rem => s.i32_rem_s(),
-                    PrimOp::Eq => s.i32_eq(),
-                    PrimOp::Ne => s.i32_ne(),
-                    PrimOp::Lt => s.i32_lt_s(),
-                    PrimOp::Le => s.i32_le_s(),
-                    PrimOp::Gt => s.i32_gt_s(),
-                    PrimOp::Ge => s.i32_ge_s(),
-                    PrimOp::And => s.i32_and(),
-                    PrimOp::Or => s.i32_or(),
-                },
-                W::If => s.if_(BlockType::Empty),
-                W::Else => s.else_(),
-                W::End => s.end(),
-                W::Block => s.block(BlockType::Empty),
-                W::Loop => s.loop_(BlockType::Empty),
-                W::Br(d) => s.br(*d),
-                W::Return => s.return_(),
-                W::Unreachable => s.unreachable(),
+        // Patch each relocation's padded slot; no re-encoding.
+        let mut body = c.body.clone();
+        for (at, r) in &c.relocs {
+            let v = match r {
+                Reloc::Func(k) => func_idx[k],
+                Reloc::Import(i) => import_idx[i],
+                Reloc::Type(p) => struct_idx[p],
             };
+            let mut b = Vec::new();
+            padded(&mut b, v);
+            body[*at as usize..*at as usize + 5].copy_from_slice(&b);
         }
-        code_sec.function(&f);
+        code_sec.raw(&body);
     }
     let mut exports = ExportSection::new();
     exports.export("main", ExportKind::Func, func_idx[&root]);

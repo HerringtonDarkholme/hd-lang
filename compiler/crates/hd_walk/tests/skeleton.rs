@@ -93,16 +93,20 @@ fn main():
 ";
 
 const TRAIT_MAIN: &str = "\
-use pkg.geo.shapes.{Point, Shape, make}
+use pkg.geo.shapes.{Point, Shape, make, first}
 
 fn total[T < Shape](s: T) -> i32:
     return s.area() + 1
+
+fn relay[T < Shape](a: T, b: T) -> i32:
+    return total(first(b, a))
 
 fn main():
     p := make(3, 4)
     println(p.area())
     println(total(p))
     println(total(make(10, 10)))
+    println(relay(make(1, 1), make(2, 3)))
 ";
 
 fn program(main: &str, geo: Option<&str>) -> Vec<SourceFile> {
@@ -168,7 +172,7 @@ fn generic_first() {
 
 #[test]
 fn trait_through_bound() {
-    end_to_end("trait", &program(TRAIT_MAIN, Some(GEO)), "12\n13\n101\n");
+    end_to_end("trait", &program(TRAIT_MAIN, Some(GEO)), "12\n13\n101\n7\n");
 }
 
 #[test]

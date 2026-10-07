@@ -85,6 +85,9 @@ pub struct TirBody {
     pub local_flags: Vec<u8>,
     pub sub_root: Vec<Inst>,
     pub label_inst: Vec<Inst>,
+    /// Representation summary per type parameter (codegen.md §13.2, A1):
+    /// 1 when the body needs the exact representation, 0 when it only moves.
+    pub rep_exact: Vec<u8>,
 }
 
 pub const LOCAL_PARAM: u8 = 1;
@@ -241,6 +244,8 @@ pub fn write_body(w: &World, t: &mut Tables, b: &TirBody, out: &mut Vec<u8>, spa
     for s in &b.label_inst {
         put_u32(out, s.0);
     }
+    put_u32(out, u32::try_from(b.rep_exact.len()).expect("n"));
+    out.extend_from_slice(&b.rep_exact);
 }
 
 pub fn write_tables(t: &Tables, out: &mut Vec<u8>) {
@@ -350,6 +355,8 @@ pub fn read_body(w: &mut World, rows: &RunRows, r: &mut Reader<'_>) -> TirBody {
     b.sub_root = (0..ns).map(|_| Inst(r.u32())).collect();
     let nl = r.u32();
     b.label_inst = (0..nl).map(|_| Inst(r.u32())).collect();
+    let nr = r.u32();
+    b.rep_exact = (0..nr).map(|_| r.u8()).collect();
     b
 }
 

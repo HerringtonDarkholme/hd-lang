@@ -549,7 +549,7 @@ impl Run<'_> {
             *self.c.misses.entry("code").or_default() += 1;
             self.c.emitted += 1;
             let body = self.tir[&inst.item].clone();
-            let c = emit(&mut self.w, &body, &inst);
+            let c = emit(&mut self.w, &self.tir, &body, &inst);
             self.store.code.insert(ck.0, c.clone());
             c
         };
