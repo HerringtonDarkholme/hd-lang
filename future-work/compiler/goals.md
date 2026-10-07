@@ -35,7 +35,7 @@ Detailed design: [README.md](README.md)
   category) and on function values; on a value known only dynamically as
   `Any`, the result is unspecified. Whether every enum becomes a value type
   is under research
-  (research-enum-values.md, pending).
+  ([research-enum-values.md](research-enum-values.md), pending).
 - Literal widths are decided once per connected literal class; no
   per-statement retry.
 - An impl head may not project an impl parameter
