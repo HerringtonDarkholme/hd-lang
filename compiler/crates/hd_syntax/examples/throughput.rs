@@ -3,7 +3,7 @@ use std::hint::black_box;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use hd_syntax::{lex, skim};
+use hd_syntax::{lex, parse, skim};
 
 fn files(root: &Path, output: &mut Vec<PathBuf>) {
     for entry in
@@ -61,5 +61,15 @@ fn main() {
         },
         bytes,
     );
-    println!("lib/std: {bytes} bytes; lex {lex_mbps:.1} MB/s; skim {skim_mbps:.1} MB/s");
+    let parse_mbps = measure(
+        || {
+            for source in &sources {
+                black_box(parse(black_box(source)));
+            }
+        },
+        bytes,
+    );
+    println!(
+        "lib/std: {bytes} bytes; lex {lex_mbps:.1} MB/s; skim {skim_mbps:.1} MB/s; parse {parse_mbps:.1} MB/s"
+    );
 }

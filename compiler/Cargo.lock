@@ -7,6 +7,13 @@ name = "hd_base"
 version = "0.0.0"
 
 [[package]]
+name = "hd_cli"
+version = "0.0.0"
+dependencies = [
+ "hd_syntax",
+]
+
+[[package]]
 name = "hd_diag"
 version = "0.0.0"
 dependencies = [

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use hd_base::Symbol;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Interner {
     by_text: HashMap<String, Symbol>,
     text: Vec<String>,

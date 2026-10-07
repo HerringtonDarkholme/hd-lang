@@ -71,26 +71,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### C2. New Compiler, Slice 1b: Parser, Green Tree, `hd parse`
-
-After C1. Same design files, plus `syntax.md` §4.4 (parser and green
-tree), §4.5 (header extraction and the API text hash), §4.6 (item index),
-`data-structures.md` §3.13 (green tree and its wire format) and
-`live-execution.md` (how a REPL input is parsed).
-
-- The hand-written resilient recursive-descent parser building the
-  lossless flat green tree, typed views generated or written per the
-  design, `dyn Trait` in type position, and a small `hd` binary (or a
-  `hd_cli` crate) with `hd parse FILE` printing the tree or the
-  diagnostics.
-- Exit test (`build-order.md` slice 1): the parse-phase cases of
-  `spec/conformance` pass (accept/reject and the diagnostic codes the
-  fixtures expect; list any you cannot match under Questions); every
-  fixture and std file round-trips byte for byte through the green tree;
-  skim and full-parse skeletons agree on every file; a fuzz target
-  (`cargo fuzz` or a property test) runs a fixed budget with no panic.
-- Record parse throughput in the commit message.
-
 ### C2a. Review Fixes For C1 (b224b04c)
 
 Review of C1 (tests and clippy pass; 7 tests):
@@ -109,7 +89,6 @@ Review of C1 (tests and clippy pass; 7 tests):
    green tree at least 100 MB/s. Keep the throughput example as a
    benchmark, report all three numbers in each commit message, and treat
    a drop of more than 10% as a regression to explain.
-
 ### C3. Research: Known Issues Of Prior Back Ends, Wasm And Runtimes
 
 Documents only. Continue `future-work/compiler/prior-art-issues.md` with
@@ -131,3 +110,10 @@ those files). Run `bash spec/check.sh` (it checks links) before pushing.
   its simulated Backspace reaches the parser as DEL (`U+007F`). The other 84 UI
   tests pass, and C1 changes no REPL or TypeScript code. Should a later job fix
   this mainline terminal-test failure?
+- C2 diagnostic coverage: the new parser accepts 98 of 99 current parse-phase
+  accept cases and matches 96 of 171 rejection diagnostics. The 75 unmatched
+  cases are listed individually in `compiler/KNOWN_FAILURES.tsv`; most require
+  deeper declaration, pattern, expression, or type grammar than slice 1b's resilient
+  structural parser. One current accept fixture for shared enum fields is also
+  ledgered pending the S1e removal of GADTs. Which diagnostic families should
+  the next parser slice prioritize?

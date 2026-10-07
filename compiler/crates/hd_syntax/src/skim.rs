@@ -204,6 +204,7 @@ fn use_ranges(tokens: &TokenBuf) -> Vec<(u32, u32)> {
 
 fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
     let mut bytes = Vec::new();
+    let mut indents = vec![0_u16];
     'tokens: for index in 0..tokens.len() {
         let start = tokens.start[index];
         for body in bodies {
@@ -214,15 +215,22 @@ fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
                 continue 'tokens;
             }
         }
+        let token = hd_base::TokenIdx::from_raw(u32::try_from(index).unwrap_or(u32::MAX - 1));
+        if tokens.is_line_first(token) {
+            bytes.push(0xf0);
+            let indent = tokens.line_indent[tokens.line_of(tokens.start[index])];
+            if indent > *indents.last().expect("indent stack") {
+                indents.push(indent);
+                bytes.push(0xf1);
+            } else {
+                while indents.last().is_some_and(|&active| active > indent) {
+                    indents.pop();
+                    bytes.push(0xf2);
+                }
+            }
+        }
         bytes.push(tokens.kind[index] as u8);
-        bytes.extend_from_slice(
-            tokens
-                .text(
-                    hd_base::TokenIdx::from_raw(u32::try_from(index).unwrap_or(u32::MAX - 1)),
-                    source,
-                )
-                .as_bytes(),
-        );
+        bytes.extend_from_slice(tokens.text(token, source).as_bytes());
     }
     hash128(&bytes)
 }
@@ -245,6 +253,18 @@ mod tests {
         assert_eq!(
             skim(source.as_bytes()).bodies,
             skeleton_from_layout(source, &tokens)
+        );
+    }
+
+    #[test]
+    fn api_hash_includes_kept_layout() {
+        let first =
+            "impl User by Structure:\n    name = if flag:\n        \"x\"\n    other = \"y\"\n";
+        let second =
+            "impl User by Structure:\n    name = if flag:\n        \"x\"\n        other = \"y\"\n";
+        assert_ne!(
+            skim(first.as_bytes()).api_text_hash,
+            skim(second.as_bytes()).api_text_hash
         );
     }
 }

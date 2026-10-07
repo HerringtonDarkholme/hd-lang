@@ -1,7 +1,8 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hd_syntax::{lex, skeleton_from_layout, skim};
+use hd_syntax::{lex, parse, skeleton_from_layout, skim};
 
 fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -65,4 +66,80 @@ fn skim_body_ranges_match_materialized_layout_reference() {
             path.display()
         );
     }
+}
+
+#[test]
+fn every_tree_round_trips_and_full_skeleton_matches_skim() {
+    for path in corpus() {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read UTF-8 {}: {error}", path.display()));
+        let parsed = parse(source.as_bytes());
+        assert_eq!(
+            parsed.tree.reconstruct(&parsed.tokens, &source),
+            source,
+            "{}",
+            path.display()
+        );
+        assert_eq!(
+            skim(source.as_bytes()).bodies,
+            skeleton_from_layout(&source, &parsed.tokens),
+            "{}",
+            path.display()
+        );
+    }
+}
+
+#[test]
+fn parse_phase_conformance() {
+    let root = repository_root();
+    let known_text = fs::read_to_string(root.join("compiler/KNOWN_FAILURES.tsv"))
+        .expect("compiler/KNOWN_FAILURES.tsv");
+    let known: BTreeMap<&str, &str> = known_text
+        .lines()
+        .skip(1)
+        .filter_map(|row| row.split_once('\t'))
+        .collect();
+    let mut seen_known = BTreeSet::new();
+    let cases = fs::read_to_string(root.join("spec/conformance/cases.tsv")).expect("cases.tsv");
+    let mut failures = Vec::new();
+    for row in cases.lines().skip(1) {
+        let columns: Vec<&str> = row.split('\t').collect();
+        if columns.len() < 3 || columns[1] != "parse" {
+            continue;
+        }
+        let source = fs::read(root.join("spec/conformance").join(columns[0]))
+            .unwrap_or_else(|error| panic!("read {}: {error}", columns[0]));
+        let parsed = parse(&source);
+        let actual: Vec<&str> = parsed
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code.as_str())
+            .collect();
+        if columns[2] == "accept" {
+            if !actual.is_empty() {
+                if known.get(columns[0]) == Some(&"pending-gadt-removal") {
+                    seen_known.insert(columns[0]);
+                } else {
+                    failures.push(format!("{} expected accept, got {actual:?}", columns[0]));
+                }
+            }
+        } else if let Some(expected) = columns[2].strip_prefix("reject:")
+            && !actual.contains(&expected)
+        {
+            if known.get(columns[0]) == Some(&expected) {
+                seen_known.insert(columns[0]);
+            } else {
+                failures.push(format!(
+                    "{} expected {expected}, got {actual:?}",
+                    columns[0]
+                ));
+            }
+        }
+    }
+    for path in known.keys() {
+        if !seen_known.contains(path) {
+            failures.push(format!("stale known failure: {path}"));
+        }
+    }
+    assert!(failures.is_empty(), "{}\n", failures.join("\n"));
 }

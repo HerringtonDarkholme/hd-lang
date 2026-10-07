@@ -444,6 +444,15 @@ impl<'s> Lexer<'s> {
                 if self.bytes.get(look).is_some_and(u8::is_ascii_digit) {
                     self.pos = look;
                     self.consume_decimal_digits(&mut bad_separator);
+                } else if self.bytes.get(look) == Some(&b'_') {
+                    self.pos = look + 1;
+                    while self
+                        .peek_byte(0)
+                        .is_some_and(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+                    {
+                        self.pos += 1;
+                    }
+                    bad_separator = true;
                 } else {
                     self.pos = exponent;
                 }
@@ -455,6 +464,8 @@ impl<'s> Lexer<'s> {
             {
                 self.consume_identifier_chars();
             }
+        } else if self.pos == start + 2 {
+            self.error(Code::SyntaxError, start, self.pos);
         } else if self.source[self.pos..]
             .chars()
             .next()
@@ -519,6 +530,9 @@ impl<'s> Lexer<'s> {
                 self.line += 1;
                 self.pos += 1;
             }
+            if byte == b'\t' {
+                self.error(Code::TabWhitespace, self.pos, self.pos + 1);
+            }
             if !prefixed && byte == b'\\' && !escaped {
                 if !valid_escape(self.bytes, self.pos) {
                     self.error(
@@ -558,6 +572,9 @@ impl<'s> Lexer<'s> {
             let byte = self.bytes[self.pos];
             if matches!(byte, b'\n' | b'\r') {
                 break;
+            }
+            if byte == b'\t' {
+                self.error(Code::TabWhitespace, self.pos, self.pos + 1);
             }
             if byte == b'\'' && !escaped {
                 self.pos += 1;
@@ -783,7 +800,16 @@ fn valid_escape(source: &[u8], pos: usize) -> bool {
             while source.get(at).is_some_and(u8::is_ascii_hexdigit) && at - first < 6 {
                 at += 1;
             }
-            at > first && source.get(at) == Some(&b'}')
+            if at == first || source.get(at) != Some(&b'}') {
+                return false;
+            }
+            let Ok(text) = core::str::from_utf8(&source[first..at]) else {
+                return false;
+            };
+            let Ok(value) = u32::from_str_radix(text, 16) else {
+                return false;
+            };
+            char::from_u32(value).is_some()
         }
         _ => false,
     }
