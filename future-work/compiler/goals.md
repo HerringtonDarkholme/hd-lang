@@ -37,10 +37,12 @@ Detailed design: [README.md](README.md)
 - **Every enum is an identity-free value type** (`Option`, `Result` and user
   enums; [research-enum-values.md](research-enum-values.md)). Enums and
   function types move to `AnyVal`; `is` on an enum or a function value is
-  `identity-requires-references`. `Error` drops its `AnyRef` bound, and
-  `find` becomes the free function `std.error.find[T < Error](error) -> T?`,
-  which matches by `TypeId` and returns values through `downcast_val`;
-  data-type errors still downcast by reference.
+  `identity-requires-references`. `Error` drops its `AnyRef` bound. Its
+  helpers `find`, `root_cause` and `chain` become Rust-style inherent
+  methods on the `dyn Error` type (`impl dyn Error:` in the trait's own
+  module), so `err.find::[T]()` keeps working and cannot be overridden;
+  `find` matches by `TypeId` and returns values through `downcast_val`,
+  data-type errors by reference.
 - Generics are fully monomorphized. The one erased path, a generic method
   called through a trait value, accepts any type argument: value-typed
   arguments are boxed at that call (boxes have no identity), so the
