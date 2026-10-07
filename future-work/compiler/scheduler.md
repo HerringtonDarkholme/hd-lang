@@ -27,7 +27,13 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
 - **Creation is dynamic.** The driver creates the discovery tasks. A
   finished task may add tasks and edges, for example the folder graph task
   creates one `FolderIface` per folder whose key missed. An edge to a task
-  that is already done counts as satisfied at once.
+  that is already done counts as satisfied at once. Registration and
+  completion take the producer's successor lock, so each edge is
+  satisfied exactly once, and a new task holds a creation guard until all
+  its edges exist (data-structures.md §3.21).
+- **Tests.** The scheduler's interleaving test runs register-versus-
+  complete races under `loom` and checks that every task runs once, after
+  all its dependencies.
 - **Results** go to per-kind slot vectors (`OnceLock<T>` indexed by the
   file, folder or module ID). A task reads only slots of tasks it depends
   on, so reads never race with writes.

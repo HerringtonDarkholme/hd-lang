@@ -1771,24 +1771,40 @@ pub struct TaskNode {                      // 48 bytes
     state: AtomicU8,                       // Waiting | Ready | Running | Done | Cancelled
     _pad: [u8; 3],
     priority: u32,                         // §6.3
-    succ_head: AtomicU32,                  // first edge in `edges`, NONE when empty
+    succ: parking_lot::Mutex<u32>,         // first edge in `edges`; NONE when empty, DONE once completed
     created: u32,                          // creation order, the serial tie-break
-    _rest: [u8; 12],
+    _rest: [u8; 8],
 }
-pub struct Edge { to: TaskId, next: u32 }  // 8 B, an append-only linked list per task
+pub struct Edge { to: TaskId, next: u32 }  // 8 B, a linked list per task, pushed under the source's `succ` lock
 pub struct TaskGraph {
     nodes: AppendVec<TaskNode>,
-    edges: AppendVec<Edge>,                // pushed with a CAS on the source's succ_head
+    edges: AppendVec<Edge>,
     by_key: [Mutex<HashTable<u32>>; 16],   // (TaskKind) -> TaskId, so a task is created once
 }
 const _: () = assert!(core::mem::size_of::<TaskNode>() == 48);
 ```
 
-- **Edges are a lock-free list (mine).** D1 had a `Mutex<SmallVec>` per
-  task. An edge is pushed by CAS on `succ_head`; a task marks itself
-  `Done` and then walks the list. An edge pushed to a task that is
-  already `Done` is counted as satisfied by the pusher, which checks
-  `state` after its CAS (§6.1's rule).
+- **Edges are a list under one small lock per task** (Codex re-review
+  N2 and N-S1). An earlier draft pushed edges by CAS and let a pusher
+  that saw `Done` satisfy its own edge. The completing task could walk
+  the same edge too, so one edge was satisfied twice and a task could run
+  early. The lock gives one linearization point per producer:
+  - **Register** `A -> B`: lock `A.succ`. If it holds `DONE`, unlock and
+    count the edge as satisfied; `B.waiting_on` is not incremented.
+    Otherwise increment `B.waiting_on`, push the edge, unlock. One or the
+    other, never both.
+  - **Complete** `A`: lock `A.succ`, take the list head, store `DONE`,
+    unlock. Then walk the detached list and decrement each successor's
+    `waiting_on`, outside the lock. The list is detached once, so each
+    edge is satisfied once.
+  - **Creation guard.** A new task starts with `waiting_on = 1`. The
+    creator registers all of its edges, then drops the guard with one
+    decrement. So a task never becomes Ready while its edges are still
+    being added. Whoever takes `waiting_on` to 0 makes the task Ready.
+  - Critical sections are a few instructions, and a 10k-line package has
+    about 2,000 tasks, so contention is not measurable. A lock-free
+    protocol comes back only if a profile shows this lock, with an
+    interleaving model test (loom) for it.
 - **Result slots** are per-kind `Box<[OnceLock<T>]>` indexed by the
   dense file, folder or module ID, sized at discovery.
 

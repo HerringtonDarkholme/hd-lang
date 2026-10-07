@@ -627,19 +627,36 @@ relocation. Equal bytes arise from:
 always; that needs erased element storage, which costs a cast per read
 (§23.2, inconsistency 1).
 
-**The algorithm (mine, after safe ICF in linkers).**
+**The algorithm (mine, after safe ICF in linkers; Codex re-review N4
+and N-S3).** The first release folds exact duplicates only:
 
-1. Start with classes keyed by `H(body bytes with type, global and data
-   relocations resolved to canonical targets, and function relocations
-   left symbolic)`.
-2. Refine: two members stay in a class only if their function relocations
-   point to the same classes. Repeat until no class splits. This handles
-   mutual recursion and needs at most a few rounds.
+1. **Fold key.** `H(canonical signature, local declarations, body bytes,
+   every relocation as (offset, kind, exact target), every site record
+   as (offset, kind, stable span))`. The signature comes first: an
+   `i32 -> i32` identity and an `i64 -> i64` identity have equal
+   instructions and must not fold. Function targets are instance keys,
+   global targets are global symbols (a vtable, a fact, a string
+   literal), so two bodies that reference different globals never fold.
+   Site records are in the key because a panic's reported location is
+   program output. Statement lines (`lines`) are not: they only feed
+   backtraces, which name the representative and its aliases.
+2. **Classes, bottom up.** Instances with equal fold keys form one
+   class. Then each function target is replaced by its target's class
+   representative, keys are recomputed, and classes merge again, until a
+   round merges nothing. This is the pessimistic direction: it merges
+   only bodies already proven equal, so `List[u32].push` and
+   `List[i32].push` fold once their `Array` callees have folded. Rounds
+   are bounded by the call graph's depth and are usually two or three.
 3. The representative of a class is the member with the smallest instance
    key. The others become aliases.
 4. The fold list (representative, then aliases in key order) goes into
    the `hd.folds` custom section, so a backtrace can say "also
    `List[Point].push`" (§15.5).
+
+Mutually recursive copies never fold in this scheme, since each waits
+for the other. Optimistic partition refinement, which would fold them,
+comes only if the `dead-code` or tiny-size measurement shows real bytes
+left on the table.
 
 Every step works on content keys, so the result does not depend on
 threads or order. Merging runs in `Link`, in both tiers.
@@ -736,8 +753,12 @@ only if the `dead-code` metric fails after folding.
    caller inlined it, is dropped. Then the rest fold (§13.7).
 2. **Order functions.** Imports first, sorted by module and name. Then
    the generated runtime helpers, sorted by name. Then the representatives
-   in instance-key order. Content order keeps indices stable across
-   unrelated edits, which helps wasmtime's per-function cache.
+   in instance-key order. This order is deterministic, but it does not
+   keep indices stable: inserting a function with a smaller key renumbers
+   every later one (Codex re-review N-D2). Slice 6 measures wasmtime's
+   per-function cache hits after insertions, deletions and type-section
+   changes; a persistent index allocation is added only if that
+   measurement asks for it.
 3. **Types.** The canonical types the functions, globals and exports name
    (§15.3).
 4. **Globals.** Constants (vtables, closures without captures, payloadless
@@ -751,6 +772,13 @@ only if the `dead-code` metric fails after folding.
 8. **Code.** Copy each representative's body and patch its relocations in
    place. In a release build, re-encode the padded LEBs at minimal width
    (mine); the debug build keeps them, since size does not matter there.
+   Re-encoding moves every later byte, so the encoder builds an
+   old-to-new offset map per body as it goes (a sorted list of
+   `(old offset, bytes removed so far)`, one row per shrunk immediate)
+   and rewrites the offsets of `sites`, `lines` and the source map
+   through it before writing `hd.sites` and `hd.lines` (Codex re-review
+   N-B8). A test panics after a shrunk immediate in release and checks
+   the reported site against debug.
 9. **Custom sections**: `name`, `hd.runtime`, `hd.sites`, `hd.lines`,
    `hd.folds` (§15.5, §16.4).
 

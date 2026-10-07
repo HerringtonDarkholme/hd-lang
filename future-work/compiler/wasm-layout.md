@@ -40,7 +40,7 @@ it becomes several fields, or several arrays.
 | `T?`, `T` a non-nullable reference | `(ref null $T)`; null is `.None` | same |
 | `T?`, `T` a scalar | `(i32 tag, T)` | two fields |
 | `T??` and `Option` of a `multi` | a tag plus the inner layout | the same fields |
-| `Result[T, E]` | `multi`: `(i32 tag, T', E')`, where `T'` and `E'` are the payload layouts (see "Identity" below) | the same fields |
+| `Result[T, E]` | `multi`: `(i32 tag, dflt(T'), dflt(E'))`, where `T'` and `E'` are the payload layouts (see "Identity" and "Defaultable forms" below) | the same fields |
 | tuple | its elements' values | its elements' fields, flattened |
 | trait value, `Any` | `(anyref, (ref $VT))` | two fields |
 | closure | `(ref $Fn_sig)`: a base struct holding the code as a typed function reference; one subtype per capture shape | same |
@@ -49,6 +49,25 @@ it becomes several fields, or several arrays.
 | `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T)}` | same |
 | `Map[K, V]` | std hd over arrays (§16.1) | same |
 | `mut Suspend[T]` | `(ref $Suspend_L)` (§14.1) | same |
+
+**Defaultable forms (Codex re-review N3).** A language layout may hold
+a non-null reference: data, lists, strings, closures. Wasm has no default
+value for one, so a slot that may be inactive cannot hold it. Each layout
+`L` therefore has a defaultable form `dflt(L)`, the same Wasm values with
+each non-null reference made nullable, and `default(L)` fills it with
+null or zero. The rule is applied recursively, wherever a slot can be
+inactive:
+
+| Slot | Form | Narrowed by |
+| --- | --- | --- |
+| an inactive payload of a value enum or `Result` (`multi` layout), and the payload fields of a flat enum struct | `dflt` per payload field; the inactive variant's fields hold `default` | the tag test, then `ref.as_non_null` on the read field |
+| the Pending result and the resume arguments of `f$body`, every saved field of a suspension frame, the result fields of an `all!` frame | `dflt` (suspension.md §14.1) | the state test or the done mask |
+| a module storage global before init | `dflt` (§15.4) | init order; reads after init narrow |
+
+Language-level locals, parameters and fields keep the non-null form, so a
+value that is always present costs nothing. A narrowing read is one
+`ref.as_non_null`, which cannot fail after the test. `struct.new_default`
+is valid for every frame type.
 
 **Enum layout per enum (mine).** The triage asks for a layout chosen per
 enum. The rule is deterministic, with no annotation: an enum is **flat**
@@ -156,14 +175,24 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    (§13.7).
 3. **Rec groups.** The type graph's strongly connected components become
    rec groups; a non-recursive type is a group of one. Members of a group
-   are ordered by their canonical descriptor with back references
-   numbered, so equal recursive shapes give equal groups.
+   are ordered first so that a declared supertype precedes its subtypes,
+   then by the members' `canon(T)` bytes (codegen.md §13.3), a nominal
+   key that exists before any Wasm index does. Two groups are one type
+   when their encoded bytes under that order are equal. Recognizing equal
+   recursive shapes under different member names is deferred until the
+   size measurements ask for it (Codex re-review N-B1, N-S3).
 4. **Subtyping.** Declared only where hd needs it: enum variants under
    their base, frames under `$Suspend_L`, closure environments under
    `$Fn_sig`. Every leaf is `final`, which lets engines skip subtype
    checks.
-5. **Order.** Groups in order of their canonical descriptor bytes. The
-   type section is then a pure function of the type set.
+5. **Order.** A Wasm type may only name types of its own group or of
+   earlier groups, so groups follow a topological order of the SCC
+   condensation graph: a group comes after every group it references.
+   Among groups that are ready at the same step, the one with the
+   smaller encoded bytes comes first (Kahn's algorithm with a sorted
+   ready set). The type section is then a pure function of the type set,
+   and valid by construction
+   ([Wasm type validity](https://webassembly.github.io/spec/core/valid/types.html)).
 
 ### 15.4 Globals And Module Initialization
 

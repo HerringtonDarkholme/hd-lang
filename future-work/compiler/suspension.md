@@ -18,10 +18,21 @@ For each instance of a suspending function `f!`:
 
 | Function | Signature | Use |
 | --- | --- | --- |
-| `f$body` | `(frame: (ref null $F_f), args..., providers...) -> (T, (ref null $F_f))` | the body. A null frame starts at state 0 with arguments in locals. A non-null frame resumes from its saved state. A null second result means Ready with the first; a frame means Pending, and the first result is a zero value |
+| `f$body` | `(frame: (ref null $F_f), dflt(args)..., dflt(providers)...) -> (dflt(T), (ref null $F_f))` | the body. A null frame starts at state 0 with arguments in locals. A non-null frame resumes from its saved state, and its arguments are default values that it ignores. A null second result means Ready with the first; a frame means Pending, and the first result is `default(T)` |
 | `f$cold` | `(args..., providers...) -> (ref $F_f)` | the plain call `f(args)`: allocates a frame holding the arguments and providers in state 0 |
 | `f$poll` | `(frame: (ref $Suspend_L), cx) -> (i32, T)` | the vtable's `poll`; casts the frame and calls `f$body` with it |
 | `f$cancel` | `(frame: (ref $Suspend_L)) -> ()` | the vtable's `cancel` (§14.6) |
+
+**Defaultable forms (Codex re-review N3).** A value of a data, list or
+closure type is a non-null reference, which has no default inhabitant.
+So every slot that can be inactive uses the defaultable form `dflt(L)`
+of its layout (wasm-layout.md §15.2): each non-null reference becomes
+nullable, and `default(L)` is null or zero per Wasm value. Here that is
+the Pending result, the arguments of a resume call, and every saved
+field of a frame. The state test proves a slot active before it is read,
+and the read narrows with `ref.as_non_null`, which cannot fail. On the
+fresh path the arguments arrive non-null, and the prologue narrows each
+reference argument once into a non-null local.
 
 `$Suspend_L` is one base struct per result layout `L` (§15.2):
 
@@ -78,16 +89,28 @@ call $g$body (ref.null $F_g) x ...       ;; -> (result, child frame)
 if child frame is null:                   ;; Ready: continue with the result
     ...
 else:                                     ;; Pending
-    if f's frame is null: frame = struct.new $F_f (default fields)
+    if f's frame is null: frame = struct.new_default $F_f   ;; every field defaultable
     save the live locals into frame; frame.child = child frame; frame.state = k
-    return (zero, frame)                  ;; f is Pending too
+    return (default(T), frame)            ;; f is Pending too
 ```
 
 - A deep chain allocates one frame per level, on the first real wait
   only. Later waits reuse the frames.
+- **Dead references are cleared (Codex re-review N-B6).** A reused frame
+  would keep a value saved for an earlier wait reachable through a later
+  one. So each suspension point's save sequence also stores null into
+  every reference field that was live at an earlier point but is dead at
+  this one. Liveness (§14.2) already gives both sets, so the clear list
+  is known per point at emission. Completion and cancellation null the
+  child field and every saved reference, after the `defer` suites ran.
+  A capture that a pending `defer` suite reads stays live until that
+  suite runs, which liveness already says. Slice 8 tests a large list
+  saved across a first wait, then a long second wait, and checks with a
+  GC heap measurement that the list was collected.
 - **A resumed `f$body` resumes its child directly**: the saved child's
-  type is known statically, so `f$body` calls `g$body(child, zeros)`
-  with no vtable call.
+  type is known statically, so `f$body` calls `g$body(child,
+  default(args)...)` with no vtable call. The child ignores those
+  arguments, since its frame holds what it needs.
 - **A stored suspension** (`s!()` on a `mut Suspend[T]`) is polled
   through the vtable: one `call_ref`.
 - **A cold call** (`f(x)` without `!`) allocates its frame at once. That

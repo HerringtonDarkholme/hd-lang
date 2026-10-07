@@ -33,10 +33,11 @@ Cranelift, as the research found.
 - **Per-function cache.** `Config::enable_incremental_compilation` takes
   a cache store; an adapter maps it onto `CacheStore` as entry kind
   `cranelift`. A program whose other functions did not change recompiles
-  only the changed ones. Function order in the link is content-based
-  (§13.10), which keeps unchanged functions' indices stable; Cranelift's
-  cache keys abstract callee names, so a shifted callee index does not
-  miss either (to confirm in slice 6).
+  only the changed ones. Function order in the link is deterministic
+  (§13.10) but not index-stable: an inserted function renumbers later
+  ones. Whether Cranelift's cache keys abstract callee indices, so a
+  shifted index does not miss, is measured in slice 6 after insertions,
+  deletions and type-section changes (Codex re-review N-D2).
 
 ### 18.3 Instantiation
 
