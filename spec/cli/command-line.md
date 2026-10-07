@@ -1563,7 +1563,7 @@ HD_CACHE_MAX_SIZE=2G hd test     # evicts down to 2 GiB when the cache grows pas
 hd cache gc                      # evicts now, and prints the size before and after
 ```
 
-1. r[cli.cache.obj] `hd` stores its **compiled entries** in the directory `obj` of the [cache directory](#r-cli.cache.directory). Every package and worktree of the user shares them.
+1. r[cli.cache.obj] `hd` stores its **compiled entries** in the directory `obj` of the [cache directory](command-line.md#r-cli.cache.directory). Every package and worktree of the user shares them.
 2. r[cli.cache.obj.derived] A compiled entry holds only derived data. Removing one changes no command's result, only how long the command takes.
 3. r[cli.cache.obj.cap] The compiled entries have a size cap of 10 GiB. The environment variable `HD_CACHE_MAX_SIZE` sets another cap, as a SIZE of [Program Limits](#program-limits).
 4. r[cli.cache.obj.evict] When a command finds the compiled entries over the cap, it removes the least recently used ones. That eviction may continue over later commands, so a command does not wait for all of it.
