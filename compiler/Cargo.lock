@@ -93,6 +93,7 @@ dependencies = [
  "hd_base",
  "hd_iface",
  "hd_tir",
+ "hd_types",
 ]
 
 [[package]]

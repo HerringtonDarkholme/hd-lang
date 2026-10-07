@@ -1,6 +1,10 @@
 //! `hd_mono`: monomorphizing collection (codegen.md §13.1 to §13.3), simplest
 //! form. Reads TIR only.
 
+pub mod layout;
+pub mod passes;
+pub mod suspend;
+
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use hd_base::Hash128;
