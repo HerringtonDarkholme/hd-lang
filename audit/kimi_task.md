@@ -96,6 +96,16 @@ and list it under Questions.
 
 ### K20. Doc Summaries For lib/std (Comment Lines Only)
 
+**Resume note (2026-10-06):** your worktree has uncommitted K20 work in
+`lib/std/collections.hd`, 110 added `##` lines, saved before you stopped.
+Review found the first summary wrong. `List.pop` was described as
+`Heap.pop` ("Removes a largest element by `Ord` … On an empty heap") and
+cited `std-collections.heap.pop`. Before committing, re-check **every**
+summary in that file: the item it sits above, the spec rule it cites, and
+that the rule describes that same item. Then continue with the other
+modules.
+
+
 The owner decided (future-work/HD_DOC.md) that `lib/std` gets `##` doc
 comments. Today it has none; every comment is `#`. For every `pub`
 declaration in `lib/std/*.hd`, add a `##` summary above it:
