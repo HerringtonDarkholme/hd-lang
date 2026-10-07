@@ -1,5 +1,9 @@
 # Full-Parser Gaps
 
+Since M2 every repro here parses clean, and
+`parse_gap_repros_parse_clean` in `crates/hd_syntax/tests/corpus.rs` keeps
+them so. The table records what the line-based parser rejected.
+
 These are minimal, specification-valid forms rejected by
 `hd_syntax::parse` at the architecture foundation. Each `.hd` file keeps
 one construct and cites its rule plus an affected source location.
