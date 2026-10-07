@@ -42,4 +42,51 @@ fn main() {
     code.push_str("];\n");
     let out = std::env::var("OUT_DIR").unwrap_or_default();
     let _ = std::fs::write(Path::new(&out).join("std_files.rs"), code);
+    build_id(&manifest);
+}
+
+/// The compiler build id of cache.md §5.3's `toolchain_key`: a hash of every
+/// compiler crate's Rust sources and manifests, so an entry written by one
+/// compiler build never decodes under another.
+fn build_id(manifest: &str) {
+    let crates = Path::new(manifest).join("..");
+    let crates = crates.canonicalize().unwrap_or(crates);
+    println!("cargo::rerun-if-changed={}", crates.display());
+    let mut files = Vec::new();
+    sources(&crates, &mut files);
+    files.sort();
+    // FNV-1a over (path, contents): stable across toolchains and runs.
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for path in &files {
+        let rel = path
+            .strip_prefix(&crates)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .into_owned();
+        for b in rel
+            .bytes()
+            .chain([0])
+            .chain(std::fs::read(path).unwrap_or_default())
+        {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+    println!("cargo::rustc-env=HD_BUILD_ID={h:016x}");
+}
+
+fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            sources(&p, out);
+        } else if p.extension().is_some_and(|x| x == "rs")
+            || p.file_name().is_some_and(|n| n == "Cargo.toml")
+        {
+            out.push(p);
+        }
+    }
 }

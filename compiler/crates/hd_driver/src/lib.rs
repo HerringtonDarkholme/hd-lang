@@ -88,7 +88,8 @@ fn sources_hash(sources: &dyn SourceSet) -> Hash128 {
 
 pub use report::{Counters, PipelineReport, Tally};
 
-const COMPILER: &str = "hd 0";
+/// The compiler build id: `build.rs` hashes the compiler crates' sources.
+const COMPILER: &str = concat!("hd 0 ", env!("HD_BUILD_ID"));
 const TARGET: &str = "wasm32-gc";
 const ROLE: &str = "lib";
 const LAYOUT: u16 = hd_cache::LAYOUT_VERSION;
