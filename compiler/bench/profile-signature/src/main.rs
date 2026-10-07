@@ -32,12 +32,17 @@ fn print_report(label: &str, total: std::time::Duration, counters: &Counters) {
     );
 }
 
-fn compile(store: &MemoryStore, clock: &Wall, sources: &MemorySources) -> Output {
+fn compile(
+    store: &MemoryStore,
+    clock: &Wall,
+    sources: &MemorySources,
+    executor: Executor,
+) -> Output {
     let host = Host {
         sources,
         store,
         clock,
-        executor: Executor::Serial(SerialOrder::Priority),
+        executor,
     };
     build(
         &host,
@@ -49,20 +54,51 @@ fn compile(store: &MemoryStore, clock: &Wall, sources: &MemorySources) -> Output
 }
 
 fn main() {
-    let n = std::env::args()
-        .nth(1)
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let n = args
+        .first()
         .and_then(|value| value.parse().ok())
         .unwrap_or(200);
-    let (app, geo) = hd_driver::bench::sources(n);
+    let signature_only = args.iter().any(|a| a == "signature");
+    let threads = args.get(1).and_then(|value| value.parse().ok());
+    let executor = threads.map_or(Executor::Serial(SerialOrder::Priority), Executor::Pool);
+    let (mut app, geo) = hd_driver::bench::sources(n);
+    // `f32` and `f64` became invalid benchmark item names when M3 installed
+    // the real prelude. Keep the input shape while avoiding those names.
+    app = app.replace("f32(", "f_32(").replace("f64(", "f_64(");
     let store = MemoryStore::default();
     let clock = Wall(Instant::now());
 
     let start = Instant::now();
-    let cold = compile(&store, &clock, &files(&app, &geo));
+    let cold = compile(&store, &clock, &files(&app, &geo), executor);
     print_report("cold seed", start.elapsed(), &cold.counters);
     if !cold.diags.is_empty() {
         eprintln!("cold diagnostics:\n{}", cold.render());
         std::process::exit(1);
+    }
+    if let Some(wasm) = &cold.wasm {
+        println!("   wasm {} bytes", wasm.len());
+    }
+
+    if !signature_only {
+        let start = Instant::now();
+        let warm = compile(&store, &clock, &files(&app, &geo), executor);
+        print_report("warm, no edit", start.elapsed(), &warm.counters);
+
+        let body = geo.replace("x = x * 3 + 1", "x = x * 3 + 2");
+        let start = Instant::now();
+        let edited = compile(&store, &clock, &files(&app, &body), executor);
+        print_report(
+            "private body edit in geo (all bodies)",
+            start.elapsed(),
+            &edited.counters,
+        );
+
+        let comment = geo.replacen("    return x\n", "    # note\n    return x\n", 1);
+        let start = Instant::now();
+        let edited = compile(&store, &clock, &files(&app, &comment), executor);
+        print_report("comment edit in geo", start.elapsed(), &edited.counters);
+        return;
     }
 
     let signature = geo.replacen(
@@ -72,7 +108,7 @@ fn main() {
     );
     let caller = app.replacen("g0(a, 0)", "g0(a, 0, 0)", 1);
     let start = Instant::now();
-    let edited = compile(&store, &clock, &files(&caller, &signature));
+    let edited = compile(&store, &clock, &files(&caller, &signature), executor);
     print_report(
         "public signature and caller edit",
         start.elapsed(),

@@ -26,9 +26,18 @@ cargo run --release -p hd_cli -- run bench/generated/out/package
 Generated sources live under `generated/out/` and are intentionally ignored.
 The generator accepts another output directory as its first argument.
 
-The reusable signature-edit profiler fills the edit case that the driver's
-built-in benchmark does not yet measure:
+The reusable profiler avoids benchmark item names that collide with the
+prelude. It runs cold, warm, body-edit and comment-edit cases, optionally
+on the pool:
 
 ```sh
 cargo run --release --manifest-path bench/profile-signature/Cargo.toml -- 200
+cargo run --release --manifest-path bench/profile-signature/Cargo.toml -- 200 8
+```
+
+Its `signature` mode fills the edit case that the driver's built-in
+benchmark does not yet measure:
+
+```sh
+cargo run --release --manifest-path bench/profile-signature/Cargo.toml -- 200 signature
 ```
