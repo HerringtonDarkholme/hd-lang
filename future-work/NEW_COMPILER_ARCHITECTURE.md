@@ -54,8 +54,15 @@ otherwise. Items marked ✓ exist in the prototype or are already decided.
   - Hot reload in dev: swap changed functions into the running program.
   - `hd fix`: apply all safe fix-its.
   - `hd fmt`.
-  - A language server: errors as you type, hover, go-to-definition,
-    rename, completion, and code actions built from the same fix-its.
+  - **A program database instead of a language server** (owner,
+    2026-10-06: "program database is better than lsp in agentic
+    world"). The compiler writes queryable facts about the program, for
+    example SQLite in `build/`: declarations, signatures, requirement
+    rows, call edges, implementations, derives and diagnostics. An agent
+    answers structural questions with one query. It falls out of the
+    incremental engine's stored facts. The 2026-09-27 on-hold decisions
+    are in git history. A language server for human editors is optional,
+    later.
   - `hd explain CODE` ✓, `hd doc` ✓ (HTML and Markdown).
   - A notebook-style REPL whose cells rerun when what they depend on
     changes.
