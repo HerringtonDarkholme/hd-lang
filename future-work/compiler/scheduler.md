@@ -9,7 +9,8 @@ Part of the [compiler design](README.md).
 ```rust
 pub enum TaskKind {
     Skim(FileId), Parse(FileId), FolderGraph(PackageId),
-    FolderIface(FolderId), ModulePrep(ModuleId), Body(ModuleId, ItemIdx), ModuleFinish(ModuleId),
+    FolderIface(FolderId), HeaderCheck(FolderId),
+    ModulePrep(ModuleId), Body(ModuleId, ItemIdx), ModuleFinish(ModuleId),
     TestOverlay(ModuleId), Coherence(DefId), InitOrder(FolderId), PackageResult(PackageId),
     Ext(ExtTask),                       // D2's tasks, behind a trait object
 }
@@ -30,6 +31,19 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
 - **Results** go to per-kind slot vectors (`OnceLock<T>` indexed by the
   file, folder or module ID). A task reads only slots of tasks it depends
   on, so reads never race with writes.
+- **`HeaderCheck(F)` (stage B of
+  [resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)).**
+  One per folder of the program graph, std and dependencies included.
+  It depends on `FolderIface(F)` and on the `FolderIface` of each folder
+  F's uses reach, since it needs their frozen impl tables and the
+  candidate directory. It checks written header types against their
+  bounds, impl supertraits and supertrait bindings, derived newtype
+  bases and delegation targets, with one fuel budget per item. Nothing
+  in checking waits for it: its answers never change what a dependent
+  reports. `PackageResult` waits for it, and so does every `Collect`
+  (§11.3) for the folders its program reaches, so no program is built
+  over an unchecked header. Its cache entry is `hdr` (cache.md §5.2),
+  looked up before it runs like any other.
 - **Cache checks are tasks too.** A key can be computed only when the
   deep hashes it names are known, so "compute key, look up, skip or run"
   is the first step of each `FolderIface` and `ModuleFinish` path. A hit
@@ -49,7 +63,8 @@ pub struct SteppingScheduler { .. }                     // browser: run_for(max_
 
 - **Pool.** Ready tasks are spawned into rayon's work-stealing pool. Each
   worker keeps its own bump arena for body tasks. The default thread
-  count is open question 2.
+  count is `min(cores, 8)`, changed by `--jobs` or `HD_JOBS`
+  (open-questions.md, answered).
 - **Serial.** One ready queue ordered by priority, then creation order.
   It is the `--threads 1` mode and the browser's base. Its `Shuffled` mode
   picks among ready tasks by a seeded random choice, which finds order

@@ -15,8 +15,8 @@ struct or an array element.
 | `i32` | `i32` | `bool`, `char`, integers of 32 bits or less, `usize`, payloadless enums |
 | `i64` | `i64` | `i64`, `u64` |
 | `f32`, `f64` | `f32`, `f64` | floats |
-| `ref` | `(ref $T)` or `(ref null $T)` | data, enums with payloads (`Result` included), `string`, lists, maps, closures, frames |
-| `multi` | 2 to 4 Wasm values | `Option` of a scalar, tuples, trait values (§15.2) |
+| `ref` | `(ref $T)` or `(ref null $T)` | data, enums with payloads other than the identity-free ones, `string`, lists, maps, closures, frames |
+| `multi` | 2 to 4 Wasm values | `Option` of a scalar, `Result`, tuples, trait values (§15.2) |
 | `erased` | `anyref` | the payload of a trait value, `Any`, an existential payload |
 | `void` | none | `void`, `()`, and `never` |
 
@@ -40,7 +40,7 @@ it becomes several fields, or several arrays.
 | `T?`, `T` a non-nullable reference | `(ref null $T)`; null is `.None` | same |
 | `T?`, `T` a scalar | `(i32 tag, T)` | two fields |
 | `T??` and `Option` of a `multi` | a tag plus the inner layout | the same fields |
-| `Result[T, E]` | a flat enum: one struct `{tag, T', E'}` per construction (see "Identity" below) | `(ref $Result_T_E)` |
+| `Result[T, E]` | `multi`: `(i32 tag, T', E')`, where `T'` and `E'` are the payload layouts (see "Identity" below) | the same fields |
 | tuple | its elements' values | its elements' fields, flattened |
 | trait value, `Any` | `(anyref, (ref $VT))` | two fields |
 | closure | `(ref $Fn_sig)`: a base struct holding the code as a typed function reference; one subtype per capture shape | same |
@@ -65,12 +65,16 @@ one load and compare.
 all. A string is already a reference and is erased as itself. A tuple is
 boxed in one immutable struct.
 
-**Identity (owner decision B, 2026-10-07).** The Codex review (finding 1)
+**Identity (owner decision B, extended, 2026-10-07).** The Codex review (finding 1)
 showed that the rows above broke the spec's allocation identity: the spec
 gives each `.Some(...)` and each primitive-to-`Any` box its own identity
 (`expr.is.some`, `expr.is.box`, `expr.is.box.distinct`). The owner chose
-to change the language instead of the layouts. `.Some` and boxes have no
-identity, and `is` on optionals compares payloads. The spec pass applies
+to change the language instead of the layouts. `.Some`, `.Ok`, `.Err`
+and primitive, string or tuple boxes have no identity. `is` is a compile
+error on an operand whose static type is a value type and on function
+values; `is` on optionals and results compares tag by tag, then
+payloads. On an `Any` or trait value that holds a value at run time,
+the result is unspecified. The spec pass applies
 it; the rule list is in
 [codex-review-response.md](codex-review-response.md#spec-changes-for-the-spec-pass).
 The other option was to keep the spec and allocate one object per `.Some`
@@ -87,19 +91,25 @@ So the layouts follow these rules:
    `Any` is erased as above. Equal small scalars give equal `i31ref`s, and
    two boxes of one value are two objects. The proposed spec change makes
    `is` on such values unspecified, as it already is for function values.
-3. **`Result` keeps its identity.** Decision B covers only `.Some` and
-   boxes. `Result` is an ordinary enum, so each `.Ok` and `.Err`
-   construction has its own identity
-   ([`types.sealed.anyref`](../../spec/lang/04-type-system.md#r-types.sealed.anyref)).
-   It therefore uses the flat enum layout: one struct per construction.
-   Scalar replacement may remove that struct only inside one instance,
-   when the value never reaches `is`, a field, a generic `AnyRef`
-   parameter, an erasure or a call (§12.6). Whether to extend B to
-   `Result` is a pending owner question (open question 23.1-7). If the owner
-   says yes, `Result` returns to the `multi` layout `(i32 tag, T', E')`.
+3. **`Result` has no identity either** (open question 23.1-7, answered
+   yes). It uses the `multi` layout `(i32 tag, T', E')` and allocates
+   nothing. A field that holds a `Result` stores the same fields
+   inline. When `T'` and `E'` are both references, the fields may share
+   one `anyref`-typed slot cast by tag; the first release keeps them
+   apart, which is simpler and costs one word.
 4. **Other enums** keep the flat or subtype layout above. Each payload
    variant is one struct per construction, so their identity was never
    at risk.
+
+**One predicate for identity-free enums (mine).** Layout, `is` lowering
+and the checker's value-type test read one predicate, `identity_free(E)`.
+Today it holds for `Option` and `Result` only. An identity-free enum
+uses a value layout: a nullable reference when it has one reference
+payload and one payloadless variant (`T?`), else `(i32 tag, payload
+fields...)` as `multi`, boxed in one immutable struct past 4 Wasm values
+as §15.1 says. Whether all enums become value types is being
+researched; if so, only this predicate and the flat-versus-subtype rule
+change.
 
 **Emitting `is`.** The TIR `Is` instruction
 ([checking-and-tir.md](checking-and-tir.md#instruction-catalog)) lowers by
@@ -110,14 +120,20 @@ the operands' layout:
 | `ref` (data, enums, lists, maps, closures, frames) | `ref.eq` |
 | `T?` with a reference `T` | `ref.eq` on the nullable references: null equals null |
 | `T??` with a reference `T`, `T?` with a trait-value `T` | both tags equal, then `is` on the payloads when present |
-| trait value, `Any` | `ref.eq` on the payloads, then the type ids equal |
+| trait value, `Any` | `ref.eq` on the payloads, then the type ids equal; unspecified when the payload is a boxed value |
+
+The checker desugars `is` on optionals and results tag by tag before TIR
+(type-checking.md §2.2), so the `Is` instruction itself never sees an
+`Option` or `Result` operand; the optional rows above are what that
+desugaring emits.
 
 The type-id test in the last row is needed even for references. A
 payload-free variant of a flat enum erases to the same `i31ref` tag as
-another enum's variant, but the two values are different. `is` on `i32?`
-or `(A, B)?` has no row: under B such an optional has no identity, and
-the proposed spec change makes `is` on it an
-`identity-requires-references` error (see the rule list).
+another enum's variant, but the two values are different. `is` on `i32?`,
+`(A, B)?` or `Result[i32, E]` has no row: such a value has no identity,
+and `is` on it is the compile error `identity-requires-references`
+(owner, 2026-10-07). `is` on a function value is
+`unsupported-function-identity`.
 
 **Arrays.** `Array[T]` is the one compiler-known collection: `(array (mut
 T'))` with `T'` the element layout of the table. An array of a `multi`
@@ -154,8 +170,9 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 | --- | --- | --- |
 | module storage (top-level bindings) | mutable, nullable or zero | the group's init function |
 | vtables, capture-free closures, payloadless variant singletons, member handles | immutable | a constant expression (`struct.new` and `ref.func` are constant in Wasm GC) |
-| constant facts, short string literals (16 bytes or less) | immutable | a constant expression (`array.new_fixed`) |
-| other string literals, non-constant facts | mutable, nullable | lazily: the first use runs `array.new_data` or the getter |
+| short string literals (16 bytes or less) | immutable | a constant expression (`array.new_fixed`) |
+| other string literals | mutable, nullable | lazily: the first use runs `array.new_data` |
+| fact values, metadata, shared enum data | immutable | a constant expression built from the compile-time value (codegen.md §12.3); no fact has a getter |
 | runtime state: panic category and site, the wake table, the forbidden-context counter | mutable | constants |
 
 - **Init order.** The `hd.init` export calls each reachable group's init

@@ -97,6 +97,7 @@ in-memory ID.
 | Full parse | file bytes | `TokenBuf`, `GreenTree` | file | yes | no | none |
 | Folder graph | use lists of every file | folder DAG, `folder-cycle` | package | serial (tiny) | inside `pkgres` | none |
 | Folder interface | skeletons of the folder, deep interfaces of used folders | `FolderIface`, blob, deep hash, header diagnostics | folder | yes, in DAG order | `iface` | [§5.3](cache.md#53-key-composition) |
+| Header check (stage B) | a folder's interface, its dependencies' interfaces and impl tables | header bound, supertrait, newtype-base and delegation diagnostics | folder | yes | `hdr` | [§5.3](cache.md#53-key-composition) |
 | Module prep | module CST, own folder interface, used interfaces | module scope, private signatures, inferred results | module | yes, across modules | inside `check` | none |
 | Body check | body CST, frozen tables | TIR (§4.13.11), diagnostics, facts | body | yes | inside `check`; TIR in `tir` | none |
 | Module finish | the module's body results | `ModuleResult` | module | yes, across modules | `check` | [§5.3](cache.md#53-key-composition) |
@@ -118,6 +119,9 @@ Parse(f) ──────┼──────────────┼─�
 
 - A `FolderIface(F)` task waits for the interfaces of the folders `F` uses,
   never for bodies. A deep chain of folders does not stall wide levels.
+- A `HeaderCheck(F)` task (stage B) waits for the same interfaces as
+  `FolderIface(F)` plus F's own. No check waits for it; `PackageResult`
+  and codegen's `Collect` do (scheduler.md §6.1).
 - A `Body` task waits only for its `ModulePrep`. Bodies never wait on each
   other, with one exception: a private function with an omitted result
   type, which `ModulePrep` infers first (§4.13.1).

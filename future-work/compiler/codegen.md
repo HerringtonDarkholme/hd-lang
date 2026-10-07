@@ -4,6 +4,16 @@ Part of the [compiler design](README.md).
 
 ## Part D2: The Back Half
 
+**Second pass** (backend lane, 2026-10-07), from
+[codex-review-response-frontend.md](codex-review-response-frontend.md#changes-for-the-backend-lane)
+items 18 to 20 and 22, and the owner's answers of the day: collection
+selects impls by head only (§13.2); vtables follow the trait record's
+shape, and `CallDyn` passes its evidence operands (§13.5); tuple traits
+are template instances (§13.6); defaults run per call and facts are
+evaluated at compile time (§12.3); `Result` uses `multi` layouts, and
+bounded inlining and scalar replacement are first-release (§12.6);
+polymorphic recursion is an error (§13.4).
+
 D2 designs monomorphization, suspension lowering, Wasm GC emission, link,
 the runtime, the host interface and the test runner. It consumes these
 interfaces from D1 and does not reach around them:
@@ -74,6 +84,7 @@ D2's tasks are `TaskKind::Ext` tasks (§6.1):
 ```rust
 pub enum ExtTask {
     Collect(ProgramId),          // after the tir entry of every module the program can reach
+    EvalFact(FactSlot),          // created by Collect, one per fact the program reads (§12.3)
     Emit(InstanceSlot),          // created by Collect, one per code-entry miss
     Link(ProgramId),             // after every Emit of its program
     Precompile(ProgramId, Tier), // native only
@@ -82,7 +93,8 @@ pub enum ExtTask {
 ```
 
 - `Collect` starts only after the `tir` entries of every module that the
-  program's roots reach in the module use graph exist. That set comes
+  program's roots reach in the module use graph exist, and after the
+  `HeaderCheck` task of every folder they reach (scheduler.md §6.1). That set comes
   from the manifest's use lists, so it is known before any check runs.
 - **The program fast key (mine).** Before `Collect`, D2 computes
   `prog_key = H("prog", toolchain_key, tier, profile, root description,
@@ -167,15 +179,15 @@ instance.
 | `Scope` with `Defer` | the exit ladder below |
 | `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then bytes for strings; each arm once, in nested blocks that leaves branch to |
 | `Call` with an `Item` callee | `call`, relocated to the callee instance |
-| `Call` with a `TraitMethod` callee | the impl is selected per instance by the solver (§13.2); a direct `call` |
+| `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl selected by head at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
 | `Call` with an `Evidence` callee | a `call_ref` through the vtable stored in the variant (§13.5) |
-| `CallDyn` | `struct.get` of the vtable slot, then `call_ref` |
+| `CallDyn` | `struct.get` of the vtable slot, then `call_ref`, passing one vtable per evidence operand (§13.5) |
 | `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
-| `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; readonly view and row subsumption: nothing |
+| `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; readonly view, variance, `Refine` and row subsumption: nothing |
 | `Interp` | lengths summed first, one string allocated, parts copied; each `Display` part writes into the builder through its resolved callee |
-| `Default` | a call of the default's getter (§12.3) |
+| `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
 | `ForRange`, `ForList`, `ForMap` | counted loops (§12.4) |
 | `Await*` | the state machine (§14) |
 | `Hook` | nothing, except in hook builds (§14.7) |
@@ -199,11 +211,60 @@ cancel function (§14.6).
 
 ### 12.3 Facts, Defaults, Derives And Tests
 
-- **Facts and defaults (mine).** A fact or default body whose TIR is a
-  tree of constants and constructors is evaluated at emission into a
-  constant global. Any other becomes a getter that computes the value on
-  first use and stores it in a global. Facts are requirement-free, so the
-  getter needs no providers.
+- **Defaults run per call (Codex finding 4).** A default is a body of
+  its own, and each call that omits the argument runs it through a
+  `DefaultCall`, after the explicit arguments
+  ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)).
+  D1's first-use getter evaluated a default once per program, which
+  shared one mutable default between calls; it is gone. A constant
+  default is inlined by the trivial-inlining test, so `= 10` costs
+  nothing. Emission increments the forbidden-context counter around a
+  `DefaultCall` whose body makes a call, so an indirect `block_on` or
+  `println` there panics (suspension.md §14.9).
+- **Facts are evaluated at compile time.** A fact, a metadata
+  expression, and a variant's shared-data constructor with its defaults
+  are evaluated once, at compile time
+  ([`annot.fact.eval`](../../spec/lang/14-annotations.md#r-annot.fact.eval),
+  [`annot.metadata.eval`](../../spec/lang/14-annotations.md#r-annot.metadata.eval),
+  [`data.shared.compile-time`](../../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)).
+  The value becomes a constant global (wasm-layout.md §15.4); no fact
+  has a run-time getter. The design (mine):
+  1. **Where it runs.** `Collect` records every fact the program reads:
+     through `facts_of`, `T::facts()`, a member handle's `info.facts`, or
+     a shared-data access. Each one is an `EvalFact(fact)` task (§11.3),
+     run in parallel after `Collect` and before `Emit` needs the value.
+     `hd check` does not evaluate facts, as it does not collect
+     (open question 23.1-8).
+  2. **How.** A TIR interpreter in `hd_mono` walks the fact body's
+     generic TIR under a substitution, as emission does, with values in
+     an arena of its own. A body that is a tree of constants and
+     constructors is folded without the interpreter.
+  3. **What it may call.** Any hd function, method, trait method
+     (selected by head, rule TS-6), closure and default body whose TIR
+     is reachable, and the pure intrinsics: arithmetic, `Array`
+     operations, string building, `TypeId`. Facts are requirement-free,
+     so no provider exists and no `CallHost` is reachable. A suspension
+     point, a host call, or a call that reaches `block_on` or `println`
+     stops the evaluation.
+  4. **Budget.** 10,000,000 interpreted instructions and 64 MiB of heap
+     per fact, counted in language units, so the outcome is the same on
+     every run (checking-and-tir.md §4.15). The limits are semantic and
+     join `toolchain_key`.
+  5. **Result.** The value is converted to a global pool constant
+     (`Aggregate`, `Int`, `Str`, `ItemConst`). It may hold scalars,
+     strings, data and enum values, tuples, lists, maps and capture-free
+     functions. Shared structure stays shared, so a value that two
+     fields reach is one global.
+  6. **Failure.** A panic, an exhausted budget, a forbidden call, a
+     cycle, or a value with no constant form (a closure with captures, a
+     suspension, a handle) is `fact-evaluation-failed` (proposed). It is
+     reported on the fact expression with the reason and, for a panic,
+     the interpreter's backtrace. It is a build error.
+  7. **Cache.** A `fact` entry holds the value as an entry-local
+     constant row, under `H("fact", toolchain_key, fact stable path,
+     sorted [(module path, tir key)] of the modules reachable from the
+     fact's module in the use graph)`. The key is coarse and sound, as
+     `prog_key` is. The value's content hash joins `link_key` (§13.10).
 - **Derives.** Derive instances, including the generated `walk`,
   `describe` and `build`, are ordinary bodies (§4.13.9). With the
   walker's type known at each instance, every `w.member(h, value)` call is
@@ -242,6 +303,11 @@ Requirement rows never become type arguments
 - **A function value with a row** takes a context, because its caller may
   not know its row's keys. TIR's `ContextFor` builds it once per calling
   body.
+- **Own providers.** A provider pair whose provider is `NONE` passes the
+  enclosing sub-body's own provider for that key, exactly as
+  `ProviderGet` would. M3 writes such pairs for calls to private
+  callees whose rows were solved after checking (checking-and-tir.md,
+  callee records).
 - **Cold suspensions** capture their providers in the frame at
   construction ([`req.bind.construction`](../../spec/lang/11-requirements-and-suspension.md#r-req.bind.construction)).
 
@@ -300,12 +366,12 @@ differ only where the spec or a first-release feature says so.
 | Rule | Debug | Release | Status |
 | --- | --- | --- | --- |
 | counted loops (§12.5) | yes | yes | first release |
-| `multi` layouts: `Option`, tuples and trait values as several Wasm values (§15.1); `Result` too if the owner extends decision B (open question 23.1-7) | yes | yes | first release |
+| `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values (§15.1); decision B, extended to `Result` (owner, 2026-10-07) | yes | yes | first release |
 | capture-free closures as constants | yes | yes | first release |
 | constant folding and dead branches during the walk | yes | yes | first release |
 | trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | yes | yes | first release (mine) |
-| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters | yes | yes | open question 1 |
-| scalar replacement: a non-escaping closure, cell or small data value after inlining becomes locals; an escape analysis in the analysis passes of §12.1, before emission | yes | yes | open question 1 |
+| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters | yes | yes | first release (owner, 2026-10-07) |
+| scalar replacement: a non-escaping closure, cell or small data value after inlining becomes locals; an escape analysis in the analysis passes of §12.1, before emission | yes | yes | first release (owner, 2026-10-07) |
 | overflow checks | checked | wrap | spec |
 | hook points (§14.7) | dropped | dropped | emitted only by hook builds (Later) |
 | debug-only checks: closed handles, deadlock reports with frame lists (§14.8) | yes | no | first release |
@@ -322,7 +388,7 @@ walk, emission asserts in the compiler's debug builds and in CI:
 
 1. no `Param` type remains after substitution;
 2. every `TraitMethod` callee resolves to exactly one impl at the
-   instance's types;
+   instance's types, by head match alone (§13.2);
 3. every suspension point gets a resume case and a cancel case (§14.2);
 4. every relocation names a symbol in the program's instance, type, import
    or global sets (§13.10).
@@ -335,7 +401,8 @@ as a task panic is (§6.4). The linked module is then validated by
 
 Owner's answer 8: code per concrete type, then merge byte-identical
 functions, the same in debug and release. Dictionaries exist only for
-trait values and GADT evidence.
+trait values, GADT evidence and the method-level bound evidence of a
+`CallDyn` (§13.5).
 
 ### 13.1 Roots
 
@@ -375,19 +442,31 @@ A worklist walk, as rustc's collector does:
    instance's type arguments into each one's types.
 3. For each `Item` callee, push the callee with the substituted
    arguments.
-4. For each `TraitMethod` callee, solve the bound at the concrete self
-   type with D1's solver (§4.12.2), pick the impl, and push the impl
-   method with the impl's type arguments. Coherence guarantees one answer.
-   The solver's memo is shared across programs of a run.
-5. For each coercion to a trait value, and each evidence choice of a
-   `NewVariant`, record the vtable `(type, trait)` and push every method
-   of the trait at that type, supertraits included. A method with its own
-   type parameters is pushed as its erased instance (§13.5).
-6. For each `Closure`, push the closure body with the parent's
+4. For each `TraitMethod` callee, read its choice. An `Impl` choice
+   names the impl; substitute its arguments. A `Bound` choice becomes a
+   concrete trait reference under the substitution, and the solver's
+   `select` matches it **by head only** (trait-solver.md rule TS-6):
+   no subgoal is solved, there is no depth limit and no fuel. Overlap
+   is head-only and the checker proved the bounds generically, so at
+   most one head matches. No match is an internal error (§12.7), never
+   a diagnostic. Push the impl method with the impl's type arguments,
+   or the trait's default body with `Self` set when the impl does not
+   write the method. `select` is memoized per run, shared across
+   programs. A `TraitValue` choice pushes nothing; a `Builtin` choice
+   pushes its generated body (§13.6).
+5. For each coercion to a trait value, each evidence value of a
+   `NewVariant`, and each evidence operand of a `CallDyn`, select the
+   impl by head as in step 4, record the vtable `(type, trait)` and push
+   every method of the trait at that type, supertraits' vtables
+   included. A method with its own type parameters is pushed as its
+   erased instance (§13.5).
+6. For each `DefaultCall`, push the default body with the call's type
    arguments.
-7. Record every `CallHost` as an import, and every type whose layout
-   an operation needs.
-8. Repeat until the worklist is empty.
+7. For each `Closure`, push the closure body with the parent's
+   arguments.
+8. Record every `CallHost` as an import, every type whose layout an
+   operation needs, and every fact the instance reads (§12.3).
+9. Repeat until the worklist is empty.
 
 The order of the walk never reaches output: the result is sorted by
 instance key before anything is emitted (§6.5). Collection is serial per
@@ -433,17 +512,25 @@ growing type) has no finite instance set.
 - The diagnostic `instantiation-too-deep` (proposed, in D1's §4.15 style)
   points at the generic call that grows the type, and shows the first
   three and the last instance of the chain, with types printed in full.
-- This is a build error, reported by `hd build`, `hd run` and `hd test`.
-  `hd check` does not report it, since it does not collect. Open
-  question 2 asks whether that split is acceptable.
+- This is a build error, reported by `hd build`, `hd run` and `hd test`
+  (owner, 2026-10-07: polymorphic recursion is an error, with no boxed
+  fallback). `hd check` does not report it, since it does not collect.
+  The one exception is a private row that grows by polymorphic
+  recursion: M3 reports the same code at check time
+  ([type-checking.md §5.5](type-checking.md#55-private-rows-and-the-m3-fixpoint)).
 
 ### 13.5 Dictionaries: Trait Values And GADT Evidence
 
-- **Vtables.** A vtable is an immutable struct of typed function
-  references, one per trait method, at one concrete type, plus references
-  to supertrait vtables and a type id for `Any` and `Debug` of erased
-  values. Each is a global with a constant initializer, built once per
-  `(type, trait)` pair, so a coercion to a trait value never allocates a
+- **Vtables follow the trait record's shape** (trait-solver.md §9.2,
+  change 19). The shape is computed once per trait at interface time:
+  one slot per method of the trait itself, in declaration order; one
+  immutable reference per direct supertrait, in declared order, to that
+  supertrait's own vtable at the same type; and a type id when the trait
+  is `Inspectable` or extends it. Supertrait slots are never copied, so
+  a diamond such as `Error < Display & Inspectable` shares one `Display`
+  vtable, and the `Supertrait` coercion is one `struct.get`. Each vtable
+  is a global with a constant initializer, built once per `(type, trait
+  reference)` pair, so a coercion to a trait value never allocates a
   vtable.
 - **Trait values** are pairs: the value as `anyref` and its vtable
   (§15.2). A call through a trait value is one `struct.get` and one
@@ -479,12 +566,18 @@ growing type) has no finite instance set.
      instance, which takes the same evidence parameters. This chain is
      bounded by the program's call graph, so it cannot grow types.
   4. **The caller** is an ordinary monomorphized instance, so its `T` is
-     concrete. `CallDyn` carries the method's type arguments
-     (checking-and-tir.md, `CallDyn`). Collection solves each bound at the
-     concrete `T`, as for `TraitMethod`, and records the vtable constant.
-     Emission passes the vtables and upcasts the `T` arguments to
-     `anyref`. When the result type mentions `T`, emission adds one
-     `ref.cast` to the concrete type, which cannot fail.
+     concrete. `CallDyn` carries the method's type arguments and one
+     evidence operand per method-level bound, chosen by the checker at
+     the call (checking-and-tir.md, `CallDyn`). Collection turns each
+     operand into an impl by head match at the concrete `T`, as for a
+     `TraitMethod` choice (§13.2 step 4), and records the vtable
+     constant. A `Bound` operand in generic code becomes concrete the
+     same way. Emission passes the vtables and upcasts the `T` arguments
+     to `anyref`. When the result type mentions `T`, emission adds one
+     `ref.cast` to the concrete type, which cannot fail. The slot's
+     type is the erased instance's signature: the receiver, the erased
+     arguments, then one vtable parameter per bound, in the method's
+     bound order (`dyn_bounds` of the shape).
   5. Collection pushes the erased instance of every generic method when
      it records a vtable `(type, trait)` (§13.2, step 5).
 - **Everything else is static.** A call through a bound on a type
@@ -497,8 +590,15 @@ There are no variadic generics (§4.13.7). Tuples are ordinary types:
 
 - `Args < Tuple` instantiates like any type parameter, so `f(args...)`
   is one instance per tuple type.
-- Compiler-derived tuple `Eq`, `Ord`, `Hash` and `Debug` are generated
-  bodies per arity, instantiated on demand.
+- Tuple `Eq`, `Ord`, `Hash` and `Debug` are instances of std's tuple
+  templates (trait-solver.md change 20). The checker records an `Impl`
+  choice of the template, and collection instantiates the template's
+  instance per tuple type, like any impl. A user library's tuple
+  template works the same way. No body is generated per arity.
+- Only sealed traits are `Builtin` (`Any`, `AnyVal`, `AnyRef`,
+  `Inspectable`, `Tuple`, `Num`, `Integer`, `Float`, `Suspend`). Those
+  with methods get a body that D2 generates per primitive or shape, such
+  as `type_id` and `downcast` for `Inspectable`.
 - `all!` is one intrinsic frame instance per tuple of child result types
   (§14.5). `race!` is an ordinary generic intrinsic over `T`.
 
@@ -651,7 +751,8 @@ only if the `dead-code` metric fails after folding.
 
 ```text
 link_key = prog_key (§11.3), and on a prog_key miss
-           H("link", toolchain_key, tier, profile, root description, sorted code keys)
+           H("link", toolchain_key, tier, profile, root description, sorted code keys,
+             sorted [(fact stable path, value hash)] of the facts the program reads)
 ```
 
 A program is written under both keys, so the next warm run hits the

@@ -41,6 +41,17 @@ Edits in this file:
    A token is 9 bytes, not 13.
 9. **Memory budget (§3.24)** and **schema language (§3.25)** are new.
 
+**Second pass (backend lane, 2026-10-07), from the frontend lane's
+review response.** `Assoc` names its item and trait reference, and
+`AssocList` is keyed by item (§3.4, §3.9.2; trait-solver.md change 15).
+Pending rows get a row tier that lives until `ModuleFinish` ends, and M3
+gets two specified writes: the provider patch and the row sweep (§3.4,
+§3.9.2, §3.9.5; type-checking.md §17 items 1 and 2). Tuple templates
+and numeric families are impl rows; only sealed traits are `Builtin`
+(§3.17). The schema gains the `TraitValue` choice and the `Providers`
+record (§3.25), and the entry table the `hdr` and `fact` kinds
+(§3.20.4).
+
 Edits in other files:
 
 | File | Edit |
@@ -302,15 +313,25 @@ pub enum TyView<'a> {                // decoded on demand; slices borrow `extra`
     Tuple { elems: &'a [Ty], rest: Option<Ty> },   // rest element of tuple rest types
     Option(Ty),                      // T? is Option[T]; its own tag for speed only
     Fn { params: &'a [Ty], result: Ty, row: RowId, suspends: bool },
-    TraitValue { def: DefId, args: &'a [Ty], bindings: &'a [(Symbol, Ty)] },
+    TraitValue { def: DefId, args: &'a [Ty], bindings: &'a [(DefId, Ty)] },
     Param(ParamRef),                 // (owner DefId, index); declared, never inferred
-    Assoc { base: Ty, trait_: DefId, name: Symbol },  // an unnormalized projection
+    Assoc { assoc: DefId, tref: TraitRefView<'a> },  // an unnormalized projection
     Mut(Ty),                         // the mutable view `mut T`; `T` alone is readonly
     Infer(InferVar),                 // body-local only; the variable's kind is in the inference table
     Rigid(RigidVar),                 // body-local only; a GADT existential of one arm
 }
 ```
 
+- **Projections name their item (trait-solver.md change 15).** `Assoc`
+  holds the associated type's own `DefId` and the instantiated trait
+  reference `TraitRefView { trait_, self_ty, args }`, so
+  `<S as Add[i32]>::Out` and `<S as Add[i64]>::Out` are different types
+  ([trait-solver.md §2.1](trait-solver.md#21-trait-references)). D1's
+  `{ base, trait_, name }` lost the trait arguments and the supertrait
+  path. The trait is the item's declaring trait, so the pool stores only
+  the item, the self type and the arguments (§3.9.2).
+- **Bindings are keyed by item.** An `AssocList` pairs an associated
+  type's `DefId` with its type, not a name, as trait-solver.md §2.1 asks.
 - **`Mut`, not `Readonly`** (type-checking.md §17 item 1). In the spec
   `T` is the readonly view and `mut T` the marked form
   ([Views](../../spec/lang/04-type-system.md#views)).
@@ -333,19 +354,48 @@ pub enum TyView<'a> {                // decoded on demand; slices borrow `extra`
   a copy per thread (lesson 5), and no ID escapes (lesson 2).
 
 **Rows.** A row in the pool is one item: its keys, its declared row
-parameters, and, in the local pool only, pending private rows:
+parameters, and, outside the global pool only, pending private rows:
 
 ```rust
 pub struct RowView<'a> {
     pub keys: &'a [Ty],                  // sorted by Ty value for in-run merges
     pub params: &'a [RowParamRef],       // declared row parameters listed in the row
-    pub pending: &'a [(RowVar, RowId)],  // local only: RowVar(f) minus these keys (type-checking.md §5.1)
+    pub pending: &'a [PendingPart],      // never global: see "Pending rows" below
 }
+/// RowVar(g) as seen from one call (type-checking.md §5.1): g's solved row,
+/// with g's generics replaced by `subst`, minus the keys in `minus`.
+pub struct PendingPart { pub var: RowVar, pub subst: TyList, pub minus: RowId }
 ```
 
 Keys are sorted by `Ty` value for linear merges inside a run. Printing
 and hashing re-sort them by canonical content (§3.20.2), never by `Ty`
-value (the tsgo lesson).
+value (the tsgo lesson). `subst` lists the callee's type arguments and
+then its row arguments; a row is a pool item too, so one interned list
+holds both.
+
+**Pending rows (type-checking.md §5.5 and §17 item 1).** A `RowVar`
+names a private callable of the module, so a pending row is valid for
+the whole module, not for one body. Its solution is known only in M3.
+So a type that holds one (the `HAS_ROWVAR` flag) and no inference
+variable lives in a **row tier** until `ModuleFinish` ends (mine):
+
+| Tier | Written by | Read by | Freed |
+| --- | --- | --- | --- |
+| module tier | M1, which is serial: private signatures and M1 bodies | every body of the module | at the end of `ModuleFinish` |
+| body carry | `finish` of one M2 body: its types that still hold a pending row | M3 only | at the end of `ModuleFinish` |
+
+- **Encoding.** A non-global `Index` uses bits 29..30 for its tier: 0
+  body-local, 1 body carry, 2 module tier (§3.9.2). A carry index is
+  relative to its own body's result, so parallel bodies never share a
+  column, and no lock is needed.
+- **No hash-consing**, as in the local pool. `finish` moves each
+  local item that holds a pending row, and no variable, to the carry,
+  children first, memoized per local item.
+- **Never on disk.** M3 replaces every row-tier type before the `tir`
+  and `check` entries are written. The wire writer asserts that no
+  pending part and no non-global index reaches an entry or an interface.
+- `mk` interns a type in the global pool only when it has none of
+  `HAS_INFER`, `HAS_RIGID` and `HAS_ROWVAR`.
 
 ### 3.5 Arenas And Lifetimes
 
@@ -567,7 +617,8 @@ pub struct PoolCols {
     bytes: AppendVec<u8>,        // string and byte constants
 }
 #[repr(transparent)] pub struct Meta(u32);   // HAS_INFER | HAS_RIGID | HAS_POISON | HAS_PARAM | HAS_ROWVAR | HAS_ASSOC | HAS_LOCAL | IS_CONST
-pub struct Index(u32);   // bit 31: body-local; bits 25..30: owner; bits 0..24: row
+pub struct Index(u32);   // bit 31 clear: global, bits 25..30 owner (63 reserved), bits 0..24 row
+                         // bit 31 set: not global, bits 29..30 tier (local, carry, module), bits 0..28 row
 const _: () = assert!(core::mem::size_of::<PoolTag>() == 1);
 ```
 
@@ -588,10 +639,10 @@ intern time.
 | `Tuple` | offset | `[elems TyList, rest Ty or NONE]` | |
 | `Fn` | offset | `[params TyList, result Ty, row RowId, flags]`; flags bit 0: suspends | |
 | `TraitValue` | offset | `[DefId, args TyList, bindings AssocList]` | |
-| `Assoc` | offset | `[base Ty, trait DefId, name Symbol]` | |
+| `Assoc` | offset | `[assoc DefId, self Ty, trait args TyList]`; the trait is the item's declaring trait | |
 | `TyList` | offset | `[len, Ty × len]` | |
-| `AssocList` | offset | `[len, (Symbol, Ty) × len]`, sorted by name bytes at intern | |
-| `Row` | offset | `[nkeys, key Ty × nkeys, nparams, RowParamRef × nparams, npending, (RowVar, RowId) × npending]` | pending part only |
+| `AssocList` | offset | `[len, (item DefId, Ty) × len]`, sorted by the item's path hash at intern | |
+| `Row` | offset | `[nkeys, key Ty × nkeys, nparams, RowParamRef × nparams, npending, (RowVar, subst TyList, minus RowId) × npending]` | pending part only: carry or module tier |
 | `Int` | offset | `[ty, low word, high word]` | |
 | `Float` | offset | `[ty, low word, high word]` (the bits) | |
 | `Bool`, `Unit` | the value | none; pre-seeded | |
@@ -625,8 +676,12 @@ interned globally by `resolve`, which memoizes per body in a
 `resolved: Vec<Ty>` column parallel to the local rows (`NONE` until
 resolved).
 
-**Identity and indexing.** `Index` bit 31 marks a local item. Global
-items carry an owner thread in bits 25..30. A `Ty`, `TyList`, `RowId`
+**Identity and indexing.** `Index` bit 31 marks a non-global item, and
+bits 29..30 name its tier: the body-local pool, a body's carry, or the
+module tier of pending rows (§3.4). Global items carry an owner thread
+in bits 25..30. Owner 63 is reserved: a TIR constant `Ref` with those
+bits set is an open-literal placeholder, replaced at `finish`
+([checking-and-tir.md](checking-and-tir.md#the-builder-api), builder). A `Ty`, `TyList`, `RowId`
 or constant is an `Index` whose tag the typed accessor asserts in debug
 builds.
 
@@ -753,11 +808,33 @@ interner costs nothing but its header.
 - **Writes after the fact** are allowed in these places only, each a
   fixed-size word or a column written once: the final type sweep
   rewrites `ty`; `finish` fills the capture-mode column from the
-  checker's solution (§3.18, type-checking.md §17 item 8); M3 fills the
-  provider lists of calls to private callees whose rows were omitted
-  (§4.13.1); a `close_*` call writes the label row of the loop or block
-  it closes; and a **reserved slot** is filled once. None moves an
-  instruction.
+  checker's solution (§3.18, type-checking.md §17 item 10); a `close_*`
+  call writes the label row of the loop or block it closes; a
+  **reserved slot** is filled once; and M3 makes the two writes below.
+  None moves an instruction.
+- **M3's writes (type-checking.md §5.5 steps 5 and 6).** Both run in
+  `ModuleFinish`, after the row solve, before the `tir` entry is
+  written:
+  1. **Provider patch.** A call to a private callee with an omitted row
+     holds a 3-word `Providers` record of kind `Pending { call }`, where
+     `call` indexes the body's `PendingCall` list. M3 visits the list in
+     order. For each record it appends that call's `(key, provider)`
+     pairs at the end of the body's `extra`, then rewrites the 3-word
+     record in place as `Keys { start, len }`. Appending never moves an
+     earlier word, so every other offset stays valid. The body's
+     `extra` is re-frozen once, after its last append.
+  2. **Row sweep.** M3 first maps each module-tier item, then each
+     body's carry items, to a global type: each pending part becomes
+     `subst(row(g)) − minus`, merged into the row's keys and parameters.
+     The result is memoized per item. Then M3 rewrites every word whose
+     index has a row tier: the `ty` and `local_ty` columns, and each
+     word of `extra` records that the schema marks as a type or row
+     operand (§3.25), which is the same list the wire remap uses. The
+     tier is in the word itself, so the scan costs no pool load.
+  Both walks go in body order, then instruction or record order, so the
+  appended ranges and the memo are the same on every run. Global
+  interning is by content, so the resulting types do not depend on
+  thread order either.
 - **Reserved slots (Codex review, I2).** The checker does not always
   check in evaluation order. It may postpone an argument, look at a right
   operand first, or learn an arm's coercion only at the join. A block's
@@ -1407,7 +1484,7 @@ pub struct ImplTable {                   // per module; rows sorted by (trait pa
     pub generic:  BitBox,                // 1 bit: the head has type parameters
     pub by_trait: HashTable<u32>,        // index: trait DefId -> first row; rows of one trait are contiguous
 }
-#[repr(transparent)] pub struct HeadKey(u32);   // Ctor(DefId) | Prim(Prim) | Tuple(arity) | Fn | Param
+#[repr(transparent)] pub struct HeadKey(u32);   // Ctor(DefId) | Prim(Prim) | Tuple(arity) | TupleAny | Fn | Param
 pub struct LocalImpls { /* the same columns, for a body-visible local impl table of one module (§4.12.1) */ }
 ```
 
@@ -1418,9 +1495,14 @@ pub struct LocalImpls { /* the same columns, for a body-visible local impl table
 - Head keys pack the kind into the top 3 bits and a `DefId`, `Prim` or
   arity into the low 29. A `DefId` above 2^29 is an internal error; the
   path table's per-owner capacity keeps it far below.
-- **Compiler-supplied impls** (tuples at every arity, numeric families)
-  have no rows. The solver answers them with `Evidence::Builtin`, and TIR
-  records a `Builtin` choice (§3.18).
+- **Tuple templates and numeric families are rows.** A tuple template
+  has head key `TupleAny` and a numeric family head key `Param`
+  ([trait-solver.md §3.9](trait-solver.md#39-compiler-supplied-impls)).
+  Their evidence is `Impl`, like any written impl.
+- **Sealed traits have no rows.** `Any`, `AnyVal`, `AnyRef`,
+  `Inspectable`, `Tuple`, `Num`, `Integer`, `Float` and `Suspend` are
+  answered from the type's form. The solver answers them with
+  `Evidence::Builtin`, and TIR records a `Builtin` choice (§3.18).
 
 **Identity, lifetime.** Rows are module-local. The table is frozen with
 its folder and lives for the run.
@@ -1470,8 +1552,10 @@ body-local `u32`s. A `Ref` is an `Inst` below 2^31, or a global pool constant wi
 bit 31 set, so constants need no instruction and no column (mine).
 
 **Lifetime and owner.** The worker's columns, truncated to empty at each
-body's start; the body's copy in the module result until `ModuleFinish`
-writes the `tir` entry; then freed. Emission maps the entry.
+body's start; the body's copy in the module result, with its carry of
+pending-row types (§3.4), until `ModuleFinish` patches providers, sweeps
+rows (§3.9.5) and writes the `tir` entry; then freed. Emission maps the
+entry.
 
 **Growth and scratch.** Worker columns keep their capacity, so after the
 first few bodies a worker allocates only the per-body output copy.
@@ -1655,6 +1739,8 @@ const _: () = assert!(core::mem::size_of::<ManifestRecord>() == 88);
 | `check` | `diags`; `init_summary` (per function: read bindings, calls, dispatched methods, as path rows); `row_results` (per private callee: solved keys); `facts` (the program-database records); `module_meta` (counts, `poisoned`) | 2 to 20 KB |
 | `tir` | `bodies` (per body: item path, kind, inline summary bit, column ranges, TIR hash, dependency range: 48 B); `tags`, `data`, `ty`, `span_lo`, `span_hi`, `extra`; `local_*`, `sub_*`, `label_inst`, `cap_*`; side tables; `deps` (path row, item interface hash) | about 210 B per line |
 | `check-test` | `diags`, `registrations` (name text, body path) | small |
+| `hdr` | `diags` of one folder's stage-B header checks (cache.md §5.2) | small |
+| `fact` | one evaluated fact value as a `types` constant row, or its failure diagnostic (codegen.md §12.3) | small |
 | `coh`, `init`, `pkgres` | `diags` plus a few rows | small |
 | `depfiles` | manifest-like records without stat fields | 56 B per file |
 | `code` | §3.22 | about 40 B per line per instance |
@@ -1931,7 +2017,8 @@ kind list<K>     range     # {start, len} into extra, elements of kind K
 record Callee  = Item { def: def, targs: list<ty> }
                | TraitMethod { trait: def, method: sym, self_ty: ty, targs: list<ty>, choice: Choice }
                | Evidence { value: ref, bound: u16, method: sym }
-record Choice  = Impl { def: def } | Bound { index: u16 } | Builtin { which: BuiltinImpl }
+record Choice  = Impl { def: def } | Bound { index: u16 } | TraitValue { trait: def } | Builtin { which: BuiltinImpl }
+record Providers = Keys { pairs: list<(ty, ref)> } | Context { ctx: ref } | Pending { call: u32 }   # 3 words
 
 inst Call {
   a: extra Callee

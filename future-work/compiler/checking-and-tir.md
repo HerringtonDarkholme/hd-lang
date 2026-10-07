@@ -16,6 +16,18 @@ item 4 in §4.13.3 and §4.13.10; item 5 in §4.13.4; item 6 in §4.13.6;
 items 7, 8 and 9 in §4.13.11; item 10 in §4.15. Item 1 is in
 [data-structures.md §3.4](data-structures.md#34-types).
 
+**Second pass** (backend lane, 2026-10-07), from
+[codex-review-response-frontend.md](codex-review-response-frontend.md#changes-for-the-backend-lane)
+items 16, 17 and 22 to 26 and the renumbered
+[type-checking.md §17](type-checking.md#17-changes-needed-in-compilerdesignmd):
+the `TraitValue` choice, `Builtin` for sealed traits only, `CallDyn`
+evidence operands and `Evidence` values in `NewVariant` (§4.13.11); no
+coinductive assumption and the `HeaderCheck(F)` task (§4.13.9); the
+`DefaultCall` instruction in place of `Default` (§4.13.11); the M3
+worklist solve, provider patch and row sweep (§4.13.1, §4.13.4); the
+`Refine` coercion and no scoped pop (§4.13.6); and `konst` for a literal
+whose width is still open (§4.13.11, builder).
+
 ### 4.13 Body Checking
 
 #### 4.13.1 Task Structure Per Module
@@ -40,17 +52,19 @@ first, depth first. A callee already in progress closes a cycle:
 function in source order, whichever function was entered first. The walk
 is serial and bounded by the module's item count.
 
-**Omitted rows (M3; mine).** Rows do not order checking. A call to a
-private callable with an omitted row gives the call a row variable
-`RowVar(callee)`. Each body records constraints: `RowVar(f) ⊇ keys` for the
-keys `f`'s body uses outside `$.with` blocks, `RowVar(f) ⊇ RowVar(g)` for a
-call from `f` to `g`, and a deferred check `available(h) ⊇ RowVar(g)` for a
-call from an annotated `h`. M3 solves the variables as a least fixpoint
-over the module's constraint graph, one SCC at a time, with monotone union
-and at most one pass per key per SCC
-([`req.row.omitted.cycle`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.cycle)).
-Then it runs the deferred checks and fills the pending provider lists in
-TIR (§3.9.5).
+**Omitted rows (M3).** Rows do not order checking. A call to a private
+callable `g` with an omitted row gives the call a pending row: `RowVar(g)`
+with the call's substitution, minus the keys of the `$.with` blocks
+around it. Each body records `Uses`, `Includes` and `Entails` facts and
+one `PendingCall` record per such call. M3 solves one set per row
+variable with a monotone worklist in source order, which gives the least
+solution
+([`req.row.omitted.cycle`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.cycle));
+a key that grows past the instantiation depth is `instantiation-too-deep`
+([type-checking.md §5.5](type-checking.md#55-private-rows-and-the-m3-fixpoint)).
+Then it runs the deferred checks, patches each pending call's providers
+and sweeps the pending rows out of every type
+([data-structures.md §3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation)).
 
 #### 4.13.2 The Inference Engine
 
@@ -105,9 +119,10 @@ design:
 
 #### 4.13.4 Rows
 
-- A row is one pool item: sorted keys, declared row parameters, and, in
-  the body-local pool only, pending private rows `RowVar(f)` minus a key
-  set
+- A row is one pool item: sorted keys, declared row parameters, and,
+  outside the global pool only, pending parts `(RowVar(g), subst,
+  minus)`. A type that holds a pending part lives in a row tier until
+  `ModuleFinish` ends
   ([data-structures.md §3.4](data-structures.md#34-types)). Keys are kept
   sorted by `Ty` value for in-run set operations, so union and membership
   are linear merges ([Row Sets](../../spec/lang/11-requirements-and-suspension.md#row-sets)).
@@ -143,12 +158,16 @@ design:
 - Per `match` arm, unify the variant's result type with the scrutinee's
   type, first-order and nominal
   ([Refinement Algorithm](../../spec/lang/13-gadts.md#refinement-algorithm)).
-- The equalities this yields on the scrutinee's type parameters are pushed
-  on the trail and popped at the arm's end, so they never escape the arm.
-  The pop is **scoped**: it undoes the arm's equalities and keeps
-  ordinary bindings, and the escape check scans the bindings above the
-  arm's mark
-  ([type-checking.md §6.1](type-checking.md#61-arm-local-equalities)).
+- The equalities this yields on the scrutinee's type parameters go into
+  an append-only arm-environment table. They are consulted, never
+  written into types, and nothing is popped or undone at the arm's end.
+  An outer inference variable may be bound only to a type free of the
+  arm's refined parameters and existentials (rules TC-10 and TC-11 of
+  [type-checking.md §6.1](type-checking.md#61-arm-local-equalities)).
+- Where the arm's value has the refined type and its position expects
+  the parameter, the checker emits a `Refine` coercion naming the arm
+  environment (§4.13.11). It has no run-time effect
+  ([`gadt.unify.no-cast`](../../spec/lang/13-gadts.md#r-gadt.unify.no-cast)).
 - A variant whose result cannot unify is impossible. Exhaustiveness skips
   it.
 - Existential parameters get fresh rigid variables per arm.
@@ -159,7 +178,9 @@ There are no variadic generics ([chapter 12](../../spec/lang/12-variadic-generic
 `Args < Tuple` bounds an ordinary type parameter, a vararg's type is a
 tuple, and a spread `f(args...)` unifies a tuple with a parameter list.
 Tuple rest elements are the `rest` field of the tuple type. Tuple `Eq`,
-`Ord` and `Hash` come from compiler-derived candidates at every arity.
+`Ord`, `Hash` and `Debug` come from std's tuple templates: `Impl`
+evidence of the template at the tuple type, like any impl
+([trait-solver.md §3.9](trait-solver.md#39-compiler-supplied-impls)).
 
 #### 4.13.8 Exhaustiveness
 
@@ -181,9 +202,23 @@ impossibility (§4.13.6), literal ranges, `Option` and tuples.
   The result is part of the target module's `check` entry. A template edit
   changes the trait folder's deep hash, which rechecks exactly the modules
   that derive from it.
+- **No coinductive assumption.** The derived head is already in the
+  target module's impl table, so a member goal such as `List[Tree[T]]:
+  Eq` reaches it as an ordinary `Impl` and the search meets no cycle
+  ([trait-solver.md §3.10](trait-solver.md#310-derives-delegation-and-error)).
+  The derive-instance task checks only member obligations.
+- **Header goals are not body work.** Supertraits of each impl,
+  supertrait bindings, a derived newtype's base impl and a delegation
+  target's impl are checked by the folder's `HeaderCheck(F)` task
+  ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages),
+  stage B; [scheduler.md §6.1](scheduler.md#61-tasks)), never by an M2
+  body task.
 - **Facts and defaults.** A fact or default expression is checked once, in
-  its declaring module, as a requirement-free expression. Its value is
-  D2's.
+  its declaring module, as a requirement-free body of its own (body kind
+  `Fact` or `Default`). A call that omits an argument emits a
+  `DefaultCall` of that body per call (§4.13.11). A fact's value comes
+  from the compile-time evaluator
+  ([codegen.md §12.3](codegen.md#123-facts-defaults-derives-and-tests)).
 - **Test overlay.** The `tests:` block and the doc tests of module `m` are
   checked by a `TestOverlay(m)` task under `hd check --tests` and
   `hd test`. Their uses make no folder edge, so the task waits for the
@@ -298,10 +333,10 @@ const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
   checked they may be body-local; the final sweep makes them global.
 - **Records in `extra`** have fixed word counts, generated and asserted
   from `tir.ir`: a callee record is 2 to 5 words plus its type-argument
-  list, a coercion record 2 words, a provider list `{start, len}`.
+  list, a coercion record 2 words, a `Providers` record 3 words.
 - **Capture modes** depend on statements after the closure, so they are
   a column written once at `finish`, from the checker's `Solution`
-  (type-checking.md §17 item 8; mine in this form). The checker decides
+  (type-checking.md §17 item 10; mine in this form). The checker decides
   the modes (rule TC-1); the builder only stores them. No instruction
   word is patched.
 - **Sizes.** 17 bytes per instruction plus about 7 bytes of `extra`;
@@ -317,10 +352,10 @@ Notation: `a` and `b` are the two data words; `[...]` is a record in
 complete. Slice 3's exit includes a coverage table: one row per
 expression and statement form of spec chapters 5 to 14, naming its tag,
 its verifier rule and its emission rule (build-order.md §9). A form with
-no row blocks the checker feature that produces it. Gaps known now:
-`Default` needs the earlier argument values (frontend lane, Codex
-finding 4), and the coercions and evidence choices of
-type-checking.md §17.
+no row blocks the checker feature that produces it. The gaps known
+before the second pass are closed: `DefaultCall` carries the earlier
+argument values (Codex finding 4), and the coercion kinds and evidence
+choices of type-checking.md §17 are below.
 
 **Values, locals and globals**
 
@@ -343,15 +378,15 @@ type-checking.md §17.
 | `And`, `Or` | a: left, b: right `Block` | `bool`; the right block runs only when needed |
 | `Call` | a: `[callee]`, b: `[arguments, providers]` | the callee's result, substituted; `mut Suspend[T]` when the callee suspends and the call is plain (a cold call) |
 | `CallValue` | a: function value, b: `[arguments, context]` | the function type's result |
-| `CallDyn` | a: trait value, b: `[method, type arguments, arguments, providers]` | the method's result, substituted. The type arguments are the method's own; codegen passes their bound evidence (codegen.md §13.5) |
-| `Is` | a: left, b: right | `bool`. `is` on two `AnyRef` operands; codegen lowers it by layout (wasm-layout.md §15.2) |
+| `CallDyn` | a: trait value, b: `[method, type arguments, evidence, arguments, providers]` | the method's result, substituted. The type arguments are the method's own. `evidence` holds one `Evidence` value per method-level bound, in the method's bound order, chosen by the checker at the call (codegen.md §13.5) |
+| `Is` | a: left, b: right | `bool`. Only on two operands of nominal reference types: data, enums other than `Option` and `Result`, `List`, `Map`, trait values, `Any`. The checker desugars `is` on optionals and results tag by tag (type-checking.md §2.2); codegen lowers it by layout (wasm-layout.md §15.2) |
 | `CallHost` | a: host method, b: `[arguments]` | the method's result; only in std's provider bodies (§17.1) |
 | `Intrinsic` | a: intrinsic, b: `[type arguments, arguments]` | the intrinsic's declared result |
-| `Default` | a: `DefId` of the parameter or field, b: `[type arguments]` | the parameter's or field's type |
+| `DefaultCall` | a: `[default body DefId, type arguments]`, b: `[earlier argument values]` | the parameter's or field's type, substituted. One per omitted argument, per call |
 | `Interp` | b: `[parts]`, each a literal constant or a value with its `Display` callee | `string` |
 | `Coerce` | a: value, b: `[kind, evidence or NONE]` | the target type in `ty`; the kinds are in the table below |
 
-**Coercion kinds** (type-checking.md §4.2 and §17 item 7). Each changes
+**Coercion kinds** (type-checking.md §4.2 and §17 item 8). Each changes
 the type, so each is an explicit instruction and invariant 4 holds.
 
 | Kind | From → to | Evidence word | Run-time meaning for D2 |
@@ -365,6 +400,35 @@ the type, so each is an explicit instruction and invariant 4 holds.
 | `ToAny` | `S` → `Any` | none | box with its type id |
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
+| `Refine` | `R` → `T`, or `T` → `R`, where a GADT arm has `T ≡ R` | the `SwitchTag` case `Inst` whose variant gives the equality | none: static ([`gadt.unify.no-cast`](../../spec/lang/13-gadts.md#r-gadt.unify.no-cast)). The verifier recomputes the case's equalities from the variant's result type and checks that the two types are equal under them |
+
+**Default calls (Codex finding 4).** A default is evaluated at each call
+that omits it, after every explicit argument, in parameter declaration
+order ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)),
+and a data field default at each construction that omits it
+([`data.default.eval`](../../spec/lang/08-data-and-enums.md#r-data.default.eval)).
+D1's `Default` instruction named only the parameter, so it could not see
+earlier arguments, and codegen turned it into a getter cached on first
+use, which evaluated a default once per program. It is replaced:
+
+- Each default is a body of its own, kind `Default`, checked once in its
+  declaring module (type-checking.md §1.7). Its parameters are the
+  callee's earlier parameters; a field default has none. Its `DefId`'s
+  stable path is the declaration's path plus the parameter or field
+  name.
+- At a call, the checker emits one `DefaultCall` per omitted argument,
+  after the explicit arguments' instructions, in declaration order. Its
+  operands are the callee's type arguments and the `Ref`s of the
+  earlier parameters' values, explicit or defaulted. Those are the same
+  `Ref`s the call passes, so nothing is evaluated twice.
+- It is a separate tag, not a `Call`, for two reasons. The verifier
+  checks that its operands are exactly the call's earlier argument
+  `Ref`s. And emission brackets it with the forbidden-context counter
+  that makes an indirect `block_on` or `println` panic (suspension.md
+  §14.9), unless the default body calls nothing.
+- Lowering is a direct call of the default body's instance. A default
+  that is a constant, such as `= 10`, passes the trivial-inlining test
+  and costs nothing.
 
 D1's "readonly view" kind is `Weaken`, since the spec's marked form is
 `mut T` (data-structures.md §3.4).
@@ -377,22 +441,35 @@ value:
 
 | Choice | Value | Meaning |
 | --- | --- | --- |
-| `Impl` | the impl's `DefId` | a written, derived or template impl |
+| `Impl` | the impl's `DefId` | a written, derived, delegated, generated, numeric-family or tuple-template impl |
 | `Bound` | the bound's index in the parameter environment | dispatch through a bound in scope; static in every instance |
-| `Builtin` | a `BuiltinImpl` number | a compiler-supplied impl: tuple `Eq`, `Ord`, `Hash` and `Debug` at every arity, the `Tuple` marker, and numeric-family members (type-checking.md §17 item 7) |
+| `TraitValue` | the trait's `DefId` | the self type is a trait value of this trait or a subtrait: a vtable call, as `CallDyn` |
+| `Builtin` | a `BuiltinImpl` number | a sealed trait answered from the type's form: `Any`, `AnyVal`, `AnyRef`, `Inspectable`, `Tuple`, `Num`, `Integer`, `Float`, `Suspend` |
 
-A `Builtin` callee has no TIR body. Collection maps `(BuiltinImpl,
-concrete self type)` to a body that D2 generates per arity or per
-primitive (§13.6), named by the stable path `std.builtin.<trait>` plus
-the canonical self type in its instance key. This is the solver's
-`Evidence::Builtin` (type-checking.md §1.6) written into TIR. **Arguments** are listed in parameter order; their
+These are the solver's `Evidence` values
+([trait-solver.md §8.1](trait-solver.md#81-what-a-holds-answer-carries))
+written into TIR. A `NewVariant` evidence choice and a `CallDyn`
+evidence operand use the same encoding. Tuple `Eq`, `Ord`, `Hash` and
+`Debug` are `Impl` choices of std's tuple templates, not `Builtin`
+(trait-solver.md change 20). A `Builtin` callee has no TIR body.
+Collection maps `(BuiltinImpl, concrete self type)` to a body that D2
+generates per primitive or per shape (§13.6), named by the stable path
+`std.builtin.<trait>` plus the canonical self type in its instance key.
+**Arguments** are listed in parameter order; their
 instructions appear earlier in the enclosing block's list in source
 order, which is how named arguments keep their evaluation order. When
 the checker postpones an argument, it reserves its slot in the list
 first (data-structures.md §3.9.5). **Providers** are `(key, provider
 Ref)` pairs, one per key of the callee's row, one context `Ref` for a
-row-polymorphic callee, or `Pending(row variable)` until M3 fills it
-(§3.9.5). Each pair names its key, so no code depends on the in-run
+row-polymorphic callee, or `Pending { call }` until M3 patches it. The
+`Providers` record is 3 words in every form, so M3 rewrites it in place
+to point at pairs it appends to `extra`
+([data-structures.md §3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation)).
+A pair's provider is a value `Ref`, or `NONE`, which means "the
+enclosing sub-body's own provider for this key" and lowers exactly as
+`ProviderGet` of that key there. M3 never adds an instruction, so it
+uses `NONE` for keys that come from the caller's own row, and `with`
+`Ref`s for keys that a `$.with` block around the call provides. Each pair names its key, so no code depends on the in-run
 order of keys. The `tir` writer and codegen order the pairs by
 `canon(K)` bytes, the one key order of codegen.md §12.4 (Codex review,
 D1).
@@ -418,7 +495,7 @@ it (§14.2).
 | --- | --- | --- |
 | `NewData` | b: `[field values]` in declaration order | the data type in `ty` |
 | `CopyData` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals and part copies; every part not replaced is copied too ([`data.part.copy-update`](../../spec/lang/08-data-and-enums.md#r-data.part.copy-update)) |
-| `NewVariant` | a: variant `DefId`, b: `[payload values, evidence choices]` | the enum type in `ty`; one evidence choice per bound of each existential parameter |
+| `NewVariant` | a: variant `DefId`, b: `[payload values, evidence choices]` | the enum type in `ty`; one `Evidence` value per bound of each existential parameter, at the construction's types, encoded as a choice word |
 | `NewTuple` | b: `[elements]` | the tuple type |
 | `NewList` | b: `[elements, spread bits]` | `List[T]` |
 | `NewMap` | b: `[key, value pairs]` | `Map[K, V]` |
@@ -501,10 +578,11 @@ instructions. Shared arms appear once.
 
 ```rust
 /// What the checker calls. `TirBuilder` implements it; a discarding sink
-/// implements it too if the no-emit mode is accepted (type-checking.md §16 question 5).
+/// implements it too, for the no-emit mode (type-checking.md §1.5).
 pub trait TirSink {
     // values (each returns the new instruction's value)
     fn konst(&mut self, c: Index) -> Ref;                          // no instruction: a constant Ref
+    fn konst_open(&mut self, lit: OpenLit, ty: Ty) -> Ref;         // a literal whose width is still a variable
     fn local(&mut self, ty: Ty, name: Symbol, flags: LocalFlags, syn: NodeIdx) -> LocalId;
     fn get(&mut self, l: LocalId, syn: NodeIdx) -> Ref;
     fn set(&mut self, l: LocalId, v: Ref, syn: NodeIdx);
@@ -546,10 +624,24 @@ pub struct Solution<'a> {
 - The builder is the only writer of TIR. `emit` and the per-tag helpers
   are generated from `tir.ir` (data-structures.md §3.25), so every
   encoding goes through the schema.
-- **The checker is generic over `TirSink`** (type-checking.md §17 item
-  9), as `Checker<B: TirSink>`. This costs one generic parameter and
-  lets the no-emit mode exist without a second code path, if the owner
-  accepts it.
+- **The checker is generic over `TirSink`**, as `Checker<B: TirSink>`.
+  This costs one generic parameter and lets the no-emit mode, accepted
+  for the playground and `hd fix`, exist without a second code path.
+- **Open literals (Codex review, I7; type-checking.md §17 item 9).**
+  Literal width is decided per connected literal class (owner,
+  2026-10-07), so a literal may be emitted before its class binds.
+  `konst_open` takes the literal's value and its class variable, and
+  returns a **placeholder** `Ref` with no instruction. A placeholder is
+  a constant `Ref` whose owner bits (25..30) are all set; pool owner 63
+  is reserved for it, and bits 0..24 number the body's open literals in
+  emission order. At `finish` the builder reads each width from the
+  `Solution`, interns the typed constant in the global pool, and
+  rewrites every operand word that holds a placeholder. The schema
+  marks every `ref` word, so the rewrite is the generated walk that the
+  wire remap also uses, and it runs only in a body with open literals.
+  A value that does not fit its width is the checker's range error,
+  reported when the class bound; `finish` only asserts it. After
+  `finish` no placeholder remains, so invariant 12 holds.
 - **Captures.** A closure's captures are collected on the scratch stack
   while its body is checked, since nested closures interleave, and
   flushed contiguously into the capture columns at `close_sub`.
@@ -573,8 +665,9 @@ The verifier checks each of these:
    used: in the same block earlier, or in an enclosing block. Child
    blocks, labels and locals follow their own rules (5 and 10).
 2. Every instruction is in exactly one block list.
-3. After `finish`, every type is global. `Hole` and `Poison` occur only
-   in a module with errors, which D2 does not lower.
+3. After `finish`, every type is global or in a row tier (data-structures.md
+   §3.4), and after M3 every type is global. `Hole` and `Poison` occur
+   only in a module with errors, which D2 does not lower.
 4. **Every operand's type equals the type its position expects**: call
    arguments equal the substituted parameter types, a `LocalSet` value
    equals the local's type, a `Return` value equals the body's result, a
@@ -589,7 +682,8 @@ The verifier checks each of these:
 7. Every suspension point's side record lists exactly the `Scope`s that
    enclose it.
 8. Every call to a callee with a row has providers for exactly its keys,
-   and none is `Pending` after M3.
+   and none is `Pending` after M3. A `NONE` provider names a key that
+   the enclosing sub-body's own row holds.
 9. `CallHost` occurs only in std's provider bodies; an `Intrinsic` only
    where it is declared.
 10. A `Closure`'s captures name locals of its enclosing sub-bodies, and
@@ -601,6 +695,11 @@ The verifier checks each of these:
 13. A `Builtin` choice names a `BuiltinImpl` whose trait is the callee's
     trait.
 14. No reserved slot is empty after `finish`.
+15. A `DefaultCall`'s operands are the `Ref`s its call passes for the
+    earlier parameters, in order, and it precedes the call in the block.
+16. A `Refine` coercion's two types are equal under the equalities of
+    the `SwitchTag` case it names, and the coercion is inside that case.
+17. A `CallDyn` has one evidence operand per method-level bound.
 
 ##### Lifetime And The `tir` Entry
 
@@ -707,7 +806,8 @@ marked "proposed" are for the spec pass (answer 5).
 | type size | nodes in one type | 10,000 | `type-too-large` (proposed) |
 | exhaustiveness | matrix cells, within the body's fuel | shares body fuel | `match-too-complex` (proposed) |
 | embedding depth | nested `data` embedding | the spec's | `embedding-too-deep` (spec) |
-| instantiation depth | nesting depth of an instance's type arguments; length of the request chain from a root | 32; 256 | `instantiation-too-deep` (proposed; §13.4) |
+| instantiation depth | nesting depth of an instance's type arguments; length of the request chain from a root; also row keys grown by polymorphic recursion in M3 | 32; 256 | `instantiation-too-deep` (proposed; §13.4); a build error, and in M3 a check error (owner, 2026-10-07) |
+| fact evaluation | interpreted TIR instructions and heap bytes per fact | 10,000,000 steps; 64 MiB | `fact-evaluation-failed` (proposed; [codegen.md §12.3](codegen.md#123-facts-defaults-derives-and-tests)) |
 | memory | process bytes | **none by default** (owner, 2026-10-07); opt in with `--max-memory` or `HD_MAX_MEMORY` | `memory-limit` (proposed), naming the stage |
 
 **The opt-in memory cap.** By the owner's decision there is no default

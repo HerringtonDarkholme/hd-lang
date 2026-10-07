@@ -19,6 +19,11 @@ are compared differently (Codex review, D4):
   cell's cache state, not across states: `modules_checked`, hit and miss
   counts, timings. A cold run computes every module, and a warm run with
   no edit computes none.
+- **`fuel_used` per body** is semantic in test mode: equal across
+  threads, serial orders, hasher seeds and a cold or warm solver memo
+  (type-checking.md rule TC-8, trait-solver.md rule TS-5). It is
+  compared only for bodies checked in the cell, so a warm cache state
+  compares the bodies it rechecked.
 - The opt-in memory cap is the one non-deterministic outcome (§4.15). The
   matrix runs without it.
 
@@ -30,6 +35,7 @@ are compared differently (Codex review, D4):
 | ID shift | the interners pre-filled with 0, 1,000 or 50,000 junk entries (mine) | any interned ID that is printed, sorted or hashed |
 | checkout path | two paths of different lengths | paths in keys (Swift's module variants) |
 | cache state | cold; warm; warm after an unrelated edit; verify mode | hits that differ from recomputation |
+| TIR emission | emit; no-emit (type-checking.md §1.5) | checking that depends on what was emitted (rule TC-3) |
 | platform | Linux, macOS, the browser build under Node | platform-dependent ordering or hashing |
 
 The cases are the conformance suite, std, and three generated packages of

@@ -19,6 +19,9 @@ Part of the [compiler design](README.md).
 | 23.1-5: property-test base seed | from the test's stable name, plus `--seed N` (orchestrator's call) |
 | 23.1-6: a panic in the REPL | the session continues; the input adds no binding (orchestrator's call) |
 | 23.2-7: the 5 ms start target | it counts instantiation to first output, not process start (orchestrator's call) |
+| 23.1-7: extend decision B to `Result` | yes: `.Ok` and `.Err` have no identity; `Result` uses the `multi` layout (owner) |
+| `is` on value types | a compile error on an operand whose static type is a value type and on function values; unspecified on an `Any` that holds a value (owner) |
+| literal width | decided per connected literal class (owner) |
 
 The Codex review of 8bb6860d and each finding's verdict: [codex-review-response.md](codex-review-response.md).
 
@@ -97,6 +100,23 @@ interface and cache entries (§7.5).
     `--max-errors`, `--jobs`, `modules_checked` and the JSON `fixes` field
     are triaged or answered but not yet in the CLI spec. The spec pass
     adds them.
+11. **The `block_on` ban is still transitive in the spec**
+    (type-checking.md §16.2 item 1).
+    [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive),
+    `req.drive.block-on.unprovable`,
+    [`flow.defer.block-on`](../../spec/lang/06-control-flow.md#r-flow.defer.block-on)
+    and [`annot.fact.no-block-on`](../../spec/lang/14-annotations.md#r-annot.fact.no-block-on)
+    with its `unprovable` rule predate answer 13: direct-only, with a
+    run-time panic for an indirect call. For facts, the indirect case is
+    now the build error `fact-evaluation-failed`, since facts run at
+    compile time (codegen.md §12.3).
+12. **`println` in the ban.** Answer 13 bans a direct `println` as well
+    as `block_on`, but no spec rule names `println` (type-checking.md
+    §16.2 item 2).
+13. **Redundancy warnings.** The design brief asks for redundancy
+    warnings, but the spec makes an unreachable arm an error
+    (`unreachable-match-arm`). The design follows the spec
+    (type-checking.md §16.2 item 3).
 
 ### Changes To D1
 
@@ -177,7 +197,8 @@ editing D1 in place:
    does to the session. **Recommendation:** report it and keep the
    session; the panicking input adds no binding, and mutations it made
    before the panic remain. The spec pass adds a rule.
-7. **Extend decision B to `Result`?** (new, 2026-10-07, from Codex
+7. **Extend decision B to `Result`?** Answered yes (owner,
+   2026-10-07); wasm-layout.md §15.2 applies it. (From Codex
    finding 1.) Decision B removed the identity of `.Some` and of boxes.
    `Result` is still an enum whose every `.Ok` and `.Err` has its own
    identity, so it is laid out as one struct per construction
@@ -188,6 +209,18 @@ editing D1 in place:
    compares tags and then payloads, as for optionals. Then `Result`
    uses the `multi` layout `(i32 tag, T', E')` and allocates nothing.
    No known program compares `Result`s by identity.
+
+8. **Does `hd check` evaluate facts?** (new, 2026-10-07, from Codex
+   finding 4.) Facts, metadata and shared enum data are evaluated once
+   at compile time by an interpreter over TIR (codegen.md §12.3). A
+   failing fact is `fact-evaluation-failed`. Evaluating needs the TIR of
+   every function the fact calls, across modules and packages.
+   **Recommendation:** evaluate only in `hd build`, `hd run` and
+   `hd test`, the same split the owner accepted for
+   `instantiation-too-deep`. `hd check` stays a per-module check, and a
+   fact that panics is rare and contrived. The alternative, evaluating
+   in `hd check` too, makes a check's result depend on other modules'
+   bodies, which its cache key does not cover.
 
 ### 23.2 Inconsistencies Found In The Inputs
 

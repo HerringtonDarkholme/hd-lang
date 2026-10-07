@@ -26,7 +26,7 @@ those.
 
 | Id | Verdict | Fixed in | Reason |
 | --- | --- | --- | --- |
-| 1 | accepted-fixed (owner decision B; spec change queued for the spec pass) | [wasm-layout.md §15.2](wasm-layout.md#152-values) | True: nullable-reference `Option` and `i31ref` erasure broke `expr.is.some` and `expr.is.box.distinct`. The owner chose B: `.Some` and boxes lose identity, so the layouts stand. `Result` still had a value layout with identity, so it is now one struct per construction until open question 23.1-7 is answered. `is` on trait values now also compares type ids. |
+| 1 | accepted-fixed (owner decision B; spec change queued for the spec pass) | [wasm-layout.md §15.2](wasm-layout.md#152-values) | True: nullable-reference `Option` and `i31ref` erasure broke `expr.is.some` and `expr.is.box.distinct`. The owner chose B: `.Some` and boxes lose identity, so the layouts stand. The owner then extended B to `Result` (open question 23.1-7), so `.Ok` and `.Err` have no identity and `Result` uses the `multi` layout. `is` on trait values now also compares type ids. |
 | 2 | accepted-fixed | [codegen.md §13.3](codegen.md#133-instance-keys), [§13.8](codegen.md#138-code-entries), [testing-the-compiler.md §21.4](testing-the-compiler.md#214-codegen-cache-soundness) | True: the instance key held the callee's `tir_hash`, and relocations named it. The instance key is now a symbol without the body hash; the code key carries it, and link resolves symbols to this build's entries. |
 | 3 | frontend lane | | Solver: owner-module lookup with unknown trait arguments. |
 | 4 | frontend lane | | Defaults memoized and facts evaluated at run time. |
@@ -140,14 +140,48 @@ invalid typing case under item 7; and
 `spec/conformance/runtime/valid/boxed-primitive-identity.hd`, which keeps
 its alias assertions and drops those about distinct boxes.
 
+Owner's extension of B, 2026-10-07, for the same pass:
+
+| # | Rule | File | New meaning |
+| --- | --- | --- | --- |
+| 9 | `expr.is.some`, `types.option.identity` and the `Result` text | 05-expressions.md, 04-type-system.md | `.Ok(...)` and `.Err(...)` have no identity. `is` on two results compares tags, then payloads, as for optionals; a `Result` passes the reference test only when both payload types do. |
+| 10 | the `is` typing rules | 05-expressions.md | `is` is a compile error on an operand whose static type is a value type (`identity-requires-references`) and on a function value (`unsupported-function-identity`). On an `Any` or trait value that holds a value at run time, the result is unspecified. |
+
 ### Owner Questions Raised
 
-- **Open question 23.1-7: extend decision B to `Result`.** Recommendation:
-  yes, with the same `is` rule as optionals; then `Result` allocates
-  nothing ([open-questions.md](open-questions.md#231-open-questions-for-the-owner)).
+- **Open question 23.1-7: extend decision B to `Result`.** Answered yes
+  (owner, 2026-10-07).
 - **Items 5 and 7 above:** "unspecified" for boxes, and "an optional takes
-  its payload's category". Both follow from B; the owner may prefer value
-  comparison instead.
+  its payload's category". Confirmed by the owner's answer on `is`
+  (2026-10-07).
+
+## Backend Follow-Ups Applied (2026-10-07)
+
+The frontend lane left items 15 to 26 for this lane
+([codex-review-response-frontend.md](codex-review-response-frontend.md#changes-for-the-backend-lane);
+[trait-solver.md §16.4](trait-solver.md#164-changes-needed-in-type-checkingmd-and-the-other-design-files)
+changes 15 to 21; [type-checking.md §17](type-checking.md#17-changes-needed-in-compilerdesignmd)).
+
+| Item | File | Summary |
+| --- | --- | --- |
+| 15 | [data-structures.md §3.4](data-structures.md#34-types), §3.9.2 | `Assoc { assoc, tref }` with the trait's arguments; the pool stores item, self type and arguments; `AssocList` keyed by item `DefId` |
+| 16 | [checking-and-tir.md](checking-and-tir.md#instruction-catalog), [data-structures.md §3.25](data-structures.md#325-the-schema-language) | choices are `Impl`, `Bound`, `TraitValue`, `Builtin` (sealed traits only); `CallDyn` has one evidence operand per method-level bound; `NewVariant` stores `Evidence` values |
+| 17 | [checking-and-tir.md §4.13.9](checking-and-tir.md#4139-derive-instances-templates-facts-and-test-overlays) | no coinductive assumption; supertraits, bindings, newtype bases and delegation targets belong to `HeaderCheck(F)` |
+| 18 | [codegen.md §13.2](codegen.md#132-collection) step 4 | `select` by head only: no subgoal, no depth limit, no fuel; a miss is an internal error |
+| 19 | [codegen.md §13.5](codegen.md#135-dictionaries-trait-values-and-gadt-evidence) | vtables follow the trait record's shape, supertraits by pointer; an erased slot takes one vtable per bound |
+| 20 | [codegen.md §13.6](codegen.md#136-tuples-arity-and-all), [data-structures.md §3.17](data-structures.md#317-impl-tables) | tuple `Eq`, `Ord`, `Hash`, `Debug` are tuple-template instances per tuple type |
+| 21 | [cache.md §5.3](cache.md#53-key-composition) | `check_key` gains `arg_impls_closure_hash`, a bottom-up Merkle hash `argc`; the solver memo is never persisted |
+| 22 | [checking-and-tir.md](checking-and-tir.md#instruction-catalog), [codegen.md §12.3](codegen.md#123-facts-defaults-derives-and-tests) | `DefaultCall` per call after explicit arguments replaces `Default` and the getter; a compile-time TIR interpreter evaluates facts, with a budget and `fact-evaluation-failed` |
+| 23 | [data-structures.md §3.4](data-structures.md#34-types), §3.9.5; [checking-and-tir.md §4.13.1](checking-and-tir.md#4131-task-structure-per-module) | pending parts carry `subst` and `minus`; row tiers (module, body carry) live until `ModuleFinish` ends; M3's provider patch and row sweep in body order |
+| 24 | [checking-and-tir.md §4.13.6](checking-and-tir.md#4136-gadt-refinement), catalog | a static `Refine` coercion naming its `SwitchTag` case; no scoped pop |
+| 25 | [checking-and-tir.md](checking-and-tir.md#the-builder-api) builder | `konst_open` returns a placeholder `Ref`; `finish` interns the width from the `Solution` |
+| 26 | [scheduler.md §6.1](scheduler.md#61-tasks), [cache.md §5.2](cache.md#52-entry-kinds), [design-overview.md §1.2](design-overview.md#12-stages) | `HeaderCheck(F)` task and `hdr` entry under `hdr_key`; `PackageResult` and `Collect` wait for it |
+| type-checking.md §17 item 12 | [testing-the-compiler.md §8.1](testing-the-compiler.md#81-the-determinism-matrix) | emit versus no-emit dimension; `fuel_used` per body compared |
+| type-checking.md §17 item 13 | [open-questions.md §10.1](open-questions.md#101-inconsistencies-found-in-the-inputs) | the transitive `block_on` ban, `println`, redundancy warnings |
+| owner, 2026-10-07 | [wasm-layout.md §15.2](wasm-layout.md#152-values), [codegen.md §12.6](codegen.md#126-tiers-and-optimizations), §13.4 | `Result` identity-free with the `multi` layout; `is` on value types and functions is an error; bounded inlining and scalar replacement first-release; polymorphic recursion an error |
+
+New owner question: [open-questions.md](open-questions.md#231-open-questions-for-the-owner)
+23.1-8, whether `hd check` evaluates facts.
 
 ## Frontend Lane
 

@@ -238,7 +238,9 @@ loop:
   completion arrives. The Wasm stack waits below the host call.
 - **Browser:** §17.6.
 - **The indirect ban (answer 13).** A global counter counts entered
-  forbidden contexts: `defer` suites, default and fact getters, and
-  module initialization other than the entry's. `block_on` and `println`
+  forbidden contexts: `defer` suites, `DefaultCall`s whose default body
+  makes a call, and module initialization other than the entry's. Facts
+  are evaluated at compile time, where reaching `block_on` or `println`
+  is the build error `fact-evaluation-failed` (codegen.md §12.3). `block_on` and `println`
   read it and panic when it is not zero. D1 rejects the direct calls at
   check time (§4.13.5). The run-time category is open question 3.
