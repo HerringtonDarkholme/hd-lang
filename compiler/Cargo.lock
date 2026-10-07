@@ -71,6 +71,7 @@ version = "0.0.0"
 dependencies = [
  "hd_base",
  "hd_diag",
+ "hd_intern",
  "hd_resolve",
  "hd_syntax",
  "hd_tir",

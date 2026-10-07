@@ -9,7 +9,7 @@ use std::sync::Arc;
 use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, Hash128, PathId, StableHasher, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
-use hd_types::solver::{HeadKey, ImplOrigin, ImplTable};
+use hd_types::solver::{HeadKey, ImplOrigin, ImplTable, PlanStep};
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, RowId, Ty, TyData, TyList};
 
@@ -952,6 +952,7 @@ pub fn folder_iface(
 /// Templates take no row; inherent blocks are not trait impls.
 #[must_use]
 pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
+    let by_def: HashMap<DefId, &Item> = impls.iter().map(|i| (i.def, *i)).collect();
     let mut rows: Vec<(DefId, DefId, Ty, TyList, ImplKind, usize, Hash128)> = impls
         .iter()
         .filter_map(|i| match i.data {
@@ -1002,8 +1003,29 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
         t.n_params.push(u8::try_from(n_params).unwrap_or(u8::MAX));
         t.head_self.push(self_ty);
         t.head_args.push(args);
-        t.plan.push(vec![]);
-        t.assoc.push(vec![]);
+        let item = by_def.get(&def);
+        let mut plan = Vec::new();
+        for (gi, g) in item
+            .map_or(&[][..], |i| i.generics.as_slice())
+            .iter()
+            .enumerate()
+        {
+            for b in &g.bounds {
+                if let TyData::TraitValue { def: tr, args, .. } = names.pool.get(*b) {
+                    plan.push(PlanStep::Bound {
+                        param: u8::try_from(gi).unwrap_or(u8::MAX),
+                        trait_: tr,
+                        args,
+                        mut_: false,
+                    });
+                }
+            }
+        }
+        t.plan.push(plan);
+        t.assoc.push(match item.map(|i| &i.data) {
+            Some(ItemData::Impl { assoc, .. }) => assoc.clone(),
+            _ => vec![],
+        });
         t.origin.push(match kind {
             ImplKind::TupleTemplate => ImplOrigin::TupleTemplate,
             ImplKind::Delegated => ImplOrigin::Delegated { field: 0 },

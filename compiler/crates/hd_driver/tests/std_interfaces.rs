@@ -37,7 +37,7 @@ fn run(src: &MemorySources) -> Output {
 
 fn hello() -> MemorySources {
     let mut s = MemorySources::default();
-    s.insert("main.hd", "fn main():\n    println(42)\n");
+    s.insert("main.hd", "fn main() -> void $ Console:\n    println(42)\n");
     s
 }
 
@@ -198,7 +198,8 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
 fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
     let types = |field: &str| format!("pub data User:\n    pub name: {field}\n");
     let service = "use pkg.user.types.{User}\n\npub fn load() -> User:\n    User { name: 1 }\n";
-    let main = "use pkg.service.load.{load}\n\nfn main():\n    println(load().name)\n";
+    let main =
+        "use pkg.service.load.{load}\n\nfn main() -> void $ Console:\n    println(load().name)\n";
     let program = |field: &str| {
         let mut s = MemorySources::default();
         s.insert("main.hd", main);
@@ -250,7 +251,7 @@ fn std_typed_signatures_compile_through_headers() {
     s.insert("stats/calc.hd", STATS);
     s.insert(
         "main.hd",
-        "use pkg.stats.calc.{total}\n\nfn main():\n    println(total(3, 4))\n",
+        "use pkg.stats.calc.{total}\n\nfn main() -> void $ Console:\n    println(total(3, 4))\n",
     );
     let out = run(&s);
     let t = out.report.tally(Stage::FolderIface);
@@ -270,7 +271,7 @@ fn check(files: &[(&str, &str)]) -> String {
         s.insert(p, t);
     }
     if !files.iter().any(|f| f.0 == "main.hd") {
-        s.insert("main.hd", "fn main():\n    println(1)\n");
+        s.insert("main.hd", "fn main() -> void $ Console:\n    println(1)\n");
     }
     run(&s).render()
 }

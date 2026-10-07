@@ -127,6 +127,26 @@ impl InferTable {
                 row,
                 suspends,
             },
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => TyData::TraitValue {
+                def,
+                args: rl(args),
+                bindings: bindings.into_iter().map(|(d, x)| (d, r(x))).collect(),
+            },
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty: r(self_ty),
+                args: rl(args),
+            },
             other => other,
         };
         pool.intern_ty(&d)
@@ -183,6 +203,11 @@ impl InferTable {
         }
         match (pool.get(a), pool.get(b)) {
             (TyData::Poison, _) | (_, TyData::Poison) => Ok(()),
+            // A view marker does not change the value's type: `mut T`
+            // checks against `T` (mutability is checked separately).
+            (TyData::Mut(x), TyData::Mut(y)) => self.unify(pool, x, y),
+            (TyData::Mut(x), _) => self.unify(pool, x, b),
+            (_, TyData::Mut(y)) => self.unify(pool, a, y),
             (TyData::Infer(x), TyData::Infer(y)) => {
                 let (x, y) = (self.root(x.raw()), self.root(y.raw()));
                 let (kx, ky) = (self.kind[x as usize], self.kind[y as usize]);
@@ -214,8 +239,31 @@ impl InferTable {
                     rest: None,
                 },
             ) => self.unify_lists(pool, e1, e2, a, b),
-            (TyData::Option(x), TyData::Option(y)) | (TyData::Mut(x), TyData::Mut(y)) => {
-                self.unify(pool, x, y)
+            (TyData::Option(x), TyData::Option(y)) => self.unify(pool, x, y),
+            (
+                TyData::TraitValue {
+                    def: d1, args: a1, ..
+                },
+                TyData::TraitValue {
+                    def: d2, args: a2, ..
+                },
+            ) if d1 == d2 => self.unify_lists(pool, a1, a2, a, b),
+            (
+                TyData::Assoc {
+                    assoc: x1,
+                    self_ty: s1,
+                    args: a1,
+                    ..
+                },
+                TyData::Assoc {
+                    assoc: x2,
+                    self_ty: s2,
+                    args: a2,
+                    ..
+                },
+            ) if x1 == x2 => {
+                self.unify(pool, s1, s2)?;
+                self.unify_lists(pool, a1, a2, a, b)
             }
             (
                 TyData::Fn {

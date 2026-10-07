@@ -83,7 +83,11 @@ fn run_reports_check_errors() {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-error");
     std::fs::create_dir_all(&dir).expect("dir");
     let file = dir.join("bad.hd");
-    std::fs::write(&file, "fn main():\n    println(missing)\n").expect("write");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n    println(missing)\n",
+    )
+    .expect("write");
     let output = hd(&cache("hd-cache-error"))
         .arg("run")
         .arg(&file)

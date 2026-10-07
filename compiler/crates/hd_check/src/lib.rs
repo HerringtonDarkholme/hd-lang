@@ -6,6 +6,11 @@
 //! nothing downstream reads syntax.
 
 pub mod body;
+mod call;
+mod expr;
+mod pat;
 pub mod stages;
+mod ty;
 
 pub use body::{BodyCx, check_fn};
+pub use call::MethodIndex;

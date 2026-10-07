@@ -1,6 +1,6 @@
 use pkg.geo.shapes.{Point, make, manhattan}
 
-fn main():
+fn main() -> void $ Console:
     p := make(3, -4)
     println(p.x)
     println(p.y)

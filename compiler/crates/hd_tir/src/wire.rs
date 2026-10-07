@@ -40,48 +40,82 @@ enum IdWord {
 fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
     let [a, _] = b.data[i];
     Ok(match b.tags[i] {
-        Tag::Call => {
-            let at = a as usize + 1;
-            match b.extra.get(at) {
-                Some(0) => vec![IdWord::Def(at + 1), IdWord::List(at + 2)],
-                Some(1) => {
-                    let mut v = vec![
-                        IdWord::Def(at + 1),
-                        IdWord::Def(at + 2),
-                        IdWord::Ty(at + 3),
-                        IdWord::List(at + 4),
-                    ];
-                    if b.extra.get(at + 5) == Some(&(ChoiceKind::Impl as u32)) {
-                        v.push(IdWord::Def(at + 6));
-                    }
-                    v
-                }
-                _ => {
-                    return Err(NotImplemented::new(
-                        Stage::ModuleFinish,
-                        "wire form of a malformed callee record",
-                    ));
-                }
-            }
-        }
+        Tag::Call => return id_words_call(b, a as usize + 1),
+        Tag::Await => return id_words_call(b, a as usize + 1),
+        // `ProviderGet` and `ItemRef` keep their IDs in one-word records.
+        Tag::ProviderGet => vec![IdWord::Ty(a as usize + 1)],
+        Tag::ItemRef => vec![
+            IdWord::Def(a as usize + 1),
+            IdWord::List(b.data[i][1] as usize + 1),
+        ],
         Tag::LocalGet
         | Tag::LocalSet
         | Tag::Prim
         | Tag::CallHost
+        | Tag::CallValue
+        | Tag::Intrinsic
         | Tag::NewData
+        | Tag::NewVariant
+        | Tag::NewTuple
+        | Tag::NewList
+        | Tag::NewMap
         | Tag::Field
+        | Tag::FieldSet
+        | Tag::TupleGet
+        | Tag::Closure
+        | Tag::Interp
+        | Tag::Coerce
+        | Tag::And
+        | Tag::Or
+        | Tag::Is
         | Tag::Block
+        | Tag::Scope
+        | Tag::Defer
         | Tag::If
         | Tag::Loop
         | Tag::Break
         | Tag::Continue
         | Tag::Return
+        | Tag::Match
+        | Tag::SwitchTag
+        | Tag::SwitchInt
+        | Tag::SwitchChar
+        | Tag::SwitchStr
+        | Tag::Payload
+        | Tag::Unwrap
+        | Tag::Guard
+        | Tag::ToArm
         | Tag::Unreachable
         | Tag::Poison => vec![],
         other => {
             return Err(NotImplemented::new(
                 Stage::ModuleFinish,
                 format!("wire form of TIR tag {}", other.name()),
+            ));
+        }
+    })
+}
+
+/// The ID words of a callee record starting at `at`.
+fn id_words_call(b: &Body, at: usize) -> StageResult<Vec<IdWord>> {
+    Ok(match b.extra.get(at) {
+        Some(0) => vec![IdWord::Def(at + 1), IdWord::List(at + 2)],
+        Some(1) => {
+            let mut v = vec![
+                IdWord::Def(at + 1),
+                IdWord::Def(at + 2),
+                IdWord::Ty(at + 3),
+                IdWord::List(at + 4),
+            ];
+            if b.extra.get(at + 5) == Some(&(ChoiceKind::Impl as u32)) {
+                v.push(IdWord::Def(at + 6));
+            }
+            v
+        }
+        _ => {
+            return Err(NotImplemented::new(
+                Stage::ModuleFinish,
+                "wire form of a malformed callee record",
             ));
         }
     })
@@ -168,6 +202,10 @@ pub fn write_body(
         w.u32(ct);
         w.u64(bits);
     }
+    w.len_of(&b.strings);
+    for st in &b.strings {
+        w.str(st);
+    }
     // Locations last, outside the hashed prefix: moving a body in its file
     // changes node indices, not the body (cache.md §5.3).
     let hashed = u32::try_from(w.bytes.len()).expect("body over 4 GiB");
@@ -245,6 +283,9 @@ pub fn read_body(
     for _ in 0..r.count() {
         let ct = t.ty(r.u32())?;
         b.consts.push((ct, r.u64()));
+    }
+    for _ in 0..r.count() {
+        b.strings.push(r.str().into());
     }
     b.syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.local_syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();

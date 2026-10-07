@@ -20,6 +20,12 @@ pub struct PipelineReport {
     pub stages: BTreeMap<Stage, Tally>,
     /// Not-implemented reasons by frequency (first 90 characters).
     pub reasons: BTreeMap<String, usize>,
+    /// Function bodies checked, and bodies that stopped at a construct the
+    /// checker does not carry, with those reasons.
+    pub body_ok: usize,
+    pub body_failed: usize,
+    pub body_reasons: BTreeMap<String, usize>,
+    pub body_failures: Vec<String>,
 }
 
 impl PipelineReport {

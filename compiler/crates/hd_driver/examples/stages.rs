@@ -48,8 +48,22 @@ fn main() {
     print!("{}", report.render());
     let lines: Vec<String> = out.render().lines().map(str::to_owned).collect();
     println!("\n{} diagnostics", lines.len());
-    for l in lines.iter().take(40) {
+    for l in lines.iter().take(400) {
         println!("  {l}");
+    }
+    println!(
+        "\nbodies: {} ok, {} not implemented",
+        report.body_ok, report.body_failed
+    );
+    let mut br: Vec<(&String, &usize)> = report.body_reasons.iter().collect();
+    br.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    for (r, n) in br.into_iter().take(40) {
+        println!("{n:>4}  {r}");
+    }
+    if std::env::var_os("HD_BODY_FAILURES").is_some() {
+        for f in &report.body_failures {
+            println!("  {f}");
+        }
     }
     println!("\nmost frequent not-implemented reasons:");
     let mut reasons: Vec<(&String, &usize)> = report.reasons.iter().collect();

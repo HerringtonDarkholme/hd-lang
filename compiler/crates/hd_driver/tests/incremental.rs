@@ -36,7 +36,7 @@ fn abs(v: i32) -> i32:
 const DATA_MAIN: &str = "\
 use pkg.geo.shapes.{Point, make, manhattan}
 
-fn main():
+fn main() -> void $ Console:
     p := make(3, -4)
     println(p.x)
     println(p.y)
@@ -175,7 +175,7 @@ fn not_implemented_stops_a_build() {
     let mut s = MemorySources::default();
     s.insert(
         "main.hd",
-        "fn main():\n    for x in xs:\n        println(x)\n",
+        "fn f(a: i32 = 1) -> i32:\n    a\n\nfn main() -> void $ Console:\n    println(f())\n",
     );
     let r = run(
         &MemoryStore::default(),
@@ -191,7 +191,7 @@ fn not_implemented_stops_a_build() {
     let mut s = MemorySources::default();
     s.insert(
         "main.hd",
-        "fn main():\n    println(1)\n    tests:\n        x := 1\n",
+        "fn main() -> void $ Console:\n    println(1)\n    tests:\n        x := 1\n",
     );
     let r = run(
         &MemoryStore::default(),
@@ -206,7 +206,7 @@ fn user_errors_are_coded_diagnostics() {
     let mut s = MemorySources::default();
     s.insert(
         "main.hd",
-        "fn main():\n    println(missing)\n    x := 1\n    x = true\n",
+        "fn main() -> void $ Console:\n    println(missing)\n    x := 1\n    x = true\n",
     );
     let r = run(
         &MemoryStore::default(),

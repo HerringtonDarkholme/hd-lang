@@ -238,7 +238,10 @@ impl ImplTable {
         let (s, e) = self.by_trait.get(&trait_.raw()).copied().unwrap_or((0, 0));
         (s..e).filter(move |&r| {
             let h = self.head_key[r as usize];
-            h == key || h == HeadKey::Param || key == HeadKey::Any
+            h == key
+                || h == HeadKey::Param
+                || key == HeadKey::Any
+                || (h == HeadKey::TupleAny && matches!(key, HeadKey::Tuple(_)))
         })
     }
 }
@@ -502,79 +505,350 @@ fn canon_ty(pool: &InternPool, t: Ty, vars: &mut CanonVars) -> Ty {
     pool.intern_ty(&d)
 }
 
-/// The skeleton solver: poison holds, a parameter's bound is found in the
-/// environment, a head with exactly one matching row in the given tables
-/// holds. Everything else is reported as not implemented.
+/// The outcome of matching one impl head against a goal's type (§3.4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum M {
+    Yes,
+    Maybe,
+    No,
+}
+
+fn both(a: M, b: M) -> M {
+    match (a, b) {
+        (M::No, _) | (_, M::No) => M::No,
+        (M::Maybe, _) | (_, M::Maybe) => M::Maybe,
+        _ => M::Yes,
+    }
+}
+
+/// Matches an impl head pattern (its parameters owned by `owner`) against
+/// a goal type, binding the parameters. A variable in the goal where the
+/// pattern has structure is a "maybe": the goal stalls on it.
+fn match_ty(pool: &InternPool, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Option<Ty>>) -> M {
+    if let TyData::Param(p) = pool.get(pat)
+        && p.owner == owner
+    {
+        let i = p.index as usize;
+        if binds.len() <= i {
+            binds.resize(i + 1, None);
+        }
+        return match binds[i] {
+            None => {
+                binds[i] = Some(t);
+                M::Yes
+            }
+            Some(b) if b == t => M::Yes,
+            // A bare goal variable learns the bound argument.
+            Some(_) if matches!(pool.get(t), TyData::Infer(_)) => M::Yes,
+            Some(b) if pool.has_infer(b) || pool.has_infer(t) => M::Maybe,
+            Some(_) => M::No,
+        };
+    }
+    if pat == t {
+        return M::Yes;
+    }
+    match (pool.get(pat), pool.get(t)) {
+        (_, TyData::Poison) => M::Yes,
+        (_, TyData::Infer(_)) => M::Maybe,
+        (TyData::Mut(p), _) => match_ty(pool, owner, p, t, binds),
+        (_, TyData::Mut(x)) => match_ty(pool, owner, pat, x, binds),
+        (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
+            match_list(pool, owner, a1, a2, binds)
+        }
+        (
+            TyData::Tuple {
+                elems: e1,
+                rest: None,
+            },
+            TyData::Tuple {
+                elems: e2,
+                rest: None,
+            },
+        ) => match_list(pool, owner, e1, e2, binds),
+        (TyData::Option(p), TyData::Option(x)) => match_ty(pool, owner, p, x, binds),
+        (
+            TyData::Fn {
+                params: p1,
+                result: r1,
+                suspends: s1,
+                ..
+            },
+            TyData::Fn {
+                params: p2,
+                result: r2,
+                suspends: s2,
+                ..
+            },
+        ) if s1 == s2 => both(
+            match_list(pool, owner, p1, p2, binds),
+            match_ty(pool, owner, r1, r2, binds),
+        ),
+        (
+            TyData::TraitValue {
+                def: d1, args: a1, ..
+            },
+            TyData::TraitValue {
+                def: d2, args: a2, ..
+            },
+        ) if d1 == d2 => match_list(pool, owner, a1, a2, binds),
+        _ => M::No,
+    }
+}
+
+fn match_list(
+    pool: &InternPool,
+    owner: DefId,
+    l1: TyList,
+    l2: TyList,
+    binds: &mut Vec<Option<Ty>>,
+) -> M {
+    let (x, y) = (pool.list_items(l1), pool.list_items(l2));
+    if x.len() != y.len() {
+        return M::No;
+    }
+    let mut r = M::Yes;
+    for (p, t) in x.into_iter().zip(y) {
+        r = both(r, match_ty(pool, owner, p, t, binds));
+        if r == M::No {
+            return r;
+        }
+    }
+    r
+}
+
+/// The table solver: poison holds; a parameter's bound is found in the
+/// elaborated environment; otherwise impl heads are matched (§3.4) with
+/// their bound plans (§3.6) solved recursively. A goal whose type is still
+/// open where a head needs structure stalls. Projection, `Instantiations`
+/// and `Methods` goals are not implemented.
 #[derive(Default)]
 pub struct SkeletonSolver;
 
-impl Solver for SkeletonSolver {
-    fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer> {
+/// The impl arguments a head match bound, then the plan's bound steps
+/// substituted with them.
+fn plan_goals(pool: &InternPool, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<TraitRef> {
+    let owner = t.def[row];
+    let s = |x: Ty| {
+        pool.subst(x, &|p: ParamRef| {
+            (p.owner == owner)
+                .then(|| args.get(p.index as usize).copied())
+                .flatten()
+        })
+    };
+    t.plan[row]
+        .iter()
+        .filter_map(|step| match step {
+            PlanStep::Bound {
+                param,
+                trait_,
+                args: targs,
+                ..
+            } => Some(TraitRef {
+                trait_: *trait_,
+                self_ty: args.get(*param as usize).copied()?,
+                args: pool.list(
+                    &pool
+                        .list_items(*targs)
+                        .into_iter()
+                        .map(s)
+                        .collect::<Vec<_>>(),
+                ),
+            }),
+            PlanStep::Bind { .. } => None,
+        })
+        .collect()
+}
+
+impl SkeletonSolver {
+    fn implements(
+        cx: &mut SolveCx<'_>,
+        tref: TraitRef,
+        fuel: &mut Fuel,
+        depth: u32,
+    ) -> StageResult<Answer> {
+        let pool = cx.pool;
         if !fuel.charge(1) {
             return Ok(Answer::OutOfFuel);
         }
+        if depth > 64 {
+            return Ok(Answer::Overflow);
+        }
+        if pool.has_poison(tref.self_ty) {
+            return Ok(Answer::Holds {
+                evidence: Evidence::Poison,
+                learned: vec![],
+            });
+        }
+        let self_ty = match pool.get(tref.self_ty) {
+            TyData::Mut(i) => i,
+            _ => tref.self_ty,
+        };
+        // The environment: a clause on the same parameter and trait.
+        if let TyData::Param(param) = pool.get(self_ty) {
+            for i in 0..cx.env.clause_self.len() {
+                if cx.env.clause_self[i] == self_ty && cx.env.clause_trait[i] == tref.trait_ {
+                    let mut binds = Vec::new();
+                    let m = match_list(
+                        pool,
+                        DefId::NONE,
+                        cx.env.clause_args[i],
+                        tref.args,
+                        &mut binds,
+                    );
+                    if m == M::No {
+                        continue;
+                    }
+                    let learned = learned_from(pool, cx.env.clause_args[i], tref.args);
+                    let index = u16::try_from(i).unwrap_or(u16::MAX);
+                    return Ok(Answer::Holds {
+                        evidence: Evidence::Bound { param, index },
+                        learned,
+                    });
+                }
+            }
+        }
+        if let TyData::Infer(v) = pool.get(self_ty) {
+            return Ok(Answer::Stalled { on: vec![v] });
+        }
+        let key = HeadKey::of(pool, self_ty);
+        let mut yes = Vec::new();
+        let mut maybe = false;
+        for (m, t) in cx.tables {
+            for row in t.candidates(tref.trait_, key) {
+                let r = row as usize;
+                if t.origin[r] == ImplOrigin::TupleTemplate {
+                    if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
+                        yes.push((ImplRef { module: *m, row }, Vec::new(), t));
+                    }
+                    continue;
+                }
+                let owner = t.def[r];
+                let mut binds = Vec::new();
+                let a = match_ty(pool, owner, t.head_self[r], self_ty, &mut binds);
+                // A bare variable among the goal's arguments learns the head's.
+                let (hs, gs) = (pool.list_items(t.head_args[r]), pool.list_items(tref.args));
+                let b = if hs.len() == gs.len() {
+                    hs.iter().zip(&gs).fold(M::Yes, |acc, (h, g)| {
+                        if matches!(pool.get(*g), TyData::Infer(_)) {
+                            acc
+                        } else {
+                            both(acc, match_ty(pool, owner, *h, *g, &mut binds))
+                        }
+                    })
+                } else {
+                    M::No
+                };
+                match both(a, b) {
+                    M::Yes => {
+                        let n = usize::from(t.n_params[r]).max(binds.len());
+                        let args: Vec<Ty> = (0..n)
+                            .map(|i| binds.get(i).copied().flatten().unwrap_or(Ty::POISON))
+                            .collect();
+                        yes.push((ImplRef { module: *m, row }, args, t));
+                    }
+                    M::Maybe => maybe = true,
+                    M::No => {}
+                }
+            }
+        }
+        for (row, args, t) in yes {
+            let mut ok = true;
+            for sub in plan_goals(pool, t, row.row as usize, &args) {
+                match Self::implements(cx, sub, fuel, depth + 1)? {
+                    Answer::Holds { .. } => {}
+                    Answer::Fails(_) => {
+                        ok = false;
+                        break;
+                    }
+                    other => return Ok(other),
+                }
+            }
+            if ok {
+                let learned = learned_from(pool, t.head_args[row.row as usize], tref.args)
+                    .into_iter()
+                    .map(|(v, x)| {
+                        let owner = t.def[row.row as usize];
+                        let x = pool.subst(x, &|p: ParamRef| {
+                            (p.owner == owner)
+                                .then(|| args.get(p.index as usize).copied())
+                                .flatten()
+                        });
+                        (v, x)
+                    })
+                    .collect();
+                return Ok(Answer::Holds {
+                    evidence: Evidence::Impl {
+                        row,
+                        args: pool.list(&args),
+                    },
+                    learned,
+                });
+            }
+        }
+        if maybe || pool.has_infer(self_ty) {
+            let mut on = Vec::new();
+            collect_vars(pool, self_ty, &mut on);
+            return Ok(Answer::Stalled { on });
+        }
+        let (leaf, _) = canonicalize(pool, GoalKind::Implements, tref, false);
+        Ok(Answer::Fails(Box::new(FailInfo {
+            leaf,
+            chain: vec![],
+            reason: FailReason::NoImpl,
+            near: vec![],
+        })))
+    }
+}
+
+fn collect_vars(pool: &InternPool, t: Ty, out: &mut Vec<InferVar>) {
+    if !pool.has_infer(t) {
+        return;
+    }
+    match pool.get(t) {
+        TyData::Infer(v) => out.push(v),
+        TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+            for a in pool.list_items(args) {
+                collect_vars(pool, a, out);
+            }
+        }
+        TyData::Tuple { elems, .. } => {
+            for a in pool.list_items(elems) {
+                collect_vars(pool, a, out);
+            }
+        }
+        TyData::Option(i) | TyData::Mut(i) => collect_vars(pool, i, out),
+        TyData::Fn { params, result, .. } => {
+            for a in pool.list_items(params) {
+                collect_vars(pool, a, out);
+            }
+            collect_vars(pool, result, out);
+        }
+        _ => {}
+    }
+}
+
+/// Goal arguments that are bare variables learn the matching head
+/// argument (§8.1 `learned`).
+fn learned_from(pool: &InternPool, head: TyList, goal: TyList) -> Vec<(InferVar, Ty)> {
+    pool.list_items(goal)
+        .into_iter()
+        .zip(pool.list_items(head))
+        .filter_map(|(g, h)| match pool.get(g) {
+            TyData::Infer(v) => Some((v, h)),
+            _ => None,
+        })
+        .collect()
+}
+
+impl Solver for SkeletonSolver {
+    fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer> {
         let Goal::Implements { tref, .. } = goal else {
             return Err(NotImplemented::new(
                 Stage::Body,
                 "solver goals other than Implements",
             ));
         };
-        if cx.pool.has_poison(tref.self_ty) {
-            return Ok(Answer::Holds {
-                evidence: Evidence::Poison,
-                learned: vec![],
-            });
-        }
-        for i in 0..cx.env.clause_self.len() {
-            if cx.env.clause_self[i] == tref.self_ty
-                && cx.env.clause_trait[i] == tref.trait_
-                && let TyData::Param(param) = cx.pool.get(tref.self_ty)
-            {
-                let index = u16::try_from(i).expect("clauses");
-                return Ok(Answer::Holds {
-                    evidence: Evidence::Bound { param, index },
-                    learned: vec![],
-                });
-            }
-        }
-        let key = HeadKey::of(cx.pool, tref.self_ty);
-        let mut found = Vec::new();
-        for (m, t) in cx.tables {
-            for row in t.candidates(tref.trait_, key) {
-                if t.head_self[row as usize] == tref.self_ty {
-                    found.push(ImplRef { module: *m, row });
-                }
-            }
-        }
-        let exact_only = cx
-            .tables
-            .iter()
-            .all(|(_, t)| t.head_self.iter().all(|s| !cx.pool.has_param(*s)));
-        match found.as_slice() {
-            [one] => Ok(Answer::Holds {
-                evidence: Evidence::Impl {
-                    row: *one,
-                    args: TyList::EMPTY,
-                },
-                learned: vec![],
-            }),
-            [] if exact_only
-                && !cx.pool.has_infer(tref.self_ty)
-                && !cx.pool.has_param(tref.self_ty) =>
-            {
-                let (leaf, _) = canonicalize(cx.pool, GoalKind::Implements, *tref, false);
-                Ok(Answer::Fails(Box::new(FailInfo {
-                    leaf,
-                    chain: vec![],
-                    reason: FailReason::NoImpl,
-                    near: vec![],
-                })))
-            }
-            _ => Err(NotImplemented::new(
-                Stage::Body,
-                "impl search beyond one exact head",
-            )),
-        }
+        Self::implements(cx, *tref, fuel, 0)
     }
 
     fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey {
@@ -601,31 +875,42 @@ impl Solver for SkeletonSolver {
         tables: &[(ModuleId, &ImplTable)],
         tref: ConcreteTraitRef,
     ) -> StageResult<Selection> {
-        let key = HeadKey::of(pool, tref.0.self_ty);
-        for (m, t) in tables {
-            for row in t.candidates(tref.0.trait_, key) {
-                if t.head_self[row as usize] == tref.0.self_ty {
-                    return Ok(Selection {
-                        impl_row: ImplRef { module: *m, row },
-                        args: TyList::EMPTY,
-                    });
-                }
-            }
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let mut memo = BodyMemo::default();
+        let mut cx = SolveCx {
+            pool,
+            env: &env,
+            universe: ImplUniverseId(0),
+            tables,
+            body_memo: &mut memo,
+            global: &global,
+        };
+        let mut fuel = Fuel::new(Fuel::BODY_DEFAULT);
+        match Self::implements(&mut cx, tref.0, &mut fuel, 0)? {
+            Answer::Holds {
+                evidence: Evidence::Impl { row, args },
+                ..
+            } => Ok(Selection {
+                impl_row: row,
+                args,
+            }),
+            other => Err(NotImplemented::new(
+                Stage::Collect,
+                format!("select found no impl: {other:?}"),
+            )),
         }
-        Err(NotImplemented::new(
-            Stage::Collect,
-            "select for generic impl heads",
-        ))
     }
 
     fn normalize_concrete(
         &self,
-        _: &InternPool,
-        _: Ty,
-        _: DefId,
-        _: TyList,
-        _: Symbol,
+        pool: &InternPool,
+        base: Ty,
+        trait_: DefId,
+        args: TyList,
+        _name: Symbol,
     ) -> StageResult<Ty> {
+        let _ = (pool, base, trait_, args);
         Err(NotImplemented::new(
             Stage::Collect,
             "associated type normalization",

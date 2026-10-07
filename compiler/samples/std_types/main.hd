@@ -1,5 +1,5 @@
 use pkg.stats.calc.{Score, total}
 
-fn main():
+fn main() -> void $ Console:
     s := Score { points: 40, bonus: 2 }
     println(total(s))

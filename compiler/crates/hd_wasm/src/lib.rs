@@ -240,8 +240,14 @@ fn encode(locals: &[VT], ws: &[W]) -> (Vec<u8>, Vec<(u32, Reloc)>) {
                     PrimOp::Le => s.i32_le_s(),
                     PrimOp::Gt => s.i32_gt_s(),
                     PrimOp::Ge => s.i32_ge_s(),
-                    PrimOp::And => s.i32_and(),
-                    PrimOp::Or => s.i32_or(),
+                    PrimOp::And | PrimOp::BitAnd => s.i32_and(),
+                    PrimOp::Or | PrimOp::BitOr => s.i32_or(),
+                    PrimOp::BitXor => s.i32_xor(),
+                    PrimOp::Shl => s.i32_shl(),
+                    PrimOp::Shr => s.i32_shr_s(),
+                    PrimOp::Not => s.i32_eqz(),
+                    // Refused before encoding (`Em::inst`).
+                    PrimOp::Conv => s.unreachable(),
                 };
             }
             W::If => {
@@ -392,6 +398,9 @@ impl Em<'_> {
                 let Some(op) = PrimOp::from_u32(a) else {
                     return unsupported("an unknown operator");
                 };
+                if op == PrimOp::Conv {
+                    return unsupported("emission of numeric conversions");
+                }
                 if op == PrimOp::Neg {
                     self.out.push(W::I32(0));
                 }

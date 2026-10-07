@@ -4,22 +4,25 @@
 //! `Solver` with fuel, TIR written through `TirBuilder`. User errors go to
 //! the `DiagBuf`; a construct the checker does not carry yet is a
 //! structured "not implemented", which stops a build.
+//!
+//! Expressions are in `expr`, calls and member lookup in `call`, patterns
+//! and `match` in `pat`, annotations in `ty`.
 
 use std::collections::HashMap;
 
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{BindingKind, FnSig, ItemData, Lookup, ModuleScope, Names, Src};
+use hd_resolve::{ItemData, Lookup, ModuleScope, Names, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{
-    BodyKind, Callee, ChoiceKind, NONE, PrimOp, Providers, Ref, Tag, TirBuilder, TirSink,
-    local_flags,
+    BodyKind, Callee, Coercion, LoopMark, NONE, Ref, SubMark, Tag, TirBuilder, TirSink, local_flags,
 };
 use hd_types::solver::{
-    Answer, GlobalMemo, Goal, ImplTable, ImplUniverseId, ParamEnv, SolveCx, Solver, TraitRef,
+    Answer, BodyMemo, GlobalMemo, Goal, ImplTable, ImplUniverseId, ParamEnv, SolveCx, Solver,
+    TraitRef,
 };
-use hd_types::{InferTable, ParamRef, Prim, Ty, TyData, TyList, VarKind};
+use hd_types::{InferTable, ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
 /// What a body sees: the run's tables, its module's scope, the items of
 /// its closure and the impl tables of its impl universe.
@@ -32,25 +35,49 @@ pub struct BodyCx<'a> {
     pub universe: ImplUniverseId,
     pub global: &'a GlobalMemo,
     pub solver: &'a dyn Solver,
+    /// The methods of the closure by name, built on first use.
+    pub methods: std::cell::OnceCell<crate::MethodIndex>,
 }
 
-fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
+pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
     Err(NotImplemented::new(Stage::Body, what))
 }
 
-struct Ck<'a, 'c> {
-    cx: &'c BodyCx<'a>,
-    def: DefId,
-    sig: FnSig,
-    b: TirBuilder,
-    infer: InferTable,
-    locals: Vec<HashMap<Symbol, LocalId>>,
-    env: ParamEnv,
-    loops: Vec<hd_tir::ir::LoopMark>,
-    diags: &'c mut DiagBuf,
-    fuel: Fuel,
-    memo: hd_types::solver::BodyMemo,
+/// An open closure: its builder mark, the scope depth at its start, its
+/// result type.
+pub(crate) struct OpenSub {
+    pub mark: SubMark,
+    pub depth: usize,
 }
+
+pub(crate) struct Ck<'a, 'c> {
+    pub cx: &'c BodyCx<'a>,
+    pub b: TirBuilder,
+    pub infer: InferTable,
+    pub scopes: Vec<HashMap<Symbol, LocalId>>,
+    pub env: ParamEnv,
+    /// Open loops: label and the type of their `break` values.
+    pub loops: Vec<(LoopMark, Option<Ty>)>,
+    pub diags: &'c mut DiagBuf,
+    pub fuel: Fuel,
+    pub memo: BodyMemo,
+    /// The result type of the body or closure being checked.
+    pub rets: Vec<Ty>,
+    /// Type parameters by name: the impl's, then the function's.
+    pub gens: Vec<(Symbol, Ty)>,
+    pub self_ty: Option<Ty>,
+    /// The requirement row of the body (its own and its closures').
+    pub rows: Vec<RowId>,
+    pub subs: Vec<OpenSub>,
+    /// Bounds on types not yet known at their use: solved at the end.
+    pub pending: Vec<(TraitRef, NodeRefIdx)>,
+    /// A member call's explicit method type arguments (`x.f::[T]()`),
+    /// taken by the method's instantiation.
+    pub method_targs: Vec<Ty>,
+}
+
+/// A node index kept for a later diagnostic.
+pub(crate) type NodeRefIdx = hd_base::NodeIdx;
 
 /// Checks one function body and returns its TIR.
 pub fn check_fn(
@@ -65,50 +92,103 @@ pub fn check_fn(
     let Some(sig) = item.sig().cloned() else {
         return unsupported("a body of a non-function item");
     };
-    let mut env = ParamEnv::default();
-    for (i, g) in sig.generics.iter().enumerate() {
-        if let Some(tr) = g.bound {
-            let p = cx.names.pool.intern_ty(&TyData::Param(ParamRef {
-                owner: def,
-                index: u16::try_from(i).expect("generics"),
-            }));
-            env.clause_self.push(p);
-            env.clause_trait.push(tr);
-            env.clause_args.push(TyList::EMPTY);
-            env.clause_bindings.push(vec![]);
-            env.clause_mut.push(false);
-            env.clause_origin.push(u16::try_from(i).expect("generics"));
-        }
-    }
+    let pool = cx.names.pool;
     let mut ck = Ck {
         cx,
-        def,
-        sig,
         b: TirBuilder::new(def, BodyKind::Fn),
         infer: InferTable::default(),
-        locals: vec![HashMap::new()],
-        env,
+        scopes: vec![HashMap::new()],
+        env: ParamEnv::default(),
         loops: Vec::new(),
         diags,
         fuel: Fuel::new(Fuel::BODY_DEFAULT),
-        memo: hd_types::solver::BodyMemo::default(),
+        memo: BodyMemo::default(),
+        rets: vec![sig.ret],
+        gens: Vec::new(),
+        self_ty: None,
+        rows: vec![sig.row],
+        subs: Vec::new(),
+        pending: Vec::new(),
+        method_targs: Vec::new(),
     };
+    // The owner's parameters and bounds: an impl's, or a trait's `Self`.
+    if let ItemData::Method { owner, .. } = &item.data
+        && let Some(o) = cx.lookup.item(*owner)
+    {
+        match &o.data {
+            ItemData::Impl { self_ty, kind, .. } => {
+                ck.self_ty = Some(*self_ty);
+                // A `by Structure` template's target has the structure
+                // protocol by construction (annotations, "Templates").
+                if matches!(
+                    kind,
+                    hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate
+                ) {
+                    let st = cx.names.item("std.structure", "Structure");
+                    let tv = pool.intern_ty(&TyData::TraitValue {
+                        def: st,
+                        args: TyList::EMPTY,
+                        bindings: vec![],
+                    });
+                    ck.add_bound(*self_ty, tv, 0);
+                }
+                for (i, g) in o.generics.iter().enumerate() {
+                    let p = pool.intern_ty(&TyData::Param(ParamRef {
+                        owner: *owner,
+                        index: u16::try_from(i).unwrap_or(u16::MAX),
+                    }));
+                    ck.gens.push((g.name, p));
+                    for b in &g.bounds {
+                        ck.add_bound(p, *b, 0);
+                    }
+                }
+            }
+            ItemData::Trait(_) => {
+                let p = pool.intern_ty(&TyData::Param(ParamRef {
+                    owner: *owner,
+                    index: 0,
+                }));
+                ck.self_ty = Some(p);
+                let tv = pool.intern_ty(&TyData::TraitValue {
+                    def: *owner,
+                    args: TyList::EMPTY,
+                    bindings: vec![],
+                });
+                ck.add_bound(p, tv, 0);
+            }
+            _ => {}
+        }
+    }
+    for (i, g) in sig.generics.iter().enumerate() {
+        let p = pool.intern_ty(&TyData::Param(ParamRef {
+            owner: def,
+            index: u16::try_from(i).unwrap_or(u16::MAX),
+        }));
+        ck.gens.push((g.name, p));
+        for b in &g.bounds {
+            ck.add_bound(p, *b, 0);
+        }
+    }
     let blk = ck.b.open_block();
-    for (name, ty) in ck.sig.params.clone() {
+    for (name, ty) in sig.params.clone() {
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
-        ck.locals[0].insert(name, l);
+        ck.scopes[0].insert(name, l);
     }
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
     };
-    let ret = ck.sig.ret;
-    let tail = ck.lines(body, ret != Ty::VOID)?;
-    let root = ck.b.close_block(blk, tail, Ty::VOID, body.index());
+    let ret = sig.ret;
+    let (tail, _) = ck.block_value(body, Some(ret))?;
+    let root = ck.b.close_block(blk, tail, ret, body.index());
     ck.finish(root)
 }
 
 impl Ck<'_, '_> {
-    fn charge(&mut self) -> StageResult<()> {
+    pub(crate) fn pool(&self) -> &hd_types::InternPool {
+        self.cx.names.pool
+    }
+
+    pub(crate) fn charge(&mut self) -> StageResult<()> {
         if self.fuel.charge(1) {
             Ok(())
         } else {
@@ -116,21 +196,162 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn err(&mut self, code: Code, n: NodeRef<'_>, msg: &str) {
+    /// A construct not carried yet, with where it is (after ` @`).
+    pub(crate) fn gap<T>(&self, n: NodeRef<'_>, what: &str) -> StageResult<T> {
+        let span = self.cx.src.span(n);
+        unsupported(format!("{what} @{}", span.lo))
+    }
+
+    pub(crate) fn err(&mut self, code: Code, n: NodeRef<'_>, msg: &str) {
         let span = self.cx.src.span(n);
         self.diags.error(code, span, msg);
     }
 
-    fn show(&self, t: Ty) -> String {
-        let t = self.infer.resolve(self.cx.names.pool, t);
-        match self.cx.names.pool.get(t) {
-            TyData::Adt { def, .. } => self.cx.names.path(def),
-            TyData::Infer(_) => "{integer}".into(),
-            _ => self.cx.names.pool.display(t),
+    pub(crate) fn show(&self, t: Ty) -> String {
+        let t = self.infer.resolve(self.pool(), t);
+        match self.pool().get(t) {
+            TyData::Infer(_) => "{unknown}".into(),
+            _ => hd_resolve::show_ty(&self.cx.names, t),
         }
     }
 
-    fn expect(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) {
+    /// Adds a bound and, transitively, its supertraits to the environment.
+    pub(crate) fn add_bound(&mut self, self_ty: Ty, bound: Ty, depth: u32) {
+        let pool = self.cx.names.pool;
+        let TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } = pool.get(bound)
+        else {
+            return;
+        };
+        if depth > 16
+            || (0..self.env.clause_self.len()).any(|i| {
+                self.env.clause_self[i] == self_ty
+                    && self.env.clause_trait[i] == def
+                    && self.env.clause_args[i] == args
+            })
+        {
+            return;
+        }
+        self.env.clause_self.push(self_ty);
+        self.env.clause_trait.push(def);
+        self.env.clause_args.push(args);
+        self.env.clause_bindings.push(bindings);
+        self.env.clause_mut.push(false);
+        self.env
+            .clause_origin
+            .push(u16::try_from(self.env.clause_origin.len()).unwrap_or(u16::MAX));
+        if let Some(ItemData::Trait(t)) = self.cx.lookup.item(def).map(|i| &i.data) {
+            let argv = pool.list_items(args);
+            for s in t.supers.clone() {
+                let s = pool.subst(s, &|p: ParamRef| {
+                    if p.owner != def {
+                        return None;
+                    }
+                    if p.index == 0 {
+                        Some(self_ty)
+                    } else {
+                        argv.get(p.index as usize - 1).copied()
+                    }
+                });
+                self.add_bound(self_ty, s, depth + 1);
+            }
+        }
+    }
+
+    /// A local by name, innermost first, with its scope depth.
+    pub(crate) fn find_local(&self, s: Symbol) -> Option<(LocalId, usize)> {
+        self.scopes
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(d, m)| m.get(&s).map(|l| (*l, d)))
+    }
+
+    /// Reads a local, capturing it into every open closure it crosses.
+    pub(crate) fn read_local(&mut self, l: LocalId, depth: usize, n: NodeRef<'_>) -> (Ref, Ty) {
+        for s in &self.subs {
+            if s.depth > depth {
+                self.b.capture(s.mark, l);
+            }
+        }
+        let t = self.b.local_ty(l);
+        (self.b.get(l, t, n.index()), t)
+    }
+
+    pub(crate) fn note_write(&mut self, l: LocalId, depth: usize) {
+        for s in &self.subs {
+            if s.depth > depth {
+                self.b.capture(s.mark, l);
+            }
+        }
+    }
+
+    pub(crate) fn sym_of(&self, n: NodeRef<'_>) -> Symbol {
+        self.cx
+            .names
+            .syms
+            .intern(self.cx.src.text(self.cx.src.first(n)))
+    }
+
+    pub(crate) fn bind_local(&mut self, name: Symbol, t: Ty, at: NodeRef<'_>) -> LocalId {
+        let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
+        self.scopes.last_mut().expect("scope").insert(name, l);
+        l
+    }
+
+    /// Unifies `got` with `want`, inserting the coercions of
+    /// type-checking.md §4.2 (`never`, `.Some` wrapping, trait values).
+    pub(crate) fn coerce(&mut self, r: Ref, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> Ref {
+        let pool = self.cx.names.pool;
+        let g = self.infer.shallow(pool, got);
+        let w = self.infer.shallow(pool, want);
+        if g == Ty::NEVER || w == Ty::NEVER || g == w {
+            return r;
+        }
+        let strip = |t: Ty| match pool.get(t) {
+            TyData::Mut(i) => i,
+            _ => t,
+        };
+        let (gs, ws) = (strip(g), strip(w));
+        if let TyData::Option(inner) = pool.get(ws)
+            && !matches!(pool.get(gs), TyData::Option(_) | TyData::Infer(_))
+        {
+            self.expect(got, inner, n, what);
+            return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
+        }
+        if let (TyData::TraitValue { def: to, .. }, TyData::TraitValue { def: from, .. }) =
+            (pool.get(ws), pool.get(gs))
+            && to != from
+            && self.trait_extends(from, to, 0)
+        {
+            return self
+                .b
+                .coerce(Coercion::Supertrait, NONE, r, want, n.index());
+        }
+        if let TyData::TraitValue { def, args, .. } = pool.get(ws)
+            && !matches!(
+                pool.get(gs),
+                TyData::TraitValue { .. } | TyData::Infer(_) | TyData::Poison
+            )
+        {
+            let tref = TraitRef {
+                trait_: def,
+                self_ty: gs,
+                args,
+            };
+            let _ = self.require_ref(tref, n);
+            return self
+                .b
+                .coerce(Coercion::ToTraitValue, NONE, r, want, n.index());
+        }
+        self.expect(got, want, n, what);
+        r
+    }
+
+    pub(crate) fn expect(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) {
         let pool = self.cx.names.pool;
         if got == Ty::NEVER || want == Ty::NEVER {
             return;
@@ -147,668 +368,499 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn find_local(&self, s: Symbol) -> Option<LocalId> {
-        self.locals.iter().rev().find_map(|m| m.get(&s).copied())
+    /// Whether two types can unify, with no lasting effect.
+    pub(crate) fn can_unify(&mut self, a: Ty, b: Ty) -> bool {
+        let snap = self.infer.snapshot();
+        let ok = self.infer.unify(self.cx.names.pool, a, b).is_ok();
+        self.infer.rollback(snap);
+        ok
     }
 
-    fn sym(&self, n: NodeRef<'_>) -> Symbol {
-        self.cx
-            .names
-            .syms
-            .intern(self.cx.src.text(self.cx.src.first(n)))
-    }
-
-    /// The statements of a block. With `want_tail`, a last expression
-    /// statement is the block's value.
-    fn lines(&mut self, block: NodeRef<'_>, want_tail: bool) -> StageResult<Option<Ref>> {
-        self.locals.push(HashMap::new());
-        let stmts: Vec<NodeRef<'_>> = block.children().collect();
-        let mut tail = None;
-        for (i, s) in stmts.iter().copied().enumerate() {
-            let last = i + 1 == stmts.len();
-            if s.kind() == SyntaxKind::ExprStmt {
-                let Some(e) = s.children().next() else {
-                    return unsupported("an empty expression statement");
-                };
-                match e.kind() {
-                    SyntaxKind::IfExpr => self.if_expr(e)?,
-                    SyntaxKind::WhileExpr => self.while_loop(e)?,
-                    SyntaxKind::BindingExpr => self.binding(e)?,
-                    _ if last && want_tail => {
-                        let (r, t) = self.expr(e)?;
-                        self.expect(t, self.sig.ret, e, "result");
-                        tail = Some(r);
-                    }
-                    _ => {
-                        self.expr(e)?;
-                    }
-                }
-                continue;
-            }
-            self.stmt(s)?;
-        }
-        self.locals.pop();
-        Ok(tail)
-    }
-
-    /// `if c: ... else if c: ... else: ...` as a statement.
-    fn if_expr(&mut self, e: NodeRef<'_>) -> StageResult<()> {
-        let Some(cond) = e.children().next() else {
-            return unsupported("an `if` without a condition");
-        };
-        let Some(then_node) = Src::child(e, SyntaxKind::Block) else {
-            return unsupported("an `if` without a block");
-        };
-        let (c, ct) = self.expr(cond)?;
-        self.expect(ct, Ty::BOOL, cond, "condition");
-        let tb = self.b.open_block();
-        self.lines(then_node, false)?;
-        let then = self.b.close_block(tb, None, Ty::VOID, then_node.index());
-        let els = if let Some(clause) = Src::child(e, SyntaxKind::ElseClause) {
-            let eb = self.b.open_block();
-            if let Some(nested) = Src::child(clause, SyntaxKind::IfExpr) {
-                self.if_expr(nested)?;
-            } else {
-                let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
-                    return unsupported("an `else` without a block");
-                };
-                self.lines(blk, false)?;
-            }
-            self.b.close_block(eb, None, Ty::VOID, clause.index())
-        } else {
-            Ref(NONE)
-        };
-        let rec = self.b.refs_record(&[then, els]);
-        self.b.emit(Tag::If, c.0, rec, Ty::VOID, e.index());
-        Ok(())
-    }
-
-    /// `while c: body` is `Loop { Block { if c { body } else { break } } }`.
-    fn while_loop(&mut self, e: NodeRef<'_>) -> StageResult<()> {
-        if Src::child(e, SyntaxKind::ElseClause).is_some() {
-            return unsupported("a `while` with an `else` suite");
-        }
-        let Some(cond) = e.children().next() else {
-            return unsupported("a `while` without a condition");
-        };
-        let Some(body) = Src::child(e, SyntaxKind::Block) else {
-            return unsupported("a `while` without a block");
-        };
-        let lp = self.b.open_loop();
-        let lb = self.b.open_block();
-        let (c, ct) = self.expr(cond)?;
-        self.expect(ct, Ty::BOOL, cond, "condition");
-        self.loops.push(lp);
-        let tb = self.b.open_block();
-        self.lines(body, false)?;
-        let then = self.b.close_block(tb, None, Ty::VOID, body.index());
-        self.loops.pop();
-        let eb = self.b.open_block();
-        self.b
-            .emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, e.index());
-        let els = self.b.close_block(eb, None, Ty::VOID, e.index());
-        let rec = self.b.refs_record(&[then, els]);
-        self.b.emit(Tag::If, c.0, rec, Ty::VOID, e.index());
-        let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
-        self.b.close_loop(lp, lbody, Ty::VOID, e.index());
-        Ok(())
-    }
-
-    /// `name := value` (or `let name = value`): a new local.
-    fn bind(&mut self, pat: NodeRef<'_>, e: NodeRef<'_>, at: NodeRef<'_>) -> StageResult<()> {
-        if pat.kind() != SyntaxKind::BindingPattern
-            || self.cx.src.tkind(self.cx.src.first(pat)) == Some(TokenKind::KwMut)
-        {
-            return unsupported("this binding pattern");
-        }
-        let name = self.sym(pat);
-        let (r, t) = self.expr(e)?;
-        let l = self.b.local(t, name, local_flags::ASSIGNED, pat.index());
-        self.locals.last_mut().expect("scope").insert(name, l);
-        self.b.set(l, r, at.index());
-        Ok(())
-    }
-
-    fn binding(&mut self, e: NodeRef<'_>) -> StageResult<()> {
-        self.charge()?;
-        let kids: Vec<NodeRef<'_>> = e.children().collect();
-        let [pat, rhs] = kids.as_slice() else {
-            return unsupported("this binding form");
-        };
-        if rhs.kind() == SyntaxKind::BindingExpr {
-            return unsupported("a binding chain");
-        }
-        self.bind(*pat, *rhs, e)
-    }
-
-    fn stmt(&mut self, s: NodeRef<'_>) -> StageResult<()> {
-        self.charge()?;
-        let kids: Vec<NodeRef<'_>> = s.children().collect();
-        match s.kind() {
-            SyntaxKind::LetStmt => {
-                let [pat, e] = kids.as_slice() else {
-                    return unsupported("this `let` form");
-                };
-                self.bind(*pat, *e, s)?;
-            }
-            SyntaxKind::AssignmentStmt => {
-                let [lhs, rhs] = kids.as_slice() else {
-                    return unsupported("this assignment form");
-                };
-                let op = hd_base::TokenIdx::from_raw(self.cx.src.last(*lhs).raw() + 1);
-                if self.cx.src.tkind(op) != Some(TokenKind::Eq) {
-                    return unsupported("compound assignment");
-                }
-                if lhs.kind() != SyntaxKind::NameExpr {
-                    return unsupported("assignment to a non-local");
-                }
-                let name = self.sym(*lhs);
-                let Some(l) = self.find_local(name) else {
-                    let msg = format!("unknown-name `{}`", self.cx.names.text(name));
-                    self.err(Code::UnknownName, *lhs, &msg);
-                    return Ok(());
-                };
-                let (r, t) = self.expr(*rhs)?;
-                let lt = self.b.local_ty(l);
-                self.expect(t, lt, *rhs, "assignment");
-                self.b.set(l, r, s.index());
-            }
-            SyntaxKind::ReturnStmt => {
-                let r = if let Some(e) = kids.first() {
-                    let (r, t) = self.expr(*e)?;
-                    self.expect(t, self.sig.ret, *e, "return");
-                    r
-                } else {
-                    Ref(NONE)
-                };
-                self.b.emit(Tag::Return, r.0, NONE, Ty::NEVER, s.index());
-            }
-            SyntaxKind::BreakStmt | SyntaxKind::ContinueStmt => {
-                if !kids.is_empty() {
-                    return unsupported("`break` with a value");
-                }
-                let Some(lp) = self.loops.last().copied() else {
-                    return unsupported("`break` outside a loop");
-                };
-                let tag = if s.kind() == SyntaxKind::BreakStmt {
-                    Tag::Break
-                } else {
-                    Tag::Continue
-                };
-                self.b.emit(tag, lp.0.raw(), NONE, Ty::NEVER, s.index());
-            }
-            other => return unsupported(format!("statement {other:?}")),
-        }
-        Ok(())
-    }
-
-    fn int_lit(&mut self, bits: u64) -> (Ref, Ty) {
-        let t = self.infer.fresh(self.cx.names.pool, VarKind::IntLit);
-        (self.b.const_value(t, bits), t)
-    }
-
-    fn expr(&mut self, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        self.charge()?;
+    /// Solves `tref` now, learning what the answer fixes; `Ok(None)` when
+    /// it waits for inference.
+    pub(crate) fn require_ref(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+    ) -> StageResult<Option<hd_types::solver::Evidence>> {
         let pool = self.cx.names.pool;
-        let kids: Vec<NodeRef<'_>> = n.children().collect();
-        Ok(match n.kind() {
-            SyntaxKind::LiteralExpr => {
-                let t = self.cx.src.first(n);
-                match self.cx.src.tkind(t) {
-                    Some(TokenKind::KwTrue) => (self.b.const_value(Ty::BOOL, 1), Ty::BOOL),
-                    Some(TokenKind::KwFalse) => (self.b.const_value(Ty::BOOL, 0), Ty::BOOL),
-                    Some(TokenKind::Number) => {
-                        let text = self.cx.src.text(t).replace('_', "");
-                        let Ok(v) = text.parse::<i64>() else {
-                            return unsupported(format!("the literal `{text}`"));
-                        };
-                        self.int_lit(v.cast_unsigned())
-                    }
-                    _ => return unsupported("this literal form"),
-                }
-            }
-            SyntaxKind::UnaryExpr => {
-                let op = self.cx.src.tkind(self.cx.src.first(n));
-                let Some(e) = kids.first() else {
-                    return unsupported("an operand-less unary");
-                };
-                let (r, t) = self.expr(*e)?;
-                match op {
-                    Some(TokenKind::Plus) => (r, t),
-                    Some(TokenKind::Minus) => {
-                        if let Some((ct, bits)) = self.b.const_of(r) {
-                            (
-                                self.b.const_value(
-                                    ct,
-                                    bits.cast_signed().wrapping_neg().cast_unsigned(),
-                                ),
-                                t,
-                            )
-                        } else {
-                            (self.b.prim(PrimOp::Neg as u32, &[r], t, n.index()), t)
-                        }
-                    }
-                    _ => return unsupported("this unary operator"),
-                }
-            }
-            SyntaxKind::ParenExpr => match kids.as_slice() {
-                [e] => self.expr(*e)?,
-                _ => return unsupported("a parenthesized expression shape"),
-            },
-            SyntaxKind::NameExpr => {
-                let s = self.sym(n);
-                if let Some(l) = self.find_local(s) {
-                    let t = self.b.local_ty(l);
-                    (self.b.get(l, t, n.index()), t)
-                } else {
-                    let msg = format!("unknown-name `{}`", self.cx.names.text(s));
-                    self.err(Code::UnknownName, n, &msg);
-                    (Ref(NONE), Ty::NEVER)
-                }
-            }
-            SyntaxKind::AdditiveExpr
-            | SyntaxKind::MultiplicativeExpr
-            | SyntaxKind::ComparisonExpr
-            | SyntaxKind::LogicalAndExpr
-            | SyntaxKind::LogicalOrExpr => {
-                let [l, r] = kids.as_slice() else {
-                    return unsupported("a binary expression shape");
-                };
-                let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(*l).raw() + 1);
-                let op = match self.cx.src.tkind(op_tok) {
-                    Some(TokenKind::Plus) => PrimOp::Add,
-                    Some(TokenKind::Minus) => PrimOp::Sub,
-                    Some(TokenKind::Star) => PrimOp::Mul,
-                    Some(TokenKind::Slash) => PrimOp::Div,
-                    Some(TokenKind::Percent) => PrimOp::Rem,
-                    Some(TokenKind::EqEq) => PrimOp::Eq,
-                    Some(TokenKind::NotEq) => PrimOp::Ne,
-                    Some(TokenKind::Lt) => PrimOp::Lt,
-                    Some(TokenKind::LtEq) => PrimOp::Le,
-                    Some(TokenKind::Gt) => PrimOp::Gt,
-                    Some(TokenKind::GtEq) => PrimOp::Ge,
-                    Some(TokenKind::AndAnd) => PrimOp::And,
-                    Some(TokenKind::OrOr) => PrimOp::Or,
-                    _ => return unsupported("this binary operator"),
-                };
-                let (a, at) = self.expr(*l)?;
-                let (c, ct) = self.expr(*r)?;
-                let logical = matches!(op, PrimOp::And | PrimOp::Or);
-                if logical {
-                    self.expect(at, Ty::BOOL, *l, "operand");
-                    self.expect(ct, Ty::BOOL, *r, "operand");
-                } else {
-                    self.expect(ct, at, *r, "operand");
-                    let resolved = self.infer.shallow(pool, at);
-                    let numeric = match pool.get(resolved) {
-                        TyData::Prim(p) => {
-                            p.is_integer()
-                                || (p == Prim::Bool && matches!(op, PrimOp::Eq | PrimOp::Ne))
-                        }
-                        TyData::Infer(_) | TyData::Never | TyData::Poison => true,
-                        _ => false,
-                    };
-                    if !numeric {
-                        let msg = format!(
-                            "type-mismatch in operand: expected an integer, found {}",
-                            self.show(at)
-                        );
-                        self.err(Code::TypeMismatch, *l, &msg);
-                    }
-                }
-                let result = if matches!(
-                    op,
-                    PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem
-                ) {
-                    at
-                } else {
-                    Ty::BOOL
-                };
-                (self.b.prim(op as u32, &[a, c], result, n.index()), result)
-            }
-            SyntaxKind::FieldExpr => {
-                let Some(base) = kids.first() else {
-                    return unsupported("a field without a base");
-                };
-                let (r, bt) = self.expr(*base)?;
-                let name = self.cx.src.text(self.cx.src.last(n)).to_owned();
-                let bt = self.infer.resolve(pool, bt);
-                let fields = match pool.get(bt) {
-                    TyData::Adt { def, .. } => match self.cx.lookup.item(def).map(|i| &i.data) {
-                        Some(ItemData::Data(fs)) => Some(fs.clone()),
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                let sym = self.cx.names.syms.intern(&name);
-                if let Some((i, ft)) = fields
-                    .and_then(|fs| fs.iter().position(|f| f.name == sym).map(|i| (i, fs[i].ty)))
-                {
-                    let idx = u32::try_from(i).expect("fields");
-                    (self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft)
-                } else {
-                    let msg = format!("unknown-data-field `{name}` on {}", self.show(bt));
-                    self.err(Code::UnknownDataField, n, &msg);
-                    (Ref(NONE), Ty::NEVER)
-                }
-            }
-            SyntaxKind::DataExpr => self.data_expr(n, &kids)?,
-            SyntaxKind::CallExpr => self.call(n, &kids)?,
-            other => return unsupported(format!("expression {other:?}")),
-        })
-    }
-
-    fn data_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
-        let Some(name_node) = kids.first() else {
-            return unsupported("a data literal without a name");
+        let tref = TraitRef {
+            trait_: tref.trait_,
+            self_ty: self.infer.resolve(pool, tref.self_ty),
+            args: pool.list(
+                &pool
+                    .list_items(tref.args)
+                    .into_iter()
+                    .map(|a| self.infer.resolve(pool, a))
+                    .collect::<Vec<_>>(),
+            ),
         };
-        let s = self.sym(*name_node);
-        let def = match self.cx.scope.lookup(s) {
-            Some(b) if b.kind == BindingKind::Item => DefId::from_raw(b.value),
-            _ => {
-                let msg = format!("unknown-type `{}`", self.cx.names.text(s));
-                self.err(Code::UnknownType, *name_node, &msg);
-                return Ok((Ref(NONE), Ty::NEVER));
-            }
-        };
-        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| i.data.clone()) else {
-            let msg = format!("unknown-type `{}`: not a data type", self.cx.names.text(s));
-            self.err(Code::UnknownType, *name_node, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
-        };
-        let mut vals = vec![Ref(NONE); fields.len()];
-        for a in &kids[1..] {
-            let fname = self.sym(*a);
-            let Some(i) = fields.iter().position(|f| f.name == fname) else {
-                let msg = format!("unknown-data-field `{}`", self.cx.names.text(fname));
-                self.err(Code::UnknownDataField, *a, &msg);
-                continue;
-            };
-            let Some(e) = a.children().next() else {
-                continue;
-            };
-            let (r, t) = self.expr(e)?;
-            self.expect(t, fields[i].ty, e, "field");
-            vals[i] = r;
+        if let Some(b) = self.builtin_holds(tref) {
+            return Ok(Some(b));
         }
-        if vals.contains(&Ref(NONE)) {
-            let msg = format!("missing-required-field in `{}`", self.cx.names.text(s));
-            self.err(Code::MissingRequiredField, n, &msg);
-        }
-        let ty = pool.intern_ty(&TyData::Adt {
-            def,
-            args: TyList::EMPTY,
-        });
-        let rec = self.b.refs_record(&vals);
-        Ok((self.b.emit(Tag::NewData, NONE, rec, ty, n.index()), ty))
-    }
-
-    fn call(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
-        let (Some(callee), al) = (kids.first().copied(), kids.get(1).copied()) else {
-            return unsupported("a call shape");
-        };
-        if callee.kind() == SyntaxKind::FieldExpr {
-            return self.method_call(n, callee, al);
-        }
-        if callee.kind() != SyntaxKind::NameExpr {
-            return unsupported("a call of a computed value");
-        }
-        let s = self.sym(callee);
-        let arg_nodes: Vec<NodeRef<'_>> = al
-            .iter()
-            .flat_map(|l| l.children())
-            .filter_map(|a| a.children().next())
-            .collect();
-        match self.cx.scope.lookup(s) {
-            Some(b) if b.kind == BindingKind::Item => {
-                let def = DefId::from_raw(b.value);
-                let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| i.data.clone())
-                else {
-                    let msg = format!("unknown-name `{}`: not a function", self.cx.names.text(s));
-                    self.err(Code::UnknownName, callee, &msg);
-                    return Ok((Ref(NONE), Ty::NEVER));
-                };
-                let vars: Vec<Ty> = sig
-                    .generics
-                    .iter()
-                    .map(|_| self.infer.fresh(pool, VarKind::General))
-                    .collect();
-                let inst = |t: Ty| {
-                    pool.subst(t, &|p: ParamRef| {
-                        (p.owner == def)
-                            .then(|| vars.get(p.index as usize).copied())
-                            .flatten()
-                    })
-                };
-                if arg_nodes.len() != sig.params.len() {
-                    let msg = format!(
-                        "argument-count: `{}` takes {} arguments",
-                        self.cx.names.text(s),
-                        sig.params.len()
-                    );
-                    self.err(Code::ArgumentCount, n, &msg);
+        match self.solve(tref)? {
+            Answer::Holds { evidence, learned } => {
+                for (v, t) in learned {
+                    let var = pool.intern_ty(&TyData::Infer(v));
+                    let _ = self.infer.unify(pool, var, t);
                 }
-                let mut refs = Vec::new();
-                for (i, e) in arg_nodes.iter().enumerate() {
-                    let (r, t) = self.expr(*e)?;
-                    if let Some((_, pt)) = sig.params.get(i) {
-                        self.expect(t, inst(*pt), *e, "argument");
-                    }
-                    refs.push(r);
-                }
-                for (i, g) in sig.generics.iter().enumerate() {
-                    if let Some(tr) = g.bound {
-                        self.require(tr, vars[i], n)?;
-                    }
-                }
-                let ret = inst(sig.ret);
-                let targs = pool.list(&vars);
-                let c = Callee::Item { def, targs };
-                Ok((self.b.call(&c, &refs, Providers::None, ret, n.index()), ret))
+                Ok(Some(evidence))
             }
-            _ => {
-                let msg = format!("unknown-name `{}`", self.cx.names.text(s));
-                self.err(Code::UnknownName, callee, &msg);
-                Ok((Ref(NONE), Ty::NEVER))
-            }
-        }
-    }
-
-    /// A bound at a use site: `ty: trait_` must hold (trait-solver.md §1.2).
-    fn require(&mut self, trait_: DefId, ty: Ty, at: NodeRef<'_>) -> StageResult<()> {
-        let pool = self.cx.names.pool;
-        // A bare literal meets a bound at its default type (type-checking.md
-        // §3.6): `println(42)` needs `i32: Display`.
-        let default = match self.infer.kind_of(pool, ty) {
-            Some(VarKind::IntLit) => Some(Ty::I32),
-            Some(VarKind::FloatLit) => Some(Ty::prim(hd_types::Prim::F64)),
-            _ => None,
-        };
-        if let Some(d) = default {
-            let _ = self.infer.unify(pool, ty, d);
-        }
-        let ty = self.infer.resolve(pool, ty);
-        if pool.has_infer(ty) && self.diags.has_errors() {
-            // The type is unknown because of an error already reported
-            // (an unknown name's `never`): the bound adds nothing.
-            return Ok(());
-        }
-        if pool.has_infer(ty) {
-            return unsupported("a bound on a type that is not yet known");
-        }
-        let goal = Goal::Implements {
-            tref: TraitRef {
-                trait_,
-                self_ty: ty,
-                args: TyList::EMPTY,
-            },
-            bindings: vec![],
-            mut_: false,
-        };
-        let mut scx = SolveCx {
-            pool,
-            env: &self.env,
-            universe: self.cx.universe,
-            tables: self.cx.impls,
-            body_memo: &mut self.memo,
-            global: self.cx.global,
-        };
-        match self.cx.solver.solve(&mut scx, &goal, &mut self.fuel)? {
-            Answer::Holds { .. } => Ok(()),
             Answer::Fails(_) => {
                 let msg = format!(
                     "unsatisfied-trait-bound: {} does not implement {}",
-                    self.show(ty),
-                    self.cx.names.path(trait_)
+                    self.show(tref.self_ty),
+                    self.cx.names.path(tref.trait_)
                 );
                 self.err(Code::UnsatisfiedTraitBound, at, &msg);
-                Ok(())
+                Ok(None)
+            }
+            Answer::Stalled { .. } => {
+                self.pending.push((tref, at.index()));
+                Ok(None)
             }
             Answer::OutOfFuel => unsupported("the solver's fuel ran out (limit diagnostic)"),
             other => unsupported(format!("solver answer {other:?}")),
         }
     }
 
-    fn method_call(
-        &mut self,
-        n: NodeRef<'_>,
-        fe: NodeRef<'_>,
-        al: Option<NodeRef<'_>>,
-    ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
-        let Some(recv_node) = fe.children().next() else {
-            return unsupported("a method call without a receiver");
+    pub(crate) fn solve(&mut self, tref: TraitRef) -> StageResult<Answer> {
+        let goal = Goal::Implements {
+            tref,
+            bindings: vec![],
+            mut_: false,
         };
-        let mname = self.cx.src.text(self.cx.src.last(fe)).to_owned();
-        let msym = self.cx.names.syms.intern(&mname);
-        let (recv, rt) = self.expr(recv_node)?;
-        let rt = self.infer.resolve(pool, rt);
-        let has_method = |d: DefId| -> Option<DefId> {
-            match self.cx.lookup.item(d).map(|i| &i.data) {
-                Some(ItemData::Trait(t)) => {
-                    t.methods.iter().find(|(m, _)| *m == msym).map(|(_, d)| *d)
-                }
-                _ => None,
-            }
+        let mut scx = SolveCx {
+            pool: self.cx.names.pool,
+            env: &self.env,
+            universe: self.cx.universe,
+            tables: self.cx.impls,
+            body_memo: &mut self.memo,
+            global: self.cx.global,
         };
-        let found = match pool.get(rt) {
-            TyData::Param(p) if p.owner == self.def => self
-                .sig
-                .generics
-                .get(p.index as usize)
-                .and_then(|g| g.bound)
-                .and_then(|tr| {
-                    has_method(tr).map(|m| (tr, m, (ChoiceKind::Bound, u32::from(p.index))))
-                }),
-            TyData::Adt { .. } => {
-                let mut hits = Vec::new();
-                for imp in self.cx.lookup.impls() {
-                    if let ItemData::Impl {
-                        trait_, self_ty, ..
-                    } = &imp.data
-                        && *self_ty == rt
-                        && let Some(m) = has_method(*trait_)
-                    {
-                        hits.push((*trait_, m, (ChoiceKind::Impl, imp.def.raw())));
-                    }
-                }
-                match hits.as_slice() {
-                    [one] => Some(*one),
-                    [] => None,
-                    _ => return unsupported("method selection among several traits"),
-                }
-            }
-            _ => None,
-        };
-        let Some((trait_, method, choice)) = found else {
-            let msg = format!("unknown-method `{mname}` on {}", self.show(rt));
-            self.err(Code::UnknownMethod, fe, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
-        };
-        self.require(trait_, rt, n)?;
-        let Some(sig) = self.cx.lookup.item(method).and_then(|i| i.sig().cloned()) else {
-            return unsupported("a trait method without a signature");
-        };
-        if !sig.generics.is_empty() {
-            return unsupported("generic trait methods");
-        }
-        let inst = |t: Ty| {
-            pool.subst(t, &|p: ParamRef| {
-                (p.owner == trait_ && p.index == 0).then_some(rt)
-            })
-        };
-        let arg_nodes: Vec<NodeRef<'_>> = al
-            .iter()
-            .flat_map(|l| l.children())
-            .filter_map(|a| a.children().next())
-            .collect();
-        let rest = sig.params.get(1..).unwrap_or(&[]);
-        if arg_nodes.len() != rest.len() {
-            self.err(
-                Code::ArgumentCount,
-                n,
-                &format!("argument-count: `{mname}` takes {} arguments", rest.len()),
-            );
-        }
-        let mut refs = vec![recv];
-        for (i, e) in arg_nodes.iter().enumerate() {
-            let (r, t) = self.expr(*e)?;
-            if let Some((_, pt)) = rest.get(i) {
-                self.expect(t, inst(*pt), *e, "argument");
-            }
-            refs.push(r);
-        }
-        let result = inst(sig.ret);
-        let c = Callee::TraitMethod {
-            trait_,
-            method,
-            self_ty: rt,
-            targs: TyList::EMPTY,
-            choice,
-        };
-        Ok((
-            self.b.call(&c, &refs, Providers::None, result, n.index()),
-            result,
-        ))
+        self.cx.solver.solve(&mut scx, &goal, &mut self.fuel)
     }
 
-    /// Resolves every type the body recorded; integer literals with no
-    /// other constraint are `i32` (type-checking.md §3.6).
-    fn zonk(&mut self, t: Ty) -> Ty {
+    /// Compiler-answered traits (trait-solver.md §3.8): `Any` and its
+    /// children, `Tuple`, and the numeric families on primitives.
+    pub(crate) fn builtin_holds(&self, tref: TraitRef) -> Option<hd_types::solver::Evidence> {
+        use hd_types::solver::{BuiltinImpl, Evidence};
+        let pool = self.cx.names.pool;
+        let path = self.cx.names.path(tref.trait_);
+        let t = match pool.get(tref.self_ty) {
+            TyData::Mut(i) => i,
+            _ => tref.self_ty,
+        };
+        // A trait value implements its trait and supertraits.
+        if let TyData::TraitValue { def, .. } = pool.get(t)
+            && (def == tref.trait_ || self.trait_extends(def, tref.trait_, 0))
+        {
+            return Some(Evidence::TraitValue { trait_: def });
+        }
+        let prim = match pool.get(t) {
+            TyData::Prim(p) => Some(p),
+            _ => None,
+        };
+        let b = match path.as_str() {
+            "std/core/Any" => BuiltinImpl::Any,
+            "std/core/AnyVal" => BuiltinImpl::AnyVal,
+            "std/core/AnyRef" => BuiltinImpl::AnyRef,
+            "std/function/Tuple" if matches!(pool.get(t), TyData::Tuple { .. }) => {
+                BuiltinImpl::Tuple
+            }
+            "std/num/Num" if prim.is_some_and(|p| p.is_integer() || p.is_float()) => {
+                BuiltinImpl::Num
+            }
+            "std/num/Integer" if prim.is_some_and(hd_types::Prim::is_integer) => {
+                BuiltinImpl::Integer
+            }
+            "std/num/Float" if prim.is_some_and(hd_types::Prim::is_float) => BuiltinImpl::Float,
+            _ => return None,
+        };
+        Some(Evidence::Builtin(b))
+    }
+
+    // ------------------------------------------------------------ blocks
+
+    /// A block's statements; with a wanted non-void type, the last
+    /// expression statement is its value. Returns the tail and its type.
+    pub(crate) fn block_value(
+        &mut self,
+        block: NodeRef<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<(Option<Ref>, Ty)> {
+        self.scopes.push(HashMap::new());
+        let r = self.lines(block, want);
+        self.scopes.pop();
+        r
+    }
+
+    fn lines(&mut self, block: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Option<Ref>, Ty)> {
+        let stmts: Vec<NodeRef<'_>> = block
+            .children()
+            .filter(|s| s.kind() != SyntaxKind::Error)
+            .collect();
+        let value = want != Some(Ty::VOID);
+        let mut ty = Ty::VOID;
+        let mut tail = None;
+        let mut diverged = false;
+        for (i, s) in stmts.iter().copied().enumerate() {
+            let last = i + 1 == stmts.len();
+            if last && value && s.kind() == SyntaxKind::ExprStmt {
+                let Some(e) = s.children().next() else {
+                    return unsupported("an empty expression statement");
+                };
+                let (r, t) = self.expr(e, want)?;
+                // A last expression that cannot complete is a statement.
+                if self.infer.shallow(self.cx.names.pool, t) == Ty::NEVER {
+                    diverged = true;
+                    continue;
+                }
+                let r = match want {
+                    Some(w) => self.coerce(r, t, w, e, "result"),
+                    None => r,
+                };
+                tail = Some(r);
+                ty = want.unwrap_or(t);
+                continue;
+            }
+            let t = self.stmt(s)?;
+            diverged |= t == Ty::NEVER;
+            if last && diverged {
+                ty = Ty::NEVER;
+            }
+        }
+        if value
+            && tail.is_none()
+            && !diverged
+            && let Some(w) = want
+        {
+            let w = self.infer.shallow(self.pool(), w);
+            if w != Ty::VOID && w != Ty::NEVER {
+                let mut snap_ok = false;
+                if matches!(self.pool().get(w), TyData::Infer(_)) {
+                    snap_ok = self.infer.unify(self.cx.names.pool, w, Ty::VOID).is_ok();
+                }
+                if !snap_ok && !Self::ends_in_return(block) {
+                    let msg = format!(
+                        "type-mismatch in result: expected {}, found void",
+                        self.show(w)
+                    );
+                    self.err(Code::TypeMismatch, block, &msg);
+                }
+            }
+        }
+        if diverged && tail.is_none() {
+            ty = Ty::NEVER;
+        }
+        Ok((tail, ty))
+    }
+
+    /// Whether a block's last statement leaves (`return`, `panic`-like
+    /// never calls already typed `never` are handled by `lines`).
+    fn ends_in_return(block: NodeRef<'_>) -> bool {
+        block.children().last().is_some_and(|s| {
+            matches!(
+                s.kind(),
+                SyntaxKind::ReturnStmt | SyntaxKind::BreakStmt | SyntaxKind::ContinueStmt
+            )
+        })
+    }
+
+    /// One statement; its type is `never` when it cannot complete.
+    pub(crate) fn stmt(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
+        self.charge()?;
+        let kids: Vec<NodeRef<'_>> = s.children().collect();
+        match s.kind() {
+            SyntaxKind::ExprStmt => {
+                let Some(e) = kids.first() else {
+                    return Ok(Ty::VOID);
+                };
+                let (_, t) = self.expr(*e, Some(Ty::VOID))?;
+                let t = self.infer.shallow(self.pool(), t);
+                return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
+            }
+            SyntaxKind::LetStmt => self.let_stmt(s, &kids)?,
+            SyntaxKind::DiscardStmt => {
+                if let Some(e) = kids.last() {
+                    self.expr(*e, None)?;
+                }
+            }
+            SyntaxKind::AssignmentStmt => self.assign(s, &kids)?,
+            SyntaxKind::ReturnStmt => {
+                let ret = *self.rets.last().expect("ret");
+                let r = if let Some(e) = kids.first() {
+                    let (r, t) = self.expr(*e, Some(ret))?;
+                    self.coerce(r, t, ret, *e, "return")
+                } else {
+                    Ref(NONE)
+                };
+                self.b.emit(Tag::Return, r.0, NONE, Ty::NEVER, s.index());
+                return Ok(Ty::NEVER);
+            }
+            SyntaxKind::BreakStmt | SyntaxKind::ContinueStmt => {
+                let Some((lp, bt)) = self.loops.last().copied() else {
+                    self.err(Code::BreakOutsideLoop, s, "break-outside-loop");
+                    return Ok(Ty::NEVER);
+                };
+                if s.kind() == SyntaxKind::ContinueStmt {
+                    self.b
+                        .emit(Tag::Continue, lp.0.raw(), NONE, Ty::NEVER, s.index());
+                    return Ok(Ty::NEVER);
+                }
+                let v = match (kids.first(), bt) {
+                    (Some(e), Some(want)) => {
+                        let (r, t) = self.expr(*e, Some(want))?;
+                        self.coerce(r, t, want, *e, "break value").0
+                    }
+                    (Some(_), None) => return unsupported("`break` with a value in this loop"),
+                    (None, _) => NONE,
+                };
+                self.b.emit(Tag::Break, lp.0.raw(), v, Ty::NEVER, s.index());
+                return Ok(Ty::NEVER);
+            }
+            SyntaxKind::DeferStmt => {
+                let Some(blk) = Src::child(s, SyntaxKind::Block) else {
+                    return unsupported("a `defer` without a suite");
+                };
+                let m = self.b.open_block();
+                self.block_value(blk, Some(Ty::VOID))?;
+                let suite = self.b.close_block(m, None, Ty::VOID, blk.index());
+                self.b.defer(suite, s.index());
+            }
+            other => return unsupported(format!("statement {other:?}")),
+        }
+        Ok(Ty::VOID)
+    }
+
+    /// `x = e`, `x op= e`, `a.f = e`, `a[i] = e`.
+    fn assign(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
+        let [lhs, rhs] = kids else {
+            return unsupported("this assignment form");
+        };
+        let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(*lhs).raw() + 1);
+        let op = self.cx.src.tkind(op_tok);
+        let compound = match op {
+            Some(TokenKind::Eq) => None,
+            Some(k) => Some(k),
+            None => return unsupported("an assignment operator"),
+        };
+        match lhs.kind() {
+            SyntaxKind::NameExpr => {
+                let name = self.sym_of(*lhs);
+                let Some((l, depth)) = self.find_local(name) else {
+                    let msg = format!("unknown-name `{}`", self.cx.names.text(name));
+                    self.err(Code::UnknownName, *lhs, &msg);
+                    return Ok(());
+                };
+                let lt = self.b.local_ty(l);
+                let v = match compound {
+                    None => {
+                        let (r, t) = self.expr(*rhs, Some(lt))?;
+                        self.coerce(r, t, lt, *rhs, "assignment")
+                    }
+                    Some(k) => {
+                        let (cur, _) = self.read_local(l, depth, *lhs);
+                        self.compound(k, cur, lt, *rhs, s)?
+                    }
+                };
+                self.note_write(l, depth);
+                self.b.set(l, v, s.index());
+            }
+            SyntaxKind::FieldExpr => {
+                let Some(base) = lhs.children().next() else {
+                    return unsupported("a field without a base");
+                };
+                let (br, bt) = self.expr(base, None)?;
+                let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
+                let Some((idx, ft)) = self.field_of(bt, &fname) else {
+                    let msg = format!("unknown-data-field `{fname}` on {}", self.show(bt));
+                    self.err(Code::UnknownDataField, *lhs, &msg);
+                    return Ok(());
+                };
+                let v = match compound {
+                    None => {
+                        let (r, t) = self.expr(*rhs, Some(ft))?;
+                        self.coerce(r, t, ft, *rhs, "assignment")
+                    }
+                    Some(k) => {
+                        let cur = self.b.emit(Tag::Field, br.0, idx, ft, lhs.index());
+                        self.compound(k, cur, ft, *rhs, s)?
+                    }
+                };
+                let rec = self.b.refs_record(&[Ref(idx), v]);
+                self.b.emit(Tag::FieldSet, br.0, rec, Ty::VOID, s.index());
+            }
+            SyntaxKind::IndexExpr => {
+                let ik: Vec<NodeRef<'_>> = lhs.children().collect();
+                let [base, key] = ik.as_slice() else {
+                    return unsupported("an index target shape");
+                };
+                let (br, bt) = self.expr(*base, None)?;
+                let Some((op_get, op_set, kt, vt)) = self.index_kind(bt) else {
+                    return unsupported("`r[k] = v` through `IndexSet`");
+                };
+                let (kr, ktt) = self.expr(*key, Some(kt))?;
+                let kr = self.coerce(kr, ktt, kt, *key, "index");
+                let v = match compound {
+                    None => {
+                        let (r, t) = self.expr(*rhs, Some(vt))?;
+                        self.coerce(r, t, vt, *rhs, "assignment")
+                    }
+                    Some(k) => {
+                        let rec = self.b.refs_record(&[br, kr]);
+                        let cur = self
+                            .b
+                            .emit(Tag::Intrinsic, op_get as u32, rec, vt, lhs.index());
+                        self.compound(k, cur, vt, *rhs, s)?
+                    }
+                };
+                let rec = self.b.refs_record(&[br, kr, v]);
+                self.b
+                    .emit(Tag::Intrinsic, op_set as u32, rec, Ty::VOID, s.index());
+            }
+            _ => return unsupported("assignment to this target"),
+        }
+        Ok(())
+    }
+
+    /// `cur op rhs` for a compound assignment.
+    fn compound(
+        &mut self,
+        k: TokenKind,
+        cur: Ref,
+        t: Ty,
+        rhs: NodeRef<'_>,
+        at: NodeRef<'_>,
+    ) -> StageResult<Ref> {
+        let op = match k {
+            TokenKind::PlusEq => TokenKind::Plus,
+            TokenKind::MinusEq => TokenKind::Minus,
+            TokenKind::StarEq => TokenKind::Star,
+            TokenKind::SlashEq => TokenKind::Slash,
+            TokenKind::PercentEq => TokenKind::Percent,
+            _ => return unsupported("this compound assignment operator"),
+        };
+        let (r, rt) = self.expr(rhs, Some(t))?;
+        let _ = k;
+        self.binary_values(op, (cur, t), (r, rt), at, rhs)
+    }
+
+    /// Resolves every type the body recorded; literal variables with no
+    /// other constraint take their default type (type-checking.md §3.6).
+    pub(crate) fn zonk(&mut self, t: Ty) -> Ty {
         let pool = self.cx.names.pool;
         let r = self.infer.resolve(pool, t);
         if !pool.has_infer(r) {
             return r;
         }
-        if let TyData::Infer(_) = pool.get(r) {
-            if self.infer.unify(pool, r, Ty::I32).is_ok() {
-                return Ty::I32;
-            }
-            return Ty::POISON;
-        }
-        let d = match pool.get(r) {
-            TyData::Adt { def, args } => {
-                let items: Vec<Ty> = pool
-                    .list_items(args)
-                    .into_iter()
-                    .map(|x| self.zonk(x))
-                    .collect();
-                TyData::Adt {
-                    def,
-                    args: pool.list(&items),
+        match pool.get(r) {
+            TyData::Infer(_) => {
+                let d = match self.infer.kind_of(pool, r) {
+                    Some(VarKind::FloatLit) => Ty::prim(hd_types::Prim::F64),
+                    Some(VarKind::IntLit) => Ty::I32,
+                    _ => Ty::POISON,
+                };
+                if d != Ty::POISON {
+                    let _ = self.infer.unify(pool, r, d);
                 }
+                d
             }
-            _ => return Ty::POISON,
-        };
-        pool.intern_ty(&d)
+            TyData::Adt { def, args } => {
+                let a = self.zonk_list(args);
+                pool.intern_ty(&TyData::Adt { def, args: a })
+            }
+            TyData::Tuple { elems, rest } => {
+                let e = self.zonk_list(elems);
+                pool.intern_ty(&TyData::Tuple { elems: e, rest })
+            }
+            TyData::Option(i) => {
+                let i = self.zonk(i);
+                pool.intern_ty(&TyData::Option(i))
+            }
+            TyData::Mut(i) => {
+                let i = self.zonk(i);
+                pool.intern_ty(&TyData::Mut(i))
+            }
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+            } => {
+                let p = self.zonk_list(params);
+                let r = self.zonk(result);
+                pool.intern_ty(&TyData::Fn {
+                    params: p,
+                    result: r,
+                    row,
+                    suspends,
+                })
+            }
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => {
+                let a = self.zonk_list(args);
+                pool.intern_ty(&TyData::TraitValue {
+                    def,
+                    args: a,
+                    bindings,
+                })
+            }
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => {
+                let s = self.zonk(self_ty);
+                let a = self.zonk_list(args);
+                pool.intern_ty(&TyData::Assoc {
+                    assoc,
+                    trait_,
+                    self_ty: s,
+                    args: a,
+                })
+            }
+            _ => Ty::POISON,
+        }
+    }
+
+    fn zonk_list(&mut self, l: TyList) -> TyList {
+        let items: Vec<Ty> = self
+            .pool()
+            .list_items(l)
+            .into_iter()
+            .map(|x| self.zonk(x))
+            .collect();
+        self.pool().list(&items)
     }
 
     fn finish(mut self, root: Ref) -> StageResult<Body> {
         let pool = self.cx.names.pool;
-        // Literal kinds first, so `x := +0` then `x = y` resolves both.
+        // Literal defaults first, so `x := +0` then `x = y` resolves both.
         let n = self.b.body_mut().ty.len();
+        for i in 0..self.b.body_mut().consts.len() {
+            let t = self.b.body_mut().consts[i].0;
+            let z = self.zonk(t);
+            self.b.body_mut().consts[i].0 = z;
+        }
+        // Bounds that waited for inference.
+        let pending = std::mem::take(&mut self.pending);
+        for (tref, _) in pending {
+            let tref = TraitRef {
+                trait_: tref.trait_,
+                self_ty: self.zonk(tref.self_ty),
+                args: self.zonk_list(tref.args),
+            };
+            if !pool.has_poison(tref.self_ty) && self.builtin_holds(tref).is_none() {
+                // A still-open bound adds nothing the body needs: its
+                // evidence is chosen again per instance at collection.
+                let _ = self.solve(tref)?;
+            }
+        }
         for i in 0..n {
             let t = self.b.body_mut().ty[i];
             let z = self.zonk(t);
@@ -819,13 +871,9 @@ impl Ck<'_, '_> {
             let z = self.zonk(t);
             self.b.body_mut().local_ty[i] = z;
         }
-        for i in 0..self.b.body_mut().consts.len() {
-            let t = self.b.body_mut().consts[i].0;
-            let z = self.zonk(t);
-            self.b.body_mut().consts[i].0 = z;
-        }
         for i in 0..n {
-            if self.b.body_mut().tags[i] != Tag::Call {
+            let tag = self.b.body_mut().tags[i];
+            if tag != Tag::Call && tag != Tag::Await {
                 continue;
             }
             let at = self.b.body_mut().data[i][0] as usize + 1;
@@ -838,17 +886,10 @@ impl Ck<'_, '_> {
                 continue;
             };
             let z = match c {
-                Callee::Item { def, targs } => {
-                    let items: Vec<Ty> = pool
-                        .list_items(targs)
-                        .into_iter()
-                        .map(|x| self.zonk(x))
-                        .collect();
-                    Callee::Item {
-                        def,
-                        targs: pool.list(&items),
-                    }
-                }
+                Callee::Item { def, targs } => Callee::Item {
+                    def,
+                    targs: self.zonk_list(targs),
+                },
                 Callee::TraitMethod {
                     trait_,
                     method,
@@ -859,12 +900,39 @@ impl Ck<'_, '_> {
                     trait_,
                     method,
                     self_ty: self.zonk(self_ty),
-                    targs,
+                    targs: self.zonk_list(targs),
                     choice,
                 },
             };
             let nw = z.words();
             self.b.body_mut().extra[at..at + nw.len()].copy_from_slice(&nw);
+        }
+        for i in 0..n {
+            if self.b.body_mut().tags[i] == Tag::ProviderGet
+                || self.b.body_mut().tags[i] == Tag::ItemRef
+            {
+                let at = self.b.body_mut().data[i][0] as usize + 1;
+                if self.b.body_mut().tags[i] == Tag::ProviderGet {
+                    let t = Ty(self.b.body_mut().extra[at]);
+                    self.b.body_mut().extra[at] = self.zonk(t).0;
+                } else {
+                    let lat = self.b.body_mut().data[i][1] as usize + 1;
+                    let l = TyList(self.b.body_mut().extra[lat]);
+                    self.b.body_mut().extra[lat] = self.zonk_list(l).0;
+                }
+            }
+        }
+        if !self.diags.has_errors() {
+            for i in 0..n {
+                let t = self.b.body_mut().ty[i];
+                if pool.has_poison(t) && self.b.body_mut().tags[i] != Tag::Poison {
+                    let at = self.b.body_mut().syn[i];
+                    return unsupported(format!(
+                        "a type the checker could not infer @node{}",
+                        at.raw()
+                    ));
+                }
+            }
         }
         self.b
             .finish(root, &[])

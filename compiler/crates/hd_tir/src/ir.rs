@@ -170,10 +170,19 @@ pub enum PrimOp {
     Neg,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
+    /// Logical or bitwise not: `!b` on `bool`, `~n` on an integer.
+    Not,
+    /// A numeric conversion to the instruction's type (`i64(x)`).
+    Conv,
 }
 
 impl PrimOp {
-    pub const ALL: [PrimOp; 14] = [
+    pub const ALL: [PrimOp; 21] = [
         PrimOp::Add,
         PrimOp::Sub,
         PrimOp::Mul,
@@ -188,6 +197,64 @@ impl PrimOp {
         PrimOp::Neg,
         PrimOp::And,
         PrimOp::Or,
+        PrimOp::BitAnd,
+        PrimOp::BitOr,
+        PrimOp::BitXor,
+        PrimOp::Shl,
+        PrimOp::Shr,
+        PrimOp::Not,
+        PrimOp::Conv,
+    ];
+    #[must_use]
+    pub fn from_u32(v: u32) -> Option<Self> {
+        Self::ALL.get(v as usize).copied()
+    }
+}
+
+/// Language-tier built-in operations (the `Meta` word of an `Intrinsic`
+/// instruction): the built-in methods and indexing of `List`, `Map` and
+/// `string` (spec/lang/10-modules.md#built-in-methods), whose std bodies
+/// are written in terms of themselves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u32)]
+pub enum IntrinsicOp {
+    ListLen,
+    ListPush,
+    ListIter,
+    ListIndex,
+    ListSet,
+    MapLen,
+    MapGet,
+    MapRemove,
+    MapIndex,
+    MapSet,
+    MapIter,
+    StrIndex,
+    /// `a + b` on two strings.
+    StrConcat,
+    /// `a == b` on two strings.
+    StrEq,
+    /// A call of an `@intrinsic` std function whose body is the compiler's.
+    Item,
+}
+
+impl IntrinsicOp {
+    pub const ALL: [IntrinsicOp; 15] = [
+        IntrinsicOp::ListLen,
+        IntrinsicOp::ListPush,
+        IntrinsicOp::ListIter,
+        IntrinsicOp::ListIndex,
+        IntrinsicOp::ListSet,
+        IntrinsicOp::MapLen,
+        IntrinsicOp::MapGet,
+        IntrinsicOp::MapRemove,
+        IntrinsicOp::MapIndex,
+        IntrinsicOp::MapSet,
+        IntrinsicOp::MapIter,
+        IntrinsicOp::StrIndex,
+        IntrinsicOp::StrConcat,
+        IntrinsicOp::StrEq,
+        IntrinsicOp::Item,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {
@@ -366,7 +433,10 @@ pub struct Body {
     pub cap_mode: Vec<CaptureMode>,
     pub susp: Vec<SuspRow>,
     /// The body's constants: type and bits (`Ref::konst(i)` is row i).
+    /// A `string` constant's bits index `strings`.
     pub consts: Vec<(Ty, u64)>,
+    /// The body's string literals, by `string` constant.
+    pub strings: Vec<Box<str>>,
 }
 
 impl Body {
@@ -393,6 +463,7 @@ impl Body {
             cap_mode: vec![],
             susp: vec![],
             consts: vec![],
+            strings: vec![],
         }
     }
 
@@ -528,6 +599,13 @@ impl TirBuilder {
         let i = u32::try_from(self.body.consts.len()).expect("consts");
         self.body.consts.push((ty, bits));
         Ref::konst(i)
+    }
+
+    /// A `string` constant: its text joins the body's string table.
+    pub fn const_str(&mut self, text: &str) -> Ref {
+        let s = self.body.strings.len() as u64;
+        self.body.strings.push(text.into());
+        self.const_value(Ty::STRING, s)
     }
 
     /// The type of a value: an instruction's or a constant's.
@@ -904,6 +982,13 @@ pub fn print(b: &Body) -> String {
         );
     }
     let _ = writeln!(o, "extra {}", words(&b.extra));
+    for st in &b.strings {
+        let _ = write!(o, "str ");
+        for x in st.bytes() {
+            let _ = write!(o, "{x:02x}");
+        }
+        let _ = writeln!(o, ".");
+    }
     for (t, bits) in &b.consts {
         let _ = writeln!(o, "const {} {bits}", t.0);
     }
@@ -1019,6 +1104,16 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                     scopes: Range32::new(v[1], v[2]),
                     hook_site: v[3],
                 });
+            }
+            "str" => {
+                let hex = f.get(1).copied().unwrap_or(".").trim_end_matches('.');
+                let bytes: Option<Vec<u8>> = (0..hex.len() / 2)
+                    .map(|i| u8::from_str_radix(hex.get(2 * i..2 * i + 2)?, 16).ok())
+                    .collect();
+                let text = bytes
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .ok_or_else(|| e("bad string".into()))?;
+                b.strings.push(text.into());
             }
             "extra" => b.extra = nums(1)?,
             "const" => {

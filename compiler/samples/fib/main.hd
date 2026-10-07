@@ -9,5 +9,5 @@ fn fib(n: i32) -> i32:
         b = t
         i = i + 1
     return a
-fn main():
+fn main() -> void $ Console:
     println(fib(20))

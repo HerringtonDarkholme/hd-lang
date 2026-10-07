@@ -1093,18 +1093,49 @@ impl Run<'_> {
             universe,
             global: &self.memo,
             solver: &solver,
+            methods: std::cell::OnceCell::new(),
         };
         let mut diags = DiagBuf::default();
         let mut bodies = Vec::new();
+        let mut failed = None;
         for (def, node) in hd_resolve::body_nodes(&names, &src, &heads) {
+            // A body-less method of a built-in family (`impl[N < Num] Add
+            // for N`) is the compiler's: there is no source to check.
+            if hd_resolve::Src::child(node, hd_syntax::SyntaxKind::Block).is_none() {
+                continue;
+            }
             match hd_check::check_fn(&cx, def, node, &mut diags) {
-                Ok(b) => bodies.push(b),
+                Ok(b) => {
+                    lock(&self.report).body_ok += 1;
+                    bodies.push(b);
+                }
                 Err(e) => {
-                    self.stage::<()>(Stage::Body, Err(e));
-                    let _ = self.body[m].set(None);
-                    return;
+                    // Analysis counts every body; a build stops at the first.
+                    let mut r = lock(&self.report);
+                    r.body_failed += 1;
+                    let short: String = e
+                        .what
+                        .split(" @")
+                        .next()
+                        .unwrap_or("")
+                        .chars()
+                        .take(90)
+                        .collect();
+                    *r.body_reasons.entry(short).or_default() += 1;
+                    r.body_failures
+                        .push(format!("{}: {}", names.path(def), e.what));
+                    drop(r);
+                    failed.get_or_insert(e);
+                    if self.goal != Goal::Analyze {
+                        break;
+                    }
                 }
             }
+        }
+        if let Some(e) = failed {
+            self.stage::<()>(Stage::Body, Err(e));
+            let _ = self.body[m].set(None);
+            return;
         }
         lock(&self.report).ok(Stage::Body);
         let _ = self.body[m].set(Some((bodies, diags)));
