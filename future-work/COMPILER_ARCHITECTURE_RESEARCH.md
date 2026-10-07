@@ -39,7 +39,7 @@ high (I would bet on it), medium (likely, with a named risk), or low (a lean).
 | 4 | Parallel checking as a task graph: parse all files, then folder interfaces in dependency order, then every body as an independent task. The same code runs on one thread with byte-identical output. | high |
 | 5 | Data-oriented core: interned 32-bit IDs, per-folder and per-body arenas, flat token and node arrays, a zero-copy interface format, no IDs in any output or hash. | high |
 | 6 | A hand-written lexer that emits layout tokens, and a hand-written resilient recursive-descent parser that builds a lossless flat green tree. | high |
-| 6b | **A header pass** ([Q4b](#q4b-pre-parsing-and-header-extraction)): a skim mode of the same lexer skips bodies exactly by indentation, strings and brackets, and yields each module's `use` list, exported skeleton and interface hash. It skips about 60% of std's tokens. The one body-derived interface fact is the transitive `block_on` ban, which gets a per-folder drive summary. | high (exactness), medium (payoff) |
+| 6b | **A header pass** ([Q4b](#q4b-pre-parsing-and-header-extraction)): a skim mode of the same lexer skips bodies exactly by indentation, strings and brackets, and yields each module's `use` list, exported skeleton and interface hash. It skips about 60% of std's tokens. The one body-derived interface fact was the transitive `block_on` ban; the owner made that ban direct-only (answer 13), so the interface comes from syntax alone and no drive summary is needed. | high (exactness), medium (payoff) |
 | 7 | Checker: bidirectional inference local to each body, a poison type with root-cause suppression, trait lookup through a head index with memoized, step-bounded search, and rows as small sorted sets. | medium-high |
 | 8 | Program database hook: stable string symbol IDs and per-module fact records written into the module cache entry from day 1; the queryable store comes later. | medium |
 | 9 | Browser: the same core compiled to `wasm32-unknown-unknown`, single-threaded by default, behind four host interfaces (files, cache store, scheduler, capability host). | medium-high |
@@ -535,6 +535,13 @@ Confidence: high.
   narrow, tested hook.
 
 ## Q4b: Pre-Parsing And Header Extraction
+
+> **Update after the owner's answers (2026-10-06).** The `block_on` ban
+> in `defer`, defaults, facts and module initialization is now
+> direct-only, with a run-time panic for an indirect call (answer 13).
+> Everything below about the **drive summary** and the late check of
+> those contexts no longer applies: a module's interface comes from
+> syntax alone.
 
 **Question.** Can the compiler run a cheap pass, like V8's preparser, that
 extracts a module's `use` list and its exported skeleton (types,

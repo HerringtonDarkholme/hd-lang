@@ -143,7 +143,7 @@ here (owner, 2026-10-06).
 | `errors-per-run` | a file with N independent mistakes: diagnostics reported in one `hd check` | all N reported, each once |
 | `diag-location` | mistake corpus: share of diagnostics whose line is the mistake's line | ≥ 95% |
 | `fixit-safety` | applying a fix-it (in a temp copy) never adds a new error | 100% |
-| `lookup-latency` | canned program-database queries (`hd callers`, `hd needs Http`) wall time | p95 ≤ 100 ms |
+| `lookup-latency` | canned program-database queries (`hd callers`, `hd needs Http`) wall time; N/A until the program database ships (Later) | p95 ≤ 100 ms |
 | `fmt` | `hd fmt` time on the 10k-line package, and idempotence (if hd has a formatter) | ≤ 200 ms; idempotent |
 | `release-check-cost` | runtime cost of overflow and bounds checks: the same test suite in a debug vs a release build, since agents run tests in debug | debug ≤ 1.3x release |
 
@@ -155,12 +155,12 @@ here (owner, 2026-10-06).
 | `long-session` | RSS across 1,000 REPL inputs or incremental rechecks | flat (no growth beyond a fixed bound) |
 | `startup` | `hd --version` and checking an empty file: wall time, CPU, RSS | ≤ 20 ms, ≤ 10 MB |
 | `concurrency` | N = 1, 4, 16, 64 concurrent `hd check` processes; p95 latency vs N = 1, total CPU vs N | ≤ 1.5x at N = cores; total CPU sublinear in N with a shared cache |
-| `disk` | artifacts plus toolchain size per worktree | ≤ 10 MB |
+| `disk` | artifacts per worktree; the `hd` binary (with wasmtime and Cranelift) gets its own budget once measured | ≤ 10 MB of artifacts |
 | `suite-cpu` | total CPU of the conformance suite | ≤ 60 s |
 | `parallel-speedup` | checking a 50k-line package on 1 core vs all cores (one process) | ≥ 0.6 × cores speedup up to 8 cores |
 | `cache-contention` | N processes writing the same cache entries at once | no corruption; each entry computed once |
 | `cache-growth` | cache size after a scripted day of edits; eviction | bounded by a configured cap |
-| `io-per-check` | files read or stat'ed per warm check | proportional to what changed |
+| `io-per-check` | files read per warm check; with no daemon, every source file is still stat'ed to detect changes | reads proportional to what changed; stats proportional to the source file count |
 | `fetch-dedup` | a dependency fetched by N worktrees | fetched once |
 
 ### Pillar 3: Artifact quality: the user's program, not the compiler
