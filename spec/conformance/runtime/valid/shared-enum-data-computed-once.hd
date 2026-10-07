@@ -15,7 +15,5 @@ fn main() -> i32:
     let first: Box[string] = Box.Full("a")
     let second: Box[string] = Box.Full("b")
     let empty: Box[string] = Box.Empty
-    let again: Box[string] = Box.Empty
-    canonical := if empty is again: +100 else: 0
     shared := if first.items is second.items: +10 else: 0
-    canonical + shared + first.seen + second.seen + calls
+    shared + first.seen + second.seen + empty.seen + calls

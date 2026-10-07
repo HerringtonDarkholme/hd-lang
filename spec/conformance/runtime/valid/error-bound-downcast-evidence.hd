@@ -11,7 +11,7 @@ impl Display for Timeout:
 
 impl Error for Timeout
 
-fn recover[T < Error](error: Error) -> T?:
+fn recover[T < AnyRef & Error](error: Error) -> T?:
     error.downcast::[T]()
 
 tests:

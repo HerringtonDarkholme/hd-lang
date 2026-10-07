@@ -1,5 +1,5 @@
-# test: find walks the cause chain in order and returns the first error of the target type, the same reference, or .None
-# Spec std/error Root Cause And Find: std-error.find and std-error.find.same-reference (ERR-HELPERS; task #223).
+# test: find walks the cause chain in order and returns the first error of the target type, an equal enum value or the same data reference, or .None
+# Spec std/error Root Cause And Find: std-error.find.first, std-error.find.value, std-error.find.reference.
 use std.error.Error
 use std.testing.{assert, assert_equal}
 
@@ -22,6 +22,11 @@ enum AppError:
 data DiskError:
     free: i64
 
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+
 tests:
     it("finds an error two levels down"):
         failure := AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
@@ -36,12 +41,12 @@ tests:
             .Some(found) => assert_equal(found.to_string(), "cannot load app", reason="one level down")
             .None => assert(false, reason="ConfigError is in the chain")
 
-    it("returns the same reference that the chain holds"):
-        cause := ConfigError.Load("app", FsError.NotFound("app.toml"))
-        failure := AppError.Start(cause)
-        match failure.find::[ConfigError]():
-            .Some(found) => assert(found is cause, reason="no copy")
-            .None => assert(false, reason="ConfigError is in the chain")
+    it("returns the same reference for a data error"):
+        disk := DiskError { free: 0 }
+        failure := SaveError.Write("notes.txt", disk)
+        match failure.find::[DiskError]():
+            .Some(found) => assert(found is disk, reason="a data error is not copied")
+            .None => assert(false, reason="DiskError is in the chain")
 
     it("returns .None when no error matches"):
         failure := AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))

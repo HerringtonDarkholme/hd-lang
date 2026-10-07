@@ -1,0 +1,21 @@
+# test: Error has no AnyRef supertrait, so a newtype over string and an enum may implement it
+# Spec 09 Error Trait: trait.error.supertraits, trait.error.value-types.
+use std.error.Error
+
+type Message(string)
+
+impl Display for Message:
+    fn to_string(self) -> string: string(self)
+
+impl Error for Message
+
+enum Code:
+    Busy
+
+impl Display for Code:
+    fn to_string(self) -> string: "busy"
+
+impl Error for Code
+
+fn erase(message: Message, code: Code) -> List[Error]:
+    [message, code]

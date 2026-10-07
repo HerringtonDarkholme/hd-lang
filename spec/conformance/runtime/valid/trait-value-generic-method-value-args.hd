@@ -1,0 +1,43 @@
+# test: a generic method called through a trait value accepts value-typed arguments, an enum and an i32 among them
+# Spec 04 Dynamic Safety: types.trait.safe.method-type-param, types.trait.safe.method-type-arg; Spec 09: trait.dyn.safe.method-type-param.
+use std.testing.assert_equal
+
+enum Level:
+    Low
+    High(amount: i32)
+
+impl Display for Level:
+    fn to_string(self) -> string:
+        match self:
+            .Low => "low"
+            .High(amount) => "high $amount"
+
+trait Labeler:
+    fn label[T < Display](self, value: T) -> string
+    fn first[T](self, items: List[T], fallback: T) -> T
+
+data Brackets:
+    open: string
+    close: string
+
+impl Labeler for Brackets:
+    fn label[T < Display](self, value: T) -> string:
+        self.open + value.to_string() + self.close
+
+    fn first[T](self, items: List[T], fallback: T) -> T:
+        if items.len() == 0: fallback
+        else: items[0]
+
+fn labeler() -> Labeler:
+    Brackets { open: "[", close: "]" }
+
+tests:
+    it("an enum argument"):
+        assert_equal(labeler().label(Level.High(3)), "[high 3]", reason="a payload variant")
+        assert_equal(labeler().label(Level.Low), "[low]", reason="a payload-free variant")
+
+    it("an i32 argument"):
+        assert_equal(labeler().label(+42), "[42]", reason="a primitive is boxed at the call")
+        assert_equal(labeler().first([+7, +8], +0), 7, reason="a list of i32 elements")
+        let none: List[i32] = []
+        assert_equal(labeler().first(none, +5), 5, reason="the fallback")

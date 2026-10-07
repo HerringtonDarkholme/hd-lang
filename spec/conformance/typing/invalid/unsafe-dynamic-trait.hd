@@ -1,6 +1,0 @@
-
-trait Convert:
-    fn convert[T](self, value: T) -> string
-
-fn invalid(value: Convert) -> void:  # diagnostic: trait-not-dynamically-safe
-    pass

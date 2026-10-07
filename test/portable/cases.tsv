@@ -189,7 +189,6 @@ typing/invalid/associated-binding-mismatch.hd	type
 typing/invalid/unknown-associated-type.hd	type
 typing/invalid/duplicate-associated-binding.hd	type
 typing/invalid/supertrait-cycle.hd	type
-typing/invalid/unsafe-dynamic-trait.hd	type
 runtime/panic/assert-equal-bool-unequal.hd	runtime
 runtime/panic/assert-equal-char-unequal.hd	runtime
 runtime/panic/assert-equal-f64-unequal.hd	runtime
@@ -216,11 +215,9 @@ runtime/valid/assert-equal-optional.hd	runtime
 runtime/valid/assert-equal-result.hd	runtime
 runtime/valid/assert-equal-string.hd	runtime
 runtime/valid/assert-equal-tuple.hd	runtime
-typing/invalid/non-reference-bound-dynamic-method.hd	type
 runtime/valid/tuple-rebuild.hd	runtime
 runtime/valid/init-read-through-trait-dispatch.hd	runtime
 typing/valid/nonpublic-main-ordinary.hd	type
-runtime/valid/shared-data-variant-identity.hd	runtime
 typing/valid/inferred-mutable-from-mutable.hd	type
 typing/valid/supertrait-chain.hd	type
 runtime/valid/parameter-default-earlier-parameter.hd	runtime
@@ -510,8 +507,6 @@ typing/invalid/declared-generic-key-lexical-collision.hd	type
 runtime/valid/i32-extremes-through-generics.hd	runtime
 runtime/panic/generic-i32-overflow.hd	runtime
 runtime/valid/i32-minimum-through-generic-optional.hd	runtime
-runtime/valid/payload-free-variant-canonical.hd	runtime
-runtime/valid/optional-identity.hd	runtime
 typing/invalid/string-identity.hd	type
 typing/invalid/short-binding-readonly-root.hd	type
 typing/invalid/readonly-parent-mut-field-argument.hd	type
@@ -869,7 +864,6 @@ typing/valid/gadts.hd	type
 typing/invalid/impossible-gadt-pattern.hd	type
 typing/invalid/covariant-gadt-result.hd	type
 typing/valid/invariant-gadt-result.hd	type
-runtime/valid/boxed-primitive-identity.hd	runtime
 runtime/valid/composite-identity-and-views.hd	runtime
 typing/invalid/any-exposes-no-methods.hd	type
 runtime/valid/any-accepts-non-optional-values.hd	runtime
@@ -926,7 +920,6 @@ runtime/valid/float-eq-bound.hd	runtime
 typing/invalid/enum-shared-field-assignment.hd	type
 typing/invalid/enum-shared-constructor-payload.hd	type
 runtime/valid/enum-shared-data-per-variant.hd	runtime
-runtime/valid/variant-identity-through-any.hd	runtime
 typing/valid/dynamic-trait-suspending-method.hd	type
 typing/valid/newtype-value-category.hd	type
 typing/invalid/newtype-value-category.hd	type
@@ -943,7 +936,6 @@ typing/invalid/function-result-representation-change.hd	type
 typing/invalid/closure-identity.hd	type
 typing/invalid/named-function-identity.hd	type
 typing/invalid/function-identity-against-any.hd	type
-typing/valid/generic-function-identity.hd	type
 typing/valid/function-type-impl-target.hd	type
 typing/invalid/function-type-orphan-impl.hd	type
 runtime/valid/function-type-impl-method.hd	runtime
@@ -2023,7 +2015,6 @@ typing/valid/generic-mutual-bounds.hd	type
 runtime/valid/generic-forward-bound-explicit-first-slot.hd	runtime
 typing/invalid/default-names-later-beside-forward-bound.hd	type
 typing/valid/list-literal-compares-with-readonly-binding.hd	type
-typing/invalid/error-anyval-newtype.hd	type
 typing/valid/dynamic-safety-implied-anyref.hd	type
 runtime/valid/process-error-results.hd	runtime
 runtime/valid/process-error-display.hd	runtime
@@ -2163,7 +2154,6 @@ runtime/valid/doc-test-private-item.hd	runtime
 runtime/valid/doc-test-text-fence.hd	runtime
 typing/invalid/requirement-key-unknown-generic-trait.hd	type
 typing/invalid/requirement-key-supertrait-not-dynamically-safe.hd	type
-typing/invalid/requirement-key-generic-method.hd	type
 typing/invalid/inspectable-requirement-function-type.hd	type
 typing/invalid/inspectable-requirement-provider-scope.hd	type
 typing/valid/requirement-key-user-trait-named-inspectable.hd	type
@@ -2203,13 +2193,10 @@ typing/invalid/impl-bound-not-dynamically-safe.hd	type
 typing/invalid/alias-bound-not-dynamically-safe.hd	type
 typing/invalid/newtype-bound-not-dynamically-safe.hd	type
 typing/valid/nested-dynamically-safe-trait-values.hd	type
-typing/invalid/trait-value-row-then-type-parameter.hd	type
-typing/invalid/trait-value-type-parameter-then-row.hd	type
 typing/invalid/anyref-subtrait-value-newtype.hd	type
 typing/valid/anyref-subtrait-reference-newtypes.hd	type
 typing/invalid/anyref-subtrait-unbounded-generic-newtype.hd	type
 typing/valid/dynamic-safety-transitive-anyref.hd	type
-typing/invalid/dynamic-safety-implied-anyval.hd	type
 typing/valid/identity-implied-anyref-bound.hd	type
 typing/invalid/orphan-impl-standard-data.hd	type
 typing/invalid/orphan-impl-standard-enum.hd	type
@@ -2815,3 +2802,9 @@ cli/wasm-invalid	cli
 typing/invalid/function-field-identity.hd	type
 typing/valid/literal-classes-separate-widths.hd	type
 cli/build-library-only	cli
+runtime/valid/trait-value-generic-method-value-args.hd	runtime
+typing/invalid/anyref-rejects-enum.hd	type
+typing/invalid/enum-identity.hd	type
+typing/invalid/function-anyref-bound.hd	type
+typing/valid/error-value-newtype.hd	type
+typing/valid/generic-method-dynamically-safe.hd	type

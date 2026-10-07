@@ -1,5 +1,5 @@
 # test: a method type parameter whose bound reaches AnyRef through two supertraits keeps a trait dynamically safe
-# Spec 09 Dynamic Safety: trait.dyn.safe.implied-anyref-param; Bounds: trait.bound.supertraits.
+# Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param; Bounds: trait.bound.supertraits.
 
 trait Record < Entity
 

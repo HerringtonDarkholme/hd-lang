@@ -155,7 +155,6 @@ typing/invalid/prelude-shadow.hd	type	reject:prelude-name-shadow	lang/10-modules
 typing/invalid/function-equality.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/unsaturated-enum-constructor.hd	type	reject:unsaturated-enum-constructor	lang/08-data-and-enums.md#enum-declarations
 typing/invalid/ambiguous-trait-method.hd	type	reject:ambiguous-method	lang/09-traits.md#method-resolution
-typing/invalid/unsafe-dynamic-trait.hd	type	reject:trait-not-dynamically-safe	lang/09-traits.md#dynamic-trait-values
 typing/invalid/orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#trait-implementations
 typing/invalid/local-impl-nonlocal-pair.hd	type	reject:local-impl-nonlocal-pair	lang/09-traits.md#trait-implementations
 typing/invalid/private-type-leak.hd	type	reject:private-type-leak	lang/10-modules.md#public-uses-and-visibility
@@ -321,7 +320,6 @@ runtime/valid/assert-equal-result.hd	runtime	accept	lang/10-modules.md#standard-
 runtime/valid/assert-equal-string.hd	runtime	accept	lang/10-modules.md#standard-testing
 runtime/valid/assert-equal-tuple.hd	runtime	accept	lang/10-modules.md#standard-testing
 runtime/valid/reference-bounded-dynamic-method.hd	runtime	accept	lang/04-type-system.md#trait-values-and-any
-typing/invalid/non-reference-bound-dynamic-method.hd	type	reject:trait-not-dynamically-safe	lang/09-traits.md#dynamic-trait-values
 typing/invalid/tuple-element-assignment.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#expression-categories
 runtime/valid/tuple-rebuild.hd	runtime	accept	lang/05-expressions.md#expression-categories
 typing/invalid/init-read-through-generic-bound.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
@@ -330,7 +328,6 @@ runtime/valid/init-read-through-trait-dispatch.hd	runtime	accept	lang/10-modules
 runtime/valid/unsigned-exponent.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/signed-exponent.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 typing/valid/nonpublic-main-ordinary.hd	type	accept	lang/10-modules.md#executable-entry-point
-runtime/valid/shared-data-variant-identity.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/inferred-mutable-upgrade.hd	type	reject:mutable-upgrade	lang/04-type-system.md#composite-values-and-access-permission
 typing/valid/inferred-mutable-from-mutable.hd	type	accept	lang/04-type-system.md#composite-values-and-access-permission
 runtime/valid/identity-ignores-permissions.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
@@ -694,11 +691,7 @@ runtime/panic/generic-i32-overflow.hd	runtime	panic:integer-overflow	lang/04-typ
 runtime/valid/i64-u64-precision-through-generics.hd	runtime	accept	lang/04-type-system.md#generics
 runtime/valid/f32-display-width-through-generics.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
 runtime/valid/i32-minimum-through-generic-optional.hd	runtime	accept	lang/04-type-system.md#optional-types
-runtime/valid/boxed-primitive-identity.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/composite-identity-and-views.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
-runtime/valid/payload-free-variant-canonical.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
-runtime/valid/variant-identity-through-any.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
-runtime/valid/optional-identity.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/string-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/generic-mut-argument-preserved.hd	runtime	accept	lang/04-type-system.md#mutable-paths
 typing/invalid/short-binding-readonly-root.hd	type	reject:readonly-root	lang/04-type-system.md#bindings-and-fresh-values
@@ -1093,7 +1086,6 @@ typing/invalid/function-result-representation-change.hd	type	reject:variance-rep
 typing/invalid/closure-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
 typing/invalid/named-function-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
 typing/invalid/function-identity-against-any.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
-typing/valid/generic-function-identity.hd	type	accept	lang/05-expressions.md#r-expr.is.function.generic
 typing/valid/function-type-impl-target.hd	type	accept	lang/09-traits.md#r-trait.target.function-type.valid
 typing/valid/function-type-tuple-impl.hd	type	accept	lang/09-traits.md#implementation-targets
 typing/invalid/function-type-overlapping-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#overlap
@@ -2024,14 +2016,13 @@ runtime/valid/duration-arithmetic.hd	runtime	accept	std/time.md#duration-arithme
 runtime/panic/duration-add-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.duration.overflow
 runtime/valid/duration-display.hd	runtime	accept	std/time.md#duration-display
 runtime/panic/manual-clock-negative-sleep.hd	runtime	panic:explicit-panic	std/time.md#r-std-time.clock.sleep.negative
-runtime/valid/error-find.hd	runtime	accept	std/error.md#r-std-error.find
+runtime/valid/error-find.hd	runtime	accept	std/error.md#r-std-error.find.first
 runtime/valid/error-root-cause.hd	runtime	accept	std/error.md#r-std-error.root-cause
-runtime/valid/error-find-erased.hd	runtime	accept	std/error.md#r-std-error.find
+runtime/valid/error-find-erased.hd	runtime	accept	std/error.md#r-std-error.find.first
 runtime/valid/error-find-trait-value.hd	runtime	accept	std/error.md#r-std-error.find.exact
 typing/invalid/error-find-non-error.hd	type	reject:unsatisfied-trait-bound	std/error.md#r-std-error.find.bound
 runtime/valid/error-context.hd	runtime	accept	std/error.md#r-std-error.context.err
-typing/invalid/error-anyval-newtype.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.error.not-anyref
-typing/valid/dynamic-safety-implied-anyref.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.implied-anyref-param
+typing/valid/dynamic-safety-implied-anyref.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 typing/valid/std-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-joined-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-host-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
@@ -2266,7 +2257,6 @@ runtime/valid/doc-test-private-item.hd	runtime	accept	lang/10-modules.md#r-modul
 runtime/valid/doc-test-text-fence.hd	runtime	accept	lang/10-modules.md#r-module.test.doc.fence
 typing/invalid/requirement-key-unknown-generic-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
 typing/invalid/requirement-key-supertrait-not-dynamically-safe.hd	type	reject:trait-not-dynamically-safe	lang/11-requirements-and-suspension.md#r-req.key.dynamically-safe
-typing/invalid/requirement-key-generic-method.hd	type	reject:trait-not-dynamically-safe	lang/11-requirements-and-suspension.md#r-req.key.dynamically-safe
 typing/invalid/inspectable-requirement-function-type.hd	type	reject:inspectable-requirement	lang/11-requirements-and-suspension.md#r-req.key.inspectable.error
 typing/invalid/inspectable-requirement-provider-scope.hd	type	reject:inspectable-requirement	lang/11-requirements-and-suspension.md#r-req.key.inspectable.error
 typing/valid/requirement-key-user-trait-named-inspectable.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.key.inspectable
@@ -2306,13 +2296,10 @@ typing/invalid/impl-bound-not-dynamically-safe.hd	type	reject:trait-not-dynamica
 typing/invalid/alias-bound-not-dynamically-safe.hd	type	reject:trait-not-dynamically-safe	lang/09-traits.md#r-trait.dyn.safe.error
 typing/invalid/newtype-bound-not-dynamically-safe.hd	type	reject:trait-not-dynamically-safe	lang/09-traits.md#r-trait.dyn.safe.error
 typing/valid/nested-dynamically-safe-trait-values.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe
-typing/invalid/trait-value-row-then-type-parameter.hd	type	reject:trait-not-dynamically-safe	lang/09-traits.md#r-trait.dyn.safe.implied-anyref-param
-typing/invalid/trait-value-type-parameter-then-row.hd	type	reject:trait-not-dynamically-safe	lang/09-traits.md#r-trait.dyn.safe.implied-anyref-param
 typing/invalid/anyref-subtrait-value-newtype.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.sealed.extend.missing
 typing/valid/anyref-subtrait-reference-newtypes.hd	type	accept	lang/09-traits.md#r-trait.sealed.extend
 typing/invalid/anyref-subtrait-unbounded-generic-newtype.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.super.impl-bounds
-typing/valid/dynamic-safety-transitive-anyref.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.implied-anyref-param
-typing/invalid/dynamic-safety-implied-anyval.hd	type	reject:trait-not-dynamically-safe	lang/09-traits.md#r-trait.dyn.safe.implied-anyref-param
+typing/valid/dynamic-safety-transitive-anyref.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 typing/valid/identity-implied-anyref-bound.hd	type	accept	lang/04-type-system.md#r-types.generic.identity
 typing/invalid/orphan-impl-standard-data.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.orphan
 typing/invalid/orphan-impl-standard-enum.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.orphan
@@ -2684,9 +2671,9 @@ typing/invalid/fn-constructor-needs-import.hd	type	reject:unknown-type	lang/10-m
 runtime/valid/function-type-sugar-without-import.hd	runtime	accept	lang/10-modules.md#r-module.prelude.function-sugar
 typing/invalid/inspectable-needs-import.hd	type	reject:unknown-trait	lang/10-modules.md#r-module.prelude.inspect
 typing/invalid/set-type-not-prelude.hd	type	reject:unknown-type	lang/10-modules.md#r-module.method.no-set
-typing/valid/value-category-traits.hd	type	accept	lang/10-modules.md#r-module.prelude.anyval-types
-typing/invalid/anyref-rejects-primitive.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.prelude.anyref-not
-typing/invalid/anyref-rejects-tuple.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.prelude.anyref-not
+typing/valid/value-category-traits.hd	type	accept	lang/10-modules.md#r-module.prelude.anyval-values
+typing/invalid/anyref-rejects-primitive.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.prelude.anyref-excludes
+typing/invalid/anyref-rejects-tuple.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.prelude.anyref-excludes
 typing/invalid/anyval-user-impl.hd	type	reject:sealed-trait-implementation	lang/10-modules.md#r-module.prelude.any-sealed
 typing/invalid/private-type-leak-data-field.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature.coverage
 typing/invalid/private-type-leak-enum-payload.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature.coverage
@@ -2751,3 +2738,9 @@ runtime/valid/not-granted-display.hd	runtime	accept	std/fs.md#r-std-fs.error.not
 typing/invalid/impl-head-projection.hd	type	reject:unconstrained-impl-parameter	lang/09-traits.md#r-trait.overlap.head-projection
 typing/invalid/function-field-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
 typing/valid/literal-classes-separate-widths.hd	type	accept	lang/04-type-system.md#r-types.literal.local.class.meet
+runtime/valid/trait-value-generic-method-value-args.hd	runtime	accept	lang/04-type-system.md#r-types.trait.safe.method-type-arg
+typing/invalid/anyref-rejects-enum.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.prelude.anyref-excludes
+typing/invalid/enum-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.value-operand
+typing/invalid/function-anyref-bound.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.is.function.bound
+typing/valid/error-value-newtype.hd	type	accept	lang/09-traits.md#r-trait.error.value-types
+typing/valid/generic-method-dynamically-safe.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param

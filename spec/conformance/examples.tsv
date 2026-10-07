@@ -270,7 +270,7 @@ lang/05-expressions.md	58	mixed	typing/invalid/signed-integer-exponent.hd|typing
 lang/05-expressions.md	59	mixed	typing/invalid/function-equality.hd
 lang/05-expressions.md	60	mixed	typing/valid/eq-contextual-right-operand.hd|typing/valid/eq-contextual-left-operand.hd|typing/invalid/eq-contextual-both-operands.hd
 lang/05-expressions.md	61	mixed	typing/warnings/unsigned-comparison-countdown.hd|typing/warnings/unsigned-comparison-explicit.hd
-lang/05-expressions.md	62	mixed	typing/invalid/incompatible-identity-operands.hd|typing/invalid/tuple-identity.hd
+lang/05-expressions.md	62	mixed	typing/invalid/incompatible-identity-operands.hd|typing/invalid/tuple-identity.hd|typing/invalid/enum-identity.hd
 lang/05-expressions.md	63	mixed	typing/invalid/closure-identity.hd
 lang/05-expressions.md	64	accept	typing/valid/operator-traits.hd|runtime/valid/operator-traits-run.hd
 lang/05-expressions.md	65	type-fragment	-
@@ -444,7 +444,7 @@ lang/09-traits.md	17	accept	runtime/valid/derived-newtype.hd
 lang/09-traits.md	18	mixed	typing/invalid/newtype-derivation-self.hd|typing/invalid/derive-newtype-base-missing-trait.hd
 lang/09-traits.md	19	accept	runtime/valid/from-direct-call.hd
 lang/09-traits.md	20	mixed	typing/invalid/from-implementation-with-requirement.hd
-lang/09-traits.md	21	mixed	typing/invalid/error-implementation-local-type.hd|typing/invalid/error-anyval-newtype.hd
+lang/09-traits.md	21	mixed	typing/invalid/error-implementation-local-type.hd
 lang/09-traits.md	22	accept	runtime/valid/propagation-into-erased-error.hd
 lang/09-traits.md	23	type-fragment	-
 lang/09-traits.md	24	accept	typing/valid/derive-debug.hd

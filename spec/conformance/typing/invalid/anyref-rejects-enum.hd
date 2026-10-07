@@ -1,0 +1,11 @@
+# test: an enum value has no identity, so it does not satisfy an AnyRef bound
+# Spec 10 Value-Category Traits: module.prelude.anyref-excludes; Spec 08: data.enum.no-identity.
+enum Status:
+    Queued
+    Shipped(tracking: string)
+
+fn by_ref[T < AnyRef](value: T) -> T:
+    value
+
+fn check() -> Status:
+    by_ref(Status.Queued)  # diagnostic: unsatisfied-trait-bound

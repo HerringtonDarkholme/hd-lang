@@ -23,7 +23,7 @@ fn weight_of(value: Inspectable) -> f64:
         .None => 0.0
 
 fn sku_of(value: Inspectable) -> string:
-    match value.downcast::[Sku?]():
+    match downcast_val::[Sku?](value):
         .Some(found) =>
             match found:
                 .Some(sku) => sku.code

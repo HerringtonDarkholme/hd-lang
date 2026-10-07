@@ -1,0 +1,17 @@
+# test: an enum value, an optional, and a result have no identity, so `is` on them is an error
+# Spec 05 Identity Operands: expr.is.value-operand; Spec 04: types.option.identity-error; Spec 08: data.enum.no-identity.is.
+data User:
+    name: string
+
+enum Color:
+    Red
+    Green
+
+fn colors(left: Color, right: Color) -> bool:
+    left is right  # diagnostic: identity-requires-references
+
+fn users(left: User?, right: User?) -> bool:
+    left is right  # diagnostic: identity-requires-references
+
+fn results(left: Result[User, string], right: Result[User, string]) -> bool:
+    left is right  # diagnostic: identity-requires-references

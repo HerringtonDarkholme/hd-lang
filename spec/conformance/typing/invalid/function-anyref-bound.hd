@@ -1,0 +1,9 @@
+# test: a function type does not implement AnyRef, so generic identity code never receives a function value
+# Spec 05 Identity Operands: expr.is.function.bound; Spec 04: types.sealed.anyval-values.
+fn same[T < AnyRef](left: T, right: T) -> bool:
+    left is right
+
+fn inc(value: i32) -> i32: value + 1
+
+fn compare() -> bool:
+    same(inc, inc)  # diagnostic: unsatisfied-trait-bound

@@ -1,5 +1,5 @@
-# test: a method type parameter bounded by Error implies AnyRef through Error's supertrait, so the trait stays dynamically safe
-# Spec 09 Dynamic Safety: trait.dyn.safe.implied-anyref-param; Spec 04 Dynamic Safety: types.trait.safe.method-type-param-implied (ERR-HELPERS; task #223).
+# test: a method type parameter bounded by Error, whose argument may be an enum, keeps the trait dynamically safe
+# Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param; Spec 04 Dynamic Safety: types.trait.safe.method-type-param.
 use std.error.Error
 
 trait Registry:

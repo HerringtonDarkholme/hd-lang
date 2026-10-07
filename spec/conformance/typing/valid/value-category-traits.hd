@@ -1,6 +1,6 @@
-# test: AnyVal holds primitives, tuples, and newtypes of them; AnyRef holds data, enums, optionals, lists, maps, and newtypes of them
-# Spec 10 Value-Category Traits: module.prelude.any-subtraits, module.prelude.anyref,
-# module.prelude.anyval-types, module.prelude.newtype-category.
+# test: AnyVal holds primitives, tuples, enums, optionals, functions, and newtypes of them; AnyRef holds data, lists, maps, and newtypes of them
+# Spec 10 Value-Category Traits: module.prelude.any-subtraits, module.prelude.anyref-values,
+# module.prelude.anyval-values, module.prelude.newtype-category.
 type Meters(f64)
 type Tags(List[string])
 
@@ -26,9 +26,13 @@ fn categories() -> void:
     _ := by_value((+1, "a"))
     _ := by_value(Meters(2.5))
     _ := by_ref(Parcel { weight: 3 })
-    _ := by_ref(Status.Shipped("Z1"))
+    _ := by_value(Status.Shipped("Z1"))
+    _ := by_value(Status.Queued)
     let tracking: string? = "Z1"
-    _ := by_ref(tracking)
+    _ := by_value(tracking)
+    let outcome: Result[i32, string] = .Ok(1)
+    _ := by_value(outcome)
+    _ := by_value(fn(weight: i32) -> i32: weight + 1)
     _ := by_ref([1, 2])
     _ := by_ref({"a": 1})
     _ := by_ref(Tags(["fragile"]))

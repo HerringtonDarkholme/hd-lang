@@ -1,8 +1,9 @@
 # test: an erased Error recovers its concrete domain error
-# Spec 09 Error Trait: Error extends Inspectable, so an Error value inherits downcast, which
-# recovers the concrete error; a trait value target never matches.
-# Spec 09 Traits: trait.error.defaults, trait.error.complete-reference, trait.error.import, trait.error.no-inspect-import, trait.error.erased, trait.error.downcast, trait.downcast.ordinary.
+# Spec 09 Error Trait: Error extends Inspectable, so downcast_val recovers an enum error from an
+# Error value; the inherited downcast takes a trait value target, which never matches.
+# Spec 09 Traits: trait.error.defaults, trait.error.complete, trait.error.import, trait.error.no-inspect-import, trait.error.erased, trait.error.downcast, trait.downcast.ordinary.
 use std.error.Error
+use std.inspect.downcast_val
 use std.testing.assert_equal
 
 enum FsError:
@@ -26,7 +27,7 @@ impl Display for HttpError:
 impl Error for HttpError
 
 fn missing_path(error: Error) -> string:
-    match error.downcast::[FsError]():
+    match downcast_val::[FsError](error):
         .Some(found) =>
             match found:
                 FsError.NotFound(path) => path

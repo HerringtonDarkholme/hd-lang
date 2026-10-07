@@ -1,0 +1,27 @@
+# test: a method type parameter keeps a trait dynamically safe whatever its bound, in a trait value and in a requirement key
+# Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param, trait.dyn.safe.row-parameter.
+# Spec 04 Dynamic Safety: types.trait.safe.method-type-param; Spec 11: req.key.dynamically-safe.
+
+trait Convert:
+    fn convert[T](self, value: T) -> string
+
+trait Labeler:
+    fn label[T < Display](self, value: T) -> string
+
+trait Scalar < AnyVal
+
+trait Registry:
+    fn lookup[T < Scalar](self, name: string) -> T?
+
+trait Show:
+    fn show[T](self, pair: (fn() -> void $ Console, T)) -> i32
+    fn show_back[T](self, pair: (T, fn() -> void $ Console)) -> i32
+
+trait Codec:
+    fn round_trip[T](self, value: T) -> T
+
+fn values(convert: Convert, labeler: Labeler, registry: Registry, show: Show) -> void:
+    pass
+
+fn sync() -> void $ Codec:
+    pass

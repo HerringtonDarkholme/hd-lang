@@ -1,4 +1,4 @@
-# test: every value of one variant has the same shared data, and identity compares variants
+# test: every value of one variant has the same shared data
 # Spec 08 Shared Fields: data.shared.value-read; Variant Constructors As Function Values: data.enum.fn-value.payload-free.
 # Spec 13 Variant Result Types: gadt.result.declare, gadt.result.shared-data.
 
@@ -14,6 +14,4 @@ tests:
         second := HttpStatus.Moved(target="/b")
         assert_equal(first.code, second.code, reason="per-variant code")
         assert_equal(first.phrase, "Moved", reason="per-variant phrase")
-
-    it("a payload-free variant is canonical and needs no derive for identity"):
-        assert_equal(HttpStatus.Ok is HttpStatus.Ok, true, reason="canonical identity")
+        assert_equal(HttpStatus.Ok.code, 200, reason="a payload-free variant reads its data")
