@@ -110,6 +110,20 @@ pub struct SteppingScheduler { .. }                     // browser: run_for(max_
   Determinism, fuel, cache keys and TIR stay per item; only scheduling
   coarsens. `parallel-speedup` (at least 0.6x per core up to 8 cores)
   and the scheduler overhead are measured in slice 4.
+  - **The numbers behind this (estimates, 2026-10-07).** Bodies in
+    `lib/std` plus the dogfood examples (1,239 bodies): p25 8 tokens,
+    p50 21, p75 50, p90 94, p99 322, mean 43. Half the bodies have 20
+    tokens or fewer but hold only 10% of the tokens; the largest 10%
+    hold 45%. At an assumed 0.5 to 2 µs of checking per token and about
+    1 to 1.5 µs of overhead per scheduled task, a tiny body pays 15 to
+    35% overhead, a median one 5 to 10%, and the whole set about 3 to 4%.
+    So one task per body is not classic steal thrashing (which needs
+    tasks under about 5 µs on average), but it wastes the most where the
+    work is least, and the graph pays per-node bookkeeping. A module's
+    bodies as one adaptive parallel iterator removes that cost and still
+    spreads the few large bodies. Slice 3 measures the checker's µs per
+    token and slice 4 the per-task overhead; the minimum split size is
+    set from those, not from the 0.5 to 1 ms guess above.
 - **Serial.** One ready queue ordered by priority, then creation order.
   It is the `--threads 1` mode and the browser's base. Its `Shuffled` mode
   picks among ready tasks by a seeded random choice, which finds order
