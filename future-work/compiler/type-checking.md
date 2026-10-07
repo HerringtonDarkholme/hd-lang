@@ -664,12 +664,21 @@ trial read no other inference variable from outside itself. The trial
 tracks this: a `find` on a variable older than the trial's checkpoint
 that is not in the key marks the outcome **tainted**, and a tainted
 outcome is not stored. A closure body that reads an outer local whose
-type is still open is the usual cause. A hit costs 1 fuel. With the memo,
-a site under `n` outer candidates sees at most `n` distinct keys, so 20
-nested levels of two candidates cost about 80 trials, not a million
-([trait-solver.md §7.6](trait-solver.md#76-bounded-is-not-linear)). The
+type is still open is the usual cause. A hit costs 1 fuel. The
 memo is per body and never rolled back: its keys name no variable, and
 an untainted outcome depends on nothing else.
+
+**What the memo bounds (Codex re-review N-T7).** The number of trials is
+at most the number of distinct `(site, candidate, canonical context)`
+keys, plus the tainted trials, which are never cached. When the outer
+candidates give an inner call the same expected type, as in the usual
+`From` chain, the keys repeat and nested trials cost sites × candidates.
+When each outer candidate wraps the expected type differently, the
+distinct contexts can double at each level, and the memo gives no
+linear bound. Fuel then ends the check with `item-too-complex`. The
+`pathological` suite has both cases, and a tainted-closure case, and
+checks for the limit diagnostic rather than a speed claim
+([trait-solver.md §7.6](trait-solver.md#76-bounded-is-not-linear)).
 
 **Unavailable traits.** A `Methods` answer also lists traits that are
 not available but would match (change 10). The checker uses the list
@@ -1992,7 +2001,8 @@ Other limits each have their own diagnostic (D1 §4.15):
 | a list literal of 100,000 elements | quadratic LCT or literal grouping | the LCT fold is linear; literal classes are union-find, O(n α) |
 | a 10,000-arm literal match | quadratic usefulness | the one-column fast path is linear |
 | wide tuple patterns with nested enums | exponential usefulness | fuel per cell; `match-too-complex` |
-| nested instantiation choices, `a.add(b.add(c.add(...)))` | trials multiply | the head prefilter; arguments inferred once outside trials; the per-site trial memo, so cost is sites × candidates; fuel |
+| nested instantiation choices, `a.add(b.add(c.add(...)))` | trials multiply | the head prefilter; arguments inferred once outside trials; the per-site trial memo, so cost is sites × candidates when contexts repeat; fuel |
+| nested choices whose outer candidates give distinct expected types; a tainted closure argument | contexts double per level; tainted trials are never cached | fuel only: `item-too-complex`, which the case expects (section 2.5) |
 | a type that grows on each step, `List[List[...]]` built by inference | memory | type size limit at `mk` |
 | many obligations waiting on one variable | quadratic waking | watch edges; each obligation is queued at most once per wake round |
 | a long chain of private functions in M1 | native recursion | the explicit M1 stack |

@@ -418,19 +418,23 @@ The solver is designed in [trait-solver.md](trait-solver.md). In short:
   trait's heads from the `heads` sections of every folder interface,
   derived, generated and delegated heads and tuple templates included.
 - **Near-linear, not pairwise (change 14, review T6).** Numeric-family
-  heads expand to their members first. Ground heads go into a hash set;
-  generic heads go into a discrimination tree, a trie over the head's
-  pre-order walk with impl parameters as wildcards. Each head queries the
-  tree and the set before it is inserted, and each candidate pair is
-  confirmed by unification after renaming apart
-  ([trait-solver.md §5.2](trait-solver.md#52-the-overlap-check)). Disjoint
-  heads cost time linear in their total size, not one check per pair.
+  heads expand to their members first. All ground heads go into a hash
+  set and a ground trie first. Then each generic head, in content order,
+  queries the generic trie (a discrimination tree with impl parameters as
+  wildcards) and the ground trie before it is inserted, so the result
+  does not depend on source order (Codex re-review N-T6). Each candidate
+  pair is confirmed by unification after renaming apart
+  ([trait-solver.md §5.2](trait-solver.md#52-the-overlap-check)). Heads
+  that differ at a constructor cost time linear in their total size,
+  not one check per pair.
 - An overlap is reported once, at the later impl in content order
-  (package, module path, offset), naming the earlier one and a **witness**
+  (package, module path, item index), naming the earlier one and a **witness**
   type that both heads match, such as "both apply to `Box[Plain]`".
   The task stops after the first overlap per impl.
 - The task's key is the trait's stable path plus the sorted head hashes,
-  so it is cached and reruns only when a head of that trait changes. Its
+  so it is cached and reruns only when a head of that trait changes. A
+  head hash covers the head and its content rank, since the rank picks
+  the reported impl (trait-solver.md §5.3). Its
   spans are relative to their declaration (review A3).
 - `hd check` runs coherence over the whole graph, not only at link time
   ([`module.interface.coherence`](../../spec/lang/10-modules.md#r-module.interface.coherence)).

@@ -417,7 +417,7 @@ pub struct ImplTable {                     // per module, SoA, frozen with its f
     pub plan: Box<[PlanRange]>,            // the bound plan (section 3.6)
     pub assoc: Box<[AssocRange]>,          // associated-type bindings, by associated item DefId
     pub origin: Box<[ImplOrigin]>,         // Written | Derived { template } | Delegated { field } | Error | NumericFamily | TupleTemplate
-    pub rank: Box<[u64]>,                  // content rank: (module path rank, source position); the sort key
+    pub rank: Box<[u64]>,                  // content rank: (module path rank, item index in source order); the sort key
     pub by_trait: HashMap<DefId, (u32, u32)>,  // an index into the sorted rows
 }
 pub enum HeadKey { Ctor(DefId), Prim(Prim), Tuple(u16), TupleAny, Fn, SuspendFn, Param, Any }
@@ -435,9 +435,12 @@ Rows are sorted by `(trait rank, head key, arg key, rank)`. A probe for
 4. Match the survivors' heads (section 3.4).
 
 **Fast path (mine, after MoonBit).** A non-generic trait (`Display`, `Eq`,
-`Hash`, `Debug`) with a known self constructor has at most one row per
-head key in all owner modules together. The probe is one binary search per
-owner module, and the global memo makes the second probe free. In
+`Hash`, `Debug`) with a known self constructor usually has one row per
+head key in all owner modules together. It may have more: `Tr for
+Box[i32]` and `Tr for Box[string]` share the head key `Box`. So the probe
+is one binary search per owner module, and then a match of every row in
+the bucket (Codex re-review N-T6). The global memo makes the second probe
+free. In
 practice most goals of a body take this path.
 
 ### 3.4 Matching A Head
@@ -826,26 +829,36 @@ replaces it with a near-linear algorithm (mine):
    in the graph, in content order. Derived, generated and delegated heads
    and tuple templates are among them (section 3.11).
 2. **Expand** numeric-family heads to one head per member type.
-3. **Ground heads** (no impl parameter): encode each head canonically and
-   insert it into a hash set. A second equal head is an overlap. Linear.
-4. **Generic heads**: insert each into a **discrimination tree**, a trie
-   over the head's pre-order walk in which an impl parameter is a
-   wildcard. Before inserting a head, query the tree for stored heads
-   that unify with it, and query the ground set by walking the head's
-   wildcard positions against the ground heads' trie. A row parameter
+3. **Phase one, ground heads** (no impl parameter), every one before any
+   generic head: encode each head canonically and insert it into a hash
+   set, where a second equal head is an overlap, and into a **ground
+   trie** over the head's pre-order walk.
+4. **Phase two, generic heads**, in content order: before inserting a
+   head into the **generic trie** (a discrimination tree in which an impl
+   parameter is a wildcard), query the generic trie for stored heads that
+   may unify with it, and walk its wildcard positions through the ground
+   trie. Every ground head is already in the ground trie, so a generic
+   head meets every ground head and every earlier generic head, whichever
+   came first in the source (Codex re-review N-T6). A row parameter
    matches every row; `Args < Tuple` matches every tuple; `TupleAny`
    matches every tuple head.
 5. **Confirm** each candidate pair with full unification after renaming
-   apart, and report it once, on the later impl in content order
-   (package, module path, offset). The message names the earlier impl and
-   a **witness**: the unifier's solution applied to the head, such as
-   "both apply to `Box[Plain]`".
+   apart. The tries treat each parameter occurrence as its own wildcard,
+   so a head with a repeated parameter, such as `Pair[T, T]`, yields
+   candidates that only unification can reject. Report a pair once, on
+   the later impl in content order (package, module path, item index).
+   The message names the earlier impl and a **witness**: the unifier's
+   solution applied to the head, such as "both apply to `Box[Plain]`".
 6. **Budget.** The task counts trie nodes visited and stops after the
    first overlap reported per impl, so an all-overlapping bucket costs one
    report per impl, not one per pair.
 
-Cost: linear in the total head size for disjoint heads, which is the
-normal case, and linear in the reported overlaps otherwise. 300 `From`
+Cost: linear in the total head size plus the candidate pairs the tries
+return. For heads that differ at a constructor, which is the normal
+case, the tries return no false candidates. Repeated parameters can add
+candidates that unification rejects; the trie-node budget of step 6
+bounds them, and the `pathological` suite measures them. This is not a
+proof of linearity. 300 `From`
 impls for one error type differ at the first trait argument, so the trie
 separates them at its second level.
 
@@ -857,7 +870,13 @@ separates them at its second level.
   rare argument-owned impls.
 - **Coherence needs a per-trait view, not a global one.** Each trait is
   one task keyed by its sorted head hashes, so an edit reruns only the
-  traits whose heads changed.
+  traits whose heads changed. A **head hash** is `H(head, rank)`: the
+  head's canonical encoding (its parameters, target and trait
+  arguments) and its content rank (package, module path, item index).
+  The rank decides which impl of a pair is reported, so it must be an
+  input: swapping two overlapping impls changes both ranks, and the task
+  reruns instead of reusing a report on the wrong impl (Codex re-review
+  N-D1).
 - **A global index would be a shared mutable structure** built as folders
   finish, and its state at a given moment would depend on the schedule.
   The owner tables are frozen with their folder, so a body can solve
@@ -1217,7 +1236,7 @@ near-linear; these are they, each with the input it is linear in:
 | canonicalization | one walk of the goal, charged one step per node | goal size |
 | normalization | one memoized `Project` per projection | distinct projections |
 | instantiation choice | prefilter candidates by the head of each known argument type before any trial (change 7); one trial per surviving candidate | surviving candidates |
-| nested trial chains | a per-call-site trial memo keyed by the canonical expected type and the canonical argument types (mine; change 8). A site under `n` outer candidates sees at most `n` distinct expected types, so 20 nested levels of 2 candidates cost about 80 trials, not a million | sites × candidates per site |
+| nested trial chains | a per-call-site trial memo keyed by the canonical expected type and the canonical argument types (mine; change 8). It removes repeats only: when outer candidates give an inner site the same context, trials cost sites × candidates; when they give distinct contexts, the count can grow exponentially, and fuel ends it with `item-too-complex` (Codex re-review N-T7) | distinct trial contexts, plus tainted trials |
 | obligations | each obligation is queued once per wake round, deduplicated by index; a retry is charged its goal's size | obligations × bindings of their variables |
 
 The `pathological` suite checks the scaling claims, not only the limits:
@@ -1488,7 +1507,9 @@ implements `Source[i32]` and `Source[string]`".
 
 - Candidates, `Many` lists, `near` lists and coherence reports are ordered
   by each impl's content `rank`: its module's rank in stable-path order,
-  then its source position. `rank` is computed when the interface is
+  then its item index in source order. An item index, unlike a byte
+  offset, does not move when a body above the impl is edited, so the
+  interface that stores it stays valid. `rank` is computed when the interface is
   built, so sorting never compares paths at solve time, and never uses a
   `DefId`.
 - Elaborated clauses are in declaration order, supertraits depth first in

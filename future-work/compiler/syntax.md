@@ -230,8 +230,8 @@ pub struct NodeRef<'t> { tree: &'t GreenTree, idx: NodeIdx }
 ### 4.5 Header Extraction And The API Text Hash
 
 Each skeleton carries an **api text hash** (mine, as a cache key input):
-the hash of the token kinds and texts of everything that can change its
-folder's interface:
+the hash of the token kinds and texts, and the layout tokens, of
+everything that can change its folder's interface:
 
 - every `use` and `pub use` line, except test-only ones, since names in
   signatures resolve through them;
@@ -244,6 +244,18 @@ folder's interface:
 
 Left out: function bodies, `tests:` blocks, top-level statements, comments,
 doc comments and whitespace.
+
+**Layout is hashed (Codex re-review N-A3).** Indentation is syntax.
+Moving a kept template statement from inside an `if` to after it changes
+no token kind or text, yet it changes the template's control flow. So
+the hash does not read the raw `TokenBuf`. It reads the green tree's
+token sequence for each kept range: the real tokens, with their kinds
+and texts, and the virtual layout tokens that the layout cursor produced
+(`Newline`, `Indent`, `Dedent`, `SuiteEnd`, section 4.2), in parse order.
+Whitespace and comments stay out. Since `Indent` and `Dedent` are
+relative, shifting a whole declaration's indentation changes nothing. A
+syntax test checks two template bodies with equal lexical tokens and
+different block structure: their hashes differ.
 
 Hidden template helpers are no exception. A private function that a
 template body names has a written result type, and its omitted `$`
