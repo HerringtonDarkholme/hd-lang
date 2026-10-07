@@ -389,10 +389,10 @@ choices of type-checking.md §17 are below.
 | --- | --- | --- |
 | `LocalGet` | a: local | the local's type, as a readonly view when the binding is readonly |
 | `LocalSet` | a: local, b: value | `void`; the value's type equals the local's |
-| `GlobalGet` | a: `DefId` of a top-level binding | the binding's type |
-| `GlobalSet` | a: `DefId`, b: value | `void`; only in init bodies and for mutable top-level bindings |
-| `ItemRef` | a: `DefId`, b: `[type arguments]` | the item's function type, instantiated (functions, variant constructors, method references) |
-| `ProviderGet` | a: key type | the key's provider type (`$.use(K)`) |
+| `GlobalGet` | a: `[binding DefId]` | the binding's type |
+| `GlobalSet` | a: `[binding DefId]`, b: value | `void`; only in init bodies and for mutable top-level bindings |
+| `ItemRef` | a: `[item DefId]`, b: `[type arguments]` | the item's function type, instantiated (functions, variant constructors, method references) |
+| `ProviderGet` | a: `[key type]` | the key's provider type (`$.use(K)`) |
 | `Hole` | a: expected type | the expected type; only in a module with errors |
 | `Poison` | none | poison; only in a module with errors |
 
@@ -460,7 +460,11 @@ D1's "readonly view" kind is `Weaken`, since the spec's marked form is
 
 A **callee record** is one of `Item(DefId, type arguments)` and
 `TraitMethod(trait, method, self type, type arguments, choice)`. The
-**choice** is two words: a kind, and a
+`TraitMethod` record has one `targs` list, not separate trait and method
+lists. That list contains the trait declaration's arguments first, in
+declaration order, followed by the method's own type arguments; the
+interface supplies the split point from the trait's generic count
+(**M4a gap 1**). The **choice** is two words: a kind, and a
 full 32-bit value. An earlier draft packed both into one word with a
 30-bit value, which cannot hold a `DefId` interned by owner thread 32
 or above (Codex re-review N-I3; data-structures.md §3.3):
@@ -521,7 +525,7 @@ it (§14.2).
 | --- | --- | --- |
 | `NewData` | b: `[field values]` in declaration order | the data type in `ty` |
 | `CopyData` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals and part copies; every part not replaced is copied too ([`data.part.copy-update`](../../spec/lang/08-data-and-enums.md#r-data.part.copy-update)) |
-| `NewVariant` | a: variant `DefId`, b: `[payload values]` | the enum type in `ty` |
+| `NewVariant` | a: variant declaration index, b: `[payload values]` | the enum type in `ty` |
 | `NewTuple` | b: `[elements]` | the tuple type |
 | `NewList` | b: `[elements, spread bits]` | `List[T]` |
 | `NewMap` | b: `[key, value pairs]` | `Map[K, V]` |
@@ -565,10 +569,10 @@ record). Ordinary cleanup and cancellation therefore share one source.
 | Tag | Operands | Type rule |
 | --- | --- | --- |
 | `Match` | a: scrutinee, b: `[decision Block, arm Blocks]` | the join of the arms |
-| `SwitchTag` | a: an enum or `Option` value, b: `[(variant, Block) cases, default Block or NONE]` | `never`: inside a decision tree, every path ends in `ToArm` or `Unreachable` |
+| `SwitchTag` | a: an enum or `Option` value, b: `[(variant declaration index, Block) cases, default Block or NONE]` | `never`: inside a decision tree, every path ends in `ToArm` or `Unreachable` |
 | `SwitchInt`, `SwitchChar` | a: value, b: `[(constant or range, Block) cases, default]` | as `SwitchTag` |
 | `SwitchStr` | a: value, b: `[(constant, Block) cases, default]` | as `SwitchTag` |
-| `Payload` | a: a value switched to a variant, b: `[variant, field]` | the payload field's type |
+| `Payload` | a: a value switched to a variant, b: `[variant declaration index, field]` | the payload field's type |
 | `Unwrap` | a: an `Option` value switched to `.Some` | the inner type |
 | `Guard` | a: condition `Block`, b: `[arm, fail Block]` | `never`; the fail block continues with the remaining rows |
 | `ToArm` | a: arm number | `never`; the leaf has already bound the arm's locals with `LocalSet` |
@@ -576,6 +580,18 @@ record). Ordinary cleanup and cancellation therefore share one source.
 The checker emits each arm's `Block` while it checks the arm, then builds
 the decision tree after exhaustiveness and emits it as these switch
 instructions. Shared arms appear once.
+
+**Wire-visible identities (M4a gap 3).** `NewVariant`, `SwitchTag` and
+`Payload` identify a variant by its declaration index within the enum,
+not by `DefId`; the enclosing value or result type identifies the enum.
+The run IDs used by `ProviderGet`, `ItemRef`, `GlobalGet`, `GlobalSet`,
+`DefaultCall` and `With` live in their `extra` records: respectively a
+key type; an item `DefId` plus a separate type-argument list; a binding
+`DefId`; a default-body `DefId` plus type arguments; and `(key type,
+provider)` pairs. The two fixed instruction data words hold only record
+offsets, values or declaration indices. This is required because the TIR
+wire writer remaps typed words in `extra`; it never guesses whether an
+ordinary data word is a run ID.
 
 ##### What The Checker Desugars
 

@@ -641,6 +641,14 @@ A worklist walk, as rustc's collector does:
    operation needs, and every fact getter the instance calls (§12.3).
 9. Repeat until the worklist is empty.
 
+**Body-less intrinsic impls (M4a gap 6).** A body-less impl method in a
+compiler-known intrinsic family has no TIR body and therefore no body or
+cache lookup. When collection selects it, it maps the intrinsic key plus
+the substituted self and trait arguments to the compiler-generated body
+and continues the same worklist from that body. A body-less method that
+has no registered intrinsic mapping is an internal unsupported case; it
+must not silently disappear from the reachable program.
+
 **A1 at collection (lowering pass; default adopted, decided by E1 and
 S1).** Each generic item carries a **representation summary** per type
 parameter, computed at check time and stored with its TIR, so the item's

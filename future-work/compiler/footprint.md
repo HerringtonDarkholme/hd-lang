@@ -2,7 +2,7 @@
 
 Part of the [compiler design](README.md).
 
-Status: report, 2026-10-07, after M3 (`20ea6342`). One row per
+Status: report, 2026-10-07, after M4a (`037cd289`). One row per
 design-doc section: where its code is and how far it goes. **Real**: the
 structure or algorithm the section designs is implemented and tested,
 possibly over the subset. **Skeleton**: its types and entry points exist
@@ -12,11 +12,11 @@ implemented". **Missing**: no code yet. Paths are crates under
 that hold no code by nature (prior art, estimates, owner questions,
 change lists) count as missing, which is most of the missing rows of
 type-checking.md, trait-solver.md, live-execution.md and tiering.md.
-The stage counts on `lib/std` are in
+The original stage counts on `lib/std` are in
 [skeleton-findings.md](skeleton-findings.md#architecture-skeleton-findings).
-M3 changes no category counts. It extends the resolution, interface,
-trait and diagnostic skeletons, while their remaining contracts keep them
-below real.
+M4a checks all 37 std modules and 1,080 bodies to verified TIR. A row is
+still only real for the implemented subset: the known M4a gaps below keep
+their affected sections at skeleton or missing.
 
 ## Totals
 
@@ -25,9 +25,9 @@ below real.
 | [data-structures.md](data-structures.md) | 8 | 14 | 3 | 25 |
 | [syntax.md](syntax.md) | 5 | 1 | 0 | 6 |
 | [resolution-and-interfaces.md](resolution-and-interfaces.md) | 1 | 5 | 0 | 6 |
-| [checking-and-tir.md](checking-and-tir.md) | 0 | 3 | 0 | 3 |
-| [type-checking.md](type-checking.md) | 6 | 17 | 38 | 61 |
-| [trait-solver.md](trait-solver.md) | 9 | 12 | 37 | 58 |
+| [checking-and-tir.md](checking-and-tir.md) | 1 | 2 | 0 | 3 |
+| [type-checking.md](type-checking.md) | 27 | 17 | 17 | 61 |
+| [trait-solver.md](trait-solver.md) | 14 | 10 | 34 | 58 |
 | [cache.md](cache.md) | 4 | 4 | 1 | 9 |
 | [scheduler.md](scheduler.md) | 2 | 3 | 0 | 5 |
 | [codegen.md](codegen.md) | 2 | 11 | 9 | 22 |
@@ -38,7 +38,7 @@ below real.
 | [commands.md](commands.md) | 3 | 5 | 7 | 15 |
 | [live-execution.md](live-execution.md) | 3 | 2 | 35 | 40 |
 | [tiering.md](tiering.md) | 3 | 2 | 26 | 31 |
-| all | 52 | 99 | 173 | 324 |
+| all | 79 | 96 | 149 | 324 |
 
 ### M3 Corrections
 
@@ -49,6 +49,23 @@ diagnostics, trait defaults, zero-copy reads and declaration anchors are
 missing. Trait coherence also remains a skeleton because its pairwise
 implementation does not have the designed trie cost.
 
+### M4a Corrections
+
+Body checking moves checking-and-tir.md §4.13 from skeleton to real for
+the std-backed subset. In type-checking.md, §1.1, §2.1 to §2.5, §3.6 and
+§4.2 move from skeleton to real; §2.7, §2.8, §4.1, §4.3, §4.4, §5.2,
+§5.3, §6.2, §7.1 to §7.3, §8.3 and §8.4 move from missing to real; and
+§2.6, §5.4, §5.7, §8.1, §8.2, §10.1, §10.3 and §14.2 move from missing
+to skeleton. Closure-row inference, full mutability enforcement and
+`SuspRow` records keep their affected sections partial.
+
+In trait-solver.md, §1.1, §3.1, §3.4, §3.6 and §7.4 move from skeleton
+to real; §3.5, §6.4 and §14.2 move from missing to skeleton. The table
+solver matches generic heads and recursively checks bound plans, but
+projection, `Instantiations` and `Methods` goals remain unimplemented.
+No other category changes. The footprint also corrects the scheduler
+row: the unified executor does not catch panics at task boundaries.
+
 ## Sections
 
 | Section | Code path | Status |
@@ -56,7 +73,7 @@ implementation does not have the designed trie cost.
 | data-structures.md §3.1 IDs And Their Scopes | hd_base (`id!`, IDs, `NONE`) | real |
 | data-structures.md §3.2 Stable Paths And Stable Hashing | hd_intern::paths (`PathTable`), hd_base::stable | real |
 | data-structures.md §3.3 Interners | hd_intern (`ShardedInterner`, `PathTable`) | skeleton |
-| data-structures.md §3.4 Types | hd_types::pool (`TyData`, `InternPool`, rows); no body-local pool, inference variables use the global pool and one global mutex, checker unused | skeleton |
+| data-structures.md §3.4 Types | hd_types::pool (`TyData`, `InternPool`, rows), used by all std body checks; no body-local pool, and inference variables use the global pool and one global mutex | skeleton |
 | data-structures.md §3.5 Arenas And Lifetimes | none | missing |
 | data-structures.md §3.6 The Poison Type | hd_types (`Ty::POISON`, `HAS_POISON`, unifier) | real |
 | data-structures.md §3.7 Spans And Files | hd_base (`Span`) | real |
@@ -87,60 +104,60 @@ implementation does not have the designed trie cost.
 | resolution-and-interfaces.md §4.7 Discovery, Module Identity And Folders | hd_project (`ModuleTable::discover`, `SourceSet`, manifest), used by the one driver | skeleton |
 | resolution-and-interfaces.md §4.8 Folder Graph | hd_project (`FolderGraph`: order, cycles, closures, heights), used by the one driver | real |
 | resolution-and-interfaces.md §4.9 Name Resolution | hd_resolve (`ModuleScope`, use worklist, prelude bindings and lookups) resolves every std header; cross-folder private names remain indistinguishable from absent names | skeleton |
-| resolution-and-interfaces.md §4.10 Folder Interface Construction | hd_resolve lowers every std header and `Universe::stage_b` runs; derived heads and declared trait defaults remain incomplete | skeleton |
+| resolution-and-interfaces.md §4.10 Folder Interface Construction | hd_resolve lowers every std header and `Universe::stage_b` runs; the checker completes implicit projection arguments, while derived heads and declared generic defaults remain incomplete | skeleton |
 | resolution-and-interfaces.md §4.11 The Interface Blob | hd_resolve::iface codec round-trips canonical bytes across fresh runs and shuffled orders; no zero-copy reader, private-name index or declaration anchors | skeleton |
 | resolution-and-interfaces.md §4.12 Traits, Impls And Coherence | hd_resolve::Universe runs stage B and generic-head overlap; coherence is pairwise rather than trie-based | skeleton |
-| checking-and-tir.md §4.13 Body Checking | hd_check::BodyCx over hd_types, the solver and hd_tir::TirBuilder; unsupported forms stop the build | skeleton |
+| checking-and-tir.md §4.13 Body Checking | hd_check::BodyCx checks all 37 std modules and 1,080 bodies through inference, rows, usefulness, initialization and verified hd_tir::Body output; non-std forms can remain unsupported | real |
 | checking-and-tir.md §4.14 Diagnostics | every running stage uses hd_diag::DiagBuf and the generated complete Code enum; interface and package findings still use placeholder spans | skeleton |
 | checking-and-tir.md §4.15 Limits | hd_base::Fuel is charged by the checker and solver; limit diagnostics remain incomplete | skeleton |
-| type-checking.md §1.1 Who Owns What | hd_check, hd_types and hd_tir are wired, with unsupported cases | skeleton |
+| type-checking.md §1.1 Who Owns What | hd_check owns checking, hd_types owns inference and solving, and hd_tir owns construction and verification on the full std corpus | real |
 | type-checking.md §1.2 Inputs | hd_check::BodyCx reads hd_resolve items and the full green tree incompletely | skeleton |
 | type-checking.md §1.3 Outputs | hd_tir::ir bodies plus hd_diag::DiagBuf, for the supported slice | skeleton |
 | type-checking.md §1.4 The Type Accessor API | hd_types::pool (`get`, `intern_ty`), used by the partial checker | skeleton |
 | type-checking.md §1.5 What The Checker Needs From The TIR Builder | hd_tir::ir (`TirSink`, `TirBuilder`) | real |
 | type-checking.md §1.6 The Trait Solver Interface | hd_types::solver (`Solver`, `SolveCx`) | skeleton |
 | type-checking.md §1.7 Body Tasks And The Exactly-Once Rule | hd_driver has one `Body(m)` task and one result slot per module; body-level parallel iteration is absent | skeleton |
-| type-checking.md §2.1 Modes | hd_check::body (subset) | skeleton |
-| type-checking.md §2.2 Expression Forms | hd_check::body (subset) | skeleton |
-| type-checking.md §2.3 Statements And Blocks | hd_check::body (subset) | skeleton |
-| type-checking.md §2.4 Calls And Use-Site Type Arguments | hd_check::body (subset) | skeleton |
-| type-checking.md §2.5 Methods And Operators | hd_check::body (subset) | skeleton |
-| type-checking.md §2.6 Closures | none | missing |
-| type-checking.md §2.7 When Variables Are Resolved | none | missing |
-| type-checking.md §2.8 Empty Collections | none | missing |
+| type-checking.md §2.1 Modes | hd_check::body bidirectional infer/check paths over the std-backed subset | real |
+| type-checking.md §2.2 Expression Forms | hd_check::expr carries every expression form used by std | real |
+| type-checking.md §2.3 Statements And Blocks | hd_check::body carries std statements, structured exits, scopes and defer | real |
+| type-checking.md §2.4 Calls And Use-Site Type Arguments | hd_check::call handles generic, default, named, vararg, suspending and function-value calls | real |
+| type-checking.md §2.5 Methods And Operators | hd_check::call resolves inherent, trait and built-in methods and operators for std | real |
+| type-checking.md §2.6 Closures | hd_check checks closure bodies and captures; closure requirement rows are not inferred | skeleton |
+| type-checking.md §2.7 When Variables Are Resolved | hd_check postpones calls and bounds, defaults literal classes, then zonks body types once | real |
+| type-checking.md §2.8 Empty Collections | hd_check::expr creates typed empty list and map values, including comprehension lowering | real |
 | type-checking.md §3.1 Variables | hd_types::unify (`VarKind`) | real |
 | type-checking.md §3.2 Union-Find | hd_types::unify (`InferTable`) | real |
 | type-checking.md §3.3 The Occurs Check | hd_types::unify (occurs check) | real |
 | type-checking.md §3.4 No Levels, No Generalization | hd_types::unify | real |
 | type-checking.md §3.5 The Trail And The One Rollback Contract | hd_types::unify (trail, `rollback`), hd_tir::ir (`checkpoint`) | real |
-| type-checking.md §3.6 Literal Widths | hd_types::unify (literal kinds) | skeleton |
-| type-checking.md §4.1 Coercion Sites And Order | none | missing |
-| type-checking.md §4.2 Coercion Instructions | hd_tir::ir (`Coercion`) | skeleton |
-| type-checking.md §4.3 Least Common Type | none | missing |
-| type-checking.md §4.4 Propagation | none | missing |
+| type-checking.md §3.6 Literal Widths | hd_types::unify literal classes plus hd_check defaulting and range diagnostics | real |
+| type-checking.md §4.1 Coercion Sites And Order | hd_check::body and call apply coercions at arguments, results, arms and assignments | real |
+| type-checking.md §4.2 Coercion Instructions | hd_check emits hd_tir::ir::Coercion records explicitly | real |
+| type-checking.md §4.3 Least Common Type | hd_check joins branch and arm values for the supported forms | real |
+| type-checking.md §4.4 Propagation | hd_check lowers `?` to variant switches, conversion and return | real |
 | type-checking.md §5.1 Representation | hd_types::pool (`RowData`) | skeleton |
-| type-checking.md §5.2 Available Keys, Providers And `$.use` | none | missing |
-| type-checking.md §5.3 Call Checking | none | missing |
-| type-checking.md §5.4 Closure Rows | none | missing |
+| type-checking.md §5.2 Available Keys, Providers And `$.use` | hd_check::call and expr track available providers and emit `ProviderGet`/`With` | real |
+| type-checking.md §5.3 Call Checking | hd_check checks written rows and reports `missing-requirement` | real |
+| type-checking.md §5.4 Closure Rows | closure bodies carry rows, but the checker does not infer closure rows | skeleton |
 | type-checking.md §5.5 Private Rows And The M3 Fixpoint | none | missing |
 | type-checking.md §5.6 Row Patterns And Least Solutions | none | missing |
-| type-checking.md §5.7 Suspension | none | missing |
+| type-checking.md §5.7 Suspension | hd_check checks bang calls and emits await tags, but writes no `SuspRow` side records | skeleton |
 | type-checking.md §5.8 The Direct `block_on` And `println` Ban | none | missing |
 | type-checking.md §6.1 Arm-Local Equalities | none | missing |
-| type-checking.md §6.2 Tuples, Varargs And Spreads | none | missing |
-| type-checking.md §7.1 Pattern Typing | none | missing |
-| type-checking.md §7.2 Usefulness | none | missing |
-| type-checking.md §7.3 `let` Patterns And `let-else` | none | missing |
-| type-checking.md §8.1 Access Types And Bindings | none | missing |
-| type-checking.md §8.2 Mutation Checks | none | missing |
-| type-checking.md §8.3 Local Flags | none | missing |
-| type-checking.md §8.4 Definite Initialization | none | missing |
+| type-checking.md §6.2 Tuples, Varargs And Spreads | hd_check checks tuple construction and access, vararg packing and positional spreads | real |
+| type-checking.md §7.1 Pattern Typing | hd_check::pat checks binding, literal, tuple, data, enum, option and result patterns | real |
+| type-checking.md §7.2 Usefulness | hd_check::pat runs usefulness for exhaustiveness and unreachable arms, then emits a decision tree | real |
+| type-checking.md §7.3 `let` Patterns And `let-else` | hd_check::body and pat check let patterns and divergent let-else suites | real |
+| type-checking.md §8.1 Access Types And Bindings | hd_check carries binding forms and rejects `mut` on primitives and tuples; transparent `mut` unification leaves `mutable-upgrade` and `redundant-let-mut` absent | skeleton |
+| type-checking.md §8.2 Mutation Checks | local reassignment runs, but `mutable-receiver-required` and `readonly-argument-to-mutable-parameter` are absent | skeleton |
+| type-checking.md §8.3 Local Flags | hd_check and TirBuilder record read, assigned, mutated and capture flags and finish capture modes | real |
+| type-checking.md §8.4 Definite Initialization | hd_check::init combines top-level reads and calls and diagnoses direct read-before-initialization; dispatch edges remain absent | real |
 | type-checking.md §9.1 Who Can Omit | none | missing |
 | type-checking.md §9.2 The M1 Walk | none | missing |
 | type-checking.md §9.3 Cost | none | missing |
-| type-checking.md §10.1 Errors Are Values | none | missing |
+| type-checking.md §10.1 Errors Are Values | hd_check emits diagnostics and carries poison/never through later checks; recovery is incomplete | skeleton |
 | type-checking.md §10.2 Poison | hd_types (poison unifies with all) | skeleton |
-| type-checking.md §10.3 One Diagnostic Per Root Cause | none | missing |
+| type-checking.md §10.3 One Diagnostic Per Root Cause | hd_check suppresses several poison and never cascades, without the full designed cause graph | skeleton |
 | type-checking.md §10.4 Typed Holes | none | missing |
 | type-checking.md §10.5 Fix-Its For Common Mistakes | none | missing |
 | type-checking.md §11.1 What Counts | hd_base::Fuel | skeleton |
@@ -149,23 +166,23 @@ implementation does not have the designed trie cost.
 | type-checking.md §12 Determinism And Parallelism | none | missing |
 | type-checking.md §13 Checker Data Structures | hd_types::unify, hd_tir::ir | skeleton |
 | type-checking.md §14.1 Spec Traceability | none | missing |
-| type-checking.md §14.2 Test Kinds | none | missing |
+| type-checking.md §14.2 Test Kinds | hd_driver checker tests cover the std corpus, diagnostics and four golden TIR bodies; property, pathological and full determinism matrices remain | skeleton |
 | type-checking.md §15 Prototype Failures And The Rules That Prevent Them | none | missing |
 | type-checking.md §16.1 Readings Of The Spec To Confirm | none | missing |
 | type-checking.md §16.2 Inconsistencies Found | none | missing |
 | type-checking.md §17 Changes Needed In COMPILER_DESIGN.md | none | missing |
-| trait-solver.md §1.1 Who Owns What | hd_types::solver | skeleton |
+| trait-solver.md §1.1 Who Owns What | hd_types::solver owns table solving; hd_check supplies body-local state and consumes answers | real |
 | trait-solver.md §1.2 The Four Goals | hd_types::solver (`Goal`) | real |
 | trait-solver.md §1.3 Entry Points | hd_types::solver (`Solver` trait) | skeleton |
 | trait-solver.md §2.1 Trait References | hd_types::solver (`TraitRef`), pool (`Assoc`) | real |
 | trait-solver.md §2.2 Canonical Goals | hd_types::solver (`CanonGoal`, `canonicalize`, `Scope`) | real |
 | trait-solver.md §2.3 The Parameter Environment | hd_types::solver (`ParamEnv`, `elaborate`) | skeleton |
-| trait-solver.md §3.1 Where Candidates Come From | hd_types::solver (`ImplTable::candidates`) | skeleton |
+| trait-solver.md §3.1 Where Candidates Come From | hd_types::solver (`ImplTable::candidates`) supplies sorted candidates from each closure table | real |
 | trait-solver.md §3.2 Owner Modules | hd_types::solver (`ImplUniverseId`, `ImplUniverses`) | real |
 | trait-solver.md §3.3 The Head Index | hd_types::solver (`HeadKey`) | real |
-| trait-solver.md §3.4 Matching A Head | hd_types::solver (`MatchResult`) | skeleton |
-| trait-solver.md §3.5 Committing | none | missing |
-| trait-solver.md §3.6 Bounds As Subgoals | hd_types::solver (`PlanStep`) | skeleton |
+| trait-solver.md §3.4 Matching A Head | hd_types::solver recursively matches generic impl heads and learns bare goal arguments | real |
+| trait-solver.md §3.5 Committing | TableSolver commits the first coherent matching head; detailed failure chains and all goal kinds remain absent | skeleton |
+| trait-solver.md §3.6 Bounds As Subgoals | TableSolver substitutes a matched head into its plan and solves bound steps recursively | real |
 | trait-solver.md §3.7 Supertraits | none | missing |
 | trait-solver.md §3.8 What A Goal May Teach The Checker | none | missing |
 | trait-solver.md §3.9 Compiler-Supplied Impls | none | missing |
@@ -182,12 +199,12 @@ implementation does not have the designed trie cost.
 | trait-solver.md §6.1 Depth First, On An Explicit Stack | hd_types::solver (`Frame`) | skeleton |
 | trait-solver.md §6.2 The Search Graph | none | missing |
 | trait-solver.md §6.3 Cycles | none | missing |
-| trait-solver.md §6.4 Stalling | none | missing |
+| trait-solver.md §6.4 Stalling | TableSolver returns `Stalled` on open self structure; watch edges and the complete wake protocol remain checker-local | skeleton |
 | trait-solver.md §6.5 Ambiguity | hd_types::solver (`Candidate`) | skeleton |
 | trait-solver.md §7.1 Memo Keys And Eligibility | hd_types::solver (`MemoKey`, `GlobalMemo`, `BodyMemo`, `MemoEntry`) | real |
 | trait-solver.md §7.2 Depth Is Charged From The Use | none | missing |
 | trait-solver.md §7.3 Heights And Lower Bounds | none | missing |
-| trait-solver.md §7.4 Fuel | hd_base::Fuel | skeleton |
+| trait-solver.md §7.4 Fuel | TableSolver charges hd_base::Fuel at every recursive goal and returns `OutOfFuel` | real |
 | trait-solver.md §7.5 Limits And Their Diagnostics | none | missing |
 | trait-solver.md §7.6 Bounded Is Not Linear | none | missing |
 | trait-solver.md §8.1 What A `Holds` Answer Carries | hd_types::solver (`Evidence`, `BuiltinImpl`) | real |
@@ -205,7 +222,7 @@ implementation does not have the designed trie cost.
 | trait-solver.md §12 Data Structures | hd_types::solver | skeleton |
 | trait-solver.md §13 Performance Targets And Pathological Cases | none | missing |
 | trait-solver.md §14.1 Spec Traceability | none | missing |
-| trait-solver.md §14.2 Test Kinds | none | missing |
+| trait-solver.md §14.2 Test Kinds | hd_types tests exact and generic head matching, bound plans and selection; the full pathological matrix remains | skeleton |
 | trait-solver.md §15 Prototype Failures And The Rules That Prevent Them | none | missing |
 | trait-solver.md §16.1 Questions For The Owner | none | missing |
 | trait-solver.md §16.2 Readings Of The Spec To Confirm | none | missing |
@@ -224,7 +241,7 @@ implementation does not have the designed trie cost.
 | scheduler.md §6.1 Tasks | hd_sched (`TaskKind`, `TaskGraph`), hd_driver (dynamic full graph and per-kind slots) | real |
 | scheduler.md §6.2 Executors | one `Exec` over `&dyn Spawn` runs under serial, stepping and rayon pool executors with creation guards | real |
 | scheduler.md §6.3 Priority | hd_sched (`SerialOrder::Priority`), hd_driver (folder heights); FIFO ignores the priorities | skeleton |
-| scheduler.md §6.4 Budgets, Cancellation And The Memory Cap | hd_sched (`CancelFlag`), hd_driver (panic caught at the task boundary) | skeleton |
+| scheduler.md §6.4 Budgets, Cancellation And The Memory Cap | hd_sched (`CancelFlag`); the unified driver has no task-boundary panic catch | skeleton |
 | scheduler.md §6.5 Deterministic Output Assembly | hd_diag::buf (`content_order`), hd_run::tests_model (`ReleaseCursor`) | skeleton |
 | codegen.md §11.1 From TIR To A Running Program | the one driver runs Collect, Emit and Link for the supported scalar slice | skeleton |
 | codegen.md §11.2 Stages | hd_driver, hd_wasm (subset) | skeleton |
@@ -239,7 +256,7 @@ implementation does not have the designed trie cost.
 | codegen.md §12.7 Emission-Time Checks | none | missing |
 | codegen.md §12.8 Size Versus Speed Policy | none | missing |
 | codegen.md §13.1 Roots | hd_mono::collect over the supported program items and TIR | skeleton |
-| codegen.md §13.2 Collection | hd_mono::collect and layout::a1_class, incomplete for the full language | skeleton |
+| codegen.md §13.2 Collection | hd_mono::collect and layout::a1_class, including compiler mappings for selected body-less intrinsic impls; incomplete for the full language | skeleton |
 | codegen.md §13.3 Instance Keys | hd_mono::layout (`canon`, `instance_key`, `KeyArg`) | real |
 | codegen.md §13.4 The Instantiation Depth Limit | hd_mono::layout (`MAX_DEPTH`, `MAX_CHAIN`) | skeleton |
 | codegen.md §13.5 Dictionaries: Trait Values And GADT Evidence | none | missing |

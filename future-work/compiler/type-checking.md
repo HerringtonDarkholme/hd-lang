@@ -96,6 +96,17 @@ through shared references and never locks
 | body syntax | parser | the green tree and its typed views |
 | `CheckConfig` | driver | fuel per body, limits, emit mode, tests overlay on or off |
 
+**Header projection completion (M4a gap 2).** Header lowering deliberately
+leaves the trait-argument list empty on projections written `Self::Out`
+and on projections inherited from a seeded bound, such as `P::Error` for
+`P < Walker[Self]`. When the checker instantiates that header, it fills a
+`Self` projection from the enclosing trait call's declared arguments. For
+a bound projection it uses the matching parameter-environment clause; if
+the concrete impl must determine arguments that were implicit in the
+bound, it creates the missing variables before solving. Only then does it
+normalize the projection. Header lowering therefore does not invent or
+duplicate the call-site substitution.
+
 ### 1.3 Outputs
 
 ```rust
@@ -437,6 +448,12 @@ that body's result differs. The first release still rechecks the whole
 module ([cache.md](cache.md)); the review's edit-latency finding (P2) is
 the backend lane's.
 
+**Template target premise (M4a gap 4).** While checking a method body
+from a `by Structure` template, the parameter environment includes the
+compiler-supplied premise `target < Structure`. The premise belongs only
+to that instantiated template body; it is not written into the target
+type's interface and does not make `Structure` hold in unrelated code.
+
 **Default and fact bodies (review finding 4).** They are checked once,
 where they are declared, and never at the call:
 
@@ -602,6 +619,13 @@ no step searches alternatives (the Swift lesson). The only choice among
 candidates is section 2.5's instantiation choice.
 
 ### 2.5 Methods And Operators
+
+**Typed structure facts (M4a gap 4).** The resolved inherent call
+`h.fact::[D]()` on `std.structure.Field` is a typed fact lookup: the
+explicit argument `D` is checked against the handled member's type. It
+does not add the ordinary `D < Inspectable` method bound. The checker
+recognizes this by the resolved `Field.fact` identity, not by source
+spelling alone.
 
 **Method lookup.** Infer the receiver, resolve it shallowly, and ask
 `Methods { receiver, name }`. The solver returns inherent candidates

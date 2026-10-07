@@ -184,6 +184,14 @@ default. It holds no private item record except hidden ones. Its
 private import from an absent name. It holds no ordinary body, doc comment
 or fact value.
 
+**Top-level bindings (M4a gap 5).** An ordinary top-level binding is
+module-initialization state, not an interface item kind. It may be read
+by bodies in its declaring module, where the body checker assigns its
+global slot and type, but another module cannot import or refer to it.
+Consequently `FolderIface` carries neither its declaration nor its
+initializer; cross-module state is exposed through an ordinary declared
+item instead.
+
 **Declaration locations (M3 gap 5).** Every item, impl head and stored
 header diagnostic carries a `TokenAnchor` from data-structures.md §3.7.
 The anchor is an index into the blob's `anchors` section and is excluded

@@ -2,7 +2,7 @@
 
 Part of the [compiler design](README.md).
 
-Status: review, 2026-10-07, after M3 (`20ea6342`). It compares
+Status: review, 2026-10-07, after M4a (`037cd289`). It compares
 `compiler/crates` with the design docs of this folder and records the
 authorized corrections. Where the code is right and a doc is wrong, the
 verdict says "design wrong". Earlier
@@ -12,24 +12,28 @@ findings are cited by ID (SK-1 to SK-15, SK-N1 to SK-N16) from
 M1 made the designed architecture move end to end. M2 replaced the
 heuristic parser with one recursive-descent parser. M3 resolves and lowers
 every std header, builds canonical interfaces for all three std folders,
-and makes their prelude types available to programs. The one driver uses
-the full parser, `hd_project`, `hd_resolve`, `hd_types`, `hd_tir::Body`,
-every executor, `CacheStore`, `hd_mono` and `hd_wasm`. The remaining
-findings are feature coverage and incomplete cache/runtime details, not a
-second compiler pipeline.
+and makes their prelude types available to programs. M4a carries all 37
+std modules and their 1,080 bodies through checking, verified TIR, row
+checks, usefulness and definite module initialization. The one driver
+uses the full parser, `hd_project`, `hd_resolve`, `hd_types`,
+`hd_tir::Body`, every executor, `CacheStore`, `hd_mono` and `hd_wasm`.
+The remaining findings are feature coverage and incomplete cache/runtime
+details, not a second compiler pipeline.
 
 ## Summary: The Top 10
 
 Ranked by how much each blocks the next working language slice.
 
-1. **Much of body checking still answers `NotImplemented`.** `BodyCx`
-   uses `InternPool`, `SkeletonSolver`, fuel and `TirBuilder`, but
-   unsupported expressions stop the build. Derived heads, test overlays
-   and many nontrivial language forms remain partial.
-2. **The standard-library pack is not writable.** M3 builds source-backed
-   std interfaces and programs use their prelude. `hd_stdpack::build_pack`
-   still lacks checked bodies and the pack writer.
-3. **M3's interfaces omit diagnostic-only fidelity.** They have no private
+1. **Body checking covers std but still has four structural gaps.** `mut`
+   is transparent to unification, closure rows are not inferred, dispatch
+   is absent from initialization facts, and suspension side records are
+   never populated. Language forms outside the std corpus can still stop
+   with `NotImplemented`.
+2. **The standard-library pack is not writable.** M4a produces checked,
+   verified std TIR, but `hd_stdpack::build_pack` still has no pack writer.
+3. **Interfaces omit diagnostic and top-level-binding fidelity.** They
+   have no item kind for ordinary top-level bindings, intentionally making
+   those bindings module-local. They also have no private
    name index or declaration anchors. Cross-folder private uses therefore
    say `unknown-import`, while stage-B and coherence errors point at byte
    zero of the file.
@@ -52,9 +56,10 @@ Ranked by how much each blocks the next working language slice.
    not exist.
    Browser consumers still lack the designed stable generated surface.
 8. **Emission follows the designed types but covers only a scalar slice.**
-   It uses `hd_tir::Body`, `layout_of`, collected instances and the host ABI.
-   Suspensions, GC aggregates, metadata, panic sites and many TIR forms
-   still return `NotImplemented`.
+   M4a now supplies verified TIR for the std corpus, including calls,
+   aggregates, rows, control flow and suspension values. The emitter still
+   handles only its earlier scalar subset; suspensions, GC aggregates,
+   metadata, panic sites and many TIR forms return `NotImplemented`.
 9. **Task-boundary panic isolation regressed.** The old architecture path
    caught panics; the unified `Exec` calls tasks directly under serial and
    rayon executors. One task panic can unwind the build instead of becoming
@@ -123,6 +128,18 @@ missed a case); **duplicate** (two code paths for one design thing);
 | M3 gap 6. Coherence is pairwise per trait | `Universe::overlaps` unifies every later head with every earlier head | Keep the result and blame order, but replace quadratic enumeration with the designed ground and generic tries | implementation replaces the simplification |
 | M3 gap 7. Two proposed parser follow-ups disagree with the grammar | `Parser::use_decl` already accepts `as`; `associated_type` accepts only the grammar's optional `= type` | `use a.b as c` remains accepted; `type Item < Eq = i32` remains a syntax error unless the spec changes | no parser extension; design records the grammar result |
 
+### M4a Findings
+
+| Finding | Code evidence | Intended rule | Side that changes |
+| --- | --- | --- | --- |
+| M4a gap 1. `TraitMethod` has no separate trait-argument field | `hd_tir::ir::Callee::TraitMethod`; `hd_check::call` appends the method variables after the trait arguments | One `targs` list stores trait declaration arguments first and method arguments second; the interface's trait generic count is the split point | checking-and-tir.md records the layout; implementation stays |
+| M4a gap 2. Header projections reach the checker without their trait arguments | `hd_check::call::{with_assoc_args,normalize}` fills `Self::Out` from the call and extends a seeded bound projection before solving | Header lowering may leave these arguments implicit; checker instantiation fills them before normalization | type-checking.md records the header/checker boundary; implementation stays |
+| M4a gap 3. Variant operations use indices, while remapped identities live in `extra` | `hd_tir::wire::id_words`; `NewVariant`, `SwitchTag` and `Payload` have no ID word | Variants use declaration indices; the IDs of `ProviderGet`, `ItemRef`, `GlobalGet`, `GlobalSet`, `DefaultCall` and `With` live in typed `extra` records because only those words are wire-remapped | checking-and-tir.md corrects the catalog; implementation stays |
+| M4a gap 4. Two checker-recognized premises had no design home | `hd_check::call` recognizes typed `Field.fact`; `hd_check::body::new_ck` seeds `Structure` for template targets | A typed handle fact matches its explicit type to the member type without `Inspectable`; a `by Structure` template body checks with `target < Structure` | type-checking.md owns both rules; implementation stays |
+| M4a gap 5. Top-level bindings have no interface item kind | `hd_resolve::iface::ItemData` has no binding variant; `hd_check::init::ModuleInit` owns them | Ordinary top-level bindings are module-local initialization state and cannot be named from another module | resolution-and-interfaces.md records the boundary; implementation stays |
+| M4a gap 6. Intrinsic impl methods have no TIR body | `Run::body` skips body-less intrinsic-family methods; `hd_mono::Env::intrinsic` maps selected intrinsics | Collection maps a body-less intrinsic plus substituted self and trait arguments to its compiler-generated body; no absent TIR is loaded | codegen.md records collection behavior; implementation stays |
+| M4a gap 7. Four designed checker results are absent | `InferTable` strips `mut` during unification; closure checking records captures but not inferred rows; `InitFacts` records direct calls and reads but not dispatch; `Body::susp` is never populated | Add `mutable-receiver-required`, `readonly-argument-to-mutable-parameter`, `mutable-upgrade` and `redundant-let-mut`; infer closure rows; include dispatch in init reachability; and write one `SuspRow` per suspension point | implementation gaps; the owning designs stay |
+
 ### Findings Table
 
 | Design section | Code path | Finding | Verdict | Proposed fix |
@@ -161,14 +178,14 @@ missed a case); **duplicate** (two code paths for one design thing);
 | syntax.md §4.4 (recovery) | `stmt_errored`, `unclosed_from`, `recover_line` | Reporting stops after one error per statement and suppresses fallout past an unclosed delimiter | design wrong | State these cascade bounds explicitly (M2 gap 6) |
 | resolution-and-interfaces.md §4.7, §4.8 | `ModuleTable::discover_all`, `FolderGraph` | M3 applies the parent-file rule and builds the three-folder std graph; fixed prelude uses intentionally add edges to `std` | both ok | Keep the M3 gap 1 and 3 corrections |
 | resolution-and-interfaces.md §4.9 | `hd_resolve::ModuleScope`, export worklist and prelude bindings | All std header uses resolve, but a frozen interface has no private-name index, so cross-folder private uses report `unknown-import` | gap | Add `private_names` outside semantic hashes (M3 gap 2) |
-| resolution-and-interfaces.md §4.10, §4.10.1 | `hd_resolve::{lower,header,iface}` | M3 lowers every std header and runs stage B without `NotImplemented`; derived heads and trait-argument defaults remain incomplete | gap | Apply declared defaults during lowering and complete derived heads (M3 gap 4) |
+| resolution-and-interfaces.md §4.10, §4.10.1 | `hd_resolve::{lower,header,iface}`; `hd_check::call::{with_assoc_args,normalize}` | M3 lowers every std header and runs stage B without `NotImplemented`; M4a deliberately completes implicit projection arguments at checker instantiation. Derived heads and declared generic defaults remain incomplete | gap | Keep projection completion at the checker boundary; apply declaration defaults during lowering and complete derived heads (M3 gap 4, M4a gap 2) |
 | resolution-and-interfaces.md §4.11 | `hd_resolve::iface` codec and deep hashes | Canonical blobs round-trip across fresh runs and shuffled orders; decoded copies, private names and declaration anchors remain gaps | gap | Add the indexed reader, `private_names` and `anchors` (M3 gaps 2 and 5) |
 | resolution-and-interfaces.md §4.12, trait-solver.md §5.2 | `hd_resolve::Universe::{stage_b,overlaps}` | Stage B and generic-head overlap run, but coherence enumerates pairs instead of the designed tries | gap | Replace pairwise enumeration with the ground and generic tries (M3 gap 6) |
-| checking-and-tir.md §4.13.1 (M1, M3) | `Run::module_prep`, `Run::module_finish` | M1 lowers headers only (no omitted-result walk); M3 writes the entry only (no rows, init summary or sort) | gap | Land with the `hd_types` checker |
+| checking-and-tir.md §4.13.1 (M1 to M4a) | `Run::{module_prep,body,module_finish}`, `hd_check` | All 37 std modules and 1,080 bodies check to verified TIR; written rows, usefulness and definite module initialization run. Omitted-result M1, omitted-row M3 and body-level parallel iteration remain gaps | gap | Complete the two inference phases and batch bodies without adding another checker |
 | checking-and-tir.md §4.14 | generated `Code`; per-stage and per-module `DiagBuf` | Structured diagnostics and the complete code enum are live; interface findings and three package-level paths still lack primary source sites | gap | Retain declaration anchors and real package-level primary spans (M3 gap 5) |
 | checking-and-tir.md §4.15, trait-solver.md §7.4 | `BodyCx::charge` and solver fuel | Fuel is charged; exhaustion still reports internal `unsupported` instead of the specified limit code | gap | Emit the generated limit diagnostic |
-| type-checking.md §1.4 to §1.6 | `BodyCx` over `InternPool`, `TirBuilder` and `SkeletonSolver` | The designed interfaces are wired; unsupported language forms stop the build | both ok | Extend feature coverage without another checker |
-| trait-solver.md §3.1 to §3.4 | `SkeletonSolver`, called by `BodyCx` | Exact heads and memoization are live; generic matching and normalization still answer `NotImplemented` | gap | Extend the wired solver |
+| type-checking.md §1.4 to §1.6 | `BodyCx` over `InternPool`, `TirBuilder` and `TableSolver` | The interfaces carry the complete std corpus; closure-row inference, mutability checks and suspension side records remain absent | both ok | Extend feature coverage without another checker (M4a gap 7) |
+| trait-solver.md §3.1 to §3.6 | `TableSolver`, called by `BodyCx` | Generic impl-head matching and recursive bound plans are live; projection, `Instantiations` and `Methods` goals remain outside the solver | gap | Move the checker-local shortcuts behind the wired solver interface |
 | cache.md §5.3 | `toolchain_key`, package, interface, check, program and code keys | The package key now uses the manifest name and the pipeline hash is real; seven designed key families and several toolchain fields remain absent | gap | Add fields and keys as their stages land |
 | cache.md §5.2 (packs) | `Run::emit`, `EntryKind::Code` on DiskStore | One disk entry is written per instance, though the design makes code entries sections of folder-group codepacks | impl wrong | Pack misses per folder group at `Link` |
 | cache.md §5.5 | `hd_cache::store::ManifestRecord` | The record type exists; no stat manifest is read or written | gap | With the disk store (slice 4) |
