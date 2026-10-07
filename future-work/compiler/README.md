@@ -24,6 +24,7 @@ The design documents of the new compiler, in reading order.
 - [codegen.md](codegen.md): the back half overview, emitting from TIR, monomorphization and merging (§11 to §13).
 - [suspension.md](suspension.md): suspension lowering (§14).
 - [wasm-layout.md](wasm-layout.md): Wasm GC layout and emission (§15).
+- [lowering-catalog.md](lowering-catalog.md): the lowering of every data type and syntax form, with code speed and size per entry, the numbering rules and the named optimization passes, merged from [representation-runtime.md](representation-runtime.md) and [representation-compile.md](representation-compile.md).
 - [runtime-and-host.md](runtime-and-host.md): the runtime, host interface and embedding (§16 to §17).
 - [engines-and-test-runner.md](engines-and-test-runner.md): execution engines, tiers and the test runner (§18 to §19).
 - [live-execution.md](live-execution.md): live execution: the REPL session model, redefinition, the execution journal, replay and resume (design, not decided).

@@ -1146,7 +1146,7 @@ with `else` produces a value.
 ;; f(a) where f(a, b = make()): a direct call of the default body's instance with a,
 ;; inside the forbidden-context bracket when the default body makes a call
 (call $f (local.get $a) (call $f$default_b (local.get $a)))
-;; a constant default (= 10) is inlined by the trivial-inlining test
+;; with inline-trivial, a constant default (= 10) is inlined at the call
 ```
 
 - **Speed:** a call per omitted argument, unless inlined.
