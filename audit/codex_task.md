@@ -31,6 +31,12 @@ When the queue is empty, report that and wait.
   `pnpm run check`, and push again. Never force-push.
 - A job is done only when its commit is on `origin/main`. A local commit
   is not done: push it.
+- **Fixture jobs also run the Rust parse tests:** after adding or
+  changing any `spec/conformance/parse/` case, run `cd compiler && cargo
+  test -p hd_syntax --test corpus`. The old Rust parser is being replaced,
+  so a case it gets wrong goes into `compiler/KNOWN_FAILURES.tsv` (path,
+  tab, expected code or `accept`) in the same commit. Never push with
+  `cargo test` red (S1, f1a266a6, turned main red this way).
 - While working, run only scoped checks: `node --experimental-strip-types
   test/run-portable.ts --changed` (or `--phase parse|type|runtime`) and
   `node --test --experimental-strip-types <the test files you touch>`. Run
