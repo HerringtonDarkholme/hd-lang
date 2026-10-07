@@ -57,11 +57,13 @@ Detailed design: [README.md](README.md)
   parameters, associated functions) are unavailable on the `dyn` value,
   with the error at the call.
 - Generic methods called through a `dyn` value keep one erased body per
-  impl (boxing value-typed arguments). A method type parameter of such a
-  method may appear only as `T` or `T?` in its parameters and result; a
-  method that uses it anywhere else (inside a container, tuple or
-  function type) is unavailable on `dyn` values, with the error at the
-  call (owner chose this over whole-program instance tables, 2026-10-07).
+  impl and accept any type argument, with no restriction (owner: "it is
+  already dyn, keep it erased, i can accept slower dyn"). The erased body
+  receives a type witness per method type parameter (Swift-style layout
+  operations for the caller's concrete type): bare `T` and `T?` are boxed,
+  containers of `T` are read and written in place through the witness, and
+  function types are adapted by caller-built thunks. Everything outside
+  `dyn` stays fully monomorphized.
 - **GADTs are removed from the language** (chapter 13, its fixtures and
   every refinement rule). Typed request/response APIs use traits with
   associated types; typed interpreters use a runtime value enum or traits.
