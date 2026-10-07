@@ -28,6 +28,8 @@ deleted file is never served from the cache (Gleam #4320).
    ([`module.cycle.folder-edge`](../../spec/lang/10-modules.md#r-module.cycle.folder-edge)).
 2. Add the edge `A -> folder(module)` when the folders differ and the
    module is in the same package.
+   Fixed prelude uses participate exactly like written uses, except that
+   the virtual `std.core` module does not import the prelude.
 3. Run Tarjan's algorithm with folders visited in path order, so the SCCs
    and their order are deterministic.
 4. For each SCC with more than one folder, report `folder-cycle` once: the
@@ -44,6 +46,12 @@ Test code makes no edges. `tests:` blocks and doc tests are checked in a
 one test unit per package, which may loop internally, after every folder.
 Integration test programs are their own roots. The package graph comes
 from manifests, and `package-cycle` is found the same way.
+
+**M3 gap 3.** The fixed-use rule intentionally makes every non-core folder
+depend on folder `std`, because every ordinary prelude origin lives there.
+Folder `std.prelude` also reaches `std.testing` through its child test
+module. These edges are the specified prelude semantics, not bootstrap
+exceptions.
 
 ### 4.9 Name Resolution
 
@@ -78,6 +86,14 @@ for each pending entry, in (module path, source order):
   serial, monotone pass over one SCC (lesson 7).
 - Other use errors: `unknown-module`, `unknown-import`, `private-import`,
   `direct-variant-use`, `ambiguous-import`, `test-only-use`.
+
+**Private-name index (M3 gap 2).** Each interface has a sorted
+`private_names` section of `(module path, name, kind, declaration anchor)`.
+It contains no signature or item record, and it is outside `api_hash`,
+`deep_hash` and every item hash. A failed export lookup checks this index:
+a matching row reports `private-import`; no row reports `unknown-import`.
+This preserves the required diagnostic without exposing private items to
+resolution or invalidating dependents for private header edits.
 
 **Paths in types and expressions** resolve through the module scope:
 module aliases, qualified names, `Self`, type parameters, and the names
@@ -122,6 +138,12 @@ are frozen:
    (GADT result types are removed with GADTs); trait members, associated types, supertraits and
    default presence; impl heads with `by` delegation; aliases and
    newtypes.
+   While lowering a written trait reference, fill omitted trailing trait
+   arguments from the declaration's defaults in declaration order.
+   Substitute earlier arguments and the reference's `Self`: the bounded
+   type in a bound, or the target type in an impl head. Thus a bound or
+   head written `Add` lowers as `Add[Self]` for the declared
+   `Rhs = Self` default ([M3 gap 4](#410-folder-interface-construction)).
 4. Build derived heads. For `@derive(X)`, the impl of `X` with `T < X` for
    each type parameter in a walked member
    ([Derived Bounds](../../spec/lang/14-annotations.md#derived-bounds)). For
@@ -157,11 +179,17 @@ reads their result.
 
 **What the interface holds.** Public items, all impl heads, templates with
 their bodies, hidden items, and per parameter and field whether it has a
-default. It holds no private item except hidden ones, no ordinary body,
-no doc comment and no fact value. Spans in it are relative to their
-declaration ([data-structures.md §3.7](data-structures.md#37-spans-and-files),
-review A3): `(declaration path row, lo, hi)`, so a blank line above a
-declaration changes no byte of the blob.
+default. It holds no private item record except hidden ones. Its
+`private_names` section carries only enough information to distinguish a
+private import from an absent name. It holds no ordinary body, doc comment
+or fact value.
+
+**Declaration locations (M3 gap 5).** Every item, impl head and stored
+header diagnostic carries a `TokenAnchor` from data-structures.md §3.7.
+The anchor is an index into the blob's `anchors` section and is excluded
+from every semantic hash. Stage B and coherence retain the relevant item
+row, then resolve its anchor through the current file's `locs` entry.
+They must never replace that location with the module file's zero offset.
 
 - **Defaults are not in the interface as expressions.** A caller emits a
   call of the default's own body with the earlier arguments
@@ -258,6 +286,7 @@ paths       StablePath records over string offsets
 types       the InternPool's tag, data and extra columns, with blob-local operands
 items       ItemRecord, in (module path, source order)
 exports     (module, name) -> item, sorted by bytes, for binary search
+private_names (module, name, kind, declaration anchor), sorted; no signature
 impls       ImplRecord: head, bounds, bound plan, owner module, by-clause, api or heads-only
 arg_impls   heads owned only through a trait argument, by (trait, target head key); own hash
 templates   template headers; bodies as token text plus a resolution table
@@ -265,6 +294,7 @@ templates   template headers; bodies as token text plus a resolution table
 hidden      hidden items and their private type closure, in the item record shape
 item_hash   (item index, shallow Hash128, deep Hash128)
 mentions    (folder stable path, deep hash) of every other folder named
+anchors     declaration-relative TokenAnchor records for items and diagnostics
 diags       stage-A header diagnostics, spans relative to their declaration (outside every api hash)
 ```
 
@@ -275,6 +305,8 @@ diags       stage-A header diagnostics, spans relative to their declaration (out
   checking bounds and alignment once per section. Natively the blob is
   memory-mapped from the cache. In the browser it is a byte array. Std's
   blobs are embedded in the binary as one pack.
+- `private_names` and `anchors` are outside `api_hash`, `deep_hash` and
+  `heads_hash`. They affect diagnostics only.
 - **Lazy decode.** `IfaceReader::item(name)` binary-searches the export
   index and decodes one record. `reader.ty(TypeRef)` interns a type on
   first use and memoizes it in a per-reader table. A run that names 5
@@ -432,6 +464,11 @@ The solver is designed in [trait-solver.md](trait-solver.md). In short:
   ([trait-solver.md §5.2](trait-solver.md#52-the-overlap-check)). Heads
   that differ at a constructor cost time linear in their total size,
   not one check per pair.
+- **Known M3 simplification (M3 gap 6).** M3 sorts heads per trait and
+  compares each later head with every earlier head. It reports the right
+  first overlap, but has quadratic work. Replace this pairwise loop with
+  the two-trie algorithm above; do not preserve it as an alternative
+  coherence design.
 - An overlap is reported once, at the later impl in content order
   (package, module path, item index), naming the earlier one and a **witness**
   type that both heads match, such as "both apply to `Box[Plain]`".

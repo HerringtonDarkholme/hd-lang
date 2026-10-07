@@ -1497,16 +1497,24 @@ index; every offset inside a section is relative to the section.
 | `impl_segs` | one per impl path segment | `head Hash128, ordinal u16, pad 6` (24) |
 | `path_hash` | parallel to `paths` | `Hash128` (16); checked against the run's trie on re-intern |
 | `ty_tag`, `ty_data`, `ty_extra` | one per type, list or row, children first | the pool encoding of §3.9.2 with blob-local operands: `DefId` as a path row, `Symbol` as a string row, `Ty` as a type row (1 + 4 + words) |
-| `items` | public and hidden items, in (module path, source order) | `path u32, kind u8, vis u8, flags u16, module u32, sig u32, generics Range32, members Range32, span_lo u32, span_hi u32` (40) |
+| `items` | public and hidden items, in (module path, source order) | `path u32, kind u8, vis u8, flags u16, module u32, sig u32, generics Range32, members Range32, anchor u32` (36) |
 | `generics` | generic parameters | `name u32, variance u8, flags u8, index u16, bounds Range32, default u32` (20) |
 | `bounds` | bounds of parameters, impls and supertraits | `trait_ty u32` (4): a `TraitValue` type row |
 | `members` | fields, variants, trait members, associated types | `name u32, kind u8, flags u8, pad 2, ty u32, payload Range32, result u32, default_tokens Range32` (32) |
 | `exports` | (module, name) -> item, sorted by (module path bytes, name bytes) | `module u32, name u32, item u32` (12) |
+| `private_names` | private declarations, sorted by (module path bytes, name bytes); diagnostic lookup only, outside every semantic hash | `module u32, name u32, kind u8, pad 3, anchor u32` (16) |
 | `impls` | every impl head of the folder | `path u32, trait u32, self_ty u32, args u32, generics Range32, bounds Range32, owner u32, by_member u32, head_key u32, flags u32` (48); `flags` has `API` (in `api_hash`) or heads-only |
 | `templates` | one per template | `impl u32, tokens Range32, resolve Range32` (20) plus the token text bytes and a resolution table of `(token offset u32, path u32)` |
 | `item_hash` | parallel to `items` | `shallow Hash128, deep Hash128` (32) |
 | `mentions` | other folders the api sections name | `folder path u32, deep Hash128` (20) |
+| `anchors` | declaration-relative locations for items, impl heads and diagnostics | `decl path u32, tok u32, count u32, lo_in_tok u16, hi_in_tok u16` (16) |
 | `diags` | header diagnostics | the `DiagBuf` wire columns (§3.8) |
+
+**M3 gaps 2 and 5.** `private_names` lets cross-folder lookup distinguish
+`private-import` from `unknown-import` without exposing a private item.
+The item, impl and diagnostic rows point into `anchors`; no interface
+record stores an absolute file offset. Both sections are omitted from
+`api_hash`, `deep_hash`, `heads_hash` and per-item hashes.
 
 - **Fixed-width rows, ranges for variable parts.** No row has a length
   field inside it. A reader computes a row's address as `base + i *

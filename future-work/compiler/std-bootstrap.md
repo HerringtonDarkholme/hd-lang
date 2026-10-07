@@ -3,15 +3,15 @@
 | Field | Value |
 | --- | --- |
 | Status | Research inventory only; nothing in this file is accepted behavior beyond the cited spec and design records. |
-| Scope | What M3 needs to make `lib/std` interfaces, bodies and the prelude available to programs. |
+| Scope | What M3 implemented to make `lib/std` interfaces and the prelude available to programs, plus the body and pack work still ahead. |
 | Sources | [`lib/std`](../../lib/std), [Prelude](../../spec/lang/10-modules.md#prelude), [Standard Library Primitives](../../spec/std/README.md#standard-library-primitives), [Intrinsic Methods](../../spec/lang/09-traits.md#intrinsic-methods), [`hd_host_abi`](../../compiler/crates/hd_host_abi/src/lib.rs) |
-| Inventory date | 2026-10-07, at M1 `07c74892` |
+| Inventory date | 2026-10-07, after M3 `20ea6342` |
 
 ## Prelude
 
 | Origin | Names every ordinary module sees | Source status | Bootstrap consequence |
 | --- | --- | --- | --- |
-| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | No `lib/std/core.hd`; the compiler supplies the module. `Option` and `Result` also have ordinary methods in `option.hd` and `result.hd`. | Seed this interface before parsing any fixed prelude use. |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | No `lib/std/core.hd`; `hd_driver` inserts a virtual `core.hd`, and `hd_resolve::seed` supplies its declarations. `Option` and `Result` also have ordinary methods in `option.hd` and `result.hd`. | Discover the virtual module with the ordinary std sources, then seed its interface before resolving fixed prelude uses. |
 | `std.format` | `Display`, `Debug`, `debug`, `dbg` | Declared in `format.hd`; `dbg` has an intrinsic body. | Load after compiler-owned core types and before modules that import `DebugWriter`. |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | Declared in `cmp.hd`; primitive implementations use intrinsic methods. | Register numeric-family and primitive comparison heads while building its interface. |
 | `std.hash` | `Hash`, `Hasher` | Declared in `hash.hd`; `char_scalar` is a private primitive. | Its `Structure` templates require `std.structure`. |
@@ -19,6 +19,18 @@
 | `std.console` | `Console`, `ConsoleError`, `println` | Declared in `console.hd`; `println` is ordinary hd over `Console` and `block_on`. | The generic declaration supersedes `PRELUDE_IMPORTS`' temporary `println(i32)` shim. |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` | No declarations for these four in `task.hd`; the compiler supplies them. | Seed the protocol interface before checking `console.hd`, `task.hd`, or any suspending signature. |
 | `std.testing` | `it`, test code only | `it` is compiler-provided; `testing.hd` declares the remaining testing API. | Add this fixed use only to test overlays and test modules. |
+
+### Compiler-Supplied Names Outside The Prelude
+
+| Module | Supplied names | Why source alone is insufficient |
+| --- | --- | --- |
+| `std.function` | `Fn`, `SuspendFn` | Function-type syntax lowers to these compiler-known constructors. `Tuple` remains an ordinary declaration in `function.hd`. |
+| `std.inspect` | `downcast_val` | Runtime downcasting needs an intrinsic body, while `Inspectable` and `TypeId` remain ordinary declarations. |
+| `std.structure` | `Structure` and its compiler-known members | Derivation templates receive this sealed structural view from the compiler. The supporting protocols remain ordinary declarations. |
+
+**M3 gap 1.** These seeded declarations are ordinary interface items of
+their named modules. A source declaration with the same stable path wins,
+and only `std.core` needs a virtual source module for discovery.
 
 | Fixed but non-exporting prelude use | Why the compiler needs it |
 | --- | --- |
@@ -130,22 +142,29 @@
 
 | Folder | Modules | Outgoing folder edges | Cycle status |
 | --- | --- | --- | --- |
-| `std` (`lib/std`) | 34 modules: `annotation`, `cli`, `cmp`, `collections`, `console`, `convert`, `digest`, `encoding`, `error`, `format`, `fs`, `function`, `hash`, `host`, `http`, `inspect`, `iter`, `json`, `num`, `ops`, `option`, `path`, `prelude`, `process`, `random`, `regex`, `resource`, `result`, `serde`, `structure`, `task`, `testing`, `text`, `time` | `std.testing`, through `std.testing`'s re-export of `std.testing.arbitrary` | Member of `std -> std.testing -> std` |
-| `std.prelude` (`lib/std/prelude`) | `testing` | `std`, through `use std.testing.it` | Acyclic leaf into the root folder |
-| `std.testing` (`lib/std/testing`) | `arbitrary` | `std`, through `std.annotation.annotate` and `std.testing.Choices` | Member of `std -> std.testing -> std` |
+| `std` (`lib/std`) | 33 modules: the virtual `core`, plus the 32 root files other than `prelude.hd` and `testing.hd` | none outside itself | Acyclic root |
+| `std.testing` (`lib/std/testing`) | `std.testing` from `testing.hd`, plus `std.testing.arbitrary` | `std`, through ordinary imports and the fixed prelude uses | Acyclic; the parent and child modules share this folder |
+| `std.prelude` (`lib/std/prelude`) | `std.prelude` from `prelude.hd`, plus `std.prelude.testing` | `std`, through the fixed prelude origins; `std.testing`, through the test-only re-export | Acyclic leaf after both dependencies |
 
-| Cycle | Edge evidence | M3 effect |
-| --- | --- | --- |
-| `std -> std.testing -> std` | `testing.hd` has `pub use std.testing.arbitrary.{With, with}`; `testing/arbitrary.hd` uses `std.annotation.annotate` and `std.testing.Choices`. | The designed folder graph rejects it as `folder-cycle`; std interfaces cannot meet build-order slice 2's no-diagnostic exit until this source layout or the folder-cycle rule changes. |
+**M3 gap 1.** The former inventory's `std -> std.testing -> std` cycle was
+wrong. Under [`module.folder.parent-file`](../../spec/lang/10-modules.md#r-module.folder.parent-file),
+`testing.hd` and `testing/arbitrary.hd` share folder `std.testing`, so the
+re-export between them creates no folder edge.
+
+**M3 gap 3.** Every ordinary prelude origin is a module in folder `std`,
+so the fixed uses intentionally give every other folder a dependency on
+`std`. Folder `std.prelude` also depends on `std.testing` because its child
+test module re-exports `it`; that extra edge is intended and remains
+acyclic.
 
 ## M3 Dependency Order
 
 | Order | Piece | Depends on | What it unblocks |
 | --- | --- | --- | --- |
-| 1 | Resolve the `std`/`std.testing` folder cycle | Owner choice about source layout or the folder-cycle rule | Any successful `FolderIface` order for the current std tree. |
-| 2 | Seed compiler-owned `std.core` and the `std.task` protocol (`Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `all!`) | Core type and suspension descriptors in the toolchain | Parsing and resolving every prelude import and most std signatures. |
-| 3 | Build `std.annotation`, `std.structure`, qualified fact markers, and template heads | Step 2; interface construction and stable compiler-known paths | `std.ops`, `std.testing.arbitrary`, all `by Structure` templates, and fact-bearing literal functions. |
-| 4 | Register every primitive function and intrinsic-method signature above | Steps 2 and 3; one intrinsic ID table consumed by checking and emission | Body checking of `cmp`, `ops`, `text`, `format`, `num`, `collections`, `task`, and `annotation`. |
-| 5 | Complete capability `TABLE` rows and define the host-primitive import registry | Steps 2 and 4; codecs for structured boundary types | `fs`, `random`, `http`, `process`, Unicode case mapping, and float formatting/parsing. |
-| 6 | Check derive instances, facts and ordinary std bodies, then emit their reachable instances | Steps 3 through 5 | A complete std pack rather than header-only interfaces. |
-| 7 | Install fixed prelude uses from the pack and retire the `println_i32` shim | Step 6; pack hash in the toolchain key | Ordinary programs see exactly the specified prelude and reach std implementations. |
+| 1 | Discover the virtual `std.core` module and seed all compiler-supplied declarations listed above | Core type, function, suspension, inspection and structure descriptors in the toolchain | Resolving every fixed prelude use and compiler-known std path. |
+| 2 | Build folder interfaces in order: `std`, `std.testing`, `std.prelude` | Step 1 and the parent-file folder rule | The slice-2 no-diagnostic exit and canonical interface blobs. |
+| 3 | Install fixed prelude uses from those interfaces | Step 2 | Ordinary programs see exactly the specified prelude and std types reach their signatures. |
+| 4 | Build typed facts, derived heads and template bodies | Step 3; stable compiler-known paths | `by Structure`, annotations and fact-bearing literal functions. |
+| 5 | Register every primitive function and intrinsic-method signature above | Steps 3 and 4; one intrinsic ID table consumed by checking and emission | Body checking of `cmp`, `ops`, `text`, `format`, `num`, `collections`, `task`, and `annotation`. |
+| 6 | Complete capability `TABLE` rows and define the host-primitive import registry | Step 5; codecs for structured boundary types | `fs`, `random`, `http`, `process`, Unicode case mapping, and float formatting/parsing. |
+| 7 | Check ordinary std bodies and emit their reachable instances into the std pack | Steps 4 through 6 | A reusable std pack rather than source-backed header interfaces. |

@@ -199,6 +199,13 @@ the flat tree in one pass.
   diagnostic. A separate parser-fuel counter adds no protection.
 - **Operators.** Precedence climbing with an explicit operand and operator
   stack, so a long chain of binary operators uses no native stack.
+- **M3 gap 7, checked against the grammar.** A path-only alias such as
+  `use a.b as c` is specified by `use_decl` and must parse; M2 already
+  accepts it. An associated-type declaration is only `type Name` in a
+  trait or `type Name = Type` in an impl. The form
+  `type Item < Eq = i32` is not in the grammar and must remain a
+  `syntax-error`; it is not an M4 parser feature unless the owner changes
+  the language specification.
 
 **Green tree.**
 

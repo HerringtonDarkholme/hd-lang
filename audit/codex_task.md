@@ -83,39 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2c. Reconcile M3, And Correct std-bootstrap.md
-
-M3 landed (20ea6342): std's folder interfaces, prelude, stage-B header
-checks and coherence run with no "not implemented"; slice 2's exit test
-passes. Run D2 for it. Record these M3 gaps in the owning design docs
-(citing "M3 gap n"), each with the intended rule:
-
-1. `std-bootstrap.md` (your Q10) reports a `std → std.testing → std`
-   folder cycle; there is none under `module.folder.parent-file`. Fix
-   the inventory, and add the missing compiler-supplied names
-   (`std.function.{Fn, SuspendFn}`, `std.inspect.downcast_val`,
-   `std.structure.Structure`, and how `std.core` exists: a virtual
-   module).
-2. A cross-folder use of a private item can only say `unknown-import`:
-   interfaces hold no private names. Design a private-names section
-   outside the api hash for `private-import`.
-3. Every prelude origin is in folder `std`, so every folder depends on
-   `std`; `std.prelude`'s child `testing` ties the prelude folder to
-   `std.testing`. State whether that is intended.
-4. Where trait generic defaults are applied (`Add` meaning `Add[Self]`
-   in a bound or head).
-5. Interfaces carry no item spans, so stage-B and coherence findings
-   point at the file; the design calls for declaration-relative spans:
-   say where they live.
-6. Coherence is pairwise per trait today, not the designed trie: record
-   as a known simplification.
-7. Two parser gaps for M4's parser follow-up: `use a.b as c` and bounds
-   on associated types (`type Item < Eq = i32`); check the grammar and
-   say whether the spec allows them.
-
-Update `reconciliation.md` and `footprint.md`. Docs only (std-bootstrap.md
-included). Timebox 45 minutes; push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,

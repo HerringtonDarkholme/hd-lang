@@ -872,6 +872,12 @@ proof of linearity. 300 `From`
 impls for one error type differ at the first trait argument, so the trie
 separates them at its second level.
 
+**Known M3 simplification (M3 gap 6).** `hd_resolve::Universe::overlaps`
+currently sorts each trait's heads, then unifies every later head with
+every earlier head. Its answer and content-order blame match this section,
+but its work is quadratic. M4 replaces that loop with the ground and
+generic tries above; the pairwise loop is not another supported strategy.
+
 ### 5.3 Why No Global Index
 
 - **Selection needs no global view.** Ownership confines the impls a goal

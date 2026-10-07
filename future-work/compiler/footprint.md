@@ -2,7 +2,7 @@
 
 Part of the [compiler design](README.md).
 
-Status: report, 2026-10-07, after M2 (`187a85f8`). One row per
+Status: report, 2026-10-07, after M3 (`20ea6342`). One row per
 design-doc section: where its code is and how far it goes. **Real**: the
 structure or algorithm the section designs is implemented and tested,
 possibly over the subset. **Skeleton**: its types and entry points exist
@@ -14,8 +14,9 @@ change lists) count as missing, which is most of the missing rows of
 type-checking.md, trait-solver.md, live-execution.md and tiering.md.
 The stage counts on `lib/std` are in
 [skeleton-findings.md](skeleton-findings.md#architecture-skeleton-findings).
-M2 changes no category counts: parser §4.4 was already real, while skim and
-generated tree views remain skeletons.
+M3 changes no category counts. It extends the resolution, interface,
+trait and diagnostic skeletons, while their remaining contracts keep them
+below real.
 
 ## Totals
 
@@ -39,6 +40,15 @@ generated tree views remain skeletons.
 | [tiering.md](tiering.md) | 3 | 2 | 26 | 31 |
 | all | 52 | 99 | 173 | 324 |
 
+### M3 Corrections
+
+M3 moves no row between categories. Name resolution now covers every std
+header and use form, and interface bytes are deterministic across fresh
+runs and executor orders. Those rows remain skeletons because private-name
+diagnostics, trait defaults, zero-copy reads and declaration anchors are
+missing. Trait coherence also remains a skeleton because its pairwise
+implementation does not have the designed trie cost.
+
 ## Sections
 
 | Section | Code path | Status |
@@ -58,7 +68,7 @@ generated tree views remain skeletons.
 | data-structures.md §3.13 The Green Tree, Its Wire Format And The JS Decoder | hd_syntax::green (`GreenTree`, wire form, generic `NodeRef`); no generated named Rust views or JS decoder | skeleton |
 | data-structures.md §3.14 The Header Skeleton And The Item Index | hd_syntax::skim, parser (`ItemIndex`); no header tree, use list holds body lines | skeleton |
 | data-structures.md §3.15 Name-Resolution Tables | hd_resolve (`ModuleScope`, `Binding`, `FolderExports`), used by the one driver but incomplete | skeleton |
-| data-structures.md §3.16 The Folder Interface: In Memory And As A Blob | hd_resolve::iface (`FolderIface`, codec, deep hash); no zero-copy reader | skeleton |
+| data-structures.md §3.16 The Folder Interface: In Memory And As A Blob | hd_resolve::iface (`FolderIface`, canonical codec, deep hash); decoded copies remain, with no zero-copy reader, private-name index or declaration anchors | skeleton |
 | data-structures.md §3.17 Impl Tables | hd_types::solver (`ImplTable`, `HeadKey`) | skeleton |
 | data-structures.md §3.18 TIR | hd_tir::ir (`Body` columns), verifier and `wire` codec with stable TIR hash; the running path uses it | real |
 | data-structures.md §3.19 Per-Body Checker Scratch | hd_types::unify (`InferTable`) | skeleton |
@@ -76,12 +86,12 @@ generated tree views remain skeletons.
 | syntax.md §4.6 Item Index | hd_syntax::parser (`ItemIndex`) | real |
 | resolution-and-interfaces.md §4.7 Discovery, Module Identity And Folders | hd_project (`ModuleTable::discover`, `SourceSet`, manifest), used by the one driver | skeleton |
 | resolution-and-interfaces.md §4.8 Folder Graph | hd_project (`FolderGraph`: order, cycles, closures, heights), used by the one driver | real |
-| resolution-and-interfaces.md §4.9 Name Resolution | hd_resolve (`ModuleScope`, prelude bindings and lookups), used by interface construction and checking | skeleton |
-| resolution-and-interfaces.md §4.10 Folder Interface Construction | hd_resolve::iface builds the blob; `header_check` and derived heads remain incomplete | skeleton |
-| resolution-and-interfaces.md §4.11 The Interface Blob | hd_resolve::iface codec, stable remapping, per-item hashes and deep hash; no zero-copy reader | skeleton |
-| resolution-and-interfaces.md §4.12 Traits, Impls And Coherence | hd_resolve::orphan_ok, hd_check::stages::coherence | skeleton |
+| resolution-and-interfaces.md §4.9 Name Resolution | hd_resolve (`ModuleScope`, use worklist, prelude bindings and lookups) resolves every std header; cross-folder private names remain indistinguishable from absent names | skeleton |
+| resolution-and-interfaces.md §4.10 Folder Interface Construction | hd_resolve lowers every std header and `Universe::stage_b` runs; derived heads and declared trait defaults remain incomplete | skeleton |
+| resolution-and-interfaces.md §4.11 The Interface Blob | hd_resolve::iface codec round-trips canonical bytes across fresh runs and shuffled orders; no zero-copy reader, private-name index or declaration anchors | skeleton |
+| resolution-and-interfaces.md §4.12 Traits, Impls And Coherence | hd_resolve::Universe runs stage B and generic-head overlap; coherence is pairwise rather than trie-based | skeleton |
 | checking-and-tir.md §4.13 Body Checking | hd_check::BodyCx over hd_types, the solver and hd_tir::TirBuilder; unsupported forms stop the build | skeleton |
-| checking-and-tir.md §4.14 Diagnostics | every running stage uses hd_diag::DiagBuf and content-order assembly; some phases emit placeholder spans and the generated complete code enum is not wired in | skeleton |
+| checking-and-tir.md §4.14 Diagnostics | every running stage uses hd_diag::DiagBuf and the generated complete Code enum; interface and package findings still use placeholder spans | skeleton |
 | checking-and-tir.md §4.15 Limits | hd_base::Fuel is charged by the checker and solver; limit diagnostics remain incomplete | skeleton |
 | type-checking.md §1.1 Who Owns What | hd_check, hd_types and hd_tir are wired, with unsupported cases | skeleton |
 | type-checking.md §1.2 Inputs | hd_check::BodyCx reads hd_resolve items and the full green tree incompletely | skeleton |
@@ -166,7 +176,7 @@ generated tree views remain skeletons.
 | trait-solver.md §4.3 Normalization: Lazy, At Three Points | none | missing |
 | trait-solver.md §4.4 Projections In Impl Heads | none | missing |
 | trait-solver.md §5.1 What Runs When | none | missing |
-| trait-solver.md §5.2 The Overlap Check | hd_check::stages::coherence | skeleton |
+| trait-solver.md §5.2 The Overlap Check | hd_resolve::Universe::overlaps, called by the driver's one coherence task; pairwise rather than trie-based | skeleton |
 | trait-solver.md §5.3 Why No Global Index | none | missing |
 | trait-solver.md §5.4 What The Solver Assumes | none | missing |
 | trait-solver.md §6.1 Depth First, On An Explicit Stack | hd_types::solver (`Frame`) | skeleton |

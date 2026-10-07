@@ -2,7 +2,7 @@
 
 Part of the [compiler design](README.md).
 
-Status: review, 2026-10-07, after M2 (`187a85f8`). It compares
+Status: review, 2026-10-07, after M3 (`20ea6342`). It compares
 `compiler/crates` with the design docs of this folder and records the
 authorized corrections. Where the code is right and a doc is wrong, the
 verdict says "design wrong". Earlier
@@ -10,62 +10,58 @@ findings are cited by ID (SK-1 to SK-15, SK-N1 to SK-N16) from
 [skeleton-findings.md](skeleton-findings.md).
 
 M1 made the designed architecture move end to end. M2 replaced the
-heuristic parser with one recursive-descent parser that accepts the full
-conformance and standard-library corpus. The one driver now uses the full
-parser, `hd_project`, `hd_resolve`, `hd_types`,
-`hd_tir::Body`, per-kind result slots, every executor, `CacheStore`,
-`hd_mono` and `hd_wasm`. The remaining findings are feature coverage,
-missing generated surfaces and incomplete cache/runtime details, not a
+heuristic parser with one recursive-descent parser. M3 resolves and lowers
+every std header, builds canonical interfaces for all three std folders,
+and makes their prelude types available to programs. The one driver uses
+the full parser, `hd_project`, `hd_resolve`, `hd_types`, `hd_tir::Body`,
+every executor, `CacheStore`, `hd_mono` and `hd_wasm`. The remaining
+findings are feature coverage and incomplete cache/runtime details, not a
 second compiler pipeline.
 
 ## Summary: The Top 10
 
 Ranked by how much each blocks the next working language slice.
 
-1. **Header checking and much of body checking still answer
-   `NotImplemented`.** `BodyCx` uses `InternPool`, `SkeletonSolver`, fuel
-   and `TirBuilder`, but unsupported expressions become a coded internal
-   diagnostic. `header_check`, derived heads, test overlays and nontrivial
-   coherence remain partial. This is safe now because the build stops.
-2. **The standard-library pack is not writable.** Folder interfaces can
-   be built and the host prelude is represented in `hd_host_abi`, but
-   `hd_stdpack::build_pack` still stops at header checking or the pack
-   writer. Programs therefore cannot load the ordinary `lib/std` modules.
-3. **The complete diagnostic enum is generated but not integrated.** Q9
-   writes all 233 spec codes and phase metadata to `hd_diag/src/codes.rs`.
-   The task's one-file compiler restriction leaves `hd_diag::Code` in
-   `lib.rs`, so the driver can emit only its hand-written subset plus
-   `unsupported` until the module hook is authorized.
-4. **Cache framing is real, but the cache model is partial.** Interface,
+1. **Much of body checking still answers `NotImplemented`.** `BodyCx`
+   uses `InternPool`, `SkeletonSolver`, fuel and `TirBuilder`, but
+   unsupported expressions stop the build. Derived heads, test overlays
+   and many nontrivial language forms remain partial.
+2. **The standard-library pack is not writable.** M3 builds source-backed
+   std interfaces and programs use their prelude. `hd_stdpack::build_pack`
+   still lacks checked bodies and the pack writer.
+3. **M3's interfaces omit diagnostic-only fidelity.** They have no private
+   name index or declaration anchors. Cross-folder private uses therefore
+   say `unknown-import`, while stage-B and coherence errors point at byte
+   zero of the file.
+4. **Trait defaults and coherence use temporary shortcuts.** Omitted trait
+   arguments do not take declaration defaults, and coherence compares
+   heads pairwise instead of using the designed discrimination tries.
+5. **Cache framing is real, but the cache model is partial.** Interface,
    check, code and link boundaries use `CacheStore` and framed entries;
    `hd_cli` opens `DiskStore`. The stat manifest, several entry kinds and
    key fields remain absent, a program miss decodes every module, and
    M1 over-invalidates both interface dependencies and a body moved by a
    header edit.
-5. **Skim still lexes whole files and over-collects uses.** It has no
+6. **Skim still lexes whole files and over-collects uses.** It has no
    header tree or skim-mode lexer and can treat identifier-led body lines
    as imports. The one driver filters the result, preserving the old cost
    and correctness risk.
-6. **Generated typed views and wire decoders remain hand-written or
+7. **Generated typed views and wire decoders remain hand-written or
    absent.** The parser has generic `NodeRef` accessors, but `hd.ungram`,
    named Rust views, the schema generator and the JavaScript decoder do
    not exist.
    Browser consumers still lack the designed stable generated surface.
-7. **Emission follows the designed types but covers only a scalar slice.**
+8. **Emission follows the designed types but covers only a scalar slice.**
    It uses `hd_tir::Body`, `layout_of`, collected instances and the host ABI.
    Suspensions, GC aggregates, metadata, panic sites and many TIR forms
    still return `NotImplemented`.
-8. **Task-boundary panic isolation regressed.** The old architecture path
+9. **Task-boundary panic isolation regressed.** The old architecture path
    caught panics; the unified `Exec` calls tasks directly under serial and
    rayon executors. One task panic can unwind the build instead of becoming
    the designed internal diagnostic.
-9. **Stepping exists but the browser does not use it.** `hd_web` calls
+10. **Stepping exists but the browser does not use it.** `hd_web` calls
     `analyze_package` as one slice, while `SteppingScheduler` counts tasks,
-    not body cursors. The playground therefore has neither the designed
-    cooperative budget nor cancellation granularity.
-10. **The CLI has no `hd check` path.** `hd run` and `hd build` use the
-    unified driver, but a check-only command cannot stop before collection,
-    emission and linking.
+    not body cursors. The CLI also lacks a check-only path.
 
 ## Findings
 
@@ -87,7 +83,7 @@ missed a case); **duplicate** (two code paths for one design thing);
 | TIR | `hd_tir::Body`, verifier and wire codec | fixed | none |
 | cache bytes and store | framed entries through `CacheStore`; `DiskStore` in `hd_cli` | fixed | manifest and entry coverage remain incomplete |
 | task results and executors | per-kind `OnceLock` slots; one `Exec` over `Spawn` | fixed | browser stepping remains unused |
-| diagnostics | `DiagBuf` through the running pipeline | fixed | generated full `Code` is not wired in |
+| diagnostics | generated `Code` and `DiagBuf` through the running pipeline | fixed | declaration anchors are absent from interfaces |
 | collection and layouts | `hd_mono::collect`, instance keys, `layout_of` | fixed | solver feature coverage remains partial |
 | host imports | `hd_host_abi` tables consumed by checking and emission | fixed | runtime metadata is not linked |
 | pipeline identity | `hd_mono::passes::DEV` hash | fixed | optimized passes remain later work |
@@ -115,19 +111,31 @@ missed a case); **duplicate** (two code paths for one design thing);
 | M2 gap 5. Progress guards and a nesting bound replace parser fuel | `Parser::statements`, `MAX_NESTING = 160`, `enter`, `skip_balanced` | Local progress guards cover stuck loops; the input limit emits `nesting-too-deep` | design replaces parser fuel; implementation stays |
 | M2 gap 6. Recovery reports once per statement and suppresses fallout after an unclosed delimiter | `stmt_errored`, `unclosed_from`, `recover_line` | Keep bounded reporting so one broken construct does not create cascades | design specifies the bounds; implementation stays |
 
+### M3 Findings
+
+| Finding | Code evidence | Intended rule | Side that changes |
+| --- | --- | --- | --- |
+| M3 gap 1. The bootstrap inventory assigned parent modules to their parent directories and inferred a false std folder cycle | `ModuleTable::discover_all` applies `module.folder.parent-file`; M3 builds `std`, `std.testing` and `std.prelude` with no cycle | `testing.hd` shares folder `std.testing` with its child; `std.core` is virtual, and all six seeded modules are inventoried | `std-bootstrap.md` corrected; implementation stays |
+| M3 gap 2. Frozen interfaces cannot distinguish a private declaration from an absent name | `Resolver::export` sees only public `FolderIface::exports` across folders | Store a diagnostic-only `private_names` index outside every semantic hash | implementation adds the section |
+| M3 gap 3. Fixed prelude uses create folder edges not stated in the design | `Run::skim_now` adds `prelude_modules()` to every module except `std.core` | These edges are intended: all ordinary origins live in `std`; `std.prelude.testing` also reaches `std.testing` | design now states the rule |
+| M3 gap 4. Written trait references retain only explicit positional arguments | `Lower::trait_value` interns `type_args` directly | Fill omitted trailing arguments from declaration defaults, substituting the bound or impl target for `Self` | implementation applies defaults during header lowering |
+| M3 gap 5. Interface items have no declaration anchors | `Run::item_span` returns the module file at byte zero | Store `TokenAnchor` rows outside semantic hashes and retain their item row through stage B and coherence | implementation adds and consumes anchors |
+| M3 gap 6. Coherence is pairwise per trait | `Universe::overlaps` unifies every later head with every earlier head | Keep the result and blame order, but replace quadratic enumeration with the designed ground and generic tries | implementation replaces the simplification |
+| M3 gap 7. Two proposed parser follow-ups disagree with the grammar | `Parser::use_decl` already accepts `as`; `associated_type` accepts only the grammar's optional `= type` | `use a.b as c` remains accepted; `type Item < Eq = i32` remains a syntax error unless the spec changes | no parser extension; design records the grammar result |
+
 ### Findings Table
 
 | Design section | Code path | Finding | Verdict | Proposed fix |
 | --- | --- | --- | --- | --- |
 | design-overview.md §1.1 to §1.3 | `TaskKind::Body(u32)`, one slot per module | The overview and M1 now agree on one scheduled body task per module | both ok | None |
-| design-overview.md §1.2 (Coherence row), SK-12 | `TaskKind::Coherence`, `hd_check::stages::coherence` | Unit per trait in the overview; one task per run in scheduler.md §6.1 and cache.md §5.3. The code has one task, with no key | design wrong | Overview row: "traits whose `coh_key` changed, one task" |
+| design-overview.md §1.2 (Coherence row), SK-12 | `TaskKind::Coherence`, `Run::coherence`, `Universe::overlaps` | Unit per trait in the overview; one task per run in scheduler.md §6.1 and cache.md §5.3. The code has one task, with no key | design wrong | Overview row: "traits whose `coh_key` changed, one task" |
 | design-overview.md §1.2 (Cached column) | none | The overview names `hdr`, `coh` and `init` entries; cache.md §5.2 makes them parts of one `graph` entry | design wrong | Overview: "part of `graph`" in those three rows and in the §1.1 diagram |
 | design-overview.md §1.3 (diagram), SK-4 | `Run::module_prep` creates parse and downstream tasks after misses | The dynamic graph now follows the corrected diagram | both ok | None |
 | design-overview.md §2.1 (D2 crates row) | `hd_driver` depends downward on `hd_mono` and `hd_wasm` | The dependency direction now matches the corrected row | both ok | None |
 | design-overview.md §2.1 (`hd_check`) | `BodyCx` uses `hd_types`, `hd_diag` and `hd_tir` | The duplicate `World` checker was deleted | both ok | None |
 | design-overview.md §2.1 (`hd_tir`) | `hd_tir::Body` and wire codec only | Run-global IDs, types and impl tables were deleted from TIR | both ok | None |
 | design-overview.md §2.2 rules 1 and 3 | `Host` takes sources, store, executor and clock; Node and disk live in `hd_cli` | The driver owns no host facility | both ok | None |
-| design-overview.md §2.2 rule 2 | `hd_diag::Code`, generated `codes.rs` | Q9 generates all 233 codes, but `lib.rs` still defines the public hand-written subset because the task forbids the module-hook edit | gap | Authorize and add `mod codes; pub use codes::{Code, Phase};` |
+| design-overview.md §2.2 rule 2 | `hd_diag::Code`, generated `codes.rs` | The generated enum and phase metadata are the public diagnostic surface | both ok | Keep the generator wired through `hd_diag::codes` |
 | design-overview.md §2.1, SK-11 | `hd_types::solver` | Solver in `hd_types`, as the overview says | both ok | Keep; trait-solver.md §1.1 should name the crate |
 | data-structures.md §3.1 | `hd_base` IDs and `hd_types::Ty` | The duplicate `hd_tir::world` IDs were deleted | both ok | None |
 | data-structures.md §3.3 | `hd_intern::ShardedInterner`, `hd_types::InternPool` | The string interner takes a global `append` mutex on every miss; the pool takes one global `Mutex<HashMap>` on every lookup, hit or miss, and allocates the key `Vec` first. The design has per-thread columns, 64 shards and a per-worker read-through table | impl wrong | One `ShardedInterner<C>` as §3.3 draws it, used by all three interners |
@@ -151,13 +159,13 @@ missed a case); **duplicate** (two code paths for one design thing);
 | syntax.md §4.4, build-order.md slice 1 | `hd_syntax::parser` | M2's one recursive-descent parser accepts every non-reject fixture and all 36 standard-library files | both ok | Keep the corpus, snapshots and mutation tests |
 | syntax.md §4.4 (progress and depth) | `Parser::{statements,enter,skip_balanced}`, `MAX_NESTING` | Progress guards and `nesting-too-deep` cover the two failure classes without a second fuel mechanism | design wrong | Replace parser fuel with the implemented progress and depth rules (M2 gap 5) |
 | syntax.md §4.4 (recovery) | `stmt_errored`, `unclosed_from`, `recover_line` | Reporting stops after one error per statement and suppresses fallout past an unclosed delimiter | design wrong | State these cascade bounds explicitly (M2 gap 6) |
-| resolution-and-interfaces.md §4.7 | `ModuleTable::discover` and `FolderGraph` | The duplicate driver loader was deleted | both ok | None |
-| resolution-and-interfaces.md §4.9 | `hd_resolve::ModuleScope` and prelude bindings | The duplicate subset resolver was deleted; feature coverage remains incomplete | both ok | Extend the survivor only |
-| resolution-and-interfaces.md §4.10, §4.10.1 | `hd_resolve::iface`, `header_check`, `derive_heads` | Interface construction uses the full parser and designed types; stage B and derived heads remain stubs | gap | Complete header validation and derived heads |
-| resolution-and-interfaces.md §4.11 | `hd_resolve::iface` codec and deep hashes | The duplicate `hd_iface` crate was deleted; the survivor still materializes decoded items rather than exposing the designed zero-copy reader | gap | Add the indexed reader and validator to `hd_resolve` |
-| resolution-and-interfaces.md §4.12, trait-solver.md §5.2 | `hd_check::stages::coherence` over interface heads | Exact-head overlap is checked and failures stop the build; generic and normalized heads remain unsupported | gap | Complete overlap over the full solver |
+| resolution-and-interfaces.md §4.7, §4.8 | `ModuleTable::discover_all`, `FolderGraph` | M3 applies the parent-file rule and builds the three-folder std graph; fixed prelude uses intentionally add edges to `std` | both ok | Keep the M3 gap 1 and 3 corrections |
+| resolution-and-interfaces.md §4.9 | `hd_resolve::ModuleScope`, export worklist and prelude bindings | All std header uses resolve, but a frozen interface has no private-name index, so cross-folder private uses report `unknown-import` | gap | Add `private_names` outside semantic hashes (M3 gap 2) |
+| resolution-and-interfaces.md §4.10, §4.10.1 | `hd_resolve::{lower,header,iface}` | M3 lowers every std header and runs stage B without `NotImplemented`; derived heads and trait-argument defaults remain incomplete | gap | Apply declared defaults during lowering and complete derived heads (M3 gap 4) |
+| resolution-and-interfaces.md §4.11 | `hd_resolve::iface` codec and deep hashes | Canonical blobs round-trip across fresh runs and shuffled orders; decoded copies, private names and declaration anchors remain gaps | gap | Add the indexed reader, `private_names` and `anchors` (M3 gaps 2 and 5) |
+| resolution-and-interfaces.md §4.12, trait-solver.md §5.2 | `hd_resolve::Universe::{stage_b,overlaps}` | Stage B and generic-head overlap run, but coherence enumerates pairs instead of the designed tries | gap | Replace pairwise enumeration with the ground and generic tries (M3 gap 6) |
 | checking-and-tir.md §4.13.1 (M1, M3) | `Run::module_prep`, `Run::module_finish` | M1 lowers headers only (no omitted-result walk); M3 writes the entry only (no rows, init summary or sort) | gap | Land with the `hd_types` checker |
-| checking-and-tir.md §4.14 | per-stage and per-module `DiagBuf`, assembled in content order | Structured diagnostics are on the running path; the complete generated code enum is unwired and four package-level paths use sentinel spans | gap | Wire Q9's generated `Code` module and retain primary source sites for every diagnostic |
+| checking-and-tir.md §4.14 | generated `Code`; per-stage and per-module `DiagBuf` | Structured diagnostics and the complete code enum are live; interface findings and three package-level paths still lack primary source sites | gap | Retain declaration anchors and real package-level primary spans (M3 gap 5) |
 | checking-and-tir.md §4.15, trait-solver.md §7.4 | `BodyCx::charge` and solver fuel | Fuel is charged; exhaustion still reports internal `unsupported` instead of the specified limit code | gap | Emit the generated limit diagnostic |
 | type-checking.md §1.4 to §1.6 | `BodyCx` over `InternPool`, `TirBuilder` and `SkeletonSolver` | The designed interfaces are wired; unsupported language forms stop the build | both ok | Extend feature coverage without another checker |
 | trait-solver.md §3.1 to §3.4 | `SkeletonSolver`, called by `BodyCx` | Exact heads and memoization are live; generic matching and normalization still answer `NotImplemented` | gap | Extend the wired solver |
@@ -206,6 +214,9 @@ is eyeballed).
    uses, so the "skim is cheaper than parse" assumption of syntax.md
    §4.3 does not hold; it costs about half a parse (4.2 against
    8.8 ms at 30,000 lines in skeleton-findings.md).
+6. **Coherence.** M3's overlap check compares every pair of heads for one
+   trait. The designed ground and generic tries avoid quadratic work when
+   constructors separate ordinary heads.
 
 ## Design Changes Proposed
 
@@ -348,3 +359,20 @@ previously real TIR, layout and entry-format rows:
    driver and persistent cache.
 7. **Totals.** Real rises from 46 to 52; skeleton falls from 105 to 99;
    missing stays 173, for 324 sections.
+
+### After M3
+
+M3 changes no category count. It substantially extends four skeleton
+rows without completing every contract:
+
+1. **Resolution §4.9.** Every std use form and prelude binding resolves;
+   the private-name diagnostic index is absent.
+2. **Interfaces §4.10 and §4.11.** Every std header lowers, stage B runs,
+   and blobs round-trip deterministically. Derived heads, trait defaults,
+   zero-copy views and declaration anchors remain incomplete.
+3. **Traits §4.12.** Generic heads and stage-B obligations run, but
+   coherence remains pairwise rather than trie-based.
+4. **Diagnostics §4.14.** The complete generated code enum is live;
+   interface findings still fall back to file-level spans.
+5. **Totals.** Real remains 52, skeleton 99 and missing 173, for 324
+   sections.
