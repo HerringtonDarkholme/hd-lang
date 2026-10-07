@@ -66,9 +66,11 @@ fn retry_limit(text: string) -> Result[i32, JsonError]:
     .Ok(config.limits.retries)
 ```
 
-The error must be the function's own error type, so two different ones,
-such as a time parse and a number parse in one scanner, still need a
-`match`.
+The function's error type must accept the error: either the same type,
+or a type with a `From` implementation for it. So one function can use `?`
+on a time parse and a number parse if its error enum marks a variant
+`@from` for each ([Error Derivation](../spec/lang/14-annotations.md#error-derivation),
+[`?` on a Result](../spec/lang/04-type-system.md#r-types.result.propagate.one-step)).
 
 ## Documentation That Runs As Tests
 
