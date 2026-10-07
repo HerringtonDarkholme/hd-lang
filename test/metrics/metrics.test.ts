@@ -1,4 +1,6 @@
-// Unit tests of the metric harness helpers. They run no hd.
+// Unit tests of the metric harness helpers. They start no process: no hd,
+// no metric script, no `ps`. Tests that start one live in integration/,
+// outside the `pnpm test` glob.
 
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, linkSync, mkdirSync, writeFileSync } from "node:fs";
@@ -11,7 +13,7 @@ import { findCacheCap, findThreadControl } from "./lib/capability.ts";
 import { loadMistakes, parseMistake } from "./lib/corpus.ts";
 import { applyEdits, fixOf } from "./lib/fixit.ts";
 import { dependentsOf, editBody, editSignature, generatePackage, makeRandom } from "./lib/gen.ts";
-import { parsePsRss, parseTimeReport, runSession, splitCommand } from "./lib/hd.ts";
+import { parsePsRss, parseTimeReport, splitCommand } from "./lib/hd.ts";
 import { judge } from "./lib/metric.ts";
 import { estimateTokens, growthExponent, p50, p95, percentile } from "./lib/stats.ts";
 import { makeTempDir, removeTempDir, treeBytes } from "./lib/tmp.ts";
@@ -221,29 +223,6 @@ describe("pillar 2 helpers", () => {
     const text = "    1  18112\n  367  16672\n  367   9920\n 3670     10\n";
     assert.equal(parsePsRss(text, 367), (16672 + 9920) * 1024);
     assert.equal(parsePsRss(text, 42), undefined);
-  });
-
-  it("samples a paced session after each step", async () => {
-    // A stand-in REPL: echoes each line it reads, upper-cased.
-    const echo = [
-      process.execPath,
-      "-e",
-      'require("readline").createInterface({ input: process.stdin }).on("line", (l) => console.log(l.toUpperCase()))',
-    ];
-    const steps = ["a", "b"].map((word) => ({
-      input: `${word}\n`,
-      done: (stdout: string) => stdout.includes(word.toUpperCase()),
-    }));
-    const result = await runSession(echo, { cwd: process.cwd(), timeoutMs: 20_000, steps });
-    assert.equal(result.problem, undefined);
-    assert.equal(result.rssBytes.length, 2);
-    assert.ok(result.rssBytes.every((value) => value !== undefined && value > 0));
-    const stuck = await runSession(echo, {
-      cwd: process.cwd(),
-      timeoutMs: 1_000,
-      steps: [{ input: "a\n", done: () => false }],
-    });
-    assert.match(stuck.problem ?? "", /timed out .* step 1 of 1/);
   });
 
   it("counts hard-linked files once and removes read-only trees", () => {

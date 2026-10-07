@@ -234,7 +234,8 @@ To print one program: `node --experimental-strip-types test/metrics/pathological
 | `lib/deps.ts` | the local remote that counts fetches, and a dependent package |
 | `lib/trace.ts` | `strace` file-call tracing and its parser |
 | `mistakes/`, `pathological/` | the corpora |
-| `metrics.test.ts` | unit tests of the helpers: `node --test --experimental-strip-types test/metrics/metrics.test.ts` |
+| `metrics.test.ts` | unit tests of the helpers, part of `pnpm test`: `node --test --experimental-strip-types test/metrics/metrics.test.ts`. They start no process. |
+| `integration/` | opt-in tests that start processes, outside the `pnpm test` glob: `node --test --experimental-strip-types 'test/metrics/integration/*.test.ts'` |
 
 CPU time and peak RSS come from `/usr/bin/time -l` on macOS and `-v` on
 Linux, written to a temporary file with `-o`. Each run starts in its own
