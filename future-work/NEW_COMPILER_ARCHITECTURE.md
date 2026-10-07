@@ -27,6 +27,13 @@ the orchestrator's proposals kept apart. Last restructured 2026-10-06.
 
 **Decided (owner, 2026-10-06):**
 
+- **The compiler runs in the web playground.** It is compiled to Wasm and
+  checks, builds and tests in a browser tab, as the prototype does today.
+  The playground runs the user's program on the browser's engine. So the
+  implementation language must target the browser, the cache needs a
+  storage interface without a file system, checking must also work on one
+  thread, and the host interface has a JS implementation.
+
 - The prototype in [`src/`](../src/README.md) is frozen as a test oracle
   ([Roadmap](ROADMAP.md#order)); the new compiler starts now.
   See [Prototype Baselines](#prototype-baselines-to-beat-2026-10-06).
