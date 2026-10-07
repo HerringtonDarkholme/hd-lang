@@ -64,6 +64,17 @@ Detailed design: [README.md](README.md)
   containers of `T` are read and written in place through the witness, and
   function types are adapted by caller-built thunks. Everything outside
   `dyn` stays fully monomorphized.
+- **Facts are runtime values.** A fact or metadata expression is evaluated
+  once, lazily, on first read (like a lazily initialized global), not at
+  compile time. A panic there is a runtime panic with category
+  `fact-evaluation-failed`; unread facts are never evaluated; a fact may
+  hold anything a global can. This removes the compile-time fact
+  evaluator, its budget, the `fact` cache entry and value-graph
+  serialization (Codex re-review N6, questions 3 and 4). Requirement-free
+  and the direct `block_on`/`println` ban still apply.
+- REPL redefinition is shadowing: earlier items keep the old definition
+  (`live-execution.md`). A rebuild may lose a stopped (busy, interrupted)
+  input's changes, with a spec rule and a REPL report.
 - **GADTs are removed from the language** (chapter 13, its fixtures and
   every refinement rule). Typed request/response APIs use traits with
   associated types; typed interpreters use a runtime value enum or traits.
