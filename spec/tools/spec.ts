@@ -2,6 +2,7 @@
 //
 //   pnpm run spec counts [--by chapter|prefix|topic|kind] [--json]
 //   pnpm run spec audit [--strict] [--list] [--json]
+//   pnpm run spec coverage [--uncovered CHAPTER] [--json]
 //   pnpm run spec refs RULE-ID [--json]
 //   pnpm run spec refs --dead [--brief] [--all] [--json]
 //   pnpm run spec rewrite BASE [HEAD] [--json] [--fail-on KINDS]
@@ -19,6 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import { audit, auditReport, auditTotals } from "./spec-audit.ts";
 import { loadCorpus, loadCorpusAt, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
+import { coverage, coverageReport } from "./spec-coverage.ts";
 import { counts, countsReport, type CountsView } from "./spec-counts.ts";
 import { glossary, glossaryMarkdown, glossaryReport } from "./spec-glossary.ts";
 import { buildIndex, deadCitations, deadReport, historicalIds, refsReport } from "./spec-refs.ts";
@@ -26,6 +28,7 @@ import { FAIL_KINDS, failures, type FailKind, rewrite, rewriteReport } from "./s
 
 const USAGE = `usage: spec.ts counts [--by chapter|prefix|topic|kind] [--json]
        spec.ts audit [--strict] [--list] [--json]
+       spec.ts coverage [--uncovered CHAPTER] [--json]
        spec.ts refs RULE-ID [--json]
        spec.ts refs --dead [--brief] [--all] [--json]
        spec.ts rewrite BASE [HEAD] [--json] [--fail-on lost-codes,lost-examples,reused-ids]
@@ -88,6 +91,20 @@ export function run(
       ? json({ totals: auditTotals(warnings), warnings })
       : auditReport(warnings, options.flags.has("--list"));
     return { status: options.flags.has("--strict") && warnings.length > 0 ? 1 : 0, stdout };
+  }
+  if (command === "coverage") {
+    const options = parse(rest, ["--json"], ["--uncovered"]);
+    if (options.positional.length > 0) throw new UsageError("coverage takes no arguments");
+    const corpus = loadCorpus(roots.spec);
+    const result = coverage(corpus, buildIndex(corpus, roots.repo));
+    try {
+      const stdout = options.flags.has("--json")
+        ? json(result)
+        : coverageReport(result, options.values.get("--uncovered"));
+      return { status: 0, stdout };
+    } catch (error) {
+      throw new UsageError((error as Error).message);
+    }
   }
   if (command === "refs") {
     const options = parse(rest, ["--dead", "--brief", "--all", "--json"], []);

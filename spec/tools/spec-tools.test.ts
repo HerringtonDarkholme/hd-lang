@@ -10,6 +10,7 @@ import { knownCodes } from "./spec-prose.ts";
 import { audit, auditTotals, normalizeSentence } from "./spec-audit.ts";
 import { chapterNames, loadCorpus, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
 import { counts } from "./spec-counts.ts";
+import { coverage, coverageReport } from "./spec-coverage.ts";
 import {
   areaOf,
   type Citation,
@@ -491,6 +492,46 @@ test("glossary helpers rebase links and match plurals", () => {
   assert.equal(rebaseLinks("[a](https://e.com/x.md)", "std"), "[a](https://e.com/x.md)");
   assert.ok(termKeys("trait candidates").includes("trait candidate"));
   assert.ok(termKeys("mutable edges").includes("mutable edge"));
+});
+
+test("coverage counts rules cited by fixtures and cases.tsv, not by the README", () => {
+  const corpus = loadCorpus(SPEC_ROOT);
+  const rules = corpus.chapters.flatMap((chapter) =>
+    chapter.inventory.rules.map((rule) => ({ chapter: chapter.name, id: rule.id })),
+  );
+  const first = rules[0]!;
+  const second = rules[1]!;
+  assert.equal(first.chapter, second.chapter);
+  const cite = (file: string, id: string): Citation => ({
+    file,
+    line: 1,
+    id,
+    form: "id",
+    target: "",
+    area: file.startsWith("spec/conformance/") ? "fixtures" : "spec",
+    history: false,
+    text: id,
+  });
+  const index: RefIndex = {
+    live: new Map(),
+    history: ruleHistory(REPO_ROOT),
+    citations: [
+      cite("spec/conformance/runtime/valid/x.hd", first.id),
+      cite("spec/conformance/README.md", second.id),
+      cite("spec/lang/01-lexical-structure.md", second.id),
+    ],
+  };
+  const result = coverage(corpus, index);
+  assert.equal(result.cited, 1);
+  assert.equal(result.rules, rules.length);
+  const own = result.chapters.find((c) => c.chapter === first.chapter)!;
+  assert.equal(own.cited, 1);
+  assert.ok(!own.uncovered.includes(first.id));
+  assert.ok(own.uncovered.includes(second.id));
+  assert.ok(coverageReport(result).includes("total"));
+  assert.ok(coverageReport(result, first.chapter).includes(second.id));
+  assert.throws(() => coverageReport(result, "99-nothing"), /no chapter matches/);
+  assert.throws(() => run(["coverage", "--uncovered", "99-nothing"]), /no chapter matches/);
 });
 
 test("the spec tools import only Node built-ins and spec/", async () => {

@@ -7,7 +7,7 @@ implementation. The one exception is an adapter module that
 
 | File | Purpose |
 | --- | --- |
-| `spec.ts` | the `pnpm run spec` entry point: `counts`, `audit`, `refs`, `rewrite`, and `glossary` |
+| `spec.ts` | the `pnpm run spec` entry point: `counts`, `coverage`, `audit`, `refs`, `rewrite`, and `glossary` |
 | `spec-corpus.ts` | every chapter with its rule inventory, read from a directory or a git revision |
 | `spec-rewrite.ts` | the before/after report of `rewrite` |
 | `spec-glossary.ts` | the terms, the Markdown page, and the missing-term report of `glossary` |
@@ -47,6 +47,17 @@ case that selects a runner option fails.
 `timedOut: true`, and must keep serving later commands. `status` is the
 exit status, or null for a command that did not finish. The repository's
 own adapter is [`test/hd-adapter.ts`](../../test/hd-adapter.ts).
+
+## Fixture Coverage
+
+`coverage` prints, per chapter, how many rules a fixture, `cases.tsv`, or
+`examples.tsv` cites. The conformance README does not count.
+`--uncovered 08` lists the uncovered IDs of the chapters whose name starts with `08`.
+
+```sh
+pnpm run spec coverage
+pnpm run spec coverage --uncovered 08
+```
 
 ## Counting Rules
 
