@@ -34,8 +34,11 @@ the orchestrator's proposals kept apart. Last restructured 2026-10-06.
   at low priority. See [Toolchain-Wide Features](#toolchain-wide-features).
 - A program database instead of a language server, after the first
   release.
-- Pillar 1 features are triaged: day 1, v1, later and dropped. See
-  [Pillar 1 features](#pillar-1-features-agent-wait-time-and-retries).
+- Pillar 1 and pillar 3 features are triaged: day 1, v1, later and
+  dropped. See [Pillar 1 features](#pillar-1-features-agent-wait-time-and-retries)
+  and [Pillar 3 features](#pillar-3-features-artifact-quality).
+- The first release targets Wasm only; the native Cranelift backend with
+  its own GC comes right after.
 - NonEscapable comes after the first release.
 - No serializable closures in the first release.
 - Suspension lowering reserves no-op observability and replay hook points
@@ -184,8 +187,8 @@ bugs its tests catch.
 Owner, 2026-10-06 (candidate features): "just think about features; later,
 if a feature is too hard to implement, removing it is fine." Every item is in
 until its cost says otherwise. Items marked ✓ exist in the prototype or are
-already decided. Pillar 1 is triaged. For the other pillars the owner said
-"add all", and triage comes later.
+already decided. Pillars 1 and 3 are triaged; pillar 2 is deprioritized
+and not triaged.
 
 ### Pillar 1 Features: Agent Wait Time And Retries
 
@@ -322,67 +325,74 @@ one machine is "probably too stretched".
 
 ### Pillar 3 Features: Artifact Quality
 
-Owner: "add all, triage later", 2026-10-06. Runtime performance is
-**discussed systematically later**.
+Triaged with the owner, 2026-10-06, in the same tiers as pillar 1. Runtime
+performance is **discussed systematically later**, so only the choices
+the architecture locks in are triaged here.
 
-- **Correct programs:**
-  - fast property tests (integrated shrinking, cases run in one instance,
-    compiled `Arbitrary` generators), plus a regression file of failing
-    seeds that runs first; property tests ✓;
-  - fast unit and integration tests (pooled runner, parallel runs);
-  - `hd fuzz` (coverage-guided, reusing the derived `Arbitrary`
-    generators), `hd test --coverage`, snapshot tests with `--update`;
-  - cross-backend conformance and differential testing;
-  - **deterministic simulation testing**: a whole program runs against
-    fake capability providers under a seeded scheduler that varies the
-    order of suspension points, and a failure replays from its seed;
-  - interleaving exploration for `all!` / `race!` (in the style of loom);
-  - generated recording fakes for any capability trait (generalizing
-    `ScriptedHttp`), for example `@derive(Fake)`;
-  - `hd lint` for least privilege (unused requirements), ignored
-    `Result`s and unreachable code;
-  - debug-mode runtime checks: iterator invalidation, use of a closed
-    handle, deadlocked suspension.
-- **Fast programs:**
-  - code generated per value layout (monomorphization), with `i31ref`
-    first on Wasm;
-  - enum layout chosen per enum (GC subtypes or a tag plus shared fields);
-  - counted range loops, inlining and escape analysis (zero-allocation
-    loops; captured counters turned back into locals);
-  - closures that capture nothing become function references;
-  - cheap `Option`: a nullable reference (no allocation), or a scalar
-    returned as two values;
-  - derive templates compiled to straight-line code at compile time;
-  - suspension as state machines with an allocation-free ready path, or
-    stack switching later;
-  - cheap host calls: typed scalar imports, serde only for structured
-    values, buffered console;
-  - a native backend with its own GC;
-  - profile-guided optimization from `hd run --profile`;
-  - async I/O for servers (epoll, kqueue or io_uring natively; the host
-    event loop on Wasm);
-  - data parallelism for CPU-bound work, such as `par_map` or parallel
-    iterators (raises the language question of real threads);
-  - startup snapshots for serverless;
-  - per-request arenas;
-  - SIMD where it helps (low priority).
-- **Sandboxing:** resource limits (`--max-heap`, time or fuel), alongside
-  capability grants ✓ (identical on every backend).
-- **Small and observable programs:**
-  - whole-program DCE, std tree-shaking, `wasm-opt`,
-    `hd build --size-report`;
-  - `hd run --profile` (CPU flamegraph and allocation profile);
-  - `hd bench` (warm-up and spread reported);
-  - native debugging (lldb/gdb) and Wasm debugging in browser devtools,
-    with source lines;
-  - panic locations and cause chains ✓, `dbg` ✓, and record and replay
-    (`hd run --record` / `--replay`, deterministic replay built on the
-    reserved hooks);
-  - structured tracing through the reserved hooks (OpenTelemetry-style);
-  - symbolized crash backtraces in release builds;
-  - heap snapshots and leak detection.
-- **Packaging:** a standalone native binary, a WASI component, or a
-  serverless or edge bundle from one command.
+**Day 1:**
+
+- code generated per value layout (monomorphization), with `i31ref` first
+  on Wasm, and an enum layout chosen per enum (GC subtypes, or a tag plus
+  shared fields);
+- suspension lowered to state machines, with the reserved no-op hook
+  points;
+- every source of nondeterminism (time, random, I/O, scheduling) goes
+  through a capability or the scheduler, so simulation testing and record
+  and replay can be added later;
+- only reachable items are compiled (whole-program DCE and std
+  tree-shaking fall out of demand-driven queries);
+- the conformance suite runs on every backend (cross-backend conformance
+  and differential testing).
+
+**v1:**
+
+- fast property tests: integrated shrinking, cases run in one instance,
+  compiled `Arbitrary` generators, and a regression file of failing seeds
+  that runs first (property tests ✓);
+- unit and integration tests run in parallel on a pooled runner;
+- counted range loops (no allocation), closures that capture nothing as
+  function references, cheap `Option` (a nullable reference, or a scalar
+  returned as two values), and derive templates compiled to straight-line
+  code;
+- cheap host calls (typed scalar imports, serde only for structured
+  values, buffered console), and host calls that can suspend, driven by
+  the host event loop on Wasm, for servers;
+- resource limits (`--max-heap`, time or fuel), alongside capability
+  grants ✓;
+- debug-tier runtime checks: use of a closed handle, deadlocked
+  suspension;
+- symbolized crash backtraces in release builds; panic locations and
+  cause chains ✓, `dbg` ✓.
+
+**Later:**
+
+- **deterministic simulation testing**: a whole program runs against fake
+  capability providers under a seeded scheduler that varies the order of
+  suspension points, and a failure replays from its seed; plus
+  interleaving exploration for `all!` / `race!` (in the style of loom);
+- record and replay (`hd run --record` / `--replay`) and structured
+  tracing (OpenTelemetry-style), both on the reserved hooks;
+- generated recording fakes for any capability trait, for example
+  `@derive(Fake)` (generalizing `ScriptedHttp`);
+- `hd test --coverage`, and snapshot tests with `--update`;
+- `hd lint`: unused requirements (least privilege), ignored `Result`s,
+  unreachable code;
+- inlining, escape analysis, profile-guided optimization, startup
+  snapshots for serverless, SIMD: for the runtime-performance discussion;
+- data parallelism (`par_map`, parallel iterators). It raises the language
+  question of real threads; until then the runtime keeps no global
+  mutable state;
+- `hd run --profile` (CPU flamegraph and allocation profile), `hd bench`,
+  native and browser-devtools debugging with source lines, heap snapshots
+  and leak detection, `wasm-opt` and `hd build --size-report`;
+- **a native backend with its own GC** (Cranelift), native async I/O
+  (epoll, kqueue or io_uring), and packaging as a standalone native
+  binary, a WASI component, or a serverless or edge bundle.
+
+**Dropped** (owner, 2026-10-06): `hd fuzz` (hd is memory-safe, and
+property tests over the derived `Arbitrary` generators cover the rest);
+per-request arenas (they need region safety, which comes with
+NonEscapable after v1, and the GC covers the rest).
 
 ### Toolchain-Wide Features
 
@@ -391,7 +401,9 @@ features", 2026-10-06).
 
 - **Targets (owner, 2026-10-06):** the language has more than one backend.
   **Wasm** and **Cranelift** first, with **LLVM** and **JS** at low
-  priority.
+  priority. The first release targets **Wasm only**, run on wasmtime
+  (which compiles with Cranelift); the native Cranelift backend with its
+  own GC comes right after (owner, 2026-10-06).
   - `hd build --target wasm | native | js | wasi`, with cross-compilation.
   - Native: one standalone executable with the runtime linked in.
   - WASI output for wasmtime, edge and serverless hosts.
