@@ -56,6 +56,12 @@ Detailed design: [README.md](README.md)
   can be a `dyn` type, and members that cannot work dynamically (`Self`
   parameters, associated functions) are unavailable on the `dyn` value,
   with the error at the call.
+- Generic methods called through a `dyn` value keep one erased body per
+  impl (boxing value-typed arguments). A method type parameter of such a
+  method may appear only as `T` or `T?` in its parameters and result; a
+  method that uses it anywhere else (inside a container, tuple or
+  function type) is unavailable on `dyn` values, with the error at the
+  call (owner chose this over whole-program instance tables, 2026-10-07).
 - **GADTs are removed from the language** (chapter 13, its fixtures and
   every refinement rule). Typed request/response APIs use traits with
   associated types; typed interpreters use a runtime value enum or traits.
