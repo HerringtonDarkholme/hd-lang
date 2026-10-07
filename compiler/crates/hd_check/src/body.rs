@@ -77,6 +77,13 @@ pub(crate) struct Ck<'a, 'c> {
     /// The next call's default bodies: callee, type arguments and the
     /// values before the first argument (a receiver).
     pub default_owner: Option<(DefId, TyList, Vec<Ref>)>,
+    /// Whether the body or closure being checked suspends (a driver
+    /// context for bang calls).
+    pub suspends: Vec<bool>,
+    /// Inside a `defer` suite: the loop depth at its start.
+    pub defer_base: Option<usize>,
+    /// The node of each literal constant, for range diagnostics.
+    pub lit_nodes: Vec<(Ref, hd_base::NodeIdx)>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -111,6 +118,9 @@ fn new_ck<'a, 'c>(
         pending: Vec::new(),
         method_targs: Vec::new(),
         default_owner: None,
+        suspends: vec![false],
+        defer_base: None,
+        lit_nodes: Vec::new(),
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;
@@ -176,6 +186,7 @@ pub fn check_fn(
         return unsupported("a body of a non-function item");
     };
     let mut ck = new_ck(cx, def, def, BodyKind::Fn, (sig.ret, sig.row), diags);
+    ck.suspends = vec![sig.suspends];
     let blk = ck.b.open_block();
     for (name, ty) in sig.params.clone() {
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
@@ -264,6 +275,35 @@ impl Ck<'_, '_> {
         match self.pool().get(t) {
             TyData::Infer(_) => "{unknown}".into(),
             _ => hd_resolve::show_ty(&self.cx.names, t),
+        }
+    }
+
+    /// `integer-literal-range`: an integer constant must fit its type.
+    fn check_literal_ranges(&mut self) {
+        use hd_types::Prim;
+        let pool = self.cx.names.pool;
+        for (r, at) in std::mem::take(&mut self.lit_nodes) {
+            let Some((t, bits)) = self.b.const_of(r) else {
+                continue;
+            };
+            let TyData::Prim(p) = pool.get(t) else {
+                continue;
+            };
+            let v = bits.cast_signed();
+            let ok = match p {
+                Prim::I8 => i8::try_from(v).is_ok(),
+                Prim::I16 => i16::try_from(v).is_ok(),
+                Prim::I32 => i32::try_from(v).is_ok(),
+                Prim::U8 => u8::try_from(bits).is_ok(),
+                Prim::U16 => u16::try_from(bits).is_ok(),
+                Prim::U32 => u32::try_from(bits).is_ok(),
+                _ => true,
+            };
+            if !ok {
+                let node = self.cx.src.parse.tree.node(at);
+                let msg = format!("integer-literal-range: {v} does not fit {}", p.name());
+                self.err(Code::IntegerLiteralRange, node, &msg);
+            }
         }
     }
 
@@ -703,6 +743,13 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::AssignmentStmt => self.assign(s, &kids)?,
             SyntaxKind::ReturnStmt => {
+                if self.defer_base.is_some() {
+                    self.err(
+                        Code::DeferControlFlow,
+                        s,
+                        "defer-control-flow: a `defer` suite cannot `return`",
+                    );
+                }
                 let ret = *self.rets.last().expect("ret");
                 let r = if let Some(e) = kids.first() {
                     let (r, t) = self.expr(*e, Some(ret))?;
@@ -718,6 +765,13 @@ impl Ck<'_, '_> {
                     self.err(Code::BreakOutsideLoop, s, "break-outside-loop");
                     return Ok(Ty::NEVER);
                 };
+                if self.defer_base == Some(self.loops.len()) {
+                    self.err(
+                        Code::DeferControlFlow,
+                        s,
+                        "defer-control-flow: a `defer` suite cannot leave an enclosing loop",
+                    );
+                }
                 if s.kind() == SyntaxKind::ContinueStmt {
                     self.b
                         .emit(Tag::Continue, lp.0.raw(), NONE, Ty::NEVER, s.index());
@@ -728,7 +782,14 @@ impl Ck<'_, '_> {
                         let (r, t) = self.expr(*e, Some(want))?;
                         self.coerce(r, t, want, *e, "break value").0
                     }
-                    (Some(_), None) => return unsupported("`break` with a value in this loop"),
+                    (Some(e), None) => {
+                        self.err(
+                            Code::BreakValueContext,
+                            *e,
+                            "break-value-context: only a `loop` takes a `break` value",
+                        );
+                        NONE
+                    }
                     (None, _) => NONE,
                 };
                 self.b.emit(Tag::Break, lp.0.raw(), v, Ty::NEVER, s.index());
@@ -739,7 +800,9 @@ impl Ck<'_, '_> {
                     return unsupported("a `defer` without a suite");
                 };
                 let m = self.b.open_block();
+                let saved = self.defer_base.replace(self.loops.len());
                 self.block_value(blk, Some(Ty::VOID))?;
+                self.defer_base = saved;
                 let suite = self.b.close_block(m, None, Ty::VOID, blk.index());
                 self.b.defer(suite, s.index());
             }
@@ -1043,15 +1106,22 @@ impl Ck<'_, '_> {
         if !self.diags.has_errors() {
             for i in 0..n {
                 let t = self.b.body_mut().ty[i];
-                if pool.has_poison(t) && self.b.body_mut().tags[i] != Tag::Poison {
-                    let at = self.b.body_mut().syn[i];
-                    return unsupported(format!(
-                        "a type the checker could not infer @node{}",
-                        at.raw()
-                    ));
+                let at = self.b.body_mut().syn[i];
+                if pool.has_poison(t)
+                    && self.b.body_mut().tags[i] != Tag::Poison
+                    && at != hd_base::NodeIdx::NONE
+                {
+                    let node = self.cx.src.parse.tree.node(at);
+                    self.err(
+                        Code::CannotInferType,
+                        node,
+                        "cannot-infer-type: annotate this value's type",
+                    );
+                    break;
                 }
             }
         }
+        self.check_literal_ranges();
         // Capture modes (checking-and-tir.md "Data and closures"): `Copy`
         // when no side assigns the local after its declaration, `Shared`
         // otherwise. `Move` needs the liveness pass and is not chosen yet.

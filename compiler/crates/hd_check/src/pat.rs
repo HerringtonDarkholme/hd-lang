@@ -86,6 +86,16 @@ impl Ck<'_, '_> {
                     return unsupported("a binding pattern without a name");
                 };
                 let name = self.cx.names.syms.intern(self.cx.src.text(nt));
+                if binds
+                    .iter()
+                    .any(|(_, l)| self.b.body_mut().local_name[l.idx()] == name)
+                {
+                    let msg = format!(
+                        "duplicate-binding: `{}` is bound twice in one pattern",
+                        self.cx.names.text(name)
+                    );
+                    self.err(Code::DuplicateBinding, p, &msg);
+                }
                 if let Some(sub) = p.children().next() {
                     // `name @ pattern`-like forms.
                     let _ = sub;
@@ -459,6 +469,7 @@ impl Ck<'_, '_> {
             });
         }
         self.check_exhaustive(n, &rows, st);
+        self.check_reachable(&rows, st);
         let db = self.b.open_block();
         self.decide(&rows, 0, sr, st)?;
         let dec = self.b.close_block(db, None, Ty::NEVER, n.index());
@@ -889,6 +900,27 @@ impl Ck<'_, '_> {
                     .map(|r| r[1..].to_vec())
                     .collect();
                 self.useful(&d, &q[1..], &tys[1..], depth + 1)
+            }
+        }
+    }
+
+    /// `unreachable-match-arm` for an arm whose values the unguarded arms
+    /// before it already match.
+    fn check_reachable(&mut self, rows: &[Row<'_>], t: Ty) {
+        let mut before: Vec<Vec<P>> = Vec::new();
+        for r in rows {
+            let p = self.to_p(r.pat, t);
+            if !self.useful(&before, std::slice::from_ref(&p), &[t], 0)
+                && let Some(node) = r.pat
+            {
+                self.err(
+                    Code::UnreachableMatchArm,
+                    node,
+                    "unreachable-match-arm: the arms before this one match all of its values",
+                );
+            }
+            if r.guard.is_none() {
+                before.push(vec![p]);
             }
         }
     }

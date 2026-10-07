@@ -124,6 +124,28 @@ fn std_bodies_match_golden_tir() {
     }
 }
 
+/// `use a.b as c` and `use a.{b as c}` (grammar.use) reach the checker:
+/// the renamed module, type and trait resolve in bodies.
+#[test]
+fn renamed_uses_resolve_in_bodies() {
+    let mut src = MemorySources::default();
+    src.insert(
+        "main.hd",
+        "use std.cmp as order\nuse std.cmp.Ordering as Order\nuse std.format.{Display as Show}\n\nfn pick(o: Order) -> i32:\n    match o:\n        .Less => 1\n        .Equal => 2\n        .Greater => 3\n\nfn other(o: order.Ordering) -> i32:\n    pick(o)\n\nfn show[T < Show](x: T) -> string:\n    x.to_string()\n\nfn main() -> void $ Console:\n    println(other(.Less))\n",
+    );
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build(&host, "app", &Goal::Analyze);
+    assert_eq!(out.diags.len(), 0, "{}", out.render());
+    assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
+}
+
 fn codes(out: &Output) -> Vec<Code> {
     out.diags.code.clone()
 }
@@ -203,6 +225,54 @@ fn checker_errors_are_reported() {
         (
             "data P:\n    x: i32\n\nfn main() -> void $ Console:\n    p := P { x: 1 }\n    println(p.y)\n",
             Code::UnknownDataField,
+        ),
+        (
+            "fn get!() -> i32:\n    1\n\nfn main() -> void $ Console:\n    println(get!())\n",
+            Code::BangCallOutsideSuspension,
+        ),
+        (
+            "fn get() -> i32:\n    1\n\nfn main!() -> void $ Console:\n    println(get!())\n",
+            Code::NotSuspending,
+        ),
+        (
+            "fn f(o: i32?) -> i32:\n    match o:\n        _ => 0\n        .Some(x) => x\n\nfn main() -> void $ Console:\n    println(f(.None))\n",
+            Code::UnreachableMatchArm,
+        ),
+        (
+            "fn main() -> void $ Console:\n    x := .Red\n    println(1)\n",
+            Code::MissingContextualEnumType,
+        ),
+        (
+            "fn f(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    println(f(1, c = 2))\n",
+            Code::UnknownNamedArgument,
+        ),
+        (
+            "fn f(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    println(f(1, a = 2))\n",
+            Code::DuplicateArgument,
+        ),
+        (
+            "fn main() -> void $ Console:\n    let x: u8 = 300\n    println(x)\n",
+            Code::IntegerLiteralRange,
+        ),
+        (
+            "fn main() -> void $ Console:\n    while true:\n        break 1\n",
+            Code::BreakValueContext,
+        ),
+        (
+            "fn f() -> i32:\n    defer:\n        return 1\n    2\n\nfn main() -> void $ Console:\n    println(f())\n",
+            Code::DeferControlFlow,
+        ),
+        (
+            "data P:\n    x: i32\n\nfn main() -> void $ Console:\n    q := P\n    println(1)\n",
+            Code::TypeUsedAsValue,
+        ),
+        (
+            "fn f(t: (i32, i32)) -> i32:\n    let (a, a) = t\n    a\n\nfn main() -> void $ Console:\n    println(f((1, 2)))\n",
+            Code::DuplicateBinding,
+        ),
+        (
+            "fn main() -> void $ Console:\n    xs := []\n    println(1)\n",
+            Code::CannotInferType,
         ),
     ];
     for (src, code) in cases {

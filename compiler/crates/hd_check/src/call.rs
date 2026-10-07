@@ -170,6 +170,13 @@ impl Ck<'_, '_> {
             }
         }
         let _ = (want, pool);
+        if let Some(Named::Item(def)) = self.scope_name(&text)
+            && self.kind_of_item(def).is_some_and(HeadKind::is_type)
+        {
+            let msg = format!("type-used-as-value: `{text}` is a type");
+            self.err(Code::TypeUsedAsValue, n, &msg);
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
         let msg = format!("unknown-name `{text}`");
         self.err(Code::UnknownName, n, &msg);
         Ok((Ref(NONE), Ty::NEVER))
@@ -385,6 +392,7 @@ impl Ck<'_, '_> {
             && args.positional.is_empty()
         {
             let t = pool.list_items(sa).first().copied().unwrap_or(Ty::POISON);
+            self.check_bang(true, n);
             return Ok((self.b.emit(Tag::AwaitValue, f.0, NONE, t, n.index()), t));
         }
         let TyData::Fn {
@@ -421,6 +429,9 @@ impl Ck<'_, '_> {
         self.check_row(row, n);
         let rec = self.b.refs_record(&refs);
         if !suspends {
+            if bang {
+                self.check_bang(false, n);
+            }
             return Ok((
                 self.b.emit(Tag::CallValue, f.0, rec, result, n.index()),
                 result,
@@ -434,6 +445,7 @@ impl Ck<'_, '_> {
         })));
         let cold = self.b.emit(Tag::CallValue, f.0, rec, st, n.index());
         if bang {
+            self.check_bang(true, n);
             return Ok((
                 self.b
                     .emit(Tag::AwaitValue, cold.0, NONE, result, n.index()),
@@ -492,10 +504,15 @@ impl Ck<'_, '_> {
                 .iter()
                 .position(|p| self.cx.names.text(p.0) == pname.as_str())
             else {
-                let msg = format!("unknown-name: `{name}` has no parameter `{pname}`");
-                self.err(Code::UnknownName, *e, &msg);
+                let msg = format!("unknown-named-argument: `{name}` has no parameter `{pname}`");
+                self.err(Code::UnknownNamedArgument, *e, &msg);
                 continue;
             };
+            if slots[i].is_some() {
+                let msg = format!("duplicate-argument: `{pname}` is given twice");
+                self.err(Code::DuplicateArgument, *e, &msg);
+                continue;
+            }
             let w = self.normalize_deep(rest[i].1)?;
             let (r, t) = self.expr(*e, Some(w))?;
             slots[i] = Some(self.coerce(r, t, w, *e, "argument"));
@@ -624,6 +641,25 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// A bang call needs a suspending callee (`not-suspending`) and a
+    /// driver context (`req.bang.driver-contexts`).
+    pub(crate) fn check_bang(&mut self, callee_suspends: bool, n: NodeRef<'_>) {
+        if !callee_suspends {
+            self.err(
+                Code::NotSuspending,
+                n,
+                "not-suspending: a bang call of a function that does not suspend",
+            );
+        }
+        if !self.suspends.last().copied().unwrap_or(false) {
+            self.err(
+                Code::BangCallOutsideSuspension,
+                n,
+                "bang-call-outside-suspension: a bang call needs a suspending function or closure",
+            );
+        }
+    }
+
     /// `all!(a(), b())`: cold suspensions, then one `AwaitAll` whose
     /// value is the tuple of their results (suspension.md §14.5).
     fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
@@ -634,6 +670,9 @@ impl Ck<'_, '_> {
                 n,
                 "not-suspending: `all` is called as `all!(...)`",
             );
+        }
+        if bang {
+            self.check_bang(true, n);
         }
         let suspend = self.cx.names.item("std.task", "Suspend");
         let mut refs = Vec::new();
@@ -753,6 +792,9 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
         let pool = self.cx.names.pool;
+        if bang {
+            self.check_bang(suspends, n);
+        }
         if suspends && !bang {
             let suspend = self.cx.names.item("std.task", "Suspend");
             let st = pool.intern_ty(&TyData::Adt {
@@ -805,7 +847,13 @@ impl Ck<'_, '_> {
                         args: pool.list(&[a, b]),
                     })
                 }
-                _ => return unsupported("a variant with no expected enum type"),
+                _ => {
+                    let msg = format!(
+                        "missing-contextual-enum-type: `.{name}` needs an expected enum type"
+                    );
+                    self.err(Code::MissingContextualEnumType, v, &msg);
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
             },
         };
         self.variant_by_name(enum_ty, &name, args, at)

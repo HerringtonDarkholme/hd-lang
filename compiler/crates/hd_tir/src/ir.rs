@@ -883,7 +883,10 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
                         continue;
                     }
                     for &v in b.record(word) {
-                        if v & Ref::CONST_BIT == 0 && v >= i && tag != Tag::Call {
+                        if v & Ref::CONST_BIT == 0
+                            && v >= i
+                            && !matches!(tag, Tag::Call | Tag::Await)
+                        {
                             errs.push(err(1, format!("value %{v} used before it is defined")));
                         }
                     }

@@ -183,7 +183,11 @@ impl Ck<'_, '_> {
     }
 
     fn literal(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        self.literal_at(self.cx.src.first(n), want)
+        let (r, t) = self.literal_at(self.cx.src.first(n), want)?;
+        if self.b.const_of(r).is_some() {
+            self.lit_nodes.push((r, n.index()));
+        }
+        Ok((r, t))
     }
 
     /// The literal token at `t`.
@@ -332,6 +336,7 @@ impl Ck<'_, '_> {
             Some(TokenKind::Plus) => (r, t),
             Some(TokenKind::Minus) => {
                 if let Some((ct, bits)) = self.b.const_of(r) {
+                    self.lit_nodes.retain(|x| x.0 != r);
                     let pool = self.pool();
                     let is_float = matches!(self.infer.kind_of(pool, ct), Some(VarKind::FloatLit))
                         || matches!(pool.get(self.infer.shallow(pool, ct)), TyData::Prim(p) if p.is_float());
@@ -340,7 +345,9 @@ impl Ck<'_, '_> {
                     } else {
                         bits.cast_signed().wrapping_neg().cast_unsigned()
                     };
-                    (self.b.const_value(ct, v), t)
+                    let nr = self.b.const_value(ct, v);
+                    self.lit_nodes.push((nr, n.index()));
+                    (nr, t)
                 } else {
                     (self.b.prim(PrimOp::Neg as u32, &[r], t, n.index()), t)
                 }
@@ -1133,6 +1140,7 @@ impl Ck<'_, '_> {
         });
         self.rets.push(ret);
         self.rows.push(row);
+        self.suspends.push(suspends);
         let saved_loops = std::mem::take(&mut self.loops);
         let blk = self.b.open_block();
         let body = Src::child(n, SyntaxKind::Block);
@@ -1150,6 +1158,7 @@ impl Ck<'_, '_> {
         self.loops = saved_loops;
         self.rows.pop();
         self.rets.pop();
+        self.suspends.pop();
         self.subs.pop();
         self.scopes.pop();
         let ft = pool.intern_ty(&TyData::Fn {
