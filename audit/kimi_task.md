@@ -102,15 +102,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K22. Fix The Guide Gaps Probe 7 Found
-
-For each guide-related row K21 logged, fix the guide page where the
-spec agrees: add the missing step, correct the misleading text, add the
-example. Every changed code block must run with hd. One commit per page.
-Run `pnpm run website:build` and
-`node --test --experimental-strip-types website/test/site.test.ts`
-before pushing.
-
 ## Questions
 
 (none)

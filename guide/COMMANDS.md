@@ -164,6 +164,9 @@ diagnostic, with the rule IDs that explain it. Read next:
   name you reassign.
 - `type-mismatch` on `usize` versus `i32`: literals default to `usize`;
   write `+N` for a signed one.
+- `mixed-signedness`: an unsigned `usize`, which `len()` and literals
+  give, does not mix with a signed `i32`. Declare the configurable count
+  `usize`, or cast one side with `usize(n)` or `i32(n)`.
 - `bang-call-outside-suspension`: the call suspends, so its caller must be
   a suspending function: `fn!`, or `main!`.
 
