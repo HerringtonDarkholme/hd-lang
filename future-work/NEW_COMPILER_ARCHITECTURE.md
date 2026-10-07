@@ -71,6 +71,59 @@ two features.
   - `hd fmt`;
   - a pathology fuzzer.
 
+### Pillar 3 Features (owner: "add all, triage later", 2026-10-06)
+
+- **Correct programs:**
+  - fast property tests (integrated shrinking, one instance, compiled
+    `Arbitrary` generators), plus a regression file of failing seeds
+    that runs first;
+  - fast unit and integration tests (snapshot start, pooled runner,
+    parallel runs);
+  - `hd fuzz`, `hd test --coverage`, snapshot tests with `--update`;
+  - cross-backend conformance and differential testing;
+  - **deterministic simulation testing**: a whole program runs against
+    fake capability providers under a seeded scheduler that varies the
+    order of suspension points, and a failure replays from its seed;
+  - interleaving exploration for `all!` / `race!` (in the style of loom);
+  - generated recording fakes for any capability trait (generalizing
+    `ScriptedHttp`), for example `@derive(Fake)`;
+  - `hd lint` for least privilege (unused requirements), ignored
+    `Result`s and unreachable code;
+  - debug-mode runtime checks: iterator invalidation, use of a closed
+    handle, deadlocked suspension.
+- **Fast programs:**
+  - code generated per value layout, with `i31ref` first on Wasm;
+  - counted range loops, inlining and escape analysis (zero-allocation
+    loops);
+  - cheap `Option`: a nullable reference, or a scalar returned as two
+    values;
+  - derive templates compiled to straight-line code;
+  - suspension as state machines with an allocation-free ready path;
+  - cheap host calls: typed scalar imports, buffered console;
+  - a native backend with its own GC;
+  - profile-guided optimization from `hd run --profile`;
+  - async I/O for servers (epoll, kqueue or io_uring natively; the host
+    event loop on Wasm);
+  - data parallelism for CPU-bound work, such as `par_map` or parallel
+    iterators (raises the language question of real threads);
+  - startup snapshots for serverless;
+  - per-request arenas;
+  - SIMD where it helps (low priority).
+- **Sandboxing:** resource limits (`--max-heap`, time or fuel), alongside
+  capability grants.
+- **Small and observable programs:**
+  - whole-program DCE, std tree-shaking, `wasm-opt`,
+    `hd build --size-report`;
+  - `hd run --profile` (CPU flamegraph and allocation profile);
+  - `hd bench`;
+  - native and browser debuggers with source lines;
+  - panic locations, `dbg`, and record and replay;
+  - structured tracing through the reserved hooks (OpenTelemetry-style);
+  - symbolized crash backtraces in release builds;
+  - heap snapshots and leak detection.
+- **Packaging:** a standalone native binary, a WASI component, or a
+  serverless or edge bundle from one command.
+
 ### Candidate Features (2026-10-06)
 
 Owner: "just think about features; later, if a feature is too hard to
