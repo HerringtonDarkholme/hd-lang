@@ -1,9 +1,13 @@
 #!/bin/sh
-# Rejects a commit whose staged Rust files are not rustfmt-clean.
+# Rejects a commit whose staged Rust files fail CI's Rust format or lint step.
 # Enabled by `git config core.hooksPath .githooks` (pnpm install's prepare step).
-if git diff --cached --name-only --diff-filter=ACMR | grep -q '^compiler/.*\.rs$'; then
+if git diff --cached --name-only --diff-filter=ACMR | grep -qE '^compiler/.*(\.rs|Cargo\.toml)$'; then
   if ! (cd compiler && cargo fmt --all --check >/dev/null 2>&1); then
     echo "pre-commit: Rust files are not formatted. Run: (cd compiler && cargo fmt --all), then git add them." >&2
+    exit 1
+  fi
+  if ! (cd compiler && cargo clippy -q --workspace --all-targets -- -D warnings); then
+    echo "pre-commit: clippy failed (CI runs: cargo clippy --workspace --all-targets -- -D warnings)." >&2
     exit 1
   fi
 fi
