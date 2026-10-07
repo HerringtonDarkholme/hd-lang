@@ -5,6 +5,7 @@ mod layout;
 mod lexer;
 mod parser;
 mod skim;
+pub mod subset;
 
 pub use green::*;
 pub use layout::{Layout, LayoutCursor, TokenOrLayout};

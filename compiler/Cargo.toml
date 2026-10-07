@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/hd_base", "crates/hd_intern", "crates/hd_diag", "crates/hd_syntax", "crates/hd_cli"]
+members = ["crates/hd_base", "crates/hd_intern", "crates/hd_diag", "crates/hd_syntax", "crates/hd_cli", "crates/hd_walk"]
 resolver = "2"
 
 [workspace.package]

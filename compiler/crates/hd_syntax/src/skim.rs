@@ -92,7 +92,7 @@ fn body_ranges(source: &str, tokens: &TokenBuf) -> Vec<BodyRange> {
                 body_start: start,
                 body_end: end,
                 header_indent: indent,
-                kind: header_kind(tokens.kind[first_idx]),
+                kind: header_kind(head_kind(&tokens.kind[first_idx..=colon])),
             });
             continue;
         }
@@ -104,7 +104,7 @@ fn body_ranges(source: &str, tokens: &TokenBuf) -> Vec<BodyRange> {
                 body_start: tokens.end[colon],
                 body_end: tokens.end[colon],
                 header_indent: indent,
-                kind: header_kind(tokens.kind[first_idx]),
+                kind: header_kind(head_kind(&tokens.kind[first_idx..=colon])),
             });
             continue;
         };
@@ -128,7 +128,7 @@ fn body_ranges(source: &str, tokens: &TokenBuf) -> Vec<BodyRange> {
             body_start,
             body_end,
             header_indent: indent,
-            kind: header_kind(tokens.kind[first_idx]),
+            kind: header_kind(head_kind(&tokens.kind[first_idx..=colon])),
         });
     }
     ranges
@@ -231,6 +231,16 @@ fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
         bytes.extend_from_slice(tokens.text(token, source).as_bytes());
     }
     hash128(&bytes)
+}
+
+/// The declaration keyword of a header line, past a leading `pub`
+/// (walking skeleton: without this, `pub fn` bodies stayed in the api hash).
+fn head_kind(kinds: &[TokenKind]) -> TokenKind {
+    kinds
+        .iter()
+        .copied()
+        .find(|kind| *kind != TokenKind::KwPub)
+        .unwrap_or(TokenKind::Error)
 }
 
 fn line_content_end(source: &[u8], start: usize) -> usize {

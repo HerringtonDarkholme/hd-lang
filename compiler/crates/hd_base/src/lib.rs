@@ -50,7 +50,7 @@ pub struct Span {
 
 const _: () = assert!(core::mem::size_of::<Span>() == 12);
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Hash128(pub u128);
 
 /// Small deterministic content hash used before the cache crate exists.
