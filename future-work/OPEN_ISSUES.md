@@ -337,7 +337,7 @@ These items remain required but do not currently require new core syntax:
   test grant in
   [Test Environments](../spec/cli/command-line.md#test-environments), and
   [Http](../spec/std/http.md), [Net](../spec/std/net.md) and
-  [Sys](../spec/std/sys.md). The v1 host ABI is hd's own core-Wasm
+  [Sys](../spec/std/sys.md). The first release's host ABI is hd's own core-Wasm
   imports, not the Component Model, which can't carry Wasm GC values
   (owner, 2026-10-06,
   [research](COMPILER_ARCHITECTURE_RESEARCH.md#open-questions-for-the-owner)).
