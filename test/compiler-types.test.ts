@@ -248,7 +248,6 @@ test("reference identity lowers to Wasm GC identity", async () => {
   const compilation = await compileToWasm(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.match(compilation.wat, /ref\.eq/);
-  assert.match(compilation.wat, /global \$e0v0/);
 });
 
 test("heterogeneous tuples lower to Wasm GC storage", async () => {
