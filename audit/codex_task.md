@@ -83,37 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q13. Work Estimate From The TS Prototype (Next)
-
-Owner, 2026-10-07: the Rust compiler is written from scratch; the TS
-prototype in `src/` (read-only) is the checklist of what must be done at
-minimum. Write `future-work/compiler/work-estimate.md`:
-
-1. **Inventory.** Every TS file in `src/` (76k lines): its lines, what
-   it does in one line, and which designed Rust crate and design section
-   own that responsibility. Group by component (lexer and parser,
-   resolution and packages, checker by area, emitter, runtime and host,
-   test runner, CLI commands, REPL, docs, other).
-2. **Coverage today.** For each group, what the Rust in
-   `compiler/crates/` already covers (check the code; `ast-grep outline`
-   per crate), as covered / partial / missing, with the Rust lines.
-3. **Checklist per group.** The constructs, cases and diagnostics the TS
-   handles that the Rust does not yet (names, not prose; enough for an
-   agent brief to tick off).
-4. **Not needed.** TS code the new design drops or replaces (GADTs,
-   removed features, prototype-only workarounds, legacy paths): list it
-   so it is not counted as work.
-5. **Estimate.** Remaining work per group in TS lines in scope and in
-   agent jobs, at about 4 to 7k Rust lines per 2 to 2.5 hour job; then
-   an ordered job list for phase 1 ("make it move": M4a-1 to M4a-4, M4b,
-   M4c are the current plan) and phase 2 ("make it work"), each job
-   with its TS checklist files.
-
-Tables, not prose. Docs only; don't edit code or `src/`. The
-orchestrator's M4a agent is changing `hd_check` meanwhile: measure
-coverage at the commit you start from and name it. Timebox 60 minutes;
-push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
