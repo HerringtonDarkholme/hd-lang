@@ -10,6 +10,8 @@ use std.num.ParseNumberError
 use std.text.Utf8Error
 use std.console.ConsoleError
 
+## The standard error trait: a displayable, inspectable failure that may name its cause.
+## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
 pub trait Error < Display & Inspectable & AnyRef:
     fn cause(self) -> Error?: .None
 
@@ -33,8 +35,14 @@ pub trait Error < Display & Inspectable & AnyRef:
 
 # A snapshot of an error's message and the messages of its causes
 # (r-std-error.report.decl). Its fields are boundary-safe.
+## A boundary-safe report of an error: its message and the messages of its causes.
+## See [std-error.report.decl](../../spec/std/error.md#r-std-error.report.decl).
 pub data ErrorReport:
+    ## The error's own message.
+    ## See [std-error.report.message](../../spec/std/error.md#r-std-error.report.message).
     pub message: string
+    ## The messages of the error's causes, in chain order.
+    ## See [std-error.report.causes](../../spec/std/error.md#r-std-error.report.causes).
     pub causes: List[string]
 
 # The text an entry point prints for an `.Err` (r-std-error.report.display):
@@ -48,6 +56,8 @@ impl Display for ErrorReport:
 
 # The error itself, then each `cause` in turn until one is `.None`
 # (r-std-error.chain.order).
+## Returns `error` first, then the error its `cause` returns, then that error's cause, and so on.
+## See [std-error.chain.decl](../../spec/std/error.md#r-std-error.chain.decl).
 pub fn chain(error: Error) -> List[Error]:
     let errors: mut List[Error] = [error]
     let next = error.cause()
@@ -61,6 +71,8 @@ pub fn chain(error: Error) -> List[Error]:
 
 # The `Display` text of the error and of each cause that `chain` yields
 # after it (r-std-error.report.of).
+## Builds the boundary-safe report of `error`: its message, and its causes' messages.
+## See [std-error.report.of](../../spec/std/error.md#r-std-error.report.of).
 pub fn report_of(error: Error) -> ErrorReport:
     errors := chain(error)
     let causes: mut List[string] = []
@@ -79,6 +91,8 @@ fn entry_report(error: Error) -> string:
 
 # The error that `context` wraps around an `.Err`: its text is the message,
 # and its cause is the wrapped error (r-std-error.context.type).
+## An error that adds a context message over its cause.
+## See [std-error.context.type](../../spec/std/error.md#r-std-error.context.type).
 pub data ContextError:
     message: string
     error: Error
@@ -102,6 +116,8 @@ impl Error for ConsoleError
 # Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
 # (r-std-error.context.ok, r-std-error.context.err).
 impl[T, E < Error] Result[T, E]:
+    ## For an `.Err`, wraps the error with `message` as its context; an `.Ok` is unchanged.
+    ## See [std-error.context.decl](../../spec/std/error.md#r-std-error.context.decl).
     pub fn context(self, message: string) -> Result[T, Error]:
         match self:
             .Ok(value) => .Ok(value)
