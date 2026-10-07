@@ -75,6 +75,7 @@ mod tests {
     fn wasm(src: &MemorySources, entry: &str, executor: Executor) -> Vec<u8> {
         let store = MemoryStore::default();
         let host = Host {
+            render_tir: &[],
             sources: src,
             store: &store,
             clock: &NoClock,

@@ -44,6 +44,7 @@ fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         Tag::Await => return id_words_call(b, a as usize + 1),
         // `ProviderGet` and `ItemRef` keep their IDs in one-word records.
         Tag::ProviderGet => vec![IdWord::Ty(a as usize + 1)],
+        Tag::DefaultCall => vec![IdWord::Def(a as usize + 1), IdWord::List(a as usize + 2)],
         Tag::ItemRef => vec![
             IdWord::Def(a as usize + 1),
             IdWord::List(b.data[i][1] as usize + 1),
@@ -53,6 +54,9 @@ fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         | Tag::Prim
         | Tag::CallHost
         | Tag::CallValue
+        | Tag::AwaitValue
+        | Tag::AwaitAll
+        | Tag::AwaitRace
         | Tag::Intrinsic
         | Tag::NewData
         | Tag::NewVariant

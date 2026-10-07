@@ -806,10 +806,19 @@ impl Ck<'_, '_> {
             vals[i] = self.coerce(r, t, ft, *a, "field");
             seen[i] = true;
         }
+        let targ_list = pool.list(&targs);
         for (i, f) in fields.iter().enumerate() {
             if !seen[i] {
                 if f.has_default {
-                    return unsupported("a data literal relying on a field default");
+                    // The field's default body, at each construction that
+                    // omits it (checking-and-tir.md "Default calls").
+                    let fname = self.cx.names.text(f.name).to_owned();
+                    let body = self.cx.names.member(def, PathKind::Hidden, &fname);
+                    let a = self.b.refs_record(&[Ref(body.raw()), Ref(targ_list.0)]);
+                    let bw = self.b.refs_record(&[]);
+                    let ft = inst(f.ty);
+                    vals[i] = self.b.emit(Tag::DefaultCall, a, bw, ft, n.index());
+                    continue;
                 }
                 let msg = format!(
                     "missing-required-field `{}` in `{}`",

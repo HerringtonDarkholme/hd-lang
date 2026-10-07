@@ -116,6 +116,8 @@ pub enum Executor {
 
 /// What the caller supplies.
 pub struct Host<'a> {
+    /// Item paths whose checked bodies the output renders (golden tests).
+    pub render_tir: &'a [&'a str],
     pub sources: &'a dyn SourceSet,
     pub store: &'a dyn CacheStore,
     pub clock: &'a dyn Clock,
@@ -142,6 +144,8 @@ pub struct Output {
     pub report: PipelineReport,
     /// Each built folder interface's blob, by folder path.
     pub ifaces: Vec<(String, Arc<[u8]>)>,
+    /// Readable TIR of the bodies a `Host::render_tir` named, by item path.
+    pub tir_text: std::collections::BTreeMap<String, String>,
 }
 
 impl Output {
@@ -231,6 +235,7 @@ struct Run<'a> {
     diags: Mutex<DiagBuf>,
     report: Mutex<PipelineReport>,
     counters: Mutex<Counters>,
+    tir_text: Mutex<std::collections::BTreeMap<String, String>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -303,6 +308,7 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
             ..PipelineReport::default()
         }),
         counters: Mutex::new(Counters::default()),
+        tir_text: Mutex::new(std::collections::BTreeMap::new()),
         table,
     };
     lock(&run.report).ok(Stage::Discover);
@@ -348,6 +354,7 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
         counters,
         report,
         ifaces,
+        tir_text: std::mem::take(&mut *lock(&run.tir_text)),
     }
 }
 
@@ -356,6 +363,7 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
 pub fn analyze_package(package: &str, sources: &dyn SourceSet) -> PipelineReport {
     let store = MemoryStore::default();
     let host = Host {
+        render_tir: &[],
         sources,
         store: &store,
         clock: &NoClock,
@@ -1107,6 +1115,10 @@ impl Run<'_> {
             match hd_check::check_fn(&cx, def, node, &mut diags) {
                 Ok(b) => {
                     lock(&self.report).body_ok += 1;
+                    let path = names.path(def);
+                    if self.host.render_tir.iter().any(|p| *p == path) {
+                        lock(&self.tir_text).insert(path, hd_check::render(&names, &b));
+                    }
                     bodies.push(b);
                 }
                 Err(e) => {
@@ -1129,6 +1141,58 @@ impl Run<'_> {
                     if self.goal != Goal::Analyze {
                         break;
                     }
+                }
+            }
+        }
+        // Default bodies: data field defaults and parameter defaults
+        // (checking-and-tir.md "Default calls").
+        let mut defaults = Vec::new();
+        for h in &heads {
+            if h.kind == hd_resolve::HeadKind::Data {
+                for f in h.node.descendants() {
+                    if f.kind() == hd_syntax::SyntaxKind::DataField
+                        && let Some(dv) =
+                            hd_resolve::Src::child(f, hd_syntax::SyntaxKind::DefaultValue)
+                        && let Some(e) = dv.children().next()
+                        && let Some(t) = f.name(&src.parse.tokens)
+                    {
+                        defaults.push((h.def, src.text(t).to_owned(), e));
+                    }
+                }
+            }
+        }
+        for (def, node) in hd_resolve::body_nodes(&names, &src, &heads) {
+            let Some(pl) = hd_resolve::Src::child(node, hd_syntax::SyntaxKind::ParameterList)
+            else {
+                continue;
+            };
+            for p in pl.children() {
+                if let Some(dv) = hd_resolve::Src::child(p, hd_syntax::SyntaxKind::DefaultValue)
+                    && let Some(e) = dv.children().next()
+                    && let Some(t) = p.name(&src.parse.tokens)
+                {
+                    defaults.push((def, src.text(t).to_owned(), e));
+                }
+            }
+        }
+        for (owner, name, e) in defaults {
+            match hd_check::check_default(&cx, owner, &name, e, &mut diags) {
+                Ok(b) => {
+                    lock(&self.report).body_ok += 1;
+                    bodies.push(b);
+                }
+                Err(err) => {
+                    let mut r = lock(&self.report);
+                    r.body_failed += 1;
+                    let short: String = err.what.chars().take(90).collect();
+                    *r.body_reasons.entry(short).or_default() += 1;
+                    r.body_failures.push(format!(
+                        "{} default {name}: {}",
+                        names.path(owner),
+                        err.what
+                    ));
+                    drop(r);
+                    failed.get_or_insert(err);
                 }
             }
         }

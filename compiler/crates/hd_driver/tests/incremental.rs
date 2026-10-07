@@ -54,6 +54,7 @@ fn program(main: &str, geo: &str) -> MemorySources {
 
 fn run(store: &MemoryStore, src: &MemorySources, executor: Executor) -> Output {
     let host = Host {
+        render_tir: &[],
         sources: src,
         store,
         clock: &NoClock,
@@ -175,7 +176,7 @@ fn not_implemented_stops_a_build() {
     let mut s = MemorySources::default();
     s.insert(
         "main.hd",
-        "fn f(a: i32 = 1) -> i32:\n    a\n\nfn main() -> void $ Console:\n    println(f())\n",
+        "fn main() -> void $ Console:\n    println(r\"a\")\n",
     );
     let r = run(
         &MemoryStore::default(),

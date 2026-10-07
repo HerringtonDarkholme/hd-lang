@@ -74,28 +74,28 @@ pub(crate) struct Ck<'a, 'c> {
     /// A member call's explicit method type arguments (`x.f::[T]()`),
     /// taken by the method's instantiation.
     pub method_targs: Vec<Ty>,
+    /// The next call's default bodies: callee, type arguments and the
+    /// values before the first argument (a receiver).
+    pub default_owner: Option<(DefId, TyList, Vec<Ref>)>,
 }
 
 /// A node index kept for a later diagnostic.
 pub(crate) type NodeRefIdx = hd_base::NodeIdx;
 
-/// Checks one function body and returns its TIR.
-pub fn check_fn(
-    cx: &BodyCx<'_>,
-    def: DefId,
-    node: NodeRef<'_>,
-    diags: &mut DiagBuf,
-) -> StageResult<Body> {
-    let Some(item) = cx.lookup.item(def) else {
-        return unsupported(format!("body of {} has no header", cx.names.path(def)));
-    };
-    let Some(sig) = item.sig().cloned() else {
-        return unsupported("a body of a non-function item");
-    };
+/// The checker of one body: the item whose parameters and bounds are in
+/// scope (`env`), the TIR item and kind, its result and row.
+fn new_ck<'a, 'c>(
+    cx: &'c BodyCx<'a>,
+    env: DefId,
+    item: DefId,
+    kind: BodyKind,
+    (ret, row): (Ty, RowId),
+    diags: &'c mut DiagBuf,
+) -> Ck<'a, 'c> {
     let pool = cx.names.pool;
     let mut ck = Ck {
         cx,
-        b: TirBuilder::new(def, BodyKind::Fn),
+        b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
         scopes: vec![HashMap::new()],
         env: ParamEnv::default(),
@@ -103,16 +103,20 @@ pub fn check_fn(
         diags,
         fuel: Fuel::new(Fuel::BODY_DEFAULT),
         memo: BodyMemo::default(),
-        rets: vec![sig.ret],
+        rets: vec![ret],
         gens: Vec::new(),
         self_ty: None,
-        rows: vec![sig.row],
+        rows: vec![row],
         subs: Vec::new(),
         pending: Vec::new(),
         method_targs: Vec::new(),
+        default_owner: None,
+    };
+    let Some(it) = cx.lookup.item(env) else {
+        return ck;
     };
     // The owner's parameters and bounds: an impl's, or a trait's `Self`.
-    if let ItemData::Method { owner, .. } = &item.data
+    if let ItemData::Method { owner, .. } = &it.data
         && let Some(o) = cx.lookup.item(*owner)
     {
         match &o.data {
@@ -132,16 +136,7 @@ pub fn check_fn(
                     });
                     ck.add_bound(*self_ty, tv, 0);
                 }
-                for (i, g) in o.generics.iter().enumerate() {
-                    let p = pool.intern_ty(&TyData::Param(ParamRef {
-                        owner: *owner,
-                        index: u16::try_from(i).unwrap_or(u16::MAX),
-                    }));
-                    ck.gens.push((g.name, p));
-                    for b in &g.bounds {
-                        ck.add_bound(p, *b, 0);
-                    }
-                }
+                ck.add_generics(*owner, &o.generics);
             }
             ItemData::Trait(_) => {
                 let p = pool.intern_ty(&TyData::Param(ParamRef {
@@ -159,16 +154,28 @@ pub fn check_fn(
             _ => {}
         }
     }
-    for (i, g) in sig.generics.iter().enumerate() {
-        let p = pool.intern_ty(&TyData::Param(ParamRef {
-            owner: def,
-            index: u16::try_from(i).unwrap_or(u16::MAX),
-        }));
-        ck.gens.push((g.name, p));
-        for b in &g.bounds {
-            ck.add_bound(p, *b, 0);
-        }
-    }
+    let gs = match it.sig() {
+        Some(sig) => sig.generics.clone(),
+        None => it.generics.clone(),
+    };
+    ck.add_generics(env, &gs);
+    ck
+}
+
+/// Checks one function body and returns its TIR.
+pub fn check_fn(
+    cx: &BodyCx<'_>,
+    def: DefId,
+    node: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
+    let Some(item) = cx.lookup.item(def) else {
+        return unsupported(format!("body of {} has no header", cx.names.path(def)));
+    };
+    let Some(sig) = item.sig().cloned() else {
+        return unsupported("a body of a non-function item");
+    };
+    let mut ck = new_ck(cx, def, def, BodyKind::Fn, (sig.ret, sig.row), diags);
     let blk = ck.b.open_block();
     for (name, ty) in sig.params.clone() {
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
@@ -180,6 +187,51 @@ pub fn check_fn(
     let ret = sig.ret;
     let (tail, _) = ck.block_value(body, Some(ret))?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
+    ck.finish(root)
+}
+
+/// The `DefId` of a default body: the declaration's path plus the field or
+/// parameter name (checking-and-tir.md "Default calls").
+#[must_use]
+pub fn default_body_def(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
+    names.member(owner, hd_intern::PathKind::Hidden, name)
+}
+
+/// Checks one default expression as a body of kind `Default`
+/// (type-checking.md §1.7): a data field's (no parameters) or a function
+/// parameter's (the earlier parameters are its parameters).
+pub fn check_default(
+    cx: &BodyCx<'_>,
+    owner: DefId,
+    name: &str,
+    expr: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
+    let Some(item) = cx.lookup.item(owner) else {
+        return unsupported("a default of an item outside the module");
+    };
+    let sym = cx.names.syms.intern(name);
+    let (ty, params) = match (&item.data, item.sig()) {
+        (ItemData::Data(fields), _) => match fields.iter().find(|f| f.name == sym) {
+            Some(f) => (f.ty, vec![]),
+            None => return unsupported("a default of an unknown field"),
+        },
+        (_, Some(sig)) => match sig.params.iter().position(|p| p.0 == sym) {
+            Some(i) => (sig.params[i].1, sig.params[..i].to_vec()),
+            None => return unsupported("a default of an unknown parameter"),
+        },
+        _ => return unsupported("a default of this item kind"),
+    };
+    let def = default_body_def(&cx.names, owner, name);
+    let mut ck = new_ck(cx, owner, def, BodyKind::Default, (ty, RowId::EMPTY), diags);
+    let blk = ck.b.open_block();
+    for (n, t) in params {
+        let l = ck.b.local(t, n, local_flags::PARAM, expr.index());
+        ck.scopes[0].insert(n, l);
+    }
+    let (r, t) = ck.expr(expr, Some(ty))?;
+    let r = ck.coerce(r, t, ty, expr, "default");
+    let root = ck.b.close_block(blk, Some(r), ty, expr.index());
     ck.finish(root)
 }
 
@@ -212,6 +264,21 @@ impl Ck<'_, '_> {
         match self.pool().get(t) {
             TyData::Infer(_) => "{unknown}".into(),
             _ => hd_resolve::show_ty(&self.cx.names, t),
+        }
+    }
+
+    /// Declares an item's type parameters with their bounds.
+    fn add_generics(&mut self, owner: DefId, gs: &[hd_resolve::Generic]) {
+        let pool = self.cx.names.pool;
+        for (i, g) in gs.iter().enumerate() {
+            let p = pool.intern_ty(&TyData::Param(ParamRef {
+                owner,
+                index: u16::try_from(i).unwrap_or(u16::MAX),
+            }));
+            self.gens.push((g.name, p));
+            for b in &g.bounds {
+                self.add_bound(p, *b, 0);
+            }
         }
     }
 
@@ -272,21 +339,38 @@ impl Ck<'_, '_> {
 
     /// Reads a local, capturing it into every open closure it crosses.
     pub(crate) fn read_local(&mut self, l: LocalId, depth: usize, n: NodeRef<'_>) -> (Ref, Ty) {
+        let mut captured = false;
         for s in &self.subs {
             if s.depth > depth {
                 self.b.capture(s.mark, l);
+                captured = true;
             }
+        }
+        let flags = &mut self.b.body_mut().local_flags[l.idx()];
+        *flags |= local_flags::READ;
+        if captured {
+            *flags |= local_flags::CAPTURED;
         }
         let t = self.b.local_ty(l);
         (self.b.get(l, t, n.index()), t)
     }
 
+    /// Records an assignment to a local, from inside a closure or not.
     pub(crate) fn note_write(&mut self, l: LocalId, depth: usize) {
+        let mut captured = false;
         for s in &self.subs {
             if s.depth > depth {
                 self.b.capture(s.mark, l);
+                captured = true;
             }
         }
+        let flags = &mut self.b.body_mut().local_flags[l.idx()];
+        if captured {
+            *flags |= local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED;
+        } else if *flags & local_flags::ASSIGNED != 0 {
+            *flags |= local_flags::MUTATED;
+        }
+        *flags |= local_flags::ASSIGNED;
     }
 
     pub(crate) fn sym_of(&self, n: NodeRef<'_>) -> Symbol {
@@ -475,9 +559,40 @@ impl Ck<'_, '_> {
                 BuiltinImpl::Integer
             }
             "std/num/Float" if prim.is_some_and(hd_types::Prim::is_float) => BuiltinImpl::Float,
+            "std/inspect/Inspectable" if self.inspectable(t, false, 0) => BuiltinImpl::Inspectable,
             _ => return None,
         };
         Some(Evidence::Builtin(b))
+    }
+
+    /// The inspectable types (spec/lang/09-traits.md#inspectable-types);
+    /// `arg` admits what counts only as a type argument.
+    pub(crate) fn inspectable(&self, t: Ty, arg: bool, depth: u32) -> bool {
+        let pool = self.cx.names.pool;
+        if depth > 32 {
+            return false;
+        }
+        let t = self.infer.resolve(pool, t);
+        let inspect = self.cx.names.item("std.inspect", "Inspectable");
+        match pool.get(t) {
+            TyData::Prim(p) => p != hd_types::Prim::Void || arg,
+            TyData::Never | TyData::Poison => true,
+            TyData::Mut(i) | TyData::Option(i) => self.inspectable(i, true, depth + 1),
+            TyData::Tuple { elems, .. } => pool
+                .list_items(elems)
+                .into_iter()
+                .all(|e| self.inspectable(e, false, depth + 1)),
+            TyData::Adt { args, .. } => pool
+                .list_items(args)
+                .into_iter()
+                .all(|a| self.inspectable(a, true, depth + 1)),
+            TyData::TraitValue { def, .. } => {
+                arg || def == inspect || self.trait_extends(def, inspect, 0)
+            }
+            TyData::Param(_) => (0..self.env.clause_self.len())
+                .any(|i| self.env.clause_self[i] == t && self.env.clause_trait[i] == inspect),
+            _ => false,
+        }
     }
 
     // ------------------------------------------------------------ blocks
@@ -907,20 +1022,23 @@ impl Ck<'_, '_> {
             let nw = z.words();
             self.b.body_mut().extra[at..at + nw.len()].copy_from_slice(&nw);
         }
+        // Types and type lists kept in records.
         for i in 0..n {
-            if self.b.body_mut().tags[i] == Tag::ProviderGet
-                || self.b.body_mut().tags[i] == Tag::ItemRef
-            {
-                let at = self.b.body_mut().data[i][0] as usize + 1;
-                if self.b.body_mut().tags[i] == Tag::ProviderGet {
+            let tag = self.b.body_mut().tags[i];
+            let [a, bw] = self.b.body_mut().data[i];
+            let list_at = match tag {
+                Tag::ProviderGet => {
+                    let at = a as usize + 1;
                     let t = Ty(self.b.body_mut().extra[at]);
                     self.b.body_mut().extra[at] = self.zonk(t).0;
-                } else {
-                    let lat = self.b.body_mut().data[i][1] as usize + 1;
-                    let l = TyList(self.b.body_mut().extra[lat]);
-                    self.b.body_mut().extra[lat] = self.zonk_list(l).0;
+                    continue;
                 }
-            }
+                Tag::ItemRef => bw as usize + 1,
+                Tag::DefaultCall => a as usize + 2,
+                _ => continue,
+            };
+            let l = TyList(self.b.body_mut().extra[list_at]);
+            self.b.body_mut().extra[list_at] = self.zonk_list(l).0;
         }
         if !self.diags.has_errors() {
             for i in 0..n {
@@ -934,8 +1052,25 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        // Capture modes (checking-and-tir.md "Data and closures"): `Copy`
+        // when no side assigns the local after its declaration, `Shared`
+        // otherwise. `Move` needs the liveness pass and is not chosen yet.
+        let modes: Vec<hd_tir::ir::CaptureMode> = {
+            let body = self.b.body_mut();
+            body.cap_local
+                .iter()
+                .map(|l| {
+                    let f = body.local_flags[l.idx()];
+                    if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0 {
+                        hd_tir::ir::CaptureMode::Shared
+                    } else {
+                        hd_tir::ir::CaptureMode::Copy
+                    }
+                })
+                .collect()
+        };
         self.b
-            .finish(root, &[])
+            .finish(root, &modes)
             .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))
     }
 }

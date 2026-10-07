@@ -1,0 +1,212 @@
+//! M4a's exit: every `lib/std` body checks through `InferTable`, the
+//! solver and `TirBuilder` to verified TIR with no diagnostic when std is
+//! the root package; a few bodies' TIR is pinned by golden files; and the
+//! checker's own errors (rows, exhaustiveness, mismatches) are reported in
+//! user programs.
+
+use std::path::{Path, PathBuf};
+
+use hd_base::Stage;
+use hd_cache::MemoryStore;
+use hd_diag::Code;
+use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
+use hd_project::MemorySources;
+use hd_sched::SerialOrder;
+
+fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)
+        .expect("dir")
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    paths.sort();
+    for p in paths {
+        if p.is_dir() {
+            walk(root, &p, out);
+        } else if p.extension().is_some_and(|x| x == "hd") {
+            let rel = p
+                .strip_prefix(root)
+                .expect("root")
+                .to_string_lossy()
+                .replace('\\', "/");
+            out.insert(&rel, &std::fs::read_to_string(&p).expect("read"));
+        }
+    }
+}
+
+fn std_sources() -> MemorySources {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
+    let mut s = MemorySources::default();
+    walk(&root, &root, &mut s);
+    s
+}
+
+fn analyze_std(render: &[&str]) -> Output {
+    let src = std_sources();
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: render,
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    build(&host, "std", &Goal::Analyze)
+}
+
+fn program(main: &str) -> Output {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", main);
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    build(
+        &host,
+        "app",
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    )
+}
+
+#[test]
+fn every_std_body_checks_with_no_diagnostic() {
+    let out = analyze_std(&[]);
+    let body = out.report.tally(Stage::Body);
+    assert_eq!(
+        (body.ok, body.not_implemented, body.blocked),
+        (37, 0, 0),
+        "{}\n{:?}",
+        out.report.render(),
+        out.report.body_failures
+    );
+    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, 37);
+    assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
+    assert!(out.report.body_ok > 1000, "{}", out.report.body_ok);
+    assert_eq!(out.diags.len(), 0, "{}", out.render());
+}
+
+/// The golden TIR of a few std bodies: `println` (rows, `$.use`, a cold
+/// suspending call, `block_on`, interpolation, `match` on a `Result`),
+/// `digit_text` (integer patterns), `Option.map` (an `Option` match with a
+/// closure call) and `Iterator.take` (a closure capturing and assigning).
+/// `HD_UPDATE_GOLDEN=1` rewrites the files.
+#[test]
+fn std_bodies_match_golden_tir() {
+    let bodies = [
+        ("std/console/println", "println"),
+        ("std/format/digit_text", "digit_text"),
+        ("std/option/impl [ T ] T ?.map", "option_map"),
+        ("std/iter/impl [ T ] Iterator [ T ].take", "iterator_take"),
+    ];
+    let paths: Vec<&str> = bodies.iter().map(|b| b.0).collect();
+    let out = analyze_std(&paths);
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/tir");
+    let update = std::env::var_os("HD_UPDATE_GOLDEN").is_some();
+    for (path, file) in bodies {
+        let got = out
+            .tir_text
+            .get(path)
+            .unwrap_or_else(|| panic!("no body {path}; have {:?}", out.tir_text.keys()));
+        let golden = dir.join(format!("{file}.tir"));
+        if update {
+            std::fs::create_dir_all(&dir).expect("dir");
+            std::fs::write(&golden, got).expect("write golden");
+            continue;
+        }
+        let want = std::fs::read_to_string(&golden).unwrap_or_default();
+        assert_eq!(got, &want, "{path}: TIR differs from {}", golden.display());
+    }
+}
+
+fn codes(out: &Output) -> Vec<Code> {
+    out.diags.code.clone()
+}
+
+#[test]
+fn a_missing_requirement_is_an_error() {
+    let out = program("fn main():\n    println(42)\n");
+    assert!(
+        codes(&out).contains(&Code::MissingRequirement),
+        "{}",
+        out.render()
+    );
+    let ok = program("fn main() -> void $ Console:\n    println(42)\n");
+    assert!(
+        !codes(&ok).contains(&Code::MissingRequirement),
+        "{}",
+        ok.render()
+    );
+    // A callee's own row reaches its callers.
+    let out =
+        program("fn show(x: i32) -> void $ Console:\n    println(x)\n\nfn main():\n    show(1)\n");
+    assert!(
+        codes(&out).contains(&Code::MissingRequirement),
+        "{}",
+        out.render()
+    );
+}
+
+#[test]
+fn a_match_must_cover_every_variant() {
+    let src = "enum Color:\n    Red\n    Green\n    Blue\n\nfn code(c: Color) -> i32:\n    match c:\n        .Red => 1\n        .Green => 2\n\nfn main() -> void $ Console:\n    println(code(.Red))\n";
+    let out = program(src);
+    assert!(
+        codes(&out).contains(&Code::NonexhaustiveMatch),
+        "{}",
+        out.render()
+    );
+    let full = src.replace(
+        "        .Green => 2\n",
+        "        .Green => 2\n        .Blue => 3\n",
+    );
+    let out = program(&full);
+    assert!(
+        !codes(&out).contains(&Code::NonexhaustiveMatch),
+        "{}",
+        out.render()
+    );
+    // Nested: `.Some(.Red)` alone leaves `.None` and the other colors.
+    let nested = "enum Color:\n    Red\n    Green\n\nfn f(c: Color?) -> i32:\n    match c:\n        .Some(.Red) => 1\n        .None => 0\n\nfn main() -> void $ Console:\n    println(f(.None))\n";
+    let out = program(nested);
+    assert!(
+        codes(&out).contains(&Code::NonexhaustiveMatch),
+        "{}",
+        out.render()
+    );
+}
+
+#[test]
+fn checker_errors_are_reported() {
+    let cases: &[(&str, Code)] = &[
+        (
+            "fn main() -> void $ Console:\n    let x: i32 = \"a\"\n    println(x)\n",
+            Code::TypeMismatch,
+        ),
+        (
+            "fn main() -> void $ Console:\n    x := 1\n    println(x.nope())\n",
+            Code::UnknownMethod,
+        ),
+        (
+            "fn f(o: i32?) -> i32:\n    let .Some(v) = o else:\n        println(0)\n    v\n\nfn main() -> void $ Console:\n    println(f(.None))\n",
+            Code::LetElseFallsThrough,
+        ),
+        (
+            "fn f(x: i32) -> i32:\n    y := x?\n    y\n\nfn main() -> void $ Console:\n    println(f(1))\n",
+            Code::InvalidResultPropagation,
+        ),
+        (
+            "data P:\n    x: i32\n\nfn main() -> void $ Console:\n    p := P { x: 1 }\n    println(p.y)\n",
+            Code::UnknownDataField,
+        ),
+    ];
+    for (src, code) in cases {
+        let out = program(src);
+        assert!(codes(&out).contains(code), "{src}\n{}", out.render());
+    }
+}

@@ -17,6 +17,7 @@ use hd_types::InternPool;
 
 fn run_with(src: &MemorySources, store: &MemoryStore, order: SerialOrder) -> Output {
     let host = Host {
+        render_tir: &[],
         sources: src,
         store,
         clock: &NoClock,

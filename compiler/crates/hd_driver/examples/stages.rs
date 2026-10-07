@@ -38,6 +38,7 @@ fn main() {
     walk(&root, &root, &mut sources);
     let store = hd_cache::MemoryStore::default();
     let host = Host {
+        render_tir: &[],
         sources: &sources,
         store: &store,
         clock: &NoClock,

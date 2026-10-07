@@ -1,0 +1,26 @@
+std/option/impl [ T ] T ?.map (Fn)
+  local $0 self: impl [ T ] T ?#0? flags=33
+  local $1 transform: fn(impl [ T ] T ?#0) -> map#0 flags=33
+  local $2 value: impl [ T ] T ?#0 flags=3
+  %0 = LocalGet $0 : impl [ T ] T ?#0?
+  %1 = LocalGet $1 : fn(impl [ T ] T ?#0) -> map#0
+  %2 = LocalGet $2 : impl [ T ] T ?#0
+  %3 = CallValue %1 [%2] : map#0
+  %4 = NewVariant #1 [%3] : map#0?
+  %5 = Block [%1 %2 %3 %4] %4 : map#0?
+  %6 = NewVariant #0 [] : map#0?
+  %7 = Block [%6] %6 : map#0?
+  %8 = Unwrap %0 : impl [ T ] T ?#0
+  %9 = LocalSet $2 %8 : void
+  %10 = ToArm #0 : never
+  %11 = Block [%8 %9 %10] - : never
+  %12 = ToArm #1 : never
+  %13 = Block [%12] - : never
+  %14 = Unreachable  : never
+  %15 = Block [%14] - : never
+  %16 = SwitchTag %0 [#0 %13 %15] : never
+  %17 = Block [%13 %15 %16] - : never
+  %18 = SwitchTag %0 [#1 %11 %17] : never
+  %19 = Block [%11 %17 %18] - : never
+  %20 = Match %0 [%19 %5 %7] : map#0?
+  %21 = Block [%0 %5 %7 %19 %20] %20 : map#0?

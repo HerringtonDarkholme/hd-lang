@@ -9,8 +9,10 @@ pub mod body;
 mod call;
 mod expr;
 mod pat;
+mod render;
 pub mod stages;
 mod ty;
 
-pub use body::{BodyCx, check_fn};
+pub use body::{BodyCx, check_default, check_fn, default_body_def};
 pub use call::MethodIndex;
+pub use render::render;

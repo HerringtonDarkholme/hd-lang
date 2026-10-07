@@ -269,7 +269,7 @@ impl Ck<'_, '_> {
                 let s = self.sym_of(callee);
                 if let Some((l, d)) = self.find_local(s) {
                     let (f, ft) = self.read_local(l, d, callee);
-                    return self.call_value(f, ft, &args, n);
+                    return self.call_value(f, ft, &args, n, bang);
                 }
                 let text = self.cx.names.text(s).to_owned();
                 if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
@@ -313,7 +313,7 @@ impl Ck<'_, '_> {
             }
             _ => {
                 let (f, ft) = self.expr(callee, None)?;
-                self.call_value(f, ft, &args, n)
+                self.call_value(f, ft, &args, n, bang)
             }
         }
     }
@@ -369,6 +369,7 @@ impl Ck<'_, '_> {
         ft: Ty,
         args: &Args<'_>,
         n: NodeRef<'_>,
+        bang: bool,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
         let ft = self.infer.resolve(pool, ft);
@@ -376,11 +377,21 @@ impl Ck<'_, '_> {
             TyData::Mut(i) => i,
             _ => ft,
         };
+        // `s!()` on a stored suspension: a suspension point.
+        let suspend = self.cx.names.item("std.task", "Suspend");
+        if let TyData::Adt { def, args: sa } = pool.get(ft)
+            && def == suspend
+            && bang
+            && args.positional.is_empty()
+        {
+            let t = pool.list_items(sa).first().copied().unwrap_or(Ty::POISON);
+            return Ok((self.b.emit(Tag::AwaitValue, f.0, NONE, t, n.index()), t));
+        }
         let TyData::Fn {
             params,
             result,
             row,
-            ..
+            suspends,
         } = pool.get(ft)
         else {
             if matches!(pool.get(ft), TyData::Infer(_)) {
@@ -409,10 +420,27 @@ impl Ck<'_, '_> {
         }
         self.check_row(row, n);
         let rec = self.b.refs_record(&refs);
-        Ok((
-            self.b.emit(Tag::CallValue, f.0, rec, result, n.index()),
-            result,
-        ))
+        if !suspends {
+            return Ok((
+                self.b.emit(Tag::CallValue, f.0, rec, result, n.index()),
+                result,
+            ));
+        }
+        // A suspending function value: a plain call is cold, a bang call
+        // awaits it.
+        let st = pool.intern_ty(&TyData::Mut(pool.intern_ty(&TyData::Adt {
+            def: suspend,
+            args: pool.list(&[result]),
+        })));
+        let cold = self.b.emit(Tag::CallValue, f.0, rec, st, n.index());
+        if bang {
+            return Ok((
+                self.b
+                    .emit(Tag::AwaitValue, cold.0, NONE, result, n.index()),
+                result,
+            ));
+        }
+        Ok((cold, st))
     }
 
     /// Every key of a callee's row must be covered here.
@@ -437,6 +465,8 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         name: &str,
     ) -> StageResult<Vec<Ref>> {
+        // The callee's default bodies, taken before any argument is checked.
+        let owner = self.default_owner.take();
         let rest = params.get(skip..).unwrap_or(&[]);
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];
         if args.positional.len() > rest.len() {
@@ -475,7 +505,20 @@ impl Ck<'_, '_> {
             match s {
                 Some(r) => out.push(r),
                 None if defaults.get(skip + i).copied().unwrap_or(false) => {
-                    return unsupported("a call relying on a default argument");
+                    // `DefaultCall` of the parameter's default body, after
+                    // every explicit argument, over the earlier values
+                    // (checking-and-tir.md "Default calls").
+                    let Some((def, targs, prefix)) = &owner else {
+                        return unsupported("a default argument of this callee");
+                    };
+                    let pname = self.cx.names.text(rest[i].0).to_owned();
+                    let body = self.cx.names.member(*def, PathKind::Hidden, &pname);
+                    let a = self.b.refs_record(&[Ref(body.raw()), Ref(targs.0)]);
+                    let mut earlier = prefix.clone();
+                    earlier.extend(&out);
+                    let bw = self.b.refs_record(&earlier);
+                    let t = self.normalize_deep(rest[i].1)?;
+                    out.push(self.b.emit(Tag::DefaultCall, a, bw, t, n.index()));
                 }
                 None => {
                     let msg = format!("argument-count: `{name}` takes {} arguments", rest.len());
@@ -509,8 +552,14 @@ impl Ck<'_, '_> {
                 let inst = |t: Ty| subst_owner(pool, def, &vars, t);
                 let params: Vec<(Symbol, Ty)> =
                     sig.params.iter().map(|(s, t)| (*s, inst(*t))).collect();
+                if item
+                    .intrinsic
+                    .is_some_and(|k| self.cx.names.text(k) == "task_all")
+                {
+                    return self.await_all(args, n, bang);
+                }
                 if sig.variadic {
-                    return unsupported("a call of a variadic function");
+                    return self.vararg_call(def, &sig, &vars, args, n, bang);
                 }
                 // The result first, so an expected type guides literals.
                 let ret = self.normalize_deep(inst(sig.ret))?;
@@ -524,6 +573,7 @@ impl Ck<'_, '_> {
                         self.infer.rollback(snap);
                     }
                 }
+                self.default_owner = Some((def, pool.list(&vars), vec![]));
                 let refs = self.check_args(&params, &sig.defaults, 0, args, n, &name)?;
                 for (i, g) in sig.generics.iter().enumerate() {
                     for b in &g.bounds {
@@ -572,6 +622,123 @@ impl Ck<'_, '_> {
                 Ok((Ref(NONE), Ty::NEVER))
             }
         }
+    }
+
+    /// `all!(a(), b())`: cold suspensions, then one `AwaitAll` whose
+    /// value is the tuple of their results (suspension.md §14.5).
+    fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
+        let pool = self.cx.names.pool;
+        if !bang {
+            self.err(
+                Code::NotSuspending,
+                n,
+                "not-suspending: `all` is called as `all!(...)`",
+            );
+        }
+        let suspend = self.cx.names.item("std.task", "Suspend");
+        let mut refs = Vec::new();
+        let mut tys = Vec::new();
+        for e in &args.positional {
+            let (r, t) = self.expr(*e, None)?;
+            let st = self.strip_mut(t);
+            let x = match pool.get(st) {
+                TyData::Adt { def, args } if def == suspend => {
+                    pool.list_items(args).first().copied().unwrap_or(Ty::POISON)
+                }
+                _ => {
+                    let msg = format!(
+                        "type-mismatch in argument: expected a cold suspension, found {}",
+                        self.show(t)
+                    );
+                    self.err(Code::TypeMismatch, *e, &msg);
+                    Ty::POISON
+                }
+            };
+            refs.push(r);
+            tys.push(x);
+        }
+        let t = pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(&tys),
+            rest: None,
+        });
+        let rec = self.b.refs_record(&refs);
+        Ok((self.b.emit(Tag::AwaitAll, NONE, rec, t, n.index()), t))
+    }
+
+    /// A call of a function whose last parameter is a vararg
+    /// (spec/lang/07-functions.md, `fn.vararg`): the trailing positional
+    /// arguments become a list, or a tuple for a `Tuple`-bounded type.
+    fn vararg_call(
+        &mut self,
+        def: DefId,
+        sig: &FnSig,
+        vars: &[Ty],
+        args: &Args<'_>,
+        n: NodeRef<'_>,
+        bang: bool,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.cx.names.pool;
+        let Some(((_, vararg), fixed)) = sig.params.split_last() else {
+            return unsupported("a vararg function without parameters");
+        };
+        if !args.named.is_empty() {
+            return unsupported("named arguments to a vararg function");
+        }
+        let inst = |t: Ty| subst_owner(pool, def, vars, t);
+        let mut refs = Vec::new();
+        for (i, e) in args.positional.iter().take(fixed.len()).enumerate() {
+            let w = inst(fixed[i].1);
+            let (r, t) = self.expr(*e, Some(w))?;
+            refs.push(self.coerce(r, t, w, *e, "argument"));
+        }
+        if args.positional.len() < fixed.len() {
+            let msg = format!(
+                "argument-count: the call needs at least {} arguments",
+                fixed.len()
+            );
+            self.err(Code::ArgumentCount, n, &msg);
+        }
+        let trailing = args.positional.get(fixed.len()..).unwrap_or(&[]);
+        let lt = inst(*vararg);
+        let list = self.cx.names.item("std.core", "List");
+        let packed = match pool.get(self.strip_mut(lt)) {
+            TyData::Adt { def: d, args: la } if d == list => {
+                let et = pool.list_items(la).first().copied().unwrap_or(Ty::POISON);
+                let mut items = Vec::new();
+                for e in trailing {
+                    let (r, t) = self.expr(*e, Some(et))?;
+                    items.push(self.coerce(r, t, et, *e, "argument"));
+                }
+                let rec = self.b.refs_record(&items);
+                self.b.emit(Tag::NewList, NONE, rec, lt, n.index())
+            }
+            _ => {
+                let mut items = Vec::new();
+                let mut tys = Vec::new();
+                for e in trailing {
+                    let (r, t) = self.expr(*e, None)?;
+                    items.push(r);
+                    tys.push(t);
+                }
+                let tt = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&tys),
+                    rest: None,
+                });
+                self.expect(tt, lt, n, "argument");
+                let rec = self.b.refs_record(&items);
+                self.b.emit(Tag::NewTuple, NONE, rec, tt, n.index())
+            }
+        };
+        refs.push(packed);
+        let inst_full = |t: Ty| subst_owner(pool, def, vars, t);
+        self.bounds_of(sig, vars, &inst_full, n)?;
+        self.check_row(sig.row, n);
+        let ret = self.normalize_deep(inst(sig.ret))?;
+        let c = Callee::Item {
+            def,
+            targs: pool.list(vars),
+        };
+        Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
     }
 
     /// Emits a `Call`, or an `Await` for a bang call of a suspending
@@ -899,6 +1066,9 @@ impl Ck<'_, '_> {
             };
             let params: Vec<(Symbol, Ty)> =
                 sig.params.iter().map(|(s, x)| (*s, inst(*x))).collect();
+            let mut all = impl_args.clone();
+            all.extend(&vars);
+            self.default_owner = Some((method, pool.list(&all), vec![]));
             let refs = self.check_args(&params, &sig.defaults, 0, args, n, name)?;
             self.bounds_of(&sig, &vars, &inst, n)?;
             self.check_row(sig.row, n);
@@ -1185,6 +1355,18 @@ impl Ck<'_, '_> {
             }
             return Ok(None);
         }
+        // A literal's type is its default once a member is asked of it.
+        if matches!(pool.get(t), TyData::Infer(_))
+            && let Some(k @ (VarKind::IntLit | VarKind::FloatLit)) = self.infer.kind_of(pool, t)
+        {
+            let d = if k == VarKind::IntLit {
+                Ty::I32
+            } else {
+                Ty::prim(Prim::F64)
+            };
+            let _ = self.infer.unify(pool, t, d);
+            return self.resolve_method(d, name);
+        }
         if matches!(pool.get(t), TyData::Infer(_)) {
             return Err(hd_base::NotImplemented::new(
                 hd_base::Stage::Body,
@@ -1293,8 +1475,21 @@ impl Ck<'_, '_> {
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
                 let mut refs = vec![recv];
+                let mut all = impl_args.clone();
+                all.extend(&vars);
+                self.default_owner = Some((method, pool.list(&all), vec![recv]));
                 refs.extend(self.check_args(&params, &sig.defaults, 1, args, n, name)?);
-                self.bounds_of(&sig, &vars, &inst, n)?;
+                // `h.fact::[D]()` on a structure handle reads a typed fact
+                // (annot.handle.fact.typed): `D` is matched against the
+                // member's type, not bounded by `Inspectable`.
+                let handle_fact = name == "fact"
+                    && matches!(
+                        pool.get(self.strip_mut(rt)),
+                        TyData::Adt { def, .. } if self.cx.names.path(def) == "std/structure/Field"
+                    );
+                if !handle_fact {
+                    self.bounds_of(&sig, &vars, &inst, n)?;
+                }
                 self.check_row(sig.row, n);
                 let mut targs = impl_args.clone();
                 targs.extend(&vars);
@@ -1350,7 +1545,7 @@ impl Ck<'_, '_> {
                     && matches!(pool.get(self.infer.resolve(pool, ft)), TyData::Fn { .. })
                 {
                     let f = self.b.emit(Tag::Field, recv.0, idx, ft, n.index());
-                    return self.call_value(f, ft, args, n);
+                    return self.call_value(f, ft, args, n, bang);
                 }
                 let msg = format!("unknown-method `{name}` on {}", self.show(rt));
                 self.err(Code::UnknownMethod, n, &msg);
@@ -1384,9 +1579,10 @@ impl Ck<'_, '_> {
         let explicit = std::mem::take(&mut self.method_targs);
         let vars = self.fresh_generics(&sig, &explicit, 0);
         let tv = targs.clone();
+        let tl = pool.list(&tv);
         let inst = |x: Ty| {
             let x = subst_owner(pool, method, &vars, x);
-            pool.subst(x, &|p: ParamRef| {
+            let x = pool.subst(x, &|p: ParamRef| {
                 if p.owner != trait_ {
                     return None;
                 }
@@ -1395,7 +1591,8 @@ impl Ck<'_, '_> {
                 } else {
                     tv.get(p.index as usize - 1).copied()
                 }
-            })
+            });
+            with_assoc_args(pool, x, trait_, tl)
         };
         let params: Vec<(Symbol, Ty)> = sig.params.iter().map(|(s, x)| (*s, inst(*x))).collect();
         let has_self = sig
@@ -1510,8 +1707,9 @@ impl Ck<'_, '_> {
             .map(|x| self.infer.resolve(pool, x))
             .collect();
         let tv = targs.clone();
+        let tl = pool.list(&tv);
         let inst = |x: Ty| {
-            pool.subst(x, &|p: ParamRef| {
+            let x = pool.subst(x, &|p: ParamRef| {
                 if p.owner != trait_ {
                     return None;
                 }
@@ -1520,7 +1718,8 @@ impl Ck<'_, '_> {
                 } else {
                     tv.get(p.index as usize - 1).copied()
                 }
-            })
+            });
+            with_assoc_args(pool, x, trait_, tl)
         };
         let mut refs = vec![recv];
         for (i, (r, at, an)) in args.iter().enumerate() {
@@ -1623,10 +1822,17 @@ impl Ck<'_, '_> {
         if pool.has_infer(st) {
             return Ok(t);
         }
+        // `P::Error` under a bound `P < Walker[Self]` leaves the trait's
+        // arguments implicit: the impl that matches supplies them.
+        let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
+        let mut av = pool.list_items(args);
+        while av.len() < n_trait {
+            av.push(self.infer.fresh(pool, VarKind::General));
+        }
         let tref = TraitRef {
             trait_,
             self_ty: st,
-            args,
+            args: pool.list(&av),
         };
         if let hd_types::solver::Answer::Holds {
             evidence:
@@ -1715,6 +1921,16 @@ impl Ck<'_, '_> {
 }
 
 impl Ck<'_, '_> {
+    /// A type with its outer `mut` view removed, variables resolved.
+    pub(crate) fn strip_mut(&self, t: Ty) -> Ty {
+        let pool = self.cx.names.pool;
+        let t = self.infer.resolve(pool, t);
+        match pool.get(t) {
+            TyData::Mut(i) => i,
+            _ => t,
+        }
+    }
+
     /// The callee choice a solver answer names (checking-and-tir.md,
     /// "callee record").
     pub(crate) fn choice_of(&self, ev: Option<&Evidence>) -> (ChoiceKind, u32) {
@@ -1733,6 +1949,65 @@ impl Ck<'_, '_> {
             _ => (ChoiceKind::Builtin, 0),
         }
     }
+}
+
+/// A projection written `Self::Out` in a trait names the trait's own
+/// arguments implicitly: fills them in from the call's.
+pub(crate) fn with_assoc_args(
+    pool: &hd_types::InternPool,
+    t: Ty,
+    trait_: DefId,
+    args: TyList,
+) -> Ty {
+    if args == TyList::EMPTY {
+        return t;
+    }
+    let list = |l: TyList| {
+        pool.list(
+            &pool
+                .list_items(l)
+                .into_iter()
+                .map(|x| with_assoc_args(pool, x, trait_, args))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let d = match pool.get(t) {
+        TyData::Assoc {
+            assoc,
+            trait_: tr,
+            self_ty,
+            args: a,
+        } => TyData::Assoc {
+            assoc,
+            trait_: tr,
+            self_ty: with_assoc_args(pool, self_ty, trait_, args),
+            args: if tr == trait_ && a == TyList::EMPTY {
+                args
+            } else {
+                list(a)
+            },
+        },
+        TyData::Adt { def, args: a } => TyData::Adt { def, args: list(a) },
+        TyData::Tuple { elems, rest } => TyData::Tuple {
+            elems: list(elems),
+            rest,
+        },
+        TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
+        TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
+        TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+        } => TyData::Fn {
+            params: list(params),
+            result: with_assoc_args(pool, result, trait_, args),
+            row,
+            suspends,
+        },
+        _ => return t,
+    };
+    pool.intern_ty(&d)
 }
 
 /// Substitutes one owner's parameters.

@@ -81,6 +81,7 @@ pub fn bench(n: usize, clock: &dyn Clock, executor: Executor) -> Result<(String,
     };
     let run = |label: &str, src: &MemorySources, out: &mut String| {
         let host = Host {
+            render_tir: &[],
             sources: src,
             store: &store,
             clock,

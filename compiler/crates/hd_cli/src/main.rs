@@ -87,6 +87,7 @@ fn compile(target: &Path) -> Result<Vec<u8>, ExitCode> {
     let store = DiskStore { root: cache_dir() };
     let clock = Wall(Instant::now());
     let host = Host {
+        render_tir: &[],
         sources: &program.sources,
         store: &store,
         clock: &clock,
