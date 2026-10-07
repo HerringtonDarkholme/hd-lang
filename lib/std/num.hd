@@ -8,13 +8,19 @@ use std.format.DebugWriter
 # only these implementations exist, one per primitive number type
 # (r-trait.num.sealed). `from_i64` is checked (r-trait.num.from-i64-checked):
 # a value the integer type cannot hold panics with integer overflow.
+## The trait every built-in number type implements: ordered, displayable, and closed under `+`, `-`, `*`, `/`, and `%`.
+## See [trait.num.num-ordered](../../spec/lang/09-traits.md#r-trait.num.num-ordered).
 pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self] & Mul[Out = Self] & Div[Out = Self] & Rem[Out = Self]:
     fn zero() -> Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
 
+## The trait every built-in integer type implements: `Num` plus a total order, the bitwise operators, and the shifts.
+## See [trait.num.integer](../../spec/lang/09-traits.md#r-trait.num.integer).
 pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]
 
+## The trait the built-in floating-point types implement: `Num` plus negation.
+## See [trait.num.float](../../spec/lang/09-traits.md#r-trait.num.float).
 pub trait Float < Num & PartialOrd & Neg[Out = Self]
 
 impl Num for i8:
@@ -94,6 +100,8 @@ impl Float for f32
 
 impl Float for f64
 
+## Why number parsing failed: `Empty`, `InvalidDigit(position)`, or `OutOfRange`.
+## See [std-num.parse.import](../../spec/std/num.md#r-std-num.parse.import).
 pub enum ParseNumberError:
     Empty
     InvalidDigit(position: usize)
@@ -120,6 +128,8 @@ impl Display for ParseNumberError:
 # does not call them: in the prototype, each concrete type a std function
 # calls them with adds dictionary wrappers to every program.
 impl[N < Integer] N:
+    ## The sum, or `.None` when it is out of the type's range.
+    ## See [std-num.checked.add](../../spec/std/num.md#r-std-num.checked.add).
     pub fn checked_add(self, other: N) -> N?:
         zero := N::zero()
         if other > zero && self > int_max::[N]() - other:
@@ -128,6 +138,8 @@ impl[N < Integer] N:
             return .None
         .Some(self + other)
 
+    ## The difference, or `.None` when it is out of the type's range.
+    ## See [std-num.checked.sub](../../spec/std/num.md#r-std-num.checked.sub).
     pub fn checked_sub(self, other: N) -> N?:
         zero := N::zero()
         if other > zero && self < int_min::[N]() + other:
@@ -136,6 +148,8 @@ impl[N < Integer] N:
             return .None
         .Some(self - other)
 
+    ## The product, or `.None` when it is out of the type's range.
+    ## See [std-num.checked.mul](../../spec/std/num.md#r-std-num.checked.mul).
     pub fn checked_mul(self, other: N) -> N?:
         zero := N::zero()
         if self == zero || other == zero:
@@ -149,6 +163,8 @@ impl[N < Integer] N:
             overflows = if other > zero: self < lowest / other else: other < highest / self
         if overflows: .None else: .Some(self * other)
 
+    ## The quotient, or `.None` for a zero divisor or the one overflowing case.
+    ## See [std-num.checked.div](../../spec/std/num.md#r-std-num.checked.div).
     pub fn checked_div(self, other: N) -> N?:
         zero := N::zero()
         if other == zero:
@@ -161,6 +177,8 @@ impl[N < Integer] N:
 
     # Fixed-width addition by carries: `<<` drops the carry out of the top
     # bit, so the sum keeps the low bits of the exact result.
+    ## The sum, wrapping around the type's range.
+    ## See [std-num.wrapping.add](../../spec/std/num.md#r-std-num.wrapping.add).
     pub fn wrapping_add(self, other: N) -> N:
         zero := N::zero()
         let sum = self
@@ -172,19 +190,27 @@ impl[N < Integer] N:
         sum
 
     # `~other + 1`, wrapped, is the two's-complement negation of `other`.
+    ## The difference, wrapping around the type's range.
+    ## See [std-num.wrapping.sub](../../spec/std/num.md#r-std-num.wrapping.sub).
     pub fn wrapping_sub(self, other: N) -> N:
         self.wrapping_add((~other).wrapping_add(N::one()))
 
+    ## The sum, capped at the type's largest or smallest value.
+    ## See [std-num.saturating.add](../../spec/std/num.md#r-std-num.saturating.add).
     pub fn saturating_add(self, other: N) -> N:
         match self.checked_add(other):
             .Some(sum) => sum
             .None => if other > N::zero(): int_max::[N]() else: int_min::[N]()
 
+    ## The difference, capped at the type's largest or smallest value.
+    ## See [std-num.saturating.sub](../../spec/std/num.md#r-std-num.saturating.sub).
     pub fn saturating_sub(self, other: N) -> N:
         match self.checked_sub(other):
             .Some(difference) => difference
             .None => if other > N::zero(): int_min::[N]() else: int_max::[N]()
 
+    ## The number of one bits in the value.
+    ## See [std-num.bits.count-ones-u32](../../spec/std/num.md#r-std-num.bits.count-ones-u32).
     pub fn count_ones(self) -> u32:
         zero := N::zero()
         let count: u32 = 0
@@ -196,6 +222,8 @@ impl[N < Integer] N:
         count
 
     # Read from the low bit up: a set bit resets the count of zeros above it.
+    ## The number of zero bits before the value's first one bit.
+    ## See [std-num.bits.leading-zeros-u32](../../spec/std/num.md#r-std-num.bits.leading-zeros-u32).
     pub fn leading_zeros(self) -> u32:
         zero := N::zero()
         let zeros: u32 = 0
@@ -210,6 +238,8 @@ impl[N < Integer] N:
 # bits that leave one end are the low or high bits of the logical shift of
 # the other, so a signed `>>` copying the sign bit is masked off.
 impl[N < Integer] N:
+    ## The bits rotated `count` places toward the most significant bit.
+    ## See [std-num.rotate.left](../../spec/std/num.md#r-std-num.rotate.left).
     pub fn rotate_left(self, count: u32) -> N:
         zero := N::zero()
         width := zero.leading_zeros()
@@ -220,6 +250,8 @@ impl[N < Integer] N:
         low_mask := ~((~zero) << shift)
         (self << shift) | ((self >> (width - shift)) & low_mask)
 
+    ## The bits rotated `count` places toward the least significant bit.
+    ## See [std-num.rotate.right](../../spec/std/num.md#r-std-num.rotate.right).
     pub fn rotate_right(self, count: u32) -> N:
         width := N::zero().leading_zeros()
         shift := count % width
@@ -231,20 +263,28 @@ impl[N < Integer] N:
 # `Integer` cannot name, so each width declares it. A narrow signed
 # difference is exact in `i64`, and the cast keeps the distance.
 impl i8:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.i8](../../spec/std/num.md#r-std-num.abs-diff.i8).
     pub fn abs_diff(self, other: i8) -> u8:
         if self > other: u8(i64(self) - i64(other)) else: u8(i64(other) - i64(self))
 
 impl i16:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.i16](../../spec/std/num.md#r-std-num.abs-diff.i16).
     pub fn abs_diff(self, other: i16) -> u16:
         if self > other: u16(i64(self) - i64(other)) else: u16(i64(other) - i64(self))
 
 impl i32:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.i32](../../spec/std/num.md#r-std-num.abs-diff.i32).
     pub fn abs_diff(self, other: i32) -> u32:
         if self > other: u32(i64(self) - i64(other)) else: u32(i64(other) - i64(self))
 
 # Operands of one sign subtract exactly. Otherwise the distance is
 # `high + (-(low + 1)) + 1`, and each part fits in `u64`.
 impl i64:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.i64](../../spec/std/num.md#r-std-num.abs-diff.i64).
     pub fn abs_diff(self, other: i64) -> u64:
         high := if self > other: self else: other
         low := if self > other: other else: self
@@ -253,36 +293,52 @@ impl i64:
         u64(high) + u64(-(low + 1)) + 1
 
 impl u8:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.u8](../../spec/std/num.md#r-std-num.abs-diff.u8).
     pub fn abs_diff(self, other: u8) -> u8:
         if self > other: self - other else: other - self
 
 impl u16:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.u16](../../spec/std/num.md#r-std-num.abs-diff.u16).
     pub fn abs_diff(self, other: u16) -> u16:
         if self > other: self - other else: other - self
 
 impl u32:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.u32](../../spec/std/num.md#r-std-num.abs-diff.u32).
     pub fn abs_diff(self, other: u32) -> u32:
         if self > other: self - other else: other - self
 
 impl usize:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.usize](../../spec/std/num.md#r-std-num.abs-diff.usize).
     pub fn abs_diff(self, other: usize) -> usize:
         if self > other: self - other else: other - self
 
 impl u64:
+    ## The absolute difference of the two values.
+    ## See [std-num.abs-diff.u64](../../spec/std/num.md#r-std-num.abs-diff.u64).
     pub fn abs_diff(self, other: u64) -> u64:
         if self > other: self - other else: other - self
 
 impl f64:
+    ## True when the value is NaN.
+    ## See [std-num.is-nan](../../spec/std/num.md#r-std-num.is-nan).
     pub fn is_nan(self) -> bool:
         self != self
 
     # Neither NaN nor an infinity: only then is `self - self` zero.
+    ## True when the value is neither NaN nor an infinity.
+    ## See [std-num.is-finite](../../spec/std/num.md#r-std-num.is-finite).
     pub fn is_finite(self) -> bool:
         self - self == 0.0
 
     # Fixed-point text with `digits` fractional digits, correctly rounded
     # with ties to even (spec/std/num.md#fixed-point-text). The host hook
     # does the rounding, which needs big-number arithmetic.
+    ## The value in fixed-point text with `digits` digits after the point.
+    ## See [std-num.to-fixed.decl](../../spec/std/num.md#r-std-num.to-fixed.decl).
     pub fn to_fixed(self, digits: usize) -> string:
         if digits > 100:
             panic("to_fixed: digits must be from 0 to 100")
@@ -291,11 +347,15 @@ impl f64:
 # Parsing accepts an optional `+` or `-` and then decimal digits only.
 # Every scalar before the first invalid one is ASCII, so the scalar index
 # that `InvalidDigit` reports is also its byte offset (Strings STR10).
+## Reads `text` as a base-ten `i32`, or the first error.
+## See [std-num.parse.i32](../../spec/std/num.md#r-std-num.parse.i32).
 pub fn parse_i32(text: string) -> Result[i32, ParseNumberError]:
     match parse_integer(text, -2147483648, 2147483647):
         .Ok(value) => .Ok(i32(value))
         .Err(error) => .Err(error)
 
+## Reads `text` as a base-ten `i64`, or the first error.
+## See [std-num.parse.i64](../../spec/std/num.md#r-std-num.parse.i64).
 pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
     parse_integer(text, -i64_max() - 1, i64_max())
 
@@ -330,15 +390,21 @@ fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberEr
 # Unsigned parsing (r-std-num.parse.unsigned): the signed grammar without
 # `-`, which is an invalid digit at position 0. A `u64` holds every result,
 # so one reader serves every width.
+## Reads `text` as a base-ten `u32`, or the first error.
+## See [std-num.parse.u32](../../spec/std/num.md#r-std-num.parse.u32).
 pub fn parse_u32(text: string) -> Result[u32, ParseNumberError]:
     match parse_unsigned(text, 4294967295):
         .Ok(value) => .Ok(u32(value))
         .Err(error) => .Err(error)
 
+## Reads `text` as a base-ten `u64`, or the first error.
+## See [std-num.parse.u64](../../spec/std/num.md#r-std-num.parse.u64).
 pub fn parse_u64(text: string) -> Result[u64, ParseNumberError]:
     parse_unsigned(text, 18446744073709551615)
 
 # `usize` has the target's width, 32 bits on Wasm32 (r-std-num.parse.usize-range).
+## Reads `text` as a base-ten `usize`, or the first error.
+## See [std-num.parse.usize](../../spec/std/num.md#r-std-num.parse.usize).
 pub fn parse_usize(text: string) -> Result[usize, ParseNumberError]:
     match parse_unsigned(text, 4294967295):
         .Ok(value) => .Ok(usize(value))
@@ -368,6 +434,8 @@ fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
 # and `infinity` are read here, so every error and its position are std's.
 # The host hook only rounds an unsigned decimal number, and has no error
 # signal (r-std-num.parse-f64.hook.total).
+## Reads `text` as an `f64`, or the first error.
+## See [std-num.parse-f64](../../spec/std/num.md#r-std-num.parse-f64).
 pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
     scalars := text.split("")
     if scalars.len() == 0:
