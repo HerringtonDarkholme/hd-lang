@@ -364,10 +364,21 @@ fn validate(source: &str, tokens: &TokenBuf) -> Vec<Diagnostic> {
         if enum_indent.is_some_and(|header_indent| indent <= header_indent) {
             enum_indent = None;
         }
-        if enum_indent.is_some() && kinds.contains(&TokenKind::Arrow) {
+        let variant_has_type_parameters = kinds
+            .iter()
+            .position(|kind| *kind == TokenKind::LBracket)
+            .is_some_and(|bracket| {
+                kinds
+                    .iter()
+                    .position(|kind| *kind == TokenKind::LParen)
+                    .is_none_or(|payload| bracket < payload)
+            });
+        if enum_indent.is_some()
+            && (kinds.contains(&TokenKind::Arrow) || variant_has_type_parameters)
+        {
             push_diag(
                 &mut diagnostics,
-                Code::SyntaxError,
+                Code::VariantResultTypeRemoved,
                 tokens.start[start],
                 tokens.end[end - 1],
             );
@@ -564,6 +575,12 @@ fn validate_line(
     if kinds
         .windows(2)
         .any(|pair| pair == [TokenKind::Dollar, TokenKind::KwMut])
+    {
+        syntax(diagnostics);
+    }
+    if kinds
+        .windows(2)
+        .any(|pair| pair == [TokenKind::KwDyn, TokenKind::KwMut])
     {
         syntax(diagnostics);
     }

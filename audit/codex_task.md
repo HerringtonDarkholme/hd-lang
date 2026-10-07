@@ -71,25 +71,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### C2b. Fix First: C2's Conformance Test Fails On Main (3eb3fa57)
-
-Review of C2, built on f0e4b2b1 with S1d's new fixtures:
-
-1. Blocker. `cargo test` fails: `parse_phase_conformance` reports
-   `parse/invalid/dyn-mut-order.hd expected syntax-error, got []`. The
-   parser accepts `dyn mut Counter`; `grammar.type.dyn.mut` says `mut`
-   precedes `dyn` (`mut dyn Counter`), so the swapped order is a syntax
-   error. Fix the parser, run the whole conformance ledger again against
-   current main (S1d migrated 243 fixtures to `dyn`), and push. The Rust
-   CI job will be red until this lands.
-   S1e (294e2265) removed GADTs: also emit `variant-result-type-removed`
-   for `parse/invalid/variant-result-type-removed.hd` and
-   `variant-type-parameters-removed.hd` (a variant `->` result type or a
-   variant type parameter list), and delete the ledger rows for the two
-   deleted `gadt-named-*-before-positional` fixtures.
-2. Non-blocking. Full parse runs at 49.4 MB/s; the target is at least
-   100 MB/s (see C2a item 4).
-
 ### C2a. Review Fixes For C1 (b224b04c)
 
 Review of C1 (tests and clippy pass; 7 tests):

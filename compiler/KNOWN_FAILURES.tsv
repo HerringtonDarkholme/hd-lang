@@ -70,8 +70,6 @@ parse/invalid/qualified-string-prefix-value.hd	qualified-string-prefix
 parse/invalid/module-documentation-second-block.hd	doc-comment-without-target
 parse/invalid/data-field-without-type.hd	syntax-error
 parse/invalid/variant-field-block.hd	syntax-error
-parse/invalid/gadt-named-pattern-before-positional.hd	pattern-order
-parse/invalid/gadt-named-argument-before-positional.hd	argument-order
 parse/invalid/variant-named-argument-before-positional.hd	argument-order
 parse/invalid/trait-parameter-without-type.hd	syntax-error
 parse/invalid/variant-payload-default.hd	syntax-error

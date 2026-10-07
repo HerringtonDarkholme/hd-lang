@@ -32,6 +32,7 @@ pub enum Code {
     QualifiedStringPrefix,
     TrailingBlockPosition,
     TraitMethodVisibility,
+    VariantResultTypeRemoved,
 }
 
 impl Code {
@@ -65,6 +66,7 @@ impl Code {
             Self::QualifiedStringPrefix => "qualified-string-prefix",
             Self::TrailingBlockPosition => "trailing-block-position",
             Self::TraitMethodVisibility => "trait-method-visibility",
+            Self::VariantResultTypeRemoved => "variant-result-type-removed",
         }
     }
 
@@ -93,6 +95,7 @@ impl Code {
             "tab-whitespace" => Self::TabWhitespace,
             "trailing-block-position" => Self::TrailingBlockPosition,
             "trait-method-visibility" => Self::TraitMethodVisibility,
+            "variant-result-type-removed" => Self::VariantResultTypeRemoved,
             "unclosed-delimiter" => Self::UnclosedDelimiter,
             "unexpected-bom" => Self::UnexpectedBom,
             "unexpected-indentation" => Self::UnexpectedIndentation,
