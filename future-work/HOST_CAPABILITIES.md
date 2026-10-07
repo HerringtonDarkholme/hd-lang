@@ -215,7 +215,7 @@ Sources were fetched on 2026-10-06; links are under [Sources](#sources).
 | Unit tests get `TestRunner` alone; integration and doc tests get the default profile and `Process` | [Test Environments](../spec/cli/command-line.md#test-environments) | specified |
 | Deterministic providers: `MemoryFs`, `MapEnv`, `ScriptedProcess`, ... | [Unit Test Providers](../spec/std/testing.md#unit-test-providers) | specified |
 | Cancelling must abort a known HTTP request | [`req.cancel.external-abort`](../spec/lang/11-requirements-and-suspension.md#r-req.cancel.external-abort) | specified, nothing to abort yet |
-| Host wait maps to the component-model async ABI | [`req.host-wait.leaf`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf) | specified |
+| Host wait maps to the component-model async ABI | [`req.host-wait.leaf`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.abi) | specified |
 | Prototype bridge: one generic import per method; structured results cross as node trees; strings one byte per call (F-558); host answers synchronously, and a pending answer busy-polls (F-555) | [src/README.md](../src/README.md), `src/commands/default-profile.ts` | implemented |
 | Archived `Http.send!` sketch with `ScriptedHttp` | STDLIB draft, 2026-09-26 (git `b37c8fbc`); [STDLIB_PLAN HTTP Client](STDLIB_PLAN.md#http-client) | "stands" |
 
@@ -705,7 +705,7 @@ the party being limited.
 | --- | --- | --- |
 | `FsRead`, `FsWrite` | the existing per-method imports; `default-profile.ts` resolves the path and checks the grant before `node:fs` | `wasi:filesystem`: each `read` or `write` entry becomes a preopen with read-only or read-write `DirPerms`; the descriptor sandbox does the check |
 | `Env` | the existing import; the answer filters by the grant | `wasi:cli/environment`: the host passes only granted variables |
-| `Http` | a new provider: `Request` crosses out and `Response` back as node trees, as `ProcessOutput` does; a synchronous fetch in a Worker, waited on with `Atomics.wait`; each hop's host checked, using `redirect: "manual"` | `wasi:http` `handler.handle`, imported; async through [`host_wait!`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf); the host's outgoing-request hook checks the grant and returns `HTTP-request-denied` |
+| `Http` | a new provider: `Request` crosses out and `Response` back as node trees, as `ProcessOutput` does; a synchronous fetch in a Worker, waited on with `Atomics.wait`; each hop's host checked, using `redirect: "manual"` | `wasi:http` `handler.handle`, imported; async through [`host_wait!`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.abi); the host's outgoing-request hook checks the grant and returns `HTTP-request-denied` |
 | `Process` | `spawnSync` with the grant check, as `processes.ts` does for tests | no WASI interface: an hd host extension, such as `hd:host/process` |
 | `Sys` | the existing per-method imports | no WASI interface: an `hd:host/sys` extension |
 | sockets (later) | none | `wasi:sockets`, checked by wasmtime's `socket_addr_check` |

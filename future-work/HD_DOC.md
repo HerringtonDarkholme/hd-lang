@@ -474,7 +474,7 @@ Agents look things up mid-edit, when the package often fails `hd check`.
 **Recommendation: B for queries, A for `--html`.** Go answers from the
 syntax tree for the same reason. It also suits the new compiler: a
 package interface depends on declarations and fact values only
-([`module.interface.determined-facts`](../spec/lang/10-modules.md#r-module.interface.determined-facts)),
+([`module.interface.determined-facts`](../spec/lang/10-modules.md#r-module.interface.syntax-only)),
 so a query can come from cached interfaces. A published site should only
 come from code that checks.
 

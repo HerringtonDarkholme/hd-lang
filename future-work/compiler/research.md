@@ -595,7 +595,7 @@ the declaring module.
 | uses in `tests:` blocks and doc tests | only by `hd test`; they make no folder edge ([`module.cycle.test-code`](../../spec/lang/10-modules.md#r-module.cycle.test-code)) | yes, marked test-only | none |
 | parameter, field and shared-parameter defaults | the presence of a default; the expression runs per call ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)) | token range; compile it as a callee-side default thunk (mine), so it is never inlined into a caller | none |
 | enum shared constructor data, `NotFound -> StatusCode(404)` | its type only; the value is evaluated at compile time ([`data.shared.compile-time`](../../spec/lang/08-data-and-enums.md#r-data.shared.compile-time)) | token range | none |
-| facts, decorators, member lines | the type for checking; the value for builds ([`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-values)) | token range in the check interface; values evaluated at build time from MIR | none, but see contradiction 2 below |
+| facts, decorators, member lines | the type for checking; the value for builds ([`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-expressions)) | token range in the check interface; values evaluated at build time from MIR | none, but see contradiction 2 below |
 | `@derive(X)` | the generated impl head and its bounds | yes: bounds come from member types and omitted members ([`annot.bound.params`](../../spec/lang/14-annotations.md#r-annot.bound.params)), after name resolution | none |
 | `@error`, `@from`, `@source` | the `Display`, `Error` and `From[P]` heads and their bounds | yes: bounds depend on which members a message interpolates ([`annot.error.bound.display`](../../spec/lang/14-annotations.md#r-annot.error.bound.display)), which the lexer sees in the message string | none |
 | derivation templates, `impl[T] X for T by Structure` | the body: a dependent checks the instantiated template at its opt-in ([`annot.limit.interfaces`](../../spec/lang/14-annotations.md#r-annot.limit.interfaces)) | yes: the header names it, and the template must sit in the trait's module ([`annot.template.module`](../../spec/lang/14-annotations.md#r-annot.template.module)); keep the body as an interface body | none |
@@ -612,8 +612,8 @@ the declaring module.
 call with it, are forbidden in default expressions, `defer` suites,
 non-entry module initialization, and fact and metadata expressions. The
 ban is "transitive through the statically known call graph"
-([`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive),
-[`module.console.println-block-on.contexts`](../../spec/lang/10-modules.md#r-module.console.println-block-on.contexts)).
+([`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect),
+[`module.console.println-block-on.contexts`](../../spec/lang/10-modules.md#r-module.console.println-block-on.direct)).
 So a `defer` suite that calls `log.flush()` from another package is legal
 only if `flush`'s body, and every body it calls, never reaches `block_on`.
 That is a property of bodies in other modules. Adding a `println` to a
@@ -807,7 +807,7 @@ use stable paths and source order, and the hash never sees interned IDs.
    edit able to break a dependent. The fix is the drive summary with its
    own hash, and an interface hash over exported items only.
 2. **Facts in the interface.** The spec's package interface records fact
-   *values* ([`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-values)),
+   *values* ([`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-expressions)),
    and a value can depend on a body in another file. Checking needs only a
    fact's type, so the check interface keeps the expression. Values are
    computed at build time from MIR and reach the codegen cache through
@@ -817,7 +817,7 @@ use stable paths and source order, and the hash never sees interned IDs.
    `defer`, defaults, facts or module initialization also read drive
    summaries of the folders they call into. Only that late check waits.
 4. **Day 1, "dependency bodies skipped".** True warm, not cold, as above.
-5. **Outside this question:** [`module.interface.dictionaries`](../../spec/lang/10-modules.md#r-module.interface.dictionaries)
+5. **Outside this question:** [`module.interface.dictionaries`](../../spec/lang/10-modules.md#r-module.interface.generic-compilation)
    says each generic function compiles once in its defining package with
    dictionaries, which Q8's monomorphization contradicts. Open question 8
    should cover that rule when the owner answers it.
@@ -1099,7 +1099,7 @@ the question texts stay for their reasoning.
    ([metrics README](../../test/metrics/README.md#pillar-1-metrics)).
    Recommendation: specify it.
 7. **`host_wait!` and the Component Model.** The spec rule
-   [`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)
+   [`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.abi)
    names the Component Model async ABI, and HOST_CAPABILITIES' boundary
    table names the Component Model as the official runtime. Neither works
    for a Wasm GC program until the canonical ABI gets a GC option (Q12).
@@ -1667,7 +1667,7 @@ medium-high.
 labels its second column "Official runtime (Component Model)", and the spec
 says `host_wait!` "maps an opaque host wait operation to the WebAssembly
 Component Model async ABI as used by WASI 0.3"
-([`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)).
+([`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.abi)).
 Neither is reachable for a Wasm GC program in v1. See the
 [open questions](#open-questions-for-the-owner).
 

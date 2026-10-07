@@ -1003,7 +1003,7 @@ to the width it meets the moment it meets it, so the default is used
 only when nothing decides the class. In `(pick(1, big), pick(2, small))`
 with `big: i64` and `small: i32`, `1` is `i64` and `2` is `i32`. The spec
 pass rewords
-[`types.literal.local.join`](../../spec/lang/04-type-system.md#r-types.literal.local.join)
+[`types.literal.local.join`](../../spec/lang/04-type-system.md#r-types.literal.local.class.meet)
 to say so. A test-only **oracle mode** implements the old retry rule
 literally, over the same trail, and the differential fuzzer compares the
 two (section 14). After the rewording, a difference that only separate
@@ -2174,11 +2174,11 @@ unless the owner disagrees.
 ### 16.2 Inconsistencies Found
 
 1. **The `block_on` ban is still transitive in the spec.**
-   [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive),
+   [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect),
    `req.drive.block-on.unprovable`,
-   [`flow.defer.block-on`](../../spec/lang/06-control-flow.md#r-flow.defer.block-on)
+   [`flow.defer.block-on`](../../spec/lang/06-control-flow.md#r-flow.defer.block-on.direct)
    ("direct or transitive") and
-   [`annot.fact.no-block-on`](../../spec/lang/14-annotations.md#r-annot.fact.no-block-on)
+   [`annot.fact.no-block-on`](../../spec/lang/14-annotations.md#r-annot.fact.block-on.direct)
    with its `unprovable` rule all predate answer 13: direct-only, with a
    run-time panic for an indirect call. The spec pass should rewrite
    them.

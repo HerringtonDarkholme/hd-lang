@@ -76,13 +76,13 @@ interface and cache entries (§7.5).
 2. **Pack bodies.** [`module.interface.contents`](../../spec/lang/10-modules.md#r-module.interface.contents)
    lists "the bodies of pack code", but packs were removed
    ([chapter 12](../../spec/lang/12-variadic-generics.md)).
-3. **Dictionaries.** [`module.interface.dictionaries`](../../spec/lang/10-modules.md#r-module.interface.dictionaries)
+3. **Dictionaries.** [`module.interface.dictionaries`](../../spec/lang/10-modules.md#r-module.interface.generic-compilation)
    still says generic functions compile once with dictionaries, against
    answer 8 (code per concrete type).
 4. **Local impl heads.** The same table lists local impl heads "needed for
    coherence". A local impl must involve a local type or trait, so no
    other module can overlap it. The research's Q4b noted this too.
-5. **Fact values.** [`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-values)
+5. **Fact values.** [`module.interface.fact-values`](../../spec/lang/10-modules.md#r-module.interface.fact-expressions)
    puts fact values in the package interface; the check interface here
    keeps expressions and their types, and D2 computes values (the
    research's Q4b contradiction 2).
@@ -102,10 +102,10 @@ interface and cache entries (§7.5).
     adds them.
 11. **The `block_on` ban is still transitive in the spec**
     (type-checking.md §16.2 item 1).
-    [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive),
+    [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect),
     `req.drive.block-on.unprovable`,
-    [`flow.defer.block-on`](../../spec/lang/06-control-flow.md#r-flow.defer.block-on)
-    and [`annot.fact.no-block-on`](../../spec/lang/14-annotations.md#r-annot.fact.no-block-on)
+    [`flow.defer.block-on`](../../spec/lang/06-control-flow.md#r-flow.defer.block-on.direct)
+    and [`annot.fact.no-block-on`](../../spec/lang/14-annotations.md#r-annot.fact.block-on.direct)
     with its `unprovable` rule predate answer 13: direct-only, with a
     run-time panic for an indirect call. For facts, the indirect case is
     now the build error `fact-evaluation-failed`, since facts run at
@@ -235,11 +235,11 @@ editing D1 in place:
    shape for every enum. Answer 8 replaced that strategy. D1 listed only
    `module.interface.dictionaries` (§10.1, item 3).
 3. **The transitive `block_on` ban** remains in
-   [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.transitive)
-   and [`flow.defer.block-on`](../../spec/lang/06-control-flow.md#r-flow.defer.block-on),
+   [`req.drive.block-on.transitive`](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect)
+   and [`flow.defer.block-on`](../../spec/lang/06-control-flow.md#r-flow.defer.block-on.direct),
    though answer 13 made it direct-only.
 4. **The Component Model** is still named by
-   [`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.leaf)
+   [`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.abi)
    and by HOST_CAPABILITIES' boundary table, against answer 7.
 5. **Resource limits.** The stable panic categories lack
    `heap-exhausted` and `time-limit`
