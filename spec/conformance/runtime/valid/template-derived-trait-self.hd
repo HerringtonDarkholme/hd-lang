@@ -1,5 +1,8 @@
 # test: inside a template, a call qualified by the derived trait has the template's T as Self
 # Spec 14 Templates: annot.template.qualified-self and .receiverless (owner decision ST8-own, batch 28, 2026-09-30).
+# Typed Derivation: annot.derive.definition, annot.derive.supplied,
+# annot.derive.library. Templates: annot.template.form, annot.template.structure,
+# annot.template.body, annot.template.instance.
 # Named::name() takes no argument, so no inference gives its Self; the template's T does.
 # Named declares its own receiverless `name`, so Structure::name() and Named::name() are different calls.
 use std.structure.{Structure, Field, Variant, Describer}

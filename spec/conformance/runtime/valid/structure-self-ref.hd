@@ -1,6 +1,11 @@
 # test: a template reads each variant's and member's self_ref
-# Spec 14 Self References: annot.self-ref.member, .variant, .variant.empty, .needs.containers;
-# The std.structure Module: annot.structure.self-ref-field (SR1, owner decision 2026-09-30).
+# Spec 14 Self References: annot.self-ref.enclosing, annot.self-ref.refers,
+# annot.self-ref.refers.members, annot.self-ref.needs.self,
+# annot.self-ref.needs.compound, annot.self-ref.needs.stop,
+# annot.self-ref.needs.only, annot.self-ref.member, annot.self-ref.variant,
+# annot.self-ref.variant.empty.
+# The std.structure Module: annot.structure.self-ref-enum,
+# annot.structure.self-ref-field (SR1, owner decision 2026-09-30).
 use std.structure.{Structure, Field, Variant, Describer, SelfRef}
 use std.testing.assert_equal
 

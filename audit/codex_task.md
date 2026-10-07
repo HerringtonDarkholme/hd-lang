@@ -81,13 +81,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q1. Fixtures: Chapter 14 Annotations (38%)
-
-`pnpm run spec coverage --uncovered lang/14-annotations.md`; write
-fixtures (mostly runtime-valid with `# expect-stdout:`) and citation
-lines on existing fixtures to reach at least 60%. Same rules as S2.
-Timebox 45 minutes; push.
-
 ### Q2. Fixtures: CLI Cases (37%)
 
 The same for `cli/command-line.md` through `spec/conformance/cli-cases.tsv`

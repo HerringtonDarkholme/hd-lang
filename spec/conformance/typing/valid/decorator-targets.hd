@@ -1,7 +1,20 @@
 # test: a decorator may precede any item or member
-# Spec 14 Prefix Decorators: functions, traits, implementations, methods, their parameters, and newtypes take decorators.
+# Spec 14 Prefix Decorators: annot.decorator.members, annot.decorator.attach.
+# Target Kinds: annot.target.kind.fn, annot.target.kind.data, annot.target.kind.enum,
+# annot.target.kind.field, annot.target.kind.variant, annot.target.kind.param,
+# annot.target.kind.trait, annot.target.kind.impl, annot.target.kind.method,
+# annot.target.kind.newtype-kind, annot.target.unlimited.
+# Member Metadata: annot.metadata.places, annot.metadata.params-at-only,
+# annot.metadata.value.
+@"tool"
 data Tool:
+    @"name"
     name: string
+
+@"state"
+enum State:
+    @"ready"
+    Ready
 
 fn tool(name: string) -> Tool:
     Tool { name: name }

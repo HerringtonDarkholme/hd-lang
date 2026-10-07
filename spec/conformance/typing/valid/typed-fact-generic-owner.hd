@@ -1,5 +1,7 @@
 # test: a field of a generic owner checks its typed fact with the owner's parameter written as its bound, one fixed Integer type
-# Spec 14 Member-Typed Facts: annot.typed-fact.monomorphic and annot.typed-fact.check.bounds (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
+# Spec 14 Member-Typed Facts: annot.typed-fact.monomorphic,
+# annot.typed-fact.monomorphic.bound, and annot.typed-fact.check.bounds
+# (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
 use std.annotation.annotate
 use std.num.Integer
 

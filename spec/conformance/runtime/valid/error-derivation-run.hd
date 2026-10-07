@@ -1,6 +1,20 @@
 # test: @error messages, causes, From conversions, and transparent forwarding at run time
-# Spec 14 Error Derivation: a message interpolates members, a variant without one shows its
-# name, cause returns the @from or @source member, and a transparent error forwards both.
+# Spec 14 Error Types: annot.error.intrinsic, annot.error.name,
+# annot.error.type, annot.error.generates, annot.error.ordinary,
+# annot.error.form.enum, annot.error.form.variant-message,
+# annot.error.form.data-message, annot.error.form.data-transparent,
+# annot.error.form.from, annot.error.form.source, annot.error.marker,
+# annot.error.marker.no-value.
+# Error Messages: annot.error.message.string, annot.error.message.scope,
+# annot.error.message.unnamed, annot.error.message.shared,
+# annot.error.message.data, annot.error.message.eval,
+# annot.error.message.absent.
+# Error Causes: annot.error.cause.method, annot.error.cause.member,
+# annot.error.cause.explicit. Error Conversions: annot.error.from.generate,
+# annot.error.from.data, annot.error.from.unmarked. Transparent Errors:
+# annot.error.transparent.display, annot.error.transparent.cause.
+# A message interpolates members, a variant without one shows its name, cause
+# returns the @from or @source member, and a transparent error forwards both.
 # $_0 names an unnamed payload member even beside unnamed shared data.
 use std.error.Error
 use std.testing.assert_equal

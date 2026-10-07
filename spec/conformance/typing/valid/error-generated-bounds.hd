@@ -1,6 +1,8 @@
 # test: the generated Error bounds of carried and transparent type parameters
-# Spec 14 Generated Error Bounds: annot.error.bound.carried gives a carried-only parameter
-# Inspectable, and annot.error.bound.transparent gives a transparent member's parameter Error.
+# Spec 14 Generated Error Bounds: annot.error.bound.carried gives a carried-only
+# parameter Inspectable; annot.error.bound.display-carried gives it no Display
+# bound. annot.error.bound.transparent and annot.error.bound.error give a
+# transparent or cause member's parameter Error.
 use std.error.Error
 use std.inspect.Inspectable
 

@@ -1,5 +1,7 @@
 # test: a type-level fact is accepted when no template in its package reads it
-# Spec 14 Facts: annot.fact.type-level-decorator; dead-fact warnings are parked.
+# Spec 14 Facts: annot.fact.type-level-decorator,
+# annot.typed-fact.untyped.no-annotate, annot.derive.facts-only;
+# dead-fact warnings are parked.
 use std.structure.{Structure, Field, Variant, Walker}
 
 trait Show:

@@ -1,5 +1,7 @@
 # test: a function's typed fact checks against its signature type, and a generic function's with its parameters written as their bounds
-# Spec 14 Member-Typed Facts: annot.typed-fact.declared-type and annot.typed-fact.check and annot.typed-fact.monomorphic (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
+# Spec 14 Member-Typed Facts: annot.typed-fact.declared-type,
+# annot.typed-fact.infer.call, annot.typed-fact.check, and
+# annot.typed-fact.monomorphic (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
 use std.annotation.annotate
 
 @annotate::[F](.Fn)

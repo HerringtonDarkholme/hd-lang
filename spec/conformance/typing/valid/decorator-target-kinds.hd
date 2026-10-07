@@ -1,5 +1,7 @@
 # test: a limited fact type is accepted on each kind it lists
-# Spec 14 Target Kinds: `@annotate(.Fn, .Method, .Param)` allows functions, methods, and parameters.
+# Spec 14 Target Kinds: annot.target.declarations, annot.target.limit,
+# annot.target.recognized, annot.target.kind-only.untyped.
+# `@annotate(.Fn, .Method, .Param)` allows functions, methods, and parameters.
 use std.annotation.{annotate, Target}
 
 @annotate(.Fn, .Method, .Param)

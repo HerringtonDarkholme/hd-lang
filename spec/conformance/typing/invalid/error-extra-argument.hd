@@ -1,5 +1,6 @@
 # test: an @error line with a message and an extra argument
-# Spec 14 Error Types: annot.error.form.argument; a message line takes exactly one message.
+# Spec 14 Error Types: annot.error.form.argument and
+# annot.error.form.argument.examples; a message line takes exactly one message.
 
 @error
 enum ReadError:

@@ -1,5 +1,7 @@
 # test: a bare @error before a data type is misplaced
-# Spec 14 Error Types: annot.error.form.misplaced; a data type takes @error("...") or @error(transparent).
+# Spec 14 Error Types: annot.error.form.misplaced and
+# annot.error.form.misplaced.examples; a data type takes @error("...") or
+# @error(transparent).
 
 @error  # diagnostic: decorator-target-kind
 data DiskError:

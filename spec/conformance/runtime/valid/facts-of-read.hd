@@ -1,5 +1,7 @@
 # test: user code reads a function's decorator value through facts_of
-# Spec 14 Function Facts: annot.decorator.facts-of and annot.facts-of.result.
+# Spec 14 Function Facts: annot.decorator.facts-of, annot.facts-of.target,
+# annot.facts-of.result. The returned value follows annot.structure.facts-contents
+# and annot.structure.find-lookup.
 use std.annotation.facts_of
 use std.testing.assert_equal
 

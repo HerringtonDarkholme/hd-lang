@@ -1,5 +1,9 @@
 # test: a derived build whose source names no member fills every member from its declared default
-# Spec 14 Walk, Describe, And Build: annot.build.missing; after the end key, build calls missing once per member, and the source reads the default.
+# Spec 14 Walk, Describe, And Build: annot.build.missing; after the end key,
+# build calls missing once per member, and the source reads the default.
+# The Structure Trait: annot.structure.build-fresh. The std.structure Module:
+# annot.structure.members-api. Handles: annot.handle.declared-type,
+# annot.handle.default.
 use std.structure.{Structure, Field, Variant, Members, Key, Source}
 use std.testing.assert_equal
 

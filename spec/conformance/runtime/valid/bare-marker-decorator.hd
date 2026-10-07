@@ -1,5 +1,7 @@
 # test: a bare decorator name of a function with no parameters is called
-# Spec 14 Prefix Decorators: `@hidden` means `@hidden()`, read through facts_of.
+# Spec 14 Prefix Decorators: annot.decorator.bare-call and
+# annot.decorator.bare-call.only. `@hidden` calls the function, while a bare
+# `hidden` expression outside a decorator remains a function value.
 use std.annotation.facts_of
 use std.testing.assert_equal
 
@@ -16,8 +18,10 @@ fn plain() -> bool:
     false
 
 marked := facts_of(internal_check).find::[Hidden]()
+let hidden_factory: fn() -> Hidden = hidden
 
 tests:
     it("attaches the marker's result"):
         assert_equal(marked.is_some(), true, reason="the marker was called")
         assert_equal(facts_of(plain).find::[Hidden]().is_some(), false, reason="an undecorated function holds none")
+        _ := hidden_factory()

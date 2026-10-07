@@ -1,5 +1,6 @@
 # test: @derive of a trait with a template needs no use of Structure
-# Spec 14 Opting In: the import is needed only where code writes by Structure.
+# Spec 14 Opting In: annot.derive.opt-in, annot.derive.accepted,
+# annot.derive.means. The import is needed only where code writes by Structure.
 @derive(Debug)
 data Point:
     x: i32

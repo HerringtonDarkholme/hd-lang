@@ -1,5 +1,7 @@
 # test: a template reads the target's declared name through T::name()
-# Spec 14 The Structure Trait: annot.structure.name and .name.constant (ST8, owner decision 2026-09-30).
+# Spec 14 The Structure Trait: annot.structure.generated,
+# annot.structure.named-positions, annot.structure.receivers,
+# annot.structure.name, annot.structure.name.constant (ST8, owner decision 2026-09-30).
 # The name has no module path and no type arguments.
 use std.structure.{Structure, Field, Variant, Describer}
 use std.testing.assert_equal
