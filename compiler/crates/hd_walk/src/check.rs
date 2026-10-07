@@ -201,7 +201,7 @@ impl Ck<'_, '_> {
         self.w.konst(ty, bits) | CONST_BIT
     }
 
-    fn expr(&mut self, n: NodeRef<'_>, expected: Option<Ty>) -> (u32, Ty) {
+    fn expr(&mut self, n: NodeRef<'_>, _expected: Option<Ty>) -> (u32, Ty) {
         let i32_ = self.ty(TyKind::I32);
         let bool_ = self.ty(TyKind::Bool);
         let kids: Vec<_> = n.children().collect();
@@ -224,7 +224,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::UnaryExpr => {
                 let op = self.cst.tkind(self.cst.first(n));
-                let (r, t) = self.expr(kids[0], expected);
+                let (r, t) = self.expr(kids[0], _expected);
                 if op == TokenKind::Plus {
                     return (r, t);
                 }
@@ -238,7 +238,7 @@ impl Ck<'_, '_> {
                 let list = self.b.list(&[r]);
                 (self.emit(TirTag::Prim, PrimOp::Neg as u32, list, t, n), t)
             }
-            SyntaxKind::TupleExpr => self.expr(kids[0], expected),
+            SyntaxKind::TupleExpr => self.expr(kids[0], _expected),
             SyntaxKind::NameExpr => {
                 let name = self.cst.text(self.cst.first(n));
                 if let Some(l) = self.find_local(name) {
@@ -406,14 +406,13 @@ impl Ck<'_, '_> {
         let targs: Vec<Ty> = targs.into_iter().map(|t| t.unwrap_or(never)).collect();
         // Bounds: each bounded type argument must have an impl (static check).
         for (i, (_, bound)) in sig.generics.iter().enumerate() {
-            if let Some(tr) = bound {
-                if self.find_impl(*tr, targs[i]).is_none()
+            if let Some(tr) = bound
+                && self.find_impl(*tr, targs[i]).is_none()
                     && !matches!(self.w.kind(targs[i]), TyKind::Param(_))
                 {
                     let msg = format!("unsatisfied-bound: {} < {}", self.w.display(targs[i]), self.w.path(*tr));
                     self.errors.push(msg);
                 }
-            }
         }
         for (p, (_, at)) in ptys.iter().zip(&args) {
             let want = self.w.subst(*p, &targs, None);
@@ -454,11 +453,10 @@ impl Ck<'_, '_> {
                 traits.sort();
                 for tr in traits {
                     let has = matches!(self.w.defs.get(&tr), Some(DefKind::Trait(ms)) if ms.iter().any(|(m, _)| self.w.text(*m) == mname));
-                    if has {
-                        if let Some(imp) = self.find_impl(tr, rt) {
+                    if has
+                        && let Some(imp) = self.find_impl(tr, rt) {
                             found = Some((tr, CHOICE_IMPL, imp.0));
                         }
-                    }
                 }
                 let Some(f) = found else {
                     self.errors.push(format!("no-method `{mname}` on {}", self.w.display(rt)));
@@ -513,11 +511,10 @@ fn rep_summary(w: &World, b: &TirBody, sig: &FnSig) -> Vec<u8> {
     for i in 0..b.tags.len() {
         if b.tags[i] == TirTag::Call {
             let rec = b.get_list(b.data[i][0]);
-            if rec[0] == CALLEE_TRAIT_METHOD {
-                if let TyKind::Param(p) = *w.kind(Ty(rec[3])) {
+            if rec[0] == CALLEE_TRAIT_METHOD
+                && let TyKind::Param(p) = *w.kind(Ty(rec[3])) {
                     exact[p as usize] = 1;
                 }
-            }
         }
     }
     exact
