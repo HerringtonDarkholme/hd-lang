@@ -102,25 +102,6 @@ and list it under Questions.
 
 ## Jobs
 
-### K21. Usability Probe 7: The New Guide Pages (Read-Only)
-
-Your K16/K17 pages (`guide/WORKING_WITH_DATA.md`) and K19
-(`guide/COMMANDS.md`) are new. Test whether they teach. Using **only
-those two pages** plus `guide/LEARN_IN_10_MINUTES.md`, write four
-programs in a scratch directory outside the repo:
-
-1. A config-driven report.
-2. A log scanner with regex and time.
-3. A package with a doc test, unit tests and an integration test, run
-   with `hd test`.
-4. A concurrent fetcher with a timeout.
-
-Log every mistake in `audit/hd-writing-log.md` (task `probe 7: …`,
-model `kimi`). For each place the guide page was missing something or
-led you wrong, add a row of kind `api` that quotes the page section.
-Commit only the log, and list the five most painful problems in the
-commit message. Don't fix the guide pages in this job; that is K22.
-
 ### K22. Fix The Guide Gaps Probe 7 Found
 
 For each guide-related row K21 logged, fix the guide page where the
