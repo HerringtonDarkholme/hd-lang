@@ -10,6 +10,8 @@ use std.task.all
 # (r-req.combinator.race-signature). The prototype writes the call in hd:
 # it drives the frame that `race_frame` builds, whose polling body is the
 # compiler's.
+## Drives the tasks together and returns the first one's value; the losers are cancelled. A compiler intrinsic.
+## See [req.combinator.race-signature](../../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-signature).
 pub fn race![T](tasks...: List[mut Suspend[T]]) -> T:
     let frame: mut Suspend[T] = race_frame(tasks)
     frame!()
@@ -36,6 +38,8 @@ fn all_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
 
 # Runs every task as one `all!` and returns the results in input order
 # (spec/std/task.md#all-list).
+## Drives the tasks together and returns their values in list order, as `all!` does for a fixed list.
+## See [std-task.all-list](../../spec/std/task.md#r-std-task.all-list).
 pub fn all_list![T, $R](tasks: List[fn!() -> T $ R]) -> List[T] $ R:
     let results: mut List[T] = []
     all_list_from!(tasks, 0, results)
@@ -55,6 +59,8 @@ fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: usize, results: mut
 # Calls `attempt` one call after another until it returns `.Ok`, at most
 # `times` times, and returns the last result. A `times` below 1 counts as 1
 # (spec/std/task.md#retry). The attempt's row `R` is the call's row.
+## Calls `attempt` until it succeeds or runs out of tries, and returns the last outcome.
+## See [std-task.combinator.retry.loop](../../spec/std/task.md#r-std-task.combinator.retry.loop).
 pub fn retry![T, E, $R](times: usize, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
     let result = attempt!()
     let tries: usize = 1
