@@ -56,6 +56,11 @@ Detailed design: [README.md](README.md)
   can be a `dyn` type, and members that cannot work dynamically (`Self`
   parameters, associated functions) are unavailable on the `dyn` value,
   with the error at the call.
+- **GADTs are removed from the language** (chapter 13, its fixtures and
+  every refinement rule). Typed request/response APIs use traits with
+  associated types; typed interpreters use a runtime value enum or traits.
+  This removes pattern refinement, existential variant parameters and the
+  runtime path they needed (the GX research is cancelled).
 - A private item that a derive template names follows the public signature
   rules (explicit result type, `$` clause or the empty row); the private
   types it names are exported as hidden items too.
