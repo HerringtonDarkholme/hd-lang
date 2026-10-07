@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/hd_base", "crates/hd_intern", "crates/hd_diag", "crates/hd_syntax", "crates/hd_iface", "crates/hd_project", "crates/hd_types", "crates/hd_tir", "crates/hd_check", "crates/hd_mono", "crates/hd_host_abi", "crates/hd_wasm", "crates/hd_sched", "crates/hd_cache", "crates/hd_driver", "crates/hd_cli"]
+members = ["crates/hd_base", "crates/hd_intern", "crates/hd_diag", "crates/hd_syntax", "crates/hd_iface", "crates/hd_project", "crates/hd_types", "crates/hd_tir", "crates/hd_check", "crates/hd_mono", "crates/hd_host_abi", "crates/hd_wasm", "crates/hd_run", "crates/hd_sched", "crates/hd_cache", "crates/hd_driver", "crates/hd_cli"]
 resolver = "2"
 
 [workspace.package]

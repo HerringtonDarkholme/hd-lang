@@ -112,6 +112,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hd_run"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_cache",
+ "hd_wasm",
+]
+
+[[package]]
 name = "hd_sched"
 version = "0.0.0"
 

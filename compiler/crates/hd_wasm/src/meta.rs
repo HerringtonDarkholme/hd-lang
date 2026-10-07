@@ -109,6 +109,13 @@ impl RuntimeMeta {
     }
 }
 
+/// `hd FILE.wasm`'s import check (`cli.wasm.not-hd.detect`): every import
+/// is in the ABI table, or is the walking skeleton's `hd` module.
+#[must_use]
+pub fn imports_are_hd(imports: &[(&str, &str)]) -> bool {
+    imports.iter().all(|(m, n)| *m == "hd" || hd_host_abi::is_known_import(m, n))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{EntryKind, RuntimeMeta, TestKind, TestMeta};

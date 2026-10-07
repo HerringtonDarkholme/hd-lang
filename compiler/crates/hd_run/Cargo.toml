@@ -1,0 +1,14 @@
+[package]
+name = "hd_run"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hd_base = { path = "../hd_base" }
+hd_cache = { path = "../hd_cache" }
+hd_wasm = { path = "../hd_wasm" }
+
+[lints]
+workspace = true
