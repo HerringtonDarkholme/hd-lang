@@ -59,6 +59,9 @@ identity until no trial is open, and its fill waits in the checker's
 `deferred_fills` column; the builder's fill log is gone (§3.9.5). GADTs
 are removed: `Rigid`, `HAS_RIGID`, the GADT refinements in TIR and the
 `Evidence` callee record are gone (§3.4, §3.9.2, §3.10.1, §3.25).
+§3.19's column table follows type-checking.md §13: watch edges, join
+items, deferred fills and open literal classes are append-only columns,
+and the GADT arm equalities are gone.
 
 Edits in other files:
 
@@ -1637,13 +1640,14 @@ section fixes their storage.
 
 | Group | Columns (bytes per row) | Row count, typical body |
 | --- | --- | --- |
-| inference table, by `InferVar` | `parent` 4, `rank` 1, `kind` 1, `value` 4, `blame` 4, `watch_head` 4 (18) | 10 to 500 |
+| inference table, by `InferVar` | `parent` 4, `rank` 1, `kind` 1, `value` 4, `blame` 4, `watch_head` 4, `lit_flags` 1 (19) | 10 to 500 |
 | trail | `undo` 8 (tag 1 + index 4, padded), `old` 4 (12) | cleared at each statement boundary outside trials |
-| obligations, by row | `goal` 16, `span` 4, `next_watch` 4, `state` 1 (25) | 0 to 50 |
+| obligations, by row | `goal` 16, `span` 4, `state` 1 (21); watch lists are the `watch_edges` column below | 0 to 50 |
 | locals, by `LocalId` | `name` 4, `ty` 4, `span` 4, `flags` 1 (13); shared with TIR's local columns (one set, written by the builder) | 5 to 200 |
 | spans, by `SpanIdx` | `lo` 4, `hi` 4 (8) | one per blamed site |
-| context stacks | `scopes` 16, `loops` 12, `fns` 24, `avail` 4, `literal_scope` 4, `assigned` bit stack | depth of nesting |
-| outputs | `DiagBuf` (§3.8), `row_facts` 20, `init_facts` 12, `arm_eqs` 8 | few |
+| context stacks | `scopes` 16, `loops` 16, `fns` 28, `avail` 4, `assigned` bit stack | depth of nesting |
+| append-only columns (Codex re-review N10) | `watch_edges` 12, `scope_binds` 12, `join_items` 8, `deferred_fills` 8, `lit_open` 4, `lit_members` 8 | few per statement |
+| outputs | `DiagBuf` (§3.8), `row_facts` 20, `pending_calls`, `init_facts` 12 | few |
 | scratch | `scratch_tys`, `scratch_refs`, `scratch_args`, `spine` | cleared per use |
 
 - **One local table (mine).** D1 had local columns in TIR and
