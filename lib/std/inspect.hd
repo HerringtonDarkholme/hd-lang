@@ -8,11 +8,15 @@
 
 use std.format.DebugWriter
 
+## The sealed trait of types with a runtime identity, which the compiler supplies.
+## See [module.prelude.inspect](../../spec/lang/10-modules.md#r-module.prelude.inspect).
 pub trait Inspectable:
     fn runtime_type(self) -> TypeId
 
 # A type's canonical printable name, which identifies the type because the
 # prototype compiles one module.
+## The runtime identity of an inspectable type.
+## See [module.prelude.inspect](../../spec/lang/10-modules.md#r-module.prelude.inspect).
 pub data TypeId:
     key: string
 
