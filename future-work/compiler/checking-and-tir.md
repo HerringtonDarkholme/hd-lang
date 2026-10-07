@@ -49,6 +49,24 @@ check it again. M1 checks the module's top-level statements first,
 because unannotated top-level bindings get their types there
 ([type-checking.md §1.7](type-checking.md#17-body-tasks-and-the-exactly-once-rule)).
 
+**What a one-function edit costs (systems review, finding 8).** The first
+release rechecks the whole edited module. For an ordinary 100-line module
+that is 2 to 10 ms. For a 10,000-line module (`one-file-10k`) it is 80 to
+250 ms on one core and about 15 to 45 ms on 8 (estimates; cache.md §5.9
+has the full budget). M1 and M3 are serial, but they are a small share:
+M1 checks only private functions with an omitted result type, and M3 is
+one sweep over the module's rows. The cost is M2 over every body, which
+is parallel only when there are cores to spare. What the design already
+does for this case: diagnostics print before any entry is published, and
+the TIR is written only for an error-free module. **Later, not first
+release:** per-body reuse inside the module's entry. A body whose token
+hash, whose M1 inputs (the module scope, private headers, inferred
+results) and whose recorded reads (cache.md §5.3.1, one level down) are
+unchanged would take its TIR and diagnostics from the previous entry.
+That would make a one-function edit cost one body plus M1 and M3. It is
+the same mechanism as early cutoff, and it is gated on slice 4's
+`one-file-10k` numbers.
+
 **Omitted result types (M1).** A private function without a result type
 must be checked before its callers. M1 checks these functions in source
 order. When one calls another that is not done, M1 checks the callee
@@ -707,15 +725,28 @@ The verifier checks each of these:
 
 - A body's TIR lives in its worker's columns until the body finishes, then
   moves into the module result. `ModuleFinish` fills pending providers,
-  serializes every body of the module into the `tir` entry, and frees
-  them. A check never keeps TIR, and a later
-  build reads the entry instead of rechecking (§3.10.2).
-- The entry's key is `H("tir", check_key(m))`. It also stores, per item,
-  a **TIR hash** (the hash of that item's serialized columns, closures
-  included), an **inline summary** (whether the item passes the trivial
-  inlining test, codegen.md §13.8), and a **dependency list**: the stable
-  paths of the items its TIR names, each with its per-item interface
-  hash. Code keys use all three (§13.8).
+  serializes every body of the module into the TIR sections of the
+  module's `check` entry, and frees them. A check never keeps TIR, and a
+  later build reads the entry instead of rechecking (§3.10.2). "The `tir`
+  entry" below means those sections.
+- **One entry, under `check_key(m)`** (systems review, finding 1). The
+  TIR is a function of the same inputs as the diagnostics, so it is a
+  section of the `check` entry, not a file of its own (cache.md §5.2).
+  It is written only when the module has no error: a module with errors
+  cannot be built, so its TIR would never be read (finding 8).
+- Per item it stores a **TIR hash** (the hash of that item's serialized
+  columns, closures included), an **inline summary** (whether the item
+  passes the trivial inlining test, codegen.md §13.8), and a
+  **dependency list**: the stable paths of the items its TIR names, each
+  with its per-item interface hash. Code keys use all three (§13.8).
+- **The TIR hash leaves out positions** (finding 4). The `span_lo` and
+  `span_hi` columns are not hashed; code refers to a source position only
+  through an anchor, an item and an instruction index (codegen.md §13.8,
+  "Positions"). So a comment, a blank line or a longer doc comment keeps
+  every TIR hash. The module's **TIR content hash** combines its items'
+  TIR hashes, inline summaries and dependency lists with its literal
+  list; `prog_key` and `hd test --affected` use it (codegen.md §11.3,
+  commands.md §7.4).
 - Types stay generic (`Param`). D2 never materializes an instance as TIR.
 
 **The wire form** (the `tir` entry's sections,

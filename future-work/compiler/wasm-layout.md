@@ -334,8 +334,8 @@ code and its code offset:
 | --- | --- | --- |
 | `name` | function names: printed stable path plus type arguments, as `shop.cart/Cart.total` or `std.list/List.push[i32]` | debug only (lowering pass) |
 | `hd.names` | per function: an index into a path table and a list of indices into a type-argument table; the symbolizer prints the same names as `name` | yes; about 30 KB instead of 150 KB at 10k lines |
-| `hd.sites` | per site, keyed by function index and code offset: category or kind, file index, line, column; plus a file table of package-relative paths | yes |
-| `hd.lines` | per function: sorted code offsets with a delta-encoded line, for every statement that can call or trap | yes |
+| `hd.sites` | per site, keyed by function index and code offset: category or kind, and an anchor (item path index, TIR instruction index); in a file that `hd build` writes, the anchor is resolved to a file index, line and column, plus a file table of package-relative paths (codegen.md §13.8, "Positions") | yes |
+| `hd.lines` | per function: sorted code offsets with an anchor each, for every statement that can call or trap; resolved to delta-encoded lines in a written file | yes |
 | `hd.folds` | folded aliases per representative (§13.7) | yes |
 | `hd.runtime` | §16.4 | yes |
 

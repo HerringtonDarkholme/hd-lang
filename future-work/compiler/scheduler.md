@@ -48,8 +48,8 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
   in checking waits for it: its answers never change what a dependent
   reports. `PackageResult` waits for it, and so does every `Collect`
   (§11.3) for the folders its program reaches, so no program is built
-  over an unchecked header. Its cache entry is `hdr` (cache.md §5.2),
-  looked up before it runs like any other.
+  over an unchecked header. Its result is a part of the package's
+  `graph` entry (cache.md §5.2), found by its part key before it runs.
 - **Closures and impl universes (Codex re-review N1).** Once the folder
   graphs are built, the driver computes each folder's closure as a bit
   set over the program graph's folders, bottom-up. `ModulePrep(m)` (M1)

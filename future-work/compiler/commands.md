@@ -63,8 +63,9 @@ research's "dependency bodies skipped" now holds cold as well as warm.
    and doc tests.
 2. On errors, print them and stop with status 101.
 3. Build the **test plan**: the list of test programs and their cases.
-   Unit tests per module with test code; one program per integration test
-   file; doc tests grouped per module. Registration names are string
+   One unit-test program per package, holding every module's `tests:`
+   cases and doc tests, with an init export per module (§19.1); one
+   program per integration test file. Registration names are string
    literals ([Registration Functions](../../spec/lang/10-modules.md#registration-functions)),
    so the checker lists each program's cases without running anything.
    Only the row count of an `it_each` case is learned at run time.
@@ -75,28 +76,46 @@ research's "dependency bodies skipped" now holds cold as well as warm.
 
 ### 7.4 `hd test --affected`
 
-`build/.hd/last-test` records, per test program, the fingerprint of the
-last run in which **every** case of that program ran and passed. The
-fingerprint is `H(prog_key, test options)`. `prog_key` (§11.3) already
-covers the toolchain, the profile, and the `tir` key of every reachable
-module, and through those keys every source file, dependency, manifest
-setting and deep hash the program can read. The test options are the
-seed and the time limit.
+`build/.hd/last-test` records, per **case group**, the fingerprint of the
+last run in which **every** case of that group ran and passed. A case
+group is one module's unit cases and doc tests, or one integration test
+file. With one unit-test program per package (§19.1), a program-wide
+fingerprint would rerun every unit test after any edit, so the
+fingerprint is per group:
+
+```text
+group_fp(g) = H("affected", toolchain_key, tier, profile, test options,
+                the overlay's TIR content hash for g's module (or g's file),
+                sorted [(module path, tir_content_hash)] of the modules g's
+                cases and init reach in the use graph)
+```
+
+That is the `prog_key` (§11.3) that a program of g's cases alone would
+have. It covers, through TIR content hashes, every source change that
+can change what g's cases run. A comment edit changes no content hash,
+so it selects nothing (systems review, finding 4). The test options are
+the seed and the time limit.
 
 1. Run `hd check --tests` as `hd test` does. This also computes every
-   program's `prog_key`.
-2. Select each program whose fingerprint differs from its record or has
-   no record. A program that failed, or ran only partly under a filter,
+   module's TIR content hash.
+2. Select each case group whose fingerprint differs from its record or
+   has no record. A group that failed, or ran only partly under a filter,
    has no record, so it is selected until it passes in full.
-3. Continue as `hd test` with that plan. After the run, write a record
-   for each program that ran in full and passed, and remove the record of
-   each program that failed.
+3. Build the package's unit-test program filtered to the selected
+   groups' cases, as `--filter` does (§19.1), plus the selected
+   integration programs, and run them. After the run, write a record for
+   each group that ran in full and passed, and remove the record of each
+   group that failed.
+
+**Cost.** Computing about 100 fingerprints hashes about 100 lists of at
+most 100 pairs: under 1 ms. The build is one filtered program, whose
+code entries all come from the full program's packs.
 
 This replaces one package-wide "last observed sources" record (Codex
 review, A6). That record missed dependency and manifest changes, and a
 filtered run could advance it past a module whose tests never ran.
-Removed modules need no old graph edges: their programs' `prog_key`
-changes.
+Removed modules need no old graph edges: the fingerprint of every group
+that reached them changes.
 
 ### 7.5 `hd run`, `hd build`
 

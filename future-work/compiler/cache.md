@@ -45,7 +45,16 @@ invalidation, never a smaller one:
 - `check`, `tir` and `locs` are one entry. All three are functions of
   `check_key(m)`: the TIR is checked from the same inputs, and the
   declaration table from `source_hash(m)`, which the key holds. A reader
-  maps the entry and touches only the sections it needs.
+  maps the entry and touches only the sections it needs. Other files call
+  the TIR sections "the `tir` entry".
+- **An entry without TIR.** A module with errors, or one checked in the
+  no-emit mode (type-checking.md §1.7), is published without TIR
+  sections, and its header flag `HAS_TIR` is clear. A build that finds
+  such an entry rechecks the module and publishes the full entry under
+  the same key, replacing the first. This is the one case where a key's
+  bytes change: both versions hold equal diagnostics, so a reader that
+  needs only those is right with either, and verify mode compares the
+  sections both hold.
 - Coherence, header checks and init order are one `graph` entry per
   package run, keyed by the sorted keys of its parts (§5.3). A part whose
   result is empty stores nothing; its key in the list is enough. An edit
@@ -220,11 +229,11 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
   the declaration (Codex re-review N9). A byte offset from the
   declaration start would not: spaces inserted between a function's
   name and its parameters shift every later offset under the same key.
-  Output resolves an anchor through the current file's `locs` entry,
+  Output resolves an anchor through the current file's `locs` section,
   keyed by the file's `source_hash`, which holds each declaration's
   start; it re-lexes that declaration to find the token, which costs
   microseconds and runs only for a printed diagnostic. Any file whose
-  bytes changed is parsed in this run, so its `locs` entry exists.
+  bytes changed is parsed in this run, so its `locs` section exists.
   Recomputed `iface` bytes are then equal under an equal key, which
   verify mode checks. rustc's incremental mode keeps spans relative to
   their item for the same reason.

@@ -73,7 +73,7 @@ verifier and printer.
 | `text-throughput` | ≥ 0.5x Node | `(array i8)` strings, a growable builder, `Interp` sized once | plausible |
 | `dead-code` | ≤ 10 KB per 1,000 lines; no unused std | reachability over TIR; folding; structural types | met by design; measured in slice 7 |
 | `long-run-memory` | flat after warm-up | no global caches in std's runtime; wake table entries freed on completion | depends on wasmtime's collector; measured in slice 10 |
-| `unit-test-perf` | ≤ 1 ms per test; 1,000 in ≤ 1 s | one module per program, `InstancePre`, pooling, parallel workers (§19.3) | plausible for small warm tests, not established: init runs per case, and its cost is the program's (Codex review, P8). Slice 8 measures it with fixed module count and init work |
+| `unit-test-perf` | ≤ 1 ms per test; 1,000 in ≤ 1 s | one unit-test program per package with an init export per module, `InstancePre`, pooling, parallel workers (§19.1, §19.3) | plausible for small warm tests, not established: init runs per case, and its cost is the program's (Codex review, P8). Slice 8 measures it with fixed module count and init work |
 | `proptest-perf` | ≥ 100k cases/s; shrink ≤ 1 s | cases in one instance; scalar `record`; host-side shrinking; one property per worker (§19.4) | plausible for simple generators, by estimate; slice 8 |
 | `integration-test-perf` | ≤ 20 ms setup per program | warm `prog_key` and `cwasm` hits; lazy temp directories | met by design |
 | `release-check-cost` | debug ≤ 1.3x release | one emission for both tiers; only checks differ | at risk on `i64` multiplication heavy code and on the Cranelift level (§18.6) |

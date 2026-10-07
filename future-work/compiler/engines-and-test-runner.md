@@ -44,8 +44,9 @@ Cranelift, as the research found.
   checksum is checked when the file is loaded, at about 10 GB/s.
 - **Per-function cache.** `Config::enable_incremental_compilation` takes
   a cache store; an adapter maps it onto `CacheStore` as entry kind
-  `cranelift`, and reads and writes it per program through a `clpack`
-  (cache.md §5.4). A program whose other functions did not change
+  `cranelift`, and reads and writes it only through `clpack`s, one per
+  folder group of the program (cache.md §5.4). No file holds one
+  function. A program whose other functions did not change
   recompiles only the changed ones. The key is the function's meaningful
   CLIF, which abstracts direct call targets
   ([wasmtime#4155](https://github.com/bytecodealliance/wasmtime/issues/4155))
@@ -129,9 +130,29 @@ These engine settings are decided by measurements, not here:
 
 ### 19.1 Building
 
-1. `hd check --tests` (§7.3), then the test plan: one program per module
-   with unit tests, one per integration test file, one per module's doc
-   tests.
+1. `hd check --tests` (§7.3), then the test plan: **one unit-test
+   program per package**, holding every module's `tests:` cases and doc
+   tests, and one program per integration test file (systems review,
+   finding 2; the owner accepted the review's recommendation).
+   - **Init per module.** The package program exports one init function
+     per module with tests (codegen.md §13.10). A case's instance calls
+     the init export of its own module, which runs exactly the init
+     groups that module reaches, in D1's order. That is the set a
+     per-module program initialized before, so every case still runs in
+     a fresh instance after its module's initialization
+     ([`module.testing.instance`](../../spec/lang/10-modules.md#r-module.testing.instance)).
+   - **Why one program.** Programs share code entries, but each program
+     collects, links, Cranelift-compiles and stores its own copy of the
+     shared code: std's collections, formatting, `Debug` and the
+     `std.testing` harness. With one program, shared code is collected,
+     linked and compiled once.
+   - **Integration tests stay one program per file.** Their environments
+     differ ([Test Environments](../../spec/cli/command-line.md#test-environments)),
+     and each sees only the package's public interfaces.
+   - **A build error in one module's tests** (such as
+     `instantiation-too-deep`) is reported for that module's cases.
+     `Collect` drops the roots whose walk reached the error, and the
+     other modules' cases are built and run.
 2. The package's executables are built first
    ([`cli.test.builds-executables`](../../spec/cli/command-line.md#r-cli.test.builds-executables)),
    in the test profile ([`cli.profile.test`](../../spec/cli/command-line.md#r-cli.profile.test)).
@@ -144,18 +165,47 @@ These engine settings are decided by measurements, not here:
    program's roots are then the selected `TestCase` bodies plus the
    module's reachable init groups, and the selection joins the root
    description, so a filtered program has its own `prog_key` and shares
-   every code entry with the full one. That halves the functions to
-   compile and look up for `test-latency`. A build error that only an
+   every code entry with the full one. Its roots are the selected
+   `TestCase` bodies and the init exports of their modules only, so
+   `hd test --filter one` builds about what one module's program built
+   before (about 800 instances at 10k lines), not the package's. That
+   halves the functions to compile and look up for `test-latency`.
+   `--affected` selects whole modules' cases the same way (commands.md
+   §7.4). A build error that only an
    unselected case reaches, such as `instantiation-too-deep`, does not
    appear under that filter; a plain `hd test` still reports it, and a
    failure's repro command already uses `--filter`, so the case it names
    reproduces.
 
+**Cost of the test plan** (`tests-1k`: 1,000 unit tests in 100 modules;
+compile-study sizes of about 800 instances and 250 KB of code per
+module's program, of which most is shared; the package program is
+estimated at 5,000 to 6,000 instances and 1.5 to 2 MB; the review's Mac
+I/O costs):
+
+| Cost | 100 module programs (before) | One package program |
+| --- | --- | --- |
+| collect, at about 2 ms per 800 instances | 0.2 CPU-s | about 15 ms |
+| link reads | 80,000 code entries, or 100 × 30 packs | about 30 packs: 2 to 4 ms |
+| Cranelift, cold, at 1.5 µs per byte | 10 CPU-s with the per-function cache shared, 38 if not | 2 to 3 CPU-s |
+| Cranelift lookup pass after an edit to a widely used module | 100 programs × 12 to 90 ms | one program, about 0.1 to 0.6 CPU-s |
+| `cwasm` on disk | 100 to 200 MB per package state | 5 to 10 MB |
+| `cwasm` loads per warm `hd test` | 100 | 1 |
+| constant globals built per case instantiation | one module's, about 1,500 | the package's, an estimated 2,000 to 3,000: about 100 to 150 µs per case |
+
+The last row is the price: every instantiation builds every immutable
+constant global of the program, so a case pays for constants its module
+never reads. At 1,000 cases that is about 0.1 to 0.15 CPU-s, inside the
+1 ms per test budget. Slice 8 measures it; a large package can split its
+program per folder with no other change.
+
 ### 19.2 Listing Cases
 
 - Registration names are string literals, so the linker writes each
   program's cases into `hd.runtime` (§16.4): export index, name, kind
-  (`it`, `it_each`, `it_prop`, doc test), file and line.
+  (`it`, `it_each`, `it_prop`, doc test), the module's init export, and
+  the registration's anchor, resolved to a file and line when printed
+  (codegen.md §13.8, "Positions").
 - `--filter` selects cases from the test plan before anything is built
   (§19.1), and the built program lists only those cases.
 - **`it_each`** rows are evaluated at run time
@@ -173,7 +223,7 @@ work queue: (program, case) in content order: program path, then registration or
 workers (--jobs): pull a case, then
     store = Store::new(engine, limits)              ;; pooling slot
     inst  = instance_pre.instantiate(store)         ;; imports pre-resolved
-    inst.init()                                     ;; hd.init: this program's init groups
+    inst.init(case.module)                          ;; the case's module's init export: the groups it reaches
     outcome = drive(inst.call_test(case))           ;; poll/wake loop; reactor only for integration tests
     drop(store)                                     ;; slot returned
 results: slot per case; printed by the release cursor in content order (§6.5)
@@ -206,8 +256,8 @@ unit tests in at most 1 s warm):
 | total per case | about 0.1 ms, before the test's own work (an estimate, not a bound) |
 
 Warm `hd test` on 1,000 unit tests in 100 modules: process start and the
-warm check fast path (about 30 ms), 100 mapped `cwasm` loads (about 1 ms
-each, in parallel), and 1,000 cases over 8 workers. That is well under a
+warm check fast path (about 30 ms), one mapped `cwasm` load for the
+package's unit-test program (a few ms), and 1,000 cases over 8 workers. That is well under a
 second **if** each case's init is small. A fresh instance repeats all
 reachable initialization and constant-global allocation. At 2 ms of
 init per case, 1,000 cases cost 2 CPU-s and at least 250 ms of wall

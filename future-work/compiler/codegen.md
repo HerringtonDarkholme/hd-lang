@@ -49,7 +49,7 @@ interfaces from D1 and does not reach around them:
 ### 11.1 From TIR To A Running Program
 
 ```text
- ModuleFinish(m) ═══════════════════════════════════► [tir entry]    per module (D1)
+ ModuleFinish(m) ═══════════════════════════════════► [check entry, TIR sections]  per module (D1)
                                   │ generic TIR, per-item TIR hashes, dependency lists
  program root(s) ─────────────────┤  (entry, test registrations, REPL input)
                                   ▼
@@ -57,7 +57,7 @@ interfaces from D1 and does not reach around them:
                                   │ instance set {(item, type args)}, content-ordered
                                   ▼
                        Emit(inst): walk the generic TIR under the substitution,
-                                   choose layouts, write Wasm ═══════════► [code entry]   per instance, parallel
+                                   choose layouts, write Wasm ═══════════► [code pack]    per folder group, parallel
                                   │ body bytes + symbolic relocations
                                   ▼
                        Link(P): fold identical bodies, assign indices,
@@ -108,14 +108,43 @@ pub enum ExtTask {
   program's roots reach in the module use graph exist, and after the
   `HeaderCheck` task of every folder they reach (scheduler.md §6.1). That set comes
   from the manifest's use lists, so it is known before any check runs.
-- **The program fast key (mine).** Before `Collect`, D2 computes
-  `prog_key = H("prog", toolchain_key, tier, profile, root description,
-  sorted [(module path, tir key)] of the modules reachable in the use
-  graph)`. A hit names the `link` entry directly. Collection, emission and
+- **The program fast key (mine; keyed by TIR content since the systems
+  review, finding 4).** Before `Collect`, D2 computes
+
+  ```text
+  prog_key            = H("prog", toolchain_key, tier, profile, root description,
+                          sorted [(module path, tir_content_hash(m))] of the modules
+                          reachable in the use graph)
+  tir_content_hash(m) = H(sorted [(item path, TIR hash, inline summary, dependency list)]
+                          of m's items, m's literal list (§13.8))
+  ```
+
+  A hit names the `link` entry directly. Collection, emission and
   linking are skipped, and a warm `hd run` or `hd test` reads one entry
   per program. Module-level reachability is coarser than item-level, so a
-  hit is always sound. An edit to a reachable module that changes no
-  instance still misses, and then rebuilds from code-entry hits.
+  hit is always sound.
+  - **Content, not check keys.** An earlier draft used each module's
+    `tir` key, which held `check_key(m)` and so `source_hash(m)`. Then a
+    comment, a blank line, a doc comment or a `tests:` edit missed every
+    program that reaches the module: each one collected, linked and ran
+    the Cranelift lookup pass again, for identical bytes. Now such an
+    edit rechecks one module, which writes an equal content hash, and
+    every program hits.
+  - **Why positions may stay out.** A TIR hash excludes the span columns
+    (checking-and-tir.md, "Lifetime And The `tir` Entry"), and code holds
+    no source position: panic sites and statement lines are anchors to a
+    TIR instruction, resolved against the current sources only when
+    printed (§13.8, "Positions"). So moving code down a file changes no
+    program byte that a run depends on.
+  - **Cost** (`ordinary-10k`; 50 test programs reach the edited module
+    under the old per-module test plan, one package program under §13.1's):
+
+    | Edit | Old key: work per edit | Content key |
+    | --- | --- | --- |
+    | comment or blank line | every reaching program: collect (about 2 ms), 800 to 4,800 code lookups, link, the Cranelift lookup pass (12 to 90 ms) | one module recheck; every program hits |
+    | `tests:` block | as above | the module's overlay; only the package's unit-test program relinks |
+    | private body, TIR unchanged (a renamed local) | as above | as for a comment |
+    | private body, TIR changed | as above | one or two code entries; the reaching programs relink from packs |
 - `Emit` tasks are ordered by TIR size, largest first, as body tasks are
   (§6.3).
 
@@ -534,9 +563,8 @@ through `dyn` (§13.5).
 | --- | --- |
 | executable or task (`hd run`, `hd build`) | the entry wrapper of `main` or `main!` (§16.2), and the init function of every group the entry module reaches |
 | `hd build FILE` | the same, for FILE's module |
-| unit test program (one module) | one `TestCase` body per registration, and the module's reachable init groups |
+| unit test program (one per package) | one `TestCase` body per registration and per doc test, in every module of the package, and one init export per module with tests, which runs that module's reachable init groups |
 | integration test program (one file) | its `TestCase` bodies, and its reachable init groups |
-| doc tests of a module | one `TestCase` body per doc test |
 | REPL input | the input's top-level statements as an init body (§20.5) |
 
 Only reachable items are compiled, so dead std code never reaches the
@@ -902,7 +930,8 @@ and N-S3).** The first release folds exact duplicates only:
 
 1. **Fold key.** `H(canonical signature, local declarations, body bytes,
    every relocation as (offset, kind, exact target), every site record
-   as (offset, kind, stable span))`. The signature comes first: an
+   as (offset, kind, anchor))`, where an anchor names an item and a TIR
+   instruction in it (§13.8). The signature comes first: an
    `i32 -> i32` identity and an `i64 -> i64` identity have equal
    instructions and must not fold. Function targets are instance keys or
    getter symbols (a literal, a fact), global targets are global symbols
@@ -948,8 +977,9 @@ slower; a release build might instead leave it to `wasm-opt`.
 pub struct CodeEntry {
     pub body: Box<[u8]>,                  // locals and instructions; index immediates as 5-byte padded LEBs
     pub relocs: Box<[Reloc]>,             // sorted by offset
-    pub sites: Box<[SiteRecord]>,         // (offset, site kind, stable span) for traps and explicit panics
-    pub lines: Box<[(u32, StableSpan)]>,  // offset -> statement span, for backtraces
+    pub sites: Box<[SiteRecord]>,         // (offset, site kind, anchor) for traps and explicit panics
+    pub lines: Box<[(u32, Anchor)]>,      // offset -> statement anchor, for backtraces
+    // Anchor = (item path row, TIR instruction index in that item's body): no byte offset, no line
     pub sig: CanonSig,                    // Wasm signature, as canonical types
 }
 pub enum Reloc {
@@ -978,6 +1008,30 @@ keeps fewer than 95 percent of functions hitting behind a getter.
 On disk a relocation is `(at, kind, target)` with `target` indexing the
 entry's deduplicated target table
 ([data-structures.md §3.22](data-structures.md#322-codegen-the-instance-table-and-code-entries)).
+
+**Positions (systems review, finding 4).** A code entry holds no source
+position. A site or a statement line is an **anchor**: the item's stable
+path and the index of a TIR instruction in its body. Instruction indices
+do not move when a comment or a blank line is added, so the TIR hash
+leaves the span columns out, and so do code keys, the fold key and
+`prog_key`. A panic's reported location is still program output, so an
+anchor is resolved against the current sources whenever a location is
+printed:
+
+- `hd run`, `hd test` and the playground keep the anchors in the linked
+  module's `hd.sites` and `hd.lines` (§13.10). On a panic or a failing
+  test, the host looks the anchor up in the module's current `check`
+  entry: the instruction's span columns give byte offsets, and its `locs`
+  section gives the line. That costs microseconds, only when a location
+  is printed, as for a diagnostic's token anchor (cache.md §5.3).
+- `hd build` writes a file that must stand alone. When it copies the
+  `link` entry to `build/`, it resolves every anchor to a file, line and
+  column in the written sections: one pass over about 5,000 rows at 10k
+  lines, plus one map of each reachable module's `check` entry, a few ms
+  per build. The cached `link` and `cwasm` entries stay anchored.
+
+So a comment edit above a panic changes the line it reports and nothing
+that is compiled or cached.
 
 ```text
 code_key = H("code", toolchain_key, tier, instance_key, tir_hash(item),
@@ -1052,14 +1106,15 @@ numbering, packs and filtered test programs are the largest for latency.
 
 `Link(P)`:
 
-0. **Read the code entries in one batch** (lowering pass). Link keeps,
-   per worktree, a record of each program's last link: the key of its
-   **code pack**, one entry holding every code entry of that link with an
-   index by code key (cache.md §5.2). Link maps that pack once and takes
-   every unchanged code key from it; only keys it lacks are read as
-   separate `code` entries. It then writes the new pack. Reading 4,800
-   separate files costs 70 to 140 ms on one core; one mapped pack costs a
-   few ms.
+0. **Read the code entries in one batch** (lowering pass; systems
+   review, finding 1). The worktree's last-run record, or else the
+   program's `packhint`, names the **code packs** of the program's last
+   link: one per folder group, each holding the code entries of that
+   group with an index by code key (cache.md §5.4). Link maps those
+   packs once and takes every unchanged code key from them; `Emit` runs
+   only for keys no pack holds. It then writes a new pack for each group
+   whose members changed. Reading 4,800 separate files would cost 0.3 to
+   0.6 s on the Mac; about 30 mapped packs cost 2 to 4 ms.
 1. **Drop and fold.** An instance that no relocation names, because every
    caller inlined it, is dropped. Then the rest fold (§13.7).
 2. **Order functions.** Imports first, sorted by module and name. Then
@@ -1088,6 +1143,9 @@ numbering, packs and filtered test programs are the largest for latency.
 6. **Elements.** One declarative segment for every function used with
    `ref.func`. The reserved hot-reload table stays empty (§18.5).
 7. **Exports**: `hd.init`, `hd.poll`, `hd.wake`, the exchange buffer, and test entries (§14.4, §15.4, §19.2).
+   A package's unit-test program exports one init function per module
+   with tests instead of one `hd.init`; each runs exactly the init groups
+   its module reaches, in D1's order (engines-and-test-runner.md §19.1).
 8. **Code.** Copy each representative's body and patch its relocations in
    place. In a release build, re-encode the padded LEBs at minimal width
    (mine); the debug build keeps them, since size does not matter there.
@@ -1100,6 +1158,8 @@ numbering, packs and filtered test programs are the largest for latency.
    the reported site against debug.
 9. **Custom sections**: `hd.names` (release) or `name` (debug),
    `hd.runtime`, `hd.sites`, `hd.lines`, `hd.folds` (§15.5, §16.4).
+   `hd.sites` and `hd.lines` hold anchors here; `hd build` resolves them
+   to positions in the file it writes (§13.8, "Positions").
 
 ```text
 link_key = prog_key (§11.3), and on a prog_key miss
