@@ -83,20 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q11. TIR Text Corpus: One Case Per Instruction
-
-`hd_tir` has 59 instruction tags with a text printer, a text parser and
-a verifier. Write `compiler/crates/hd_tir/tests/corpus/*.tir`: at least
-one well-formed body per tag (and per terminator), plus one ill-formed
-body per verifier invariant that the verifier must reject. Add one test
-file `compiler/crates/hd_tir/tests/corpus.rs` that, for every `.tir`
-file, checks parse → print → parse is byte-identical and the verifier
-verdict matches the file's `# expect: ok` or `# expect: reject <rule>`
-header. Pass/fail: the test, `cargo fmt --check`, clippy `-D warnings`.
-These test files are the only compiler files you may write. If a tag
-cannot be written in text or the verifier misjudges a case, list it in
-the commit message; don't change `src/`. Timebox 45 minutes; push.
-
 ### Q12. CLI Argument Forms: Implementation Versus Spec
 
 A table in `future-work/compiler/cli-forms.md`: every command and

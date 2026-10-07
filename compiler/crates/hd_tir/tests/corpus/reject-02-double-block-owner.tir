@@ -1,0 +1,10 @@
+# expect: reject 2
+body 1 Fn
+labels
+caps
+modes
+extra 1 0
+const 4 0
+%0 = Poison - - : 4 @-
+%1 = Block 0 2147483648 : 4 @-
+%2 = Block 0 2147483648 : 4 @-

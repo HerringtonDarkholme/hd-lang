@@ -1,0 +1,8 @@
+# expect: reject 10
+body 1 Fn
+local 4 0 - 0
+labels
+caps 0
+modes
+extra
+%0 = Poison - - : 4 @-

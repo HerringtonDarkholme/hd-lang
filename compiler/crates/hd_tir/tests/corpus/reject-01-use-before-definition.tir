@@ -1,0 +1,9 @@
+# expect: reject 1
+body 1 Fn
+local 4 0 - 0
+labels
+caps
+modes
+extra
+%0 = LocalSet 0 1 : 0 @-
+%1 = Poison - - : 0 @-

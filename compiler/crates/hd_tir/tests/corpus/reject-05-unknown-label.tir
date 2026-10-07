@@ -1,0 +1,8 @@
+# expect: reject 5
+body 1 Fn
+labels
+caps
+modes
+extra
+const 0 0
+%0 = Break 0 2147483648 : 0 @-

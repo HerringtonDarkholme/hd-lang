@@ -1,0 +1,68 @@
+# expect: ok
+body 1 Fn
+local 4 0 - 32
+sub 0 0 0 - 0
+labels 42
+caps
+modes
+extra 0
+const 4 0
+%0 = Block 0 2147483648 : 4 @-
+%1 = LocalGet 0 - : 4 @-
+%2 = LocalSet 0 2147483648 : 4 @-
+%3 = GlobalGet 0 - : 4 @-
+%4 = GlobalSet 0 2147483648 : 4 @-
+%5 = ItemRef 0 0 : 4 @-
+%6 = ProviderGet 0 - : 4 @-
+%7 = Poison - - : 4 @-
+%8 = Prim 0 0 : 4 @-
+%9 = And 2147483648 0 : 4 @-
+%10 = Or 2147483648 0 : 4 @-
+%11 = Call 0 0 : 4 @-
+%12 = CallValue 2147483648 0 : 4 @-
+%13 = CallDyn 2147483648 0 : 4 @-
+%14 = Is 2147483648 2147483648 : 4 @-
+%15 = CallHost 0 0 : 4 @-
+%16 = Intrinsic 0 0 : 4 @-
+%17 = DefaultCall 0 0 : 4 @-
+%18 = Interp - 0 : 4 @-
+%19 = Coerce 2147483648 0 : 4 @-
+%20 = Await 0 0 : 4 @-
+%21 = AwaitValue 2147483648 - : 4 @-
+%22 = AwaitAll - 0 : 4 @-
+%23 = AwaitRace 2147483648 - : 4 @-
+%24 = Hook 0 0 : 4 @-
+%25 = NewData - 0 : 4 @-
+%26 = CopyData 2147483648 0 : 4 @-
+%27 = NewVariant 0 0 : 4 @-
+%28 = NewTuple - 0 : 4 @-
+%29 = NewList - 0 : 4 @-
+%30 = NewMap - 0 : 4 @-
+%31 = Field 2147483648 0 : 4 @-
+%32 = FieldSet 2147483648 0 : 4 @-
+%33 = TupleGet 2147483648 0 : 4 @-
+%34 = Closure 0 0 : 4 @-
+%35 = With 0 0 : 4 @-
+%36 = ContextNew 0 - : 4 @-
+%37 = ContextFor 0 - : 4 @-
+%38 = Block 0 2147483648 : 4 @-
+%39 = Scope 0 0 : 4 @-
+%40 = Defer 0 - : 4 @-
+%41 = If 2147483648 0 : 4 @-
+%42 = Loop 0 0 : 4 @-
+%43 = ForRange 0 0 : 4 @-
+%44 = ForList 0 0 : 4 @-
+%45 = ForMap 0 0 : 4 @-
+%46 = Break 0 2147483648 : 4 @-
+%47 = Continue 0 - : 4 @-
+%48 = Return 2147483648 - : 4 @-
+%49 = Unreachable - - : 4 @-
+%50 = Match 2147483648 0 : 4 @-
+%51 = SwitchTag 2147483648 0 : 4 @-
+%52 = SwitchInt 2147483648 0 : 4 @-
+%53 = SwitchChar 2147483648 0 : 4 @-
+%54 = SwitchStr 2147483648 0 : 4 @-
+%55 = Payload 2147483648 0 : 4 @-
+%56 = Unwrap 2147483648 - : 4 @-
+%57 = Guard 0 0 : 4 @-
+%58 = ToArm 0 - : 4 @-

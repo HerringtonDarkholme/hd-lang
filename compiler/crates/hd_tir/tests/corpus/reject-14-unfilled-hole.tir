@@ -1,0 +1,7 @@
+# expect: reject 14
+body 1 Fn
+labels
+caps
+modes
+extra
+%0 = Hole - - : 0 @-
