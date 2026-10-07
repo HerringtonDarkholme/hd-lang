@@ -1554,6 +1554,8 @@ where snapshot files live.
 This section defines which modules initialize, in what order, and what their
 top-level code may do.
 
+> **Note.** [Shared enum constructor data](08-data-and-enums.md#r-data.shared.module-init) are part of their declaring module's initialization.
+
 1. r[module.init.script] A **script** is an entry module whose top-level executable statements are the entry behavior and which has no `main` declaration.
 2. r[module.init.entry-module.selected] An **entry module** is the module that a program starts from. That is a module that the toolchain selects in a package, or the file of a single-file program.
 3. r[module.init.statements-and-main] If an entry module contains both top-level statements and `main`, its top-level statements initialize the module first and then the runtime invokes `main`. That form is an executable entry module, not a script.

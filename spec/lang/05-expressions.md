@@ -300,7 +300,7 @@ Rules for every literal function:
 2. r[expr.literal-fn.fn-only] `std.ops` declares `NumSuffix`, `num_suffix`, `StrPrefix`, `str_prefix`, and `Template`. Both marker types list only `.Fn` in their `@annotate`, so either marker before anything but a function is an error. Error: `decorator-target-kind`.
 3. r[expr.literal-fn.not-marked] A suffix or prefix that resolves to anything but a literal function of its form is an error at the literal. Error: `invalid-literal-suffix` for a suffix, `invalid-string-prefix` for a prefix.
 4. r[expr.literal-fn.no-marker-import] The call needs no import of the marker, its type, or `Template`: a `use` of the literal function alone makes the literal valid.
-5. r[expr.literal-fn.ordinary-call] A literal is exactly the call of its literal function wherever it appears, and it is checked and evaluated as an ordinary call there. So argument errors, inferred type arguments, and the rules of a [fact](14-annotations.md#r-annot.fact.eval.lazy) or [shared enum data](08-data-and-enums.md#r-data.shared.eval-as-fact) position all apply as for any call.
+5. r[expr.literal-fn.ordinary-call] A literal is exactly the call of its literal function wherever it appears, and it is checked and evaluated as an ordinary call there. So argument errors, inferred type arguments, and the rules of a [fact](14-annotations.md#r-annot.fact.eval.lazy) or [shared enum data](08-data-and-enums.md#r-data.shared.module-init) position all apply as for any call.
 6. r[expr.literal-fn.row] A literal function may have a requirement row, and a literal of it needs that row where it appears, as any call does, by [`req.row.set.call`](11-requirements-and-suspension.md#r-req.row.set.call). Error: `missing-requirement`.
 
 Each marker is a typed fact, checked by

@@ -329,7 +329,8 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 | string literals of 4 bytes or less (default, decided by E10) | immutable | a constant expression (`array.new_fixed`) | `global.get`, then `i64.const` of the literal's span (`len << 32`) |
 | other string literals | a slot of their module's table | lazily: the module's getter runs `array.new_data` on segment 0 at the literal's offset | `i32.const` of the module-local number, a `call` of the module's getter, then `i64.const` of the span: a literal is a view over its pooled array |
 | module storage (top-level bindings) | mutable, nullable or zero | the group's init function | `global.get`, `global.set`; ordered by module path, then binding index |
-| fact values, metadata, shared enum data | mutable, nullable; null is the flag for a one-reference layout, else an `i32` flag | lazily: a getter runs the fact's body on the first read (codegen.md §12.3) | a `call` of the getter |
+| fact values and metadata | mutable, nullable; null is the flag for a one-reference layout, else an `i32` flag | lazily: a getter runs the fact's body on the first read (codegen.md §12.3) | a `call` of the getter |
+| shared enum data | mutable, nullable or zero | the declaring module's group init function ([`data.shared.module-init`](../../spec/lang/08-data-and-enums.md#r-data.shared.module-init)) | `global.get` |
 
 **Stable numbering (lowering pass).** A reader never holds the index of
 a lazily initialized global: it calls a getter, and wasmtime's

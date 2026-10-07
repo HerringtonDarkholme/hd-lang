@@ -444,7 +444,8 @@ where they are declared, and never at the call:
 | --- | --- | --- |
 | a parameter default | a function of the earlier parameters and the declaration's generics, with the parameter's type as its result | at each call that omits it, after every explicit argument, in declaration order ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)) |
 | a data field default | a function of the declaration's generics only; it sees the declaration's lexical scope, not other fields | at each construction that omits it, in field order ([`data.default.eval`](../../spec/lang/08-data-and-enums.md#r-data.default.eval)) |
-| a fact, a metadata expression, a variant's shared-data constructor and its defaults | a body with no parameters | once, at run time, on first read ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy), [`data.shared.eval-as-fact`](../../spec/lang/08-data-and-enums.md#r-data.shared.eval-as-fact)) |
+| a fact or metadata expression | a body with no parameters | once, at run time, on first read ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy)) |
+| a variant's shared-data constructor and its defaults | a body with no parameters | once, at run time, during its declaring module's initialization ([`data.shared.module-init`](../../spec/lang/08-data-and-enums.md#r-data.shared.module-init)) |
 
 All of them are restricted contexts (section 5.8) and must be
 requirement-free. The checker states which body a call's default is and
@@ -2228,9 +2229,9 @@ Codex review are in
    and the earlier argument values, emitted per call after the explicit
    arguments (section 1.7; review finding 4). Add `Coerce` kinds for
    declared variance and supertrait widening; no `Refine` kind, which
-   was removed with GADTs. Facts, metadata and shared enum data need a compile-time
-   evaluator with its own budget, whose failure is a compile-time
-   diagnostic; that design is the backend lane's (codegen.md §12.3).
+   was removed with GADTs. Facts and metadata need first-read runtime
+   bodies; shared enum data needs a requirement-free module-initializer
+   body. That design is the backend lane's (codegen.md §12.3).
 9. **checking-and-tir.md §4.13.11, builder:** `konst` must accept a
    literal whose width is still an inference variable; the width comes
    from the `Solution` at `finish` (review I7, section 1.5).

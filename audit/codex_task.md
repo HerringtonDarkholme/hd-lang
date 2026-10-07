@@ -83,34 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S5. Spec: Shared Enum Data Initializes With Its Module (Owner Decision, First)
-
-Owner, 2026-10-07: shared enum constructor data is requirement-free and
-evaluated at runtime when its module initializes, like Go's package
-init: it joins the module's top-level initialization, in the dependency
-order `spec/lang/10-modules.md` "Module Initialization" already defines
-(`module.init.group`, "Order Inside A Group"), and must be
-requirement-free like all non-entry module initialization
-(`module.init.requirement-free`). It may call any requirement-free
-function; writes to module state happen at init time. No laziness and
-no compile-time evaluation.
-
-In `spec/lang/08-data-and-enums.md`: replace `data.shared.eval-as-fact`
-and `data.shared.default.eval-order` with rules that say the above
-(cite the 10-modules rules; per-variant defaults still fill in
-declaration order inside one variant's constructor call), keep rule IDs
-stable where the meaning survives, and add a one-line note in
-10-modules.md's initialization section that shared enum data are part
-of a module's initialization. Fixtures: rewrite
-`runtime/valid/shared-enum-fact-evaluation.hd` to assert init-time
-evaluation and dependency order (the trace is complete before `main`
-reads anything); `typing/valid/shared-enum-default-writes-state.hd`
-stays valid (runs at init); `typing/invalid/enum-default-requires-provider.hd`
-stays an error under the requirement-free rule (update its citation).
-Prototype disagreements get a KNOWN_FAILURES row tagged ENUMINIT.
-`bash spec/check.sh`, the scoped portable run, and `cd compiler && cargo
-test -p hd_syntax --test corpus` green. Timebox 45 minutes; push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,

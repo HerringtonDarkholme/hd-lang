@@ -1,3 +1,5 @@
+# test: a shared enum default may write module state during module initialization
+# Spec 08 Shared Enum Constructor Data: data.shared.module-init.effects.
 let sequence = +0
 
 fn next() -> i32:

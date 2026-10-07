@@ -214,8 +214,10 @@ editing D1 in place:
    2026-10-07): no command evaluates facts at compile time; facts are
    run-time values**
    ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy)).
+   Shared enum data instead run during their declaring module's initialization
+   ([`data.shared.module-init`](../../spec/lang/08-data-and-enums.md#r-data.shared.module-init)).
    The rest of this item is the superseded analysis. (From Codex
-   finding 4.) Facts, metadata and shared enum data are evaluated once
+   finding 4.) Facts and metadata are evaluated once
    at compile time by an interpreter over TIR (codegen.md §12.3). A
    failing fact is `fact-evaluation-failed`. Evaluating needs the TIR of
    every function the fact calls, across modules and packages.

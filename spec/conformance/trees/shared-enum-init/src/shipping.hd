@@ -1,0 +1,4 @@
+use pkg.trace.{note}
+
+pub enum Shipping(base: i32, tax: i32 = note("tax", 5), handling: i32 = note("handling", 2)):
+    Standard -> Shipping(note("base", 10))

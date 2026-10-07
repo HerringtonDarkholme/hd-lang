@@ -1,31 +1,20 @@
-# test: a variant's shared data is evaluated once, on first read, explicit arguments before omitted defaults
-# Spec 08 Shared Enum Constructor Data: data.shared.eval-as-fact.
+# test: shared enum data initializes after its dependency and before main observes the completed trace
+# Spec 08 Shared Enum Constructor Data: data.shared.module-init,
+# data.shared.module-init.order, data.shared.module-init.effects.
 # Spec 08 Shared Parameter Defaults: data.shared.default.eval-order.
+# Spec 10 Initialization Order: module.init.group.once.
+# fixture-package-tree: shared-enum-init/src/app.hd
+use pkg.shipping.{Shipping}
+use pkg.trace.{recorded}
 use std.testing.assert_equal
 
-let trace = ""
-
-fn note(label: string, amount: i32) -> i32:
-    trace = trace + label + ";"
-    amount
-
-enum Shipping(base: i32, tax: i32 = note("tax", 5), handling: i32 = note("handling", 2)):
-    Standard -> Shipping(note("standard", 10))
-    Express -> Shipping(note("express", 30), handling=note("express-handling", 9))
-    Freight -> Shipping(note("freight", 100))
+fn main() -> List[string]:
+    recorded()
 
 tests:
-    it("nothing is evaluated until a variant's shared data is read"):
-        assert_equal(trace, "", reason="declaring the enum evaluates nothing")
-
-    it("explicit arguments run first, then omitted defaults in declaration order"):
-        assert_equal(Shipping.Standard.base, 10, reason="explicit base")
-        assert_equal(trace, "standard;tax;handling;", reason="explicit, then tax, then handling")
-        assert_equal(Shipping.Express.base, 30, reason="express base")
-        assert_equal(trace, "standard;tax;handling;express;express-handling;tax;", reason="a variant evaluates its own defaults")
-
-    it("each variant evaluates once, and an unread variant never evaluates"):
-        assert_equal(Shipping.Standard.tax, 5, reason="first read")
-        assert_equal(Shipping.Standard.handling, 2, reason="second read")
-        assert_equal(Shipping.Standard.base, 10, reason="third read")
-        assert_equal(trace, "standard;tax;handling;", reason="one evaluation for three reads")
+    it("initializes shared data before main reads the trace"):
+        assert_equal(main(), ["dependency", "base", "tax", "handling"], reason="dependency and shared data initialized before main")
+        assert_equal(Shipping.Standard.base, 10, reason="the explicit argument initialized the variant")
+        assert_equal(Shipping.Standard.tax, 5, reason="the first omitted default followed it")
+        assert_equal(Shipping.Standard.handling, 2, reason="the second omitted default followed it")
+        assert_equal(main(), ["dependency", "base", "tax", "handling"], reason="reads do not repeat initialization")

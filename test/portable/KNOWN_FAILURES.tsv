@@ -1,4 +1,5 @@
 path	reason	finding
+runtime/valid/shared-enum-fact-evaluation.hd	the prototype evaluates shared enum data lazily on first read, so module initialization leaves only the dependency event instead of running the constructor and defaults (data.shared.module-init)	ENUMINIT
 typing/invalid/integration-tests-root-use.hd	the prototype treats reserved `tests` as a parsed use root and reports unknown-module, but grammar.use.needs-root makes the line a syntax-error	D2B
 runtime/valid/resource-disposed-result.hd	check exits 101 with no located diagnostic: the prototype has no disposed-file runtime profile, so its adapter rejects it	F-259
 runtime/valid/retry-with-backoff.hd	held: implementing it makes std.task import std.time, which costs every program a std.time check (owner, batch 73)	RETRY-WITH

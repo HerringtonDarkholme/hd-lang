@@ -67,7 +67,7 @@ typing/invalid/implicit-data-ordering.hd	type	reject:type-mismatch	lang/09-trait
 typing/valid/control-flow.hd	type	accept	lang/06-control-flow.md
 typing/valid/enums.hd	type	accept	lang/08-data-and-enums.md#matching-enums
 typing/valid/shared-enum-defaults.hd	type	accept	lang/08-data-and-enums.md#shared-enum-constructor-data
-typing/valid/shared-enum-default-writes-state.hd	type	accept	lang/08-data-and-enums.md#shared-enum-constructor-data
+typing/valid/shared-enum-default-writes-state.hd	type	accept	lang/08-data-and-enums.md#r-data.shared.module-init.effects
 typing/invalid/shared-enum-default-order.hd	type	reject:default-order	lang/08-data-and-enums.md#shared-enum-constructor-data
 typing/valid/match-guards.hd	type	accept	lang/06-control-flow.md#match-expressions
 typing/valid/data-patterns.hd	type	accept	lang/06-control-flow.md#match-expressions
@@ -636,7 +636,7 @@ runtime/valid/suspending-blanket-impls.hd	runtime	accept	lang/11-requirements-an
 runtime/valid/named-local-suspending-function.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/parameter-default-requires-provider.hd	type	reject:requirement-in-default	lang/07-functions.md#default-values
 typing/invalid/data-default-requires-provider.hd	type	reject:requirement-in-default	lang/08-data-and-enums.md#data-declarations
-typing/invalid/enum-default-requires-provider.hd	type	reject:requirement-in-default	lang/08-data-and-enums.md#shared-enum-constructor-data
+typing/invalid/enum-default-requires-provider.hd	type	reject:requirement-in-default	lang/08-data-and-enums.md#r-data.shared.module-init.requirement-free
 typing/valid/default-calls-requirement-free-trait-method.hd	type	accept	lang/07-functions.md#default-values
 typing/invalid/result-ok-payload-type-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#result-types
 runtime/valid/discard-propagated-void-result.hd	runtime	accept	lang/05-expressions.md#propagation
@@ -2735,7 +2735,7 @@ parse/invalid/variant-result-type-removed.hd	parse	reject:variant-result-type-re
 parse/invalid/variant-type-parameters-removed.hd	parse	reject:variant-result-type-removed	lang/02-grammar.md#r-grammar.enum.no-type-params
 runtime/panic/fact-evaluation-panics-on-read.hd	runtime	panic:fact-evaluation-failed	lang/14-annotations.md#r-annot.fact.eval.panic-runtime
 runtime/valid/fact-unread-never-evaluated.hd	runtime	accept	lang/14-annotations.md#r-annot.fact.eval.unread
-runtime/valid/shared-enum-fact-evaluation.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.eval-as-fact
+runtime/valid/shared-enum-fact-evaluation.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.module-init
 typing/invalid/shared-enum-readonly-collection.hd	type	reject:mutable-receiver-required	lang/08-data-and-enums.md#r-data.shared.readonly
 typing/invalid/copy-update-readonly-source-mut-field.hd	type	reject:mutable-upgrade	lang/08-data-and-enums.md#r-data.update.access-view
 runtime/valid/enum-value-fixed-at-construction.hd	runtime	accept	lang/08-data-and-enums.md#r-data.enum.immutable

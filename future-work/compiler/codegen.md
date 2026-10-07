@@ -268,14 +268,12 @@ cancel function (§14.6).
   nothing. Emission increments the forbidden-context counter around a
   `DefaultCall` whose body makes a call, so an indirect `block_on` or
   `println` there panics (suspension.md §14.9).
-- **Facts are lazily initialized globals (owner, 2026-10-07).** A fact,
-  a metadata expression, and a variant's shared-data constructor with
-  its defaults are ordinary bodies, run once on first read
+- **Facts are lazily initialized globals (owner, 2026-10-07).** A fact
+  and a metadata expression are ordinary bodies, run once on first read
   ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy),
-  [`annot.metadata.eval-as-fact`](../../spec/lang/14-annotations.md#r-annot.metadata.eval-as-fact),
-  [`data.shared.eval-as-fact`](../../spec/lang/08-data-and-enums.md#r-data.shared.eval-as-fact)).
-  Each read (`facts_of`, `T::facts()`, a member handle's `info.facts`, a
-  shared-data access) is a getter: a mutable global plus an "initialized"
+  [`annot.metadata.eval-as-fact`](../../spec/lang/14-annotations.md#r-annot.metadata.eval-as-fact)).
+  Each read (`facts_of`, `T::facts()`, or a member handle's `info.facts`)
+  is a getter: a mutable global plus an "initialized"
   flag, filled by the body's instance on the first read. Readers `call`
   the getter and never name the storage global, so a new fact elsewhere
   changes no reader's bytes (§13.10); a body calls each getter once on a
@@ -286,6 +284,12 @@ cancel function (§14.6).
   emitted. There is no compile-time evaluator, no evaluation budget, no
   `fact` cache entry and no value-graph serialization; a changed fact
   body changes only its own instance's code key.
+- **Shared enum data initializes with its module (owner, 2026-10-07).**
+  Each variant's constructor and defaults are requirement-free bodies in
+  the declaring module's group init function
+  ([`data.shared.module-init`](../../spec/lang/08-data-and-enums.md#r-data.shared.module-init)).
+  They run once per program instance before entry behavior, never through
+  a first-read getter.
 - **Derives.** Derive instances, including the generated `walk`,
   `describe` and `build`, are ordinary bodies (§4.13.9). With the
   walker's type known at each instance, every `w.member(h, value)` call is

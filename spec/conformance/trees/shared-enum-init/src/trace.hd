@@ -1,0 +1,8 @@
+let events: mut List[string] = ["dependency"]
+
+pub fn note(label: string, amount: i32) -> i32:
+    events.push(label)
+    amount
+
+pub fn recorded() -> List[string]:
+    events
