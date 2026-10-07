@@ -1,0 +1,13 @@
+pub data Reading:
+    pub value: i32
+    pub offset: i32
+    pub weight: i32
+
+pub fn reading(value: i32, offset: i32, weight: i32) -> Reading:
+    Reading { value: value, offset: offset, weight: weight }
+
+pub fn score(item: Reading) -> i32:
+    return item.value * item.weight + item.offset
+
+pub fn choose[T](first: T, second: T) -> T:
+    return first

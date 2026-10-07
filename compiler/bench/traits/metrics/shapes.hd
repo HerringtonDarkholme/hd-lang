@@ -1,0 +1,20 @@
+pub data Rect:
+    pub width: i32
+    pub height: i32
+
+pub data Square:
+    pub side: i32
+
+pub trait Measure:
+    fn measure(self) -> i32
+
+impl Measure for Rect:
+    fn measure(self) -> i32:
+        self.width * self.height
+
+impl Measure for Square:
+    fn measure(self) -> i32:
+        self.side * self.side
+
+pub fn adjusted[T < Measure](value: T, bias: i32) -> i32:
+    return value.measure() + bias

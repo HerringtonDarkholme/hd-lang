@@ -1,0 +1,11 @@
+use pkg.domain.readings.{Reading, reading, score, choose}
+
+fn main():
+    low := reading(7, 11, 3)
+    high := reading(13, 17, 5)
+    selected := choose(high, low)
+    println(selected.value)
+    println(score(selected))
+    println(score(choose(low, high)))
+    literal := Reading { weight: 4, offset: 2, value: 9 }
+    println(score(literal))

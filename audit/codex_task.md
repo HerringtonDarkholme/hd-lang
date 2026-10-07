@@ -81,15 +81,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q4. Benchmark Inputs For The New Compiler
-
-Under `compiler/bench/` (yours): five realistic programs in the subset
-the new compiler accepts today (see `compiler/samples/` and
-`hd run`): a tokenizer-like state machine, integer math kernels, data
-records with a generic helper, trait dispatch through bounds, and a
-generated 10,000-line multi-folder package (a script that writes it).
-Each with expected output. P1 uses them. Timebox 30 minutes; push.
-
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
