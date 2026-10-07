@@ -15,17 +15,47 @@ struct or an array element.
 | `i32` | `i32` | `bool`, `char`, integers of 32 bits or less, `usize`, payloadless enums |
 | `i64` | `i64` | `i64`, `u64` |
 | `f32`, `f64` | `f32`, `f64` | floats |
-| `ref` | `(ref $T)` or `(ref null $T)` | data, `string`, lists, maps, closures, frames, and an enum's box (over 4 Wasm values, or a self-recursive payload) |
-| `multi` | 2 to 4 Wasm values | `Option` of a scalar, `Result`, tuples, trait values (§15.2) |
-| `erased` | `anyref` | the payload of a trait value, `Any`, an open value in an erased method body (codegen.md §13.5.1) |
+| `ref` | `(ref $T)` or `(ref null $T)` | data, `string`, lists, maps, closures, frames, and the box of a value layout over the bound or of a self-recursive enum |
+| `multi` | 2 Wasm values up to the bound | `Option` of a scalar, `Result`, tuples, value enums, trait values (§15.2) |
+| `erased` | `eqref` | the payload of a trait value, `Any`, an open value in an erased method body (codegen.md §13.5.1) |
 | `void` | none | `void`, `()`, and `never` |
 
-In locals, parameters and results, a `multi` layout over 4 Wasm values
-is passed as one immutable struct instead (mine); Wasm's multi-value
-results make 4 a cheap bound on both engines. In fields and arrays a
-value layout stays unboxed, as the spec's shape rules ask
-([Shapes and Generic Code](../../spec/lang/04-type-system.md#shapes-and-generic-code)):
-it becomes several fields, or several arrays.
+**One representation per type in every position (lowering pass,
+2026-10-07).** A type has the same Wasm values in a local, a parameter,
+a result, a field and an array element, apart from packing scalars (`i8`
+for `bool`). A value layout within the **bound** is several values,
+several fields, or a structure of arrays. A value layout over the bound
+is one immutable box struct in every position, fields and arrays
+included. An earlier draft boxed only in locals and kept fields and
+arrays unboxed, so every read of such an element allocated a box; the
+runtime study ([representation-runtime.md](representation-runtime.md))
+found that. The spec allows either form
+([Shapes and Generic Code](../../spec/lang/04-type-system.md#shapes-and-generic-code)).
+
+- **The bound** counts Wasm values after slot sharing, the tag included,
+  and counts a boxed payload as one value. **Default 4, decided by E2**
+  of spike 0c: the largest payload count where parallel arrays win a
+  read-only kernel by more than 10 percent on wasmtime and `push` stays
+  under 256 bytes. There is one bound, because crossing it changes the
+  layout of every value type that holds the type by value.
+- **Slot sharing.** Payload fields of different variants with the same
+  Wasm value type share a slot. Reference fields share reference slots:
+  the slot is typed exactly when every variant's field in it has one
+  reference type, and `eqref` with a `ref.cast` after the tag test
+  otherwise ([research-enum-values.md §5.1](research-enum-values.md#51-layouts)).
+- **Erased storage (A1).** A struct field or array element whose declared
+  type is a type parameter, instantiated at a layout of one reference
+  (nullable or not), is stored as `eqref`, and readers cast at the first
+  use that needs the exact type. So `List[Point]` is always `{len,
+  (array eqref)}`. Scalars and `multi` layouts keep exact storage.
+  **Default adopted, decided by E1:** rejected if the wasmtime read
+  penalty is over 1 ns per element or over 5 percent on the `sort` and
+  `map` microbenchmarks with reference elements. Collection then gives
+  move-only generic bodies one instance per class (codegen.md §13.2).
+- Every rule here reads only the type's definition and the definitions
+  its fields name, never a use or the program, so a cached instance is
+  valid in every program that reaches it. Each data type and syntax
+  form's cost is in [lowering-catalog.md](lowering-catalog.md).
 
 ### 15.2 Values
 
@@ -35,19 +65,22 @@ it becomes several fields, or several arrays.
 | `data T` | `(ref $T)`: a struct with one mutable field per declared field, in declaration order | same |
 | embedded part | a separate struct, referenced by an immutable field of the outer struct ([`data.part.unobservable`](../../spec/lang/08-data-and-enums.md#r-data.part.unobservable)) | same |
 | payloadless enum | `i32` tag | `i8` or `i16` when the variant count fits |
-| enum with payloads, **flat** | one struct: tag plus the union of payload fields, unused fields null or zero | same |
-| enum with payloads, **subtypes** | a non-final base struct (tag, shared fields) and one final subtype per payload variant; payloadless variants are constant singletons | same |
-| `T?`, `T` a non-nullable reference | `(ref null $T)`; null is `.None` | same |
+| enum with payloads, within the bound | `multi`: `(i32 tag, shared payload slots...)` (§15.1) | the same fields; a structure of arrays in an array |
+| enum box, **flat** (over the bound, at most 4 payload fields in total) | one immutable struct: tag plus the union of payload fields, unused fields null or zero | same: the box reference |
+| enum box, **subtypes** (over the bound with more fields, or self-recursive) | a non-final base struct (tag, shared fields) and one final subtype per payload variant; payloadless variants are constant singletons | same: the box reference |
+| `T?`, `T` a non-nullable reference (data, list, string, closure, a box) | `(ref null $T)`; null is `.None` | same |
+| `T?`, `T` a trait value | `(eqref, (ref null $VT))`; a null vtable is `.None` (lowering pass) | two fields |
 | `T?`, `T` a scalar | `(i32 tag, T)` | two fields |
-| `T??` and `Option` of a `multi` | a tag plus the inner layout | the same fields |
-| `Result[T, E]` | `multi`: `(i32 tag, dflt(T'), dflt(E'))`, where `T'` and `E'` are the payload layouts (see "Identity" and "Defaultable forms" below) | the same fields |
-| tuple | its elements' values | its elements' fields, flattened |
-| trait value, `Any` | `(anyref, (ref $VT))` | two fields |
+| `T??` and `Option` of a `multi` | a tag plus the inner layout, boxed over the bound | the same fields |
+| `Result[T, E]` | `multi`: `(i32 tag, dflt(T')..., dflt(E')...)` with slot sharing, where `T'` and `E'` are the payload layouts (see "Identity" and "Defaultable forms" below) | the same fields |
+| tuple | its elements' values within the bound; one immutable box over it | its elements' fields, flattened, or the box |
+| trait value, `Any` | `(eqref, (ref $VT))`; `eqref`, so `is` can use `ref.eq` on the payload | two fields |
 | closure | `(ref $Fn_sig)`: a base struct holding the code as a typed function reference; one subtype per capture shape | same |
 | capture-free closure | a constant global of the base type, with no environment | same |
-| `string` | `(ref $str)`, `$str = (array i8)`, immutable, valid UTF-8 | same |
-| `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T)}` | same |
-| `Map[K, V]` | std hd over arrays (§16.1) | same |
+| `string` | `(ref $str)`, `$str = (array i8)`, immutable, valid UTF-8. **Default S1** (a slice copies), pending the owner and E6; under S2, three values `(ref $bytes, i32 start, i32 len)` | same |
+| `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T)}`; under A1 every reference `T` shares `$List_eq` over `(array (mut eqref))` | same |
+| `Map[K, V]` | std hd over arrays (§16.1): a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays ([lowering-catalog.md](lowering-catalog.md#mapk-v)) | same |
+| `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))` | same |
 | `mut Suspend[T]` | `(ref $Suspend_L)` (§14.1) | same |
 
 **Defaultable forms (Codex re-review N3).** A language layout may hold
@@ -63,6 +96,7 @@ inactive:
 | an inactive payload of a value enum or `Result` (`multi` layout), and the payload fields of a flat enum struct | `dflt` per payload field; the inactive variant's fields hold `default` | the tag test, then `ref.as_non_null` on the read field |
 | the Pending result and the resume arguments of `f$body`, every saved field of a suspension frame, the result fields of an `all!` frame | `dflt` (suspension.md §14.1) | the state test or the done mask |
 | a module storage global before init | `dflt` (§15.4) | init order; reads after init narrow |
+| an `Array[T]` slot past the count that `List`, `Map` or `Deque` keeps (lowering pass) | `dflt` per element value; such slots hold `default` and std never reads them | std's count check, then `ref.as_non_null`, or the A1 `ref.cast` to a non-null type, which checks both |
 
 Language-level locals, parameters and fields keep the non-null form, so a
 value that is always present costs nothing. A narrowing read is one
@@ -72,7 +106,7 @@ is valid for every frame type.
 **Enum layout per enum (mine).** Every enum is an identity-free value
 (S1c) and normally uses the value layout of "One predicate for
 identity-free enums" below. The flat and subtype rows above are the
-shapes of its **box**, used past 4 Wasm values and for a self-recursive
+shapes of its **box**, used past the bound (§15.1) and for a self-recursive
 payload. The rule is deterministic, with no annotation: a box is
 **flat** when the enum's payload fields number at most 4 in total.
 Otherwise it uses **subtypes**. Flat enums need no
@@ -116,9 +150,10 @@ So the layouts follow these rules:
 3. **`Result` has no identity either** (open question 23.1-7, answered
    yes). It uses the `multi` layout `(i32 tag, T', E')` and allocates
    nothing. A field that holds a `Result` stores the same fields
-   inline. When `T'` and `E'` are both references, the fields may share
-   one `anyref`-typed slot cast by tag; the first release keeps them
-   apart, which is simpler and costs one word.
+   inline, or the box past the bound. Its payload fields share slots
+   by §15.1's slot-sharing rule: when `T'` and `E'` are references of
+   different types, they share one `eqref` slot cast after the tag test
+   (lowering pass; an earlier draft kept them apart).
 4. **Other enums** are identity-free too (S1c). They follow the
    predicate below; the flat and subtype shapes are only their boxes.
 
@@ -129,7 +164,7 @@ Since the S1c spec pass it holds for every enum
 An identity-free enum
 uses a value layout: a nullable reference when it has one reference
 payload and one payloadless variant (`T?`), else `(i32 tag, payload
-fields...)` as `multi`, boxed in one immutable struct past 4 Wasm values
+fields...)` as `multi`, boxed in one immutable struct past the bound in every position
 as §15.1 says. A self-recursive payload stays a reference, as the flat
 or subtype layout above has it.
 
@@ -167,6 +202,21 @@ every element unboxed, as the spec's packed `List[i32]` and list of
 tuples ask, and allocates nothing per element. `Array[T]` is intrinsic,
 so `List[T]` and `Map[K, V]` in std see one type either way.
 
+- **Element forms (lowering pass).** An element is stored in its
+  defaultable form, since slots past a collection's count hold
+  `default(L)`. Under A1 an element of a reference layout is `eqref`.
+  An element over the bound is the box reference.
+- **`Array[void]`** has no Wasm array: it is one shared empty constant
+  struct, and its operations emit nothing. So `Map[T, void]`, which
+  `Set[T]` wraps, has no values array, with no special case.
+- **Collections over plain storage (lowering pass; std work, not done
+  here).** `Heap[T]` is a `List[T]` with sift operations, and `Deque[T]`
+  a ring buffer over `Array[T]` with a head and a count. Neither stores
+  `T?`, which for a scalar `T` doubled the arrays and added a tag test
+  per access. `Set[T]` wraps `Map[T, void]` with an internal
+  insert-if-absent, so `insert` probes once. `Map` is the compact
+  insertion-ordered table of [lowering-catalog.md](lowering-catalog.md#mapk-v).
+
 ### 15.3 The Type Section
 
 1. **Canonical descriptors.** The linker maps each hd type to a canonical
@@ -197,17 +247,46 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    ready set). The type section is then a pure function of the type set,
    and valid by construction
    ([Wasm type validity](https://webassembly.github.io/spec/core/valid/types.html)).
+6. **Stability (lowering pass).** No dense order is stable under
+   insertion: a new type that sorts early shifts the type immediates of
+   later functions, and wasmtime's per-function cache keys include them.
+   The first release keeps this order and measures the misses (S2 of
+   spike 0c). If fewer than 90 percent of functions hit after adding one
+   type, allocation and cast sites name types through a call to a
+   per-type helper, or the cache key is asked to abstract type indices
+   upstream. Under A1, fewer types exist, so fewer shift.
 
 ### 15.4 Globals And Module Initialization
 
-| Global | Wasm | Initialized by |
-| --- | --- | --- |
-| module storage (top-level bindings) | mutable, nullable or zero | the group's init function |
-| vtables, capture-free closures, payloadless variant singletons, member handles | immutable | a constant expression (`struct.new` and `ref.func` are constant in Wasm GC) |
-| short string literals (16 bytes or less) | immutable | a constant expression (`array.new_fixed`) |
-| other string literals | mutable, nullable | lazily: the first use runs `array.new_data` |
-| fact values, metadata, shared enum data | mutable, nullable | lazily: a getter runs the fact's body on the first read (codegen.md §12.3) |
-| runtime state: panic category and site, the wake table, the forbidden-context counter | mutable | constants |
+| Global | Wasm | Initialized by | A reader holds |
+| --- | --- | --- | --- |
+| runtime state: panic category, the wake table, the forbidden-context counter; the literal pool | mutable; the pool is `(ref $Pool)`, an `(array (mut (ref null $str)))` with one slot per pooled literal | constants; the pool by `array.new_default` | `global.get` of a fixed low index |
+| vtables, capture-free closures, payloadless variant singletons, member handles, witnesses, `TypeId` values | immutable | a constant expression (`struct.new` and `ref.func` are constant in Wasm GC) | `global.get`; globals of a kind ordered by content key |
+| string literals of 4 bytes or less (default, decided by E10) | immutable | a constant expression (`array.new_fixed`) | `global.get` |
+| other string literals | a slot of the pool | lazily: the literal's getter runs `array.new_data` on segment 0 at its offset | a `call` of the literal's getter |
+| module storage (top-level bindings) | mutable, nullable or zero | the group's init function | `global.get`, `global.set`; ordered by module path, then binding index |
+| fact values, metadata, shared enum data | mutable, nullable; null is the flag for a one-reference layout, else an `i32` flag | lazily: a getter runs the fact's body on the first read (codegen.md §12.3) | a `call` of the getter |
+
+**Stable numbering (lowering pass).** A reader never holds the index of
+a lazily initialized global: it calls a getter, and wasmtime's
+per-function cache abstracts call targets, so adding a literal or a fact
+elsewhere recompiles no other function. "Append-friendly" global order
+would need numbers kept from earlier builds, which §15.8 forbids. The
+immutable constants are read directly by default; S2 of spike 0c moves a
+global kind behind getters if adding one global leaves fewer than 95
+percent of functions hitting the cache. The full table of index spaces is
+in [lowering-catalog.md](lowering-catalog.md#numbering).
+
+**Constant strings (lowering pass).** All pooled literals share one
+passive data segment, deduplicated by content, so the program has one
+data segment. Each literal's getter reads its pool slot, and on null
+calls one shared fill helper with the literal's slot, offset and length.
+A function reads each literal once on a dominating path. A host call
+whose argument is a literal, such as `println("hello")`, takes the host
+fast path: a small per-literal span function copies the bytes from
+segment 0 into the exchange buffer with `memory.init` and returns the
+length, so no array is built at all, and the offset stays inside that
+function. Eager filling of the pool in `hd.init` is measured by E10.
 
 - **Init order.** The `hd.init` export calls each reachable group's init
   function once, in D1's order (`InitOrder` and M3), after every group it
@@ -221,11 +300,21 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 
 ### 15.5 Panic Sites And Backtraces
 
-**Explicit panics.** A panic stub writes the category id and the global
-site number into globals, copies the message into the exchange buffer,
-sets its length, and executes `unreachable`. The host reads the globals
-and the buffer after the trap, so it never calls into a poisoned instance
+**Explicit panics.** A panic stub writes the category id into a global,
+copies the message into the exchange buffer, sets its length, and
+executes `unreachable`. The host reads the global and the buffer after
+the trap, so it never calls into a poisoned instance
 ([`flow.panic.poison`](../../spec/lang/06-control-flow.md#r-flow.panic.poison)).
+
+**No site numbers (lowering pass).** A call of a stub carries no site
+immediate. The site is the stub's caller frame: its function index and
+the code offset of the `call`, which both engines' backtraces give, and
+`hd.sites` is keyed by function and code offset. So no body holds a
+program-wide site number, and a new site elsewhere recompiles nothing
+else (the compile study found that site numbers alone made one edit miss
+the per-function cache for about half a debug program). Each check keeps
+its own `call` instruction, so two sites never share an offset. Category
+ids are fixed by the runtime, not numbered per program.
 
 **Engine traps.** A trap without a stored category is mapped by its trap
 code and its code offset:
@@ -243,8 +332,9 @@ code and its code offset:
 
 | Section | Holds | Release |
 | --- | --- | --- |
-| `name` | function names: printed stable path plus type arguments, as `shop.cart/Cart.total` or `std.list/List.push[i32]` | yes, always |
-| `hd.sites` | per site: category or kind, file index, line, column; plus a file table of package-relative paths | yes |
+| `name` | function names: printed stable path plus type arguments, as `shop.cart/Cart.total` or `std.list/List.push[i32]` | debug only (lowering pass) |
+| `hd.names` | per function: an index into a path table and a list of indices into a type-argument table; the symbolizer prints the same names as `name` | yes; about 30 KB instead of 150 KB at 10k lines |
+| `hd.sites` | per site, keyed by function index and code offset: category or kind, file index, line, column; plus a file table of package-relative paths | yes |
 | `hd.lines` | per function: sorted code offsets with a delta-encoded line, for every statement that can call or trap | yes |
 | `hd.folds` | folded aliases per representative (§13.7) | yes |
 | `hd.runtime` | §16.4 | yes |
@@ -255,8 +345,10 @@ stale line cannot survive.
 
 **Backtraces.** wasmtime's `WasmBacktrace` gives each frame's function
 index and module offset. V8's `Error.stack` gives
-`wasm-function[i]:0xOFF` frames. `hd_run` maps both through `hd.lines` and
-`name` to `file:line function`, and prints the panic's own site first.
+`wasm-function[i]:0xOFF` frames. `hd_run` maps both through `hd.lines`,
+`hd.sites` and `hd.names` (or `name` in debug) to `file:line function`,
+and prints the panic's own site first: for an explicit panic, the frame
+that called the stub.
 Release builds keep these sections, so release backtraces are symbolized,
 as the first-release feature list asks.
 
@@ -277,8 +369,8 @@ generated for that program, std included (§16.1). The tiny program
 | imports: `hd:Console` `write_line`, `hd:rt` stderr writer | 50 B |
 | function, memory (the exchange buffer), global, export sections | 80 B |
 | code: the entry wrapper, the copy loop to the exchange buffer, std's `println` and its panic on a closed pipe | 300 B |
-| data: `hello` | 10 B |
-| `name`, `hd.sites`, `hd.lines`, `hd.runtime` | 300 B |
+| data: `hello`, copied to the exchange buffer by `memory.init` (the host fast path of §15.4: no pool, no string array) | 10 B |
+| `hd.names`, `hd.sites`, `hd.lines`, `hd.runtime` | 300 B |
 | total | about 800 B (an estimate, not an accounting) |
 
 **Status: not established.** The table guesses part sizes; it is not a
@@ -292,8 +384,8 @@ that spike measures it.
 
 What keeps it small:
 
-- reachability and folding; no unused type; no lazy-literal code for short
-  literals;
+- reachability and folding; no unused type; no literal pool when every
+  literal goes straight to the host;
 - compact LEBs in release (§13.10);
 - the string copy loop is one shared helper per program;
 - short export names (`hd.init`, `hd.poll`, `hd.wake`, `hd.x`).
@@ -309,7 +401,8 @@ process may miss 5 ms. How the metric counts it is inconsistency 7
 
 - **`wasm-encoder`** builds each body. A wrapper around its instruction
   sink records a relocation wherever it writes a function, type, global,
-  data or site index, and writes that index as a 5-byte padded LEB.
+  or data index, and writes that index as a 5-byte padded LEB. There is
+  no site index (§15.5).
 - **Link** assembles the module with `wasm_encoder::Module`, writes code
   bodies with `CodeSection::raw` after patching, and appends the custom
   sections.
@@ -324,7 +417,18 @@ process may miss 5 ms. How the metric counts it is inconsistency 7
 Reproducible builds are parked as a metric, but the cache needs
 deterministic bytes anyway: equal keys must mean equal entries (verify
 mode, §5.6). Every order in §13.10 and §15.3 is content-based: instance
-keys, canonical descriptors, first reference in function order. No hash
-map's iteration order reaches the output. Locals in a body are numbered
-in TIR order; sites, closures and temporaries per body (§6.5). Wasm bytes
-join the determinism matrix (§21.1).
+keys, canonical descriptors, content keys of constant globals, and
+literal pool slots by literal content. No hash map's iteration order
+reaches the output. Locals in a body are numbered in TIR order; closures
+and temporaries per body (§6.5). Wasm bytes join the determinism matrix
+(§21.1).
+
+Deterministic is not the same as stable. A content order still shifts
+when an item is inserted before others, and a body that holds a shifted
+index misses wasmtime's per-function cache. So bodies hold no dense
+number except a call target: lazily initialized globals sit behind
+getters, panic sites are code offsets, and key ids and type ids are
+content hashes (§15.4, §15.5,
+[lowering-catalog.md](lowering-catalog.md#numbering)). Numbers kept from
+earlier builds would make the bytes depend on history, so they are not
+used.

@@ -45,8 +45,9 @@ data type and per syntax form, with its cost on both axes.
 9. **A compact `hd.names` section** replaces the standard `name` section
    in release builds (wasm-layout.md §15.5).
 10. **Constant strings:** one deduplicated passive data segment, a lazy
-    literal pool behind getters, a host fast path that passes a segment
-    offset, and `array.new_fixed` only for literals of at most 4 bytes
+    literal pool behind getters, a host fast path that copies a literal
+    from the segment into the exchange buffer with `memory.init`, and
+    `array.new_fixed` only for literals of at most 4 bytes
     (default, decided by E10).
 11. **Std collections over plain element storage:** `Heap` over
     `List[T]`, `Deque` over `Array[T]` with a count, `Set` over
@@ -707,9 +708,11 @@ JavaScript's deterministic `Map`:
   16 bytes per literal for its getter, about 3 bytes per use in release,
   and one shared fill helper (about 79 bytes). As `array.new_fixed`, a
   16-byte literal is 65 bytes of code.
-- **Host fast path:** `println` of a literal passes the segment offset and
-  length to the import, and the host copies from the segment's bytes. No
-  array is built, and hello world needs no pool.
+- **Host fast path:** `println` of a literal calls a per-literal span
+  function that copies the bytes from segment 0 into the exchange buffer
+  with `memory.init` and returns the length; the import then reads the
+  buffer as usual. No array is built, the offset stays inside the span
+  function, and hello world needs no pool.
 - **List and map literals** build fresh values each evaluation, since
   lists and maps are mutable: `array.new_fixed` for a short list,
   `array.new_data` for a long constant scalar list.
