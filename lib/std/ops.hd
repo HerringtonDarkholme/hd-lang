@@ -23,21 +23,35 @@ use std.format.DebugWriter
 # hold every shape constraint, and `Q` takes any requirement row
 # (r-expr.literal-fn.row).
 @annotate::[F](.Fn)
+## The marker a suffix function carries, written `@num_suffix`.
+## See [expr.literal-fn.marker](../../spec/lang/05-expressions.md#r-expr.literal-fn.marker).
 pub data NumSuffix[F]: pass
 
+## Returns the `@num_suffix` marker for a suffix function of that signature.
+## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
 pub fn num_suffix[N < Num, R, $Q]() -> NumSuffix[fn(N) -> R $ Q]:
     NumSuffix::[fn(N) -> R $ Q] {}
 
 @annotate::[F](.Fn)
+## The marker a prefix function carries, written `@str_prefix`.
+## See [expr.literal-fn.marker](../../spec/lang/05-expressions.md#r-expr.literal-fn.marker).
 pub data StrPrefix[F]: pass
 
+## Returns the `@str_prefix` marker for a prefix function of that signature.
+## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
 pub fn str_prefix[T, R, $Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
     StrPrefix::[fn(Template[T]) -> R $ Q] {}
 
 # The argument of a prefix function: the `n + 1` raw text pieces around the
 # `n` interpolated values (r-expr.prefix.template).
+## The pieces of a string prefix's literal: the raw parts and the values between them, which the compiler recognizes by its qualified name.
+## See [expr.literal-fn.marker](../../spec/lang/05-expressions.md#r-expr.literal-fn.marker).
 pub data Template[T]:
+    ## The literal's raw text pieces, in order.
+    ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
     pub raw_parts: List[string]
+    ## The interpolated values between the raw parts, in order.
+    ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
     pub values: List[T]
 
 # The derived builder calls, written by hand because `@derive` does not
@@ -57,70 +71,102 @@ impl[T < Debug] Debug for Template[T]:
 # The operator traits (spec/lang/05-expressions.md#operator-traits). An operator
 # on a primitive operand never searches them; any other operand calls the
 # left operand's implementation (r-expr.op.desugar).
+## The trait of the `+` operator: `a + b` is the call `Add::add(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Add[Rhs = Self]:
     type Out
     fn add(self, rhs: Rhs) -> Self::Out
 
+## The trait of the binary `-` operator: `a - b` is the call `Sub::sub(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Sub[Rhs = Self]:
     type Out
     fn sub(self, rhs: Rhs) -> Self::Out
 
+## The trait of the `*` operator: `a * b` is the call `Mul::mul(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Mul[Rhs = Self]:
     type Out
     fn mul(self, rhs: Rhs) -> Self::Out
 
+## The trait of the `/` operator: `a / b` is the call `Div::div(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Div[Rhs = Self]:
     type Out
     fn div(self, rhs: Rhs) -> Self::Out
 
+## The trait of the `%` operator: `a % b` is the call `Rem::rem(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Rem[Rhs = Self]:
     type Out
     fn rem(self, rhs: Rhs) -> Self::Out
 
+## The trait of the unary `-` operator: `-a` is the call `Neg::neg(a)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Neg:
     type Out
     fn neg(self) -> Self::Out
 
+## The trait of the `&` operator: `a & b` is the call `BitAnd::bitand(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait BitAnd[Rhs = Self]:
     type Out
     fn bit_and(self, rhs: Rhs) -> Self::Out
 
+## The trait of the `|` operator: `a | b` is the call `BitOr::bitor(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait BitOr[Rhs = Self]:
     type Out
     fn bit_or(self, rhs: Rhs) -> Self::Out
 
+## The trait of the `^` operator: `a ^ b` is the call `BitXor::bitxor(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait BitXor[Rhs = Self]:
     type Out
     fn bit_xor(self, rhs: Rhs) -> Self::Out
 
+## The trait of the `!` operator: `!a` is the call `Not::not(a)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Not:
     type Out
     fn not(self) -> Self::Out
 
+## The trait of the `<<` operator: `a << b` is the call `Shl::shl(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Shl[Rhs = Self]:
     type Out
     fn shl(self, rhs: Rhs) -> Self::Out
 
+## The trait of the `>>` operator: `a >> b` is the call `Shr::shr(a, b)`.
+## See [expr.op.trait.std](../../spec/lang/05-expressions.md#r-expr.op.trait.std).
 pub trait Shr[Rhs = Self]:
     type Out
     fn shr(self, rhs: Rhs) -> Self::Out
 
 # `r[k]` and `r[k] = v` on a type other than `List`, `Map`, and `string`
 # (spec/lang/05-expressions.md#index-traits).
+## The trait of reading `r[k]`: for a receiver that is not a list, map, or string, it is the call `Index::[K]::index(r, k)`.
+## See [expr.index.trait.std](../../spec/lang/05-expressions.md#r-expr.index.trait.std).
 pub trait Index[K]:
     type Out
     fn index(self, key: K) -> Self::Out
 
+## The trait of assigning `r[k] = v`: it is the call `IndexSet::[K, V]::index_set(r, k, v)`.
+## See [expr.index.trait.std](../../spec/lang/05-expressions.md#r-expr.index.trait.std).
 pub trait IndexSet[K, V]:
     fn index_set(mut self, key: K, value: V) -> void
 
 # `v()` and `v() = x` on a value that is not a function: a callable value
 # reads through `Apply` and, when it also implements `Update`, stores
 # through it (spec/lang/05-expressions.md#callable-values). Neither takes a key.
+## The trait of calling a value: `v()` is the call `Apply::apply(v)`.
+## See [expr.call.apply.std](../../spec/lang/05-expressions.md#r-expr.call.apply.std).
 pub trait Apply:
     type Out
     fn apply(self) -> Self::Out
 
+## The trait of assigning to a call: `v() = x` is the call `Update::[V]::update(v, x)`.
+## See [expr.call.apply.std](../../spec/lang/05-expressions.md#r-expr.call.apply.std).
 pub trait Update[V]:
     fn update(mut self, value: V) -> void
 
@@ -153,18 +199,38 @@ impl Index[usize] for string:
 # names (r-expr.range.not-prelude). `a..b` and `a..=b` are both a `Range`,
 # and `..b` and `..=b` both a `RangeTo`; `inclusive` tells them apart
 # (r-expr.range.inclusive-field).
+## The range `a..b` or `a..=b`: a lower and an upper bound.
+## See [expr.range.declared.four](../../spec/lang/05-expressions.md#r-expr.range.declared.four).
 pub data Range[T]:
+    ## The range's lower bound.
+    ## See [expr.range.value.fields](../../spec/lang/05-expressions.md#r-expr.range.value.fields).
     pub start: T
+    ## The range's upper bound.
+    ## See [expr.range.value.fields](../../spec/lang/05-expressions.md#r-expr.range.value.fields).
     pub end: T
+    ## True for the `..=` form, false for the `..` form.
+    ## See [expr.range.inclusive-field](../../spec/lang/05-expressions.md#r-expr.range.inclusive-field).
     pub inclusive: bool
 
+## The range `a..`: a lower bound and no end.
+## See [expr.range.declared.four](../../spec/lang/05-expressions.md#r-expr.range.declared.four).
 pub data RangeFrom[T]:
+    ## The range's lower bound.
+    ## See [expr.range.value.fields](../../spec/lang/05-expressions.md#r-expr.range.value.fields).
     pub start: T
 
+## The range `..b` or `..=b`: an upper bound and no start.
+## See [expr.range.declared.four](../../spec/lang/05-expressions.md#r-expr.range.declared.four).
 pub data RangeTo[T]:
+    ## The range's upper bound.
+    ## See [expr.range.value.fields](../../spec/lang/05-expressions.md#r-expr.range.value.fields).
     pub end: T
+    ## True for the `..=` form, false for the `..` form.
+    ## See [expr.range.inclusive-field](../../spec/lang/05-expressions.md#r-expr.range.inclusive-field).
     pub inclusive: bool
 
+## The range `..`: the whole extent.
+## See [expr.range.declared.four](../../spec/lang/05-expressions.md#r-expr.range.declared.four).
 pub data RangeFull: pass
 
 # The derived builder calls, written by hand because `@derive` does not
@@ -779,6 +845,8 @@ impl Add[string] for string:
 
 # `Default`: a type's default value (spec/std/ops.md#default-trait). It is
 # not a prelude name; code imports it as `use std.ops.Default`.
+## A type's default value, which `T::default()` returns.
+## See [std-ops.default.trait](../../spec/std/ops.md#r-std-ops.default.trait).
 pub trait Default:
     fn default() -> Self
 
@@ -860,8 +928,12 @@ impl[T] Default for T by Structure:
 # (r-std-ops.default.derive.marker): `@default` on a variant attaches
 # `default()`.
 @annotate(.Variant)
+## The `@default` variant marker's fact type: `@default` on a variant attaches `default()`.
+## See [std-ops.default.derive.marker](../../spec/std/ops.md#r-std-ops.default.derive.marker).
 pub data DefaultVariant: pass
 
+## The marker function of `@default`: it attaches a `DefaultVariant` fact to the variant.
+## See [std-ops.default.derive.marker](../../spec/std/ops.md#r-std-ops.default.derive.marker).
 pub fn default() -> DefaultVariant:
     DefaultVariant {}
 
