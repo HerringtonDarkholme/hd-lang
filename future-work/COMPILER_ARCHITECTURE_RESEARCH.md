@@ -4,6 +4,8 @@ Status: Research, not decided. Both parts are done: Part 1, the front half,
 and Part 2, the back half, 2026-10-06. Q4b, on pre-parsing, was added the
 same day as a revisit of the front half.
 
+Known issues of prior implementations: [COMPILER_PRIOR_ART_ISSUES.md](COMPILER_PRIOR_ART_ISSUES.md)
+
 This document surveys prior art for the front half of the new compiler:
 the implementation language, the incremental model, parallel checking, the
 parser and CST, the checker's structure, the program-database hook, and a
