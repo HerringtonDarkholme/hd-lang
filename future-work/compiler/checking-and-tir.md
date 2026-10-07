@@ -425,8 +425,10 @@ D1's "readonly view" kind is `Weaken`, since the spec's marked form is
 A **callee record** is one of `Item(DefId, type arguments)`,
 and `TraitMethod(trait, method, self type, type arguments, choice)`.
 The `Evidence` record for a GADT existential's stored evidence is
-retired with GADTs (S1e). The **choice** is one word, a 2-bit kind and a 30-bit
-value:
+retired with GADTs (S1e). The **choice** is two words: a kind, and a
+full 32-bit value. An earlier draft packed both into one word with a
+30-bit value, which cannot hold a `DefId` interned by owner thread 32
+or above (Codex re-review N-I3; data-structures.md §3.3):
 
 | Choice | Value | Meaning |
 | --- | --- | --- |
@@ -484,7 +486,7 @@ it (§14.2).
 | --- | --- | --- |
 | `NewData` | b: `[field values]` in declaration order | the data type in `ty` |
 | `CopyData` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals and part copies; every part not replaced is copied too ([`data.part.copy-update`](../../spec/lang/08-data-and-enums.md#r-data.part.copy-update)) |
-| `NewVariant` | a: variant `DefId`, b: `[payload values, evidence choices]` | the enum type in `ty`; one `Evidence` value per bound of each existential parameter, at the construction's types, encoded as a choice word |
+| `NewVariant` | a: variant `DefId`, b: `[payload values]` | the enum type in `ty`. The evidence choices for existential parameters are retired with GADTs (S1e) |
 | `NewTuple` | b: `[elements]` | the tuple type |
 | `NewList` | b: `[elements, spread bits]` | `List[T]` |
 | `NewMap` | b: `[key, value pairs]` | `Map[K, V]` |

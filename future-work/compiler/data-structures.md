@@ -269,6 +269,13 @@ struct Local<C> { cols: C /* AppendVecs */, len: AtomicU32 }
    count is `min(cores, 8)` by default
    ([open-questions.md](open-questions.md)); over-capacity is an internal
    error, not a user limit.
+   **Every packed record holds a full ID (Codex re-review N-I3).** An ID
+   uses 31 bits, so no record may pack a tag into those bits: a head key
+   is a `u8` kind plus a `u32` payload, and a TIR callee choice is a kind
+   word plus a value word. A `const` assertion per packed type checks
+   that its payload field is 32 bits wide, and the determinism matrix's
+   ID shift (§8.1) also runs with every ID interned by owner 63, so a
+   legal thread count never depends on which thread interned first.
 5. **Pre-seeding.** Keywords, prelude names, primitive types, `Poison`,
    the empty list, the empty row and common `Option[prim]` types are
    built at compile time into `static` columns of owner 0, so a fresh
@@ -847,16 +854,36 @@ interner costs nothing but its header.
   slot in the open block's list (`reserve`) and the checker fills it
   later (`fill`). A slot can hold an instruction, a coercion of an arm's
   tail, or a callee record of a stalled method call. Every slot is filled
-  before `finish`, and the verifier rejects an empty one. Slots live on
-  the scratch stack, so rollback truncates them like everything else.
+  before `finish`, and the verifier rejects an empty one.
+- **A slot is an instruction, not a scratch word (Codex re-review
+  N-I1).** An arm's tail coercion is filled at the join, after the arm's
+  block has closed and its scratch range was flushed into `extra` and
+  truncated. So `reserve` appends a real instruction with tag `Slot` to
+  the `insts` columns and pushes its `Inst` into the open block's list
+  like any other instruction. The slot's identity is that `Inst`, which
+  lives as long as the body. `fill` writes the slot's fixed-size operand
+  words once, so it is one of the writes after the fact above:
+  - one instruction: the slot becomes that instruction's tag and
+    operands, or a `Coerce` of the value it names;
+  - several instructions, such as a postponed argument with its own
+    calls: they are appended to `insts` as usual, their list goes to
+    `extra`, and the slot becomes `Splice { list }`. Emission and the
+    verifier read a `Splice` as its instructions in place, with no
+    scope of its own.
+  A slot reserved after a checkpoint is truncated with `insts`. A slot
+  reserved before a checkpoint and filled during a trial is recorded in
+  the `fills` log, whose length is in the checkpoint; rollback empties
+  each logged slot again. So a failed trial never leaves its callee or
+  coercion in an older slot.
 
 ```rust
 #[derive(Copy, Clone)]
 pub struct TirCheckpoint {          // the builder's part; the checker adds its own (type-checking.md §3.5)
     insts: u32, extra: u32, scratch: u32, locals: u32, captures: u32,
     subs: u32, labels: u32, side_susp: u32, side_origin: u32, side_hole: u32, local_pool: u32,
+    fills: u32,                     // length of the log of pre-checkpoint slots filled since
 }
-const _: () = assert!(core::mem::size_of::<TirCheckpoint>() == 44);
+const _: () = assert!(core::mem::size_of::<TirCheckpoint>() == 48);
 ```
 
 #### 3.9.6 One Schema, Generated Accessors
@@ -1484,12 +1511,12 @@ the folder interface is frozen or opened:
 ```rust
 pub struct ImplTable {                   // per module; rows sorted by (trait path hash, head key, source order)
     pub trait_:   Col<DefId>,            // 4 B; NONE for inherent impls
-    pub head_key: Col<HeadKey>,          // 4 B; packed: kind in bits 29..31
+    pub head_key: Col<HeadKey>,          // 8 B: kind u8, payload u32 (padded)
     pub rec:      Col<u32>,              // 4 B; the blob's impls row
     pub generic:  BitBox,                // 1 bit: the head has type parameters
     pub by_trait: HashTable<u32>,        // index: trait DefId -> first row; rows of one trait are contiguous
 }
-#[repr(transparent)] pub struct HeadKey(u32);   // Ctor(DefId) | Prim(Prim) | Tuple(arity) | TupleAny | Fn | Param
+pub struct HeadKey { kind: u8, payload: u32 }   // Ctor(DefId) | Prim(Prim) | Tuple(arity) | TupleAny | Fn | Param
 pub struct LocalImpls { /* the same columns, for a body-visible local impl table of one module (§4.12.1) */ }
 ```
 
@@ -1497,9 +1524,10 @@ pub struct LocalImpls { /* the same columns, for a body-visible local impl table
   content, so the row order and therefore candidate order are the same
   on every run, and the solver returns candidates in content order
   (type-checking.md §12).
-- Head keys pack the kind into the top 3 bits and a `DefId`, `Prim` or
-  arity into the low 29. A `DefId` above 2^29 is an internal error; the
-  path table's per-owner capacity keeps it far below.
+- A head key is a kind byte plus a full `u32` payload: a `DefId`,
+  `Prim` or arity. An earlier draft packed the kind into the top 3 bits,
+  which cannot hold a `DefId` from owner thread 16 or above (Codex
+  re-review N-I3). The column costs 4 more bytes per impl row.
 - **Tuple templates and numeric families are rows.** A tuple template
   has head key `TupleAny` and a numeric family head key `Param`
   ([trait-solver.md §3.9](trait-solver.md#39-compiler-supplied-impls)).
