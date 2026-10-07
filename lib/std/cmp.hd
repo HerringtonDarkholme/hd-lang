@@ -6,11 +6,15 @@ use std.num.{Num, Integer}
 use std.structure.{Structure, Walker, Variant, Field}
 use std.format.DebugWriter
 
+## How two values order: `Less`, `Equal`, or `Greater`.
+## See [trait.cmp.ordering](../../spec/lang/09-traits.md#r-trait.cmp.ordering).
 pub enum Ordering:
     Less
     Equal
     Greater
 
+## The one equality trait: `==` and `!=` invoke its `eq`, which must be reflexive.
+## See [trait.cmp.equality](../../spec/lang/09-traits.md#r-trait.cmp.equality).
 pub trait Eq:
     fn eq(self, other: Self) -> bool
 
@@ -32,13 +36,19 @@ impl Eq for Ordering:
                     _ => false
 
 # `.None` means unordered.
+## Partial ordering: `partial_cmp` answers `.None` when the two values are unordered, as NaN is.
+## See [trait.cmp.partial-ordering](../../spec/lang/09-traits.md#r-trait.cmp.partial-ordering).
 pub trait PartialOrd < Eq:
     fn partial_cmp(self, other: Self) -> Ordering?
 
+## Total ordering: `cmp` always answers, and agrees with the type's `PartialOrd`.
+## See [trait.cmp.total-ordering](../../spec/lang/09-traits.md#r-trait.cmp.total-ordering).
 pub trait Ord < PartialOrd:
     fn cmp(self, other: Self) -> Ordering
 
 # The smaller of two values; `a` when they are equal (r-std-cmp.min-max.tie).
+## The smaller of the two; the second on a tie.
+## See [std-cmp.min-max.decl](../../spec/std/cmp.md#r-std-cmp.min-max.decl).
 pub fn min[T < Ord](a: T, b: T) -> T:
     match b.cmp(a):
         .Less => b
@@ -46,12 +56,16 @@ pub fn min[T < Ord](a: T, b: T) -> T:
 
 # The larger of two values; `a` when they are equal, so `min` and `max`
 # both give the first of equal values, as Python's do.
+## The larger of the two; the second on a tie.
+## See [std-cmp.min-max.decl](../../spec/std/cmp.md#r-std-cmp.min-max.decl).
 pub fn max[T < Ord](a: T, b: T) -> T:
     match b.cmp(a):
         .Greater => b
         _ => a
 
 # `value` limited to `low..=high`; panics when `low > high`.
+## `value` held between `low` and `high`.
+## See [std-cmp.clamp.decl](../../spec/std/cmp.md#r-std-cmp.clamp.decl).
 pub fn clamp[T < Ord](value: T, low: T, high: T) -> T:
     match high.cmp(low):
         .Less => panic("clamp: low must not exceed high")
@@ -64,7 +78,11 @@ pub fn clamp[T < Ord](value: T, low: T, high: T) -> T:
         _ => value
 
 # Orders values in reverse.
+## A wrapper whose order is the wrapped value's order reversed.
+## See [std-cmp.reverse.decl](../../spec/std/cmp.md#r-std-cmp.reverse.decl).
 pub data Reverse[T]:
+    ## The wrapped value.
+    ## See [std-cmp.reverse.decl](../../spec/std/cmp.md#r-std-cmp.reverse.decl).
     pub value: T
 
 impl[T < Ord] Eq for Reverse[T]:
