@@ -146,6 +146,59 @@ fn renamed_uses_resolve_in_bodies() {
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
 }
 
+/// Module initialization (spec/lang/10-modules.md): top-level bindings are
+/// visible to function bodies; a statement whose transitive read set
+/// holds a later binding is `top-level-read-before-initialization`; a
+/// non-entry module's top level is requirement-free.
+#[test]
+fn top_level_statements_are_checked_in_order() {
+    let ok = program(
+        "limit := +10\n\nfn below(n: i32) -> bool:\n    n < limit\n\nfn main() -> void $ Console:\n    println(below(3))\n",
+    );
+    assert!(
+        !codes(&ok).iter().any(|c| matches!(
+            c,
+            Code::TopLevelReadBeforeInitialization | Code::UnknownName | Code::TypeMismatch
+        )),
+        "{}",
+        ok.render()
+    );
+    let late = program(
+        "first := apply(first_name)\nlet names: List[string] = [\"Ada\"]\n\nfn apply(callback: fn() -> string) -> string:\n    callback()\n\nfn first_name() -> string:\n    names[0]\n\nfn main() -> void $ Console:\n    println(first)\n",
+    );
+    assert!(
+        codes(&late).contains(&Code::TopLevelReadBeforeInitialization),
+        "{}",
+        late.render()
+    );
+    let mut src = MemorySources::default();
+    src.insert("lib.hd", "println(1)\n\npub fn one() -> i32:\n    1\n");
+    src.insert(
+        "main.hd",
+        "use pkg.lib.{one}\n\nfn main() -> void $ Console:\n    println(one())\n",
+    );
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build(
+        &host,
+        "app",
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    assert!(
+        codes(&out).contains(&Code::MissingRequirement),
+        "{}",
+        out.render()
+    );
+}
+
 fn codes(out: &Output) -> Vec<Code> {
     out.diags.code.clone()
 }

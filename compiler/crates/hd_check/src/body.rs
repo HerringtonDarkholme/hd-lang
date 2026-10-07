@@ -37,6 +37,8 @@ pub struct BodyCx<'a> {
     pub solver: &'a dyn Solver,
     /// The methods of the closure by name, built on first use.
     pub methods: std::cell::OnceCell<crate::MethodIndex>,
+    /// The module's top-level bindings and its bodies' init facts.
+    pub init: std::cell::RefCell<crate::init::ModuleInit>,
 }
 
 pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
@@ -84,6 +86,12 @@ pub(crate) struct Ck<'a, 'c> {
     pub defer_base: Option<usize>,
     /// The node of each literal constant, for range diagnostics.
     pub lit_nodes: Vec<(Ref, hd_base::NodeIdx)>,
+    /// Checking a module's top-level statements: the module path.
+    pub module_init: Option<String>,
+    /// The top-level statement being checked.
+    pub init_stmt: usize,
+    /// What this body reads and calls (module initialization).
+    pub facts: crate::init::InitFacts,
 }
 
 /// A node index kept for a later diagnostic.
@@ -91,7 +99,7 @@ pub(crate) type NodeRefIdx = hd_base::NodeIdx;
 
 /// The checker of one body: the item whose parameters and bounds are in
 /// scope (`env`), the TIR item and kind, its result and row.
-fn new_ck<'a, 'c>(
+pub(crate) fn new_ck<'a, 'c>(
     cx: &'c BodyCx<'a>,
     env: DefId,
     item: DefId,
@@ -121,6 +129,9 @@ fn new_ck<'a, 'c>(
         suspends: vec![false],
         defer_base: None,
         lit_nodes: Vec::new(),
+        module_init: None,
+        init_stmt: 0,
+        facts: crate::init::InitFacts::default(),
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;
@@ -826,6 +837,20 @@ impl Ck<'_, '_> {
         match lhs.kind() {
             SyntaxKind::NameExpr => {
                 let name = self.sym_of(*lhs);
+                let global = self.cx.init.borrow().globals.get(&name).copied();
+                if self.find_local(name).is_none()
+                    && let Some(g) = global
+                {
+                    // A mutable top-level binding (`GlobalSet`).
+                    if compound.is_some() {
+                        return unsupported("compound assignment to a top-level binding");
+                    }
+                    let (r, t) = self.expr(*rhs, Some(g.ty))?;
+                    let v = self.coerce(r, t, g.ty, *rhs, "assignment");
+                    let a = self.b.refs_record(&[Ref(g.def.raw())]);
+                    self.b.emit(Tag::GlobalSet, a, v.0, Ty::VOID, s.index());
+                    return Ok(());
+                }
                 let Some((l, depth)) = self.find_local(name) else {
                     let msg = format!("unknown-name `{}`", self.cx.names.text(name));
                     self.err(Code::UnknownName, *lhs, &msg);
@@ -1016,7 +1041,16 @@ impl Ck<'_, '_> {
         self.pool().list(&items)
     }
 
+    pub(crate) fn finish_body(self, root: Ref) -> StageResult<Body> {
+        self.finish(root)
+    }
+
     fn finish(mut self, root: Ref) -> StageResult<Body> {
+        if self.module_init.is_none() {
+            let item = self.b.body_mut().item;
+            let facts = std::mem::take(&mut self.facts);
+            self.cx.init.borrow_mut().facts.insert(item, facts);
+        }
         let pool = self.cx.names.pool;
         // Literal defaults first, so `x := +0` then `x = y` resolves both.
         let n = self.b.body_mut().ty.len();

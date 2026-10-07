@@ -8,6 +8,7 @@
 pub mod body;
 mod call;
 mod expr;
+pub mod init;
 mod pat;
 mod render;
 pub mod stages;

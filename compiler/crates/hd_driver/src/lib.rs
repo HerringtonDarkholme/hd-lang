@@ -1102,10 +1102,41 @@ impl Run<'_> {
             global: &self.memo,
             solver: &solver,
             methods: std::cell::OnceCell::new(),
+            init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
         };
         let mut diags = DiagBuf::default();
         let mut bodies = Vec::new();
         let mut failed = None;
+        // Top-level statements first: their bindings are visible to every
+        // function body of the module (checking-and-tir.md §4.13.10).
+        let stmts = hd_check::init::init_statements(src.root());
+        let mut init_facts = Vec::new();
+        if !stmts.is_empty() {
+            let entry_name = match &self.goal {
+                Goal::Program { entry } => entry.as_str(),
+                Goal::Analyze => "main",
+            };
+            let entry =
+                module.package == 0 && module.path == format!("{}.{entry_name}", self.package);
+            let item = hd_check::default_body_def(&names, names.item(&module.path, "init"), "init");
+            match hd_check::init::check_init(&cx, item, &module.path, &stmts, entry, &mut diags) {
+                Ok((b, facts)) => {
+                    lock(&self.report).body_ok += 1;
+                    init_facts = facts;
+                    bodies.push(b);
+                }
+                Err(e) => {
+                    let mut r = lock(&self.report);
+                    r.body_failed += 1;
+                    let short: String = e.what.chars().take(90).collect();
+                    *r.body_reasons.entry(short).or_default() += 1;
+                    r.body_failures
+                        .push(format!("{} init: {}", module.path, e.what));
+                    drop(r);
+                    failed.get_or_insert(e);
+                }
+            }
+        }
         for (def, node) in hd_resolve::body_nodes(&names, &src, &heads) {
             // A body-less method of a built-in family (`impl[N < Num] Add
             // for N`) is the compiler's: there is no source to check.
@@ -1195,6 +1226,9 @@ impl Run<'_> {
                     failed.get_or_insert(err);
                 }
             }
+        }
+        if !init_facts.is_empty() {
+            hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
         if let Some(e) = failed {
             self.stage::<()>(Stage::Body, Err(e));

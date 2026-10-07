@@ -153,6 +153,9 @@ impl Ck<'_, '_> {
         if let Some((l, d)) = self.find_local(s) {
             return Ok(self.read_local(l, d, n));
         }
+        if let Some(v) = self.global_get(s, n) {
+            return Ok(v);
+        }
         let text = self.cx.names.text(s).to_owned();
         if let Some(Named::Item(def)) = self.scope_name(&text)
             && let Some(item) = self.cx.lookup.item(def)
@@ -214,6 +217,7 @@ impl Ck<'_, '_> {
         explicit: &[Ty],
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
+        self.note_call(def);
         let pool = self.cx.names.pool;
         let vars = self.fresh_generics(sig, explicit, 0);
         let inst = |t: Ty| subst_owner(pool, def, &vars, t);
@@ -561,6 +565,7 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported("a call of an item outside the closure");
         };
+        self.note_call(def);
         let name = self.cx.names.text(item.name).to_owned();
         match &item.data {
             ItemData::Fn(sig) => {
