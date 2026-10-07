@@ -14,6 +14,15 @@ lazily initialized globals (§12.3, owner, 2026-10-07); `Result` uses `multi` la
 bounded inlining and scalar replacement are first-release (§12.6);
 polymorphic recursion is an error (§13.4).
 
+**Lowering pass** (2026-10-07), from the two representation studies
+and the orchestrator's calls; the per-type and per-form costs are in
+[lowering-catalog.md](lowering-catalog.md): stable, type-only numbering
+(§12.4, §13.8, §13.10); erased storage A1 applied at collection (§13.2,
+§13.3); collection skips always-inlined callees (§13.2); closure
+specialization and known-vtable devirtualization (§12.6); a size versus
+speed policy with budgets and size guards (§12.8); merging by worklist
+(§13.7); per-program packs (§13.10).
+
 D2 designs monomorphization, suspension lowering, Wasm GC emission, link,
 the runtime, the host interface and the test runner. It consumes these
 interfaces from D1 and does not reach around them:
@@ -179,12 +188,14 @@ instance.
 | `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then bytes for strings; each arm once, in nested blocks that leaves branch to |
 | `Call` with an `Item` callee | `call`, relocated to the callee instance |
 | `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl that `select` picks at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
-| `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1) |
+| `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1). When the vtable is a known constant global after inlining, a direct `call` of the slot's function, which the inliner may then inline (§12.6) |
 | `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
 | `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |
-| `Interp` | lengths summed first, one string allocated, parts copied; each `Display` part writes into the builder through its resolved callee |
+| `Interp` | one builder sized by the literal parts' bytes; literal parts copied from their pooled literal; each `Display` part writes into the builder through its resolved callee; one exact-size string at the end |
+| a string literal | a `call` of the literal's getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less; a literal passed straight to a host call takes the host fast path (wasm-layout.md §15.4) |
+| an explicit panic, a failed check | a `call` of the category's stub with no site immediate; the call's code offset is the site (wasm-layout.md §15.5) |
 | `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
 | `ForRange`, `ForList`, `ForMap` | counted loops (§12.4) |
 | `Await*` | the state machine (§14) |
@@ -227,7 +238,10 @@ cancel function (§14.6).
   [`data.shared.eval-as-fact`](../../spec/lang/08-data-and-enums.md#r-data.shared.eval-as-fact)).
   Each read (`facts_of`, `T::facts()`, a member handle's `info.facts`, a
   shared-data access) is a getter: a mutable global plus an "initialized"
-  flag, filled by the body's instance on the first read. The getter runs
+  flag, filled by the body's instance on the first read. Readers `call`
+  the getter and never name the storage global, so a new fact elsewhere
+  changes no reader's bytes (§13.10); a body calls each getter once on a
+  dominating path and reuses the result. The getter runs
   the body inside the forbidden-context counter (suspension.md §14.9), and
   a panic in it is reported as `fact-evaluation-failed` with the original
   category. A fact that nothing reads is never collected, so it is never
@@ -262,8 +276,12 @@ Requirement rows never become type arguments
   key's trait (§15.2). A call passes the providers TIR names for it, so a
   provider costs one Wasm argument per key and no allocation.
 - **A row parameter** (`$R`) adds one **context** parameter (mine). A
-  context is an immutable linked list of `(key id, provider)` nodes. Key
-  ids are numbered at link time in the key order above. Looking up a key
+  context is an immutable linked list of `(key id, provider)` nodes. A
+  key id is the first 64 bits of `H(canon(K))`, an `i64` (lowering pass;
+  an earlier draft numbered keys densely at link, which changed every
+  context-using body when a key was added anywhere). Link checks the
+  program's key ids for collisions and, on one, rehashes every id with
+  the next fixed salt. Looking up a key
   walks the list and takes the first match, which is how an inner
   `$.with` shadows an outer one.
 - **Extension** (`$.with(Logger=...)` around a call that needs `R +
@@ -344,12 +362,15 @@ differ only where the spec or a first-release feature says so.
 | Rule | Debug | Release | Status |
 | --- | --- | --- | --- |
 | counted loops (§12.5) | yes | yes | first release |
-| `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values (§15.1); decision B, extended to `Result` (owner, 2026-10-07) | yes | yes | first release |
+| `multi` layouts: `Option`, `Result`, tuples and trait values as several Wasm values (§15.1); decision B, extended to `Result` (owner, 2026-10-07); one representation per type in every position, boxed over the bound (lowering pass) | yes | yes | first release |
 | capture-free closures as constants | yes | yes | first release |
 | constant folding and dead branches during the walk (a fact's value is a run-time read, §12.3) | yes | yes | first release |
+| constant hoisting: an enum or tuple box whose payloads are constants is an immutable global, so `.Err(ParseError.Empty)` never allocates | yes | yes | first release (lowering pass) |
 | trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | yes | yes | first release (mine) |
-| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters | yes | yes | first release (owner, 2026-10-07) |
-| scalar replacement: a non-escaping closure, cell or small data value after inlining becomes locals; an escape analysis in the analysis passes of §12.1, before emission | yes | yes | first release (owner, 2026-10-07) |
+| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters (budgets in §12.8) | yes | yes | first release (owner, 2026-10-07) |
+| scalar replacement: a non-escaping closure, cell, box or data value after inlining becomes locals, mutable data included (an `Iterator` whose identity no one observes); an escape analysis in the analysis passes of §12.1, before emission | yes | yes | first release (owner, 2026-10-07) |
+| known-vtable devirtualization: a `CallDyn` on a value whose vtable is a constant global becomes a direct call | yes | yes | first release (lowering pass) |
+| closure specialization: inline, scalar-replace, devirtualize, repeated (below) | yes | yes | first release (lowering pass) |
 | overflow checks | checked | wrap | spec |
 | hook points (§14.7) | dropped | dropped | emitted only by hook builds (Later) |
 | debug-only checks: closed handles, deadlock reports with frame lists (§14.8) | yes | no | first release |
@@ -358,6 +379,27 @@ Inlining walks the callee's generic TIR, mapped from its module's entry,
 under the composed substitution. The inlined items' TIR hashes join the
 instance's code key (§13.8). Escape facts and inlining decisions are
 emission state, never written into TIR.
+
+**Closure specialization (lowering pass).** An iterator adapter stores
+its closure in a field of a mutable `Iterator` struct, so inlining alone
+never reveals the `call_ref` target. The analysis passes of §12.1 run one
+round per stage of a chain:
+
+1. **Inline** the adapter call (`map`): its body builds a closure and an
+   `Iterator`.
+2. **Scalar-replace** the `Iterator`: it does not escape, so its `step`
+   field becomes a local holding a known closure literal.
+3. **Devirtualize:** a `call_ref` whose target is a known closure literal,
+   or a `CallDyn` on a known vtable, becomes a direct call of that body,
+   with the environment fields as locals.
+4. **Inline** that body, then scalar-replace its environment and cells.
+
+Rounds repeat to a fixed point, at most 4 by default, and stop at the
+caller's size cap (§12.8). Without a closure literal or a known vtable
+the indirect call stays. `xs.iter().map(fn x: x + 1).sum()` then becomes
+a counted loop with no allocation. The budget is local to the caller:
+callee size, the caller's size so far and nesting depth. A program-wide
+budget would make one function's bytes depend on others.
 
 ### 12.7 Emission-Time Checks
 
@@ -374,6 +416,78 @@ walk, emission asserts in the compiler's debug builds and in CI:
 A failure is an internal error naming the instance, with exit status 101,
 as a task panic is (§6.4). The linked module is then validated by
 `wasmparser` (§15.7).
+
+### 12.8 Size Versus Speed Policy
+
+Runtime performance has two axes, code speed and code size (owner,
+2026-10-07). Speed scales with allocations, indirect calls, casts and
+pointers per live object. Size scales with distinct instances, inlined
+copies and constant-building code, and it feeds download, instantiation,
+engine compile time, and the `size-startup-heap` and `dead-code` targets.
+This policy comes from the runtime study's section 9
+([representation-runtime.md](representation-runtime.md#9-size-versus-speed)).
+
+**Policy.**
+
+1. **Layouts are the same in debug and release.** A layout is part of
+   every instance's code; two layouts would double the cache and break
+   `release-check-cost` comparisons.
+2. **Speed where it is hot, size everywhere else.** Specialize and inline
+   inside loops and for closure literals; everything else is a shared,
+   folded call.
+3. **Fold always.** Folding costs no speed, and A1 makes it work for
+   reference element types.
+4. **Budgets are per function**, local to the caller, so one hot spot
+   cannot blow up a module and one function's bytes never depend on
+   another's (§12.6).
+5. **Debug and release run the same optimizer** with the same budgets.
+   Only checks differ, so `release-check-cost` (debug at most 1.3x
+   release) holds. Debug uses Cranelift `Speed` by default
+   (engines-and-test-runner.md §18.6).
+
+**Budgets.** Defaults, decided by the experiments named:
+
+| Feature | Speed it buys | Size it costs | Budget |
+| --- | --- | --- | --- |
+| trivial inlining | a call per small callee | none or negative | callee at most 8 TIR instructions, no loop |
+| bounded inlining | a call, plus later folding | callee size per site | callee at most 40 TIR instructions inside a loop, 15 outside; the caller grows at most 2x or 2 KB, whichever is smaller; an absolute caller cap set by S6 below the size where Cranelift's time per byte doubles |
+| closure specialization | 1 to 5 `call_ref`s per element on wasmtime | 50 to 150 bytes per stage | at most 4 rounds; at most 512 bytes of growth per chain site |
+| known-vtable devirtualization | one `call_ref` | none; enables inlining | always |
+| scalar replacement | an allocation | usually smaller | always, when the value does not escape |
+| A1, erased reference storage | a cast per element read lost | negative: one instance per class | always, unless E1 rejects it |
+| parallel arrays for value-layout elements | an allocation per element | about 25 bytes per slot per list method | up to the bound (E2) |
+| literal pool | none | negative above about 5 bytes per literal | always above the `array.new_fixed` threshold (E10) |
+| erased-ABI thunks | the owner accepted a slow `dyn` | about 25 bytes each | warn past 200 per method |
+
+E8 keeps these budgets unless the next level up buys 5 percent speed on
+the runtime suite for under 10 percent size on the `dead-code` packages;
+a budget that buys less than 5 percent speed for more than 10 percent
+size is cut. "Size" there means Wasm bytes, Cranelift compile time at
+both levels, V8 Liftoff and TurboFan compile time, and instantiation
+time.
+
+**Size guards.**
+
+- The inliner's budgets above, including the caller cap.
+- A thunk count per `dyn` generic method, with a warning past 200 for one
+  method. If the guard fires in std or the examples, outlining a whole
+  basic block of open instructions per thunk (§13.5.1, "Later") is the
+  first fix.
+- **`hd build --size-report`** prints bytes per section (code, types,
+  `hd.names`, `hd.sites`, `hd.lines`, data), the largest functions with
+  their instance counts, folded bytes, thunk counts per method, and code
+  bytes per source module. It reads the linked module and its custom
+  sections, so it costs nothing in a normal build.
+
+**What the policy buys** (estimates; spike 0c and the slices measure):
+
+| Target | Without these rules | With them |
+| --- | --- | --- |
+| `runtime` (geomean at most 1.5x Node, no case over 3x) | `map` above 3x on wasmtime from the hash protocol; chains slow from `call_ref` | `map` near 2x on wasmtime; chains near 1x; the heap pathology removed |
+| `allocations` (0 per counted loop, at most 1 per chain) | 3 to 5 per map lookup | 0 for both |
+| `size-startup-heap` (tiny at most 2 KB) | short literals at 3 bytes per byte | the pool; hello world needs none |
+| `dead-code` | list code per reference type | folded by A1; the target itself is open question 2 of [lowering-catalog.md](lowering-catalog.md#2-rebasing-the-dead-code-target) |
+| `long-run-memory` | slices that pin sources (S2); heap growth pathology | S1 never pins; the heap is sized |
 
 ## 13. Monomorphization And Merging
 
@@ -419,7 +533,14 @@ A worklist walk, as rustc's collector does:
    column for calls, closures, coercions and host calls, substituting the
    instance's type arguments into each one's types.
 3. For each `Item` callee, push the callee with the substituted
-   arguments.
+   arguments. **A callee that is always inlined is not pushed** (lowering
+   pass): when its `inline_summary` says it passes the trivial-inlining
+   test (§13.8), which reads only its own TIR, every caller inlines it, so
+   collection scans its body in place under the composed substitution and
+   pushes its callees instead. It is still pushed when it is used as a
+   value (a function reference, an adapter) or fills a vtable slot. This
+   removes 15 to 25 percent of emitted instances, mostly derive members,
+   `Option` helpers and getters.
 4. For each `TraitMethod` callee, read its choice. An `Impl` choice
    names the impl; substitute its arguments. A `Bound` choice becomes a
    concrete trait reference under the substitution, and the solver's
@@ -439,6 +560,25 @@ A worklist walk, as rustc's collector does:
 8. Record every `CallHost` as an import, every type whose layout an
    operation needs, and every fact getter the instance calls (§12.3).
 9. Repeat until the worklist is empty.
+
+**A1 at collection (lowering pass; default adopted, decided by E1 and
+S1).** Each generic item carries a **representation summary** per type
+parameter, computed at check time and stored with its TIR, so the item's
+TIR hash covers it. The summary says whether the body needs the
+parameter's exact representation: a field access or construction of
+`T`, a trait call on `T`, or a closure type that mentions `T`. When it
+does not, the body only moves `T`, and collection replaces that type
+argument in the pushed instance by its **class**: `REF` for a layout of
+one non-null reference, `REF?` for one nullable reference, or the scalar
+or `void` class. `REF` and `REF?` stay apart because `T?` differs between
+them: a nullable reference for `REF`, a tag and a reference for `REF?`.
+So `List[Point].push` and `List[User].push` are one instance, emitted,
+cached and compiled once. The callees of a class instance see the class
+as their argument too. The rule reads only the item's own body and the
+argument's layout, so it is type-only. At 10k lines the compile study
+models 12 percent fewer instances, 43 percent fewer Wasm types and 9
+percent less code. Erasing reference parameters of function types as
+well (A2) is not adopted: it puts a cast in every closure entry.
 
 **`select` (Codex re-review N7).** At an instance every type is
 concrete, so `select` is a head match plus reconstruction, never a
@@ -471,8 +611,11 @@ canon(T)      = structural encoding of a type over stable paths, with no IDs
                  | ...)
 
 instance_key  = H("inst", item stable path, sub-body index (closures),
-                  [canon(arg) for each type argument])
+                  [canon(arg) or its class for each type argument])
 ```
+
+A type argument that the item's representation summary marks move-only
+is keyed by its class (§13.2), so its instances share one key.
 
 The instance key is the instance's **symbol**: its logical name, which no
 body edit changes. Relocations name it, collection dedups by it, and
@@ -522,7 +665,7 @@ growing type) has no finite instance set.
   is a global with a constant initializer, built once per `(type, trait
   reference)` pair, so a coercion to a trait value never allocates a
   vtable.
-- **Trait values** are pairs: the value as `anyref` and its vtable
+- **Trait values** are pairs: the value as `eqref` and its vtable
   (§15.2). A call through a trait value is one `struct.get` and one
   `call_ref`.
 - **GADT evidence.** Removed with GADTs (owner, 2026-10-07).
@@ -546,14 +689,14 @@ a type is **open** when it mentions a method type parameter of `m`,
 including a projection such as `T::Item`. The impl's own parameters
 are concrete, since the erased body is instantiated at the impl's
 concrete self type. A value of an open type is always **the caller's
-concrete representation, viewed as `anyref`**:
+concrete representation, viewed as `eqref`**:
 
 | Concrete layout of the value | As an open value |
 | --- | --- |
-| one reference, nullable or not (data, `List`, `Map`, string, closure, `T?` of a reference) | the same reference, upcast; no allocation |
+| one reference, nullable or not (data, `List`, `Map`, string, closure, `T?` of a reference, a value layout over the bound, which is already a box) | the same reference, upcast; no allocation. Under A1 a reference `T` reaches a class instance such as `List[REF].push` directly, with no thunk |
 | a scalar | §15.2's erased form: `i31ref` up to 16 bits, else `$Box_i32`, `$Box_i64`, `$Box_f32`, `$Box_f64` |
 | a `multi` layout (a scalar's `T?`, `Result`, a value enum, a tuple, a trait value) | one immutable struct of its Wasm values |
-| `void` | `ref.null any` |
+| `void` | `ref.null eq` |
 
 Every boxed layout is identity-free (S1c), so boxing is not observable.
 A mutable container is a reference, so it is never boxed or copied:
@@ -561,7 +704,7 @@ the erased body holds the caller's own `$List_i32`.
 
 **What the erased body emits.** Control stays in the erased body:
 blocks, loops, `if`, returns, locals and `defer` work on open values as
-plain `anyref` locals. Every other instruction whose operand or result
+plain `eqref` locals. Every other instruction whose operand or result
 type is open is an **open instruction**, and it is **outlined**:
 
 1. Emission numbers the body's open instructions in TIR order: `0, 1,
@@ -623,7 +766,7 @@ $W_m     = (struct (field (ref null $Ops_I1.m)) (field (ref null $Ops_I2.m)) ...
   whose type grows is polymorphic recursion, and the instantiation depth
   limit reports it (§13.4).
 - **How it is passed:** the slot's signature is `(receiver, the
-  arguments with open ones as anyref, (ref $W_m), providers...)`. The
+  arguments with open ones as eqref, (ref $W_m), providers...)`. The
   caller passes `global.get $W_m(args)`, upcasts or boxes its open
   arguments, and unboxes or casts an open result, which cannot fail. The
   erased body's prologue reads its own field, `struct.get $W_m f_I`,
@@ -714,10 +857,11 @@ relocation. Equal bytes arise from:
 - type parameters that the body does not use in any operation;
 - identical small std helpers at different types.
 
-`List[Point].push` and `List[User].push` fold only when `Point` and
-`User` have the same field layout. The research expected them to fold
-always; that needs erased element storage, which costs a cast per read
-(§23.2, inconsistency 1).
+Under exact element types, `List[Point].push` and `List[User].push`
+would fold only when `Point` and `User` have the same field layout (§23.2,
+inconsistency 1). With A1 (lowering pass, default adopted), they are one
+instance from collection on (§13.2), so folding is left with scalar
+twins, equal field layouts and identical helpers.
 
 **The algorithm (mine, after safe ICF in linkers; Codex re-review N4
 and N-S3).** The first release folds exact duplicates only:
@@ -726,9 +870,10 @@ and N-S3).** The first release folds exact duplicates only:
    every relocation as (offset, kind, exact target), every site record
    as (offset, kind, stable span))`. The signature comes first: an
    `i32 -> i32` identity and an `i64 -> i64` identity have equal
-   instructions and must not fold. Function targets are instance keys,
-   global targets are global symbols (a vtable, a fact's storage, a
-   string literal), so two bodies that reference different globals never fold.
+   instructions and must not fold. Function targets are instance keys or
+   getter symbols (a literal, a fact), global targets are global symbols
+   (a vtable, a constant, module storage), so two bodies that reference
+   different literals or globals never fold.
    Site records are in the key because a panic's reported location is
    program output. Statement lines (`lines`) are not: they only feed
    backtraces, which name the representative and its aliases.
@@ -739,6 +884,9 @@ and N-S3).** The first release folds exact duplicates only:
    only bodies already proven equal, so `List[u32].push` and
    `List[i32].push` fold once their `Array` callees have folded. Rounds
    are bounded by the call graph's depth and are usually two or three.
+   **A worklist (lowering pass):** after the first round, only bodies
+   whose function targets changed class are rehashed, so a deep call
+   chain costs linear work, not depth times bytes.
 3. The representative of a class is the member with the smallest instance
    key. The others become aliases.
 4. The fold list (representative, then aliases in key order) goes into
@@ -751,7 +899,9 @@ comes only if the `dead-code` or tiny-size measurement shows real bytes
 left on the table.
 
 Every step works on content keys, so the result does not depend on
-threads or order. Merging runs in `Link`, in both tiers.
+threads or order. Merging runs in `Link`, in both tiers: it saves more
+Cranelift time than its hashing costs (under 1 ms at 10k lines), so a
+debug build without it would compile slower.
 
 ### 13.8 Code Entries
 
@@ -768,13 +918,26 @@ pub struct CodeEntry {
 }
 pub enum Reloc {
     Func { at: u32, target: FuncTarget },     // InstanceKey | Import(HostMethodId) | Intrinsic helper
+                                              // | Getter(GlobalSym): a literal's or a fact's getter, or a literal's span function
     Type { at: u32, ty: CanonWasmTy },        // a canonical Wasm type descriptor
-    Global { at: u32, global: GlobalSym },    // module storage, constants, vtables, string literals
-    Data { at: u32, bytes: Hash128 },         // a passive data segment, by content
-    Site { at: u32, local: u32 },             // a site number, renumbered globally at link
+    Global { at: u32, global: GlobalSym },    // module storage and immutable constants (vtables, closures, short literals)
     Field { at: u32, sym: WitnessField },     // an impl's field in a dyn method's witness (§13.5.1)
 }
 ```
+
+**Stable numbering (lowering pass).** An emitted body holds no
+program-wide dense number that changes when something is added
+elsewhere, apart from function indices in `call`, which wasmtime's
+per-function cache abstracts, and the measured exceptions of
+[lowering-catalog.md](lowering-catalog.md#numbering) (type immediates,
+direct constant globals, `ref.func`, witness fields). So there is no
+`Site` relocation: a site is the code offset of its stub call
+(wasm-layout.md §15.5). There is no `Data` relocation in a body: only the
+link-generated literal getters and span functions name the data segment.
+A lazily initialized global is reached through a `Getter` call target.
+Context key ids and type ids are content hashes written as constants.
+Spike 0c's S2 measures each remaining index space and moves any that
+keeps fewer than 95 percent of functions hitting behind a getter.
 
 On disk a relocation is `(at, kind, target)` with `target` indexing the
 entry's deduplicated target table
@@ -838,27 +1001,54 @@ mode then checks it on every hit (§5.6).
 A per-item instance budget stays a fallback, as the research says. Add it
 only if the `dead-code` metric fails after folding.
 
+**The compile study's model** (representation-compile.md §1.4) puts a
+10k-line application at about 4,800 instances, 4,700 emitted functions
+and 640 KB under exact types, and about 3,600 functions and 530 KB with
+A1, the boxing bound and closure specialization. Derived code is the
+largest source (27 percent of instances), then iterator chains (14
+percent), then `List` and `Map` methods (17 percent together). Skipping
+always-inlined callees (§13.2) and the compact `hd.names` section
+(about 120 KB at 10k lines) are the largest levers for bytes; stable
+numbering, packs and filtered test programs are the largest for latency.
+`hd build --size-report` (§12.8) shows where a program's bytes go.
+
 ### 13.10 The Link Step
 
 `Link(P)`:
 
+0. **Read the code entries in one batch** (lowering pass). Link keeps,
+   per worktree, a record of each program's last link: the key of its
+   **code pack**, one entry holding every code entry of that link with an
+   index by code key (cache.md §5.2). Link maps that pack once and takes
+   every unchanged code key from it; only keys it lacks are read as
+   separate `code` entries. It then writes the new pack. Reading 4,800
+   separate files costs 70 to 140 ms on one core; one mapped pack costs a
+   few ms.
 1. **Drop and fold.** An instance that no relocation names, because every
    caller inlined it, is dropped. Then the rest fold (§13.7).
 2. **Order functions.** Imports first, sorted by module and name. Then
-   the generated runtime helpers, sorted by name. Then the representatives
-   in instance-key order. This order is deterministic, but it does not
-   keep indices stable: inserting a function with a smaller key renumbers
-   every later one (Codex re-review N-D2). Slice 6 measures wasmtime's
-   per-function cache hits after insertions, deletions and type-section
-   changes; a persistent index allocation is added only if that
-   measurement asks for it.
+   the generated runtime helpers, sorted by name. Then the literal and
+   fact getters and literal span functions, by content. Then the
+   representatives in instance-key order. This order is deterministic,
+   but it does not keep indices stable: inserting a function with a
+   smaller key renumbers every later one (Codex re-review N-D2). That is
+   harmless for `call`, which wasmtime's per-function cache abstracts. No
+   persistent index allocation is kept, since it would make bytes depend
+   on build history (wasm-layout.md §15.8). S2 of spike 0c measures the
+   `ref.func` case; if it misses, closure construction reads one
+   immutable `funcref` global per closure code instead.
 3. **Types.** The canonical types the functions, globals and exports name
    (§15.3).
-4. **Globals.** Constants (vtables, closures without captures, payloadless
-   variant singletons, member handles, short string literals), module
-   storage and fact storage, then the runtime's globals (§15.4).
-5. **Data.** One passive segment per distinct string literal, by first
-   reference in function order.
+4. **Globals.** First the fixed globals: the runtime's globals and the
+   literal pool. Then the immutable constants (vtables, closures without
+   captures, payloadless variant singletons, member handles, witnesses,
+   `TypeId` values, literals of at most 4 bytes), by kind and content
+   key. Then module storage, by module path and binding index. Then fact
+   storage, which only getters name (§15.4).
+5. **Data.** One passive segment holding every pooled literal once,
+   deduplicated by content, in content order. Only getters and span
+   functions name it. Key ids and type ids are checked for 64-bit
+   collisions here (§12.4).
 6. **Elements.** One declarative segment for every function used with
    `ref.func`. The reserved hot-reload table stays empty (§18.5).
 7. **Exports**: `hd.init`, `hd.poll`, `hd.wake`, the exchange buffer, and test entries (§14.4, §15.4, §19.2).
@@ -872,8 +1062,8 @@ only if the `dead-code` metric fails after folding.
    through it before writing `hd.sites` and `hd.lines` (Codex re-review
    N-B8). A test panics after a shrunk immediate in release and checks
    the reported site against debug.
-9. **Custom sections**: `name`, `hd.runtime`, `hd.sites`, `hd.lines`,
-   `hd.folds` (§15.5, §16.4).
+9. **Custom sections**: `hd.names` (release) or `name` (debug),
+   `hd.runtime`, `hd.sites`, `hd.lines`, `hd.folds` (§15.5, §16.4).
 
 ```text
 link_key = prog_key (§11.3), and on a prog_key miss
