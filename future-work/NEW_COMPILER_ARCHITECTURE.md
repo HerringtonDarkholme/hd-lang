@@ -14,6 +14,8 @@ the orchestrator's proposals kept apart. Last restructured 2026-10-06.
 
 ## Summary
 
+Detailed design: [COMPILER_DESIGN.md](COMPILER_DESIGN.md)
+
 **Goals (owner, 2026-10-06):**
 
 1. **Fast.**
