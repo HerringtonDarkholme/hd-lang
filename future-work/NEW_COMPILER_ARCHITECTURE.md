@@ -34,8 +34,8 @@ the orchestrator's proposals kept apart. Last restructured 2026-10-06.
   at low priority. See [Toolchain-Wide Features](#toolchain-wide-features).
 - A program database instead of a language server, after the first
   release.
-- Pillar 1 and pillar 3 features are triaged: day 1, v1, later and
-  dropped. See [Pillar 1 features](#pillar-1-features-agent-wait-time-and-retries)
+- Pillar 1, pillar 3 and toolchain-wide features are triaged: day 1, v1,
+  later and dropped. See [Pillar 1 features](#pillar-1-features-agent-wait-time-and-retries)
   and [Pillar 3 features](#pillar-3-features-artifact-quality).
 - The first release targets Wasm only; the native Cranelift backend with
   its own GC comes right after.
@@ -187,8 +187,8 @@ bugs its tests catch.
 Owner, 2026-10-06 (candidate features): "just think about features; later,
 if a feature is too hard to implement, removing it is fine." Every item is in
 until its cost says otherwise. Items marked ✓ exist in the prototype or are
-already decided. Pillars 1 and 3 are triaged; pillar 2 is deprioritized
-and not triaged.
+already decided. Pillars 1 and 3 and the toolchain-wide features are
+triaged; pillar 2 is deprioritized and not triaged.
 
 ### Pillar 1 Features: Agent Wait Time And Retries
 
@@ -396,33 +396,46 @@ NonEscapable after v1, and the GC covers the rest).
 
 ### Toolchain-Wide Features
 
-Candidate items that fit no single pillar (owner: "just think about
-features", 2026-10-06).
+Items that fit no single pillar. Triaged with the owner, 2026-10-06.
 
-- **Targets (owner, 2026-10-06):** the language has more than one backend.
-  **Wasm** and **Cranelift** first, with **LLVM** and **JS** at low
-  priority. The first release targets **Wasm only**, run on wasmtime
-  (which compiles with Cranelift); the native Cranelift backend with its
-  own GC comes right after (owner, 2026-10-06).
-  - `hd build --target wasm | native | js | wasi`, with cross-compilation.
-  - Native: one standalone executable with the runtime linked in.
-  - WASI output for wasmtime, edge and serverless hosts.
-  - JS: an npm package with generated TypeScript declarations.
-  - `hd build --size-report`.
-  - `hd app.wasm` ✓, and running native executables directly.
-- **Safety:** `hd audit`: which capabilities each dependency's code
-  requires.
-- **Packages:**
-  - git dependencies, `hd.sum` and workspaces ✓;
-  - `hd add` / `remove` / `update`, plus offline and vendored mode;
-  - `hd api diff` (an open issue);
-  - `hd migrate` codemods, since hd has no editions.
-- **Interop and embedding:**
-  - embedding APIs: a Rust crate for native hosts, an npm package for JS
-    hosts, where the host supplies custom capability traits;
-  - hd libraries exported as Wasm components, with WIT generated from hd
-    traits;
-  - plugins: the parked runtime code loading.
+The language has more than one backend (owner, 2026-10-06): **Wasm** and
+**Cranelift** first, with **LLVM** and **JS** at low priority. The first
+release targets **Wasm only**, run on wasmtime (which compiles with
+Cranelift); the native Cranelift backend with its own GC comes right
+after.
+
+**Day 1:**
+
+- the `hd` CLI is itself a host on the embedding API: capability providers
+  plug in through one interface, so embedding packages come later without
+  splitting the CLI.
+
+**v1:**
+
+- Wasm output, run on wasmtime inside the `hd` binary; `hd app.wasm` ✓;
+- git dependencies, `hd.sum` and workspaces ✓;
+- `hd add` / `remove` / `update`.
+
+**Later:**
+
+- `hd build --target native | wasi | js`, with cross-compilation, each
+  with its backend: a standalone native executable with the runtime linked
+  in (run directly), WASI output for third-party wasmtime, edge and
+  serverless hosts, and an npm package with generated TypeScript
+  declarations;
+- embedding APIs: a Rust crate for native hosts and an npm package for JS
+  hosts, where the host supplies custom capability traits;
+- hd libraries exported as Wasm components, with WIT generated from hd
+  traits;
+- offline and vendored mode;
+- **plugins and runtime code loading**: parked until now, and needs a
+  design pass later (owner, 2026-10-06).
+
+**Third-party, not in the toolchain** (owner, 2026-10-06): an API
+compatibility checker (as Go's `apidiff` and Rust's `cargo-semver-checks`
+are; see [API Compatibility Checking](OPEN_ISSUES.md#api-compatibility-checking-from-the-deleted-packagesmd)),
+`migrate` codemods, and a per-dependency capability audit. They read the
+public surface from `build/doc/md`, and from the program database later.
 
 ## Architecture Direction (orchestrator's proposals, not decided)
 
