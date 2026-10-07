@@ -70,9 +70,8 @@ When the queue is empty, report that and wait.
 
 ## Don't Touch
 
-- **`compiler/crates/`:** the orchestrator's lane, except where a job
-  (A1) names crates and modules for you. You may add `compiler/bench/`
-  in P1.
+- **`compiler/crates/`:** the orchestrator's lane. You may add
+  `compiler/bench/` (Q4, P1).
 - `src/`: the frozen prototype. Bug fixes only through a KNOWN_FAILURES
   row, never an edit.
 - `lib/std/`, `guide/`, `website/`: read only, unless a job says so.
@@ -82,56 +81,43 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### A1. Compiler Stage Contracts (Now; Before More P1 Reports)
+### Q1. Fixtures: Chapter 14 Annotations (38%)
 
-Owner, 2026-10-07: "add more architecture stuff so work can be
-parallelized" and "off load work to codex". Build the contracts between
-compiler stages, so later jobs can work on one stage and test it alone.
-The orchestrator's agent (R4) is widening the subset in `subset.rs`,
-`hd_check`, `hd_tir` and `hd_wasm` at the same time: keep your changes
-**additive** (new files and modules; keep existing constructors and
-functions working), and rebase onto main before pushing.
+`pnpm run spec coverage --uncovered lang/14-annotations.md`; write
+fixtures (mostly runtime-valid with `# expect-stdout:`) and citation
+lines on existing fixtures to reach at least 60%. Same rules as S2.
+Timebox 45 minutes; push.
 
-Read `future-work/compiler/checking-and-tir.md` (Instruction Catalog),
-`wasm-layout.md`, `lowering-catalog.md`, `syntax.md`,
-`data-structures.md` and `skeleton-findings.md` first.
+### Q2. Fixtures: CLI Cases (37%)
 
-1. **Full TIR catalog** in `hd_tir`: every instruction and terminator in
-   the Instruction Catalog as a Rust type, even if nothing produces or
-   consumes it yet, each with a printer entry, a verifier rule (operand
-   arity and types at least), and a **TIR text parser** so print →
-   parse → print round-trips.
-2. **Type forms** used by TIR and the checker: scalars, string, data,
-   enum, Option, Result, tuples, functions and closures, List, Map,
-   Array, `dyn Trait`, generic parameters, rows. Where the design puts
-   them (a `hd_types` crate if it names one), interned in their simplest
-   form.
-3. **Layout table** in `hd_wasm` (new module): type → Wasm layout for
-   every form (scalar, `i31ref`/box, string view `(ref $bytes, i64
-   span)`, struct, flat or subtype enum, `multi`, A1 class, closure,
-   vtable). Emission of anything not handled yet returns
-   `Unsupported { what }`, never panics.
-4. **AST views** in `hd_syntax` (new module): a `SyntaxKind` and typed
-   view for every production in `spec/lang/02-grammar.md`; stubs where
-   the parser does not produce them yet.
-5. **Per-stage test harnesses** under `cargo test`, each with an
-   update-snapshots env var and 3 to 5 seed cases from what works today:
-   - `compiler/tests/parse/*.hd` with `.tree` snapshots;
-   - `compiler/tests/check/*.hd` with `.tir` golden files;
-   - `compiler/tests/emit/*.tir`: hand-written TIR with `# expect-stdout:`,
-     run through mono, emission and Node, with no parser or checker.
-6. **`future-work/compiler/lanes.md`**: one table, a row per stage
-   (parser, checker, emitter, runtime/host, driver/cache): crates owned,
-   interface consumed and produced, isolated test harness, what it must
-   not touch. Link it from `future-work/compiler/README.md`.
+The same for `cli/command-line.md` through `spec/conformance/cli-cases.tsv`
+and `spec/conformance/cli/`. Read how existing CLI cases are written
+first. Skip rules marked Later or about the new compiler's cache
+internals. Timebox 45 minutes; push.
 
-Rules: no `#[allow]`/`#[expect]` for clippy (the workspace config
-handles lints); perf is eyeballed; never panic on user input.
-`cargo test` green, `cargo clippy --workspace --all-targets` clean,
-`bash spec/check.sh` passing. Report TIR instruction count, how many
-round-trip in text and how many the verifier checks, layouts covered,
-AST kinds count, harness seed cases, and any design gap as an SK-n entry
-in `skeleton-findings.md`. Push each green step; timebox 75 minutes.
+### Q3. Spec Fixes From The Fixture Passes
+
+Small spec text fixes, one commit, in `spec/lang/02-grammar.md` and
+`05-expressions.md`:
+
+- `grammar.primary.tuple-spread`'s example `(1, 2, xs...)` needs `xs` to
+  be a rest tuple or a `List[T]`; fix the example to type-check.
+- A positional spread combined with other values for the same vararg
+  (`total(nums..., 4)`) is `duplicate-argument`; state it where spreads
+  are defined if no rule does.
+- Check the chapter's `late_fee` example against `grammar.inline.no-if`
+  (an inline body may not start with `if`); fix whichever is wrong.
+
+Add a fixture per change. Timebox 30 minutes; push.
+
+### Q4. Benchmark Inputs For The New Compiler
+
+Under `compiler/bench/` (yours): five realistic programs in the subset
+the new compiler accepts today (see `compiler/samples/` and
+`hd run`): a tokenizer-like state machine, integer math kernels, data
+records with a generic helper, trait dispatch through bounds, and a
+generated 10,000-line multi-folder package (a script that writes it).
+Each with expected output. P1 uses them. Timebox 30 minutes; push.
 
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
