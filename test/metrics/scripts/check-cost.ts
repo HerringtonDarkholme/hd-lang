@@ -111,7 +111,12 @@ export const checkCost: Metric = {
       const unchecked = uncheckedLarge - uncheckedSmall;
       if (unchecked < NOISE_MS)
         return [
-          failed(NAME, LABEL, TARGET, `unchecked work is within noise (${unchecked.toFixed(1)} ms)`),
+          failed(
+            NAME,
+            LABEL,
+            TARGET,
+            `unchecked work is within noise (${unchecked.toFixed(1)} ms)`,
+          ),
         ];
       return [
         judge(
