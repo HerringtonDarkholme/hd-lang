@@ -598,7 +598,8 @@ The owner's decision: a generic method called through a `dyn` value has
 one erased body per impl, accepts any type argument, and gets a type
 witness per call (goals.md, 2026-10-07). Everything else is
 monomorphized. Examples are a user trait's `fn visit[T](self, f:
-fn(T) -> T, out: mut List[T])` and `Inspectable.downcast[T]`. The
+fn(T) -> T, out: mut List[T])`, and `Inspectable.downcast[T]`, whose
+builtin body has one open instruction, the type-id read. The
 inherent `dyn Error` methods `find`, `root_cause` and `chain` are
 ordinary generic functions over `T` with a `dyn` receiver, so they are
 monomorphized per `T` and need no witness.
@@ -717,7 +718,8 @@ The thunk count is the product of a method's impls, its distinct type
 arguments and its open instructions. A trait with 20 impls, 5 type
 arguments and 10 open instructions per body gives 1,000 thunks of about
 20 bytes each, before folding. Only user generic trait methods called
-through `dyn` pay it; std's `find` and `downcast` do not.
+through `dyn` pay it in full. `downcast` pays one thunk per type
+argument, and `find` pays nothing.
 
 **Later, if measured.** Outlining a whole basic block of consecutive
 open instructions as one thunk cuts crossings and boxes. Full
