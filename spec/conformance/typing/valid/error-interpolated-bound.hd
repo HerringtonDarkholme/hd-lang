@@ -9,10 +9,10 @@ enum Named[T]:
     @error("got $value")
     Got(value: T)
 
-fn erase_named(value: Named[i32]) -> Error:
+fn erase_named(value: Named[i32]) -> dyn Error:
     value
 
-fn erase_generic[T < Display & Inspectable](value: Named[T]) -> Error:
+fn erase_generic[T < Display & Inspectable](value: Named[T]) -> dyn Error:
     value
 
 fn show_named[T < Display](value: Named[T]) -> string:

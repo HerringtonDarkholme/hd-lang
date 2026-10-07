@@ -12,7 +12,7 @@ impl Source for Ints:
     type Item = i32
     fn next(mut self) -> i32?: .Some(self.value)
 
-fn words(source: mut Source[Item = string]) -> void:
+fn words(source: mut dyn Source[Item = string]) -> void:
     pass
 
 fn run() -> void:

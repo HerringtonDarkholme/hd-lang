@@ -22,7 +22,7 @@ fn bounded[T < Add](value: mut T, amount: i32) -> void:
 fn main() -> i32:
     let mut counter = Counter { value: 0 }
     counter.add(10)
-    let dynamic: mut Add = counter
+    let dynamic: mut dyn Add = counter
     dynamic.twice(5)
     bounded(counter, 22)
     counter.value

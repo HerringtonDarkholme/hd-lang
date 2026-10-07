@@ -10,10 +10,10 @@ pub trait FileHandle:
     fn close(mut self) -> Result[void, ResourceError[IoError]]
 
 pub trait Files:
-    fn open!(self) -> mut FileHandle
+    fn open!(self) -> mut dyn FileHandle
 
 pub fn main!() -> void $ Files:
-    let handle: mut FileHandle = $.use(Files).open!()
+    let handle: mut dyn FileHandle = $.use(Files).open!()
     match handle.close():
         .Ok(_) => pass
         .Err(_) => panic("fixture host failed to close its handle")

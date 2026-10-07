@@ -7,5 +7,5 @@ trait Source[T]:
 trait Factory:
     fn create() -> Self
 
-fn refresh() -> void $ Source[Factory]:  # diagnostic: trait-not-dynamically-safe
+fn refresh() -> void $ Source[dyn Factory]:  # diagnostic: trait-not-dynamically-safe
     pass

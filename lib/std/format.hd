@@ -38,7 +38,7 @@ pub data DebugWriter:
     # How many parts the value being written is inside.
     depth: usize
     # The data values, lists and maps being written, to find a cycle.
-    active: mut List[Any]
+    active: mut List[dyn Any]
 
 impl DebugWriter:
     # Writes custom text, for a value that no builder fits.
@@ -194,7 +194,7 @@ impl DebugWriter:
     # A value that is already being written is part of a cycle: this writes
     # `<cycle>` and returns false (spec/lang/10-modules.md#r-module.dbg.cycle.tracked).
     # Enum values are never passed here: they have no identity.
-    fn enter(mut self, value: Any) -> bool:
+    fn enter(mut self, value: dyn Any) -> bool:
         for seen in self.active:
             if seen is value:
                 self.write("<cycle>")

@@ -13,7 +13,7 @@ impl[T] Value[T] for Box[T]:
     fn value(self) -> T: self.item
 
 fn blanket_dynamic() -> i32:
-    let dynamic: Value[i32] = Box::[i32] { item: 42 }
+    let dynamic: dyn Value[i32] = Box::[i32] { item: 42 }
     dynamic.value()
 
 fn read_value[T < Value[i32]](value: T) -> i32:
@@ -31,7 +31,7 @@ impl[T] Accept[T] for Receiver:
     fn accept(self, value: T) -> i32: 42
 
 fn trait_argument_only_blanket() -> i32:
-    let dynamic: Accept[string] = Receiver {}
+    let dynamic: dyn Accept[string] = Receiver {}
     dynamic.accept("ignored")
 
 tests:

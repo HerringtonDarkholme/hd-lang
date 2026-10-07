@@ -8,5 +8,5 @@ trait Supplier:
 fn text[T < Supplier[Item = string]](source: T) -> string:
     source.get()
 
-fn run(source: Supplier[Item = i32]) -> string:
+fn run(source: dyn Supplier[Item = i32]) -> string:
     text(source)  # diagnostic: unsatisfied-trait-bound

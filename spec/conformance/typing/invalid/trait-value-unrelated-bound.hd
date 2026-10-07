@@ -17,5 +17,5 @@ impl Eq for Tag:
 fn same[T < Eq](left: T, right: T) -> bool:
     left == right
 
-fn compare(left: Named, right: Named) -> bool:
+fn compare(left: dyn Named, right: dyn Named) -> bool:
     same(left, right)  # diagnostic: unsatisfied-trait-bound

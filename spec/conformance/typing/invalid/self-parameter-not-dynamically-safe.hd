@@ -3,5 +3,5 @@
 trait Versioned:
     fn newer_than(self, other: Self) -> bool
 
-fn audit(record: Versioned) -> void:  # diagnostic: trait-not-dynamically-safe
+fn audit(record: dyn Versioned) -> void:  # diagnostic: trait-not-dynamically-safe
     pass

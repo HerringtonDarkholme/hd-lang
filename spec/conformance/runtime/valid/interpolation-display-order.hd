@@ -38,7 +38,7 @@ tests:
 
     it("generic and dynamic Display use the same implementation"):
         value := Tagged { label: "g" }
-        let dynamic: Display = value
+        let dynamic: dyn Display = value
         assert_equal(render(value), "<g>", reason="generic dictionary")
         assert_equal("$dynamic", "<g>", reason="dynamic dispatch")
 

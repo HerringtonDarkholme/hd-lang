@@ -7,5 +7,5 @@ trait Source[T]:
 trait Factory:
     fn create() -> Self
 
-fn drain[S < Source[List[Factory]]](source: S) -> void:  # diagnostic: trait-not-dynamically-safe
+fn drain[S < Source[List[dyn Factory]]](source: S) -> void:  # diagnostic: trait-not-dynamically-safe
     pass

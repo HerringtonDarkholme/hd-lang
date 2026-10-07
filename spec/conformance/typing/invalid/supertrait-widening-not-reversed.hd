@@ -7,5 +7,5 @@ trait Named:
 trait Titled < Named:
     fn title(self) -> string
 
-fn narrow(value: Named) -> Titled:
+fn narrow(value: dyn Named) -> dyn Titled:
     value  # diagnostic: type-mismatch

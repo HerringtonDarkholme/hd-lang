@@ -20,7 +20,7 @@ fn both(id: string) -> string $ UserRow:
 fn keep(handler: fn(string) -> string $ Store[Item = string]) -> $.Context[$ Store[Item = string]]:
     panic("unreachable")
 
-fn install(store: Store[Item = string], id: string) -> string $ Log:
+fn install(store: dyn Store[Item = string], id: string) -> string $ Log:
     ctx := $.context(Store[Item = string]=store)
     $.with(Store[Item = string]=store):
         find(id)

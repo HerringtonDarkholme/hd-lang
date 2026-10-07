@@ -11,7 +11,7 @@ data User:
 data Box[T]:
     value: T
 
-fn of_value(value: Inspectable) -> TypeId:
+fn of_value(value: dyn Inspectable) -> TypeId:
     value.runtime_type()
 
 tests:

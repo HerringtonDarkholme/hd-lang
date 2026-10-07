@@ -9,22 +9,22 @@ use std.resource.ResourceError
 use std.testing.{assert, assert_equal}
 use std.time.Timestamp
 
-fn count(text: string) -> Result[i32, Error]:
+fn count(text: string) -> Result[i32, dyn Error]:
     value := parse_i32(text)?
     .Ok(value)
 
-fn width(text: string) -> Result[i32, Error]:
+fn width(text: string) -> Result[i32, dyn Error]:
     parse_i32(text).context("reading the width")
 
-fn document(text: string) -> Result[Json, Error]:
+fn document(text: string) -> Result[Json, dyn Error]:
     value := parse(text)?
     .Ok(value)
 
-fn stamp(text: string) -> Result[Timestamp, Error]:
+fn stamp(text: string) -> Result[Timestamp, dyn Error]:
     value := Timestamp::parse_rfc3339(text)?
     .Ok(value)
 
-fn utf8(bytes: List[u8]) -> Result[string, Error]:
+fn utf8(bytes: List[u8]) -> Result[string, dyn Error]:
     text := string::from_utf8(bytes)?
     .Ok(text)
 
@@ -37,19 +37,19 @@ fn read_closed() -> Result[string, ConsoleError]:
 fn read_disposed() -> Result[i32, ResourceError[ParseNumberError]]:
     .Err(ResourceError.Disposed)
 
-fn missing(path: string) -> Result[string, Error]:
+fn missing(path: string) -> Result[string, dyn Error]:
     text := read_missing(path)?
     .Ok(text)
 
-fn closed() -> Result[string, Error]:
+fn closed() -> Result[string, dyn Error]:
     line := read_closed()?
     .Ok(line)
 
-fn disposed() -> Result[i32, Error]:
+fn disposed() -> Result[i32, dyn Error]:
     value := read_disposed()?
     .Ok(value)
 
-fn message(result: Result[i32, Error]) -> string:
+fn message(result: Result[i32, dyn Error]) -> string:
     match result:
         .Ok(_) => "ok"
         .Err(error) => error.to_string()

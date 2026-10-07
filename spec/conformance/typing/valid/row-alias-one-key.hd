@@ -3,7 +3,7 @@
 trait Db:
     fn name(self) -> string
 
-type Store = Db
+type Store = dyn Db
 
 fn describe(store: Store) -> string:
     store.name()

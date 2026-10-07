@@ -3,5 +3,5 @@
 trait Loader:
     fn load!(self) -> i32
 
-fn run!(loader: Loader) -> i32:
+fn run!(loader: dyn Loader) -> i32:
     loader.load!()

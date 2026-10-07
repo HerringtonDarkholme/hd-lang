@@ -8,12 +8,12 @@ use std.testing.assert
 data User:
     name: string
 
-fn is_owner_list(value: Inspectable) -> bool:
+fn is_owner_list(value: dyn Inspectable) -> bool:
     match value.downcast::[List[mut User]]():
         .Some(_) => true
         .None => false
 
-fn is_reader_list(value: Inspectable) -> bool:
+fn is_reader_list(value: dyn Inspectable) -> bool:
     match value.downcast::[List[User]]():
         .Some(_) => true
         .None => false

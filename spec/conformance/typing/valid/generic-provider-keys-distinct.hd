@@ -3,12 +3,12 @@
 trait Repo[T]
 data User: pass
 data Post: pass
-fn choose(first: Repo[User], second: Repo[Post]) -> void:
+fn choose(first: dyn Repo[User], second: dyn Repo[Post]) -> void:
     $.with(Repo[User]=first, Repo[Post]=second):
         pass
-fn consume[T](repo: Repo[T]) -> i32 $ Repo[T]:
+fn consume[T](repo: dyn Repo[T]) -> i32 $ Repo[T]:
     _ := $.use(Repo[T])
     1
-fn run(repo: Repo[User]) -> i32:
+fn run(repo: dyn Repo[User]) -> i32:
     $.with(Repo[User]=repo):
         consume(repo)

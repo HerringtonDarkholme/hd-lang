@@ -16,7 +16,7 @@ impl Counter for MemoryCounter:
     fn bump(mut self) -> void:
         self.value = self.value + 1
 
-type Store = Counter
+type Store = dyn Counter
 
 type Tally = $ Store + Counter
 

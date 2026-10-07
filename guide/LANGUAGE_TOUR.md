@@ -1729,7 +1729,7 @@ identity with each call:
 ```text
 use std.inspect.Inspectable
 
-fn first_of[T < AnyRef & Inspectable](items: List[Inspectable]) -> T?:
+fn first_of[T < AnyRef & Inspectable](items: List[dyn Inspectable]) -> T?:
     for item in items:
         match item.downcast::[T]():
             .Some(found) => return .Some(found)
@@ -1962,7 +1962,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-fn read(source: Supplier[Item = i32]) -> i32:
+fn read(source: dyn Supplier[Item = i32]) -> i32:
     source.get() + 1
 ```
 
@@ -2220,7 +2220,7 @@ fn print_display(value: Describe) -> void $ Console:
 `Any` is the built-in universal empty trait, analogous to Go's `any`. Every value type, optionals included, satisfies it automatically. Use `Any` for an erased dynamic value and `T < Any` when generic code must preserve the concrete type:
 
 ```text
-fn keep_erased(value: Any) -> Any:
+fn keep_erased(value: dyn Any) -> dyn Any:
     value
 
 fn preserve[T < Any](value: T) -> T:
@@ -2255,9 +2255,9 @@ There is no implicit nullability. `T` and `T?` are different types, and only opt
 ```text
 let name: string = "Ada"
 let nickname: string? = .None
-let value: Any = .None       # invalid: .None needs an expected optional type
-let maybe_value: Any? = .None
-let erased: Any = nickname   # an optional erases to Any like any enum value
+let value: dyn Any = .None       # invalid: .None needs an expected optional type
+let maybe_value: dyn Any? = .None
+let erased: dyn Any = nickname   # an optional erases to Any like any enum value
 ```
 
 An optional is an ordinary enum value, so `T?` erases to `Any` and `is` compares optionals like other enum values. A bare `.None` still needs an expected optional type.
@@ -2333,7 +2333,7 @@ let narrow: i16 = 12
 let wide: i64 = 30
 let total: i64 = narrow + wide
 
-let labels: List[Display] = ["Ada", "Grace"]
+let labels: List[dyn Display] = ["Ada", "Grace"]
 
 fn invoke[$R](callback: fn() -> void $ R) -> void $ R:
     callback()
@@ -3301,7 +3301,7 @@ attached, and metadata values and reusable lists are ordinary values:
 ```text
 use std.structure.Structure
 
-let display_name_metadata: List[Any] = [
+let display_name_metadata: List[dyn Any] = [
     min_len(1),
     max_len(80),
 ]

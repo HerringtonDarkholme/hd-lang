@@ -7,5 +7,5 @@ trait Source[Output]:
 trait Wrapped[Item] < Source[List[Item]]:
     fn marker(self) -> i32
 
-fn wrong_parent(value: Wrapped[i32]) -> Source[List[string]]:
+fn wrong_parent(value: dyn Wrapped[i32]) -> dyn Source[List[string]]:
     value  # diagnostic: type-mismatch

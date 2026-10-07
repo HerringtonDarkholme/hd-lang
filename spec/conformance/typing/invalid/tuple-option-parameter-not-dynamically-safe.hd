@@ -4,5 +4,5 @@
 trait Factory:
     fn create() -> Self
 
-fn register(entry: (i32, Factory?)) -> void:  # diagnostic: trait-not-dynamically-safe
+fn register(entry: (i32, dyn Factory?)) -> void:  # diagnostic: trait-not-dynamically-safe
     pass

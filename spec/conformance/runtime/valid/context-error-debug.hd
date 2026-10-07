@@ -11,7 +11,7 @@ data NotFound:
 fn read(path: string) -> Result[string, NotFound]:
     .Err(NotFound { path: path })
 
-fn load(path: string) -> Result[string, Error]:
+fn load(path: string) -> Result[string, dyn Error]:
     text := read(path).context("loading config")?
     .Ok(text)
 

@@ -5,7 +5,7 @@ use std.inspect.Inspectable
 data Counter:
     count: i32
 
-fn reset(value: Inspectable) -> void:
+fn reset(value: dyn Inspectable) -> void:
     match value.downcast::[Counter]():
         .Some(counter) => counter.count = 0  # diagnostic: readonly-root
         .None => pass

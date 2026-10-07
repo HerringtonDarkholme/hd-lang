@@ -99,11 +99,11 @@ enum Plain:
     @origin
     Wrap(@from value: string)
 
-fn erase(value: TaskError[FsError]) -> Error:
+fn erase(value: TaskError[FsError]) -> dyn Error:
     value
 
 fn describe(value: MissingConfig) -> string:
     value.to_string()
 
-fn save_error(path: string) -> Error:
+fn save_error(path: string) -> dyn Error:
     SaveError.Write(path, .None)

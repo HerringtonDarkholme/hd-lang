@@ -40,7 +40,7 @@ enum SaveError:
     Write(path: string, @source error: DiskError)
 
 fn messages(failure: SaveError) -> List[string]:
-    chain(failure).map(fn(error: Error) -> string: error.to_string())
+    chain(failure).map(fn(error: dyn Error) -> string: error.to_string())
 ```
 
 For `SaveError.Write("notes.txt", DiskError { free: 0 })`, `messages`
@@ -80,10 +80,10 @@ enum SaveError:
     @error("cannot save $path")
     Write(path: string, @source error: DiskError)
 
-fn innermost(failure: Error) -> string:
+fn innermost(failure: dyn Error) -> string:
     failure.root_cause().to_string()
 
-fn free_space(failure: Error) -> i64?:
+fn free_space(failure: dyn Error) -> i64?:
     match failure.find::[DiskError]():
         .Some(disk) => .Some(disk.free)
         .None => .None
@@ -102,7 +102,7 @@ returns `"disk full"`, and `free_space` returns `.Some(0)`.
 ```text
 use std.error.Error
 
-fn code(failure: Error) -> i32?:
+fn code(failure: dyn Error) -> i32?:
     failure.find::[i32]()  # error: unsatisfied-trait-bound
 ```
 
@@ -164,7 +164,7 @@ data NotFound:
 fn read(path: string) -> Result[string, NotFound]:
     .Err(NotFound { path: path })
 
-fn load() -> Result[string, Error]:
+fn load() -> Result[string, dyn Error]:
     text := read("app.toml").context("loading config")?
     .Ok(text)
 
@@ -206,11 +206,11 @@ Every std error type implements `Error`, so `?` and `context` accept it:
 use std.error.Error
 use std.num.parse_i32
 
-fn count(text: string) -> Result[i32, Error]:
+fn count(text: string) -> Result[i32, dyn Error]:
     value := parse_i32(text)?
     .Ok(value)
 
-fn width(text: string) -> Result[i32, Error]:
+fn width(text: string) -> Result[i32, dyn Error]:
     parse_i32(text).context("reading the width")
 ```
 

@@ -8,7 +8,7 @@ trait Plugin < Inspectable:
 data Echo:
     text: string
 
-fn load(plugin: Plugin) -> string:
+fn load(plugin: dyn Plugin) -> string:
     plugin.run()
 
 fn start() -> string:

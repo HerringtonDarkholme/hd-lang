@@ -67,7 +67,7 @@ fn noisy(value: i32) -> bool $ Logger:
 fn positives(values: List[i32]) -> List[i32] $ Logger:
     values.iter().filter(noisy).collect()  # error: type-mismatch
 
-fn scoped(values: List[i32], logger: Logger) -> List[i32]:
+fn scoped(values: List[i32], logger: dyn Logger) -> List[i32]:
     $.with(Logger=logger):
         values.iter().filter(fn(value): noisy(value)).collect()  # error: type-mismatch
 

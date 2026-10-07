@@ -5,5 +5,5 @@ trait Factory:
     type Item
     fn count() -> i32
 
-fn with_function(factory: Factory[Item = i32]) -> void:  # diagnostic: trait-not-dynamically-safe
+fn with_function(factory: dyn Factory[Item = i32]) -> void:  # diagnostic: trait-not-dynamically-safe
     pass

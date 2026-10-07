@@ -12,7 +12,7 @@ impl Value for Box:
     fn get(self) -> i32: self.value
 
 fn same[T < AnyRef](left: T, right: T) -> bool: left is right
-fn as_value(value: Value) -> Value: value
+fn as_value(value: dyn Value) -> dyn Value: value
 fn pending!() -> i32: 1
 
 fn main() -> i32:

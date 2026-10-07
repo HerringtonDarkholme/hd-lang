@@ -10,7 +10,7 @@ impl Shipment:
     fn runtime_type(self) -> string:
         "shipment by " + self.carrier
 
-fn recorded(value: Inspectable) -> TypeId:
+fn recorded(value: dyn Inspectable) -> TypeId:
     value.runtime_type()
 
 tests:

@@ -6,7 +6,7 @@ use std.inspect.Inspectable
 data Counter:
     count: i32
 
-fn keep(value: mut Inspectable) -> void:
+fn keep(value: mut dyn Inspectable) -> void:
     pass
 
 fn erase(counter: Counter) -> void:

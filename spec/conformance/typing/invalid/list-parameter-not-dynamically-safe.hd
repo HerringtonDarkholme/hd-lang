@@ -4,5 +4,5 @@
 trait Factory:
     fn create() -> Self
 
-fn register(factories: List[Factory]) -> void:  # diagnostic: trait-not-dynamically-safe
+fn register(factories: List[dyn Factory]) -> void:  # diagnostic: trait-not-dynamically-safe
     pass

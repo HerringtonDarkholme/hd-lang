@@ -34,7 +34,7 @@ impl Eq for Tag:
     fn eq(self, other: Tag) -> bool: self.name.lower() == other.name.lower()
 
 impl Hash for Tag:
-    fn hash(self, state: mut Hasher) -> void: self.name.lower().hash(state)
+    fn hash(self, state: mut dyn Hasher) -> void: self.name.lower().hash(state)
 
 data Recorder:
     bytes: mut List[u8]

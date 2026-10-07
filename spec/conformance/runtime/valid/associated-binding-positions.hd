@@ -39,7 +39,7 @@ fn peak[F < PriceFeed](feed: mut F) -> i32:
             .None => break
     best
 
-fn read(feed: mut Feed[Item = i32]) -> i32?:
+fn read(feed: mut dyn Feed[Item = i32]) -> i32?:
     feed.next()
 
 tests:

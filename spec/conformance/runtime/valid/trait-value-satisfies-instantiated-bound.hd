@@ -20,5 +20,5 @@ fn size[R < Repository[User]](repository: R) -> i32:
 
 tests:
     it("Repository[User] satisfies R < Repository[User]"):
-        let users: Repository[User] = MemoryUsers { users: [User { name: "ada" }, User { name: "alan" }] }
+        let users: dyn Repository[User] = MemoryUsers { users: [User { name: "ada" }, User { name: "alan" }] }
         assert_equal(size(users), 2, reason="the static call dispatches through the value's table")

@@ -8,6 +8,6 @@ trait Store:
 data User:
     name: string
 
-fn mixed[T](local: Store[Item = User]) -> void $ Store[Item = T]:
+fn mixed[T](local: dyn Store[Item = User]) -> void $ Store[Item = T]:
     $.with(Store[Item = User]=local):  # diagnostic: generic-requirement-key-collision
         pass

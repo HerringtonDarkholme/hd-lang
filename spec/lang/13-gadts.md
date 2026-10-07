@@ -263,7 +263,7 @@ enum Expr[T]:
     Lit(value: T)
     IntLit(value: i64) -> Expr[i64]
 
-fn as_any[T](expr: Expr[T]) -> Any:
+fn as_any[T](expr: Expr[T]) -> dyn Any:
     expr   # dynamic erasure: a stored IntLit's refinement to i64 is not kept
 ```
 

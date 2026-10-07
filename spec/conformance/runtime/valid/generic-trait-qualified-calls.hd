@@ -18,11 +18,11 @@ fn add_qualified() -> i32:
     right := Number { value: 22 }
     Add::[Number]::add(left, right).value
 
-fn apply_add(value: Add[Number], other: Number) -> Number:
+fn apply_add(value: dyn Add[Number], other: Number) -> Number:
     value.add(other)
 
 fn add_dynamic() -> i32:
-    let left: Add[Number] = Number { value: 20 }
+    let left: dyn Add[Number] = Number { value: 20 }
     apply_add(left, Number { value: 22 }).value
 
 fn bounded_add[T < Add[Number]](value: T, other: Number) -> Number:

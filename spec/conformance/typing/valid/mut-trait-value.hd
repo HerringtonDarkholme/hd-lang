@@ -9,5 +9,5 @@ impl Display for User:
         self.name
 
 fn edit(mutable_user: mut User) -> void:
-    let edit: mut Display = mutable_user
-    let shown: Display = edit
+    let edit: mut dyn Display = mutable_user
+    let shown: dyn Display = edit

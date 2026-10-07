@@ -281,7 +281,7 @@ Otherwise the code that reads the value checks it.
 Reusable compositions are ordinary values or lists, not new language syntax:
 
 ```text
-let email_metadata: List[Any] = [
+let email_metadata: List[dyn Any] = [
     min_len(3),
     max_len(320),
     contains("@"),
@@ -335,7 +335,7 @@ pub enum Target:
 pub data Annotate:
     pub kinds: List[Target]
 
-pub fn annotate[T = Any](kinds...: List[Target]) -> Annotate:
+pub fn annotate[T = dyn Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 ```
 
@@ -712,7 +712,7 @@ pub data VariantInfo:
     pub facts: Facts
     pub doc: string?
     pub of_data: bool
-    pub shared: List[(string, Any)]
+    pub shared: List[(string, dyn Any)]
     pub self_ref: SelfRef
 
 pub enum SelfRef:

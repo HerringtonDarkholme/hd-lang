@@ -687,9 +687,9 @@ fn label[T < Named + Tagged](value: T) -> string: value.name()  # error: old-bou
 
 1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings. So `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
 2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
-3. r[grammar.generic.binding.positions-key] Bindings are valid in `trait_bounds`, and in `supertrait_bounds` as in `trait Summable < Add[Out = Self]`. They are also valid in a `named_type`, as in the trait value type `Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
+3. r[grammar.generic.binding.positions-key] Bindings are valid in `trait_bounds`, and in `supertrait_bounds` as in `trait Summable < Add[Out = Self]`. They are also valid in a `dyn_type`, as in the trait value type `dyn Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
 4. r[grammar.generic.binding.trait-type-only] The trait of an implementation header is a `trait_type`, and the qualifier of a trait-qualified call or a method reference is an `expression_trait_type`. Neither takes a binding in its arguments. A binding there is an error. Error: `syntax-error`.
-5. r[grammar.generic.binding.named-type] Only a trait value type gives a binding in a `named_type` a meaning; [Binding Positions](09-traits.md#binding-positions) rejects one elsewhere.
+5. r[grammar.generic.binding.named-type] A binding in a `named_type` has no meaning; [Binding Positions](09-traits.md#binding-positions) rejects it, and a trait value type writes its bindings after `dyn`.
 
 ```text
 trait Supplier:
@@ -764,6 +764,7 @@ type = reference_access_type, { "?" }
 reference_access_type = [ "mut" ], reference_type ;
 
 reference_type = named_type
+               | dyn_type
                | "Self"
                | tuple_type
                | grouped_type
@@ -772,6 +773,7 @@ reference_type = named_type
                ;
 
 named_type = qualified_name, [ bound_type_arguments ] ;
+dyn_type = "dyn", bound_trait_type ;
 type_arguments = "[", type_argument,
                  { ",", type_argument }, [ "," ], "]" ;
 type_argument = type
@@ -876,8 +878,11 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 4. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
 5. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
 6. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
-7. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
-8. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
+7. r[grammar.type.dyn] A `dyn_type` writes a trait value type: `dyn`, then a trait name with its type arguments and associated type bindings, as in `dyn Supplier[Item = i32]`.
+8. r[grammar.type.dyn.mut] `mut` precedes `dyn`, as in `mut dyn Counter`; `dyn mut Counter` is an error. Error: `syntax-error`.
+9. r[grammar.type.dyn.optional] `?` applies to the whole `dyn` type, so `dyn Display?` is an optional trait value.
+10. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
+11. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
 
 ```hd
 fn readers() -> (fn() -> i32)?:

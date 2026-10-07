@@ -26,7 +26,7 @@ impl[Item < Score] Scored for List[Item]:
 
 fn dynamic_parent_dictionary() -> i32:
     let points: List[Point] = [Point { value: 42 }]
-    let dynamic: Scored = points
+    let dynamic: dyn Scored = points
     dynamic.measure()
 
 fn read_parent[T < Scored](value: T) -> i32:

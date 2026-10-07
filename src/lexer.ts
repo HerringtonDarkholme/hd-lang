@@ -68,6 +68,7 @@ export const KEYWORDS = new Set([
   "continue",
   "data",
   "defer",
+  "dyn",
   "else",
   "enum",
   "false",

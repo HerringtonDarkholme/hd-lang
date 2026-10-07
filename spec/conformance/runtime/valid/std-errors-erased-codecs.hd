@@ -6,15 +6,15 @@ use std.error.Error
 use std.regex.Regex
 use std.testing.assert
 
-fn bytes(text: string) -> Result[List[u8], Error]:
+fn bytes(text: string) -> Result[List[u8], dyn Error]:
     value := hex_decode(text)?
     .Ok(value)
 
-fn pattern(text: string) -> Result[Regex, Error]:
+fn pattern(text: string) -> Result[Regex, dyn Error]:
     value := Regex::new(text)?
     .Ok(value)
 
-fn verbose(arguments: List[string]) -> Result[bool, Error]:
+fn verbose(arguments: List[string]) -> Result[bool, dyn Error]:
     parsed := Cli::new("tool").flag("verbose", .None, "say more").parse(arguments)?
     .Ok(parsed.flag("verbose"))
 

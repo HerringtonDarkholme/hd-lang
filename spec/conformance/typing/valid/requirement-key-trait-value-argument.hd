@@ -9,13 +9,13 @@ trait Bus[T]:
 
 data LocalBus: pass
 
-impl Bus[Event] for LocalBus:
-    fn send(self, message: Event) -> void:
+impl Bus[dyn Event] for LocalBus:
+    fn send(self, message: dyn Event) -> void:
         pass
 
-fn publish(event: Event) -> void $ Bus[Event]:
-    $.use(Bus[Event]).send(event)
+fn publish(event: dyn Event) -> void $ Bus[dyn Event]:
+    $.use(Bus[dyn Event]).send(event)
 
-fn run(event: Event) -> void:
-    $.with(Bus[Event]=LocalBus {}):
+fn run(event: dyn Event) -> void:
+    $.with(Bus[dyn Event]=LocalBus {}):
         publish(event)

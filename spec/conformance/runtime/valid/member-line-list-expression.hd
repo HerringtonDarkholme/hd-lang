@@ -15,9 +15,9 @@ fn tag(text: string) -> Tag:
 fn note(text: string) -> Note:
     Note { text: text }
 
-let noted_n: List[Any] = [note("n")]
-let noted_m: List[Any] = [note("m")]
-let tagged_c: List[Any] = [tag("c")]
+let noted_n: List[dyn Any] = [note("n")]
+let noted_m: List[dyn Any] = [note("m")]
+let tagged_c: List[dyn Any] = [tag("c")]
 
 trait Probe:
     fn probe(self) -> string

@@ -8,7 +8,7 @@ use std.testing.assert_equal
 fn explain(error: ProcessError) -> string:
     "cannot run the tool: ${error}"
 
-fn erased(error: ProcessError) -> Result[i32, Error]:
+fn erased(error: ProcessError) -> Result[i32, dyn Error]:
     let failed: Result[i32, ProcessError] = .Err(error)
     value := failed?
     .Ok(value)

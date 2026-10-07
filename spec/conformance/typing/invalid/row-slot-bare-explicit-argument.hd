@@ -7,4 +7,4 @@ fn provide_log[$R](callback: fn() -> void $ R + Log) -> void $ R:
 fn quiet() -> void: pass
 
 fn run() -> void $ Log:
-    provide_log::[Log](quiet)  # diagnostic: generic-kind-mismatch
+    provide_log::[dyn Log](quiet)  # diagnostic: generic-kind-mismatch

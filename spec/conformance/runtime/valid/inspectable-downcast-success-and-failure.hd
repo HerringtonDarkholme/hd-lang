@@ -11,17 +11,17 @@ data User:
 data Post:
     title: string
 
-fn user_name(value: Inspectable) -> string:
+fn user_name(value: dyn Inspectable) -> string:
     match value.downcast::[User]():
         .Some(user) => user.name
         .None => "not a user"
 
-fn post_title(value: Inspectable) -> string:
+fn post_title(value: dyn Inspectable) -> string:
     match value.downcast::[Post]():
         .Some(post) => post.title
         .None => "not a post"
 
-fn number(value: Inspectable) -> i32:
+fn number(value: dyn Inspectable) -> i32:
     match downcast_val::[i32](value):
         .Some(found) => found
         .None => -1
@@ -29,7 +29,7 @@ fn number(value: Inspectable) -> i32:
 tests:
     it("a data value comes back as itself"):
         user := User { name: "Ada" }
-        let erased: Inspectable = user
+        let erased: dyn Inspectable = user
         assert_equal(user_name(erased), "Ada", reason="the exact type matches")
         assert_equal(post_title(erased), "not a post", reason="another type does not")
         match erased.downcast::[User]():
@@ -38,10 +38,10 @@ tests:
 
     it("a scalar is boxed on erasure and unboxed by downcast_val"):
         let answer: i32 = 42
-        let erased: Inspectable = answer
+        let erased: dyn Inspectable = answer
         assert_equal(number(erased), 42, reason="i32 recovers its value")
         assert_equal(user_name(erased), "not a user", reason="i32 is not a User")
-        let text: Inspectable = "42"
+        let text: dyn Inspectable = "42"
         assert_equal(number(text), -1, reason="string is not i32")
 
     it("a concrete value is erased at the call or uses its own implementation"):

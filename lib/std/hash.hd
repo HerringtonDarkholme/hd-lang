@@ -18,21 +18,21 @@ pub trait Hasher:
 ## A type whose values write their hash bytes to a `Hasher`; a map key needs it with `Eq`.
 ## See [trait.hash.module](../../spec/lang/09-traits.md#r-trait.hash.module).
 pub trait Hash:
-    fn hash(self, state: mut Hasher) -> void
+    fn hash(self, state: mut dyn Hasher) -> void
 
 impl Hash for string:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         bytes := self.to_utf8()
         u64(bytes.len()).hash(state)
         state.write(bytes)
 
 impl Hash for char:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         char_scalar(self).hash(state)
 
 # An optional writes the tag byte 0 for `.None`, or 1 and then its payload.
 impl[T < Hash] Hash for T?:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         match self:
             .None => state.write([0])
             .Some(value) =>
@@ -42,7 +42,7 @@ impl[T < Hash] Hash for T?:
 # A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
 # its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
 impl[T < Hash, E < Hash] Hash for Result[T, E]:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         match self:
             .Ok(value) =>
                 state.write([0])
@@ -52,52 +52,52 @@ impl[T < Hash, E < Hash] Hash for Result[T, E]:
                 error.hash(state)
 
 impl Hash for bool:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         let byte: u8 = 0
         if self:
             byte = 1
         state.write([byte])
 
 impl Hash for i8:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 1))
 
 impl Hash for i16:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 2))
 
 impl Hash for i32:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 4))
 
 impl Hash for i64:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write(signed_bytes(self, 8))
 
 impl Hash for u8:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write([self])
 
 impl Hash for u16:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 2))
 
 impl Hash for u32:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 4))
 
 impl Hash for usize:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 4))
 
 impl Hash for u64:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         state.write(unsigned_bytes(self, 8))
 
 # A list hashes its length as a `u64`, then each item in order
 # (spec/std/hash.md#list-hashing), so equal lists hash the same.
 impl[T < Hash] Hash for List[T]:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         u64(self.len()).hash(state)
         for item in self:
             item.hash(state)
@@ -175,14 +175,14 @@ pub fn hash_of[T < Hash](value: T) -> u64:
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
 # as a `u32`, then each member in declaration order.
 impl[T] Hash for T by Structure:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         let w: mut HashWalker[T] = HashWalker::[T] { state: state }
         _ := Structure::walk(self, w)
 
 # The field is public because the prototype checks the instantiated walker
 # in the deriving module.
 data HashWalker[S]:
-    pub state: mut Hasher
+    pub state: mut dyn Hasher
 
 impl[S] Walker[S] for HashWalker[S]:
     type Error = never
@@ -200,7 +200,7 @@ impl[S] Walker[S] for HashWalker[S]:
 # every size. A rest element hashes as its `List`, so a rest tuple is
 # hashable when its rest's items are (r-std-hash.tuple.rest-list).
 impl[T < Tuple] Hash for T by Structure:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         let w: mut HashWalker[T] = HashWalker::[T] { state: state }
         _ := Structure::walk(self, w)
 

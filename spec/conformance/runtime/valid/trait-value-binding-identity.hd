@@ -20,15 +20,15 @@ impl Lookup for PhoneBook:
                 return .Some(self.numbers[index])
         .None
 
-fn find_number(book: Lookup[Key = string, Value = i32], name: string) -> i32?:
+fn find_number(book: dyn Lookup[Key = string, Value = i32], name: string) -> i32?:
     book.find(name)
 
-fn forward(book: Lookup[Value = i32, Key = string], name: string) -> i32?:
+fn forward(book: dyn Lookup[Value = i32, Key = string], name: string) -> i32?:
     find_number(book, name)
 
 tests:
     it("binding order does not change the trait value type"):
         book := PhoneBook { names: ["ada", "alan"], numbers: [100, 200] }
-        let erased: Lookup[Value = i32, Key = string] = book
+        let erased: dyn Lookup[Value = i32, Key = string] = book
         assert_equal(forward(erased, "alan"), .Some(200), reason="passed to the other spelling")
         assert_equal(forward(book, "eve"), .None, reason="a concrete value converts")

@@ -11,17 +11,17 @@ type Mile(i32)
 
 type Action(fn() -> i32)
 
-fn is_name(value: Inspectable) -> bool:
+fn is_name(value: dyn Inspectable) -> bool:
     match downcast_val::[Name](value):
         .Some(_) => true
         .None => false
 
-fn is_i32(value: Inspectable) -> bool:
+fn is_i32(value: dyn Inspectable) -> bool:
     match downcast_val::[i32](value):
         .Some(_) => true
         .None => false
 
-fn is_action(value: Inspectable) -> bool:
+fn is_action(value: dyn Inspectable) -> bool:
     match downcast_val::[Action](value):
         .Some(_) => true
         .None => false

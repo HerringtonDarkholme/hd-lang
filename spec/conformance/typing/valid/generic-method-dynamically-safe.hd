@@ -20,7 +20,7 @@ trait Show:
 trait Codec:
     fn round_trip[T](self, value: T) -> T
 
-fn values(convert: Convert, labeler: Labeler, registry: Registry, show: Show) -> void:
+fn values(convert: dyn Convert, labeler: dyn Labeler, registry: dyn Registry, show: dyn Show) -> void:
     pass
 
 fn sync() -> void $ Codec:

@@ -38,7 +38,7 @@ data PublicError:
     @from
     repr: LoadError
 
-fn cause_text(error: Error) -> string:
+fn cause_text(error: dyn Error) -> string:
     match error.cause():
         .Some(cause) => cause.to_string()
         .None => "none"

@@ -475,7 +475,7 @@ fn readonly_maker() -> fn() -> User:
 fn widen(callback: fn(User) -> mut User) -> fn(mut User) -> User:
     callback
 
-fn erase() -> fn() -> Display:
+fn erase() -> fn() -> dyn Display:
     count  # error: variance-representation-change
 ```
 

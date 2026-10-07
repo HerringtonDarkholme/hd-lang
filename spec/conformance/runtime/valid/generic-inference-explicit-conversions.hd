@@ -19,8 +19,8 @@ fn max[T < Ord](left: T, right: T) -> T:
         .Less => right
         _ => left
 
-fn same(user: User, label: Display) -> bool:
-    cmp::[Display](user, label)
+fn same(user: User, label: dyn Display) -> bool:
+    cmp::[dyn Display](user, label)
 
 fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)
@@ -28,7 +28,7 @@ fn widest(small: i32, large: i64) -> i64:
 tests:
     it("an explicit Display argument converts the User"):
         user := User { name: "ada" }
-        let label: Display = "ada"
+        let label: dyn Display = "ada"
         assert_equal(same(user, label), true, reason="both display as ada")
 
     it("a cast widens before the call"):

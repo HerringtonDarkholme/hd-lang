@@ -16,13 +16,13 @@ impl Counter for Clicks:
     fn bump(mut self) -> void:
         self.value = self.value + 1
 
-fn bump_twice(counter: mut Counter) -> void:
+fn bump_twice(counter: mut dyn Counter) -> void:
     counter.bump()
     counter.bump()
 
 tests:
     it("the trait value mutates the shared value"):
         let mut clicks = Clicks { value: 0 }
-        let edit: mut Counter = clicks
+        let edit: mut dyn Counter = clicks
         bump_twice(edit)
         assert_equal(clicks.value, 2, reason="mutation through the trait value")

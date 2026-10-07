@@ -21,22 +21,22 @@ impl Plugin for Importer:
     fn name(self) -> string:
         "import " + self.source
 
-fn as_inspectable(plugin: Plugin) -> Inspectable:
+fn as_inspectable(plugin: dyn Plugin) -> dyn Inspectable:
     plugin
 
-fn format_of(value: Inspectable) -> string:
+fn format_of(value: dyn Inspectable) -> string:
     match value.downcast::[Exporter]():
         .Some(exporter) => exporter.format
         .None => "none"
 
 tests:
     it("the child trait's own members dispatch"):
-        let plugins: List[Plugin] = [Exporter { format: "csv" }, Importer { source: "s3" }]
+        let plugins: List[dyn Plugin] = [Exporter { format: "csv" }, Importer { source: "s3" }]
         assert_equal(plugins[0].name(), "export csv", reason="Exporter's name")
         assert_equal(plugins[1].name(), "import s3", reason="Importer's name")
 
     it("the supplied Inspectable part reports the concrete type"):
-        let plugin: Plugin = Exporter { format: "json" }
+        let plugin: dyn Plugin = Exporter { format: "json" }
         assert(plugin.runtime_type() == TypeId::of::[Exporter](), reason="the recorded type is Exporter")
 
     it("widening to Inspectable keeps the recorded type"):

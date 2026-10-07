@@ -5,5 +5,5 @@
 trait Source:
     fn read!(self) -> i32
 
-fn total(source: Source) -> i32:
+fn total(source: dyn Source) -> i32:
     source.read!()  # diagnostic: bang-call-outside-suspension

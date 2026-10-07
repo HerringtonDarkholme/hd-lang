@@ -17,7 +17,7 @@ impl[Item < Score] Score for List[Item]:
 
 fn dynamic_score() -> i32:
     let points: List[Point] = [Point { value: 42 }]
-    let dynamic: Score = points
+    let dynamic: dyn Score = points
     dynamic.score()
 
 fn read_score[T < Score](value: T) -> i32:
@@ -27,7 +27,7 @@ fn bounded_score() -> i32:
     let points: List[Point] = [Point { value: 42 }]
     read_score(points)
 
-fn erase_scores[T < Score](values: List[T]) -> Score:
+fn erase_scores[T < Score](values: List[T]) -> dyn Score:
     values
 
 fn forwarded_score() -> i32:

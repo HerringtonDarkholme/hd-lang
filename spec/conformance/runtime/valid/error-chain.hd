@@ -17,8 +17,8 @@ enum SyncError:
     @error("sync failed")
     Save(@from error: SaveError)
 
-fn messages(errors: List[Error]) -> List[string]:
-    errors.map(fn(error: Error) -> string: error.to_string())
+fn messages(errors: List[dyn Error]) -> List[string]:
+    errors.map(fn(error: dyn Error) -> string: error.to_string())
 
 tests:
     it("a two-level cause chain"):

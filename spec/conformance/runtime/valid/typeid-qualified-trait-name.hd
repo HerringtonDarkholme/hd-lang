@@ -6,5 +6,5 @@ use std.testing.assert_equal
 
 tests:
     it("a trait value type prints its trait's absolute name"):
-        assert_equal(TypeId::of::[Error]().to_string(), "std.error.Error", reason="qualified trait name")
-        assert_equal(TypeId::of::[List[Error]]().to_string(), "List[std.error.Error]", reason="as a type argument")
+        assert_equal(TypeId::of::[dyn Error]().to_string(), "std.error.Error", reason="qualified trait name")
+        assert_equal(TypeId::of::[List[dyn Error]]().to_string(), "List[std.error.Error]", reason="as a type argument")

@@ -370,7 +370,7 @@ impl Display for FsError:
 
 impl Error for FsError
 
-fn load(path: string) -> Result[string, Error]:
+fn load(path: string) -> Result[string, dyn Error]:
     text := read_config(path)?
     .Ok(text)
 ```
@@ -408,7 +408,7 @@ impl Describe for User:
     fn describe(self) -> string:
         self.email
 
-fn print_all(items: List[Describe]) -> void $ Console:
+fn print_all(items: List[dyn Describe]) -> void $ Console:
     for item in items:
         println(item.label())
 ```
@@ -442,7 +442,7 @@ as `Error`, can be downcast back.
 ```hd
 use std.inspect.{Inspectable, TypeId}
 
-fn describe_value(value: Inspectable) -> string:
+fn describe_value(value: dyn Inspectable) -> string:
     if value.runtime_type() == TypeId::of::[i32]():
         return "an i32"
     match value.downcast::[User]():

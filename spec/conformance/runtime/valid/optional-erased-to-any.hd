@@ -8,5 +8,5 @@ tests:
     it("optionals convert to Any"):
         let present: i32? = 1
         let absent: i32? = .None
-        let values: List[Any] = [present, absent, 3]
+        let values: List[dyn Any] = [present, absent, 3]
         assert_equal(values.len(), 3, reason="three erased values")

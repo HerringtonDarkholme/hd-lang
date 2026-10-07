@@ -12,13 +12,13 @@ let s:cpo_save = &cpo
 set cpo&vim
 
 " Reserved words: KEYWORDS in src/lexer.ts. Keep this list in sync:
-"   Self break continue data defer else enum false fn for if impl in is
+"   Self break continue data defer dyn else enum false fn for if impl in is
 "   let match mut pass pub return self tests trait true type while
 syn keyword hdConditional if else match
 syn keyword hdRepeat      for while in
 syn keyword hdStatement   return break continue pass defer
 syn keyword hdStructure   data enum trait impl type
-syn keyword hdStorage     pub mut
+syn keyword hdStorage     pub mut dyn
 syn keyword hdKeyword     fn let is tests
 syn keyword hdBoolean     true false
 syn keyword hdSelf        self Self

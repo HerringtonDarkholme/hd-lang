@@ -15,7 +15,7 @@ impl Mixer for Calculator:
 fn main!() -> i32:
     calculator := Calculator {}
     static := calculator.blend(right=2, left=4)
-    let dynamic: Mixer = calculator
+    let dynamic: dyn Mixer = calculator
     direct := dynamic.blend(right=0, left=0)
     suspended := dynamic.load!(right=0, left=0)
     static + direct + suspended

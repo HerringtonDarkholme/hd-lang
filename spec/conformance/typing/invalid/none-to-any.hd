@@ -1,1 +1,1 @@
-let invalid: Any = .None  # diagnostic: missing-contextual-enum-type
+let invalid: dyn Any = .None  # diagnostic: missing-contextual-enum-type

@@ -13,5 +13,5 @@ enum Status:
 
 tests:
     it("primitive, string, data, enum, tuple, and list values convert to Any"):
-        let values: List[Any] = [1, "text", User { name: "Ada" }, Status.Active, (1, 2), [true]]
+        let values: List[dyn Any] = [1, "text", User { name: "Ada" }, Status.Active, (1, 2), [true]]
         assert_equal(values.len(), 6, reason="six erased values")

@@ -5,5 +5,5 @@ trait Factory:
     fn create() -> Self
 
 fn collect() -> void:
-    let factories: List[Factory] = []  # diagnostic: trait-not-dynamically-safe
+    let factories: List[dyn Factory] = []  # diagnostic: trait-not-dynamically-safe
     _ := factories

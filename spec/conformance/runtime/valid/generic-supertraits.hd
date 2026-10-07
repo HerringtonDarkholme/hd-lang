@@ -33,22 +33,22 @@ fn read_wrapped[T < Wrapped[i32]](value: T) -> i32:
 fn generic_supertrait_bound() -> i32:
     read_wrapped(Box::[i32] { item: 42 })
 
-fn read_dynamic(value: Wrapped[i32]) -> i32:
+fn read_dynamic(value: dyn Wrapped[i32]) -> i32:
     value.source()[0]
 
 fn generic_supertrait_dynamic() -> i32:
-    let value: Wrapped[i32] = Box::[i32] { item: 42 }
+    let value: dyn Wrapped[i32] = Box::[i32] { item: 42 }
     read_dynamic(value)
 
-fn read_source(value: Source[List[i32]]) -> i32:
+fn read_source(value: dyn Source[List[i32]]) -> i32:
     value.source()[0]
 
 fn generic_supertrait_widened() -> i32:
-    let child: Wrapped[i32] = Box::[i32] { item: 42 }
+    let child: dyn Wrapped[i32] = Box::[i32] { item: 42 }
     read_source(child)
 
 fn concrete_child_uses_blanket_parent() -> i32:
-    let child: Specialized[i32] = Box::[i32] { item: 42 }
+    let child: dyn Specialized[i32] = Box::[i32] { item: 42 }
     child.source()[0]
 
 tests:

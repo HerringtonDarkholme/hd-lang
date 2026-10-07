@@ -2,5 +2,5 @@
 # Spec 09 Erasure To Inspectable: erasing a value of a type parameter requires T < Inspectable.
 use std.inspect.Inspectable
 
-fn erase[T](value: T) -> Inspectable:
+fn erase[T](value: T) -> dyn Inspectable:
     value  # diagnostic: type-mismatch

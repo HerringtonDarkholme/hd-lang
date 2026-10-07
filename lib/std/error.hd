@@ -13,20 +13,41 @@ use std.console.ConsoleError
 ## The standard error trait: a displayable, inspectable failure that may name its cause.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
 pub trait Error < Display & Inspectable:
-    fn cause(self) -> Error?: .None
+    fn cause(self) -> dyn Error?: .None
 
-    # The last error of `chain(self)` (r-std-error.root-cause).
-    fn root_cause(self) -> Error:
-        errors := chain(self)
+# The cause-chain helpers are inherent methods of `dyn Error`
+# (spec/lang/09-traits.md#r-trait.own.dyn-inherent.form): every error value
+# reaches them, and no implementation can override them (r-std-error.chain-methods).
+impl dyn Error:
+    ## Returns this error first, then its `cause`, then that error's cause, and so on.
+    ## See [std-error.chain.method](../../spec/std/error.md#r-std-error.chain.method).
+    pub fn chain(self) -> List[dyn Error]:
+        let errors: mut List[dyn Error] = [self]
+        let next = self.cause()
+        while true:
+            match next:
+                .Some(cause) =>
+                    errors.push(cause)
+                    next = cause.cause()
+                .None =>
+                    return errors
+
+    # The last error of `self.chain()` (r-std-error.root-cause).
+    ## Returns the last error of the cause chain.
+    ## See [std-error.root-cause](../../spec/std/error.md#r-std-error.root-cause).
+    pub fn root_cause(self) -> dyn Error:
+        errors := self.chain()
         errors[errors.len() - 1]
 
-    # The first error of `chain(self)` whose recorded type is `T`, recovered
+    # The first error of `self.chain()` whose recorded type is `T`, recovered
     # through `downcast_val`: an enum error comes back as an equal value, and
     # a data error as the same reference (r-std-error.find.value). `T` may be
     # any error type, a value type included, by
     # spec/lang/09-traits.md#r-trait.dyn.safe.method-type-param.
-    fn find[T < Error](self) -> T?:
-        for error in chain(self):
+    ## Returns the first error of the cause chain whose type is `T`.
+    ## See [std-error.find.first](../../spec/std/error.md#r-std-error.find.first).
+    pub fn find[T < Error](self) -> T?:
+        for error in self.chain():
             match downcast_val::[T](error):
                 .Some(found) => return .Some(found)
                 .None => pass
@@ -57,22 +78,14 @@ impl Display for ErrorReport:
 # (r-std-error.chain.order).
 ## Returns `error` first, then the error its `cause` returns, then that error's cause, and so on.
 ## See [std-error.chain.decl](../../spec/std/error.md#r-std-error.chain.decl).
-pub fn chain(error: Error) -> List[Error]:
-    let errors: mut List[Error] = [error]
-    let next = error.cause()
-    while true:
-        match next:
-            .Some(cause) =>
-                errors.push(cause)
-                next = cause.cause()
-            .None =>
-                return errors
+pub fn chain(error: dyn Error) -> List[dyn Error]:
+    error.chain()
 
 # The `Display` text of the error and of each cause that `chain` yields
 # after it (r-std-error.report.of).
 ## Builds the boundary-safe report of `error`: its message, and its causes' messages.
 ## See [std-error.report.of](../../spec/std/error.md#r-std-error.report.of).
-pub fn report_of(error: Error) -> ErrorReport:
+pub fn report_of(error: dyn Error) -> ErrorReport:
     errors := chain(error)
     let causes: mut List[string] = []
     let index: usize = 1
@@ -85,7 +98,7 @@ pub fn report_of(error: Error) -> ErrorReport:
 # `.Err(error)` and the error's type implements `Error`
 # (spec/lang/10-modules.md#r-module.entry.err-render-chain). The checker
 # calls it from the entry renderer (checker/entry-error.ts).
-fn entry_report(error: Error) -> string:
+fn entry_report(error: dyn Error) -> string:
     report_of(error).to_string()
 
 # The error that `context` wraps around an `.Err`: its text is the message,
@@ -94,14 +107,14 @@ fn entry_report(error: Error) -> string:
 ## See [std-error.context.type](../../spec/std/error.md#r-std-error.context.type).
 pub data ContextError:
     message: string
-    error: Error
+    error: dyn Error
 
 impl Display for ContextError:
     fn to_string(self) -> string:
         self.message
 
 impl Error for ContextError:
-    fn cause(self) -> Error?:
+    fn cause(self) -> dyn Error?:
         .Some(self.error)
 
 # The std error types of the prelude-joined modules implement `Error` here,
@@ -117,7 +130,7 @@ impl Error for ConsoleError
 impl[T, E < Error] Result[T, E]:
     ## For an `.Err`, wraps the error with `message` as its context; an `.Ok` is unchanged.
     ## See [std-error.context.decl](../../spec/std/error.md#r-std-error.context.decl).
-    pub fn context(self, message: string) -> Result[T, Error]:
+    pub fn context(self, message: string) -> Result[T, dyn Error]:
         match self:
             .Ok(value) => .Ok(value)
             .Err(error) => .Err(ContextError { message: message, error: error })

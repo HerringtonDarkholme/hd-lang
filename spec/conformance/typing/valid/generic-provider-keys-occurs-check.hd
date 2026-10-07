@@ -1,6 +1,6 @@
 # test: requirements / generic provider keys / occurs check
 
 trait Repo[T]
-fn safe[T](plain: Repo[T], nested: Repo[T?]) -> void:
+fn safe[T](plain: dyn Repo[T], nested: dyn Repo[T?]) -> void:
     $.with(Repo[T]=plain, Repo[T?]=nested):
         pass

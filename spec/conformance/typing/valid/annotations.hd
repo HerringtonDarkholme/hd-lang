@@ -16,7 +16,7 @@ fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 
 fn contains(text: string) -> Contains: Contains { text: text }
 
-fn email_metadata() -> List[Any]:
+fn email_metadata() -> List[dyn Any]:
     [min_len(3), max_len(320), contains("@")]
 
 data User:

@@ -13,7 +13,7 @@ fn erased_label(number: string) -> string:
     impl Labeled for Invoice:
         fn label(self) -> string: "INV-" + self.number
 
-    let labeled: Labeled = invoice
+    let labeled: dyn Labeled = invoice
     labeled.label()
 
 fn shipping_cost() -> i32:

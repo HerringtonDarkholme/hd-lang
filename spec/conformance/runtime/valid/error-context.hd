@@ -12,7 +12,7 @@ fn read(path: string) -> Result[string, NotFound]:
         return .Err(NotFound { path: path })
     .Ok("port = 80")
 
-fn load(path: string) -> Result[string, Error]:
+fn load(path: string) -> Result[string, dyn Error]:
     text := read(path).context("loading config")?
     .Ok(text)
 

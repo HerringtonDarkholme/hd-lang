@@ -2,4 +2,4 @@
 # Spec 09 Traits: trait.target.trait-value.argument.
 trait Marker
 
-impl Marker for List[Display]
+impl Marker for List[dyn Display]

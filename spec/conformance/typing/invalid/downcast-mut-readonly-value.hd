@@ -6,7 +6,7 @@ use std.inspect.Inspectable
 data Counter:
     count: i32
 
-fn bump(value: Inspectable) -> void:
+fn bump(value: dyn Inspectable) -> void:
     match value.downcast_mut::[Counter]():  # diagnostic: mutable-receiver-required
         .Some(counter) => counter.count = counter.count + 1
         .None => pass

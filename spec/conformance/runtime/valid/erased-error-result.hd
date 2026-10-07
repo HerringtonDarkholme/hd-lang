@@ -33,12 +33,12 @@ fn parse(text: string) -> Result[i32, ParseError]:
         return .Ok(80)
     .Err(ParseError.BadLine(1))
 
-fn load_port(path: string) -> Result[i32, Error]:
+fn load_port(path: string) -> Result[i32, dyn Error]:
     text := read(path)?
     port := parse(text)?
     .Ok(port)
 
-fn message(result: Result[i32, Error]) -> string:
+fn message(result: Result[i32, dyn Error]) -> string:
     match result:
         .Ok(port) => "port ${port}"
         .Err(error) => error.to_string()
@@ -49,7 +49,7 @@ tests:
         assert_equal(message(load_port("other.conf")), "not found: other.conf", reason="an FsError")
 
     it("the default cause is .None"):
-        let error: Error = ParseError.BadLine(3)
+        let error: dyn Error = ParseError.BadLine(3)
         match error.cause():
             .Some(_) => assert(false, reason="no cause was given")
             .None => assert(true, reason="the default cause")

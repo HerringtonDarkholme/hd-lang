@@ -9,7 +9,7 @@ trait Marker
 data Wrap[T]:
     value: T
 
-impl[T < Source[Factory]] Marker for Wrap[T]  # diagnostic: trait-not-dynamically-safe
+impl[T < Source[dyn Factory]] Marker for Wrap[T]  # diagnostic: trait-not-dynamically-safe
 
 trait Factory:
     fn create() -> Self

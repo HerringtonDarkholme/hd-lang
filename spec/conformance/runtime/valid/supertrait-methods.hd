@@ -27,18 +27,18 @@ fn parent_length[T < Formattable](value: T) -> usize:
 fn bounded_parent_length() -> usize:
     parent_length(User { name: "Alice" })
 
-fn dynamic_parent(value: Formattable) -> usize:
+fn dynamic_parent(value: dyn Formattable) -> usize:
     value.describe().len()
 
 fn dynamic_parent_length() -> usize:
-    let value: Formattable = User { name: "Alice" }
+    let value: dyn Formattable = User { name: "Alice" }
     dynamic_parent(value)
 
-fn parent_dynamic(value: Describe) -> usize:
+fn parent_dynamic(value: dyn Describe) -> usize:
     value.describe().len()
 
 fn widened_parent_length() -> usize:
-    let value: Formattable = User { name: "Alice" }
+    let value: dyn Formattable = User { name: "Alice" }
     parent_dynamic(value)
 
 tests:

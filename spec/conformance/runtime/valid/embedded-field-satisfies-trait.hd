@@ -18,7 +18,7 @@ data Page:
 impl Describe for Page:
     fn describe(self) -> i32: self.Label.describe()
 
-fn show(value: Describe) -> i32: value.describe()
+fn show(value: dyn Describe) -> i32: value.describe()
 
 fn main() -> i32:
     page := Page { Label: ...Label { value: 21 } }

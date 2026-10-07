@@ -11,7 +11,7 @@ impl Eq for Coupon:
         self.code == other.code
 
 impl Hash for Coupon:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         self.uses.hash(state)
 
 fn redeemed(counts: Map[Coupon, i32], coupon: Coupon) -> i32?:

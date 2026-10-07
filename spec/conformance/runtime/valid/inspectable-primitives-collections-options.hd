@@ -7,22 +7,22 @@ use std.testing.assert_equal
 data Sku:
     code: string
 
-fn stock_of(value: Inspectable) -> i32:
+fn stock_of(value: dyn Inspectable) -> i32:
     match value.downcast::[Map[string, i32]]():
         .Some(stock) => stock["apple"]
         .None => -1
 
-fn pair_of(value: Inspectable) -> string:
+fn pair_of(value: dyn Inspectable) -> string:
     match downcast_val::[(i32, string)](value):
         .Some(pair) => "${pair._0}:${pair._1}"
         .None => "none"
 
-fn weight_of(value: Inspectable) -> f64:
+fn weight_of(value: dyn Inspectable) -> f64:
     match downcast_val::[f64](value):
         .Some(weight) => weight
         .None => 0.0
 
-fn sku_of(value: Inspectable) -> string:
+fn sku_of(value: dyn Inspectable) -> string:
     match downcast_val::[Sku?](value):
         .Some(found) =>
             match found:

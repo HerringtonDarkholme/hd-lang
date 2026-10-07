@@ -111,6 +111,7 @@ class Parser extends LetParser {
         this.parseModuleItem(doc, items, this.options.testModule === true);
       }
       finishTestCases(items, (code, message, span) => this.fail(code, message, span));
+      this.foldDynInherentBlocks(items);
     } catch (error) {
       if (!(error instanceof ParseFailure)) throw error;
       return { diagnostics: this.diagnostics };
@@ -511,6 +512,7 @@ class Parser extends LetParser {
     const genericBounds = [...parsedGenerics.bounds];
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
+    const dynTarget = this.atText("dyn");
     const first = this.parseType();
     const trait = this.matchText("for") ? first : undefined;
     // The trait of an implementation header is a `trait_type`, which takes
@@ -613,7 +615,7 @@ class Parser extends LetParser {
     const close = this.expectKind("dedent", "expected the end of the implementation body");
     this.activeGenericParameters = enclosingGenericParameters;
     this.enclosingKinds = enclosingKinds;
-    return {
+    const implementation: ImplDecl = {
       kind: "impl",
       genericParameters,
       ...(parsedGenerics.rows.length > 0 ? { rowParameters: parsedGenerics.rows } : {}),
@@ -627,6 +629,8 @@ class Parser extends LetParser {
       doc,
       span: { start, end: close.span.end },
     };
+    if (dynTarget && !trait) this.dynInherentBlocks.push(implementation);
+    return implementation;
   }
 
   protected parseMethod(requireBody: boolean, doc?: string): MethodDecl {
@@ -1077,6 +1081,15 @@ class Parser extends LetParser {
       if (tupleParts(inner.name) !== undefined) this.mutTuples.push(written);
       return written;
     }
+    // `dyn Trait` is a trait value type (04-type-system.md#r-types.trait.value).
+    // The prototype reads it as the bare trait name it accepted before.
+    if (this.matchText("dyn")) {
+      const start = this.peek(-1).span.start;
+      if (this.current().kind !== "identifier")
+        this.fail("syntax-error", "expected a trait name after 'dyn'", this.current().span);
+      const inner = this.parseType(false);
+      return finish(inner.name, { start, end: inner.span.end });
+    }
     if (this.matchText("$")) {
       const start = this.peek(-1).span.start;
       this.expectText(".");
@@ -1204,6 +1217,24 @@ class Parser extends LetParser {
     if (statements.length === 0)
       this.fail("syntax-error", "an indented suite must contain a statement", this.current().span);
     return statements;
+  }
+
+  // The prototype reads `impl dyn Tr:` (09-traits.md#r-trait.own.dyn-inherent.form)
+  // as default methods of `Tr`, declared in the same module; a block that
+  // names no trait of the module stays an inherent implementation of `Tr`.
+  private dynInherentBlocks: ImplDecl[] = [];
+
+  private foldDynInherentBlocks(items: ModuleItems): void {
+    for (const block of this.dynInherentBlocks) {
+      const index = items.traits.findIndex((trait) => trait.name === block.targetName);
+      const at = items.implementations.findIndex((item) => item.span === block.span);
+      if (index < 0 || at < 0) continue;
+      const trait = items.traits[index]!;
+      const methods = block.methods.map(({ public: _public, ...method }) => method);
+      items.traits[index] = { ...trait, methods: [...trait.methods, ...methods] };
+      items.implementations.splice(at, 1);
+    }
+    this.dynInherentBlocks = [];
   }
 
   private localDeclarations = false;

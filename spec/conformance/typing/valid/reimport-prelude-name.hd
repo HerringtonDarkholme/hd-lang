@@ -7,8 +7,8 @@ data Label:
     value: string
 
 impl Hash for Label:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         self.value.hash(state)
 
-fn render(value: Display) -> string:
+fn render(value: dyn Display) -> string:
     value.to_string()

@@ -8,7 +8,7 @@ fn invoice_label(number: string) -> string:
         fn label(self) -> string
 
     invoice := Invoice { number }
-    let labeled: Labeled = invoice  # diagnostic: type-mismatch
+    let labeled: dyn Labeled = invoice  # diagnostic: type-mismatch
 
     impl Labeled for Invoice:
         fn label(self) -> string: "INV-" + self.number

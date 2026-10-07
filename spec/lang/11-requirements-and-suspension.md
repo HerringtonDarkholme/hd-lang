@@ -681,7 +681,7 @@ trait Clock
 trait Store:
     fn get(self) -> string
 
-fn keep() -> Store $ Store:
+fn keep() -> dyn Store $ Store:
     $.use(Store)   # an ordinary value: it may flow into a return
 ```
 
@@ -821,12 +821,12 @@ trait Repo[T]
 
 data User: pass
 
-fn choose[T, U](first: Repo[T], second: Repo[U]) -> void:
+fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
     $.with(Repo[T]=first):
         $.with(Repo[U]=second):  # error: generic-requirement-key-collision
             pass
 
-fn mixed[T](local: Repo[User]) -> void $ Repo[T]:
+fn mixed[T](local: dyn Repo[User]) -> void $ Repo[T]:
     $.with(Repo[User]=local):  # error: generic-requirement-key-collision
         pass
 ```
@@ -838,14 +838,14 @@ trait Repo[T]
 
 data User: pass
 
-fn outer[T](generic: Repo[T], local: Repo[User]) -> void:
+fn outer[T](generic: dyn Repo[T], local: dyn Repo[User]) -> void:
     $.with(Repo[T]=generic):
         run := fn() -> void:
             $.with(Repo[User]=local):  # valid: the outer block is not compared
                 pass
         run()
 
-fn declared[T](local: Repo[User]) -> void:
+fn declared[T](local: dyn Repo[User]) -> void:
     _ := fn() -> void $ Repo[T]:
         $.with(Repo[User]=local):  # error: generic-requirement-key-collision
             pass
@@ -1240,7 +1240,7 @@ Standard-library suspension implementations access the waker of a
 data PollContext: pass
 
 impl PollContext:
-    fn waker(self) -> Waker
+    fn waker(self) -> dyn Waker
 
 trait Waker:
     fn wake(self) -> void

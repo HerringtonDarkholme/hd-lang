@@ -4,7 +4,7 @@ trait Repo[T]
 
 data User: pass
 
-fn outer[T](generic: Repo[T], local: Repo[User]) -> void:
+fn outer[T](generic: dyn Repo[T], local: dyn Repo[User]) -> void:
     $.with(Repo[T]=generic):
         run := fn() -> void:
             $.with(Repo[User]=local):

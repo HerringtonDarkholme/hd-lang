@@ -8,7 +8,7 @@ use std.testing.assert_equal
 data Counter:
     count: i32
 
-fn bump(value: mut Inspectable) -> bool:
+fn bump(value: mut dyn Inspectable) -> bool:
     match value.downcast_mut::[Counter]():
         .Some(counter) =>
             counter.count = counter.count + 1

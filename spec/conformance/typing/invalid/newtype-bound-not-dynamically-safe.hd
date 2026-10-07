@@ -4,7 +4,7 @@
 trait Source[T]:
     fn read(self) -> T
 
-type Wrapped[S < Source[Factory]](S)  # diagnostic: trait-not-dynamically-safe
+type Wrapped[S < Source[dyn Factory]](S)  # diagnostic: trait-not-dynamically-safe
 
 trait Factory:
     fn create() -> Self

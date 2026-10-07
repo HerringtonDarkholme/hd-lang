@@ -12,5 +12,5 @@ impl Display for User:
 fn cmp[T < Display](left: T, right: T) -> bool:
     "$left" == "$right"
 
-fn same(user: User, label: Display) -> bool:
+fn same(user: User, label: dyn Display) -> bool:
     cmp(user, label)  # diagnostic: no-common-type

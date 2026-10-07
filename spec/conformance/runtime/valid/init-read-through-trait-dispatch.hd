@@ -12,7 +12,7 @@ fn via_bound[T < Reader](value: T) -> i32:
 
 later := +5
 bounded := via_bound(Box { value: 2 })
-let reader: Reader = Box { value: 3 }
+let reader: dyn Reader = Box { value: 3 }
 dynamic := reader.read()
 
 impl Reader for Box:

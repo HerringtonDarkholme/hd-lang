@@ -16,7 +16,7 @@ use std.format.DebugWriter
 @str_prefix
 ## The standard string prefix: raw text with the values' `Display` text interpolated, as in `r"cost $5"`.
 ## See [std-text.prefix.std.r](../../spec/std/text.md#r-std-text.prefix.std.r).
-pub fn r(t: Template[Display]) -> string:
+pub fn r(t: Template[dyn Display]) -> string:
     interpolate(t)
 
 # The raw pieces joined with the values' `Display` text, in order

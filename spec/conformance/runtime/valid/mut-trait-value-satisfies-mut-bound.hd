@@ -23,7 +23,7 @@ fn bump_twice[C < mut Counter](counter: C) -> void:
 tests:
     it("mut Counter satisfies C < mut Counter"):
         let visits: mut Visits = Visits { total: 1 }
-        let counter: mut Counter = visits
+        let counter: mut dyn Counter = visits
         bump_twice(counter)
         assert_equal(visits.total, 3, reason="the mut trait value reaches the same object")
         assert_equal(counter.current(), 3, reason="read through the trait value")

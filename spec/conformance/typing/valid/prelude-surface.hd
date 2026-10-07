@@ -6,7 +6,7 @@ impl Display for Label:
     fn to_string(self) -> string: self.value
 
 impl Hash for Label:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         self.value.hash(state)
 
 fn normalize(values: mut List[string], entries: mut Map[string, i32]) -> i32:

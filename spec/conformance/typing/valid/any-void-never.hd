@@ -8,7 +8,7 @@ fn keep[T < Any](value: T) -> i32:
     0
 
 fn erase() -> void:
-    let x: Any = log()
+    let x: dyn Any = log()
     _ := keep(log())
 
 fn stop() -> i32:

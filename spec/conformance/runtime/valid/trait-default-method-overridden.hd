@@ -15,7 +15,7 @@ impl Named for Number:
     fn name(self) -> i32: self.value
     fn label(self) -> i32: 41
 
-fn show(value: Named) -> i32:
+fn show(value: dyn Named) -> i32:
     value.label()
 
 fn main() -> i32:

@@ -9,7 +9,7 @@ data MockClock:
 
 impl Clock for MockClock
 
-fn make_clock!(value: i32) -> Clock:
+fn make_clock!(value: i32) -> dyn Clock:
     MockClock { value: value }
 
 fn read() -> i32 $ Clock:

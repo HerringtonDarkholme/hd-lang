@@ -13,8 +13,8 @@ impl Sum for Box:
     fn add(self, values...: List[i32]) -> i32: self.base + values[0] + values[1]
     fn add_async!(self, values...: List[i32]) -> i32: self.base + values[0]
 
-fn use_dynamic(value: Sum) -> i32: value.add(1, 2)
-fn use_dynamic_async!(value: Sum) -> i32: value.add_async!(4)
+fn use_dynamic(value: dyn Sum) -> i32: value.add(1, 2)
+fn use_dynamic_async!(value: dyn Sum) -> i32: value.add_async!(4)
 
 fn main!() -> i32:
     value := Box { base: 30 }

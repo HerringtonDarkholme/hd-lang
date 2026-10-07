@@ -6,5 +6,5 @@ data Key:
     name: string
 
 impl Hash for Key:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         pass

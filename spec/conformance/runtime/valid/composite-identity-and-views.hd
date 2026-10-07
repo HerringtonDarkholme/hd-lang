@@ -23,10 +23,10 @@ tests:
 
     it("trait and Any conversions of a composite preserve its identity"):
         user := User { name: "Ada" }
-        let first: Display = user
-        let second: Display = user
-        let erased: Any = user
-        let erased_again: Any = user
+        let first: dyn Display = user
+        let second: dyn Display = user
+        let erased: dyn Any = user
+        let erased_again: dyn Any = user
         assert(first is second, reason="direct conversion does not wrap")
         assert(erased is erased_again, reason="Any conversion does not wrap")
 

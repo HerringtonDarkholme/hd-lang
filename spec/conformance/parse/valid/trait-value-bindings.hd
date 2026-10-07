@@ -6,9 +6,9 @@ trait Supplier:
     fn get(self) -> Self::Item
 
 data Holder:
-    source: Supplier[Item = i32]
-    backups: List[Supplier[Item = i32]]
+    source: dyn Supplier[Item = i32]
+    backups: List[dyn Supplier[Item = i32]]
 
-fn read(source: Supplier[Item = i32]) -> i32:
-    let copy: Supplier[Item = i32] = source
+fn read(source: dyn Supplier[Item = i32]) -> i32:
+    let copy: dyn Supplier[Item = i32] = source
     copy.get()

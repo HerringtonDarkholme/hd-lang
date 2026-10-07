@@ -14,7 +14,7 @@ data Number:
 impl Named for Number:
     fn name(self) -> i32: self.value
 
-fn show(value: Named) -> i32:
+fn show(value: dyn Named) -> i32:
     value.label()
 
 fn main() -> i32:

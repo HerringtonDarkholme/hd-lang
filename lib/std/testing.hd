@@ -89,8 +89,8 @@ pub trait PropertyRunner:
 ## The source of one case's drawn values, which the runner records so it can replay and shrink the case.
 ## See [std-testing.choices.declare](../../spec/std/testing.md#r-std-testing.choices.declare).
 pub data Choices:
-    runner: mut PropertyRunner
-    random: mut Random
+    runner: mut dyn PropertyRunner
+    random: mut dyn Random
     size: i32
     replay: List[i64]
     draws: usize
@@ -537,7 +537,7 @@ fn prop_with_case![T < Debug, R, $Q](cases: usize, shrink: usize, gen: fn(mut Ch
 # `start` returned. It holds the runner's provider value, so a generator
 # records its draws through it with no requirement row
 # (r-std-testing.runner.choices).
-fn choices(runner: mut PropertyRunner, current: PropertyCase) -> mut Choices:
+fn choices(runner: mut dyn PropertyRunner, current: PropertyCase) -> mut Choices:
     Choices { runner: runner, random: SeededRandom::new(u64(current.seed)), size: current.size, replay: current.replay, draws: 0, edge: edge_plan(current.seed, current.size) }
 
 # The edge of a generated case (r-std-testing.edge.plan): the first four

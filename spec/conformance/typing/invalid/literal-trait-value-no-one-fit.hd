@@ -9,5 +9,5 @@ impl Gauge for f64:
         self
 
 fn idle_sensor() -> f64:
-    let reading: Gauge = 0  # diagnostic: type-mismatch
+    let reading: dyn Gauge = 0  # diagnostic: type-mismatch
     reading.level()

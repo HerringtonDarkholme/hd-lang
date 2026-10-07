@@ -546,14 +546,15 @@ fn kind(token: Token) -> string:
 r[lex.keyword.reserved-words] The grammar uses these reserved words:
 
 ```text
-Self      break     continue  data      defer     else
-enum      false     fn        for       if        impl
-in        is        let       match     mut       pass
-pub       return    self      tests     trait     true
-type      while
+Self      break     continue  data      defer     dyn
+else      enum      false     fn        for       if
+impl      in        is        let       match     mut
+pass      pub       return    self      tests     trait
+true      type      while
 ```
 
 1. r[lex.keyword.tests] `tests` begins a module's `tests:` block ([Test Blocks](02-grammar.md#test-blocks)).
+2. r[lex.keyword.dyn] `dyn` begins a trait value type, as in `dyn Display` ([Trait Value Types](04-type-system.md#trait-value-types)).
 
 ### Contextual Words
 

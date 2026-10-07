@@ -15,4 +15,4 @@ enum SaveError:
 tests:
     it("no supertrait search"):
         failure := SaveError.Write("notes.txt", DiskError { free: 0 })
-        assert(failure.find::[Error]().is_none(), reason="a recorded type is never a trait value type")
+        assert(failure.find::[dyn Error]().is_none(), reason="a recorded type is never a trait value type")

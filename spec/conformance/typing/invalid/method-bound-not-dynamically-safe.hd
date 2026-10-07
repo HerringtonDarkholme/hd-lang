@@ -2,7 +2,7 @@
 # Spec 09 Dynamic Safety: trait.dyn.safe.error; Spec 03 Module Scope: names.module.order-free.
 
 trait Consumer:
-    fn consume[S < Source[Factory]](self, source: S) -> void  # diagnostic: trait-not-dynamically-safe
+    fn consume[S < Source[dyn Factory]](self, source: S) -> void  # diagnostic: trait-not-dynamically-safe
 
 trait Source[T]:
     fn read(self) -> T

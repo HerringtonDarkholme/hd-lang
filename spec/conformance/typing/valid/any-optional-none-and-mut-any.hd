@@ -3,17 +3,17 @@
 data Settings:
     theme: string
 
-fn missing_setting() -> Any?:
-    let setting: Any? = .None
+fn missing_setting() -> dyn Any?:
+    let setting: dyn Any? = .None
     setting
 
-fn fail_setting() -> Any:
+fn fail_setting() -> dyn Any:
     panic("no settings file")
 
 fn keep_mut[T < mut Any](value: T) -> void:
     pass
 
 fn store(settings: mut Settings) -> void:
-    let erased: mut Any = settings
+    let erased: mut dyn Any = settings
     _ := erased
     keep_mut(settings)

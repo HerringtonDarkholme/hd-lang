@@ -3,7 +3,7 @@
 # Spec 09 Traits: trait.downcast.bound, trait.downcast.bound.examples.
 use std.inspect.Inspectable
 
-fn number(value: Inspectable) -> i32:
+fn number(value: dyn Inspectable) -> i32:
     match value.downcast::[i32]():  # diagnostic: unsatisfied-trait-bound
         .Some(found) => found
         .None => 0

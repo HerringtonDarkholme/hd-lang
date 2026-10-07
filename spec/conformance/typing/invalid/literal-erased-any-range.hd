@@ -2,4 +2,4 @@
 # Spec 04 Neutral Uses: types.literal.local.erased (ONE-FIT).
 
 fn run() -> void:
-    let x: Any = 4294967296  # diagnostic: integer-literal-range
+    let x: dyn Any = 4294967296  # diagnostic: integer-literal-range

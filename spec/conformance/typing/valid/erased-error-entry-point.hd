@@ -16,6 +16,6 @@ fn start(ready: bool) -> Result[void, StartError]:
         return .Ok(())
     .Err(StartError.MissingConfig)
 
-pub fn main() -> Result[void, Error]:
+pub fn main() -> Result[void, dyn Error]:
     start(true)?
     .Ok(())

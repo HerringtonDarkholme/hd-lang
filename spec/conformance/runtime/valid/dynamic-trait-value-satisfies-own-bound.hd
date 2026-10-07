@@ -22,7 +22,7 @@ fn show[T < Display](value: T) -> string:
 fn tag[T < Named](value: T) -> string:
     value.name()
 
-fn describe(named: Named, shown: Display) -> string:
+fn describe(named: dyn Named, shown: dyn Display) -> string:
     tag(named) + " " + show(named) + " " + show(shown)
 
 tests:

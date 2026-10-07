@@ -2,7 +2,7 @@
 # Spec 09 Dynamic Safety: trait.dyn.safe.error; Spec 03 Module Scope: names.module.order-free.
 
 data Registry:
-    factories: List[Factory]  # diagnostic: trait-not-dynamically-safe
+    factories: List[dyn Factory]  # diagnostic: trait-not-dynamically-safe
 
 trait Factory:
     fn create() -> Self

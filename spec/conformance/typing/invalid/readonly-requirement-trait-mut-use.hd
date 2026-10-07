@@ -1,7 +1,7 @@
 # test: requirements / mutable providers / $.use of a trait without mut self methods is readonly
 
 fn label() -> string $ Tag:
-    let tag: mut Tag = $.use(Tag)  # diagnostic: mutable-upgrade
+    let tag: mut dyn Tag = $.use(Tag)  # diagnostic: mutable-upgrade
     tag.name()
 
 pub fn main() -> void:

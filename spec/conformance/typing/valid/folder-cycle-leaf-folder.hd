@@ -6,5 +6,5 @@ use pkg.error.{Error}
 pub data Cart:
     pub count: i32
 
-pub fn empty() -> Error:
+pub fn empty() -> dyn Error:
     Error.Empty

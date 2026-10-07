@@ -27,5 +27,5 @@ tests:
         assert_equal(failure.root_cause().to_string(), "disk full", reason="its own root cause")
 
     it("through an erased Error"):
-        let failure: Error = SaveError.Write("notes.txt", DiskError { free: 0 })
+        let failure: dyn Error = SaveError.Write("notes.txt", DiskError { free: 0 })
         assert_equal(failure.root_cause().to_string(), "disk full", reason="a dynamic call")

@@ -14,7 +14,7 @@ impl Reader for FixedReader:
         _ := console.write_line!("read ${value}")
         self.offset + value
 
-fn combine!(reader: Reader) -> i32 $ Console:
+fn combine!(reader: dyn Reader) -> i32 $ Console:
     reader.read!(20) + reader.read!(22)
 
 pub fn main!() -> void $ Console:

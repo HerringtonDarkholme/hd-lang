@@ -21,13 +21,13 @@ enum Wrapped[P]:
     @error(transparent)
     Inner(error: P)
 
-fn erase_task(value: TaskError[DiskError, Job]) -> Error:
+fn erase_task(value: TaskError[DiskError, Job]) -> dyn Error:
     value
 
-fn erase_generic[E < Error, T < Inspectable](value: TaskError[E, T]) -> Error:
+fn erase_generic[E < Error, T < Inspectable](value: TaskError[E, T]) -> dyn Error:
     value
 
-fn erase_wrapped(value: Wrapped[DiskError]) -> Error:
+fn erase_wrapped(value: Wrapped[DiskError]) -> dyn Error:
     value
 
 fn show_wrapped[P < Display](value: Wrapped[P]) -> string:

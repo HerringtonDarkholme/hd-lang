@@ -986,8 +986,8 @@ impl Display for User:
         self.name
 
 fn edit(mutable_user: mut User) -> void:
-    let edit: mut Display = mutable_user
-    let shown: Display = edit
+    let edit: mut dyn Display = mutable_user
+    let shown: dyn Display = edit
 ```
 
 No rule converts one numeric type to another, as
@@ -1525,7 +1525,7 @@ fn cmp[T < Display](left: T, right: T) -> bool:
 fn widest(small: i32, large: i64) -> i64:
     max(small, large)  # error: type-mismatch
 
-fn same(user: User, label: Display) -> bool:
+fn same(user: User, label: dyn Display) -> bool:
     cmp(user, label)  # error: no-common-type
 ```
 
@@ -1545,8 +1545,8 @@ fn either(large: i64) -> i64:
 fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)
 
-fn same(user: User, label: Display) -> bool:
-    cmp::[Display](user, label)
+fn same(user: User, label: dyn Display) -> bool:
+    cmp::[dyn Display](user, label)
 ```
 
 > **Why.** A call's arguments are not a list literal. A reader expects `T`
@@ -1996,8 +1996,8 @@ See also: [Representation-Preserving Conversions](#representation-preserving-con
 
 ## Trait Values And `Any`
 
-This section defines trait conformance, dynamic trait values, and the `Any`
-trait family.
+This section defines trait conformance, dynamic trait values, written
+`dyn Trait`, and the `Any` trait family.
 
 1. r[types.trait.explicit] Trait conformance is explicit.
 2. r[types.trait.no-shape] Matching method shape alone does not make a type implement a trait.
@@ -2007,55 +2007,69 @@ trait family.
 data User:
     name: string
 
-fn demo(user: User) -> Any:
+fn demo(user: User) -> dyn Any:
     user   # every value satisfies Any
 ```
 
 ### Trait Value Types
 
-1. r[types.trait.value] Using a trait name as a value type creates a Go-style dynamic trait value.
+1. r[types.trait.value] A trait value type is written `dyn` and a trait, as in `dyn Display`. It creates a Go-style dynamic trait value.
 2. r[types.trait.value.contents] A dynamic trait value contains a concrete value and dispatch metadata for that trait.
-3. r[types.trait.value.no-dyn] Source syntax does not use a `dyn` marker.
-4. r[types.trait.value.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each of that trait's supertraits. For example, a `Display` value is a valid argument for `T < Display`.
-5. r[types.trait.value.bindings] A trait value type may bind the trait's associated types, as in `Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
-6. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
+3. r[types.trait.value.dyn-required] A bare trait name in a type position is an error, and its fix-it inserts `dyn`. Error: `trait-used-as-type`.
+4. r[types.trait.value.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each of that trait's supertraits. For example, a `dyn Display` value is a valid argument for `T < Display`.
+5. r[types.trait.value.bound.available] It satisfies such a bound only when every member of the bound's trait is available on the `dyn` value, as [`trait.dyn.bound.available`](09-traits.md#r-trait.dyn.bound.available) states.
+6. r[types.trait.value.bindings] A trait value type may bind the trait's associated types, as in `dyn Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
+7. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
+8. r[types.trait.value.mut] `mut dyn Trait` is the mutable view of a trait value, as `mut T` is of any type.
 
 ```hd
 trait Greet:
     fn greet(self) -> string
 
-fn demo(g: Greet) -> string:
+fn demo(g: dyn Greet) -> string:
     g.greet()
 ```
+
+```text
+trait Greet:
+    fn greet(self) -> string
+
+fn demo(g: Greet) -> string:  # error: trait-used-as-type
+    g.greet()
+```
+
+> **Why.** `dyn` marks where a value is boxed and its calls are dispatched
+> at run time. A bound such as `T < Greet` stays the monomorphized form.
 
 See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values), which
 gives the rule.
 
 ### Dynamic Safety
 
-1. r[types.trait.safe] Only a dynamically safe trait may be used as a value type. Error: `trait-not-dynamically-safe`.
-2. r[types.trait.safe.one-copy] Dynamic safety is defined by the one-copy rule, [`trait.dyn.safe.one-copy`](09-traits.md#r-trait.dyn.safe.one-copy); the rules below restate its consequences.
-3. r[types.trait.safe.members-bound] A dynamically safe trait and every supertrait must have no associated functions, and `Self` may appear only as the receiver type.
-4. r[types.trait.safe.assoc-bound] The trait value type must bind each associated type of the trait and its supertraits, as in `Supplier[Item = i32]`.
-5. r[types.trait.safe.method-type-param] A method-level type parameter is permitted whatever its bounds, as in `T < Display` or an unbounded `T`.
-6. r[types.trait.safe.method-type-arg] A call through a trait value may pass any type argument for such a parameter, including an `AnyVal` type such as `i32` or an enum.
+1. r[types.trait.dyn.any-trait] Every trait may be used as a `dyn` type. There is no per-trait safety check.
+2. r[types.trait.dyn.member] A member that cannot work through a `dyn` value is unavailable on it, and calling it there is an error at the call. [Dynamic Safety](09-traits.md#dynamic-safety) lists those members. Error: `dyn-member-unavailable`.
+3. r[types.trait.safe.assoc-bound] The trait value type must bind each associated type of the trait and its supertraits, as in `dyn Supplier[Item = i32]`.
+4. r[types.trait.safe.method-type-param] A method with a method-level type parameter is available on a `dyn` value whatever the parameter's bounds, as in `T < Display` or an unbounded `T`.
+5. r[types.trait.safe.method-type-arg] A call through a trait value may pass any type argument for such a parameter, including an `AnyVal` type such as `i32` or an enum.
+6. r[types.trait.safe.method-type-arg.any-use] The method's signature and body may use the parameter in any way, including inside a container or a function type.
 7. r[types.trait.safe.method-type-arg.box] An implementation may box a value-typed argument at that call. The box has no identity, so the boxing is not observable.
 8. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
-9. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
 
 ```text
-trait Consumer:
-    fn consume[S < Source[Factory]](self, source: S) -> void   # error: trait-not-dynamically-safe
+trait Shape:
+    fn area(self) -> f64
+    fn same(self, other: Self) -> bool
 
-trait Source[T]:
-    fn read(self) -> T
-
-trait Factory:
-    fn create() -> Self
+fn check(shape: dyn Shape) -> f64:
+    if shape.same(shape):  # error: dyn-member-unavailable
+        return 0.0
+    shape.area()
 ```
 
 > **Why.** One concrete trait instantiation, such as `Repository[User]`, fixes
-> the trait declaration's generic parameters before dispatch.
+> the trait declaration's generic parameters before dispatch. A member is
+> judged where it is called, so a trait with one unusual member still works
+> as a `dyn` type.
 
 ### Supertrait Widening
 
@@ -2080,7 +2094,7 @@ impl Animal for Pup:
 impl Dog for Pup:
     fn bark(self) -> string: "woof"
 
-fn name_of(animal: Animal) -> string:
+fn name_of(animal: dyn Animal) -> string:
     animal.name()
 
 fn demo(pup: Pup) -> string:
@@ -2094,13 +2108,13 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 1. r[types.any] `Any` is the built-in universal empty trait.
 2. r[types.any.all] Every value type, including an optional type, satisfies `Any` automatically.
 3. r[types.any.never] `never` satisfies `Any` too. A `void` value needs no rule of its own, because it is the tuple `()`.
-4. r[types.any.erase] As a value type, `Any` erases the concrete type.
-5. r[types.any.mut] `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
+4. r[types.any.erase] As a value type, `dyn Any` erases the concrete type.
+5. r[types.any.mut] `mut dyn Trait` and `mut dyn Any` preserve mutable access to an erased composite root.
 6. r[types.any.one-way] `Any` erasure is one-way.
 7. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
 
 ```hd
-fn demo(value: Any) -> string:
+fn demo(value: dyn Any) -> string:
     "got one"   # Any erases the concrete type
 ```
 

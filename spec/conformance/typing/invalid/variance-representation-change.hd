@@ -1,5 +1,5 @@
 data Producer[+T]:
     value: T
 
-fn widen(value: Producer[i32]) -> Producer[Display]:
+fn widen(value: Producer[i32]) -> Producer[dyn Display]:
     value  # diagnostic: variance-representation-change

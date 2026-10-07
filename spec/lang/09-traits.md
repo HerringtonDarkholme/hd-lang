@@ -258,7 +258,7 @@ trait Hasher:
     fn write(mut self, bytes: List[u8]) -> void
 
 trait Hash:
-    fn hash(self, state: mut Hasher) -> void
+    fn hash(self, state: mut dyn Hasher) -> void
 ```
 
 1. r[trait.hash.module] The standard library defines `Hash` and `Hasher` in `std.hash`.
@@ -538,7 +538,7 @@ impl Error for FsError
 fn read_config(path: string) -> Result[string, FsError]:
     .Err(FsError.NotFound(path))
 
-fn load(path: string) -> Result[string, Error]:
+fn load(path: string) -> Result[string, dyn Error]:
     text := read_config(path)?
     .Ok(text)
 ```
@@ -760,7 +760,7 @@ impl[T] Describe for T:  # error: bare-parameter-impl-target
     fn describe(self) -> string:
         "value"
 
-impl Marker for Display      # error: trait-value-impl-target
+impl Marker for dyn Display      # error: trait-value-impl-target
 impl Marker for mut Counter  # error: mutable-impl-target
 ```
 
@@ -831,13 +831,12 @@ one of these declarations:
 8. r[trait.own.optional] An implementation for `string?` therefore needs the package of the trait or of a trait argument. An example is `impl Validate for string?` in the package that owns `Validate`.
 9. r[trait.own.std.function] The standard library also owns the function type constructors `Fn` and `SuspendFn`. An implementation for a function type therefore needs the package of the trait or of a trait argument.
 10. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type. Error: `orphan-impl`.
-11. r[trait.own.inherent.target-kinds] An inherent implementation cannot target a trait value, tuple, transparent alias, or type owned by another package.
+11. r[trait.own.inherent.target-forms] An inherent implementation cannot target a tuple, a transparent alias, or a type owned by another package. A `dyn` type is a target only as [Inherent Methods On `dyn` Types](#inherent-methods-on-dyn-types) allows.
 12. r[trait.own.inherent.tuple-alias] An inherent implementation whose target is a tuple or a transparent alias is an error, whichever package owns the type it names. Error: `invalid-impl-target`.
-13. r[trait.own.inherent.trait-value] An inherent implementation whose target is a trait value type is an error. Error: `trait-value-impl-target`.
-14. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enums `Option` and `Result`.
-15. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
-16. r[trait.own.inherent.std.no-tuple] Tuples have no inherent members, including from the standard library; they get only trait implementations. A member that no trait supplies is an error. Error: `unknown-method`.
-17. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
+13. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enums `Option` and `Result`.
+14. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
+15. r[trait.own.inherent.std.no-tuple] Tuples have no inherent members, including from the standard library; they get only trait implementations. A member that no trait supplies is an error. Error: `unknown-method`.
+16. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
 
 ```text
 impl Display for i32:  # error: orphan-impl
@@ -864,13 +863,6 @@ type Person = User
 impl Person:  # error: invalid-impl-target
     fn label(self) -> string:
         self.name
-
-trait Shape:
-    fn area(self) -> f64
-
-impl Shape:  # error: trait-value-impl-target
-    fn double(self) -> f64:
-        self.area() * 2.0
 ```
 
 > **Why.** These ownership rules prevent downstream packages from creating
@@ -898,6 +890,40 @@ impl Greet for User:   # same module as User: fine
 > **Why.** A reader of the type's or the trait's module sees every
 > implementation that can answer a call. No distant module of the package
 > can add one.
+
+#### Inherent Methods On `dyn` Types
+
+The module that declares a trait may give its `dyn` type inherent methods:
+
+```text
+trait Shape:
+    fn area(self) -> f64
+
+impl dyn Shape:
+    fn double(self) -> f64:
+        self.area() * 2.0
+
+data Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(self) -> f64: self.side * self.side
+
+fn report(shape: dyn Shape, square: Square) -> f64:
+    shape.double() + square.double()  # error: unknown-method
+```
+
+1. r[trait.own.dyn-inherent.form] An inherent implementation may target a `dyn` type, as in `impl dyn Shape:`. Its methods are inherent methods of that `dyn` type.
+2. r[trait.own.dyn-inherent.module] It must be declared in the module that declares the trait. Elsewhere in the trait's package it is an error. Error: `nonlocal-impl`.
+3. r[trait.own.dyn-inherent.package] In another package it is an error. Error: `orphan-impl`.
+4. r[trait.own.dyn-inherent.receiver] Its methods may be called only on a value whose type is that `dyn` type, readonly or `mut`. A concrete type that implements the trait does not have them, and neither does a type parameter bounded by the trait. Error: `unknown-method`.
+5. r[trait.own.dyn-inherent.no-override] They are not members of the trait, so an implementation of the trait cannot declare or override them.
+6. r[trait.own.dyn-inherent.no-trait-impl] A trait implementation for a `dyn` type stays an error, as [`trait.target.trait-value.error`](#r-trait.target.trait-value.error) states.
+
+> **Why.** Helpers that only make sense on an erased value, such as
+> searching an error chain, belong to the `dyn` type, as in Rust's
+> `impl dyn Error`. Keeping them out of the trait means no implementation
+> can change what they do.
 
 ### Overlap
 
@@ -1571,50 +1597,64 @@ impl Summable for Money  # error: missing-supertrait-implementation
 
 ## Dynamic Trait Values
 
-Using a trait name directly as a value type creates a Go-style dynamic trait
+A trait value type, written `dyn` and a trait, is a Go-style dynamic trait
 value:
 
 ```text
-fn print_display(value: Display) -> void $ Console:
+fn print_display(value: dyn Display) -> void $ Console:
     println(value.to_string())
 ```
 
-1. r[trait.dyn.form] Using a trait name directly as a value type creates a Go-style dynamic trait value.
+1. r[trait.dyn.form] A value type written `dyn Tr`, for a trait `Tr`, creates a Go-style dynamic trait value.
 2. r[trait.dyn.contents] Such a value contains a concrete value plus dispatch metadata for the trait.
-3. r[trait.dyn.no-dyn] There is no `dyn` marker.
-4. r[trait.dyn.methods-supertraits] Only the methods of the trait and of its transitive supertraits are available through the erased value; the concrete type's inherent methods are not.
+3. r[trait.dyn.keyword] A trait value type is always written with `dyn`. A bare trait name in a type position is an error whose fix-it inserts `dyn`. Error: `trait-used-as-type`.
+4. r[trait.dyn.keyword.positions] The type positions include parameter, result, field, payload, and local annotation types, type arguments, and associated type bindings.
+5. r[trait.dyn.keyword.bare] A trait stays bare where a trait, not a type, is named: a bound, a supertrait list, an implementation header's trait, a requirement key, and a trait-qualified call.
+6. r[trait.dyn.methods] The available methods of the trait and of its transitive supertraits, and the methods of an [inherent `impl dyn` block](#inherent-methods-on-dyn-types), may be called through the value. The concrete type's inherent methods may not.
+
+```text
+trait Greet:
+    fn greet(self) -> string
+
+fn welcome(guest: Greet) -> string:  # error: trait-used-as-type
+    guest.greet()
+```
+
+> **Why.** `dyn` marks where a value is boxed and its calls are dispatched
+> at run time. A bound such as `T < Greet` stays fully monomorphized.
 
 ### Dynamic Safety
 
-1. r[trait.dyn.safe] The trait of a dynamic trait value must be dynamically safe.
-2. r[trait.dyn.safe.one-copy] A trait is dynamically safe when every method of it and of its supertraits compiles to one copy. That is one body shared by every implementation's callers, with no per-call specialization.
-3. r[trait.dyn.safe.error] Using a trait that is not dynamically safe as a value type is an error. Error: `trait-not-dynamically-safe`.
+1. r[trait.dyn.any-trait] Every trait may be used as a `dyn` type. No rule about a trait's members makes its `dyn` type invalid.
+2. r[trait.dyn.member.unavailable] A member of the trait or of a supertrait that cannot work dynamically is unavailable on the `dyn` value.
+3. r[trait.dyn.member.unavailable.error] Calling an unavailable member through a `dyn` value is an error, reported at the call. Error: `dyn-member-unavailable`.
 
-The one-copy rule has these consequences:
+Each kind of member is available or unavailable on a `dyn` value:
 
-| Rule | Form | Dynamically safe |
+| Rule | Form | On a `dyn` value |
 | --- | --- | --- |
-| r[trait.dyn.safe.assoc-type] Associated types | an associated type of the trait or a supertrait | yes when the value type binds it, as `Supplier[Item = i32]` does; no when it is unbound |
-| r[trait.dyn.safe.assoc-function] Associated functions | an associated function in the trait or a supertrait | no |
-| r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | yes; a call through the trait value may pass any type argument, a value type included |
-| r[trait.dyn.safe.self] `Self` | `Self` as a method receiver | yes; `Self` anywhere else is not |
-| r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | yes |
-| r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter | yes |
+| r[trait.dyn.member.assoc-function] Associated functions | an associated function, which has no `self` receiver | unavailable |
+| r[trait.dyn.member.self] `Self` | a method that names `Self` anywhere other than its receiver | unavailable |
+| r[trait.dyn.safe.assoc-type] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `dyn Supplier[Item = i32]` does |
+| r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | available; a call through the trait value may pass any type argument, a value type included |
+| r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | available |
+| r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter | available |
 
-4. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
-5. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
-6. r[trait.dyn.generic-trait.self-default] A trait value type that omits a parameter whose default names `Self` is an error, since no `Self` is known there. Error: `partial-generic-arguments`.
+4. r[trait.dyn.member.other] Every other method is available.
+5. r[trait.dyn.member.type-param-use] A method type parameter may be used in any way in the method's signature and body, including inside a container or a function type.
+6. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
+7. r[trait.dyn.generic-trait.self-default] A trait value type that omits a parameter whose default names `Self` is an error, since no `Self` is known there. Error: `partial-generic-arguments`.
 
 ```text
 trait Runner:
     fn run[$R](self, job: fn() -> void $ R) -> void $ R
 
-fn valid(runner: Runner) -> void:
+fn valid(runner: dyn Runner) -> void:
     pass
 ```
 
 A method type parameter bounded by `Error`, whose argument may be an enum,
-keeps a trait dynamically safe:
+keeps the method available:
 
 ```text
 use std.error.Error
@@ -1622,17 +1662,29 @@ use std.error.Error
 trait Registry:
     fn lookup[T < Error](self, name: string) -> T?
 
-fn valid(registry: Registry) -> void:
+fn valid(registry: dyn Registry) -> void:
     pass
 ```
 
-> **Why.** A method called through a trait value has exactly one body at run
-> time. A bound associated type makes every signature that uses it
-> concrete. A value-typed argument for a method type parameter is boxed at
-> the call, and the box has no identity. A suspending method's frame is a
-> reference-shaped heap value. A row
-> parameter's providers arrive as one bundle. Each keeps one body. An
-> associated function has no receiver to dispatch on.
+A method that takes `Self` is unavailable, while the rest of the trait
+works:
+
+```text
+trait Shape:
+    fn area(self) -> f64
+    fn same(self, other: Self) -> bool
+
+fn check(shape: dyn Shape) -> f64:
+    if shape.same(shape):  # error: dyn-member-unavailable
+        return 0.0
+    shape.area()
+```
+
+> **Why.** A member is judged where it is called, as in Swift 5.7, so one
+> unusual member never blocks a whole trait. An associated function has no
+> receiver to dispatch on. A `Self` parameter needs the concrete type,
+> which the `dyn` value has erased. A bound associated type makes every
+> signature that uses it concrete.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
@@ -1652,25 +1704,24 @@ impl Supplier for Constant:
     type Item = i32
     fn get(self) -> i32: self.value
 
-fn read(source: Supplier[Item = i32]) -> i32:
+fn read(source: dyn Supplier[Item = i32]) -> i32:
     source.get() + 1
 
 fn first[T < Supplier](source: T) -> T::Item:
     source.get()
 
 fn run() -> i32:
-    let source: Supplier[Item = i32] = Constant { value: 41 }
+    let source: dyn Supplier[Item = i32] = Constant { value: 41 }
     first(source) + read(source)
 ```
 
-1. r[trait.dyn.binding.form] A trait value type may bind associated types after its positional arguments, as in `Supplier[Item = i32]`.
-2. r[trait.dyn.binding.complete] It must bind every associated type of the trait and of its supertraits. A trait value type that leaves one unbound is not dynamically safe. Error: `trait-not-dynamically-safe`.
+1. r[trait.dyn.binding.form] A trait value type may bind associated types after its positional arguments, as in `dyn Supplier[Item = i32]`.
+2. r[trait.dyn.binding.complete] It must bind every associated type of the trait and of its supertraits. A trait value type that leaves one unbound is an error. Error: `trait-not-dynamically-safe`.
 3. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type, and an ambiguous or unknown name is an error.
 4. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
 5. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type. Any other such conversion is an error. Error: `type-mismatch`.
 6. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type. Order does not matter.
-7. r[trait.dyn.binding.widen] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `NamedSupplier[Item = i32]` widens to `Supplier[Item = i32]`.
-8. r[trait.dyn.binding.no-function] An associated function in the trait or a supertrait still makes the trait not dynamically safe, whatever the value type binds.
+7. r[trait.dyn.binding.widen] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `dyn NamedSupplier[Item = i32]` widens to `dyn Supplier[Item = i32]`.
 
 ```text
 trait Supplier:
@@ -1681,17 +1732,20 @@ trait Factory:
     type Item
     fn count() -> i32
 
-fn unbound(source: Supplier) -> void:  # error: trait-not-dynamically-safe
+fn unbound(source: dyn Supplier) -> void:  # error: trait-not-dynamically-safe
     pass
 
-fn with_function(factory: Factory[Item = i32]) -> void:  # error: trait-not-dynamically-safe
-    pass
+fn total[F < Factory[Item = i32]]() -> i32:
+    F::count()
+
+fn with_function(factory: dyn Factory[Item = i32]) -> i32:
+    total::[dyn Factory[Item = i32]]()  # error: unsatisfied-trait-bound
 ```
 
 > **Why.** Rust accepts `dyn Iterator<Item = T>`, and hd had simply not
 > added the form. Once every associated type is bound, every method
-> signature is concrete, so each method still compiles to one copy. An
-> associated function still has no receiver to dispatch on.
+> signature is concrete. An associated function still has no receiver to
+> dispatch on, so it stays unavailable whatever the type binds.
 
 ### Supertrait Widening
 
@@ -1716,7 +1770,7 @@ impl Animal for Pup:
 impl Dog for Pup:
     fn bark(self) -> string: "woof"
 
-fn name_of(animal: Animal) -> string:
+fn name_of(animal: dyn Animal) -> string:
     animal.name()
 
 fn demo(pup: Pup) -> string:
@@ -1735,27 +1789,29 @@ fn show[T < Display](value: T) -> string:
 fn tag[T < Named](value: T) -> string:
     value.name()
 
-fn describe(named: Named, shown: Display) -> string:
+fn describe(named: dyn Named, shown: dyn Display) -> string:
     tag(named) + show(named) + show(shown)
 ```
 
 1. r[trait.dyn.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each direct or transitive supertrait of that trait.
 2. r[trait.dyn.bound.projection] When it satisfies a bound `T < Tr`, each projection such as `T::Item` is the type the value type binds. So `first(source)` in [Bound Associated Types](#bound-associated-types) has type `i32`.
-3. r[trait.dyn.bound.binding] It satisfies a bound's binding only when it binds the same type, so `Supplier[Item = i32]` does not satisfy `T < Supplier[Item = string]`. Error: `unsatisfied-trait-bound`.
-4. r[trait.dyn.bound.instantiation] For a generic trait, the bound must name the same instantiation, so `Repository[User]` satisfies `T < Repository[User]`.
+3. r[trait.dyn.bound.binding] It satisfies a bound's binding only when it binds the same type, so `dyn Supplier[Item = i32]` does not satisfy `T < Supplier[Item = string]`. Error: `unsatisfied-trait-bound`.
+4. r[trait.dyn.bound.instantiation] For a generic trait, the bound must name the same instantiation, so `dyn Repository[User]` satisfies `T < Repository[User]`.
 5. r[trait.dyn.bound.dispatch] A statically dispatched call through such a bound dispatches each method through the value's table.
-6. r[trait.dyn.bound.mut] A readonly trait value never satisfies a `mut` bound; `mut Tr` satisfies `T < mut Tr`.
+6. r[trait.dyn.bound.mut] A readonly trait value never satisfies a `mut` bound; `mut dyn Tr` satisfies `T < mut Tr`.
 7. r[trait.dyn.bound.no-impl] The rule adds no implementation: the trait value type satisfies no other bound through it, and it still cannot be an implementation target.
+8. r[trait.dyn.bound.available] A `dyn` type satisfies a bound on a trait only when every member of that trait and of its supertraits is available on the `dyn` value. Otherwise the bound is not satisfied. Error: `unsatisfied-trait-bound`.
 
-> **Why.** Dynamic safety guarantees that the trait has no associated
-> function, and that the value type binds every associated type a bound
-> could need.
+> **Why.** Generic code under `T < Tr` may call any member of `Tr`,
+> including an associated function such as `T::create()`. The availability
+> condition, with the bound associated types, keeps every such call
+> meaningful for a `dyn` argument.
 
 ### Conversion To Trait Values
 
 1. r[trait.dyn.convert] Converting a concrete value to a trait value requires an explicit implementation.
 2. r[trait.dyn.convert.any-type] The concrete type can be composite or primitive.
-3. r[trait.dyn.mut] Mutable dynamic access uses `mut Trait` and cannot be recovered from a readonly `Trait` value.
+3. r[trait.dyn.mut] Mutable dynamic access uses `mut dyn Trait` and cannot be recovered from a readonly `dyn Trait` value.
 4. r[trait.dyn.type-test] A dynamic trait value supports a type test only when its trait is `Inspectable` or extends it. The test recovers an exact concrete type.
 5. r[trait.dyn.no-trait-test] No test asks whether a value implements another trait.
 
@@ -1769,7 +1825,7 @@ data User:
 impl Greet for User:
     fn greet(self) -> string: "hi"
 
-fn demo(user: User) -> Greet:
+fn demo(user: User) -> dyn Greet:
     user   # an explicit implementation converts the value
 ```
 
@@ -1788,7 +1844,7 @@ See also: [Runtime Type Identity](#runtime-type-identity).
 7. r[trait.any.mut] `mut Any` preserves mutable access to an erased composite value.
 
 ```text
-let invalid: Any = .None  # error: missing-contextual-enum-type
+let invalid: dyn Any = .None  # error: missing-contextual-enum-type
 ```
 
 ## Sealed Traits
@@ -2128,7 +2184,7 @@ These types are not inspectable, as values or as type arguments:
 use std.inspect.Inspectable
 
 fn erase() -> void:
-    let erased: Inspectable = fn(x: i32) -> i32: x + 1   # error: type-mismatch
+    let erased: dyn Inspectable = fn(x: i32) -> i32: x + 1   # error: type-mismatch
     pass
 ```
 
@@ -2156,13 +2212,13 @@ use std.inspect.{Inspectable, TypeId}
 data Box[T]:
     value: T
 
-fn erase[T < Inspectable](value: T) -> Inspectable:
+fn erase[T < Inspectable](value: T) -> dyn Inspectable:
     Box { value: value }
 
-fn is_int_box(value: Inspectable) -> bool:
+fn is_int_box(value: dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[Box[i32]]()
 
-fn read_box(value: Inspectable) -> i32:
+fn read_box(value: dyn Inspectable) -> i32:
     match value.downcast::[Box[i32]]():
         .Some(found) => found.value
         .None => 0
@@ -2178,7 +2234,7 @@ branch.
 ```text
 use std.inspect.Inspectable
 
-fn erase[T](value: T) -> Inspectable:
+fn erase[T](value: T) -> dyn Inspectable:
     value  # error: type-mismatch
 ```
 
@@ -2202,12 +2258,12 @@ use std.inspect.{Inspectable, downcast_val}
 data User:
     name: string
 
-fn user_name(value: Inspectable) -> string:
+fn user_name(value: dyn Inspectable) -> string:
     match value.downcast::[User]():
         .Some(user) => user.name
         .None => "not a user"
 
-fn number(value: Inspectable) -> i32:
+fn number(value: dyn Inspectable) -> i32:
     match downcast_val::[i32](value):
         .Some(found) => found
         .None => -1
@@ -2233,7 +2289,7 @@ fn number(value: Inspectable) -> i32:
 ```hd
 use std.inspect.Inspectable
 
-fn get[T < AnyRef & Inspectable](value: Inspectable) -> T?:
+fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
     value.downcast()
 ```
 
@@ -2258,7 +2314,7 @@ use std.inspect.Inspectable
 data User:
     name: string
 
-fn demo(value: Inspectable) -> string:
+fn demo(value: dyn Inspectable) -> string:
     match value.downcast::[User]():
         .Some(user) => user.name   # branches only because the parameter names Inspectable
         .None => "not a user"

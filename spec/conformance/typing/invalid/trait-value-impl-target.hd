@@ -2,4 +2,4 @@
 # Spec 09 Traits: trait.target.trait-value, trait.target.trait-value.error.
 trait Marker
 
-impl Marker for Display  # diagnostic: trait-value-impl-target
+impl Marker for dyn Display  # diagnostic: trait-value-impl-target

@@ -1,5 +1,5 @@
 # Errors are values. `?` passes them up, `.context` says what you were doing.
-fn start(config: string) -> Result[string, Error]:
+fn start(config: string) -> Result[string, dyn Error]:
     n := port(config).context("starting the server")?  # ← early return, with context
     .Ok("listening on $n")
 

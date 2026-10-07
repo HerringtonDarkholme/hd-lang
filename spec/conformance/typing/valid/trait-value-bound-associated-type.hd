@@ -18,7 +18,7 @@ impl Supplier for Constant:
 impl NamedSupplier for Constant:
     fn name(self) -> string: "constant"
 
-fn read(source: Supplier[Item = i32]) -> i32:
+fn read(source: dyn Supplier[Item = i32]) -> i32:
     source.get() + 1
 
 fn first[T < Supplier](source: T) -> T::Item:
@@ -27,10 +27,10 @@ fn first[T < Supplier](source: T) -> T::Item:
 fn pinned[T < Supplier[Item = i32]](source: T) -> i32:
     source.get()
 
-fn widened(named: NamedSupplier[Item = i32]) -> i32:
+fn widened(named: dyn NamedSupplier[Item = i32]) -> i32:
     read(named)
 
 fn run() -> i32:
-    let source: Supplier[Item = i32] = Constant { value: 41 }
+    let source: dyn Supplier[Item = i32] = Constant { value: 41 }
     let item: i32 = first(source)
     item + read(source) + pinned(source) + widened(Constant { value: 1 })

@@ -11,29 +11,29 @@ data User:
 data Post:
     title: string
 
-fn first_of[T < AnyRef & Inspectable](items: List[Inspectable]) -> T?:
+fn first_of[T < AnyRef & Inspectable](items: List[dyn Inspectable]) -> T?:
     for item in items:
         match item.downcast::[T]():
             .Some(found) => return .Some(found)
             .None => pass
     .None
 
-fn first_user_name(items: List[Inspectable]) -> string:
+fn first_user_name(items: List[dyn Inspectable]) -> string:
     match first_of::[User](items):
         .Some(user) => user.name
         .None => "none"
 
-fn first_post_title(items: List[Inspectable]) -> string:
+fn first_post_title(items: List[dyn Inspectable]) -> string:
     match first_of::[Post](items):
         .Some(post) => post.title
         .None => "none"
 
 tests:
     it("the helper finds the first value of the requested type"):
-        let items: List[Inspectable] = [Post { title: "Intro" }, User { name: "Ada" }, User { name: "Grace" }]
+        let items: List[dyn Inspectable] = [Post { title: "Intro" }, User { name: "Ada" }, User { name: "Grace" }]
         assert_equal(first_user_name(items), "Ada", reason="the first User is found")
         assert_equal(first_post_title(items), "Intro", reason="the first Post is found")
 
     it("an absent type yields .None"):
-        let items: List[Inspectable] = [1, "two"]
+        let items: List[dyn Inspectable] = [1, "two"]
         assert_equal(first_user_name(items), "none", reason="no User is present")

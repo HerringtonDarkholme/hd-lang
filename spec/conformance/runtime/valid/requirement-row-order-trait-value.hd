@@ -43,14 +43,14 @@ fn activity() -> i32 $ Repo[User] + Repo[Post]:
 tests:
     it("a call through Factory[Post, User] reads each provider by its key"):
         $.with(Repo[User]=UserRepo {}, Repo[Post]=PostRepo {}):
-            let factory: Factory[Post, User] = Reverse {}
+            let factory: dyn Factory[Post, User] = Reverse {}
             callback := factory.keep(activity)
             assert_equal(callback(), 201, reason="Repo[User] is 20, Repo[Post] is 1")
 
     it("suspending calls through both trait values read each provider by its key"):
         $.with(Repo[User]=UserRepo {}, Repo[Post]=PostRepo {}):
-            let forward: Factory[User, Post] = Forward {}
-            let reverse: Factory[Post, User] = Reverse {}
+            let forward: dyn Factory[User, Post] = Forward {}
+            let reverse: dyn Factory[Post, User] = Reverse {}
             first := forward.keep_later!(activity)
             let pending: mut Suspend[fn() -> i32 $ Repo[User] + Repo[Post]] = reverse.keep_later(activity)
             second := pending!()

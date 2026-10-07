@@ -12,19 +12,19 @@ data User:
 impl Named for User:
     fn name(self) -> string: self.name
 
-fn recover[T < AnyRef & Inspectable](value: Inspectable) -> T?:
+fn recover[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
     value.downcast::[T]()
 
 tests:
     it("a concrete target recovers the same reference"):
         author := User { name: "Ada" }
-        let erased: Inspectable = author
+        let erased: dyn Inspectable = author
         match recover::[User](erased):
             .Some(found) => assert(found is author, reason="the erased reference comes back")
             .None => assert(false, reason="User must match User")
 
     it("a trait value target never matches"):
-        let author: Named = User { name: "Ada" }
-        match recover::[Named](author):
+        let author: dyn Named = User { name: "Ada" }
+        match recover::[dyn Named](author):
             .Some(_) => assert(false, reason="a recorded type is never a trait value type")
             .None => pass

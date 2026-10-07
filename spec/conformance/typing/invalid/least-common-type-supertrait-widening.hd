@@ -9,8 +9,8 @@ trait Shown < Named:
 trait Tagged < Named:
     fn tag(self) -> string
 
-fn mix(shown: Shown, tagged: Tagged) -> void:
+fn mix(shown: dyn Shown, tagged: dyn Tagged) -> void:
     items := [shown, tagged]  # diagnostic: no-common-type
 
-fn expected(shown: Shown, tagged: Tagged) -> List[Named]:
+fn expected(shown: dyn Shown, tagged: dyn Tagged) -> List[dyn Named]:
     [shown, tagged]

@@ -24,10 +24,10 @@ impl Labeler for Tagger:
     fn label[T < AnyRef & Display](self, value: T) -> string:
         self.tag + value.to_string()
 
-fn through_visitor(visitor: Visitor, user: User) -> string:
+fn through_visitor(visitor: dyn Visitor, user: User) -> string:
     visitor.visit(user)
 
-fn through_labeler(labeler: Labeler, user: User) -> string:
+fn through_labeler(labeler: dyn Labeler, user: User) -> string:
     labeler.label(user)
 
 tests:

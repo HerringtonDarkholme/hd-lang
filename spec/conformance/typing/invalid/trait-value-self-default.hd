@@ -4,5 +4,5 @@
 trait Same[Other = Self]:
     fn same(self, other: Other) -> bool
 
-fn check(value: Same) -> void:  # diagnostic: partial-generic-arguments
+fn check(value: dyn Same) -> void:  # diagnostic: partial-generic-arguments
     pass

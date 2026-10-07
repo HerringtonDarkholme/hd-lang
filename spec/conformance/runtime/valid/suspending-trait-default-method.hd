@@ -14,7 +14,7 @@ impl Named for Number:
     fn value(self) -> i32: self.value
 
 fn main!() -> i32:
-    let named: Named = Number { value: 42 }
+    let named: dyn Named = Number { value: 42 }
     named.load!()
 
 tests:

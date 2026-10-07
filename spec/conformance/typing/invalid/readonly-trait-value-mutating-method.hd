@@ -7,4 +7,4 @@ data Counter:
     value: i32
 impl Add for Counter:
     fn add(mut self) -> void: pass
-fn invalid(value: Add) -> void: value.add()  # diagnostic: mutable-receiver-required
+fn invalid(value: dyn Add) -> void: value.add()  # diagnostic: mutable-receiver-required

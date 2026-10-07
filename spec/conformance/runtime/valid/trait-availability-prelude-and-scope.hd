@@ -26,7 +26,7 @@ fn shout(order: Order) -> string:
 
     order.loud()
 
-fn label_of(value: Labeled) -> string:
+fn label_of(value: dyn Labeled) -> string:
     value.label()
 
 tests:

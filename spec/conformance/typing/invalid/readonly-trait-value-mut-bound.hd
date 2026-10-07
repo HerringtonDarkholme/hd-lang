@@ -7,5 +7,5 @@ fn bump_twice[C < mut Counter](counter: C) -> void:
     counter.bump()
     counter.bump()
 
-fn record(counter: Counter) -> void:
+fn record(counter: dyn Counter) -> void:
     bump_twice(counter)  # diagnostic: unsatisfied-trait-bound

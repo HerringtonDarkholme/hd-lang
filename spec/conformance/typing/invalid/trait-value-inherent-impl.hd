@@ -4,6 +4,6 @@
 trait Shape:
     fn area(self) -> f64
 
-impl Shape:  # diagnostic: trait-value-impl-target
+impl dyn Shape:  # diagnostic: trait-value-impl-target
     fn double(self) -> f64:
         self.area() * 2.0

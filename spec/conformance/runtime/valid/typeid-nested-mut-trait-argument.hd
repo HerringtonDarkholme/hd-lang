@@ -11,6 +11,6 @@ fn roster_type[T < AnyRef & Inspectable]() -> TypeId:
 
 tests:
     it("the inner mut of a trait value argument is kept"):
-        assert(roster_type::[mut Named]() == TypeId::of::[List[mut Named]](), reason="T = mut Named")
-        assert(roster_type::[mut Named]() != TypeId::of::[List[Named]](), reason="the inner mut is part of the identity")
-        assert(roster_type::[Named]() == TypeId::of::[List[Named]](), reason="T = Named")
+        assert(roster_type::[mut dyn Named]() == TypeId::of::[List[mut dyn Named]](), reason="T = mut Named")
+        assert(roster_type::[mut dyn Named]() != TypeId::of::[List[dyn Named]](), reason="the inner mut is part of the identity")
+        assert(roster_type::[dyn Named]() == TypeId::of::[List[dyn Named]](), reason="T = Named")

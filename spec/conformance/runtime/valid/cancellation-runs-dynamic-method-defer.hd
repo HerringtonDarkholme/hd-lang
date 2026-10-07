@@ -19,7 +19,7 @@ impl Job for Worker:
         wait!()
 
 pub fn main!() -> void:
-    let job: Job = Worker { value: 42 }
+    let job: dyn Job = Worker { value: 42 }
     job.run!()
 
 pub fn cleanup_ran() -> bool:

@@ -74,7 +74,7 @@ pub trait TcpStream:
     fn close(mut self) -> Result[void, ResourceError[NetError]]
 
 pub trait TcpListener:
-    fn accept!(mut self) -> Result[mut TcpStream, ResourceError[NetError]]
+    fn accept!(mut self) -> Result[mut dyn TcpStream, ResourceError[NetError]]
     fn close(mut self) -> Result[void, ResourceError[NetError]]
 
 pub data Datagram:

@@ -11,5 +11,5 @@ impl Counter for Steps:
         self.count = self.count + 1
         self.count
 
-fn advance(counter: mut Counter, step: i32 = counter.next()) -> i32:
+fn advance(counter: mut dyn Counter, step: i32 = counter.next()) -> i32:
     step

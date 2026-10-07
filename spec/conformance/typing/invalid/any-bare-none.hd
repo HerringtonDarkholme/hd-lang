@@ -1,4 +1,4 @@
 # test: a bare .None needs an expected optional type, which Any is not
 # Spec 09 Any: trait.any.none.
 fn missing_setting() -> void:
-    let setting: Any = .None  # diagnostic: missing-contextual-enum-type
+    let setting: dyn Any = .None  # diagnostic: missing-contextual-enum-type

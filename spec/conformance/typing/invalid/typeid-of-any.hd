@@ -3,4 +3,4 @@
 use std.inspect.TypeId
 
 fn erased_kind() -> TypeId:
-    TypeId::of::[Any]()  # diagnostic: unsatisfied-trait-bound
+    TypeId::of::[dyn Any]()  # diagnostic: unsatisfied-trait-bound

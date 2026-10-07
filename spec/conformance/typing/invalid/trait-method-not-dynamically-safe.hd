@@ -5,4 +5,4 @@ trait Factory:
     fn create() -> Self
 
 trait Consumer:
-    fn consume(self, factories: List[Factory]) -> void  # diagnostic: trait-not-dynamically-safe
+    fn consume(self, factories: List[dyn Factory]) -> void  # diagnostic: trait-not-dynamically-safe

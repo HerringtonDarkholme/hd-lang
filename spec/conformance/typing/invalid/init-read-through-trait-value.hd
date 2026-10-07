@@ -5,7 +5,7 @@ data Box:
 trait Reader:
     fn read(self) -> i32
 
-let reader: Reader = Box { value: 3 }
+let reader: dyn Reader = Box { value: 3 }
 dynamic := reader.read()  # diagnostic: top-level-read-before-initialization
 later := +5
 

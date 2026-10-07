@@ -3,7 +3,7 @@
 trait Counter:
     fn bump(mut self) -> void
 
-type Store = mut Counter
+type Store = mut dyn Counter
 
 fn tick() -> void $ Store:  # diagnostic: syntax-error
     pass

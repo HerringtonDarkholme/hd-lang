@@ -22,7 +22,7 @@ impl Eq for Tag:
         self.id == other.id
 
 impl Hash for Tag:
-    fn hash(self, state: mut Hasher) -> void:
+    fn hash(self, state: mut dyn Hasher) -> void:
         self.id.hash(state)
 
 fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:

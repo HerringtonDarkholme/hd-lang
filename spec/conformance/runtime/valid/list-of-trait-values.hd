@@ -13,7 +13,7 @@ impl Value for Number:
     fn get(self) -> i32: self.value
 
 fn main() -> i32:
-    let values: List[Value] = [Number { value: 20 }, Number { value: 22 }]
+    let values: List[dyn Value] = [Number { value: 20 }, Number { value: 22 }]
     values[0].get() + values[1].get()
 
 tests:

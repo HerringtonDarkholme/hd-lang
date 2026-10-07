@@ -11,13 +11,13 @@ impl Display for Timeout:
 
 impl Error for Timeout
 
-fn recover[T < AnyRef & Error](error: Error) -> T?:
+fn recover[T < AnyRef & Error](error: dyn Error) -> T?:
     error.downcast::[T]()
 
 tests:
     it("T = Timeout recovers the erased Timeout"):
         timeout := Timeout { seconds: 30 }
-        let error: Error = timeout
+        let error: dyn Error = timeout
         match recover::[Timeout](error):
             .Some(found) => assert(found is timeout, reason="the same reference comes back")
             .None => assert(false, reason="Timeout must match Timeout")

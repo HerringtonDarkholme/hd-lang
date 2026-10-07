@@ -13,5 +13,5 @@ trait Tagged < Named:
 fn same[T](left: T, right: T) -> bool:
     true
 
-fn mix(shown: Shown, tagged: Tagged) -> bool:
+fn mix(shown: dyn Shown, tagged: dyn Tagged) -> bool:
     same(shown, tagged)  # diagnostic: no-common-type

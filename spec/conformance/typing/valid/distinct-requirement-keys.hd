@@ -3,6 +3,6 @@ trait Repo[T]
 data User: pass
 data Post: pass
 
-fn choose(first: Repo[User], second: Repo[Post]) -> void:
+fn choose(first: dyn Repo[User], second: dyn Repo[Post]) -> void:
     $.with(Repo[User]=first, Repo[Post]=second):
         pass

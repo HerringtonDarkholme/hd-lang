@@ -3,5 +3,5 @@
 trait Runner:
     fn run[$R](self, job: fn() -> void $ R) -> void $ R
 
-fn valid(runner: Runner) -> void:
+fn valid(runner: dyn Runner) -> void:
     pass

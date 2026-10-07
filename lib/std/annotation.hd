@@ -14,7 +14,7 @@ use std.format.DebugWriter
 @intrinsic("facts_of")
 ## The facts attached to the module-level function `f`; a compiler intrinsic.
 ## See [annot.facts-of.declared](../../spec/lang/14-annotations.md#r-annot.facts-of.declared).
-pub fn facts_of[F](f: F) -> Any:
+pub fn facts_of[F](f: F) -> dyn Any:
     panic("intrinsic")
 
 # The kinds of target a decorator value attaches to (r-annot.target.kind.fn
@@ -53,7 +53,7 @@ pub data Annotate:
 # (r-annot.typed-fact.untyped).
 ## The `@annotate` decorator: it attaches an `Annotate` fact listing the target `kinds`.
 ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
-pub fn annotate[T = Any](kinds...: List[Target]) -> Annotate:
+pub fn annotate[T = dyn Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 
 # The derived builder calls, written by hand because `@derive` does not

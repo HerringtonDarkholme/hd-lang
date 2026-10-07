@@ -8,5 +8,5 @@ trait Store:
 trait Factory:
     fn create() -> Self
 
-fn open[S < Store[Item = Factory]](source: S) -> void:  # diagnostic: trait-not-dynamically-safe
+fn open[S < Store[Item = dyn Factory]](source: S) -> void:  # diagnostic: trait-not-dynamically-safe
     pass

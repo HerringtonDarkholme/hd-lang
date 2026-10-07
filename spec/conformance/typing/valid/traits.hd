@@ -20,5 +20,5 @@ impl User:
 fn show[T < Describe](value: T) -> string:
     value.describe()
 
-fn dynamic_show(value: Describe) -> string:
+fn dynamic_show(value: dyn Describe) -> string:
     value.describe()

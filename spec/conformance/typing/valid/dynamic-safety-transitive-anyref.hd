@@ -8,5 +8,5 @@ trait Entity < AnyRef
 trait Registry:
     fn lookup[T < Record](self, name: string) -> T?
 
-fn valid(registry: Registry) -> void:
+fn valid(registry: dyn Registry) -> void:
     pass

@@ -1,7 +1,7 @@
 # test: a data type's parameter bound is checked against traits declared later
 # Spec 09 Dynamic Safety: trait.dyn.safe.error; Spec 03 Module Scope: names.module.order-free.
 
-data Pipeline[S < Source[Factory]]:  # diagnostic: trait-not-dynamically-safe
+data Pipeline[S < Source[dyn Factory]]:  # diagnostic: trait-not-dynamically-safe
     source: S
 
 trait Source[T]:

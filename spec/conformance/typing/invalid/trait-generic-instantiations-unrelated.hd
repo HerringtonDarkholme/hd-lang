@@ -12,7 +12,7 @@ data Feed: pass
 impl Source[i32] for Feed:
     fn first(self) -> i32: 1
 
-fn take(source: Source[User]) -> void:
+fn take(source: dyn Source[User]) -> void:
     pass
 
 fn run() -> void:
