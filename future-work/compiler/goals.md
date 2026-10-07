@@ -46,6 +46,14 @@ Detailed design: [README.md](README.md)
   arguments are boxed at that call (boxes have no identity), so the
   `T < AnyRef` restriction of `types.trait.safe.method-type-param-implied`
   is dropped.
+- **Trait value types are written `dyn Trait`** (`dyn Any`, `dyn Error`,
+  `dyn Supplier[Item = i32]`); a bare trait name in type position is an
+  error with a fix-it that inserts `dyn`. `dyn` marks where boxing and
+  dynamic dispatch happen; `T < Trait` stays the monomorphized form. The
+  per-trait dynamic-safety gate is dropped (Swift 5.7 style): every trait
+  can be a `dyn` type, and members that cannot work dynamically (`Self`
+  parameters, associated functions) are unavailable on the `dyn` value,
+  with the error at the call.
 - A private item that a derive template names follows the public signature
   rules (explicit result type, `$` clause or the empty row); the private
   types it names are exported as hidden items too.
