@@ -92,6 +92,8 @@ pub(crate) struct Ck<'a, 'c> {
     pub init_stmt: usize,
     /// What this body reads and calls (module initialization).
     pub facts: crate::init::InitFacts,
+    /// A pipe's value while its step is checked (`_`).
+    pub placeholder: Option<(Ref, Ty)>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -132,6 +134,7 @@ pub(crate) fn new_ck<'a, 'c>(
         module_init: None,
         init_stmt: 0,
         facts: crate::init::InitFacts::default(),
+        placeholder: None,
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;

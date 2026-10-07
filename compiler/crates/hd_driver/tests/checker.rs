@@ -163,6 +163,7 @@ fn top_level_statements_are_checked_in_order() {
         "{}",
         ok.render()
     );
+    assert_eq!(ok.report.body_failed, 0, "{:?}", ok.report.body_failures);
     let late = program(
         "first := apply(first_name)\nlet names: List[string] = [\"Ada\"]\n\nfn apply(callback: fn() -> string) -> string:\n    callback()\n\nfn first_name() -> string:\n    names[0]\n\nfn main() -> void $ Console:\n    println(first)\n",
     );
@@ -194,6 +195,28 @@ fn top_level_statements_are_checked_in_order() {
     );
     assert!(
         codes(&out).contains(&Code::MissingRequirement),
+        "{}",
+        out.render()
+    );
+}
+
+/// Pipes and comprehensions check (an Emit stub may stop the build).
+#[test]
+fn pipes_and_comprehensions_check() {
+    let out = program(
+        "fn add(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    xs := [1, 2, 3, 4]\n    y := 3 |> add(_, 1)\n    evens := [for x in xs if x % 2 == 0 => x * 10]\n    m := {for x in xs => \"$x\": x + y}\n    println(evens.len() + m.len())\n",
+    );
+    assert!(
+        codes(&out).iter().all(|c| *c == Code::Unsupported),
+        "{}",
+        out.render()
+    );
+    assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
+    let out = program(
+        "fn add(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    println(add(_, 1))\n",
+    );
+    assert!(
+        codes(&out).contains(&Code::PlaceholderOutsidePipe),
         "{}",
         out.render()
     );

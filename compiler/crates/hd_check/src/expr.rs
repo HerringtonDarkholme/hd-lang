@@ -163,6 +163,9 @@ impl Ck<'_, '_> {
             SyntaxKind::ForExpr => self.for_expr(n)?,
             SyntaxKind::MatchExpr => self.match_expr(n, want)?,
             SyntaxKind::ClosureExpr => self.closure(n, want)?,
+            SyntaxKind::PipeExpr => self.pipe(&kids, want)?,
+            SyntaxKind::PlaceholderExpr => self.placeholder_value(n),
+            SyntaxKind::ComprehensionExpr => self.comprehension(n, &kids, want)?,
             SyntaxKind::TryExpr => self.try_expr(n, &kids)?,
             SyntaxKind::RangeExpr => self.range_expr(n, &kids, want)?,
             SyntaxKind::ContextExpr => self.context_expr(n)?,
@@ -957,7 +960,6 @@ impl Ck<'_, '_> {
     /// is already an `Iterator`), then a loop around `next` and a match on
     /// its option (checking-and-tir.md "What The Checker Desugars").
     fn for_expr(&mut self, e: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
         if Src::child(e, SyntaxKind::ElseClause).is_some() {
             return unsupported("a `for` with an `else` suite");
         }
@@ -967,7 +969,22 @@ impl Ck<'_, '_> {
         else {
             return unsupported("a `for` shape");
         };
-        let (sr, st) = self.expr(*src, None)?;
+        self.iterate(*pat, *src, e, &mut |me: &mut Self| {
+            me.block_value(body, Some(Ty::VOID)).map(|_| ())
+        })
+    }
+
+    /// The loop of a `for` or a comprehension clause: `pat` binds each item
+    /// of `src` while `body` runs.
+    fn iterate(
+        &mut self,
+        pat: NodeRef<'_>,
+        src: NodeRef<'_>,
+        e: NodeRef<'_>,
+        body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.cx.names.pool;
+        let (sr, st) = self.expr(src, None)?;
         let iterator = self.cx.names.item("std.iter", "Iterator");
         let st_r = self.infer.resolve(pool, st);
         let st_i = match pool.get(st_r) {
@@ -997,7 +1014,7 @@ impl Ck<'_, '_> {
                 // The element is often a literal still open here: its
                 // impl is chosen when the loop's uses fix it.
                 if !pool.has_infer(self.infer.resolve(pool, et)) {
-                    self.require_ref(tref, *src)?;
+                    self.require_ref(tref, src)?;
                 }
                 let method = self.cx.names.member(iterable, PathKind::Member, "iter");
                 let it_t = pool.intern_ty(&TyData::Adt {
@@ -1018,7 +1035,7 @@ impl Ck<'_, '_> {
             }
             _ => {
                 let iterable = self.cx.names.item("std.iter", "Iterable");
-                let (r, t) = self.trait_call(iterable, "iter", sr, st, &[], *src)?;
+                let (r, t) = self.trait_call(iterable, "iter", sr, st, &[], src)?;
                 let t = self.infer.resolve(pool, t);
                 let t = match pool.get(t) {
                     TyData::Mut(i) => i,
@@ -1051,10 +1068,10 @@ impl Ck<'_, '_> {
         self.loops.push((lp, None));
         self.scopes.push(HashMap::new());
         let mut binds = Vec::new();
-        self.declare_pattern(*pat, item_ty, &mut binds)?;
+        self.declare_pattern(pat, item_ty, &mut binds)?;
         let ab = self.b.open_block();
-        self.block_value(body, Some(Ty::VOID))?;
-        let arm0 = self.b.close_block(ab, None, Ty::VOID, body.index());
+        body(self)?;
+        let arm0 = self.b.close_block(ab, None, Ty::VOID, e.index());
         self.scopes.pop();
         self.loops.pop();
         let bb = self.b.open_block();
@@ -1062,7 +1079,7 @@ impl Ck<'_, '_> {
             .emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, e.index());
         let arm1 = self.b.close_block(bb, None, Ty::VOID, e.index());
         // Decision: `.Some(p)` to arm 0, `.None` to arm 1.
-        let rows = vec![crate::pat::Row::some(*pat, binds), crate::pat::Row::rest()];
+        let rows = vec![crate::pat::Row::some(pat, binds), crate::pat::Row::rest()];
         let db = self.b.open_block();
         self.decide(&rows, 0, next, opt)?;
         let dec = self.b.close_block(db, None, Ty::NEVER, e.index());
@@ -1070,6 +1087,161 @@ impl Ck<'_, '_> {
         self.b.emit(Tag::Match, next.0, rec, Ty::VOID, e.index());
         let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
         Ok((self.b.close_loop(lp, lbody, Ty::VOID, e.index()), Ty::VOID))
+    }
+
+    /// `_` in a pipe step: the piped value.
+    fn placeholder_value(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
+        if let Some(v) = self.placeholder.take() {
+            return v;
+        }
+        self.err(
+            Code::PlaceholderOutsidePipe,
+            n,
+            "placeholder-outside-pipe: `_` stands for a pipe's value only in its step",
+        );
+        (Ref(NONE), Ty::NEVER)
+    }
+
+    /// `a |> f(_, b)`: `a` first, then the step with `a` in the
+    /// placeholder's slot (checking-and-tir.md "What The Checker Desugars").
+    fn pipe(&mut self, kids: &[NodeRef<'_>], want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+        let [lhs, step] = kids else {
+            return unsupported("a pipe shape");
+        };
+        let v = self.expr(*lhs, None)?;
+        let saved = self.placeholder.replace(v);
+        let r = self.expr(*step, want);
+        let unused = self.placeholder.take().is_some();
+        self.placeholder = saved;
+        if unused {
+            self.err(
+                Code::PipeStepNeedsPlaceholder,
+                *step,
+                "pipe-step-needs-placeholder: write `_` where the piped value goes",
+            );
+        }
+        r
+    }
+
+    /// `[for p in xs if c => e]` and `{for p in xs => k: v}`: an empty
+    /// list or map, the clauses' loops and tests, a push or an insert.
+    fn comprehension(
+        &mut self,
+        n: NodeRef<'_>,
+        kids: &[NodeRef<'_>],
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.cx.names.pool;
+        let is_map = self.cx.src.tkind(self.cx.src.first(n)) == Some(TokenKind::LBrace);
+        let Some((element, clauses)) = kids.split_last() else {
+            return unsupported("an empty comprehension");
+        };
+        let want = want.map(|w| self.strip_mut(w));
+        let (def, args) = if is_map {
+            let map = self.cx.names.item("std.core", "Map");
+            let a = match want.map(|w| pool.get(w)) {
+                Some(TyData::Adt { def, args }) if def == map => pool.list_items(args),
+                _ => vec![
+                    self.infer.fresh(pool, VarKind::General),
+                    self.infer.fresh(pool, VarKind::General),
+                ],
+            };
+            (map, a)
+        } else {
+            let list = self.cx.names.item("std.core", "List");
+            let a = match want.map(|w| pool.get(w)) {
+                Some(TyData::Adt { def, args }) if def == list => pool.list_items(args),
+                _ => vec![self.infer.fresh(pool, VarKind::General)],
+            };
+            (list, a)
+        };
+        let t = pool.intern_ty(&TyData::Adt {
+            def,
+            args: pool.list(&args),
+        });
+        let mt = pool.intern_ty(&TyData::Mut(t));
+        let acc_sym = self.cx.names.syms.intern("$acc");
+        let acc = self
+            .b
+            .local(mt, acc_sym, hd_tir::ir::local_flags::ASSIGNED, n.index());
+        let empty = self.b.refs_record(&[]);
+        let tag = if is_map { Tag::NewMap } else { Tag::NewList };
+        let fresh = self.b.emit(tag, NONE, empty, mt, n.index());
+        self.b.set(acc, fresh, n.index());
+        self.scopes.push(HashMap::new());
+        let r = self.clauses(clauses, *element, (acc, mt), &args, n);
+        self.scopes.pop();
+        r?;
+        Ok((self.b.get(acc, mt, n.index()), mt))
+    }
+
+    fn clauses(
+        &mut self,
+        clauses: &[NodeRef<'_>],
+        last: NodeRef<'_>,
+        acc: (hd_base::LocalId, Ty),
+        args: &[Ty],
+        n: NodeRef<'_>,
+    ) -> StageResult<()> {
+        let Some((c, rest)) = clauses.split_first() else {
+            // The element: a push, or a map insert.
+            let a = self.b.get(acc.0, acc.1, n.index());
+            if last.kind() == SyntaxKind::MapEntry {
+                let ek: Vec<NodeRef<'_>> = last.children().collect();
+                let [k, v] = ek.as_slice() else {
+                    return unsupported("a map comprehension entry");
+                };
+                let (kr, kt) = self.expr(*k, Some(args[0]))?;
+                let kr = self.coerce(kr, kt, args[0], *k, "map key");
+                let (vr, vt) = self.expr(*v, Some(args[1]))?;
+                let vr = self.coerce(vr, vt, args[1], *v, "map value");
+                let rec = self.b.refs_record(&[a, kr, vr]);
+                self.b.emit(
+                    Tag::Intrinsic,
+                    IntrinsicOp::MapSet as u32,
+                    rec,
+                    Ty::VOID,
+                    n.index(),
+                );
+            } else {
+                let (r, t) = self.expr(last, Some(args[0]))?;
+                let r = self.coerce(r, t, args[0], last, "element");
+                let rec = self.b.refs_record(&[a, r]);
+                self.b.emit(
+                    Tag::Intrinsic,
+                    IntrinsicOp::ListPush as u32,
+                    rec,
+                    Ty::VOID,
+                    n.index(),
+                );
+            }
+            return Ok(());
+        };
+        match c.kind() {
+            SyntaxKind::ComprehensionFor => {
+                let ck: Vec<NodeRef<'_>> = c.children().collect();
+                let [pat, src] = ck.as_slice() else {
+                    return unsupported("a comprehension `for` shape");
+                };
+                self.iterate(*pat, *src, *c, &mut |me: &mut Self| {
+                    me.clauses(rest, last, acc, args, n)
+                })?;
+            }
+            SyntaxKind::ComprehensionIf => {
+                let Some(cond) = c.children().next() else {
+                    return unsupported("a comprehension `if` shape");
+                };
+                let (cr, ct) = self.expr(cond, Some(Ty::BOOL))?;
+                self.expect(ct, Ty::BOOL, cond, "condition");
+                let tb = self.b.open_block();
+                self.clauses(rest, last, acc, args, n)?;
+                let then = self.b.close_block(tb, None, Ty::VOID, c.index());
+                let rec = self.b.refs_record(&[then, Ref(NONE)]);
+                self.b.emit(Tag::If, cr.0, rec, Ty::VOID, c.index());
+            }
+            _ => return unsupported("this comprehension clause"),
+        }
+        Ok(())
     }
 
     /// `fn(params) -> R: body`: a sub-body with its captures.
