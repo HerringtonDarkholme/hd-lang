@@ -831,6 +831,16 @@ pub struct LeCol<'a, T: Pod> { words: &'a [T] }
 2^32 items in all, and the first chunk is 1,024 items, so an empty
 interner costs nothing but its header.
 
+`AppendVec` is the workspace's one audited unsafe exception. The
+workspace lint is `unsafe_code = "deny"`; only the `hd_base` module that
+implements `AppendVec` has `#[allow(unsafe_code)]`, and every unsafe block
+has a `// SAFETY:` comment. Its owner alone allocates chunks and writes
+items through the raw chunk pointers, then publishes the initialized
+prefix with a release store to `len`. Readers acquire `len` before
+dereferencing an indexed chunk, so they can reach only initialized,
+never-moved items. No other module may contain unsafe code
+([reconciliation, item 6](reconciliation.md#design-changes-proposed)).
+
 #### 3.9.5 Building: Scratch Buffer, Checkpoints, Truncation
 
 - **One scratch buffer per worker** (Yuku). A builder that collects a
@@ -1765,6 +1775,13 @@ thread timing. So every entry that holds types or names carries:
 | `paths` | stable paths, parents first, with their `Hash128` | `DefId`, `PathId`, `FileId` (a file is a path) |
 | `types` | the pool encoding over these tables, children first | `Ty`, `TyList`, `RowId`, constants |
 
+For TIR, each body inside the module entry owns its own `strings`,
+`paths` and `types` tables. Its TIR hash is therefore a function of that
+body alone: adding or changing another body cannot renumber its rows.
+The size cost is deliberate—strings, paths and types shared by several
+bodies are repeated once per body
+([reconciliation, item 7](reconciliation.md#design-changes-proposed)).
+
 - **The writer** walks the columns once. For each word the schema marks
   as an ID kind, it looks the ID up in a per-write memo (`HashTable` from
   run ID to entry row) and appends a new row on a miss. Rows are created
@@ -2044,6 +2061,12 @@ lines at 35 bytes, 8 tokens, 10 nodes and 7 TIR instructions per line;
 the largest module 1,000 lines; 8 workers; std as an embedded pack. The
 binary's resident pages are an estimate that the `startup` metric
 measures.
+
+The column and pool rows below assume the dense four-byte storage of the
+audited `hd_base::AppendVec`; replacing each slot with `OnceLock` would
+invalidate these totals. This is the cost basis for the single unsafe
+exception in §3.9.4
+([reconciliation, item 6](reconciliation.md#design-changes-proposed)).
 
 | Structure | Section | Warm check, one-function edit | Cold check | Build (cold, adds) |
 | --- | --- | --- | --- | --- |

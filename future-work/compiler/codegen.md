@@ -54,8 +54,8 @@ interfaces from D1 and does not reach around them:
                        Collect(P): reachability over TIR + impl tables
                                   │ instance set {(item, type args)}, content-ordered
                                   ▼
-                       Emit(inst): walk the generic TIR under the substitution,
-                                   choose layouts, write Wasm ═══════════► [code pack]    per folder group, parallel
+                       Emit(group): emit every missed instance in one folder group,
+                                    choose layouts, write Wasm ═════════► [codepack]     one per folder group, parallel
                                   │ body bytes + symbolic relocations
                                   ▼
                        Link(P): fold identical bodies, assign indices,
@@ -79,8 +79,8 @@ This continues D1's table (§1.2).
 
 | Stage | Input | Output | Unit | Parallel | Cached | Key |
 | --- | --- | --- | --- | --- | --- | --- |
-| Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set | program | serial per program; programs in parallel | inside `link` | none |
-| Emit | one instance: generic TIR, its substitution, the TIR of callees it inlines | Wasm body bytes, relocations, site and line records | instance | yes | `code` | §13.8 |
+| Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set; code-entry hits and folder groups with misses | program | serial per program; programs in parallel | inside `link` | none |
+| Emit | one folder group's missed instances: generic TIR, substitutions, and callees' TIR | Wasm body bytes, relocations, site and line records | folder group (`codepack`) | groups in parallel | `code` entries in `codepack` | §13.8 |
 | Link | code entries of the instance set | one Wasm module with its custom sections | program | serial per program; fold hashing in parallel | `link` | §13.10 |
 | Precompile | Wasm bytes, engine config | wasmtime's serialized module | program and pipeline | Cranelift compiles functions in parallel | `cwasm` | `H("cwasm", hash of the Wasm, wasmtime version, config hash, target)` |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
@@ -95,7 +95,7 @@ D2's tasks are `TaskKind::Ext` tasks (§6.1):
 ```rust
 pub enum ExtTask {
     Collect(ProgramId),          // after the tir entry of every module the program can reach
-    Emit(InstanceSlot),          // created by Collect, one per code-entry miss
+    Emit(GroupId),               // created by Collect, one per folder group with a miss
     Link(ProgramId),             // after every Emit of its program
     Precompile(ProgramId, PipelineId), // native only; the pipeline gives the engine config
     RunCase(ProgramId, CaseIdx), // test runner (§19); the browser runs cases in its worker instead
@@ -106,6 +106,11 @@ pub enum ExtTask {
   program's roots reach in the module use graph exist, and after the
   `HeaderCheck` task of every folder they reach (scheduler.md §6.1). That set comes
   from the manifest's use lists, so it is known before any check runs.
+- `Collect` looks up every code entry itself. It reuses hits and creates
+  one `ExtTask::Emit(GroupId)` for each folder group with at least one
+  miss. The task emits that group's missed instances as a batch, and the
+  group is the `codepack` unit of cache.md §5.2
+  ([reconciliation, item 5](reconciliation.md#design-changes-proposed)).
 - **The program fast key (mine; keyed by TIR content since the systems
   review, finding 4).** Before `Collect`, D2 computes
 
@@ -158,7 +163,7 @@ and emission-time analyses live in `hd_mono`.
 | `hd_mono` | collection, substitution, instance keys, layouts, the depth limit, emission-time analyses (liveness, capture sharing, inlining decisions) | `hd_tir` | yes |
 | `hd_host_abi` | the host ABI description: traits, methods, codecs, wait flags; generators for hd-side stubs, wasmtime stubs and the JS glue | `hd_base` | yes |
 | `hd_wasm` | emission with `wasm-encoder`, the code entry format, folding, the linker, name and site sections | `hd_mono`, `hd_host_abi` | yes |
-| `hd_run` | the embedding API: `Engine`, `Host`, `Provider`, grants, the poll/wake driver logic, panic decoding, the test runner core | `hd_wasm` | yes, without engines |
+| `hd_run` | the embedding API: `Engine`, `Host`, `Provider`, grants, the poll/wake driver logic, panic decoding, the test runner core | `hd_wasm`, `hd_cache` ([reconciliation, item 8](reconciliation.md#design-changes-proposed)) | yes, without engines |
 | `hd_run_wasmtime` | the wasmtime engine, providers of the default profile, the reactor, epochs, limits, the `cwasm` cache | `hd_run`, `wasmtime`, `tokio` (current-thread), `cap-std` | no |
 | `hd_web` (extended) | runs D2 in the compiler worker; hands bytes and metadata to the program worker | `hd_run` | only there |
 

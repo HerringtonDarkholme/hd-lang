@@ -753,9 +753,9 @@ The verifier checks each of these:
 
 | Section | Content |
 | --- | --- |
-| `strings`, `paths`, `types` | the entry's own tables; every `Symbol`, `DefId` and `Ty` in the module's TIR is a row here (data-structures.md §3.20.2) |
-| `bodies` | per body, 48 bytes: item path row, kind with the inline-summary bit, the start of its range in each column below, TIR hash, dependency range |
-| `tags`, `data`, `extra` | the instruction columns of every body, concatenated in body order; ID words remapped to entry rows by the generated codec, other words copied |
+| `strings`, `paths`, `types` | one set of tables per body; every `Symbol`, `DefId` and `Ty` in that body is a row in its local tables (data-structures.md §3.20.2) |
+| `bodies` | per body, 48 bytes: item path row, kind with the inline-summary bit, the ranges of its local tables and instruction columns below, TIR hash, dependency range |
+| `tags`, `data`, `extra` | the instruction columns of every body, concatenated in body order; ID words remapped to that body's rows by the generated codec, other words copied |
 | `ty` | type rows |
 | `span_lo`, `span_hi` | byte offsets in the module's file, from `syn`, so emission never needs the syntax tree |
 | `local_*`, `sub_*`, `label_inst`, `cap_*`, `susp`, `origin`, `hole` | the other columns, concatenated, IDs remapped |
@@ -767,7 +767,11 @@ The verifier checks each of these:
   words. D1's "column copies" holds for the rest.
 - **The TIR hash** of an item is computed over its remapped rows, with
   referenced types and paths hashed by content. It is therefore the same
-  on every run and thread count.
+  on every run and thread count. Because tables are per body inside the
+  entry, the hash is a function of that body alone. A module pays for
+  this stability by repeating strings, paths and types shared by several
+  bodies once per body
+  ([reconciliation, item 7](reconciliation.md#design-changes-proposed)).
 - **Reading.** Emission maps the entry and casts each section. It interns
   a type row into the pool on first use, as an interface reader does.
 

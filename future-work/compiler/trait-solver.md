@@ -83,6 +83,10 @@ right.
 
 ### 1.1 Who Owns What
 
+The solver lives in `hd_types`; other crates call its interface rather
+than owning a second solver
+([reconciliation, item 12](reconciliation.md#design-changes-proposed)).
+
 | Component | Owns | Does not own |
 | --- | --- | --- |
 | Resolution (`hd_resolve`) | impl heads, bound plans and derived heads in the interface; every header check that needs no solver: orphan, module ownership, targets, unconstrained parameters, sealed traits, per-member `dyn` availability, template placement | goals |

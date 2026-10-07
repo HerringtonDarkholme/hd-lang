@@ -85,14 +85,30 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
 ### 6.2 Executors
 
 ```rust
+pub trait Spawn {
+    fn add(&self, kind: TaskKind) -> TaskId;
+    fn edge(&self, dependency: TaskId, dependent: TaskId);
+    fn add_held(&self, kind: TaskKind) -> CreationGuard;
+}
 pub trait Scheduler: Sync {
-    fn run(&self, graph: &TaskGraph, exec: &(dyn Fn(TaskId, &Spawner) + Sync));
+    fn run(
+        &self,
+        graph: &TaskGraph,
+        exec: &(dyn Fn(TaskId, TaskKind, &dyn Spawn) + Sync),
+    );
     fn threads(&self) -> usize;
 }
 pub struct SerialScheduler { order: SerialOrder }       // Fifo | Shuffled(seed): tests only
 pub struct PoolScheduler { pool: rayon::ThreadPool }    // feature "threads"
 pub struct SteppingScheduler { .. }                     // browser: run_for(max_steps) -> Progress
 ```
+
+Every executor uses that one `exec(TaskId, TaskKind, &dyn Spawn)` task
+signature. The serial and stepping executors implement `Spawn` over their
+mutable graph; the pool implements it over the atomic graph. `add_held`
+returns the creation guard that keeps a task unready until all of its
+edges exist
+([reconciliation, item 4](reconciliation.md#design-changes-proposed)).
 
 - **Pool.** Ready tasks are spawned into rayon's work-stealing pool. Each
   worker keeps its own bump arena for body tasks. The default thread
@@ -117,8 +133,11 @@ pub struct SteppingScheduler { .. }                     // browser: run_for(max_
      0.5 to 1 ms of estimated work; a very large body runs alone, and a
      small module runs as one sequential task.
   3. Worker arenas reset per batch, not per item.
-  4. Codegen follows the same rule: instances are emitted in batches per
-     module group, never spawned one by one.
+  4. `Collect` performs the code-entry lookups. For each folder group
+     with at least one miss it creates one `ExtTask::Emit(GroupId)`;
+     that task emits the missed instances as a batch. The folder group is
+     the `codepack` cache unit (cache.md §5.2)
+     ([reconciliation, item 5](reconciliation.md#design-changes-proposed)).
   Determinism, fuel, cache keys and TIR stay per item; only scheduling
   coarsens. `parallel-speedup` (at least 0.6x per core up to 8 cores)
   and the scheduler overhead are measured in slice 4.

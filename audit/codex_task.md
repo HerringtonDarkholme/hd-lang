@@ -83,27 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D1. Apply The Reconciliation's Design Changes (First)
-
-Owner, 2026-10-07: design-doc work goes to Codex.
-`future-work/compiler/reconciliation.md`, "Design Changes Proposed",
-items 1 to 13, and "footprint.md Corrections". Apply them as short edits
-in the named docs, each citing "reconciliation, item n". All 13 are
-accepted:
-
-- Item 6 is decided by the owner (2026-10-07): allow one audited
-  `unsafe` `AppendVec` in `hd_base` (raw chunk pointers, a published
-  length); the workspace lint becomes `unsafe_code = "deny"` with an
-  allow on that one module only, every block with a `// SAFETY:`
-  comment. Write that into data-structures.md §3.9.4 and §3.24.
-- Item 9: until wasmtime is approved, `hd run` runs on Node through an
-  `hd_run::Engine` implementation (Wasm first).
-
-Docs only; don't touch `compiler/`. The orchestrator's agent is changing
-the code to match at the same time, so describe the design, not the
-code's current state. `bash spec/check.sh` passing; push one commit.
-Timebox 45 minutes.
-
 ### Q5. Parse-Gap Repros From lib/std
 
 The new compiler's full parser rejects 19 of the 36 `lib/std` files

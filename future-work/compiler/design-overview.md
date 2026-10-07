@@ -72,11 +72,13 @@ Terms used throughout:
                               ModulePrep per module (scope, private sigs,        │ miss
                                 inferred results)                                 ▼
                                               │
-                              Body tasks per item (parallel, frozen tables)
+                              Body(m), one task per module
+                                (bodies are the logical unit; frozen tables)
                                               │
                               ModuleFinish per module (rows, sort) ═══════► [check entry]
                                               │
-                    Coherence per trait ═► [coh]     InitOrder per folder ═► [init]
+              Coherence for changed coh_key traits ═► [graph: coh parts]
+                       (one task per trait)          InitOrder per folder ═► [graph: init parts]
                                               │
                               Output assembly in content order ═══════════► [pkgres entry]
                      └────────────────────────┼────────────────────────────────────────┘
@@ -86,7 +88,9 @@ Terms used throughout:
 
 `═══►` marks a cache boundary. Every boundary is content-addressed through
 the `CacheStore` interface (section 5). Nothing crosses a boundary by an
-in-memory ID.
+in-memory ID. `Body(m)` is one scheduled task per module; the individual
+bodies remain the logical units for determinism, fuel, cache keys and TIR
+([reconciliation, item 1](reconciliation.md#design-changes-proposed)).
 
 ### 1.2 Stages
 
@@ -97,13 +101,13 @@ in-memory ID.
 | Full parse | file bytes | `TokenBuf`, `GreenTree` | file | yes | no | none |
 | Folder graph | use lists of every file | folder DAG, `folder-cycle` | package | serial (tiny) | inside `pkgres` | none |
 | Folder interface | skeletons of the folder, deep interfaces of used folders | `FolderIface`, blob, deep hash, header diagnostics | folder | yes, in DAG order | `iface` | [§5.3](cache.md#53-key-composition) |
-| Header check (stage B) | a folder's interface, its dependencies' interfaces and impl tables | header bound, supertrait, newtype-base and delegation diagnostics | folder | yes | `hdr` | [§5.3](cache.md#53-key-composition) |
+| Header check (stage B) | a folder's interface, its dependencies' interfaces and impl tables | header bound, supertrait, newtype-base and delegation diagnostics | folder | yes | `hdr` part of `graph` | [§5.3](cache.md#53-key-composition) |
 | Module prep | module CST, own folder interface, used interfaces | module scope, private signatures, inferred results, the closure bit set and `ImplUniverseId` | module | yes, across modules | inside `check` | none |
 | Body check | body CST, frozen tables | TIR (§4.13.11), diagnostics, facts | body | yes | inside `check`; TIR in `tir` | none |
 | Module finish | the module's body results | `ModuleResult` | module | yes, across modules | `check` | [§5.3](cache.md#53-key-composition) |
 | Test overlay | `tests:` block and doc tests of a module | TIR, diagnostics | module | yes | `check-test` | check key plus test uses |
-| Coherence | impl heads of one trait over the graph | `overlapping-impl` | trait | yes | `coh` | trait path plus sorted head hashes |
-| Init order | init summaries of a folder's modules | statement order, `top-level-read-before-initialization` | folder (only when a group spans modules) | yes | `init` | sorted summary hashes |
+| Coherence | impl heads of the traits whose `coh_key` changed | `overlapping-impl` | one task per changed trait | yes | `coh` part of `graph` | trait path plus sorted head hashes |
+| Init order | init summaries of a folder's modules | statement order, `top-level-read-before-initialization` | folder (only when a group spans modules) | yes | `init` part of `graph` | sorted summary hashes |
 | Package result | all of the above | sorted diagnostics, summary | package | serial | `pkgres` | sorted keys of the parts |
 | D2 stages | TIR, interfaces | Wasm | instance, program | see §11.2 | see §11.2 | see §11.2 |
 
@@ -111,9 +115,10 @@ in-memory ID.
 
 ```text
 Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) ──► Body(m) ──► ModuleFinish(m) ──► PackageResult
-               │              ▲    │                ▲                                │
-Parse(f) ──────┼──────────────┼────┼────────────────┘                                ├──► InitOrder(F)
-               │              │    └──► Coherence(trait) ◄── FolderIface(every F) ───┘
+               │              │ miss              │ miss                              │
+               │              └── creates Parse(f)└── creates Parse(f)                ├──► InitOrder(F)
+               │                 for files read       for files read                  │
+               │              │    └──► Coherence(trait with changed coh_key) ◄───────┘
                └── FolderIface(G) for each folder G that F uses
 ```
 
@@ -131,6 +136,10 @@ Parse(f) ──────┼──────────────┼─�
   type, which `ModulePrep` infers first (§4.13.1).
 - On a warm run most tasks never exist: a cache hit at a boundary removes
   the tasks below it.
+- `Parse(f)` is created by the `FolderIface(F)` or `ModulePrep(m)` task
+  that misses and needs the file; it is not a static predecessor. A file
+  is parsed at most once per run
+  ([reconciliation, item 1](reconciliation.md#design-changes-proposed)).
 
 ### 1.4 What A Run Touches
 
@@ -185,7 +194,7 @@ crate ([Q1 risks](research.md#risks)). This refines
 | `hd_driver` | `Session`, command pipelines (check, test plan, doc, fix), output assembly | all of the above | yes |
 | `hd_doc` | `hd doc` rendering ([HD_DOC.md](../HD_DOC.md)) | `hd_driver` | yes |
 | `hd_stdpack` | build-time tool: checks `lib/std` and writes the std pack that `hd_driver` embeds | `hd_driver` | the pack, not the tool |
-| D2 crates | `hd_mono`, `hd_wasm`, `hd_host_abi`, `hd_run` (§11.4) | `hd_tir`, `hd_driver` | yes |
+| D2 crates | `hd_mono`, `hd_wasm`, `hd_host_abi`, `hd_run` (§11.4) | `hd_tir`, `hd_types`, `hd_host_abi`; `hd_run` also depends on `hd_cache` | yes |
 | `hd_run_wasmtime` | wasmtime embedding (D2) | `hd_run`, `wasmtime` | no |
 | `hd_cli` | the native `hd` binary: argument parsing, the disk cache, threads, terminal output | everything native | no |
 | `hd_web` | wasm-bindgen glue, the JS `SourceSet` and `CacheStore`, the stepping scheduler | `hd_driver`, D2 crates, `wasm-bindgen` | only there |
@@ -199,9 +208,14 @@ hd_base ─► hd_intern ─► hd_diag ─► hd_syntax ─► hd_fmt
                          └──► hd_cache                                              │
 hd_base ─► hd_sched ────────────────────────────────────────────────────────────────┤
                                                                                      ▼
-                                          hd_driver ─► hd_doc, D2 crates ─► hd_cli ◄─ hd_run_wasmtime
-                                                                          └► hd_web
+                                          hd_driver ─► hd_doc ────────────────► hd_cli ◄─ hd_run_wasmtime
+                                          hd_tir, hd_types, hd_host_abi ─► D2 crates ─┤
+                                                                          └─────────► hd_web
 ```
+
+D2 consumes `hd_tir`, `hd_types` and `hd_host_abi`, not `hd_driver`;
+`hd_run` also consumes `hd_cache`
+([reconciliation, item 2](reconciliation.md#design-changes-proposed)).
 
 ### 2.2 Rules
 
@@ -212,10 +226,13 @@ hd_base ─► hd_sched ──────────────────�
 2. **No build scripts in hot crates.** Generated code (syntax kinds, typed
    views, the diagnostic code enum) is produced by `cargo xtask codegen`
    and checked in. CI fails if regenerating changes it.
-3. **No `std::fs`, threads or clocks below `hd_driver`.** Sources come
-   through `SourceSet`, the cache through `CacheStore`, work through
-   `Scheduler`, and time only through budgets measured in steps. The
-   browser build then needs no stubs.
+3. **The driver owns no host facilities.** `hd_driver` takes its sources,
+   cache, executor and clock from the caller; it has no `std::fs`,
+   `std::process` or `Instant`
+   ([reconciliation, item 3](reconciliation.md#design-changes-proposed)).
+   Sources come through `SourceSet`, the cache through `CacheStore`, work
+   through `Scheduler`, and time through the supplied clock or budgets
+   measured in steps. The browser build then needs no stubs.
 4. **No `serde` in the front half.** Blob and entry formats are
    hand-written and checked (§4.11). `toml` parses manifests only.
 5. **The browser build compiles in CI from slice 1:**

@@ -406,6 +406,9 @@ Row     = kind: u8, index: uleb, len: uleb, payload: [u8; len], crc32: u32
 
 ### 4.5 Where It Lives
 
+The journal reader, writer, recorder and replayer live in `hd_run`
+([reconciliation, item 13](reconciliation.md#design-changes-proposed)).
+
 | Context | Storage |
 | --- | --- |
 | `hd repl` | memory, for the session's life (first release); `build/.hd/repl/` for saved sessions (Later) |

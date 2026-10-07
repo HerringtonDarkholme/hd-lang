@@ -14,13 +14,18 @@ updated for answer 13: no drive summary in any slice.
 | 1b. Formatter (beside slice 2) | `hd_fmt`, `hd fmt` | idempotent on every fixture and std file; `fmt` timing recorded |
 | 2. Std interfaces | `hd_project`, `hd_iface`, `hd_types` (types and rows), `hd_resolve`, `hd_sched` serial, `hd_cache` memory store, `hd_driver`; keys computed from the start | std's folder interfaces build with no diagnostic; name-phase cases pass (`unknown-import`, `private-import`, `re-export-loop`, `folder-cycle`, `private-type-leak`, `orphan-impl`, `nonlocal-impl`); blobs decode to equal interfaces; blob bytes equal across shuffled serial orders; a deep-hash test changes a type reached only through a signature and sees the dependent's key change |
 | 2b. `hd doc` (beside slice 3) | `hd_doc` on interfaces | HD_DOC cases pass; `answer-size` budget met |
-| 3. Bodies | first a thin vertical slice: functions, integers, data, one generic call and one trait call, from source through TIR, emission and the native disk cache, with private-body, dependency and location-only edits tested; then `hd_check` chapter by chapter in spec order: inference, rows, suspension, exhaustiveness, templates, coherence, init order, TIR with its verifier and printer | a source-feature-to-TIR coverage table, one row per expression and statement form of spec chapters 5 to 14 with its tag, verifier rule and emission rule (checking-and-tir.md, Instruction Catalog); type-phase cases pass with a known-failures list; std's bodies check clean; `errors-per-run`, `mistakes` and `diag-location` measured; `pathological` runs within budgets |
+| 3. Bodies | first a thin vertical slice: functions, integers, data, one generic call and one trait call, from source through TIR, emission and the native disk cache, with private-body, dependency and location-only edits tested. The slice runs on the designed types (`hd_types`, `hd_tir::ir`, `hd_resolve`, `hd_project`, `CacheStore`, `hd_diag`); the walking skeleton's types are deleted when it lands ([reconciliation, item 10](reconciliation.md#design-changes-proposed)). Then `hd_check` proceeds chapter by chapter in spec order: inference, rows, suspension, exhaustiveness, templates, coherence, init order, TIR with its verifier and printer | a source-feature-to-TIR coverage table, one row per expression and statement form of spec chapters 5 to 14 with its tag, verifier rule and emission rule (checking-and-tir.md, Instruction Catalog); type-phase cases pass with a known-failures list; std's bodies check clean; `errors-per-run`, `mistakes` and `diag-location` measured; `pathological` runs within budgets |
 | 3b. Fix-its and `hd fix` | re-parse safety, `hd fix` rounds | `fixit-safety` at 100%; fix-it share of `mistakes` measured |
 | 4. Cache and threads | disk store, manifest, eviction and `hd cache gc`, the pool scheduler, the opt-in memory cap, the embedded std pack, verify mode | `recheck-precision`, `edit-latency`, `cold-check`, `resources`, `startup`, `determinism` (full matrix), `incremental-soundness`, `cache-contention`, `cache-growth`, `parallel-speedup` with peak memory at 8 threads at most 1.5x that at 1 thread |
 | 5. Browser front end | `hd_web` with the stepping scheduler and the JS stores | the playground checks programs in a worker; size measured so the owner can set a budget (answer 4); `long-session` flat in the browser |
 
 D2's slices 6 to 10 follow in §22, refining [Q16](research.md#build-order-1).
 Each slice's exit test also includes its rows of §9.2.
+
+A stage that answers "not implemented" during a build stops that build
+with an internal `unsupported` diagnostic naming the stage and its first
+reason. Only `analyze_package` may count such an answer and continue
+([reconciliation, item 11](reconciliation.md#design-changes-proposed)).
 
 **Performance is eyeballed, not gated, during the first implementation
 (owner, 2026-10-07).** "Drop the perf gate for now and just go ahead,
@@ -88,7 +93,7 @@ verifier and printer.
 
 | Slice | Delivers | Exit test | Pillar 3 metrics it should start meeting |
 | --- | --- | --- | --- |
-| 6. Scalars end to end | `hd_mono`, `hd_wasm` for scalars, functions, `println`; `hd_run` and `hd_run_wasmtime` with `hd run`, `hd build`, `hd FILE.wasm`; the `code`, `link`, `cwasm` entries | the scalar cases of `runtime/valid` pass; Wasm bytes deterministic across the matrix | `size-startup-heap` (tiny ≤ 2 KB); `hd` binary size and Cranelift time recorded; `check-cost` and `dev-speed` on scalar code |
+| 6. Scalars end to end | `hd_mono`, `hd_wasm` for scalars, functions, `println`; `hd_run` with a Node-backed `Engine` for `hd run`, plus `hd build` and `hd FILE.wasm`; the `code` and `link` entries | the scalar cases of `runtime/valid` pass on the Node engine; Wasm bytes deterministic across the matrix ([reconciliation, item 9](reconciliation.md#design-changes-proposed)) | `size-startup-heap` (tiny ≤ 2 KB); `hd` binary size recorded; `check-cost` and `dev-speed` on scalar code |
 | 7. Data and std | data, enums, closures, strings, lists, maps, `Option` and `Result` layouts, the exchange buffer for structured values, panics with sites and backtraces, folding | `runtime/valid` and the `runtime/panic` cases chapter by chapter, with a known-failures list | `runtime`, `allocations` (counted loops: 0), `dead-code`, `text-throughput` |
 | 8. Suspension, host and tests | state machines, `all!`, `race!`, cancellation, the reactor, grants and startup refusal, resource limits, the test runner with property tests | the suspension and capability cases; the CLI cases of [`cli-cases.tsv`](../../spec/conformance/cli-cases.tsv) | `suspension-overhead`, `host-call-overhead`, `unit-test-perf`, `proptest-perf`, `integration-test-perf`, `test-latency` |
 | 9. The browser | the JS glue, the program worker, synchronous mode, the headless-browser adapter | the runtime cases pass on wasmtime and in the browser with one known-failures list | browser size recorded; `allocations` on V8 through the glue |
@@ -99,9 +104,11 @@ back half first produces correct, deterministic Wasm GC and runs it on
 V8 through Node, the engine the browser and the playground use. Until
 the Wasm path passes slice 7's runtime cases:
 
-- wasmtime is embedded with its default configuration only, as the
-  runner behind `hd run`; no Cranelift level or allocator choice (spike
-  T1), no `cwasm` entries or precompiling, no native code packs;
+- until wasmtime is approved, `hd run` runs on V8 through Node via an
+  `hd_run::Engine` implementation, and slice 6 exits on that engine;
+  there are no Cranelift-level or allocator comparisons, `cwasm`
+  entries, precompiling or native code packs
+  ([reconciliation, item 9](reconciliation.md#design-changes-proposed));
 - Binaryen (T2), test-run laziness (T3), dev inlining (T4) and pass
   fusion (T5) wait for slice 10;
 - slice 6's "Cranelift time recorded" and `cwasm` entry, and slice 8's
