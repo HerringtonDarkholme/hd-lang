@@ -232,24 +232,29 @@ See also: [Function And Closure Scopes](#function-and-closure-scopes).
 The items of a `tests:` block are module items that only the block sees:
 
 ```text
-use std.testing.assert_equal
+use pkg.pricing.{rates}
 
 fn late_fee(days: i32) -> i32:
-    if days > 30: 5 else: 0
+    if days > 30: rates().late else: 0
 
 tests:
+    use std.testing.assert_equal
+    use dep.fx.{fixed_rates as rates}  # valid: the block's import shadows the module's
+
     fn overdue() -> i32: 31
     pub fn shared_overdue() -> i32: 45  # error: public-test-item
-    use std.testing.assert_equal  # valid: the block's import shadows the module's
 
     it("uses a private function"):
-        assert_equal(late_fee(overdue()), 5, reason="the block sees late_fee")
+        assert_equal(late_fee(overdue()) > 0, true, reason="the block sees late_fee")
+
+    it("reads the fixed rates"):
+        assert_equal(rates().late, 5, reason="inside the block, rates is the block's import")
 
 fn report() -> i32:
     overdue()  # error: unknown-name
 
 fn check_flag(ok: bool) -> void:
-    assert_equal(ok, true, reason="outside the block, the module's own import applies")
+    assert_equal(ok, true, reason="no import here")  # error: unknown-name
 ```
 
 1. r[names.tests.module-items] The items of a [`tests:` block](02-grammar.md#test-blocks) are module items of the file's module.
