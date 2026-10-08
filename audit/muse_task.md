@@ -102,19 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### T1. Bench Generator Writes A Program That Checks
-
-`compiler/bench/generated/generate.mjs` emits a 10k-line package whose
-`main` fails `hd check` with `missing-requirement: $ Console` (both the
-TS prototype and the new compiler reject it), so the larger generated
-package can't be built or timed. Fix the generator so `main` declares
-the requirement it uses (`pub fn main() -> void $ Console:`) and every
-generated program checks clean with `compiler/target/release/hd check`
-(build it with `cargo build --release -p hd_cli` in `compiler/`). Follow
-house style: an i32 literal is `+N`; `:=` is never reassigned (a counter
-is `let x = +0`). Generated output stays deterministic. Tooling only.
-Timebox 30 minutes; push.
-
 ### Q24. Runtime Versus Node, Release Builds
 
 Q22 (`audit/compiler/runtime-vs-node-6572b51d.md`) measured debug-profile

@@ -11,16 +11,16 @@ for (let index = 0; index < folders.length; index += 1) {
     main.push(`use pkg.${modulePath}.unit.{run${index}}`)
 }
 main.push("")
-main.push("fn main():")
+main.push("pub fn main() -> void $ Console:")
 for (let index = 0; index < folders.length; index += 1) {
-    main.push(`    println(run${index}(1))`)
+    main.push(`    println(run${index}(+1))`)
 }
 sources.set("main.hd", main)
 
 for (let folderIndex = 0; folderIndex < folders.length; folderIndex += 1) {
     const lines = [
         `pub fn run${folderIndex}(x: i32) -> i32:`,
-        `    return x + ${folderIndex * 10}`,
+        `    return x + +${folderIndex * 10}`,
         "",
     ]
     sources.set(`${folders[folderIndex]}/unit.hd`, lines)
@@ -32,7 +32,7 @@ while ([...sources.values()].reduce((sum, lines) => sum + lines.length, 0) + 3 <
     const path = paths[functionIndex % paths.length]
     const lines = sources.get(path)
     lines.push(`fn work${functionIndex}(x: i32) -> i32:`)
-    lines.push(`    return x + ${functionIndex % 97}`)
+    lines.push(`    return x + +${functionIndex % 97}`)
     lines.push("")
     functionIndex += 1
 }
