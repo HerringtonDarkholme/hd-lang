@@ -43,6 +43,7 @@ fn compile(
         store,
         clock,
         executor,
+        render_tir: &[],
     };
     build(
         &host,
@@ -66,6 +67,16 @@ fn main() {
     // `f32` and `f64` became invalid benchmark item names when M3 installed
     // the real prelude. Keep the input shape while avoiding those names.
     app = app.replace("f32(", "f_32(").replace("f64(", "f_64(");
+    // P2-1a made `:=` bindings non-reassignable, but the generated kernels
+    // reassign their counters; hoist them to `let` here rather than in the
+    // driver's dev-tool sources. The entry also needs its Console row now.
+    fn lets(src: &str) -> String {
+        src.replace("    x := ", "    let x: i32 = ")
+            .replace("    i := ", "    let i: i32 = ")
+            .replace("    s := ", "    let s: i32 = ")
+            .replace("fn main():", "fn main() -> void $ Console:")
+    }
+    let (app, geo) = (lets(&app), lets(&geo));
     let store = MemoryStore::default();
     let clock = Wall(Instant::now());
 
