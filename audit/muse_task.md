@@ -90,6 +90,29 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### S11c. Apply These Term Replacements (Orchestrator Decision, Next)
+
+S11b kept compound coinages because each word is plain English; that
+is not evidence the term exists. Apply exactly these replacements
+(wording only, no meaning change) across spec text, rule IDs (new IDs,
+old retired per `spec/STYLE.md`, citations fixed with `pnpm run spec
+refs`), glossaries, fixtures' comments, guide and `lib/std` doc comments,
+then update `future-work/spec-terms.md` rows to "replace":
+
+| Coined | Use instead | Why |
+| --- | --- | --- |
+| law partners | related traits (traits whose laws must agree) | Rust/Haskell just say the laws relate `Hash` and `Eq` |
+| coherence slot | (trait, type) pair | Rust's coherence talks about impls for a trait and type |
+| take part (in lookup) | lookup candidates / members lookup considers | Rust reference: method-call candidates |
+| fits (a candidate fits a call) | applies (an applicable candidate) | Rust/C#: applicable candidates |
+| draw budget | draw limit | plain; no testing library calls it a budget |
+
+Then re-scan the table for other compound phrases built from plain
+words that no reference uses as a term (two-word noun phrases defined in
+bold); list them in the commit message with a proposed plain phrase,
+but do not apply those (the orchestrator decides next). `bash
+spec/check.sh` green. Timebox 45 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
