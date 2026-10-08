@@ -91,6 +91,31 @@ pub fn check_key(
     k.finish()
 }
 
+/// `hdr_key(F) = H("hdr", toolchain, package, F, own deep_hash,
+/// [(folder, deep_hash) for every folder of closure(F)])`: a part key of
+/// the `graph` entry (stage-B header findings, one entry per folder here).
+/// The deep hashes cover the interfaces, impl heads and `arg_impls`, which
+/// fix the impl universe of the solving context.
+#[must_use]
+pub fn hdr_key(
+    toolchain: Hash128,
+    package: Hash128,
+    folder: &str,
+    own: Hash128,
+    closure: &[(&str, Hash128)],
+) -> Hash128 {
+    let mut k = StableHasher::new("hdr");
+    k.hash(toolchain);
+    k.hash(package);
+    k.str(folder);
+    k.hash(own);
+    for (c, h) in closure {
+        k.str(c);
+        k.hash(*h);
+    }
+    k.finish()
+}
+
 /// `prog_key = H("prog", toolchain, pipeline, entry, [(module, TIR content
 /// hash)])` (codegen.md §11.3).
 #[must_use]

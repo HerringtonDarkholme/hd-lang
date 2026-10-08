@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, FileId, FolderId, Hash128, NotImplemented, Span, Stage, StageResult};
 use hd_cache::{
-    CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, iface_key, prog_key,
+    CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, prog_key,
     toolchain_key,
 };
 use hd_check::BodyCx;
@@ -1170,9 +1170,32 @@ impl Run<'_> {
             self.blocked(Stage::HeaderCheck);
             return;
         };
+        let closure = self.closure(fid);
+        let folder = &self.table.folders[fi];
+        let reach: Vec<(&str, Hash128)> = closure
+            .iter()
+            .zip(&all)
+            .map(|(c, i)| (self.table.folders[c.idx()].path.as_str(), i.deep_hash))
+            .collect();
+        let key = hdr_key(
+            self.toolchain,
+            self.package_key_of(folder.package),
+            &folder.path,
+            own.deep_hash,
+            &reach,
+        );
+        if let Some(sections) = self.lookup(EntryKind::Graph, key)
+            && let Some(found) = sections
+                .first()
+                .and_then(|b| decode_header_findings(b, &own.items))
+        {
+            lock(&self.report).ok(Stage::HeaderCheck);
+            self.emit_findings(&found);
+            return;
+        }
         let names = self.names();
         let lookup = Lookup::new(&[], all.iter().map(AsRef::as_ref).collect());
-        let (folders, universe, extra) = self.closure_impls(&self.closure(fid));
+        let (folders, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
             paths: &self.paths,
@@ -1194,6 +1217,15 @@ impl Run<'_> {
         let Some(findings) = self.stage(Stage::HeaderCheck, r) else {
             return;
         };
+        self.put(
+            EntryKind::Graph,
+            key,
+            &[&encode_header_findings(&findings, &own.items)],
+        );
+        self.emit_findings(&findings);
+    }
+
+    fn emit_findings(&self, findings: &[hd_check::header::Finding]) {
         let mut d = lock(&self.diags);
         for f in findings {
             d.error(f.code, self.item_span(f.item, f.slot), &f.message);
@@ -2545,6 +2577,38 @@ fn decode_regs(r: &mut Reader<'_>) -> Vec<hd_check::tests::TestReg> {
         });
     }
     out
+}
+
+/// Stage-B findings by item index in the folder's interface.
+fn encode_header_findings(found: &[hd_check::header::Finding], items: &[Item]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(found);
+    for f in found {
+        let at = items.iter().position(|i| i.def == f.item).unwrap_or(0);
+        w.u32(u32_of(at));
+        w.u32(f.slot);
+        w.str(f.code.as_str());
+        w.str(&f.message);
+    }
+    w.bytes
+}
+
+fn decode_header_findings(b: &[u8], items: &[Item]) -> Option<Vec<hd_check::header::Finding>> {
+    let mut r = Reader::new(b);
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let at = r.u32() as usize;
+        let slot = r.u32();
+        let code = Code::from_name(r.str())?;
+        let message = r.str().to_owned();
+        out.push(hd_check::header::Finding {
+            item: items.get(at)?.def,
+            slot,
+            code,
+            message,
+        });
+    }
+    r.ok().then_some(out)
 }
 
 fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {

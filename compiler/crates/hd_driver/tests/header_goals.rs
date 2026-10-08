@@ -164,3 +164,92 @@ fn header_answers_follow_the_folder_closure_on_any_executor() {
         );
     }
 }
+
+/// One analysis over a shared store: the file's lines and the counters.
+fn analyze_in(
+    store: &MemoryStore,
+    files: &[(&str, &str)],
+    file: &str,
+) -> (Vec<String>, usize, usize) {
+    let mut src = MemorySources::default();
+    for (path, text) in files {
+        src.insert(path, text);
+    }
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build(&host, "app", &Goal::Analyze);
+    let lines = out
+        .render()
+        .lines()
+        .filter(|l| l.contains(&format!(" {file}:")))
+        .map(str::to_owned)
+        .collect();
+    (lines, out.counters.hit("graph"), out.counters.miss("graph"))
+}
+
+#[test]
+fn a_dependency_impl_head_edit_invalidates_the_cached_header_findings() {
+    let store = MemoryStore::default();
+    let files = [
+        ("lib/defs.hd", LIB),
+        ("prod/defs.hd", PROD),
+        ("with/main.hd", WITH),
+        ("without/main.hd", WITHOUT),
+    ];
+    let (cold, hits, _) = analyze_in(&store, &files, "with/main.hd");
+    assert!(cold.is_empty(), "{cold:#?}");
+    assert_eq!(hits, 0);
+    let (warm, hits, misses) = analyze_in(&store, &files, "with/main.hd");
+    assert_eq!(warm, cold);
+    assert_eq!(misses, 0, "a warm run misses nothing");
+    assert!(hits >= 4, "every folder's findings hit: {hits}");
+    // `prod` no longer owns `Pick[Product] for Receiver`: its impl head
+    // changes, and so does the answer for `with`.
+    let edited = PROD.replace(
+        "impl Pick[Product] for Receiver",
+        "impl Pick[i32] for Receiver",
+    );
+    let edited = edited.replace(
+        "-> Product:\n        Product { id: self.n }",
+        "-> i32:\n        self.n",
+    );
+    let files = [
+        ("lib/defs.hd", LIB),
+        ("prod/defs.hd", edited.as_str()),
+        ("with/main.hd", WITH),
+        ("without/main.hd", WITHOUT),
+    ];
+    let (after, _, _) = analyze_in(&store, &files, "with/main.hd");
+    let (fresh, _, _) = analyze_in(&MemoryStore::default(), &files, "with/main.hd");
+    assert_eq!(after, fresh, "warm and fresh agree");
+    assert_eq!(after.len(), 1, "{after:#?}");
+    assert!(after[0].contains("unsatisfied-trait-bound"), "{after:#?}");
+}
+
+#[test]
+fn a_comment_edit_keeps_the_cached_findings_and_moves_their_positions() {
+    let store = MemoryStore::default();
+    let files = [("lib/defs.hd", LIB), ("without/main.hd", WITHOUT)];
+    let (cold, _, _) = analyze_in(&store, &files, "without/main.hd");
+    assert_eq!(cold.len(), 1, "{cold:#?}");
+    let (warm, hits, misses) = analyze_in(&store, &files, "without/main.hd");
+    assert_eq!(warm, cold);
+    assert_eq!(misses, 0);
+    assert!(hits >= 2, "{hits}");
+    let commented = format!("// note\n{WITHOUT}");
+    let files = [
+        ("lib/defs.hd", LIB),
+        ("without/main.hd", commented.as_str()),
+    ];
+    let (after, hits, misses) = analyze_in(&store, &files, "without/main.hd");
+    let (fresh, _, _) = analyze_in(&MemoryStore::default(), &files, "without/main.hd");
+    assert_eq!(after, fresh, "the position follows the edit");
+    assert_ne!(after, cold, "the finding moved down a line");
+    assert_eq!(misses, 0, "the interface key ignores comments");
+    assert!(hits >= 2, "{hits}");
+}
