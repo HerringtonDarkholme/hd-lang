@@ -138,6 +138,8 @@ pub fn collect(names: &Names<'_>, src: &Src<'_>, heads: &[Head<'_>], items: &[It
         };
         cx.decl = decl;
         let n = h.node;
+        // This head's own rows start here.
+        let start = cx.out.len();
         let a = cx.at(n, 0, n, true);
         cx.push(h.def, 0, a);
         match h.kind {
@@ -196,15 +198,16 @@ pub fn collect(names: &Names<'_>, src: &Src<'_>, heads: &[Head<'_>], items: &[It
             HeadKind::Alias => {}
         }
         if matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype) {
-            derived(&mut cx, names, h, items);
+            derived(&mut cx, names, h, items, start);
         }
     }
     cx.out
 }
 
 /// A derived implementation sits at the `@derive` argument list that names
-/// it; its slots repeat those of the type it derives for.
-fn derived(cx: &mut Ctx<'_, '_>, names: &Names<'_>, h: &Head<'_>, items: &[Item]) {
+/// it; its slots repeat those of the type it derives for, the rows of
+/// `cx.out` from `start`.
+fn derived(cx: &mut Ctx<'_, '_>, names: &Names<'_>, h: &Head<'_>, items: &[Item], start: usize) {
     let src = cx.src;
     for it in items {
         let ItemData::Impl { kind, self_ty, .. } = &it.data else {
@@ -237,8 +240,7 @@ fn derived(cx: &mut Ctx<'_, '_>, names: &Names<'_>, h: &Head<'_>, items: &[Item]
             // type's fields (or a newtype's base type), where a derived
             // trait's missing field implementation is reported even
             // when the private type itself has no interface item.
-            let fields: Vec<(u32, Anchor)> = cx
-                .out
+            let fields: Vec<(u32, Anchor)> = cx.out[start..]
                 .iter()
                 .filter(|(def, slot, _)| *def == h.def && *slot > 0)
                 .map(|(_, slot, a)| (*slot, *a))
