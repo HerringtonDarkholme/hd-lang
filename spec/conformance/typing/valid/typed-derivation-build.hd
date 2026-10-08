@@ -5,10 +5,10 @@ use std.structure.{Structure, Field, Variant, Members, Key, Source}
 trait Duplicate:
     fn duplicate_mut(mut self) -> mut Self
 
-data CopySource[S]:
+data CopySource[S < mut Any]:
     old: mut S
 
-impl[S] Source[S] for CopySource[S]:
+impl[S < mut Any] Source[S] for CopySource[S]:
     type Error = never
 
     fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
@@ -26,7 +26,7 @@ impl[S] Source[S] for CopySource[S]:
     fn missing[F](mut self, h: Field[S, F]) -> Result[F, never]:
         .Ok(h.get(self.old))
 
-impl[T] Duplicate for T by Structure:
+impl[T < mut Any] Duplicate for T by Structure:
     fn duplicate_mut(mut self) -> mut Self:
         let s: mut CopySource[T] = CopySource { old: self }
         match T::build(s):
