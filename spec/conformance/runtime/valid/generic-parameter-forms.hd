@@ -72,6 +72,6 @@ pub fn main() -> void $ Console:
     println(run(fn() -> i32: 3))
     println(count_keys({"a": 1, "b": 2}))
     println(6 & 3 | 8)
-    sink := Sink { take: fn(n: i32) -> bool: n > 0 }
+    _sink := Sink { take: fn(n: i32) -> bool: n > 0 }
     source := Source { value: +3 }
     println("${source.value} ${count_keys({1: 1, 2: 2, 3: 3, 4: 4, 5: 5}) + 0}")
