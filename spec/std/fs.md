@@ -131,13 +131,13 @@ holds its files in memory, and a test supplies it with `$.with`:
 ```text
 use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, write_text}
 use std.path.Path
-use std.testing.assert
-
 fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
     text := read_text!(Path("notes.txt"))?
     write_text!(Path("notes.bak"), text)
 
 tests:
+    use std.testing.assert
+
     it("copies in memory"):
         let mut files = MemoryFs::new()
         assert(files.write_text!(Path("notes.txt"), "tea").is_ok(), reason="seeded")

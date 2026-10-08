@@ -81,12 +81,12 @@ tests_item = use_decl
 ```
 
 ```text
-use std.testing.assert_equal
-
 fn late_fee(days: i32) -> i32:
     if days > 30: 5 else: 0
 
 tests:
+    use std.testing.assert_equal
+
     fn overdue() -> i32: 31
 
     it("charges a fee after 30 days"):

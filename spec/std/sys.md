@@ -50,14 +50,14 @@ pub trait Sys:
 
 ```text
 use std.sys.{MapSys, Sys, SysError}
-use std.testing.assert_equal
-
 fn platform() -> string $ Sys:
     match $.use(Sys).os():
         .Ok(name) => name
         .Err(_) => "unknown"
 
 tests:
+    use std.testing.assert_equal
+
     it("reads the mapped system"):
         $.with(Sys=MapSys::new({"os": "linux", "cpu_count": "8"})):
             assert_equal(platform(), "linux", reason="the mapped os")

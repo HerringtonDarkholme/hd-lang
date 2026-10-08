@@ -1363,8 +1363,6 @@ propagates to it by the ordinary rules:
 
 ```text
 use std.error.Error
-use std.testing.assert_equal
-
 enum DigitError:
     NotDigit(text: string)
 
@@ -1379,6 +1377,8 @@ fn parse_digit(text: string) -> Result[i32, DigitError]:
     if text == "7": .Ok(7) else: .Err(DigitError.NotDigit(text))
 
 tests:
+    use std.testing.assert_equal
+
     it("parses a digit"):
         digit := parse_digit("7")?
         assert_equal(digit, 7, reason="the digit parses")
@@ -1399,8 +1399,6 @@ tests:
 7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
 
 ```text
-use std.testing.assert
-
 data Hidden: pass
 
 fn hidden() -> Result[void, Hidden]:
@@ -1413,6 +1411,8 @@ fn lookup(key: string) -> Result[i32, string]:
     .Err("missing: " + key)
 
 tests:
+    use std.testing.assert
+
     it("an error without Display", fn!() -> Result[void, Hidden]: hidden())  # error: unsatisfied-trait-bound
     it("an optional result", fn!() -> i32?: maybe())                         # error: unsatisfied-trait-bound
 

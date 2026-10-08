@@ -50,12 +50,12 @@ with `$.with`, and each seed gives one fixed sequence of draws:
 
 ```text
 use std.random.{Random, SeededRandom}
-use std.testing.assert_equal
-
 fn roll() -> u64 $ Random:
     $.use(Random).next_u64() % 6 + 1
 
 tests:
+    use std.testing.assert_equal
+
     it("one seed, one sequence"):
         let mut first = SeededRandom::new(7)
         let mut again = SeededRandom::new(7)

@@ -92,12 +92,12 @@ fn closed(error: ConsoleError) -> bool:
 
 ```text
 use std.console.BufferConsole
-use std.testing.assert_equal
-
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 tests:
+    use std.testing.assert_equal
+
     it("records the line"):
         let mut console = BufferConsole::new()
         $.with(Console=console):
@@ -120,14 +120,14 @@ tests:
 
 ```text
 use std.console.{ConsoleInput, ScriptedInput, read_line}
-use std.testing.assert
-
 fn first_line!() -> string $ ConsoleInput:
     match read_line!():
         .Ok(.Some(line)) => line
         _ => ""
 
 tests:
+    use std.testing.assert
+
     it("reads the scripted line"):
         let mut input = ScriptedInput::new(["yes"])
         $.with(ConsoleInput=input):

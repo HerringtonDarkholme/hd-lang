@@ -66,14 +66,14 @@ fn same(left: ExitCode, right: ExitCode) -> bool:
 
 ```text
 use std.process.{Process, ProcessOutput, ScriptedProcess}
-use std.testing.assert_equal
-
 fn version!() -> string $ Process:
     match $.use(Process).run!("git", ["--version"], ""):
         .Ok(output) => output.stdout
         .Err(_) => "no git"
 
 tests:
+    use std.testing.assert_equal
+
     it("answers the scripted program"):
         let mut process = ScriptedProcess::new({"git": ProcessOutput { stdout: "git 2.0", stderr: "", status: 0 }})
         $.with(Process=process):

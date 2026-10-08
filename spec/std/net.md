@@ -109,8 +109,6 @@ own, and binds it with `$.with`:
 
 ```text
 use std.net.{Net, NetError, TcpListener, TcpStream, UdpSocket}
-use std.testing.assert_equal
-
 data NoNetwork: pass
 
 impl Net for NoNetwork:
@@ -129,6 +127,8 @@ fn addresses!(host: string) -> List[string] $ Net:
         .Err(_) => []
 
 tests:
+    use std.testing.assert_equal
+
     it("finds no address without a network"):
         let mut net = NoNetwork {}
         $.with(Net=net):

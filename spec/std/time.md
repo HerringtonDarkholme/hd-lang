@@ -211,7 +211,6 @@ fn wait_and_stamp!(pause: Duration) -> Timestamp $ Clock:
 moves only when code sleeps, and a sleep returns at once:
 
 ```text
-use std.testing.assert
 use std.time.{Clock, ManualClock, Timestamp, s}
 
 fn wait_twice!() -> Timestamp $ Clock:
@@ -221,6 +220,8 @@ fn wait_twice!() -> Timestamp $ Clock:
     clock.now()
 
 tests:
+    use std.testing.assert
+
     it("sleeps in virtual time"):
         let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):

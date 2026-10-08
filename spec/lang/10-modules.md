@@ -1267,13 +1267,13 @@ fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void
 7. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
-use std.testing.assert_equal
-
 @derive(Debug)
 data Error:
     message: string
 
 tests:
+    use std.testing.assert_equal
+
     it("result equality needs Eq"):
         let actual: Result[i32, Error] = .Ok(1)
         assert_equal(actual, .Ok(1), reason="values match")  # error: unsatisfied-trait-bound
@@ -1284,11 +1284,11 @@ tests:
 A call of the prelude function `it` registers one test case:
 
 ```text
-use std.testing.assert_equal
-
 fn add(a: i32, b: i32) -> i32: a + b
 
 tests:
+    use std.testing.assert_equal
+
     it("adds two values"):
         assert_equal(add(2, 3), 5, reason="small sums")
 
@@ -1407,11 +1407,11 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 13. r[module.testing.reg.prop-debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
-use std.testing.it_each
-
 fn label() -> string: "halves"
 
 tests:
+    use std.testing.it_each
+
     it_each("doubles", [1, 2], body=fn!(value: i32): pass)
 
     it("doubles[0]"):  # error: duplicate-test-name
@@ -1543,11 +1543,11 @@ pub fn snapshot(text: string, expect: string = "") -> void
 1. r[module.testing.snapshot.literal] An `expect` argument must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
 
 ```text
-use std.testing.snapshot
-
 fn greeting(name: string) -> string: "hello, " + name
 
 tests:
+    use std.testing.snapshot
+
     it("greets by name"):
         snapshot(greeting("Ada"), expect="hello, Ada")
 
@@ -1680,13 +1680,13 @@ fn first_name() -> string:
 
 ```text
 # tasks/seed.hd, under `hd test`
-use std.testing.assert_equal
-
 fn rows() -> List[string]: ["apple", "pear"]
 
 println("seeded ${rows().len()} rows")  # error: missing-requirement
 
 tests:
+    use std.testing.assert_equal
+
     it("seeds two rows"):
         assert_equal(rows().len(), 2, reason="the seed rows")
 ```

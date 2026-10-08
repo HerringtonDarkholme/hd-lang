@@ -71,14 +71,14 @@ fn greeting() -> string $ Args + Env:
 
 ```text
 use std.host.{Args, Env, MapArgs, MapEnv, args, env}
-use std.testing.assert_equal
-
 fn greeting() -> string $ Args + Env:
     match env("GREETING"):
         .Some(word) => "${word}, ${args().len()}"
         .None => "hello"
 
 tests:
+    use std.testing.assert_equal
+
     it("greets from fixed input"):
         given := MapArgs::new("tool", ["a", "b"])
         vars := MapEnv::new({"GREETING": "hi", "HOME": "/home/me"})

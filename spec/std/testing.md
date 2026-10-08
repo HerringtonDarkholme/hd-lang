@@ -382,11 +382,11 @@ A call of `it_each` in test position is registered as
 3. r[std-testing.it-each.rows-at-run] `rows` is evaluated when the test runs, in its program instance, not when test cases are listed.
 
 ```text
-use std.testing.{assert_equal, it_each}
-
 fn double(value: i32) -> i32: value * 2
 
 tests:
+    use std.testing.{assert_equal, it_each}
+
     it_each("doubles", [1, 2, 3], body=fn!(value: i32):
         assert_equal(double(value), value + value, reason="doubling adds the value to itself")
     )
@@ -477,9 +477,9 @@ it("prints a greeting"):
 
 ```text
 # src/greeting.hd
-use std.testing.hd_run
-
 tests:
+    use std.testing.hd_run
+
     it("runs the binary"):
         _ := hd_run!("hello")  # error: test-only-use
 ```
@@ -555,13 +555,14 @@ the test binds with `$.with` instead:
 [Net Providers](net.md#net-providers) shows.
 
 ```text
-use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp, now}
 
 fn receipt_header(store: string) -> string $ Clock:
     "${store} at ${now().to_rfc3339()}"
 
 tests:
+    use std.testing.assert_equal
+
     it("stamps the receipt with the clock's time"):
         $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
             assert_equal(receipt_header("Main St"), "Main St at 1970-01-01T00:00:00Z", reason="a fixed clock")
