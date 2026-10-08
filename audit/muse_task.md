@@ -173,6 +173,21 @@ mark any matching `reconciliation.md` rows fixed:
   the directory); `HeaderCheck(F)` has no universe because header checks
   run a separate solver; the memo is not consulted yet; the head index
   is a per-trait permutation, and the `arg_key` fast reject is not done.
+- Solver commit and trials (commits "solver: commit on the head…" and
+  "check: Instantiations and Methods goals…"; trait-solver.md §3.4–3.5,
+  §6, type-checking.md §2.4–2.5): numeric-family heads match only the
+  types their bound's trait lists (`family_excludes`); one impl seen in
+  two tables is one head; a failing bound under a committed head answers
+  with that bound's failure and the impl/step prepended to `chain`; on an
+  overlap the first head in content order is used and the solver reports
+  nothing; `Candidate` gained `impl_args`, and a fixed plan step that
+  stalls on a variable of `S` becomes residual (§6.5 is silent); residual
+  `Bind` steps are not obligations; `Methods` carries the trait list from
+  the method index, not an `AvailKey`; the arguments checked once before
+  trials versus per trial (closures, `.V` variants, `if`/`match`/blocks,
+  empty collections) — record the list; the literal-default retry when
+  several candidates fit. Record TS-3 (placeholder as `Maybe`, no teaching
+  through a unique head) and §6.4 literal kinds as not yet done.
 
 Docs only; no spec edits. Timebox 45 minutes; push.
 
