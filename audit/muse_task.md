@@ -90,20 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### T4b. Redo The Triage On Current Numbers
-
-T4 used `compiler/CONFORMANCE.md` at 561efcfb (497 pass). Main now
-passes 1,022 (P2-1a), and the buckets changed: `fail:unknown-import`
-fell from 777 to 29; the largest are now `fail:no-diagnostic` 509,
-`unsupported:Body` 274, `unsupported:Emit` 264, `fail:type-mismatch`
-126. Regenerate the report first (`HD_UPDATE_CONFORMANCE=1 cargo test
--p hd_driver --test conformance`, in your worktree; about 8 minutes),
-then redo the bucket-to-job table, and for `fail:no-diagnostic` split it
-by expected code (the `reject:CODE` column). Weigh the order by cases
-unblocked per job size; a dependency counts only when the bucket truly
-needs the earlier job (say which code path). Docs only (and the
-regenerated report). Timebox 45 minutes; push.
-
 ### D2h. Reconcile P2-1a And The Haiku Fixes
 
 Landed: P2-1a (44ccaf3f, runner and checker breadth), f92730d4 (pattern

@@ -1,54 +1,99 @@
 # New Compiler: Phase-2 Job Briefs
 
-## Triage: Conformance Buckets To Jobs (T4, 2026-10-08)
+## Triage: Conformance Buckets To Jobs (T4b, 2026-10-08)
 
-Source: the Failure Buckets of `compiler/CONFORMANCE.md` at `561efcfb`
-(497 pass, 1,114 fail, 1,327 unsupported of 2,938). Each `fail:` bucket is
-the first diagnostic code; each `unsupported:` bucket is the pipeline
-stage that first declined the case. The counts below sum to those
-totals. A case can need more than one job; the table names the primary
-fixing job, and shared reach is noted per job below.
+Source: the Failure Buckets of `compiler/CONFORMANCE.md` regenerated at
+`99f3d038` (1,055 pass, 1,061 fail, 826 unsupported of 2,942). Each
+`fail:` bucket is the first diagnostic code; each `unsupported:` bucket
+is the pipeline stage that first declined the case. P2-1a collapsed
+`fail:unknown-import` from 777 to 29 and `unsupported:Collect` from 879
+to 98; the largest buckets are now `fail:no-diagnostic` (491, split by
+expected code below), `unsupported:Emit` (270), `unsupported:Body`
+(264), and `fail:type-mismatch` (126). A case can need more than one
+job; the table names the primary fixing job, and shared reach is noted
+per job below.
 
 | Bucket | Cases | Fixing job | Why |
 | --- | ---: | --- | --- |
-| `fail:unknown-import` | 777 | P2-5 | imports resolve only through package interfaces |
-| `fail:type-mismatch` | 87 | P2-2 | unification, joins, and call checking |
-| `fail:unknown-module` | 64 | P2-5 | module discovery and paths, chapters 10 and 03 |
-| `fail:unsatisfied-trait-bound` | 31 | P2-3 | trait solving and evidence |
-| `fail:unknown-method` | 29 | P2-2 | method and call resolution |
-| `fail:unknown-data-field` | 19 | P2-4 | aggregate member lookup |
+| `fail:no-diagnostic` | 491 | split below | checker accepts what the spec rejects; biggest groups are trait (152), inference (145), and body (98) checks |
+| `unsupported:Emit` | 270 | P2-6 | emit pipeline; 19 ch-11 cases also need P2-7, 11 testing cases also need P2-9 |
+| `unsupported:Body` | 264 | P2-1 | body checking, chapters 05, 09, and 04; 18 ch-11 cases also need P2-7, 4 testing cases also need P2-9 |
+| `fail:type-mismatch` | 126 | P2-2 | unification, joins, and call checking |
+| `unsupported:CLI` | 101 | P2-10 | all CLI cases |
+| `unsupported:Collect` | 98 | P2-6 | collection into the emit pipeline; 14 ch-11 cases also need P2-7, 7 testing cases also need P2-9 |
+| `fail:runtime-exit` | 72 | P2-6 | wrong exit code at runtime is codegen, not diagnosis |
+| `fail:unknown-module` | 67 | P2-5 | module discovery and paths, chapters 10 and 03 |
+| `fail:unknown-method` | 49 | P2-2 | method and call resolution |
+| `unsupported:RunCase` | 40 | P2-8 | engine run of emitted Wasm; 22 ch-11 cases also need P2-7; needs P2-6 emit first |
+| `fail:unsatisfied-trait-bound` | 35 | P2-3 | trait solving and evidence |
+| `unsupported:FolderIface` | 35 | P2-5 | folder interfaces |
+| `fail:unknown-data-field` | 31 | P2-4 | aggregate member lookup |
+| `fail:unknown-import` | 29 | P2-5 | leftover package-interface imports P2-1a did not reach |
+| `fail:argument-count` | 17 | P2-2 | call and constructor arity |
+| `fail:nonexhaustive-match` | 16 | P2-1 | exhaustiveness |
+| `unsupported:Discover` | 13 | P2-5 | package discovery |
+| `fail:cannot-infer-type` | 12 | P2-2 | inference |
+| `fail:missing-requirement` | 11 | P2-2 | requirement rows, mostly chapter 11 |
 | `fail:syntax-error` | 10 | — | phase-1 parser gap: old syntax the new parser still accepts |
-| `fail:argument-count` | 9 | P2-2 | call and constructor arity |
 | `fail:identity-requires-references` | 9 | P2-1 | identity and reference rules in bodies |
+| `fail:missing-return-value` | 9 | P2-1 | control-flow value rules |
 | `fail:overlapping-impl` | 9 | P2-3 | coherence |
-| `fail:unknown-name` | 9 | P2-1 | locals, closures, and defaults; 2 module-path cases also need P2-5 |
-| `fail:missing-requirement` | 8 | P2-2 | requirement rows, mostly chapter 11 |
-| `fail:nonexhaustive-match` | 8 | P2-1 | exhaustiveness |
-| `fail:unknown-trait` | 8 | P2-3 | trait resolution, mostly chapter 11 |
-| `fail:cannot-infer-type` | 7 | P2-2 | inference |
+| `fail:unknown-name` | 9 | P2-1 | locals, closures, and defaults |
+| `fail:unknown-trait` | 7 | P2-3 | trait resolution, mostly chapter 11 |
+| `fail:stdout` | 7 | P2-6 | wrong console output is codegen, not diagnosis |
+| `fail:pipe-step-needs-placeholder` | 5 | P2-1 | pipe expressions |
+| `unsupported:TestCase` | 4 | P2-9 | test-case execution |
 | `fail:missing-supertrait-implementation` | 4 | P2-3 | supertrait bounds |
-| `fail:pipe-step-needs-placeholder` | 3 | P2-1 | pipe expressions |
-| `fail:bang-call-outside-suspension` | 2 | P2-1 | suspension context in defaults |
+| `fail:bare-variant-pattern` | 3 | P2-1 | patterns |
+| `fail:bang-call-outside-suspension` | 2 | P2-1 | suspension context in bodies |
+| `fail:invalid-result-propagation` | 2 | P2-1 | `?` outside a propagating body is control-flow checking |
 | `fail:invalid-token` | 2 | — | phase-1 lexer gap |
+| `fail:missing-entry-point` | 2 | P2-10 | entry-point rules |
 | `fail:missing-required-field` | 2 | P2-4 | aggregate construction |
+| `fail:not-callable` | 2 | P2-2 | calls |
 | `fail:orphan-impl` | 2 | P2-3 | coherence |
 | `fail:pattern-arity` | 2 | P2-1 | patterns |
 | `fail:tab-whitespace` | 2 | — | phase-1 lexer gap |
 | `fail:trait-used-as-type` | 2 | P2-3 | trait positions |
-| `fail:unknown-type` | 2 | P2-2 | type positions; 1 case also needs a P2-5 import |
+| `fail:type-used-as-value` | 2 | P2-4 | chapter 14 positions |
+| `fail:unknown-type` | 2 | P2-2 | type positions |
+| `fail:discarded-must-use-value` | 1 | P2-1 | must-use discards in bodies |
+| `fail:duplicate-data-pattern-field` | 1 | P2-1 | patterns |
 | `fail:integer-literal-range` | 1 | P2-2 | literals |
+| `fail:invalid-test-statement` | 1 | P2-9 | test layout |
 | `fail:let-else-falls-through` | 1 | P2-1 | control flow |
-| `fail:not-callable` | 1 | P2-2 | calls |
 | `fail:placeholder-outside-pipe` | 1 | P2-1 | pipe expressions |
-| `fail:type-used-as-value` | 1 | P2-4 | chapter 14 positions |
+| `fail:suspension-forbidden-context` | 1 | P2-1 | suspension context in bodies |
+| `fail:unknown-named-argument` | 1 | P2-2 | calls |
 | `fail:unknown-variant` | 1 | P2-4 | enum variant resolution |
-| `fail:unreachable-match-arm` | 1 | P2-1 | exhaustiveness |
-| `unsupported:Collect` | 879 | P2-6 | collection into the emit pipeline; 83 chapter-11 cases also need P2-7, 85 harness cases also need P2-9 |
-| `unsupported:Body` | 200 | P2-1 | body checking, chapters 05, 09, and 04 |
-| `unsupported:TestOverlay` | 101 | P2-9 | test overlay and runner |
-| `unsupported:CLI` | 99 | P2-10 | all CLI cases |
-| `unsupported:FolderIface` | 35 | P2-5 | folder interfaces |
-| `unsupported:Discover` | 13 | P2-5 | package discovery |
+| `unsupported:Link` | 1 | P2-6 | linking the emitted module |
+
+### `fail:no-diagnostic` By Expected Code (T4b)
+
+Expected code is the `reject:CODE` column of `spec/conformance/cases.tsv`.
+Top codes per owning job; the tail follows in the same row. Judgment
+calls: mutability codes (`readonly-*`, `mut-on-*`,
+`mutable-receiver-required`) sit with body checking (P2-1) while
+`mutable-upgrade` sits with rows (P2-2); `prelude-name-shadow` and
+`ambiguous-method` sit with scope resolution (P2-1);
+`invalid-result-propagation` sits with control flow (P2-1).
+
+| Job | Cases | Top expected codes (chapter) |
+| --- | ---: | --- |
+| P2-3 | 152 | `unsatisfied-trait-bound` 41 (04: 11, 09: 10, 10: 7, 14: 7, 05: 4, std: 2), `trait-method-signature` 12, `invalid-error-marker` 7, `duplicate-trait-member` 6, `misplaced-derivation` 6, `missing-trait-method` 5, `missing-supertrait-implementation` 5, `overlapping-impl` 5, `invalid-delegation` 4, `derive-field-missing-trait` 4, `member-not-derivable` 7 incl. std, plus 50 across 23 codes |
+| P2-2 | 145 | `type-mismatch` 58 (04: 18, 14: 14, 11: 5, 05: 4, 09: 4, std: 8, other: 5), `invalid-variance` 22 (04: 21), `mutable-upgrade` 15, `missing-requirement` 10 (11: 6), `generic-requirement-key-collision` 5, plus 35 across 20 codes |
+| P2-1 | 98 | `readonly-root` 13, `mutable-receiver-required` 12, `ambiguous-promoted-member` 9, `suspension-forbidden-context` 6, `unknown-name` 6, `prelude-name-shadow` 4, `mut-on-tuple` 4, `mut-on-primitive` 3, `readonly-argument-to-mutable-parameter` 3, `duplicate-module-name` 3, warnings (`redundant-let-mut`, `unused-local-binding`, `unsigned-comparison-always`, others) 13, plus 22 across 14 codes |
+| P2-4 | 66 | `embedded-*` 14, `decorator-target-kind` 11, `private-type-leak` 6, `duplicate-fact` 5, `duplicate-field` 4, `boundary-private-field` 3, `invalid-member-line` 3, `inspectable-requirement` 3, plus 17 across 10 codes |
+| P2-9 | 12 | test-layout codes (`duplicate-test-name`, `non-literal-test-argument`, `misplaced-test-case`, `misplaced-tests-block` ×2 each) 8, `public-test-item`, `test-only-use`, `duplicate-tests-block`, `invalid-test-statement` ×1 each |
+| P2-5 | 10 | `unknown-module` 3, `duplicate-module-name` 2, `reserved-module-name` 2, `invalid-module-path`, `template-names-binding`, `unknown-import` ×1 each, all chapter 10 |
+| P2-10 | 4 | `entry-point-parameters` 2, `private-main` (warn) 2 |
+| P2-12 | 2 | `mixed-script-identifier`, `derivation-line-drift` (both warn) |
+| P2-8 | 1 | `nonhost-entry-requirement` (11) |
+| P2-6 | 1 | `unknown-panic-category` (10) |
+
+The single `syntax-error [11]` no-diagnostic case parsed clean and stayed
+silent through check; if the parser should reject it, it joins the
+Unowned parser gaps instead of P2-2.
 
 ### Reach Per Job
 
@@ -57,25 +102,41 @@ the midpoint of the size estimate below.
 
 | Job | Exclusive cases | Also shares | kLOC | Cases per kLOC |
 | --- | ---: | --- | ---: | ---: |
-| P2-5 | 889 | — | 6.5 | 137 |
-| P2-6 | 879 | — | 7.5 | 117 |
-| P2-1 | 236 | — | 6.0 | 39 |
-| P2-2 | 144 | — | 6.0 | 24 |
-| P2-9 | 101 | 85 of Collect | 5.0 | 20 |
-| P2-10 | 99 | — | 10.0 | 10 |
-| P2-3 | 56 | — | 6.5 | 9 |
-| P2-4 | 23 | — | 6.0 | 4 |
-| P2-7 | 0 | 83 of Collect | 7.5 | shared |
-| P2-8 | 0 | host runtime rows inside other buckets | 5.5 | shared |
+| P2-1 | 424 | — | 6.0 | 71 |
+| P2-2 | 366 | — | 6.0 | 61 |
+| P2-6 | 449 | — | 7.5 | 60 |
+| P2-3 | 211 | — | 6.5 | 32 |
+| P2-5 | 154 | — | 6.5 | 24 |
+| P2-4 | 102 | — | 6.0 | 17 |
+| P2-10 | 107 | — | 10.0 | 11 |
+| P2-8 | 41 | RunCase needs P2-6 emit first | 5.5 | 7 |
+| P2-9 | 17 | 22 testing cases inside Body/Emit/Collect | 5.0 | 3 |
+| P2-12 | 2 | — | 4.0 | 1 |
+| P2-7 | 0 | 73 ch-11 cases inside Body/Emit/Collect/RunCase | 7.5 | shared |
 | P2-11 | 0 | no REPL rows exist yet | 5.5 | 0 |
-| P2-12 | 0 | — | 4.0 | 0 |
 | Unowned | 14 | phase-1 parser and lexer gaps, no P2 brief covers them | — | — |
 
 ### Order Verdict
 
-The dependency chain forces the sequence 1-2-3-4-5-6-7-8-9-10-11-12:
-every job's prerequisites precede it, and no independent pair is
-density-inverted. The order table below is unchanged; confirmed 2026-10-08.
+The dependency chain forces the sequence 1-2-3-4-5-6-7-8-9-10-11-12,
+and the density ranking agrees with it everywhere a reorder is possible;
+reconfirmed on the T4b numbers 2026-10-08. Each dependency below is a code
+path, not a phase label: P2-2's call checking consumes P2-1's checked
+expression TIR; P2-3's solver normalizes the associated types P2-2
+instantiates; P2-4's template instances carry P2-1 bodies and P2-3
+evidence; P2-5's folder interfaces resolve the trait bounds and aggregate
+shapes P2-3 and P2-4 define; P2-6's collect/mono runs over verified TIR
+behind those interfaces; P2-7 lowers into P2-6's emit pipeline; P2-8's
+engines execute P2-6/P2-7 Wasm; P2-9's runner dispatches through P2-8;
+P2-10's CLI dispatches to the P2-5 package and P2-9 test commands;
+P2-11 reuses the P2-8 engines behind the P2-10 command shell; P2-12
+indexes every other job's output. By density the order would be
+P2-1 (71), P2-2 (61), P2-6 (60), P2-3 (32), P2-5 (24), P2-4 (17),
+P2-10 (11), P2-8 (7), P2-9 (3), P2-12 (1): P2-6's 60 cannot move ahead
+of P2-3–P2-5 because emit consumes their checking, and P2-10 cannot
+move ahead of P2-8–P2-9 because `hd test` runs through the engines and
+runner. No independent pair is density-inverted. The order table below
+is unchanged.
 
 Phase 2 is the "make it work" pass after the compiler skeleton. The order
 below is the ordered list from [the work estimate](work-estimate.md), refined
