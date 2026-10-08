@@ -148,6 +148,26 @@ a table at the top of `phase2-jobs.md` and reorder the jobs by cases
 unblocked per estimated job size, respecting dependencies. Docs only.
 Timebox 30 minutes; push.
 
+### P2. Side-By-Side: TS Prototype Versus New Compiler
+
+The owner wants a real comparison, not separate numbers. Under
+`compiler/bench/compare/`, a rerunnable script that runs the same inputs
+through both compilers on an idle machine (report the load), 5 runs
+each, p50 and p95:
+
+- `hd check`, `hd build`, `hd run` on `tiny`, `calc.hd` (the baseline's
+  programs, `audit/compiler/baseline-2026-10-06.md` §6.3) and your
+  `compiler/bench/` programs, cold and warm cache;
+- `hd test` on a file with 1, 30 and 300 cases (cases the new compiler
+  supports), per-case time and total;
+- the startup cost alone (`hd --version` or the nearest no-op).
+
+The TS prototype is `pnpm` + `node` from the repo (`src/`); the new one
+is `compiler/target/release/hd`. Note what each compiler skips (the new
+one still reports `unsupported` for some features; pick inputs both
+accept). Write `audit/compiler/compare-<short hash>.md`: tables, then
+three lines of conclusion. Report only. Timebox 45 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
