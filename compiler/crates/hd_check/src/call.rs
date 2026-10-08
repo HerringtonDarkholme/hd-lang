@@ -1953,6 +1953,14 @@ impl Ck<'_, '_> {
             )?,
         );
         self.bounds_of(&sig, &vars, &inst, n)?;
+        // At an opt-in, a `walk`, `describe` or `build` call's walker,
+        // describer or source type carries the member obligations.
+        if self.opt_in.is_some()
+            && trait_ == self.cx.names.known.structure
+            && let Some(&w) = vars.first()
+        {
+            self.structure_calls.push((method, w));
+        }
         self.check_row(sig.row, n);
         let choice = if let Some((_, c)) = recv {
             c

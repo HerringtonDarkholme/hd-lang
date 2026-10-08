@@ -389,6 +389,12 @@ struct Run<'a> {
     graph: OnceLock<GraphOut>,
     iface: Vec<OnceLock<Option<Arc<FolderIface>>>>,
     prep: Vec<OnceLock<Option<PrepOut>>>,
+    /// Per module that declares a derivation template: its items and scope,
+    /// lowered once per run for the opt-ins that instantiate it.
+    template_mods: Vec<OnceLock<Option<ModOut>>>,
+    /// Per folder: the modules outside std that declare a derivation
+    /// template, from its interface, found on first use.
+    folder_templates: Vec<OnceLock<Vec<String>>>,
     body: Vec<OnceLock<Option<BodyOut>>>,
     check: Vec<OnceLock<Option<CheckOut>>>,
     /// Per module, in a test run: the checked `tests:` blocks (a miss).
@@ -515,6 +521,8 @@ pub fn build_packages(
         graph: OnceLock::new(),
         iface: (0..nf).map(|_| OnceLock::new()).collect(),
         prep: (0..n).map(|_| OnceLock::new()).collect(),
+        template_mods: (0..n).map(|_| OnceLock::new()).collect(),
+        folder_templates: (0..nf).map(|_| OnceLock::new()).collect(),
         body: (0..n).map(|_| OnceLock::new()).collect(),
         check: (0..n).map(|_| OnceLock::new()).collect(),
         tests: (0..n).map(|_| OnceLock::new()).collect(),
@@ -1378,6 +1386,7 @@ impl Run<'_> {
 
     fn check_key(&self, m: usize) -> Option<Hash128> {
         let module = &self.table.modules[m];
+        let templates = self.template_sources(m)?;
         let mut closure = Vec::new();
         for c in self.closure(module.folder) {
             closure.push((
@@ -1385,6 +1394,7 @@ impl Run<'_> {
                 self.iface_of(c)?.deep_hash,
             ));
         }
+        closure.extend(templates.iter().map(|(p, h)| (p.as_str(), *h)));
         Some(check_key(
             self.toolchain,
             self.package_key,
@@ -1393,6 +1403,51 @@ impl Run<'_> {
             self.skim_of(m).source_hash,
             &closure,
         ))
+    }
+
+    /// The source hashes of the template modules a module's opt-ins may
+    /// instantiate. An opt-in checks its template's body, which no
+    /// interface carries yet (spec 14 `annot.limit.interfaces`), so a
+    /// template edit must reach the key of every module that opts in. A
+    /// module whose text names neither `derive` nor `Structure` opts in
+    /// nowhere. std's sources are in the toolchain key already.
+    fn template_sources(&self, m: usize) -> Option<Vec<(String, Hash128)>> {
+        let text = &self.texts[m];
+        if !text.contains("derive") && !text.contains("Structure") {
+            return Some(Vec::new());
+        }
+        let mut out = std::collections::BTreeMap::new();
+        for c in self.closure(self.table.modules[m].folder) {
+            let iface = self.iface_of(c)?;
+            let paths = self.folder_templates[c.idx()].get_or_init(|| {
+                let names = self.names();
+                let mut ps: Vec<String> = iface
+                    .items
+                    .iter()
+                    .filter(|it| {
+                        matches!(
+                            it.data,
+                            ItemData::Impl {
+                                kind: hd_resolve::ImplKind::Template
+                                    | hd_resolve::ImplKind::TupleTemplate,
+                                ..
+                            }
+                        )
+                    })
+                    .map(|it| names.module_of(it.def))
+                    .filter(|p| !p.starts_with("std."))
+                    .collect();
+                ps.sort();
+                ps.dedup();
+                ps
+            });
+            for p in paths {
+                if let Some(tm) = self.table.module(p) {
+                    out.insert(format!("template {p}"), self.skim_of(tm.idx()).source_hash);
+                }
+            }
+        }
+        Some(out.into_iter().collect())
     }
 
     /// `ModulePrep(m)`: the `check` key lookup first; only on a miss does
@@ -1757,6 +1812,11 @@ impl Run<'_> {
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
+        // Each derivation opt-in checks its template's instance
+        // (spec 14 `annot.template.checked`, checking-and-tir.md §4.13.9).
+        if failed.is_none() {
+            self.opt_ins(m, &cx, &heads, &impls, &mut diags);
+        }
         if let Some(e) = failed {
             self.stage::<()>(Stage::Body, Err(e));
             let _ = self.body[m].set(None);
@@ -1764,6 +1824,147 @@ impl Run<'_> {
         }
         lock(&self.report).ok(Stage::Body);
         let _ = self.body[m].set(Some((bodies, diags)));
+    }
+
+    /// The derivation opt-ins of module `m`, its derived implementations
+    /// and derivation blocks, each checked as an instance of its trait's
+    /// template, in the template's module scope (checking-and-tir.md
+    /// §4.13.9 "Derive instances"). A failing member is one
+    /// `member-not-derivable` at the opt-in (spec 14
+    /// `annot.walker.obligation.error`). `cx` and `impls` are the module's
+    /// own body context and impl view.
+    fn opt_ins(
+        &self,
+        m: usize,
+        cx: &BodyCx<'_>,
+        heads: &[hd_resolve::Head<'_>],
+        impls: &ImplView<'_>,
+        diags: &mut DiagBuf,
+    ) {
+        let names = self.names();
+        let k = &self.known;
+        // Per template module, in module order: (item index, opt-in, the
+        // template methods it checks).
+        let mut groups: std::collections::BTreeMap<usize, Vec<(usize, hd_check::derive::OptIn)>> =
+            std::collections::BTreeMap::new();
+        for (i, it) in cx.lookup.own.iter().enumerate() {
+            let ItemData::Impl { trait_, kind, .. } = &it.data else {
+                continue;
+            };
+            if !matches!(
+                kind,
+                hd_resolve::ImplKind::Derived | hd_resolve::ImplKind::Derivation
+            ) || *trait_ == DefId::NONE
+                // A comparison derivation reports a field that misses the
+                // trait as `derive-field-missing-trait` instead (spec 09
+                // `trait.derive.field-missing-trait.template`).
+                || [k.eq, k.partial_ord, k.ord, k.hash].contains(trait_)
+            {
+                continue;
+            }
+            let Some(template) = template_of(cx.lookup, *trait_) else {
+                continue;
+            };
+            let Some(tm) = self.table.module(&names.module_of(template)) else {
+                continue;
+            };
+            let omitted = heads
+                .iter()
+                .find(|h| h.def == it.def)
+                .map(|h| hd_check::derive::omitted_members(&cx.src, h.node))
+                .unwrap_or_default();
+            if let Some(opt) =
+                hd_check::derive::OptIn::new(&names, cx.lookup, it, template, &omitted)
+            {
+                groups.entry(tm.idx()).or_default().push((i, opt));
+            }
+        }
+        let mut found: Vec<(usize, String)> = Vec::new();
+        for (tm, opts) in groups {
+            if tm == m {
+                found.extend(self.check_opt_ins(cx, heads, &opts));
+                continue;
+            }
+            let Some(tmod) = self.template_mods[tm].get_or_init(|| {
+                self.lower_module(tm, Stage::Body, &mut DiagBuf::default())
+                    .ok()
+                    .flatten()
+            }) else {
+                continue;
+            };
+            let module = &self.table.modules[m];
+            let mut closure = self.closure(module.folder);
+            for f in self.closure(self.table.modules[tm].folder) {
+                if !closure.contains(&f) {
+                    closure.push(f);
+                }
+            }
+            let ifaces: Vec<Arc<FolderIface>> =
+                closure.iter().filter_map(|f| self.iface_of(*f)).collect();
+            let items: Vec<Item> = cx.lookup.own.iter().chain(&tmod.items).cloned().collect();
+            let lookup = Lookup::new(&items, ifaces.iter().map(AsRef::as_ref).collect());
+            let (folders, universe, extra) = self.closure_impls(&closure);
+            let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
+            let view = ImplView {
+                paths: &self.paths,
+                owners: self.owners(),
+                own: impls.own,
+                folders: &folders,
+                universe,
+                extra: &extra,
+                arity: &arity,
+            };
+            let src = self.src(tm);
+            let theads = hd_resolve::heads(&names, &src, &self.table.modules[tm].path);
+            let tcx = BodyCx {
+                names,
+                src,
+                scope: &tmod.scope,
+                lookup: &lookup,
+                impls: &view,
+                global: &self.memo,
+                solver: &TableSolver,
+                methods: std::cell::OnceCell::new(),
+                init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
+            };
+            found.extend(self.check_opt_ins(&tcx, &theads, &opts));
+        }
+        found.sort_by_key(|f| f.0);
+        for (i, msg) in found {
+            let def = cx.lookup.own[i].def;
+            diags.error(Code::MemberNotDerivable, self.item_span(def, 0), &msg);
+        }
+    }
+
+    /// Checks opt-ins whose template module `tcx` sees: each checks the
+    /// template methods its block does not write (`annot.block.methods`).
+    fn check_opt_ins(
+        &self,
+        tcx: &BodyCx<'_>,
+        theads: &[hd_resolve::Head<'_>],
+        opts: &[(usize, hd_check::derive::OptIn)],
+    ) -> Vec<(usize, String)> {
+        let names = self.names();
+        let bodies = hd_resolve::body_nodes(&names, &tcx.src, theads);
+        let mut out = Vec::new();
+        for (i, opt) in opts {
+            let methods_of = |d: DefId| match tcx.lookup.item(d).map(|it| &it.data) {
+                Some(ItemData::Impl { methods, .. }) => methods.clone(),
+                _ => Vec::new(),
+            };
+            let written: Vec<_> = methods_of(opt.impl_).into_iter().map(|w| w.0).collect();
+            let methods: Vec<_> = methods_of(opt.template)
+                .into_iter()
+                .filter(|(n, _)| !written.contains(n))
+                .filter_map(|(_, d)| bodies.iter().find(|b| b.0 == d).copied())
+                .filter(|(_, n)| hd_resolve::Src::child(*n, hd_syntax::SyntaxKind::Block).is_some())
+                .collect();
+            // A template the checker cannot carry yet decides nothing.
+            if let Ok(msgs) = hd_check::derive::check_opt_in(tcx, opt, &methods) {
+                out.extend(msgs.into_iter().map(|msg| (*i, msg)));
+            }
+        }
+        out
     }
 
     /// `ModuleFinish(m)`: writes the `check` entry. Sections: diagnostics;
@@ -2927,4 +3128,16 @@ pub fn messages(o: &Output) -> Vec<String> {
         .collect();
     v.dedup();
     v
+}
+
+/// The derivation template of `trait_` (`annot.template.form`), among a
+/// module's own items, then the interfaces it sees.
+fn template_of(lookup: &Lookup<'_>, trait_: DefId) -> Option<DefId> {
+    let is = |it: &&Item| matches!(&it.data, ItemData::Impl { trait_: t, kind: hd_resolve::ImplKind::Template, .. } if *t == trait_);
+    lookup
+        .own
+        .iter()
+        .find(is)
+        .or_else(|| lookup.ifaces.iter().find_map(|f| f.items.iter().find(is)))
+        .map(|it| it.def)
 }

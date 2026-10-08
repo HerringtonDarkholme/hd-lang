@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1586 | 717 | 540 | 2843 |
+| 1593 | 710 | 540 | 2843 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 185 | 126 | 47 | 358 |
 | `lang/10-modules.md` | 119 | 86 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
-| `lang/14-annotations.md` | 61 | 73 | 19 | 153 |
+| `lang/14-annotations.md` | 64 | 70 | 19 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 8 | 0 | 6 | 14 |
 | `std/collections.md` | 18 | 5 | 6 | 29 |
@@ -42,7 +42,7 @@ fixture; unsupported surface records progress without failing.
 | `std/json.md` | 2 | 1 | 16 | 19 |
 | `std/net.md` | 0 | 1 | 0 | 1 |
 | `std/num.md` | 8 | 10 | 0 | 18 |
-| `std/ops.md` | 1 | 4 | 8 | 13 |
+| `std/ops.md` | 2 | 3 | 8 | 13 |
 | `std/option.md` | 2 | 0 | 1 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 2 | 0 | 1 | 3 |
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 2 | 1 | 5 | 8 |
 | `std/sys.md` | 0 | 1 | 0 | 1 |
 | `std/task.md` | 1 | 1 | 5 | 7 |
-| `std/testing.md` | 14 | 22 | 3 | 39 |
+| `std/testing.md` | 17 | 19 | 3 | 39 |
 | `std/text.md` | 27 | 5 | 3 | 35 |
 | `std/time.md` | 15 | 1 | 1 | 17 |
 
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 33 | 20 | 105 |
 | `runtime/valid` | 386 | 179 | 364 | 929 |
-| `typing/invalid` | 519 | 444 | 110 | 1073 |
+| `typing/invalid` | 526 | 437 | 110 | 1073 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 294 |
+| `fail:no-diagnostic` | 287 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -301,7 +301,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (294)</summary>
+<details><summary><code>fail:no-diagnostic</code> (287)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -390,7 +390,6 @@ compiler stage that first declined the case.
 - `typing/invalid/invalid-member-line.hd`
 - `typing/invalid/member-line-outside-block.hd`
 - `typing/invalid/omitted-member-without-default.hd`
-- `typing/invalid/derive-member-not-derivable.hd`
 - `typing/invalid/generic-member-call.hd`
 - `typing/invalid/newtype-derivation-self.hd`
 - `typing/warnings/derivation-line-drift.hd`
@@ -484,11 +483,8 @@ compiler stage that first declined the case.
 - `typing/invalid/error-from-marker-argument.hd`
 - `typing/invalid/tuple-inherent-impl.hd`
 - `typing/invalid/alias-inherent-impl.hd`
-- `typing/invalid/arbitrary-with-non-inspectable-member.hd`
 - `typing/invalid/closure-row-key-collision.hd`
 - `typing/invalid/assert-equal-numeric-widening.hd`
-- `typing/invalid/derived-arbitrary-function-member.hd`
-- `typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/function-type-unbounded-inputs.hd`
@@ -513,7 +509,6 @@ compiler stage that first declined the case.
 - `typing/invalid/list-float-map-key.hd`
 - `typing/invalid/derived-default-no-variant.hd`
 - `typing/invalid/derived-default-several-variants.hd`
-- `typing/invalid/derived-default-member-not-default.hd`
 - `typing/invalid/unconstrained-impl-parameter.hd`
 - `typing/invalid/supertrait-impl-bounds.hd`
 - `typing/invalid/hd-run-outside-integration.hd`
@@ -523,7 +518,6 @@ compiler stage that first declined the case.
 - `typing/warnings/private-main.hd`
 - `typing/warnings/private-main-suspending.hd`
 - `typing/invalid/test-body-uses-property-runner.hd`
-- `typing/invalid/serde-derive-member-not-serialize.hd`
 - `typing/invalid/boundary-private-field-no-traits.hd`
 - `typing/invalid/test-registration-qualified-duplicate.hd`
 - `typing/invalid/default-names-later-beside-forward-bound.hd`
@@ -558,7 +552,6 @@ compiler stage that first declined the case.
 - `typing/invalid/sibling-module-std-name-not-imported.hd`
 - `typing/invalid/duplicate-field-declaration.hd`
 - `typing/invalid/data-field-shorthand-duplicate.hd`
-- `typing/invalid/serde-derive-member-not-deserialize.hd`
 - `typing/invalid/boundary-result-needs-deserialize.hd`
 - `typing/invalid/boundary-nested-private-field.hd`
 - `typing/invalid/unconstrained-impl-parameter-unused.hd`
@@ -2417,6 +2410,7 @@ typing/invalid/anyref-rejects-enum.hd
 typing/invalid/anyref-rejects-tuple.hd
 typing/invalid/anyval-bound-rejects-data.hd
 typing/invalid/anyval-user-impl.hd
+typing/invalid/arbitrary-with-non-inspectable-member.hd
 typing/invalid/arithmetic-on-bool.hd
 typing/invalid/arithmetic-on-list.hd
 typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd
@@ -2514,8 +2508,12 @@ typing/invalid/derive-and-block-overlap.hd
 typing/invalid/derive-before-function.hd
 typing/invalid/derive-before-trait.hd
 typing/invalid/derive-beside-written-impl.hd
+typing/invalid/derive-member-not-derivable.hd
 typing/invalid/derive-unknown-trait.hd
+typing/invalid/derived-arbitrary-function-member.hd
 typing/invalid/derived-arbitrary-generic-bound.hd
+typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd
+typing/invalid/derived-default-member-not-default.hd
 typing/invalid/diamond-same-depth-conflict.hd
 typing/invalid/discarded-optional-result.hd
 typing/invalid/discarded-result.hd
@@ -2830,6 +2828,8 @@ typing/invalid/same-module-private-field-not-promoted.hd
 typing/invalid/same-module-private-method-not-promoted.hd
 typing/invalid/script-top-level-bang-call.hd
 typing/invalid/self-receiver-is-readonly.hd
+typing/invalid/serde-derive-member-not-deserialize.hd
+typing/invalid/serde-derive-member-not-serialize.hd
 typing/invalid/serde-map-key-not-string.hd
 typing/invalid/shared-enum-constructor-missing-argument.hd
 typing/invalid/shared-enum-payload-field-access.hd

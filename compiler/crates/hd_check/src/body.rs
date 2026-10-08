@@ -145,6 +145,12 @@ pub(crate) struct Ck<'a, 'c> {
     /// unsolved (§2.4 step 9): variable, call, and whether a bound allows
     /// several instantiations. Decided at the end of the statement.
     pub open_params: Vec<(Ty, NodeRefIdx, bool)>,
+    /// Checking a template's method at a derivation opt-in: the opt-in
+    /// (`annot.template.checked`).
+    pub opt_in: Option<&'c crate::derive::OptIn>,
+    /// The structure protocol calls of an opt-in's template body: the
+    /// `Structure` method and its walker, describer or source type.
+    pub structure_calls: Vec<(DefId, Ty)>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -203,6 +209,8 @@ pub(crate) fn new_ck<'a, 'c>(
         norm_depth: 0,
         pre_args: Vec::new(),
         open_params: Vec::new(),
+        opt_in: None,
+        structure_calls: Vec::new(),
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;
@@ -346,6 +354,19 @@ pub fn check_fn(
     node: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
+    check_fn_in(cx, def, node, diags, None)
+}
+
+/// Checks one function body, a template's method at a derivation opt-in
+/// when `opt_in` is given: the opt-in's parameters and their bounds join
+/// the environment, and the members' obligations are checked at the end.
+pub(crate) fn check_fn_in(
+    cx: &BodyCx<'_>,
+    def: DefId,
+    node: NodeRef<'_>,
+    diags: &mut DiagBuf,
+    opt_in: Option<&crate::derive::OptIn>,
+) -> StageResult<Body> {
     let Some(item) = cx.lookup.item(def) else {
         return unsupported(format!("body of {} has no header", cx.names.path(def)));
     };
@@ -362,6 +383,9 @@ pub fn check_fn(
         (sig.ret, sig.row),
         diags,
     );
+    if let Some(o) = opt_in {
+        ck.enter_opt_in(o);
+    }
     ck.check_impl_method(def, node);
     ck.check_literal_marker(def, node);
     ck.check_row_patterns(&sig, node);
@@ -1614,6 +1638,7 @@ impl Ck<'_, '_> {
                 self.err(Code::UnsatisfiedTraitBound, node, &msg);
             }
         }
+        self.opt_in_obligations()?;
         for i in 0..n {
             let t = self.b.body_mut().ty[i];
             let z = self.zonk(t);

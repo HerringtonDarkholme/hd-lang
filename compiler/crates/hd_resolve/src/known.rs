@@ -35,6 +35,7 @@ pub struct KnownItems {
     pub integer: DefId,
     pub float: DefId,
     // std.ops
+    pub default: DefId,
     pub range: DefId,
     pub range_from: DefId,
     pub range_to: DefId,
@@ -113,6 +114,7 @@ impl KnownItems {
             num: item("std.num", "Num"),
             integer: item("std.num", "Integer"),
             float: item("std.num", "Float"),
+            default: item("std.ops", "Default"),
             range: item("std.ops", "Range"),
             range_from: item("std.ops", "RangeFrom"),
             range_to: item("std.ops", "RangeTo"),
