@@ -118,6 +118,10 @@ S10 removes it). Sweep `spec/lang/`, `spec/std/`, `spec/cli/`,
    spec refs`), fixtures' comments, `guide/` and `lib/std` doc comments.
    Do not change behaviour or rule meaning; one commit per group of
    related terms is fine.
+   Leftover from S10: the runtime test profile `consent-vault` (7
+   fixtures' `fixture-runtime-profile:` lines, `spec/conformance/README.md`,
+   and the runner code that defines it under `test/`) — rename it, e.g.
+   `serde-vault`.
 4. Add a short rule to `spec/STYLE.md`: a new term needs a reason no
    existing word serves; prefer the trait name or the established term.
 
