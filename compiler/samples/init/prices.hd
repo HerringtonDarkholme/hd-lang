@@ -1,0 +1,11 @@
+markup := 5
+let mut calls: i32 = 0
+
+pub fn price_of(sku: string) -> i32:
+    calls = calls + 1
+    if sku == "tea":
+        return 10 + markup
+    markup
+
+pub fn count() -> i32:
+    calls

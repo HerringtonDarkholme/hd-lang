@@ -39,7 +39,26 @@ fn hd_run(cache_dir: &Path, target: &Path) -> String {
 const EXIT: &str = "total 14 of 5\n40\nrect 6\ncircle 12\nfound 4\nmissing\nok 3\n\
                     err divide by zero\nnum 7\nplus\nword hi\nann 31, cy 40\n31 years\n3\n";
 
-const CASES: [(&str, &str); 9] = [
+/// M4d: module initialization across two modules. `prices` initializes
+/// before `main`'s top level, which reads its `markup`, and both run
+/// before `main`.
+const INIT: &str = "hello\n15\n1\n5\n2\n";
+
+/// M4d: `main!` awaits a host timer, then two timed operations with
+/// `all!`, then a `race!` whose loser is cancelled mid-wait: its `defer`
+/// runs and its end never does.
+const SUSPEND: &str = "slept\nall 10 20\nrace 30\nstart 1\nstart 2\ndone 2\ncleanup 2\n\
+                       done 1\ncleanup 1\nstart 3\nstart 4\ndone 3\ncleanup 3\ncleanup 4\n";
+
+/// M4d: `defer` ordering on each exit kind: falling off the end (last
+/// in, first out), `return`, `continue`, `break`, a failing `?` and a
+/// nested scope's `return`.
+const DEFER: &str = "5\nerr bad\nok 2\n7\nnormal: body\nnormal: second registered\n\
+                     normal: first registered\nreturn: cleanup 5\nloop: cleanup 1\n\
+                     loop: cleanup 2\nloop: after\ntry: cleanup x\ntry: cleanup y\n\
+                     nested: inner\nnested: outer\n";
+
+const CASES: [(&str, &str); 12] = [
     ("hello/hello.hd", "42\n"),
     ("hello", "42\n"),
     ("arith", "7\n9\n3\n55\n-1\n0\n1\n16\n-10\n"),
@@ -49,6 +68,9 @@ const CASES: [(&str, &str); 9] = [
     ("fib/main.hd", "6765\n"),
     ("std_types", "42\n"),
     ("exit", EXIT),
+    ("init/main.hd", INIT),
+    ("suspend/main.hd", SUSPEND),
+    ("defer/main.hd", DEFER),
 ];
 
 #[test]

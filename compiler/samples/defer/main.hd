@@ -1,0 +1,59 @@
+fn normal(log: mut List[string]) -> void:
+    defer:
+        log.push("normal: first registered")
+    defer:
+        log.push("normal: second registered")
+    log.push("normal: body")
+
+fn early(log: mut List[string], x: i32) -> i32:
+    defer:
+        log.push("return: cleanup $x")
+    if x > 0:
+        return x
+    0
+
+fn loops(log: mut List[string]) -> void:
+    for i in [1, 2, 3]:
+        defer:
+            log.push("loop: cleanup $i")
+        if i == 1:
+            continue
+        if i == 2:
+            break
+        log.push("loop: never")
+    log.push("loop: after")
+
+fn parse(s: string) -> Result[i32, string]:
+    if s == "x":
+        return .Err("bad")
+    .Ok(1)
+
+fn try_it(log: mut List[string], s: string) -> Result[i32, string]:
+    defer:
+        log.push("try: cleanup $s")
+    v := parse(s)?
+    .Ok(v + 1)
+
+fn nested(log: mut List[string]) -> i32:
+    defer:
+        log.push("nested: outer")
+    if log.len() > 0:
+        defer:
+            log.push("nested: inner")
+        return 7
+    0
+
+fn main() -> void $ Console:
+    let log: mut List[string] = []
+    normal(log)
+    println(early(log, 5))
+    loops(log)
+    match try_it(log, "x"):
+        .Ok(v) => println("ok $v")
+        .Err(e) => println("err $e")
+    match try_it(log, "y"):
+        .Ok(v) => println("ok $v")
+        .Err(e) => println("err $e")
+    println(nested(log))
+    for line in log:
+        println(line)

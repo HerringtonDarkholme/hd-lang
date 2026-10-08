@@ -1,0 +1,13 @@
+use pkg.prices
+
+# `prices` initializes first: `start` reads its `markup` through
+# `price_of`, which also counts the call in `prices`' storage.
+start := prices.price_of("tea")
+greeting := "hello"
+
+fn main() -> void $ Console:
+    println(greeting)
+    println(start)
+    println(prices.count())
+    println(prices.price_of("cake"))
+    println(prices.count())
