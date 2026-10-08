@@ -2493,6 +2493,9 @@ impl Env<'_> {
                 }
             }
         }
+        // Content order, as `row_keys` does for a signature's row.
+        let names = self.run.names();
+        keys.sort_by_key(|k| names.path_hash(*k));
         keys
     }
 }

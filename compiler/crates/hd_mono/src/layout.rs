@@ -279,11 +279,7 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
             h.u8(5);
             canon_list(pool, path_hash, params, h);
             canon(pool, path_hash, result, h);
-            let keys = pool.row_data(row).keys;
-            h.u32(u32::try_from(keys.len()).expect("keys"));
-            for k in keys {
-                canon(pool, path_hash, k, h);
-            }
+            canon_row(pool, path_hash, row, h);
             h.u8(u8::from(suspends));
         }
         TyData::TraitValue { def, args, .. } => {
@@ -297,16 +293,38 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
         }
         TyData::Row(r) => {
             h.u8(8);
-            let keys = pool.row_data(r).keys;
-            h.u32(u32::try_from(keys.len()).expect("keys"));
-            for k in keys {
-                canon(pool, path_hash, k, h);
-            }
+            canon_row(pool, path_hash, r, h);
         }
         other => {
             h.u8(255);
             h.str(&format!("{other:?}"));
         }
+    }
+}
+
+/// A row's keys in content order (§6.5): each key's `canon` hash, sorted.
+/// The pool lists keys in this run's interning order, which must not reach
+/// an instance key.
+fn canon_row(
+    pool: &InternPool,
+    path_hash: &dyn Fn(DefId) -> Hash128,
+    r: hd_types::RowId,
+    h: &mut StableHasher,
+) {
+    let mut keys: Vec<Hash128> = pool
+        .row_data(r)
+        .keys
+        .into_iter()
+        .map(|k| {
+            let mut kh = StableHasher::new("row-key");
+            canon(pool, path_hash, k, &mut kh);
+            kh.finish()
+        })
+        .collect();
+    keys.sort();
+    h.u32(u32::try_from(keys.len()).expect("keys"));
+    for k in keys {
+        h.hash(k);
     }
 }
 
@@ -440,6 +458,44 @@ mod tests {
                 _ => None,
             }
         }
+    }
+
+    /// `canon` of a function type with a two-key row, the keys interned in
+    /// the given order.
+    fn fn_canon(flip: bool) -> Hash128 {
+        let p = InternPool::new();
+        let key = |d: u32| {
+            p.intern_ty(&TyData::TraitValue {
+                def: DefId::from_raw(d),
+                args: TyList::EMPTY,
+                bindings: vec![],
+            })
+        };
+        let (a, b) = if flip {
+            let b = key(6);
+            (key(5), b)
+        } else {
+            let a = key(5);
+            (a, key(6))
+        };
+        let row = p.row(&hd_types::RowData {
+            keys: vec![a, b],
+            params: vec![],
+        });
+        let f = p.intern_ty(&TyData::Fn {
+            params: TyList::EMPTY,
+            result: Ty::I32,
+            row,
+            suspends: false,
+        });
+        let mut h = hd_base::StableHasher::new("t");
+        super::canon(&p, &|d| Hash128(u128::from(d.raw()) * 977), f, &mut h);
+        h.finish()
+    }
+
+    #[test]
+    fn canon_of_a_row_ignores_interning_order() {
+        assert_eq!(fn_canon(false), fn_canon(true));
     }
 
     #[test]

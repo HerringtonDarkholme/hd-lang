@@ -1136,12 +1136,16 @@ pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
             if d.keys.is_empty() && d.params.is_empty() {
                 return "$()".into();
             }
+            // Content order (scheduler.md §6.5), not interning order.
             let mut parts: Vec<String> = d.keys.iter().map(|k| show_ty(names, *k)).collect();
-            parts.extend(
-                d.params
-                    .iter()
-                    .map(|p| format!("{}#{}", seg(p.owner), p.index)),
-            );
+            parts.sort();
+            let mut ps: Vec<String> = d
+                .params
+                .iter()
+                .map(|p| format!("{}#{}", seg(p.owner), p.index))
+                .collect();
+            ps.sort();
+            parts.extend(ps);
             format!("$ {}", parts.join(" + "))
         }
     }

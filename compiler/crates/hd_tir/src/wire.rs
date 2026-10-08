@@ -119,7 +119,11 @@ fn id_words_call(b: &Body, at: usize) -> StageResult<Vec<IdWord>> {
                 IdWord::Ty(at + 3),
                 IdWord::List(at + 4),
             ];
-            if b.extra.get(at + 5) == Some(&(ChoiceKind::Impl as u32)) {
+            // An impl choice and a trait-value choice carry the item's ID.
+            if matches!(
+                b.extra.get(at + 5),
+                Some(&k) if k == ChoiceKind::Impl as u32 || k == ChoiceKind::TraitValue as u32
+            ) {
                 v.push(IdWord::Def(at + 6));
             }
             v

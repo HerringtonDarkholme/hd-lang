@@ -122,12 +122,26 @@ impl Ck<'_, '_> {
     pub(crate) fn check_row(&mut self, row: RowId, n: NodeRef<'_>) {
         let pool = self.cx.names.pool;
         let row = self.infer.resolve_row(pool, row);
-        let d = pool.row_data(row);
-        for k in d.keys {
-            if matches!(pool.get(k), TyData::TraitValue { .. }) {
-                self.require_key(k, n);
-            }
+        let mut d = pool.row_data(row);
+        // Diagnostics in content order (scheduler.md §6.5), not by the
+        // order this run interned the keys.
+        let mut keys: Vec<(String, Ty)> = d
+            .keys
+            .into_iter()
+            .filter(|k| matches!(pool.get(*k), TyData::TraitValue { .. }))
+            .map(|k| (hd_resolve::show_ty(&self.cx.names, k), k))
+            .collect();
+        keys.sort_by(|a, b| a.0.cmp(&b.0));
+        for (_, k) in keys {
+            self.require_key(k, n);
         }
+        let gens = self.row_gens.clone();
+        let name_of = |p: &RowParamRef| {
+            gens.iter()
+                .find(|(_, g)| g == p)
+                .map_or_else(String::new, |(s, _)| self.cx.names.text(*s).to_owned())
+        };
+        d.params.sort_by_cached_key(&name_of);
         for p in d.params {
             // Only this body's own row parameters reach here substituted;
             // another owner's are a callee's that was not instantiated.
@@ -219,6 +233,7 @@ impl Ck<'_, '_> {
                 missing.push(name);
             }
         }
+        missing.sort();
         if let Some(k) = missing.first() {
             let msg = format!(
                 "in {what}: the function's row lists `{k}`, which the expected row does not"

@@ -122,7 +122,29 @@ impl<'a> TableWriter<'a> {
         if let Some(&x) = self.row_index.get(&r.0) {
             return Ok(x);
         }
-        let d = self.pool.row_data(r);
+        let mut d = self.pool.row_data(r);
+        // Content order (scheduler.md §6.5): the pool lists keys by this
+        // run's interning order, which must not reach a cache entry. Each
+        // key sorts by its own encoding in a fresh table, which holds only
+        // stable paths and content.
+        let mut keyed: Vec<(Vec<u8>, Ty)> = Vec::with_capacity(d.keys.len());
+        for k in &d.keys {
+            let mut tmp = TableWriter::new(self.pool, self.paths, self.syms);
+            let at = tmp.ty(*k)?;
+            let mut w = Writer::default();
+            tmp.write(&mut w);
+            w.u32(at);
+            keyed.push((w.bytes, *k));
+        }
+        keyed.sort_by(|a, b| a.0.cmp(&b.0));
+        d.keys = keyed.into_iter().map(|(_, k)| k).collect();
+        let paths = self.paths;
+        d.params.sort_by_cached_key(|p| {
+            (
+                paths.display(PathId::from_raw(p.owner.raw())).to_string(),
+                p.index,
+            )
+        });
         let mut words = vec![u32::try_from(d.keys.len()).expect("row keys")];
         for k in &d.keys {
             words.push(self.ty(*k)?);
@@ -173,6 +195,11 @@ impl<'a> TableWriter<'a> {
                 bindings,
             } => {
                 let mut w = vec![self.def(def), self.list(args)?];
+                let mut bindings = bindings;
+                let paths = self.paths;
+                bindings.sort_by_cached_key(|(d, _)| {
+                    paths.display(PathId::from_raw(d.raw())).to_string()
+                });
                 for (d, b) in bindings {
                     w.push(self.def(d));
                     w.push(self.ty(b)?);
@@ -397,9 +424,48 @@ impl Tables {
 #[cfg(test)]
 mod tests {
     use super::{TableWriter, Tables};
-    use crate::pool::{InternPool, ParamRef, Ty, TyData};
+    use crate::pool::{InternPool, ParamRef, RowData, Ty, TyData};
     use hd_base::wire::{Reader, Writer};
     use hd_intern::{PathTable, ShardedInterner};
+
+    /// A row of two trait keys, written after interning the traits in the
+    /// given order: the bytes depend on content only.
+    fn row_bytes(flip: bool) -> Vec<u8> {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let names = if flip {
+            ["Tag", "Clock"]
+        } else {
+            ["Clock", "Tag"]
+        };
+        let keys: Vec<Ty> = names
+            .iter()
+            .map(|n| {
+                pool.intern_ty(&TyData::TraitValue {
+                    def: paths.item("app", "keys", n),
+                    args: crate::pool::TyList::EMPTY,
+                    bindings: vec![],
+                })
+            })
+            .collect();
+        let row = pool.row(&RowData {
+            keys,
+            params: vec![],
+        });
+        let mut w = TableWriter::new(&pool, &paths, &syms);
+        w.row_id(row).expect("row");
+        let mut out = Writer::default();
+        w.write(&mut out);
+        out.bytes
+    }
+
+    #[test]
+    fn row_bytes_ignore_interning_order() {
+        assert_eq!(row_bytes(false), row_bytes(true));
+    }
 
     #[test]
     fn rows_survive_a_fresh_run() {
