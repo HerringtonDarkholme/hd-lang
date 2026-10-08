@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1597 | 701 | 545 | 2843 |
+| 1604 | 694 | 545 | 2843 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 189 | 120 | 49 | 358 |
 | `lang/10-modules.md` | 119 | 86 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
-| `lang/14-annotations.md` | 64 | 70 | 19 | 153 |
+| `lang/14-annotations.md` | 71 | 63 | 19 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 8 | 0 | 6 | 14 |
 | `std/collections.md` | 18 | 5 | 6 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 33 | 20 | 105 |
 | `runtime/valid` | 386 | 174 | 369 | 929 |
-| `typing/invalid` | 530 | 433 | 110 | 1073 |
+| `typing/invalid` | 537 | 426 | 110 | 1073 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 283 |
+| `fail:no-diagnostic` | 276 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -301,7 +301,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (283)</summary>
+<details><summary><code>fail:no-diagnostic</code> (276)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -467,17 +467,11 @@ compiler stage that first declined the case.
 - `typing/invalid/error-message-unknown-name.hd`
 - `typing/invalid/error-message-not-display.hd`
 - `typing/invalid/error-from-same-type.hd`
-- `typing/invalid/error-second-cause.hd`
-- `typing/invalid/error-from-type-parameter.hd`
 - `typing/invalid/error-cause-not-error.hd`
 - `typing/invalid/error-transparent-not-error.hd`
 - `typing/invalid/error-message-self.hd`
 - `typing/invalid/error-message-shared-unnamed.hd`
 - `typing/invalid/foreign-inherent-impl.hd`
-- `typing/invalid/error-argument-identifier.hd`
-- `typing/invalid/error-argument-number.hd`
-- `typing/invalid/error-extra-argument.hd`
-- `typing/invalid/error-from-marker-argument.hd`
 - `typing/invalid/tuple-inherent-impl.hd`
 - `typing/invalid/alias-inherent-impl.hd`
 - `typing/invalid/closure-row-key-collision.hd`
@@ -585,7 +579,6 @@ compiler stage that first declined the case.
 - `typing/invalid/impl-target-row-extension.hd`
 - `typing/invalid/requirement-key-unknown-binding-rule.hd`
 - `typing/invalid/println-direct-forbidden-context-rule.hd`
-- `typing/invalid/error-form-other-rule.hd`
 
 </details>
 
@@ -2536,11 +2529,18 @@ typing/invalid/enum-payload-bare-trait.hd
 typing/invalid/enum-shared-constructor-payload.hd
 typing/invalid/eprintln-without-console.hd
 typing/invalid/erase-readonly-to-mut-inspectable.hd
+typing/invalid/error-argument-identifier.hd
+typing/invalid/error-argument-number.hd
 typing/invalid/error-bare-before-data.hd
 typing/invalid/error-before-function.hd
+typing/invalid/error-extra-argument.hd
 typing/invalid/error-find-non-error.hd
+typing/invalid/error-form-other-rule.hd
 typing/invalid/error-from-beside-other-member.hd
+typing/invalid/error-from-marker-argument.hd
+typing/invalid/error-from-type-parameter.hd
 typing/invalid/error-message-before-enum.hd
+typing/invalid/error-second-cause.hd
 typing/invalid/expected-i32-found-usize.hd
 typing/invalid/facts-find-unbounded-key.hd
 typing/invalid/facts-of-without-import.hd

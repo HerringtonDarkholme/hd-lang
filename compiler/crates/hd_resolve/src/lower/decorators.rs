@@ -10,10 +10,10 @@ use std::collections::HashMap;
 use hd_base::{DefId, Span};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_types::TyData;
+use hd_types::{Ty, TyData};
 
 use super::Lower;
-use crate::iface::{HeadKind, Item, ItemData};
+use crate::iface::{Field, HeadKind, Item, ItemData};
 use crate::view::Src;
 use crate::{Binding, BindingKind};
 
@@ -63,6 +63,8 @@ struct Place {
     error_type: bool,
     /// The number of members in the target's own list (payload or fields).
     members: usize,
+    /// The member's resolved type, when it has one.
+    ty: Option<Ty>,
 }
 
 impl Lower<'_, '_, '_> {
@@ -181,7 +183,44 @@ impl Lower<'_, '_, '_> {
         self.diags.error(Code::DecoratorTargetKind, span, what);
     }
 
-    fn check_decorators(&mut self, n: NodeRef<'_>, place: Place, items: &HashMap<DefId, &Item>) {
+    fn marker_error(&mut self, span: Span, what: &str) {
+        self.diags.error(Code::InvalidErrorMarker, span, what);
+    }
+
+    /// Whether an `@error` line's arguments are one message or
+    /// `transparent` (`annot.error.form.argument`).
+    fn error_args_ok(&self, args: Option<NodeRef<'_>>) -> bool {
+        let Some(args) = args else { return false };
+        let mut all = args.children();
+        let (Some(one), None) = (all.next(), all.next()) else {
+            return false;
+        };
+        if one.kind() != SyntaxKind::Argument {
+            return false;
+        }
+        let mut inner = one.children();
+        let (Some(value), None) = (inner.next(), inner.next()) else {
+            return false;
+        };
+        match value.kind() {
+            SyntaxKind::StringExpr => true,
+            SyntaxKind::NameExpr => self
+                .src
+                .first_ident(value)
+                .is_some_and(|t| self.src.text(t) == "transparent"),
+            _ => false,
+        }
+    }
+
+    /// Checks the decorators of one target; returns whether it carries a
+    /// valid `@from` or `@source` cause marker.
+    fn check_decorators(
+        &mut self,
+        n: NodeRef<'_>,
+        place: Place,
+        items: &HashMap<DefId, &Item>,
+    ) -> bool {
+        let mut cause = false;
         for d in n.children().filter(|c| c.kind() == SyntaxKind::Decorator) {
             let Some(deco) = self.deco(d) else { continue };
             let span = self.src.span(d);
@@ -201,6 +240,9 @@ impl Lower<'_, '_, '_> {
                     };
                     if !ok {
                         self.target_error(span, "this `@error` form does not precede this target");
+                    } else if !deco.bare && !self.error_args_ok(deco.args) {
+                        let msg = "`@error` takes one message or `transparent`";
+                        self.marker_error(span, msg);
                     }
                 }
                 "from" | "source" if place.error_type => {
@@ -211,6 +253,20 @@ impl Lower<'_, '_, '_> {
                     if !ok {
                         let msg = format!("`@{}` does not mark this member", deco.name);
                         self.target_error(span, &msg);
+                    } else if !deco.bare {
+                        let msg = format!("`@{}` takes no argument", deco.name);
+                        self.marker_error(span, &msg);
+                    } else {
+                        cause = true;
+                        let bare_param = deco.name == "from"
+                            && place.ty.is_some_and(|t| {
+                                matches!(self.names.pool.get(t), TyData::Param(_))
+                            });
+                        if bare_param {
+                            let msg =
+                                "`@from` on a bare type parameter overlaps every other `From`";
+                            self.marker_error(span, msg);
+                        }
                     }
                 }
                 "intrinsic" => {}
@@ -221,6 +277,20 @@ impl Lower<'_, '_, '_> {
                 }
             }
         }
+        cause
+    }
+
+    /// Reports a second cause member of one variant or data type
+    /// (`annot.error.cause.one`).
+    fn check_cause(&mut self, member: NodeRef<'_>, found: bool, causes: &mut usize) {
+        if !found {
+            return;
+        }
+        *causes += 1;
+        if *causes > 1 {
+            let span = self.src.span(member);
+            self.marker_error(span, "a second `@from` or `@source` member");
+        }
     }
 
     fn check_params(
@@ -228,24 +298,43 @@ impl Lower<'_, '_, '_> {
         list: Option<NodeRef<'_>>,
         k: u16,
         error_type: bool,
+        fields: &[Field],
         items: &HashMap<DefId, &Item>,
     ) {
         let Some(list) = list else { return };
-        let members = list
+        let params: Vec<_> = list
             .children()
             .filter(|c| c.kind() == SyntaxKind::Parameter)
-            .count();
-        for p in list
-            .children()
-            .filter(|c| c.kind() == SyntaxKind::Parameter)
-        {
+            .collect();
+        let fields = if fields.len() == params.len() {
+            fields
+        } else {
+            &[]
+        };
+        let mut causes = 0;
+        for (i, p) in params.iter().enumerate() {
             let place = Place {
                 kind: k,
                 error_type,
-                members,
+                members: params.len(),
+                ty: fields.get(i).map(|f| f.ty),
             };
-            self.check_decorators(p, place, items);
+            let found = self.check_decorators(*p, place, items);
+            self.check_cause(*p, found, &mut causes);
         }
+    }
+
+    /// The item of a declaration (the name after `kw`), for its resolved
+    /// member types.
+    fn item_of<'i>(
+        &self,
+        n: NodeRef<'_>,
+        kw: TokenKind,
+        items: &'i HashMap<DefId, &Item>,
+    ) -> Option<&'i Item> {
+        let name = self.src.text(self.src.name_after(n, kw)?);
+        let (d, _) = self.scope_item(name, items)?;
+        items.get(&d).copied()
     }
 
     fn check_fn(&mut self, f: NodeRef<'_>, k: u16, items: &HashMap<DefId, &Item>) {
@@ -261,6 +350,7 @@ impl Lower<'_, '_, '_> {
             Src::child(f, SyntaxKind::ParameterList),
             kind::PARAM,
             false,
+            &[],
             items,
         );
     }
@@ -332,7 +422,9 @@ impl Lower<'_, '_, '_> {
             };
             match n.kind() {
                 SyntaxKind::FnDecl => self.check_fn(n, kind::FN, items),
-                SyntaxKind::TypeDecl => self.check_decorators(n, top(kind::NEWTYPE), items),
+                SyntaxKind::TypeDecl => {
+                    self.check_decorators(n, top(kind::NEWTYPE), items);
+                }
                 SyntaxKind::DataDecl => {
                     self.check_decorators(n, top(kind::DATA), items);
                     let error_type = self.has_error(n, false);
@@ -344,13 +436,23 @@ impl Lower<'_, '_, '_> {
                             matches!(c.kind(), SyntaxKind::DataField | SyntaxKind::EmbeddedField)
                         })
                         .collect();
-                    for f in &fields {
+                    let types = match self.item_of(n, TokenKind::KwData, items) {
+                        Some(Item {
+                            data: ItemData::Data(fs),
+                            ..
+                        }) if fs.len() == fields.len() => fs.as_slice(),
+                        _ => &[],
+                    };
+                    let mut causes = 0;
+                    for (i, f) in fields.iter().enumerate() {
                         let place = Place {
                             kind: kind::FIELD,
                             error_type,
                             members: fields.len(),
+                            ty: types.get(i).map(|f| f.ty),
                         };
-                        self.check_decorators(*f, place, items);
+                        let found = self.check_decorators(*f, place, items);
+                        self.check_cause(*f, found, &mut causes);
                     }
                 }
                 SyntaxKind::EnumDecl => {
@@ -360,23 +462,33 @@ impl Lower<'_, '_, '_> {
                         Src::child(n, SyntaxKind::ParameterList),
                         kind::FIELD,
                         false,
+                        &[],
                         items,
                     );
                     let variants = Src::child(n, SyntaxKind::Block)
                         .into_iter()
                         .flat_map(NodeRef::children)
                         .filter(|c| c.kind() == SyntaxKind::EnumVariant);
-                    for v in variants {
+                    let declared = match self.item_of(n, TokenKind::KwEnum, items) {
+                        Some(Item {
+                            data: ItemData::Enum { variants, .. },
+                            ..
+                        }) => variants.as_slice(),
+                        _ => &[],
+                    };
+                    for (i, v) in variants.enumerate() {
                         let place = Place {
                             kind: kind::VARIANT,
                             error_type,
-                            members: 0,
+                            ..Place::default()
                         };
                         self.check_decorators(v, place, items);
+                        let types = declared.get(i).map_or(&[][..], |d| d.fields.as_slice());
                         self.check_params(
                             Src::child(v, SyntaxKind::ParameterList),
                             kind::FIELD,
                             error_type,
+                            types,
                             items,
                         );
                     }
