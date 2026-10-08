@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1616 | 683 | 544 | 2843 |
+| 1616 | 684 | 544 | 2844 |
 
 ## By Chapter
 
@@ -22,7 +22,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 97 | 34 | 26 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 40 | 31 | 123 |
-| `lang/09-traits.md` | 192 | 117 | 49 | 358 |
+| `lang/09-traits.md` | 192 | 118 | 49 | 359 |
 | `lang/10-modules.md` | 119 | 86 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
 | `lang/14-annotations.md` | 80 | 55 | 18 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 33 | 20 | 105 |
 | `runtime/valid` | 386 | 174 | 369 | 929 |
-| `typing/invalid` | 547 | 417 | 109 | 1073 |
+| `typing/invalid` | 547 | 418 | 109 | 1074 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 9 | 11 | 0 | 20 |
 
@@ -92,7 +92,7 @@ compiler stage that first declined the case.
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 9 |
 | `fail:missing-return-value` | 9 |
-| `fail:missing-supertrait-implementation` | 2 |
+| `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
 | `fail:no-diagnostic` | 265 |
 | `fail:nonexhaustive-match` | 16 |
@@ -288,10 +288,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:missing-supertrait-implementation</code> (2)</summary>
+<details><summary><code>fail:missing-supertrait-implementation</code> (3)</summary>
 
 - `typing/invalid/derive-error-trait.hd`
 - `typing/invalid/num-sealed-impl.hd`
+- `typing/invalid/derived-ord-without-partial-ord.hd`
 
 </details>
 
