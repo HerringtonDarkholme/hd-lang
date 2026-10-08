@@ -100,7 +100,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let sym = self.cx.names.syms.intern(name);
         let Some(b) = self.cx.scope.lookup(sym) else {
-            let msg = format!("unknown-name `{name}`");
+            let msg = format!("`{name}` is not defined");
             self.err(Code::UnknownName, n, &msg);
             return Ok(self.poison(n));
         };
@@ -167,7 +167,7 @@ impl Ck<'_, '_> {
             _ => None,
         }) else {
             let found = want.map_or_else(|| "a value".into(), |w| self.show(w));
-            let msg = format!("type-mismatch in argument: expected Template[T], found {found}");
+            let msg = format!("in argument: expected Template[T], found {found}");
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.poison(n));
         };
@@ -208,7 +208,7 @@ impl Ck<'_, '_> {
                             None => self.global_get(sym, n),
                         };
                         let Some((r, ty)) = read else {
-                            let msg = format!("unknown-name `{name}`");
+                            let msg = format!("`{name}` is not defined");
                             self.err(Code::UnknownName, n, &msg);
                             continue;
                         };
@@ -290,7 +290,7 @@ impl Ck<'_, '_> {
             return;
         };
         let mismatch = |me: &mut Self, why: &str| {
-            let msg = format!("type-mismatch: `@{wanted}` {why}");
+            let msg = format!("`@{wanted}` {why}");
             me.err(Code::TypeMismatch, dec, &msg);
         };
         if sig.suspends {
@@ -303,7 +303,7 @@ impl Ck<'_, '_> {
         if kind == LITERAL_SUFFIX {
             if !self.numeric(ty) {
                 let msg = format!(
-                    "unsatisfied-trait-bound: `@num_suffix` needs a `Num` parameter, found {}",
+                    "`@num_suffix` needs a `Num` parameter, found {}",
                     self.show(ty)
                 );
                 self.err(Code::UnsatisfiedTraitBound, dec, &msg);

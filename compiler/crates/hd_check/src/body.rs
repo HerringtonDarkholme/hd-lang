@@ -327,9 +327,7 @@ impl Ck<'_, '_> {
             if flags & local_flags::READ != 0 || text.starts_with('_') {
                 continue;
             }
-            let msg = format!(
-                "unused-local-binding: `{text}` is never read; name it `_{text}` to keep it"
-            );
+            let msg = format!("`{text}` is never read; name it `_{text}` to keep it");
             let span = self.cx.src.span(self.cx.src.parse.tree.node(at));
             let source = self.cx.src.text;
             let lo = usize::try_from(span.lo).unwrap_or(0).min(source.len());
@@ -363,10 +361,7 @@ impl Ck<'_, '_> {
             let negated = node.kind() == SyntaxKind::UnaryExpr;
             let v = bits.cast_signed();
             if negated && p.is_unsigned() {
-                let msg = format!(
-                    "type-mismatch: a negated literal does not fit unsigned {}",
-                    p.name()
-                );
+                let msg = format!("a negated literal does not fit unsigned {}", p.name());
                 self.err(Code::TypeMismatch, node, &msg);
                 continue;
             }
@@ -389,7 +384,7 @@ impl Ck<'_, '_> {
                 _ => true,
             };
             if !ok {
-                let msg = format!("integer-literal-range: {v} does not fit {}", p.name());
+                let msg = format!("literal {v} does not fit {}", p.name());
                 self.err(Code::IntegerLiteralRange, node, &msg);
             }
         }
@@ -520,7 +515,7 @@ impl Ck<'_, '_> {
         // enclosing type parameter's name.
         if self.gens.iter().any(|(g, _)| *g == name) {
             let msg = format!(
-                "duplicate-binding: `{}` is a type parameter in scope",
+                "`{}` is a type parameter in scope",
                 self.cx.names.text(name)
             );
             self.err(Code::DuplicateBinding, at, &msg);
@@ -588,7 +583,7 @@ impl Ck<'_, '_> {
         self.expect(got, want, n, what);
         if self.diags.len() == before && !joined && !self.perm_fits(got, want, true, 0) {
             let msg = format!(
-                "type-mismatch in {what}: expected {}, found {}; permissions inside a type convert only by declared variance",
+                "in {what}: expected {}, found {}; permissions inside a type convert only by declared variance",
                 self.show(want),
                 self.show(got)
             );
@@ -609,7 +604,7 @@ impl Ck<'_, '_> {
             // numeric family where a narrower one is expected.
             if !matches!(what, "operand" | "range bound") && self.narrows(got, want) {
                 let msg = format!(
-                    "implicit-narrowing in {what}: expected {}, found {}; write the conversion",
+                    "converting to a narrower type in {what}: expected {}, found {}; write the conversion",
                     self.show(want),
                     self.show(got)
                 );
@@ -617,7 +612,7 @@ impl Ck<'_, '_> {
                 return;
             }
             let msg = format!(
-                "type-mismatch in {what}: expected {}, found {}",
+                "in {what}: expected {}, found {}",
                 self.show(want),
                 self.show(got)
             );
@@ -698,7 +693,7 @@ impl Ck<'_, '_> {
             }
             Answer::Fails(_) => {
                 let msg = format!(
-                    "unsatisfied-trait-bound: {} does not implement {}",
+                    "{} does not implement {}",
                     self.show(tref.self_ty),
                     self.cx.names.path(tref.trait_)
                 );
@@ -864,10 +859,7 @@ impl Ck<'_, '_> {
                         TyData::Infer(_) | TyData::Prim(hd_types::Prim::Void)
                     )
                 {
-                    let msg = format!(
-                        "missing-return-value: this path ends without a {} value",
-                        self.show(w)
-                    );
+                    let msg = format!("this path ends without a {} value", self.show(w));
                     self.err(Code::MissingReturnValue, s, &msg);
                     diverged = true;
                     continue;
@@ -901,16 +893,10 @@ impl Ck<'_, '_> {
                     // `fn.body.value-less-fallthrough`, at the statement
                     // the body falls through from.
                     let at = stmts.last().copied().unwrap_or(block);
-                    let msg = format!(
-                        "missing-return-value: this path ends without a {} value",
-                        self.show(w)
-                    );
+                    let msg = format!("this path ends without a {} value", self.show(w));
                     self.err(Code::MissingReturnValue, at, &msg);
                 } else if !snap_ok && !Self::ends_in_return(block) {
-                    let msg = format!(
-                        "type-mismatch in result: expected {}, found void",
-                        self.show(w)
-                    );
+                    let msg = format!("in result: expected {}, found void", self.show(w));
                     self.err(Code::TypeMismatch, block, &msg);
                 }
             }
@@ -989,7 +975,7 @@ impl Ck<'_, '_> {
                 let t = self.infer.shallow(self.pool(), t);
                 if self.must_use(t) {
                     let msg = format!(
-                        "discarded-must-use-value: a {} value is discarded; handle it or write `_ := ...`",
+                        "a {} value is discarded; handle it or write `_ := ...`",
                         self.show(t)
                     );
                     self.err(Code::DiscardedMustUseValue, *e, &msg);
@@ -1005,11 +991,7 @@ impl Ck<'_, '_> {
             SyntaxKind::AssignmentStmt => self.assign(s, &kids)?,
             SyntaxKind::ReturnStmt => {
                 if self.defer_base.is_some() {
-                    self.err(
-                        Code::DeferControlFlow,
-                        s,
-                        "defer-control-flow: a `defer` suite cannot `return`",
-                    );
+                    self.err(Code::DeferControlFlow, s, "a `defer` suite cannot `return`");
                 }
                 let ret = *self.rets.last().expect("ret");
                 let r = if let Some(e) = kids.first() {
@@ -1030,7 +1012,7 @@ impl Ck<'_, '_> {
                     self.err(
                         Code::DeferControlFlow,
                         s,
-                        "defer-control-flow: a `defer` suite cannot leave an enclosing loop",
+                        "a `defer` suite cannot leave an enclosing loop",
                     );
                 }
                 if s.kind() == SyntaxKind::ContinueStmt {
@@ -1047,7 +1029,7 @@ impl Ck<'_, '_> {
                         self.err(
                             Code::BreakValueContext,
                             *e,
-                            "break-value-context: only a loop with `else` takes a `break` value",
+                            "only a loop with `else` takes a `break` value",
                         );
                         NONE
                     }
@@ -1055,7 +1037,7 @@ impl Ck<'_, '_> {
                         self.err(
                             Code::BreakValueContext,
                             s,
-                            "break-value-context: a loop with `else` needs a `break` value",
+                            "a loop with `else` needs a `break` value",
                         );
                         NONE
                     }
@@ -1102,7 +1084,7 @@ impl Ck<'_, '_> {
                     // A mutable top-level binding (`GlobalSet`).
                     if g.short {
                         let msg = format!(
-                            "non-reassignable-binding: `{}` is bound with `:=`; use `let` to reassign it",
+                            "`{}` is bound with `:=`; use `let` to reassign it",
                             self.cx.names.text(name)
                         );
                         self.err(Code::NonReassignableBinding, *lhs, &msg);
@@ -1117,20 +1099,20 @@ impl Ck<'_, '_> {
                     return Ok(());
                 }
                 let Some((l, depth)) = self.find_local(name) else {
-                    let msg = format!("unknown-name `{}`", self.cx.names.text(name));
+                    let msg = format!("`{}` is not defined", self.cx.names.text(name));
                     self.err(Code::UnknownName, *lhs, &msg);
                     return Ok(());
                 };
                 let flags = self.b.body_mut().local_flags[l.idx()];
                 if flags & local_flags::SHORT != 0 {
                     let msg = format!(
-                        "non-reassignable-binding: `{}` is bound with `:=`; use `let` to reassign it",
+                        "`{}` is bound with `:=`; use `let` to reassign it",
                         self.cx.names.text(name)
                     );
                     self.err(Code::NonReassignableBinding, *lhs, &msg);
                 } else if flags & local_flags::PARAM != 0 {
                     let msg = format!(
-                        "non-reassignable-parameter-binding: parameter `{}` cannot be reassigned",
+                        "parameter `{}` cannot be reassigned",
                         self.cx.names.text(name)
                     );
                     self.err(Code::NonReassignableParameterBinding, *lhs, &msg);
@@ -1157,7 +1139,7 @@ impl Ck<'_, '_> {
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
                 let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
                 let Some((idx, ft)) = self.field_of(pt, &fname) else {
-                    let msg = format!("unknown-data-field `{fname}` on {}", self.show(bt));
+                    let msg = format!("no field `{fname}` on {}", self.show(bt));
                     self.err(Code::UnknownDataField, *lhs, &msg);
                     return Ok(());
                 };
@@ -1188,7 +1170,7 @@ impl Ck<'_, '_> {
                     self.err(
                         Code::InvalidAssignmentTarget,
                         *lhs,
-                        "invalid-assignment-target: this index cannot be assigned",
+                        "this index cannot be assigned",
                     );
                     return Ok(());
                 }
@@ -1237,10 +1219,7 @@ impl Ck<'_, '_> {
             self.err(
                 Code::InvalidAssignmentTarget,
                 lhs,
-                &format!(
-                    "invalid-assignment-target: {} does not implement `IndexSet`",
-                    self.show(bt)
-                ),
+                &format!("{} does not implement `IndexSet`", self.show(bt)),
             );
             return Ok(());
         }
@@ -1251,7 +1230,7 @@ impl Ck<'_, '_> {
                 let index = self.cx.names.item("std.ops", "Index");
                 if !self.op_fits(index, bt, Some(kt))? {
                     let msg = format!(
-                        "type-mismatch: {} has no `Index` implementation for this key",
+                        "{} has no `Index` implementation for this key",
                         self.show(bt)
                     );
                     self.err(Code::TypeMismatch, lhs, &msg);
@@ -1421,7 +1400,7 @@ impl Ck<'_, '_> {
             // bound that fails once the defaults are in is an error.
             if let Answer::Fails(_) = self.solve(tref)? {
                 let msg = format!(
-                    "unsatisfied-trait-bound: {} does not implement {}",
+                    "{} does not implement {}",
                     self.show(tref.self_ty),
                     self.cx.names.path(tref.trait_)
                 );
@@ -1511,11 +1490,7 @@ impl Ck<'_, '_> {
                     && at != hd_base::NodeIdx::NONE
                 {
                     let node = self.cx.src.parse.tree.node(at);
-                    self.err(
-                        Code::CannotInferType,
-                        node,
-                        "cannot-infer-type: annotate this value's type",
-                    );
+                    self.err(Code::CannotInferType, node, "annotate this value's type");
                     break;
                 }
             }

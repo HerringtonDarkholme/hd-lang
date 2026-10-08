@@ -150,11 +150,11 @@ impl Ck<'_, '_> {
             self.err(
                 Code::ReadonlyEdge,
                 at,
-                "readonly-edge: the field is declared without `mut`, so its value is readonly",
+                "the field is declared without `mut`, so its value is readonly",
             );
         } else {
             let msg = format!(
-                "readonly-root: {} is a readonly view; mutation needs `mut` access",
+                "{} is a readonly view; mutation needs `mut` access",
                 self.show(bt)
             );
             self.err(Code::ReadonlyRoot, at, &msg);
@@ -177,7 +177,7 @@ impl Ck<'_, '_> {
             return;
         }
         let msg = format!(
-            "mutable-receiver-required: this method takes `mut self`, but the receiver is a readonly {}",
+            "this method takes `mut self`, but the receiver is a readonly {}",
             self.show(rt)
         );
         self.err(Code::MutableReceiverRequired, at, &msg);
@@ -204,14 +204,14 @@ impl Ck<'_, '_> {
         let declared = matches!(pool.get(want), TyData::Mut(_)) && !erases;
         if what == "argument" && declared {
             let msg = format!(
-                "readonly-argument-to-mutable-parameter: the parameter takes {}, the argument is a readonly {}",
+                "the parameter takes {}, the argument is a readonly {}",
                 self.show(want),
                 self.show(got)
             );
             self.err(Code::ReadonlyArgumentToMutableParameter, n, &msg);
         } else {
             let msg = format!(
-                "mutable-upgrade in {what}: a readonly {} cannot become {}",
+                "in {what}: a readonly {} cannot become {}",
                 self.show(got),
                 self.show(want)
             );
@@ -231,7 +231,7 @@ impl Ck<'_, '_> {
         };
         if readonly {
             let msg = format!(
-                "unsatisfied-trait-bound: a `mut` bound needs mutable access, but {} is readonly",
+                "a `mut` bound needs mutable access, but {} is readonly",
                 self.show(t)
             );
             self.err(Code::UnsatisfiedTraitBound, at, &msg);
@@ -404,7 +404,7 @@ impl Ck<'_, '_> {
         if !annotated {
             if !self.let_mut_ok(t) {
                 let msg = format!(
-                    "mutable-upgrade: `let mut` needs mutable access, but the value is a readonly {}",
+                    "`let mut` needs mutable access, but the value is a readonly {}",
                     self.show(t)
                 );
                 self.err(Code::MutableUpgrade, at, &msg);
@@ -417,12 +417,12 @@ impl Ck<'_, '_> {
                 Code::RedundantLetMut,
                 hd_diag::Severity::Warning,
                 span,
-                "redundant-let-mut: the annotation already grants `mut`; remove the `mut` before the name",
+                "the annotation already grants `mut`; remove the `mut` before the name",
                 None,
             );
         } else {
             let msg = format!(
-                "let-mut-readonly-type: `let mut` with the readonly annotation {}; write `mut` in the type or drop it after `let`",
+                "`let mut` with the readonly annotation {}; write `mut` in the type or drop it after `let`",
                 self.show(t)
             );
             self.err(Code::LetMutReadonlyType, at, &msg);

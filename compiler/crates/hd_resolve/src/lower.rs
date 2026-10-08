@@ -483,17 +483,13 @@ fn scope_of(
         let row = u32::try_from(row).unwrap_or(u32::MAX);
         let module = u.module();
         if u.bad_root {
-            diags.error(
-                Code::UnknownModule,
-                u.span,
-                "unknown-module: above the root",
-            );
+            diags.error(Code::UnknownModule, u.span, "the path goes above the root");
             continue;
         }
         if let Some(group) = &u.group {
             {
                 if !r.module_exists(&module) {
-                    let msg = format!("unknown-module `{module}`");
+                    let msg = format!("no module named `{module}`");
                     diags.error(Code::UnknownModule, u.span, &msg);
                     continue;
                 }
@@ -531,7 +527,7 @@ fn scope_of(
                     .and_then(Result::ok);
                 if r.module_exists(&module) {
                     if as_decl.is_some() {
-                        let msg = format!("ambiguous-import `{module}`");
+                        let msg = format!("`{module}` is ambiguous");
                         diags.error(Code::AmbiguousImport, u.span, &msg);
                         continue;
                     }
@@ -550,7 +546,7 @@ fn scope_of(
                     bind_item(&mut scope, local, d, Origin::Use, row);
                     kinds.insert(d, k);
                 } else if !r.module_exists(&parent) {
-                    let msg = format!("unknown-module `{parent}`");
+                    let msg = format!("no module named `{parent}`");
                     diags.error(Code::UnknownModule, u.span, &msg);
                 } else {
                     let code = r
@@ -583,7 +579,7 @@ fn scope_of(
                         .iter()
                         .find(|h| h.name == sym)
                         .map_or(m.src.span(m.src.root()), |h| m.src.span(h.node));
-                    let msg = format!("prelude-name-shadow `{name}`");
+                    let msg = format!("`{name}` shadows a prelude name");
                     diags.error(Code::PreludeNameShadow, span, &msg);
                 }
             }
@@ -666,7 +662,7 @@ impl Lower<'_, '_, '_> {
             value,
         }) = b
         else {
-            let msg = format!("unknown-name `{first}`");
+            let msg = format!("`{first}` is not defined");
             self.diags.error(Code::UnknownName, span, &msg);
             return None;
         };
@@ -723,14 +719,14 @@ impl Lower<'_, '_, '_> {
         let Some((def, kind)) = found else {
             let name = segs.last().map_or("", |s| s.0.as_str()).to_owned();
             if segs.len() == 1 {
-                let msg = format!("unknown-trait `{name}`");
+                let msg = format!("no trait named `{name}`");
                 self.diags.error(Code::UnknownTrait, span, &msg);
             }
             return None;
         };
         if kind != HeadKind::Trait {
             let msg = format!(
-                "unknown-trait `{}`: not a trait",
+                "no trait named `{}`: not a trait",
                 segs.last().map_or("", |s| s.0.as_str())
             );
             self.diags.error(Code::UnknownTrait, span, &msg);
@@ -841,12 +837,12 @@ impl Lower<'_, '_, '_> {
                 args: pool.list(args),
             }),
             HeadKind::Trait => {
-                let msg = format!("trait-used-as-type `{}`", self.names.path(def));
+                let msg = format!("`{}` is a trait, not a type", self.names.path(def));
                 self.diags.error(Code::TraitUsedAsType, span, &msg);
                 Ty::POISON
             }
             HeadKind::Fn | HeadKind::Impl => {
-                let msg = format!("unknown-type `{}`: not a type", self.names.path(def));
+                let msg = format!("no type named `{}`: not a type", self.names.path(def));
                 self.diags.error(Code::UnknownType, span, &msg);
                 Ty::POISON
             }
@@ -880,7 +876,7 @@ impl Lower<'_, '_, '_> {
         }
         let Some((def, kind)) = self.resolve_path(&segs, span) else {
             if segs.len() == 1 {
-                let msg = format!("unknown-type `{first}`");
+                let msg = format!("no type named `{first}`");
                 self.diags.error(Code::UnknownType, span, &msg);
             }
             return Ty::POISON;
@@ -911,7 +907,7 @@ impl Lower<'_, '_, '_> {
                         self.diags.error(
                             Code::MutOnPrimitive,
                             self.src.span(n),
-                            "mut-on-primitive: a primitive type has no `mut` form",
+                            "a primitive type has no `mut` form",
                         );
                         t
                     }
@@ -919,7 +915,7 @@ impl Lower<'_, '_, '_> {
                         self.diags.error(
                             Code::MutOnTuple,
                             self.src.span(n),
-                            "mut-on-tuple: a tuple type has no `mut` form",
+                            "a tuple type has no `mut` form",
                         );
                         t
                     }
@@ -1266,7 +1262,7 @@ impl Lower<'_, '_, '_> {
 
     fn variance_error(&mut self, span: Span, (name, marker): (Symbol, i8)) {
         let msg = format!(
-            "invalid-variance: `{}` is declared {}, but it occurs in a {} position here",
+            "`{}` is declared {}, but it occurs in a {} position here",
             self.names.text(name),
             if marker > 0 {
                 "covariant (`+`)"
@@ -1471,7 +1467,7 @@ impl Lower<'_, '_, '_> {
             }
         }
         for (span, text) in bad {
-            let msg = format!("duplicate-trait-member: `{text}` is declared twice");
+            let msg = format!("`{text}` is declared twice");
             self.diags.error(Code::DuplicateTraitMember, span, &msg);
         }
     }
@@ -1516,7 +1512,7 @@ impl Lower<'_, '_, '_> {
             self.diags.error(
                 Code::MutableImplTarget,
                 self.src.span(target),
-                "mutable-impl-target: an implementation target cannot be a `mut` view",
+                "an implementation target cannot be a `mut` view",
             );
         }
         let self_ty = self.ty(Some(target), &gn);
@@ -1548,7 +1544,7 @@ impl Lower<'_, '_, '_> {
             && SEALED_TRAIT_PATHS.contains(&self.names.path(trait_).as_str())
         {
             let msg = format!(
-                "sealed-trait-implementation: `{}` is implemented by the compiler only",
+                "`{}` is implemented by the compiler only",
                 self.names.path(trait_)
             );
             self.diags
@@ -1621,7 +1617,7 @@ impl Lower<'_, '_, '_> {
                     value,
                 }) = self.scope.lookup(sym)
                 else {
-                    let msg = format!("unknown-trait `{a}`");
+                    let msg = format!("no trait named `{a}`");
                     self.diags
                         .error(Code::UnknownTrait, self.src.span(h.node), &msg);
                     continue;
@@ -1760,7 +1756,7 @@ impl Lower<'_, '_, '_> {
                     ) {
                         if g.variance != 0 {
                             let msg = format!(
-                                "invalid-variance: trait parameter `{}` is invariant and takes no marker",
+                                "trait parameter `{}` is invariant and takes no marker",
                                 self.names.text(g.name)
                             );
                             self.diags
@@ -2109,7 +2105,7 @@ pub fn build_folder(
                             .iter()
                             .find(|u| u.public)
                             .map_or(m.src.span(m.src.root()), |u| u.span);
-                        let msg = format!("re-export-loop `{}`", names.text(name));
+                        let msg = format!("re-export loop through `{}`", names.text(name));
                         diags.error(Code::ReExportLoop, span, &msg);
                     }
                     Err(_) => {}

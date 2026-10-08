@@ -339,7 +339,7 @@ impl<'a> Universe<'a> {
                                     slot: at.1,
                                     code: hd_diag::Code::UnsatisfiedTraitBound,
                                     message: format!(
-                                        "unsatisfied-trait-bound: {} does not implement {} in `{}`",
+                                        "{} does not implement {} in `{}`",
                                         self.show(a),
                                         self.show(b),
                                         self.names.path(item)
@@ -441,7 +441,7 @@ impl<'a> Universe<'a> {
                         slot: 0,
                         code: hd_diag::Code::MissingSupertraitImplementation,
                         message: format!(
-                            "missing-supertrait-implementation: {} implements {} but not {}",
+                            "{} implements {} but not {}",
                             self.show(*self_ty),
                             self.names.path(*trait_),
                             self.show(s)
@@ -485,7 +485,7 @@ impl<'a> Universe<'a> {
                 slot: 0,
                 code: hd_diag::Code::InvalidDelegation,
                 message: format!(
-                    "invalid-delegation: `{}` has no embedded field `{}`",
+                    "`{}` has no embedded field `{}`",
                     self.show(self_ty),
                     self.names.text(by)
                 ),
@@ -501,7 +501,7 @@ impl<'a> Universe<'a> {
                 slot: 0,
                 code: hd_diag::Code::InvalidDelegation,
                 message: format!(
-                    "invalid-delegation: the field `{}` does not implement {}",
+                    "the field `{}` does not implement {}",
                     self.names.text(by),
                     self.show(tv)
                 ),

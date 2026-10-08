@@ -176,11 +176,11 @@ impl Ck<'_, '_> {
         if let Some(Named::Item(def)) = self.scope_name(&text)
             && self.kind_of_item(def).is_some_and(HeadKind::is_type)
         {
-            let msg = format!("type-used-as-value: `{text}` is a type");
+            let msg = format!("`{text}` is a type, not a value");
             self.err(Code::TypeUsedAsValue, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         }
-        let msg = format!("unknown-name `{text}`");
+        let msg = format!("`{text}` is not defined");
         self.err(Code::UnknownName, n, &msg);
         Ok((Ref(NONE), Ty::NEVER))
     }
@@ -198,7 +198,7 @@ impl Ck<'_, '_> {
         }
         let segs = self.segments_expr(inner);
         let Some(def) = self.resolve_path(&segs) else {
-            let msg = format!("unknown-name `{}`", segs.join("."));
+            let msg = format!("`{}` is not defined", segs.join("."));
             self.err(Code::UnknownName, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
@@ -289,7 +289,7 @@ impl Ck<'_, '_> {
                 if let Some(Named::Item(def)) = self.scope_name(&text) {
                     return self.call_item(def, &[], &args, n, bang, want);
                 }
-                let msg = format!("unknown-name `{text}`");
+                let msg = format!("`{text}` is not defined");
                 self.err(Code::UnknownName, callee, &msg);
                 Ok((Ref(NONE), Ty::NEVER))
             }
@@ -353,10 +353,7 @@ impl Ck<'_, '_> {
             }
         }
         if !self.numeric(t) && self.infer.shallow(self.pool(), t) != Ty::BOOL {
-            let msg = format!(
-                "type-mismatch in conversion: {} is not a number",
-                self.show(t)
-            );
+            let msg = format!("in conversion: {} is not a number", self.show(t));
             self.err(Code::TypeMismatch, *e, &msg);
         }
         // A literal argument takes the target's type directly.
@@ -401,7 +398,7 @@ impl Ck<'_, '_> {
                 self.err(
                     Code::MutableReceiverRequired,
                     n,
-                    "mutable-receiver-required: driving a suspension needs `mut` access to it",
+                    "driving a suspension needs `mut` access to it",
                 );
             }
             let t = pool.list_items(sa).first().copied().unwrap_or(Ty::POISON);
@@ -418,7 +415,7 @@ impl Ck<'_, '_> {
             if matches!(pool.get(ft), TyData::Infer(_)) {
                 return unsupported("a call of a value whose type is not yet known");
             }
-            let msg = format!("not-callable: {} is not a function", self.show(ft));
+            let msg = format!("{} is not a function", self.show(ft));
             self.err(Code::NotCallable, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
@@ -427,7 +424,7 @@ impl Ck<'_, '_> {
         }
         let ps = pool.list_items(params);
         if ps.len() != args.positional.len() {
-            let msg = format!("argument-count: the function takes {} arguments", ps.len());
+            let msg = format!("the function takes {} arguments", ps.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
         let mut refs = Vec::new();
@@ -495,7 +492,7 @@ impl Ck<'_, '_> {
         let rest = params.get(skip..).unwrap_or(&[]);
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];
         if args.positional.len() > rest.len() {
-            let msg = format!("argument-count: `{name}` takes {} arguments", rest.len());
+            let msg = format!("`{name}` takes {} arguments", rest.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
         // Bare variable parameters still open: several arguments solving
@@ -546,12 +543,12 @@ impl Ck<'_, '_> {
                 .iter()
                 .position(|p| self.cx.names.text(p.0) == pname.as_str())
             else {
-                let msg = format!("unknown-named-argument: `{name}` has no parameter `{pname}`");
+                let msg = format!("`{name}` has no parameter `{pname}`");
                 self.err(Code::UnknownNamedArgument, *e, &msg);
                 continue;
             };
             if slots[i].is_some() {
-                let msg = format!("duplicate-argument: `{pname}` is given twice");
+                let msg = format!("`{pname}` is given twice");
                 self.err(Code::DuplicateArgument, *e, &msg);
                 continue;
             }
@@ -593,7 +590,7 @@ impl Ck<'_, '_> {
                     out.push(self.b.emit(Tag::DefaultCall, a, bw, t, n.index()));
                 }
                 None => {
-                    let msg = format!("argument-count: `{name}` takes {} arguments", rest.len());
+                    let msg = format!("`{name}` takes {} arguments", rest.len());
                     self.err(Code::ArgumentCount, n, &msg);
                     break;
                 }
@@ -710,7 +707,7 @@ impl Ck<'_, '_> {
                 unsupported("a call of a type name")
             }
             _ => {
-                let msg = format!("not-callable: `{name}` is not a function");
+                let msg = format!("`{name}` is not a function");
                 self.err(Code::NotCallable, n, &msg);
                 Ok((Ref(NONE), Ty::NEVER))
             }
@@ -724,7 +721,7 @@ impl Ck<'_, '_> {
             self.err(
                 Code::NotSuspending,
                 n,
-                "not-suspending: a bang call of a function that does not suspend",
+                "a bang call of a function that does not suspend",
             );
         }
         if self.defer_base.is_some() {
@@ -732,13 +729,13 @@ impl Ck<'_, '_> {
             self.err(
                 Code::SuspensionForbiddenContext,
                 n,
-                "suspension-forbidden-context: a `defer` suite cannot suspend",
+                "a `defer` suite cannot suspend",
             );
         } else if !self.suspends.last().copied().unwrap_or(false) {
             self.err(
                 Code::BangCallOutsideSuspension,
                 n,
-                "bang-call-outside-suspension: a bang call needs a suspending function or closure",
+                "a bang call needs a suspending function or closure",
             );
         }
     }
@@ -748,11 +745,7 @@ impl Ck<'_, '_> {
     fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
         if !bang {
-            self.err(
-                Code::NotSuspending,
-                n,
-                "not-suspending: `all` is called as `all!(...)`",
-            );
+            self.err(Code::NotSuspending, n, "`all` is called as `all!(...)`");
         }
         if bang {
             self.check_bang(true, n);
@@ -769,7 +762,7 @@ impl Ck<'_, '_> {
                 }
                 _ => {
                     let msg = format!(
-                        "type-mismatch in argument: expected a cold suspension, found {}",
+                        "in argument: expected a cold suspension, found {}",
                         self.show(t)
                     );
                     self.err(Code::TypeMismatch, *e, &msg);
@@ -814,10 +807,7 @@ impl Ck<'_, '_> {
             refs.push(self.coerce(r, t, w, *e, "argument"));
         }
         if args.positional.len() < fixed.len() {
-            let msg = format!(
-                "argument-count: the call needs at least {} arguments",
-                fixed.len()
-            );
+            let msg = format!("the call needs at least {} arguments", fixed.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
         let trailing = args.positional.get(fixed.len()..).unwrap_or(&[]);
@@ -931,9 +921,7 @@ impl Ck<'_, '_> {
                     })
                 }
                 _ => {
-                    let msg = format!(
-                        "missing-contextual-enum-type: `.{name}` needs an expected enum type"
-                    );
+                    let msg = format!("`.{name}` needs an expected enum type");
                     self.err(Code::MissingContextualEnumType, v, &msg);
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
@@ -989,7 +977,7 @@ impl Ck<'_, '_> {
         match self.scope_name(&text) {
             Some(Named::Module(m)) => {
                 let Some(def) = self.export(m, name) else {
-                    let msg = format!("unknown-name `{text}.{name}`");
+                    let msg = format!("`{text}.{name}` is not defined");
                     self.err(Code::UnknownName, n, &msg);
                     return Ok(Some((Ref(NONE), Ty::NEVER)));
                 };
@@ -1022,7 +1010,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let Some((index, fields)) = self.variant_fields(t, name) else {
-            let msg = format!("unknown-variant `{name}` of {}", self.show(t));
+            let msg = format!("no variant `{name}` of {}", self.show(t));
             self.err(Code::UnknownVariant, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
@@ -1039,7 +1027,7 @@ impl Ck<'_, '_> {
         }
         for (fname, e) in &args.named {
             let Some(i) = names.iter().position(|x| x == fname) else {
-                let msg = format!("unknown-data-field `{fname}` of variant `{name}`");
+                let msg = format!("no field `{fname}` of variant `{name}`");
                 self.err(Code::UnknownDataField, *e, &msg);
                 continue;
             };
@@ -1048,7 +1036,7 @@ impl Ck<'_, '_> {
             slots[i] = Some(self.coerce(r, rt, ft, *e, "payload"));
         }
         if extra || slots.iter().any(Option::is_none) {
-            let msg = format!("argument-count: `{name}` takes {} values", fields.len());
+            let msg = format!("`{name}` takes {} values", fields.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
         let refs: Vec<Ref> = slots.into_iter().map(|r| r.unwrap_or(Ref(NONE))).collect();
@@ -1129,7 +1117,7 @@ impl Ck<'_, '_> {
             match self.scope_name(&text) {
                 Some(Named::Module(m)) => {
                     let Some(def) = self.export(m, &name) else {
-                        let msg = format!("unknown-name `{text}.{name}`");
+                        let msg = format!("`{text}.{name}` is not defined");
                         self.err(Code::UnknownName, callee, &msg);
                         return Ok((Ref(NONE), Ty::NEVER));
                     };
@@ -1246,7 +1234,7 @@ impl Ck<'_, '_> {
                 );
             }
         }
-        let msg = format!("unknown-method `{name}` on {}", self.show(t));
+        let msg = format!("no method `{name}` on {}", self.show(t));
         self.err(Code::UnknownMethod, n, &msg);
         Ok((Ref(NONE), Ty::NEVER))
     }
@@ -1266,10 +1254,7 @@ impl Ck<'_, '_> {
         };
         let sym = self.cx.names.syms.intern(name);
         let Some(&(_, m)) = td.methods.iter().find(|(s, _)| *s == sym) else {
-            let msg = format!(
-                "unknown-method `{name}` on trait {}",
-                self.cx.names.path(tr)
-            );
+            let msg = format!("no method `{name}` on trait {}", self.cx.names.path(tr));
             self.err(Code::UnknownMethod, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
@@ -1595,7 +1580,7 @@ impl Ck<'_, '_> {
             // (names.method-lookup.ambiguous).
             if hit.is_some() {
                 let msg = format!(
-                    "ambiguous-method `{name}` on {}: a trait method and the promoted method `{}.{name}`; write `Trait::{name}(..)` or the explicit path",
+                    "`{name}` on {} is ambiguous: a trait method and the promoted method `{}.{name}`; write `Trait::{name}(..)` or the explicit path",
                     self.show(rt),
                     path.join(".")
                 );
@@ -1629,8 +1614,7 @@ impl Ck<'_, '_> {
                     .first()
                     .is_some_and(|p| self.cx.names.text(p.0) == "self");
                 if !has_self {
-                    let msg =
-                        format!("unknown-method `{name}`: an associated function, not a method");
+                    let msg = format!("`{name}` is an associated function, not a method");
                     self.err(Code::UnknownMethod, n, &msg);
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
@@ -1717,7 +1701,7 @@ impl Ck<'_, '_> {
                     let f = self.b.emit(Tag::Field, recv.0, idx, ft, n.index());
                     return self.call_value(f, ft, args, n, bang);
                 }
-                let msg = format!("unknown-method `{name}` on {}", self.show(rt));
+                let msg = format!("no method `{name}` on {}", self.show(rt));
                 self.err(Code::UnknownMethod, n, &msg);
                 Ok((Ref(NONE), Ty::NEVER))
             }

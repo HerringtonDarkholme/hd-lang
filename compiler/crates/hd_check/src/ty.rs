@@ -245,7 +245,7 @@ impl Ck<'_, '_> {
                     self.err(
                         hd_diag::Code::MutOnPrimitive,
                         n,
-                        "mut-on-primitive: a primitive type has no `mut` form",
+                        "a primitive type has no `mut` form",
                     );
                     return Ok(t);
                 }
@@ -253,7 +253,7 @@ impl Ck<'_, '_> {
                     self.err(
                         hd_diag::Code::MutOnTuple,
                         n,
-                        "mut-on-tuple: a tuple type has no `mut` form",
+                        "a tuple type has no `mut` form",
                     );
                     return Ok(t);
                 }

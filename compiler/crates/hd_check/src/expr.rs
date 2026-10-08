@@ -224,7 +224,7 @@ impl Ck<'_, '_> {
                     && self.scopes.last().is_some_and(|s| s.contains_key(&name))
                 {
                     let msg = format!(
-                        "duplicate-binding: `{}` is already bound in this scope",
+                        "`{}` is already bound in this scope",
                         self.cx.names.text(name)
                     );
                     self.err(Code::DuplicateBinding, *pat, &msg);
@@ -393,7 +393,7 @@ impl Ck<'_, '_> {
                             None => self.global_get(sym, n),
                         };
                         let Some((r, ty)) = read else {
-                            let msg = format!("unknown-name `{name}`");
+                            let msg = format!("`{name}` is not defined");
                             self.err(Code::UnknownName, n, &msg);
                             continue;
                         };
@@ -457,7 +457,7 @@ impl Ck<'_, '_> {
         // numbers only, `-` on signed numbers; `-` and `~` on other types
         // are the `Neg` and `Not` traits (`expr.op.desugar`).
         let mismatch = |me: &mut Self, what: &str| {
-            let msg = format!("type-mismatch: {what} does not apply to {}", me.show(t));
+            let msg = format!("{what} does not apply to {}", me.show(t));
             me.err(Code::TypeMismatch, n, &msg);
             Ok((
                 me.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
@@ -604,10 +604,7 @@ impl Ck<'_, '_> {
             // `expr.is.value-operand`: both operands have identity.
             for (t, at) in [(at, n), (ct, rn)] {
                 if !self.has_identity(t) {
-                    let msg = format!(
-                        "identity-requires-references: {} has no identity to compare with `is`",
-                        self.show(t)
-                    );
+                    let msg = format!("{} has no identity to compare with `is`", self.show(t));
                     self.err(Code::IdentityRequiresReferences, at, &msg);
                 }
             }
@@ -645,10 +642,7 @@ impl Ck<'_, '_> {
             // `expr.bit.non-integer-no-impl`: bitwise operators and shifts
             // take integers.
             if (bitwise || shift) && self.float_like(at) {
-                let msg = format!(
-                    "type-mismatch: bitwise operators take integers, not {}",
-                    self.show(at)
-                );
+                let msg = format!("bitwise operators take integers, not {}", self.show(at));
                 self.err(Code::TypeMismatch, n, &msg);
             }
             let result = if cmp { Ty::BOOL } else { at };
@@ -690,7 +684,7 @@ impl Ck<'_, '_> {
         }
         if !self.op_fits(tr, at, Some(ct))? {
             let msg = format!(
-                "type-mismatch: {} does not implement `{trait_name}` for this operand",
+                "{} does not implement `{trait_name}` for this operand",
                 self.show(at)
             );
             self.err(Code::TypeMismatch, n, &msg);
@@ -734,10 +728,7 @@ impl Ck<'_, '_> {
             _ => false,
         };
         if !ok {
-            let msg = format!(
-                "type-mismatch: a shift count must be unsigned, found {}",
-                self.show(ct)
-            );
+            let msg = format!("a shift count must be unsigned, found {}", self.show(ct));
             self.err(Code::TypeMismatch, rn, &msg);
         }
     }
@@ -789,10 +780,7 @@ impl Ck<'_, '_> {
         let pool = self.cx.names.pool;
         let tr = self.cx.names.item("std.cmp", "PartialOrd");
         if !self.op_fits(tr, at, Some(ct))? {
-            let msg = format!(
-                "type-mismatch: {} does not implement `PartialOrd`",
-                self.show(at)
-            );
+            let msg = format!("{} does not implement `PartialOrd`", self.show(at));
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }
@@ -910,7 +898,7 @@ impl Ck<'_, '_> {
         {
             let items = pool.list_items(elems);
             let Some(t) = items.get(i).copied() else {
-                let msg = format!("unknown-data-field `{name}` on {}", self.show(bt));
+                let msg = format!("no field `{name}` on {}", self.show(bt));
                 self.err(Code::UnknownDataField, n, &msg);
                 return Ok((Ref(NONE), Ty::NEVER));
             };
@@ -928,7 +916,7 @@ impl Ck<'_, '_> {
         if matches!(pool.get(inner), TyData::Infer(_)) {
             return self.gap(n, "a field of a value whose type is not yet known");
         }
-        let msg = format!("unknown-data-field `{name}` on {}", self.show(bt));
+        let msg = format!("no field `{name}` on {}", self.show(bt));
         self.err(Code::UnknownDataField, n, &msg);
         Ok((Ref(NONE), Ty::NEVER))
     }
@@ -991,7 +979,7 @@ impl Ck<'_, '_> {
         // `expr.index.trait.no-read`.
         if !self.op_fits(index, bt, Some(kt))? {
             let msg = format!(
-                "type-mismatch: {} has no `Index` implementation for this key",
+                "{} has no `Index` implementation for this key",
                 self.show(bt)
             );
             self.err(Code::TypeMismatch, n, &msg);
@@ -1168,7 +1156,7 @@ impl Ck<'_, '_> {
                 })
                 .flatten()
         }) else {
-            let msg = format!("unknown-type `{}`", segs.join("."));
+            let msg = format!("no type named `{}`", segs.join("."));
             self.err(Code::UnknownType, *name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
@@ -1176,7 +1164,7 @@ impl Ck<'_, '_> {
             return unsupported("a data literal of an unknown item");
         };
         let ItemData::Data(fields) = item.data.clone() else {
-            let msg = format!("unknown-type `{}`: not a data type", segs.join("."));
+            let msg = format!("no type named `{}`: not a data type", segs.join("."));
             self.err(Code::UnknownType, *name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
@@ -1215,7 +1203,7 @@ impl Ck<'_, '_> {
             }
             let fname = self.sym_of(*a);
             let Some(i) = fields.iter().position(|f| f.name == fname) else {
-                let msg = format!("unknown-data-field `{}`", self.cx.names.text(fname));
+                let msg = format!("no field `{}`", self.cx.names.text(fname));
                 self.err(Code::UnknownDataField, *a, &msg);
                 continue;
             };
@@ -1225,7 +1213,7 @@ impl Ck<'_, '_> {
             } else {
                 // Shorthand `Name { x }`.
                 let Some((l, d)) = self.find_local(fname) else {
-                    let msg = format!("unknown-name `{}`", self.cx.names.text(fname));
+                    let msg = format!("`{}` is not defined", self.cx.names.text(fname));
                     self.err(Code::UnknownName, *a, &msg);
                     continue;
                 };
@@ -1262,7 +1250,7 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 let msg = format!(
-                    "missing-required-field `{}` in `{}`",
+                    "`{}` is required in `{}`",
                     self.cx.names.text(f.name),
                     segs.join(".")
                 );
@@ -1421,7 +1409,7 @@ impl Ck<'_, '_> {
             self.err(
                 Code::RefutableLetPattern,
                 pat,
-                "refutable-let-pattern: a `for` pattern must match every item",
+                "a `for` pattern must match every item",
             );
         }
     }
@@ -1506,7 +1494,7 @@ impl Ck<'_, '_> {
                     self.err(
                         Code::MutableReceiverRequired,
                         src,
-                        "mutable-receiver-required: a loop advances its iterator, which needs `mut` access",
+                        "a loop advances its iterator, which needs `mut` access",
                     );
                 }
                 (
@@ -1703,7 +1691,7 @@ impl Ck<'_, '_> {
         self.err(
             Code::PlaceholderOutsidePipe,
             n,
-            "placeholder-outside-pipe: `_` stands for a pipe's value only in its step",
+            "`_` stands for a pipe's value only in its step",
         );
         (Ref(NONE), Ty::NEVER)
     }
@@ -1723,7 +1711,7 @@ impl Ck<'_, '_> {
             self.err(
                 Code::PipeStepNeedsPlaceholder,
                 *step,
-                "pipe-step-needs-placeholder: write `_` where the piped value goes",
+                "write `_` where the piped value goes",
             );
         }
         r
@@ -2032,7 +2020,7 @@ impl Ck<'_, '_> {
                 self.err(
                     Code::InvalidResultPropagation,
                     n,
-                    "invalid-result-propagation: `?` needs a Result or an optional in a function returning one",
+                    "`?` needs a Result or an optional in a function returning one",
                 );
                 Ok((Ref(NONE), Ty::NEVER))
             }
@@ -2107,7 +2095,7 @@ impl Ck<'_, '_> {
             // A mutable requirement trait needs a `mut` provider.
             if self.trait_is_mutable(def, 0) && self.is_composite(t) && !self.has_mut_access(t) {
                 let msg = format!(
-                    "mutable-upgrade: `{}` has `mut self` methods, so its provider needs `mut` access, but this is a readonly {}",
+                    "`{}` has `mut self` methods, so its provider needs `mut` access, but this is a readonly {}",
                     self.cx.names.path(def),
                     self.show(t)
                 );
@@ -2187,7 +2175,7 @@ impl Ck<'_, '_> {
         });
         if !covered {
             let msg = format!(
-                "missing-requirement: this needs `$ {}`, which the enclosing function's row does not name",
+                "this needs `$ {}`, which the enclosing function's row does not name",
                 hd_resolve::show_ty(
                     &self.cx.names,
                     pool.intern_ty(&TyData::TraitValue {

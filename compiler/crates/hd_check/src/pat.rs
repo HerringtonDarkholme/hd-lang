@@ -89,10 +89,7 @@ impl Ck<'_, '_> {
                 // `flow.match.bare-variant`: a bare name of a variant of
                 // the subject's enum is not a catch-all binding.
                 if self.variant_fields(t, self.cx.src.text(nt)).is_some() {
-                    let msg = format!(
-                        "bare-variant-pattern: write `.{}` or a qualified name",
-                        self.cx.src.text(nt)
-                    );
+                    let msg = format!("write `.{}` or a qualified name", self.cx.src.text(nt));
                     self.err(Code::BareVariantPattern, p, &msg);
                     return Ok(());
                 }
@@ -101,7 +98,7 @@ impl Ck<'_, '_> {
                     .any(|(_, l)| self.b.body_mut().local_name[l.idx()] == name)
                 {
                     let msg = format!(
-                        "duplicate-binding: `{}` is bound twice in one pattern",
+                        "`{}` is bound twice in one pattern",
                         self.cx.names.text(name)
                     );
                     self.err(Code::DuplicateBinding, p, &msg);
@@ -160,18 +157,13 @@ impl Ck<'_, '_> {
                         vs
                     }
                     _ => {
-                        let msg =
-                            format!("type-mismatch in pattern: {} is not a tuple", self.show(t));
+                        let msg = format!("in pattern: {} is not a tuple", self.show(t));
                         self.err(Code::TypeMismatch, p, &msg);
                         return Ok(());
                     }
                 };
                 if elems.len() != subs.len() {
-                    self.err(
-                        Code::PatternArity,
-                        p,
-                        "pattern-arity: the tuple has another size",
-                    );
+                    self.err(Code::PatternArity, p, "the tuple has another size");
                     return Ok(());
                 }
                 for (s, et) in subs.iter().zip(elems) {
@@ -185,7 +177,7 @@ impl Ck<'_, '_> {
                     .direct_tokens()
                     .any(|t| self.cx.src.tkind(t) == Some(TokenKind::Dot))
                 {
-                    let msg = format!("bare-variant-pattern: write `.{name}` or a qualified name");
+                    let msg = format!("write `.{name}` or a qualified name");
                     self.err(Code::BareVariantPattern, p, &msg);
                     return Ok(());
                 }
@@ -193,7 +185,7 @@ impl Ck<'_, '_> {
                     if matches!(pool.get(inner), TyData::Infer(_)) {
                         return unsupported("a variant pattern on a value whose type is not known");
                     }
-                    let msg = format!("unknown-variant `.{name}` of {}", self.show(t));
+                    let msg = format!("no variant `.{name}` of {}", self.show(t));
                     self.err(Code::UnknownVariant, p, &msg);
                     return Ok(());
                 };
@@ -202,7 +194,7 @@ impl Ck<'_, '_> {
                     self.err(
                         Code::PatternArity,
                         p,
-                        "pattern-arity: the variant has another number of fields",
+                        "the variant has another number of fields",
                     );
                     return Ok(());
                 }
@@ -220,15 +212,13 @@ impl Ck<'_, '_> {
                 {
                     let fname = self.cx.src.text(self.cx.src.first(f)).to_owned();
                     if seen.contains(&fname) {
-                        let msg = format!(
-                            "duplicate-data-pattern-field: `{fname}` appears twice in this pattern"
-                        );
+                        let msg = format!("`{fname}` appears twice in this pattern");
                         self.err(Code::DuplicateDataPatternField, f, &msg);
                         continue;
                     }
                     seen.push(fname.clone());
                     let Some((_, ft)) = self.field_of(t, &fname) else {
-                        let msg = format!("unknown-data-field `{fname}` on {}", self.show(t));
+                        let msg = format!("no field `{fname}` on {}", self.show(t));
                         self.err(Code::UnknownDataField, f, &msg);
                         continue;
                     };
@@ -410,18 +400,12 @@ impl Ck<'_, '_> {
                 Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
             );
             match pool.get(self.strip_mut(t)) {
-                _ if lit => self.err(
-                    Code::MutOnPrimitive,
-                    pat,
-                    "mut-on-primitive: `let mut` on a primitive value",
-                ),
-                TyData::Prim(_) => self.err(
-                    Code::MutOnPrimitive,
-                    pat,
-                    "mut-on-primitive: `let mut` on a primitive value",
-                ),
+                _ if lit => self.err(Code::MutOnPrimitive, pat, "`let mut` on a primitive value"),
+                TyData::Prim(_) => {
+                    self.err(Code::MutOnPrimitive, pat, "`let mut` on a primitive value");
+                }
                 TyData::Tuple { .. } => {
-                    self.err(Code::MutOnTuple, pat, "mut-on-tuple: `let mut` on a tuple");
+                    self.err(Code::MutOnTuple, pat, "`let mut` on a tuple");
                 }
                 _ => self.let_mut_name(t, annot.is_some(), pat),
             }
@@ -463,12 +447,12 @@ impl Ck<'_, '_> {
             None if refutable => self.err(
                 Code::RefutableLetPattern,
                 pat,
-                "refutable-let-pattern: this pattern can fail to match; add an `else` block",
+                "this pattern can fail to match; add an `else` block",
             ),
             Some(e) if !refutable => self.err(
                 Code::UnreachableMatchArm,
                 e,
-                "unreachable-match-arm: the pattern always matches, so `else` never runs",
+                "the pattern always matches, so `else` never runs",
             ),
             _ => {}
         }
@@ -499,7 +483,7 @@ impl Ck<'_, '_> {
                 self.err(
                     Code::LetElseFallsThrough,
                     e,
-                    "let-else-falls-through: the `else` suite must leave the block",
+                    "the `else` suite must leave the block",
                 );
             }
             arms.push(self.b.close_block(eb, None, Ty::NEVER, e.index()));
@@ -1036,7 +1020,7 @@ impl Ck<'_, '_> {
                 self.err(
                     Code::UnreachableMatchArm,
                     node,
-                    "unreachable-match-arm: the arms before this one match all of its values",
+                    "the arms before this one match all of its values",
                 );
             }
             if r.guard.is_none() {
@@ -1066,7 +1050,7 @@ impl Ck<'_, '_> {
                         .join(", ")
                 },
             );
-            let msg = format!("nonexhaustive-match: no arm matches {missing}");
+            let msg = format!("no arm matches {missing}");
             self.err(Code::NonexhaustiveMatch, n, &msg);
         }
     }

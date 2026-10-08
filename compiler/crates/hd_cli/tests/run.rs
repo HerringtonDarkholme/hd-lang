@@ -130,7 +130,37 @@ fn run_reports_check_errors() {
         .expect("run hd");
     assert!(!output.status.success());
     let err = String::from_utf8_lossy(&output.stderr);
-    assert!(err.contains("unknown-name `missing`"), "{err}");
+    assert!(
+        err.contains("unknown-name: `missing` is not defined"),
+        "{err}"
+    );
+}
+
+/// A rendered line is `severity: file:line:column: code: message`; the
+/// message must not repeat the code.
+#[test]
+fn rendered_diagnostics_do_not_repeat_their_code() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-no-repeat");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("twice.hd");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n    println(missing)\n    let flag: i32 = true\n    println(flag)\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-no-repeat"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    assert!(!output.status.success());
+    let err = String::from_utf8_lossy(&output.stderr);
+    let lines: Vec<&str> = err.lines().collect();
+    assert!(lines.len() >= 2, "{err}");
+    for line in lines {
+        let parts: Vec<&str> = line.splitn(4, ": ").collect();
+        assert_eq!(parts.len(), 4, "{line}");
+        assert!(!parts[3].contains(parts[2]), "{line}");
+    }
 }
 
 /// `cli.diagnostics.text`: each diagnostic prints its severity, then

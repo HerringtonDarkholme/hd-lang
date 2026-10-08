@@ -180,8 +180,7 @@ impl Lower<'_, '_, '_> {
     }
 
     fn target_error(&mut self, span: Span, what: &str) {
-        let msg = format!("decorator-target-kind: {what}");
-        self.diags.error(Code::DecoratorTargetKind, span, &msg);
+        self.diags.error(Code::DecoratorTargetKind, span, what);
     }
 
     fn check_decorators(&mut self, n: NodeRef<'_>, place: Place, items: &HashMap<DefId, &Item>) {
@@ -192,7 +191,7 @@ impl Lower<'_, '_, '_> {
             match deco.name.as_str() {
                 "derive" => {
                     if k & (kind::FN | kind::TRAIT | kind::IMPL | kind::METHOD) != 0 {
-                        let msg = "decorator-not-annotator: `@derive` precedes only a data type or an enum";
+                        let msg = "`@derive` precedes only a data type or an enum";
                         self.diags.error(Code::DecoratorNotAnnotator, span, msg);
                     }
                 }

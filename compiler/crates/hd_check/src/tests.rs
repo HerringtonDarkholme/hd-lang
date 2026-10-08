@@ -112,7 +112,7 @@ pub fn check_tests(cx: &BodyCx<'_>, module: &str, diags: &mut DiagBuf) -> StageR
             diags.error(
                 Code::InvalidTestStatement,
                 src.span(s),
-                "invalid-test-statement: a `tests:` block holds only test registrations",
+                "a `tests:` block holds only test registrations",
             );
             continue;
         };
@@ -137,9 +137,7 @@ pub fn check_tests(cx: &BodyCx<'_>, module: &str, diags: &mut DiagBuf) -> StageR
                     let literal = |diags: &mut DiagBuf| {
                         let t = literal_text(src, e);
                         if t.is_none() {
-                            let msg = format!(
-                                "non-literal-test-argument: `{name}` takes a string literal"
-                            );
+                            let msg = format!("`{name}` takes a string literal");
                             diags.error(Code::NonLiteralTestArgument, src.span(e), &msg);
                         }
                         t
@@ -151,9 +149,7 @@ pub fn check_tests(cx: &BodyCx<'_>, module: &str, diags: &mut DiagBuf) -> StageR
                             if let Some(c) = &reg.expect_panic
                                 && !PANIC_CATEGORIES.contains(&c.as_str())
                             {
-                                let msg = format!(
-                                    "unknown-panic-category: `{c}` names no panic category"
-                                );
+                                let msg = format!("`{c}` names no panic category");
                                 diags.error(Code::UnknownPanicCategory, src.span(e), &msg);
                             }
                         }
@@ -162,9 +158,7 @@ pub fn check_tests(cx: &BodyCx<'_>, module: &str, diags: &mut DiagBuf) -> StageR
                         }
                         "body" => body_arg = Some(e),
                         other => {
-                            let msg = format!(
-                                "unknown-named-argument: `{kind}` has no parameter `{other}`"
-                            );
+                            let msg = format!("`{kind}` has no parameter `{other}`");
                             diags.error(Code::UnknownNamedArgument, src.span(a), &msg);
                         }
                     }
@@ -178,12 +172,12 @@ pub fn check_tests(cx: &BodyCx<'_>, module: &str, diags: &mut DiagBuf) -> StageR
             diags.error(
                 Code::NonLiteralTestArgument,
                 src.span(call),
-                "non-literal-test-argument: a test name is a string literal",
+                "a test name is a string literal",
             );
             continue;
         }
         if !seen.insert(reg.name.clone()) {
-            let msg = format!("duplicate-test-name: `{}` is registered twice", reg.name);
+            let msg = format!("`{}` is registered twice", reg.name);
             diags.error(Code::DuplicateTestName, src.span(call), &msg);
             continue;
         }

@@ -134,7 +134,7 @@ impl Ck<'_, '_> {
                 self.err(
                     Code::ReturnOutsideFunction,
                     s,
-                    "return-outside-function: `return` needs a function or closure",
+                    "`return` needs a function or closure",
                 );
                 return Ok(());
             }
@@ -142,7 +142,7 @@ impl Ck<'_, '_> {
                 self.err(
                     Code::DeferOutsideCleanupScope,
                     s,
-                    "defer-outside-cleanup-scope: a module's top level is not a cleanup scope",
+                    "a module's top level is not a cleanup scope",
                 );
                 return Ok(());
             }
@@ -266,16 +266,13 @@ impl Ck<'_, '_> {
                 .children()
                 .find(|c| c.kind() == SyntaxKind::VariantSharedData)
             else {
-                let msg = format!(
-                    "missing-required-field: variant `{vname}` gives no shared data of `{ename}`"
-                );
+                let msg = format!("variant `{vname}` gives no shared data of `{ename}`");
                 self.err(Code::MissingRequiredField, v, &msg);
                 continue;
             };
             let owner = self.cx.src.text(self.cx.src.first(sd)).to_owned();
             if owner != ename {
-                let msg =
-                    format!("variant-result-owner: `{owner}` is not the enclosing enum `{ename}`");
+                let msg = format!("`{owner}` is not the enclosing enum `{ename}`");
                 self.err(Code::VariantResultOwner, sd, &msg);
                 continue;
             }
@@ -306,7 +303,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Vec<Ref>> {
         let mut slots: Vec<Option<Ref>> = vec![None; params.len()];
         if args.positional.len() > params.len() {
-            let msg = format!("argument-count: `{ename}` takes {} arguments", params.len());
+            let msg = format!("`{ename}` takes {} arguments", params.len());
             self.err(Code::ArgumentCount, at, &msg);
         }
         for (i, e) in args.positional.iter().enumerate() {
@@ -321,12 +318,12 @@ impl Ck<'_, '_> {
                 .iter()
                 .position(|p| self.cx.names.text(p.0) == pname.as_str())
             else {
-                let msg = format!("unknown-named-argument: `{ename}` has no parameter `{pname}`");
+                let msg = format!("`{ename}` has no parameter `{pname}`");
                 self.err(Code::UnknownNamedArgument, *e, &msg);
                 continue;
             };
             if slots[i].is_some() {
-                let msg = format!("duplicate-argument: `{pname}` is given twice");
+                let msg = format!("`{pname}` is given twice");
                 self.err(Code::DuplicateArgument, *e, &msg);
                 continue;
             }
@@ -353,10 +350,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let Some(e) = defaults.get(i).copied().flatten() else {
-                let msg = format!(
-                    "missing-required-field: `{ename}` needs `{}`",
-                    self.cx.names.text(params[i].0)
-                );
+                let msg = format!("`{ename}` needs `{}`", self.cx.names.text(params[i].0));
                 self.err(Code::MissingRequiredField, at, &msg);
                 return Ok(Vec::new());
             };
@@ -488,9 +482,7 @@ pub fn definite_init(
         if let Some((_, late)) = late.first()
             && let Some(s) = stmts.get(i)
         {
-            let msg = format!(
-                "top-level-read-before-initialization: this statement reads `{late}` before its initialization"
-            );
+            let msg = format!("this statement reads `{late}` before its initialization");
             diags.error(
                 Code::TopLevelReadBeforeInitialization,
                 cx.src.span(*s),

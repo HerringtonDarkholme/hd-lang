@@ -2,7 +2,7 @@
 //! on the serial and the pool executor; and the build-stopping rule.
 
 use hd_cache::MemoryStore;
-use hd_driver::{Executor, Goal, Host, NoClock, Output, build, messages};
+use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -161,7 +161,7 @@ fn incremental(executor: Executor) {
     );
     assert!(r.wasm.is_none());
     assert!(
-        messages(&r).iter().any(|d| d.contains("argument-count")),
+        (0..r.diags.len()).any(|i| r.diags.code[i].as_str() == "argument-count"),
         "{}",
         r.render()
     );

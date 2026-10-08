@@ -159,7 +159,7 @@ pub fn promotion_conflicts(
                 item,
                 field,
                 message: format!(
-                    "ambiguous-promoted-member: the private member `{root}.{name}` is also promoted as `{}`; rename the private member",
+                    "the private member `{root}.{name}` is also promoted as `{}`; rename the private member",
                     promoted.shown
                 ),
             });
@@ -186,7 +186,7 @@ pub fn promotion_conflicts(
             item: it.def,
             field: Some(later),
             message: format!(
-                "ambiguous-promoted-member: `{}` and `{}` are both named `{name}` at depth {least}; hide them with a `pub` member of `{root}`",
+                "`{}` and `{}` are both named `{name}` at depth {least}; hide them with a `pub` member of `{root}`",
                 first.shown, second.shown
             ),
         });

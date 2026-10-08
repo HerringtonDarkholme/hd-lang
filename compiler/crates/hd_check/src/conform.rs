@@ -157,7 +157,7 @@ impl Ck<'_, '_> {
             || (mname == "rest" && tpath == "std/structure/Walker"));
         if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, &inst) {
             let msg = format!(
-                "trait-method-signature: `{}` differs from the trait's declaration: {why}",
+                "`{}` differs from the trait's declaration: {why}",
                 self.cx.names.text(it.name)
             );
             self.err(Code::TraitMethodSignature, node, &msg);

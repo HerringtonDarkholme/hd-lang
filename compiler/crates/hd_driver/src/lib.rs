@@ -602,7 +602,7 @@ impl Run<'_> {
         lock(&self.diags).error(
             Code::Unsupported,
             span,
-            &format!("unsupported: {}: {what}", s.name()),
+            &format!("stage {}: {what} is not supported", s.name()),
         );
     }
 
@@ -746,7 +746,7 @@ impl Run<'_> {
             lock(&self.diags).error(
                 Code::FolderCycle,
                 span,
-                &format!("folder-cycle: {}", names.join(" -> ")),
+                &format!("folders form a cycle: {}", names.join(" -> ")),
             );
         }
         let pr = sp.add_held(TaskKind::PackageResult, &[]);
@@ -973,7 +973,7 @@ impl Run<'_> {
                 && hd_host_abi::intrinsic(names.text(k)).is_none()
             {
                 let msg = format!(
-                    "unsupported: `{}` names the unknown intrinsic `{}`",
+                    "`{}` names the unknown intrinsic `{}`",
                     names.path(it.def),
                     names.text(k)
                 );
@@ -1211,7 +1211,7 @@ impl Run<'_> {
         let mut d = lock(&self.diags);
         for (a, b, witness) in overlaps {
             let msg = format!(
-                "overlapping-impl: {} and {} both apply to {witness}",
+                "implementations {} and {} both apply to {witness}",
                 names.path(a),
                 names.path(b)
             );
@@ -1402,7 +1402,7 @@ impl Run<'_> {
             let missing = hd_check::omitted_trait_methods(&names, &lookup, h.def);
             if !missing.is_empty() {
                 let msg = format!(
-                    "missing-trait-method: the implementation does not write `{}`",
+                    "the implementation does not write `{}`",
                     missing.join("`, `")
                 );
                 diags.error(Code::MissingTraitMethod, src.span(h.node), &msg);
@@ -1834,9 +1834,7 @@ impl Run<'_> {
             lock(&self.diags).error(
                 Code::MissingEntryPoint,
                 span,
-                &format!(
-                    "missing-entry-point: `{entry_key}` has no `fn main` or top-level statements"
-                ),
+                &format!("`{entry_key}` has no `fn main` or top-level statements"),
             );
             return;
         }
