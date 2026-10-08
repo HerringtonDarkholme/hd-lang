@@ -132,6 +132,11 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
   classification ([codegen.md §13.8](codegen.md#138-code-entries)). A
   change to a callee's summary then re-emits its callers, even when
   their own TIR is unchanged.
+- **M4b gap 4.** M4b's `code_key` stops at the pipeline, instance, item
+  TIR and an aggregate callee-representation hash. It does not yet carry
+  the interface, layout, selected-impl, inline-summary, inlined-body or
+  literal dependencies required by codegen.md §13.8. Code-cache hits are
+  therefore provisional until that complete dependency record lands.
 - **Dependency closures.** `closure(m)` is m's own folder plus every
   folder reachable from it through the folder graph's use edges. It is
   the transitive closure, not only the folders m names. `closure(F)` is

@@ -61,6 +61,12 @@ and, in hook builds, `hd:hook`.
 
 **`hd.runtime`** is a custom section, as the prototype's is:
 
+**M4b gap 5.** M4b generates panic stubs and the Node host path, but link
+writes neither `hd.runtime` nor the `hd.sites` and `hd.folds` sections
+that make a trap attributable and folded aliases visible. The metadata
+contract below remains required; a Wasm file without it is not yet a
+standalone hd artifact under this design.
+
 ```rust
 pub struct RuntimeMeta {
     pub format: u16,

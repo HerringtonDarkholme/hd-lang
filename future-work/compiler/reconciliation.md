@@ -2,7 +2,7 @@
 
 Part of the [compiler design](README.md).
 
-Status: review, 2026-10-07, after M4a (`037cd289`). It compares
+Status: review, 2026-10-07, after M4b (`74e2f624`). It compares
 `compiler/crates` with the design docs of this folder and records the
 authorized corrections. Where the code is right and a doc is wrong, the
 verdict says "design wrong". Earlier
@@ -17,8 +17,10 @@ std modules and their 1,080 bodies through checking, verified TIR, row
 checks, usefulness and definite module initialization. The one driver
 uses the full parser, `hd_project`, `hd_resolve`, `hd_types`,
 `hd_tir::Body`, every executor, `CacheStore`, `hd_mono` and `hd_wasm`.
-The remaining findings are feature coverage and incomplete cache/runtime
-details, not a second compiler pipeline.
+M4b carries a std-using program through collection, layout-driven Wasm,
+link and V8, with warm cache hits and deterministic bytes across serial
+and pool executors. The remaining findings are feature coverage and
+incomplete cache/runtime details, not a second compiler pipeline.
 
 ## Summary: The Top 10
 
@@ -55,11 +57,12 @@ Ranked by how much each blocks the next working language slice.
    named Rust views, the schema generator and the JavaScript decoder do
    not exist.
    Browser consumers still lack the designed stable generated surface.
-8. **Emission follows the designed types but covers only a scalar slice.**
-   M4a now supplies verified TIR for the std corpus, including calls,
-   aggregates, rows, control flow and suspension values. The emitter still
-   handles only its earlier scalar subset; suspensions, GC aggregates,
-   metadata, panic sites and many TIR forms return `NotImplemented`.
+8. **Emission now runs a representative std-using program, but the long
+   tail is large.** Layout-driven Wasm covers data, value enums, lists,
+   maps, closures, trait calls, matches, interpolation and std `println`.
+   Module globals, state machines, provider contexts, defaults, several
+   control-flow and collection tags, panic metadata and advanced erased
+   calls still return `NotImplemented` or use M4b shortcuts.
 9. **Task-boundary panic isolation regressed.** The old architecture path
    caught panics; the unified `Exec` calls tasks directly under serial and
    rayon executors. One task panic can unwind the build instead of becoming
@@ -140,6 +143,28 @@ missed a case); **duplicate** (two code paths for one design thing);
 | M4a gap 6. Intrinsic impl methods have no TIR body | `Run::body` skips body-less intrinsic-family methods; `hd_mono::Env::intrinsic` maps selected intrinsics | Collection maps a body-less intrinsic plus substituted self and trait arguments to its compiler-generated body; no absent TIR is loaded | codegen.md records collection behavior; implementation stays |
 | M4a gap 7. Four designed checker results are absent | `InferTable` strips `mut` during unification; closure checking records captures but not inferred rows; `InitFacts` records direct calls and reads but not dispatch; `Body::susp` is never populated | Add `mutable-receiver-required`, `readonly-argument-to-mutable-parameter`, `mutable-upgrade` and `redundant-let-mut`; infer closure rows; include dispatch in init reachability; and write one `SuspRow` per suspension point | implementation gaps; the owning designs stay |
 
+### M4b Findings
+
+| Finding | Code evidence | Intended rule | Side that changes |
+| --- | --- | --- | --- |
+| M4b gap 1. Suspension is a poll reference only | `hd_wasm::layout::suspend_base`; intrinsic `block_on` loops over `call_ref` then calls `hd:rt.block` | `$Suspend_L` retains state, flags, driver, waker and cancellation behavior; the reduced form is only an M4b bridge | suspension.md records the implementation boundary |
+| M4b gap 2. Vtables allocate at each coercion and omit supertraits | `hd_wasm::emit::coerce` emits method refs followed by `struct.new` | One constant global per `(type, trait reference)`, with direct-supertrait fields in declaration order | codegen.md and wasm-layout.md retain the intended rule |
+| M4b gap 3. Every erased scalar is boxed | `hd_wasm::emit::erase` calls `box_of` for non-reference layouts | Integers use the `i31ref` fast path when representable and allocate a box only on a miss; floats remain boxed | wasm-layout.md records the gap |
+| M4b gap 4. Code keys omit emission dependencies | `hd_cache::code_key` hashes pipeline, instance, TIR and one callee-representation hash | The key also includes read interface, layout, selected-impl, inline, inlined-body and literal dependencies from §13.8 | codegen.md and cache.md record the incomplete key |
+| M4b gap 5. Link writes no panic/runtime metadata or folds | `hd_wasm::link` emits only the standard `name` custom section | Link writes `hd.sites`, `hd.lines`, `hd.folds` and `hd.runtime`, remaps offsets through folding and preserves panic sites | codegen.md and runtime-and-host.md record the boundary |
+| M4b gap 6. Every reference local is nullable | `hd_wasm::asm::Asm::local` stores `vt.dflt()` and `get` narrows non-null logical refs | Language locals keep non-null types; only conditionally inactive slots use defaultable layouts | wasm-layout.md records the gap |
+| M4b gap 7. Emission trusts TIR | `hd_wasm::emit` indexes instruction and record vectors directly | Debug and CI emission assert substituted types, selections, suspension cases and relocation membership; malformed input becomes a named internal error | codegen.md §12.7 records the missing checks |
+| M4b gap 8. Hello is about 4.8 KB with dev names | M4b's linked module carries the standard `name` section and reachable formatting helpers | Keep the 2 KB target; attribute every section and reachable body before tuning or changing the design | wasm-layout.md records the measurement; Q14 supplies the accounting |
+| M4b gap 9. An interpolation leaks a nested literal into its parts | `hd_check::expr::string_expr` advances syntax children while separately walking string-piece tokens | The outer interpolation owns one expression result; nested literals remain only inside that expression | type-checking.md records the traversal invariant; implementation changes |
+| M4b gap 10. Many TIR and layout forms still stop emission | `hd_wasm::emit` and `layout` return structured `NotImplemented` for the listed forms | Extend the one layout-driven emitter; do not add a second lowering path | implementation gap; the design stays |
+
+The **M4b gap 10** inventory is `GlobalGet`/`GlobalSet`; every `Await`
+tag; `With`/`ContextNew`/`ContextFor`; `ItemRef`, `Is`, `CallHost`,
+`DefaultCall`, `CopyData`, `SwitchStr`, the `For` tags and `Scope` with
+`defer`; `MapRemove`, `MapIter` and `StrIndex`; `ToAny` and `Supertrait`;
+f32 arithmetic and wider conversions; shared captures; generic methods
+through `dyn`; and recursive types.
+
 ### Findings Table
 
 | Design section | Code path | Finding | Verdict | Proposed fix |
@@ -192,13 +217,13 @@ missed a case); **duplicate** (two code paths for one design thing);
 | codegen.md §11.2, §11.3, SK-N12 | `Run::collect`, `Run::decode_pending` | `prog_key` lists every module, and a miss decodes every module's TIR, not only modules the root reaches | impl wrong | Reachable modules from the manifest's use lists, as §11.3 says |
 | codegen.md §11.3 | `Run::package_result` | `Collect` runs after all of `PackageResult`, not after the `tir` entries and `HeaderCheck` tasks of reached folders only | both ok | Keep for one program; split when tests add programs |
 | codegen.md §11.4 | `hd_run` depends on `hd_cache` | The design's crate table now records this dependency | both ok | None |
-| codegen.md §12.1, §12.2 | `hd_wasm::emit` over `hd_tir::Body` and `layout_of` | The duplicate emitter types and private layout were deleted; many TIR forms remain unsupported | both ok | Extend this emitter only |
+| codegen.md §12.1, §12.2 | `hd_wasm::emit` over `hd_tir::Body` and the structural layout engine | M4b emits a representative std-using program through V8; the gap-10 forms remain structured unsupported cases | both ok | Extend this emitter only |
 | codegen.md §13.2, SK-2 | `hd_check::body` (`rep_summary`), `A1Rule` | Bounded parameter is always exact, as SK-2 decided; codegen.md §13.2 was updated | both ok | None |
 | codegen.md §13.3 | `hd_mono::layout::instance_key` | The duplicate `World`/`CTy` key path was deleted | both ok | None |
-| codegen.md §13.8, SK-3 | `hd_cache::code_key` | Callee summaries are in the code key, as SK-3 decided; the `deps` interface hashes of §13.8 are not (SK-N15) | gap | Add `deps` when a callee's interface can change its caller's code (inlining) |
+| codegen.md §13.8, SK-3 | `hd_cache::code_key` | Callee representation summaries are present, but interface, layout, selected-impl, inline, inlined-body and literal dependencies are absent | gap | Complete the dependency record before treating code-cache hits as sound (M4b gap 4) |
 | wasm-layout.md §15.1, §15.2 | `hd_mono::layout::layout_of`, used by hd_wasm | The private four-form emitter layout was deleted | both ok | None |
-| wasm-layout.md §15.4 to §15.6 | none | No globals, module init, panic sites or size accounting | gap | Slice 7 |
-| runtime-and-host.md §16.4 | `hd_wasm::meta::RuntimeMeta`, `hd_wasm::link` | The codec exists; `link` writes no `hd.runtime` section | gap | `link` writes it from the import set |
+| wasm-layout.md §15.4 to §15.6 | `hd_wasm::{link,rt}` | Literal globals, helper stubs and dev names exist; module storage, site metadata and folds do not, and hello measures about 4.8 KB | gap | Add module globals and metadata, then use Q14's attribution against the 2 KB target (M4b gaps 5 and 8) |
+| runtime-and-host.md §16.4 | `hd_wasm::meta::RuntimeMeta`, `hd_wasm::link` | The codec exists; link writes no `hd.runtime`, `hd.sites` or `hd.folds` section | gap | Write metadata and panic-site tables from the reached import and code sets (M4b gap 5) |
 | runtime-and-host.md §17.1, §17.2 | `hd_host_abi::{TABLE, PRELUDE_IMPORTS}` | Checking and emission consume the single ABI description | both ok | None |
 | runtime-and-host.md §17.9 | `hd_run::{Engine, run_program}`, `hd_cli::node` | Node implements the embedding API and `hd run` uses it; wasmtime remains an approved-later stub | both ok | Add wasmtime after approval |
 | engines-and-test-runner.md §18.4, build-order.md §22 | `hd_cli::node`, `hd_web` | Node is correctly behind `Engine`; the browser worker and glue remain incomplete | gap | Implement the browser Engine and worker in slice 9 |

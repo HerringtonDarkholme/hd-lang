@@ -44,6 +44,14 @@ $Suspend_L = (sub (struct (field $state (mut i32))      ;; resume point; 0 = not
 $F_f       = (sub final $Suspend_L (struct ... saved locals ... (field $child (mut (ref null $F_g))) ...))
 ```
 
+**M4b implementation boundary (M4b gap 1).** The current emitter uses a
+reduced `$Suspend_L` containing only a poll function reference. It has no
+state, flags, driver identity, saved fields, waker or cancel function.
+Its `block_on` lowering repeatedly calls that poll function and, on
+Pending, calls `hd:rt.block`. This is enough for the synchronous M4b exit
+program, but it does not replace the state-machine, one-shot, competing
+driver, wake or cancellation rules in this chapter.
+
 ### 14.2 The State Machine
 
 Emission builds the state machine from TIR's explicit suspension points;

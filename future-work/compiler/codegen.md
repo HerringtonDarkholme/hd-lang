@@ -474,8 +474,15 @@ budget would make one function's bytes depend on others.
 
 ### 12.7 Emission-Time Checks
 
-D1's TIR verifier (§4.13.11) holds before emission starts. During the
-walk, emission asserts in the compiler's debug builds and in CI:
+D1's TIR verifier (§4.13.11) holds before emission starts.
+
+**M4b gap 7.** The current emitter trusts verified TIR and indexes its
+instruction and record operands directly. It does not yet perform these
+emission assertions or turn malformed-input indexing into a named
+internal error. The intended checks below remain required even though
+M4b's valid TIR reaches V8.
+
+The intended walk asserts in compiler debug builds and CI:
 
 1. no `Param` type remains after substitution;
 2. every `TraitMethod` callee resolves to exactly one impl at the
@@ -758,6 +765,11 @@ growing type) has no finite instance set.
   is a global with a constant initializer, built once per `(type, trait
   reference)` pair, so a coercion to a trait value never allocates a
   vtable.
+- **M4b gap 2.** The current emitter constructs a vtable with
+  `struct.new` at every trait-value coercion and includes only the
+  trait's own method slots. It neither reuses a constant global nor
+  builds direct-supertrait fields. The constant, complete vtable shape
+  above remains the intended rule.
 - **Trait values** are pairs: the value as `eqref` and its vtable
   (§15.2). A call through a trait value is one `struct.get` and one
   `call_ref`.
@@ -1086,6 +1098,14 @@ pipeline_hash        = H(pipeline name, each pass's name, version and parameters
                          emit options, engine options)   (tiering.md §6.4)
 ```
 
+**M4b key gap (M4b gap 4).** The implementation currently hashes only
+the pipeline, instance key, item TIR hash, toolchain key and aggregate
+callee representation summary. It omits the per-item interface hashes,
+layout hashes, selected-impl interface hashes, callee inline summaries,
+inlined-item TIR hashes and literal numbers listed above. Those inputs
+remain part of the required code key; a hit is not sound until every
+emission read is represented.
+
 `pipeline_hash` replaces the earlier `tier` key part, and the profile is
 a separate part, since `hd test --release` pairs the test profile with
 the optimized pipeline. A pass version bump misses only the pipeline that
@@ -1215,6 +1235,12 @@ numbering, packs and filtered test programs are the largest for latency.
    `hd.runtime`, `hd.sites`, `hd.lines`, `hd.folds` (§15.5, §16.4).
    `hd.sites` and `hd.lines` hold anchors here; `hd build` resolves them
    to positions in the file it writes (§13.8, "Positions").
+
+**M4b metadata boundary (M4b gap 5).** The current link writes the dev
+`name` section only. It writes no `hd.sites`, `hd.lines`, `hd.folds` or
+`hd.runtime`, and performs no byte-identical-function fold. Panic stubs
+therefore carry no recoverable site metadata yet; steps 1, 8 and 9 remain
+required.
 
 ```text
 link_key = prog_key (§11.3), and on a prog_key miss

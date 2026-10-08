@@ -154,6 +154,12 @@ value that is always present costs nothing. A narrowing read is one
 `ref.as_non_null`, which cannot fail after the test. `struct.new_default`
 is valid for every frame type.
 
+**M4b local gap (M4b gap 6).** M4b declares every reference local in its
+defaultable nullable form and emits `ref.as_non_null` on each read. That
+keeps validation simple, but adds redundant casts to locals whose value
+is always present. The non-null language-local rule above remains the
+target; only genuinely inactive slots use `dflt`.
+
 **Enum layout per enum (mine).** Every enum is an identity-free value
 (S1c) and normally uses the value layout of "One predicate for
 identity-free enums" below. The flat and subtype rows above are the
@@ -180,6 +186,11 @@ only the runtime form depends on the value. This is where the owner's
 "at least `i31ref`" lands: in monomorphized code no scalar is boxed at
 all. A string is boxed in `$Box_str`, an immutable `{bytes, span}`
 struct, as a tuple is boxed in one immutable struct.
+
+**M4b erased-scalar gap (M4b gap 3).** The current erased path always
+allocates a scalar box. It does not emit the `i31ref` range fast path or
+the corresponding unbox branch. The mixed `i31ref`/box representation
+above remains required.
 
 **Identity (owner decision B, extended, 2026-10-07).** The Codex review (finding 1)
 showed that the rows above broke the spec's allocation identity: the spec
@@ -332,6 +343,11 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
 | fact values and metadata | mutable, nullable; null is the flag for a one-reference layout, else an `i32` flag | lazily: a getter runs the fact's body on the first read (codegen.md §12.3) | a `call` of the getter |
 | shared enum data | mutable, nullable or zero | the declaring module's group init function ([`data.shared.module-init`](../../spec/lang/08-data-and-enums.md#r-data.shared.module-init)) | `global.get` |
 
+**M4b vtable gap (M4b gap 2).** M4b does not place vtables in immutable
+globals. Each coercion executes `struct.new`, and the struct omits the
+direct-supertrait vtable fields required by codegen.md §13.5. The global
+row above remains the intended allocation and layout rule.
+
 **Stable numbering (lowering pass).** A reader never holds the index of
 a lazily initialized global: it calls a getter, and wasmtime's
 per-function cache abstracts call targets, so adding a literal or a fact
@@ -457,14 +473,13 @@ generated for that program, std included (§16.1). The tiny program
 | `hd.names`, `hd.sites`, `hd.lines`, `hd.runtime` | 300 B |
 | total | about 800 B (an estimate, not an accounting) |
 
-**Status: not established.** The table guesses part sizes; it is not a
-byte count of a real module. It may miss the path from `println` to the
-`Console` provider, a `block_on` or suspension helper that path keeps,
-vtable and provider types, the failure path, and the exchange-memory
-exports. Slice 6 starts with a spike that emits the real hello-world
-closure, release metadata included. It reports bytes per section and,
-separately, instantiation to first output. The 2 KB target stands until
-that spike measures it.
+**M4b measurement (M4b gap 8).** The current hello-world module is about
+4.8 KB with its standard `name` section, so it misses the 2 KB target.
+Reachability currently brings std number formatting and helpers along
+with `println`; link also emits dev names rather than the compact release
+metadata above. The estimate table is not an accounting. The queued size
+breakdown must report each section and reachable function before any
+design change or tuning decision.
 
 What keeps it small:
 

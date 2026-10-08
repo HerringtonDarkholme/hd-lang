@@ -525,6 +525,13 @@ uses `want`. "Infer" means it synthesizes and the caller coerces.
 | `x is y` | infer both | none | identity rules; see below |
 | `_` | check | records `want` for the hole diagnostic | `placeholder-outside-pipe` (section 10.4) |
 
+**Interpolation ownership (M4b gap 9).** An interpolation contributes
+only its top-level expression result to the enclosing string's parts.
+Tokens and literals nested inside that expression remain operands of the
+expression. The M4 checker violates this for `${ages["cy"]}` by also
+appending the index key literal `"cy"`; the token/child walk must consume
+each interpolation subtree exactly once.
+
 **Identity `is`** ([Allocation Identity](../../spec/lang/05-expressions.md#allocation-identity),
 as the S1c spec pass applied the owner's answers of 2026-10-07).
 After inferring both operands, the checker:
